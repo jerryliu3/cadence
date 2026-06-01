@@ -110,6 +110,23 @@ const defaultGroupDraft: GroupGoalDraft = {
   endDate: "",
 };
 
+const groupFrequencyOptions: Array<{
+  value: GroupGoalDraft["frequencyType"];
+  label: string;
+}> = [
+  { value: "recurring", label: "Recurring" },
+  { value: "fixed_milestones", label: "Fixed milestones" },
+];
+
+const groupRecurrenceOptions: Array<{
+  value: RecurrenceInterval;
+  label: string;
+}> = [
+  { value: "daily", label: "Daily" },
+  { value: "weekly", label: "Weekly" },
+  { value: "monthly", label: "Monthly" },
+];
+
 export function SocialTab() {
   const supabase = useMemo(() => createClient(), []);
   const [state, setState] = useState<SocialState>(initialState);
@@ -141,7 +158,12 @@ export function SocialTab() {
 
     const [profileResponse, ownGoalsResponse, sharesResponse, membershipsResponse] = await Promise.all([
       supabase.from("profiles").select("*").eq("id", user.id).maybeSingle(),
-      supabase.from("goals").select("*").eq("owner_id", user.id).order("created_at", { ascending: false }),
+      supabase
+        .from("goals")
+        .select("*")
+        .eq("owner_id", user.id)
+        .eq("is_deleted", false)
+        .order("created_at", { ascending: false }),
       supabase.from("goal_shares").select("*").eq("shared_with", user.id),
       supabase.from("goal_participants").select("*").eq("user_id", user.id),
     ]);
@@ -160,9 +182,9 @@ export function SocialTab() {
     const sharedGoalIds = sharedEntries.map((entry) => entry.goal_id);
     const [sharedGoalsResponse, groupGoalsResponse] = await Promise.all([
       sharedGoalIds.length > 0
-        ? supabase.from("goals").select("*").in("id", sharedGoalIds)
+        ? supabase.from("goals").select("*").in("id", sharedGoalIds).eq("is_deleted", false)
         : Promise.resolve({ data: [], error: null } as const),
-      supabase.from("goals").select("*").eq("is_group", true),
+      supabase.from("goals").select("*").eq("is_group", true).eq("is_deleted", false),
     ]);
 
     const sharedGoals = (sharedGoalsResponse.data ?? []) as Goal[];
@@ -282,6 +304,17 @@ export function SocialTab() {
     [state.completions]
   );
 
+  const updateGroupFrequencyType = (nextFrequency: GroupGoalDraft["frequencyType"]) => {
+    setGroupDraft((previous) => ({
+      ...previous,
+      frequencyType: nextFrequency,
+      targetCount:
+        nextFrequency === "fixed_milestones" && previous.targetCount.trim().length === 0
+          ? "3"
+          : previous.targetCount,
+    }));
+  };
+
   const saveProfile = async () => {
     if (!state.userId) {
       return;
@@ -363,6 +396,24 @@ export function SocialTab() {
       return;
     }
 
+    if (
+      groupDraft.frequencyType === "recurring" &&
+      groupDraft.targetCount.trim().length > 0 &&
+      Number.parseInt(groupDraft.targetCount, 10) <= 0
+    ) {
+      toast.error("Recurring target count must be positive.");
+      return;
+    }
+
+    if (
+      groupDraft.frequencyType === "recurring" &&
+      groupDraft.targetCount.trim().length > 0 &&
+      !groupDraft.endDate
+    ) {
+      toast.error("Recurring goals with a target count require an end date.");
+      return;
+    }
+
     setSaving(true);
     const newGroupGoalId = crypto.randomUUID();
     const { error } = await supabase.from("goals").insert({
@@ -381,6 +432,9 @@ export function SocialTab() {
       target_count:
         groupDraft.frequencyType === "fixed_milestones"
           ? Number.parseInt(groupDraft.targetCount, 10)
+          : groupDraft.frequencyType === "recurring" &&
+              groupDraft.targetCount.trim().length > 0
+            ? Number.parseInt(groupDraft.targetCount, 10)
           : null,
       start_date: format(new Date(), "yyyy-MM-dd"),
       end_date: groupDraft.endDate || null,
@@ -436,7 +490,7 @@ export function SocialTab() {
   const deleteGroupGoal = async (goalId: string) => {
     const { error } = await supabase
       .from("goals")
-      .delete()
+      .update({ is_deleted: true })
       .eq("id", goalId)
       .eq("owner_id", state.userId);
     if (error) {
@@ -689,42 +743,55 @@ export function SocialTab() {
                   <SelectItem value="custom">Custom</SelectItem>
                 </SelectContent>
               </Select>
-              <Select
-                value={groupDraft.frequencyType}
-                onValueChange={(value: GroupGoalDraft["frequencyType"]) =>
-                  setGroupDraft((prev) => ({ ...prev, frequencyType: value }))
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Frequency type" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="fixed_milestones">Fixed milestones</SelectItem>
-                  <SelectItem value="recurring">Recurring</SelectItem>
-                </SelectContent>
-              </Select>
+              <div className="flex flex-wrap gap-2">
+                {groupFrequencyOptions.map((option) => (
+                  <Button
+                    key={option.value}
+                    type="button"
+                    size="sm"
+                    variant={groupDraft.frequencyType === option.value ? "secondary" : "outline"}
+                    className="rounded-full"
+                    onClick={() => updateGroupFrequencyType(option.value)}
+                  >
+                    {option.label}
+                  </Button>
+                ))}
+              </div>
               {groupDraft.frequencyType === "recurring" ? (
-                <Select
-                  value={groupDraft.recurrenceInterval}
-                  onValueChange={(value: RecurrenceInterval) =>
-                    setGroupDraft((prev) => ({ ...prev, recurrenceInterval: value }))
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Recurring interval" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="daily">Daily</SelectItem>
-                    <SelectItem value="weekly">Weekly</SelectItem>
-                    <SelectItem value="monthly">Monthly</SelectItem>
-                  </SelectContent>
-                </Select>
+                <div className="flex flex-wrap gap-2">
+                  {groupRecurrenceOptions.map((option) => (
+                    <Button
+                      key={option.value}
+                      type="button"
+                      size="sm"
+                      variant={
+                        groupDraft.recurrenceInterval === option.value
+                          ? "secondary"
+                          : "outline"
+                      }
+                      className="rounded-full"
+                      onClick={() =>
+                        setGroupDraft((prev) => ({
+                          ...prev,
+                          recurrenceInterval: option.value,
+                        }))
+                      }
+                    >
+                      {option.label}
+                    </Button>
+                  ))}
+                </div>
               ) : null}
-              {groupDraft.frequencyType === "fixed_milestones" ? (
+              {groupDraft.frequencyType === "fixed_milestones" ||
+              groupDraft.frequencyType === "recurring" ? (
                 <Input
                   type="number"
                   min={1}
-                  placeholder="Target count"
+                  placeholder={
+                    groupDraft.frequencyType === "fixed_milestones"
+                      ? "Target count"
+                      : "Target count (optional)"
+                  }
                   value={groupDraft.targetCount}
                   onChange={(event) =>
                     setGroupDraft((prev) => ({ ...prev, targetCount: event.target.value }))

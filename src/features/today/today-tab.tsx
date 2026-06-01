@@ -26,8 +26,9 @@ import { getCategoryBadgeClass } from "@/lib/goals/category";
 import {
   getFrequencySummary,
   hasCompletionToday,
-  isGoalArchived,
+  isGoalCompleted,
   isGoalDoneForCurrentPeriod,
+  isGoalManuallyArchived,
 } from "@/lib/goals/schedule";
 import type { Completion, Goal, GoalLink, GoalParticipant } from "@/lib/goals/types";
 import { createClient } from "@/lib/supabase/client";
@@ -65,62 +66,77 @@ export function TodayTab() {
   const [data, setData] = useState<TodayData>(emptyData);
   const [loading, setLoading] = useState(true);
   const [savingGoalId, setSavingGoalId] = useState<string | null>(null);
+  const [completedOpen, setCompletedOpen] = useState(false);
   const [archiveOpen, setArchiveOpen] = useState(false);
 
-  const loadData = useCallback(async () => {
-    setLoading(true);
+  const loadData = useCallback(
+    async ({ showLoading = true }: { showLoading?: boolean } = {}) => {
+      if (showLoading) {
+        setLoading(true);
+      }
 
-    const {
-      data: { user },
-      error: userError,
-    } = await supabase.auth.getUser();
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
 
-    if (userError || !user) {
-      setLoading(false);
-      setData(emptyData);
-      return;
-    }
+      if (userError || !user) {
+        if (showLoading) {
+          setLoading(false);
+        }
+        setData(emptyData);
+        return;
+      }
 
-    const [goalsResponse, completionsResponse, participantsResponse, linksResponse] =
-      await Promise.all([
-        supabase.from("goals").select("*").order("created_at", { ascending: false }),
-        supabase.from("completions").select("*").eq("user_id", user.id),
-        supabase.from("goal_participants").select("*").eq("user_id", user.id),
-        supabase.from("goal_links").select("*").eq("owner_id", user.id),
-      ]);
+      const [goalsResponse, completionsResponse, participantsResponse, linksResponse] =
+        await Promise.all([
+          supabase
+            .from("goals")
+            .select("*")
+            .eq("is_deleted", false)
+            .order("created_at", { ascending: false }),
+          supabase.from("completions").select("*").eq("user_id", user.id),
+          supabase.from("goal_participants").select("*").eq("user_id", user.id),
+          supabase.from("goal_links").select("*").eq("owner_id", user.id),
+        ]);
 
-    const goals = (goalsResponse.data ?? []) as Goal[];
-    const completions = (completionsResponse.data ?? []) as Completion[];
-    const participants = (participantsResponse.data ?? []) as GoalParticipant[];
-    const links = (linksResponse.data ?? []) as GoalLink[];
+      const goals = (goalsResponse.data ?? []) as Goal[];
+      const completions = (completionsResponse.data ?? []) as Completion[];
+      const participants = (participantsResponse.data ?? []) as GoalParticipant[];
+      const links = (linksResponse.data ?? []) as GoalLink[];
 
-    const photoUrls: Record<string, string> = {};
-    await Promise.all(
-      goals
-        .filter((goal) => goal.photo_path)
-        .map(async (goal) => {
-          if (!goal.photo_path) {
-            return;
-          }
-          const { data: signedData } = await supabase.storage
-            .from("goal-photos")
-            .createSignedUrl(goal.photo_path, 60 * 60);
-          if (signedData?.signedUrl) {
-            photoUrls[goal.id] = signedData.signedUrl;
-          }
-        })
-    );
+      const photoUrls: Record<string, string> = {};
+      await Promise.all(
+        goals
+          .filter((goal) => goal.photo_path)
+          .map(async (goal) => {
+            if (!goal.photo_path) {
+              return;
+            }
+            const { data: signedData } = await supabase.storage
+              .from("goal-photos")
+              .createSignedUrl(goal.photo_path, 60 * 60);
+            if (signedData?.signedUrl) {
+              photoUrls[goal.id] = signedData.signedUrl;
+            }
+          })
+      );
 
-    setData({
-      userId: user.id,
-      goals,
-      completions,
-      participants,
-      links,
-      photoUrls,
-    });
-    setLoading(false);
-  }, [supabase]);
+      setData({
+        userId: user.id,
+        goals,
+        completions,
+        participants,
+        links,
+        photoUrls,
+      });
+
+      if (showLoading) {
+        setLoading(false);
+      }
+    },
+    [supabase]
+  );
 
   useEffect(() => {
     const run = async () => {
@@ -152,7 +168,22 @@ export function TodayTab() {
         return false;
       }
       const count = completionsByGoal.get(goal.id)?.length ?? 0;
-      return !isGoalArchived(goal, count);
+      return !isGoalCompleted(goal, count) && !isGoalManuallyArchived(goal);
+    });
+  }, [completableGoalIds, completionsByGoal, data.goals]);
+
+  const completedGoals = useMemo(() => {
+    return data.goals.filter((goal) => {
+      if (!completableGoalIds.has(goal.id)) {
+        return false;
+      }
+
+      if (isGoalManuallyArchived(goal)) {
+        return false;
+      }
+
+      const count = completionsByGoal.get(goal.id)?.length ?? 0;
+      return isGoalCompleted(goal, count);
     });
   }, [completableGoalIds, completionsByGoal, data.goals]);
 
@@ -161,10 +192,10 @@ export function TodayTab() {
       if (!completableGoalIds.has(goal.id)) {
         return false;
       }
-      const count = completionsByGoal.get(goal.id)?.length ?? 0;
-      return isGoalArchived(goal, count);
+
+      return isGoalManuallyArchived(goal);
     });
-  }, [completableGoalIds, completionsByGoal, data.goals]);
+  }, [completableGoalIds, data.goals]);
 
   const dueToday = useMemo(
     () =>
@@ -200,31 +231,38 @@ export function TodayTab() {
     const completions = completionsByGoal.get(goal.id) ?? [];
     const completedToday = hasCompletionToday(completions);
     setSavingGoalId(goal.id);
+    const currentScrollY = window.scrollY;
 
-    if (completedToday) {
-      const { error } = await supabase.rpc("unmark_goal_complete", {
-        p_goal_id: goal.id,
-        p_date: toLocalDateString(),
-      });
-      if (error) {
-        toast.error(error.message);
+    try {
+      if (completedToday) {
+        const { error } = await supabase.rpc("unmark_goal_complete", {
+          p_goal_id: goal.id,
+          p_date: toLocalDateString(),
+        });
+        if (error) {
+          toast.error(error.message);
+        } else {
+          toast.success("Marked as incomplete for today.");
+        }
       } else {
-        toast.success("Marked as incomplete for today.");
+        const { error } = await supabase.rpc("mark_goal_complete", {
+          p_goal_id: goal.id,
+          p_date: toLocalDateString(),
+        });
+        if (error) {
+          toast.error(error.message);
+        } else {
+          toast.success("Great work. Goal completed for today.");
+        }
       }
-    } else {
-      const { error } = await supabase.rpc("mark_goal_complete", {
-        p_goal_id: goal.id,
-        p_date: toLocalDateString(),
+
+      await loadData({ showLoading: false });
+      requestAnimationFrame(() => {
+        window.scrollTo({ top: currentScrollY, behavior: "auto" });
       });
-      if (error) {
-        toast.error(error.message);
-      } else {
-        toast.success("Great work. Goal completed for today.");
-      }
+    } finally {
+      setSavingGoalId(null);
     }
-
-    await loadData();
-    setSavingGoalId(null);
   };
 
   if (loading) {
@@ -327,13 +365,52 @@ export function TodayTab() {
         )}
       </section>
 
+      <Collapsible open={completedOpen} onOpenChange={setCompletedOpen}>
+        <Card className="shadow-sm">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="size-4 text-muted-foreground" />
+                <CardTitle className="text-base">Completed</CardTitle>
+                <Badge variant="secondary">{completedGoals.length}</Badge>
+              </div>
+              <CollapsibleTrigger asChild>
+                <Button variant="ghost" size="icon-sm">
+                  {completedOpen ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
+                </Button>
+              </CollapsibleTrigger>
+            </div>
+          </CardHeader>
+          <CollapsibleContent>
+            <CardContent className="space-y-3">
+              {completedGoals.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No completed goals yet.</p>
+              ) : (
+                completedGoals.map((goal) => (
+                  <GoalCard
+                    key={goal.id}
+                    goal={goal}
+                    completions={completionsByGoal.get(goal.id) ?? []}
+                    linkedCount={data.links.filter((link) => link.source_goal_id === goal.id).length}
+                    imageUrl={data.photoUrls[goal.id]}
+                    disabled
+                    archived
+                    onToggle={() => undefined}
+                  />
+                ))
+              )}
+            </CardContent>
+          </CollapsibleContent>
+        </Card>
+      </Collapsible>
+
       <Collapsible open={archiveOpen} onOpenChange={setArchiveOpen}>
         <Card className="shadow-sm">
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Archive className="size-4 text-muted-foreground" />
-                <CardTitle className="text-base">Completed & archived</CardTitle>
+                <CardTitle className="text-base">Archived</CardTitle>
                 <Badge variant="secondary">{archivedGoals.length}</Badge>
               </div>
               <CollapsibleTrigger asChild>

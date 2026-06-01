@@ -71,8 +71,12 @@ export function getGoalCompletionPercentage(
   completions: Completion[],
   referenceDate = new Date()
 ): number {
+  if (goal.target_count !== null) {
+    return Math.min(100, (completions.length / goal.target_count) * 100);
+  }
+
   if (goal.frequency_type === "fixed_milestones") {
-    const target = goal.target_count ?? 1;
+    const target = 1;
     return Math.min(100, (completions.length / target) * 100);
   }
 

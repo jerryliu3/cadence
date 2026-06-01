@@ -21,6 +21,7 @@ function buildGoal(overrides: Partial<Goal>): Goal {
     end_date: null,
     photo_path: null,
     is_group: false,
+    is_deleted: false,
     archived_at: null,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
@@ -71,6 +72,21 @@ describe("goal progress calculations", () => {
 
     const percent = getGoalCompletionPercentage(goal, completions, new Date(2026, 4, 5));
     expect(percent).toBe(60);
+  });
+
+  it("uses target count when recurring goal defines one", () => {
+    const goal = buildGoal({
+      id: "targeted-recurring-id",
+      frequency_type: "recurring",
+      recurrence_interval: "weekly",
+      target_count: 5,
+    });
+    const completions = [
+      completion("targeted-recurring-id", "2026-05-01"),
+      completion("targeted-recurring-id", "2026-05-03"),
+    ];
+
+    expect(getGoalCompletionPercentage(goal, completions)).toBe(40);
   });
 
   it("computes overall completion as average across goals", () => {

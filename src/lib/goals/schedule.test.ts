@@ -1,6 +1,10 @@
 import { addDays, startOfISOWeek } from "date-fns";
 import { describe, expect, it } from "vitest";
-import { isGoalArchived, isGoalDoneForCurrentPeriod } from "@/lib/goals/schedule";
+import {
+  isGoalCompleted,
+  isGoalDoneForCurrentPeriod,
+  isGoalManuallyArchived,
+} from "@/lib/goals/schedule";
 import type { Completion, Goal } from "@/lib/goals/types";
 
 function buildGoal(overrides: Partial<Goal>): Goal {
@@ -18,6 +22,7 @@ function buildGoal(overrides: Partial<Goal>): Goal {
     end_date: null,
     photo_path: null,
     is_group: false,
+    is_deleted: false,
     archived_at: null,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
@@ -63,34 +68,42 @@ describe("goal schedule semantics", () => {
     expect(isGoalDoneForCurrentPeriod(goal, [completionToday], referenceDate)).toBe(true);
   });
 
-  it("marks milestone goals as archived once target is reached", () => {
+  it("marks milestone goals as completed once target is reached", () => {
     const goal = buildGoal({
       frequency_type: "fixed_milestones",
       recurrence_interval: null,
       target_count: 1,
     });
 
-    expect(isGoalArchived(goal, 0)).toBe(false);
-    expect(isGoalArchived(goal, 1)).toBe(true);
+    expect(isGoalCompleted(goal, 0)).toBe(false);
+    expect(isGoalCompleted(goal, 1)).toBe(true);
   });
 
-  it("does not auto-archive indefinite recurring goals", () => {
+  it("does not auto-complete indefinite recurring goals", () => {
     const goal = buildGoal({
       frequency_type: "recurring",
       recurrence_interval: "monthly",
       end_date: null,
     });
 
-    expect(isGoalArchived(goal, 500, new Date("2026-08-01"))).toBe(false);
+    expect(isGoalCompleted(goal, 500, new Date("2026-08-01"))).toBe(false);
   });
 
-  it("archives any goal with an end date in the past", () => {
+  it("completes any goal with an end date in the past", () => {
     const goal = buildGoal({
       frequency_type: "recurring",
       recurrence_interval: "daily",
       end_date: "2026-04-01",
     });
 
-    expect(isGoalArchived(goal, 0, new Date("2026-05-01"))).toBe(true);
+    expect(isGoalCompleted(goal, 0, new Date("2026-05-01"))).toBe(true);
+  });
+
+  it("treats archived_at as manual archive only", () => {
+    const goal = buildGoal({
+      archived_at: "2026-05-01T00:00:00.000Z",
+    });
+
+    expect(isGoalManuallyArchived(goal)).toBe(true);
   });
 });

@@ -27,6 +27,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { MonthHeatmap } from "@/features/insights/month-heatmap";
+import { toLocalDateString } from "@/lib/dates/day";
 import { getCategoryBadgeClass } from "@/lib/goals/category";
 import { getGoalCompletionPercentage, getOverallCompletionPercentage, getRecurringStreaks } from "@/lib/goals/progress";
 import type { Completion, Goal, GoalParticipant } from "@/lib/goals/types";
@@ -84,9 +85,18 @@ const aggregateWeekdayLabels: [string, string, string, string, string, string, s
 interface MilestoneStepsProps {
   targetCount: number;
   completions: Completion[];
+  interactive?: boolean;
+  pending?: boolean;
+  onStepClick?: () => void;
 }
 
-function MilestoneSteps({ targetCount, completions }: MilestoneStepsProps) {
+function MilestoneSteps({
+  targetCount,
+  completions,
+  interactive = false,
+  pending = false,
+  onStepClick,
+}: MilestoneStepsProps) {
   const sortedCompletions = [...completions].sort((left, right) =>
     left.completed_on.localeCompare(right.completed_on)
   );
@@ -101,6 +111,28 @@ function MilestoneSteps({ targetCount, completions }: MilestoneStepsProps) {
         {Array.from({ length: safeTarget }).map((_, index) => {
           const completion = sortedCompletions[index];
           const complete = Boolean(completion);
+          const stepContent = (
+            <>
+              <p className="font-medium">Milestone {index + 1}</p>
+              <p className="text-muted-foreground">
+                {complete ? `Done on ${completion.completed_on}` : "Pending"}
+              </p>
+            </>
+          );
+
+          if (interactive && !complete && onStepClick) {
+            return (
+              <button
+                key={`${index + 1}-step`}
+                type="button"
+                disabled={pending}
+                onClick={onStepClick}
+                className="rounded-lg border border-border bg-muted/30 px-3 py-2 text-left text-xs transition-colors hover:border-primary/40 hover:bg-primary/10 disabled:opacity-60"
+              >
+                {stepContent}
+              </button>
+            );
+          }
 
           return (
             <div
@@ -109,10 +141,7 @@ function MilestoneSteps({ targetCount, completions }: MilestoneStepsProps) {
                 complete ? "border-primary/40 bg-primary/10" : "border-border bg-muted/30"
               }`}
             >
-              <p className="font-medium">Milestone {index + 1}</p>
-              <p className="text-muted-foreground">
-                {complete ? `Done on ${completion.completed_on}` : "Pending"}
-              </p>
+              {stepContent}
             </div>
           );
         })}
@@ -149,7 +178,7 @@ export function InsightsTab() {
       }
 
       const [goalsResponse, completionsResponse, participantsResponse] = await Promise.all([
-        supabase.from("goals").select("*").order("title"),
+        supabase.from("goals").select("*").eq("is_deleted", false).order("title"),
         supabase.from("completions").select("*").eq("user_id", user.id),
         supabase.from("goal_participants").select("*").eq("user_id", user.id),
       ]);
@@ -178,12 +207,19 @@ export function InsightsTab() {
 
   const completableGoalIds = useMemo(() => {
     const ids = new Set<string>();
+    const visibleGoalIds = new Set(state.goals.map((goal) => goal.id));
+
     state.goals.forEach((goal) => {
       if (goal.owner_id === state.userId) {
         ids.add(goal.id);
       }
     });
-    state.participants.forEach((participant) => ids.add(participant.goal_id));
+
+    state.participants.forEach((participant) => {
+      if (visibleGoalIds.has(participant.goal_id)) {
+        ids.add(participant.goal_id);
+      }
+    });
     return ids;
   }, [state.goals, state.participants, state.userId]);
 
@@ -387,26 +423,28 @@ export function InsightsTab() {
               const percent = getGoalCompletionPercentage(goal, completions);
               const streaks = getRecurringStreaks(goal, completions);
               const isRecurring = goal.frequency_type === "recurring";
-              const editingHistory = isRecurring && editingGoalId === goal.id;
+              const isMilestone = goal.frequency_type === "fixed_milestones";
+              const editingHistory = editingGoalId === goal.id;
               return (
                 <Card key={goal.id} className="border shadow-none">
                   <CardContent className="space-y-3 py-4">
                     <div className="flex items-center justify-between gap-2">
-                      <div>
-                        <p className="inline-flex items-center gap-2 text-sm font-semibold">
-                          <span
-                            className="size-2 rounded-full"
-                            style={{ backgroundColor: goal.color ?? "var(--muted-foreground)" }}
-                          />
-                          {goal.title}
-                        </p>
-                        <Badge variant="outline" className={getCategoryBadgeClass(goal.category)}>
+                      <div className="flex min-w-0 items-center gap-2">
+                        <span
+                          className="size-2 shrink-0 rounded-full"
+                          style={{ backgroundColor: goal.color ?? "var(--muted-foreground)" }}
+                        />
+                        <p className="truncate text-sm font-semibold">{goal.title}</p>
+                        <Badge
+                          variant="outline"
+                          className={getCategoryBadgeClass(goal.category)}
+                        >
                           {goal.category}
                         </Badge>
                       </div>
                       <div className="flex items-center gap-2">
                         <Badge variant="secondary">{Math.round(percent)}%</Badge>
-                        {isRecurring ? (
+                        {isRecurring || isMilestone ? (
                           <Button
                             type="button"
                             size="sm"
@@ -418,17 +456,43 @@ export function InsightsTab() {
                             }
                           >
                             <PencilLine className="size-3.5" />
-                            {editingHistory ? "Done" : "Edit dates"}
+                            {editingHistory
+                              ? "Done"
+                              : isRecurring
+                                ? "Edit dates"
+                                : "Edit milestones"}
                           </Button>
                         ) : null}
                       </div>
                     </div>
 
-                    {goal.frequency_type === "fixed_milestones" ? (
-                      <MilestoneSteps
-                        targetCount={goal.target_count ?? completions.length}
-                        completions={completions}
-                      />
+                    {isMilestone ? (
+                      <>
+                        {editingHistory ? (
+                          <p className="text-xs text-muted-foreground">
+                            Tap a pending milestone to mark it complete for today.
+                          </p>
+                        ) : null}
+                        <MilestoneSteps
+                          targetCount={goal.target_count ?? completions.length}
+                          completions={completions}
+                          interactive={editingHistory}
+                          pending={pendingRetroDate === toLocalDateString()}
+                          onStepClick={() => {
+                            const today = toLocalDateString();
+                            const alreadyCompletedToday = completions.some(
+                              (completion) => completion.completed_on === today
+                            );
+
+                            if (alreadyCompletedToday) {
+                              toast("Already completed for today.");
+                              return;
+                            }
+
+                            void markRetroactiveCompletion(goal, today);
+                          }}
+                        />
+                      </>
                     ) : (
                       <>
                         {editingHistory ? (
@@ -477,7 +541,7 @@ export function InsightsTab() {
       <div className="rounded-xl border bg-muted/30 p-3 text-xs text-muted-foreground">
         <p className="inline-flex items-center gap-1">
           <CalendarRange className="size-3" />
-          Recurring adherence is completed periods divided by elapsed expected periods since start date.
+          Recurring progress uses completed periods over expected periods unless a target count is set.
         </p>
       </div>
     </div>

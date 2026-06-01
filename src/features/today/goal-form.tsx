@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, Archive, Link2, LoaderCircle, Save, Undo2 } from "lucide-react";
+import { ArrowLeft, Archive, Link2, LoaderCircle, Save, Trash2, Undo2 } from "lucide-react";
 import { endOfMonth, endOfYear, format } from "date-fns";
 import Link from "next/link";
 import Image from "next/image";
@@ -62,6 +62,17 @@ const defaultState: GoalFormState = {
   is_group: false,
 };
 
+const frequencyOptions: Array<{ value: GoalFrequencyType; label: string }> = [
+  { value: "recurring", label: "Recurring" },
+  { value: "fixed_milestones", label: "Fixed milestones" },
+];
+
+const recurrenceOptions: Array<{ value: RecurrenceInterval; label: string }> = [
+  { value: "daily", label: "Daily" },
+  { value: "weekly", label: "Weekly" },
+  { value: "monthly", label: "Monthly" },
+];
+
 export function GoalForm({ goalId }: GoalFormProps) {
   const supabase = useMemo(() => createClient(), []);
   const router = useRouter();
@@ -93,12 +104,18 @@ export function GoalForm({ goalId }: GoalFormProps) {
       setCurrentUserId(user.id);
 
       const [goalOptionsResponse, goalResponse, linksResponse] = await Promise.all([
-        supabase.from("goals").select("*").eq("owner_id", user.id).order("title"),
+        supabase
+          .from("goals")
+          .select("*")
+          .eq("owner_id", user.id)
+          .eq("is_deleted", false)
+          .order("title"),
         goalId
           ? supabase
               .from("goals")
               .select("*")
               .eq("id", goalId)
+              .eq("is_deleted", false)
               .single()
           : Promise.resolve({ data: null, error: null } as const),
         goalId
@@ -157,7 +174,19 @@ export function GoalForm({ goalId }: GoalFormProps) {
   }, [goalId, router, supabase]);
 
   const canShowRecurrenceFields = state.frequency_type === "recurring";
-  const canShowTargetCount = state.frequency_type === "fixed_milestones";
+  const canShowTargetCount =
+    state.frequency_type === "fixed_milestones" || state.frequency_type === "recurring";
+
+  const updateFrequencyType = (nextFrequency: GoalFrequencyType) => {
+    setState((previous) => ({
+      ...previous,
+      frequency_type: nextFrequency,
+      target_count:
+        nextFrequency === "fixed_milestones" && previous.target_count.trim().length === 0
+          ? "3"
+          : previous.target_count,
+    }));
+  };
 
   const applyThisMonthEndDate = () => {
     setState((previous) => ({
@@ -189,8 +218,20 @@ export function GoalForm({ goalId }: GoalFormProps) {
       return "Fixed milestone goals require a positive target count.";
     }
 
-    if (state.frequency_type === "fixed_milestones" && !state.end_date) {
-      return "Fixed milestone goals require an end date.";
+    if (
+      state.frequency_type === "recurring" &&
+      state.target_count.trim().length > 0 &&
+      Number.parseInt(state.target_count, 10) <= 0
+    ) {
+      return "Recurring goal target count must be a positive number.";
+    }
+
+    if (
+      state.frequency_type === "recurring" &&
+      state.target_count.trim().length > 0 &&
+      !state.end_date
+    ) {
+      return "Recurring goals with a target count require an end date.";
     }
 
     if (state.end_date && state.end_date < state.start_date) {
@@ -228,6 +269,8 @@ export function GoalForm({ goalId }: GoalFormProps) {
       target_count:
         state.frequency_type === "fixed_milestones"
           ? Number.parseInt(state.target_count, 10)
+          : state.frequency_type === "recurring" && state.target_count.trim().length > 0
+            ? Number.parseInt(state.target_count, 10)
           : null,
       start_date: state.start_date,
       end_date: state.end_date || null,
@@ -324,6 +367,30 @@ export function GoalForm({ goalId }: GoalFormProps) {
       router.refresh();
     }
 
+    setSaving(false);
+  };
+
+  const softDeleteGoal = async () => {
+    if (!goalId) {
+      return;
+    }
+
+    setSaving(true);
+    const { error } = await supabase
+      .from("goals")
+      .update({ is_deleted: true })
+      .eq("id", goalId)
+      .eq("owner_id", currentUserId);
+
+    if (error) {
+      toast.error(error.message);
+      setSaving(false);
+      return;
+    }
+
+    toast.success("Goal deleted.");
+    router.replace(state.is_group ? "/social" : "/");
+    router.refresh();
     setSaving(false);
   };
 
@@ -451,46 +518,54 @@ export function GoalForm({ goalId }: GoalFormProps) {
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label>Frequency type</Label>
-              <Select
-                value={state.frequency_type}
-                onValueChange={(value: GoalFrequencyType) =>
-                  setState((prev) => ({ ...prev, frequency_type: value }))
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select goal type" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="fixed_milestones">Fixed milestones</SelectItem>
-                  <SelectItem value="recurring">Recurring</SelectItem>
-                </SelectContent>
-              </Select>
+              <div className="flex flex-wrap gap-2">
+                {frequencyOptions.map((option) => (
+                  <Button
+                    key={option.value}
+                    type="button"
+                    size="sm"
+                    variant={state.frequency_type === option.value ? "secondary" : "outline"}
+                    className="rounded-full"
+                    onClick={() => updateFrequencyType(option.value)}
+                  >
+                    {option.label}
+                  </Button>
+                ))}
+              </div>
             </div>
 
             {canShowRecurrenceFields ? (
               <div className="space-y-2">
                 <Label>Recurrence interval</Label>
-                <Select
-                  value={state.recurrence_interval}
-                  onValueChange={(value: RecurrenceInterval) =>
-                    setState((prev) => ({ ...prev, recurrence_interval: value }))
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select interval" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="daily">Daily</SelectItem>
-                    <SelectItem value="weekly">Weekly</SelectItem>
-                    <SelectItem value="monthly">Monthly</SelectItem>
-                  </SelectContent>
-                </Select>
+                <div className="flex flex-wrap gap-2">
+                  {recurrenceOptions.map((option) => (
+                    <Button
+                      key={option.value}
+                      type="button"
+                      size="sm"
+                      variant={state.recurrence_interval === option.value ? "secondary" : "outline"}
+                      className="rounded-full"
+                      onClick={() =>
+                        setState((prev) => ({
+                          ...prev,
+                          recurrence_interval: option.value,
+                        }))
+                      }
+                    >
+                      {option.label}
+                    </Button>
+                  ))}
+                </div>
               </div>
             ) : null}
 
             {canShowTargetCount ? (
               <div className="space-y-2">
-                <Label htmlFor="target-count">Target count</Label>
+                <Label htmlFor="target-count">
+                  {state.frequency_type === "fixed_milestones"
+                    ? "Target count"
+                    : "Target completions (optional)"}
+                </Label>
                 <Input
                   id="target-count"
                   type="number"
@@ -499,8 +574,13 @@ export function GoalForm({ goalId }: GoalFormProps) {
                   onChange={(event) =>
                     setState((prev) => ({ ...prev, target_count: event.target.value }))
                   }
-                  required={canShowTargetCount}
+                  required={state.frequency_type === "fixed_milestones"}
                 />
+                {state.frequency_type === "recurring" ? (
+                  <p className="text-xs text-muted-foreground">
+                    Optional: set a total completion target to reach by the end date.
+                  </p>
+                ) : null}
               </div>
             ) : null}
           </div>
@@ -635,6 +715,17 @@ export function GoalForm({ goalId }: GoalFormProps) {
               >
                 <Archive className="size-4" />
                 Archive goal
+              </Button>
+            ) : null}
+            {isEditing ? (
+              <Button
+                type="button"
+                variant="destructive"
+                disabled={saving}
+                onClick={softDeleteGoal}
+              >
+                <Trash2 className="size-4" />
+                Delete goal
               </Button>
             ) : null}
           </div>

@@ -74,20 +74,12 @@ export function hasCompletionToday(
   return completions.some((entry) => entry.completed_on === today);
 }
 
-export function isGoalArchived(
+export function isGoalCompleted(
   goal: Goal,
   completionCount: number,
   referenceDate = new Date()
 ): boolean {
-  if (goal.archived_at) {
-    return true;
-  }
-
-  if (
-    goal.frequency_type === "fixed_milestones" &&
-    goal.target_count !== null &&
-    completionCount >= goal.target_count
-  ) {
+  if (goal.target_count !== null && completionCount >= goal.target_count) {
     return true;
   }
 
@@ -98,18 +90,32 @@ export function isGoalArchived(
   return false;
 }
 
+export function isGoalManuallyArchived(goal: Goal): boolean {
+  return goal.archived_at !== null;
+}
+
+function getRecurringIntervalLabel(goal: Goal): string {
+  if (goal.recurrence_interval === "weekly") {
+    return "Weekly";
+  }
+
+  if (goal.recurrence_interval === "monthly") {
+    return "Monthly";
+  }
+
+  return "Daily";
+}
+
 export function getFrequencySummary(goal: Goal, completionCount: number): string {
   if (goal.frequency_type === "fixed_milestones") {
     return `${completionCount}/${goal.target_count ?? 0} milestones`;
   }
 
-  if (goal.recurrence_interval === "weekly") {
-    return "Weekly recurring";
+  const intervalLabel = getRecurringIntervalLabel(goal);
+
+  if (goal.target_count !== null) {
+    return `${intervalLabel} recurring · ${completionCount}/${goal.target_count} completions`;
   }
 
-  if (goal.recurrence_interval === "monthly") {
-    return "Monthly recurring";
-  }
-
-  return "Daily recurring";
+  return `${intervalLabel} recurring`;
 }

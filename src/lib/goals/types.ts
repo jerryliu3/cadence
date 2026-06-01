@@ -17,6 +17,7 @@ export interface Goal {
   end_date: string | null;
   photo_path: string | null;
   is_group: boolean;
+  is_deleted: boolean;
   archived_at: string | null;
   created_at: string;
   updated_at: string;
