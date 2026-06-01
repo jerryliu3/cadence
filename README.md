@@ -1,36 +1,98 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Cadence
 
-## Getting Started
+Cadence is a mobile-first goal-tracking web app built with Next.js + Supabase.
+It supports:
 
-First, run the development server:
+- Daily, weekly, and monthly recurring goals
+- One-time goals and fixed milestone goals
+- A strict once-per-day completion invariant
+- Linked-goal completion cascades
+- Insights heatmaps and completion percentages
+- Read-only sharing and collaborative group goals
+
+## Stack
+
+- Next.js (App Router) + React + TypeScript
+- Tailwind CSS + shadcn/ui (Radix-based components)
+- Supabase (Postgres, Auth, Storage, RLS, RPC)
+- `@supabase/ssr` for auth/session handling
+- `date-fns` for all date math
+
+## Local Development (End-to-End)
+
+### 1) Start Supabase locally
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+pnpm supabase:start
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+This starts local Postgres/Auth/Storage using Docker.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### 2) Get local credentials
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+pnpm supabase:status
+```
 
-## Learn More
+Copy values into `.env.local`:
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+cp .env.local.example .env.local
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Set:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- `NEXT_PUBLIC_SUPABASE_URL` (usually `http://127.0.0.1:54321`)
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY` (use the **Publishable** key shown by `supabase status`)
 
-## Deploy on Vercel
+### 3) Apply migrations and seed data
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```bash
+pnpm supabase:reset
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+This applies:
+
+- `supabase/migrations/*.sql`
+- `supabase/seed.sql`
+
+### 4) Run the app
+
+```bash
+pnpm install
+pnpm dev
+```
+
+Open [http://localhost:3000](http://localhost:3000).
+
+## Demo Accounts (Seeded)
+
+- `alice@example.com` / `password123`
+- `bob@example.com` / `password123`
+- `carla@example.com` / `password123`
+
+Seed data includes:
+
+- Goals across all frequency types
+- Completion history spanning ~8 weeks
+- A linked-goal chain (`A -> B -> C`)
+- A read-only shared goal
+- A group goal with multiple participants
+
+## Useful Commands
+
+- `pnpm dev` - start Next.js dev server
+- `pnpm build` - production build
+- `pnpm lint` - lint checks
+- `pnpm test` - run unit tests
+- `pnpm supabase:start` - start local Supabase stack
+- `pnpm supabase:stop` - stop local Supabase stack
+- `pnpm supabase:status` - print local URLs and keys
+- `pnpm supabase:reset` - reset DB, apply migrations, run seed
+
+## Pointing to Hosted Supabase
+
+1. Create a hosted Supabase project.
+2. Set `.env.local` with hosted URL and your publishable/anon client key.
+3. Apply migrations through your normal deployment workflow (`supabase db push` / CI).
+4. Optionally adapt seed loading if you want demo data hosted.

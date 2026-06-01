@@ -1,0 +1,117 @@
+import { describe, expect, it } from "vitest";
+import {
+  getGoalCompletionPercentage,
+  getOverallCompletionPercentage,
+  getRecurringStreaks,
+} from "@/lib/goals/progress";
+import type { Completion, Goal } from "@/lib/goals/types";
+
+function buildGoal(overrides: Partial<Goal>): Goal {
+  return {
+    id: "goal-id",
+    owner_id: "user-id",
+    title: "Goal",
+    description: null,
+    category: "general",
+    color: null,
+    frequency_type: "recurring",
+    recurrence_interval: "daily",
+    target_count: null,
+    start_date: "2026-05-01",
+    end_date: null,
+    photo_path: null,
+    is_group: false,
+    archived_at: null,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    ...overrides,
+  };
+}
+
+function completion(goalId: string, date: string): Completion {
+  return {
+    id: `${goalId}-${date}`,
+    goal_id: goalId,
+    user_id: "user-id",
+    completed_on: date,
+    source: "manual",
+    created_at: new Date().toISOString(),
+  };
+}
+
+describe("goal progress calculations", () => {
+  it("calculates fixed milestone completion percentage", () => {
+    const goal = buildGoal({
+      id: "fixed-id",
+      frequency_type: "fixed_milestones",
+      recurrence_interval: null,
+      target_count: 10,
+    });
+    const completions = [
+      completion("fixed-id", "2026-05-01"),
+      completion("fixed-id", "2026-05-02"),
+      completion("fixed-id", "2026-05-03"),
+    ];
+
+    expect(getGoalCompletionPercentage(goal, completions)).toBe(30);
+  });
+
+  it("calculates recurring adherence as completed periods / expected periods", () => {
+    const goal = buildGoal({
+      id: "daily-id",
+      frequency_type: "recurring",
+      recurrence_interval: "daily",
+      start_date: "2026-05-01",
+    });
+    const completions = [
+      completion("daily-id", "2026-05-01"),
+      completion("daily-id", "2026-05-03"),
+      completion("daily-id", "2026-05-05"),
+    ];
+
+    const percent = getGoalCompletionPercentage(goal, completions, new Date(2026, 4, 5));
+    expect(percent).toBe(60);
+  });
+
+  it("computes overall completion as average across goals", () => {
+    const goalA = buildGoal({
+      id: "goal-a",
+      frequency_type: "one_time",
+      recurrence_interval: null,
+    });
+    const goalB = buildGoal({
+      id: "goal-b",
+      frequency_type: "fixed_milestones",
+      recurrence_interval: null,
+      target_count: 4,
+    });
+
+    const map = new Map<string, Completion[]>();
+    map.set("goal-a", [completion("goal-a", "2026-05-01")]);
+    map.set("goal-b", [
+      completion("goal-b", "2026-05-01"),
+      completion("goal-b", "2026-05-02"),
+    ]);
+
+    expect(getOverallCompletionPercentage([goalA, goalB], map)).toBe(75);
+  });
+
+  it("returns current and longest streak for recurring goals", () => {
+    const goal = buildGoal({
+      id: "streak-id",
+      frequency_type: "recurring",
+      recurrence_interval: "daily",
+      start_date: "2026-05-01",
+    });
+    const completions = [
+      completion("streak-id", "2026-05-01"),
+      completion("streak-id", "2026-05-02"),
+      completion("streak-id", "2026-05-03"),
+      completion("streak-id", "2026-05-05"),
+    ];
+
+    const streaks = getRecurringStreaks(goal, completions, new Date(2026, 4, 5));
+    expect(streaks.longest).toBe(3);
+    expect(streaks.current).toBe(1);
+  });
+});

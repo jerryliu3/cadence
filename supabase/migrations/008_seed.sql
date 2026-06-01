@@ -1,0 +1,1 @@
+-- Seed data lives in supabase/seed.sql and runs via db.seed.sql_paths in config.toml.
