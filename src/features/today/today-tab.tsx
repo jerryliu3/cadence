@@ -9,6 +9,7 @@ import {
   ChevronUp,
   Circle,
   Link2,
+  ListPlus,
   Plus,
   Sparkles,
 } from "lucide-react";
@@ -285,12 +286,20 @@ export function TodayTab() {
               <CardTitle className="text-xl">Today</CardTitle>
               <CardDescription>{format(new Date(), "EEEE, MMMM d")}</CardDescription>
             </div>
-            <Button asChild>
-              <Link href="/goals/new">
-                <Plus className="size-4" />
-                New goal
-              </Link>
-            </Button>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Button variant="outline" asChild>
+                <Link href="/goals/bulk">
+                  <ListPlus className="size-4" />
+                  New bulk goal
+                </Link>
+              </Button>
+              <Button asChild>
+                <Link href="/goals/new">
+                  <Plus className="size-4" />
+                  New goal
+                </Link>
+              </Button>
+            </div>
           </div>
         </CardHeader>
         <CardContent className="space-y-3">
