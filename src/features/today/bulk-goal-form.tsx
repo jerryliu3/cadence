@@ -75,6 +75,18 @@ interface BulkGoalDraft {
   errors: string[];
 }
 
+interface LlmGoalDraftPayload {
+  title?: string;
+  category?: string | null;
+  frequency_type?: GoalFrequencyType;
+  recurrence_interval?: RecurrenceInterval | null;
+  target_count?: number | null;
+  start_date?: string | null;
+  end_date?: string | null;
+}
+
+type BulkInputMode = "natural_language" | "csv";
+
 const csvExample = `title,category,frequency_type,recurrence_interval,target_count,start_date,end_date
 Morning run,Health,recurring,daily,20,2026-06-01,2026-12-31
 Read 12 books,Personal,fixed_milestones,,12,2026-06-01,2026-12-31`;
@@ -267,8 +279,10 @@ async function parseRowsFromSpreadsheetFile(
 export function BulkGoalForm() {
   const supabase = useMemo(() => createClient(), []);
   const router = useRouter();
+  const [inputMode, setInputMode] = useState<BulkInputMode>("natural_language");
   const [initializing, setInitializing] = useState(true);
   const [currentUserId, setCurrentUserId] = useState("");
+  const [naturalLanguageInput, setNaturalLanguageInput] = useState("");
   const [csvInput, setCsvInput] = useState("");
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [parsing, setParsing] = useState(false);
@@ -339,6 +353,67 @@ export function BulkGoalForm() {
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : "Could not parse CSV text."
+      );
+    } finally {
+      setParsing(false);
+    }
+  };
+
+  const parseNaturalLanguageInput = async () => {
+    const trimmed = naturalLanguageInput.trim();
+    if (!trimmed) {
+      toast.error("Describe at least one goal first.");
+      return;
+    }
+
+    setParsing(true);
+    try {
+      const response = await fetch("/api/bulk-goals/parse", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ prompt: trimmed }),
+      });
+
+      const payload = (await response.json()) as {
+        goals?: LlmGoalDraftPayload[];
+        error?: string;
+        details?: string;
+      };
+
+      if (!response.ok) {
+        const detailText = payload.details ? ` ${payload.details}` : "";
+        throw new Error(
+          payload.error
+            ? `${payload.error}${detailText}`
+            : "Could not parse natural language input."
+        );
+      }
+
+      const goals = payload.goals ?? [];
+      if (goals.length === 0) {
+        toast.error("No goals found in that prompt. Try adding more detail.");
+        return;
+      }
+
+      const rows = goals.map((goal) => ({
+        title: goal.title ?? "",
+        category: goal.category ?? "",
+        frequency_type: goal.frequency_type ?? "recurring",
+        recurrence_interval: goal.recurrence_interval ?? "",
+        target_count:
+          goal.target_count === null || goal.target_count === undefined
+            ? ""
+            : String(goal.target_count),
+        start_date: goal.start_date ?? "",
+        end_date: goal.end_date ?? "",
+      }));
+
+      loadDraftsFromRows(rows);
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Could not parse natural language input."
       );
     } finally {
       setParsing(false);
@@ -437,88 +512,151 @@ export function BulkGoalForm() {
     <div className="space-y-5">
       <Card className="shadow-sm">
         <CardHeader>
-          <div className="flex items-start justify-between gap-3">
+          <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <CardTitle>New bulk goals</CardTitle>
               <CardDescription>
-                Paste CSV or upload CSV/XLSX, review drafts, then approve in one click.
+                Describe goals with AI, paste CSV, or upload CSV/XLSX, then approve in one click.
               </CardDescription>
             </div>
-            <Button variant="outline" asChild>
-              <Link href="/">
-                <ArrowLeft className="size-4" />
-                Back
-              </Link>
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-5">
-          <section className="space-y-2">
-            <div className="rounded-lg border bg-muted/30 p-3 text-xs">
-              <p className="font-medium text-foreground">Example CSV (2 goals)</p>
-              <pre className="mt-2 overflow-x-auto whitespace-pre-wrap text-muted-foreground">
-                {csvExample}
-              </pre>
-              <div className="mt-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="inline-flex items-center gap-1 rounded-lg border bg-muted/40 p-1">
                 <Button
                   type="button"
                   size="sm"
-                  variant="outline"
-                  onClick={() => setCsvInput(csvExample)}
+                  variant={inputMode === "natural_language" ? "secondary" : "ghost"}
+                  className="h-8 rounded-md px-3"
+                  onClick={() => setInputMode("natural_language")}
                 >
-                  Use this example
+                  Natural language
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={inputMode === "csv" ? "secondary" : "ghost"}
+                  className="h-8 rounded-md px-3"
+                  onClick={() => setInputMode("csv")}
+                >
+                  CSV
                 </Button>
               </div>
-            </div>
-            <Label htmlFor="bulk-csv-input">Paste CSV content</Label>
-            <Textarea
-              id="bulk-csv-input"
-              value={csvInput}
-              onChange={(event) => setCsvInput(event.target.value)}
-              placeholder="title,category,frequency_type,recurrence_interval,target_count,start_date,end_date"
-              className="min-h-36"
-            />
-            <div className="flex flex-wrap items-center gap-2">
-              <Button type="button" variant="outline" onClick={parseCsvInput} disabled={parsing}>
-                {parsing ? (
-                  <LoaderCircle className="size-4 animate-spin" />
-                ) : (
-                  <ListChecks className="size-4" />
-                )}
-                Parse pasted CSV
+              <Button variant="outline" asChild>
+                <Link href="/">
+                  <ArrowLeft className="size-4" />
+                  Back
+                </Link>
               </Button>
             </div>
-          </section>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-5">
+          {inputMode === "natural_language" ? (
+            <section className="space-y-2">
+              <Label htmlFor="bulk-natural-language">Describe goals in natural language</Label>
+              <Textarea
+                id="bulk-natural-language"
+                value={naturalLanguageInput}
+                onChange={(event) => setNaturalLanguageInput(event.target.value)}
+                placeholder={
+                  "Example: I want to run 4 times per week, read 20 books this year, and call my parents every Sunday."
+                }
+                className="min-h-28"
+              />
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={parseNaturalLanguageInput}
+                  disabled={parsing}
+                >
+                  {parsing ? (
+                    <LoaderCircle className="size-4 animate-spin" />
+                  ) : (
+                    <Sparkles className="size-4" />
+                  )}
+                  Parse natural language
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Uses Gemini through a secure server route. Set <code>GEMINI_API_KEY</code> in{" "}
+                <code>.env.local</code>.
+              </p>
+            </section>
+          ) : (
+            <>
+              <section className="space-y-2">
+                <div className="rounded-lg border bg-muted/30 p-3 text-xs">
+                  <p className="font-medium text-foreground">Example CSV (2 goals)</p>
+                  <pre className="mt-2 overflow-x-auto whitespace-pre-wrap text-muted-foreground">
+                    {csvExample}
+                  </pre>
+                  <div className="mt-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setCsvInput(csvExample)}
+                    >
+                      Use this example
+                    </Button>
+                  </div>
+                </div>
+                <Label htmlFor="bulk-csv-input">Paste CSV content</Label>
+                <Textarea
+                  id="bulk-csv-input"
+                  value={csvInput}
+                  onChange={(event) => setCsvInput(event.target.value)}
+                  placeholder="title,category,frequency_type,recurrence_interval,target_count,start_date,end_date"
+                  className="min-h-36"
+                />
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button type="button" variant="outline" onClick={parseCsvInput} disabled={parsing}>
+                    {parsing ? (
+                      <LoaderCircle className="size-4 animate-spin" />
+                    ) : (
+                      <ListChecks className="size-4" />
+                    )}
+                    Parse pasted CSV
+                  </Button>
+                </div>
+              </section>
 
-          <section className="space-y-2">
-            <Label htmlFor="bulk-file-upload">Upload file</Label>
-            <Input
-              id="bulk-file-upload"
-              type="file"
-              accept=".csv,.xlsx,.xls"
-              onChange={onFileChange}
-            />
-            <div className="flex flex-wrap items-center gap-2">
-              <Button type="button" variant="outline" onClick={parseUploadedFile} disabled={parsing}>
-                {parsing ? (
-                  <LoaderCircle className="size-4 animate-spin" />
-                ) : (
-                  <Upload className="size-4" />
-                )}
-                Parse uploaded file
-              </Button>
-              {uploadedFile ? (
-                <Badge variant="secondary" className="inline-flex items-center gap-1">
-                  <FileSpreadsheet className="size-3.5" />
-                  {uploadedFile.name}
-                </Badge>
-              ) : null}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Supported columns: title, category, frequency_type, recurrence_interval,
-              target_count, start_date, end_date.
-            </p>
-          </section>
+              <section className="space-y-2">
+                <Label htmlFor="bulk-file-upload">Upload file</Label>
+                <Input
+                  id="bulk-file-upload"
+                  type="file"
+                  accept=".csv,.xlsx,.xls"
+                  onChange={onFileChange}
+                />
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={parseUploadedFile}
+                    disabled={parsing}
+                  >
+                    {parsing ? (
+                      <LoaderCircle className="size-4 animate-spin" />
+                    ) : (
+                      <Upload className="size-4" />
+                    )}
+                    Parse uploaded file
+                  </Button>
+                  {uploadedFile ? (
+                    <Badge variant="secondary" className="inline-flex items-center gap-1">
+                      <FileSpreadsheet className="size-3.5" />
+                      {uploadedFile.name}
+                    </Badge>
+                  ) : null}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Supported columns: title, category, frequency_type, recurrence_interval,
+                  target_count, start_date, end_date.
+                </p>
+              </section>
+            </>
+          )}
         </CardContent>
       </Card>
 
@@ -552,7 +690,9 @@ export function BulkGoalForm() {
         <CardContent className="space-y-3">
           {drafts.length === 0 ? (
             <p className="text-sm text-muted-foreground">
-              Parse CSV input or upload a file to generate drafts.
+              {inputMode === "natural_language"
+                ? "Parse natural language input to generate drafts."
+                : "Parse CSV input or upload a file to generate drafts."}
             </p>
           ) : (
             drafts.map((draft) => (

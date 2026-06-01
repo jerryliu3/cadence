@@ -4,11 +4,12 @@ Cadence is a mobile-first goal-tracking web app built with Next.js + Supabase.
 It supports:
 
 - Daily, weekly, and monthly recurring goals
-- One-time goals and fixed milestone goals
+- Fixed milestone goals and recurring goals with optional target counts
 - A strict once-per-day completion invariant
 - Linked-goal completion cascades
 - Insights heatmaps and completion percentages
 - Read-only sharing and collaborative group goals
+- Bulk goal creation from CSV/XLSX and natural-language parsing
 
 ## Stack
 
@@ -44,6 +45,7 @@ Set:
 
 - `NEXT_PUBLIC_SUPABASE_URL` (usually `http://127.0.0.1:54321`)
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY` (use the **Publishable** key shown by `supabase status`)
+- `GEMINI_API_KEY` (optional, only needed for AI natural-language bulk parsing)
 
 ### 3) Apply migrations and seed data
 
