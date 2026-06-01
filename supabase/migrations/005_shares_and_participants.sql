@@ -1,5 +1,5 @@
 create table public.goal_participants (
-  id uuid primary key default uuid_generate_v4(),
+  id uuid primary key default gen_random_uuid(),
   goal_id uuid not null references public.goals(id) on delete cascade,
   user_id uuid not null references public.profiles(id) on delete cascade,
   role public.participant_role not null default 'participant',
@@ -11,7 +11,7 @@ create index goal_participants_goal_idx on public.goal_participants(goal_id);
 create index goal_participants_user_idx on public.goal_participants(user_id);
 
 create table public.goal_shares (
-  id uuid primary key default uuid_generate_v4(),
+  id uuid primary key default gen_random_uuid(),
   goal_id uuid not null references public.goals(id) on delete cascade,
   shared_with uuid not null references public.profiles(id) on delete cascade,
   created_at timestamptz not null default now(),

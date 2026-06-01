@@ -1,5 +1,5 @@
 create table public.goals (
-  id uuid primary key default uuid_generate_v4(),
+  id uuid primary key default gen_random_uuid(),
   owner_id uuid not null references public.profiles(id) on delete cascade,
   title text not null,
   description text,

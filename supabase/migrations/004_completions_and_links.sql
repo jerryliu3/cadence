@@ -1,5 +1,5 @@
 create table public.completions (
-  id uuid primary key default uuid_generate_v4(),
+  id uuid primary key default gen_random_uuid(),
   goal_id uuid not null references public.goals(id) on delete cascade,
   user_id uuid not null references public.profiles(id) on delete cascade,
   completed_on date not null default current_date,
@@ -13,7 +13,7 @@ create index completions_user_idx on public.completions(user_id);
 create index completions_date_idx on public.completions(completed_on);
 
 create table public.goal_links (
-  id uuid primary key default uuid_generate_v4(),
+  id uuid primary key default gen_random_uuid(),
   owner_id uuid not null references public.profiles(id) on delete cascade,
   source_goal_id uuid not null references public.goals(id) on delete cascade,
   target_goal_id uuid not null references public.goals(id) on delete cascade,
