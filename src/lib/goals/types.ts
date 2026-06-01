@@ -1,4 +1,4 @@
-export type GoalFrequencyType = "one_time" | "fixed_milestones" | "recurring";
+export type GoalFrequencyType = "fixed_milestones" | "recurring";
 export type RecurrenceInterval = "daily" | "weekly" | "monthly";
 export type CompletionSource = "manual" | "linked_cascade";
 export type ParticipantRole = "owner" | "participant";

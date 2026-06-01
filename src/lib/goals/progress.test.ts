@@ -76,8 +76,9 @@ describe("goal progress calculations", () => {
   it("computes overall completion as average across goals", () => {
     const goalA = buildGoal({
       id: "goal-a",
-      frequency_type: "one_time",
+      frequency_type: "fixed_milestones",
       recurrence_interval: null,
+      target_count: 1,
     });
     const goalB = buildGoal({
       id: "goal-b",

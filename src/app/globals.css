@@ -93,21 +93,91 @@ a {
 }
 
 .heatmap-scale-0 {
-  background: color-mix(in oklch, var(--muted) 100%, transparent 0%);
+  background: #ebedf0;
 }
 
 .heatmap-scale-1 {
-  background: color-mix(in oklch, var(--primary) 22%, var(--muted) 78%);
+  background: #c6e48b;
 }
 
 .heatmap-scale-2 {
-  background: color-mix(in oklch, var(--primary) 40%, var(--muted) 60%);
+  background: #7bc96f;
 }
 
 .heatmap-scale-3 {
-  background: color-mix(in oklch, var(--primary) 60%, var(--muted) 40%);
+  background: #239a3b;
 }
 
 .heatmap-scale-4 {
-  background: color-mix(in oklch, var(--primary) 78%, var(--muted) 22%);
+  background: #196127;
+}
+
+.react-calendar-heatmap text {
+  fill: var(--color-muted-foreground);
+  font-size: 10px;
+}
+
+.react-calendar-heatmap rect {
+  rx: 2px;
+  ry: 2px;
+}
+
+.react-calendar-heatmap .heatmap-scale-0 {
+  fill: #ebedf0;
+}
+
+.react-calendar-heatmap .heatmap-scale-1 {
+  fill: #c6e48b;
+}
+
+.react-calendar-heatmap .heatmap-scale-2 {
+  fill: #7bc96f;
+}
+
+.react-calendar-heatmap .heatmap-scale-3 {
+  fill: #239a3b;
+}
+
+.react-calendar-heatmap .heatmap-scale-4 {
+  fill: #196127;
+}
+
+.dark .heatmap-scale-0 {
+  background: #2a2f36;
+}
+
+.dark .heatmap-scale-1 {
+  background: #1d4b2f;
+}
+
+.dark .heatmap-scale-2 {
+  background: #1f6b3a;
+}
+
+.dark .heatmap-scale-3 {
+  background: #2a8f4a;
+}
+
+.dark .heatmap-scale-4 {
+  background: #40b262;
+}
+
+.dark .react-calendar-heatmap .heatmap-scale-0 {
+  fill: #2a2f36;
+}
+
+.dark .react-calendar-heatmap .heatmap-scale-1 {
+  fill: #1d4b2f;
+}
+
+.dark .react-calendar-heatmap .heatmap-scale-2 {
+  fill: #1f6b3a;
+}
+
+.dark .react-calendar-heatmap .heatmap-scale-3 {
+  fill: #2a8f4a;
+}
+
+.dark .react-calendar-heatmap .heatmap-scale-4 {
+  fill: #40b262;
 }

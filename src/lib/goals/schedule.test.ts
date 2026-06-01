@@ -63,10 +63,11 @@ describe("goal schedule semantics", () => {
     expect(isGoalDoneForCurrentPeriod(goal, [completionToday], referenceDate)).toBe(true);
   });
 
-  it("marks one-time goals as archived once completed", () => {
+  it("marks milestone goals as archived once target is reached", () => {
     const goal = buildGoal({
-      frequency_type: "one_time",
+      frequency_type: "fixed_milestones",
       recurrence_interval: null,
+      target_count: 1,
     });
 
     expect(isGoalArchived(goal, 0)).toBe(false);

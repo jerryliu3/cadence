@@ -1,14 +1,33 @@
 "use client";
 
-import { addMonths, endOfYear, startOfYear, subMonths } from "date-fns";
-import { CalendarRange, ChevronLeft, ChevronRight, Flame, Layers3, TrendingUp } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  addMonths,
+  endOfYear,
+  isAfter,
+  parseISO,
+  startOfDay,
+  startOfYear,
+  subMonths,
+} from "date-fns";
+import {
+  CalendarRange,
+  ChevronLeft,
+  ChevronRight,
+  Flame,
+  Layers3,
+  PencilLine,
+  TrendingUp,
+} from "lucide-react";
+import { type TouchEventHandler, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import CalendarHeatmap from "react-calendar-heatmap";
+import "react-calendar-heatmap/dist/styles.css";
+import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { MonthHeatmap } from "@/features/insights/month-heatmap";
+import { getCategoryBadgeClass } from "@/lib/goals/category";
 import { getGoalCompletionPercentage, getOverallCompletionPercentage, getRecurringStreaks } from "@/lib/goals/progress";
 import type { Completion, Goal, GoalParticipant } from "@/lib/goals/types";
 import { createClient } from "@/lib/supabase/client";
@@ -52,39 +71,102 @@ function scaleClass(count: number) {
   return "heatmap-scale-4";
 }
 
+const aggregateWeekdayLabels: [string, string, string, string, string, string, string] = [
+  "Su",
+  "M",
+  "T",
+  "W",
+  "Th",
+  "F",
+  "S",
+];
+
+interface MilestoneStepsProps {
+  targetCount: number;
+  completions: Completion[];
+}
+
+function MilestoneSteps({ targetCount, completions }: MilestoneStepsProps) {
+  const sortedCompletions = [...completions].sort((left, right) =>
+    left.completed_on.localeCompare(right.completed_on)
+  );
+  const safeTarget = Math.max(targetCount, 1);
+
+  return (
+    <div className="space-y-2">
+      <p className="text-xs text-muted-foreground">
+        Milestone steps (independent of selected month)
+      </p>
+      <div className="grid gap-2 sm:grid-cols-2">
+        {Array.from({ length: safeTarget }).map((_, index) => {
+          const completion = sortedCompletions[index];
+          const complete = Boolean(completion);
+
+          return (
+            <div
+              key={`${index + 1}-step`}
+              className={`rounded-lg border px-3 py-2 text-xs ${
+                complete ? "border-primary/40 bg-primary/10" : "border-border bg-muted/30"
+              }`}
+            >
+              <p className="font-medium">Milestone {index + 1}</p>
+              <p className="text-muted-foreground">
+                {complete ? `Done on ${completion.completed_on}` : "Pending"}
+              </p>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export function InsightsTab() {
   const supabase = useMemo(() => createClient(), []);
   const [state, setState] = useState<InsightsData>(emptyInsights);
   const [loading, setLoading] = useState(true);
   const [monthCursor, setMonthCursor] = useState(new Date());
+  const [editingGoalId, setEditingGoalId] = useState<string | null>(null);
+  const [pendingRetroDate, setPendingRetroDate] = useState<string | null>(null);
+  const monthSwipeStartRef = useRef<{ x: number; y: number } | null>(null);
 
-  const loadData = useCallback(async () => {
-    setLoading(true);
+  const loadData = useCallback(
+    async ({ showLoading = true }: { showLoading?: boolean } = {}) => {
+      if (showLoading) {
+        setLoading(true);
+      }
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
 
-    if (!user) {
-      setState(emptyInsights);
-      setLoading(false);
-      return;
-    }
+      if (!user) {
+        setState(emptyInsights);
+        if (showLoading) {
+          setLoading(false);
+        }
+        return;
+      }
 
-    const [goalsResponse, completionsResponse, participantsResponse] = await Promise.all([
-      supabase.from("goals").select("*").order("title"),
-      supabase.from("completions").select("*").eq("user_id", user.id),
-      supabase.from("goal_participants").select("*").eq("user_id", user.id),
-    ]);
+      const [goalsResponse, completionsResponse, participantsResponse] = await Promise.all([
+        supabase.from("goals").select("*").order("title"),
+        supabase.from("completions").select("*").eq("user_id", user.id),
+        supabase.from("goal_participants").select("*").eq("user_id", user.id),
+      ]);
 
-    setState({
-      userId: user.id,
-      goals: (goalsResponse.data ?? []) as Goal[],
-      completions: (completionsResponse.data ?? []) as Completion[],
-      participants: (participantsResponse.data ?? []) as GoalParticipant[],
-    });
-    setLoading(false);
-  }, [supabase]);
+      setState({
+        userId: user.id,
+        goals: (goalsResponse.data ?? []) as Goal[],
+        completions: (completionsResponse.data ?? []) as Completion[],
+        participants: (participantsResponse.data ?? []) as GoalParticipant[],
+      });
+
+      if (showLoading) {
+        setLoading(false);
+      }
+    },
+    [supabase]
+  );
 
   useEffect(() => {
     const run = async () => {
@@ -137,6 +219,79 @@ export function InsightsTab() {
     [completionsByGoal, personalGoals]
   );
 
+  const markRetroactiveCompletion = useCallback(
+    async (goal: Goal, completionDate: string) => {
+      if (isAfter(parseISO(completionDate), startOfDay(new Date()))) {
+        toast.error("You can only mark today or past dates.");
+        return;
+      }
+
+      setPendingRetroDate(completionDate);
+      const currentScrollY = window.scrollY;
+      try {
+        const { error } = await supabase.rpc("mark_goal_complete", {
+          p_goal_id: goal.id,
+          p_date: completionDate,
+        });
+
+        if (error) {
+          toast.error(error.message);
+          return;
+        }
+
+        toast.success(`Marked ${completionDate} complete.`);
+        await loadData({ showLoading: false });
+        requestAnimationFrame(() => {
+          window.scrollTo({ top: currentScrollY, behavior: "auto" });
+        });
+      } finally {
+        setPendingRetroDate(null);
+      }
+    },
+    [loadData, supabase]
+  );
+
+  const onMonthSectionTouchStart: TouchEventHandler<HTMLDivElement> = (event) => {
+    if (event.touches.length !== 1) {
+      monthSwipeStartRef.current = null;
+      return;
+    }
+
+    const target = event.target as HTMLElement | null;
+    const isInteractiveElement = target?.closest(
+      "button,a,input,textarea,select,label,[role='button']"
+    );
+    if (isInteractiveElement) {
+      monthSwipeStartRef.current = null;
+      return;
+    }
+
+    const touch = event.touches[0];
+    monthSwipeStartRef.current = {
+      x: touch.clientX,
+      y: touch.clientY,
+    };
+  };
+
+  const onMonthSectionTouchEnd: TouchEventHandler<HTMLDivElement> = (event) => {
+    const swipeStart = monthSwipeStartRef.current;
+    monthSwipeStartRef.current = null;
+
+    if (!swipeStart || event.changedTouches.length === 0) {
+      return;
+    }
+
+    const touch = event.changedTouches[0];
+    const deltaX = touch.clientX - swipeStart.x;
+    const deltaY = touch.clientY - swipeStart.y;
+
+    if (Math.abs(deltaX) < 70 || Math.abs(deltaX) <= Math.abs(deltaY)) {
+      return;
+    }
+
+    setMonthCursor((previous) => (deltaX < 0 ? addMonths(previous, 1) : subMonths(previous, 1)));
+  };
+
   if (loading) {
     return (
       <Card>
@@ -159,11 +314,13 @@ export function InsightsTab() {
           <CardDescription>GitHub-style yearly view across all your completable goals.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="overflow-x-auto rounded-xl border bg-card p-3">
+          <div className="overflow-x-auto rounded-xl border bg-card p-4">
             <CalendarHeatmap
               startDate={startOfYear(new Date())}
               endDate={endOfYear(new Date())}
               values={aggregateHeatmapData}
+              showWeekdayLabels
+              weekdayLabels={aggregateWeekdayLabels}
               classForValue={(value) => scaleClass(value?.count ?? 0)}
               titleForValue={(value) =>
                 `${value?.date ?? "N/A"}: ${value?.count ?? 0} completion${
@@ -171,6 +328,16 @@ export function InsightsTab() {
                 }`
               }
             />
+          </div>
+          <div className="flex items-center justify-end gap-2 text-xs text-muted-foreground">
+            <span>Less</span>
+            {[0, 1, 2, 3, 4].map((scale) => (
+              <span
+                key={scale}
+                className={`inline-block size-3 rounded-[3px] heatmap-scale-${scale}`}
+              />
+            ))}
+            <span>More</span>
           </div>
           <div className="flex items-center justify-between text-sm">
             <span className="text-muted-foreground">Overall completion quality</span>
@@ -205,7 +372,12 @@ export function InsightsTab() {
             </div>
           </div>
         </CardHeader>
-        <CardContent className="space-y-3">
+        <CardContent
+          className="space-y-3"
+          data-no-swipe="true"
+          onTouchStart={onMonthSectionTouchStart}
+          onTouchEnd={onMonthSectionTouchEnd}
+        >
           {personalGoals.length === 0 ? (
             <p className="text-sm text-muted-foreground">No goals available yet.</p>
           ) : (
@@ -214,18 +386,65 @@ export function InsightsTab() {
               const countsByDate = goalCompletionCountsByDate(completions);
               const percent = getGoalCompletionPercentage(goal, completions);
               const streaks = getRecurringStreaks(goal, completions);
+              const isRecurring = goal.frequency_type === "recurring";
+              const editingHistory = isRecurring && editingGoalId === goal.id;
               return (
                 <Card key={goal.id} className="border shadow-none">
                   <CardContent className="space-y-3 py-4">
                     <div className="flex items-center justify-between gap-2">
                       <div>
-                        <p className="text-sm font-semibold">{goal.title}</p>
-                        <p className="text-xs text-muted-foreground">{goal.category}</p>
+                        <p className="inline-flex items-center gap-2 text-sm font-semibold">
+                          <span
+                            className="size-2 rounded-full"
+                            style={{ backgroundColor: goal.color ?? "var(--muted-foreground)" }}
+                          />
+                          {goal.title}
+                        </p>
+                        <Badge variant="outline" className={getCategoryBadgeClass(goal.category)}>
+                          {goal.category}
+                        </Badge>
                       </div>
-                      <Badge variant="secondary">{Math.round(percent)}%</Badge>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="secondary">{Math.round(percent)}%</Badge>
+                        {isRecurring ? (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant={editingHistory ? "secondary" : "outline"}
+                            onClick={() =>
+                              setEditingGoalId((previous) =>
+                                previous === goal.id ? null : goal.id
+                              )
+                            }
+                          >
+                            <PencilLine className="size-3.5" />
+                            {editingHistory ? "Done" : "Edit dates"}
+                          </Button>
+                        ) : null}
+                      </div>
                     </div>
 
-                    <MonthHeatmap month={monthCursor} countsByDate={countsByDate} />
+                    {goal.frequency_type === "fixed_milestones" ? (
+                      <MilestoneSteps
+                        targetCount={goal.target_count ?? completions.length}
+                        completions={completions}
+                      />
+                    ) : (
+                      <>
+                        {editingHistory ? (
+                          <p className="text-xs text-muted-foreground">
+                            Tap any day to mark it complete retroactively.
+                          </p>
+                        ) : null}
+                        <MonthHeatmap
+                          month={monthCursor}
+                          countsByDate={countsByDate}
+                          interactive={editingHistory}
+                          pendingDate={pendingRetroDate}
+                          onDayClick={(date) => void markRetroactiveCompletion(goal, date)}
+                        />
+                      </>
+                    )}
 
                     <div className="space-y-2">
                       <div className="flex items-center justify-between text-xs text-muted-foreground">

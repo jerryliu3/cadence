@@ -1,6 +1,7 @@
 "use client";
 
 import { ArrowLeft, Archive, Link2, LoaderCircle, Save, Undo2 } from "lucide-react";
+import { endOfMonth, endOfYear, format } from "date-fns";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
@@ -19,6 +20,13 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { toLocalDateString } from "@/lib/dates/day";
+import {
+  CATEGORY_PRESETS,
+  type CategorySelection,
+  getCategoryLabel,
+  getCategorySelectionFromValue,
+  getCategorySwatchColor,
+} from "@/lib/goals/category";
 import type { Goal, GoalFrequencyType, GoalLink, RecurrenceInterval } from "@/lib/goals/types";
 import { createClient } from "@/lib/supabase/client";
 
@@ -29,7 +37,8 @@ interface GoalFormProps {
 interface GoalFormState {
   title: string;
   description: string;
-  category: string;
+  category_selection: CategorySelection;
+  custom_category: string;
   color: string;
   frequency_type: GoalFrequencyType;
   recurrence_interval: RecurrenceInterval;
@@ -42,7 +51,8 @@ interface GoalFormState {
 const defaultState: GoalFormState = {
   title: "",
   description: "",
-  category: "general",
+  category_selection: "personal",
+  custom_category: "",
   color: "#4f46e5",
   frequency_type: "recurring",
   recurrence_interval: "daily",
@@ -107,11 +117,13 @@ export function GoalForm({ goalId }: GoalFormProps) {
 
       if (goalResponse.data) {
         const goal = goalResponse.data as Goal;
+        const categoryState = getCategorySelectionFromValue(goal.category);
         setEditingGoal(goal);
         setState({
           title: goal.title,
           description: goal.description ?? "",
-          category: goal.category,
+          category_selection: categoryState.selection,
+          custom_category: categoryState.customValue,
           color: goal.color ?? "#4f46e5",
           frequency_type: goal.frequency_type,
           recurrence_interval: goal.recurrence_interval ?? "daily",
@@ -147,6 +159,20 @@ export function GoalForm({ goalId }: GoalFormProps) {
   const canShowRecurrenceFields = state.frequency_type === "recurring";
   const canShowTargetCount = state.frequency_type === "fixed_milestones";
 
+  const applyThisMonthEndDate = () => {
+    setState((previous) => ({
+      ...previous,
+      end_date: format(endOfMonth(new Date()), "yyyy-MM-dd"),
+    }));
+  };
+
+  const applyThisYearEndDate = () => {
+    setState((previous) => ({
+      ...previous,
+      end_date: format(endOfYear(new Date()), "yyyy-MM-dd"),
+    }));
+  };
+
   const validationError = useMemo(() => {
     if (!state.title.trim()) {
       return "Title is required.";
@@ -171,6 +197,13 @@ export function GoalForm({ goalId }: GoalFormProps) {
       return "End date cannot be before start date.";
     }
 
+    if (
+      state.category_selection === "custom" &&
+      state.custom_category.trim().length === 0
+    ) {
+      return "Custom category name is required.";
+    }
+
     return null;
   }, [state]);
 
@@ -188,7 +221,7 @@ export function GoalForm({ goalId }: GoalFormProps) {
       owner_id: currentUserId,
       title: state.title.trim(),
       description: state.description.trim() || null,
-      category: state.category.trim() || "general",
+      category: getCategoryLabel(state.category_selection, state.custom_category),
       color: state.color,
       frequency_type: state.frequency_type,
       recurrence_interval: state.frequency_type === "recurring" ? state.recurrence_interval : null,
@@ -350,16 +383,39 @@ export function GoalForm({ goalId }: GoalFormProps) {
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="goal-category">Category</Label>
-              <Input
-                id="goal-category"
-                value={state.category}
-                onChange={(event) =>
-                  setState((prev) => ({ ...prev, category: event.target.value }))
+              <Label>Category</Label>
+              <Select
+                value={state.category_selection}
+                onValueChange={(value: CategorySelection) =>
+                  setState((prev) => ({ ...prev, category_selection: value }))
                 }
-                placeholder="fitness"
-                required
-              />
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select category" />
+                </SelectTrigger>
+                <SelectContent>
+                  {CATEGORY_PRESETS.map((preset) => (
+                    <SelectItem key={preset.id} value={preset.id}>
+                      <span className="inline-flex items-center gap-2">
+                        <span
+                          className="size-2 rounded-full"
+                          style={{ backgroundColor: getCategorySwatchColor(preset.id) }}
+                        />
+                        {preset.label}
+                      </span>
+                    </SelectItem>
+                  ))}
+                  <SelectItem value="custom">
+                    <span className="inline-flex items-center gap-2">
+                      <span
+                        className="size-2 rounded-full"
+                        style={{ backgroundColor: getCategorySwatchColor("custom") }}
+                      />
+                      Custom
+                    </span>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="space-y-2">
@@ -371,8 +427,26 @@ export function GoalForm({ goalId }: GoalFormProps) {
                 onChange={(event) => setState((prev) => ({ ...prev, color: event.target.value }))}
                 className="h-10 p-1"
               />
+              <p className="text-xs text-muted-foreground">
+                Used for the goal color dot and visual accents.
+              </p>
             </div>
           </div>
+
+          {state.category_selection === "custom" ? (
+            <div className="space-y-2">
+              <Label htmlFor="custom-category">Custom category label</Label>
+              <Input
+                id="custom-category"
+                value={state.custom_category}
+                onChange={(event) =>
+                  setState((prev) => ({ ...prev, custom_category: event.target.value }))
+                }
+                placeholder="Your custom category"
+                required
+              />
+            </div>
+          ) : null}
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
@@ -387,7 +461,6 @@ export function GoalForm({ goalId }: GoalFormProps) {
                   <SelectValue placeholder="Select goal type" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="one_time">One time</SelectItem>
                   <SelectItem value="fixed_milestones">Fixed milestones</SelectItem>
                   <SelectItem value="recurring">Recurring</SelectItem>
                 </SelectContent>
@@ -444,7 +517,25 @@ export function GoalForm({ goalId }: GoalFormProps) {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="end-date">End date (optional)</Label>
+              <div className="flex items-center justify-between gap-2">
+                <Label htmlFor="end-date">End date (optional)</Label>
+                <div className="flex items-center gap-2 text-xs">
+                  <button
+                    type="button"
+                    className="text-primary hover:underline"
+                    onClick={applyThisMonthEndDate}
+                  >
+                    this month
+                  </button>
+                  <button
+                    type="button"
+                    className="text-primary hover:underline"
+                    onClick={applyThisYearEndDate}
+                  >
+                    this year
+                  </button>
+                </div>
+              </div>
               <Input
                 id="end-date"
                 type="date"

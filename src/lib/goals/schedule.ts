@@ -40,10 +40,6 @@ export function isGoalDoneForCurrentPeriod(
   const today = toLocalDateString(referenceDate);
   const completedDates = completionSet(completions);
 
-  if (goal.frequency_type === "one_time") {
-    return completedDates.has(today);
-  }
-
   if (
     goal.frequency_type === "fixed_milestones" ||
     goal.recurrence_interval === "daily"
@@ -87,10 +83,6 @@ export function isGoalArchived(
     return true;
   }
 
-  if (goal.frequency_type === "one_time" && completionCount > 0) {
-    return true;
-  }
-
   if (
     goal.frequency_type === "fixed_milestones" &&
     goal.target_count !== null &&
@@ -107,10 +99,6 @@ export function isGoalArchived(
 }
 
 export function getFrequencySummary(goal: Goal, completionCount: number): string {
-  if (goal.frequency_type === "one_time") {
-    return goal.end_date ? `One time · due ${goal.end_date}` : "One time task";
-  }
-
   if (goal.frequency_type === "fixed_milestones") {
     return `${completionCount}/${goal.target_count ?? 0} milestones`;
   }

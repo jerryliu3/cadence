@@ -28,6 +28,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  CATEGORY_PRESETS,
+  type CategorySelection,
+  getCategoryLabel,
+} from "@/lib/goals/category";
 import { getGoalCompletionPercentage } from "@/lib/goals/progress";
 import { MonthHeatmap } from "@/features/insights/month-heatmap";
 import type {
@@ -86,8 +91,9 @@ function getInitials(profile: Profile | null) {
 interface GroupGoalDraft {
   title: string;
   description: string;
-  category: string;
-  frequencyType: "one_time" | "fixed_milestones" | "recurring";
+  categorySelection: CategorySelection;
+  customCategory: string;
+  frequencyType: "fixed_milestones" | "recurring";
   recurrenceInterval: RecurrenceInterval;
   targetCount: string;
   endDate: string;
@@ -96,7 +102,8 @@ interface GroupGoalDraft {
 const defaultGroupDraft: GroupGoalDraft = {
   title: "",
   description: "",
-  category: "social",
+  categorySelection: "personal",
+  customCategory: "",
   frequencyType: "recurring",
   recurrenceInterval: "weekly",
   targetCount: "",
@@ -341,6 +348,14 @@ export function SocialTab() {
     }
 
     if (
+      groupDraft.categorySelection === "custom" &&
+      groupDraft.customCategory.trim().length === 0
+    ) {
+      toast.error("Custom category name is required.");
+      return;
+    }
+
+    if (
       groupDraft.frequencyType === "fixed_milestones" &&
       Number.parseInt(groupDraft.targetCount, 10) <= 0
     ) {
@@ -355,7 +370,10 @@ export function SocialTab() {
       owner_id: state.userId,
       title: groupDraft.title.trim(),
       description: groupDraft.description.trim() || null,
-      category: groupDraft.category.trim() || "social",
+      category: getCategoryLabel(
+        groupDraft.categorySelection,
+        groupDraft.customCategory
+      ),
       color: "#0ea5e9",
       frequency_type: groupDraft.frequencyType,
       recurrence_interval:
@@ -653,13 +671,24 @@ export function SocialTab() {
                   setGroupDraft((prev) => ({ ...prev, title: event.target.value }))
                 }
               />
-              <Input
-                placeholder="Category"
-                value={groupDraft.category}
-                onChange={(event) =>
-                  setGroupDraft((prev) => ({ ...prev, category: event.target.value }))
+              <Select
+                value={groupDraft.categorySelection}
+                onValueChange={(value: CategorySelection) =>
+                  setGroupDraft((prev) => ({ ...prev, categorySelection: value }))
                 }
-              />
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Category" />
+                </SelectTrigger>
+                <SelectContent>
+                  {CATEGORY_PRESETS.map((preset) => (
+                    <SelectItem key={preset.id} value={preset.id}>
+                      {preset.label}
+                    </SelectItem>
+                  ))}
+                  <SelectItem value="custom">Custom</SelectItem>
+                </SelectContent>
+              </Select>
               <Select
                 value={groupDraft.frequencyType}
                 onValueChange={(value: GroupGoalDraft["frequencyType"]) =>
@@ -670,7 +699,6 @@ export function SocialTab() {
                   <SelectValue placeholder="Frequency type" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="one_time">One time</SelectItem>
                   <SelectItem value="fixed_milestones">Fixed milestones</SelectItem>
                   <SelectItem value="recurring">Recurring</SelectItem>
                 </SelectContent>
@@ -719,6 +747,19 @@ export function SocialTab() {
                 setGroupDraft((prev) => ({ ...prev, description: event.target.value }))
               }
             />
+            {groupDraft.categorySelection === "custom" ? (
+              <Input
+                className="mt-3"
+                placeholder="Custom category label"
+                value={groupDraft.customCategory}
+                onChange={(event) =>
+                  setGroupDraft((prev) => ({
+                    ...prev,
+                    customCategory: event.target.value,
+                  }))
+                }
+              />
+            ) : null}
             <Button className="mt-3" type="button" onClick={createGroupGoal} disabled={saving}>
               <Plus className="size-4" />
               Create group goal

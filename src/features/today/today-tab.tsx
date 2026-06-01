@@ -22,6 +22,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Progress } from "@/components/ui/progress";
 import { toLocalDateString } from "@/lib/dates/day";
+import { getCategoryBadgeClass } from "@/lib/goals/category";
 import {
   getFrequencySummary,
   hasCompletionToday,
@@ -411,48 +412,55 @@ function GoalCard({
           )}
         </button>
 
-        {imageUrl ? (
-          <Image
-            src={imageUrl}
-            alt={goal.title}
-            width={56}
-            height={56}
-            unoptimized
-            className="size-14 rounded-xl object-cover ring-1 ring-border"
-          />
-        ) : null}
-
-        <div className="min-w-0 flex-1 space-y-1">
-          <div className="flex items-center gap-2">
-            <h3 className="truncate text-sm font-semibold">{goal.title}</h3>
-            <Badge variant="secondary">{goal.category}</Badge>
-          </div>
-          <p className="text-xs text-muted-foreground">
-            {getFrequencySummary(goal, completionCount)}
-          </p>
-          {goal.description ? (
-            <p className="line-clamp-2 text-xs text-muted-foreground">{goal.description}</p>
+        <Link
+          href={`/goals/${goal.id}`}
+          className="flex min-w-0 flex-1 items-center gap-3 rounded-xl px-1 py-1 transition-colors hover:bg-muted/40"
+        >
+          {imageUrl ? (
+            <Image
+              src={imageUrl}
+              alt={goal.title}
+              width={56}
+              height={56}
+              unoptimized
+              className="size-14 rounded-xl object-cover ring-1 ring-border"
+            />
           ) : null}
-          <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-            {linkedCount > 0 ? (
-              <span className="inline-flex items-center gap-1">
-                <Link2 className="size-3" />
-                {linkedCount} linked
-              </span>
-            ) : null}
-            {completionSourceToday === "linked_cascade" ? (
-              <Badge variant="outline">Auto-completed via link</Badge>
-            ) : null}
-            {goal.end_date ? <span>Ends {goal.end_date}</span> : <span>No end date</span>}
-            {doneForCurrentPeriod && !doneToday ? (
-              <span>Current period done</span>
-            ) : null}
-          </div>
-        </div>
 
-        <Button variant="ghost" asChild size="sm">
-          <Link href={`/goals/${goal.id}`}>Edit</Link>
-        </Button>
+          <div className="min-w-0 flex-1 space-y-1">
+            <div className="flex items-center gap-2">
+              <span
+                className="size-2 rounded-full"
+                style={{ backgroundColor: goal.color ?? "var(--muted-foreground)" }}
+              />
+              <h3 className="truncate text-sm font-semibold">{goal.title}</h3>
+              <Badge variant="outline" className={getCategoryBadgeClass(goal.category)}>
+                {goal.category}
+              </Badge>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {getFrequencySummary(goal, completionCount)}
+            </p>
+            {goal.description ? (
+              <p className="line-clamp-2 text-xs text-muted-foreground">{goal.description}</p>
+            ) : null}
+            <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+              {linkedCount > 0 ? (
+                <span className="inline-flex items-center gap-1">
+                  <Link2 className="size-3" />
+                  {linkedCount} linked
+                </span>
+              ) : null}
+              {completionSourceToday === "linked_cascade" ? (
+                <Badge variant="outline">Auto-completed via link</Badge>
+              ) : null}
+              {goal.end_date ? <span>Ends {goal.end_date}</span> : <span>No end date</span>}
+              {doneForCurrentPeriod && !doneToday ? (
+                <span>Current period done</span>
+              ) : null}
+            </div>
+          </div>
+        </Link>
       </CardContent>
     </Card>
   );
