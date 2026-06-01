@@ -1,6 +1,16 @@
 "use client";
 
-import { ArrowLeft, Archive, Link2, LoaderCircle, Save, Trash2, Undo2 } from "lucide-react";
+import {
+  ArrowLeft,
+  Archive,
+  ChevronDown,
+  ChevronUp,
+  Link2,
+  LoaderCircle,
+  Save,
+  Trash2,
+  Undo2,
+} from "lucide-react";
 import { endOfMonth, endOfYear, format } from "date-fns";
 import Link from "next/link";
 import Image from "next/image";
@@ -9,6 +19,7 @@ import { type FormEvent, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -53,7 +64,7 @@ const defaultState: GoalFormState = {
   description: "",
   category_selection: "personal",
   custom_category: "",
-  color: "#4f46e5",
+  color: getCategorySwatchColor("personal"),
   frequency_type: "recurring",
   recurrence_interval: "daily",
   target_count: "",
@@ -85,6 +96,7 @@ export function GoalForm({ goalId }: GoalFormProps) {
   const [saving, setSaving] = useState(false);
   const [editingGoal, setEditingGoal] = useState<Goal | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string>("");
+  const [advancedOpen, setAdvancedOpen] = useState(false);
 
   const isEditing = Boolean(goalId);
 
@@ -141,7 +153,7 @@ export function GoalForm({ goalId }: GoalFormProps) {
           description: goal.description ?? "",
           category_selection: categoryState.selection,
           custom_category: categoryState.customValue,
-          color: goal.color ?? "#4f46e5",
+          color: getCategorySwatchColor(categoryState.selection),
           frequency_type: goal.frequency_type,
           recurrence_interval: goal.recurrence_interval ?? "daily",
           target_count: goal.target_count?.toString() ?? "",
@@ -437,67 +449,43 @@ export function GoalForm({ goalId }: GoalFormProps) {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="goal-description">Description</Label>
-            <Textarea
-              id="goal-description"
-              value={state.description}
-              onChange={(event) =>
-                setState((prev) => ({ ...prev, description: event.target.value }))
+            <Label>Category</Label>
+            <Select
+              value={state.category_selection}
+              onValueChange={(value: CategorySelection) =>
+                setState((prev) => ({
+                  ...prev,
+                  category_selection: value,
+                  color: getCategorySwatchColor(value),
+                }))
               }
-              placeholder="Why this goal matters"
-            />
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label>Category</Label>
-              <Select
-                value={state.category_selection}
-                onValueChange={(value: CategorySelection) =>
-                  setState((prev) => ({ ...prev, category_selection: value }))
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select category" />
-                </SelectTrigger>
-                <SelectContent>
-                  {CATEGORY_PRESETS.map((preset) => (
-                    <SelectItem key={preset.id} value={preset.id}>
-                      <span className="inline-flex items-center gap-2">
-                        <span
-                          className="size-2 rounded-full"
-                          style={{ backgroundColor: getCategorySwatchColor(preset.id) }}
-                        />
-                        {preset.label}
-                      </span>
-                    </SelectItem>
-                  ))}
-                  <SelectItem value="custom">
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select category" />
+              </SelectTrigger>
+              <SelectContent>
+                {CATEGORY_PRESETS.map((preset) => (
+                  <SelectItem key={preset.id} value={preset.id}>
                     <span className="inline-flex items-center gap-2">
                       <span
                         className="size-2 rounded-full"
-                        style={{ backgroundColor: getCategorySwatchColor("custom") }}
+                        style={{ backgroundColor: getCategorySwatchColor(preset.id) }}
                       />
-                      Custom
+                      {preset.label}
                     </span>
                   </SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="goal-color">Color accent</Label>
-              <Input
-                id="goal-color"
-                type="color"
-                value={state.color}
-                onChange={(event) => setState((prev) => ({ ...prev, color: event.target.value }))}
-                className="h-10 p-1"
-              />
-              <p className="text-xs text-muted-foreground">
-                Used for the goal color dot and visual accents.
-              </p>
-            </div>
+                ))}
+                <SelectItem value="custom">
+                  <span className="inline-flex items-center gap-2">
+                    <span
+                      className="size-2 rounded-full"
+                      style={{ backgroundColor: getCategorySwatchColor("custom") }}
+                    />
+                    Custom
+                  </span>
+                </SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           {state.category_selection === "custom" ? (
@@ -625,67 +613,6 @@ export function GoalForm({ goalId }: GoalFormProps) {
             </div>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="goal-photo">Photo (optional)</Label>
-            <Input
-              id="goal-photo"
-              type="file"
-              accept="image/png,image/jpeg,image/webp"
-              onChange={(event) => setPhotoFile(event.target.files?.[0] ?? null)}
-            />
-            {photoPreview ? (
-              <Image
-                src={photoPreview}
-                alt="Goal preview"
-                width={112}
-                height={112}
-                unoptimized
-                className="h-28 w-28 rounded-xl object-cover"
-              />
-            ) : null}
-          </div>
-
-          {!state.is_group ? (
-            <div className="space-y-2">
-              <Label className="inline-flex items-center gap-2">
-                <Link2 className="size-4 text-muted-foreground" />
-                Link this goal to another goal (optional)
-              </Label>
-              <Select value={selectedLinkTarget} onValueChange={setSelectedLinkTarget}>
-                <SelectTrigger>
-                  <SelectValue placeholder="No linked target" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">No linked target</SelectItem>
-                  {availableGoals.map((goal) => (
-                    <SelectItem key={goal.id} value={goal.id}>
-                      {goal.title}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground">
-                Marking this goal complete will auto-complete linked goals for the same day.
-              </p>
-            </div>
-          ) : null}
-
-          <div className="rounded-xl border bg-muted/40 p-3">
-            <label className="flex items-start gap-3 text-sm">
-              <input
-                type="checkbox"
-                className="mt-1"
-                checked={state.is_group}
-                onChange={(event) =>
-                  setState((prev) => ({ ...prev, is_group: event.target.checked }))
-                }
-              />
-              <span>
-                This is a collaborative group goal (participants track their own completions).
-              </span>
-            </label>
-          </div>
-
           {validationError ? (
             <p className="text-sm text-destructive">{validationError}</p>
           ) : null}
@@ -729,6 +656,117 @@ export function GoalForm({ goalId }: GoalFormProps) {
               </Button>
             ) : null}
           </div>
+
+          <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen}>
+            <div className="rounded-xl border bg-muted/20">
+              <CollapsibleTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-sm"
+                >
+                  <span>Advanced settings</span>
+                  {advancedOpen ? (
+                    <ChevronUp className="size-4 text-muted-foreground" />
+                  ) : (
+                    <ChevronDown className="size-4 text-muted-foreground" />
+                  )}
+                </Button>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <div className="space-y-4 border-t px-3 py-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="goal-description">Description</Label>
+                    <Textarea
+                      id="goal-description"
+                      value={state.description}
+                      onChange={(event) =>
+                        setState((prev) => ({ ...prev, description: event.target.value }))
+                      }
+                      placeholder="Why this goal matters"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="goal-color">Color accent</Label>
+                    <Input
+                      id="goal-color"
+                      type="color"
+                      value={state.color}
+                      onChange={(event) =>
+                        setState((prev) => ({ ...prev, color: event.target.value }))
+                      }
+                      className="h-10 p-1"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Auto-set from category selection. You can still override it here.
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="goal-photo">Photo (optional)</Label>
+                    <Input
+                      id="goal-photo"
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp"
+                      onChange={(event) => setPhotoFile(event.target.files?.[0] ?? null)}
+                    />
+                    {photoPreview ? (
+                      <Image
+                        src={photoPreview}
+                        alt="Goal preview"
+                        width={112}
+                        height={112}
+                        unoptimized
+                        className="h-28 w-28 rounded-xl object-cover"
+                      />
+                    ) : null}
+                  </div>
+
+                  <div className="rounded-xl border bg-background/70 p-3">
+                    <label className="flex items-start gap-3 text-sm">
+                      <input
+                        type="checkbox"
+                        className="mt-1"
+                        checked={state.is_group}
+                        onChange={(event) =>
+                          setState((prev) => ({ ...prev, is_group: event.target.checked }))
+                        }
+                      />
+                      <span>
+                        This is a collaborative group goal (participants track their own completions).
+                      </span>
+                    </label>
+                  </div>
+
+                  {!state.is_group ? (
+                    <div className="space-y-2">
+                      <Label className="inline-flex items-center gap-2">
+                        <Link2 className="size-4 text-muted-foreground" />
+                        Link this goal to another goal (optional)
+                      </Label>
+                      <Select value={selectedLinkTarget} onValueChange={setSelectedLinkTarget}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="No linked target" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">No linked target</SelectItem>
+                          {availableGoals.map((goal) => (
+                            <SelectItem key={goal.id} value={goal.id}>
+                              {goal.title}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground">
+                        Marking this goal complete will auto-complete linked goals for the same day.
+                      </p>
+                    </div>
+                  ) : null}
+                </div>
+              </CollapsibleContent>
+            </div>
+          </Collapsible>
         </form>
       </CardContent>
     </Card>
