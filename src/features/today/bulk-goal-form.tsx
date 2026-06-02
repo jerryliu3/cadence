@@ -41,7 +41,7 @@ import { cn } from "@/lib/utils";
 
 const frequencyOptions: Array<{ value: GoalFrequencyType; label: string }> = [
   { value: "recurring", label: "Recurring" },
-  { value: "fixed_milestones", label: "Fixed milestones" },
+  { value: "fixed_milestones", label: "Fixed" },
 ];
 
 const recurrenceOptions: Array<{ value: RecurrenceInterval; label: string }> = [
@@ -89,7 +89,7 @@ type BulkInputMode = "natural_language" | "csv";
 
 const csvExample = `title,category,frequency_type,recurrence_interval,target_count,start_date,end_date
 Morning run,Health,recurring,daily,20,2026-06-01,2026-12-31
-Read 12 books,Personal,fixed_milestones,,12,2026-06-01,2026-12-31`;
+Read 12 books,Personal,fixed,,12,2026-06-01,2026-12-31`;
 
 function normalizeHeaderKey(header: string): string {
   return header.trim().toLowerCase().replace(/[^a-z0-9]+/g, "_");
@@ -179,7 +179,7 @@ function validateDraft(draft: BulkGoalDraft): string[] {
 
   if (draft.frequency_type === "fixed_milestones") {
     if (parsedTarget === null || parsedTarget <= 0) {
-      errors.push("Fixed milestones require a positive target count.");
+      errors.push("Fixed goals require a positive target count.");
     }
   }
 

@@ -4,7 +4,7 @@ Cadence is a mobile-first goal-tracking web app built with Next.js + Supabase.
 It supports:
 
 - Daily, weekly, and monthly recurring goals
-- Fixed milestone goals and recurring goals with optional target counts
+- Fixed goals and recurring goals with optional target counts
 - A strict once-per-day completion invariant
 - Linked-goal completion cascades
 - Insights heatmaps and completion percentages

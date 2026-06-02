@@ -41,7 +41,7 @@ function completion(goalId: string, date: string): Completion {
 }
 
 describe("goal progress calculations", () => {
-  it("calculates fixed milestone completion percentage", () => {
+  it("calculates fixed completion percentage", () => {
     const goal = buildGoal({
       id: "fixed-id",
       frequency_type: "fixed_milestones",

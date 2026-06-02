@@ -54,7 +54,7 @@ describe("goal schedule semantics", () => {
     expect(isGoalDoneForCurrentPeriod(goal, [completion(dateInWeek)], referenceDate)).toBe(true);
   });
 
-  it("treats fixed milestones as done for current period only when completed today", () => {
+  it("treats fixed goals as done for current period only when completed today", () => {
     const goal = buildGoal({
       frequency_type: "fixed_milestones",
       recurrence_interval: null,
@@ -68,7 +68,7 @@ describe("goal schedule semantics", () => {
     expect(isGoalDoneForCurrentPeriod(goal, [completionToday], referenceDate)).toBe(true);
   });
 
-  it("marks milestone goals as completed once target is reached", () => {
+  it("marks fixed goals as completed once target is reached", () => {
     const goal = buildGoal({
       frequency_type: "fixed_milestones",
       recurrence_interval: null,

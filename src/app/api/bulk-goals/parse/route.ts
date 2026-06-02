@@ -124,7 +124,7 @@ function buildPrompt(userPrompt: string): string {
     `- If start date is missing, use ${today}.`,
     '- If frequency is missing, default to "recurring".',
     '- If recurrence interval is missing for recurring, default to "daily".',
-    '- For fixed milestones, include a positive target_count when possible.',
+    '- For fixed goals, include a positive target_count when possible.',
     "- For recurring goals, only set target_count when the user asks for a total count by a deadline.",
     `- Return at most ${MAX_GOALS_PER_REQUEST} goals.`,
     "",

@@ -105,7 +105,7 @@ function MilestoneSteps({
   return (
     <div className="space-y-2">
       <p className="text-xs text-muted-foreground">
-        Milestone steps (independent of selected month)
+        Fixed steps (independent of selected month)
       </p>
       <div className="grid gap-2 sm:grid-cols-2">
         {Array.from({ length: safeTarget }).map((_, index) => {
@@ -113,7 +113,7 @@ function MilestoneSteps({
           const complete = Boolean(completion);
           const stepContent = (
             <>
-              <p className="font-medium">Milestone {index + 1}</p>
+              <p className="font-medium">Fixed {index + 1}</p>
               <p className="text-muted-foreground">
                 {complete ? `Done on ${completion.completed_on}` : "Pending"}
               </p>
@@ -460,7 +460,7 @@ export function InsightsTab() {
                               ? "Done"
                               : isRecurring
                                 ? "Edit dates"
-                                : "Edit milestones"}
+                                : "Edit fixed"}
                           </Button>
                         ) : null}
                       </div>
@@ -470,7 +470,7 @@ export function InsightsTab() {
                       <>
                         {editingHistory ? (
                           <p className="text-xs text-muted-foreground">
-                            Tap a pending milestone to mark it complete for today.
+                            Tap a pending fixed step to mark it complete for today.
                           </p>
                         ) : null}
                         <MilestoneSteps

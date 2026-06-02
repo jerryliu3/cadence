@@ -115,7 +115,7 @@ const groupFrequencyOptions: Array<{
   label: string;
 }> = [
   { value: "recurring", label: "Recurring" },
-  { value: "fixed_milestones", label: "Fixed milestones" },
+  { value: "fixed_milestones", label: "Fixed" },
 ];
 
 const groupRecurrenceOptions: Array<{
@@ -392,7 +392,7 @@ export function SocialTab() {
       groupDraft.frequencyType === "fixed_milestones" &&
       Number.parseInt(groupDraft.targetCount, 10) <= 0
     ) {
-      toast.error("Fixed milestone group goals need a positive target.");
+      toast.error("Fixed group goals need a positive target.");
       return;
     }
 

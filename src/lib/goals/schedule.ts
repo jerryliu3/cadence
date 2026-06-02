@@ -108,7 +108,7 @@ function getRecurringIntervalLabel(goal: Goal): string {
 
 export function getFrequencySummary(goal: Goal, completionCount: number): string {
   if (goal.frequency_type === "fixed_milestones") {
-    return `${completionCount}/${goal.target_count ?? 0} milestones`;
+    return `${completionCount}/${goal.target_count ?? 0} fixed`;
   }
 
   const intervalLabel = getRecurringIntervalLabel(goal);
@@ -117,5 +117,5 @@ export function getFrequencySummary(goal: Goal, completionCount: number): string
     return `${intervalLabel} recurring · ${completionCount}/${goal.target_count} completions`;
   }
 
-  return `${intervalLabel} recurring`;
+  return `${intervalLabel} recurring · ${completionCount} completions`;
 }

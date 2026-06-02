@@ -11,7 +11,7 @@ import {
   Trash2,
   Undo2,
 } from "lucide-react";
-import { endOfMonth, endOfYear, format } from "date-fns";
+import { endOfMonth, endOfYear, format, startOfMonth, startOfYear } from "date-fns";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
@@ -75,7 +75,7 @@ const defaultState: GoalFormState = {
 
 const frequencyOptions: Array<{ value: GoalFrequencyType; label: string }> = [
   { value: "recurring", label: "Recurring" },
-  { value: "fixed_milestones", label: "Fixed milestones" },
+  { value: "fixed_milestones", label: "Fixed" },
 ];
 
 const recurrenceOptions: Array<{ value: RecurrenceInterval; label: string }> = [
@@ -207,6 +207,20 @@ export function GoalForm({ goalId }: GoalFormProps) {
     }));
   };
 
+  const applyThisMonthStartDate = () => {
+    setState((previous) => ({
+      ...previous,
+      start_date: format(startOfMonth(new Date()), "yyyy-MM-dd"),
+    }));
+  };
+
+  const applyThisYearStartDate = () => {
+    setState((previous) => ({
+      ...previous,
+      start_date: format(startOfYear(new Date()), "yyyy-MM-dd"),
+    }));
+  };
+
   const applyThisYearEndDate = () => {
     setState((previous) => ({
       ...previous,
@@ -227,7 +241,7 @@ export function GoalForm({ goalId }: GoalFormProps) {
       state.frequency_type === "fixed_milestones" &&
       (!state.target_count || Number.parseInt(state.target_count, 10) <= 0)
     ) {
-      return "Fixed milestone goals require a positive target count.";
+      return "Fixed goals require a positive target count.";
     }
 
     if (
@@ -575,7 +589,25 @@ export function GoalForm({ goalId }: GoalFormProps) {
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="start-date">Start date</Label>
+              <div className="flex items-center justify-between gap-2">
+                <Label htmlFor="start-date">Start date</Label>
+                <div className="flex items-center gap-2 text-xs">
+                  <button
+                    type="button"
+                    className="text-primary hover:underline"
+                    onClick={applyThisMonthStartDate}
+                  >
+                    this month
+                  </button>
+                  <button
+                    type="button"
+                    className="text-primary hover:underline"
+                    onClick={applyThisYearStartDate}
+                  >
+                    this year
+                  </button>
+                </div>
+              </div>
               <Input
                 id="start-date"
                 type="date"

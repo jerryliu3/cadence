@@ -43,6 +43,35 @@ begin
 end;
 $$;
 
+select public.unmark_goal_complete('10000000-0000-4000-8000-000000000003', current_date);
+
+do $$
+declare
+  count_direct_after_unmark integer;
+  count_cascade_after_unmark integer;
+begin
+  select count(*) into count_direct_after_unmark
+  from public.completions
+  where goal_id = '10000000-0000-4000-8000-000000000003'
+    and user_id = '11111111-1111-4111-8111-111111111111'
+    and completed_on = current_date;
+
+  select count(*) into count_cascade_after_unmark
+  from public.completions
+  where goal_id = '10000000-0000-4000-8000-000000000004'
+    and user_id = '11111111-1111-4111-8111-111111111111'
+    and completed_on = current_date;
+
+  if count_direct_after_unmark <> 0 then
+    raise exception 'unmark_goal_complete did not clear direct completion (count=%)', count_direct_after_unmark;
+  end if;
+
+  if count_cascade_after_unmark <> 0 then
+    raise exception 'unmark_goal_complete did not clear linked completion (count=%)', count_cascade_after_unmark;
+  end if;
+end;
+$$;
+
 -- RLS visibility check: Alice should not read Bob's private goal if it is not shared.
 do $$
 declare
