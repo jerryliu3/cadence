@@ -25,6 +25,7 @@ import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { MonthHeatmap } from "@/features/insights/month-heatmap";
 import { toLocalDateString } from "@/lib/dates/day";
@@ -82,9 +83,30 @@ const aggregateWeekdayLabels: [string, string, string, string, string, string, s
   "S",
 ];
 
+function defaultMilestoneName(index: number): string {
+  return `Milestone ${index + 1}`;
+}
+
+function buildMilestoneNames(targetCount: number, names: string[] | null | undefined): string[] {
+  const safeTarget = Math.max(targetCount, 1);
+  return Array.from({ length: safeTarget }, (_, index) => {
+    const value = names?.[index]?.trim();
+    return value && value.length > 0 ? value : defaultMilestoneName(index);
+  });
+}
+
+function areMilestoneNamesEqual(left: string[], right: string[]): boolean {
+  if (left.length !== right.length) {
+    return false;
+  }
+
+  return left.every((name, index) => name === right[index]);
+}
+
 interface MilestoneStepsProps {
   targetCount: number;
   completions: Completion[];
+  milestoneNames?: string[];
   interactive?: boolean;
   pending?: boolean;
   onStepClick?: () => void;
@@ -93,6 +115,7 @@ interface MilestoneStepsProps {
 function MilestoneSteps({
   targetCount,
   completions,
+  milestoneNames = [],
   interactive = false,
   pending = false,
   onStepClick,
@@ -111,9 +134,10 @@ function MilestoneSteps({
         {Array.from({ length: safeTarget }).map((_, index) => {
           const completion = sortedCompletions[index];
           const complete = Boolean(completion);
+          const milestoneName = milestoneNames[index] ?? defaultMilestoneName(index);
           const stepContent = (
             <>
-              <p className="font-medium">Fixed {index + 1}</p>
+              <p className="font-medium">{milestoneName}</p>
               <p className="text-muted-foreground">
                 {complete ? `Done on ${completion.completed_on}` : "Pending"}
               </p>
@@ -157,6 +181,10 @@ export function InsightsTab() {
   const [monthCursor, setMonthCursor] = useState(new Date());
   const [editingGoalId, setEditingGoalId] = useState<string | null>(null);
   const [pendingRetroDate, setPendingRetroDate] = useState<string | null>(null);
+  const [milestoneNameDrafts, setMilestoneNameDrafts] = useState<Record<string, string[]>>({});
+  const [savingMilestoneNamesGoalId, setSavingMilestoneNamesGoalId] = useState<string | null>(
+    null
+  );
   const monthSwipeStartRef = useRef<{ x: number; y: number } | null>(null);
 
   const loadData = useCallback(
@@ -285,6 +313,39 @@ export function InsightsTab() {
       }
     },
     [loadData, supabase]
+  );
+
+  const saveMilestoneNames = useCallback(
+    async (goal: Goal, names: string[]) => {
+      if (goal.owner_id !== state.userId) {
+        toast.error("Only the goal owner can rename fixed steps.");
+        return;
+      }
+
+      setSavingMilestoneNamesGoalId(goal.id);
+      const currentScrollY = window.scrollY;
+      try {
+        const { error } = await supabase
+          .from("goals")
+          .update({ milestone_names: names })
+          .eq("id", goal.id)
+          .eq("owner_id", state.userId);
+
+        if (error) {
+          toast.error(error.message);
+          return;
+        }
+
+        toast.success("Fixed step names updated.");
+        await loadData({ showLoading: false });
+        requestAnimationFrame(() => {
+          window.scrollTo({ top: currentScrollY, behavior: "auto" });
+        });
+      } finally {
+        setSavingMilestoneNamesGoalId(null);
+      }
+    },
+    [loadData, state.userId, supabase]
   );
 
   const onMonthSectionTouchStart: TouchEventHandler<HTMLDivElement> = (event) => {
@@ -425,6 +486,17 @@ export function InsightsTab() {
               const isRecurring = goal.frequency_type === "recurring";
               const isMilestone = goal.frequency_type === "fixed_milestones";
               const editingHistory = editingGoalId === goal.id;
+              const milestoneTargetCount = Math.max(goal.target_count ?? completions.length, 1);
+              const persistedMilestoneNames = isMilestone
+                ? buildMilestoneNames(milestoneTargetCount, goal.milestone_names)
+                : [];
+              const draftMilestoneNames =
+                milestoneNameDrafts[goal.id] ?? persistedMilestoneNames;
+              const milestoneNamesChanged = !areMilestoneNamesEqual(
+                draftMilestoneNames,
+                persistedMilestoneNames
+              );
+              const canRenameMilestones = isMilestone && goal.owner_id === state.userId;
               return (
                 <Card key={goal.id} className="border shadow-none">
                   <CardContent className="space-y-3 py-4">
@@ -449,11 +521,17 @@ export function InsightsTab() {
                             type="button"
                             size="sm"
                             variant={editingHistory ? "secondary" : "outline"}
-                            onClick={() =>
+                            onClick={() => {
                               setEditingGoalId((previous) =>
                                 previous === goal.id ? null : goal.id
-                              )
-                            }
+                              );
+                              if (!editingHistory && isMilestone) {
+                                setMilestoneNameDrafts((previous) => ({
+                                  ...previous,
+                                  [goal.id]: persistedMilestoneNames,
+                                }));
+                              }
+                            }}
                           >
                             <PencilLine className="size-3.5" />
                             {editingHistory
@@ -461,6 +539,24 @@ export function InsightsTab() {
                               : isRecurring
                                 ? "Edit dates"
                                 : "Edit fixed"}
+                          </Button>
+                        ) : null}
+                        {editingHistory && canRenameMilestones ? (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            disabled={
+                              savingMilestoneNamesGoalId === goal.id || !milestoneNamesChanged
+                            }
+                            onClick={() =>
+                              void saveMilestoneNames(
+                                goal,
+                                buildMilestoneNames(milestoneTargetCount, draftMilestoneNames)
+                              )
+                            }
+                          >
+                            {savingMilestoneNamesGoalId === goal.id ? "Saving..." : "Save names"}
                           </Button>
                         ) : null}
                       </div>
@@ -474,8 +570,9 @@ export function InsightsTab() {
                           </p>
                         ) : null}
                         <MilestoneSteps
-                          targetCount={goal.target_count ?? completions.length}
+                          targetCount={milestoneTargetCount}
                           completions={completions}
+                          milestoneNames={draftMilestoneNames}
                           interactive={editingHistory}
                           pending={pendingRetroDate === toLocalDateString()}
                           onStepClick={() => {
@@ -492,6 +589,32 @@ export function InsightsTab() {
                             void markRetroactiveCompletion(goal, today);
                           }}
                         />
+                        {editingHistory && canRenameMilestones ? (
+                          <div className="space-y-2 rounded-lg border border-border bg-muted/20 p-3">
+                            <p className="text-xs text-muted-foreground">Fixed step names</p>
+                            <div className="grid gap-2 sm:grid-cols-2">
+                              {Array.from({ length: milestoneTargetCount }).map((_, index) => (
+                                <Input
+                                  key={`${goal.id}-milestone-name-${index + 1}`}
+                                  value={draftMilestoneNames[index] ?? defaultMilestoneName(index)}
+                                  onChange={(event) =>
+                                    setMilestoneNameDrafts((previous) => {
+                                      const nextGoalNames = [
+                                        ...(previous[goal.id] ?? persistedMilestoneNames),
+                                      ];
+                                      nextGoalNames[index] = event.target.value;
+                                      return {
+                                        ...previous,
+                                        [goal.id]: nextGoalNames,
+                                      };
+                                    })
+                                  }
+                                  placeholder={defaultMilestoneName(index)}
+                                />
+                              ))}
+                            </div>
+                          </div>
+                        ) : null}
                       </>
                     ) : (
                       <>

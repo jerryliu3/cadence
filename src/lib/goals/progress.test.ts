@@ -17,6 +17,7 @@ function buildGoal(overrides: Partial<Goal>): Goal {
     frequency_type: "recurring",
     recurrence_interval: "daily",
     target_count: null,
+    milestone_names: null,
     start_date: "2026-05-01",
     end_date: null,
     photo_path: null,

@@ -13,6 +13,7 @@ export interface Goal {
   frequency_type: GoalFrequencyType;
   recurrence_interval: RecurrenceInterval | null;
   target_count: number | null;
+  milestone_names: string[] | null;
   start_date: string;
   end_date: string | null;
   photo_path: string | null;

@@ -54,6 +54,7 @@ interface GoalFormState {
   frequency_type: GoalFrequencyType;
   recurrence_interval: RecurrenceInterval;
   target_count: string;
+  milestone_names: string[];
   start_date: string;
   end_date: string;
   is_group: boolean;
@@ -68,6 +69,7 @@ const defaultState: GoalFormState = {
   frequency_type: "recurring",
   recurrence_interval: "daily",
   target_count: "",
+  milestone_names: [],
   start_date: toLocalDateString(),
   end_date: "",
   is_group: false,
@@ -84,6 +86,36 @@ const recurrenceOptions: Array<{ value: RecurrenceInterval; label: string }> = [
   { value: "monthly", label: "Monthly" },
 ];
 
+function defaultMilestoneName(index: number): string {
+  return `Milestone ${index + 1}`;
+}
+
+function parsePositiveTargetCount(value: string): number | null {
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return null;
+  }
+  return parsed;
+}
+
+function buildMilestoneNameDrafts(count: number, existing: string[] = []): string[] {
+  if (!Number.isFinite(count) || count <= 0) {
+    return [];
+  }
+
+  return Array.from({ length: count }, (_, index) => {
+    const existingName = existing[index];
+    return existingName !== undefined ? existingName : "";
+  });
+}
+
+function normalizeMilestoneNamesForSave(count: number, names: string[]): string[] {
+  return Array.from({ length: count }, (_, index) => {
+    const value = names[index]?.trim();
+    return value && value.length > 0 ? value : defaultMilestoneName(index);
+  });
+}
+
 export function GoalForm({ goalId }: GoalFormProps) {
   const supabase = useMemo(() => createClient(), []);
   const router = useRouter();
@@ -97,6 +129,7 @@ export function GoalForm({ goalId }: GoalFormProps) {
   const [editingGoal, setEditingGoal] = useState<Goal | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string>("");
   const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [milestoneNamesOpen, setMilestoneNamesOpen] = useState(false);
 
   const isEditing = Boolean(goalId);
 
@@ -157,6 +190,10 @@ export function GoalForm({ goalId }: GoalFormProps) {
           frequency_type: goal.frequency_type,
           recurrence_interval: goal.recurrence_interval ?? "daily",
           target_count: goal.target_count?.toString() ?? "",
+          milestone_names: buildMilestoneNameDrafts(
+            goal.target_count ?? 0,
+            goal.milestone_names ?? []
+          ),
           start_date: goal.start_date,
           end_date: goal.end_date ?? "",
           is_group: goal.is_group,
@@ -188,8 +225,13 @@ export function GoalForm({ goalId }: GoalFormProps) {
   const canShowRecurrenceFields = state.frequency_type === "recurring";
   const canShowTargetCount =
     state.frequency_type === "fixed_milestones" || state.frequency_type === "recurring";
+  const fixedMilestoneCount =
+    state.frequency_type === "fixed_milestones"
+      ? parsePositiveTargetCount(state.target_count) ?? 0
+      : 0;
 
   const updateFrequencyType = (nextFrequency: GoalFrequencyType) => {
+    setMilestoneNamesOpen(false);
     setState((previous) => ({
       ...previous,
       frequency_type: nextFrequency,
@@ -197,6 +239,31 @@ export function GoalForm({ goalId }: GoalFormProps) {
         nextFrequency === "fixed_milestones" && previous.target_count.trim().length === 0
           ? "3"
           : previous.target_count,
+      milestone_names:
+        nextFrequency === "fixed_milestones"
+          ? buildMilestoneNameDrafts(
+              parsePositiveTargetCount(
+                nextFrequency === "fixed_milestones" && previous.target_count.trim().length === 0
+                  ? "3"
+                  : previous.target_count
+              ) ?? 0,
+              previous.milestone_names
+            )
+          : previous.milestone_names,
+    }));
+  };
+
+  const updateTargetCount = (nextTargetCount: string) => {
+    setState((previous) => ({
+      ...previous,
+      target_count: nextTargetCount,
+      milestone_names:
+        previous.frequency_type === "fixed_milestones"
+          ? buildMilestoneNameDrafts(
+              parsePositiveTargetCount(nextTargetCount) ?? 0,
+              previous.milestone_names
+            )
+          : previous.milestone_names,
     }));
   };
 
@@ -283,6 +350,11 @@ export function GoalForm({ goalId }: GoalFormProps) {
     }
 
     setSaving(true);
+    const parsedTargetCount = parsePositiveTargetCount(state.target_count);
+    const milestoneNames =
+      state.frequency_type === "fixed_milestones" && parsedTargetCount !== null
+        ? normalizeMilestoneNamesForSave(parsedTargetCount, state.milestone_names)
+        : null;
 
     const payload = {
       owner_id: currentUserId,
@@ -294,10 +366,11 @@ export function GoalForm({ goalId }: GoalFormProps) {
       recurrence_interval: state.frequency_type === "recurring" ? state.recurrence_interval : null,
       target_count:
         state.frequency_type === "fixed_milestones"
-          ? Number.parseInt(state.target_count, 10)
+          ? parsedTargetCount
           : state.frequency_type === "recurring" && state.target_count.trim().length > 0
-            ? Number.parseInt(state.target_count, 10)
+            ? parsedTargetCount
           : null,
+      milestone_names: milestoneNames,
       start_date: state.start_date,
       end_date: state.end_date || null,
       is_group: state.is_group,
@@ -573,9 +646,7 @@ export function GoalForm({ goalId }: GoalFormProps) {
                   type="number"
                   min={1}
                   value={state.target_count}
-                  onChange={(event) =>
-                    setState((prev) => ({ ...prev, target_count: event.target.value }))
-                  }
+                  onChange={(event) => updateTargetCount(event.target.value)}
                   required={state.frequency_type === "fixed_milestones"}
                 />
                 {state.frequency_type === "recurring" ? (
@@ -586,6 +657,56 @@ export function GoalForm({ goalId }: GoalFormProps) {
               </div>
             ) : null}
           </div>
+
+          {fixedMilestoneCount > 0 ? (
+            <Collapsible
+              open={fixedMilestoneCount > 0 ? milestoneNamesOpen : false}
+              onOpenChange={setMilestoneNamesOpen}
+            >
+              <div className="rounded-xl border bg-muted/20">
+                <CollapsibleTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-sm"
+                  >
+                    <span>Milestone names (optional)</span>
+                    {milestoneNamesOpen ? (
+                      <ChevronUp className="size-4 text-muted-foreground" />
+                    ) : (
+                      <ChevronDown className="size-4 text-muted-foreground" />
+                    )}
+                  </Button>
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <div className="space-y-3 border-t px-3 py-3">
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      {Array.from({ length: fixedMilestoneCount }).map((_, index) => (
+                        <Input
+                          key={`milestone-name-${index + 1}`}
+                          value={state.milestone_names[index] ?? ""}
+                          onChange={(event) =>
+                            setState((previous) => {
+                              const nextMilestoneNames = [...previous.milestone_names];
+                              nextMilestoneNames[index] = event.target.value;
+                              return {
+                                ...previous,
+                                milestone_names: nextMilestoneNames,
+                              };
+                            })
+                          }
+                          placeholder={defaultMilestoneName(index)}
+                        />
+                      ))}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Leave any field blank to use the default name.
+                    </p>
+                  </div>
+                </CollapsibleContent>
+              </div>
+            </Collapsible>
+          ) : null}
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
