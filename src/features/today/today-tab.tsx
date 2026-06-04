@@ -24,13 +24,13 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Input } from "@/components/ui/input";
-import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toLocalDateString } from "@/lib/dates/day";
 import { getCategoryBadgeClass } from "@/lib/goals/category";
 import {
   getCompletionsForCurrentPeriod,
   getFrequencySummary,
+  getGoalPeriodEndDate,
   hasCompletionToday,
   isGoalCompleted,
   isGoalDoneForCurrentPeriod,
@@ -486,18 +486,6 @@ export function TodayTab() {
     [activeGoals, sortGoals, todayDate]
   );
 
-  const currentPeriodProgress = useMemo(() => {
-    if (filteredTodayGoals.length === 0) {
-      return 0;
-    }
-    const checkedOff = filteredTodayGoals.filter((goal) => {
-      const completions = completionsByGoal.get(goal.id) ?? [];
-      return isGoalDoneForCurrentPeriod(goal, completions, viewDateObj);
-    }).length;
-
-    return (checkedOff / filteredTodayGoals.length) * 100;
-  }, [completionsByGoal, filteredTodayGoals, viewDateObj]);
-
   const toggleCompletion = async (goal: Goal) => {
     const completions = completionsByGoal.get(goal.id) ?? [];
     const completedOnViewDate = hasCompletionToday(completions, viewDateObj);
@@ -569,11 +557,32 @@ export function TodayTab() {
     <div className="space-y-5">
       <Card className="shadow-sm">
         <CardHeader className="pb-3">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <CardTitle className="text-xl">Today</CardTitle>
-              <CardDescription>{format(viewDateObj, "EEEE, MMMM d")}</CardDescription>
-              <div className="mt-2 flex flex-wrap items-center gap-2">
+          <div className="min-w-0">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="size-4 text-primary" />
+                  <CardTitle className="text-xl">Today</CardTitle>
+                </div>
+                <CardDescription>{format(viewDateObj, "EEEE, MMMM d")}</CardDescription>
+              </div>
+              <div className="flex shrink-0 flex-col gap-2 sm:mr-2 sm:flex-row">
+                <Button variant="outline" asChild>
+                  <Link href="/goals/bulk">
+                    <ListPlus className="size-4" />
+                    New bulk goal
+                  </Link>
+                </Button>
+                <Button asChild>
+                  <Link href="/goals/new">
+                    <Plus className="size-4" />
+                    New goal
+                  </Link>
+                </Button>
+              </div>
+            </div>
+            <div className="mt-2 flex items-center gap-2 overflow-x-auto pb-1">
+              <div className="flex shrink-0 items-center gap-2">
                 <Button type="button" variant="outline" size="icon-sm" onClick={goToPreviousDate}>
                   <ChevronLeft className="size-4" />
                 </Button>
@@ -597,34 +606,14 @@ export function TodayTab() {
                   </Button>
                 ) : null}
               </div>
-            </div>
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <Button variant="outline" asChild>
-                <Link href="/goals/bulk">
-                  <ListPlus className="size-4" />
-                  New bulk goal
-                </Link>
-              </Button>
-              <Button asChild>
-                <Link href="/goals/new">
-                  <Plus className="size-4" />
-                  New goal
-                </Link>
-              </Button>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="rounded-xl border bg-muted/20 p-3">
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              <div className="space-y-1.5">
-                <p className="text-xs font-medium text-muted-foreground">Category</p>
+
+              <div className="flex shrink-0 items-center gap-2">
                 <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="All categories" />
+                  <SelectTrigger className="h-8 w-[170px] rounded-full bg-background/90 text-xs">
+                    <SelectValue placeholder="Category" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value={allCategoriesFilterValue}>All categories</SelectItem>
+                    <SelectItem value={allCategoriesFilterValue}>All Categories</SelectItem>
                     {availableCategories.map((category) => (
                       <SelectItem key={category} value={category}>
                         {category}
@@ -632,121 +621,101 @@ export function TodayTab() {
                     ))}
                   </SelectContent>
                 </Select>
-              </div>
 
-              <div className="space-y-1.5">
-                <p className="text-xs font-medium text-muted-foreground">Deadline</p>
                 <Select
                   value={deadlineFilter}
                   onValueChange={(value: DeadlineFilter) => setDeadlineFilter(value)}
                 >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select deadline filter" />
+                  <SelectTrigger className="h-8 w-[170px] rounded-full bg-background/90 text-xs">
+                    <SelectValue placeholder="Deadline" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all_deadlines">All deadlines</SelectItem>
-                    <SelectItem value="this_month">Monthly</SelectItem>
-                    <SelectItem value="this_year">Yearly</SelectItem>
-                    <SelectItem value="custom_date">Custom date</SelectItem>
+                    <SelectItem value="all_deadlines">All Deadlines</SelectItem>
+                    <SelectItem value="this_month">Monthly Deadline</SelectItem>
+                    <SelectItem value="this_year">Yearly Deadline</SelectItem>
+                    <SelectItem value="custom_date">Custom Deadline</SelectItem>
                   </SelectContent>
                 </Select>
+
                 {deadlineFilter === "custom_date" ? (
                   <Input
                     type="date"
                     value={customDeadlineDate}
                     onChange={(event) => setCustomDeadlineDate(event.target.value)}
-                    className="mt-2"
+                    className="h-8 w-[170px] rounded-full text-xs"
                   />
                 ) : null}
-              </div>
 
-              <div className="space-y-1.5">
-                <p className="text-xs font-medium text-muted-foreground">Recurrence</p>
                 <Select
                   value={recurrenceFilter}
                   onValueChange={(value: RecurrenceFilter) => setRecurrenceFilter(value)}
                 >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select recurrence filter" />
+                  <SelectTrigger className="h-8 w-[190px] rounded-full bg-background/90 text-xs">
+                    <SelectValue placeholder="Recurrence" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">All</SelectItem>
-                    <SelectItem value="daily">Daily</SelectItem>
-                    <SelectItem value="weekly">Weekly</SelectItem>
-                    <SelectItem value="monthly">Monthly</SelectItem>
-                    <SelectItem value="fixed">Fixed</SelectItem>
+                    <SelectItem value="all">All Recurrences</SelectItem>
+                    <SelectItem value="daily">Daily Recurrences</SelectItem>
+                    <SelectItem value="weekly">Weekly Recurrences</SelectItem>
+                    <SelectItem value="monthly">Monthly Recurrences</SelectItem>
+                    <SelectItem value="fixed">Milestone Goals</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </div>
           </div>
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-muted-foreground">Current period progress</span>
-            <span>{Math.round(currentPeriodProgress)}%</span>
-          </div>
-          <Progress value={currentPeriodProgress} />
-          <p className="text-xs text-muted-foreground">
-            Un-marking also cascades to linked goals for the same day.
-          </p>
+        </CardHeader>
+        <CardContent className="space-y-3 pt-0">
+          {todayGoalsSorted.length === 0 ? (
+            <Card className="shadow-none">
+              <CardContent className="py-6 text-sm text-muted-foreground">
+                No goals match these filters for this date.
+              </CardContent>
+            </Card>
+          ) : recurrenceFilter === "all" ? (
+            <div className="space-y-4">
+              {groupedTodayGoalsForAll.map((group) => (
+                <div key={`pending-${group.key}`} className="space-y-2">
+                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    {group.label}
+                  </p>
+                  <div className="space-y-3">
+                    {group.goals.map((goal) => (
+                      <GoalCard
+                        key={goal.id}
+                        goal={goal}
+                        completions={completionsByGoal.get(goal.id) ?? []}
+                        linkedCount={data.links.filter((link) => link.source_goal_id === goal.id).length}
+                        imageUrl={data.photoUrls[goal.id]}
+                        disabled={savingGoalId === goal.id}
+                        selectedDate={viewDate}
+                        referenceDate={viewDateObj}
+                        onToggle={() => toggleCompletion(goal)}
+                      />
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {todayGoalsSorted.map((goal) => (
+                <GoalCard
+                  key={goal.id}
+                  goal={goal}
+                  completions={completionsByGoal.get(goal.id) ?? []}
+                  linkedCount={data.links.filter((link) => link.source_goal_id === goal.id).length}
+                  imageUrl={data.photoUrls[goal.id]}
+                  disabled={savingGoalId === goal.id}
+                  selectedDate={viewDate}
+                  referenceDate={viewDateObj}
+                  onToggle={() => toggleCompletion(goal)}
+                />
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
-
-      <section className="space-y-3">
-        <div className="flex items-center gap-2">
-          <Sparkles className="size-4 text-primary" />
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-            Today
-          </h2>
-        </div>
-        {todayGoalsSorted.length === 0 ? (
-          <Card className="shadow-sm">
-            <CardContent className="py-6 text-sm text-muted-foreground">
-              No goals match these filters for this date.
-            </CardContent>
-          </Card>
-        ) : recurrenceFilter === "all" ? (
-          <div className="space-y-4">
-            {groupedTodayGoalsForAll.map((group) => (
-              <div key={`pending-${group.key}`} className="space-y-2">
-                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  {group.label}
-                </p>
-                <div className="space-y-3">
-                  {group.goals.map((goal) => (
-                    <GoalCard
-                      key={goal.id}
-                      goal={goal}
-                      completions={completionsByGoal.get(goal.id) ?? []}
-                      linkedCount={data.links.filter((link) => link.source_goal_id === goal.id).length}
-                      imageUrl={data.photoUrls[goal.id]}
-                      disabled={savingGoalId === goal.id}
-                      selectedDate={viewDate}
-                      referenceDate={viewDateObj}
-                      onToggle={() => toggleCompletion(goal)}
-                    />
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {todayGoalsSorted.map((goal) => (
-              <GoalCard
-                key={goal.id}
-                goal={goal}
-                completions={completionsByGoal.get(goal.id) ?? []}
-                linkedCount={data.links.filter((link) => link.source_goal_id === goal.id).length}
-                imageUrl={data.photoUrls[goal.id]}
-                disabled={savingGoalId === goal.id}
-                selectedDate={viewDate}
-                referenceDate={viewDateObj}
-                onToggle={() => toggleCompletion(goal)}
-              />
-            ))}
-          </div>
-        )}
-      </section>
 
       <Collapsible open={upcomingOpen} onOpenChange={setUpcomingOpen}>
         <Card className="shadow-sm">
@@ -900,10 +869,21 @@ function GoalCard({
   archived = false,
   onToggle,
 }: GoalCardProps) {
-  const completionCount = completions.length;
+  const totalCompletionCount = completions.length;
+  const recurringPeriodCompletionCount = getCompletionsForCurrentPeriod(
+    goal,
+    completions,
+    referenceDate
+  ).length;
+  const displayCompletionCount =
+    goal.frequency_type === "recurring" ? recurringPeriodCompletionCount : totalCompletionCount;
   const doneForCurrentPeriod = isGoalDoneForCurrentPeriod(goal, completions, referenceDate);
   const doneOnSelectedDate = hasCompletionToday(completions, referenceDate);
-  const nextMilestoneName = getNextMilestoneName(goal, completionCount);
+  const currentMilestoneName = getNextMilestoneName(goal, totalCompletionCount);
+  const nextRecurringStartDate =
+    goal.frequency_type === "recurring" && doneForCurrentPeriod
+      ? format(addDays(getGoalPeriodEndDate(goal, referenceDate), 1), "yyyy-MM-dd")
+      : null;
   const completionSourceForSelectedDate = completions.find(
     (completion) => completion.completed_on === selectedDate
   )?.source;
@@ -955,13 +935,22 @@ function GoalCard({
                 {goal.category}
               </Badge>
             </div>
-            {nextMilestoneName ? (
-              <p className="truncate text-[11px] text-muted-foreground">
-                Next milestone: {nextMilestoneName}
-              </p>
-            ) : null}
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <p className="truncate">{getFrequencySummary(goal, completionCount)}</p>
+              <div className="flex min-w-0 items-center gap-2">
+                {currentMilestoneName ? (
+                  <>
+                    <span className="max-w-[180px] truncate">
+                      Current milestone: {currentMilestoneName}
+                    </span>
+                    <span className="shrink-0">·</span>
+                  </>
+                ) : null}
+                <p className="truncate">{getFrequencySummary(goal, displayCompletionCount)}</p>
+                {nextRecurringStartDate ? <span className="shrink-0">·</span> : null}
+              </div>
+              {nextRecurringStartDate ? (
+                <span className="shrink-0">Next Start Date: {nextRecurringStartDate}</span>
+              ) : null}
               <span className="ml-auto shrink-0 text-[11px]">
                 Deadline: {goal.end_date ?? "None"}
               </span>

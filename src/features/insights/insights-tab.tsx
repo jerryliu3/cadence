@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  addYears,
   addMonths,
   endOfYear,
   format,
@@ -8,6 +9,7 @@ import {
   parseISO,
   startOfDay,
   startOfYear,
+  subYears,
   subMonths,
 } from "date-fns";
 import {
@@ -47,6 +49,8 @@ const emptyInsights: InsightsData = {
   completions: [],
   participants: [],
 };
+
+type HeatmapViewMode = "month" | "year";
 
 function groupCompletionsByGoal(completions: Completion[]) {
   const map = new Map<string, Completion[]>();
@@ -148,11 +152,20 @@ function getSortedCompletionDates(completions: Completion[]): string[] {
   );
 }
 
+function getCompletionCountLabel(goal: Goal, completionCount: number): string {
+  if (typeof goal.target_count === "number" && goal.target_count > 0) {
+    return `${completionCount}/${goal.target_count} completions`;
+  }
+
+  return `${completionCount} completion${completionCount === 1 ? "" : "s"}`;
+}
+
 export function InsightsTab() {
   const supabase = useMemo(() => createClient(), []);
   const [state, setState] = useState<InsightsData>(emptyInsights);
   const [loading, setLoading] = useState(true);
   const [monthCursor, setMonthCursor] = useState(new Date());
+  const [perGoalViewMode, setPerGoalViewMode] = useState<HeatmapViewMode>("month");
   const [editingGoalId, setEditingGoalId] = useState<string | null>(null);
   const [pendingRetroDate, setPendingRetroDate] = useState<string | null>(null);
   const [milestoneNameDrafts, setMilestoneNameDrafts] = useState<Record<string, string[]>>({});
@@ -207,6 +220,12 @@ export function InsightsTab() {
     void run();
   }, [loadData]);
 
+  useEffect(() => {
+    if (perGoalViewMode === "year" && editingGoalId !== null) {
+      setEditingGoalId(null);
+    }
+  }, [editingGoalId, perGoalViewMode]);
+
   const completableGoalIds = useMemo(() => {
     const ids = new Set<string>();
     const visibleGoalIds = new Set(state.goals.map((goal) => goal.id));
@@ -251,6 +270,17 @@ export function InsightsTab() {
       count,
     }));
   }, [aggregateCountsByDate]);
+
+  const selectedYearStart = useMemo(() => startOfYear(monthCursor), [monthCursor]);
+  const selectedYearEnd = useMemo(() => endOfYear(monthCursor), [monthCursor]);
+  const selectedYearEndDate = useMemo(() => format(selectedYearEnd, "yyyy-MM-dd"), [selectedYearEnd]);
+  const visiblePerGoalHeatmaps = useMemo(
+    () =>
+      perGoalViewMode === "year"
+        ? personalGoals.filter((goal) => goal.end_date === selectedYearEndDate)
+        : personalGoals,
+    [perGoalViewMode, personalGoals, selectedYearEndDate]
+  );
 
   const overallCompletion = useMemo(
     () => getOverallCompletionPercentage(personalGoals, completionsByGoal),
@@ -469,53 +499,109 @@ export function InsightsTab() {
       </Card>
 
       <Card className="shadow-sm">
+        <CardHeader className="pb-3">
+          <div className="flex items-center gap-2">
+            <CalendarRange className="size-4 text-primary" />
+            <CardTitle>Per-goal controls</CardTitle>
+          </div>
+          <CardDescription>Switch between monthly and yearly goal heatmaps.</CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-wrap items-center justify-between gap-3">
+          <div className="inline-flex items-center rounded-lg border bg-muted/20 p-1">
+            <Button
+              type="button"
+              size="sm"
+              variant={perGoalViewMode === "month" ? "secondary" : "ghost"}
+              onClick={() => setPerGoalViewMode("month")}
+            >
+              Month
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={perGoalViewMode === "year" ? "secondary" : "ghost"}
+              onClick={() => setPerGoalViewMode("year")}
+            >
+              Year
+            </Button>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="icon-sm"
+              onClick={() =>
+                setMonthCursor((previous) =>
+                  perGoalViewMode === "month" ? subMonths(previous, 1) : subYears(previous, 1)
+                )
+              }
+            >
+              <ChevronLeft className="size-4" />
+            </Button>
+            <span className="min-w-[120px] text-center text-sm font-medium text-muted-foreground">
+              {perGoalViewMode === "month" ? format(monthCursor, "MMMM yyyy") : format(monthCursor, "yyyy")}
+            </span>
+            <Button
+              type="button"
+              variant="outline"
+              size="icon-sm"
+              onClick={() =>
+                setMonthCursor((previous) =>
+                  perGoalViewMode === "month" ? addMonths(previous, 1) : addYears(previous, 1)
+                )
+              }
+            >
+              <ChevronRight className="size-4" />
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="shadow-sm">
         <CardHeader>
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <CardTitle>Per-goal monthly heatmaps</CardTitle>
-              <CardDescription>Navigate by month to inspect each goal pattern.</CardDescription>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="icon-sm"
-                onClick={() => setMonthCursor((prev) => subMonths(prev, 1))}
-              >
-                <ChevronLeft className="size-4" />
-              </Button>
-              <span className="min-w-[120px] text-center text-sm font-medium text-muted-foreground">
-                {format(monthCursor, "MMMM yyyy")}
-              </span>
-              <Button
-                variant="outline"
-                size="icon-sm"
-                onClick={() => setMonthCursor((prev) => addMonths(prev, 1))}
-              >
-                <ChevronRight className="size-4" />
-              </Button>
-            </div>
+          <div>
+            <CardTitle>
+              {perGoalViewMode === "month" ? "Per-goal monthly heatmaps" : "Per-goal yearly heatmaps"}
+            </CardTitle>
+            <CardDescription>
+              {perGoalViewMode === "month"
+                ? "Navigate by month to inspect each goal pattern."
+                : "Yearly consistency view per goal."}
+            </CardDescription>
           </div>
         </CardHeader>
         <CardContent
           className="space-y-3"
           data-no-swipe="true"
-          onTouchStart={onMonthSectionTouchStart}
-          onTouchEnd={onMonthSectionTouchEnd}
+          onTouchStart={perGoalViewMode === "month" ? onMonthSectionTouchStart : undefined}
+          onTouchEnd={perGoalViewMode === "month" ? onMonthSectionTouchEnd : undefined}
         >
-          {personalGoals.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No goals available yet.</p>
+          {visiblePerGoalHeatmaps.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              {perGoalViewMode === "year"
+                ? `No year-end resolutions for ${format(monthCursor, "yyyy")}.`
+                : "No goals available yet."}
+            </p>
           ) : (
-            personalGoals.map((goal) => {
+            visiblePerGoalHeatmaps.map((goal) => {
               const completions = completionsByGoal.get(goal.id) ?? [];
+              const completionCount = completions.length;
+              const hasTargetCount = typeof goal.target_count === "number" && goal.target_count > 0;
+              const completionCountLabel = getCompletionCountLabel(goal, completionCount);
               const countsByDate = goalCompletionCountsByDate(completions);
-              const percent = getGoalCompletionPercentage(goal, completions);
+              const percent = hasTargetCount ? getGoalCompletionPercentage(goal, completions) : 0;
               const streaks = getRecurringStreaks(goal, completions);
               const isRecurring = goal.frequency_type === "recurring";
               const isMilestone = goal.frequency_type === "fixed_milestones";
+              const canEditHistory = (isRecurring || isMilestone) && perGoalViewMode === "month";
               const editingHistory = editingGoalId === goal.id;
-              const milestoneTargetCount = Math.max(goal.target_count ?? completions.length, 1);
+              const milestoneTargetCount = Math.max(goal.target_count ?? completionCount, 1);
               const milestoneCompletionDates = getSortedCompletionDates(completions);
               const mappedMilestoneDates = milestoneCompletionDates.slice(0, milestoneTargetCount);
+              const goalHeatmapData = Object.entries(countsByDate).map(([date, count]) => ({
+                date,
+                count,
+              }));
               const persistedMilestoneNames = isMilestone
                 ? buildMilestoneNames(milestoneTargetCount, goal.milestone_names)
                 : [];
@@ -544,8 +630,10 @@ export function InsightsTab() {
                         </Badge>
                       </div>
                       <div className="flex items-center gap-2">
-                        <Badge variant="secondary">{Math.round(percent)}%</Badge>
-                        {isRecurring || isMilestone ? (
+                        <Badge variant="secondary">
+                          {hasTargetCount ? `${Math.round(percent)}%` : completionCountLabel}
+                        </Badge>
+                        {canEditHistory ? (
                           <Button
                             type="button"
                             size="sm"
@@ -598,27 +686,45 @@ export function InsightsTab() {
                           completionDates={mappedMilestoneDates}
                           milestoneNames={draftMilestoneNames}
                         />
-                        {editingHistory ? (
+                        {editingHistory && perGoalViewMode === "month" ? (
                           <p className="text-xs text-muted-foreground">
                             Tap calendar dates to assign milestones. Earliest selected date maps to
                             milestone 1. You can select up to {milestoneTargetCount} date
                             {milestoneTargetCount === 1 ? "" : "s"}.
                           </p>
                         ) : null}
-                        <MonthHeatmap
-                          month={monthCursor}
-                          countsByDate={countsByDate}
-                          interactive={editingHistory}
-                          pendingDate={pendingRetroDate}
-                          onDayClick={(date) =>
-                            void toggleMilestoneDateSelection(
-                              goal,
-                              date,
-                              milestoneCompletionDates,
-                              milestoneTargetCount
-                            )
-                          }
-                        />
+                        {perGoalViewMode === "month" ? (
+                          <MonthHeatmap
+                            month={monthCursor}
+                            countsByDate={countsByDate}
+                            interactive={editingHistory}
+                            pendingDate={pendingRetroDate}
+                            onDayClick={(date) =>
+                              void toggleMilestoneDateSelection(
+                                goal,
+                                date,
+                                milestoneCompletionDates,
+                                milestoneTargetCount
+                              )
+                            }
+                          />
+                        ) : (
+                          <div className="overflow-x-auto rounded-xl border bg-card p-3">
+                            <CalendarHeatmap
+                              startDate={selectedYearStart}
+                              endDate={selectedYearEnd}
+                              values={goalHeatmapData}
+                              showWeekdayLabels
+                              weekdayLabels={aggregateWeekdayLabels}
+                              classForValue={(value) => scaleClass(value?.count ?? 0)}
+                              titleForValue={(value) =>
+                                `${value?.date ?? "N/A"}: ${value?.count ?? 0} completion${
+                                  (value?.count ?? 0) === 1 ? "" : "s"
+                                }`
+                              }
+                            />
+                          </div>
+                        )}
                         {editingHistory && canRenameMilestones ? (
                           <div className="space-y-2 rounded-lg border border-border bg-muted/20 p-3">
                             <p className="text-xs text-muted-foreground">Milestone names</p>
@@ -648,18 +754,36 @@ export function InsightsTab() {
                       </>
                     ) : (
                       <>
-                        {editingHistory ? (
+                        {editingHistory && perGoalViewMode === "month" ? (
                           <p className="text-xs text-muted-foreground">
                             Tap any day to mark it complete retroactively.
                           </p>
                         ) : null}
-                        <MonthHeatmap
-                          month={monthCursor}
-                          countsByDate={countsByDate}
-                          interactive={editingHistory}
-                          pendingDate={pendingRetroDate}
-                          onDayClick={(date) => void markRetroactiveCompletion(goal, date)}
-                        />
+                        {perGoalViewMode === "month" ? (
+                          <MonthHeatmap
+                            month={monthCursor}
+                            countsByDate={countsByDate}
+                            interactive={editingHistory}
+                            pendingDate={pendingRetroDate}
+                            onDayClick={(date) => void markRetroactiveCompletion(goal, date)}
+                          />
+                        ) : (
+                          <div className="overflow-x-auto rounded-xl border bg-card p-3">
+                            <CalendarHeatmap
+                              startDate={selectedYearStart}
+                              endDate={selectedYearEnd}
+                              values={goalHeatmapData}
+                              showWeekdayLabels
+                              weekdayLabels={aggregateWeekdayLabels}
+                              classForValue={(value) => scaleClass(value?.count ?? 0)}
+                              titleForValue={(value) =>
+                                `${value?.date ?? "N/A"}: ${value?.count ?? 0} completion${
+                                  (value?.count ?? 0) === 1 ? "" : "s"
+                                }`
+                              }
+                            />
+                          </div>
+                        )}
                       </>
                     )}
 
@@ -669,9 +793,11 @@ export function InsightsTab() {
                           <TrendingUp className="size-3" />
                           Completion
                         </span>
-                        <span>{Math.round(percent)}%</span>
+                        <span className="text-right">
+                          {hasTargetCount ? `${Math.round(percent)}% · ${completionCountLabel}` : completionCountLabel}
+                        </span>
                       </div>
-                      <Progress value={percent} />
+                      {hasTargetCount ? <Progress value={percent} /> : null}
                     </div>
 
                     {goal.frequency_type === "recurring" ? (
