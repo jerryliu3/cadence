@@ -14,6 +14,7 @@ export function LoginForm() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -50,13 +51,23 @@ export function LoginForm() {
       <div className="space-y-2">
         <div className="flex items-center justify-between">
           <Label htmlFor="password">Password</Label>
-          <Link href="/reset-password" className="text-xs text-primary hover:underline">
-            Forgot password?
-          </Link>
+          <div className="flex items-center gap-2 text-xs">
+            <button
+              type="button"
+              onClick={() => setShowPassword((previous) => !previous)}
+              className="text-muted-foreground hover:underline"
+              aria-pressed={showPassword}
+            >
+              {showPassword ? "Hide password" : "Show password"}
+            </button>
+            <Link href="/reset-password" className="text-primary hover:underline">
+              Forgot password?
+            </Link>
+          </div>
         </div>
         <Input
           id="password"
-          type="password"
+          type={showPassword ? "text" : "password"}
           autoComplete="current-password"
           value={password}
           onChange={(event) => setPassword(event.target.value)}
