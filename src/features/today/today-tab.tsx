@@ -17,7 +17,16 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  type ReactNode,
+  type UIEventHandler,
+  type WheelEventHandler,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -61,6 +70,13 @@ const allCategoriesFilterValue = "__all_categories__";
 type DeadlineFilter = "all_deadlines" | "this_month" | "this_year" | "custom_date";
 type RecurrenceFilter = "all" | "daily" | "weekly" | "monthly" | "fixed";
 type RecurrenceGroup = "daily" | "weekly" | "monthly" | "fixed";
+const VISIBLE_GOALS_PER_GROUP = 5;
+const INITIAL_GROUP_EXPANDED: Record<RecurrenceGroup, boolean> = {
+  daily: false,
+  weekly: false,
+  monthly: false,
+  fixed: false,
+};
 
 function getFrequencyRank(goal: Goal): number {
   if (goal.frequency_type === "fixed_milestones") {
@@ -137,6 +153,8 @@ export function TodayTab() {
   const [data, setData] = useState<TodayData>(emptyData);
   const [loading, setLoading] = useState(true);
   const [savingGoalId, setSavingGoalId] = useState<string | null>(null);
+  const [expandedGroups, setExpandedGroups] =
+    useState<Record<RecurrenceGroup, boolean>>(INITIAL_GROUP_EXPANDED);
   const [upcomingOpen, setUpcomingOpen] = useState(true);
   const [completedOpen, setCompletedOpen] = useState(false);
   const [archiveOpen, setArchiveOpen] = useState(false);
@@ -674,28 +692,77 @@ export function TodayTab() {
             </Card>
           ) : recurrenceFilter === "all" ? (
             <div className="space-y-4">
-              {groupedTodayGoalsForAll.map((group) => (
-                <div key={`pending-${group.key}`} className="space-y-2">
-                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                    {group.label}
-                  </p>
-                  <div className="space-y-3">
-                    {group.goals.map((goal) => (
-                      <GoalCard
-                        key={goal.id}
-                        goal={goal}
-                        completions={completionsByGoal.get(goal.id) ?? []}
-                        linkedCount={data.links.filter((link) => link.source_goal_id === goal.id).length}
-                        imageUrl={data.photoUrls[goal.id]}
-                        disabled={savingGoalId === goal.id}
-                        selectedDate={viewDate}
-                        referenceDate={viewDateObj}
-                        onToggle={() => toggleCompletion(goal)}
-                      />
-                    ))}
+              {groupedTodayGoalsForAll.map((group) => {
+                const canLoop = group.goals.length > VISIBLE_GOALS_PER_GROUP;
+                const isExpanded = expandedGroups[group.key];
+
+                return (
+                  <div key={`pending-${group.key}`} className="space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                        {group.label}
+                      </p>
+                      {canLoop ? (
+                        <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                          <span>
+                            {VISIBLE_GOALS_PER_GROUP} visible of {group.goals.length}
+                          </span>
+                          <button
+                            type="button"
+                            className="font-medium text-primary transition-colors hover:text-primary/80"
+                            onClick={() =>
+                              setExpandedGroups((previous) => ({
+                                ...previous,
+                                [group.key]: !previous[group.key],
+                              }))
+                            }
+                          >
+                            {isExpanded ? "Collapse" : "Expand"}
+                          </button>
+                        </div>
+                      ) : null}
+                    </div>
+
+                    {canLoop && !isExpanded ? (
+                      <div className="rounded-xl border bg-muted/15 p-2">
+                        <GoalLoopScroller
+                          goals={group.goals}
+                          renderGoal={(goal) => (
+                            <GoalCard
+                              goal={goal}
+                              completions={completionsByGoal.get(goal.id) ?? []}
+                              linkedCount={
+                                data.links.filter((link) => link.source_goal_id === goal.id).length
+                              }
+                              imageUrl={data.photoUrls[goal.id]}
+                              disabled={savingGoalId === goal.id}
+                              selectedDate={viewDate}
+                              referenceDate={viewDateObj}
+                              onToggle={() => toggleCompletion(goal)}
+                            />
+                          )}
+                        />
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {group.goals.map((goal) => (
+                          <GoalCard
+                            key={goal.id}
+                            goal={goal}
+                            completions={completionsByGoal.get(goal.id) ?? []}
+                            linkedCount={data.links.filter((link) => link.source_goal_id === goal.id).length}
+                            imageUrl={data.photoUrls[goal.id]}
+                            disabled={savingGoalId === goal.id}
+                            selectedDate={viewDate}
+                            referenceDate={viewDateObj}
+                            onToggle={() => toggleCompletion(goal)}
+                          />
+                        ))}
+                      </div>
+                    )}
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           ) : (
             <div className="space-y-3">
@@ -842,6 +909,132 @@ export function TodayTab() {
           </CollapsibleContent>
         </Card>
       </Collapsible>
+    </div>
+  );
+}
+
+interface GoalLoopScrollerProps {
+  goals: Goal[];
+  renderGoal: (goal: Goal, repeatIndex: number) => ReactNode;
+}
+
+function GoalLoopScroller({ goals, renderGoal }: GoalLoopScrollerProps) {
+  const scrollerRef = useRef<HTMLDivElement | null>(null);
+  const shouldLoop = goals.length > VISIBLE_GOALS_PER_GROUP;
+  const repeatedGoals = useMemo(() => {
+    if (!shouldLoop) {
+      return goals;
+    }
+
+    return [...goals, ...goals, ...goals];
+  }, [goals, shouldLoop]);
+  const [cycleProgress, setCycleProgress] = useState(0);
+
+  useEffect(() => {
+    const scroller = scrollerRef.current;
+    if (!scroller) {
+      return;
+    }
+
+    if (!shouldLoop) {
+      scroller.scrollTop = 0;
+      setCycleProgress(0);
+      return;
+    }
+
+    const frameId = requestAnimationFrame(() => {
+      const oneCycleHeight = scroller.scrollHeight / 3;
+      if (oneCycleHeight > 0) {
+        scroller.scrollTop = oneCycleHeight;
+      }
+      setCycleProgress(0);
+    });
+
+    return () => cancelAnimationFrame(frameId);
+  }, [goals, shouldLoop]);
+
+  const onScroll = useCallback<UIEventHandler<HTMLDivElement>>(
+    (event) => {
+      if (!shouldLoop) {
+        return;
+      }
+
+      const scroller = event.currentTarget;
+      const oneCycleHeight = scroller.scrollHeight / 3;
+      if (oneCycleHeight <= 0) {
+        return;
+      }
+
+      let nextScrollTop = scroller.scrollTop;
+      if (nextScrollTop <= oneCycleHeight * 0.5) {
+        nextScrollTop += oneCycleHeight;
+        scroller.scrollTop = nextScrollTop;
+      } else if (nextScrollTop >= oneCycleHeight * 2.5) {
+        nextScrollTop -= oneCycleHeight;
+        scroller.scrollTop = nextScrollTop;
+      }
+
+      const normalized =
+        ((nextScrollTop - oneCycleHeight) % oneCycleHeight + oneCycleHeight) % oneCycleHeight;
+      setCycleProgress(normalized / oneCycleHeight);
+    },
+    [shouldLoop]
+  );
+
+  const onWheel = useCallback<WheelEventHandler<HTMLDivElement>>(
+    (event) => {
+      if (!shouldLoop) {
+        return;
+      }
+
+      event.preventDefault();
+      const scroller = event.currentTarget;
+      scroller.scrollTop += event.deltaY;
+    },
+    [shouldLoop]
+  );
+
+  const thumbHeightPercent = shouldLoop
+    ? Math.max((VISIBLE_GOALS_PER_GROUP / goals.length) * 100, 14)
+    : 100;
+  const thumbTopPercent = shouldLoop ? (100 - thumbHeightPercent) * cycleProgress : 0;
+  const loopingSoon = shouldLoop && (cycleProgress <= 0.08 || cycleProgress >= 0.92);
+
+  return (
+    <div className="relative">
+      <div
+        ref={scrollerRef}
+        data-no-swipe="true"
+        className="h-[430px] overflow-y-scroll overscroll-contain pr-4 [scrollbar-width:thin] [touch-action:pan-y]"
+        onScroll={onScroll}
+        onWheel={onWheel}
+      >
+        <div className="space-y-3 pr-1">
+          {repeatedGoals.map((goal, repeatIndex) => {
+            const goalCount = Math.max(goals.length, 1);
+            const cycleIndex = Math.floor(repeatIndex / goalCount);
+            const inCycleIndex = repeatIndex % goalCount;
+            return (
+              <div key={`${goal.id}-${cycleIndex}-${inCycleIndex}`}>{renderGoal(goal, repeatIndex)}</div>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="pointer-events-none absolute bottom-2 right-0 top-2 w-2.5">
+        <div className="relative h-full rounded-full bg-border/60">
+          <div
+            className="absolute left-0 right-0 rounded-full bg-primary/70 transition-[top] duration-150"
+            style={{ height: `${thumbHeightPercent}%`, top: `${thumbTopPercent}%` }}
+          />
+        </div>
+      </div>
+
+      {shouldLoop ? (
+        <div className="pointer-events-none absolute bottom-0 right-4 text-[10px] text-muted-foreground">
+          {loopingSoon ? "Looping around" : "Scroll inside list"}
+        </div>
+      ) : null}
     </div>
   );
 }

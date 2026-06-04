@@ -3,6 +3,7 @@
 import {
   addYears,
   addMonths,
+  differenceInCalendarDays,
   endOfYear,
   format,
   isAfter,
@@ -591,6 +592,13 @@ export function InsightsTab() {
               const countsByDate = goalCompletionCountsByDate(completions);
               const percent = hasTargetCount ? getGoalCompletionPercentage(goal, completions) : 0;
               const streaks = getRecurringStreaks(goal, completions);
+              const daysRemaining =
+                goal.end_date !== null
+                  ? Math.max(
+                      differenceInCalendarDays(parseISO(goal.end_date), startOfDay(new Date())),
+                      0
+                    )
+                  : null;
               const isRecurring = goal.frequency_type === "recurring";
               const isMilestone = goal.frequency_type === "fixed_milestones";
               const canEditHistory = (isRecurring || isMilestone) && perGoalViewMode === "month";
@@ -800,13 +808,18 @@ export function InsightsTab() {
                       {hasTargetCount ? <Progress value={percent} /> : null}
                     </div>
 
-                    {goal.frequency_type === "recurring" ? (
+                    {goal.frequency_type === "recurring" || daysRemaining !== null ? (
                       <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                        <span className="inline-flex items-center gap-1">
-                          <Flame className="size-3" />
-                          Current streak: {streaks.current}
-                        </span>
-                        <span>Longest streak: {streaks.longest}</span>
+                        {goal.frequency_type === "recurring" ? (
+                          <>
+                            <span className="inline-flex items-center gap-1">
+                              <Flame className="size-3" />
+                              Current streak: {streaks.current}
+                            </span>
+                            <span>Longest streak: {streaks.longest}</span>
+                          </>
+                        ) : null}
+                        {daysRemaining !== null ? <span>Days remaining: {daysRemaining}</span> : null}
                       </div>
                     ) : null}
                   </CardContent>
