@@ -45,6 +45,7 @@ Set:
 
 - `NEXT_PUBLIC_SUPABASE_URL` (usually `http://127.0.0.1:54321`)
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY` (use the **Publishable** key shown by `supabase status`)
+- `NEXT_PUBLIC_APP_URL` (optional; used for auth redirect links such as password reset)
 - `GEMINI_API_KEY` (optional, only needed for AI natural-language bulk parsing)
 
 ### 3) Apply migrations and seed data
@@ -96,5 +97,9 @@ Seed data includes:
 
 1. Create a hosted Supabase project.
 2. Set `.env.local` with hosted URL and your publishable/anon client key.
-3. Apply migrations through your normal deployment workflow (`supabase db push` / CI).
-4. Optionally adapt seed loading if you want demo data hosted.
+3. Set `NEXT_PUBLIC_APP_URL` to your deployed app URL (for example, your Vercel domain).
+4. In Supabase Dashboard -> Authentication -> URL Configuration:
+   - Set **Site URL** to your deployed app URL.
+   - Add `${NEXT_PUBLIC_APP_URL}/reset-password` to **Redirect URLs**.
+5. Apply migrations through your normal deployment workflow (`supabase db push` / CI).
+6. Optionally adapt seed loading if you want demo data hosted.

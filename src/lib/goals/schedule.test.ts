@@ -1,4 +1,3 @@
-import { addDays, startOfISOWeek } from "date-fns";
 import { describe, expect, it } from "vitest";
 import {
   isGoalCompleted,
@@ -43,16 +42,41 @@ function completion(date: string): Completion {
 }
 
 describe("goal schedule semantics", () => {
-  it("treats weekly recurring as done when any completion exists in ISO week", () => {
-    const referenceDate = new Date("2026-05-28T12:00:00.000Z");
-    const weekStart = startOfISOWeek(referenceDate);
-    const dateInWeek = addDays(weekStart, 2).toISOString().slice(0, 10);
+  it("treats weekly recurring as done when completion exists in anchored 7-day period", () => {
+    const referenceDate = new Date("2026-05-11T12:00:00.000Z");
     const goal = buildGoal({
       frequency_type: "recurring",
       recurrence_interval: "weekly",
+      start_date: "2026-05-07",
     });
 
-    expect(isGoalDoneForCurrentPeriod(goal, [completion(dateInWeek)], referenceDate)).toBe(true);
+    expect(isGoalDoneForCurrentPeriod(goal, [completion("2026-05-09")], referenceDate)).toBe(true);
+  });
+
+  it("does not carry weekly completion across anchored period boundary", () => {
+    const referenceDate = new Date("2026-05-14T12:00:00.000Z");
+    const goal = buildGoal({
+      frequency_type: "recurring",
+      recurrence_interval: "weekly",
+      start_date: "2026-05-07",
+    });
+
+    expect(isGoalDoneForCurrentPeriod(goal, [completion("2026-05-09")], referenceDate)).toBe(false);
+  });
+
+  it("anchors monthly recurring periods to start day-of-month", () => {
+    const goal = buildGoal({
+      frequency_type: "recurring",
+      recurrence_interval: "monthly",
+      start_date: "2026-01-31",
+    });
+
+    expect(
+      isGoalDoneForCurrentPeriod(goal, [completion("2026-01-31")], new Date("2026-02-27T12:00:00.000Z"))
+    ).toBe(true);
+    expect(
+      isGoalDoneForCurrentPeriod(goal, [completion("2026-01-31")], new Date("2026-02-28T12:00:00.000Z"))
+    ).toBe(false);
   });
 
   it("treats fixed goals as done for current period only when completed today", () => {
@@ -69,15 +93,15 @@ describe("goal schedule semantics", () => {
     expect(isGoalDoneForCurrentPeriod(goal, [completionToday], referenceDate)).toBe(true);
   });
 
-  it("marks fixed goals as completed once target is reached", () => {
+  it("does not auto-complete goals when target is reached before end date", () => {
     const goal = buildGoal({
       frequency_type: "fixed_milestones",
       recurrence_interval: null,
       target_count: 1,
+      end_date: "2026-12-31",
     });
 
-    expect(isGoalCompleted(goal, 0)).toBe(false);
-    expect(isGoalCompleted(goal, 1)).toBe(true);
+    expect(isGoalCompleted(goal, new Date("2026-05-10"))).toBe(false);
   });
 
   it("does not auto-complete indefinite recurring goals", () => {
@@ -87,7 +111,7 @@ describe("goal schedule semantics", () => {
       end_date: null,
     });
 
-    expect(isGoalCompleted(goal, 500, new Date("2026-08-01"))).toBe(false);
+    expect(isGoalCompleted(goal, new Date("2026-08-01"))).toBe(false);
   });
 
   it("completes any goal with an end date in the past", () => {
@@ -97,7 +121,7 @@ describe("goal schedule semantics", () => {
       end_date: "2026-04-01",
     });
 
-    expect(isGoalCompleted(goal, 0, new Date("2026-05-01"))).toBe(true);
+    expect(isGoalCompleted(goal, new Date("2026-05-01"))).toBe(true);
   });
 
   it("treats archived_at as manual archive only", () => {

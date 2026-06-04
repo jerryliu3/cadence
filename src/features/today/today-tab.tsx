@@ -29,6 +29,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { toLocalDateString } from "@/lib/dates/day";
 import { getCategoryBadgeClass } from "@/lib/goals/category";
 import {
+  getCompletionsForCurrentPeriod,
   getFrequencySummary,
   hasCompletionToday,
   isGoalCompleted,
@@ -110,6 +111,25 @@ function goalCompletionsMap(completions: Completion[]) {
     grouped.set(completion.goal_id, existing);
   });
   return grouped;
+}
+
+function getNextMilestoneName(goal: Goal, completionCount: number): string | null {
+  if (goal.frequency_type !== "fixed_milestones") {
+    return null;
+  }
+
+  const targetCount = goal.target_count ?? 0;
+  if (targetCount <= 0 || completionCount >= targetCount) {
+    return null;
+  }
+
+  const nextMilestoneIndex = completionCount;
+  const customName = goal.milestone_names?.[nextMilestoneIndex]?.trim();
+  if (customName && customName.length > 0) {
+    return customName;
+  }
+
+  return `Milestone ${nextMilestoneIndex + 1}`;
 }
 
 export function TodayTab() {
@@ -228,10 +248,9 @@ export function TodayTab() {
       if (!completableGoalIds.has(goal.id)) {
         return false;
       }
-      const count = completionsByGoal.get(goal.id)?.length ?? 0;
-      return !isGoalCompleted(goal, count, viewDateObj) && !isGoalManuallyArchived(goal);
+      return !isGoalCompleted(goal, viewDateObj) && !isGoalManuallyArchived(goal);
     });
-  }, [completableGoalIds, completionsByGoal, data.goals, viewDateObj]);
+  }, [completableGoalIds, data.goals, viewDateObj]);
 
   const availableCategories = useMemo(() => {
     const categories = new Set<string>();
@@ -278,11 +297,10 @@ export function TodayTab() {
           return false;
         }
 
-        const count = completionsByGoal.get(goal.id)?.length ?? 0;
-        return isGoalCompleted(goal, count, viewDateObj);
+        return isGoalCompleted(goal, viewDateObj);
       })
     );
-  }, [completableGoalIds, completionsByGoal, data.goals, sortGoals, viewDateObj]);
+  }, [completableGoalIds, data.goals, sortGoals, viewDateObj]);
 
   const archivedGoals = useMemo(() => {
     return sortGoals(
@@ -373,7 +391,7 @@ export function TodayTab() {
     () =>
       filteredTodayGoals.filter((goal) => {
         const completions = completionsByGoal.get(goal.id) ?? [];
-        return !hasCompletionToday(completions, viewDateObj);
+        return !isGoalDoneForCurrentPeriod(goal, completions, viewDateObj);
       }),
     [completionsByGoal, filteredTodayGoals, viewDateObj]
   );
@@ -382,7 +400,7 @@ export function TodayTab() {
     () =>
       filteredTodayGoals.filter((goal) => {
         const completions = completionsByGoal.get(goal.id) ?? [];
-        return hasCompletionToday(completions, viewDateObj);
+        return isGoalDoneForCurrentPeriod(goal, completions, viewDateObj);
       }),
     [completionsByGoal, filteredTodayGoals, viewDateObj]
   );
@@ -474,7 +492,7 @@ export function TodayTab() {
     }
     const checkedOff = filteredTodayGoals.filter((goal) => {
       const completions = completionsByGoal.get(goal.id) ?? [];
-      return hasCompletionToday(completions, viewDateObj);
+      return isGoalDoneForCurrentPeriod(goal, completions, viewDateObj);
     }).length;
 
     return (checkedOff / filteredTodayGoals.length) * 100;
@@ -483,19 +501,29 @@ export function TodayTab() {
   const toggleCompletion = async (goal: Goal) => {
     const completions = completionsByGoal.get(goal.id) ?? [];
     const completedOnViewDate = hasCompletionToday(completions, viewDateObj);
+    const completionsInCurrentPeriod = getCompletionsForCurrentPeriod(goal, completions, viewDateObj);
+    const completedForCurrentPeriod = completionsInCurrentPeriod.length > 0;
+    const latestCompletionInCurrentPeriod = [...completionsInCurrentPeriod]
+      .sort((left, right) => left.completed_on.localeCompare(right.completed_on))
+      .at(-1);
+    const completionToUnmark = completedOnViewDate
+      ? completions.find((completion) => completion.completed_on === viewDate)
+      : latestCompletionInCurrentPeriod;
+
     setSavingGoalId(goal.id);
     const currentScrollY = window.scrollY;
 
     try {
-      if (completedOnViewDate) {
+      if (completedForCurrentPeriod && completionToUnmark) {
+        const unmarkDate = completionToUnmark.completed_on;
         const { error } = await supabase.rpc("unmark_goal_complete", {
           p_goal_id: goal.id,
-          p_date: viewDate,
+          p_date: unmarkDate,
         });
         if (error) {
           toast.error(error.message);
         } else {
-          toast.success(`Marked as incomplete for ${viewDate}.`);
+          toast.success(`Marked as incomplete for ${unmarkDate}.`);
         }
       } else {
         const { error } = await supabase.rpc("mark_goal_complete", {
@@ -875,6 +903,7 @@ function GoalCard({
   const completionCount = completions.length;
   const doneForCurrentPeriod = isGoalDoneForCurrentPeriod(goal, completions, referenceDate);
   const doneOnSelectedDate = hasCompletionToday(completions, referenceDate);
+  const nextMilestoneName = getNextMilestoneName(goal, completionCount);
   const completionSourceForSelectedDate = completions.find(
     (completion) => completion.completed_on === selectedDate
   )?.source;
@@ -888,12 +917,12 @@ function GoalCard({
           disabled={disabled || archived}
           className="group flex size-10 shrink-0 items-center justify-center rounded-full border border-border bg-background transition-all hover:border-primary hover:bg-primary/5 disabled:cursor-not-allowed disabled:opacity-60"
           aria-label={
-            doneOnSelectedDate
-              ? "Unmark goal completion for selected date"
+            doneForCurrentPeriod
+              ? "Unmark goal completion for current period"
               : "Mark goal as complete"
           }
         >
-          {doneOnSelectedDate ? (
+          {doneForCurrentPeriod ? (
             <CheckCircle2 className="size-5 text-primary transition-transform group-hover:scale-110" />
           ) : (
             <Circle className="size-5 text-muted-foreground transition-transform group-hover:scale-110" />
@@ -926,6 +955,11 @@ function GoalCard({
                 {goal.category}
               </Badge>
             </div>
+            {nextMilestoneName ? (
+              <p className="truncate text-[11px] text-muted-foreground">
+                Next milestone: {nextMilestoneName}
+              </p>
+            ) : null}
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <p className="truncate">{getFrequencySummary(goal, completionCount)}</p>
               <span className="ml-auto shrink-0 text-[11px]">

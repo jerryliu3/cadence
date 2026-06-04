@@ -3,18 +3,14 @@ import {
   addMonths,
   addWeeks,
   differenceInCalendarDays,
-  differenceInCalendarMonths,
-  differenceInCalendarWeeks,
   isAfter,
   isBefore,
   parseISO,
   startOfDay,
-  startOfISOWeek,
-  startOfMonth,
 } from "date-fns";
 import { toLocalDateString } from "@/lib/dates/day";
 import type { Completion, Goal } from "@/lib/goals/types";
-import { getPeriodKeyForGoal } from "@/lib/goals/schedule";
+import { getGoalPeriodStartDate, getPeriodKeyForGoal } from "@/lib/goals/schedule";
 
 function clampDateByGoalWindow(goal: Goal, referenceDate: Date): Date {
   const start = startOfDay(parseISO(goal.start_date));
@@ -29,17 +25,25 @@ function getRecurringExpectedPeriods(goal: Goal, referenceDate = new Date()): nu
   const end = clampDateByGoalWindow(goal, startOfDay(referenceDate));
 
   if (goal.recurrence_interval === "weekly") {
-    return (
-      differenceInCalendarWeeks(startOfISOWeek(end), startOfISOWeek(start), {
-        weekStartsOn: 1,
-      }) + 1
-    );
+    return Math.floor(differenceInCalendarDays(end, start) / 7) + 1;
   }
 
   if (goal.recurrence_interval === "monthly") {
-    return (
-      differenceInCalendarMonths(startOfMonth(end), startOfMonth(start)) + 1
-    );
+    let monthOffset =
+      (end.getFullYear() - start.getFullYear()) * 12 +
+      (end.getMonth() - start.getMonth());
+    let candidate = addMonths(start, monthOffset);
+
+    if (isAfter(candidate, end)) {
+      monthOffset -= 1;
+      candidate = addMonths(start, monthOffset);
+    }
+
+    if (isAfter(candidate, end)) {
+      return 1;
+    }
+
+    return monthOffset + 1;
   }
 
   return differenceInCalendarDays(end, start) + 1;
@@ -104,17 +108,7 @@ export function getOverallCompletionPercentage(
 }
 
 function getPeriodStartDate(goal: Goal, completionDate: string): Date {
-  const date = startOfDay(parseISO(completionDate));
-
-  if (goal.recurrence_interval === "weekly") {
-    return startOfISOWeek(date);
-  }
-
-  if (goal.recurrence_interval === "monthly") {
-    return startOfMonth(date);
-  }
-
-  return date;
+  return getGoalPeriodStartDate(goal, parseISO(completionDate));
 }
 
 function getNextPeriodStart(goal: Goal, periodStart: Date): Date {
@@ -141,20 +135,7 @@ export function getRecurringStreaks(
   const uniqueStarts = Array.from(
     new Set(completions.map((entry) => getPeriodKeyForGoal(goal, entry.completed_on)))
   )
-    .map((key) => {
-      if (goal.recurrence_interval === "weekly") {
-        const [yearText, weekText] = key.split("-W");
-        const base = new Date(Number.parseInt(yearText, 10), 0, 4);
-        const weekStart = startOfISOWeek(addWeeks(base, Number.parseInt(weekText, 10) - 1));
-        return weekStart;
-      }
-
-      if (goal.recurrence_interval === "monthly") {
-        return parseISO(`${key}-01`);
-      }
-
-      return parseISO(key);
-    })
+    .map((key) => parseISO(key))
     .sort((a, b) => a.getTime() - b.getTime());
 
   if (uniqueStarts.length === 0) {

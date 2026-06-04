@@ -90,6 +90,22 @@ describe("goal progress calculations", () => {
     expect(getGoalCompletionPercentage(goal, completions)).toBe(40);
   });
 
+  it("anchors monthly expected periods to start day-of-month", () => {
+    const goal = buildGoal({
+      id: "monthly-anchored-id",
+      frequency_type: "recurring",
+      recurrence_interval: "monthly",
+      start_date: "2026-01-31",
+    });
+    const completions = [
+      completion("monthly-anchored-id", "2026-01-31"),
+      completion("monthly-anchored-id", "2026-02-28"),
+    ];
+
+    const percent = getGoalCompletionPercentage(goal, completions, new Date("2026-03-30T12:00:00.000Z"));
+    expect(percent).toBe(100);
+  });
+
   it("computes overall completion as average across goals", () => {
     const goalA = buildGoal({
       id: "goal-a",

@@ -3,6 +3,7 @@
 import {
   addMonths,
   endOfYear,
+  format,
   isAfter,
   parseISO,
   startOfDay,
@@ -28,7 +29,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { MonthHeatmap } from "@/features/insights/month-heatmap";
-import { toLocalDateString } from "@/lib/dates/day";
 import { getCategoryBadgeClass } from "@/lib/goals/category";
 import { getGoalCompletionPercentage, getOverallCompletionPercentage, getRecurringStreaks } from "@/lib/goals/progress";
 import type { Completion, Goal, GoalParticipant } from "@/lib/goals/types";
@@ -105,72 +105,46 @@ function areMilestoneNamesEqual(left: string[], right: string[]): boolean {
 
 interface MilestoneStepsProps {
   targetCount: number;
-  completions: Completion[];
+  completionDates: string[];
   milestoneNames?: string[];
-  interactive?: boolean;
-  pending?: boolean;
-  onStepClick?: () => void;
 }
 
-function MilestoneSteps({
-  targetCount,
-  completions,
-  milestoneNames = [],
-  interactive = false,
-  pending = false,
-  onStepClick,
-}: MilestoneStepsProps) {
-  const sortedCompletions = [...completions].sort((left, right) =>
-    left.completed_on.localeCompare(right.completed_on)
-  );
+function MilestoneSteps({ targetCount, completionDates, milestoneNames = [] }: MilestoneStepsProps) {
   const safeTarget = Math.max(targetCount, 1);
 
   return (
-    <div className="space-y-2">
-      <p className="text-xs text-muted-foreground">
-        Fixed steps (independent of selected month)
-      </p>
-      <div className="grid gap-2 sm:grid-cols-2">
+    <div className="space-y-1.5">
+      <p className="text-xs text-muted-foreground">Milestones</p>
+      <div className="flex flex-wrap gap-1.5">
         {Array.from({ length: safeTarget }).map((_, index) => {
-          const completion = sortedCompletions[index];
-          const complete = Boolean(completion);
+          const completionDate = completionDates[index];
+          const complete = Boolean(completionDate);
           const milestoneName = milestoneNames[index] ?? defaultMilestoneName(index);
-          const stepContent = (
-            <>
-              <p className="font-medium">{milestoneName}</p>
-              <p className="text-muted-foreground">
-                {complete ? `Done on ${completion.completed_on}` : "Pending"}
-              </p>
-            </>
-          );
-
-          if (interactive && !complete && onStepClick) {
-            return (
-              <button
-                key={`${index + 1}-step`}
-                type="button"
-                disabled={pending}
-                onClick={onStepClick}
-                className="rounded-lg border border-border bg-muted/30 px-3 py-2 text-left text-xs transition-colors hover:border-primary/40 hover:bg-primary/10 disabled:opacity-60"
-              >
-                {stepContent}
-              </button>
-            );
-          }
 
           return (
             <div
               key={`${index + 1}-step`}
-              className={`rounded-lg border px-3 py-2 text-xs ${
-                complete ? "border-primary/40 bg-primary/10" : "border-border bg-muted/30"
+              className={`min-w-[110px] rounded-full border px-2.5 py-1 text-[11px] leading-tight ${
+                complete
+                  ? "border-primary/40 bg-primary/10 text-foreground"
+                  : "border-border bg-muted/30 text-muted-foreground"
               }`}
             >
-              {stepContent}
+              <p className="truncate font-medium">{milestoneName}</p>
+              <p className={complete ? "text-foreground/75" : "text-muted-foreground"}>
+                {complete ? completionDate : "Pending"}
+              </p>
             </div>
           );
         })}
       </div>
     </div>
+  );
+}
+
+function getSortedCompletionDates(completions: Completion[]): string[] {
+  return Array.from(new Set(completions.map((completion) => completion.completed_on))).sort((a, b) =>
+    a.localeCompare(b)
   );
 }
 
@@ -315,10 +289,60 @@ export function InsightsTab() {
     [loadData, supabase]
   );
 
+  const toggleMilestoneDateSelection = useCallback(
+    async (
+      goal: Goal,
+      completionDate: string,
+      selectedDates: string[],
+      milestoneLimit: number
+    ) => {
+      if (pendingRetroDate !== null) {
+        return;
+      }
+
+      if (isAfter(parseISO(completionDate), startOfDay(new Date()))) {
+        toast.error("You can only select today or past dates.");
+        return;
+      }
+
+      const isSelected = selectedDates.includes(completionDate);
+      if (!isSelected && selectedDates.length >= milestoneLimit) {
+        toast.error(`Select up to ${milestoneLimit} milestone dates.`);
+        return;
+      }
+
+      setPendingRetroDate(completionDate);
+      const currentScrollY = window.scrollY;
+      try {
+        const { error } = await supabase.rpc(
+          isSelected ? "unmark_goal_complete" : "mark_goal_complete",
+          {
+            p_goal_id: goal.id,
+            p_date: completionDate,
+          }
+        );
+
+        if (error) {
+          toast.error(error.message);
+          return;
+        }
+
+        toast.success(isSelected ? `Removed ${completionDate}.` : `Selected ${completionDate}.`);
+        await loadData({ showLoading: false });
+        requestAnimationFrame(() => {
+          window.scrollTo({ top: currentScrollY, behavior: "auto" });
+        });
+      } finally {
+        setPendingRetroDate(null);
+      }
+    },
+    [loadData, pendingRetroDate, supabase]
+  );
+
   const saveMilestoneNames = useCallback(
     async (goal: Goal, names: string[]) => {
       if (goal.owner_id !== state.userId) {
-        toast.error("Only the goal owner can rename fixed steps.");
+        toast.error("Only the goal owner can rename milestones.");
         return;
       }
 
@@ -336,7 +360,7 @@ export function InsightsTab() {
           return;
         }
 
-        toast.success("Fixed step names updated.");
+        toast.success("Milestone names updated.");
         await loadData({ showLoading: false });
         requestAnimationFrame(() => {
           window.scrollTo({ top: currentScrollY, behavior: "auto" });
@@ -451,7 +475,7 @@ export function InsightsTab() {
               <CardTitle>Per-goal monthly heatmaps</CardTitle>
               <CardDescription>Navigate by month to inspect each goal pattern.</CardDescription>
             </div>
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-2">
               <Button
                 variant="outline"
                 size="icon-sm"
@@ -459,6 +483,9 @@ export function InsightsTab() {
               >
                 <ChevronLeft className="size-4" />
               </Button>
+              <span className="min-w-[120px] text-center text-sm font-medium text-muted-foreground">
+                {format(monthCursor, "MMMM yyyy")}
+              </span>
               <Button
                 variant="outline"
                 size="icon-sm"
@@ -487,6 +514,8 @@ export function InsightsTab() {
               const isMilestone = goal.frequency_type === "fixed_milestones";
               const editingHistory = editingGoalId === goal.id;
               const milestoneTargetCount = Math.max(goal.target_count ?? completions.length, 1);
+              const milestoneCompletionDates = getSortedCompletionDates(completions);
+              const mappedMilestoneDates = milestoneCompletionDates.slice(0, milestoneTargetCount);
               const persistedMilestoneNames = isMilestone
                 ? buildMilestoneNames(milestoneTargetCount, goal.milestone_names)
                 : [];
@@ -538,7 +567,7 @@ export function InsightsTab() {
                               ? "Done"
                               : isRecurring
                                 ? "Edit dates"
-                                : "Edit fixed"}
+                                : "Edit milestones"}
                           </Button>
                         ) : null}
                         {editingHistory && canRenameMilestones ? (
@@ -564,34 +593,35 @@ export function InsightsTab() {
 
                     {isMilestone ? (
                       <>
-                        {editingHistory ? (
-                          <p className="text-xs text-muted-foreground">
-                            Tap a pending fixed step to mark it complete for today.
-                          </p>
-                        ) : null}
                         <MilestoneSteps
                           targetCount={milestoneTargetCount}
-                          completions={completions}
+                          completionDates={mappedMilestoneDates}
                           milestoneNames={draftMilestoneNames}
+                        />
+                        {editingHistory ? (
+                          <p className="text-xs text-muted-foreground">
+                            Tap calendar dates to assign milestones. Earliest selected date maps to
+                            milestone 1. You can select up to {milestoneTargetCount} date
+                            {milestoneTargetCount === 1 ? "" : "s"}.
+                          </p>
+                        ) : null}
+                        <MonthHeatmap
+                          month={monthCursor}
+                          countsByDate={countsByDate}
                           interactive={editingHistory}
-                          pending={pendingRetroDate === toLocalDateString()}
-                          onStepClick={() => {
-                            const today = toLocalDateString();
-                            const alreadyCompletedToday = completions.some(
-                              (completion) => completion.completed_on === today
-                            );
-
-                            if (alreadyCompletedToday) {
-                              toast("Already completed for today.");
-                              return;
-                            }
-
-                            void markRetroactiveCompletion(goal, today);
-                          }}
+                          pendingDate={pendingRetroDate}
+                          onDayClick={(date) =>
+                            void toggleMilestoneDateSelection(
+                              goal,
+                              date,
+                              milestoneCompletionDates,
+                              milestoneTargetCount
+                            )
+                          }
                         />
                         {editingHistory && canRenameMilestones ? (
                           <div className="space-y-2 rounded-lg border border-border bg-muted/20 p-3">
-                            <p className="text-xs text-muted-foreground">Fixed step names</p>
+                            <p className="text-xs text-muted-foreground">Milestone names</p>
                             <div className="grid gap-2 sm:grid-cols-2">
                               {Array.from({ length: milestoneTargetCount }).map((_, index) => (
                                 <Input

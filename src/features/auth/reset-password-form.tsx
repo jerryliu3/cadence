@@ -38,7 +38,12 @@ export function ResetPasswordForm() {
     event.preventDefault();
     setIsSubmitting(true);
 
-    const redirectTo = `${window.location.origin}/reset-password`;
+    const configuredAppUrl = process.env.NEXT_PUBLIC_APP_URL?.trim();
+    const appBaseUrl =
+      configuredAppUrl && configuredAppUrl.length > 0
+        ? configuredAppUrl.replace(/\/+$/, "")
+        : window.location.origin;
+    const redirectTo = `${appBaseUrl}/reset-password`;
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo,
     });
@@ -49,7 +54,7 @@ export function ResetPasswordForm() {
       return;
     }
 
-    toast.success("Reset instructions sent. Check your local Inbucket mailbox.");
+    toast.success("Reset instructions sent. Check your email.");
     setIsSubmitting(false);
   };
 

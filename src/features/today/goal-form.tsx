@@ -38,6 +38,7 @@ import {
   getCategorySelectionFromValue,
   getCategorySwatchColor,
 } from "@/lib/goals/category";
+import { GOAL_TYPE_OPTIONS, RECURRENCE_INTERVAL_OPTIONS } from "@/lib/goals/form-options";
 import type { Goal, GoalFrequencyType, GoalLink, RecurrenceInterval } from "@/lib/goals/types";
 import { createClient } from "@/lib/supabase/client";
 
@@ -74,17 +75,6 @@ const defaultState: GoalFormState = {
   end_date: "",
   is_group: false,
 };
-
-const frequencyOptions: Array<{ value: GoalFrequencyType; label: string }> = [
-  { value: "recurring", label: "Recurring" },
-  { value: "fixed_milestones", label: "Fixed" },
-];
-
-const recurrenceOptions: Array<{ value: RecurrenceInterval; label: string }> = [
-  { value: "daily", label: "Daily" },
-  { value: "weekly", label: "Weekly" },
-  { value: "monthly", label: "Monthly" },
-];
 
 function defaultMilestoneName(index: number): string {
   return `Milestone ${index + 1}`;
@@ -301,14 +291,14 @@ export function GoalForm({ goalId }: GoalFormProps) {
     }
 
     if (state.frequency_type === "recurring" && !state.recurrence_interval) {
-      return "Recurring goals require a recurrence interval.";
+      return "Repeat goals require a recurrence interval.";
     }
 
     if (
       state.frequency_type === "fixed_milestones" &&
       (!state.target_count || Number.parseInt(state.target_count, 10) <= 0)
     ) {
-      return "Fixed goals require a positive target count.";
+      return "Milestone goals require a positive target count.";
     }
 
     if (
@@ -316,7 +306,7 @@ export function GoalForm({ goalId }: GoalFormProps) {
       state.target_count.trim().length > 0 &&
       Number.parseInt(state.target_count, 10) <= 0
     ) {
-      return "Recurring goal target count must be a positive number.";
+      return "Repeat goal target count must be a positive number.";
     }
 
     if (
@@ -324,7 +314,7 @@ export function GoalForm({ goalId }: GoalFormProps) {
       state.target_count.trim().length > 0 &&
       !state.end_date
     ) {
-      return "Recurring goals with a target count require an end date.";
+      return "Repeat goals with a target count require an end date.";
     }
 
     if (state.end_date && state.end_date < state.start_date) {
@@ -511,7 +501,7 @@ export function GoalForm({ goalId }: GoalFormProps) {
           <div>
             <CardTitle>{isEditing ? "Edit goal" : "Create goal"}</CardTitle>
             <CardDescription>
-              Configure frequency, timing, and optional links between goals.
+              Configure goal type, timing, and optional links between goals.
             </CardDescription>
           </div>
           <Button variant="outline" asChild>
@@ -592,9 +582,9 @@ export function GoalForm({ goalId }: GoalFormProps) {
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label>Frequency type</Label>
+              <Label>Goal type</Label>
               <div className="flex flex-wrap gap-2">
-                {frequencyOptions.map((option) => (
+                {GOAL_TYPE_OPTIONS.map((option) => (
                   <Button
                     key={option.value}
                     type="button"
@@ -613,7 +603,7 @@ export function GoalForm({ goalId }: GoalFormProps) {
               <div className="space-y-2">
                 <Label>Recurrence interval</Label>
                 <div className="flex flex-wrap gap-2">
-                  {recurrenceOptions.map((option) => (
+                  {RECURRENCE_INTERVAL_OPTIONS.map((option) => (
                     <Button
                       key={option.value}
                       type="button"
