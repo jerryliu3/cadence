@@ -266,9 +266,10 @@ export function TodayTab() {
       if (!completableGoalIds.has(goal.id)) {
         return false;
       }
-      return !isGoalCompleted(goal, viewDateObj) && !isGoalManuallyArchived(goal);
+      const completionCount = (completionsByGoal.get(goal.id) ?? []).length;
+      return !isGoalCompleted(goal, viewDateObj, completionCount) && !isGoalManuallyArchived(goal);
     });
-  }, [completableGoalIds, data.goals, viewDateObj]);
+  }, [completableGoalIds, completionsByGoal, data.goals, viewDateObj]);
 
   const availableCategories = useMemo(() => {
     const categories = new Set<string>();
@@ -315,10 +316,11 @@ export function TodayTab() {
           return false;
         }
 
-        return isGoalCompleted(goal, viewDateObj);
+        const completionCount = (completionsByGoal.get(goal.id) ?? []).length;
+        return isGoalCompleted(goal, viewDateObj, completionCount);
       })
     );
-  }, [completableGoalIds, data.goals, sortGoals, viewDateObj]);
+  }, [completableGoalIds, completionsByGoal, data.goals, sortGoals, viewDateObj]);
 
   const archivedGoals = useMemo(() => {
     return sortGoals(

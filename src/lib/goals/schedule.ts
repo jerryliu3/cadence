@@ -109,10 +109,18 @@ export function hasCompletionToday(
 
 export function isGoalCompleted(
   goal: Goal,
-  referenceDate = new Date()
+  referenceDate = new Date(),
+  completionCount = 0
 ): boolean {
   if (goal.end_date && isPastDate(goal.end_date, referenceDate)) {
     return true;
+  }
+
+  if (goal.frequency_type === "fixed_milestones") {
+    const targetCount = goal.target_count ?? 0;
+    if (targetCount > 0 && completionCount >= targetCount) {
+      return true;
+    }
   }
 
   return false;

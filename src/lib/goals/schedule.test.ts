@@ -93,15 +93,28 @@ describe("goal schedule semantics", () => {
     expect(isGoalDoneForCurrentPeriod(goal, [completionToday], referenceDate)).toBe(true);
   });
 
-  it("does not auto-complete goals when target is reached before end date", () => {
+  it("auto-completes milestone goals once target count is reached", () => {
     const goal = buildGoal({
       frequency_type: "fixed_milestones",
       recurrence_interval: null,
-      target_count: 1,
+      target_count: 3,
       end_date: "2026-12-31",
     });
 
-    expect(isGoalCompleted(goal, new Date("2026-05-10"))).toBe(false);
+    expect(isGoalCompleted(goal, new Date("2026-05-10"), 2)).toBe(false);
+    expect(isGoalCompleted(goal, new Date("2026-05-10"), 3)).toBe(true);
+    expect(isGoalCompleted(goal, new Date("2026-05-10"), 4)).toBe(true);
+  });
+
+  it("does not auto-complete recurring goals when target is reached before end date", () => {
+    const goal = buildGoal({
+      frequency_type: "recurring",
+      recurrence_interval: "weekly",
+      target_count: 3,
+      end_date: "2026-12-31",
+    });
+
+    expect(isGoalCompleted(goal, new Date("2026-05-10"), 3)).toBe(false);
   });
 
   it("does not auto-complete indefinite recurring goals", () => {
