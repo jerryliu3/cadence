@@ -17,6 +17,7 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { type FormEvent, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -106,6 +107,26 @@ function normalizeMilestoneNamesForSave(count: number, names: string[]): string[
   });
 }
 
+function getLinkedGoalRecurrenceLabel(goal: Goal): string {
+  if (goal.frequency_type === "fixed_milestones") {
+    return "Milestone";
+  }
+
+  if (goal.recurrence_interval === "weekly") {
+    return "Weekly";
+  }
+
+  if (goal.recurrence_interval === "monthly") {
+    return "Monthly";
+  }
+
+  return "Daily";
+}
+
+function getLinkedGoalDeadlineLabel(goal: Goal): string {
+  return goal.end_date ? `Due ${goal.end_date}` : "No deadline";
+}
+
 export function GoalForm({ goalId }: GoalFormProps) {
   const supabase = useMemo(() => createClient(), []);
   const router = useRouter();
@@ -120,6 +141,8 @@ export function GoalForm({ goalId }: GoalFormProps) {
   const [currentUserId, setCurrentUserId] = useState<string>("");
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [milestoneNamesOpen, setMilestoneNamesOpen] = useState(false);
+  const [linkTargetSearch, setLinkTargetSearch] = useState("");
+  const [linkTargetOpen, setLinkTargetOpen] = useState(false);
 
   const isEditing = Boolean(goalId);
 
@@ -219,6 +242,22 @@ export function GoalForm({ goalId }: GoalFormProps) {
     state.frequency_type === "fixed_milestones"
       ? parsePositiveTargetCount(state.target_count) ?? 0
       : 0;
+  const filteredLinkTargets = useMemo(() => {
+    const query = linkTargetSearch.trim().toLowerCase();
+    if (query.length === 0) {
+      return availableGoals;
+    }
+
+    return availableGoals.filter((goal) => {
+      const recurrenceLabel = getLinkedGoalRecurrenceLabel(goal).toLowerCase();
+      const deadlineLabel = getLinkedGoalDeadlineLabel(goal).toLowerCase();
+      return (
+        goal.title.toLowerCase().includes(query) ||
+        recurrenceLabel.includes(query) ||
+        deadlineLabel.includes(query)
+      );
+    });
+  }, [availableGoals, linkTargetSearch]);
 
   const updateFrequencyType = (nextFrequency: GoalFrequencyType) => {
     setMilestoneNamesOpen(false);
@@ -888,17 +927,45 @@ export function GoalForm({ goalId }: GoalFormProps) {
                         <Link2 className="size-4 text-muted-foreground" />
                         Link this goal to another goal (optional)
                       </Label>
-                      <Select value={selectedLinkTarget} onValueChange={setSelectedLinkTarget}>
+                      <Select
+                        value={selectedLinkTarget}
+                        onValueChange={setSelectedLinkTarget}
+                        open={linkTargetOpen}
+                        onOpenChange={(open) => {
+                          setLinkTargetOpen(open);
+                          if (!open) {
+                            setLinkTargetSearch("");
+                          }
+                        }}
+                      >
                         <SelectTrigger>
                           <SelectValue placeholder="No linked target" />
                         </SelectTrigger>
                         <SelectContent>
+                          <div className="sticky top-0 z-10 border-b bg-popover p-1.5">
+                            <Input
+                              value={linkTargetSearch}
+                              onChange={(event) => setLinkTargetSearch(event.target.value)}
+                              placeholder="Search link targets..."
+                              className="h-8"
+                              onKeyDown={(event) => event.stopPropagation()}
+                            />
+                          </div>
                           <SelectItem value="none">No linked target</SelectItem>
-                          {availableGoals.map((goal) => (
+                          {filteredLinkTargets.map((goal) => (
                             <SelectItem key={goal.id} value={goal.id}>
-                              {goal.title}
+                              <span className="flex items-center gap-2">
+                                <span className="max-w-[170px] truncate">{goal.title}</span>
+                                <Badge variant="secondary">{getLinkedGoalRecurrenceLabel(goal)}</Badge>
+                                <Badge variant="outline">{getLinkedGoalDeadlineLabel(goal)}</Badge>
+                              </span>
                             </SelectItem>
                           ))}
+                          {filteredLinkTargets.length === 0 ? (
+                            <p className="px-2 py-1.5 text-xs text-muted-foreground">
+                              No goals match your search.
+                            </p>
+                          ) : null}
                         </SelectContent>
                       </Select>
                       <p className="text-xs text-muted-foreground">
