@@ -1,6 +1,8 @@
 "use client";
 
 import { eachDayOfInterval, endOfMonth, format, getISODay, startOfMonth } from "date-fns";
+import { ChevronLeft, ChevronRight } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 interface MonthHeatmapProps {
@@ -9,6 +11,8 @@ interface MonthHeatmapProps {
   interactive?: boolean;
   pendingDate?: string | null;
   onDayClick?: (date: string) => void;
+  onPreviousMonth?: () => void;
+  onNextMonth?: () => void;
 }
 
 const weekdayHeaders = ["M", "T", "W", "Th", "F", "S", "Su"];
@@ -35,6 +39,8 @@ export function MonthHeatmap({
   interactive = false,
   pendingDate = null,
   onDayClick,
+  onPreviousMonth,
+  onNextMonth,
 }: MonthHeatmapProps) {
   const monthStart = startOfMonth(month);
   const monthEnd = endOfMonth(month);
@@ -43,7 +49,31 @@ export function MonthHeatmap({
 
   return (
     <div className="space-y-2">
-      <p className="text-sm font-medium">{format(month, "MMMM yyyy")}</p>
+      {onPreviousMonth || onNextMonth ? (
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="icon-sm"
+            onClick={() => onPreviousMonth?.()}
+            disabled={!onPreviousMonth}
+          >
+            <ChevronLeft className="size-4" />
+          </Button>
+          <p className="min-w-[120px] text-center text-sm font-medium">{format(month, "MMMM yyyy")}</p>
+          <Button
+            type="button"
+            variant="outline"
+            size="icon-sm"
+            onClick={() => onNextMonth?.()}
+            disabled={!onNextMonth}
+          >
+            <ChevronRight className="size-4" />
+          </Button>
+        </div>
+      ) : (
+        <p className="text-sm font-medium">{format(month, "MMMM yyyy")}</p>
+      )}
       <div className="inline-flex flex-col gap-1">
         <div className="grid grid-cols-[repeat(7,2rem)] gap-1">
           {weekdayHeaders.map((label) => (

@@ -167,6 +167,7 @@ export function InsightsTab() {
   const [state, setState] = useState<InsightsData>(emptyInsights);
   const [loading, setLoading] = useState(true);
   const [monthCursor, setMonthCursor] = useState(new Date());
+  const [goalMonthOverrides, setGoalMonthOverrides] = useState<Record<string, Date>>({});
   const [perGoalViewMode, setPerGoalViewMode] = useState<HeatmapViewMode>("month");
   const [goalSearchQuery, setGoalSearchQuery] = useState("");
   const [editingGoalId, setEditingGoalId] = useState<string | null>(null);
@@ -490,8 +491,36 @@ export function InsightsTab() {
       return;
     }
 
+    setGoalMonthOverrides({});
     setMonthCursor((previous) => (deltaX < 0 ? addMonths(previous, 1) : subMonths(previous, 1)));
   };
+
+  const shiftGlobalMonthCursor = useCallback(
+    (direction: -1 | 1) => {
+      setGoalMonthOverrides({});
+      setMonthCursor((previous) => {
+        if (perGoalViewMode === "month") {
+          return direction > 0 ? addMonths(previous, 1) : subMonths(previous, 1);
+        }
+        return direction > 0 ? addYears(previous, 1) : subYears(previous, 1);
+      });
+    },
+    [perGoalViewMode]
+  );
+
+  const shiftGoalMonthCursor = useCallback(
+    (goalId: string, direction: -1 | 1) => {
+      setGoalMonthOverrides((previous) => {
+        const baselineMonth = previous[goalId] ?? monthCursor;
+        const nextMonth = direction > 0 ? addMonths(baselineMonth, 1) : subMonths(baselineMonth, 1);
+        return {
+          ...previous,
+          [goalId]: nextMonth,
+        };
+      });
+    },
+    [monthCursor]
+  );
 
   if (loading) {
     return (
@@ -563,7 +592,10 @@ export function InsightsTab() {
                 type="button"
                 size="sm"
                 variant={perGoalViewMode === "month" ? "secondary" : "ghost"}
-                onClick={() => setPerGoalViewMode("month")}
+                onClick={() => {
+                  setGoalMonthOverrides({});
+                  setPerGoalViewMode("month");
+                }}
               >
                 Month
               </Button>
@@ -571,7 +603,10 @@ export function InsightsTab() {
                 type="button"
                 size="sm"
                 variant={perGoalViewMode === "year" ? "secondary" : "ghost"}
-                onClick={() => setPerGoalViewMode("year")}
+                onClick={() => {
+                  setGoalMonthOverrides({});
+                  setPerGoalViewMode("year");
+                }}
               >
                 Year
               </Button>
@@ -581,11 +616,7 @@ export function InsightsTab() {
                 type="button"
                 variant="outline"
                 size="icon-sm"
-                onClick={() =>
-                  setMonthCursor((previous) =>
-                    perGoalViewMode === "month" ? subMonths(previous, 1) : subYears(previous, 1)
-                  )
-                }
+                onClick={() => shiftGlobalMonthCursor(-1)}
               >
                 <ChevronLeft className="size-4" />
               </Button>
@@ -596,11 +627,7 @@ export function InsightsTab() {
                 type="button"
                 variant="outline"
                 size="icon-sm"
-                onClick={() =>
-                  setMonthCursor((previous) =>
-                    perGoalViewMode === "month" ? addMonths(previous, 1) : addYears(previous, 1)
-                  )
-                }
+                onClick={() => shiftGlobalMonthCursor(1)}
               >
                 <ChevronRight className="size-4" />
               </Button>
@@ -642,6 +669,7 @@ export function InsightsTab() {
             </p>
           ) : (
             visiblePerGoalHeatmaps.map((goal) => {
+              const goalMonthCursor = goalMonthOverrides[goal.id] ?? monthCursor;
               const completions = completionsByGoal.get(goal.id) ?? [];
               const completionCount = completions.length;
               const hasTargetCount = typeof goal.target_count === "number" && goal.target_count > 0;
@@ -760,10 +788,12 @@ export function InsightsTab() {
                         ) : null}
                         {perGoalViewMode === "month" ? (
                           <MonthHeatmap
-                            month={monthCursor}
+                            month={goalMonthCursor}
                             countsByDate={countsByDate}
                             interactive={editingHistory}
                             pendingDate={pendingRetroDate}
+                            onPreviousMonth={() => shiftGoalMonthCursor(goal.id, -1)}
+                            onNextMonth={() => shiftGoalMonthCursor(goal.id, 1)}
                             onDayClick={(date) =>
                               void toggleMilestoneDateSelection(
                                 goal,
@@ -826,10 +856,12 @@ export function InsightsTab() {
                         ) : null}
                         {perGoalViewMode === "month" ? (
                           <MonthHeatmap
-                            month={monthCursor}
+                            month={goalMonthCursor}
                             countsByDate={countsByDate}
                             interactive={editingHistory}
                             pendingDate={pendingRetroDate}
+                            onPreviousMonth={() => shiftGoalMonthCursor(goal.id, -1)}
+                            onNextMonth={() => shiftGoalMonthCursor(goal.id, 1)}
                             onDayClick={(date) =>
                               void toggleRecurringDateSelection(
                                 goal,
