@@ -161,12 +161,17 @@ export function TodayTab() {
   const [categoryFilter, setCategoryFilter] = useState(allCategoriesFilterValue);
   const [deadlineFilter, setDeadlineFilter] = useState<DeadlineFilter>("this_month");
   const [recurrenceFilter, setRecurrenceFilter] = useState<RecurrenceFilter>("all");
+  const [todayGoalSearchQuery, setTodayGoalSearchQuery] = useState("");
   const [viewDate, setViewDate] = useState(toLocalDateString());
   const [customDeadlineDate, setCustomDeadlineDate] = useState(toLocalDateString());
 
   const viewDateObj = useMemo(() => parseISO(viewDate), [viewDate]);
   const todayLocalDate = toLocalDateString();
   const viewingToday = viewDate === todayLocalDate;
+  const normalizedTodayGoalSearchQuery = useMemo(
+    () => todayGoalSearchQuery.trim().toLowerCase(),
+    [todayGoalSearchQuery]
+  );
 
   const loadData = useCallback(
     async ({ showLoading = true }: { showLoading?: boolean } = {}) => {
@@ -403,8 +408,16 @@ export function TodayTab() {
   );
 
   const filteredTodayGoals = useMemo(
-    () => activeGoals.filter((goal) => goal.start_date <= todayDate).filter(matchesFilters),
-    [activeGoals, matchesFilters, todayDate]
+    () =>
+      activeGoals
+        .filter((goal) => goal.start_date <= todayDate)
+        .filter(matchesFilters)
+        .filter((goal) =>
+          normalizedTodayGoalSearchQuery.length === 0
+            ? true
+            : goal.title.toLowerCase().includes(normalizedTodayGoalSearchQuery)
+        ),
+    [activeGoals, matchesFilters, normalizedTodayGoalSearchQuery, todayDate]
   );
 
   const todayPendingGoalsRaw = useMemo(
@@ -686,6 +699,12 @@ export function TodayTab() {
           </div>
         </CardHeader>
         <CardContent className="space-y-3 pt-0">
+          <Input
+            value={todayGoalSearchQuery}
+            onChange={(event) => setTodayGoalSearchQuery(event.target.value)}
+            placeholder="Search today's goals..."
+            className="h-8"
+          />
           {todayGoalsSorted.length === 0 ? (
             <Card className="shadow-none">
               <CardContent className="py-6 text-sm text-muted-foreground">
@@ -858,11 +877,10 @@ export function TodayTab() {
                     completions={completionsByGoal.get(goal.id) ?? []}
                     linkedCount={data.links.filter((link) => link.source_goal_id === goal.id).length}
                     imageUrl={data.photoUrls[goal.id]}
-                    disabled
-                    archived
+                    disabled={savingGoalId === goal.id}
                     selectedDate={viewDate}
                     referenceDate={viewDateObj}
-                    onToggle={() => undefined}
+                    onToggle={() => toggleCompletion(goal)}
                   />
                 ))
               )}

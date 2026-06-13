@@ -34,6 +34,7 @@ import { Progress } from "@/components/ui/progress";
 import { MonthHeatmap } from "@/features/insights/month-heatmap";
 import { getCategoryBadgeClass } from "@/lib/goals/category";
 import { getGoalCompletionPercentage, getOverallCompletionPercentage, getRecurringStreaks } from "@/lib/goals/progress";
+import { isGoalCompleted } from "@/lib/goals/schedule";
 import type { Completion, Goal, GoalParticipant } from "@/lib/goals/types";
 import { createClient } from "@/lib/supabase/client";
 
@@ -167,6 +168,7 @@ export function InsightsTab() {
   const [loading, setLoading] = useState(true);
   const [monthCursor, setMonthCursor] = useState(new Date());
   const [perGoalViewMode, setPerGoalViewMode] = useState<HeatmapViewMode>("month");
+  const [goalSearchQuery, setGoalSearchQuery] = useState("");
   const [editingGoalId, setEditingGoalId] = useState<string | null>(null);
   const [pendingRetroDate, setPendingRetroDate] = useState<string | null>(null);
   const [milestoneNameDrafts, setMilestoneNameDrafts] = useState<Record<string, string[]>>({});
@@ -275,49 +277,57 @@ export function InsightsTab() {
   const selectedYearStart = useMemo(() => startOfYear(monthCursor), [monthCursor]);
   const selectedYearEnd = useMemo(() => endOfYear(monthCursor), [monthCursor]);
   const selectedYearEndDate = useMemo(() => format(selectedYearEnd, "yyyy-MM-dd"), [selectedYearEnd]);
-  const visiblePerGoalHeatmaps = useMemo(
-    () =>
-      perGoalViewMode === "year"
-        ? personalGoals.filter((goal) => goal.end_date === selectedYearEndDate)
-        : personalGoals,
-    [perGoalViewMode, personalGoals, selectedYearEndDate]
+  const normalizedGoalSearchQuery = useMemo(
+    () => goalSearchQuery.trim().toLowerCase(),
+    [goalSearchQuery]
   );
+  const searchedPersonalGoals = useMemo(() => {
+    if (normalizedGoalSearchQuery.length === 0) {
+      return personalGoals;
+    }
+
+    return personalGoals.filter((goal) =>
+      goal.title.toLowerCase().includes(normalizedGoalSearchQuery)
+    );
+  }, [normalizedGoalSearchQuery, personalGoals]);
+  const prioritizedPersonalGoals = useMemo(() => {
+    const today = new Date();
+    return [...searchedPersonalGoals].sort((left, right) => {
+      const leftCompletionCount = (completionsByGoal.get(left.id) ?? []).length;
+      const rightCompletionCount = (completionsByGoal.get(right.id) ?? []).length;
+      const leftCompleted = isGoalCompleted(left, today, leftCompletionCount);
+      const rightCompleted = isGoalCompleted(right, today, rightCompletionCount);
+
+      if (leftCompleted !== rightCompleted) {
+        return leftCompleted ? 1 : -1;
+      }
+
+      if (leftCompleted && rightCompleted) {
+        if (left.end_date && right.end_date && left.end_date !== right.end_date) {
+          return right.end_date.localeCompare(left.end_date);
+        }
+        if (left.end_date && !right.end_date) {
+          return -1;
+        }
+        if (!left.end_date && right.end_date) {
+          return 1;
+        }
+      }
+
+      return left.title.localeCompare(right.title);
+    });
+  }, [completionsByGoal, searchedPersonalGoals]);
+  const visiblePerGoalHeatmaps = useMemo(() => {
+    if (perGoalViewMode === "year") {
+      return prioritizedPersonalGoals.filter((goal) => goal.end_date === selectedYearEndDate);
+    }
+
+    return prioritizedPersonalGoals;
+  }, [perGoalViewMode, prioritizedPersonalGoals, selectedYearEndDate]);
 
   const overallCompletion = useMemo(
     () => getOverallCompletionPercentage(personalGoals, completionsByGoal),
     [completionsByGoal, personalGoals]
-  );
-
-  const markRetroactiveCompletion = useCallback(
-    async (goal: Goal, completionDate: string) => {
-      if (isAfter(parseISO(completionDate), startOfDay(new Date()))) {
-        toast.error("You can only mark today or past dates.");
-        return;
-      }
-
-      setPendingRetroDate(completionDate);
-      const currentScrollY = window.scrollY;
-      try {
-        const { error } = await supabase.rpc("mark_goal_complete", {
-          p_goal_id: goal.id,
-          p_date: completionDate,
-        });
-
-        if (error) {
-          toast.error(error.message);
-          return;
-        }
-
-        toast.success(`Marked ${completionDate} complete.`);
-        await loadData({ showLoading: false });
-        requestAnimationFrame(() => {
-          window.scrollTo({ top: currentScrollY, behavior: "auto" });
-        });
-      } finally {
-        setPendingRetroDate(null);
-      }
-    },
-    [loadData, supabase]
   );
 
   const toggleMilestoneDateSelection = useCallback(
@@ -359,6 +369,45 @@ export function InsightsTab() {
         }
 
         toast.success(isSelected ? `Removed ${completionDate}.` : `Selected ${completionDate}.`);
+        await loadData({ showLoading: false });
+        requestAnimationFrame(() => {
+          window.scrollTo({ top: currentScrollY, behavior: "auto" });
+        });
+      } finally {
+        setPendingRetroDate(null);
+      }
+    },
+    [loadData, pendingRetroDate, supabase]
+  );
+
+  const toggleRecurringDateSelection = useCallback(
+    async (goal: Goal, completionDate: string, hasCompletionOnDate: boolean) => {
+      if (pendingRetroDate !== null) {
+        return;
+      }
+
+      if (isAfter(parseISO(completionDate), startOfDay(new Date()))) {
+        toast.error("You can only select today or past dates.");
+        return;
+      }
+
+      setPendingRetroDate(completionDate);
+      const currentScrollY = window.scrollY;
+      try {
+        const { error } = await supabase.rpc(
+          hasCompletionOnDate ? "unmark_goal_complete" : "mark_goal_complete",
+          {
+            p_goal_id: goal.id,
+            p_date: completionDate,
+          }
+        );
+
+        if (error) {
+          toast.error(error.message);
+          return;
+        }
+
+        toast.success(hasCompletionOnDate ? `Removed ${completionDate}.` : `Selected ${completionDate}.`);
         await loadData({ showLoading: false });
         requestAnimationFrame(() => {
           window.scrollTo({ top: currentScrollY, behavior: "auto" });
@@ -507,54 +556,62 @@ export function InsightsTab() {
           </div>
           <CardDescription>Switch between monthly and yearly goal heatmaps.</CardDescription>
         </CardHeader>
-        <CardContent className="flex flex-wrap items-center justify-between gap-3">
-          <div className="inline-flex items-center rounded-lg border bg-muted/20 p-1">
-            <Button
-              type="button"
-              size="sm"
-              variant={perGoalViewMode === "month" ? "secondary" : "ghost"}
-              onClick={() => setPerGoalViewMode("month")}
-            >
-              Month
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant={perGoalViewMode === "year" ? "secondary" : "ghost"}
-              onClick={() => setPerGoalViewMode("year")}
-            >
-              Year
-            </Button>
+        <CardContent className="space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="inline-flex items-center rounded-lg border bg-muted/20 p-1">
+              <Button
+                type="button"
+                size="sm"
+                variant={perGoalViewMode === "month" ? "secondary" : "ghost"}
+                onClick={() => setPerGoalViewMode("month")}
+              >
+                Month
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={perGoalViewMode === "year" ? "secondary" : "ghost"}
+                onClick={() => setPerGoalViewMode("year")}
+              >
+                Year
+              </Button>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="icon-sm"
+                onClick={() =>
+                  setMonthCursor((previous) =>
+                    perGoalViewMode === "month" ? subMonths(previous, 1) : subYears(previous, 1)
+                  )
+                }
+              >
+                <ChevronLeft className="size-4" />
+              </Button>
+              <span className="min-w-[120px] text-center text-sm font-medium text-muted-foreground">
+                {perGoalViewMode === "month" ? format(monthCursor, "MMMM yyyy") : format(monthCursor, "yyyy")}
+              </span>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon-sm"
+                onClick={() =>
+                  setMonthCursor((previous) =>
+                    perGoalViewMode === "month" ? addMonths(previous, 1) : addYears(previous, 1)
+                  )
+                }
+              >
+                <ChevronRight className="size-4" />
+              </Button>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="icon-sm"
-              onClick={() =>
-                setMonthCursor((previous) =>
-                  perGoalViewMode === "month" ? subMonths(previous, 1) : subYears(previous, 1)
-                )
-              }
-            >
-              <ChevronLeft className="size-4" />
-            </Button>
-            <span className="min-w-[120px] text-center text-sm font-medium text-muted-foreground">
-              {perGoalViewMode === "month" ? format(monthCursor, "MMMM yyyy") : format(monthCursor, "yyyy")}
-            </span>
-            <Button
-              type="button"
-              variant="outline"
-              size="icon-sm"
-              onClick={() =>
-                setMonthCursor((previous) =>
-                  perGoalViewMode === "month" ? addMonths(previous, 1) : addYears(previous, 1)
-                )
-              }
-            >
-              <ChevronRight className="size-4" />
-            </Button>
-          </div>
+          <Input
+            value={goalSearchQuery}
+            onChange={(event) => setGoalSearchQuery(event.target.value)}
+            placeholder="Search goals..."
+            className="h-8"
+          />
         </CardContent>
       </Card>
 
@@ -764,7 +821,7 @@ export function InsightsTab() {
                       <>
                         {editingHistory && perGoalViewMode === "month" ? (
                           <p className="text-xs text-muted-foreground">
-                            Tap any day to mark it complete retroactively.
+                            Tap any day to toggle completion retroactively.
                           </p>
                         ) : null}
                         {perGoalViewMode === "month" ? (
@@ -773,7 +830,13 @@ export function InsightsTab() {
                             countsByDate={countsByDate}
                             interactive={editingHistory}
                             pendingDate={pendingRetroDate}
-                            onDayClick={(date) => void markRetroactiveCompletion(goal, date)}
+                            onDayClick={(date) =>
+                              void toggleRecurringDateSelection(
+                                goal,
+                                date,
+                                (countsByDate[date] ?? 0) > 0
+                              )
+                            }
                           />
                         ) : (
                           <div className="overflow-x-auto rounded-xl border bg-card p-3">
