@@ -40,6 +40,7 @@ import {
   getCategorySwatchColor,
 } from "@/lib/goals/category";
 import { GOAL_TYPE_OPTIONS, RECURRENCE_INTERVAL_OPTIONS } from "@/lib/goals/form-options";
+import { isGoalCompleted } from "@/lib/goals/schedule";
 import type { Goal, GoalFrequencyType, GoalLink, RecurrenceInterval } from "@/lib/goals/types";
 import { createClient } from "@/lib/supabase/client";
 
@@ -127,6 +128,25 @@ function getLinkedGoalDeadlineLabel(goal: Goal): string {
   return goal.end_date ? `Due ${goal.end_date}` : "No deadline";
 }
 
+function getCompletionCountByGoalId(rows: Array<{ goal_id: string }>): Record<string, number> {
+  return rows.reduce<Record<string, number>>((accumulator, row) => {
+    accumulator[row.goal_id] = (accumulator[row.goal_id] ?? 0) + 1;
+    return accumulator;
+  }, {});
+}
+
+function isGoalInProgress(goal: Goal, completionCount: number, referenceDate = new Date()): boolean {
+  if (goal.archived_at !== null) {
+    return false;
+  }
+
+  if (goal.start_date > toLocalDateString(referenceDate)) {
+    return false;
+  }
+
+  return !isGoalCompleted(goal, referenceDate, completionCount);
+}
+
 export function GoalForm({ goalId }: GoalFormProps) {
   const supabase = useMemo(() => createClient(), []);
   const router = useRouter();
@@ -161,7 +181,8 @@ export function GoalForm({ goalId }: GoalFormProps) {
 
       setCurrentUserId(user.id);
 
-      const [goalOptionsResponse, goalResponse, linksResponse] = await Promise.all([
+      const [goalOptionsResponse, goalResponse, linksResponse, completionResponse] =
+        await Promise.all([
         supabase
           .from("goals")
           .select("*")
@@ -183,12 +204,21 @@ export function GoalForm({ goalId }: GoalFormProps) {
               .eq("owner_id", user.id)
               .eq("source_goal_id", goalId)
           : Promise.resolve({ data: null, error: null } as const),
+        supabase.from("completions").select("goal_id").eq("user_id", user.id),
       ]);
 
       const goals = (goalOptionsResponse.data ?? []) as Goal[];
-      setAvailableGoals(
-        goals.filter((goal) => goal.id !== goalId && !goal.is_group)
+      const completionCountByGoalId = getCompletionCountByGoalId(
+        (completionResponse.data ?? []) as Array<{ goal_id: string }>
       );
+      const linkableGoals = goals.filter(
+        (goal) =>
+          goal.id !== goalId &&
+          !goal.is_group &&
+          isGoalInProgress(goal, completionCountByGoalId[goal.id] ?? 0)
+      );
+      const linkableGoalIdSet = new Set(linkableGoals.map((goal) => goal.id));
+      setAvailableGoals(linkableGoals);
 
       if (goalResponse.data) {
         const goal = goalResponse.data as Goal;
@@ -213,7 +243,7 @@ export function GoalForm({ goalId }: GoalFormProps) {
         });
 
         const existingLinks = (linksResponse.data ?? []) as GoalLink[];
-        if (existingLinks.length > 0) {
+        if (existingLinks.length > 0 && linkableGoalIdSet.has(existingLinks[0].target_goal_id)) {
           setSelectedLinkTarget(existingLinks[0].target_goal_id);
         } else {
           setSelectedLinkTarget("none");

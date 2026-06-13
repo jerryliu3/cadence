@@ -1088,8 +1088,13 @@ function GoalCard({
     completions,
     referenceDate
   ).length;
+  const goalCompleted = isGoalCompleted(goal, referenceDate, totalCompletionCount);
   const displayCompletionCount =
-    goal.frequency_type === "recurring" ? recurringPeriodCompletionCount : totalCompletionCount;
+    goal.frequency_type === "recurring"
+      ? goalCompleted
+        ? totalCompletionCount
+        : recurringPeriodCompletionCount
+      : totalCompletionCount;
   const doneForCurrentPeriod = isGoalDoneForCurrentPeriod(goal, completions, referenceDate);
   const doneOnSelectedDate = hasCompletionToday(completions, referenceDate);
   const currentMilestoneName = getNextMilestoneName(goal, totalCompletionCount);

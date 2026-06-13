@@ -3,7 +3,10 @@
 import { format } from "date-fns";
 import {
   ArrowLeft,
+  ChevronDown,
+  ChevronUp,
   FileSpreadsheet,
+  Link2,
   LoaderCircle,
   ListChecks,
   Sparkles,
@@ -17,6 +20,7 @@ import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -35,13 +39,14 @@ import {
   getCategorySelectionFromValue,
   getCategorySwatchColor,
 } from "@/lib/goals/category";
-import type { GoalFrequencyType, RecurrenceInterval } from "@/lib/goals/types";
+import { isGoalCompleted } from "@/lib/goals/schedule";
+import type { Goal, GoalFrequencyType, RecurrenceInterval } from "@/lib/goals/types";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 
 const frequencyOptions: Array<{ value: GoalFrequencyType; label: string }> = [
-  { value: "recurring", label: "Recurring" },
-  { value: "fixed_milestones", label: "Fixed" },
+  { value: "recurring", label: "Repeat" },
+  { value: "fixed_milestones", label: "Milestone" },
 ];
 
 const recurrenceOptions: Array<{ value: RecurrenceInterval; label: string }> = [
@@ -52,10 +57,14 @@ const recurrenceOptions: Array<{ value: RecurrenceInterval; label: string }> = [
 
 const columnAliases = {
   title: ["title", "goal", "goal_title", "name"],
+  description: ["description", "details", "notes"],
   category: ["category", "tag"],
+  color: ["color", "accent_color", "hex_color"],
+  is_group: ["is_group", "group_goal", "collaborative", "is_collaborative"],
   frequency_type: ["frequency_type", "frequency", "type"],
   recurrence_interval: ["recurrence_interval", "recurrence", "interval"],
   target_count: ["target_count", "target", "count", "milestones"],
+  milestone_names: ["milestone_names", "milestones_list", "steps", "step_names"],
   start_date: ["start_date", "start", "startdate"],
   end_date: ["end_date", "end", "enddate", "due_date", "due"],
 } as const;
@@ -65,18 +74,28 @@ interface BulkGoalDraft {
   sourceRowLabel: string;
   include: boolean;
   title: string;
+  description: string;
   category_selection: CategorySelection;
   custom_category: string;
+  color: string;
+  is_group: boolean;
   frequency_type: GoalFrequencyType;
   recurrence_interval: RecurrenceInterval;
   target_count: string;
+  milestone_names: string[];
   start_date: string;
   end_date: string;
+  linked_target_goal_id: string;
+  link_target_search: string;
+  link_target_open: boolean;
+  advanced_open: boolean;
+  photo_file: File | null;
   errors: string[];
 }
 
 interface LlmGoalDraftPayload {
   title?: string;
+  description?: string | null;
   category?: string | null;
   frequency_type?: GoalFrequencyType;
   recurrence_interval?: RecurrenceInterval | null;
@@ -87,9 +106,13 @@ interface LlmGoalDraftPayload {
 
 type BulkInputMode = "natural_language" | "csv";
 
-const csvExample = `title,category,frequency_type,recurrence_interval,target_count,start_date,end_date
-Morning run,Health,recurring,daily,20,2026-06-01,2026-12-31
-Read 12 books,Personal,fixed,,12,2026-06-01,2026-12-31`;
+const csvExample = `title,description,category,color,is_group,frequency_type,recurrence_interval,target_count,milestone_names,start_date,end_date
+Morning run,Train for a half marathon,Health,#16a34a,false,recurring,daily,20,,2026-06-01,2026-12-31
+Read 12 books,One book per month,Personal,#6366f1,false,fixed,,12,Book 1|Book 2|Book 3,2026-06-01,2026-12-31`;
+
+function defaultMilestoneName(index: number): string {
+  return `Milestone ${index + 1}`;
+}
 
 function normalizeHeaderKey(header: string): string {
   return header.trim().toLowerCase().replace(/[^a-z0-9]+/g, "_");
@@ -165,6 +188,38 @@ function parseTargetCount(raw: string): number | null {
   return Number.isNaN(parsed) ? null : parsed;
 }
 
+function parseBooleanValue(raw: string): boolean {
+  const normalized = raw.trim().toLowerCase();
+  return normalized === "true" || normalized === "1" || normalized === "yes" || normalized === "y";
+}
+
+function isValidHexColor(raw: string): boolean {
+  return /^#[0-9a-f]{6}$/i.test(raw.trim());
+}
+
+function trimMilestoneNames(names: string[], targetCount: number): string[] {
+  return Array.from({ length: Math.max(targetCount, 0) }, (_, index) => names[index] ?? "");
+}
+
+function normalizeMilestoneNamesForSave(count: number, names: string[]): string[] {
+  return Array.from({ length: count }, (_, index) => {
+    const value = names[index]?.trim();
+    return value && value.length > 0 ? value : defaultMilestoneName(index);
+  });
+}
+
+function parseMilestoneNames(raw: string): string[] {
+  const trimmed = raw.trim();
+  if (!trimmed) {
+    return [];
+  }
+
+  return trimmed
+    .split("|")
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
+}
+
 function validateDraft(draft: BulkGoalDraft): string[] {
   const errors: string[] = [];
   const parsedTarget = parseTargetCount(draft.target_count);
@@ -177,9 +232,17 @@ function validateDraft(draft: BulkGoalDraft): string[] {
     errors.push("Custom category name is required.");
   }
 
+  if (!isValidHexColor(draft.color)) {
+    errors.push("Color accent must be a valid hex color.");
+  }
+
   if (draft.frequency_type === "fixed_milestones") {
     if (parsedTarget === null || parsedTarget <= 0) {
-      errors.push("Fixed goals require a positive target count.");
+      errors.push("Milestone goals require a positive target count.");
+    }
+
+    if (parsedTarget !== null && draft.milestone_names.length !== parsedTarget) {
+      errors.push("Milestone names must align with target count.");
     }
   }
 
@@ -198,6 +261,10 @@ function validateDraft(draft: BulkGoalDraft): string[] {
 
   if (draft.end_date && draft.start_date && draft.end_date < draft.start_date) {
     errors.push("End date cannot be before start date.");
+  }
+
+  if (draft.is_group && draft.linked_target_goal_id !== "none") {
+    errors.push("Group goals cannot be linked to another goal.");
   }
 
   return errors;
@@ -221,20 +288,39 @@ function buildDraftFromRow(row: Record<string, unknown>, rowIndex: number): Bulk
     extractText(normalizedRow, columnAliases.frequency_type)
   );
   const targetRaw = extractText(normalizedRow, columnAliases.target_count);
+  const parsedTarget =
+    targetRaw.length > 0
+      ? parseTargetCount(targetRaw)
+      : frequencyType === "fixed_milestones"
+        ? 3
+        : null;
+  const parsedMilestoneNames = parseMilestoneNames(
+    extractText(normalizedRow, columnAliases.milestone_names)
+  );
+  const categoryColor = getCategorySwatchColor(categoryState.selection);
+  const parsedColor = extractText(normalizedRow, columnAliases.color);
+  const draftColor = isValidHexColor(parsedColor) ? parsedColor : categoryColor;
 
   return withValidatedDraft({
     id: crypto.randomUUID(),
     sourceRowLabel: `Row ${rowIndex + 2}`,
     include: true,
     title: extractText(normalizedRow, columnAliases.title),
+    description: extractText(normalizedRow, columnAliases.description),
     category_selection: categoryState.selection,
     custom_category: categoryState.customValue,
+    color: draftColor,
+    is_group: parseBooleanValue(extractText(normalizedRow, columnAliases.is_group)),
     frequency_type: frequencyType,
     recurrence_interval: parseRecurrenceInterval(
       extractText(normalizedRow, columnAliases.recurrence_interval)
     ),
     target_count:
       targetRaw.length > 0 ? targetRaw : frequencyType === "fixed_milestones" ? "3" : "",
+    milestone_names:
+      frequencyType === "fixed_milestones"
+        ? trimMilestoneNames(parsedMilestoneNames, parsedTarget ?? 0)
+        : [],
     start_date:
       normalizeDateValue(normalizedRow[normalizeHeaderKey(columnAliases.start_date[0])]) ||
       normalizeDateValue(extractText(normalizedRow, columnAliases.start_date)) ||
@@ -242,6 +328,11 @@ function buildDraftFromRow(row: Record<string, unknown>, rowIndex: number): Bulk
     end_date:
       normalizeDateValue(normalizedRow[normalizeHeaderKey(columnAliases.end_date[0])]) ||
       normalizeDateValue(extractText(normalizedRow, columnAliases.end_date)),
+    linked_target_goal_id: "none",
+    link_target_search: "",
+    link_target_open: false,
+    advanced_open: false,
+    photo_file: null,
   });
 }
 
@@ -276,6 +367,45 @@ async function parseRowsFromSpreadsheetFile(
   });
 }
 
+function getLinkedGoalRecurrenceLabel(goal: Goal): string {
+  if (goal.frequency_type === "fixed_milestones") {
+    return "Milestone";
+  }
+
+  if (goal.recurrence_interval === "weekly") {
+    return "Weekly";
+  }
+
+  if (goal.recurrence_interval === "monthly") {
+    return "Monthly";
+  }
+
+  return "Daily";
+}
+
+function getLinkedGoalDeadlineLabel(goal: Goal): string {
+  return goal.end_date ? `Due ${goal.end_date}` : "No deadline";
+}
+
+function getCompletionCountByGoalId(rows: Array<{ goal_id: string }>): Record<string, number> {
+  return rows.reduce<Record<string, number>>((accumulator, row) => {
+    accumulator[row.goal_id] = (accumulator[row.goal_id] ?? 0) + 1;
+    return accumulator;
+  }, {});
+}
+
+function isGoalInProgress(goal: Goal, completionCount: number, referenceDate = new Date()): boolean {
+  if (goal.archived_at !== null) {
+    return false;
+  }
+
+  if (goal.start_date > toLocalDateString(referenceDate)) {
+    return false;
+  }
+
+  return !isGoalCompleted(goal, referenceDate, completionCount);
+}
+
 export function BulkGoalForm() {
   const supabase = useMemo(() => createClient(), []);
   const router = useRouter();
@@ -288,6 +418,7 @@ export function BulkGoalForm() {
   const [parsing, setParsing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [drafts, setDrafts] = useState<BulkGoalDraft[]>([]);
+  const [availableGoals, setAvailableGoals] = useState<Goal[]>([]);
 
   useEffect(() => {
     const run = async () => {
@@ -301,6 +432,31 @@ export function BulkGoalForm() {
       }
 
       setCurrentUserId(user.id);
+      const [goalOptionsResponse, completionResponse] = await Promise.all([
+        supabase
+          .from("goals")
+          .select("*")
+          .eq("owner_id", user.id)
+          .eq("is_deleted", false)
+          .order("title"),
+        supabase.from("completions").select("goal_id").eq("user_id", user.id),
+      ]);
+
+      if (goalOptionsResponse.error) {
+        toast.error("Could not load linkable goals.");
+      } else {
+        const goals = (goalOptionsResponse.data ?? []) as Goal[];
+        const completionCountByGoalId = getCompletionCountByGoalId(
+          (completionResponse.data ?? []) as Array<{ goal_id: string }>
+        );
+        setAvailableGoals(
+          goals.filter(
+            (goal) =>
+              !goal.is_group && isGoalInProgress(goal, completionCountByGoalId[goal.id] ?? 0)
+          )
+        );
+      }
+
       setInitializing(false);
     };
 
@@ -399,6 +555,7 @@ export function BulkGoalForm() {
 
       const rows = goals.map((goal) => ({
         title: goal.title ?? "",
+        description: goal.description ?? "",
         category: goal.category ?? "",
         frequency_type: goal.frequency_type ?? "recurring",
         recurrence_interval: goal.recurrence_interval ?? "",
@@ -460,41 +617,106 @@ export function BulkGoalForm() {
     }
 
     setSaving(true);
+    try {
+      const preparedRows = selectedDrafts.map((draft) => {
+        const parsedTargetCount = parseTargetCount(draft.target_count);
+        const goalId = crypto.randomUUID();
+        const milestoneNames =
+          draft.frequency_type === "fixed_milestones" && parsedTargetCount
+            ? normalizeMilestoneNamesForSave(parsedTargetCount, draft.milestone_names)
+            : null;
 
-    const rows = selectedDrafts.map((draft) => {
-      const parsedTargetCount = parseTargetCount(draft.target_count);
-      return {
-        id: crypto.randomUUID(),
-        owner_id: currentUserId,
-        title: draft.title.trim(),
-        description: null,
-        category: getCategoryLabel(draft.category_selection, draft.custom_category),
-        color: getCategorySwatchColor(draft.category_selection),
-        frequency_type: draft.frequency_type,
-        recurrence_interval:
-          draft.frequency_type === "recurring" ? draft.recurrence_interval : null,
-        target_count:
-          draft.frequency_type === "fixed_milestones"
-            ? parsedTargetCount
-            : parsedTargetCount,
-        start_date: draft.start_date,
-        end_date: draft.end_date || null,
-        is_group: false,
-        is_deleted: false,
-      };
-    });
+        return {
+          draft,
+          goalId,
+          row: {
+            id: goalId,
+            owner_id: currentUserId,
+            title: draft.title.trim(),
+            description: draft.description.trim() || null,
+            category: getCategoryLabel(draft.category_selection, draft.custom_category),
+            color: isValidHexColor(draft.color)
+              ? draft.color.trim()
+              : getCategorySwatchColor(draft.category_selection),
+            frequency_type: draft.frequency_type,
+            recurrence_interval:
+              draft.frequency_type === "recurring" ? draft.recurrence_interval : null,
+            target_count: parsedTargetCount,
+            milestone_names: milestoneNames,
+            start_date: draft.start_date,
+            end_date: draft.end_date || null,
+            is_group: draft.is_group,
+            is_deleted: false,
+          },
+        };
+      });
 
-    const { error } = await supabase.from("goals").insert(rows);
-    if (error) {
-      toast.error(error.message ?? "Failed to create bulk goals.");
+      const { error } = await supabase.from("goals").insert(preparedRows.map((entry) => entry.row));
+      if (error) {
+        toast.error(error.message ?? "Failed to create bulk goals.");
+        return;
+      }
+
+      const linkRows = preparedRows
+        .filter(
+          ({ draft }) => !draft.is_group && draft.linked_target_goal_id && draft.linked_target_goal_id !== "none"
+        )
+        .map(({ draft, goalId }) => ({
+          owner_id: currentUserId,
+          source_goal_id: goalId,
+          target_goal_id: draft.linked_target_goal_id,
+        }));
+
+      if (linkRows.length > 0) {
+        const { error: linkError } = await supabase.from("goal_links").insert(linkRows);
+        if (linkError) {
+          toast.error(`Some linked goals were not saved: ${linkError.message}`);
+        }
+      }
+
+      let failedPhotoUploads = 0;
+      for (const { draft, goalId } of preparedRows) {
+        if (!draft.photo_file) {
+          continue;
+        }
+
+        const fileName = `${Date.now()}-${draft.photo_file.name.replace(/\s+/g, "-")}`;
+        const objectPath = `${currentUserId}/${goalId}/${fileName}`;
+        const uploadResponse = await supabase.storage.from("goal-photos").upload(objectPath, draft.photo_file, {
+          cacheControl: "3600",
+          upsert: true,
+        });
+
+        if (uploadResponse.error) {
+          failedPhotoUploads += 1;
+          continue;
+        }
+
+        const { error: updateError } = await supabase
+          .from("goals")
+          .update({ photo_path: objectPath })
+          .eq("id", goalId)
+          .eq("owner_id", currentUserId);
+
+        if (updateError) {
+          failedPhotoUploads += 1;
+        }
+      }
+
+      if (failedPhotoUploads > 0) {
+        toast.error(
+          `${failedPhotoUploads} photo upload${failedPhotoUploads === 1 ? "" : "s"} could not be saved.`
+        );
+      }
+
+      toast.success(
+        `Created ${preparedRows.length} goal${preparedRows.length === 1 ? "" : "s"}.`
+      );
+      router.replace(preparedRows.some((entry) => entry.draft.is_group) ? "/social" : "/");
+      router.refresh();
+    } finally {
       setSaving(false);
-      return;
     }
-
-    toast.success(`Created ${rows.length} goal${rows.length === 1 ? "" : "s"}.`);
-    router.replace("/");
-    router.refresh();
-    setSaving(false);
   };
 
   if (initializing) {
@@ -606,7 +828,7 @@ export function BulkGoalForm() {
                   id="bulk-csv-input"
                   value={csvInput}
                   onChange={(event) => setCsvInput(event.target.value)}
-                  placeholder="title,category,frequency_type,recurrence_interval,target_count,start_date,end_date"
+                  placeholder="title,description,category,color,is_group,frequency_type,recurrence_interval,target_count,milestone_names,start_date,end_date"
                   className="min-h-36"
                 />
                 <div className="flex flex-wrap items-center gap-2">
@@ -651,8 +873,9 @@ export function BulkGoalForm() {
                   ) : null}
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Supported columns: title, category, frequency_type, recurrence_interval,
-                  target_count, start_date, end_date.
+                  Supported columns: title, description, category, color, is_group,
+                  frequency_type, recurrence_interval, target_count, milestone_names, start_date,
+                  end_date.
                 </p>
               </section>
             </>
@@ -695,160 +918,174 @@ export function BulkGoalForm() {
                 : "Parse CSV input or upload a file to generate drafts."}
             </p>
           ) : (
-            drafts.map((draft) => (
-              <Card
-                key={draft.id}
-                className={cn(
-                  "border shadow-none",
-                  draft.include && draft.errors.length > 0 && "border-destructive/50"
-                )}
-              >
-                <CardContent className="space-y-3 py-4">
-                  <div className="flex flex-wrap items-start justify-between gap-2">
-                    <label className="inline-flex items-center gap-2 text-sm font-medium">
-                      <input
-                        type="checkbox"
-                        checked={draft.include}
-                        onChange={(event) =>
-                          updateDraft(draft.id, (previous) => ({
-                            ...previous,
-                            include: event.target.checked,
-                          }))
-                        }
-                      />
-                      {draft.sourceRowLabel}
-                    </label>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon-sm"
-                      onClick={() =>
-                        setDrafts((previous) =>
-                          previous.filter((entry) => entry.id !== draft.id)
-                        )
-                      }
-                    >
-                      <Trash2 className="size-4" />
-                    </Button>
-                  </div>
+            drafts.map((draft) => {
+              const fixedMilestoneCount =
+                draft.frequency_type === "fixed_milestones"
+                  ? parseTargetCount(draft.target_count) ?? 0
+                  : 0;
+              const linkQuery = draft.link_target_search.trim().toLowerCase();
+              const filteredLinkTargets = availableGoals.filter((goal) => {
+                if (linkQuery.length === 0) {
+                  return true;
+                }
 
-                  {draft.errors.length > 0 ? (
-                    <div className="rounded-lg border border-destructive/40 bg-destructive/5 px-3 py-2">
-                      <ul className="space-y-1 text-xs text-destructive">
-                        {draft.errors.map((error) => (
-                          <li key={`${draft.id}-${error}`}>- {error}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  ) : null}
+                const recurrenceLabel = getLinkedGoalRecurrenceLabel(goal).toLowerCase();
+                const deadlineLabel = getLinkedGoalDeadlineLabel(goal).toLowerCase();
+                return (
+                  goal.title.toLowerCase().includes(linkQuery) ||
+                  recurrenceLabel.includes(linkQuery) ||
+                  deadlineLabel.includes(linkQuery)
+                );
+              });
 
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label>Title</Label>
-                      <Input
-                        value={draft.title}
-                        onChange={(event) =>
-                          updateDraft(draft.id, (previous) => ({
-                            ...previous,
-                            title: event.target.value,
-                          }))
-                        }
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label>Category</Label>
-                      <Select
-                        value={draft.category_selection}
-                        onValueChange={(value: CategorySelection) =>
-                          updateDraft(draft.id, (previous) => ({
-                            ...previous,
-                            category_selection: value,
-                          }))
-                        }
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select category" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {CATEGORY_PRESETS.map((preset) => (
-                            <SelectItem key={preset.id} value={preset.id}>
-                              {preset.label}
-                            </SelectItem>
-                          ))}
-                          <SelectItem value="custom">Custom</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    {draft.category_selection === "custom" ? (
-                      <div className="space-y-2">
-                        <Label>Custom category</Label>
-                        <Input
-                          value={draft.custom_category}
+              return (
+                <Card
+                  key={draft.id}
+                  className={cn(
+                    "border shadow-none",
+                    draft.include && draft.errors.length > 0 && "border-destructive/50"
+                  )}
+                >
+                  <CardContent className="space-y-4 py-4">
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <label className="inline-flex items-center gap-2 text-sm font-medium">
+                        <input
+                          type="checkbox"
+                          checked={draft.include}
                           onChange={(event) =>
                             updateDraft(draft.id, (previous) => ({
                               ...previous,
-                              custom_category: event.target.value,
+                              include: event.target.checked,
+                            }))
+                          }
+                        />
+                        {draft.sourceRowLabel}
+                      </label>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={() =>
+                          setDrafts((previous) => previous.filter((entry) => entry.id !== draft.id))
+                        }
+                      >
+                        <Trash2 className="size-4" />
+                      </Button>
+                    </div>
+
+                    {draft.errors.length > 0 ? (
+                      <div className="rounded-lg border border-destructive/40 bg-destructive/5 px-3 py-2">
+                        <ul className="space-y-1 text-xs text-destructive">
+                          {draft.errors.map((error) => (
+                            <li key={`${draft.id}-${error}`}>- {error}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : null}
+
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label>Title</Label>
+                        <Input
+                          value={draft.title}
+                          onChange={(event) =>
+                            updateDraft(draft.id, (previous) => ({
+                              ...previous,
+                              title: event.target.value,
                             }))
                           }
                         />
                       </div>
-                    ) : null}
 
-                  </div>
+                      <div className="space-y-2">
+                        <Label>Category</Label>
+                        <Select
+                          value={draft.category_selection}
+                          onValueChange={(value: CategorySelection) =>
+                            updateDraft(draft.id, (previous) => ({
+                              ...previous,
+                              category_selection: value,
+                              color: getCategorySwatchColor(value),
+                            }))
+                          }
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select category" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {CATEGORY_PRESETS.map((preset) => (
+                              <SelectItem key={preset.id} value={preset.id}>
+                                <span className="inline-flex items-center gap-2">
+                                  <span
+                                    className="size-2 rounded-full"
+                                    style={{ backgroundColor: getCategorySwatchColor(preset.id) }}
+                                  />
+                                  {preset.label}
+                                </span>
+                              </SelectItem>
+                            ))}
+                            <SelectItem value="custom">
+                              <span className="inline-flex items-center gap-2">
+                                <span
+                                  className="size-2 rounded-full"
+                                  style={{ backgroundColor: getCategorySwatchColor("custom") }}
+                                />
+                                Custom
+                              </span>
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
 
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label>Frequency</Label>
-                      <div className="flex flex-wrap gap-2">
-                        {frequencyOptions.map((option) => (
-                          <Button
-                            key={option.value}
-                            type="button"
-                            size="sm"
-                            variant={
-                              draft.frequency_type === option.value ? "secondary" : "outline"
-                            }
-                            className="rounded-full"
-                            onClick={() =>
+                      {draft.category_selection === "custom" ? (
+                        <div className="space-y-2">
+                          <Label>Custom category</Label>
+                          <Input
+                            value={draft.custom_category}
+                            onChange={(event) =>
                               updateDraft(draft.id, (previous) => ({
                                 ...previous,
-                                frequency_type: option.value,
-                                target_count:
-                                  option.value === "fixed_milestones" &&
-                                  previous.target_count.trim().length === 0
-                                    ? "3"
-                                    : previous.target_count,
+                                custom_category: event.target.value,
                               }))
                             }
-                          >
-                            {option.label}
-                          </Button>
-                        ))}
-                      </div>
+                          />
+                        </div>
+                      ) : null}
                     </div>
 
-                    {draft.frequency_type === "recurring" ? (
+                    <div className="grid gap-3 sm:grid-cols-2">
                       <div className="space-y-2">
-                        <Label>Recurrence</Label>
+                        <Label>Goal type</Label>
                         <div className="flex flex-wrap gap-2">
-                          {recurrenceOptions.map((option) => (
+                          {frequencyOptions.map((option) => (
                             <Button
                               key={option.value}
                               type="button"
                               size="sm"
                               variant={
-                                draft.recurrence_interval === option.value
-                                  ? "secondary"
-                                  : "outline"
+                                draft.frequency_type === option.value ? "secondary" : "outline"
                               }
                               className="rounded-full"
                               onClick={() =>
-                                updateDraft(draft.id, (previous) => ({
-                                  ...previous,
-                                  recurrence_interval: option.value,
-                                }))
+                                updateDraft(draft.id, (previous) => {
+                                  const nextTargetCount =
+                                    option.value === "fixed_milestones" &&
+                                    previous.target_count.trim().length === 0
+                                      ? "3"
+                                      : previous.target_count;
+                                  return {
+                                    ...previous,
+                                    frequency_type: option.value,
+                                    target_count: nextTargetCount,
+                                    milestone_names:
+                                      option.value === "fixed_milestones"
+                                        ? trimMilestoneNames(
+                                            previous.milestone_names,
+                                            parseTargetCount(nextTargetCount) ?? 0
+                                          )
+                                        : previous.milestone_names,
+                                  };
+                                })
                               }
                             >
                               {option.label}
@@ -856,54 +1093,298 @@ export function BulkGoalForm() {
                           ))}
                         </div>
                       </div>
+
+                      {draft.frequency_type === "recurring" ? (
+                        <div className="space-y-2">
+                          <Label>Recurrence interval</Label>
+                          <div className="flex flex-wrap gap-2">
+                            {recurrenceOptions.map((option) => (
+                              <Button
+                                key={option.value}
+                                type="button"
+                                size="sm"
+                                variant={
+                                  draft.recurrence_interval === option.value
+                                    ? "secondary"
+                                    : "outline"
+                                }
+                                className="rounded-full"
+                                onClick={() =>
+                                  updateDraft(draft.id, (previous) => ({
+                                    ...previous,
+                                    recurrence_interval: option.value,
+                                  }))
+                                }
+                              >
+                                {option.label}
+                              </Button>
+                            ))}
+                          </div>
+                        </div>
+                      ) : null}
+
+                      <div className="space-y-2">
+                        <Label>
+                          {draft.frequency_type === "fixed_milestones"
+                            ? "Target count"
+                            : "Target completions (optional)"}
+                        </Label>
+                        <Input
+                          type="number"
+                          min={1}
+                          value={draft.target_count}
+                          onChange={(event) =>
+                            updateDraft(draft.id, (previous) => ({
+                              ...previous,
+                              target_count: event.target.value,
+                              milestone_names:
+                                previous.frequency_type === "fixed_milestones"
+                                  ? trimMilestoneNames(
+                                      previous.milestone_names,
+                                      parseTargetCount(event.target.value) ?? 0
+                                    )
+                                  : previous.milestone_names,
+                            }))
+                          }
+                        />
+                        {draft.frequency_type === "recurring" ? (
+                          <p className="text-xs text-muted-foreground">
+                            Optional: set a total completion target to reach by the end date.
+                          </p>
+                        ) : null}
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label>Start date</Label>
+                        <Input
+                          type="date"
+                          value={draft.start_date}
+                          onChange={(event) =>
+                            updateDraft(draft.id, (previous) => ({
+                              ...previous,
+                              start_date: event.target.value,
+                            }))
+                          }
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label>End date</Label>
+                        <Input
+                          type="date"
+                          value={draft.end_date}
+                          onChange={(event) =>
+                            updateDraft(draft.id, (previous) => ({
+                              ...previous,
+                              end_date: event.target.value,
+                            }))
+                          }
+                        />
+                      </div>
+                    </div>
+
+                    {fixedMilestoneCount > 0 ? (
+                      <div className="space-y-2">
+                        <Label>Milestone names (optional)</Label>
+                        <div className="grid gap-2 sm:grid-cols-2">
+                          {Array.from({ length: fixedMilestoneCount }).map((_, index) => (
+                            <Input
+                              key={`${draft.id}-milestone-${index + 1}`}
+                              value={draft.milestone_names[index] ?? ""}
+                              onChange={(event) =>
+                                updateDraft(draft.id, (previous) => {
+                                  const nextMilestones = [...previous.milestone_names];
+                                  nextMilestones[index] = event.target.value;
+                                  return {
+                                    ...previous,
+                                    milestone_names: nextMilestones,
+                                  };
+                                })
+                              }
+                              placeholder={defaultMilestoneName(index)}
+                            />
+                          ))}
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          Leave any field blank to use the default name.
+                        </p>
+                      </div>
                     ) : null}
 
-                    <div className="space-y-2">
-                      <Label>Target count</Label>
-                      <Input
-                        type="number"
-                        min={1}
-                        value={draft.target_count}
-                        onChange={(event) =>
-                          updateDraft(draft.id, (previous) => ({
-                            ...previous,
-                            target_count: event.target.value,
-                          }))
-                        }
-                      />
-                    </div>
+                    <Collapsible
+                      open={draft.advanced_open}
+                      onOpenChange={(open) =>
+                        updateDraft(draft.id, (previous) => ({
+                          ...previous,
+                          advanced_open: open,
+                        }))
+                      }
+                    >
+                      <div className="rounded-xl border bg-muted/20">
+                        <CollapsibleTrigger asChild>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            className="flex h-auto w-full items-center justify-between rounded-xl px-3 py-2 text-sm"
+                          >
+                            <span>Advanced settings</span>
+                            {draft.advanced_open ? (
+                              <ChevronUp className="size-4 text-muted-foreground" />
+                            ) : (
+                              <ChevronDown className="size-4 text-muted-foreground" />
+                            )}
+                          </Button>
+                        </CollapsibleTrigger>
+                        <CollapsibleContent>
+                          <div className="space-y-4 border-t px-3 py-3">
+                            <div className="space-y-2">
+                              <Label>Description</Label>
+                              <Textarea
+                                value={draft.description}
+                                onChange={(event) =>
+                                  updateDraft(draft.id, (previous) => ({
+                                    ...previous,
+                                    description: event.target.value,
+                                  }))
+                                }
+                                placeholder="Why this goal matters"
+                              />
+                            </div>
 
-                    <div className="space-y-2">
-                      <Label>Start date</Label>
-                      <Input
-                        type="date"
-                        value={draft.start_date}
-                        onChange={(event) =>
-                          updateDraft(draft.id, (previous) => ({
-                            ...previous,
-                            start_date: event.target.value,
-                          }))
-                        }
-                      />
-                    </div>
+                            <div className="space-y-2">
+                              <Label>Color accent</Label>
+                              <Input
+                                type="color"
+                                value={draft.color}
+                                onChange={(event) =>
+                                  updateDraft(draft.id, (previous) => ({
+                                    ...previous,
+                                    color: event.target.value,
+                                  }))
+                                }
+                                className="h-10 p-1"
+                              />
+                              <p className="text-xs text-muted-foreground">
+                                Auto-set from category selection. You can still override it here.
+                              </p>
+                            </div>
 
-                    <div className="space-y-2">
-                      <Label>End date</Label>
-                      <Input
-                        type="date"
-                        value={draft.end_date}
-                        onChange={(event) =>
-                          updateDraft(draft.id, (previous) => ({
-                            ...previous,
-                            end_date: event.target.value,
-                          }))
-                        }
-                      />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))
+                            <div className="space-y-2">
+                              <Label>Photo (optional)</Label>
+                              <Input
+                                type="file"
+                                accept="image/png,image/jpeg,image/webp"
+                                onChange={(event) =>
+                                  updateDraft(draft.id, (previous) => ({
+                                    ...previous,
+                                    photo_file: event.target.files?.[0] ?? null,
+                                  }))
+                                }
+                              />
+                              {draft.photo_file ? (
+                                <Badge variant="secondary">{draft.photo_file.name}</Badge>
+                              ) : null}
+                            </div>
+
+                            <div className="rounded-xl border bg-background/70 p-3">
+                              <label className="flex items-start gap-3 text-sm">
+                                <input
+                                  type="checkbox"
+                                  className="mt-1"
+                                  checked={draft.is_group}
+                                  onChange={(event) =>
+                                    updateDraft(draft.id, (previous) => ({
+                                      ...previous,
+                                      is_group: event.target.checked,
+                                      linked_target_goal_id: event.target.checked
+                                        ? "none"
+                                        : previous.linked_target_goal_id,
+                                    }))
+                                  }
+                                />
+                                <span>
+                                  This is a collaborative group goal (participants track their own
+                                  completions).
+                                </span>
+                              </label>
+                            </div>
+
+                            {!draft.is_group ? (
+                              <div className="space-y-2">
+                                <Label className="inline-flex items-center gap-2">
+                                  <Link2 className="size-4 text-muted-foreground" />
+                                  Link this goal to another goal (optional)
+                                </Label>
+                                <Select
+                                  value={draft.linked_target_goal_id}
+                                  onValueChange={(value) =>
+                                    updateDraft(draft.id, (previous) => ({
+                                      ...previous,
+                                      linked_target_goal_id: value,
+                                    }))
+                                  }
+                                  open={draft.link_target_open}
+                                  onOpenChange={(open) =>
+                                    updateDraft(draft.id, (previous) => ({
+                                      ...previous,
+                                      link_target_open: open,
+                                      link_target_search: open ? previous.link_target_search : "",
+                                    }))
+                                  }
+                                >
+                                  <SelectTrigger>
+                                    <SelectValue placeholder="No linked target" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <div className="sticky top-0 z-10 border-b bg-popover p-1.5">
+                                      <Input
+                                        value={draft.link_target_search}
+                                        onChange={(event) =>
+                                          updateDraft(draft.id, (previous) => ({
+                                            ...previous,
+                                            link_target_search: event.target.value,
+                                          }))
+                                        }
+                                        placeholder="Search link targets..."
+                                        className="h-8"
+                                        onKeyDown={(event) => event.stopPropagation()}
+                                      />
+                                    </div>
+                                    <SelectItem value="none">No linked target</SelectItem>
+                                    {filteredLinkTargets.map((goal) => (
+                                      <SelectItem key={`${draft.id}-${goal.id}`} value={goal.id}>
+                                        <span className="flex items-center gap-2">
+                                          <span className="max-w-[170px] truncate">{goal.title}</span>
+                                          <Badge variant="secondary">
+                                            {getLinkedGoalRecurrenceLabel(goal)}
+                                          </Badge>
+                                          <Badge variant="outline">
+                                            {getLinkedGoalDeadlineLabel(goal)}
+                                          </Badge>
+                                        </span>
+                                      </SelectItem>
+                                    ))}
+                                    {filteredLinkTargets.length === 0 ? (
+                                      <p className="px-2 py-1.5 text-xs text-muted-foreground">
+                                        No goals match your search.
+                                      </p>
+                                    ) : null}
+                                  </SelectContent>
+                                </Select>
+                                <p className="text-xs text-muted-foreground">
+                                  Marking this goal complete will auto-complete linked goals for the
+                                  same day.
+                                </p>
+                              </div>
+                            ) : null}
+                          </div>
+                        </CollapsibleContent>
+                      </div>
+                    </Collapsible>
+                  </CardContent>
+                </Card>
+              );
+            })
           )}
         </CardContent>
       </Card>
