@@ -4,6 +4,7 @@ import {
   addYears,
   addMonths,
   differenceInCalendarDays,
+  eachDayOfInterval,
   endOfYear,
   format,
   isAfter,
@@ -223,12 +224,6 @@ export function InsightsTab() {
 
     void run();
   }, [loadData]);
-
-  useEffect(() => {
-    if (perGoalViewMode === "year" && editingGoalId !== null) {
-      setEditingGoalId(null);
-    }
-  }, [editingGoalId, perGoalViewMode]);
 
   const completableGoalIds = useMemo(() => {
     const ids = new Set<string>();
@@ -686,15 +681,21 @@ export function InsightsTab() {
                   : null;
               const isRecurring = goal.frequency_type === "recurring";
               const isMilestone = goal.frequency_type === "fixed_milestones";
-              const canEditHistory = (isRecurring || isMilestone) && perGoalViewMode === "month";
+              const canEditHistory = isRecurring || isMilestone;
               const editingHistory = editingGoalId === goal.id;
               const milestoneTargetCount = Math.max(goal.target_count ?? completionCount, 1);
               const milestoneCompletionDates = getSortedCompletionDates(completions);
               const mappedMilestoneDates = milestoneCompletionDates.slice(0, milestoneTargetCount);
-              const goalHeatmapData = Object.entries(countsByDate).map(([date, count]) => ({
-                date,
-                count,
-              }));
+              const goalHeatmapData = eachDayOfInterval({
+                start: selectedYearStart,
+                end: selectedYearEnd,
+              }).map((date) => {
+                const key = format(date, "yyyy-MM-dd");
+                return {
+                  date: key,
+                  count: countsByDate[key] ?? 0,
+                };
+              });
               const persistedMilestoneNames = isMilestone
                 ? buildMilestoneNames(milestoneTargetCount, goal.milestone_names)
                 : [];
@@ -779,7 +780,7 @@ export function InsightsTab() {
                           completionDates={mappedMilestoneDates}
                           milestoneNames={draftMilestoneNames}
                         />
-                        {editingHistory && perGoalViewMode === "month" ? (
+                        {editingHistory ? (
                           <p className="text-xs text-muted-foreground">
                             Tap calendar dates to assign milestones. Earliest selected date maps to
                             milestone 1. You can select up to {milestoneTargetCount} date
@@ -811,12 +812,27 @@ export function InsightsTab() {
                               values={goalHeatmapData}
                               showWeekdayLabels
                               weekdayLabels={aggregateWeekdayLabels}
-                              classForValue={(value) => scaleClass(value?.count ?? 0)}
+                              classForValue={(value) =>
+                                `${scaleClass(value?.count ?? 0)}${editingHistory ? " cursor-pointer" : ""}`
+                              }
                               titleForValue={(value) =>
                                 `${value?.date ?? "N/A"}: ${value?.count ?? 0} completion${
                                   (value?.count ?? 0) === 1 ? "" : "s"
                                 }`
                               }
+                              onClick={(value) => {
+                                const selectedDate = value?.date;
+                                if (!editingHistory || !selectedDate) {
+                                  return;
+                                }
+
+                                void toggleMilestoneDateSelection(
+                                  goal,
+                                  selectedDate,
+                                  milestoneCompletionDates,
+                                  milestoneTargetCount
+                                );
+                              }}
                             />
                           </div>
                         )}
@@ -849,7 +865,7 @@ export function InsightsTab() {
                       </>
                     ) : (
                       <>
-                        {editingHistory && perGoalViewMode === "month" ? (
+                        {editingHistory ? (
                           <p className="text-xs text-muted-foreground">
                             Tap any day to toggle completion retroactively.
                           </p>
@@ -878,12 +894,26 @@ export function InsightsTab() {
                               values={goalHeatmapData}
                               showWeekdayLabels
                               weekdayLabels={aggregateWeekdayLabels}
-                              classForValue={(value) => scaleClass(value?.count ?? 0)}
+                              classForValue={(value) =>
+                                `${scaleClass(value?.count ?? 0)}${editingHistory ? " cursor-pointer" : ""}`
+                              }
                               titleForValue={(value) =>
                                 `${value?.date ?? "N/A"}: ${value?.count ?? 0} completion${
                                   (value?.count ?? 0) === 1 ? "" : "s"
                                 }`
                               }
+                              onClick={(value) => {
+                                const selectedDate = value?.date;
+                                if (!editingHistory || !selectedDate) {
+                                  return;
+                                }
+
+                                void toggleRecurringDateSelection(
+                                  goal,
+                                  selectedDate,
+                                  (countsByDate[selectedDate] ?? 0) > 0
+                                );
+                              }}
                             />
                           </div>
                         )}
