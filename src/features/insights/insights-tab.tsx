@@ -89,6 +89,7 @@ const aggregateWeekdayLabels: [string, string, string, string, string, string, s
   "F",
   "S",
 ];
+const MAX_VISIBLE_MILESTONES = 5;
 
 function defaultMilestoneName(index: number): string {
   return `Milestone ${index + 1}`;
@@ -118,12 +119,17 @@ interface MilestoneStepsProps {
 
 function MilestoneSteps({ targetCount, completionDates, milestoneNames = [] }: MilestoneStepsProps) {
   const safeTarget = Math.max(targetCount, 1);
+  const [expanded, setExpanded] = useState(false);
+  const visibleMilestoneCount = expanded
+    ? safeTarget
+    : Math.min(safeTarget, MAX_VISIBLE_MILESTONES);
+  const hiddenMilestoneCount = safeTarget - visibleMilestoneCount;
 
   return (
     <div className="space-y-1.5">
       <p className="text-xs text-muted-foreground">Milestones</p>
       <div className="flex flex-wrap gap-1.5">
-        {Array.from({ length: safeTarget }).map((_, index) => {
+        {Array.from({ length: visibleMilestoneCount }).map((_, index) => {
           const completionDate = completionDates[index];
           const complete = Boolean(completionDate);
           const milestoneName = milestoneNames[index] ?? defaultMilestoneName(index);
@@ -145,6 +151,19 @@ function MilestoneSteps({ targetCount, completionDates, milestoneNames = [] }: M
           );
         })}
       </div>
+      {safeTarget > MAX_VISIBLE_MILESTONES ? (
+        <button
+          type="button"
+          className="text-xs font-medium text-primary transition-colors hover:text-primary/80"
+          onClick={() => setExpanded((previous) => !previous)}
+        >
+          {expanded
+            ? "Show fewer milestones"
+            : `Show ${hiddenMilestoneCount} more milestone${
+                hiddenMilestoneCount === 1 ? "" : "s"
+              }`}
+        </button>
+      ) : null}
     </div>
   );
 }
@@ -709,21 +728,25 @@ export function InsightsTab() {
               return (
                 <Card key={goal.id} className="border shadow-none">
                   <CardContent className="space-y-3 py-4">
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex min-w-0 items-center gap-2">
-                        <span
-                          className="size-2 shrink-0 rounded-full"
-                          style={{ backgroundColor: goal.color ?? "var(--muted-foreground)" }}
-                        />
-                        <p className="truncate text-sm font-semibold">{goal.title}</p>
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <div className="min-w-0 flex-1 space-y-1">
+                        <div className="flex min-w-0 items-start gap-2">
+                          <span
+                            className="mt-1 size-2 shrink-0 rounded-full"
+                            style={{ backgroundColor: goal.color ?? "var(--muted-foreground)" }}
+                          />
+                          <p className="text-sm font-semibold leading-tight break-words [overflow-wrap:anywhere]">
+                            {goal.title}
+                          </p>
+                        </div>
                         <Badge
                           variant="outline"
-                          className={getCategoryBadgeClass(goal.category)}
+                          className={`w-fit ${getCategoryBadgeClass(goal.category)}`}
                         >
                           {goal.category}
                         </Badge>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center justify-end gap-2">
                         <Badge variant="secondary">
                           {hasTargetCount ? `${Math.round(percent)}%` : completionCountLabel}
                         </Badge>
