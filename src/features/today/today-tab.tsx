@@ -1,6 +1,6 @@
 "use client";
 
-import { addDays, endOfMonth, endOfYear, format, parseISO, subDays } from "date-fns";
+import { addDays, format, parseISO, subDays } from "date-fns";
 import {
   Archive,
   CalendarClock,
@@ -34,8 +34,16 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { GoalEndMonthBadge } from "@/features/goals/goal-end-month-badge";
+import { GoalListControls } from "@/features/goals/goal-list-controls";
 import { toLocalDateString } from "@/lib/dates/day";
 import { getCategoryBadgeClass } from "@/lib/goals/category";
+import {
+  filterGoalsByEndMonth,
+  sortGoalsByDate,
+  type GoalDateSort,
+} from "@/lib/goals/list-view";
 import {
   getCompletionsForCurrentPeriod,
   getFrequencySummary,
@@ -67,7 +75,6 @@ const emptyData: TodayData = {
 };
 
 const allCategoriesFilterValue = "__all_categories__";
-type DeadlineFilter = "all_deadlines" | "this_month" | "this_year" | "custom_date";
 type RecurrenceFilter = "all" | "daily" | "weekly" | "monthly" | "fixed";
 type RecurrenceGroup = "daily" | "weekly" | "monthly" | "fixed";
 const VISIBLE_GOALS_PER_GROUP = 5;
@@ -77,22 +84,6 @@ const INITIAL_GROUP_EXPANDED: Record<RecurrenceGroup, boolean> = {
   monthly: false,
   fixed: false,
 };
-
-function getFrequencyRank(goal: Goal): number {
-  if (goal.frequency_type === "fixed_milestones") {
-    return 3;
-  }
-
-  if (goal.recurrence_interval === "weekly") {
-    return 1;
-  }
-
-  if (goal.recurrence_interval === "monthly") {
-    return 2;
-  }
-
-  return 0;
-}
 
 function getRecurrenceGroup(goal: Goal): RecurrenceGroup {
   if (goal.frequency_type === "fixed_milestones") {
@@ -159,11 +150,13 @@ export function TodayTab() {
   const [completedOpen, setCompletedOpen] = useState(false);
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [categoryFilter, setCategoryFilter] = useState(allCategoriesFilterValue);
-  const [deadlineFilter, setDeadlineFilter] = useState<DeadlineFilter>("this_month");
   const [recurrenceFilter, setRecurrenceFilter] = useState<RecurrenceFilter>("all");
   const [todayGoalSearchQuery, setTodayGoalSearchQuery] = useState("");
   const [viewDate, setViewDate] = useState(toLocalDateString());
-  const [customDeadlineDate, setCustomDeadlineDate] = useState(toLocalDateString());
+  const [todayEndMonth, setTodayEndMonth] = useState<string | null>(null);
+  const [todaySort, setTodaySort] = useState<GoalDateSort>("earliest_end");
+  const [notTodayEndMonth, setNotTodayEndMonth] = useState<string | null>(null);
+  const [notTodaySort, setNotTodaySort] = useState<GoalDateSort>("earliest_end");
 
   const viewDateObj = useMemo(() => parseISO(viewDate), [viewDate]);
   const todayLocalDate = toLocalDateString();
@@ -266,15 +259,17 @@ export function TodayTab() {
     return ids;
   }, [data.goals, data.participants, data.userId]);
 
+  const completableGoals = useMemo(
+    () => data.goals.filter((goal) => completableGoalIds.has(goal.id)),
+    [completableGoalIds, data.goals]
+  );
+
   const activeGoals = useMemo(() => {
-    return data.goals.filter((goal) => {
-      if (!completableGoalIds.has(goal.id)) {
-        return false;
-      }
+    return completableGoals.filter((goal) => {
       const completionCount = (completionsByGoal.get(goal.id) ?? []).length;
       return !isGoalCompleted(goal, viewDateObj, completionCount) && !isGoalManuallyArchived(goal);
     });
-  }, [completableGoalIds, completionsByGoal, data.goals, viewDateObj]);
+  }, [completableGoals, completionsByGoal, viewDateObj]);
 
   const availableCategories = useMemo(() => {
     const categories = new Set<string>();
@@ -288,69 +283,17 @@ export function TodayTab() {
     return Array.from(categories).sort((left, right) => left.localeCompare(right));
   }, [data.goals]);
 
-  const sortGoals = useCallback((goals: Goal[]) => {
-    return [...goals].sort((left, right) => {
-      const frequencyRankDifference = getFrequencyRank(left) - getFrequencyRank(right);
-      if (frequencyRankDifference !== 0) {
-        return frequencyRankDifference;
-      }
-
-      if (
-        left.frequency_type === "recurring" &&
-        right.frequency_type === "recurring" &&
-        left.recurrence_interval === right.recurrence_interval
-      ) {
-        const targetDifference = (right.target_count ?? 0) - (left.target_count ?? 0);
-        if (targetDifference !== 0) {
-          return targetDifference;
-        }
-      }
-
-      return left.title.localeCompare(right.title);
-    });
-  }, []);
-
-  const completedGoals = useMemo(() => {
-    return sortGoals(
-      data.goals.filter((goal) => {
-        if (!completableGoalIds.has(goal.id)) {
-          return false;
-        }
-
-        if (isGoalManuallyArchived(goal)) {
-          return false;
-        }
-
-        const completionCount = (completionsByGoal.get(goal.id) ?? []).length;
-        return isGoalCompleted(goal, viewDateObj, completionCount);
-      })
-    );
-  }, [completableGoalIds, completionsByGoal, data.goals, sortGoals, viewDateObj]);
-
-  const archivedGoals = useMemo(() => {
-    return sortGoals(
-      data.goals.filter((goal) => {
-        if (!completableGoalIds.has(goal.id)) {
-          return false;
-        }
-
-        return isGoalManuallyArchived(goal);
-      })
-    );
-  }, [completableGoalIds, data.goals, sortGoals]);
-
   const todayDate = viewDate;
-  const thisMonthCutoff = useMemo(
-    () => format(endOfMonth(viewDateObj), "yyyy-MM-dd"),
-    [viewDateObj]
-  );
-
-  const thisYearExactDeadline = useMemo(
-    () => format(endOfYear(viewDateObj), "yyyy-MM-dd"),
-    [viewDateObj]
-  );
-
-  const matchesFilters = useCallback(
+  const checklistFilterStartMonth = viewDate.slice(0, 7);
+  const effectiveTodayEndMonth =
+    todayEndMonth !== null && todayEndMonth >= checklistFilterStartMonth
+      ? todayEndMonth
+      : null;
+  const effectiveNotTodayEndMonth =
+    notTodayEndMonth !== null && notTodayEndMonth >= checklistFilterStartMonth
+      ? notTodayEndMonth
+      : null;
+  const matchesTodayFacetFilters = useCallback(
     (goal: Goal) => {
       if (categoryFilter !== allCategoriesFilterValue && goal.category !== categoryFilter) {
         return false;
@@ -369,88 +312,33 @@ export function TodayTab() {
         }
       }
 
-      if (deadlineFilter === "all_deadlines") {
-        return true;
-      }
-
-      if (deadlineFilter === "this_month") {
-        if (!goal.end_date) {
-          return false;
-        }
-        return goal.end_date <= thisMonthCutoff;
-      }
-
-      if (deadlineFilter === "this_year") {
-        return goal.end_date === thisYearExactDeadline;
-      }
-
-      if (deadlineFilter === "custom_date") {
-        if (!goal.end_date || !customDeadlineDate) {
-          return false;
-        }
-        return goal.end_date <= customDeadlineDate;
-      }
-
-      if (!goal.end_date) {
-        return false;
-      }
-
       return true;
     },
-    [
-      categoryFilter,
-      customDeadlineDate,
-      deadlineFilter,
-      recurrenceFilter,
-      thisMonthCutoff,
-      thisYearExactDeadline,
-    ]
+    [categoryFilter, recurrenceFilter]
   );
 
-  const filteredTodayGoals = useMemo(
-    () =>
-      activeGoals
+  const filteredTodayGoals = useMemo(() => {
+    const matchingGoals = activeGoals
         .filter((goal) => goal.start_date <= todayDate)
-        .filter(matchesFilters)
+        .filter(matchesTodayFacetFilters)
         .filter((goal) =>
           normalizedTodayGoalSearchQuery.length === 0
             ? true
             : goal.title.toLowerCase().includes(normalizedTodayGoalSearchQuery)
-        ),
-    [activeGoals, matchesFilters, normalizedTodayGoalSearchQuery, todayDate]
-  );
+        );
 
-  const todayPendingGoalsRaw = useMemo(
-    () =>
-      filteredTodayGoals.filter((goal) => {
-        const completions = completionsByGoal.get(goal.id) ?? [];
-        return !isGoalDoneForCurrentPeriod(goal, completions, viewDateObj);
-      }),
-    [completionsByGoal, filteredTodayGoals, viewDateObj]
-  );
-
-  const todayCompletedGoalsRaw = useMemo(
-    () =>
-      filteredTodayGoals.filter((goal) => {
-        const completions = completionsByGoal.get(goal.id) ?? [];
-        return isGoalDoneForCurrentPeriod(goal, completions, viewDateObj);
-      }),
-    [completionsByGoal, filteredTodayGoals, viewDateObj]
-  );
-
-  const todayPendingGoalsSorted = useMemo(
-    () => sortGoals(todayPendingGoalsRaw),
-    [sortGoals, todayPendingGoalsRaw]
-  );
-
-  const todayCompletedGoalsSorted = useMemo(
-    () => sortGoals(todayCompletedGoalsRaw),
-    [sortGoals, todayCompletedGoalsRaw]
-  );
+    return filterGoalsByEndMonth(matchingGoals, effectiveTodayEndMonth);
+  }, [
+    activeGoals,
+    effectiveTodayEndMonth,
+    matchesTodayFacetFilters,
+    normalizedTodayGoalSearchQuery,
+    todayDate,
+  ]);
 
   const todayGoalsSorted = useMemo(
-    () => [...todayPendingGoalsSorted, ...todayCompletedGoalsSorted],
-    [todayCompletedGoalsSorted, todayPendingGoalsSorted]
+    () => sortGoalsByDate(filteredTodayGoals, todaySort),
+    [filteredTodayGoals, todaySort]
   );
 
   const groupGoalsByRecurrence = useCallback(
@@ -470,53 +358,55 @@ export function TodayTab() {
         .map((group) => ({
           key: group,
           label: recurrenceGroupLabel[group],
-          goals: sortGoals(grouped[group]),
+          goals: sortGoalsByDate(grouped[group], todaySort),
         }))
         .filter((group) => group.goals.length > 0);
     },
-    [sortGoals]
+    [todaySort]
   );
 
-  const pendingGroupedTodayGoals = useMemo(
-    () => (recurrenceFilter === "all" ? groupGoalsByRecurrence(todayPendingGoalsRaw) : []),
-    [groupGoalsByRecurrence, recurrenceFilter, todayPendingGoalsRaw]
+  const groupedTodayGoalsForAll = useMemo(
+    () => (recurrenceFilter === "all" ? groupGoalsByRecurrence(filteredTodayGoals) : []),
+    [filteredTodayGoals, groupGoalsByRecurrence, recurrenceFilter]
   );
 
-  const completedGroupedTodayGoals = useMemo(
-    () => (recurrenceFilter === "all" ? groupGoalsByRecurrence(todayCompletedGoalsRaw) : []),
-    [groupGoalsByRecurrence, recurrenceFilter, todayCompletedGoalsRaw]
+  const completedGoalsRaw = useMemo(
+    () =>
+      completableGoals.filter((goal) => {
+        if (isGoalManuallyArchived(goal)) {
+          return false;
+        }
+
+        const completionCount = (completionsByGoal.get(goal.id) ?? []).length;
+        return isGoalCompleted(goal, viewDateObj, completionCount);
+      }),
+    [completableGoals, completionsByGoal, viewDateObj]
   );
 
-  const groupedTodayGoalsForAll = useMemo(() => {
-    const pendingByGroup = new Map<RecurrenceGroup, Goal[]>();
-    const completedByGroup = new Map<RecurrenceGroup, Goal[]>();
+  const archivedGoalsRaw = useMemo(
+    () => completableGoals.filter((goal) => isGoalManuallyArchived(goal)),
+    [completableGoals]
+  );
 
-    pendingGroupedTodayGoals.forEach((group) => {
-      pendingByGroup.set(group.key, group.goals);
-    });
-
-    completedGroupedTodayGoals.forEach((group) => {
-      completedByGroup.set(group.key, group.goals);
-    });
-
-    return recurrenceGroupOrder
-      .map((groupKey) => {
-        const pendingGoals = pendingByGroup.get(groupKey) ?? [];
-        const completedGoals = completedByGroup.get(groupKey) ?? [];
-        const goals = [...pendingGoals, ...completedGoals];
-
-        return {
-          key: groupKey,
-          label: recurrenceGroupLabel[groupKey],
-          goals,
-        };
-      })
-      .filter((group) => group.goals.length > 0);
-  }, [completedGroupedTodayGoals, pendingGroupedTodayGoals]);
+  const prepareNotTodayGoals = useCallback(
+    (goals: Goal[]) =>
+      sortGoalsByDate(filterGoalsByEndMonth(goals, effectiveNotTodayEndMonth), notTodaySort),
+    [effectiveNotTodayEndMonth, notTodaySort]
+  );
 
   const upcoming = useMemo(
-    () => sortGoals(activeGoals.filter((goal) => goal.start_date > todayDate)),
-    [activeGoals, sortGoals, todayDate]
+    () => prepareNotTodayGoals(activeGoals.filter((goal) => goal.start_date > todayDate)),
+    [activeGoals, prepareNotTodayGoals, todayDate]
+  );
+
+  const completedGoals = useMemo(
+    () => prepareNotTodayGoals(completedGoalsRaw),
+    [completedGoalsRaw, prepareNotTodayGoals]
+  );
+
+  const archivedGoals = useMemo(
+    () => prepareNotTodayGoals(archivedGoalsRaw),
+    [archivedGoalsRaw, prepareNotTodayGoals]
   );
 
   const toggleCompletion = async (goal: Goal) => {
@@ -588,7 +478,16 @@ export function TodayTab() {
 
   return (
     <div className="space-y-5">
-      <Card className="shadow-sm">
+      <Tabs defaultValue="today" className="flex-col space-y-4">
+        <Card className="gap-0 p-1.5 shadow-sm">
+          <TabsList className="grid h-8 w-full grid-cols-2">
+            <TabsTrigger value="today">Today</TabsTrigger>
+            <TabsTrigger value="not-today">Not Today</TabsTrigger>
+          </TabsList>
+        </Card>
+
+        <TabsContent value="today" className="space-y-5">
+          <Card className="shadow-sm">
         <CardHeader className="pb-3">
           <div className="min-w-0">
             <div className="flex items-start justify-between gap-3">
@@ -656,30 +555,6 @@ export function TodayTab() {
                 </Select>
 
                 <Select
-                  value={deadlineFilter}
-                  onValueChange={(value: DeadlineFilter) => setDeadlineFilter(value)}
-                >
-                  <SelectTrigger className="h-8 w-[170px] rounded-full bg-background/90 text-xs">
-                    <SelectValue placeholder="Deadline" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all_deadlines">All Deadlines</SelectItem>
-                    <SelectItem value="this_month">Monthly Deadline</SelectItem>
-                    <SelectItem value="this_year">Yearly Deadline</SelectItem>
-                    <SelectItem value="custom_date">Custom Deadline</SelectItem>
-                  </SelectContent>
-                </Select>
-
-                {deadlineFilter === "custom_date" ? (
-                  <Input
-                    type="date"
-                    value={customDeadlineDate}
-                    onChange={(event) => setCustomDeadlineDate(event.target.value)}
-                    className="h-8 w-[170px] rounded-full text-xs"
-                  />
-                ) : null}
-
-                <Select
                   value={recurrenceFilter}
                   onValueChange={(value: RecurrenceFilter) => setRecurrenceFilter(value)}
                 >
@@ -696,6 +571,15 @@ export function TodayTab() {
                 </Select>
               </div>
             </div>
+            <GoalListControls
+              goals={completableGoals}
+              referenceMonth={checklistFilterStartMonth}
+              endMonth={effectiveTodayEndMonth}
+              onEndMonthChange={setTodayEndMonth}
+              sort={todaySort}
+              onSortChange={setTodaySort}
+              className="mt-2"
+            />
           </div>
         </CardHeader>
         <CardContent className="space-y-3 pt-0">
@@ -803,9 +687,28 @@ export function TodayTab() {
             </div>
           )}
         </CardContent>
-      </Card>
+          </Card>
+        </TabsContent>
 
-      <Collapsible open={upcomingOpen} onOpenChange={setUpcomingOpen}>
+        <TabsContent value="not-today" className="space-y-4">
+          <Card className="shadow-sm">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-xl">Not Today</CardTitle>
+              <CardDescription>Review upcoming, completed, and archived goals.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <GoalListControls
+                goals={completableGoals}
+                referenceMonth={checklistFilterStartMonth}
+                endMonth={effectiveNotTodayEndMonth}
+                onEndMonthChange={setNotTodayEndMonth}
+                sort={notTodaySort}
+                onSortChange={setNotTodaySort}
+              />
+            </CardContent>
+          </Card>
+
+          <Collapsible open={upcomingOpen} onOpenChange={setUpcomingOpen}>
         <Card className="shadow-sm">
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
@@ -847,9 +750,9 @@ export function TodayTab() {
             </CardContent>
           </CollapsibleContent>
         </Card>
-      </Collapsible>
+          </Collapsible>
 
-      <Collapsible open={completedOpen} onOpenChange={setCompletedOpen}>
+          <Collapsible open={completedOpen} onOpenChange={setCompletedOpen}>
         <Card className="shadow-sm">
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
@@ -887,9 +790,9 @@ export function TodayTab() {
             </CardContent>
           </CollapsibleContent>
         </Card>
-      </Collapsible>
+          </Collapsible>
 
-      <Collapsible open={archiveOpen} onOpenChange={setArchiveOpen}>
+          <Collapsible open={archiveOpen} onOpenChange={setArchiveOpen}>
         <Card className="shadow-sm">
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
@@ -928,7 +831,9 @@ export function TodayTab() {
             </CardContent>
           </CollapsibleContent>
         </Card>
-      </Collapsible>
+          </Collapsible>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
@@ -958,7 +863,6 @@ function GoalLoopScroller({ goals, renderGoal }: GoalLoopScrollerProps) {
 
     if (!shouldLoop) {
       scroller.scrollTop = 0;
-      setCycleProgress(0);
       return;
     }
 
@@ -1138,6 +1042,7 @@ function GoalCard({
                 style={{ backgroundColor: goal.color ?? "var(--muted-foreground)" }}
               />
               <h3 className="truncate text-sm font-semibold">{goal.title}</h3>
+              <GoalEndMonthBadge endDate={goal.end_date} />
               <Badge variant="outline" className={getCategoryBadgeClass(goal.category)}>
                 {goal.category}
               </Badge>

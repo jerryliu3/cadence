@@ -10,6 +10,7 @@ import {
   isAfter,
   parseISO,
   startOfDay,
+  startOfMonth,
   startOfYear,
   subYears,
   subMonths,
@@ -32,10 +33,17 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
+import { GoalEndMonthBadge } from "@/features/goals/goal-end-month-badge";
+import { GoalListControls } from "@/features/goals/goal-list-controls";
 import { MonthHeatmap } from "@/features/insights/month-heatmap";
 import { getCategoryBadgeClass } from "@/lib/goals/category";
+import {
+  filterGoalsByEndMonth,
+  partitionGoalsByVisibleStart,
+  sortGoalsByDate,
+  type GoalDateSort,
+} from "@/lib/goals/list-view";
 import { getGoalCompletionPercentage, getOverallCompletionPercentage, getRecurringStreaks } from "@/lib/goals/progress";
-import { isGoalCompleted } from "@/lib/goals/schedule";
 import type { Completion, Goal, GoalParticipant } from "@/lib/goals/types";
 import { createClient } from "@/lib/supabase/client";
 
@@ -190,6 +198,9 @@ export function InsightsTab() {
   const [goalMonthOverrides, setGoalMonthOverrides] = useState<Record<string, Date>>({});
   const [perGoalViewMode, setPerGoalViewMode] = useState<HeatmapViewMode>("month");
   const [goalSearchQuery, setGoalSearchQuery] = useState("");
+  const [goalEndMonth, setGoalEndMonth] = useState<string | null>(null);
+  const [goalSort, setGoalSort] = useState<GoalDateSort>("earliest_end");
+  const [showHistoricalGoals, setShowHistoricalGoals] = useState(false);
   const [editingGoalId, setEditingGoalId] = useState<string | null>(null);
   const [pendingRetroDate, setPendingRetroDate] = useState<string | null>(null);
   const [milestoneNameDrafts, setMilestoneNameDrafts] = useState<Record<string, string[]>>({});
@@ -291,7 +302,17 @@ export function InsightsTab() {
 
   const selectedYearStart = useMemo(() => startOfYear(monthCursor), [monthCursor]);
   const selectedYearEnd = useMemo(() => endOfYear(monthCursor), [monthCursor]);
-  const selectedYearEndDate = useMemo(() => format(selectedYearEnd, "yyyy-MM-dd"), [selectedYearEnd]);
+  const visiblePeriodStart = useMemo(
+    () =>
+      format(
+        perGoalViewMode === "month" ? startOfMonth(monthCursor) : startOfYear(monthCursor),
+        "yyyy-MM-dd"
+      ),
+    [monthCursor, perGoalViewMode]
+  );
+  const goalFilterStartMonth = visiblePeriodStart.slice(0, 7);
+  const effectiveGoalEndMonth =
+    goalEndMonth !== null && goalEndMonth >= goalFilterStartMonth ? goalEndMonth : null;
   const normalizedGoalSearchQuery = useMemo(
     () => goalSearchQuery.trim().toLowerCase(),
     [goalSearchQuery]
@@ -305,40 +326,27 @@ export function InsightsTab() {
       goal.title.toLowerCase().includes(normalizedGoalSearchQuery)
     );
   }, [normalizedGoalSearchQuery, personalGoals]);
-  const prioritizedPersonalGoals = useMemo(() => {
-    const today = new Date();
-    return [...searchedPersonalGoals].sort((left, right) => {
-      const leftCompletionCount = (completionsByGoal.get(left.id) ?? []).length;
-      const rightCompletionCount = (completionsByGoal.get(right.id) ?? []).length;
-      const leftCompleted = isGoalCompleted(left, today, leftCompletionCount);
-      const rightCompleted = isGoalCompleted(right, today, rightCompletionCount);
-
-      if (leftCompleted !== rightCompleted) {
-        return leftCompleted ? 1 : -1;
-      }
-
-      if (leftCompleted && rightCompleted) {
-        if (left.end_date && right.end_date && left.end_date !== right.end_date) {
-          return right.end_date.localeCompare(left.end_date);
-        }
-        if (left.end_date && !right.end_date) {
-          return -1;
-        }
-        if (!left.end_date && right.end_date) {
-          return 1;
-        }
-      }
-
-      return left.title.localeCompare(right.title);
-    });
-  }, [completionsByGoal, searchedPersonalGoals]);
+  const filteredPersonalGoals = useMemo(
+    () => filterGoalsByEndMonth(searchedPersonalGoals, effectiveGoalEndMonth),
+    [effectiveGoalEndMonth, searchedPersonalGoals]
+  );
+  const goalsByVisiblePeriod = useMemo(
+    () => partitionGoalsByVisibleStart(filteredPersonalGoals, visiblePeriodStart),
+    [filteredPersonalGoals, visiblePeriodStart]
+  );
+  const currentPeriodGoals = goalsByVisiblePeriod.current;
+  const historicalGoals = goalsByVisiblePeriod.historical;
   const visiblePerGoalHeatmaps = useMemo(() => {
-    if (perGoalViewMode === "year") {
-      return prioritizedPersonalGoals.filter((goal) => goal.end_date === selectedYearEndDate);
+    const currentGoals = sortGoalsByDate(currentPeriodGoals, goalSort);
+    if (!showHistoricalGoals) {
+      return currentGoals;
     }
 
-    return prioritizedPersonalGoals;
-  }, [perGoalViewMode, prioritizedPersonalGoals, selectedYearEndDate]);
+    return [
+      ...currentGoals,
+      ...sortGoalsByDate(historicalGoals, goalSort),
+    ];
+  }, [currentPeriodGoals, goalSort, historicalGoals, showHistoricalGoals]);
 
   const overallCompletion = useMemo(
     () => getOverallCompletionPercentage(personalGoals, completionsByGoal),
@@ -555,7 +563,6 @@ export function InsightsTab() {
             <Layers3 className="size-4 text-primary" />
             <CardTitle>Aggregate consistency</CardTitle>
           </div>
-          <CardDescription>GitHub-style yearly view across all your completable goals.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="overflow-x-auto rounded-xl border bg-card p-4">
@@ -584,7 +591,7 @@ export function InsightsTab() {
             <span>More</span>
           </div>
           <div className="flex items-center justify-between text-sm">
-            <span className="text-muted-foreground">Overall completion quality</span>
+            <span className="text-muted-foreground">Overall completion</span>
             <span>{Math.round(overallCompletion)}%</span>
           </div>
           <Progress value={overallCompletion} />
@@ -601,28 +608,34 @@ export function InsightsTab() {
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="inline-flex items-center rounded-lg border bg-muted/20 p-1">
+            <div
+              className="inline-flex items-center rounded-lg border bg-muted/20 p-1"
+              role="group"
+              aria-label="Heatmap view"
+            >
               <Button
                 type="button"
                 size="sm"
                 variant={perGoalViewMode === "month" ? "secondary" : "ghost"}
+                aria-pressed={perGoalViewMode === "month"}
                 onClick={() => {
                   setGoalMonthOverrides({});
                   setPerGoalViewMode("month");
                 }}
               >
-                Month
+                Month View
               </Button>
               <Button
                 type="button"
                 size="sm"
                 variant={perGoalViewMode === "year" ? "secondary" : "ghost"}
+                aria-pressed={perGoalViewMode === "year"}
                 onClick={() => {
                   setGoalMonthOverrides({});
                   setPerGoalViewMode("year");
                 }}
               >
-                Year
+                Year View
               </Button>
             </div>
             <div className="flex items-center gap-2">
@@ -646,6 +659,31 @@ export function InsightsTab() {
                 <ChevronRight className="size-4" />
               </Button>
             </div>
+          </div>
+          <div className="flex flex-wrap items-end gap-3">
+            <GoalListControls
+              goals={personalGoals}
+              referenceMonth={goalFilterStartMonth}
+              endMonth={effectiveGoalEndMonth}
+              onEndMonthChange={setGoalEndMonth}
+              sort={goalSort}
+              onSortChange={setGoalSort}
+            />
+            <label
+              className={`flex h-8 w-fit items-center gap-2 text-xs text-muted-foreground ${
+                historicalGoals.length === 0 ? "opacity-60" : ""
+              }`}
+            >
+              <input
+                type="checkbox"
+                checked={showHistoricalGoals}
+                disabled={historicalGoals.length === 0}
+                onChange={(event) => setShowHistoricalGoals(event.target.checked)}
+                className="size-4 rounded border-input accent-primary"
+              />
+              Show ended goals
+              <span>({historicalGoals.length})</span>
+            </label>
           </div>
           <Input
             value={goalSearchQuery}
@@ -676,11 +714,7 @@ export function InsightsTab() {
           onTouchEnd={perGoalViewMode === "month" ? onMonthSectionTouchEnd : undefined}
         >
           {visiblePerGoalHeatmaps.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              {perGoalViewMode === "year"
-                ? `No year-end resolutions for ${format(monthCursor, "yyyy")}.`
-                : "No goals available yet."}
-            </p>
+            <p className="text-sm text-muted-foreground">No goals match these controls.</p>
           ) : (
             visiblePerGoalHeatmaps.map((goal) => {
               const goalMonthCursor = goalMonthOverrides[goal.id] ?? monthCursor;
@@ -739,12 +773,15 @@ export function InsightsTab() {
                             {goal.title}
                           </p>
                         </div>
-                        <Badge
-                          variant="outline"
-                          className={`w-fit ${getCategoryBadgeClass(goal.category)}`}
-                        >
-                          {goal.category}
-                        </Badge>
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <Badge
+                            variant="outline"
+                            className={`w-fit ${getCategoryBadgeClass(goal.category)}`}
+                          >
+                            {goal.category}
+                          </Badge>
+                          <GoalEndMonthBadge endDate={goal.end_date} />
+                        </div>
                       </div>
                       <div className="flex flex-wrap items-center justify-end gap-2">
                         <Badge variant="secondary">

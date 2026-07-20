@@ -14,7 +14,7 @@ type TabLink = {
 
 const tabs: TabLink[] = [
   { href: "/insights", label: "Insights", icon: BarChart3 },
-  { href: "/", label: "Today", icon: ListChecks },
+  { href: "/", label: "Checklist", icon: ListChecks },
   { href: "/social", label: "Social", icon: UsersRound },
 ];
 
