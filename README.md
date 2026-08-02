@@ -10,6 +10,7 @@ It supports:
 - Insights heatmaps and completion percentages
 - Read-only sharing and collaborative group goals
 - Bulk goal creation from CSV/XLSX and natural-language parsing
+- Scheduled Web Push reminders on desktop and iOS Home Screen apps
 
 ## Stack
 
@@ -47,6 +48,20 @@ Set:
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY` (use the **Publishable** key shown by `supabase status`)
 - `NEXT_PUBLIC_APP_URL` (optional; used for auth redirect links such as password reset)
 - `GEMINI_API_KEY` (optional, only needed for AI natural-language bulk parsing)
+
+Push notifications also require:
+
+- `SUPABASE_SECRET_KEY` (server-only; `SUPABASE_SERVICE_ROLE_KEY` is also supported)
+- `NEXT_PUBLIC_VAPID_PUBLIC_KEY`
+- `VAPID_PRIVATE_KEY`
+- `VAPID_SUBJECT` (a `mailto:` address or `https:` URL)
+- `CRON_SECRET` (a long random server-only value)
+
+Generate a VAPID key pair with:
+
+```bash
+pnpm exec web-push generate-vapid-keys
+```
 
 ### 3) Apply migrations and seed data
 
@@ -103,3 +118,21 @@ Seed data includes:
    - Add `${NEXT_PUBLIC_APP_URL}/reset-password` to **Redirect URLs**.
 5. Apply migrations through your normal deployment workflow (`supabase db push` / CI).
 6. Optionally adapt seed loading if you want demo data hosted.
+
+## Scheduled Push Notifications
+
+`vercel.json` invokes `/api/push/dispatch` at the top of every hour. Set all push environment
+variables above in the Vercel project before deploying. Vercel automatically sends
+`CRON_SECRET` as the route's bearer token.
+
+Each user can create multiple daily reminders from **Settings**. Times are saved in the device's
+IANA timezone at creation, and expired browser subscriptions are removed automatically.
+
+On iOS or iPadOS 16.4 and newer:
+
+1. Add Cadence to the Home Screen from the browser Share menu.
+2. Open Cadence from its Home Screen icon.
+3. Go to **Settings** and tap **Enable** under Push notifications.
+
+iOS does not allow a normal browser tab to request Web Push permission. Permission must be
+requested from the installed Home Screen app in response to the Enable button.

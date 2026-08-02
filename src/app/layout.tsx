@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Toaster } from "sonner";
 import "./globals.css";
@@ -16,6 +16,20 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Cadence",
   description: "Personal goal tracking with insights and social accountability.",
+  applicationName: "Cadence",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "Cadence",
+  },
+  icons: {
+    icon: "/cadence-icon.svg",
+    apple: "/cadence-icon.svg",
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#2563eb",
 };
 
 export default function RootLayout({

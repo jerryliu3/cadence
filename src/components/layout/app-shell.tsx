@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { type ReactNode, type TouchEventHandler, useMemo, useRef, useState } from "react";
 import { TabNav } from "@/components/navigation/tab-nav";
 import { Button } from "@/components/ui/button";
+import { unsubscribeCurrentBrowser } from "@/lib/push/client";
 import { createClient } from "@/lib/supabase/client";
 
 interface AppShellProps {
@@ -13,15 +14,15 @@ interface AppShellProps {
   userEmail: string;
 }
 
-const tabOrder = ["/insights", "/", "/social"] as const;
+const tabOrder = ["/insights", "/", "/settings"] as const;
 
 function getActiveTabPath(pathname: string): (typeof tabOrder)[number] {
   if (pathname.startsWith("/insights")) {
     return "/insights";
   }
 
-  if (pathname.startsWith("/social")) {
-    return "/social";
+  if (pathname.startsWith("/settings")) {
+    return "/settings";
   }
 
   return "/";
@@ -36,6 +37,13 @@ export function AppShell({ children, userEmail }: AppShellProps) {
 
   const signOut = async () => {
     setIsSigningOut(true);
+
+    try {
+      await unsubscribeCurrentBrowser();
+    } catch (error) {
+      console.error("Failed to remove push subscription while signing out:", error);
+    }
+
     await supabase.auth.signOut();
     router.replace("/login");
     router.refresh();

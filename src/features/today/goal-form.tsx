@@ -501,7 +501,7 @@ export function GoalForm({ goalId }: GoalFormProps) {
     }
 
     toast.success(isEditing ? "Goal updated." : "Goal created.");
-    router.replace(state.is_group ? "/social" : "/");
+    router.replace(state.is_group ? "/settings" : "/");
     router.refresh();
     setSaving(false);
   };
@@ -547,7 +547,7 @@ export function GoalForm({ goalId }: GoalFormProps) {
     }
 
     toast.success("Goal deleted.");
-    router.replace(state.is_group ? "/social" : "/");
+    router.replace(state.is_group ? "/settings" : "/");
     router.refresh();
     setSaving(false);
   };
@@ -574,7 +574,7 @@ export function GoalForm({ goalId }: GoalFormProps) {
             </CardDescription>
           </div>
           <Button variant="outline" asChild>
-            <Link href={state.is_group ? "/social" : "/"}>
+            <Link href={state.is_group ? "/settings" : "/"}>
               <ArrowLeft className="size-4" />
               Back
             </Link>

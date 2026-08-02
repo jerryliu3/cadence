@@ -41,6 +41,7 @@ import { toLocalDateString } from "@/lib/dates/day";
 import { GOAL_TYPE_OPTIONS, RECURRENCE_INTERVAL_OPTIONS } from "@/lib/goals/form-options";
 import { getGoalCompletionPercentage } from "@/lib/goals/progress";
 import { MonthHeatmap } from "@/features/insights/month-heatmap";
+import { NotificationSettings } from "@/features/settings/notification-settings";
 import type {
   Completion,
   Goal,
@@ -751,8 +752,10 @@ export function SocialTab() {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Loading social workspace...</CardTitle>
-          <CardDescription>Syncing shared and collaborative goals.</CardDescription>
+          <CardTitle>Loading settings...</CardTitle>
+          <CardDescription>
+            Syncing your profile, notifications, and collaboration settings.
+          </CardDescription>
         </CardHeader>
       </Card>
     );
@@ -813,6 +816,7 @@ export function SocialTab() {
             <WandSparkles className="size-4" />
             Save profile
           </Button>
+          <NotificationSettings />
         </CardContent>
       </Card>
 

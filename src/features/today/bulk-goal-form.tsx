@@ -712,7 +712,7 @@ export function BulkGoalForm() {
       toast.success(
         `Created ${preparedRows.length} goal${preparedRows.length === 1 ? "" : "s"}.`
       );
-      router.replace(preparedRows.some((entry) => entry.draft.is_group) ? "/social" : "/");
+      router.replace(preparedRows.some((entry) => entry.draft.is_group) ? "/settings" : "/");
       router.refresh();
     } finally {
       setSaving(false);
@@ -1093,7 +1093,6 @@ export function BulkGoalForm() {
                           ))}
                         </div>
                       </div>
-
                       {draft.frequency_type === "recurring" ? (
                         <div className="space-y-2">
                           <Label>Recurrence interval</Label>

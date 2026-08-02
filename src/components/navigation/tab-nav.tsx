@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BarChart3, ListChecks, UsersRound } from "lucide-react";
+import { BarChart3, ListChecks, Settings } from "lucide-react";
 import type { ComponentType } from "react";
 import { cn } from "@/lib/utils";
 
@@ -15,7 +15,7 @@ type TabLink = {
 const tabs: TabLink[] = [
   { href: "/insights", label: "Insights", icon: BarChart3 },
   { href: "/", label: "Checklist", icon: ListChecks },
-  { href: "/social", label: "Social", icon: UsersRound },
+  { href: "/settings", label: "Settings", icon: Settings },
 ];
 
 function isActive(pathname: string, href: string) {
