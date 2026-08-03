@@ -125,8 +125,9 @@ Seed data includes:
 variables above in the Vercel project before deploying. Vercel automatically sends
 `CRON_SECRET` as the route's bearer token.
 
-Each user can create multiple daily reminders from **Settings**. Times are saved in the device's
-IANA timezone at creation, and expired browser subscriptions are removed automatically.
+Each user gets an enabled 9:00 PM reminder in their device's IANA timezone when notification
+settings are initialized. It can be disabled, and users can create additional daily reminders.
+Expired browser subscriptions are removed automatically.
 
 On iOS or iPadOS 16.4 and newer:
 

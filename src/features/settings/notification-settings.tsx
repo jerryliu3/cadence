@@ -31,6 +31,7 @@ import {
 import { createClient } from "@/lib/supabase/client";
 
 const DEFAULT_MESSAGE = "Complete your checklist for today";
+const DEFAULT_NOTIFICATION_HOUR = 21;
 const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY?.trim() ?? "";
 
 type PushStatus =
@@ -49,6 +50,7 @@ interface NotificationSchedule {
   timezone: string;
   message: string;
   enabled: boolean;
+  is_default: boolean;
   last_sent_local_date: string | null;
   created_at: string;
   updated_at: string;
@@ -67,8 +69,20 @@ function sortSchedules(schedules: NotificationSchedule[]): NotificationSchedule[
       return left.hour - right.hour;
     }
 
+    if (left.is_default !== right.is_default) {
+      return left.is_default ? -1 : 1;
+    }
+
     return left.created_at.localeCompare(right.created_at);
   });
+}
+
+function getScheduleToggleLabel(schedule: NotificationSchedule): string {
+  if (schedule.is_default) {
+    return schedule.enabled ? "Disable" : "Enable";
+  }
+
+  return schedule.enabled ? "Pause" : "Resume";
 }
 
 export function NotificationSettings() {
@@ -111,9 +125,61 @@ export function NotificationSettings() {
 
     if (error) {
       toast.error("Could not load notification schedules.");
+      setSchedules([]);
+      setLoadingSchedules(false);
+      return;
     }
 
-    setSchedules((data ?? []) as NotificationSchedule[]);
+    let loadedSchedules = (data ?? []) as NotificationSchedule[];
+
+    if (!loadedSchedules.some((schedule) => schedule.is_default)) {
+      const matchingSchedule = loadedSchedules.find(
+        (schedule) =>
+          schedule.hour === DEFAULT_NOTIFICATION_HOUR &&
+          schedule.message === DEFAULT_MESSAGE
+      );
+      const detectedTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+      const defaultScheduleWrite = matchingSchedule
+        ? supabase
+            .from("notification_schedules")
+            .update({ is_default: true, updated_at: new Date().toISOString() })
+            .eq("id", matchingSchedule.id)
+            .eq("user_id", user.id)
+        : supabase.from("notification_schedules").insert({
+            user_id: user.id,
+            hour: DEFAULT_NOTIFICATION_HOUR,
+            timezone: detectedTimezone,
+            message: DEFAULT_MESSAGE,
+            enabled: true,
+            is_default: true,
+          });
+      const { data: defaultSchedule, error: defaultScheduleError } =
+        await defaultScheduleWrite.select("*").single();
+
+      if (defaultScheduleError?.code === "23505") {
+        const { data: refreshedSchedules, error: refreshError } = await supabase
+          .from("notification_schedules")
+          .select("*")
+          .eq("user_id", user.id)
+          .order("hour");
+
+        if (refreshError) {
+          toast.error("Could not load the default 9:00 PM reminder.");
+        } else {
+          loadedSchedules = (refreshedSchedules ?? []) as NotificationSchedule[];
+        }
+      } else if (defaultScheduleError) {
+        console.error("Failed to create the default notification schedule:", defaultScheduleError);
+        toast.error("Could not create the default 9:00 PM reminder.");
+      } else {
+        loadedSchedules = [
+          ...loadedSchedules.filter((schedule) => schedule.id !== defaultSchedule.id),
+          defaultSchedule as NotificationSchedule,
+        ];
+      }
+    }
+
+    setSchedules(sortSchedules(loadedSchedules));
     setLoadingSchedules(false);
   }, [supabase]);
 
@@ -299,6 +365,10 @@ export function NotificationSettings() {
   };
 
   const deleteSchedule = async (schedule: NotificationSchedule) => {
+    if (schedule.is_default) {
+      return;
+    }
+
     setPendingScheduleId(schedule.id);
     const { error } = await supabase
       .from("notification_schedules")
@@ -394,7 +464,8 @@ export function NotificationSettings() {
             Daily reminders
           </h3>
           <p className="mt-1 text-sm text-muted-foreground">
-            Add as many on-the-hour reminders as you need. New reminders use {timezone}.
+            A {formatHour(DEFAULT_NOTIFICATION_HOUR)} reminder is enabled by default in your local
+            timezone. Disable it below or add more reminders. New reminders use {timezone}.
           </p>
         </div>
         <div className="grid gap-3 rounded-xl border p-3 sm:grid-cols-[160px_1fr_auto] sm:items-end">
@@ -455,7 +526,14 @@ export function NotificationSettings() {
                   className="flex flex-col gap-3 rounded-xl border p-3 sm:flex-row sm:items-center"
                 >
                   <div className="min-w-28">
-                    <p className="font-semibold">{formatHour(schedule.hour)}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="font-semibold">{formatHour(schedule.hour)}</p>
+                      {schedule.is_default ? (
+                        <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary">
+                          Default
+                        </span>
+                      ) : null}
+                    </div>
                     <p className="text-xs text-muted-foreground">{schedule.timezone}</p>
                   </div>
                   <p
@@ -474,18 +552,20 @@ export function NotificationSettings() {
                       disabled={pending}
                     >
                       {schedule.enabled ? <BellOff /> : <Bell />}
-                      {schedule.enabled ? "Pause" : "Resume"}
+                      {getScheduleToggleLabel(schedule)}
                     </Button>
-                    <Button
-                      type="button"
-                      variant="destructive"
-                      size="icon-sm"
-                      aria-label={`Delete ${formatHour(schedule.hour)} reminder`}
-                      onClick={() => deleteSchedule(schedule)}
-                      disabled={pending}
-                    >
-                      <Trash2 />
-                    </Button>
+                    {!schedule.is_default ? (
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        size="icon-sm"
+                        aria-label={`Delete ${formatHour(schedule.hour)} reminder`}
+                        onClick={() => deleteSchedule(schedule)}
+                        disabled={pending}
+                      >
+                        <Trash2 />
+                      </Button>
+                    ) : null}
                   </div>
                 </div>
               );
