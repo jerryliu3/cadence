@@ -121,9 +121,20 @@ Seed data includes:
 
 ## Scheduled Push Notifications
 
-`vercel.json` invokes `/api/push/dispatch` at the top of every hour. Set all push environment
-variables above in the Vercel project before deploying. Vercel automatically sends
-`CRON_SECRET` as the route's bearer token.
+Supabase Cron invokes `/api/push/dispatch` at the top of every hour. This avoids Vercel Hobby's
+once-per-day Cron limit while keeping the dispatch function on Vercel.
+
+Before applying the scheduler migration to hosted Supabase, create these encrypted secrets in
+**Supabase Dashboard → Project Settings → Vault**:
+
+- `push_dispatch_url`: the full deployed endpoint, such as
+  `https://your-app.vercel.app/api/push/dispatch`
+- `push_cron_secret`: the exact same value configured as `CRON_SECRET` in Vercel
+
+The `schedule_push_dispatch_with_supabase_cron` migration enables `pg_cron` and `pg_net`, then
+creates the hourly `dispatch-push-notifications-hourly` job. If the Vault secrets are not present,
+the job safely performs no HTTP request. Job runs and HTTP responses can be inspected in
+**Supabase Dashboard → Integrations → Cron** and the `net._http_response` table.
 
 Each user gets an enabled 9:00 PM reminder in their device's IANA timezone when notification
 settings are initialized. It can be disabled, and users can create additional daily reminders.
