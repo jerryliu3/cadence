@@ -117,7 +117,7 @@ export function AppShell({ children, userEmail }: AppShellProps) {
               <p className="text-sm text-muted-foreground">
                 {format(new Date(), "EEEE, MMM d")}
               </p>
-              <h1 className="text-2xl font-semibold tracking-tight">Cadence</h1>
+              <h1 className="text-2xl font-semibold tracking-tight">Goalmaxxing</h1>
               <p className="text-xs text-muted-foreground">{userEmail}</p>
             </div>
             <Button

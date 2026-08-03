@@ -11,7 +11,7 @@ self.addEventListener("push", (event) => {
     payload = { body: event.data.text() };
   }
 
-  const title = payload.title || "Cadence";
+  const title = payload.title || "Goalmaxxing";
   const options = {
     body: payload.body || "Complete your checklist for today",
     icon: payload.icon || "/cadence-icon.svg",

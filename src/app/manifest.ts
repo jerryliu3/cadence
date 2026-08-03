@@ -3,8 +3,8 @@ import type { MetadataRoute } from "next";
 export default function manifest(): MetadataRoute.Manifest {
   return {
     id: "/",
-    name: "Cadence",
-    short_name: "Cadence",
+    name: "Goalmaxxing",
+    short_name: "Goalmaxxing",
     description: "Personal goal tracking with insights and social accountability.",
     start_url: "/",
     scope: "/",

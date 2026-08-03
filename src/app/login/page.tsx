@@ -17,7 +17,7 @@ export default async function LoginPage() {
     <AuthShell
       title="Welcome back"
       description="Sign in to track your goals and keep your momentum."
-      alternateText="New to Cadence?"
+      alternateText="New to Goalmaxxing?"
       alternateLabel="Create an account"
       alternateHref="/signup"
     >

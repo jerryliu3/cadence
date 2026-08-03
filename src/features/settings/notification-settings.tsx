@@ -444,15 +444,15 @@ export function NotificationSettings() {
 
         {isIOS && !isStandalone ? (
           <div className="rounded-xl border border-primary/20 bg-primary/5 p-3 text-sm">
-            On iPhone or iPad, first use the browser Share menu to add Cadence to your Home Screen.
-            Then open Cadence from its Home Screen icon and enable notifications here.
+            On iPhone or iPad, first use the browser Share menu to add Goalmaxxing to your Home
+            Screen. Then open Goalmaxxing from its Home Screen icon and enable notifications here.
           </div>
         ) : null}
 
         {pushStatus === "denied" ? (
           <p className="text-sm text-muted-foreground">
-            Open your device&apos;s notification settings, allow notifications for Cadence, then
-            return here.
+            Open your device&apos;s notification settings, allow notifications for Goalmaxxing,
+            then return here.
           </p>
         ) : null}
       </section>

@@ -160,7 +160,7 @@ async function dispatchNotifications(request: Request) {
                   },
                 },
                 JSON.stringify({
-                  title: "Cadence",
+                  title: "Goalmaxxing",
                   body: schedule.message,
                   icon: "/cadence-icon.svg",
                   badge: "/cadence-icon.svg",

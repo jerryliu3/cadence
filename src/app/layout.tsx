@@ -14,13 +14,13 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Cadence",
+  title: "Goalmaxxing",
   description: "Personal goal tracking with insights and social accountability.",
-  applicationName: "Cadence",
+  applicationName: "Goalmaxxing",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "Cadence",
+    title: "Goalmaxxing",
   },
   icons: {
     icon: "/cadence-icon.svg",
