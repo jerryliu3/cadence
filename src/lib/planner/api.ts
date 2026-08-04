@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { getDateInTimezone } from "@/lib/dates/timezone";
 import { getPlannerCapabilities } from "@/lib/planner/capabilities";
 import type { PlannerCapabilities } from "@/lib/planner/capabilities";
 import type { createClient as createServerClient } from "@/lib/supabase/server";
@@ -66,6 +67,30 @@ export function plannerWritesNotReleasedError() {
     "planner_writes_not_released",
     "Planner write APIs will be enabled after the read/preview-only soak."
   );
+}
+
+export function resolveCanonicalAsOfDate({
+  timezone,
+  requestedAsOfDate,
+}: {
+  timezone: string;
+  requestedAsOfDate?: string;
+}) {
+  const canonicalAsOfDate = getDateInTimezone(new Date(), timezone);
+  if (
+    requestedAsOfDate !== undefined &&
+    requestedAsOfDate !== canonicalAsOfDate
+  ) {
+    throw new PlannerRouteError(
+      409,
+      "as_of_date_conflict",
+      "Planner as-of date must match the current server-local day.",
+      {
+        canonicalAsOfDate,
+      }
+    );
+  }
+  return canonicalAsOfDate;
 }
 
 export async function parseBoundedJsonBody<T>(

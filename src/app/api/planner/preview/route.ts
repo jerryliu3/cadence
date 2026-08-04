@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getDateInTimezone, isValidIanaTimezone } from "@/lib/dates/timezone";
+import { isValidIanaTimezone } from "@/lib/dates/timezone";
 import {
   createCorrelationId,
   parseBoundedJsonBody,
   plannerErrorResponse,
   PlannerRouteError,
   requirePlannerRouteContext,
+  resolveCanonicalAsOfDate,
   unknownPlannerErrorResponse,
 } from "@/lib/planner/api";
 import { goalAssessmentSchema } from "@/lib/planner/assessment";
@@ -92,8 +93,10 @@ export async function POST(request: Request) {
         "Confirm planner timezone before requesting a preview."
       );
     }
-    const asOfDate =
-      body.asOfDate ?? getDateInTimezone(new Date(), effectiveTimezone);
+    const asOfDate = resolveCanonicalAsOfDate({
+      timezone: effectiveTimezone,
+      requestedAsOfDate: body.asOfDate,
+    });
     const effectivePolicy = body.policy
       ? plannerPolicySchema.parse(body.policy)
       : snapshot.preferences

@@ -5,6 +5,7 @@ import {
   plannerErrorResponse,
   PlannerRouteError,
   requirePlannerRouteContext,
+  resolveCanonicalAsOfDate,
   unknownPlannerErrorResponse,
   createCorrelationId,
 } from "@/lib/planner/api";
@@ -106,9 +107,10 @@ export async function GET(request: Request) {
           effectiveTimezone,
           new Date().toISOString()
         );
-    const asOfDate =
-      parsedQuery.data.asOfDate ??
-      getDateInTimezone(new Date(), effectiveTimezone);
+    const asOfDate = resolveCanonicalAsOfDate({
+      timezone: effectiveTimezone,
+      requestedAsOfDate: parsedQuery.data.asOfDate,
+    });
     const activeAssessments = (snapshot.activePlan?.goals ?? []).map((goal) =>
       goalAssessmentSchema.parse(goal.assessment_snapshot)
     );
