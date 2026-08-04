@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, private, extensions, pg_catalog;
-select plan(9);
+select plan(11);
 
 select results_eq(
   $$
@@ -73,6 +73,7 @@ select is(
 select is(
   private.record_planner_ai_output_tokens(
     '11111111-1111-4111-8111-111111111111',
+    (clock_timestamp() at time zone 'UTC')::date,
     'planner_coach',
     9
   ),
@@ -122,6 +123,36 @@ select throws_ok(
   '42501'::character(5),
   'permission denied for schema private',
   'authenticated clients cannot read private quota telemetry'
+);
+
+select throws_ok(
+  $$
+    select *
+    from public.consume_planner_ai_quota_service(
+      '11111111-1111-4111-8111-111111111111',
+      'bulk_parser',
+      20,
+      0
+    )
+  $$,
+  '42501'::character(5),
+  'permission denied for function consume_planner_ai_quota_service',
+  'authenticated clients cannot execute service-only quota wrappers'
+);
+
+reset role;
+set local role service_role;
+select ok(
+  (
+    select allowed
+    from public.consume_planner_ai_quota_service(
+      '11111111-1111-4111-8111-111111111111',
+      'bulk_parser',
+      20,
+      0
+    )
+  ),
+  'service_role can consume quota through the wrapper'
 );
 
 reset role;

@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, private, extensions, pg_catalog;
-select plan(24);
+select plan(26);
 
 create temporary table planner_test_revisions (
   label text primary key,
@@ -565,9 +565,64 @@ select ok(
   'authenticated owners can read only their planner revision tokens'
 );
 
+select throws_ok(
+  $$
+    select timezone
+    from public.upsert_planner_preferences_service(
+      '11111111-1111-4111-8111-111111111111',
+      'UTC',
+      jsonb_build_object(
+        'schemaVersion', '1',
+        'timezone', 'UTC',
+        'timezoneConfirmedAt', '2026-08-01T00:00:00.000Z',
+        'restWeekdays', '[]'::jsonb,
+        'blackoutRanges', '[]'::jsonb,
+        'goalAllowedWeekdays', '{}'::jsonb,
+        'datePreferences', '[]'::jsonb,
+        'spacingStrategy', 'even',
+        'goalSpacingStrategies', '{}'::jsonb,
+        'dailyCadenceRestExemption', true
+      ),
+      '1',
+      '1',
+      '2026-08-01T00:00:00.000Z'::timestamptz
+    )
+  $$,
+  '42501'::character(5),
+  'permission denied for function upsert_planner_preferences_service',
+  'authenticated clients cannot execute service-only planner write wrappers'
+);
+
 reset role;
 
 set local role service_role;
+select is(
+  (
+    select timezone
+    from public.upsert_planner_preferences_service(
+      '11111111-1111-4111-8111-111111111111',
+      'America/New_York',
+      jsonb_build_object(
+        'schemaVersion', '1',
+        'timezone', 'America/New_York',
+        'timezoneConfirmedAt', '2026-08-02T00:00:00.000Z',
+        'restWeekdays', '[]'::jsonb,
+        'blackoutRanges', '[]'::jsonb,
+        'goalAllowedWeekdays', '{}'::jsonb,
+        'datePreferences', '[]'::jsonb,
+        'spacingStrategy', 'even',
+        'goalSpacingStrategies', '{}'::jsonb,
+        'dailyCadenceRestExemption', true
+      ),
+      '1',
+      '1',
+      '2026-08-02T00:00:00.000Z'::timestamptz
+    )
+  ),
+  'America/New_York',
+  'service role can update planner preferences only through wrapper functions'
+);
+
 select throws_ok(
   $$
     insert into public.execution_plan_issues (

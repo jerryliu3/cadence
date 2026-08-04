@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getDateInTimezone, isValidIanaTimezone } from "@/lib/dates/timezone";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
@@ -10,6 +11,8 @@ const MAX_GOALS_PER_REQUEST = 50;
 const MAX_REQUEST_BYTES = 32 * 1024;
 const MAX_PROVIDER_RESPONSE_BYTES = 256 * 1024;
 const PROVIDER_TIMEOUT_MS = 12_000;
+const DEFAULT_DAILY_PROVIDER_LIMIT = 20;
+const HARD_DAILY_PROVIDER_LIMIT = 100;
 const defaultGeminiModel = "gemini-3.5-flash";
 
 const requestSchema = z.object({
@@ -51,6 +54,21 @@ const geminiResponseSchema = z.object({
         .optional(),
     })
   ),
+  usageMetadata: z
+    .object({
+      promptTokenCount: z.number().int().nonnegative().optional(),
+      candidatesTokenCount: z.number().int().nonnegative().optional(),
+      totalTokenCount: z.number().int().nonnegative().optional(),
+    })
+    .optional(),
+});
+
+const quotaResultSchema = z.object({
+  usage_date: z.iso.date(),
+  allowed: z.boolean(),
+  request_count: z.number().int().nonnegative(),
+  remaining: z.number().int().nonnegative(),
+  retry_after_seconds: z.number().int().nonnegative(),
 });
 
 function toIsoDate(value: string | undefined): string | undefined {
@@ -109,6 +127,32 @@ function parseJsonText(rawText: string): unknown {
   }
 
   throw new Error("Model response was not valid JSON.");
+}
+
+function getOutputTokenCount(responseJson: unknown) {
+  const parsed = geminiResponseSchema.safeParse(responseJson);
+  if (!parsed.success) {
+    return 0;
+  }
+  return (
+    parsed.data.usageMetadata?.candidatesTokenCount ??
+    parsed.data.usageMetadata?.totalTokenCount ??
+    0
+  );
+}
+
+function parseDailyQuotaLimit() {
+  const raw = process.env.CALENDAR_BULK_PARSER_DAILY_LIMIT?.trim();
+  if (!raw) {
+    return DEFAULT_DAILY_PROVIDER_LIMIT;
+  }
+  const parsed = Number(raw);
+  if (!Number.isSafeInteger(parsed) || parsed < 1 || parsed > HARD_DAILY_PROVIDER_LIMIT) {
+    throw new Error(
+      "CALENDAR_BULK_PARSER_DAILY_LIMIT must be an integer between 1 and 100."
+    );
+  }
+  return parsed;
 }
 
 function buildPrompt(userPrompt: string, today: string): string {
@@ -235,6 +279,18 @@ export async function POST(request: Request) {
     );
   }
 
+  let quotaLimit: number;
+  try {
+    quotaLimit = parseDailyQuotaLimit();
+  } catch {
+    return errorResponse(
+      503,
+      "capability_configuration_invalid",
+      "Goal draft generation is temporarily unavailable.",
+      correlationId
+    );
+  }
+
   const apiKey = process.env.GEMINI_API_KEY?.trim();
   if (!apiKey) {
     return errorResponse(
@@ -252,6 +308,53 @@ export async function POST(request: Request) {
     new Date(),
     parsedRequest.data.timezone
   );
+  const estimatedInputTokens = Math.max(
+    1,
+    Math.ceil(parsedRequest.data.prompt.length / 4)
+  );
+  const admin = createAdminClient();
+  const quotaResponse = await admin.rpc("consume_planner_ai_quota_service", {
+    p_owner: user.id,
+    p_feature: "bulk_parser",
+    p_limit: quotaLimit,
+    p_input_tokens: estimatedInputTokens,
+  });
+  if (quotaResponse.error) {
+    return errorResponse(
+      503,
+      "quota_check_failed",
+      "Goal draft generation is temporarily unavailable.",
+      correlationId
+    );
+  }
+  const quotaRowRaw = Array.isArray(quotaResponse.data)
+    ? quotaResponse.data[0]
+    : quotaResponse.data;
+  const quotaRow = quotaResultSchema.safeParse(quotaRowRaw);
+  if (!quotaRow.success) {
+    return errorResponse(
+      500,
+      "quota_invariant_failed",
+      "Goal draft generation is temporarily unavailable.",
+      correlationId
+    );
+  }
+  if (!quotaRow.data.allowed) {
+    return NextResponse.json(
+      {
+        code: "quota_exceeded",
+        message: "Daily goal draft generation limit reached.",
+        correlationId,
+      },
+      {
+        status: 429,
+        headers: {
+          "Cache-Control": "no-store",
+          "Retry-After": `${quotaRow.data.retry_after_seconds}`,
+        },
+      }
+    );
+  }
 
   let geminiResponse: Response;
   try {
@@ -373,6 +476,16 @@ export async function POST(request: Request) {
       "Generated goal drafts could not be validated.",
       correlationId
     );
+  }
+
+  const outputTokens = getOutputTokenCount(geminiJson);
+  if (outputTokens > 0) {
+    await admin.rpc("record_planner_ai_output_tokens_service", {
+      p_owner: user.id,
+      p_usage_date: quotaRow.data.usage_date,
+      p_feature: "bulk_parser",
+      p_output_tokens: outputTokens,
+    });
   }
 
   return NextResponse.json(

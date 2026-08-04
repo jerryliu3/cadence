@@ -88,6 +88,7 @@ export type Database = {
         }
         Returns: {
           allowed: boolean
+          quota_usage_date: string
           remaining: number
           request_count: number
           retry_after_seconds: number
@@ -101,7 +102,12 @@ export type Database = {
       planner_json_depth: { Args: { p_value: Json }; Returns: number }
       planner_owner_lock_key: { Args: { p_owner: string }; Returns: number }
       record_planner_ai_output_tokens: {
-        Args: { p_feature: string; p_output_tokens: number; p_owner: string }
+        Args: {
+          p_feature: string
+          p_output_tokens: number
+          p_owner: string
+          p_usage_date: string
+        }
         Returns: number
       }
       validate_planner_json: {
@@ -949,6 +955,21 @@ export type Database = {
         Args: { p_goal_id: string; p_uid: string }
         Returns: boolean
       }
+      consume_planner_ai_quota_service: {
+        Args: {
+          p_feature: string
+          p_input_tokens?: number
+          p_limit?: number
+          p_owner: string
+        }
+        Returns: {
+          allowed: boolean
+          remaining: number
+          request_count: number
+          retry_after_seconds: number
+          usage_date: string
+        }[]
+      }
       get_planner_state: {
         Args: never
         Returns: {
@@ -960,9 +981,45 @@ export type Database = {
         Args: { p_date?: string; p_goal_id: string }
         Returns: undefined
       }
+      record_planner_ai_output_tokens_service: {
+        Args: {
+          p_feature: string
+          p_output_tokens: number
+          p_owner: string
+          p_usage_date: string
+        }
+        Returns: number
+      }
       unmark_goal_complete: {
         Args: { p_date?: string; p_goal_id: string }
         Returns: undefined
+      }
+      upsert_planner_preferences_service: {
+        Args: {
+          p_default_policy: Json
+          p_owner: string
+          p_policy_compiler_version?: string
+          p_policy_schema_version?: string
+          p_timezone: string
+          p_timezone_confirmed_at?: string
+        }
+        Returns: {
+          created_at: string
+          default_policy: Json
+          owner_id: string
+          policy_compiler_version: string
+          policy_revision: number
+          policy_schema_version: string
+          timezone: string
+          timezone_confirmed_at: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "planner_preferences"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
     }
     Enums: {
