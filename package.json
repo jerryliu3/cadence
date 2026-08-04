@@ -21,6 +21,7 @@
     "typecheck": "tsc --noEmit",
     "contracts:generate-sql": "tsx scripts/generate-planner-sql-fixtures.ts",
     "contracts:check": "tsx scripts/generate-planner-sql-fixtures.ts --check",
+    "types:supabase": "supabase gen types --local --schema public --schema private > src/lib/supabase/database.types.ts",
     "supabase:start": "supabase start",
     "supabase:stop": "supabase stop",
     "supabase:status": "supabase status",

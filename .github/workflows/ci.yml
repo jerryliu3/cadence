@@ -54,6 +54,16 @@ jobs:
       - name: Reset and seed local database
         run: pnpm supabase:reset
 
+      - name: Check generated database types
+        run: |
+          pnpm types:supabase
+          git diff --exit-code -- src/lib/supabase/database.types.ts
+
+      - name: Lint and advise local database
+        run: |
+          pnpm exec supabase db lint --local --schema public,private --level warning --fail-on error
+          pnpm exec supabase db advisors --local --type all --level warn --fail-on error
+
       - name: Export local Supabase environment
         shell: bash
         run: |

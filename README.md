@@ -109,6 +109,7 @@ Seed data includes:
 - `pnpm test:concurrency` - run the two-session PostgreSQL lock harness
 - `pnpm test:e2e` - run authenticated Chromium, WebKit, mobile, API, and accessibility smoke tests
 - `pnpm contracts:check` - verify generated SQL matches canonical planner JSON fixtures
+- `pnpm types:supabase` - regenerate local public/private database types
 - `pnpm supabase:start` - start local Supabase stack
 - `pnpm supabase:stop` - stop local Supabase stack
 - `pnpm supabase:status` - print local URLs and keys
@@ -125,6 +126,11 @@ without its mutation path. Set
 `CALENDAR_TARGETED_EXACT_COMPLETION_ENABLED=false` only as an emergency kill
 switch; Calendar planner read, generation, and plan-write capabilities remain
 disabled independently.
+
+Planner persistence is additive and blocks direct client writes. Immutable plan
+snapshots are stored in public planning tables, while revisions, owner-lock
+helpers, and AI quota counters remain in the unexposed `private` schema. The
+server read/publish/mutation adapters are introduced in the next slice.
 
 ## Pointing to Hosted Supabase
 
