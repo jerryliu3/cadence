@@ -6,46 +6,40 @@ describe("planner capabilities", () => {
     vi.unstubAllEnvs();
   });
 
-  it("keeps only the exact-date compatibility bridge enabled by default", () => {
-    expect(getPlannerCapabilities("owner-id")).toEqual({
+  it("defaults to one enabled calendar capability set", () => {
+    expect(getPlannerCapabilities()).toEqual({
+      calendarEnabled: true,
+      plannerRead: true,
+      plannerGeneration: true,
+      plannerPlanWrites: true,
+      targetedExactCompletion: true,
+      coachAi: true,
+      overlap: true,
+    });
+  });
+
+  it("keeps calendar enabled by default in production", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    expect(getPlannerCapabilities().calendarEnabled).toBe(true);
+  });
+
+  it("supports a global calendar disable", () => {
+    vi.stubEnv("CALENDAR_ENABLED", "false");
+    expect(getPlannerCapabilities()).toEqual({
+      calendarEnabled: false,
       plannerRead: false,
       plannerGeneration: false,
       plannerPlanWrites: false,
-      targetedExactCompletion: true,
+      targetedExactCompletion: false,
       coachAi: false,
       overlap: false,
     });
   });
 
-  it("keeps the compatibility bridge enabled by default in production", () => {
-    vi.stubEnv("NODE_ENV", "production");
-    expect(
-      getPlannerCapabilities("owner-id").targetedExactCompletion
-    ).toBe(true);
-  });
-
-  it("supports an exact-date emergency disable without legacy fallback", () => {
-    vi.stubEnv("CALENDAR_TARGETED_EXACT_COMPLETION_ENABLED", "false");
-    expect(
-      getPlannerCapabilities("owner-id").targetedExactCompletion
-    ).toBe(false);
-  });
-
-  it("applies owner allowlists", () => {
-    vi.stubEnv("CALENDAR_PLANNER_READ_ENABLED", "true");
-    vi.stubEnv(
-      "CALENDAR_PLANNER_READ_ENABLED_OWNER_ALLOWLIST",
-      "allowed-owner"
-    );
-
-    expect(getPlannerCapabilities("allowed-owner").plannerRead).toBe(true);
-    expect(getPlannerCapabilities("other-owner").plannerRead).toBe(false);
-  });
-
-  it("rejects invalid capability combinations", () => {
-    vi.stubEnv("CALENDAR_PLANNER_GENERATION_ENABLED", "true");
-    expect(() => getPlannerCapabilities("owner-id")).toThrow(
-      "require CALENDAR_PLANNER_READ_ENABLED"
+  it("rejects invalid flag string values", () => {
+    vi.stubEnv("CALENDAR_ENABLED", "maybe");
+    expect(() => getPlannerCapabilities()).toThrow(
+      "Invalid feature flag value"
     );
   });
 });

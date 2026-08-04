@@ -151,7 +151,7 @@ export async function requirePlannerRouteContext({
 
   let capabilities: PlannerCapabilities;
   try {
-    capabilities = getPlannerCapabilities(user.id);
+    capabilities = getPlannerCapabilities();
   } catch {
     throw new PlannerRouteError(
       503,

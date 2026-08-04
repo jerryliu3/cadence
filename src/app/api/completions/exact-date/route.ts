@@ -54,7 +54,7 @@ export async function POST(request: Request) {
 
   let capabilities;
   try {
-    capabilities = getPlannerCapabilities(user.id);
+    capabilities = getPlannerCapabilities();
   } catch {
     return errorResponse(
       503,

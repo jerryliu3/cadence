@@ -120,12 +120,9 @@ the app on `http://localhost:3100` so it does not reuse another development serv
 Regenerate checked-in SQL contract mirrors with `pnpm contracts:generate-sql` after intentionally
 changing a canonical fixture under `test/fixtures/planner-contracts/`.
 
-Target-total recurring goals use the authenticated exact-date completion
-bridge. It defaults on in every environment so the exact-date UI never deploys
-without its mutation path. Set
-`CALENDAR_TARGETED_EXACT_COMPLETION_ENABLED=false` only as an emergency kill
-switch; Calendar planner read, generation, and plan-write capabilities remain
-disabled independently.
+Calendar UI exposure and planner API access are controlled by one flag:
+`CALENDAR_ENABLED` (default `true`). Set `CALENDAR_ENABLED=false` to hide the
+Calendar surface and disable planner endpoints.
 
 Planner persistence is additive and blocks direct client writes. Immutable plan
 snapshots are stored in public planning tables, while revisions, owner-lock
