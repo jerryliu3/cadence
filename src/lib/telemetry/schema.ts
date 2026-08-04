@@ -103,6 +103,7 @@ const previewEventSchema = commonEventSchema
         searchStatus: z.enum([
           "all_units_placed",
           "maximum_partial",
+          "blocked_invalid_lock",
           "soft_optimization_exhausted",
         ]),
         capacityStatus: z.literal("unverified"),

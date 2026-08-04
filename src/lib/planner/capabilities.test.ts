@@ -17,6 +17,13 @@ describe("planner capabilities", () => {
     });
   });
 
+  it("keeps the compatibility bridge enabled by default in production", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    expect(
+      getPlannerCapabilities("owner-id").targetedExactCompletion
+    ).toBe(true);
+  });
+
   it("supports an exact-date emergency disable without legacy fallback", () => {
     vi.stubEnv("CALENDAR_TARGETED_EXACT_COMPLETION_ENABLED", "false");
     expect(

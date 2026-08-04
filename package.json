@@ -9,7 +9,7 @@
     "start": "next start",
     "lint": "eslint .",
     "test": "vitest run",
-    "test:benchmark": "vitest run src/lib/planner/benchmark/worst-case.test.ts",
+    "test:benchmark": "tsx scripts/run-planner-benchmark.ts",
     "test:contracts": "vitest run src/lib/planner/contracts/fixture-schema.test.ts",
     "test:concurrency": "tsx scripts/planner-concurrency-harness.ts",
     "test:e2e": "playwright test",

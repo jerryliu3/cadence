@@ -27,6 +27,7 @@ export interface GoalProgressSnapshot {
   percent: number;
   lifecycle: GoalLifecycle;
   outcome: GoalOutcome;
+  placementTerminal: boolean;
   currentStreak: number;
   longestStreak: number;
   milestoneDates: string[];
@@ -182,6 +183,7 @@ export function getGoalProgressSnapshot(
         : Math.min(100, (creditedUnitCount / expectedUnitCount) * 100),
     lifecycle: lifecycleOutcome.lifecycle,
     outcome: lifecycleOutcome.outcome,
+    placementTerminal: lifecycleOutcome.placementTerminal,
     currentStreak: streaks.current,
     longestStreak: streaks.longest,
     milestoneDates:

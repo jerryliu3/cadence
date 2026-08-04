@@ -10,9 +10,12 @@ import {
   MAX_WORK_UNITS,
 } from "../contracts/bounds";
 import {
+  materializeWorstCaseKernelInput,
   materializeWorstCasePlannerInput,
-  serializeCompactWorstCasePlan,
+  serializeCompactPlannerOutput,
 } from "./worst-case";
+import { runPlannerKernel } from "@/lib/planner/kernel";
+import { canonicalHash } from "@/lib/planner/canonical";
 
 function digest(value: string) {
   return createHash("sha256").update(value).digest("hex");
@@ -31,21 +34,22 @@ describe("worst-case planner benchmark fixture", () => {
   });
 
   it("keeps the compact worst-case plan response under 3 MB", () => {
-    const input = materializeWorstCasePlannerInput();
-    const compactPlan = serializeCompactWorstCasePlan(input);
+    const output = runPlannerKernel(
+      materializeWorstCaseKernelInput({
+        withBasePlan: true,
+        replaceLineage: true,
+      })
+    );
+    const compactPlan = serializeCompactPlannerOutput(output);
     const byteLength = new TextEncoder().encode(compactPlan).byteLength;
 
     expect(byteLength).toBeLessThan(MAX_API_BODY_BYTES);
   });
 
-  it("keeps fixture setup p95 below the future solver budget", () => {
-    const durations = Array.from({ length: 7 }, () => {
-      const startedAt = performance.now();
-      materializeWorstCasePlannerInput();
-      return performance.now() - startedAt;
-    }).sort((left, right) => left - right);
-    const p95Index = Math.ceil(durations.length * 0.95) - 1;
+  it("returns the same full kernel result for the same bounded input", () => {
+    const first = runPlannerKernel(materializeWorstCaseKernelInput());
+    const second = runPlannerKernel(materializeWorstCaseKernelInput());
 
-    expect(durations[p95Index]).toBeLessThan(2_000);
+    expect(canonicalHash(first)).toBe(canonicalHash(second));
   });
 });

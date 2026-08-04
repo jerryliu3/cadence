@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { Goal } from "@/lib/goals/types";
-import { getGoalRequirement, isTargetedRecurringGoal } from "./requirements";
+import {
+  computeRequirementFingerprint,
+  getGoalRequirement,
+  isTargetedRecurringGoal,
+} from "./requirements";
 
 function buildGoal(overrides: Partial<Goal> = {}): Goal {
   return {
@@ -63,5 +67,32 @@ describe("legacy goal requirement mapping", () => {
       labels: ["Draft", "Milestone 2", "Ship"],
       maxPerDay: 1,
     });
+  });
+
+  it("keeps lineage stable for cosmetic edits and changes it for requirements", () => {
+    const base = buildGoal({ target_count: 12 });
+    expect(
+      computeRequirementFingerprint({
+        ...base,
+        title: "Renamed",
+        color: "#ffffff",
+      })
+    ).toBe(computeRequirementFingerprint(base));
+    expect(
+      computeRequirementFingerprint({ ...base, target_count: 13 })
+    ).not.toBe(computeRequirementFingerprint(base));
+  });
+
+  it("fingerprints normalized semantics rather than legacy null encoding", () => {
+    const fixed = buildGoal({
+      frequency_type: "fixed_milestones",
+      recurrence_interval: null,
+      target_count: null,
+      milestone_names: null,
+    });
+
+    expect(computeRequirementFingerprint(fixed)).toBe(
+      computeRequirementFingerprint({ ...fixed, target_count: 1 })
+    );
   });
 });

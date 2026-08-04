@@ -90,6 +90,10 @@ export function hasCompletionToday(
   return completions.some((entry) => entry.completed_on === today);
 }
 
+/**
+ * @deprecated Use lifecycle/outcome or progress snapshots for product logic.
+ * This helper remains only for legacy compatibility tests.
+ */
 export function isGoalCompleted(
   goal: Goal,
   referenceDate = new Date(),

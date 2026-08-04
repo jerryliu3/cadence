@@ -39,7 +39,10 @@ import {
   getCategorySelectionFromValue,
   getCategorySwatchColor,
 } from "@/lib/goals/category";
-import { isGoalCompleted } from "@/lib/goals/schedule";
+import {
+  fetchProgressContext,
+  progressSummaryMap,
+} from "@/lib/goals/progress-context";
 import type { Goal, GoalFrequencyType, RecurrenceInterval } from "@/lib/goals/types";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
@@ -387,25 +390,6 @@ function getLinkedGoalDeadlineLabel(goal: Goal): string {
   return goal.end_date ? `Due ${goal.end_date}` : "No deadline";
 }
 
-function getCompletionCountByGoalId(rows: Array<{ goal_id: string }>): Record<string, number> {
-  return rows.reduce<Record<string, number>>((accumulator, row) => {
-    accumulator[row.goal_id] = (accumulator[row.goal_id] ?? 0) + 1;
-    return accumulator;
-  }, {});
-}
-
-function isGoalInProgress(goal: Goal, completionCount: number, referenceDate = new Date()): boolean {
-  if (goal.archived_at !== null) {
-    return false;
-  }
-
-  if (goal.start_date > toLocalDateString(referenceDate)) {
-    return false;
-  }
-
-  return !isGoalCompleted(goal, referenceDate, completionCount);
-}
-
 export function BulkGoalForm() {
   const supabase = useMemo(() => createClient(), []);
   const router = useRouter();
@@ -432,27 +416,28 @@ export function BulkGoalForm() {
       }
 
       setCurrentUserId(user.id);
-      const [goalOptionsResponse, completionResponse] = await Promise.all([
+      const [goalOptionsResponse, progress] = await Promise.all([
         supabase
           .from("goals")
           .select("*")
           .eq("owner_id", user.id)
           .eq("is_deleted", false)
           .order("title"),
-        supabase.from("completions").select("goal_id").eq("user_id", user.id),
+        fetchProgressContext({ asOfDate: toLocalDateString() }),
       ]);
 
       if (goalOptionsResponse.error) {
         toast.error("Could not load linkable goals.");
       } else {
         const goals = (goalOptionsResponse.data ?? []) as Goal[];
-        const completionCountByGoalId = getCompletionCountByGoalId(
-          (completionResponse.data ?? []) as Array<{ goal_id: string }>
-        );
+        const progressByGoal = progressSummaryMap(progress);
+        // Achievement stops planner placement, but active goals remain
+        // linkable so users can intentionally continue beyond a target.
         setAvailableGoals(
           goals.filter(
             (goal) =>
-              !goal.is_group && isGoalInProgress(goal, completionCountByGoalId[goal.id] ?? 0)
+              !goal.is_group &&
+              progressByGoal.get(goal.id)?.lifecycle === "active"
           )
         );
       }
@@ -460,7 +445,14 @@ export function BulkGoalForm() {
       setInitializing(false);
     };
 
-    void run();
+    void run().catch((error: unknown) => {
+      setInitializing(false);
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Could not load linkable goals."
+      );
+    });
   }, [router, supabase]);
 
   const selectedDrafts = useMemo(() => drafts.filter((draft) => draft.include), [drafts]);

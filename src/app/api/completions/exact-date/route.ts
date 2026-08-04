@@ -1,7 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { isValidIanaTimezone } from "@/lib/dates/timezone";
+import {
+  getDateInTimezone,
+  isValidIanaTimezone,
+} from "@/lib/dates/timezone";
 import { getPlannerCapabilities } from "@/lib/planner/capabilities";
 import { createClient } from "@/lib/supabase/server";
 
@@ -111,10 +114,10 @@ export async function POST(request: Request) {
     );
   }
 
-  const { goalId, date, desiredFactState } = parsedRequest.data;
+  const { goalId, date, desiredFactState, timezone } = parsedRequest.data;
   const { data: goal, error: goalError } = await supabase
     .from("goals")
-    .select("id, frequency_type, target_count")
+    .select("id, frequency_type, target_count, start_date, end_date")
     .eq("id", goalId)
     .maybeSingle();
 
@@ -131,6 +134,29 @@ export async function POST(request: Request) {
       "The targeted recurring goal was not found.",
       correlationId
     );
+  }
+
+  if (desiredFactState === "present") {
+    const localToday = getDateInTimezone(new Date(), timezone);
+    if (date > localToday) {
+      return errorResponse(
+        422,
+        "future_completion_not_allowed",
+        "Completions can only be added for today or a past date.",
+        correlationId
+      );
+    }
+    if (
+      date < goal.start_date ||
+      (goal.end_date !== null && date > goal.end_date)
+    ) {
+      return errorResponse(
+        422,
+        "completion_outside_goal_lifetime",
+        "The completion date must be within the goal lifetime.",
+        correlationId
+      );
+    }
   }
 
   const { error: mutationError } = await supabase.rpc(

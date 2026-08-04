@@ -125,12 +125,17 @@ describe("planner contract fixtures", () => {
       );
 
       const units = new Map(
-        fixtureCase.units.map((unit) => [unit.unitKey, unit])
+        fixtureCase.units.map((unit) => [
+          `${unit.goalId}\u0000${unit.unitKey}`,
+          unit,
+        ])
       );
       const datesByGoal = new Map<string, string[]>();
 
       for (const assignment of fixtureCase.expected.assignments) {
-        const unit = units.get(assignment.unitKey);
+        const unit = units.get(
+          `${assignment.goalId}\u0000${assignment.unitKey}`
+        );
         expect(unit, `${fixtureCase.id}:${assignment.unitKey}`).toBeDefined();
         if (!unit || assignment.scheduledDate === null) {
           continue;

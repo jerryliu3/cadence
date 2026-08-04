@@ -1,0 +1,181 @@
+import type {
+  PlannerSolverResult,
+  SolverUnit,
+} from "@/lib/planner/solver/types";
+import { getSolverUnitId } from "@/lib/planner/solver/types";
+import type { PlannerWorkUnit } from "@/lib/planner/work-units";
+import { dateIsInWindow } from "@/lib/planner/dates";
+
+export interface SolverValidationResult {
+  valid: boolean;
+  invariantViolations: string[];
+}
+
+export function validateSolverResult(
+  units: SolverUnit[],
+  result: PlannerSolverResult
+): SolverValidationResult {
+  const violations = new Set<string>();
+  const unitByKey = new Map(
+    units.map((unit) => [getSolverUnitId(unit), unit])
+  );
+  const assignmentByKey = new Map<string, string | null>();
+
+  if (result.assignments.length !== units.length) {
+    violations.add("incomplete_assignment_set");
+  }
+  for (const assignment of result.assignments) {
+    const unitId = getSolverUnitId(assignment);
+    if (assignmentByKey.has(unitId)) {
+      violations.add("duplicate_assignment");
+    }
+    assignmentByKey.set(unitId, assignment.scheduledDate);
+    const unit = unitByKey.get(unitId);
+    if (!unit) {
+      violations.add("unknown_unit");
+      continue;
+    }
+    if (
+      assignment.scheduledDate !== null &&
+      !unit.candidateDates.includes(assignment.scheduledDate)
+    ) {
+      violations.add("date_outside_domain");
+    }
+    if (
+      unit.lockedDate !== null &&
+      assignment.scheduledDate !== unit.lockedDate
+    ) {
+      violations.add("lock_not_preserved");
+    }
+  }
+
+  const byGoal = new Map<string, SolverUnit[]>();
+  for (const unit of units) {
+    if (!assignmentByKey.has(getSolverUnitId(unit))) {
+      violations.add("missing_unit");
+    }
+    const existing = byGoal.get(unit.goalId) ?? [];
+    existing.push(unit);
+    byGoal.set(unit.goalId, existing);
+  }
+  for (const goalUnits of byGoal.values()) {
+    goalUnits.sort((left, right) => left.ordinal - right.ordinal);
+    const usedDates = new Set<string>();
+    let previousDate: string | null = null;
+    let prefixEnded = false;
+    for (const unit of goalUnits) {
+      const date = assignmentByKey.get(getSolverUnitId(unit)) ?? null;
+      if (date === null) {
+        if (
+          unit.kind === "milestone_sequence" ||
+          unit.kind === "deadline_total"
+        ) {
+          prefixEnded = true;
+        }
+        continue;
+      }
+      if (usedDates.has(date)) {
+        violations.add("duplicate_goal_date");
+      }
+      usedDates.add(date);
+      if (previousDate !== null && date <= previousDate) {
+        violations.add("order_violation");
+      }
+      if (
+        prefixEnded &&
+        (unit.kind === "milestone_sequence" ||
+          unit.kind === "deadline_total")
+      ) {
+        violations.add("skipped_open_ordinal");
+      }
+      previousDate = date;
+    }
+  }
+
+  const placedCount = result.assignments.filter(
+    (assignment) => assignment.scheduledDate !== null
+  ).length;
+  const complete = placedCount === units.length;
+  if (
+    result.placementStatus !== (complete ? "complete" : "partial")
+  ) {
+    violations.add("placement_status_mismatch");
+  }
+  if (
+    !complete &&
+    !result.issueCodes.includes("placement_shortfall") &&
+    !result.issueCodes.includes("invalid_lock")
+  ) {
+    violations.add("missing_shortfall_issue");
+  }
+  if (
+    result.issueCodes.includes("invalid_lock") &&
+    result.publishable
+  ) {
+    violations.add("invalid_lock_publishable");
+  }
+  if (
+    result.invalidGoalIds.length > 0 &&
+    result.searchStatus !== "blocked_invalid_lock"
+  ) {
+    violations.add("invalid_lock_status_mismatch");
+  }
+  if (
+    result.searchStatus === "blocked_invalid_lock" &&
+    (result.invalidGoalIds.length === 0 ||
+      !result.issueCodes.includes("invalid_lock"))
+  ) {
+    violations.add("blocked_status_without_invalid_goal");
+  }
+  if (
+    result.confirmationRequired &&
+    result.placementStatus !== "partial"
+  ) {
+    violations.add("unexpected_confirmation");
+  }
+
+  return {
+    valid: violations.size === 0,
+    invariantViolations: Array.from(violations).sort(),
+  };
+}
+
+export function validateMergedWorkUnitAssignments(
+  workUnits: PlannerWorkUnit[]
+): SolverValidationResult {
+  const violations = new Set<string>();
+  const identities = new Set<string>();
+  const datesByGoal = new Map<string, Set<string>>();
+
+  for (const unit of workUnits) {
+    const identity = `${unit.originalGoalId}\u0000${unit.requirementFingerprint}\u0000${unit.unitKey}`;
+    if (identities.has(identity)) {
+      violations.add("duplicate_work_unit_identity");
+    }
+    identities.add(identity);
+    if (unit.scheduledDate === null) {
+      continue;
+    }
+    const usedDates =
+      datesByGoal.get(unit.originalGoalId) ?? new Set<string>();
+    if (usedDates.has(unit.scheduledDate)) {
+      violations.add("duplicate_goal_date");
+    }
+    usedDates.add(unit.scheduledDate);
+    datesByGoal.set(unit.originalGoalId, usedDates);
+
+    if (
+      (unit.classification === "open" ||
+        unit.classification === "future") &&
+      (!unit.placementWindow ||
+        !dateIsInWindow(unit.scheduledDate, unit.placementWindow))
+    ) {
+      violations.add("date_outside_placement_window");
+    }
+  }
+
+  return {
+    valid: violations.size === 0,
+    invariantViolations: Array.from(violations).sort(),
+  };
+}

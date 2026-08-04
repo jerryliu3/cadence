@@ -15,6 +15,7 @@
         "searchStatus": "all_units_placed",
         "capacityStatus": "unverified",
         "issueCodes": [],
+        "invalidGoalIds": [],
         "publishable": true,
         "confirmationRequired": false
       }
@@ -49,10 +50,12 @@
       "expected": {
         "assignments": [
           {
+            "goalId": "goal-a",
             "unitKey": "milestone:1",
             "scheduledDate": "2026-08-05"
           },
           {
+            "goalId": "goal-a",
             "unitKey": "milestone:2",
             "scheduledDate": "2026-08-06"
           }
@@ -61,6 +64,7 @@
         "searchStatus": "all_units_placed",
         "capacityStatus": "unverified",
         "issueCodes": [],
+        "invalidGoalIds": [],
         "publishable": true,
         "confirmationRequired": false
       }
@@ -105,14 +109,17 @@
       "expected": {
         "assignments": [
           {
+            "goalId": "goal-a",
             "unitKey": "total:1",
             "scheduledDate": "2026-08-05"
           },
           {
+            "goalId": "goal-a",
             "unitKey": "total:2",
             "scheduledDate": "2026-08-06"
           },
           {
+            "goalId": "goal-a",
             "unitKey": "total:3",
             "scheduledDate": null
           }
@@ -121,6 +128,7 @@
         "searchStatus": "maximum_partial",
         "capacityStatus": "unverified",
         "issueCodes": ["placement_shortfall"],
+        "invalidGoalIds": [],
         "publishable": true,
         "confirmationRequired": true
       }
@@ -155,10 +163,12 @@
       "expected": {
         "assignments": [
           {
+            "goalId": "goal-a",
             "unitKey": "milestone:1",
             "scheduledDate": "2026-08-06"
           },
           {
+            "goalId": "goal-a",
             "unitKey": "milestone:2",
             "scheduledDate": null
           }
@@ -167,6 +177,7 @@
         "searchStatus": "maximum_partial",
         "capacityStatus": "unverified",
         "issueCodes": ["placement_shortfall"],
+        "invalidGoalIds": [],
         "publishable": true,
         "confirmationRequired": true
       }
@@ -201,10 +212,12 @@
       "expected": {
         "assignments": [
           {
+            "goalId": "goal-c",
             "unitKey": "cadence:2026-08-01",
             "scheduledDate": "2026-08-02"
           },
           {
+            "goalId": "goal-c",
             "unitKey": "cadence:2026-08-08",
             "scheduledDate": "2026-08-08"
           }
@@ -213,6 +226,7 @@
         "searchStatus": "all_units_placed",
         "capacityStatus": "unverified",
         "issueCodes": [],
+        "invalidGoalIds": [],
         "publishable": true,
         "confirmationRequired": false
       }
@@ -257,14 +271,17 @@
       "expected": {
         "assignments": [
           {
+            "goalId": "goal-a",
             "unitKey": "total:1",
             "scheduledDate": "2026-08-05"
           },
           {
+            "goalId": "goal-a",
             "unitKey": "total:2",
             "scheduledDate": "2026-08-06"
           },
           {
+            "goalId": "goal-a",
             "unitKey": "total:3",
             "scheduledDate": "2026-08-07"
           }
@@ -273,6 +290,7 @@
         "searchStatus": "all_units_placed",
         "capacityStatus": "unverified",
         "issueCodes": [],
+        "invalidGoalIds": [],
         "publishable": true,
         "confirmationRequired": false
       }
@@ -307,18 +325,21 @@
       "expected": {
         "assignments": [
           {
+            "goalId": "goal-a",
             "unitKey": "milestone:1",
             "scheduledDate": null
           },
           {
+            "goalId": "goal-a",
             "unitKey": "milestone:2",
             "scheduledDate": null
           }
         ],
         "placementStatus": "partial",
-        "searchStatus": "maximum_partial",
+        "searchStatus": "blocked_invalid_lock",
         "capacityStatus": "unverified",
         "issueCodes": ["invalid_lock"],
+        "invalidGoalIds": ["goal-a"],
         "publishable": false,
         "confirmationRequired": false
       }
@@ -353,10 +374,12 @@
       "expected": {
         "assignments": [
           {
+            "goalId": "goal-a",
             "unitKey": "total:1",
             "scheduledDate": "2026-08-05"
           },
           {
+            "goalId": "goal-a",
             "unitKey": "total:2",
             "scheduledDate": "2026-08-06"
           }
@@ -365,6 +388,7 @@
         "searchStatus": "soft_optimization_exhausted",
         "capacityStatus": "unverified",
         "issueCodes": ["soft_optimization_exhausted"],
+        "invalidGoalIds": [],
         "publishable": true,
         "confirmationRequired": false
       }

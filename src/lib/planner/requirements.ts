@@ -1,4 +1,6 @@
 import type { Goal, RecurrenceInterval } from "@/lib/goals/types";
+import { canonicalHash } from "@/lib/planner/canonical";
+import { REQUIREMENT_SCHEMA_VERSION } from "@/lib/planner/contracts/bounds";
 
 export type GoalRequirement =
   | {
@@ -15,9 +17,17 @@ export type GoalRequirement =
   | {
       kind: "deadline_total";
       targetCount: number;
+      // Target-total progress is always exact-date. The legacy interval is
+      // preserved only as soft-spacing metadata; it never creates buckets.
       spacingHint: RecurrenceInterval;
       maxPerDay: 1;
     };
+
+export interface NormalizedGoalRequirement {
+  schemaVersion: typeof REQUIREMENT_SCHEMA_VERSION;
+  requirement: GoalRequirement;
+  requirementFingerprint: string;
+}
 
 function positiveTarget(goal: Goal) {
   return Math.max(1, goal.target_count ?? 1);
@@ -59,5 +69,25 @@ export function getGoalRequirement(goal: Goal): GoalRequirement {
     kind: "cadence",
     interval,
     maxPerDay: 1,
+  };
+}
+
+export function computeRequirementFingerprint(goal: Goal) {
+  const requirement = getGoalRequirement(goal);
+  return canonicalHash({
+    schemaVersion: REQUIREMENT_SCHEMA_VERSION,
+    requirement,
+    startDate: goal.start_date,
+    endDate: goal.end_date,
+  });
+}
+
+export function normalizeGoalRequirement(
+  goal: Goal
+): NormalizedGoalRequirement {
+  return {
+    schemaVersion: REQUIREMENT_SCHEMA_VERSION,
+    requirement: getGoalRequirement(goal),
+    requirementFingerprint: computeRequirementFingerprint(goal),
   };
 }

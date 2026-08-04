@@ -197,6 +197,7 @@ export const solverFixtureSchema = z
                 assignments: z.array(
                   z
                     .object({
+                      goalId: z.string().min(1).max(100),
                       unitKey: z.string().min(1).max(100),
                       scheduledDate: nullableDateSchema,
                     })
@@ -206,6 +207,7 @@ export const solverFixtureSchema = z
                 searchStatus: z.enum([
                   "all_units_placed",
                   "maximum_partial",
+                  "blocked_invalid_lock",
                   "soft_optimization_exhausted",
                 ]),
                 capacityStatus: z.literal("unverified"),
@@ -214,7 +216,12 @@ export const solverFixtureSchema = z
                     "placement_shortfall",
                     "invalid_lock",
                     "soft_optimization_exhausted",
+                    "historical_miss",
+                    "historical_shortfall",
                   ])
+                ),
+                invalidGoalIds: z.array(
+                  z.string().min(1).max(100)
                 ),
                 publishable: z.boolean(),
                 confirmationRequired: z.boolean(),

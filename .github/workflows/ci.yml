@@ -42,6 +42,9 @@ jobs:
       - name: Run unit, contract, telemetry, and benchmark tests
         run: pnpm test
 
+      - name: Run isolated planner performance gate
+        run: pnpm test:benchmark
+
       - name: Run timezone process matrix
         run: pnpm test:tz
 

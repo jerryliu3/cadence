@@ -39,6 +39,7 @@ import { GoalEndMonthBadge } from "@/features/goals/goal-end-month-badge";
 import { GoalListControls } from "@/features/goals/goal-list-controls";
 import { toLocalDateString } from "@/lib/dates/day";
 import { getCategoryBadgeClass } from "@/lib/goals/category";
+import { getGoalLifecycle } from "@/lib/goals/lifecycle";
 import {
   filterGoalsByEndMonth,
   sortGoalsByDate,
@@ -288,6 +289,18 @@ export function TodayTab() {
     () => progressSummaryMap(data.progress),
     [data.progress]
   );
+  // Day browsing answers "where did this goal belong on that date?" while
+  // progress/outcome badges continue to show the latest known result.
+  const lifecycleByGoalAtViewDate = useMemo(
+    () =>
+      new Map(
+        data.goals.map((goal) => [
+          goal.id,
+          getGoalLifecycle(goal, { asOfDate: viewDate }),
+        ])
+      ),
+    [data.goals, viewDate]
+  );
 
   const completableGoalIds = useMemo(() => {
     const ids = new Set<string>();
@@ -307,14 +320,14 @@ export function TodayTab() {
 
   const activeGoals = useMemo(() => {
     return completableGoals.filter((goal) => {
-      const lifecycle = progressByGoal.get(goal.id)?.lifecycle;
+      const lifecycle = lifecycleByGoalAtViewDate.get(goal.id);
       return (
         lifecycle !== "ended" &&
         lifecycle !== "archived" &&
         !isGoalManuallyArchived(goal)
       );
     });
-  }, [completableGoals, progressByGoal]);
+  }, [completableGoals, lifecycleByGoalAtViewDate]);
 
   const availableCategories = useMemo(() => {
     const categories = new Set<string>();
@@ -421,9 +434,9 @@ export function TodayTab() {
         if (isGoalManuallyArchived(goal)) {
           return false;
         }
-        return progressByGoal.get(goal.id)?.lifecycle === "ended";
+        return lifecycleByGoalAtViewDate.get(goal.id) === "ended";
       }),
-    [completableGoals, progressByGoal]
+    [completableGoals, lifecycleByGoalAtViewDate]
   );
 
   const archivedGoalsRaw = useMemo(

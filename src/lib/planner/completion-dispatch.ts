@@ -58,6 +58,8 @@ export function resolveCompletionDispatch({
   } else if (activePlanMembership) {
     route = "plan_goal_date";
   } else if (targetedRecurring) {
+    // A target-total fact belongs to its selected date. Period unmarking could
+    // otherwise delete a different legitimate completion in the same period.
     route = "canonical_exact_date";
   } else {
     return {

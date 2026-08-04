@@ -63,7 +63,7 @@ export function getPlannerCapabilities(ownerId: string): PlannerCapabilities {
     targetedExactCompletion: evaluateCapability(
       ownerId,
       "CALENDAR_TARGETED_EXACT_COMPLETION_ENABLED",
-      process.env.NODE_ENV !== "production"
+      true
     ),
     coachAi: evaluateCapability(ownerId, "CALENDAR_COACH_AI_ENABLED"),
     overlap: evaluateCapability(ownerId, "CALENDAR_OVERLAP_ENABLED"),

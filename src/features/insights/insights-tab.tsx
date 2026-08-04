@@ -243,6 +243,8 @@ export function InsightsTab() {
 
       const yearStart = format(startOfYear(monthCursor), "yyyy-MM-dd");
       const yearEnd = format(endOfYear(monthCursor), "yyyy-MM-dd");
+      // Heatmap facts are intentionally year-bounded. A per-year client cache
+      // is optional later if measured navigation latency warrants it.
       const [goalsResponse, participantsResponse, progress] = await Promise.all([
         supabase.from("goals").select("*").eq("is_deleted", false).order("title"),
         supabase.from("goal_participants").select("*").eq("user_id", user.id),

@@ -104,6 +104,7 @@ Seed data includes:
 - `pnpm lint` - lint checks
 - `pnpm test` - run unit tests
 - `pnpm test:tz` - run contract checks in Los Angeles and Auckland processes
+- `pnpm test:benchmark` - run the isolated worst-case planner p95 gate
 - `pnpm test:sql` - run pgTAP SQL tests against local Postgres
 - `pnpm test:concurrency` - run the two-session PostgreSQL lock harness
 - `pnpm test:e2e` - run authenticated Chromium, WebKit, mobile, API, and accessibility smoke tests
@@ -119,10 +120,11 @@ Regenerate checked-in SQL contract mirrors with `pnpm contracts:generate-sql` af
 changing a canonical fixture under `test/fixtures/planner-contracts/`.
 
 Target-total recurring goals use the authenticated exact-date completion
-bridge. It is enabled automatically in development/test and must be enabled
-explicitly in production with
-`CALENDAR_TARGETED_EXACT_COMPLETION_ENABLED=true`; Calendar planner read,
-generation, and plan-write capabilities remain disabled independently.
+bridge. It defaults on in every environment so the exact-date UI never deploys
+without its mutation path. Set
+`CALENDAR_TARGETED_EXACT_COMPLETION_ENABLED=false` only as an emergency kill
+switch; Calendar planner read, generation, and plan-write capabilities remain
+disabled independently.
 
 ## Pointing to Hosted Supabase
 

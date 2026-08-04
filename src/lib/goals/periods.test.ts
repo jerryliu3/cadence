@@ -6,6 +6,16 @@ import {
 } from "./periods";
 
 describe("anchored civil-date periods", () => {
+  it("handles ISO years below 0100 without remapping them to 1900", () => {
+    expect(addDaysToDateString("0099-12-31", 1)).toBe("0100-01-01");
+    expect(
+      getAnchoredPeriod("0099-01-31", "monthly", "0099-02-28")
+    ).toMatchObject({
+      start: "0099-02-28",
+      end: "0099-03-30",
+    });
+  });
+
   it.each([
     ["2026-01-29", "2026-02-27", "2026-01-29", "2026-02-27", "2026-02-28"],
     ["2026-01-30", "2026-02-27", "2026-01-30", "2026-02-27", "2026-02-28"],

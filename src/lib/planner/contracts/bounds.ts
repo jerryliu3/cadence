@@ -1,5 +1,8 @@
 export const PLANNER_CONTRACT_VERSION = "1" as const;
 export const REQUIREMENT_SCHEMA_VERSION = "1" as const;
+export const ASSESSMENT_SCHEMA_VERSION = "1" as const;
+export const POLICY_SCHEMA_VERSION = "1" as const;
+export const POLICY_COMPILER_VERSION = "1" as const;
 export const SCHEDULER_VERSION = "ordered-dp-v1" as const;
 export const ELIGIBILITY_MODE = "end_month_v1" as const;
 

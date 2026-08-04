@@ -9,6 +9,13 @@ interface CivilDate {
   day: number;
 }
 
+function civilDateToUtcDate({ year, month, day }: CivilDate) {
+  const date = new Date(0);
+  date.setUTCHours(0, 0, 0, 0);
+  date.setUTCFullYear(year, month - 1, day);
+  return date;
+}
+
 export interface AnchoredPeriod {
   index: number;
   start: string;
@@ -26,7 +33,7 @@ function parseCivilDate(value: string): CivilDate {
   const year = Number(match[1]);
   const month = Number(match[2]);
   const day = Number(match[3]);
-  const date = new Date(Date.UTC(year, month - 1, day));
+  const date = civilDateToUtcDate({ year, month, day });
 
   if (
     date.getUTCFullYear() !== year ||
@@ -47,8 +54,10 @@ function formatCivilDate({ year, month, day }: CivilDate) {
 }
 
 function civilDateToEpochDay(value: string) {
-  const { year, month, day } = parseCivilDate(value);
-  return Math.floor(Date.UTC(year, month - 1, day) / MILLISECONDS_PER_DAY);
+  return Math.floor(
+    civilDateToUtcDate(parseCivilDate(value)).getTime() /
+      MILLISECONDS_PER_DAY
+  );
 }
 
 function epochDayToCivilDate(epochDay: number) {
@@ -61,13 +70,13 @@ function epochDayToCivilDate(epochDay: number) {
 }
 
 function daysInMonth(year: number, month: number) {
-  return new Date(Date.UTC(year, month, 0)).getUTCDate();
+  return civilDateToUtcDate({ year, month: month + 1, day: 0 }).getUTCDate();
 }
 
 export function compareDateStrings(left: string, right: string) {
   parseCivilDate(left);
   parseCivilDate(right);
-  return left.localeCompare(right);
+  return left < right ? -1 : left > right ? 1 : 0;
 }
 
 export function addDaysToDateString(value: string, days: number) {

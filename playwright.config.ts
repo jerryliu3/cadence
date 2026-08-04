@@ -56,14 +56,14 @@ export default defineConfig({
   ],
   webServer: {
     command: process.env.CI
-      ? `pnpm exec next start --port ${port}`
-      : `pnpm exec next dev --port ${port}`,
+      ? `pnpm exec next start --hostname 127.0.0.1 --port ${port}`
+      : `pnpm exec next dev --hostname 127.0.0.1 --port ${port}`,
     url: baseURL,
     reuseExistingServer: false,
     timeout: 120_000,
     env: {
       NEXT_PUBLIC_APP_URL: baseURL,
-          CALENDAR_TARGETED_EXACT_COMPLETION_ENABLED: "true",
+      CALENDAR_TARGETED_EXACT_COMPLETION_ENABLED: "true",
     },
   },
 });

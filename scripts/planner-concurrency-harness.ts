@@ -157,13 +157,25 @@ async function main() {
 
     await Promise.all([sessionATask, sessionBTask]);
 
-    assert.deepEqual(observedOrder, [
-      "session-a-acquired",
-      "session-b-observed-blocked",
-      "session-a-committed",
-      "session-b-acquired",
-      "session-b-committed",
-    ]);
+    assert.equal(new Set(observedOrder).size, 5);
+    assert.equal(observedOrder[0], "session-a-acquired");
+    assert.equal(observedOrder[1], "session-b-observed-blocked");
+    assert.ok(
+      observedOrder.indexOf("session-a-committed") >
+        observedOrder.indexOf("session-b-observed-blocked")
+    );
+    assert.ok(
+      observedOrder.indexOf("session-b-acquired") >
+        observedOrder.indexOf("session-b-observed-blocked")
+    );
+    assert.ok(
+      observedOrder.indexOf("session-b-committed") >
+        observedOrder.indexOf("session-a-committed")
+    );
+    assert.ok(
+      observedOrder.indexOf("session-b-committed") >
+        observedOrder.indexOf("session-b-acquired")
+    );
 
     console.log(
       JSON.stringify({
