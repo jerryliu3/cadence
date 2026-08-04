@@ -43,15 +43,25 @@ import {
   sortGoalsByDate,
   type GoalDateSort,
 } from "@/lib/goals/list-view";
-import { getGoalCompletionPercentage, getOverallCompletionPercentage, getRecurringStreaks } from "@/lib/goals/progress";
-import type { Completion, Goal, GoalParticipant } from "@/lib/goals/types";
+import {
+  fetchProgressContext,
+  progressSummaryMap,
+  type ProgressContextResponse,
+} from "@/lib/goals/progress-context";
+import type {
+  CompletionDateFact,
+  Goal,
+  GoalParticipant,
+} from "@/lib/goals/types";
+import { isTargetedRecurringGoal } from "@/lib/planner/requirements";
 import { createClient } from "@/lib/supabase/client";
 
 interface InsightsData {
   userId: string;
   goals: Goal[];
-  completions: Completion[];
+  completions: CompletionDateFact[];
   participants: GoalParticipant[];
+  progress: ProgressContextResponse | null;
 }
 
 const emptyInsights: InsightsData = {
@@ -59,12 +69,13 @@ const emptyInsights: InsightsData = {
   goals: [],
   completions: [],
   participants: [],
+  progress: null,
 };
 
 type HeatmapViewMode = "month" | "year";
 
-function groupCompletionsByGoal(completions: Completion[]) {
-  const map = new Map<string, Completion[]>();
+function groupCompletionsByGoal(completions: CompletionDateFact[]) {
+  const map = new Map<string, CompletionDateFact[]>();
   completions.forEach((completion) => {
     const existing = map.get(completion.goal_id) ?? [];
     existing.push(completion);
@@ -73,7 +84,7 @@ function groupCompletionsByGoal(completions: Completion[]) {
   return map;
 }
 
-function goalCompletionCountsByDate(completions: Completion[]) {
+function goalCompletionCountsByDate(completions: CompletionDateFact[]) {
   return completions.reduce<Record<string, number>>((accumulator, completion) => {
     accumulator[completion.completed_on] = (accumulator[completion.completed_on] ?? 0) + 1;
     return accumulator;
@@ -176,7 +187,7 @@ function MilestoneSteps({ targetCount, completionDates, milestoneNames = [] }: M
   );
 }
 
-function getSortedCompletionDates(completions: Completion[]): string[] {
+function getSortedCompletionDates(completions: CompletionDateFact[]): string[] {
   return Array.from(new Set(completions.map((completion) => completion.completed_on))).sort((a, b) =>
     a.localeCompare(b)
   );
@@ -208,9 +219,12 @@ export function InsightsTab() {
     null
   );
   const monthSwipeStartRef = useRef<{ x: number; y: number } | null>(null);
+  const loadRequestIdRef = useRef(0);
 
   const loadData = useCallback(
     async ({ showLoading = true }: { showLoading?: boolean } = {}) => {
+      const requestId = loadRequestIdRef.current + 1;
+      loadRequestIdRef.current = requestId;
       if (showLoading) {
         setLoading(true);
       }
@@ -227,29 +241,49 @@ export function InsightsTab() {
         return;
       }
 
-      const [goalsResponse, completionsResponse, participantsResponse] = await Promise.all([
+      const yearStart = format(startOfYear(monthCursor), "yyyy-MM-dd");
+      const yearEnd = format(endOfYear(monthCursor), "yyyy-MM-dd");
+      const [goalsResponse, participantsResponse, progress] = await Promise.all([
         supabase.from("goals").select("*").eq("is_deleted", false).order("title"),
-        supabase.from("completions").select("*").eq("user_id", user.id),
         supabase.from("goal_participants").select("*").eq("user_id", user.id),
+        fetchProgressContext({
+          asOfDate: format(new Date(), "yyyy-MM-dd"),
+          factsFrom: yearStart,
+          factsTo: yearEnd,
+        }),
       ]);
+
+      if (requestId !== loadRequestIdRef.current) {
+        return;
+      }
 
       setState({
         userId: user.id,
         goals: (goalsResponse.data ?? []) as Goal[],
-        completions: (completionsResponse.data ?? []) as Completion[],
+        completions: progress.facts,
         participants: (participantsResponse.data ?? []) as GoalParticipant[],
+        progress,
       });
 
       if (showLoading) {
         setLoading(false);
       }
     },
-    [supabase]
+    [monthCursor, supabase]
   );
 
   useEffect(() => {
     const run = async () => {
-      await loadData();
+      try {
+        await loadData();
+      } catch (error) {
+        setLoading(false);
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : "Insights progress could not be loaded."
+        );
+      }
     };
 
     void run();
@@ -286,6 +320,10 @@ export function InsightsTab() {
   const completionsByGoal = useMemo(
     () => groupCompletionsByGoal(personalCompletions),
     [personalCompletions]
+  );
+  const progressByGoal = useMemo(
+    () => progressSummaryMap(state.progress),
+    [state.progress]
   );
 
   const aggregateCountsByDate = useMemo(
@@ -348,29 +386,40 @@ export function InsightsTab() {
     ];
   }, [currentPeriodGoals, goalSort, historicalGoals, showHistoricalGoals]);
 
-  const overallCompletion = useMemo(
-    () => getOverallCompletionPercentage(personalGoals, completionsByGoal),
-    [completionsByGoal, personalGoals]
-  );
+  const overallCompletion = useMemo(() => {
+    if (personalGoals.length === 0) {
+      return 0;
+    }
+    return (
+      personalGoals.reduce(
+        (total, goal) => total + (progressByGoal.get(goal.id)?.percent ?? 0),
+        0
+      ) / personalGoals.length
+    );
+  }, [personalGoals, progressByGoal]);
 
   const toggleMilestoneDateSelection = useCallback(
     async (
       goal: Goal,
       completionDate: string,
       selectedDates: string[],
-      milestoneLimit: number
+      milestoneLimit: number,
+      creditedCount: number
     ) => {
       if (pendingRetroDate !== null) {
         return;
       }
 
-      if (isAfter(parseISO(completionDate), startOfDay(new Date()))) {
+      const isSelected = selectedDates.includes(completionDate);
+      if (
+        isAfter(parseISO(completionDate), startOfDay(new Date())) &&
+        !isSelected
+      ) {
         toast.error("You can only select today or past dates.");
         return;
       }
 
-      const isSelected = selectedDates.includes(completionDate);
-      if (!isSelected && selectedDates.length >= milestoneLimit) {
+      if (!isSelected && creditedCount >= milestoneLimit) {
         toast.error(`Select up to ${milestoneLimit} milestone dates.`);
         return;
       }
@@ -409,7 +458,10 @@ export function InsightsTab() {
         return;
       }
 
-      if (isAfter(parseISO(completionDate), startOfDay(new Date()))) {
+      if (
+        isAfter(parseISO(completionDate), startOfDay(new Date())) &&
+        !hasCompletionOnDate
+      ) {
         toast.error("You can only select today or past dates.");
         return;
       }
@@ -417,16 +469,39 @@ export function InsightsTab() {
       setPendingRetroDate(completionDate);
       const currentScrollY = window.scrollY;
       try {
-        const { error } = await supabase.rpc(
-          hasCompletionOnDate ? "unmark_goal_complete" : "mark_goal_complete",
-          {
-            p_goal_id: goal.id,
-            p_date: completionDate,
+        let errorMessage: string | null = null;
+        if (isTargetedRecurringGoal(goal)) {
+          const response = await fetch("/api/completions/exact-date", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              goalId: goal.id,
+              date: completionDate,
+              desiredFactState: hasCompletionOnDate ? "absent" : "present",
+              timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+            }),
+          });
+          const payload = (await response.json()) as { message?: string };
+          if (!response.ok) {
+            errorMessage =
+              payload.message ??
+              "The exact-date completion could not be updated.";
           }
-        );
+        } else {
+          const { error } = await supabase.rpc(
+            hasCompletionOnDate
+              ? "unmark_goal_complete"
+              : "mark_goal_complete",
+            {
+              p_goal_id: goal.id,
+              p_date: completionDate,
+            }
+          );
+          errorMessage = error?.message ?? null;
+        }
 
-        if (error) {
-          toast.error(error.message);
+        if (errorMessage) {
+          toast.error(errorMessage);
           return;
         }
 
@@ -532,16 +607,24 @@ export function InsightsTab() {
 
   const shiftGoalMonthCursor = useCallback(
     (goalId: string, direction: -1 | 1) => {
-      setGoalMonthOverrides((previous) => {
-        const baselineMonth = previous[goalId] ?? monthCursor;
-        const nextMonth = direction > 0 ? addMonths(baselineMonth, 1) : subMonths(baselineMonth, 1);
-        return {
-          ...previous,
-          [goalId]: nextMonth,
-        };
-      });
+      const baselineMonth = goalMonthOverrides[goalId] ?? monthCursor;
+      const nextMonth =
+        direction > 0
+          ? addMonths(baselineMonth, 1)
+          : subMonths(baselineMonth, 1);
+
+      if (nextMonth.getFullYear() !== monthCursor.getFullYear()) {
+        setGoalMonthOverrides({});
+        setMonthCursor(nextMonth);
+        return;
+      }
+
+      setGoalMonthOverrides((previous) => ({
+        ...previous,
+        [goalId]: nextMonth,
+      }));
     },
-    [monthCursor]
+    [goalMonthOverrides, monthCursor]
   );
 
   if (loading) {
@@ -567,8 +650,8 @@ export function InsightsTab() {
         <CardContent className="space-y-4">
           <div className="overflow-x-auto rounded-xl border bg-card p-4">
             <CalendarHeatmap
-              startDate={startOfYear(new Date())}
-              endDate={endOfYear(new Date())}
+              startDate={selectedYearStart}
+              endDate={selectedYearEnd}
               values={aggregateHeatmapData}
               showWeekdayLabels
               weekdayLabels={aggregateWeekdayLabels}
@@ -719,12 +802,17 @@ export function InsightsTab() {
             visiblePerGoalHeatmaps.map((goal) => {
               const goalMonthCursor = goalMonthOverrides[goal.id] ?? monthCursor;
               const completions = completionsByGoal.get(goal.id) ?? [];
-              const completionCount = completions.length;
+              const progress = progressByGoal.get(goal.id);
+              const completionCount =
+                progress?.admissibleCompletionCount ?? 0;
               const hasTargetCount = typeof goal.target_count === "number" && goal.target_count > 0;
               const completionCountLabel = getCompletionCountLabel(goal, completionCount);
               const countsByDate = goalCompletionCountsByDate(completions);
-              const percent = hasTargetCount ? getGoalCompletionPercentage(goal, completions) : 0;
-              const streaks = getRecurringStreaks(goal, completions);
+              const percent = progress?.percent ?? 0;
+              const streaks = {
+                current: progress?.currentStreak ?? 0,
+                longest: progress?.longestStreak ?? 0,
+              };
               const daysRemaining =
                 goal.end_date !== null
                   ? Math.max(
@@ -733,12 +821,15 @@ export function InsightsTab() {
                     )
                   : null;
               const isRecurring = goal.frequency_type === "recurring";
+              const targetedRecurring = isTargetedRecurringGoal(goal);
               const isMilestone = goal.frequency_type === "fixed_milestones";
               const canEditHistory = isRecurring || isMilestone;
               const editingHistory = editingGoalId === goal.id;
               const milestoneTargetCount = Math.max(goal.target_count ?? completionCount, 1);
               const milestoneCompletionDates = getSortedCompletionDates(completions);
-              const mappedMilestoneDates = milestoneCompletionDates.slice(0, milestoneTargetCount);
+              const mappedMilestoneDates =
+                progress?.milestoneDates ??
+                milestoneCompletionDates.slice(0, milestoneTargetCount);
               const goalHeatmapData = eachDayOfInterval({
                 start: selectedYearStart,
                 end: selectedYearEnd,
@@ -860,7 +951,8 @@ export function InsightsTab() {
                                 goal,
                                 date,
                                 milestoneCompletionDates,
-                                milestoneTargetCount
+                                milestoneTargetCount,
+                                progress?.creditedUnitCount ?? 0
                               )
                             }
                           />
@@ -890,7 +982,8 @@ export function InsightsTab() {
                                   goal,
                                   selectedDate,
                                   milestoneCompletionDates,
-                                  milestoneTargetCount
+                                  milestoneTargetCount,
+                                  progress?.creditedUnitCount ?? 0
                                 );
                               }}
                             />
@@ -993,9 +1086,10 @@ export function InsightsTab() {
                       {hasTargetCount ? <Progress value={percent} /> : null}
                     </div>
 
-                    {goal.frequency_type === "recurring" || daysRemaining !== null ? (
+                    {(goal.frequency_type === "recurring" && !targetedRecurring) ||
+                    daysRemaining !== null ? (
                       <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                        {goal.frequency_type === "recurring" ? (
+                        {goal.frequency_type === "recurring" && !targetedRecurring ? (
                           <>
                             <span className="inline-flex items-center gap-1">
                               <Flame className="size-3" />
@@ -1018,7 +1112,9 @@ export function InsightsTab() {
       <div className="rounded-xl border bg-muted/30 p-3 text-xs text-muted-foreground">
         <p className="inline-flex items-center gap-1">
           <CalendarRange className="size-3" />
-          Recurring progress uses completed periods over expected periods unless a target count is set.
+          Cadence goals use completed anchored periods. Goals with a target
+          count use exact-date completions toward the deadline total and do not
+          use streaks.
         </p>
       </div>
     </div>

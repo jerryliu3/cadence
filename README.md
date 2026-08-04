@@ -118,6 +118,12 @@ the app on `http://localhost:3100` so it does not reuse another development serv
 Regenerate checked-in SQL contract mirrors with `pnpm contracts:generate-sql` after intentionally
 changing a canonical fixture under `test/fixtures/planner-contracts/`.
 
+Target-total recurring goals use the authenticated exact-date completion
+bridge. It is enabled automatically in development/test and must be enabled
+explicitly in production with
+`CALENDAR_TARGETED_EXACT_COMPLETION_ENABLED=true`; Calendar planner read,
+generation, and plan-write capabilities remain disabled independently.
+
 ## Pointing to Hosted Supabase
 
 1. Create a hosted Supabase project.

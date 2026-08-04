@@ -328,6 +328,21 @@ values
     current_date - 20,
     false,
     null
+  ),
+  (
+    '10000000-0000-4000-8000-000000000011',
+    '11111111-1111-4111-8111-111111111111',
+    'Practice presentations 12 times',
+    'Target-total recurring goal for exact-date completion semantics.',
+    'career',
+    '#0ea5e9',
+    'recurring',
+    'weekly',
+    12,
+    current_date - 20,
+    current_date + 20,
+    false,
+    null
   )
 on conflict (id) do update
 set

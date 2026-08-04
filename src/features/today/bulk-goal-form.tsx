@@ -529,21 +529,22 @@ export function BulkGoalForm() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ prompt: trimmed }),
+        body: JSON.stringify({
+          prompt: trimmed,
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        }),
       });
 
       const payload = (await response.json()) as {
         goals?: LlmGoalDraftPayload[];
-        error?: string;
-        details?: string;
+        code?: string;
+        message?: string;
+        correlationId?: string;
       };
 
       if (!response.ok) {
-        const detailText = payload.details ? ` ${payload.details}` : "";
         throw new Error(
-          payload.error
-            ? `${payload.error}${detailText}`
-            : "Could not parse natural language input."
+          payload.message ?? "Could not parse natural language input."
         );
       }
 
@@ -779,6 +780,7 @@ export function BulkGoalForm() {
                 id="bulk-natural-language"
                 value={naturalLanguageInput}
                 onChange={(event) => setNaturalLanguageInput(event.target.value)}
+                maxLength={8000}
                 placeholder={
                   "Example: I want to run 4 times per week, read 20 books this year, and call my parents every Sunday."
                 }
@@ -1148,7 +1150,9 @@ export function BulkGoalForm() {
                         />
                         {draft.frequency_type === "recurring" ? (
                           <p className="text-xs text-muted-foreground">
-                            Optional: set a total completion target to reach by the end date.
+                            Optional: set a total due by the end date. Each date
+                            is checked independently; target-total goals do not
+                            use current-period or streak semantics.
                           </p>
                         ) : null}
                       </div>

@@ -1,73 +1,35 @@
-import {
-  addDays,
-  addMonths,
-  addWeeks,
-  differenceInCalendarDays,
-  isAfter,
-  isBefore,
-  parseISO,
-  startOfDay,
-} from "date-fns";
 import { toLocalDateString } from "@/lib/dates/day";
+import {
+  getAdmissibleCompletions,
+  getCreditedUnitCount,
+  getExpectedCadencePeriodCount,
+} from "@/lib/goals/admissible";
+import {
+  getGoalLifecycleOutcome,
+  type GoalLifecycle,
+  type GoalOutcome,
+} from "@/lib/goals/lifecycle";
+import {
+  compareDateStrings,
+  getAnchoredPeriod,
+} from "@/lib/goals/periods";
 import type { Completion, Goal } from "@/lib/goals/types";
-import { getGoalPeriodStartDate, getPeriodKeyForGoal } from "@/lib/goals/schedule";
+import {
+  getGoalRequirement,
+  isTargetedRecurringGoal,
+} from "@/lib/planner/requirements";
 
-function clampDateByGoalWindow(goal: Goal, referenceDate: Date): Date {
-  const start = startOfDay(parseISO(goal.start_date));
-  const capByEndDate =
-    goal.end_date !== null ? startOfDay(parseISO(goal.end_date)) : referenceDate;
-  const bounded = isAfter(referenceDate, capByEndDate) ? capByEndDate : referenceDate;
-  return isBefore(bounded, start) ? start : bounded;
-}
-
-function getRecurringExpectedPeriods(goal: Goal, referenceDate = new Date()): number {
-  const start = startOfDay(parseISO(goal.start_date));
-  const end = clampDateByGoalWindow(goal, startOfDay(referenceDate));
-
-  if (goal.recurrence_interval === "weekly") {
-    return Math.floor(differenceInCalendarDays(end, start) / 7) + 1;
-  }
-
-  if (goal.recurrence_interval === "monthly") {
-    let monthOffset =
-      (end.getFullYear() - start.getFullYear()) * 12 +
-      (end.getMonth() - start.getMonth());
-    let candidate = addMonths(start, monthOffset);
-
-    if (isAfter(candidate, end)) {
-      monthOffset -= 1;
-      candidate = addMonths(start, monthOffset);
-    }
-
-    if (isAfter(candidate, end)) {
-      return 1;
-    }
-
-    return monthOffset + 1;
-  }
-
-  return differenceInCalendarDays(end, start) + 1;
-}
-
-function getDistinctCompletedPeriods(
-  goal: Goal,
-  completions: Completion[],
-  referenceDate = new Date()
-): number {
-  const end = clampDateByGoalWindow(goal, startOfDay(referenceDate));
-  const start = startOfDay(parseISO(goal.start_date));
-  const keys = new Set<string>();
-
-  completions.forEach((entry) => {
-    const completionDate = startOfDay(parseISO(entry.completed_on));
-    if (isBefore(completionDate, start) || isAfter(completionDate, end)) {
-      return;
-    }
-
-    keys.add(getPeriodKeyForGoal(goal, entry.completed_on));
-  });
-
-  return keys.size;
+export interface GoalProgressSnapshot {
+  goalId: string;
+  admissibleCompletionCount: number;
+  creditedUnitCount: number;
+  expectedUnitCount: number;
+  percent: number;
+  lifecycle: GoalLifecycle;
+  outcome: GoalOutcome;
+  currentStreak: number;
+  longestStreak: number;
+  milestoneDates: string[];
 }
 
 export function getGoalCompletionPercentage(
@@ -75,19 +37,18 @@ export function getGoalCompletionPercentage(
   completions: Completion[],
   referenceDate = new Date()
 ): number {
-  if (goal.target_count !== null) {
-    return Math.min(100, (completions.length / goal.target_count) * 100);
+  const context = { asOfDate: toLocalDateString(referenceDate) };
+  const requirement = getGoalRequirement(goal);
+  const completedUnits = getCreditedUnitCount(goal, completions, context);
+  const expected =
+    requirement.kind === "cadence"
+      ? getExpectedCadencePeriodCount(goal, context)
+      : requirement.targetCount;
+
+  if (expected === 0) {
+    return 0;
   }
-
-  if (goal.frequency_type === "fixed_milestones") {
-    const target = 1;
-    return Math.min(100, (completions.length / target) * 100);
-  }
-
-  const expected = Math.max(1, getRecurringExpectedPeriods(goal, referenceDate));
-  const completedPeriods = getDistinctCompletedPeriods(goal, completions, referenceDate);
-
-  return Math.min(100, (completedPeriods / expected) * 100);
+  return Math.min(100, (completedUnits / expected) * 100);
 }
 
 export function getOverallCompletionPercentage(
@@ -107,72 +68,80 @@ export function getOverallCompletionPercentage(
   return total / goals.length;
 }
 
-function getPeriodStartDate(goal: Goal, completionDate: string): Date {
-  return getGoalPeriodStartDate(goal, parseISO(completionDate));
-}
-
-function getNextPeriodStart(goal: Goal, periodStart: Date): Date {
-  if (goal.recurrence_interval === "weekly") {
-    return addWeeks(periodStart, 1);
-  }
-
-  if (goal.recurrence_interval === "monthly") {
-    return addMonths(periodStart, 1);
-  }
-
-  return addDays(periodStart, 1);
-}
-
 export function getRecurringStreaks(
   goal: Goal,
   completions: Completion[],
   referenceDate = new Date()
 ): { current: number; longest: number } {
-  if (goal.frequency_type !== "recurring") {
+  return getRecurringStreaksAtDate(
+    goal,
+    completions,
+    toLocalDateString(referenceDate)
+  );
+}
+
+export function getRecurringStreaksAtDate(
+  goal: Goal,
+  completions: Completion[],
+  asOfDate: string
+): { current: number; longest: number } {
+  if (
+    goal.frequency_type !== "recurring" ||
+    isTargetedRecurringGoal(goal)
+  ) {
     return { current: 0, longest: 0 };
   }
 
-  const uniqueStarts = Array.from(
-    new Set(completions.map((entry) => getPeriodKeyForGoal(goal, entry.completed_on)))
-  )
-    .map((key) => parseISO(key))
-    .sort((a, b) => a.getTime() - b.getTime());
+  const admissible = getAdmissibleCompletions(goal, completions, { asOfDate });
+  const interval = goal.recurrence_interval ?? "daily";
+  const uniqueIndices = Array.from(
+    new Set(
+      admissible.map(
+        (entry) =>
+          getAnchoredPeriod(goal.start_date, interval, entry.completed_on)
+            .index
+      )
+    )
+  ).sort((left, right) => left - right);
 
-  if (uniqueStarts.length === 0) {
+  if (uniqueIndices.length === 0) {
     return { current: 0, longest: 0 };
   }
 
   let longest = 1;
   let running = 1;
 
-  for (let index = 1; index < uniqueStarts.length; index += 1) {
-    const previous = uniqueStarts[index - 1];
-    const expected = getNextPeriodStart(goal, previous);
-    const current = uniqueStarts[index];
-    const contiguous = current.getTime() === expected.getTime();
-
+  for (let index = 1; index < uniqueIndices.length; index += 1) {
+    const contiguous = uniqueIndices[index] === uniqueIndices[index - 1] + 1;
     running = contiguous ? running + 1 : 1;
     longest = Math.max(longest, running);
   }
 
-  const currentPeriod = getPeriodStartDate(
-    goal,
-    toLocalDateString(referenceDate)
-  );
-  const lastCompleted = uniqueStarts[uniqueStarts.length - 1];
+  if (compareDateStrings(asOfDate, goal.start_date) < 0) {
+    return { current: 0, longest };
+  }
+
+  const boundedReference =
+    goal.end_date && compareDateStrings(asOfDate, goal.end_date) > 0
+      ? goal.end_date
+      : asOfDate;
+  const currentPeriodIndex = getAnchoredPeriod(
+    goal.start_date,
+    interval,
+    boundedReference
+  ).index;
+  const lastCompleted = uniqueIndices[uniqueIndices.length - 1];
   let current = 0;
 
-  if (lastCompleted.getTime() === currentPeriod.getTime()) {
+  if (lastCompleted === currentPeriodIndex) {
     current = 1;
 
     for (
-      let index = uniqueStarts.length - 2;
+      let index = uniqueIndices.length - 2;
       index >= 0;
       index -= 1
     ) {
-      const expected = getNextPeriodStart(goal, uniqueStarts[index]);
-      const next = uniqueStarts[index + 1];
-      if (expected.getTime() !== next.getTime()) {
+      if (uniqueIndices[index] + 1 !== uniqueIndices[index + 1]) {
         break;
       }
       current += 1;
@@ -180,4 +149,46 @@ export function getRecurringStreaks(
   }
 
   return { current, longest };
+}
+
+export function getGoalProgressSnapshot(
+  goal: Goal,
+  completions: Completion[],
+  asOfDate: string
+): GoalProgressSnapshot {
+  const context = { asOfDate };
+  const admissible = getAdmissibleCompletions(goal, completions, context);
+  const requirement = getGoalRequirement(goal);
+  const creditedUnitCount = getCreditedUnitCount(goal, completions, context);
+  const expectedUnitCount =
+    requirement.kind === "cadence"
+      ? getExpectedCadencePeriodCount(goal, context)
+      : requirement.targetCount;
+  const lifecycleOutcome = getGoalLifecycleOutcome(
+    goal,
+    completions,
+    context
+  );
+  const streaks = getRecurringStreaksAtDate(goal, completions, asOfDate);
+
+  return {
+    goalId: goal.id,
+    admissibleCompletionCount: admissible.length,
+    creditedUnitCount,
+    expectedUnitCount,
+    percent:
+      expectedUnitCount === 0
+        ? 0
+        : Math.min(100, (creditedUnitCount / expectedUnitCount) * 100),
+    lifecycle: lifecycleOutcome.lifecycle,
+    outcome: lifecycleOutcome.outcome,
+    currentStreak: streaks.current,
+    longestStreak: streaks.longest,
+    milestoneDates:
+      requirement.kind === "milestone_sequence"
+        ? admissible
+            .slice(0, requirement.targetCount)
+            .map((completion) => completion.completed_on)
+        : [],
+  };
 }

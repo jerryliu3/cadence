@@ -33,6 +33,11 @@ export interface Completion {
   created_at: string;
 }
 
+export type CompletionDateFact = Pick<
+  Completion,
+  "goal_id" | "completed_on" | "source"
+>;
+
 export interface GoalLink {
   id: string;
   owner_id: string;

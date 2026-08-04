@@ -1,17 +1,30 @@
+import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { getDateInTimezone, isValidIanaTimezone } from "@/lib/dates/timezone";
+import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 
 const MAX_GOALS_PER_REQUEST = 50;
+const MAX_REQUEST_BYTES = 32 * 1024;
+const MAX_PROVIDER_RESPONSE_BYTES = 256 * 1024;
+const PROVIDER_TIMEOUT_MS = 12_000;
 const defaultGeminiModel = "gemini-3.5-flash";
 
 const requestSchema = z.object({
   prompt: z.string().trim().min(1).max(8000),
+  timezone: z
+    .string()
+    .trim()
+    .min(1)
+    .max(100)
+    .refine(isValidIanaTimezone, "Provide a valid IANA timezone."),
 });
 
 const generatedGoalSchema = z.object({
   title: z.string().trim().min(1).max(200),
+  description: z.string().trim().max(2_000).optional(),
   category: z.string().trim().min(1).max(80).optional(),
   frequency_type: z.enum(["recurring", "fixed_milestones"]).optional(),
   recurrence_interval: z.enum(["daily", "weekly", "monthly"]).optional(),
@@ -50,16 +63,10 @@ function toIsoDate(value: string | undefined): string | undefined {
     return undefined;
   }
 
-  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+  if (z.iso.date().safeParse(trimmed).success) {
     return trimmed;
   }
-
-  const parsed = new Date(trimmed);
-  if (Number.isNaN(parsed.getTime())) {
-    return undefined;
-  }
-
-  return parsed.toISOString().slice(0, 10);
+  return undefined;
 }
 
 function extractFirstTextCandidate(responseJson: unknown): string {
@@ -104,15 +111,14 @@ function parseJsonText(rawText: string): unknown {
   throw new Error("Model response was not valid JSON.");
 }
 
-function buildPrompt(userPrompt: string): string {
-  const today = new Date().toISOString().slice(0, 10);
-
+function buildPrompt(userPrompt: string, today: string): string {
   return [
     "Convert the following user text into goal drafts.",
     "Return only JSON with no markdown fences and no extra prose.",
     'The JSON shape must be: {"goals":[{...}]}',
     "Each goal object can include these keys:",
     '- "title" (required string)',
+    '- "description" (optional string)',
     '- "category" (string, prefer Personal/Relationships/Health; otherwise custom)',
     '- "frequency_type" ("recurring" | "fixed_milestones")',
     '- "recurrence_interval" ("daily" | "weekly" | "monthly", only for recurring)',
@@ -133,16 +139,20 @@ function buildPrompt(userPrompt: string): string {
   ].join("\n");
 }
 
-function normalizeGeneratedPayload(payload: z.infer<typeof generatedPayloadSchema>) {
+function normalizeGeneratedPayload(
+  payload: z.infer<typeof generatedPayloadSchema>,
+  today: string
+) {
   return {
     goals: payload.goals.map((goal) => {
       const frequency = goal.frequency_type ?? "recurring";
       const recurrence = frequency === "recurring" ? goal.recurrence_interval ?? "daily" : undefined;
-      const startDate = toIsoDate(goal.start_date) ?? new Date().toISOString().slice(0, 10);
+      const startDate = toIsoDate(goal.start_date) ?? today;
       const endDate = toIsoDate(goal.end_date ?? undefined) ?? null;
 
       return {
         title: goal.title.trim(),
+        description: goal.description?.trim() ?? "",
         category: goal.category?.trim() ?? "Personal",
         frequency_type: frequency,
         recurrence_interval: recurrence,
@@ -154,99 +164,222 @@ function normalizeGeneratedPayload(payload: z.infer<typeof generatedPayloadSchem
   };
 }
 
+function errorResponse(
+  status: number,
+  code: string,
+  message: string,
+  correlationId: string
+) {
+  return NextResponse.json(
+    { code, message, correlationId },
+    { status, headers: { "Cache-Control": "no-store" } }
+  );
+}
+
 export async function POST(request: Request) {
+  const correlationId = randomUUID();
+  const supabase = await createClient();
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
+
+  if (userError || !user) {
+    return errorResponse(
+      401,
+      "authentication_required",
+      "Sign in to generate goal drafts.",
+      correlationId
+    );
+  }
+
+  const contentLength = Number(request.headers.get("content-length") ?? "0");
+  if (Number.isFinite(contentLength) && contentLength > MAX_REQUEST_BYTES) {
+    return errorResponse(
+      413,
+      "request_too_large",
+      "The natural-language request is too large.",
+      correlationId
+    );
+  }
+
+  const rawBody = await request.text();
+  if (Buffer.byteLength(rawBody, "utf8") > MAX_REQUEST_BYTES) {
+    return errorResponse(
+      413,
+      "request_too_large",
+      "The natural-language request is too large.",
+      correlationId
+    );
+  }
+
   let requestBody: unknown;
   try {
-    requestBody = await request.json();
+    requestBody = JSON.parse(rawBody);
   } catch {
-    return NextResponse.json({ error: "Request body must be valid JSON." }, { status: 400 });
+    return errorResponse(
+      400,
+      "invalid_json",
+      "Request body must be valid JSON.",
+      correlationId
+    );
   }
 
   const parsedRequest = requestSchema.safeParse(requestBody);
   if (!parsedRequest.success) {
-    return NextResponse.json(
-      { error: "Provide a non-empty natural language prompt." },
-      { status: 400 }
+    return errorResponse(
+      400,
+      "validation_failed",
+      "Provide a non-empty prompt and valid IANA timezone.",
+      correlationId
     );
   }
 
   const apiKey = process.env.GEMINI_API_KEY?.trim();
   if (!apiKey) {
-    return NextResponse.json(
-      {
-        error:
-          "Missing GEMINI_API_KEY in the server environment. Add it to .env.local and restart the dev server.",
-      },
-      { status: 500 }
+    return errorResponse(
+      503,
+      "ai_unavailable",
+      "Goal draft generation is temporarily unavailable.",
+      correlationId
     );
   }
 
-  const configuredModel = process.env.GEMINI_MODEL?.trim() || defaultGeminiModel;
+  const configuredModel =
+    process.env.GEMINI_MODEL?.trim() || defaultGeminiModel;
   const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${configuredModel}:generateContent`;
+  const today = getDateInTimezone(
+    new Date(),
+    parsedRequest.data.timezone
+  );
 
-  const geminiResponse = await fetch(endpoint, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-goog-api-key": apiKey,
-    },
-    body: JSON.stringify({
-      contents: [
-        {
-          parts: [{ text: buildPrompt(parsedRequest.data.prompt) }],
-        },
-      ],
-      generationConfig: {
-        temperature: 0.2,
-        responseMimeType: "application/json",
+  let geminiResponse: Response;
+  try {
+    geminiResponse = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-goog-api-key": apiKey,
       },
-    }),
-    cache: "no-store",
-  });
+      body: JSON.stringify({
+        contents: [
+          {
+            parts: [
+              { text: buildPrompt(parsedRequest.data.prompt, today) },
+            ],
+          },
+        ],
+        generationConfig: {
+          temperature: 0.2,
+          responseMimeType: "application/json",
+          maxOutputTokens: 8_192,
+        },
+      }),
+      cache: "no-store",
+      signal: AbortSignal.any([
+        request.signal,
+        AbortSignal.timeout(PROVIDER_TIMEOUT_MS),
+      ]),
+    });
+  } catch (error) {
+    const aborted =
+      request.signal.aborted ||
+      (error instanceof Error &&
+        (error.name === "AbortError" || error.name === "TimeoutError"));
+    return errorResponse(
+      aborted ? 504 : 502,
+      aborted ? "ai_timeout" : "ai_provider_error",
+      aborted
+        ? "Goal draft generation timed out. Try again."
+        : "Goal draft generation failed. Try again.",
+      correlationId
+    );
+  }
 
   if (!geminiResponse.ok) {
-    const errorBody = await geminiResponse.text();
-    return NextResponse.json(
-      {
-        error: `Gemini request failed with status ${geminiResponse.status}.`,
-        details: errorBody.slice(0, 500),
-      },
-      { status: 502 }
+    return errorResponse(
+      502,
+      "ai_provider_error",
+      "Goal draft generation failed. Try again.",
+      correlationId
     );
   }
 
-  const geminiJson = (await geminiResponse.json()) as unknown;
+  const providerContentLength = Number(
+    geminiResponse.headers.get("content-length") ?? "0"
+  );
+  if (
+    Number.isFinite(providerContentLength) &&
+    providerContentLength > MAX_PROVIDER_RESPONSE_BYTES
+  ) {
+    return errorResponse(
+      502,
+      "ai_response_too_large",
+      "Goal draft generation returned too much data.",
+      correlationId
+    );
+  }
+
+  let geminiJson: unknown;
+  try {
+    const responseText = await geminiResponse.text();
+    if (
+      Buffer.byteLength(responseText, "utf8") > MAX_PROVIDER_RESPONSE_BYTES
+    ) {
+      return errorResponse(
+        502,
+        "ai_response_too_large",
+        "Goal draft generation returned too much data.",
+        correlationId
+      );
+    }
+    geminiJson = JSON.parse(responseText) as unknown;
+  } catch {
+    return errorResponse(
+      502,
+      "ai_invalid_response",
+      "Goal draft generation returned an invalid response.",
+      correlationId
+    );
+  }
+
   const candidateText = extractFirstTextCandidate(geminiJson);
   if (!candidateText) {
-    return NextResponse.json(
-      { error: "Gemini returned an empty response. Try a more specific prompt." },
-      { status: 502 }
+    return errorResponse(
+      502,
+      "ai_empty_response",
+      "No goal drafts were generated. Try a more specific prompt.",
+      correlationId
     );
   }
 
   let parsedPayload: unknown;
   try {
     parsedPayload = parseJsonText(candidateText);
-  } catch (error) {
-    return NextResponse.json(
-      {
-        error: "Gemini output could not be parsed as JSON.",
-        details: error instanceof Error ? error.message : "Unknown JSON parsing error.",
-      },
-      { status: 502 }
+  } catch {
+    return errorResponse(
+      502,
+      "ai_invalid_output",
+      "Generated goal drafts could not be validated.",
+      correlationId
     );
   }
 
   const validatedPayload = generatedPayloadSchema.safeParse(parsedPayload);
   if (!validatedPayload.success) {
-    return NextResponse.json(
-      {
-        error: "Gemini output did not match the expected goal format.",
-        details: validatedPayload.error.issues.map((issue) => issue.message).join(" "),
-      },
-      { status: 502 }
+    return errorResponse(
+      502,
+      "ai_invalid_output",
+      "Generated goal drafts could not be validated.",
+      correlationId
     );
   }
 
-  return NextResponse.json(normalizeGeneratedPayload(validatedPayload.data));
+  return NextResponse.json(
+    {
+      ...normalizeGeneratedPayload(validatedPayload.data, today),
+      correlationId,
+    },
+    { headers: { "Cache-Control": "private, no-store" } }
+  );
 }

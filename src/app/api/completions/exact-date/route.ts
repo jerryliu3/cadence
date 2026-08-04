@@ -1,0 +1,165 @@
+import { randomUUID } from "node:crypto";
+import { NextResponse } from "next/server";
+import { z } from "zod";
+import { isValidIanaTimezone } from "@/lib/dates/timezone";
+import { getPlannerCapabilities } from "@/lib/planner/capabilities";
+import { createClient } from "@/lib/supabase/server";
+
+export const runtime = "nodejs";
+
+const MAX_REQUEST_BYTES = 16 * 1024;
+const requestSchema = z.object({
+  goalId: z.uuid(),
+  date: z.iso.date(),
+  desiredFactState: z.enum(["present", "absent"]),
+  timezone: z
+    .string()
+    .trim()
+    .min(1)
+    .max(100)
+    .refine(isValidIanaTimezone, "Provide a valid IANA timezone."),
+});
+
+function errorResponse(
+  status: number,
+  code: string,
+  message: string,
+  correlationId: string
+) {
+  return NextResponse.json(
+    { code, message, correlationId },
+    { status, headers: { "Cache-Control": "no-store" } }
+  );
+}
+
+export async function POST(request: Request) {
+  const correlationId = randomUUID();
+  const supabase = await createClient();
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
+
+  if (userError || !user) {
+    return errorResponse(
+      401,
+      "authentication_required",
+      "Sign in to update goal completions.",
+      correlationId
+    );
+  }
+
+  let capabilities;
+  try {
+    capabilities = getPlannerCapabilities(user.id);
+  } catch {
+    return errorResponse(
+      503,
+      "capability_configuration_invalid",
+      "Completion updates are temporarily unavailable.",
+      correlationId
+    );
+  }
+  if (!capabilities.targetedExactCompletion) {
+    return errorResponse(
+      503,
+      "targeted_exact_completion_disabled",
+      "Exact-date completion updates are temporarily unavailable.",
+      correlationId
+    );
+  }
+
+  const contentLength = Number(request.headers.get("content-length") ?? "0");
+  if (Number.isFinite(contentLength) && contentLength > MAX_REQUEST_BYTES) {
+    return errorResponse(
+      413,
+      "request_too_large",
+      "The request body is too large.",
+      correlationId
+    );
+  }
+
+  const rawBody = await request.text();
+  if (Buffer.byteLength(rawBody, "utf8") > MAX_REQUEST_BYTES) {
+    return errorResponse(
+      413,
+      "request_too_large",
+      "The request body is too large.",
+      correlationId
+    );
+  }
+
+  let parsedBody: unknown;
+  try {
+    parsedBody = JSON.parse(rawBody);
+  } catch {
+    return errorResponse(
+      400,
+      "invalid_json",
+      "Request body must be valid JSON.",
+      correlationId
+    );
+  }
+
+  const parsedRequest = requestSchema.safeParse(parsedBody);
+  if (!parsedRequest.success) {
+    return errorResponse(
+      400,
+      "validation_failed",
+      "Provide a goal, date, desired state, and valid timezone.",
+      correlationId
+    );
+  }
+
+  const { goalId, date, desiredFactState } = parsedRequest.data;
+  const { data: goal, error: goalError } = await supabase
+    .from("goals")
+    .select("id, frequency_type, target_count")
+    .eq("id", goalId)
+    .maybeSingle();
+
+  if (
+    goalError ||
+    !goal ||
+    goal.frequency_type !== "recurring" ||
+    typeof goal.target_count !== "number" ||
+    goal.target_count <= 0
+  ) {
+    return errorResponse(
+      404,
+      "targeted_goal_not_found",
+      "The targeted recurring goal was not found.",
+      correlationId
+    );
+  }
+
+  const { error: mutationError } = await supabase.rpc(
+    desiredFactState === "present"
+      ? "mark_goal_complete"
+      : "unmark_goal_complete",
+    {
+      p_goal_id: goalId,
+      p_date: date,
+    }
+  );
+
+  if (mutationError) {
+    return errorResponse(
+      409,
+      "completion_update_failed",
+      "The completion could not be updated.",
+      correlationId
+    );
+  }
+
+  return NextResponse.json(
+    {
+      schemaVersion: "1",
+      goalId,
+      date,
+      factState: desiredFactState,
+      correlationId,
+    },
+    { headers: { "Cache-Control": "no-store" } }
+  );
+}

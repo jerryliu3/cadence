@@ -63,6 +63,7 @@ export default defineConfig({
     timeout: 120_000,
     env: {
       NEXT_PUBLIC_APP_URL: baseURL,
+          CALENDAR_TARGETED_EXACT_COMPLETION_ENABLED: "true",
     },
   },
 });

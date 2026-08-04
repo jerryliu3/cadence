@@ -710,7 +710,9 @@ export function GoalForm({ goalId }: GoalFormProps) {
                 />
                 {state.frequency_type === "recurring" ? (
                   <p className="text-xs text-muted-foreground">
-                    Optional: set a total completion target to reach by the end date.
+                    Optional: set a total due by the end date. Each date is
+                    checked independently; target-total goals do not use
+                    current-period or streak semantics.
                   </p>
                 ) : null}
               </div>

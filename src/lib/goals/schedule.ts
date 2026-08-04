@@ -1,80 +1,59 @@
-import {
-  addDays,
-  addMonths,
-  differenceInCalendarDays,
-  format,
-  isAfter,
-  isBefore,
-  parseISO,
-  startOfDay,
-  subDays,
-} from "date-fns";
+import { isAfter, isBefore, parseISO, startOfDay } from "date-fns";
 import { isPastDate, toLocalDateString } from "@/lib/dates/day";
-import type { Completion, Goal } from "@/lib/goals/types";
+import { getAnchoredPeriod } from "@/lib/goals/periods";
+import type { CompletionDateFact, Goal } from "@/lib/goals/types";
+import { isTargetedRecurringGoal } from "@/lib/planner/requirements";
 
-function completionSet(completions: Completion[]) {
+function completionSet(completions: CompletionDateFact[]) {
   return new Set(completions.map((entry) => entry.completed_on));
-}
-
-function parseStartDate(goal: Goal): Date {
-  return startOfDay(parseISO(goal.start_date));
 }
 
 export function getGoalPeriodStartDate(goal: Goal, referenceDate = new Date()): Date {
   const normalizedDate = startOfDay(referenceDate);
-  const goalStart = parseStartDate(goal);
 
-  if (goal.frequency_type !== "recurring" || goal.recurrence_interval === "daily") {
+  if (goal.frequency_type !== "recurring") {
     return normalizedDate;
   }
 
-  if (isBefore(normalizedDate, goalStart)) {
-    return goalStart;
-  }
-
-  if (goal.recurrence_interval === "weekly") {
-    const daysSinceStart = differenceInCalendarDays(normalizedDate, goalStart);
-    const periodCount = Math.floor(daysSinceStart / 7);
-    return addDays(goalStart, periodCount * 7);
-  }
-
-  let monthOffset =
-    (normalizedDate.getFullYear() - goalStart.getFullYear()) * 12 +
-    (normalizedDate.getMonth() - goalStart.getMonth());
-  let periodStart = addMonths(goalStart, monthOffset);
-
-  if (isAfter(periodStart, normalizedDate)) {
-    monthOffset -= 1;
-    periodStart = addMonths(goalStart, monthOffset);
-  }
-
-  return periodStart;
+  const period = getAnchoredPeriod(
+    goal.start_date,
+    goal.recurrence_interval ?? "daily",
+    toLocalDateString(normalizedDate)
+  );
+  return startOfDay(parseISO(period.start));
 }
 
 export function getGoalPeriodEndDate(goal: Goal, referenceDate = new Date()): Date {
   const periodStart = getGoalPeriodStartDate(goal, referenceDate);
 
-  if (goal.frequency_type !== "recurring" || goal.recurrence_interval === "daily") {
+  if (goal.frequency_type !== "recurring") {
     return periodStart;
   }
 
-  if (goal.recurrence_interval === "weekly") {
-    return addDays(periodStart, 6);
-  }
-
-  return subDays(addMonths(periodStart, 1), 1);
+  const period = getAnchoredPeriod(
+    goal.start_date,
+    goal.recurrence_interval ?? "daily",
+    toLocalDateString(referenceDate)
+  );
+  return startOfDay(parseISO(period.end));
 }
 
 export function getPeriodKeyForGoal(goal: Goal, completedOn: string): string {
-  const periodStart = getGoalPeriodStartDate(goal, parseISO(completedOn));
-  return format(periodStart, "yyyy-MM-dd");
+  if (goal.frequency_type !== "recurring") {
+    return completedOn;
+  }
+  return getAnchoredPeriod(
+    goal.start_date,
+    goal.recurrence_interval ?? "daily",
+    completedOn
+  ).periodKey;
 }
 
 export function getCompletionsForCurrentPeriod(
   goal: Goal,
-  completions: Completion[],
+  completions: CompletionDateFact[],
   referenceDate = new Date()
-): Completion[] {
+): CompletionDateFact[] {
   const periodStart = getGoalPeriodStartDate(goal, referenceDate);
   const periodEnd = getGoalPeriodEndDate(goal, referenceDate);
 
@@ -86,7 +65,7 @@ export function getCompletionsForCurrentPeriod(
 
 export function isGoalDoneForCurrentPeriod(
   goal: Goal,
-  completions: Completion[],
+  completions: CompletionDateFact[],
   referenceDate = new Date()
 ): boolean {
   const today = toLocalDateString(referenceDate);
@@ -96,11 +75,15 @@ export function isGoalDoneForCurrentPeriod(
     return completedDates.has(today);
   }
 
+  if (isTargetedRecurringGoal(goal)) {
+    return completedDates.has(today);
+  }
+
   return getCompletionsForCurrentPeriod(goal, completions, referenceDate).length > 0;
 }
 
 export function hasCompletionToday(
-  completions: Completion[],
+  completions: CompletionDateFact[],
   referenceDate = new Date()
 ): boolean {
   const today = toLocalDateString(referenceDate);
@@ -147,11 +130,10 @@ export function getFrequencySummary(goal: Goal, completionCount: number): string
     return `${completionCount}/${goal.target_count ?? 0} milestones completed`;
   }
 
-  const intervalLabel = getRecurringIntervalLabel(goal);
-
-  if (goal.target_count !== null) {
-    return `${intervalLabel} recurring · ${completionCount}/${goal.target_count} completions`;
+  if (isTargetedRecurringGoal(goal)) {
+    return `${completionCount}/${goal.target_count} total completions by deadline`;
   }
 
+  const intervalLabel = getRecurringIntervalLabel(goal);
   return `${intervalLabel} recurring · ${completionCount} completions`;
 }
