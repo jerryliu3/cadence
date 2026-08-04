@@ -1,0 +1,196 @@
+{
+  "schemaVersion": "1",
+  "contract": "completion_dispatch",
+  "cases": [
+    {
+      "id": "active_plan_actionable_item",
+      "description": "A matching actionable plan item uses the item-bound exact-date mutation.",
+      "input": {
+        "requirementKind": "deadline_total",
+        "targetedRecurring": true,
+        "activePlanMembership": true,
+        "matchingItemState": "actionable",
+        "selectedDateState": "today",
+        "existingExactFact": false,
+        "desiredFactState": "present"
+      },
+      "expected": {
+        "route": "item_date",
+        "exactDateOnly": true,
+        "allowed": true,
+        "reason": "allowed"
+      }
+    },
+    {
+      "id": "active_plan_satisfied_elsewhere",
+      "description": "An item reconciled to another date exposes no destructive toggle.",
+      "input": {
+        "requirementKind": "deadline_total",
+        "targetedRecurring": true,
+        "activePlanMembership": true,
+        "matchingItemState": "satisfied_elsewhere",
+        "selectedDateState": "past",
+        "existingExactFact": false,
+        "desiredFactState": "absent"
+      },
+      "expected": {
+        "route": "disabled",
+        "exactDateOnly": true,
+        "allowed": false,
+        "reason": "satisfied_elsewhere"
+      }
+    },
+    {
+      "id": "active_plan_unplanned_date",
+      "description": "Active membership without a matching item uses the plan-goal/date exact mutation.",
+      "input": {
+        "requirementKind": "deadline_total",
+        "targetedRecurring": true,
+        "activePlanMembership": true,
+        "matchingItemState": "none",
+        "selectedDateState": "today",
+        "existingExactFact": false,
+        "desiredFactState": "present"
+      },
+      "expected": {
+        "route": "plan_goal_date",
+        "exactDateOnly": true,
+        "allowed": true,
+        "reason": "allowed"
+      }
+    },
+    {
+      "id": "targeted_total_without_plan",
+      "description": "A targeted recurring goal without active membership still uses exact-date semantics.",
+      "input": {
+        "requirementKind": "deadline_total",
+        "targetedRecurring": true,
+        "activePlanMembership": false,
+        "matchingItemState": "none",
+        "selectedDateState": "past",
+        "existingExactFact": false,
+        "desiredFactState": "present"
+      },
+      "expected": {
+        "route": "canonical_exact_date",
+        "exactDateOnly": true,
+        "allowed": true,
+        "reason": "allowed"
+      }
+    },
+    {
+      "id": "targeted_total_future_creation",
+      "description": "The first-party exact-date bridge rejects creation on a future date.",
+      "input": {
+        "requirementKind": "deadline_total",
+        "targetedRecurring": true,
+        "activePlanMembership": false,
+        "matchingItemState": "none",
+        "selectedDateState": "future",
+        "existingExactFact": false,
+        "desiredFactState": "present"
+      },
+      "expected": {
+        "route": "canonical_exact_date",
+        "exactDateOnly": true,
+        "allowed": false,
+        "reason": "future_creation"
+      }
+    },
+    {
+      "id": "targeted_total_future_repair",
+      "description": "An existing future exact fact remains removable as a repair operation.",
+      "input": {
+        "requirementKind": "deadline_total",
+        "targetedRecurring": true,
+        "activePlanMembership": false,
+        "matchingItemState": "none",
+        "selectedDateState": "future",
+        "existingExactFact": true,
+        "desiredFactState": "absent"
+      },
+      "expected": {
+        "route": "canonical_exact_date",
+        "exactDateOnly": true,
+        "allowed": true,
+        "reason": "allowed"
+      }
+    },
+    {
+      "id": "active_item_future_creation",
+      "description": "A future plan item remains visible but cannot create a completion fact early.",
+      "input": {
+        "requirementKind": "milestone_sequence",
+        "targetedRecurring": false,
+        "activePlanMembership": true,
+        "matchingItemState": "actionable",
+        "selectedDateState": "future",
+        "existingExactFact": false,
+        "desiredFactState": "present"
+      },
+      "expected": {
+        "route": "item_date",
+        "exactDateOnly": true,
+        "allowed": false,
+        "reason": "future_creation"
+      }
+    },
+    {
+      "id": "historical_item_exact_removal",
+      "description": "A historical item removes only its own exact-date fact.",
+      "input": {
+        "requirementKind": "cadence",
+        "targetedRecurring": false,
+        "activePlanMembership": true,
+        "matchingItemState": "historical",
+        "selectedDateState": "past",
+        "existingExactFact": true,
+        "desiredFactState": "absent"
+      },
+      "expected": {
+        "route": "item_date",
+        "exactDateOnly": true,
+        "allowed": true,
+        "reason": "allowed"
+      }
+    },
+    {
+      "id": "ordinary_cadence_without_plan",
+      "description": "A non-target cadence goal outside active plans retains legacy period behavior.",
+      "input": {
+        "requirementKind": "cadence",
+        "targetedRecurring": false,
+        "activePlanMembership": false,
+        "matchingItemState": "none",
+        "selectedDateState": "today",
+        "existingExactFact": false,
+        "desiredFactState": "present"
+      },
+      "expected": {
+        "route": "legacy_period",
+        "exactDateOnly": false,
+        "allowed": true,
+        "reason": "legacy_period_semantics"
+      }
+    },
+    {
+      "id": "fixed_goal_without_plan",
+      "description": "A fixed goal outside active plans retains its existing non-planner mutation.",
+      "input": {
+        "requirementKind": "milestone_sequence",
+        "targetedRecurring": false,
+        "activePlanMembership": false,
+        "matchingItemState": "none",
+        "selectedDateState": "today",
+        "existingExactFact": false,
+        "desiredFactState": "present"
+      },
+      "expected": {
+        "route": "legacy_period",
+        "exactDateOnly": false,
+        "allowed": true,
+        "reason": "legacy_period_semantics"
+      }
+    }
+  ]
+}

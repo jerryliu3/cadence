@@ -1,0 +1,254 @@
+{
+  "schemaVersion": "1",
+  "contract": "eligibility",
+  "eligibilityMode": "end_month_v1",
+  "cases": [
+    {
+      "id": "owned_personal_goal",
+      "description": "An owned personal goal ending in the scope month is eligible.",
+      "scopeMonth": "2026-08",
+      "goal": {
+        "ownedByViewer": true,
+        "isGroup": false,
+        "isDeleted": false,
+        "archivedAt": null,
+        "currentLinkRole": "none",
+        "outgoingShareCount": 0,
+        "startDate": "2026-07-15",
+        "endDate": "2026-08-31"
+      },
+      "expected": {
+        "eligible": true,
+        "reason": "eligible"
+      }
+    },
+    {
+      "id": "upcoming_inside_future_scope",
+      "description": "A goal upcoming today is eligible for the future month in which it starts and ends.",
+      "scopeMonth": "2026-09",
+      "goal": {
+        "ownedByViewer": true,
+        "isGroup": false,
+        "isDeleted": false,
+        "archivedAt": null,
+        "currentLinkRole": "none",
+        "outgoingShareCount": 0,
+        "startDate": "2026-09-10",
+        "endDate": "2026-09-30"
+      },
+      "expected": {
+        "eligible": true,
+        "reason": "eligible"
+      }
+    },
+    {
+      "id": "outgoing_share_does_not_exclude",
+      "description": "Read-only outgoing shares do not disqualify the owner's personal goal.",
+      "scopeMonth": "2026-08",
+      "goal": {
+        "ownedByViewer": true,
+        "isGroup": false,
+        "isDeleted": false,
+        "archivedAt": null,
+        "currentLinkRole": "none",
+        "outgoingShareCount": 3,
+        "startDate": "2026-08-01",
+        "endDate": "2026-08-31"
+      },
+      "expected": {
+        "eligible": true,
+        "reason": "eligible"
+      }
+    },
+    {
+      "id": "incoming_or_other_owner",
+      "description": "A goal not owned by the viewer is ineligible even when otherwise personal.",
+      "scopeMonth": "2026-08",
+      "goal": {
+        "ownedByViewer": false,
+        "isGroup": false,
+        "isDeleted": false,
+        "archivedAt": null,
+        "currentLinkRole": "none",
+        "outgoingShareCount": 0,
+        "startDate": "2026-08-01",
+        "endDate": "2026-08-31"
+      },
+      "expected": {
+        "eligible": false,
+        "reason": "not_owner"
+      }
+    },
+    {
+      "id": "group_goal",
+      "description": "Owned group goals are excluded from V1 planning.",
+      "scopeMonth": "2026-08",
+      "goal": {
+        "ownedByViewer": true,
+        "isGroup": true,
+        "isDeleted": false,
+        "archivedAt": null,
+        "currentLinkRole": "none",
+        "outgoingShareCount": 0,
+        "startDate": "2026-08-01",
+        "endDate": "2026-08-31"
+      },
+      "expected": {
+        "eligible": false,
+        "reason": "group_goal"
+      }
+    },
+    {
+      "id": "soft_deleted_goal",
+      "description": "Soft-deleted goals are excluded.",
+      "scopeMonth": "2026-08",
+      "goal": {
+        "ownedByViewer": true,
+        "isGroup": false,
+        "isDeleted": true,
+        "archivedAt": null,
+        "currentLinkRole": "none",
+        "outgoingShareCount": 0,
+        "startDate": "2026-08-01",
+        "endDate": "2026-08-31"
+      },
+      "expected": {
+        "eligible": false,
+        "reason": "deleted"
+      }
+    },
+    {
+      "id": "archived_goal",
+      "description": "Archived goals are excluded independently from soft deletion.",
+      "scopeMonth": "2026-08",
+      "goal": {
+        "ownedByViewer": true,
+        "isGroup": false,
+        "isDeleted": false,
+        "archivedAt": "2026-08-10T15:00:00Z",
+        "currentLinkRole": "none",
+        "outgoingShareCount": 0,
+        "startDate": "2026-08-01",
+        "endDate": "2026-08-31"
+      },
+      "expected": {
+        "eligible": false,
+        "reason": "archived"
+      }
+    },
+    {
+      "id": "linked_source_goal",
+      "description": "A goal that is the source of a current link is excluded.",
+      "scopeMonth": "2026-08",
+      "goal": {
+        "ownedByViewer": true,
+        "isGroup": false,
+        "isDeleted": false,
+        "archivedAt": null,
+        "currentLinkRole": "source",
+        "outgoingShareCount": 0,
+        "startDate": "2026-08-01",
+        "endDate": "2026-08-31"
+      },
+      "expected": {
+        "eligible": false,
+        "reason": "linked"
+      }
+    },
+    {
+      "id": "linked_target_goal",
+      "description": "A goal that is the target of a current link is excluded.",
+      "scopeMonth": "2026-08",
+      "goal": {
+        "ownedByViewer": true,
+        "isGroup": false,
+        "isDeleted": false,
+        "archivedAt": null,
+        "currentLinkRole": "target",
+        "outgoingShareCount": 0,
+        "startDate": "2026-08-01",
+        "endDate": "2026-08-31"
+      },
+      "expected": {
+        "eligible": false,
+        "reason": "linked"
+      }
+    },
+    {
+      "id": "missing_deadline",
+      "description": "A goal without an end date remains outside Calendar.",
+      "scopeMonth": "2026-08",
+      "goal": {
+        "ownedByViewer": true,
+        "isGroup": false,
+        "isDeleted": false,
+        "archivedAt": null,
+        "currentLinkRole": "none",
+        "outgoingShareCount": 0,
+        "startDate": "2026-08-01",
+        "endDate": null
+      },
+      "expected": {
+        "eligible": false,
+        "reason": "missing_end_date"
+      }
+    },
+    {
+      "id": "invalid_date_range",
+      "description": "A start date after the deadline is rejected.",
+      "scopeMonth": "2026-08",
+      "goal": {
+        "ownedByViewer": true,
+        "isGroup": false,
+        "isDeleted": false,
+        "archivedAt": null,
+        "currentLinkRole": "none",
+        "outgoingShareCount": 0,
+        "startDate": "2026-08-20",
+        "endDate": "2026-08-10"
+      },
+      "expected": {
+        "eligible": false,
+        "reason": "invalid_date_range"
+      }
+    },
+    {
+      "id": "deadline_before_scope",
+      "description": "A goal ending before the selected month belongs to another scope.",
+      "scopeMonth": "2026-08",
+      "goal": {
+        "ownedByViewer": true,
+        "isGroup": false,
+        "isDeleted": false,
+        "archivedAt": null,
+        "currentLinkRole": "none",
+        "outgoingShareCount": 0,
+        "startDate": "2026-07-01",
+        "endDate": "2026-07-31"
+      },
+      "expected": {
+        "eligible": false,
+        "reason": "end_outside_scope"
+      }
+    },
+    {
+      "id": "deadline_after_scope",
+      "description": "V1 does not pull a later deadline into an earlier overlapping month.",
+      "scopeMonth": "2026-08",
+      "goal": {
+        "ownedByViewer": true,
+        "isGroup": false,
+        "isDeleted": false,
+        "archivedAt": null,
+        "currentLinkRole": "none",
+        "outgoingShareCount": 0,
+        "startDate": "2026-08-15",
+        "endDate": "2026-09-15"
+      },
+      "expected": {
+        "eligible": false,
+        "reason": "end_outside_scope"
+      }
+    }
+  ]
+}

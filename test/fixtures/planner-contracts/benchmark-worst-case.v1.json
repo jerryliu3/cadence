@@ -1,0 +1,13 @@
+{
+  "schemaVersion": "1",
+  "fixture": "planner_worst_case",
+  "generatorVersion": "1",
+  "seed": 260801,
+  "scopeMonth": "2026-08",
+  "counts": {
+    "goals": 100,
+    "workUnits": 5000,
+    "completionFacts": 20000,
+    "policyRanges": 100
+  }
+}

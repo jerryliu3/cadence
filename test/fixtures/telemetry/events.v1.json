@@ -1,0 +1,299 @@
+[
+  {
+    "schemaVersion": "1",
+    "eventName": "planner.preview.completed",
+    "timestamp": "2026-08-01T12:00:00.000Z",
+    "correlationId": "00000000-0000-4000-8000-000000000001",
+    "environment": "test",
+    "ownerPseudonym": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "ownerPseudonymKeyVersion": 1,
+    "cohort": "internal",
+    "scope": {
+      "month": "2026-08",
+      "timezone": "America/New_York"
+    },
+    "versions": {
+      "telemetrySchema": "1",
+      "eligibilityMode": "end_month_v1",
+      "scheduler": "ordered-dp-v1",
+      "requirementSchema": "1",
+      "assessmentSchema": "1",
+      "prompt": null
+    },
+    "result": "success",
+    "statusCode": 200,
+    "errorCode": null,
+    "durationMs": 420,
+    "counts": {
+      "eligibleGoals": 12,
+      "workUnits": 180,
+      "completionFacts": 900,
+      "policyRanges": 4,
+      "placedUnits": 176,
+      "shortfallUnits": 4,
+      "outputBytes": 85000
+    },
+    "replay": false,
+    "flags": {
+      "plannerRead": true,
+      "plannerGeneration": true,
+      "plannerPlanWrites": false,
+      "targetedExactCompletion": true,
+      "coachAi": false,
+      "overlap": false
+    },
+    "data": {
+      "source": "manual",
+      "placementStatus": "partial",
+      "searchStatus": "maximum_partial",
+      "capacityStatus": "unverified",
+      "boundsBucket": "medium"
+    }
+  },
+  {
+    "schemaVersion": "1",
+    "eventName": "planner.publish.completed",
+    "timestamp": "2026-08-01T12:01:00.000Z",
+    "correlationId": "00000000-0000-4000-8000-000000000002",
+    "environment": "test",
+    "ownerPseudonym": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "ownerPseudonymKeyVersion": 1,
+    "cohort": "internal",
+    "scope": {
+      "month": "2026-08",
+      "timezone": "America/New_York"
+    },
+    "versions": {
+      "telemetrySchema": "1",
+      "eligibilityMode": "end_month_v1",
+      "scheduler": "ordered-dp-v1",
+      "requirementSchema": "1",
+      "assessmentSchema": "1",
+      "prompt": null
+    },
+    "result": "success",
+    "statusCode": 201,
+    "errorCode": null,
+    "durationMs": 120,
+    "counts": {
+      "eligibleGoals": 12,
+      "workUnits": 180,
+      "placedUnits": 176,
+      "shortfallUnits": 4
+    },
+    "replay": false,
+    "flags": {
+      "plannerRead": true,
+      "plannerGeneration": true,
+      "plannerPlanWrites": true,
+      "targetedExactCompletion": true,
+      "coachAi": false,
+      "overlap": false
+    },
+    "data": {
+      "source": "manual",
+      "placementStatus": "partial",
+      "activated": true
+    }
+  },
+  {
+    "schemaVersion": "1",
+    "eventName": "planner.mutation.completed",
+    "timestamp": "2026-08-01T12:02:00.000Z",
+    "correlationId": "00000000-0000-4000-8000-000000000003",
+    "environment": "test",
+    "ownerPseudonym": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "ownerPseudonymKeyVersion": 1,
+    "cohort": "internal",
+    "scope": {
+      "month": "2026-08",
+      "timezone": "America/New_York"
+    },
+    "versions": {
+      "telemetrySchema": "1",
+      "eligibilityMode": "end_month_v1",
+      "scheduler": "ordered-dp-v1",
+      "requirementSchema": "1",
+      "assessmentSchema": "1",
+      "prompt": null
+    },
+    "result": "conflict",
+    "statusCode": 409,
+    "errorCode": "stale_revision",
+    "durationMs": 35,
+    "counts": {},
+    "replay": false,
+    "flags": {
+      "plannerRead": true,
+      "plannerGeneration": true,
+      "plannerPlanWrites": true,
+      "targetedExactCompletion": true,
+      "coachAi": false,
+      "overlap": false
+    },
+    "data": {
+      "action": "move"
+    }
+  },
+  {
+    "schemaVersion": "1",
+    "eventName": "planner.staleness.detected",
+    "timestamp": "2026-08-01T12:03:00.000Z",
+    "correlationId": "00000000-0000-4000-8000-000000000004",
+    "environment": "test",
+    "ownerPseudonym": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "ownerPseudonymKeyVersion": 1,
+    "cohort": "internal",
+    "scope": {
+      "month": "2026-08",
+      "timezone": "America/New_York"
+    },
+    "versions": {
+      "telemetrySchema": "1",
+      "eligibilityMode": "end_month_v1",
+      "scheduler": "ordered-dp-v1",
+      "requirementSchema": "1",
+      "assessmentSchema": "1",
+      "prompt": null
+    },
+    "result": "success",
+    "statusCode": 200,
+    "errorCode": null,
+    "durationMs": 4,
+    "counts": {},
+    "replay": false,
+    "flags": {
+      "plannerRead": true,
+      "plannerGeneration": true,
+      "plannerPlanWrites": true,
+      "targetedExactCompletion": true,
+      "coachAi": false,
+      "overlap": false
+    },
+    "data": {
+      "reasons": ["out_of_plan_fact"]
+    }
+  },
+  {
+    "schemaVersion": "1",
+    "eventName": "planner.invariant.failed",
+    "timestamp": "2026-08-01T12:04:00.000Z",
+    "correlationId": "00000000-0000-4000-8000-000000000005",
+    "environment": "test",
+    "ownerPseudonym": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "ownerPseudonymKeyVersion": 1,
+    "cohort": "internal",
+    "scope": {
+      "month": "2026-08",
+      "timezone": "America/New_York"
+    },
+    "versions": {
+      "telemetrySchema": "1",
+      "eligibilityMode": "end_month_v1",
+      "scheduler": "ordered-dp-v1",
+      "requirementSchema": "1",
+      "assessmentSchema": "1",
+      "prompt": null
+    },
+    "result": "error",
+    "statusCode": 500,
+    "errorCode": "duplicate_goal_date",
+    "durationMs": 8,
+    "counts": {
+      "workUnits": 180
+    },
+    "replay": false,
+    "flags": {
+      "plannerRead": true,
+      "plannerGeneration": true,
+      "plannerPlanWrites": true,
+      "targetedExactCompletion": true,
+      "coachAi": false,
+      "overlap": false
+    },
+    "data": {
+      "invariantCode": "duplicate_goal_date",
+      "stage": "publish"
+    }
+  },
+  {
+    "schemaVersion": "1",
+    "eventName": "targeted_completion.completed",
+    "timestamp": "2026-08-01T12:05:00.000Z",
+    "correlationId": "00000000-0000-4000-8000-000000000006",
+    "environment": "test",
+    "ownerPseudonym": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "ownerPseudonymKeyVersion": 1,
+    "cohort": "bridge",
+    "scope": null,
+    "versions": {
+      "telemetrySchema": "1",
+      "eligibilityMode": null,
+      "scheduler": null,
+      "requirementSchema": "1",
+      "assessmentSchema": null,
+      "prompt": null
+    },
+    "result": "success",
+    "statusCode": 200,
+    "errorCode": null,
+    "durationMs": 24,
+    "counts": {},
+    "replay": false,
+    "flags": {
+      "plannerRead": false,
+      "plannerGeneration": false,
+      "plannerPlanWrites": false,
+      "targetedExactCompletion": true,
+      "coachAi": false,
+      "overlap": false
+    },
+    "data": {
+      "route": "canonical_exact_date",
+      "desiredFactState": "present"
+    }
+  },
+  {
+    "schemaVersion": "1",
+    "eventName": "ai.request.completed",
+    "timestamp": "2026-08-01T12:06:00.000Z",
+    "correlationId": "00000000-0000-4000-8000-000000000007",
+    "environment": "test",
+    "ownerPseudonym": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "ownerPseudonymKeyVersion": 1,
+    "cohort": "internal",
+    "scope": null,
+    "versions": {
+      "telemetrySchema": "1",
+      "eligibilityMode": null,
+      "scheduler": null,
+      "requirementSchema": "1",
+      "assessmentSchema": null,
+      "prompt": "bulk-parser-v1"
+    },
+    "result": "quota_rejected",
+    "statusCode": 429,
+    "errorCode": "daily_quota_exceeded",
+    "durationMs": 2,
+    "counts": {
+      "chatMessages": 0,
+      "inputBytes": 1200,
+      "outputBytes": 0,
+      "providerAttempts": 0
+    },
+    "replay": false,
+    "flags": {
+      "plannerRead": false,
+      "plannerGeneration": false,
+      "plannerPlanWrites": false,
+      "targetedExactCompletion": true,
+      "coachAi": false,
+      "overlap": false
+    },
+    "data": {
+      "feature": "bulk_goal_parser",
+      "provider": "gemini",
+      "attempt": 1
+    }
+  }
+]

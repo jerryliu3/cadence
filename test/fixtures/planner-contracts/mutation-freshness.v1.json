@@ -1,0 +1,150 @@
+{
+  "schemaVersion": "1",
+  "contract": "mutation_freshness",
+  "cases": [
+    {
+      "id": "scheduled_completion_is_expected_progress",
+      "description": "A completion added on its scheduled date invalidates open previews but does not stale the active plan.",
+      "mutation": "scheduled_completion_added",
+      "expected": {
+        "strictHashChanges": true,
+        "semanticBanner": "none",
+        "canonicalRevisionChanges": true,
+        "executionRevisionChanges": false,
+        "reasonCode": "expected_progress"
+      }
+    },
+    {
+      "id": "scheduled_completion_removal_is_drift",
+      "description": "Removing credited scheduled work changes strict input and raises semantic drift.",
+      "mutation": "scheduled_completion_removed",
+      "expected": {
+        "strictHashChanges": true,
+        "semanticBanner": "stale",
+        "canonicalRevisionChanges": true,
+        "executionRevisionChanges": false,
+        "reasonCode": "credited_work_removed"
+      }
+    },
+    {
+      "id": "out_of_plan_completion_is_drift",
+      "description": "An admissible fact outside planned dates is user-owned drift requiring review.",
+      "mutation": "out_of_plan_completion_added",
+      "expected": {
+        "strictHashChanges": true,
+        "semanticBanner": "stale",
+        "canonicalRevisionChanges": true,
+        "executionRevisionChanges": false,
+        "reasonCode": "out_of_plan_fact"
+      }
+    },
+    {
+      "id": "inadmissible_completion_is_drift",
+      "description": "A future or out-of-lifetime fact changes strict input but never pre-credits work.",
+      "mutation": "inadmissible_completion_added",
+      "expected": {
+        "strictHashChanges": true,
+        "semanticBanner": "stale",
+        "canonicalRevisionChanges": true,
+        "executionRevisionChanges": false,
+        "reasonCode": "inadmissible_fact"
+      }
+    },
+    {
+      "id": "accepted_move_is_not_stale",
+      "description": "A guarded move invalidates old previews while remaining an accepted active-plan execution change.",
+      "mutation": "item_moved",
+      "expected": {
+        "strictHashChanges": true,
+        "semanticBanner": "none",
+        "canonicalRevisionChanges": false,
+        "executionRevisionChanges": true,
+        "reasonCode": "accepted_execution_change"
+      }
+    },
+    {
+      "id": "accepted_lock_change_is_not_stale",
+      "description": "Lock and unlock mutations change execution input without raising a semantic banner.",
+      "mutation": "item_lock_changed",
+      "expected": {
+        "strictHashChanges": true,
+        "semanticBanner": "none",
+        "canonicalRevisionChanges": false,
+        "executionRevisionChanges": true,
+        "reasonCode": "accepted_execution_change"
+      }
+    },
+    {
+      "id": "goal_requirement_edit_is_stale",
+      "description": "A canonical requirement edit invalidates previews and the active plan.",
+      "mutation": "goal_requirement_changed",
+      "expected": {
+        "strictHashChanges": true,
+        "semanticBanner": "stale",
+        "canonicalRevisionChanges": true,
+        "executionRevisionChanges": false,
+        "reasonCode": "goal_changed"
+      }
+    },
+    {
+      "id": "policy_edit_is_stale",
+      "description": "Timezone or policy changes increment canonical state and require reviewed replacement.",
+      "mutation": "policy_changed",
+      "expected": {
+        "strictHashChanges": true,
+        "semanticBanner": "stale",
+        "canonicalRevisionChanges": true,
+        "executionRevisionChanges": false,
+        "reasonCode": "policy_changed"
+      }
+    },
+    {
+      "id": "link_change_is_stale",
+      "description": "A current link edge changes eligibility and therefore both freshness contracts.",
+      "mutation": "link_changed",
+      "expected": {
+        "strictHashChanges": true,
+        "semanticBanner": "stale",
+        "canonicalRevisionChanges": true,
+        "executionRevisionChanges": false,
+        "reasonCode": "link_changed"
+      }
+    },
+    {
+      "id": "publish_changes_execution_base",
+      "description": "Publishing changes the active execution base and revision without making the new plan stale.",
+      "mutation": "plan_published",
+      "expected": {
+        "strictHashChanges": true,
+        "semanticBanner": "none",
+        "canonicalRevisionChanges": false,
+        "executionRevisionChanges": true,
+        "reasonCode": "active_plan_changed"
+      }
+    },
+    {
+      "id": "dismiss_removes_banner_subject",
+      "description": "Dismissing the active plan changes execution input and leaves no active plan to label stale.",
+      "mutation": "plan_dismissed",
+      "expected": {
+        "strictHashChanges": true,
+        "semanticBanner": "not_applicable",
+        "canonicalRevisionChanges": false,
+        "executionRevisionChanges": true,
+        "reasonCode": "active_plan_changed"
+      }
+    },
+    {
+      "id": "live_clock_overdue_without_revision",
+      "description": "The live owner-local clock can make an item overdue without any database revision bump.",
+      "mutation": "live_clock_became_overdue",
+      "expected": {
+        "strictHashChanges": true,
+        "semanticBanner": "stale",
+        "canonicalRevisionChanges": false,
+        "executionRevisionChanges": false,
+        "reasonCode": "overdue_item"
+      }
+    }
+  ]
+}

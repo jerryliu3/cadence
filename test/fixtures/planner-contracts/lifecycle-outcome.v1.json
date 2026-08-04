@@ -1,0 +1,237 @@
+{
+  "schemaVersion": "1",
+  "contract": "lifecycle_outcome",
+  "cases": [
+    {
+      "id": "upcoming_goal",
+      "description": "A dated goal remains upcoming before its inclusive start date.",
+      "input": {
+        "asOfDate": "2026-08-01",
+        "startDate": "2026-08-03",
+        "endDate": "2026-08-31",
+        "archivedAt": null,
+        "requirementKind": "deadline_total",
+        "requiredUnits": 10,
+        "admissibleUnitsByDeadline": 0,
+        "allExpectedCadencePeriodsSatisfied": null,
+        "hasLateOrExcessFacts": false
+      },
+      "expected": {
+        "lifecycle": "upcoming",
+        "outcome": "in_progress",
+        "calendarEligible": true,
+        "placementTerminal": false
+      }
+    },
+    {
+      "id": "active_goal_in_progress",
+      "description": "An open goal with remaining work is active and in progress.",
+      "input": {
+        "asOfDate": "2026-08-15",
+        "startDate": "2026-08-01",
+        "endDate": "2026-08-31",
+        "archivedAt": null,
+        "requirementKind": "milestone_sequence",
+        "requiredUnits": 3,
+        "admissibleUnitsByDeadline": 1,
+        "allExpectedCadencePeriodsSatisfied": null,
+        "hasLateOrExcessFacts": false
+      },
+      "expected": {
+        "lifecycle": "active",
+        "outcome": "in_progress",
+        "calendarEligible": true,
+        "placementTerminal": false
+      }
+    },
+    {
+      "id": "early_achievement",
+      "description": "Early target achievement is terminal for placement without ending lifecycle early.",
+      "input": {
+        "asOfDate": "2026-08-15",
+        "startDate": "2026-08-01",
+        "endDate": "2026-08-31",
+        "archivedAt": null,
+        "requirementKind": "deadline_total",
+        "requiredUnits": 10,
+        "admissibleUnitsByDeadline": 10,
+        "allExpectedCadencePeriodsSatisfied": null,
+        "hasLateOrExcessFacts": false
+      },
+      "expected": {
+        "lifecycle": "active",
+        "outcome": "achieved",
+        "calendarEligible": true,
+        "placementTerminal": true
+      }
+    },
+    {
+      "id": "deadline_day_is_inclusive",
+      "description": "The owner-timezone deadline day remains active and can finish achieved.",
+      "input": {
+        "asOfDate": "2026-08-31",
+        "startDate": "2026-08-01",
+        "endDate": "2026-08-31",
+        "archivedAt": null,
+        "requirementKind": "milestone_sequence",
+        "requiredUnits": 2,
+        "admissibleUnitsByDeadline": 2,
+        "allExpectedCadencePeriodsSatisfied": null,
+        "hasLateOrExcessFacts": false
+      },
+      "expected": {
+        "lifecycle": "active",
+        "outcome": "achieved",
+        "calendarEligible": true,
+        "placementTerminal": true
+      }
+    },
+    {
+      "id": "ended_achieved",
+      "description": "A target met by its deadline remains achieved after lifecycle ends.",
+      "input": {
+        "asOfDate": "2026-09-01",
+        "startDate": "2026-08-01",
+        "endDate": "2026-08-31",
+        "archivedAt": null,
+        "requirementKind": "deadline_total",
+        "requiredUnits": 10,
+        "admissibleUnitsByDeadline": 10,
+        "allExpectedCadencePeriodsSatisfied": null,
+        "hasLateOrExcessFacts": false
+      },
+      "expected": {
+        "lifecycle": "ended",
+        "outcome": "achieved",
+        "calendarEligible": true,
+        "placementTerminal": true
+      }
+    },
+    {
+      "id": "ended_with_shortfall",
+      "description": "An expired target below its deadline requirement ends with shortfall.",
+      "input": {
+        "asOfDate": "2026-09-01",
+        "startDate": "2026-08-01",
+        "endDate": "2026-08-31",
+        "archivedAt": null,
+        "requirementKind": "deadline_total",
+        "requiredUnits": 10,
+        "admissibleUnitsByDeadline": 9,
+        "allExpectedCadencePeriodsSatisfied": null,
+        "hasLateOrExcessFacts": false
+      },
+      "expected": {
+        "lifecycle": "ended",
+        "outcome": "ended_with_shortfall",
+        "calendarEligible": true,
+        "placementTerminal": true
+      }
+    },
+    {
+      "id": "late_fact_does_not_rewrite_outcome",
+      "description": "Late or excess facts cannot retroactively repair a deadline shortfall.",
+      "input": {
+        "asOfDate": "2026-09-05",
+        "startDate": "2026-08-01",
+        "endDate": "2026-08-31",
+        "archivedAt": null,
+        "requirementKind": "milestone_sequence",
+        "requiredUnits": 2,
+        "admissibleUnitsByDeadline": 1,
+        "allExpectedCadencePeriodsSatisfied": null,
+        "hasLateOrExcessFacts": true
+      },
+      "expected": {
+        "lifecycle": "ended",
+        "outcome": "ended_with_shortfall",
+        "calendarEligible": true,
+        "placementTerminal": true
+      }
+    },
+    {
+      "id": "ended_cadence_achieved",
+      "description": "An ended cadence goal is achieved only when every clipped period was satisfied.",
+      "input": {
+        "asOfDate": "2026-09-01",
+        "startDate": "2026-08-01",
+        "endDate": "2026-08-31",
+        "archivedAt": null,
+        "requirementKind": "cadence",
+        "requiredUnits": 5,
+        "admissibleUnitsByDeadline": 5,
+        "allExpectedCadencePeriodsSatisfied": true,
+        "hasLateOrExcessFacts": false
+      },
+      "expected": {
+        "lifecycle": "ended",
+        "outcome": "achieved",
+        "calendarEligible": true,
+        "placementTerminal": true
+      }
+    },
+    {
+      "id": "ended_cadence_shortfall",
+      "description": "One missed clipped cadence period yields an ended shortfall.",
+      "input": {
+        "asOfDate": "2026-09-01",
+        "startDate": "2026-08-01",
+        "endDate": "2026-08-31",
+        "archivedAt": null,
+        "requirementKind": "cadence",
+        "requiredUnits": 5,
+        "admissibleUnitsByDeadline": 4,
+        "allExpectedCadencePeriodsSatisfied": false,
+        "hasLateOrExcessFacts": false
+      },
+      "expected": {
+        "lifecycle": "ended",
+        "outcome": "ended_with_shortfall",
+        "calendarEligible": true,
+        "placementTerminal": true
+      }
+    },
+    {
+      "id": "archived_preserves_in_progress_outcome",
+      "description": "Archiving terminates lifecycle without inventing an achieved or shortfall outcome.",
+      "input": {
+        "asOfDate": "2026-08-15",
+        "startDate": "2026-08-01",
+        "endDate": "2026-08-31",
+        "archivedAt": "2026-08-15T12:00:00Z",
+        "requirementKind": "deadline_total",
+        "requiredUnits": 10,
+        "admissibleUnitsByDeadline": 4,
+        "allExpectedCadencePeriodsSatisfied": null,
+        "hasLateOrExcessFacts": false
+      },
+      "expected": {
+        "lifecycle": "archived",
+        "outcome": "in_progress",
+        "calendarEligible": false,
+        "placementTerminal": true
+      }
+    },
+    {
+      "id": "undated_legacy_goal",
+      "description": "Undated legacy goals retain progress semantics but remain outside Calendar.",
+      "input": {
+        "asOfDate": "2026-08-15",
+        "startDate": null,
+        "endDate": null,
+        "archivedAt": null,
+        "requirementKind": "deadline_total",
+        "requiredUnits": 10,
+        "admissibleUnitsByDeadline": 3,
+        "allExpectedCadencePeriodsSatisfied": null,
+        "hasLateOrExcessFacts": false
+      },
+      "expected": {
+        "lifecycle": "active",
+        "outcome": "in_progress",
+        "calendarEligible": false,
+        "placementTerminal": false
+      }
+    }
+  ]
+}

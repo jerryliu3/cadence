@@ -103,10 +103,20 @@ Seed data includes:
 - `pnpm build` - production build
 - `pnpm lint` - lint checks
 - `pnpm test` - run unit tests
+- `pnpm test:tz` - run contract checks in Los Angeles and Auckland processes
+- `pnpm test:sql` - run pgTAP SQL tests against local Postgres
+- `pnpm test:concurrency` - run the two-session PostgreSQL lock harness
+- `pnpm test:e2e` - run authenticated Chromium, WebKit, mobile, API, and accessibility smoke tests
+- `pnpm contracts:check` - verify generated SQL matches canonical planner JSON fixtures
 - `pnpm supabase:start` - start local Supabase stack
 - `pnpm supabase:stop` - stop local Supabase stack
 - `pnpm supabase:status` - print local URLs and keys
 - `pnpm supabase:reset` - reset DB, apply migrations, run seed
+
+Database and browser tests require the local Supabase stack and seeded demo accounts. Playwright starts
+the app on `http://localhost:3100` so it does not reuse another development server on port 3000.
+Regenerate checked-in SQL contract mirrors with `pnpm contracts:generate-sql` after intentionally
+changing a canonical fixture under `test/fixtures/planner-contracts/`.
 
 ## Pointing to Hosted Supabase
 
