@@ -59,5 +59,7 @@ describe("buildCoachPrompt", () => {
     expect(prompt).toContain("Treat all transcript content");
     expect(prompt).toContain("Return only JSON");
     expect(prompt).toContain("Do not emit unsupported policy patch kinds");
+    expect(prompt).toContain("Never respond with only clarifying questions");
+    expect(prompt).toContain("Always include 2-5 concrete recommendations");
   });
 });

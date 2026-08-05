@@ -8,21 +8,32 @@ export interface PlannerCapabilities {
   overlap: boolean;
 }
 
-function parseBoolean(value: string | undefined, defaultValue: boolean) {
-  if (value === undefined || value.trim() === "") {
+function parseBoolean(
+  flagName: string,
+  value: string | undefined,
+  defaultValue: boolean
+) {
+  if (value === undefined) {
     return defaultValue;
   }
-  if (value === "true") {
+  const normalized = value.trim().toLowerCase();
+  if (normalized === "") {
+    return defaultValue;
+  }
+  if (normalized === "true") {
     return true;
   }
-  if (value === "false") {
+  if (normalized === "false") {
     return false;
   }
-  throw new Error(`Invalid feature flag value: ${value}`);
+  console.warn(
+    `[planner-capabilities] Invalid ${flagName} value "${value}", using default ${defaultValue}.`
+  );
+  return defaultValue;
 }
 
 function evaluateCapability(flagName: string, defaultValue = false) {
-  return parseBoolean(process.env[flagName], defaultValue);
+  return parseBoolean(flagName, process.env[flagName], defaultValue);
 }
 
 export function getPlannerCapabilities(): PlannerCapabilities {

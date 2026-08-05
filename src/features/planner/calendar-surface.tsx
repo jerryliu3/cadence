@@ -2,7 +2,7 @@
 
 import { addMonths, format, isValid, parse } from "date-fns";
 import { CalendarDays, ChevronLeft, ChevronRight, Loader2, Settings2 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -17,9 +17,14 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { buildMondayFirstMonthCells } from "@/features/planner/month-cells";
+import { applyCoachPolicyPatches } from "@/features/planner/coach-policy";
+import { buildCoachDeterministicSummary } from "@/features/planner/coach-context";
+import { computeDayPreviewPosition } from "@/features/planner/day-preview-popup";
+import { getGoalVisual } from "@/features/planner/goal-visuals";
 import { getDateInTimezone, isValidIanaTimezone } from "@/lib/dates/timezone";
+import type { CoachPolicyPatch } from "@/lib/planner/coach";
 import { buildPlannerConfirmationHash } from "@/lib/planner/publish-payload";
-import { createDefaultPlannerPolicy } from "@/lib/planner/policy";
+import { createDefaultPlannerPolicy, plannerPolicySchema, type PlannerPolicy } from "@/lib/planner/policy";
 
 type CalendarTab = "today" | "not-today" | "calendar";
 
@@ -32,10 +37,7 @@ interface PlannerContextPayload {
     timezone: string;
     timezoneConfirmedAt: string;
     policyRevision: number;
-    defaultPolicy: {
-      restWeekdays: number[];
-      spacingStrategy: "front_load" | "even" | "flexible";
-    };
+    defaultPolicy: PlannerPolicy;
   } | null;
   capabilities: {
     plannerRead: boolean;
@@ -92,6 +94,8 @@ interface PlannerActiveGoalSnapshot {
   original_goal_id: string;
   requirement_fingerprint: string;
   title: string;
+  category: string;
+  color: string | null;
 }
 
 interface PlannerActiveItemSnapshot {
@@ -118,6 +122,16 @@ interface PlannerDayDetailEntry {
   activeItem: PlannerActiveItemSnapshot | null;
 }
 
+interface DayPreviewState {
+  day: string;
+  position: {
+    top: number;
+    left: number;
+    width: number;
+    placement: "above" | "below";
+  };
+}
+
 interface PlannerErrorPayload {
   code?: string;
   message?: string;
@@ -129,10 +143,7 @@ interface PlannerPreferencesPayload {
     timezone: string;
     timezoneConfirmedAt: string;
     policyRevision: number;
-    defaultPolicy: {
-      restWeekdays: number[];
-      spacingStrategy: "front_load" | "even" | "flexible";
-    };
+    defaultPolicy: PlannerPolicy;
   } | null;
 }
 
@@ -162,6 +173,11 @@ interface CoachResponsePayload {
   schemaVersion: "1";
   phase: "discovery" | "review" | "ready" | "explain";
   reply: string;
+  proposal?: {
+    assessments?: Array<Record<string, unknown>>;
+    policyPatches?: CoachPolicyPatch[];
+    unresolvedQuestions?: string[];
+  };
   warnings?: string[];
   recommendations?: Array<{ text: string }>;
 }
@@ -264,6 +280,22 @@ export function CalendarSurface({
   const [coachMessages, setCoachMessages] = useState<CoachMessage[]>([]);
   const [coachWarnings, setCoachWarnings] = useState<string[]>([]);
   const [coachRecommendations, setCoachRecommendations] = useState<string[]>([]);
+  const [coachPendingPatches, setCoachPendingPatches] = useState<CoachPolicyPatch[]>(
+    []
+  );
+  const [coachUnresolvedQuestions, setCoachUnresolvedQuestions] = useState<string[]>(
+    []
+  );
+  const [coachPolicyApplying, setCoachPolicyApplying] = useState(false);
+  const [coachUndoSnapshot, setCoachUndoSnapshot] = useState<{
+    timezone: string;
+    defaultPolicy: PlannerPolicy;
+  } | null>(null);
+  const [coachContextEvents, setCoachContextEvents] = useState<string[]>([]);
+  const [selectedEventEntryKey, setSelectedEventEntryKey] = useState<string | null>(
+    null
+  );
+  const [dayPreview, setDayPreview] = useState<DayPreviewState | null>(null);
   const [mutationLoadingKey, setMutationLoadingKey] = useState<string | null>(null);
   const [moveDateByItemId, setMoveDateByItemId] = useState<Record<string, string>>(
     {}
@@ -276,6 +308,9 @@ export function CalendarSurface({
     "even"
   );
   const [setupRestWeekdays, setSetupRestWeekdays] = useState<number[]>([]);
+  const hoverPreviewTimerRef = useRef<number | null>(null);
+  const longPressTimerRef = useRef<number | null>(null);
+  const longPressTriggeredRef = useRef(false);
 
   const loadContext = useCallback(async () => {
     if (activeTab !== "calendar") {
@@ -349,6 +384,10 @@ export function CalendarSurface({
       setCoachMessages(restored);
       setCoachWarnings([]);
       setCoachRecommendations([]);
+      setCoachPendingPatches([]);
+      setCoachUnresolvedQuestions([]);
+      setCoachContextEvents([]);
+      setCoachUndoSnapshot(null);
     }, 0);
     return () => window.clearTimeout(timer);
   }, [activeTab, context?.scopeMonth, context?.timezone]);
@@ -378,48 +417,99 @@ export function CalendarSurface({
     return map;
   }, [context?.activePlan?.goals]);
 
-  const selectedDayEntries = useMemo(() => {
-    if (!selectedDay) {
-      return [] as PlannerDayDetailEntry[];
+  const activeGoalsByOriginalGoalId = useMemo(() => {
+    const map = new Map<string, PlannerActiveGoalSnapshot>();
+    for (const goal of context?.activePlan?.goals ?? []) {
+      map.set(goal.original_goal_id, goal);
     }
+    return map;
+  }, [context?.activePlan?.goals]);
 
-    const byKey = new Map<string, PlannerDayDetailEntry>();
-    for (const unit of unitsByDate.get(selectedDay) ?? []) {
+  const entriesByDate = useMemo(() => {
+    const byDate = new Map<string, Map<string, PlannerDayDetailEntry>>();
+    const getDayEntries = (day: string) => {
+      const existing = byDate.get(day);
+      if (existing) {
+        return existing;
+      }
+      const created = new Map<string, PlannerDayDetailEntry>();
+      byDate.set(day, created);
+      return created;
+    };
+
+    for (const unit of context?.preview?.workUnits ?? []) {
+      if (!unit.scheduledDate) {
+        continue;
+      }
+      const dayEntries = getDayEntries(unit.scheduledDate);
       const key = `${unit.originalGoalId}:${unit.unitKey}`;
-      byKey.set(key, {
+      dayEntries.set(key, {
         key,
         originalGoalId: unit.originalGoalId,
         unitKey: unit.unitKey,
         label: unit.label,
         classification: unit.classification,
         creditState: unit.creditState,
-        activeGoal: null,
+        activeGoal: activeGoalsByOriginalGoalId.get(unit.originalGoalId) ?? null,
         activeItem: null,
       });
     }
 
     for (const item of context?.activePlan?.items ?? []) {
-      if (item.scheduled_date !== selectedDay) {
+      if (!item.scheduled_date) {
         continue;
       }
+      const dayEntries = getDayEntries(item.scheduled_date);
       const activeGoal = activeGoalsByPlanGoalId.get(item.plan_goal_id) ?? null;
       const originalGoalId = activeGoal?.original_goal_id ?? item.plan_goal_id;
       const key = `${originalGoalId}:${item.unit_key}`;
-      const existing = byKey.get(key);
-      byKey.set(key, {
+      const existing = dayEntries.get(key);
+      dayEntries.set(key, {
         key,
         originalGoalId,
         unitKey: item.unit_key,
         label: existing?.label ?? activeGoal?.title ?? item.unit_key,
         classification: existing?.classification ?? item.classification,
         creditState: existing?.creditState ?? item.credit_state,
-        activeGoal,
+        activeGoal: existing?.activeGoal ?? activeGoal,
         activeItem: item,
       });
     }
 
-    return Array.from(byKey.values());
-  }, [activeGoalsByPlanGoalId, context?.activePlan?.items, selectedDay, unitsByDate]);
+    return new Map(
+      Array.from(byDate.entries()).map(([day, dayEntries]) => [
+        day,
+        Array.from(dayEntries.values()),
+      ])
+    );
+  }, [
+    activeGoalsByOriginalGoalId,
+    activeGoalsByPlanGoalId,
+    context?.activePlan?.items,
+    context?.preview?.workUnits,
+  ]);
+
+  const getEntriesForDay = useCallback(
+    (day: string | null) => (day ? entriesByDate.get(day) ?? [] : []),
+    [entriesByDate]
+  );
+
+  const selectedDayEntries = useMemo(() => {
+    return getEntriesForDay(selectedDay);
+  }, [getEntriesForDay, selectedDay]);
+
+  const selectedEventEntry = useMemo(
+    () =>
+      selectedEventEntryKey
+        ? selectedDayEntries.find((entry) => entry.key === selectedEventEntryKey) ?? null
+        : null,
+    [selectedDayEntries, selectedEventEntryKey]
+  );
+
+  const previewDayEntries = useMemo(
+    () => getEntriesForDay(dayPreview?.day ?? null),
+    [dayPreview?.day, getEntriesForDay]
+  );
 
   useEffect(() => {
     if (!selectedDay) {
@@ -442,6 +532,18 @@ export function CalendarSurface({
     }, 0);
     return () => window.clearTimeout(timer);
   }, [selectedDay, selectedDayEntries]);
+
+  useEffect(
+    () => () => {
+      if (hoverPreviewTimerRef.current) {
+        window.clearTimeout(hoverPreviewTimerRef.current);
+      }
+      if (longPressTimerRef.current) {
+        window.clearTimeout(longPressTimerRef.current);
+      }
+    },
+    []
+  );
 
   const submitSetup = async () => {
     if (!isValidIanaTimezone(setupTimezone)) {
@@ -485,6 +587,10 @@ export function CalendarSurface({
     toast.success("Planner setup saved.");
   };
 
+  const appendCoachContextEvent = useCallback((event: string) => {
+    setCoachContextEvents((previous) => [...previous, event].slice(-10));
+  }, []);
+
   const sendCoachMessage = async () => {
     if (!context?.capabilities.coachAi || !context.scopeMonth || !context.timezone) {
       toast.error("Planner coach is currently unavailable.");
@@ -507,43 +613,62 @@ export function CalendarSurface({
     setCoachLoading(true);
     setCoachWarnings([]);
 
-    const response = await fetch("/api/planner/coach", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        scopeMonth: context.scopeMonth,
-        messages: nextMessages.map((message) => ({
-          role: message.role,
-          content: message.content,
-        })),
-        focusGoalIds: [],
-      }),
+    const deterministicSummary = buildCoachDeterministicSummary({
+      scopeMonth: context.scopeMonth,
+      timezone: context.timezone,
+      asOfDate: context.asOfDate,
+      workUnits: context.preview?.workUnits ?? [],
+      events: coachContextEvents,
     });
-    const payload = (await response.json()) as
-      | (CoachResponsePayload & { message?: string; recommendations?: Array<{ text: string }> })
-      | PlannerErrorPayload;
-    setCoachLoading(false);
 
-    if (!response.ok) {
-      toast.error(payload.message ?? "Coach response failed.");
-      return;
+    try {
+      const response = await fetch("/api/planner/coach", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          scopeMonth: context.scopeMonth,
+          messages: nextMessages.map((message) => ({
+            role: message.role,
+            content: message.content,
+          })),
+          focusGoalIds: [],
+          deterministicSummary,
+        }),
+      });
+      const payload = (await response.json()) as
+        | (CoachResponsePayload & {
+            message?: string;
+            recommendations?: Array<{ text: string }>;
+          })
+        | PlannerErrorPayload;
+      setCoachLoading(false);
+
+      if (!response.ok) {
+        toast.error(payload.message ?? "Coach response failed.");
+        return;
+      }
+
+      const assistantMessage: CoachMessage = {
+        role: "assistant",
+        content: (payload as CoachResponsePayload).reply,
+        createdAt: Date.now(),
+      };
+      const finalMessages = [...nextMessages, assistantMessage].slice(
+        -COACH_SESSION_MAX_MESSAGES
+      );
+      setCoachMessages(finalMessages);
+      saveCoachSession(context.scopeMonth, context.timezone, finalMessages);
+      const coachPayload = payload as CoachResponsePayload;
+      setCoachWarnings(coachPayload.warnings ?? []);
+      setCoachRecommendations(
+        (coachPayload.recommendations ?? []).map((item) => item.text)
+      );
+      setCoachPendingPatches(coachPayload.proposal?.policyPatches ?? []);
+      setCoachUnresolvedQuestions(coachPayload.proposal?.unresolvedQuestions ?? []);
+    } catch {
+      setCoachLoading(false);
+      toast.error("Coach response failed.");
     }
-
-    const assistantMessage: CoachMessage = {
-      role: "assistant",
-      content: (payload as CoachResponsePayload).reply,
-      createdAt: Date.now(),
-    };
-    const finalMessages = [...nextMessages, assistantMessage].slice(
-      -COACH_SESSION_MAX_MESSAGES
-    );
-    setCoachMessages(finalMessages);
-    saveCoachSession(context.scopeMonth, context.timezone, finalMessages);
-    const coachPayload = payload as CoachResponsePayload;
-    setCoachWarnings(coachPayload.warnings ?? []);
-    setCoachRecommendations(
-      (coachPayload.recommendations ?? []).map((item) => item.text)
-    );
   };
 
   const parseErrorMessage = (payload: unknown, fallback: string) => {
@@ -565,6 +690,158 @@ export function CalendarSurface({
     }
     const parsed = parse(value, "yyyy-MM-dd", new Date());
     return isValid(parsed) && format(parsed, "yyyy-MM-dd") === value;
+  };
+
+  const clearHoverPreviewTimer = () => {
+    if (hoverPreviewTimerRef.current) {
+      window.clearTimeout(hoverPreviewTimerRef.current);
+      hoverPreviewTimerRef.current = null;
+    }
+  };
+
+  const clearLongPressTimer = () => {
+    if (longPressTimerRef.current) {
+      window.clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  };
+
+  const openDayPreview = (day: string, target: EventTarget & HTMLElement) => {
+    const rect = target.getBoundingClientRect();
+    const position = computeDayPreviewPosition({
+      rect: {
+        top: rect.top,
+        left: rect.left,
+        width: rect.width,
+        height: rect.height,
+      },
+      viewportWidth: window.innerWidth,
+      viewportHeight: window.innerHeight,
+    });
+    setDayPreview({ day, position });
+  };
+
+  const scheduleHoverPreview = (
+    day: string,
+    target: EventTarget & HTMLElement
+  ) => {
+    clearHoverPreviewTimer();
+    hoverPreviewTimerRef.current = window.setTimeout(() => {
+      openDayPreview(day, target);
+    }, 1000);
+  };
+
+  const handleDayCellClick = (day: string) => {
+    if (longPressTriggeredRef.current) {
+      longPressTriggeredRef.current = false;
+      return;
+    }
+    setDayPreview(null);
+    onOpenDay(day);
+  };
+
+  const startLongPressPreview = (
+    day: string,
+    target: EventTarget & HTMLElement
+  ) => {
+    clearLongPressTimer();
+    longPressTriggeredRef.current = false;
+    longPressTimerRef.current = window.setTimeout(() => {
+      longPressTriggeredRef.current = true;
+      openDayPreview(day, target);
+    }, 600);
+  };
+
+  const applyCoachProposal = async () => {
+    if (!context?.preferences || coachPendingPatches.length === 0) {
+      return;
+    }
+    const allowedGoalIds = new Set(
+      (context.activePlan?.goals ?? []).map((goal) => goal.original_goal_id)
+    );
+    const priorPolicy = plannerPolicySchema.parse(context.preferences.defaultPolicy);
+    const result = applyCoachPolicyPatches({
+      policy: priorPolicy,
+      patches: coachPendingPatches,
+      allowedGoalIds,
+    });
+    if (result.appliedPatchCount === 0) {
+      toast.error("No applicable policy changes were available to apply.");
+      return;
+    }
+
+    setCoachPolicyApplying(true);
+    try {
+      const response = await fetch("/api/planner/preferences", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          timezone: context.preferences.timezone,
+          defaultPolicy: result.policy,
+        }),
+      });
+      const payload = (await response.json()) as PlannerErrorPayload;
+      if (!response.ok) {
+        toast.error(parseErrorMessage(payload, "Coach proposal apply failed."));
+        return;
+      }
+      setCoachUndoSnapshot({
+        timezone: context.preferences.timezone,
+        defaultPolicy: priorPolicy,
+      });
+      setCoachPendingPatches([]);
+      appendCoachContextEvent(
+        `Applied coach proposal (${result.appliedPatchCount} patches)`
+      );
+      onPlannerMutation();
+      await loadContext();
+      toast.success("Coach proposal applied.");
+    } catch {
+      toast.error("Coach proposal apply failed.");
+    } finally {
+      setCoachPolicyApplying(false);
+    }
+  };
+
+  const rejectCoachProposal = () => {
+    if (coachPendingPatches.length === 0) {
+      return;
+    }
+    appendCoachContextEvent("Rejected coach proposal");
+    setCoachPendingPatches([]);
+    setCoachUnresolvedQuestions([]);
+    toast.success("Coach proposal rejected.");
+  };
+
+  const undoCoachProposal = async () => {
+    if (!coachUndoSnapshot) {
+      return;
+    }
+    setCoachPolicyApplying(true);
+    try {
+      const response = await fetch("/api/planner/preferences", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          timezone: coachUndoSnapshot.timezone,
+          defaultPolicy: coachUndoSnapshot.defaultPolicy,
+        }),
+      });
+      const payload = (await response.json()) as PlannerErrorPayload;
+      if (!response.ok) {
+        toast.error(parseErrorMessage(payload, "Undo failed."));
+        return;
+      }
+      appendCoachContextEvent("Undid latest coach-applied proposal");
+      setCoachUndoSnapshot(null);
+      onPlannerMutation();
+      await loadContext();
+      toast.success("Latest coach apply has been undone.");
+    } catch {
+      toast.error("Undo failed.");
+    } finally {
+      setCoachPolicyApplying(false);
+    }
   };
 
   const moveItem = async (entry: PlannerDayDetailEntry) => {
@@ -1026,6 +1303,7 @@ export function CalendarSurface({
             <div className="mt-2 grid grid-cols-7 gap-2" data-no-swipe="true">
               {cells.map((cell) => {
                 const unitsForDay = unitsByDate.get(cell.date) ?? [];
+                const entriesForDay = getEntriesForDay(cell.date);
                 const status = getDayStatus(unitsForDay, "No items");
                 const ariaLabel = `${format(
                   parse(cell.date, "yyyy-MM-dd", new Date()),
@@ -1037,7 +1315,30 @@ export function CalendarSurface({
                   <button
                     key={cell.date}
                     type="button"
-                    onClick={() => onOpenDay(cell.date)}
+                    onClick={() => handleDayCellClick(cell.date)}
+                    onMouseEnter={(event) =>
+                      scheduleHoverPreview(cell.date, event.currentTarget)
+                    }
+                    onMouseLeave={() => {
+                      clearHoverPreviewTimer();
+                      if (dayPreview?.day === cell.date) {
+                        setDayPreview(null);
+                      }
+                    }}
+                    onPointerDown={(event) => {
+                      if (event.pointerType === "touch") {
+                        startLongPressPreview(cell.date, event.currentTarget);
+                      }
+                    }}
+                    onPointerUp={() => {
+                      clearLongPressTimer();
+                    }}
+                    onPointerCancel={() => {
+                      clearLongPressTimer();
+                    }}
+                    onPointerLeave={() => {
+                      clearLongPressTimer();
+                    }}
                     className={`min-h-24 rounded-lg border p-2 text-left transition-colors ${
                       cell.inMonth
                         ? "bg-background hover:border-primary/60"
@@ -1051,11 +1352,98 @@ export function CalendarSurface({
                       {unitsForDay.length} planned
                     </p>
                     <p className="text-[11px]">{status}</p>
+                    {entriesForDay.length > 0 ? (
+                      <div className="mt-1 space-y-1">
+                        {entriesForDay.slice(0, 2).map((entry) => {
+                          const visual = getGoalVisual({
+                            goalId: entry.originalGoalId,
+                            color: entry.activeGoal?.color ?? null,
+                          });
+                          const Icon = visual.Icon;
+                          return (
+                            <div
+                              key={`cell-entry-${entry.key}`}
+                              className="flex items-center gap-1 text-[10px]"
+                            >
+                              <span
+                                className="inline-flex size-3 items-center justify-center rounded-full"
+                                style={{ backgroundColor: visual.color }}
+                              >
+                                <Icon className="size-2 text-white" />
+                              </span>
+                              <span className="truncate">
+                                {entry.label ?? entry.unitKey}
+                              </span>
+                            </div>
+                          );
+                        })}
+                        {entriesForDay.length > 2 ? (
+                          <p className="text-[10px] text-muted-foreground">
+                            +{entriesForDay.length - 2} more
+                          </p>
+                        ) : null}
+                      </div>
+                    ) : null}
                   </button>
                 );
               })}
             </div>
           </div>
+
+          {dayPreview ? (
+            <div
+              className="fixed z-40 rounded-lg border bg-card p-3 shadow-lg"
+              style={{
+                top: dayPreview.position.top,
+                left: dayPreview.position.left,
+                width: dayPreview.position.width,
+                transform:
+                  dayPreview.position.placement === "above"
+                    ? "translateY(-100%)"
+                    : undefined,
+              }}
+            >
+              <div className="mb-2">
+                <p className="text-sm font-medium">
+                  {format(parse(dayPreview.day, "yyyy-MM-dd", new Date()), "EEEE, MMM d")}
+                </p>
+              </div>
+              <div className="max-h-44 space-y-1 overflow-y-auto text-xs">
+                {previewDayEntries.length === 0 ? (
+                  <p className="text-muted-foreground">No planned sessions.</p>
+                ) : (
+                  previewDayEntries.map((entry) => {
+                    const visual = getGoalVisual({
+                      goalId: entry.originalGoalId,
+                      color: entry.activeGoal?.color ?? null,
+                    });
+                    const Icon = visual.Icon;
+                    return (
+                      <div
+                        key={`preview-entry-${entry.key}`}
+                        className="flex items-start gap-2 rounded border p-1.5"
+                      >
+                        <span
+                          className="mt-0.5 inline-flex size-4 items-center justify-center rounded-full"
+                          style={{ backgroundColor: visual.color }}
+                        >
+                          <Icon className="size-2.5 text-white" />
+                        </span>
+                        <div className="min-w-0">
+                          <p className="truncate font-medium">
+                            {entry.label ?? entry.unitKey}
+                          </p>
+                          <p className="truncate text-muted-foreground">
+                            {entry.classification} · {entry.creditState}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          ) : null}
 
           {canUseCoach ? (
             <div className="rounded-xl border bg-card p-4 shadow-sm">
@@ -1104,6 +1492,65 @@ export function CalendarSurface({
                   {coachWarnings.join(" ")}
                 </div>
               ) : null}
+              {coachPendingPatches.length > 0 ? (
+                <div className="mt-3 rounded-md border p-2 text-sm">
+                  <p className="font-medium">Coach proposal</p>
+                  <p className="text-xs text-muted-foreground">
+                    {coachPendingPatches.length} policy patch
+                    {coachPendingPatches.length === 1 ? "" : "es"} ready to apply.
+                  </p>
+                  <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
+                    {coachPendingPatches.slice(0, 6).map((patch, index) => (
+                      <li key={`${patch.kind}-${index}`}>- {patch.kind}</li>
+                    ))}
+                    {coachPendingPatches.length > 6 ? (
+                      <li>...and {coachPendingPatches.length - 6} more</li>
+                    ) : null}
+                  </ul>
+                  {coachUnresolvedQuestions.length > 0 ? (
+                    <div className="mt-2 rounded border border-dashed p-2">
+                      <p className="text-xs font-medium">Unresolved questions</p>
+                      <ul className="mt-1 space-y-1 text-xs text-muted-foreground">
+                        {coachUnresolvedQuestions.slice(0, 3).map((question) => (
+                          <li key={question}>- {question}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() => void applyCoachProposal()}
+                      disabled={coachPolicyApplying}
+                    >
+                      {coachPolicyApplying ? "Applying..." : "Apply to calendar"}
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={rejectCoachProposal}
+                      disabled={coachPolicyApplying}
+                    >
+                      Reject
+                    </Button>
+                  </div>
+                </div>
+              ) : null}
+              {coachUndoSnapshot ? (
+                <div className="mt-3 flex justify-end">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => void undoCoachProposal()}
+                    disabled={coachPolicyApplying}
+                  >
+                    {coachPolicyApplying ? "Saving..." : "Undo latest apply"}
+                  </Button>
+                </div>
+              ) : null}
               <div className="mt-3 space-y-2">
                 <Textarea
                   value={coachInput}
@@ -1125,7 +1572,15 @@ export function CalendarSurface({
             </div>
           ) : null}
 
-          <Dialog open={Boolean(selectedDay)} onOpenChange={(open) => (!open ? onCloseDay() : undefined)}>
+          <Dialog
+            open={Boolean(selectedDay)}
+            onOpenChange={(open) => {
+              if (!open) {
+                setSelectedEventEntryKey(null);
+                onCloseDay();
+              }
+            }}
+          >
             <DialogContent
               className="top-auto bottom-0 left-1/2 max-w-[calc(100%-1rem)] -translate-x-1/2 translate-y-0 rounded-b-none rounded-t-xl pb-[calc(env(safe-area-inset-bottom)+1rem)] sm:top-1/2 sm:bottom-auto sm:max-w-lg sm:-translate-y-1/2 sm:rounded-b-xl"
               aria-describedby="planner-day-detail-description"
@@ -1144,103 +1599,143 @@ export function CalendarSurface({
                 ) : (
                   <ul className="space-y-2">
                     {selectedDayEntries.map((entry) => {
-                      const activeItem = entry.activeItem;
-                      const canMutateEntry =
-                        canMutatePlanItems &&
-                        Boolean(activeItem) &&
-                        activeItem?.scheduled_date === selectedDay;
-                      const canToggleDateFact = Boolean(
-                        context?.capabilities.targetedExactCompletion &&
-                          (activeItem || entry.activeGoal)
-                      );
-                      const moveActionKey = activeItem ? `move:${activeItem.id}` : null;
-                      const lockActionKey = activeItem ? `lock:${activeItem.id}` : null;
-                      const factActionKey = `fact:${entry.key}`;
+                      const visual = getGoalVisual({
+                        goalId: entry.originalGoalId,
+                        color: entry.activeGoal?.color ?? null,
+                      });
+                      const Icon = visual.Icon;
                       return (
-                        <li key={entry.key} className="rounded-lg border p-2 text-sm">
-                          <p className="font-medium">{entry.label ?? entry.unitKey}</p>
-                          <p className="text-xs text-muted-foreground">
-                            Goal {entry.originalGoalId} · {entry.classification} · {entry.creditState}
-                          </p>
-                          {canMutateEntry && activeItem ? (
-                            <div className="mt-2 space-y-2 rounded-md border border-dashed p-2">
-                              <label className="flex items-center gap-2 text-xs text-muted-foreground">
-                                Move to
-                                <Input
-                                  value={moveDateByItemId[activeItem.id] ?? selectedDay ?? ""}
-                                  onChange={(event) =>
-                                    setMoveDateByItemId((previous) => ({
-                                      ...previous,
-                                      [activeItem.id]: event.target.value,
-                                    }))
-                                  }
-                                  placeholder="YYYY-MM-DD"
-                                  className="h-8 text-xs"
-                                />
-                              </label>
-                              <div className="flex flex-wrap gap-2">
-                                <Button
-                                  type="button"
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => void moveItem(entry)}
-                                  disabled={Boolean(mutationLoadingKey)}
-                                >
-                                  {mutationLoadingKey === moveActionKey ? "Moving..." : "Move"}
-                                </Button>
-                                <Button
-                                  type="button"
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => void toggleItemLock(entry)}
-                                  disabled={Boolean(mutationLoadingKey)}
-                                >
-                                  {mutationLoadingKey === lockActionKey
-                                    ? "Saving..."
-                                    : activeItem.locked
-                                      ? "Unlock"
-                                      : "Lock"}
-                                </Button>
-                                <Button
-                                  type="button"
-                                  size="sm"
-                                  onClick={() => void toggleDateFact(entry)}
-                                  disabled={
-                                    Boolean(mutationLoadingKey) || !canToggleDateFact
-                                  }
-                                >
-                                  {mutationLoadingKey === factActionKey
-                                    ? "Saving..."
-                                    : entry.creditState === "uncredited"
-                                      ? "Mark done"
-                                      : "Undo done"}
-                                </Button>
-                              </div>
-                            </div>
-                          ) : null}
-                          {!canMutateEntry && canToggleDateFact ? (
-                            <div className="mt-2">
-                              <Button
-                                type="button"
-                                size="sm"
-                                variant="outline"
-                                onClick={() => void toggleDateFact(entry)}
-                                disabled={Boolean(mutationLoadingKey)}
+                        <li key={entry.key}>
+                          <button
+                            type="button"
+                            className="w-full rounded-lg border p-2 text-left text-sm transition-colors hover:border-primary/60"
+                            onClick={() => setSelectedEventEntryKey(entry.key)}
+                          >
+                            <div className="flex items-center gap-2">
+                              <span
+                                className="inline-flex size-5 items-center justify-center rounded-full"
+                                style={{ backgroundColor: visual.color }}
                               >
-                                {mutationLoadingKey === factActionKey
-                                  ? "Saving..."
-                                  : entry.creditState === "uncredited"
-                                    ? "Mark done"
-                                    : "Undo done"}
-                              </Button>
+                                <Icon className="size-3 text-white" />
+                              </span>
+                              <p className="font-medium">{entry.label ?? entry.unitKey}</p>
                             </div>
-                          ) : null}
+                            <p className="mt-1 text-xs text-muted-foreground">
+                              Goal {entry.originalGoalId} · {entry.classification} · {entry.creditState}
+                            </p>
+                            <p className="mt-1 text-xs text-primary">
+                              View event details
+                            </p>
+                          </button>
                         </li>
                       );
                     })}
                   </ul>
                 )}
               </div>
+            </DialogContent>
+          </Dialog>
+
+          <Dialog
+            open={Boolean(selectedEventEntry)}
+            onOpenChange={(open) => {
+              if (!open) {
+                setSelectedEventEntryKey(null);
+              }
+            }}
+          >
+            <DialogContent aria-describedby="planner-event-detail-description">
+              <DialogHeader>
+                <DialogTitle>
+                  {selectedEventEntry?.label ?? selectedEventEntry?.unitKey ?? "Event detail"}
+                </DialogTitle>
+                <DialogDescription id="planner-event-detail-description">
+                  Move scheduling, lock state, and completion tracking for this event.
+                </DialogDescription>
+              </DialogHeader>
+              {selectedEventEntry ? (
+                <div className="space-y-3 text-sm">
+                  <p className="text-xs text-muted-foreground">
+                    Goal {selectedEventEntry.originalGoalId} · {selectedEventEntry.classification} · {selectedEventEntry.creditState}
+                  </p>
+                  {selectedEventEntry.activeItem ? (
+                    <div className="space-y-2 rounded-md border border-dashed p-2">
+                      {(() => {
+                        const eventItem = selectedEventEntry.activeItem;
+                        return (
+                          <>
+                      <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                        Move to
+                        <Input
+                          value={
+                            moveDateByItemId[eventItem.id] ??
+                            selectedDay ??
+                            ""
+                          }
+                          onChange={(event) =>
+                            setMoveDateByItemId((previous) => ({
+                              ...previous,
+                              [eventItem.id]: event.target.value,
+                            }))
+                          }
+                          placeholder="YYYY-MM-DD"
+                          className="h-8 text-xs"
+                        />
+                      </label>
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => void moveItem(selectedEventEntry)}
+                          disabled={Boolean(mutationLoadingKey) || !canMutatePlanItems}
+                        >
+                          {mutationLoadingKey === `move:${eventItem.id}`
+                            ? "Moving..."
+                            : "Move"}
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => void toggleItemLock(selectedEventEntry)}
+                          disabled={Boolean(mutationLoadingKey) || !canMutatePlanItems}
+                        >
+                          {mutationLoadingKey === `lock:${eventItem.id}`
+                            ? "Saving..."
+                            : eventItem.locked
+                              ? "Unlock"
+                              : "Lock"}
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          onClick={() => void toggleDateFact(selectedEventEntry)}
+                          disabled={
+                            Boolean(mutationLoadingKey) ||
+                            !canMutatePlanItems ||
+                            !context?.capabilities.targetedExactCompletion
+                          }
+                        >
+                          {mutationLoadingKey === `fact:${selectedEventEntry.key}`
+                            ? "Saving..."
+                            : selectedEventEntry.creditState === "uncredited"
+                              ? "Mark done"
+                              : "Undo done"}
+                        </Button>
+                      </div>
+                          </>
+                        );
+                      })()}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">
+                      This preview item is not currently attached to an active plan row,
+                      so write actions are unavailable.
+                    </p>
+                  )}
+                </div>
+              ) : null}
             </DialogContent>
           </Dialog>
         </>

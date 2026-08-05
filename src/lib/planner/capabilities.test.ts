@@ -36,10 +36,20 @@ describe("planner capabilities", () => {
     });
   });
 
-  it("rejects invalid flag string values", () => {
+  it("accepts common copy-paste casing/whitespace variants", () => {
+    vi.stubEnv("CALENDAR_ENABLED", " True \n");
+    expect(getPlannerCapabilities().calendarEnabled).toBe(true);
+    vi.stubEnv("CALENDAR_ENABLED", " FALSE\t");
+    expect(getPlannerCapabilities().calendarEnabled).toBe(false);
+  });
+
+  it("falls back to default on invalid values without throwing", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     vi.stubEnv("CALENDAR_ENABLED", "maybe");
-    expect(() => getPlannerCapabilities()).toThrow(
-      "Invalid feature flag value"
+    expect(getPlannerCapabilities().calendarEnabled).toBe(true);
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining("Invalid CALENDAR_ENABLED value")
     );
+    warnSpy.mockRestore();
   });
 });
