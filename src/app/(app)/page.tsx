@@ -1,5 +1,7 @@
-import { TodayTab } from "@/features/today/today-tab";
+import { ChecklistShell } from "@/features/today/checklist-shell";
+import { getPlannerCapabilities } from "@/lib/planner/capabilities";
 
 export default function TodayPage() {
-  return <TodayTab />;
+  const capabilities = getPlannerCapabilities();
+  return <ChecklistShell calendarEnabled={capabilities.calendarEnabled} />;
 }

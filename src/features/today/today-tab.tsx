@@ -157,7 +157,23 @@ function getNextMilestoneName(goal: Goal, completionCount: number): string | nul
   return `Milestone ${nextMilestoneIndex + 1}`;
 }
 
-export function TodayTab() {
+export type ChecklistTabValue = "today" | "not-today";
+
+interface TodayTabProps {
+  activeTab?: ChecklistTabValue;
+  onActiveTabChange?: (tab: ChecklistTabValue) => void;
+  hideTabList?: boolean;
+  isActive?: boolean;
+  refreshToken?: number;
+}
+
+export function TodayTab({
+  activeTab,
+  onActiveTabChange,
+  hideTabList = false,
+  isActive = true,
+  refreshToken = 0,
+}: TodayTabProps = {}) {
   const supabase = useMemo(() => createClient(), []);
   const [data, setData] = useState<TodayData>(emptyData);
   const [loading, setLoading] = useState(true);
@@ -175,7 +191,12 @@ export function TodayTab() {
   const [todaySort, setTodaySort] = useState<GoalDateSort>("earliest_end");
   const [notTodayEndMonth, setNotTodayEndMonth] = useState<string | null>(null);
   const [notTodaySort, setNotTodaySort] = useState<GoalDateSort>("earliest_end");
+  const [internalChecklistTab, setInternalChecklistTab] =
+    useState<ChecklistTabValue>(activeTab ?? "today");
   const loadRequestIdRef = useRef(0);
+  const refreshTokenRef = useRef(refreshToken);
+  const pendingRefreshRef = useRef(false);
+  const effectiveChecklistTab = activeTab ?? internalChecklistTab;
 
   const viewDateObj = useMemo(() => parseISO(viewDate), [viewDate]);
   const todayLocalDate = toLocalDateString();
@@ -280,6 +301,46 @@ export function TodayTab() {
 
     void run();
   }, [loadData]);
+
+  useEffect(() => {
+    if (refreshToken === refreshTokenRef.current) {
+      return;
+    }
+
+    refreshTokenRef.current = refreshToken;
+    if (isActive) {
+      const timer = window.setTimeout(() => {
+        void loadData({ showLoading: false }).catch((error: unknown) => {
+          toast.error(
+            error instanceof Error
+              ? error.message
+              : "Goal progress could not be loaded."
+          );
+        });
+      }, 0);
+      pendingRefreshRef.current = false;
+      return () => window.clearTimeout(timer);
+    }
+
+    pendingRefreshRef.current = true;
+  }, [isActive, loadData, refreshToken]);
+
+  useEffect(() => {
+    if (!isActive || !pendingRefreshRef.current) {
+      return;
+    }
+    pendingRefreshRef.current = false;
+    const timer = window.setTimeout(() => {
+      void loadData({ showLoading: false }).catch((error: unknown) => {
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : "Goal progress could not be loaded."
+        );
+      });
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [isActive, loadData]);
 
   const completionsByGoal = useMemo(
     () => goalCompletionsMap(data.completions),
@@ -584,13 +645,26 @@ export function TodayTab() {
 
   return (
     <div className="space-y-5">
-      <Tabs defaultValue="today" className="flex-col space-y-4">
-        <Card className="gap-0 p-1.5 shadow-sm">
-          <TabsList className="grid h-8 w-full grid-cols-2">
-            <TabsTrigger value="today">Today</TabsTrigger>
-            <TabsTrigger value="not-today">Not Today</TabsTrigger>
-          </TabsList>
-        </Card>
+      <Tabs
+        value={effectiveChecklistTab}
+        onValueChange={(value) => {
+          const nextTab: ChecklistTabValue =
+            value === "not-today" ? "not-today" : "today";
+          if (!activeTab) {
+            setInternalChecklistTab(nextTab);
+          }
+          onActiveTabChange?.(nextTab);
+        }}
+        className="flex-col space-y-4"
+      >
+        {hideTabList ? null : (
+          <Card className="gap-0 p-1.5 shadow-sm">
+            <TabsList className="grid h-8 w-full grid-cols-2">
+              <TabsTrigger value="today">Today</TabsTrigger>
+              <TabsTrigger value="not-today">Past</TabsTrigger>
+            </TabsList>
+          </Card>
+        )}
 
         <TabsContent value="today" className="space-y-5">
           <Card className="shadow-sm">
@@ -802,7 +876,7 @@ export function TodayTab() {
         <TabsContent value="not-today" className="space-y-4">
           <Card className="shadow-sm">
             <CardHeader className="pb-3">
-              <CardTitle className="text-xl">Not Today</CardTitle>
+              <CardTitle className="text-xl">Past</CardTitle>
               <CardDescription>Review upcoming, ended, and archived goals.</CardDescription>
             </CardHeader>
             <CardContent>

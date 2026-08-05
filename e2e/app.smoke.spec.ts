@@ -11,13 +11,50 @@ test("loads the seeded authenticated checklist", async ({ page }, testInfo) => {
     page.getByRole("tab", { name: "Today", exact: true })
   ).toBeVisible();
   await expect(
-    page.getByRole("tab", { name: "Not Today", exact: true })
+    page.getByRole("tab", { name: "Past", exact: true })
+  ).toBeVisible();
+  await expect(
+    page.getByRole("tab", { name: "Calendar", exact: true })
   ).toBeVisible();
   await expect(page.getByText("Loading your goals...")).toHaveCount(0);
 
   if (testInfo.project.name === "mobile-webkit") {
     expect(page.viewportSize()?.width).toBeLessThan(500);
   }
+});
+
+test("direct calendar URL does not eagerly load checklist context", async ({
+  page,
+}) => {
+  let progressContextRequests = 0;
+  await page.route("**/api/progress/context**", async (route) => {
+    progressContextRequests += 1;
+    await route.continue();
+  });
+
+  await page.goto("/?tab=calendar");
+  await expect(
+    page.getByRole("tab", { name: "Calendar", exact: true })
+  ).toBeVisible();
+  await expect(page).toHaveURL(/tab=calendar/);
+  await page.waitForLoadState("networkidle");
+  expect(progressContextRequests).toBe(0);
+});
+
+test("planner shell normalizes URL and preserves history navigation", async ({
+  page,
+}) => {
+  await page.goto("/?day=2026-08-04");
+  await expect(page).toHaveURL(/tab=calendar/);
+  await expect(page).toHaveURL(/month=2026-08/);
+  await expect(page).toHaveURL(/day=2026-08-04/);
+
+  await page.getByRole("tab", { name: "Past", exact: true }).click();
+  await expect(page).toHaveURL(/tab=not-today/);
+  await expect(page).not.toHaveURL(/day=/);
+
+  await page.goBack();
+  await expect(page).toHaveURL(/tab=calendar/);
 });
 
 test("login surface has no detectable WCAG A/AA violations", async ({

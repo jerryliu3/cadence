@@ -7,6 +7,7 @@ const testFiles = [
   "src/lib/goals/timezone-domain.test.ts",
   "src/lib/goals/lifecycle.test.ts",
   "src/lib/planner/contracts/fixture-schema.test.ts",
+  "src/features/planner/month-cells.test.ts",
 ];
 
 function runTimezone(timezone) {
