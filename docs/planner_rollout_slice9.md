@@ -53,9 +53,8 @@ Do not down-migrate planner history tables.
 If planner incidents occur:
 
 1. Set `CALENDAR_ENABLED=false` to disable planner reads/writes and Calendar UI.
-2. Set `CALENDAR_COACH_AI_ENABLED=false` to disable coach requests.
-3. Redeploy the last known bridge-compatible app build.
-4. Keep execution history tables intact for forensic analysis.
+2. Redeploy the last known bridge-compatible app build.
+3. Keep execution history tables intact for forensic analysis.
 
 ## 5) Dashboard/query checklist
 
@@ -86,7 +85,6 @@ Start with these minimum alerts:
 
 ## 7) Controlled enablement order
 
-1. Keep coach disabled (`CALENDAR_COACH_AI_ENABLED=false`) while manual planner soaks.
-2. Enable manual planner cohort first (`CALENDAR_ENABLED=true` for internal users).
-3. Observe telemetry and query panels through soak window.
-4. Enable coach only after manual planner stability is established.
+1. Enable manual planner cohort first (`CALENDAR_ENABLED=true` for internal users).
+2. Observe telemetry and query panels through soak window.
+3. Expand broader cohorts only after manual planner stability is established.

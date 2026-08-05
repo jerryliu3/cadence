@@ -13,14 +13,9 @@ describe("planner capabilities", () => {
       plannerGeneration: true,
       plannerPlanWrites: true,
       targetedExactCompletion: true,
-      coachAi: false,
+      coachAi: true,
       overlap: true,
     });
-  });
-
-  it("enables coach AI only with explicit opt-in", () => {
-    vi.stubEnv("CALENDAR_COACH_AI_ENABLED", "true");
-    expect(getPlannerCapabilities().coachAi).toBe(true);
   });
 
   it("keeps calendar enabled by default in production", () => {
@@ -43,13 +38,6 @@ describe("planner capabilities", () => {
 
   it("rejects invalid flag string values", () => {
     vi.stubEnv("CALENDAR_ENABLED", "maybe");
-    expect(() => getPlannerCapabilities()).toThrow(
-      "Invalid feature flag value"
-    );
-  });
-
-  it("rejects invalid coach flag values", () => {
-    vi.stubEnv("CALENDAR_COACH_AI_ENABLED", "maybe");
     expect(() => getPlannerCapabilities()).toThrow(
       "Invalid feature flag value"
     );

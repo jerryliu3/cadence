@@ -247,10 +247,19 @@ export async function POST(request: Request) {
       );
     }
 
-    const sanitized = sanitizeCoachTurn({
-      raw: response.candidateJson,
-      goalsById,
-    });
+    let sanitized;
+    try {
+      sanitized = sanitizeCoachTurn({
+        raw: response.candidateJson,
+        goalsById,
+      });
+    } catch {
+      throw new PlannerRouteError(
+        502,
+        "ai_invalid_output",
+        "Planner coach output was invalid."
+      );
+    }
 
     await recordPlannerAiOutputTokens({
       admin,

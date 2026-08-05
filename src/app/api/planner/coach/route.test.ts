@@ -56,7 +56,6 @@ function request(body: unknown) {
 describe("planner coach route", () => {
   beforeEach(() => {
     vi.stubEnv("CALENDAR_ENABLED", "true");
-    vi.stubEnv("CALENDAR_COACH_AI_ENABLED", "true");
     vi.stubEnv("SUPABASE_SECRET_KEY", "test-secret");
     mocks.getUser.mockResolvedValue({
       data: { user: { id: "11111111-1111-4111-8111-111111111111" } },
@@ -219,6 +218,31 @@ describe("planner coach route", () => {
         policyPatches: [{ kind: "set_spacing_strategy" }],
       },
       warnings: [expect.stringContaining("unsupported policy patch")],
+    });
+  });
+
+  it("maps malformed envelope output to ai_invalid_output", async () => {
+    mocks.generateGeminiJson.mockResolvedValue({
+      candidateJson: {
+        schemaVersion: "1",
+        phase: "review",
+        proposal: {},
+      },
+      outputTokens: 12,
+      attempts: 1,
+    });
+
+    const response = await POST(
+      request({
+        scopeMonth: "2026-01",
+        focusGoalIds: ["12000000-0000-4000-8000-000000000001"],
+        messages: [{ role: "user", content: "Help me plan this month." }],
+      })
+    );
+
+    expect(response.status).toBe(502);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "ai_invalid_output",
     });
   });
 });
