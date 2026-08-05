@@ -6,6 +6,7 @@ import {
   parseBoundedJsonBody,
   plannerErrorResponse,
   PlannerRouteError,
+  requirePlannerAdminClient,
   requirePlannerRouteContext,
   unknownPlannerErrorResponse,
 } from "@/lib/planner/api";
@@ -15,7 +16,6 @@ import {
   POLICY_SCHEMA_VERSION,
 } from "@/lib/planner/contracts/bounds";
 import { createDefaultPlannerPolicy, plannerPolicySchema } from "@/lib/planner/policy";
-import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
@@ -126,7 +126,7 @@ export async function PUT(request: Request) {
       );
     }
 
-    const admin = createAdminClient();
+    const admin = requirePlannerAdminClient();
     const upsertResponse = await admin.rpc(
       "upsert_planner_preferences_service",
       {

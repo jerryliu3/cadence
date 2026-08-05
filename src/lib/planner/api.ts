@@ -4,6 +4,7 @@ import { z } from "zod";
 import { getDateInTimezone } from "@/lib/dates/timezone";
 import { getPlannerCapabilities } from "@/lib/planner/capabilities";
 import type { PlannerCapabilities } from "@/lib/planner/capabilities";
+import { createAdminClient } from "@/lib/supabase/admin";
 import type { createClient as createServerClient } from "@/lib/supabase/server";
 
 type ServerSupabaseClient = Awaited<ReturnType<typeof createServerClient>>;
@@ -143,6 +144,18 @@ export interface AuthenticatedPlannerRouteContext {
   userId: string;
   supabase: ServerSupabaseClient;
   capabilities: PlannerCapabilities;
+}
+
+export function requirePlannerAdminClient() {
+  try {
+    return createAdminClient();
+  } catch {
+    throw new PlannerRouteError(
+      503,
+      "admin_configuration_invalid",
+      "Planner write APIs are unavailable until server admin credentials are configured."
+    );
+  }
 }
 
 export async function requirePlannerRouteContext({

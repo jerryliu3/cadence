@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, private, extensions, pg_catalog;
-select plan(26);
+select plan(28);
 
 create temporary table planner_test_revisions (
   label text primary key,
@@ -593,6 +593,21 @@ select throws_ok(
   'authenticated clients cannot execute service-only planner write wrappers'
 );
 
+select throws_ok(
+  $$
+    select *
+    from public.dismiss_execution_plan_service(
+      '11111111-1111-4111-8111-111111111111',
+      '13000000-0000-4000-8000-000000000001',
+      0,
+      0
+    )
+  $$,
+  '42501'::character(5),
+  'permission denied for function dismiss_execution_plan_service',
+  'authenticated clients cannot execute planner mutation wrappers'
+);
+
 reset role;
 
 set local role service_role;
@@ -642,6 +657,28 @@ select throws_ok(
   'permission denied for table execution_plan_issues',
   'service-role clients must use privileged planner functions for writes'
 );
+
+select is(
+  (
+    select status
+    from public.dismiss_execution_plan_service(
+      '11111111-1111-4111-8111-111111111111',
+      '13000000-0000-4000-8000-000000000001',
+      (
+        select canonical_revision
+        from private.planner_state
+        where owner_id = '11111111-1111-4111-8111-111111111111'
+      ),
+      (
+        select execution_revision
+        from private.planner_state
+        where owner_id = '11111111-1111-4111-8111-111111111111'
+      )
+    )
+  ),
+  'dismissed',
+  'service role can dismiss active plans only through wrapper functions'
+);
 reset role;
 
 delete from public.goals
@@ -661,11 +698,6 @@ select results_eq(
   $$,
   'live goal deletion preserves immutable snapshot identity'
 );
-
-update public.execution_plans
-set status = 'dismissed',
-    dismissed_at = now()
-where id = '13000000-0000-4000-8000-000000000001';
 
 select is(
   (

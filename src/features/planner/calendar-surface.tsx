@@ -17,6 +17,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { buildMondayFirstMonthCells } from "@/features/planner/month-cells";
 import { getDateInTimezone, isValidIanaTimezone } from "@/lib/dates/timezone";
+import { buildPlannerConfirmationHash } from "@/lib/planner/publish-payload";
 import { createDefaultPlannerPolicy } from "@/lib/planner/policy";
 
 type CalendarTab = "today" | "not-today" | "calendar";
@@ -38,8 +39,17 @@ interface PlannerContextPayload {
   capabilities: {
     plannerRead: boolean;
     plannerGeneration: boolean;
+    plannerPlanWrites: boolean;
   };
+  activePlan: {
+    plan: {
+      id: string;
+      version: number;
+      status: "active" | "superseded" | "dismissed";
+    };
+  } | null;
   preview: {
+    generationInputHash: string;
     solver: {
       placementStatus: "complete" | "partial";
       searchStatus:
@@ -47,9 +57,15 @@ interface PlannerContextPayload {
         | "maximum_partial"
         | "blocked_invalid_lock"
         | "soft_optimization_exhausted";
+      issueCodes: string[];
+      confirmationRequired: boolean;
     };
     workUnits: PlannerWorkUnit[];
   } | null;
+  revisions: {
+    canonicalRevision: number;
+    executionRevision: number;
+  };
   staleness: {
     stale: boolean;
     reasons: Array<{ code: string }>;
@@ -120,6 +136,17 @@ function getDayStatus(unitsForDay: PlannerWorkUnit[], fallback: string) {
   return "Planned";
 }
 
+function createClientUuid() {
+  if (globalThis.crypto?.randomUUID) {
+    return globalThis.crypto.randomUUID();
+  }
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (char) => {
+    const random = Math.floor(Math.random() * 16);
+    const value = char === "x" ? random : (random & 0x3) | 0x8;
+    return value.toString(16);
+  });
+}
+
 export function CalendarSurface({
   activeTab,
   month,
@@ -132,6 +159,8 @@ export function CalendarSurface({
   const [context, setContext] = useState<PlannerContextPayload | null>(null);
   const [loading, setLoading] = useState(false);
   const [setupLoading, setSetupLoading] = useState(false);
+  const [publishLoading, setPublishLoading] = useState(false);
+  const [dismissLoading, setDismissLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [setupTimezone, setSetupTimezone] = useState(
     Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"
@@ -264,6 +293,73 @@ export function CalendarSurface({
     toast.success("Planner setup saved.");
   };
 
+  const publishPlan = async () => {
+    if (!context?.preview || !context.capabilities.plannerPlanWrites) {
+      return;
+    }
+    const idempotencyKey = createClientUuid();
+    const confirmationHash = context.preview.solver.confirmationRequired
+      ? buildPlannerConfirmationHash({
+          previewHash: context.preview.generationInputHash,
+          issueCodes: context.preview.solver.issueCodes,
+        })
+      : null;
+
+    setPublishLoading(true);
+    const response = await fetch("/api/planner/publish", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Idempotency-Key": idempotencyKey,
+      },
+      body: JSON.stringify({
+        scopeMonth: context.scopeMonth,
+        previewHash: context.preview.generationInputHash,
+        expectedCanonicalRevision: context.revisions.canonicalRevision,
+        expectedExecutionRevision: context.revisions.executionRevision,
+        expectedBasePlanId: context.activePlan?.plan.id ?? null,
+        expectedBasePlanVersion: context.activePlan?.plan.version ?? null,
+        confirmationHash,
+      }),
+    });
+    const payload = (await response.json()) as PlannerErrorPayload & {
+      replayed?: boolean;
+    };
+    setPublishLoading(false);
+    if (!response.ok) {
+      toast.error(payload.message ?? "Planner publish failed.");
+      return;
+    }
+    onPlannerMutation();
+    await loadContext();
+    toast.success(payload.replayed ? "Publish replayed." : "Plan published.");
+  };
+
+  const dismissPlan = async () => {
+    if (!context?.activePlan || !context.capabilities.plannerPlanWrites) {
+      return;
+    }
+    setDismissLoading(true);
+    const response = await fetch("/api/planner/plans/dismiss", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        planId: context.activePlan.plan.id,
+        expectedCanonicalRevision: context.revisions.canonicalRevision,
+        expectedExecutionRevision: context.revisions.executionRevision,
+      }),
+    });
+    const payload = (await response.json()) as PlannerErrorPayload;
+    setDismissLoading(false);
+    if (!response.ok) {
+      toast.error(payload.message ?? "Planner plan dismiss failed.");
+      return;
+    }
+    onPlannerMutation();
+    await loadContext();
+    toast.success("Plan dismissed.");
+  };
+
   const plannerSearchStatus = context?.preview?.solver.searchStatus;
   const monthStatusLabel =
     plannerSearchStatus === "all_units_placed"
@@ -343,6 +439,33 @@ export function CalendarSurface({
               Next month
               <ChevronRight className="size-4" />
             </Button>
+            {context?.capabilities.plannerPlanWrites &&
+            context.preview ? (
+              <Button
+                type="button"
+                size="sm"
+                onClick={publishPlan}
+                disabled={publishLoading || loading}
+              >
+                {publishLoading
+                  ? "Publishing..."
+                  : context.activePlan
+                    ? "Update Plan"
+                    : "Publish Plan"}
+              </Button>
+            ) : null}
+            {context?.capabilities.plannerPlanWrites &&
+            context.activePlan ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={dismissPlan}
+                disabled={dismissLoading || loading}
+              >
+                {dismissLoading ? "Dismissing..." : "Dismiss Plan"}
+              </Button>
+            ) : null}
           </div>
         </div>
       </div>

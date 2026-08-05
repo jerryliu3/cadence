@@ -1,14 +1,27 @@
+import { NextResponse } from "next/server";
 import { z } from "zod";
 import {
   createCorrelationId,
   parseBoundedJsonBody,
   plannerErrorResponse,
-  plannerWritesNotReleasedError,
   PlannerRouteError,
+  requirePlannerAdminClient,
   requirePlannerRouteContext,
+  resolveCanonicalAsOfDate,
   unknownPlannerErrorResponse,
 } from "@/lib/planner/api";
+import { createDefaultAssessment, goalAssessmentSchema } from "@/lib/planner/assessment";
+import { loadPlannerCanonicalSnapshot } from "@/lib/planner/context-loader";
 import { MAX_API_BODY_BYTES } from "@/lib/planner/contracts/bounds";
+import { runPlannerKernel } from "@/lib/planner/kernel";
+import {
+  buildPlannerConfirmationHash,
+  buildPlannerPublishPersistencePayload,
+  buildPlannerPublishRequestDigest,
+  plannerPlanMetadataFromKernel,
+} from "@/lib/planner/publish-payload";
+import { plannerPolicySchema } from "@/lib/planner/policy";
+import { callUntypedAdminRpc } from "@/lib/supabase/admin-rpc";
 import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
@@ -33,19 +46,329 @@ export async function POST(request: Request) {
   const correlationId = createCorrelationId();
   try {
     const supabase = await createClient();
-    await requirePlannerRouteContext({
+    const routeContext = await requirePlannerRouteContext({
       supabase,
       requiredCapability: "plannerPlanWrites",
       disabledCode: "planner_plan_writes_disabled",
       disabledMessage: "Planner write APIs are not enabled for this owner.",
     });
-    await parseBoundedJsonBody(
+    const body = await parseBoundedJsonBody(
       request,
       Math.min(MAX_API_BODY_BYTES, 256 * 1024),
       publishSchema
     );
+    if (
+      (body.expectedBasePlanId === null) !==
+      (body.expectedBasePlanVersion === null)
+    ) {
+      throw new PlannerRouteError(
+        400,
+        "validation_failed",
+        "Expected base plan id and version must be provided together."
+      );
+    }
 
-    throw plannerWritesNotReleasedError();
+    const idempotencyKey = request.headers.get("Idempotency-Key")?.trim();
+    if (!idempotencyKey) {
+      throw new PlannerRouteError(
+        400,
+        "validation_failed",
+        "Provide an Idempotency-Key header for planner publish."
+      );
+    }
+    if (!z.uuid().safeParse(idempotencyKey).success) {
+      throw new PlannerRouteError(
+        400,
+        "validation_failed",
+        "Idempotency-Key must be a UUID."
+      );
+    }
+
+    const publishIntent = {
+      scopeMonth: body.scopeMonth,
+      previewHash: body.previewHash,
+      expectedCanonicalRevision: body.expectedCanonicalRevision,
+      expectedExecutionRevision: body.expectedExecutionRevision,
+      expectedBasePlanId: body.expectedBasePlanId,
+      expectedBasePlanVersion: body.expectedBasePlanVersion,
+    };
+    const requestDigest = buildPlannerPublishRequestDigest({
+      ownerId: routeContext.userId,
+      idempotencyKey,
+      intent: publishIntent,
+    });
+
+    const admin = requirePlannerAdminClient();
+    const replayLookup = await admin
+      .from("execution_plans")
+      .select("id, version, status, scope_month, request_digest")
+      .eq("owner_id", routeContext.userId)
+      .eq("idempotency_key", idempotencyKey)
+      .maybeSingle();
+    if (replayLookup.error) {
+      throw new PlannerRouteError(
+        500,
+        "publish_lookup_failed",
+        "Planner publish state could not be loaded.",
+        { cause: replayLookup.error.message }
+      );
+    }
+
+    if (replayLookup.data) {
+      if (replayLookup.data.request_digest !== requestDigest) {
+        throw new PlannerRouteError(
+          409,
+          "idempotency_key_conflict",
+          "Idempotency key was already used for a different planner publish."
+        );
+      }
+
+      const currentActive = await admin
+        .from("execution_plans")
+        .select("id")
+        .eq("owner_id", routeContext.userId)
+        .eq("scope_month", replayLookup.data.scope_month)
+        .eq("status", "active")
+        .maybeSingle();
+      if (currentActive.error) {
+        throw new PlannerRouteError(
+          500,
+          "publish_lookup_failed",
+          "Planner publish replay state could not be loaded.",
+          { cause: currentActive.error.message }
+        );
+      }
+      const revisionsResponse = await routeContext.supabase.rpc("get_planner_state");
+      if (revisionsResponse.error) {
+        throw new PlannerRouteError(
+          500,
+          "revision_load_failed",
+          "Planner revision state could not be loaded."
+        );
+      }
+      const revisions = (
+        (revisionsResponse.data as
+          | Array<{ canonical_revision: number; execution_revision: number }>
+          | null) ?? []
+      )[0] ?? {
+        canonical_revision: 0,
+        execution_revision: 0,
+      };
+      return NextResponse.json(
+        {
+          schemaVersion: "1",
+          planId: replayLookup.data.id,
+          version: replayLookup.data.version,
+          replayed: true,
+          isCurrentlyActive: replayLookup.data.status === "active",
+          currentActivePlanId: currentActive.data?.id ?? null,
+          revisions: {
+            canonicalRevision: revisions.canonical_revision,
+            executionRevision: revisions.execution_revision,
+          },
+          correlationId,
+        },
+        { headers: { "Cache-Control": "private, no-store" } }
+      );
+    }
+
+    const snapshot = await loadPlannerCanonicalSnapshot({
+      supabase: routeContext.supabase,
+      ownerId: routeContext.userId,
+      scopeMonth: body.scopeMonth,
+    });
+    if (
+      snapshot.revisions.canonicalRevision !== body.expectedCanonicalRevision ||
+      snapshot.revisions.executionRevision !== body.expectedExecutionRevision
+    ) {
+      throw new PlannerRouteError(
+        409,
+        "stale_revision",
+        "Planner publish revisions are stale. Refresh and try again."
+      );
+    }
+    const liveBasePlanId = snapshot.activePlan?.plan.id ?? null;
+    const liveBasePlanVersion = snapshot.activePlan?.plan.version ?? null;
+    if (
+      liveBasePlanId !== body.expectedBasePlanId ||
+      liveBasePlanVersion !== body.expectedBasePlanVersion
+    ) {
+      throw new PlannerRouteError(
+        409,
+        "base_plan_conflict",
+        "The active plan changed before publish. Refresh and retry."
+      );
+    }
+
+    if (!snapshot.preferences) {
+      throw new PlannerRouteError(
+        422,
+        "timezone_confirmation_required",
+        "Confirm planner timezone before publishing a plan."
+      );
+    }
+
+    const effectivePolicy = plannerPolicySchema.parse(
+      snapshot.preferences.default_policy
+    );
+    const asOfDate = resolveCanonicalAsOfDate({
+      timezone: snapshot.preferences.timezone,
+    });
+    const activeAssessments = (snapshot.activePlan?.goals ?? []).map((goal) =>
+      goalAssessmentSchema.parse(goal.assessment_snapshot)
+    );
+    const assessmentByGoalId = new Map(
+      activeAssessments.map((assessment) => [assessment.goalId, assessment])
+    );
+    const assessments = snapshot.goals.map((goal) =>
+      assessmentByGoalId.get(goal.id) ?? createDefaultAssessment(goal)
+    );
+    const kernel = runPlannerKernel({
+      schemaVersion: "1",
+      eligibilityMode: "end_month_v1",
+      ownerId: routeContext.userId,
+      scopeMonth: body.scopeMonth,
+      asOfDate,
+      timezone: snapshot.preferences.timezone,
+      goals: snapshot.goals,
+      completions: snapshot.completions,
+      links: snapshot.links,
+      assessments,
+      policy: effectivePolicy,
+      basePlan: snapshot.activePlan?.basePlan ?? null,
+    });
+
+    if (kernel.generationInputHash !== body.previewHash) {
+      throw new PlannerRouteError(
+        409,
+        "preview_hash_mismatch",
+        "Planner preview hash is stale. Regenerate and publish again."
+      );
+    }
+
+    if (kernel.solver.confirmationRequired) {
+      const expectedConfirmationHash = buildPlannerConfirmationHash({
+        previewHash: body.previewHash,
+        issueCodes: kernel.solver.issueCodes,
+      });
+      if (body.confirmationHash !== expectedConfirmationHash) {
+        throw new PlannerRouteError(
+          422,
+          "planner_confirmation_required",
+          "Publish requires explicit confirmation for a partial or constrained plan.",
+          {
+            expectedConfirmationHash,
+            issueCodes: kernel.solver.issueCodes,
+          }
+        );
+      }
+    }
+
+    const persistence = buildPlannerPublishPersistencePayload({
+      scopeMonth: body.scopeMonth,
+      policy: effectivePolicy,
+      kernel,
+      snapshot,
+      assessments,
+    });
+    const metadata = plannerPlanMetadataFromKernel({
+      timezone: snapshot.preferences.timezone,
+      kernel,
+    });
+
+    const publishResponse = await callUntypedAdminRpc(
+      admin,
+      "publish_execution_plan_service",
+      {
+        p_owner: routeContext.userId,
+        p_scope_month: `${body.scopeMonth}-01`,
+        p_timezone: metadata.timezone,
+        p_generation_source: persistence.generationSource,
+        p_change_summary: persistence.changeSummary,
+        p_policy_snapshot: effectivePolicy,
+        p_generation_input_hash: metadata.generationInputHash,
+        p_contract_version: metadata.contractVersion,
+        p_scheduler_version: metadata.schedulerVersion,
+        p_requirement_schema_version: metadata.requirementSchemaVersion,
+        p_assessment_schema_version: metadata.assessmentSchemaVersion,
+        p_policy_schema_version: metadata.policySchemaVersion,
+        p_policy_compiler_version: metadata.policyCompilerVersion,
+        p_placement_status: metadata.placementStatus,
+        p_search_status: metadata.searchStatus,
+        p_capacity_status: metadata.capacityStatus,
+        p_confirmation_required: metadata.confirmationRequired,
+        p_publishable: metadata.publishable,
+        p_idempotency_key: idempotencyKey,
+        p_request_digest: requestDigest,
+        p_expected_canonical_revision: body.expectedCanonicalRevision,
+        p_expected_execution_revision: body.expectedExecutionRevision,
+        p_expected_base_plan_id: body.expectedBasePlanId,
+        p_expected_base_plan_version: body.expectedBasePlanVersion,
+        p_goals: persistence.goals,
+        p_days: persistence.days,
+        p_items: persistence.items,
+        p_issues: persistence.issues,
+      }
+    );
+    if (publishResponse.error) {
+      const message = publishResponse.error.message.toLowerCase();
+      if (message.includes("planner revision mismatch")) {
+        throw new PlannerRouteError(
+          409,
+          "stale_revision",
+          "Planner publish revisions are stale. Refresh and try again."
+        );
+      }
+      if (message.includes("base plan mismatch")) {
+        throw new PlannerRouteError(
+          409,
+          "base_plan_conflict",
+          "The active plan changed before publish. Refresh and retry."
+        );
+      }
+      if (message.includes("idempotency digest mismatch")) {
+        throw new PlannerRouteError(
+          409,
+          "idempotency_key_conflict",
+          "Idempotency key was already used for a different planner publish."
+        );
+      }
+      throw new PlannerRouteError(
+        409,
+        "publish_failed",
+        "Planner publish could not be completed.",
+        { cause: publishResponse.error.message }
+      );
+    }
+
+    const publishedRow = Array.isArray(publishResponse.data)
+      ? publishResponse.data[0]
+      : publishResponse.data;
+    if (!publishedRow) {
+      throw new PlannerRouteError(
+        500,
+        "invariant_failed",
+        "Planner publish did not return persisted plan metadata."
+      );
+    }
+
+    return NextResponse.json(
+      {
+        schemaVersion: "1",
+        planId: publishedRow.plan_id as string,
+        version: publishedRow.version as number,
+        replayed: Boolean(publishedRow.replayed),
+        isCurrentlyActive: Boolean(publishedRow.is_currently_active),
+        currentActivePlanId: (publishedRow.current_active_plan_id as string | null) ?? null,
+        revisions: {
+          canonicalRevision: body.expectedCanonicalRevision,
+          executionRevision: publishedRow.execution_revision as number,
+        },
+        correlationId,
+      },
+      { headers: { "Cache-Control": "private, no-store" } }
+    );
+
   } catch (error) {
     if (error instanceof PlannerRouteError) {
       return plannerErrorResponse(error, correlationId);
