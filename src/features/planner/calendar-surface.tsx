@@ -14,6 +14,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { buildMondayFirstMonthCells } from "@/features/planner/month-cells";
 import { getDateInTimezone, isValidIanaTimezone } from "@/lib/dates/timezone";
@@ -40,6 +41,7 @@ interface PlannerContextPayload {
     plannerRead: boolean;
     plannerGeneration: boolean;
     plannerPlanWrites: boolean;
+    coachAi: boolean;
   };
   activePlan: {
     plan: {
@@ -110,6 +112,24 @@ interface CalendarSurfaceProps {
 }
 
 const weekdayLabels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+const COACH_SESSION_MAX_MESSAGES = 20;
+const COACH_SESSION_TTL_MS = 1000 * 60 * 60 * 12;
+
+type CoachMessageRole = "user" | "assistant";
+
+interface CoachMessage {
+  role: CoachMessageRole;
+  content: string;
+  createdAt: number;
+}
+
+interface CoachResponsePayload {
+  schemaVersion: "1";
+  phase: "discovery" | "review" | "ready" | "explain";
+  reply: string;
+  warnings?: string[];
+  recommendations?: Array<{ text: string }>;
+}
 
 function parseMonth(month: string) {
   return parse(`${month}-01`, "yyyy-MM-dd", new Date());
@@ -147,6 +167,48 @@ function createClientUuid() {
   });
 }
 
+function buildCoachSessionKey(scopeMonth: string, timezone: string) {
+  return `planner-coach-session:v1:${scopeMonth}:${timezone}`;
+}
+
+function loadCoachSession(scopeMonth: string, timezone: string): CoachMessage[] {
+  try {
+    const raw = sessionStorage.getItem(buildCoachSessionKey(scopeMonth, timezone));
+    if (!raw) {
+      return [];
+    }
+    const parsed = JSON.parse(raw) as
+      | { expiresAt: number; messages: CoachMessage[] }
+      | null;
+    if (!parsed || parsed.expiresAt < Date.now()) {
+      sessionStorage.removeItem(buildCoachSessionKey(scopeMonth, timezone));
+      return [];
+    }
+    return parsed.messages.slice(-COACH_SESSION_MAX_MESSAGES);
+  } catch {
+    return [];
+  }
+}
+
+function saveCoachSession(
+  scopeMonth: string,
+  timezone: string,
+  messages: CoachMessage[]
+) {
+  try {
+    const payload = {
+      expiresAt: Date.now() + COACH_SESSION_TTL_MS,
+      messages: messages.slice(-COACH_SESSION_MAX_MESSAGES),
+    };
+    sessionStorage.setItem(
+      buildCoachSessionKey(scopeMonth, timezone),
+      JSON.stringify(payload)
+    );
+  } catch {
+    // Ignore storage failures (private mode/quota) and keep in-memory state.
+  }
+}
+
 export function CalendarSurface({
   activeTab,
   month,
@@ -161,6 +223,12 @@ export function CalendarSurface({
   const [setupLoading, setSetupLoading] = useState(false);
   const [publishLoading, setPublishLoading] = useState(false);
   const [dismissLoading, setDismissLoading] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [coachLoading, setCoachLoading] = useState(false);
+  const [coachInput, setCoachInput] = useState("");
+  const [coachMessages, setCoachMessages] = useState<CoachMessage[]>([]);
+  const [coachWarnings, setCoachWarnings] = useState<string[]>([]);
+  const [coachRecommendations, setCoachRecommendations] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [setupTimezone, setSetupTimezone] = useState(
     Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"
@@ -233,6 +301,19 @@ export function CalendarSurface({
     return () => window.clearTimeout(timer);
   }, [loadContext]);
 
+  useEffect(() => {
+    if (activeTab !== "calendar" || !context?.scopeMonth || !context?.timezone) {
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      const restored = loadCoachSession(context.scopeMonth, context.timezone);
+      setCoachMessages(restored);
+      setCoachWarnings([]);
+      setCoachRecommendations([]);
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [activeTab, context?.scopeMonth, context?.timezone]);
+
   const cells = useMemo(
     () => (month ? buildMondayFirstMonthCells(month) : []),
     [month]
@@ -285,12 +366,74 @@ export function CalendarSurface({
     }
 
     onPlannerMutation();
+    setSettingsOpen(false);
     if (!month) {
       onMonthChange(getMonthInTimezone(setupTimezone), "replace");
     } else {
       await loadContext();
     }
     toast.success("Planner setup saved.");
+  };
+
+  const sendCoachMessage = async () => {
+    if (!context?.capabilities.coachAi || !context.scopeMonth || !context.timezone) {
+      toast.error("Planner coach is currently unavailable.");
+      return;
+    }
+    const trimmed = coachInput.trim();
+    if (!trimmed) {
+      return;
+    }
+    const userMessage: CoachMessage = {
+      role: "user",
+      content: trimmed,
+      createdAt: Date.now(),
+    };
+    const nextMessages = [...coachMessages, userMessage].slice(
+      -COACH_SESSION_MAX_MESSAGES
+    );
+    setCoachMessages(nextMessages);
+    setCoachInput("");
+    setCoachLoading(true);
+    setCoachWarnings([]);
+
+    const response = await fetch("/api/planner/coach", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        scopeMonth: context.scopeMonth,
+        messages: nextMessages.map((message) => ({
+          role: message.role,
+          content: message.content,
+        })),
+        focusGoalIds: [],
+      }),
+    });
+    const payload = (await response.json()) as
+      | (CoachResponsePayload & { message?: string; recommendations?: Array<{ text: string }> })
+      | PlannerErrorPayload;
+    setCoachLoading(false);
+
+    if (!response.ok) {
+      toast.error(payload.message ?? "Coach response failed.");
+      return;
+    }
+
+    const assistantMessage: CoachMessage = {
+      role: "assistant",
+      content: (payload as CoachResponsePayload).reply,
+      createdAt: Date.now(),
+    };
+    const finalMessages = [...nextMessages, assistantMessage].slice(
+      -COACH_SESSION_MAX_MESSAGES
+    );
+    setCoachMessages(finalMessages);
+    saveCoachSession(context.scopeMonth, context.timezone, finalMessages);
+    const coachPayload = payload as CoachResponsePayload;
+    setCoachWarnings(coachPayload.warnings ?? []);
+    setCoachRecommendations(
+      (coachPayload.recommendations ?? []).map((item) => item.text)
+    );
   };
 
   const publishPlan = async () => {
@@ -332,6 +475,12 @@ export function CalendarSurface({
     }
     onPlannerMutation();
     await loadContext();
+    if (context.scopeMonth && context.timezone) {
+      sessionStorage.removeItem(
+        buildCoachSessionKey(context.scopeMonth, context.timezone)
+      );
+      setCoachMessages([]);
+    }
     toast.success(payload.replayed ? "Publish replayed." : "Plan published.");
   };
 
@@ -357,6 +506,12 @@ export function CalendarSurface({
     }
     onPlannerMutation();
     await loadContext();
+    if (context.scopeMonth && context.timezone) {
+      sessionStorage.removeItem(
+        buildCoachSessionKey(context.scopeMonth, context.timezone)
+      );
+      setCoachMessages([]);
+    }
     toast.success("Plan dismissed.");
   };
 
@@ -377,6 +532,65 @@ export function CalendarSurface({
   const todayMonth = context?.timezone
     ? getMonthInTimezone(context.timezone)
     : getMonthInTimezone(setupTimezone);
+  const canUseCoach = Boolean(context?.capabilities.coachAi && context?.scopeMonth);
+
+  const setupForm = (
+    <div className="space-y-4">
+      <label className="block space-y-1 text-sm">
+        <span>Timezone (IANA)</span>
+        <Input
+          value={setupTimezone}
+          onChange={(event) => setSetupTimezone(event.target.value)}
+          placeholder="America/New_York"
+        />
+      </label>
+      <label className="block space-y-1 text-sm">
+        <span>Spacing strategy</span>
+        <Select
+          value={setupSpacing}
+          onValueChange={(value: "front_load" | "even" | "flexible") =>
+            setSetupSpacing(value)
+          }
+        >
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="front_load">Front load</SelectItem>
+            <SelectItem value="even">Even</SelectItem>
+            <SelectItem value="flexible">Flexible</SelectItem>
+          </SelectContent>
+        </Select>
+      </label>
+      <div className="space-y-2 text-sm">
+        <p>Rest weekdays</p>
+        <div className="flex flex-wrap gap-2">
+          {weekdayLabels.map((label, index) => (
+            <label
+              key={label}
+              className="inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs"
+            >
+              <input
+                type="checkbox"
+                checked={setupRestWeekdays.includes(index)}
+                onChange={(event) =>
+                  setSetupRestWeekdays((previous) =>
+                    event.target.checked
+                      ? [...previous, index]
+                      : previous.filter((weekday) => weekday !== index)
+                  )
+                }
+              />
+              {label}
+            </label>
+          ))}
+        </div>
+      </div>
+      <Button type="button" onClick={submitSetup} disabled={setupLoading}>
+        {setupLoading ? "Saving setup..." : "Save setup"}
+      </Button>
+    </div>
+  );
 
   return (
     <div className="space-y-4">
@@ -439,6 +653,18 @@ export function CalendarSurface({
               Next month
               <ChevronRight className="size-4" />
             </Button>
+            {context?.preferences ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setSettingsOpen(true)}
+                disabled={loading}
+              >
+                <Settings2 className="mr-1 size-4" />
+                Settings
+              </Button>
+            ) : null}
             {context?.capabilities.plannerPlanWrites &&
             context.preview ? (
               <Button
@@ -490,61 +716,7 @@ export function CalendarSurface({
           <p className="mb-4 text-sm text-muted-foreground">
             Confirm timezone and manual defaults before generating planner previews.
           </p>
-          <div className="space-y-4">
-            <label className="block space-y-1 text-sm">
-              <span>Timezone (IANA)</span>
-              <Input
-                value={setupTimezone}
-                onChange={(event) => setSetupTimezone(event.target.value)}
-                placeholder="America/New_York"
-              />
-            </label>
-            <label className="block space-y-1 text-sm">
-              <span>Spacing strategy</span>
-              <Select
-                value={setupSpacing}
-                onValueChange={(value: "front_load" | "even" | "flexible") =>
-                  setSetupSpacing(value)
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="front_load">Front load</SelectItem>
-                  <SelectItem value="even">Even</SelectItem>
-                  <SelectItem value="flexible">Flexible</SelectItem>
-                </SelectContent>
-              </Select>
-            </label>
-            <div className="space-y-2 text-sm">
-              <p>Rest weekdays</p>
-              <div className="flex flex-wrap gap-2">
-                {weekdayLabels.map((label, index) => (
-                  <label
-                    key={label}
-                    className="inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={setupRestWeekdays.includes(index)}
-                      onChange={(event) =>
-                        setSetupRestWeekdays((previous) =>
-                          event.target.checked
-                            ? [...previous, index]
-                            : previous.filter((weekday) => weekday !== index)
-                        )
-                      }
-                    />
-                    {label}
-                  </label>
-                ))}
-              </div>
-            </div>
-            <Button type="button" onClick={submitSetup} disabled={setupLoading}>
-              {setupLoading ? "Saving setup..." : "Save setup"}
-            </Button>
-          </div>
+          {setupForm}
         </div>
       ) : month ? (
         <>
@@ -594,6 +766,74 @@ export function CalendarSurface({
             </div>
           </div>
 
+          {canUseCoach ? (
+            <div className="rounded-xl border bg-card p-4 shadow-sm">
+              <div className="mb-2 flex items-center justify-between">
+                <h3 className="text-base font-semibold">AI Coach</h3>
+                <Badge variant="outline">Experimental</Badge>
+              </div>
+              <p className="mb-3 text-sm text-muted-foreground">
+                Ask for habit and training guidance based on your current monthly scope.
+              </p>
+              <div className="max-h-72 space-y-2 overflow-y-auto rounded-md border p-3">
+                {coachMessages.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    Start with a goal question, for example: &quot;Help me build a 4-week running routine.&quot;
+                  </p>
+                ) : (
+                  coachMessages.map((message, index) => (
+                    <div
+                      key={`${message.createdAt}-${index}`}
+                      className={`rounded-md p-2 text-sm ${
+                        message.role === "user"
+                          ? "bg-primary/10"
+                          : "bg-muted"
+                      }`}
+                    >
+                      <p className="mb-1 text-xs uppercase text-muted-foreground">
+                        {message.role === "user" ? "You" : "Coach"}
+                      </p>
+                      <p className="whitespace-pre-wrap">{message.content}</p>
+                    </div>
+                  ))
+                )}
+              </div>
+              {coachRecommendations.length > 0 ? (
+                <div className="mt-3 rounded-md border border-dashed p-2 text-sm">
+                  <p className="mb-1 font-medium">Recommended next actions</p>
+                  <ul className="space-y-1 text-muted-foreground">
+                    {coachRecommendations.map((recommendation) => (
+                      <li key={recommendation}>- {recommendation}</li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+              {coachWarnings.length > 0 ? (
+                <div className="mt-3 rounded-md border border-amber-400/40 bg-amber-500/10 p-2 text-xs">
+                  {coachWarnings.join(" ")}
+                </div>
+              ) : null}
+              <div className="mt-3 space-y-2">
+                <Textarea
+                  value={coachInput}
+                  onChange={(event) => setCoachInput(event.target.value)}
+                  placeholder="Ask the coach for a specific plan..."
+                  rows={4}
+                  maxLength={4000}
+                />
+                <div className="flex justify-end">
+                  <Button
+                    type="button"
+                    onClick={sendCoachMessage}
+                    disabled={coachLoading || coachInput.trim().length === 0}
+                  >
+                    {coachLoading ? "Thinking..." : "Send to coach"}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          ) : null}
+
           <Dialog open={Boolean(selectedDay)} onOpenChange={(open) => (!open ? onCloseDay() : undefined)}>
             <DialogContent
               className="top-auto bottom-0 left-1/2 max-w-[calc(100%-1rem)] -translate-x-1/2 translate-y-0 rounded-b-none rounded-t-xl pb-[calc(env(safe-area-inset-bottom)+1rem)] sm:top-1/2 sm:bottom-auto sm:max-w-lg sm:-translate-y-1/2 sm:rounded-b-xl"
@@ -627,6 +867,18 @@ export function CalendarSurface({
           </Dialog>
         </>
       ) : null}
+
+      <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Planner settings</DialogTitle>
+            <DialogDescription>
+              Update timezone and default planning policy for future previews.
+            </DialogDescription>
+          </DialogHeader>
+          {setupForm}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -13,6 +13,7 @@ import {
   coachResponseJsonSchema,
   sanitizeCoachTurn,
 } from "@/lib/planner/coach";
+import { buildCoachPrompt } from "@/lib/planner/coach-prompt";
 import { loadPlannerCanonicalSnapshot } from "@/lib/planner/context-loader";
 import {
   createCorrelationId,
@@ -25,6 +26,7 @@ import {
   unknownPlannerErrorResponse,
 } from "@/lib/planner/api";
 import { MAX_API_BODY_BYTES } from "@/lib/planner/contracts/bounds";
+import { classifyTelemetryResult, emitTelemetryEvent } from "@/lib/telemetry/runtime";
 import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
@@ -32,77 +34,15 @@ export const runtime = "nodejs";
 const MAX_RESPONSE_BYTES = 256 * 1024;
 const COACH_TIMEOUT_MS = 15_000;
 
-function buildCoachPrompt({
-  scopeMonth,
-  timezone,
-  asOfDate,
-  focusGoals,
-  allGoalsCount,
-  deterministicSummary,
-  messages,
-}: {
-  scopeMonth: string;
-  timezone: string;
-  asOfDate: string;
-  focusGoals: Array<{
-    id: string;
-    title: string;
-    category: string;
-    start_date: string;
-    end_date: string | null;
-    frequency_type: "fixed_milestones" | "recurring";
-    recurrence_interval: "daily" | "weekly" | "monthly" | null;
-    target_count: number | null;
-  }>;
-  allGoalsCount: number;
-  deterministicSummary?: string;
-  messages: Array<{ role: "user" | "assistant"; content: string }>;
-}) {
-  const focusGoalsJson = JSON.stringify(
-    focusGoals.map((goal) => ({
-      id: goal.id,
-      title: goal.title,
-      category: goal.category,
-      startDate: goal.start_date,
-      endDate: goal.end_date,
-      frequencyType: goal.frequency_type,
-      recurrenceInterval: goal.recurrence_interval,
-      targetCount: goal.target_count,
-    }))
-  );
-
-  return [
-    "You are a planner coach assistant.",
-    "Return only JSON. Do not use markdown fences.",
-    'Schema: {"schemaVersion":"1","phase":"discovery|review|ready|explain","reply":"...","proposal":{"assessments":[],"policyPatches":[],"unresolvedQuestions":[]},"recommendations":[{"text":"..."}]}',
-    "Supported policy patch kinds only:",
-    "- set_rest_weekdays",
-    "- add_blackout_range",
-    "- remove_blackout_range",
-    "- set_goal_allowed_weekdays",
-    "- clear_goal_allowed_weekdays",
-    "- set_goal_date_preference",
-    "- clear_goal_date_preference",
-    "- set_spacing_strategy",
-    "Never include unsupported patch kinds.",
-    "Assessments must target only the listed focus goals.",
-    `Context month: ${scopeMonth}`,
-    `Context as-of date: ${asOfDate}`,
-    `Confirmed timezone: ${timezone}`,
-    `Total owner goals in context: ${allGoalsCount}`,
-    deterministicSummary ? `Deterministic summary: ${deterministicSummary}` : null,
-    `Focus goals JSON: ${focusGoalsJson}`,
-    "Conversation transcript (latest last):",
-    ...messages.map(
-      (message) => `${message.role.toUpperCase()}: ${message.content}`
-    ),
-  ]
-    .filter((line): line is string => Boolean(line))
-    .join("\n");
-}
-
 export async function POST(request: Request) {
   const correlationId = createCorrelationId();
+  const startedAt = Date.now();
+  let telemetryOwnerId: string | null = null;
+  let telemetryCapabilities:
+    | Awaited<ReturnType<typeof requirePlannerRouteContext>>["capabilities"]
+    | null = null;
+  let telemetryInputBytes = 0;
+  let aiTelemetryEmitted = false;
   try {
     const supabase = await createClient();
     const routeContext = await requirePlannerRouteContext({
@@ -111,12 +51,15 @@ export async function POST(request: Request) {
       disabledCode: "planner_coach_disabled",
       disabledMessage: "Planner coach is not enabled.",
     });
+    telemetryOwnerId = routeContext.userId;
+    telemetryCapabilities = routeContext.capabilities;
 
     const body = await parseBoundedJsonBody(
       request,
       Math.min(MAX_API_BODY_BYTES, 128 * 1024),
       coachRequestSchema
     );
+    telemetryInputBytes = Buffer.byteLength(JSON.stringify(body), "utf8");
 
     const snapshot = await loadPlannerCanonicalSnapshot({
       supabase: routeContext.supabase,
@@ -181,6 +124,30 @@ export async function POST(request: Request) {
       );
     });
     if (!quota.allowed) {
+      emitTelemetryEvent({
+        eventName: "ai.request.completed",
+        ownerId: routeContext.userId,
+        correlationId,
+        capabilities: routeContext.capabilities,
+        scope: null,
+        result: "quota_rejected",
+        statusCode: 429,
+        errorCode: "quota_exceeded",
+        durationMs: Date.now() - startedAt,
+        counts: {
+          chatMessages: body.messages.length,
+          inputBytes: telemetryInputBytes,
+          outputBytes: 0,
+          providerAttempts: 0,
+        },
+        versions: { prompt: "planner-coach-v1" },
+        data: {
+          feature: "planner_coach",
+          provider: "gemini",
+          attempt: 1,
+        },
+      });
+      aiTelemetryEmitted = true;
       return NextResponse.json(
         {
           code: "quota_exceeded",
@@ -208,6 +175,48 @@ export async function POST(request: Request) {
         signal: request.signal,
       });
     } catch (error) {
+      const statusCode =
+        error instanceof GeminiRequestError && error.code === "timeout"
+          ? 504
+          : 502;
+      const errorCode =
+        error instanceof GeminiRequestError && error.code === "timeout"
+          ? "ai_timeout"
+          : error instanceof GeminiRequestError &&
+              error.code === "response_too_large"
+            ? "ai_response_too_large"
+            : error instanceof GeminiRequestError &&
+                (error.code === "invalid_response" ||
+                  error.code === "empty_response")
+              ? "ai_invalid_output"
+              : "ai_provider_error";
+      emitTelemetryEvent({
+        eventName: "ai.request.completed",
+        ownerId: routeContext.userId,
+        correlationId,
+        capabilities: routeContext.capabilities,
+        scope: null,
+        result: classifyTelemetryResult({
+          statusCode,
+          errorCode,
+        }),
+        statusCode,
+        errorCode,
+        durationMs: Date.now() - startedAt,
+        counts: {
+          chatMessages: body.messages.length,
+          inputBytes: telemetryInputBytes,
+          outputBytes: 0,
+          providerAttempts: 1,
+        },
+        versions: { prompt: "planner-coach-v1" },
+        data: {
+          feature: "planner_coach",
+          provider: "gemini",
+          attempt: 1,
+        },
+      });
+      aiTelemetryEmitted = true;
       if (error instanceof GeminiRequestError) {
         if (error.code === "timeout") {
           throw new PlannerRouteError(
@@ -251,25 +260,84 @@ export async function POST(request: Request) {
       outputTokens: response.outputTokens,
     }).catch(() => undefined);
 
-    return NextResponse.json(
-      {
-        ...sanitized,
-        scopeMonth: body.scopeMonth,
-        asOfDate,
-        timezone: effectiveTimezone,
-        focusGoalIds,
-        quota: {
-          usageDate: quota.usageDate,
-          remaining: quota.remaining,
-          requestCount: quota.requestCount,
-          retryAfterSeconds: quota.retryAfterSeconds,
-        },
-        correlationId,
+    const responsePayload = {
+      ...sanitized,
+      scopeMonth: body.scopeMonth,
+      asOfDate,
+      timezone: effectiveTimezone,
+      focusGoalIds,
+      quota: {
+        usageDate: quota.usageDate,
+        remaining: quota.remaining,
+        requestCount: quota.requestCount,
+        retryAfterSeconds: quota.retryAfterSeconds,
       },
+      correlationId,
+    };
+
+    emitTelemetryEvent({
+      eventName: "ai.request.completed",
+      ownerId: routeContext.userId,
+      correlationId,
+      capabilities: routeContext.capabilities,
+      scope: null,
+      result: "success",
+      statusCode: 200,
+      errorCode: null,
+      durationMs: Date.now() - startedAt,
+      counts: {
+        chatMessages: body.messages.length,
+        inputBytes: telemetryInputBytes,
+        outputBytes: Buffer.byteLength(JSON.stringify(responsePayload), "utf8"),
+        providerAttempts: response.attempts,
+      },
+      versions: { prompt: "planner-coach-v1" },
+      data: {
+        feature: "planner_coach",
+        provider: "gemini",
+        attempt: response.attempts,
+      },
+    });
+    aiTelemetryEmitted = true;
+
+    return NextResponse.json(
+      responsePayload,
       { headers: { "Cache-Control": "private, no-store" } }
     );
   } catch (error) {
     if (error instanceof PlannerRouteError) {
+      if (
+        telemetryOwnerId &&
+        telemetryCapabilities &&
+        !aiTelemetryEmitted
+      ) {
+        emitTelemetryEvent({
+          eventName: "ai.request.completed",
+          ownerId: telemetryOwnerId,
+          correlationId,
+          capabilities: telemetryCapabilities,
+          scope: null,
+          result: classifyTelemetryResult({
+            statusCode: error.status,
+            errorCode: error.code,
+          }),
+          statusCode: error.status,
+          errorCode: error.code,
+          durationMs: Date.now() - startedAt,
+          counts: {
+            chatMessages: 0,
+            inputBytes: telemetryInputBytes,
+            outputBytes: 0,
+            providerAttempts: 0,
+          },
+          versions: { prompt: "planner-coach-v1" },
+          data: {
+            feature: "planner_coach",
+            provider: "gemini",
+            attempt: 1,
+          },
+        });
+      }
       return plannerErrorResponse(error, correlationId);
     }
     return unknownPlannerErrorResponse(correlationId);

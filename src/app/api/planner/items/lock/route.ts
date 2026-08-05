@@ -10,6 +10,7 @@ import {
   unknownPlannerErrorResponse,
 } from "@/lib/planner/api";
 import { MAX_API_BODY_BYTES } from "@/lib/planner/contracts/bounds";
+import { classifyTelemetryResult, emitTelemetryEvent } from "@/lib/telemetry/runtime";
 import { callUntypedAdminRpc } from "@/lib/supabase/admin-rpc";
 import { createClient } from "@/lib/supabase/server";
 
@@ -25,6 +26,11 @@ const lockSchema = z.object({
 
 export async function POST(request: Request) {
   const correlationId = createCorrelationId();
+  const startedAt = Date.now();
+  let telemetryOwnerId: string | null = null;
+  let telemetryCapabilities:
+    | Awaited<ReturnType<typeof requirePlannerRouteContext>>["capabilities"]
+    | null = null;
   try {
     const supabase = await createClient();
     const routeContext = await requirePlannerRouteContext({
@@ -33,6 +39,8 @@ export async function POST(request: Request) {
       disabledCode: "planner_plan_writes_disabled",
       disabledMessage: "Planner write APIs are not enabled for this owner.",
     });
+    telemetryOwnerId = routeContext.userId;
+    telemetryCapabilities = routeContext.capabilities;
     const body = await parseBoundedJsonBody(
       request,
       Math.min(MAX_API_BODY_BYTES, 128 * 1024),
@@ -87,6 +95,22 @@ export async function POST(request: Request) {
       );
     }
 
+    emitTelemetryEvent({
+      eventName: "planner.mutation.completed",
+      ownerId: routeContext.userId,
+      correlationId,
+      capabilities: routeContext.capabilities,
+      scope: {
+        month: new Date().toISOString().slice(0, 7),
+        timezone: "UTC",
+      },
+      result: "success",
+      statusCode: 200,
+      errorCode: null,
+      durationMs: Date.now() - startedAt,
+      data: { action: body.locked ? "lock" : "unlock" },
+    });
+
     return NextResponse.json(
       {
         schemaVersion: "1",
@@ -104,7 +128,44 @@ export async function POST(request: Request) {
     );
   } catch (error) {
     if (error instanceof PlannerRouteError) {
+      if (telemetryOwnerId && telemetryCapabilities) {
+        emitTelemetryEvent({
+          eventName: "planner.mutation.completed",
+          ownerId: telemetryOwnerId,
+          correlationId,
+          capabilities: telemetryCapabilities,
+          scope: {
+            month: new Date().toISOString().slice(0, 7),
+            timezone: "UTC",
+          },
+          result: classifyTelemetryResult({
+            statusCode: error.status,
+            errorCode: error.code,
+          }),
+          statusCode: error.status,
+          errorCode: error.code,
+          durationMs: Date.now() - startedAt,
+          data: { action: "lock" },
+        });
+      }
       return plannerErrorResponse(error, correlationId);
+    }
+    if (telemetryOwnerId && telemetryCapabilities) {
+      emitTelemetryEvent({
+        eventName: "planner.mutation.completed",
+        ownerId: telemetryOwnerId,
+        correlationId,
+        capabilities: telemetryCapabilities,
+        scope: {
+          month: new Date().toISOString().slice(0, 7),
+          timezone: "UTC",
+        },
+        result: "error",
+        statusCode: 500,
+        errorCode: "internal_error",
+        durationMs: Date.now() - startedAt,
+        data: { action: "lock" },
+      });
     }
     return unknownPlannerErrorResponse(correlationId);
   }

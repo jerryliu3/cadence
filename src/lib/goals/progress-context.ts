@@ -17,7 +17,14 @@ export interface ProgressContextRequest {
   viewDate?: string;
   factsFrom?: string;
   factsTo?: string;
+  forceRefresh?: boolean;
 }
+
+const PROGRESS_CONTEXT_CACHE_TTL_MS = 15_000;
+const progressContextCache = new Map<
+  string,
+  { expiresAt: number; payload: ProgressContextResponse }
+>();
 
 export async function fetchProgressContext({
   asOfDate,
@@ -25,6 +32,7 @@ export async function fetchProgressContext({
   viewDate,
   factsFrom,
   factsTo,
+  forceRefresh = false,
 }: ProgressContextRequest): Promise<ProgressContextResponse> {
   const search = new URLSearchParams({ asOfDate, timezone });
   if (viewDate) {
@@ -33,6 +41,11 @@ export async function fetchProgressContext({
   if (factsFrom && factsTo) {
     search.set("factsFrom", factsFrom);
     search.set("factsTo", factsTo);
+  }
+  const cacheKey = search.toString();
+  const cached = progressContextCache.get(cacheKey);
+  if (!forceRefresh && cached && cached.expiresAt > Date.now()) {
+    return cached.payload;
   }
 
   const response = await fetch(`/api/progress/context?${search.toString()}`, {
@@ -53,6 +66,10 @@ export async function fetchProgressContext({
   if (payload.truncated !== false) {
     throw new Error("Goal progress response was unexpectedly truncated.");
   }
+  progressContextCache.set(cacheKey, {
+    expiresAt: Date.now() + PROGRESS_CONTEXT_CACHE_TTL_MS,
+    payload,
+  });
   return payload;
 }
 

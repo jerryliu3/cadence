@@ -21,6 +21,7 @@ import {
 import { PlannerError } from "@/lib/planner/errors";
 import { runPlannerKernel } from "@/lib/planner/kernel";
 import { createDefaultPlannerPolicy, plannerPolicySchema } from "@/lib/planner/policy";
+import { classifyTelemetryResult, emitTelemetryEvent } from "@/lib/telemetry/runtime";
 import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
@@ -63,6 +64,13 @@ function plannerKernelErrorToRouteError(error: PlannerError) {
 
 export async function POST(request: Request) {
   const correlationId = createCorrelationId();
+  const startedAt = Date.now();
+  let telemetryOwnerId: string | null = null;
+  let telemetryCapabilities:
+    | Awaited<ReturnType<typeof requirePlannerRouteContext>>["capabilities"]
+    | null = null;
+  let telemetryScope: { month: string; timezone: string } | null = null;
+  let telemetrySource: "manual" | "ai" | "update" = "manual";
   try {
     const supabase = await createClient();
     const routeContext = await requirePlannerRouteContext({
@@ -72,12 +80,15 @@ export async function POST(request: Request) {
       disabledMessage:
         "Planner generation APIs are not enabled for this owner.",
     });
+    telemetryOwnerId = routeContext.userId;
+    telemetryCapabilities = routeContext.capabilities;
 
     const body = await parseBoundedJsonBody(
       request,
       Math.min(MAX_API_BODY_BYTES, 256 * 1024),
       previewRequestSchema
     );
+    telemetrySource = body.source;
     const snapshot = await loadPlannerCanonicalSnapshot({
       supabase: routeContext.supabase,
       ownerId: routeContext.userId,
@@ -97,6 +108,10 @@ export async function POST(request: Request) {
       timezone: effectiveTimezone,
       requestedAsOfDate: body.asOfDate,
     });
+    telemetryScope = {
+      month: body.scopeMonth,
+      timezone: effectiveTimezone,
+    };
     const effectivePolicy = body.policy
       ? plannerPolicySchema.parse(body.policy)
       : snapshot.preferences
@@ -156,18 +171,120 @@ export async function POST(request: Request) {
       );
     }
 
+    emitTelemetryEvent({
+      eventName: "planner.preview.completed",
+      ownerId: routeContext.userId,
+      correlationId,
+      capabilities: routeContext.capabilities,
+      scope: telemetryScope,
+      result:
+        preview.solver.placementStatus === "partial" ? "partial" : "success",
+      statusCode: 200,
+      errorCode: null,
+      durationMs: Date.now() - startedAt,
+      counts: {
+        eligibleGoals: snapshot.goals.length,
+        workUnits: preview.workUnits.length,
+        completionFacts: snapshot.completions.length,
+        policyRanges: effectivePolicy.datePreferences.length,
+        placedUnits: preview.workUnits.filter((unit) => unit.scheduledDate !== null)
+          .length,
+        shortfallUnits: preview.workUnits.filter((unit) => unit.scheduledDate === null)
+          .length,
+        outputBytes: Buffer.byteLength(JSON.stringify(responseBody), "utf8"),
+      },
+      data: {
+        source: body.source,
+        placementStatus: preview.solver.placementStatus,
+        searchStatus: preview.solver.searchStatus,
+        capacityStatus: preview.solver.capacityStatus,
+        boundsBucket:
+          preview.workUnits.length > 3000
+            ? "maximum"
+            : preview.workUnits.length > 1000
+              ? "large"
+              : preview.workUnits.length > 300
+                ? "medium"
+                : "small",
+      },
+    });
+
     return NextResponse.json(responseBody, {
       headers: { "Cache-Control": "private, no-store" },
     });
   } catch (error) {
     if (error instanceof PlannerError) {
-      return plannerErrorResponse(
-        plannerKernelErrorToRouteError(error),
-        correlationId
-      );
+      const routeError = plannerKernelErrorToRouteError(error);
+      if (telemetryOwnerId && telemetryCapabilities && telemetryScope) {
+        emitTelemetryEvent({
+          eventName: "planner.preview.completed",
+          ownerId: telemetryOwnerId,
+          correlationId,
+          capabilities: telemetryCapabilities,
+          scope: telemetryScope,
+          result: classifyTelemetryResult({
+            statusCode: routeError.status,
+            errorCode: routeError.code,
+          }),
+          statusCode: routeError.status,
+          errorCode: routeError.code,
+          durationMs: Date.now() - startedAt,
+          data: {
+            source: telemetrySource,
+            placementStatus: "partial",
+            searchStatus: "maximum_partial",
+            capacityStatus: "unverified",
+            boundsBucket: "small",
+          },
+        });
+      }
+      return plannerErrorResponse(routeError, correlationId);
     }
     if (error instanceof PlannerRouteError) {
+      if (telemetryOwnerId && telemetryCapabilities && telemetryScope) {
+        emitTelemetryEvent({
+          eventName: "planner.preview.completed",
+          ownerId: telemetryOwnerId,
+          correlationId,
+          capabilities: telemetryCapabilities,
+          scope: telemetryScope,
+          result: classifyTelemetryResult({
+            statusCode: error.status,
+            errorCode: error.code,
+          }),
+          statusCode: error.status,
+          errorCode: error.code,
+          durationMs: Date.now() - startedAt,
+          data: {
+            source: telemetrySource,
+            placementStatus: "partial",
+            searchStatus: "maximum_partial",
+            capacityStatus: "unverified",
+            boundsBucket: "small",
+          },
+        });
+      }
       return plannerErrorResponse(error, correlationId);
+    }
+    if (telemetryOwnerId && telemetryCapabilities && telemetryScope) {
+      emitTelemetryEvent({
+        eventName: "planner.preview.completed",
+        ownerId: telemetryOwnerId,
+        correlationId,
+        capabilities: telemetryCapabilities,
+        scope: telemetryScope,
+        result: "error",
+        statusCode: 500,
+        errorCode: "internal_error",
+        durationMs: Date.now() - startedAt,
+        data: {
+          source: telemetrySource,
+          placementStatus: "partial",
+          searchStatus: "maximum_partial",
+          capacityStatus: "unverified",
+          boundsBucket: "small",
+        },
+      });
     }
     return unknownPlannerErrorResponse(correlationId);
   }

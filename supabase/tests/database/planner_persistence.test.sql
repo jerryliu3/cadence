@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, private, extensions, pg_catalog;
-select plan(28);
+select plan(32);
 
 create temporary table planner_test_revisions (
   label text primary key,
@@ -660,6 +660,54 @@ select throws_ok(
 
 select is(
   (
+    select scheduled_date
+    from public.move_execution_plan_item_service(
+      '11111111-1111-4111-8111-111111111111',
+      '16000000-0000-4000-8000-000000000001',
+      date_trunc('month', current_date)::date + 5,
+      1,
+      (
+        select canonical_revision
+        from private.planner_state
+        where owner_id = '11111111-1111-4111-8111-111111111111'
+      ),
+      (
+        select execution_revision
+        from private.planner_state
+        where owner_id = '11111111-1111-4111-8111-111111111111'
+      )
+    )
+  ),
+  date_trunc('month', current_date)::date + 5,
+  'service role can move active planner items through wrapper functions'
+);
+
+select is(
+  (
+    select locked
+    from public.set_execution_plan_item_lock_service(
+      '11111111-1111-4111-8111-111111111111',
+      '16000000-0000-4000-8000-000000000001',
+      false,
+      2,
+      (
+        select canonical_revision
+        from private.planner_state
+        where owner_id = '11111111-1111-4111-8111-111111111111'
+      ),
+      (
+        select execution_revision
+        from private.planner_state
+        where owner_id = '11111111-1111-4111-8111-111111111111'
+      )
+    )
+  ),
+  false,
+  'service role can unlock active planner items through wrapper functions'
+);
+
+select is(
+  (
     select status
     from public.dismiss_execution_plan_service(
       '11111111-1111-4111-8111-111111111111',
@@ -678,6 +726,97 @@ select is(
   ),
   'dismissed',
   'service role can dismiss active plans only through wrapper functions'
+);
+
+select ok(
+  (
+    select plan_id is not null
+    from public.publish_execution_plan_service(
+      '11111111-1111-4111-8111-111111111111',
+      date_trunc('month', current_date)::date,
+      'America/New_York',
+      'manual',
+      '{}'::jsonb,
+      (
+        select default_policy
+        from public.planner_preferences
+        where owner_id = '11111111-1111-4111-8111-111111111111'
+      ),
+      repeat('f', 64),
+      '1',
+      'ordered-dp-v1',
+      '1',
+      '1',
+      '1',
+      '1',
+      'complete',
+      'all_units_placed',
+      'unverified',
+      false,
+      true,
+      '23000000-0000-4000-8000-000000000001',
+      repeat('a', 64),
+      (
+        select canonical_revision
+        from private.planner_state
+        where owner_id = '11111111-1111-4111-8111-111111111111'
+      ),
+      (
+        select execution_revision
+        from private.planner_state
+        where owner_id = '11111111-1111-4111-8111-111111111111'
+      ),
+      null,
+      null,
+      '[]'::jsonb,
+      '[]'::jsonb,
+      '[]'::jsonb,
+      '[]'::jsonb
+    )
+  ),
+  'service role can publish plans through wrapper functions'
+);
+
+select is(
+  (
+    select replayed
+    from public.publish_execution_plan_service(
+      '11111111-1111-4111-8111-111111111111',
+      date_trunc('month', current_date)::date,
+      'America/New_York',
+      'manual',
+      '{}'::jsonb,
+      (
+        select default_policy
+        from public.planner_preferences
+        where owner_id = '11111111-1111-4111-8111-111111111111'
+      ),
+      repeat('f', 64),
+      '1',
+      'ordered-dp-v1',
+      '1',
+      '1',
+      '1',
+      '1',
+      'complete',
+      'all_units_placed',
+      'unverified',
+      false,
+      true,
+      '23000000-0000-4000-8000-000000000001',
+      repeat('a', 64),
+      0,
+      0,
+      null,
+      null,
+      '[]'::jsonb,
+      '[]'::jsonb,
+      '[]'::jsonb,
+      '[]'::jsonb
+    )
+  ),
+  true,
+  'idempotent publish replay bypasses stale revision checks'
 );
 reset role;
 

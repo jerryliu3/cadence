@@ -99,6 +99,10 @@ export type Database = {
         Args: { p_timezone: string }
         Returns: boolean
       }
+      local_today_for_timezone: {
+        Args: { p_timezone: string }
+        Returns: string
+      }
       planner_json_depth: { Args: { p_value: Json }; Returns: number }
       planner_owner_lock_key: { Args: { p_owner: string }; Returns: number }
       record_planner_ai_output_tokens: {
@@ -109,6 +113,26 @@ export type Database = {
           p_usage_date: string
         }
         Returns: number
+      }
+      require_planner_state_revisions: {
+        Args: {
+          p_expected_canonical_revision: number
+          p_expected_execution_revision: number
+          p_owner: string
+        }
+        Returns: {
+          canonical_revision: number
+          created_at: string
+          execution_revision: number
+          owner_id: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "planner_state"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       validate_planner_json: {
         Args: {
@@ -970,6 +994,19 @@ export type Database = {
           usage_date: string
         }[]
       }
+      dismiss_execution_plan_service: {
+        Args: {
+          p_expected_canonical_revision: number
+          p_expected_execution_revision: number
+          p_owner: string
+          p_plan_id: string
+        }
+        Returns: {
+          execution_revision: number
+          plan_id: string
+          status: string
+        }[]
+      }
       get_planner_state: {
         Args: never
         Returns: {
@@ -981,6 +1018,63 @@ export type Database = {
         Args: { p_date?: string; p_goal_id: string }
         Returns: undefined
       }
+      move_execution_plan_item_service: {
+        Args: {
+          p_date: string
+          p_expected_canonical_revision: number
+          p_expected_execution_revision: number
+          p_expected_item_revision: number
+          p_item_id: string
+          p_owner: string
+        }
+        Returns: {
+          execution_revision: number
+          item_id: string
+          item_revision: number
+          locked: boolean
+          scheduled_date: string
+        }[]
+      }
+      publish_execution_plan_service: {
+        Args: {
+          p_assessment_schema_version: string
+          p_capacity_status: string
+          p_change_summary: Json
+          p_confirmation_required: boolean
+          p_contract_version: string
+          p_days: Json
+          p_expected_base_plan_id: string
+          p_expected_base_plan_version: number
+          p_expected_canonical_revision: number
+          p_expected_execution_revision: number
+          p_generation_input_hash: string
+          p_generation_source: string
+          p_goals: Json
+          p_idempotency_key: string
+          p_issues: Json
+          p_items: Json
+          p_owner: string
+          p_placement_status: string
+          p_policy_compiler_version: string
+          p_policy_schema_version: string
+          p_policy_snapshot: Json
+          p_publishable: boolean
+          p_request_digest: string
+          p_requirement_schema_version: string
+          p_scheduler_version: string
+          p_scope_month: string
+          p_search_status: string
+          p_timezone: string
+        }
+        Returns: {
+          current_active_plan_id: string
+          execution_revision: number
+          is_currently_active: boolean
+          plan_id: string
+          replayed: boolean
+          version: number
+        }[]
+      }
       record_planner_ai_output_tokens_service: {
         Args: {
           p_feature: string
@@ -989,6 +1083,59 @@ export type Database = {
           p_usage_date: string
         }
         Returns: number
+      }
+      set_execution_plan_goal_date_fact_service: {
+        Args: {
+          p_date: string
+          p_desired_fact_state: string
+          p_expected_canonical_revision: number
+          p_expected_execution_revision: number
+          p_owner: string
+          p_plan_goal_id: string
+        }
+        Returns: {
+          canonical_revision: number
+          date: string
+          execution_revision: number
+          fact_state: string
+          goal_id: string
+        }[]
+      }
+      set_execution_plan_item_date_fact_service: {
+        Args: {
+          p_desired_fact_state: string
+          p_expected_canonical_revision: number
+          p_expected_credited_unit: Json
+          p_expected_execution_revision: number
+          p_expected_item_revision: number
+          p_item_id: string
+          p_owner: string
+        }
+        Returns: {
+          canonical_revision: number
+          date: string
+          execution_revision: number
+          fact_state: string
+          goal_id: string
+          item_id: string
+        }[]
+      }
+      set_execution_plan_item_lock_service: {
+        Args: {
+          p_expected_canonical_revision: number
+          p_expected_execution_revision: number
+          p_expected_item_revision: number
+          p_item_id: string
+          p_locked: boolean
+          p_owner: string
+        }
+        Returns: {
+          execution_revision: number
+          item_id: string
+          item_revision: number
+          locked: boolean
+          scheduled_date: string
+        }[]
       }
       unmark_goal_complete: {
         Args: { p_date?: string; p_goal_id: string }

@@ -106,11 +106,13 @@ as $$
 declare
   v_state private.planner_state;
   v_existing_plan public.execution_plans;
+  v_latest_plan public.execution_plans;
   v_replay_plan public.execution_plans;
   v_new_plan_id uuid;
   v_new_version integer;
   v_inserted_items integer;
   v_inserted_issues integer;
+  v_execution_revision bigint;
 begin
   if p_scope_month is null or extract(day from p_scope_month) <> 1 then
     raise exception using
@@ -128,11 +130,6 @@ begin
   end if;
 
   perform pg_advisory_xact_lock(private.planner_owner_lock_key(p_owner));
-  v_state := private.require_planner_state_revisions(
-    p_owner,
-    p_expected_canonical_revision,
-    p_expected_execution_revision
-  );
 
   select *
   into v_replay_plan
@@ -146,6 +143,11 @@ begin
         errcode = '23514',
         message = 'idempotency digest mismatch';
     end if;
+
+    select state.execution_revision
+    into v_execution_revision
+    from private.planner_state state
+    where state.owner_id = p_owner;
 
     return query
     select
@@ -161,9 +163,15 @@ begin
           and active.status = 'active'
         limit 1
       ),
-      v_state.execution_revision;
+      v_execution_revision;
     return;
   end if;
+
+  v_state := private.require_planner_state_revisions(
+    p_owner,
+    p_expected_canonical_revision,
+    p_expected_execution_revision
+  );
 
   select *
   into v_existing_plan
@@ -171,6 +179,15 @@ begin
   where owner_id = p_owner
     and scope_month = p_scope_month
     and status = 'active'
+  for update;
+
+  select *
+  into v_latest_plan
+  from public.execution_plans
+  where owner_id = p_owner
+    and scope_month = p_scope_month
+  order by version desc
+  limit 1
   for update;
 
   if p_expected_base_plan_id is null then
@@ -189,7 +206,7 @@ begin
     end if;
   end if;
 
-  v_new_version := coalesce(v_existing_plan.version, 0) + 1;
+  v_new_version := coalesce(v_latest_plan.version, 0) + 1;
 
   if v_existing_plan.id is not null then
     update public.execution_plans
@@ -232,7 +249,7 @@ begin
     'end_month_v1',
     p_timezone,
     v_new_version,
-    v_existing_plan.id,
+    v_latest_plan.id,
     'active',
     p_generation_source,
     p_change_summary,
@@ -369,7 +386,7 @@ begin
   goal_map as (
     select id, goal_id
     from public.execution_plan_goals
-    where plan_id = v_new_plan_id
+    where public.execution_plan_goals.plan_id = v_new_plan_id
       and owner_id = p_owner
   )
   insert into public.execution_plan_items (
@@ -449,7 +466,7 @@ begin
   goal_map as (
     select id, goal_id
     from public.execution_plan_goals
-    where plan_id = v_new_plan_id
+    where public.execution_plan_goals.plan_id = v_new_plan_id
       and owner_id = p_owner
   )
   insert into public.execution_plan_issues (
@@ -484,10 +501,10 @@ begin
 
   perform private.bump_planner_execution_revision(p_owner);
 
-  select execution_revision
-  into execution_revision
-  from private.planner_state
-  where owner_id = p_owner;
+  select state.execution_revision
+  into v_execution_revision
+  from private.planner_state state
+  where state.owner_id = p_owner;
 
   return query
   select
@@ -496,7 +513,7 @@ begin
     false,
     true,
     v_new_plan_id,
-    execution_revision;
+    v_execution_revision;
 end;
 $$;
 
@@ -520,8 +537,12 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_state private.planner_state;
   v_item record;
+  v_item_id uuid;
+  v_scheduled_date date;
+  v_locked boolean;
+  v_item_revision bigint;
+  v_execution_revision bigint;
 begin
   if p_date is null then
     raise exception using
@@ -530,7 +551,7 @@ begin
   end if;
 
   perform pg_advisory_xact_lock(private.planner_owner_lock_key(p_owner));
-  v_state := private.require_planner_state_revisions(
+  perform private.require_planner_state_revisions(
     p_owner,
     p_expected_canonical_revision,
     p_expected_execution_revision
@@ -605,10 +626,14 @@ begin
   where id = p_item_id
     and owner_id = p_owner
     and revision = p_expected_item_revision
-  returning id, scheduled_date, locked, revision
-  into item_id, scheduled_date, locked, item_revision;
+  returning
+    public.execution_plan_items.id,
+    public.execution_plan_items.scheduled_date,
+    public.execution_plan_items.locked,
+    public.execution_plan_items.revision
+  into v_item_id, v_scheduled_date, v_locked, v_item_revision;
 
-  if item_id is null then
+  if v_item_id is null then
     raise exception using
       errcode = '40001',
       message = 'planner item revision mismatch';
@@ -617,10 +642,15 @@ begin
   perform private.bump_planner_execution_revision(p_owner);
 
   select state.execution_revision
-  into execution_revision
+  into v_execution_revision
   from private.planner_state state
   where state.owner_id = p_owner;
 
+  item_id := v_item_id;
+  scheduled_date := v_scheduled_date;
+  locked := v_locked;
+  item_revision := v_item_revision;
+  execution_revision := v_execution_revision;
   return next;
 end;
 $$;
@@ -647,6 +677,11 @@ as $$
 declare
   v_state private.planner_state;
   v_item record;
+  v_item_id uuid;
+  v_scheduled_date date;
+  v_locked boolean;
+  v_item_revision bigint;
+  v_execution_revision bigint;
 begin
   perform pg_advisory_xact_lock(private.planner_owner_lock_key(p_owner));
   v_state := private.require_planner_state_revisions(
@@ -698,10 +733,14 @@ begin
   where id = p_item_id
     and owner_id = p_owner
     and revision = p_expected_item_revision
-  returning id, scheduled_date, locked, revision
-  into item_id, scheduled_date, locked, item_revision;
+  returning
+    public.execution_plan_items.id,
+    public.execution_plan_items.scheduled_date,
+    public.execution_plan_items.locked,
+    public.execution_plan_items.revision
+  into v_item_id, v_scheduled_date, v_locked, v_item_revision;
 
-  if item_id is null then
+  if v_item_id is null then
     raise exception using
       errcode = '40001',
       message = 'planner item revision mismatch';
@@ -710,10 +749,15 @@ begin
   perform private.bump_planner_execution_revision(p_owner);
 
   select state.execution_revision
-  into execution_revision
+  into v_execution_revision
   from private.planner_state state
   where state.owner_id = p_owner;
 
+  item_id := v_item_id;
+  scheduled_date := v_scheduled_date;
+  locked := v_locked;
+  item_revision := v_item_revision;
+  execution_revision := v_execution_revision;
   return next;
 end;
 $$;

@@ -21,9 +21,38 @@ import { runPlannerKernel } from "@/lib/planner/kernel";
 import { createDefaultPlannerPolicy, plannerPolicySchema } from "@/lib/planner/policy";
 import { normalizeGoalRequirement } from "@/lib/planner/requirements";
 import { evaluateActivePlanStaleness } from "@/lib/planner/staleness";
+import { emitTelemetryEvent } from "@/lib/telemetry/runtime";
 import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
+
+type TelemetryStalenessReasonCode =
+  | "goal_changed"
+  | "policy_changed"
+  | "timezone_changed"
+  | "link_changed"
+  | "out_of_plan_fact"
+  | "inadmissible_fact"
+  | "credited_work_removed"
+  | "credited_work_reassigned"
+  | "overdue_item"
+  | "invalid_lock"
+  | "orphaned_goal";
+
+const TELEMETRY_STALENESS_REASON_CODES: readonly TelemetryStalenessReasonCode[] =
+  [
+  "goal_changed",
+  "policy_changed",
+  "timezone_changed",
+  "link_changed",
+  "out_of_plan_fact",
+  "inadmissible_fact",
+  "credited_work_removed",
+  "credited_work_reassigned",
+  "overdue_item",
+  "invalid_lock",
+  "orphaned_goal",
+];
 
 const querySchema = z.object({
   scopeMonth: z
@@ -231,6 +260,37 @@ export async function GET(request: Request) {
         "response_bound_exceeded",
         "Planner context exceeded the supported response bound."
       );
+    }
+
+    if (staleness.stale && staleness.reasons.length > 0) {
+      const telemetryReasons = staleness.reasons
+        .map((reason) => reason.code)
+        .filter(
+          (code): code is TelemetryStalenessReasonCode =>
+            TELEMETRY_STALENESS_REASON_CODES.includes(
+              code as TelemetryStalenessReasonCode
+            )
+        );
+      emitTelemetryEvent({
+        eventName: "planner.staleness.detected",
+        ownerId: routeContext.userId,
+        correlationId,
+        capabilities: routeContext.capabilities,
+        scope: {
+          month: parsedQuery.data.scopeMonth,
+          timezone: effectiveTimezone,
+        },
+        result: "success",
+        statusCode: 200,
+        errorCode: null,
+        durationMs: 0,
+        data: {
+          reasons:
+            telemetryReasons.length > 0
+              ? telemetryReasons
+              : ["out_of_plan_fact"],
+        },
+      });
     }
 
     return NextResponse.json(responsePayload, {

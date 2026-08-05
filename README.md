@@ -132,6 +132,9 @@ Planner persistence is additive and blocks direct client writes. Immutable plan
 snapshots are stored in public planning tables, while revisions, owner-lock
 helpers, and AI quota counters remain in the unexposed `private` schema.
 
+For Slice 9 rollout gates (telemetry keys, rehearsal steps, dashboards, alerts,
+and rollback), see `docs/planner_rollout_slice9.md`.
+
 ## Pointing to Hosted Supabase
 
 1. Create a hosted Supabase project.

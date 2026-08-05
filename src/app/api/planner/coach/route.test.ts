@@ -194,6 +194,18 @@ describe("planner coach route", () => {
       })
     );
     expect(response.status).toBe(200);
+    expect(mocks.generateGeminiJson).toHaveBeenCalledWith(
+      expect.objectContaining({
+        prompt: expect.stringContaining("PROMPT-INJECTION RESISTANCE"),
+      })
+    );
+    expect(mocks.generateGeminiJson).toHaveBeenCalledWith(
+      expect.objectContaining({
+        prompt: expect.stringContaining(
+          "highly experienced professional life coach"
+        ),
+      })
+    );
     await expect(response.json()).resolves.toMatchObject({
       schemaVersion: "1",
       phase: "review",

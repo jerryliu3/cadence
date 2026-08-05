@@ -8,6 +8,8 @@ import {
   readBulkParserQuotaLimit,
   recordPlannerAiOutputTokens,
 } from "@/lib/planner/ai-quota";
+import { getPlannerCapabilities } from "@/lib/planner/capabilities";
+import { classifyTelemetryResult, emitTelemetryEvent } from "@/lib/telemetry/runtime";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
@@ -155,6 +157,22 @@ function errorResponse(
 
 export async function POST(request: Request) {
   const correlationId = randomUUID();
+  const startedAt = Date.now();
+  const capabilities = (() => {
+    try {
+      return getPlannerCapabilities();
+    } catch {
+      return {
+        calendarEnabled: false,
+        plannerRead: false,
+        plannerGeneration: false,
+        plannerPlanWrites: false,
+        targetedExactCompletion: false,
+        coachAi: false,
+        overlap: false,
+      };
+    }
+  })();
   const supabase = await createClient();
   const {
     data: { user },
@@ -180,6 +198,7 @@ export async function POST(request: Request) {
   }
 
   const rawBody = await request.text();
+  const inputBytes = Buffer.byteLength(rawBody, "utf8");
   if (Buffer.byteLength(rawBody, "utf8") > MAX_REQUEST_BYTES) {
     return errorResponse(
       413,
@@ -270,6 +289,29 @@ export async function POST(request: Request) {
   }
 
   if (!quota.allowed) {
+    emitTelemetryEvent({
+      eventName: "ai.request.completed",
+      ownerId: user.id,
+      correlationId,
+      capabilities,
+      scope: null,
+      result: "quota_rejected",
+      statusCode: 429,
+      errorCode: "quota_exceeded",
+      durationMs: Date.now() - startedAt,
+      counts: {
+        chatMessages: 0,
+        inputBytes,
+        outputBytes: 0,
+        providerAttempts: 0,
+      },
+      versions: { prompt: "bulk-parser-v2" },
+      data: {
+        feature: "bulk_goal_parser",
+        provider: "gemini",
+        attempt: 1,
+      },
+    });
     return NextResponse.json(
       {
         code: "quota_exceeded",
@@ -288,6 +330,7 @@ export async function POST(request: Request) {
 
   let candidateJson: unknown;
   let outputTokens = 0;
+  let providerAttempts = 0;
   try {
     const result = await generateGeminiJson({
       apiKey,
@@ -300,7 +343,47 @@ export async function POST(request: Request) {
     });
     candidateJson = result.candidateJson;
     outputTokens = result.outputTokens;
+    providerAttempts = result.attempts;
   } catch (error) {
+    const statusCode =
+      error instanceof GeminiRequestError && error.code === "timeout"
+        ? 504
+        : 502;
+    const errorCode =
+      error instanceof GeminiRequestError && error.code === "timeout"
+        ? "ai_timeout"
+        : error instanceof GeminiRequestError && error.code === "response_too_large"
+          ? "ai_response_too_large"
+          : error instanceof GeminiRequestError &&
+              (error.code === "invalid_response" || error.code === "empty_response")
+            ? "ai_invalid_output"
+            : "ai_provider_error";
+    emitTelemetryEvent({
+      eventName: "ai.request.completed",
+      ownerId: user.id,
+      correlationId,
+      capabilities,
+      scope: null,
+      result: classifyTelemetryResult({
+        statusCode,
+        errorCode,
+      }),
+      statusCode,
+      errorCode,
+      durationMs: Date.now() - startedAt,
+      counts: {
+        chatMessages: 0,
+        inputBytes,
+        outputBytes: 0,
+        providerAttempts: Math.max(providerAttempts, 1),
+      },
+      versions: { prompt: "bulk-parser-v2" },
+      data: {
+        feature: "bulk_goal_parser",
+        provider: "gemini",
+        attempt: Math.max(providerAttempts, 1),
+      },
+    });
     if (error instanceof GeminiRequestError) {
       if (error.code === "timeout") {
         return errorResponse(
@@ -337,6 +420,29 @@ export async function POST(request: Request) {
 
   const validatedPayload = generatedPayloadSchema.safeParse(candidateJson);
   if (!validatedPayload.success) {
+    emitTelemetryEvent({
+      eventName: "ai.request.completed",
+      ownerId: user.id,
+      correlationId,
+      capabilities,
+      scope: null,
+      result: "error",
+      statusCode: 502,
+      errorCode: "ai_invalid_output",
+      durationMs: Date.now() - startedAt,
+      counts: {
+        chatMessages: 0,
+        inputBytes,
+        outputBytes: 0,
+        providerAttempts: Math.max(providerAttempts, 1),
+      },
+      versions: { prompt: "bulk-parser-v2" },
+      data: {
+        feature: "bulk_goal_parser",
+        provider: "gemini",
+        attempt: Math.max(providerAttempts, 1),
+      },
+    });
     return errorResponse(
       502,
       "ai_invalid_output",
@@ -357,11 +463,36 @@ export async function POST(request: Request) {
     // Best-effort quota telemetry should not block successful responses.
   }
 
-  return NextResponse.json(
-    {
-      ...normalizeGeneratedPayload(validatedPayload.data, today),
-      correlationId,
+  const responsePayload = {
+    ...normalizeGeneratedPayload(validatedPayload.data, today),
+    correlationId,
+  };
+  emitTelemetryEvent({
+    eventName: "ai.request.completed",
+    ownerId: user.id,
+    correlationId,
+    capabilities,
+    scope: null,
+    result: "success",
+    statusCode: 200,
+    errorCode: null,
+    durationMs: Date.now() - startedAt,
+    counts: {
+      chatMessages: 0,
+      inputBytes,
+      outputBytes: Buffer.byteLength(JSON.stringify(responsePayload), "utf8"),
+      providerAttempts: Math.max(providerAttempts, 1),
     },
+    versions: { prompt: "bulk-parser-v2" },
+    data: {
+      feature: "bulk_goal_parser",
+      provider: "gemini",
+      attempt: Math.max(providerAttempts, 1),
+    },
+  });
+
+  return NextResponse.json(
+    responsePayload,
     { headers: { "Cache-Control": "private, no-store" } }
   );
 }

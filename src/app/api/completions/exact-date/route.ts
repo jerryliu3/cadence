@@ -6,6 +6,7 @@ import {
   isValidIanaTimezone,
 } from "@/lib/dates/timezone";
 import { getPlannerCapabilities } from "@/lib/planner/capabilities";
+import { classifyTelemetryResult, emitTelemetryEvent } from "@/lib/telemetry/runtime";
 import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
@@ -37,6 +38,7 @@ function errorResponse(
 
 export async function POST(request: Request) {
   const correlationId = randomUUID();
+  const startedAt = Date.now();
   const supabase = await createClient();
   const {
     data: { user },
@@ -64,12 +66,28 @@ export async function POST(request: Request) {
     );
   }
   if (!capabilities.targetedExactCompletion) {
-    return errorResponse(
+    const response = errorResponse(
       503,
       "targeted_exact_completion_disabled",
       "Exact-date completion updates are temporarily unavailable.",
       correlationId
     );
+    emitTelemetryEvent({
+      eventName: "targeted_completion.completed",
+      ownerId: user.id,
+      correlationId,
+      capabilities,
+      scope: null,
+      result: "disabled",
+      statusCode: 503,
+      errorCode: "targeted_exact_completion_disabled",
+      durationMs: Date.now() - startedAt,
+      data: {
+        route: "canonical_exact_date",
+        desiredFactState: "absent",
+      },
+    });
+    return response;
   }
 
   const contentLength = Number(request.headers.get("content-length") ?? "0");
@@ -170,13 +188,48 @@ export async function POST(request: Request) {
   );
 
   if (mutationError) {
-    return errorResponse(
+    const response = errorResponse(
       409,
       "completion_update_failed",
       "The completion could not be updated.",
       correlationId
     );
+    emitTelemetryEvent({
+      eventName: "targeted_completion.completed",
+      ownerId: user.id,
+      correlationId,
+      capabilities,
+      scope: null,
+      result: classifyTelemetryResult({
+        statusCode: 409,
+        errorCode: "completion_update_failed",
+      }),
+      statusCode: 409,
+      errorCode: "completion_update_failed",
+      durationMs: Date.now() - startedAt,
+      data: {
+        route: "canonical_exact_date",
+        desiredFactState,
+      },
+    });
+    return response;
   }
+
+  emitTelemetryEvent({
+    eventName: "targeted_completion.completed",
+    ownerId: user.id,
+    correlationId,
+    capabilities,
+    scope: null,
+    result: "success",
+    statusCode: 200,
+    errorCode: null,
+    durationMs: Date.now() - startedAt,
+    data: {
+      route: "canonical_exact_date",
+      desiredFactState,
+    },
+  });
 
   return NextResponse.json(
     {
