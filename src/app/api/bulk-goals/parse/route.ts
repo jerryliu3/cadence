@@ -1,7 +1,13 @@
 import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { GeminiRequestError, generateGeminiJson } from "@/lib/ai/gemini";
 import { getDateInTimezone, isValidIanaTimezone } from "@/lib/dates/timezone";
+import {
+  consumePlannerAiQuota,
+  readBulkParserQuotaLimit,
+  recordPlannerAiOutputTokens,
+} from "@/lib/planner/ai-quota";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
@@ -11,9 +17,7 @@ const MAX_GOALS_PER_REQUEST = 50;
 const MAX_REQUEST_BYTES = 32 * 1024;
 const MAX_PROVIDER_RESPONSE_BYTES = 256 * 1024;
 const PROVIDER_TIMEOUT_MS = 12_000;
-const DEFAULT_DAILY_PROVIDER_LIMIT = 20;
-const HARD_DAILY_PROVIDER_LIMIT = 100;
-const defaultGeminiModel = "gemini-3.5-flash";
+const MAX_PROVIDER_ATTEMPTS = 2;
 
 const requestSchema = z.object({
   prompt: z.string().trim().min(1).max(8000),
@@ -40,119 +44,46 @@ const generatedPayloadSchema = z.object({
   goals: z.array(generatedGoalSchema).max(MAX_GOALS_PER_REQUEST),
 });
 
-const geminiResponseSchema = z.object({
-  candidates: z.array(
-    z.object({
-      content: z
-        .object({
-          parts: z.array(
-            z.object({
-              text: z.string().optional(),
-            })
-          ),
-        })
-        .optional(),
-    })
-  ),
-  usageMetadata: z
-    .object({
-      promptTokenCount: z.number().int().nonnegative().optional(),
-      candidatesTokenCount: z.number().int().nonnegative().optional(),
-      totalTokenCount: z.number().int().nonnegative().optional(),
-    })
-    .optional(),
-});
-
-const quotaResultSchema = z.object({
-  usage_date: z.iso.date(),
-  allowed: z.boolean(),
-  request_count: z.number().int().nonnegative(),
-  remaining: z.number().int().nonnegative(),
-  retry_after_seconds: z.number().int().nonnegative(),
-});
+const bulkGoalResponseSchema = {
+  type: "object",
+  properties: {
+    goals: {
+      type: "array",
+      maxItems: MAX_GOALS_PER_REQUEST,
+      items: {
+        type: "object",
+        properties: {
+          title: { type: "string" },
+          description: { type: "string" },
+          category: { type: "string" },
+          frequency_type: {
+            type: "string",
+            enum: ["recurring", "fixed_milestones"],
+          },
+          recurrence_interval: {
+            type: "string",
+            enum: ["daily", "weekly", "monthly"],
+          },
+          target_count: { type: "number" },
+          start_date: { type: "string" },
+          end_date: { type: "string" },
+        },
+        required: ["title"],
+      },
+    },
+  },
+  required: ["goals"],
+} as const;
 
 function toIsoDate(value: string | undefined): string | undefined {
   if (!value) {
     return undefined;
   }
-
   const trimmed = value.trim();
   if (!trimmed) {
     return undefined;
   }
-
-  if (z.iso.date().safeParse(trimmed).success) {
-    return trimmed;
-  }
-  return undefined;
-}
-
-function extractFirstTextCandidate(responseJson: unknown): string {
-  const parsed = geminiResponseSchema.safeParse(responseJson);
-  if (!parsed.success) {
-    return "";
-  }
-
-  for (const candidate of parsed.data.candidates) {
-    const text = candidate.content?.parts
-      .map((part) => part.text ?? "")
-      .join("")
-      .trim();
-    if (text) {
-      return text;
-    }
-  }
-
-  return "";
-}
-
-function parseJsonText(rawText: string): unknown {
-  const trimmed = rawText.trim();
-  if (!trimmed) {
-    throw new Error("Empty model response.");
-  }
-
-  const fencedMatch = trimmed.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
-  const candidate = fencedMatch ? fencedMatch[1]?.trim() ?? "" : trimmed;
-
-  try {
-    return JSON.parse(candidate);
-  } catch {
-    const start = candidate.indexOf("{");
-    const end = candidate.lastIndexOf("}");
-
-    if (start >= 0 && end > start) {
-      return JSON.parse(candidate.slice(start, end + 1));
-    }
-  }
-
-  throw new Error("Model response was not valid JSON.");
-}
-
-function getOutputTokenCount(responseJson: unknown) {
-  const parsed = geminiResponseSchema.safeParse(responseJson);
-  if (!parsed.success) {
-    return 0;
-  }
-  return (
-    parsed.data.usageMetadata?.candidatesTokenCount ??
-    parsed.data.usageMetadata?.totalTokenCount ??
-    0
-  );
-}
-
-function parseDailyQuotaLimit() {
-  const raw = process.env.CALENDAR_BULK_PARSER_DAILY_LIMIT?.trim();
-  if (!raw) {
-    return DEFAULT_DAILY_PROVIDER_LIMIT;
-  }
-  const parsed = Number(raw);
-  if (!Number.isSafeInteger(parsed) || parsed < 1 || parsed > HARD_DAILY_PROVIDER_LIMIT) {
-    throw new Error(
-      "CALENDAR_BULK_PARSER_DAILY_LIMIT must be an integer between 1 and 100."
-    );
-  }
-  return parsed;
+  return z.iso.date().safeParse(trimmed).success ? trimmed : undefined;
 }
 
 function buildPrompt(userPrompt: string, today: string): string {
@@ -190,10 +121,12 @@ function normalizeGeneratedPayload(
   return {
     goals: payload.goals.map((goal) => {
       const frequency = goal.frequency_type ?? "recurring";
-      const recurrence = frequency === "recurring" ? goal.recurrence_interval ?? "daily" : undefined;
+      const recurrence =
+        frequency === "recurring"
+          ? goal.recurrence_interval ?? "daily"
+          : undefined;
       const startDate = toIsoDate(goal.start_date) ?? today;
       const endDate = toIsoDate(goal.end_date ?? undefined) ?? null;
-
       return {
         title: goal.title.trim(),
         description: goal.description?.trim() ?? "",
@@ -227,7 +160,6 @@ export async function POST(request: Request) {
     data: { user },
     error: userError,
   } = await supabase.auth.getUser();
-
   if (userError || !user) {
     return errorResponse(
       401,
@@ -281,7 +213,7 @@ export async function POST(request: Request) {
 
   let quotaLimit: number;
   try {
-    quotaLimit = parseDailyQuotaLimit();
+    quotaLimit = readBulkParserQuotaLimit();
   } catch {
     return errorResponse(
       503,
@@ -301,25 +233,34 @@ export async function POST(request: Request) {
     );
   }
 
-  const configuredModel =
-    process.env.GEMINI_MODEL?.trim() || defaultGeminiModel;
-  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${configuredModel}:generateContent`;
-  const today = getDateInTimezone(
-    new Date(),
-    parsedRequest.data.timezone
-  );
+  let admin: ReturnType<typeof createAdminClient>;
+  try {
+    admin = createAdminClient();
+  } catch {
+    return errorResponse(
+      503,
+      "admin_configuration_invalid",
+      "Goal draft generation is temporarily unavailable.",
+      correlationId
+    );
+  }
+
+  const today = getDateInTimezone(new Date(), parsedRequest.data.timezone);
   const estimatedInputTokens = Math.max(
     1,
     Math.ceil(parsedRequest.data.prompt.length / 4)
   );
-  const admin = createAdminClient();
-  const quotaResponse = await admin.rpc("consume_planner_ai_quota_service", {
-    p_owner: user.id,
-    p_feature: "bulk_parser",
-    p_limit: quotaLimit,
-    p_input_tokens: estimatedInputTokens,
-  });
-  if (quotaResponse.error) {
+
+  let quota;
+  try {
+    quota = await consumePlannerAiQuota({
+      admin,
+      ownerId: user.id,
+      feature: "bulk_parser",
+      limit: quotaLimit,
+      estimatedInputTokens,
+    });
+  } catch {
     return errorResponse(
       503,
       "quota_check_failed",
@@ -327,19 +268,8 @@ export async function POST(request: Request) {
       correlationId
     );
   }
-  const quotaRowRaw = Array.isArray(quotaResponse.data)
-    ? quotaResponse.data[0]
-    : quotaResponse.data;
-  const quotaRow = quotaResultSchema.safeParse(quotaRowRaw);
-  if (!quotaRow.success) {
-    return errorResponse(
-      500,
-      "quota_invariant_failed",
-      "Goal draft generation is temporarily unavailable.",
-      correlationId
-    );
-  }
-  if (!quotaRow.data.allowed) {
+
+  if (!quota.allowed) {
     return NextResponse.json(
       {
         code: "quota_exceeded",
@@ -350,56 +280,53 @@ export async function POST(request: Request) {
         status: 429,
         headers: {
           "Cache-Control": "no-store",
-          "Retry-After": `${quotaRow.data.retry_after_seconds}`,
+          "Retry-After": `${quota.retryAfterSeconds}`,
         },
       }
     );
   }
 
-  let geminiResponse: Response;
+  let candidateJson: unknown;
+  let outputTokens = 0;
   try {
-    geminiResponse = await fetch(endpoint, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-goog-api-key": apiKey,
-      },
-      body: JSON.stringify({
-        contents: [
-          {
-            parts: [
-              { text: buildPrompt(parsedRequest.data.prompt, today) },
-            ],
-          },
-        ],
-        generationConfig: {
-          temperature: 0.2,
-          responseMimeType: "application/json",
-          maxOutputTokens: 8_192,
-        },
-      }),
-      cache: "no-store",
-      signal: AbortSignal.any([
-        request.signal,
-        AbortSignal.timeout(PROVIDER_TIMEOUT_MS),
-      ]),
+    const result = await generateGeminiJson({
+      apiKey,
+      prompt: buildPrompt(parsedRequest.data.prompt, today),
+      responseSchema: bulkGoalResponseSchema as unknown as Record<string, unknown>,
+      maxResponseBytes: MAX_PROVIDER_RESPONSE_BYTES,
+      totalTimeoutMs: PROVIDER_TIMEOUT_MS,
+      maxAttempts: MAX_PROVIDER_ATTEMPTS,
+      signal: request.signal,
     });
+    candidateJson = result.candidateJson;
+    outputTokens = result.outputTokens;
   } catch (error) {
-    const aborted =
-      request.signal.aborted ||
-      (error instanceof Error &&
-        (error.name === "AbortError" || error.name === "TimeoutError"));
-    return errorResponse(
-      aborted ? 504 : 502,
-      aborted ? "ai_timeout" : "ai_provider_error",
-      aborted
-        ? "Goal draft generation timed out. Try again."
-        : "Goal draft generation failed. Try again.",
-      correlationId
-    );
-  }
-
-  if (!geminiResponse.ok) {
+    if (error instanceof GeminiRequestError) {
+      if (error.code === "timeout") {
+        return errorResponse(
+          504,
+          "ai_timeout",
+          "Goal draft generation timed out. Try again.",
+          correlationId
+        );
+      }
+      if (error.code === "response_too_large") {
+        return errorResponse(
+          502,
+          "ai_response_too_large",
+          "Goal draft generation returned too much data.",
+          correlationId
+        );
+      }
+      if (error.code === "invalid_response" || error.code === "empty_response") {
+        return errorResponse(
+          502,
+          "ai_invalid_output",
+          "Generated goal drafts could not be validated.",
+          correlationId
+        );
+      }
+    }
     return errorResponse(
       502,
       "ai_provider_error",
@@ -408,67 +335,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const providerContentLength = Number(
-    geminiResponse.headers.get("content-length") ?? "0"
-  );
-  if (
-    Number.isFinite(providerContentLength) &&
-    providerContentLength > MAX_PROVIDER_RESPONSE_BYTES
-  ) {
-    return errorResponse(
-      502,
-      "ai_response_too_large",
-      "Goal draft generation returned too much data.",
-      correlationId
-    );
-  }
-
-  let geminiJson: unknown;
-  try {
-    const responseText = await geminiResponse.text();
-    if (
-      Buffer.byteLength(responseText, "utf8") > MAX_PROVIDER_RESPONSE_BYTES
-    ) {
-      return errorResponse(
-        502,
-        "ai_response_too_large",
-        "Goal draft generation returned too much data.",
-        correlationId
-      );
-    }
-    geminiJson = JSON.parse(responseText) as unknown;
-  } catch {
-    return errorResponse(
-      502,
-      "ai_invalid_response",
-      "Goal draft generation returned an invalid response.",
-      correlationId
-    );
-  }
-
-  const candidateText = extractFirstTextCandidate(geminiJson);
-  if (!candidateText) {
-    return errorResponse(
-      502,
-      "ai_empty_response",
-      "No goal drafts were generated. Try a more specific prompt.",
-      correlationId
-    );
-  }
-
-  let parsedPayload: unknown;
-  try {
-    parsedPayload = parseJsonText(candidateText);
-  } catch {
-    return errorResponse(
-      502,
-      "ai_invalid_output",
-      "Generated goal drafts could not be validated.",
-      correlationId
-    );
-  }
-
-  const validatedPayload = generatedPayloadSchema.safeParse(parsedPayload);
+  const validatedPayload = generatedPayloadSchema.safeParse(candidateJson);
   if (!validatedPayload.success) {
     return errorResponse(
       502,
@@ -478,14 +345,16 @@ export async function POST(request: Request) {
     );
   }
 
-  const outputTokens = getOutputTokenCount(geminiJson);
-  if (outputTokens > 0) {
-    await admin.rpc("record_planner_ai_output_tokens_service", {
-      p_owner: user.id,
-      p_usage_date: quotaRow.data.usage_date,
-      p_feature: "bulk_parser",
-      p_output_tokens: outputTokens,
+  try {
+    await recordPlannerAiOutputTokens({
+      admin,
+      ownerId: user.id,
+      usageDate: quota.usageDate,
+      feature: "bulk_parser",
+      outputTokens,
     });
+  } catch {
+    // Best-effort quota telemetry should not block successful responses.
   }
 
   return NextResponse.json(

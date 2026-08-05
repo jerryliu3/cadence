@@ -27,13 +27,14 @@ function evaluateCapability(flagName: string, defaultValue = false) {
 
 export function getPlannerCapabilities(): PlannerCapabilities {
   const calendarEnabled = evaluateCapability("CALENDAR_ENABLED", true);
+  const coachEnabled = evaluateCapability("CALENDAR_COACH_AI_ENABLED", false);
   return {
     calendarEnabled,
     plannerRead: calendarEnabled,
     plannerGeneration: calendarEnabled,
     plannerPlanWrites: calendarEnabled,
     targetedExactCompletion: calendarEnabled,
-    coachAi: calendarEnabled,
+    coachAi: calendarEnabled && coachEnabled,
     overlap: calendarEnabled,
   };
 }

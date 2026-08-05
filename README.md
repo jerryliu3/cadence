@@ -120,14 +120,17 @@ the app on `http://localhost:3100` so it does not reuse another development serv
 Regenerate checked-in SQL contract mirrors with `pnpm contracts:generate-sql` after intentionally
 changing a canonical fixture under `test/fixtures/planner-contracts/`.
 
-Calendar UI exposure and planner API access are controlled by one flag:
+Calendar UI exposure and planner API access are controlled by
 `CALENDAR_ENABLED` (default `true`). Set `CALENDAR_ENABLED=false` to hide the
 Calendar surface and disable planner endpoints.
 
+Planner coach AI has an additional rollout flag: `CALENDAR_COACH_AI_ENABLED`
+(default `false`). This keeps deterministic manual planning available while
+coach turns remain gated to an internal cohort.
+
 Planner persistence is additive and blocks direct client writes. Immutable plan
 snapshots are stored in public planning tables, while revisions, owner-lock
-helpers, and AI quota counters remain in the unexposed `private` schema. The
-server read/publish/mutation adapters are introduced in the next slice.
+helpers, and AI quota counters remain in the unexposed `private` schema.
 
 ## Pointing to Hosted Supabase
 

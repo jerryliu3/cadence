@@ -170,7 +170,8 @@ export async function requirePlannerRouteContext({
     | "plannerRead"
     | "plannerGeneration"
     | "plannerPlanWrites"
-    | "targetedExactCompletion";
+    | "targetedExactCompletion"
+    | "coachAi";
   disabledCode: string;
   disabledMessage: string;
   disabledStatus?: number;
