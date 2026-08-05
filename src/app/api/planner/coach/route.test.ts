@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   consumeQuota: vi.fn(),
   recordTokens: vi.fn(),
   generateGeminiJson: vi.fn(),
+  emitTelemetryEvent: vi.fn(),
 }));
 
 vi.mock("@/lib/supabase/server", () => ({
@@ -41,6 +42,16 @@ vi.mock("@/lib/ai/gemini", () => ({
       super(message);
     }
   },
+}));
+
+vi.mock("@/lib/telemetry/runtime", () => ({
+  classifyTelemetryResult: ({
+    statusCode,
+  }: {
+    statusCode: number;
+    errorCode?: string | null;
+  }) => (statusCode >= 200 && statusCode < 300 ? "success" : "error"),
+  emitTelemetryEvent: mocks.emitTelemetryEvent,
 }));
 
 import { POST } from "./route";
@@ -119,6 +130,7 @@ describe("planner coach route", () => {
       retryAfterSeconds: 321,
     });
     mocks.recordTokens.mockResolvedValue(undefined);
+    mocks.emitTelemetryEvent.mockReset();
     mocks.generateGeminiJson.mockResolvedValue({
       candidateJson: {
         schemaVersion: "1",
@@ -244,5 +256,11 @@ describe("planner coach route", () => {
     await expect(response.json()).resolves.toMatchObject({
       code: "ai_invalid_output",
     });
+    expect(mocks.emitTelemetryEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventName: "ai.request.completed",
+        errorCode: "ai_invalid_output",
+      })
+    );
   });
 });

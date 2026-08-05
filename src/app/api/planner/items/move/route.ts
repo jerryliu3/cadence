@@ -11,7 +11,7 @@ import {
 } from "@/lib/planner/api";
 import { MAX_API_BODY_BYTES } from "@/lib/planner/contracts/bounds";
 import { classifyTelemetryResult, emitTelemetryEvent } from "@/lib/telemetry/runtime";
-import { callUntypedAdminRpc } from "@/lib/supabase/admin-rpc";
+import { callAdminRpc } from "@/lib/supabase/admin-rpc";
 import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
@@ -47,7 +47,7 @@ export async function POST(request: Request) {
       moveSchema
     );
     const admin = requirePlannerAdminClient();
-    const response = await callUntypedAdminRpc(admin, "move_execution_plan_item_service", {
+    const response = await callAdminRpc(admin, "move_execution_plan_item_service", {
       p_owner: routeContext.userId,
       p_item_id: body.itemId,
       p_date: body.date,

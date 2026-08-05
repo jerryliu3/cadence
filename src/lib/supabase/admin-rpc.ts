@@ -1,22 +1,13 @@
 import type { createAdminClient } from "@/lib/supabase/admin";
+import type { Database } from "@/lib/supabase/database.types";
 
 type AdminClient = ReturnType<typeof createAdminClient>;
+type PlannerFunctionName = keyof Database["public"]["Functions"];
 
-interface UntypedRpcClient {
-  rpc(
-    functionName: string,
-    parameters?: Record<string, unknown>
-  ): Promise<{
-    data: unknown;
-    error: { message: string } | null;
-  }>;
-}
-
-export function callUntypedAdminRpc(
+export function callAdminRpc<FunctionName extends PlannerFunctionName>(
   admin: AdminClient,
-  functionName: string,
-  parameters: Record<string, unknown>
+  functionName: FunctionName,
+  parameters: Database["public"]["Functions"][FunctionName]["Args"]
 ) {
-  const rpcClient = admin as unknown as UntypedRpcClient;
-  return rpcClient.rpc(functionName, parameters);
+  return admin.rpc(functionName, parameters);
 }

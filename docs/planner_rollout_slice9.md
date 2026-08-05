@@ -36,14 +36,22 @@ Run this exact sequence before broadening cohorts:
 
 1. `pnpm supabase:reset`
 2. `pnpm test:sql`
-3. `pnpm test`
-4. `pnpm lint`
-5. `pnpm typecheck`
+3. `pnpm test:concurrency`
+4. `pnpm contracts:check`
+5. `pnpm test:benchmark`
+6. `supabase db lint`
+7. `supabase db advisors`
+8. `pnpm test`
+9. `pnpm lint`
+10. `pnpm typecheck`
 
 Pass criteria:
 
 - all planner migrations apply cleanly from empty local state,
 - SQL tests pass without manual database intervention,
+- concurrency harness and contract drift checks pass,
+- benchmark fixture completes under expected runtime bounds,
+- `supabase db lint` and `supabase db advisors` report no unreviewed blockers,
 - API/unit tests remain green.
 
 ## 4) Rollback procedure (forward-only schema)
@@ -65,7 +73,8 @@ Create saved queries from your runtime logs for:
 - mutation error rates by `data.action`,
 - staleness reason frequencies,
 - targeted completion failures by `errorCode`,
-- AI latency (`durationMs`) and quota rejects (`result=quota_rejected`).
+- AI latency (`durationMs`) and quota rejects (`result=quota_rejected`),
+- manual planner generation p95 latency (`planner.preview.completed`, `result=success`).
 
 Example filters (adapt to your logging backend):
 
@@ -82,6 +91,7 @@ Start with these minimum alerts:
 - sustained `planner.publish.completed` failures above 1% excluding expected `stale_revision`,
 - sustained AI request error rate above 5%,
 - repeated `response_bound_exceeded` failures (signals fail-closed read pressure).
+- `planner.preview.completed` p95 latency above 2 seconds for manual generation during soak.
 
 ## 7) Controlled enablement order
 

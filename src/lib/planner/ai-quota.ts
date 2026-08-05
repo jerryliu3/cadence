@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { callUntypedAdminRpc } from "@/lib/supabase/admin-rpc";
+import { callAdminRpc } from "@/lib/supabase/admin-rpc";
 import type { createAdminClient } from "@/lib/supabase/admin";
 
 type AdminClient = ReturnType<typeof createAdminClient>;
@@ -69,7 +69,7 @@ export async function consumePlannerAiQuota({
   limit: number;
   estimatedInputTokens: number;
 }): Promise<PlannerAiQuotaResult> {
-  const quotaResponse = await callUntypedAdminRpc(
+  const quotaResponse = await callAdminRpc(
     admin,
     "consume_planner_ai_quota_service",
     {
@@ -116,7 +116,7 @@ export async function recordPlannerAiOutputTokens({
   if (outputTokens <= 0) {
     return;
   }
-  await callUntypedAdminRpc(admin, "record_planner_ai_output_tokens_service", {
+  await callAdminRpc(admin, "record_planner_ai_output_tokens_service", {
     p_owner: ownerId,
     p_usage_date: usageDate,
     p_feature: feature,

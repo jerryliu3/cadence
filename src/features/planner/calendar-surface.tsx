@@ -1,6 +1,6 @@
 "use client";
 
-import { addMonths, format, parse } from "date-fns";
+import { addMonths, format, isValid, parse } from "date-fns";
 import { CalendarDays, ChevronLeft, ChevronRight, Loader2, Settings2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -41,6 +41,7 @@ interface PlannerContextPayload {
     plannerRead: boolean;
     plannerGeneration: boolean;
     plannerPlanWrites: boolean;
+    targetedExactCompletion: boolean;
     coachAi: boolean;
   };
   activePlan: {
@@ -49,6 +50,8 @@ interface PlannerContextPayload {
       version: number;
       status: "active" | "superseded" | "dismissed";
     };
+    goals: PlannerActiveGoalSnapshot[];
+    items: PlannerActiveItemSnapshot[];
   } | null;
   preview: {
     generationInputHash: string;
@@ -81,6 +84,38 @@ interface PlannerWorkUnit {
   scheduledDate: string | null;
   classification: string;
   creditState: string;
+}
+
+interface PlannerActiveGoalSnapshot {
+  id: string;
+  goal_id: string | null;
+  original_goal_id: string;
+  requirement_fingerprint: string;
+  title: string;
+}
+
+interface PlannerActiveItemSnapshot {
+  id: string;
+  plan_goal_id: string;
+  unit_key: string;
+  scheduled_date: string | null;
+  classification: string;
+  credit_state: string;
+  locked: boolean;
+  revision: number;
+  credited_completion_id: string | null;
+  credited_completion_date: string | null;
+}
+
+interface PlannerDayDetailEntry {
+  key: string;
+  originalGoalId: string;
+  unitKey: string;
+  label: string | null;
+  classification: string;
+  creditState: string;
+  activeGoal: PlannerActiveGoalSnapshot | null;
+  activeItem: PlannerActiveItemSnapshot | null;
 }
 
 interface PlannerErrorPayload {
@@ -229,6 +264,10 @@ export function CalendarSurface({
   const [coachMessages, setCoachMessages] = useState<CoachMessage[]>([]);
   const [coachWarnings, setCoachWarnings] = useState<string[]>([]);
   const [coachRecommendations, setCoachRecommendations] = useState<string[]>([]);
+  const [mutationLoadingKey, setMutationLoadingKey] = useState<string | null>(null);
+  const [moveDateByItemId, setMoveDateByItemId] = useState<Record<string, string>>(
+    {}
+  );
   const [error, setError] = useState<string | null>(null);
   const [setupTimezone, setSetupTimezone] = useState(
     Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"
@@ -331,7 +370,78 @@ export function CalendarSurface({
     }
     return map;
   }, [context?.preview?.workUnits]);
-  const selectedDayUnits = selectedDay ? unitsByDate.get(selectedDay) ?? [] : [];
+  const activeGoalsByPlanGoalId = useMemo(() => {
+    const map = new Map<string, PlannerActiveGoalSnapshot>();
+    for (const goal of context?.activePlan?.goals ?? []) {
+      map.set(goal.id, goal);
+    }
+    return map;
+  }, [context?.activePlan?.goals]);
+
+  const selectedDayEntries = useMemo(() => {
+    if (!selectedDay) {
+      return [] as PlannerDayDetailEntry[];
+    }
+
+    const byKey = new Map<string, PlannerDayDetailEntry>();
+    for (const unit of unitsByDate.get(selectedDay) ?? []) {
+      const key = `${unit.originalGoalId}:${unit.unitKey}`;
+      byKey.set(key, {
+        key,
+        originalGoalId: unit.originalGoalId,
+        unitKey: unit.unitKey,
+        label: unit.label,
+        classification: unit.classification,
+        creditState: unit.creditState,
+        activeGoal: null,
+        activeItem: null,
+      });
+    }
+
+    for (const item of context?.activePlan?.items ?? []) {
+      if (item.scheduled_date !== selectedDay) {
+        continue;
+      }
+      const activeGoal = activeGoalsByPlanGoalId.get(item.plan_goal_id) ?? null;
+      const originalGoalId = activeGoal?.original_goal_id ?? item.plan_goal_id;
+      const key = `${originalGoalId}:${item.unit_key}`;
+      const existing = byKey.get(key);
+      byKey.set(key, {
+        key,
+        originalGoalId,
+        unitKey: item.unit_key,
+        label: existing?.label ?? activeGoal?.title ?? item.unit_key,
+        classification: existing?.classification ?? item.classification,
+        creditState: existing?.creditState ?? item.credit_state,
+        activeGoal,
+        activeItem: item,
+      });
+    }
+
+    return Array.from(byKey.values());
+  }, [activeGoalsByPlanGoalId, context?.activePlan?.items, selectedDay, unitsByDate]);
+
+  useEffect(() => {
+    if (!selectedDay) {
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      setMoveDateByItemId((previous) => {
+        let changed = false;
+        const next = { ...previous };
+        for (const entry of selectedDayEntries) {
+          const itemId = entry.activeItem?.id;
+          if (!itemId || next[itemId]) {
+            continue;
+          }
+          next[itemId] = selectedDay;
+          changed = true;
+        }
+        return changed ? next : previous;
+      });
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [selectedDay, selectedDayEntries]);
 
   const submitSetup = async () => {
     if (!isValidIanaTimezone(setupTimezone)) {
@@ -436,6 +546,183 @@ export function CalendarSurface({
     );
   };
 
+  const parseErrorMessage = (payload: unknown, fallback: string) => {
+    if (
+      payload &&
+      typeof payload === "object" &&
+      "message" in payload &&
+      typeof payload.message === "string" &&
+      payload.message.trim().length > 0
+    ) {
+      return payload.message;
+    }
+    return fallback;
+  };
+
+  const isValidIsoDate = (value: string) => {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+      return false;
+    }
+    const parsed = parse(value, "yyyy-MM-dd", new Date());
+    return isValid(parsed) && format(parsed, "yyyy-MM-dd") === value;
+  };
+
+  const moveItem = async (entry: PlannerDayDetailEntry) => {
+    if (!context || !entry.activeItem) {
+      return;
+    }
+
+    const targetDate = moveDateByItemId[entry.activeItem.id]?.trim() ?? "";
+    if (!isValidIsoDate(targetDate)) {
+      toast.error("Use a valid destination date (YYYY-MM-DD).");
+      return;
+    }
+
+    const mutationKey = `move:${entry.activeItem.id}`;
+    setMutationLoadingKey(mutationKey);
+    try {
+      const response = await fetch("/api/planner/items/move", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          itemId: entry.activeItem.id,
+          date: targetDate,
+          expectedItemRevision: entry.activeItem.revision,
+          expectedCanonicalRevision: context.revisions.canonicalRevision,
+          expectedExecutionRevision: context.revisions.executionRevision,
+        }),
+      });
+      const payload = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        toast.error(parseErrorMessage(payload, "Planner item move failed."));
+        return;
+      }
+
+      onPlannerMutation();
+      await loadContext();
+      toast.success("Planner item moved.");
+    } catch {
+      toast.error("Planner item move failed.");
+    } finally {
+      setMutationLoadingKey(null);
+    }
+  };
+
+  const toggleItemLock = async (entry: PlannerDayDetailEntry) => {
+    if (!context || !entry.activeItem) {
+      return;
+    }
+
+    const nextLocked = !entry.activeItem.locked;
+    const mutationKey = `lock:${entry.activeItem.id}`;
+    setMutationLoadingKey(mutationKey);
+    try {
+      const response = await fetch("/api/planner/items/lock", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          itemId: entry.activeItem.id,
+          locked: nextLocked,
+          expectedItemRevision: entry.activeItem.revision,
+          expectedCanonicalRevision: context.revisions.canonicalRevision,
+          expectedExecutionRevision: context.revisions.executionRevision,
+        }),
+      });
+      const payload = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        toast.error(parseErrorMessage(payload, "Planner lock update failed."));
+        return;
+      }
+
+      onPlannerMutation();
+      await loadContext();
+      toast.success(nextLocked ? "Planner item locked." : "Planner item unlocked.");
+    } catch {
+      toast.error("Planner lock update failed.");
+    } finally {
+      setMutationLoadingKey(null);
+    }
+  };
+
+  const toggleDateFact = async (entry: PlannerDayDetailEntry) => {
+    if (!context || !selectedDay || !context.capabilities.targetedExactCompletion) {
+      return;
+    }
+
+    const currentlyCredited =
+      entry.creditState !== "uncredited" || Boolean(entry.activeItem?.credited_completion_id);
+    const desiredFactState = currentlyCredited ? "absent" : "present";
+    const mutationKey = `fact:${entry.key}`;
+
+    setMutationLoadingKey(mutationKey);
+    try {
+      let response: Response | null = null;
+      if (entry.activeItem) {
+        const expectedCreditedUnit =
+          desiredFactState === "absent" &&
+          entry.activeGoal &&
+          entry.activeItem.credited_completion_date
+            ? {
+                goalId: entry.activeGoal.original_goal_id,
+                requirementFingerprint: entry.activeGoal.requirement_fingerprint,
+                unitKey: entry.activeItem.unit_key,
+                completedOn: entry.activeItem.credited_completion_date,
+              }
+            : null;
+
+        if (desiredFactState === "present" || expectedCreditedUnit) {
+          response = await fetch("/api/planner/items/date-fact", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              itemId: entry.activeItem.id,
+              desiredFactState,
+              expectedCreditedUnit,
+              expectedItemRevision: entry.activeItem.revision,
+              expectedCanonicalRevision: context.revisions.canonicalRevision,
+              expectedExecutionRevision: context.revisions.executionRevision,
+            }),
+          });
+        }
+      }
+
+      if (!response && entry.activeGoal) {
+        response = await fetch("/api/planner/goals/date-fact", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            planGoalId: entry.activeGoal.id,
+            date: selectedDay,
+            desiredFactState,
+            expectedCanonicalRevision: context.revisions.canonicalRevision,
+            expectedExecutionRevision: context.revisions.executionRevision,
+          }),
+        });
+      }
+
+      if (!response) {
+        toast.error("This planner item cannot be updated from the current snapshot.");
+        return;
+      }
+
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) {
+        toast.error(parseErrorMessage(payload, "Planner completion update failed."));
+        return;
+      }
+
+      onPlannerMutation();
+      await loadContext();
+      toast.success(desiredFactState === "present" ? "Marked done." : "Marked not done.");
+    } catch {
+      toast.error("Planner completion update failed.");
+    } finally {
+      setMutationLoadingKey(null);
+    }
+  };
+
   const publishPlan = async () => {
     if (!context?.preview || !context.capabilities.plannerPlanWrites) {
       return;
@@ -533,6 +820,10 @@ export function CalendarSurface({
     ? getMonthInTimezone(context.timezone)
     : getMonthInTimezone(setupTimezone);
   const canUseCoach = Boolean(context?.capabilities.coachAi && context?.scopeMonth);
+  const canMutatePlanItems = Boolean(
+    context?.capabilities.plannerPlanWrites &&
+      context?.activePlan?.plan.status === "active"
+  );
 
   const setupForm = (
     <div className="space-y-4">
@@ -606,7 +897,7 @@ export function CalendarSurface({
               ) : null}
             </div>
             <p className="text-sm text-muted-foreground">
-              Read-only planner preview with URL-driven month/day navigation.
+              Planner preview with URL-driven month/day navigation and active-plan actions.
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -844,22 +1135,109 @@ export function CalendarSurface({
                   {selectedDay ? format(parse(selectedDay, "yyyy-MM-dd", new Date()), "EEEE, MMMM d") : "Day detail"}
                 </DialogTitle>
                 <DialogDescription id="planner-day-detail-description">
-                  Read-only planned sessions for this date.
+                  Review and update planned sessions for this date.
                 </DialogDescription>
               </DialogHeader>
               <div className="max-h-[60vh] overflow-y-auto pr-1" data-no-swipe="true">
-                {selectedDayUnits.length === 0 ? (
+                {selectedDayEntries.length === 0 ? (
                   <p className="text-sm text-muted-foreground">No planned sessions for this date.</p>
                 ) : (
                   <ul className="space-y-2">
-                    {selectedDayUnits.map((unit) => (
-                      <li key={`${unit.originalGoalId}-${unit.unitKey}`} className="rounded-lg border p-2 text-sm">
-                        <p className="font-medium">{unit.label ?? unit.unitKey}</p>
-                        <p className="text-xs text-muted-foreground">
-                          Goal {unit.originalGoalId} · {unit.classification} · {unit.creditState}
-                        </p>
-                      </li>
-                    ))}
+                    {selectedDayEntries.map((entry) => {
+                      const activeItem = entry.activeItem;
+                      const canMutateEntry =
+                        canMutatePlanItems &&
+                        Boolean(activeItem) &&
+                        activeItem?.scheduled_date === selectedDay;
+                      const canToggleDateFact = Boolean(
+                        context?.capabilities.targetedExactCompletion &&
+                          (activeItem || entry.activeGoal)
+                      );
+                      const moveActionKey = activeItem ? `move:${activeItem.id}` : null;
+                      const lockActionKey = activeItem ? `lock:${activeItem.id}` : null;
+                      const factActionKey = `fact:${entry.key}`;
+                      return (
+                        <li key={entry.key} className="rounded-lg border p-2 text-sm">
+                          <p className="font-medium">{entry.label ?? entry.unitKey}</p>
+                          <p className="text-xs text-muted-foreground">
+                            Goal {entry.originalGoalId} · {entry.classification} · {entry.creditState}
+                          </p>
+                          {canMutateEntry && activeItem ? (
+                            <div className="mt-2 space-y-2 rounded-md border border-dashed p-2">
+                              <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                                Move to
+                                <Input
+                                  value={moveDateByItemId[activeItem.id] ?? selectedDay ?? ""}
+                                  onChange={(event) =>
+                                    setMoveDateByItemId((previous) => ({
+                                      ...previous,
+                                      [activeItem.id]: event.target.value,
+                                    }))
+                                  }
+                                  placeholder="YYYY-MM-DD"
+                                  className="h-8 text-xs"
+                                />
+                              </label>
+                              <div className="flex flex-wrap gap-2">
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => void moveItem(entry)}
+                                  disabled={Boolean(mutationLoadingKey)}
+                                >
+                                  {mutationLoadingKey === moveActionKey ? "Moving..." : "Move"}
+                                </Button>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => void toggleItemLock(entry)}
+                                  disabled={Boolean(mutationLoadingKey)}
+                                >
+                                  {mutationLoadingKey === lockActionKey
+                                    ? "Saving..."
+                                    : activeItem.locked
+                                      ? "Unlock"
+                                      : "Lock"}
+                                </Button>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  onClick={() => void toggleDateFact(entry)}
+                                  disabled={
+                                    Boolean(mutationLoadingKey) || !canToggleDateFact
+                                  }
+                                >
+                                  {mutationLoadingKey === factActionKey
+                                    ? "Saving..."
+                                    : entry.creditState === "uncredited"
+                                      ? "Mark done"
+                                      : "Undo done"}
+                                </Button>
+                              </div>
+                            </div>
+                          ) : null}
+                          {!canMutateEntry && canToggleDateFact ? (
+                            <div className="mt-2">
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                onClick={() => void toggleDateFact(entry)}
+                                disabled={Boolean(mutationLoadingKey)}
+                              >
+                                {mutationLoadingKey === factActionKey
+                                  ? "Saving..."
+                                  : entry.creditState === "uncredited"
+                                    ? "Mark done"
+                                    : "Undo done"}
+                              </Button>
+                            </div>
+                          ) : null}
+                        </li>
+                      );
+                    })}
                   </ul>
                 )}
               </div>

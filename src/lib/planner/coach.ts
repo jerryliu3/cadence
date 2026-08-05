@@ -248,8 +248,8 @@ export const coachResponseJsonSchema = {
     proposal: {
       type: "object",
       properties: {
-        assessments: { type: "array" },
-        policyPatches: { type: "array" },
+        assessments: { type: "array", items: { type: "object" } },
+        policyPatches: { type: "array", items: { type: "object" } },
         unresolvedQuestions: {
           type: "array",
           items: { type: "string" },

@@ -22,10 +22,13 @@ import {
 } from "@/lib/planner/publish-payload";
 import { plannerPolicySchema } from "@/lib/planner/policy";
 import { classifyTelemetryResult, emitTelemetryEvent } from "@/lib/telemetry/runtime";
-import { callUntypedAdminRpc } from "@/lib/supabase/admin-rpc";
+import type { Database, Json } from "@/lib/supabase/database.types";
+import { callAdminRpc } from "@/lib/supabase/admin-rpc";
 import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
+type PublishExecutionPlanArgs =
+  Database["public"]["Functions"]["publish_execution_plan_service"]["Args"];
 
 const publishSchema = z.object({
   scopeMonth: z
@@ -319,10 +322,7 @@ export async function POST(request: Request) {
       kernel,
     });
 
-    const publishResponse = await callUntypedAdminRpc(
-      admin,
-      "publish_execution_plan_service",
-      {
+    const publishArgs: PublishExecutionPlanArgs = {
         p_owner: routeContext.userId,
         p_scope_month: `${body.scopeMonth}-01`,
         p_timezone: metadata.timezone,
@@ -345,13 +345,19 @@ export async function POST(request: Request) {
         p_request_digest: requestDigest,
         p_expected_canonical_revision: body.expectedCanonicalRevision,
         p_expected_execution_revision: body.expectedExecutionRevision,
-        p_expected_base_plan_id: body.expectedBasePlanId,
-        p_expected_base_plan_version: body.expectedBasePlanVersion,
-        p_goals: persistence.goals,
-        p_days: persistence.days,
-        p_items: persistence.items,
-        p_issues: persistence.issues,
-      }
+        p_expected_base_plan_id:
+          body.expectedBasePlanId as PublishExecutionPlanArgs["p_expected_base_plan_id"],
+        p_expected_base_plan_version:
+          body.expectedBasePlanVersion as PublishExecutionPlanArgs["p_expected_base_plan_version"],
+        p_goals: persistence.goals as Json,
+        p_days: persistence.days as Json,
+        p_items: persistence.items as Json,
+        p_issues: persistence.issues as Json,
+      };
+    const publishResponse = await callAdminRpc(
+      admin,
+      "publish_execution_plan_service",
+      publishArgs
     );
     if (publishResponse.error) {
       const message = publishResponse.error.message.toLowerCase();
