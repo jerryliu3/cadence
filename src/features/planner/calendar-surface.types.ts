@@ -117,6 +117,7 @@ export interface PlannerActiveGoalSnapshot {
   title: string;
   category: string;
   color: string | null;
+  default_local_time?: string | null;
 }
 
 export interface PlannerActiveItemSnapshot {
@@ -131,6 +132,8 @@ export interface PlannerActiveItemSnapshot {
   revision: number;
   credited_completion_id: string | null;
   credited_completion_date: string | null;
+  scheduled_time_override?: string | null;
+  effective_scheduled_local_time?: string | null;
 }
 
 export interface PlannerDayDetailEntry {
@@ -147,6 +150,9 @@ export interface PlannerDayDetailEntry {
   draftDiffFromDate: string | null;
   draftDiffToDate: string | null;
   draftGhost: boolean;
+  goalDefaultLocalTime?: string | null;
+  scheduledTimeOverride?: string | null;
+  effectiveScheduledLocalTime?: string | null;
 }
 
 export interface PlannerCompletionFactMarker {
