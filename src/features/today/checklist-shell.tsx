@@ -14,12 +14,6 @@ import {
 type PlannerShellTab = "today" | "not-today" | "calendar";
 type SurfaceKey = "checklist" | "calendar";
 
-interface DayHistoryMarker {
-  plannerCalendarDayEntry?: {
-    closeUrl: string;
-  };
-}
-
 const monthPattern = /^\d{4}-(0[1-9]|1[0-2])$/;
 const datePattern = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
 
@@ -244,59 +238,9 @@ export function ChecklistShell({ calendarEnabled }: ChecklistShellProps) {
     [applySearchParams, captureScroll, normalized.tab]
   );
 
-  const openDay = useCallback(
-    (day: string) => {
-      if (!calendarEnabled) {
-        return;
-      }
-      const paramsWithoutDay = new URLSearchParams(searchParams.toString());
-      paramsWithoutDay.delete("day");
-      const closeQuery = paramsWithoutDay.toString();
-      const closeUrl = closeQuery ? `${pathname}?${closeQuery}` : pathname;
-      const marker = (window.history.state ?? {}) as DayHistoryMarker;
-      const hasMarker = Boolean(marker.plannerCalendarDayEntry);
-
-      if (hasMarker && normalized.day) {
-        applySearchParams(
-          (params) => {
-            params.set("tab", "calendar");
-            params.set("month", day.slice(0, 7));
-            params.set("day", day);
-          },
-          "replace",
-          {
-            ...(window.history.state ?? {}),
-            plannerCalendarDayEntry: { closeUrl },
-          }
-        );
-        return;
-      }
-
-      applySearchParams(
-        (params) => {
-          params.set("tab", "calendar");
-          params.set("month", day.slice(0, 7));
-          params.set("day", day);
-        },
-        "push",
-        {
-          ...(window.history.state ?? {}),
-          plannerCalendarDayEntry: { closeUrl },
-        }
-      );
-    },
-    [applySearchParams, calendarEnabled, normalized.day, pathname, searchParams]
-  );
-
   const closeDay = useCallback(() => {
-    const marker = (window.history.state ?? {}) as DayHistoryMarker;
-    if (marker.plannerCalendarDayEntry && normalized.day) {
-      window.history.back();
-      return;
-    }
-
     applySearchParams((params) => params.delete("day"), "replace");
-  }, [applySearchParams, normalized.day]);
+  }, [applySearchParams]);
 
   const onChecklistMutation = useCallback(() => {
     setChecklistRefreshToken((token) => token + 1);
@@ -354,7 +298,6 @@ export function ChecklistShell({ calendarEnabled }: ChecklistShellProps) {
               month={normalized.month}
               selectedDay={normalized.day}
               onMonthChange={updateMonth}
-              onOpenDay={openDay}
               onCloseDay={closeDay}
               onPlannerMutation={onChecklistMutation}
             />

@@ -207,7 +207,12 @@ export function TodayTab({
   );
 
   const loadData = useCallback(
-    async ({ showLoading = true }: { showLoading?: boolean } = {}) => {
+    async (
+      {
+        showLoading = true,
+        forceRefresh = false,
+      }: { showLoading?: boolean; forceRefresh?: boolean } = {}
+    ) => {
       const requestId = loadRequestIdRef.current + 1;
       loadRequestIdRef.current = requestId;
       if (showLoading) {
@@ -239,6 +244,7 @@ export function TodayTab({
           fetchProgressContext({
             asOfDate: todayLocalDate,
             viewDate,
+            forceRefresh,
           }),
         ]);
 
@@ -310,13 +316,15 @@ export function TodayTab({
     refreshTokenRef.current = refreshToken;
     if (isActive) {
       const timer = window.setTimeout(() => {
-        void loadData({ showLoading: false }).catch((error: unknown) => {
-          toast.error(
-            error instanceof Error
-              ? error.message
-              : "Goal progress could not be loaded."
-          );
-        });
+        void loadData({ showLoading: false, forceRefresh: true }).catch(
+          (error: unknown) => {
+            toast.error(
+              error instanceof Error
+                ? error.message
+                : "Goal progress could not be loaded."
+            );
+          }
+        );
       }, 0);
       pendingRefreshRef.current = false;
       return () => window.clearTimeout(timer);
@@ -331,13 +339,15 @@ export function TodayTab({
     }
     pendingRefreshRef.current = false;
     const timer = window.setTimeout(() => {
-      void loadData({ showLoading: false }).catch((error: unknown) => {
-        toast.error(
-          error instanceof Error
-            ? error.message
-            : "Goal progress could not be loaded."
-        );
-      });
+      void loadData({ showLoading: false, forceRefresh: true }).catch(
+        (error: unknown) => {
+          toast.error(
+            error instanceof Error
+              ? error.message
+              : "Goal progress could not be loaded."
+          );
+        }
+      );
     }, 0);
     return () => window.clearTimeout(timer);
   }, [isActive, loadData]);
@@ -615,7 +625,7 @@ export function TodayTab({
         }
       }
 
-      await loadData({ showLoading: false });
+      await loadData({ showLoading: false, forceRefresh: true });
       requestAnimationFrame(() => {
         window.scrollTo({ top: currentScrollY, behavior: "auto" });
       });

@@ -27,6 +27,8 @@ vi.mock("@/lib/planner/context-loader", () => ({
 
 vi.mock("@/lib/planner/ai-quota", () => ({
   readPlannerCoachQuotaLimit: () => 20,
+  shouldBypassPlannerCoachQuota: () =>
+    process.env.CALENDAR_COACH_DISABLE_QUOTA?.trim().toLowerCase() === "true",
   consumePlannerAiQuota: mocks.consumeQuota,
   recordPlannerAiOutputTokens: mocks.recordTokens,
 }));
@@ -137,18 +139,14 @@ describe("planner coach route", () => {
         phase: "review",
         reply: "Try reducing rest days this week.",
         proposal: {
-          assessments: [
-            {
-              goalId: "12000000-0000-4000-8000-000000000001",
-              estimatedMinutesPerSession: 40,
-              difficulty: 4,
-              priority: 5,
-            },
-          ],
-          policyPatches: [
-            { kind: "set_spacing_strategy", spacingStrategy: "even" },
-            { kind: "unsupported_patch_kind" },
-          ],
+          calendarIntent: {
+            action: "apply_to_goal",
+            targetGoalId: "12000000-0000-4000-8000-000000000001",
+            allowedWeekdays: [1, 3, 5],
+            restWeekdays: [],
+            spacingStrategy: "even",
+            datePreferences: [],
+          },
           unresolvedQuestions: ["Do you have blackout dates this month?"],
         },
         recommendations: [{ text: "Keep daily sessions short." }],
@@ -221,15 +219,45 @@ describe("planner coach route", () => {
       schemaVersion: "1",
       phase: "review",
       proposal: {
-        assessments: [
+        assessments: [],
+        policyPatches: [
           {
+            kind: "set_goal_allowed_weekdays",
             goalId: "12000000-0000-4000-8000-000000000001",
-            source: "ai",
+            weekdays: [1, 3, 5],
+          },
+          {
+            kind: "set_goal_spacing_strategy",
+            goalId: "12000000-0000-4000-8000-000000000001",
+            spacingStrategy: "even",
           },
         ],
-        policyPatches: [{ kind: "set_spacing_strategy" }],
       },
-      warnings: [expect.stringContaining("unsupported policy patch")],
+      warnings: [],
+    });
+  });
+
+  it("bypasses quota RPC when local quota disable flag is enabled", async () => {
+    vi.stubEnv("CALENDAR_COACH_DISABLE_QUOTA", "true");
+    mocks.consumeQuota.mockClear();
+    mocks.recordTokens.mockClear();
+
+    const response = await POST(
+      request({
+        scopeMonth: "2026-01",
+        focusGoalIds: ["12000000-0000-4000-8000-000000000001"],
+        messages: [{ role: "user", content: "Help me plan this month." }],
+      })
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.consumeQuota).not.toHaveBeenCalled();
+    expect(mocks.recordTokens).not.toHaveBeenCalled();
+    await expect(response.json()).resolves.toMatchObject({
+      quota: {
+        usageDate: expect.any(String),
+        remaining: 999999,
+      },
     });
   });
 
@@ -262,5 +290,111 @@ describe("planner coach route", () => {
         errorCode: "ai_invalid_output",
       })
     );
+  });
+
+  it("compiles explicit calendar intent into goal-scoped policy patches", async () => {
+    mocks.generateGeminiJson.mockResolvedValue({
+      candidateJson: {
+        schemaVersion: "1",
+        phase: "ready",
+        reply: "Applying running cadence preferences.",
+        proposal: {
+          calendarIntent: {
+            action: "apply_to_goal",
+            targetGoalId: "12000000-0000-4000-8000-000000000001",
+            allowedWeekdays: [2, 4, 6],
+            restWeekdays: [],
+            spacingStrategy: "flexible",
+            datePreferences: [
+              {
+                start: "2026-01-18",
+                end: "2026-01-18",
+                effect: "prefer",
+              },
+            ],
+          },
+          unresolvedQuestions: [],
+        },
+        recommendations: [{ text: "Keep recovery days between runs." }],
+      },
+      outputTokens: 44,
+      attempts: 1,
+    });
+
+    const response = await POST(
+      request({
+        scopeMonth: "2026-01",
+        focusGoalIds: ["12000000-0000-4000-8000-000000000001"],
+        messages: [{ role: "user", content: "Make this apply-able." }],
+      })
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      proposal: {
+        assessments: [],
+        policyPatches: [
+          {
+            kind: "set_goal_allowed_weekdays",
+            goalId: "12000000-0000-4000-8000-000000000001",
+            weekdays: [2, 4, 6],
+          },
+          {
+            kind: "set_goal_spacing_strategy",
+            goalId: "12000000-0000-4000-8000-000000000001",
+            spacingStrategy: "flexible",
+          },
+          {
+            kind: "set_goal_date_preference",
+            goalId: "12000000-0000-4000-8000-000000000001",
+            start: "2026-01-18",
+            end: "2026-01-18",
+            effect: "prefer",
+          },
+        ],
+      },
+    });
+  });
+
+  it("refuses to compile edits when the activity needs a matching goal", async () => {
+    mocks.generateGeminiJson.mockResolvedValue({
+      candidateJson: {
+        schemaVersion: "1",
+        phase: "ready",
+        reply: "Create a running goal before applying this schedule.",
+        proposal: {
+          calendarIntent: {
+            action: "needs_goal",
+            targetGoalId: "",
+            allowedWeekdays: [2, 4, 6],
+            restWeekdays: [],
+            spacingStrategy: "flexible",
+            datePreferences: [],
+          },
+          unresolvedQuestions: [],
+        },
+        recommendations: [{ text: "Add a running goal first." }],
+      },
+      outputTokens: 20,
+      attempts: 1,
+    });
+
+    const response = await POST(
+      request({
+        scopeMonth: "2026-01",
+        focusGoalIds: ["12000000-0000-4000-8000-000000000001"],
+        messages: [{ role: "user", content: "Apply this as concrete edits." }],
+      })
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      proposal: {
+        policyPatches: [],
+      },
+      warnings: [
+        "No calendar edits were generated because this plan does not map to an existing goal.",
+      ],
+    });
   });
 });

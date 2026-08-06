@@ -5,6 +5,7 @@ import type { createAdminClient } from "@/lib/supabase/admin";
 type AdminClient = ReturnType<typeof createAdminClient>;
 
 const HARD_DAILY_PROVIDER_LIMIT = 100;
+const DEV_UNLIMITED_COACH_LIMIT = 1_000_000;
 
 const quotaResultSchema = z.object({
   usage_date: z.iso.date(),
@@ -27,17 +28,19 @@ export interface PlannerAiQuotaResult {
 function readQuotaLimit({
   envVar,
   defaultLimit,
+  maxLimit = HARD_DAILY_PROVIDER_LIMIT,
 }: {
   envVar: string;
   defaultLimit: number;
+  maxLimit?: number;
 }) {
   const raw = process.env[envVar]?.trim();
   if (!raw) {
     return defaultLimit;
   }
   const parsed = Number(raw);
-  if (!Number.isSafeInteger(parsed) || parsed < 1 || parsed > HARD_DAILY_PROVIDER_LIMIT) {
-    throw new Error(`${envVar} must be an integer between 1 and 100.`);
+  if (!Number.isSafeInteger(parsed) || parsed < 1 || parsed > maxLimit) {
+    throw new Error(`${envVar} must be an integer between 1 and ${maxLimit}.`);
   }
   return parsed;
 }
@@ -49,10 +52,24 @@ export function readBulkParserQuotaLimit() {
   });
 }
 
+export function shouldBypassPlannerCoachQuota() {
+  return (
+    process.env.NODE_ENV !== "production" &&
+    process.env.CALENDAR_COACH_DISABLE_QUOTA?.trim().toLowerCase() === "true"
+  );
+}
+
 export function readPlannerCoachQuotaLimit() {
+  if (shouldBypassPlannerCoachQuota()) {
+    return DEV_UNLIMITED_COACH_LIMIT;
+  }
   return readQuotaLimit({
     envVar: "CALENDAR_COACH_DAILY_LIMIT",
     defaultLimit: 20,
+    maxLimit:
+      process.env.NODE_ENV === "production"
+        ? HARD_DAILY_PROVIDER_LIMIT
+        : DEV_UNLIMITED_COACH_LIMIT,
   });
 }
 

@@ -132,6 +132,15 @@ export function applyCoachPolicyPatches({
         appliedPatchCount += 1;
         break;
       }
+      case "set_goal_spacing_strategy": {
+        if (!allowedGoalIds.has(patch.goalId)) {
+          ignoredPatchCount += 1;
+          break;
+        }
+        nextPolicy.goalSpacingStrategies[patch.goalId] = patch.spacingStrategy;
+        appliedPatchCount += 1;
+        break;
+      }
       default: {
         ignoredPatchCount += 1;
         break;

@@ -16,6 +16,8 @@ import { MAX_API_BODY_BYTES } from "@/lib/planner/contracts/bounds";
 import { runPlannerKernel } from "@/lib/planner/kernel";
 import {
   buildPlannerConfirmationHash,
+  type PlannerDraftItemEdit,
+  PlannerDraftEditValidationError,
   buildPlannerPublishPersistencePayload,
   buildPlannerPublishRequestDigest,
   plannerPlanMetadataFromKernel,
@@ -44,6 +46,20 @@ const publishSchema = z.object({
   expectedBasePlanId: z.string().uuid().nullable(),
   expectedBasePlanVersion: z.number().int().positive().nullable(),
   confirmationHash: z.string().regex(/^[a-f0-9]{64}$/).nullable(),
+  policy: z.unknown().optional(),
+  draftItemEdits: z
+    .array(
+      z
+        .object({
+          goalId: z.uuid(),
+          unitKey: z.string().trim().min(1).max(200),
+          scheduledDate: z.iso.date().nullable().optional(),
+          label: z.string().trim().min(1).max(200).nullable().optional(),
+        })
+        .strict()
+    )
+    .max(2000)
+    .default([]),
 });
 
 export async function POST(request: Request) {
@@ -69,6 +85,26 @@ export async function POST(request: Request) {
       Math.min(MAX_API_BODY_BYTES, 256 * 1024),
       publishSchema
     );
+    const requestedPolicy = body.policy
+      ? (() => {
+          const parsed = plannerPolicySchema.safeParse(body.policy);
+          if (!parsed.success) {
+            throw new PlannerRouteError(
+              400,
+              "validation_failed",
+              "Policy override failed validation.",
+              { issues: parsed.error.issues }
+            );
+          }
+          return parsed.data;
+        })()
+      : null;
+    const draftItemEdits: PlannerDraftItemEdit[] = body.draftItemEdits.map((edit) => ({
+      goalId: edit.goalId,
+      unitKey: edit.unitKey,
+      scheduledDate: edit.scheduledDate ?? null,
+      label: edit.label ?? null,
+    }));
     telemetryScope = { month: body.scopeMonth, timezone: "UTC" };
     if (
       (body.expectedBasePlanId === null) !==
@@ -104,6 +140,8 @@ export async function POST(request: Request) {
       expectedExecutionRevision: body.expectedExecutionRevision,
       expectedBasePlanId: body.expectedBasePlanId,
       expectedBasePlanVersion: body.expectedBasePlanVersion,
+      policyOverride: requestedPolicy,
+      draftItemEdits,
     };
     const requestDigest = buildPlannerPublishRequestDigest({
       ownerId: routeContext.userId,
@@ -250,9 +288,9 @@ export async function POST(request: Request) {
       );
     }
 
-    const effectivePolicy = plannerPolicySchema.parse(
-      snapshot.preferences.default_policy
-    );
+    const effectivePolicy =
+      requestedPolicy ??
+      plannerPolicySchema.parse(snapshot.preferences.default_policy);
     const asOfDate = resolveCanonicalAsOfDate({
       timezone: snapshot.preferences.timezone,
     });
@@ -310,13 +348,31 @@ export async function POST(request: Request) {
       }
     }
 
-    const persistence = buildPlannerPublishPersistencePayload({
-      scopeMonth: body.scopeMonth,
-      policy: effectivePolicy,
-      kernel,
-      snapshot,
-      assessments,
-    });
+    let persistence: ReturnType<typeof buildPlannerPublishPersistencePayload>;
+    try {
+      persistence = buildPlannerPublishPersistencePayload({
+        scopeMonth: body.scopeMonth,
+        policy: effectivePolicy,
+        kernel,
+        snapshot,
+        assessments,
+        draftItemEdits,
+      });
+    } catch (error) {
+      if (error instanceof PlannerDraftEditValidationError) {
+        throw new PlannerRouteError(
+          422,
+          "validation_failed",
+          error.message,
+          {
+            stage: "draft_edits",
+            code: error.code,
+            ...error.details,
+          }
+        );
+      }
+      throw error;
+    }
     const metadata = plannerPlanMetadataFromKernel({
       timezone: snapshot.preferences.timezone,
       kernel,

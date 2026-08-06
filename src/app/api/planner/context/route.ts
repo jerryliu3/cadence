@@ -235,6 +235,9 @@ export async function GET(request: Request) {
       scopeMonth: parsedQuery.data.scopeMonth,
       asOfDate,
       timezone: effectiveTimezone,
+      goalTitles: Object.fromEntries(
+        snapshot.goals.map((goal) => [goal.id, goal.title])
+      ),
       revisions: snapshot.revisions,
       capabilities: routeContext.capabilities,
       preferences: snapshot.preferences

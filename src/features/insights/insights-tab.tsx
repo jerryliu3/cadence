@@ -222,7 +222,12 @@ export function InsightsTab() {
   const loadRequestIdRef = useRef(0);
 
   const loadData = useCallback(
-    async ({ showLoading = true }: { showLoading?: boolean } = {}) => {
+    async (
+      {
+        showLoading = true,
+        forceRefresh = false,
+      }: { showLoading?: boolean; forceRefresh?: boolean } = {}
+    ) => {
       const requestId = loadRequestIdRef.current + 1;
       loadRequestIdRef.current = requestId;
       if (showLoading) {
@@ -252,6 +257,7 @@ export function InsightsTab() {
           asOfDate: format(new Date(), "yyyy-MM-dd"),
           factsFrom: yearStart,
           factsTo: yearEnd,
+          forceRefresh,
         }),
       ]);
 
@@ -443,7 +449,7 @@ export function InsightsTab() {
         }
 
         toast.success(isSelected ? `Removed ${completionDate}.` : `Selected ${completionDate}.`);
-        await loadData({ showLoading: false });
+        await loadData({ showLoading: false, forceRefresh: true });
         requestAnimationFrame(() => {
           window.scrollTo({ top: currentScrollY, behavior: "auto" });
         });
@@ -508,7 +514,7 @@ export function InsightsTab() {
         }
 
         toast.success(hasCompletionOnDate ? `Removed ${completionDate}.` : `Selected ${completionDate}.`);
-        await loadData({ showLoading: false });
+        await loadData({ showLoading: false, forceRefresh: true });
         requestAnimationFrame(() => {
           window.scrollTo({ top: currentScrollY, behavior: "auto" });
         });
@@ -541,7 +547,7 @@ export function InsightsTab() {
         }
 
         toast.success("Milestone names updated.");
-        await loadData({ showLoading: false });
+        await loadData({ showLoading: false, forceRefresh: true });
         requestAnimationFrame(() => {
           window.scrollTo({ top: currentScrollY, behavior: "auto" });
         });

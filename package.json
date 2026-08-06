@@ -10,6 +10,7 @@
     "lint": "eslint .",
     "test": "vitest run",
     "test:benchmark": "tsx scripts/run-planner-benchmark.ts",
+    "test:coach:live": "RUN_LIVE_COACH_TESTS=true node --env-file=.env.local ./node_modules/vitest/vitest.mjs run src/lib/planner/coach.live.test.ts",
     "test:contracts": "vitest run src/lib/planner/contracts/fixture-schema.test.ts",
     "test:concurrency": "tsx scripts/planner-concurrency-harness.ts",
     "test:e2e": "playwright test",

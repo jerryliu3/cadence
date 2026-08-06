@@ -2,19 +2,29 @@ import { describe, expect, it } from "vitest";
 import { coachResponseJsonSchema } from "./coach";
 
 describe("coachResponseJsonSchema", () => {
-  it("declares items for Gemini array properties", () => {
+  it("declares explicit calendar intent fields for Gemini structured output", () => {
     const proposalSchema = coachResponseJsonSchema.properties.proposal;
     if (!proposalSchema || proposalSchema.type !== "object") {
       throw new Error("proposal schema missing");
     }
 
-    expect(proposalSchema.properties.assessments).toEqual({
-      type: "array",
-      items: { type: "object" },
+    const calendarIntent = proposalSchema.properties.calendarIntent;
+    expect(calendarIntent).toMatchObject({
+      type: "object",
+      properties: {
+        action: {
+          type: "string",
+          enum: ["none", "needs_goal", "apply_to_goal", "apply_globally"],
+        },
+        allowedWeekdays: {
+          type: "array",
+          items: { type: "integer", minimum: 0, maximum: 6 },
+        },
+      },
     });
-    expect(proposalSchema.properties.policyPatches).toEqual({
-      type: "array",
-      items: { type: "object" },
-    });
+    expect(proposalSchema.required).toEqual([
+      "calendarIntent",
+      "unresolvedQuestions",
+    ]);
   });
 });

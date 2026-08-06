@@ -24,6 +24,11 @@ describe("applyCoachPolicyPatches", () => {
         effect: "avoid",
       },
       { kind: "set_spacing_strategy", spacingStrategy: "front_load" },
+      {
+        kind: "set_goal_spacing_strategy",
+        goalId: "12000000-0000-4000-8000-000000000001",
+        spacingStrategy: "flexible",
+      },
     ];
     const result = applyCoachPolicyPatches({
       policy: basePolicy(),
@@ -31,7 +36,7 @@ describe("applyCoachPolicyPatches", () => {
       allowedGoalIds: new Set(["12000000-0000-4000-8000-000000000001"]),
     });
 
-    expect(result.appliedPatchCount).toBe(4);
+    expect(result.appliedPatchCount).toBe(5);
     expect(result.ignoredPatchCount).toBe(0);
     expect(result.policy.restWeekdays).toEqual([1, 3]);
     expect(result.policy.goalAllowedWeekdays).toEqual({
@@ -39,6 +44,9 @@ describe("applyCoachPolicyPatches", () => {
     });
     expect(result.policy.datePreferences).toHaveLength(1);
     expect(result.policy.spacingStrategy).toBe("front_load");
+    expect(result.policy.goalSpacingStrategies).toEqual({
+      "12000000-0000-4000-8000-000000000001": "flexible",
+    });
   });
 
   it("ignores goal-scoped patches for unknown goals", () => {
