@@ -32,11 +32,15 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   buildActiveGoalIndexes,
-  buildCoachSummaryWorkUnits,
   buildCompletionFactMarkersByDate,
   buildCompletionFactUnitsByGoalDate,
   buildEntriesByDate,
@@ -68,19 +72,13 @@ import {
 } from "@/features/planner/calendar-dnd";
 import { CalendarDayPreviewList } from "@/features/planner/calendar-day-preview-list";
 import { CalendarMonthDayCell } from "@/features/planner/calendar-month-day-cell";
-import {
-  buildCoachSessionKey,
-  COACH_SESSION_MAX_MESSAGES,
-  loadCoachSession,
-  saveCoachSession,
-} from "@/features/planner/coach-session";
+import { PlannerCoachPanel } from "@/features/planner/coach/planner-coach-panel";
+import { usePlannerCoach } from "@/features/planner/coach/use-planner-coach";
 import {
   draftCommandReducer,
   initialDraftCommandState,
 } from "@/features/planner/draft-command-reducer";
 import { buildMondayFirstMonthCells } from "@/features/planner/month-cells";
-import { applyCoachPolicyPatches } from "@/features/planner/coach-policy";
-import { buildCoachDeterministicSummary } from "@/features/planner/coach-context";
 import { computeDayPreviewPosition } from "@/features/planner/day-preview-popup";
 import { getGoalVisual } from "@/features/planner/goal-visuals";
 import { getDateInTimezone, isValidIanaTimezone } from "@/lib/dates/timezone";
@@ -89,7 +87,6 @@ import {
   executeCompletionDispatch,
   resolveCompletionDispatch,
 } from "@/lib/planner/completion-dispatch";
-import type { CoachPolicyPatch } from "@/lib/planner/coach";
 import {
   projectPlannerDraftCommands,
   sortPlannerDraftCommands,
@@ -104,9 +101,6 @@ import {
 } from "@/lib/planner/policy";
 import type {
   CalendarSurfaceProps,
-  CoachLastProposalMeta,
-  CoachMessage,
-  CoachResponsePayload,
   CompletionControlDisabledReason,
   DayPreviewState,
   DraftItemEdit,
@@ -144,24 +138,6 @@ export function CalendarSurface({
   const [publishLoading, setPublishLoading] = useState(false);
   const [deactivateLoading, setDeactivateLoading] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [coachLoading, setCoachLoading] = useState(false);
-  const [coachInput, setCoachInput] = useState("");
-  const [coachMessages, setCoachMessages] = useState<CoachMessage[]>([]);
-  const [coachWarnings, setCoachWarnings] = useState<string[]>([]);
-  const [coachRecommendations, setCoachRecommendations] = useState<string[]>([]);
-  const [coachPendingPatches, setCoachPendingPatches] = useState<CoachPolicyPatch[]>(
-    []
-  );
-  const [coachUnresolvedQuestions, setCoachUnresolvedQuestions] = useState<string[]>(
-    []
-  );
-  const [coachPolicyApplying, setCoachPolicyApplying] = useState(false);
-  const [coachUndoSnapshot, setCoachUndoSnapshot] = useState<{
-    timezone: string;
-    defaultPolicy: PlannerPolicy;
-  } | null>(null);
-  const [coachLastProposalMeta, setCoachLastProposalMeta] =
-    useState<CoachLastProposalMeta | null>(null);
   const [draftScopeMonth, setDraftScopeMonth] = useState<string | null>(null);
   const [draftPolicy, setDraftPolicy] = useState<PlannerPolicy | null>(null);
   const [draftPreview, setDraftPreview] = useState<PlannerContextPayload["preview"] | null>(
@@ -171,7 +147,6 @@ export function CalendarSurface({
     draftCommandReducer,
     initialDraftCommandState
   );
-  const [coachContextEvents, setCoachContextEvents] = useState<string[]>([]);
   const [selectedEventEntryKey, setSelectedEventEntryKey] = useState<string | null>(
     null
   );
@@ -198,17 +173,6 @@ export function CalendarSurface({
   const pointerPressActiveRef = useRef(false);
   const pointerInsideDayPreviewRef = useRef(false);
   const dayPreviewRef = useRef<HTMLDivElement | null>(null);
-
-  const resetCoachUiState = useCallback((messages: CoachMessage[] = []) => {
-    setCoachMessages(messages);
-    setCoachWarnings([]);
-    setCoachRecommendations([]);
-    setCoachPendingPatches([]);
-    setCoachUnresolvedQuestions([]);
-    setCoachContextEvents([]);
-    setCoachUndoSnapshot(null);
-    setCoachLastProposalMeta(null);
-  }, []);
 
   const loadContext = useCallback(
     async ({
@@ -301,17 +265,6 @@ export function CalendarSurface({
     }, 0);
     return () => window.clearTimeout(timer);
   }, [loadContext]);
-
-  useEffect(() => {
-    if (activeTab !== "calendar" || !context?.scopeMonth || !context?.timezone) {
-      return;
-    }
-    const timer = window.setTimeout(() => {
-      const restored = loadCoachSession(context.scopeMonth, context.timezone);
-      resetCoachUiState(restored);
-    }, 0);
-    return () => window.clearTimeout(timer);
-  }, [activeTab, context?.scopeMonth, context?.timezone, resetCoachUiState]);
 
   const cells = useMemo(
     () => (month ? buildMondayFirstMonthCells(month) : []),
@@ -465,11 +418,6 @@ export function CalendarSurface({
     () => completionFactMarkersByDate.get(focusedDay) ?? [],
     [completionFactMarkersByDate, focusedDay]
   );
-  const coachSummaryWorkUnits = useMemo(
-    () => buildCoachSummaryWorkUnits(entriesByDate),
-    [entriesByDate]
-  );
-
   const selectedEventEntry = useMemo(
     () =>
       selectedEventEntryKey
@@ -594,23 +542,6 @@ export function CalendarSurface({
     toast.success("Planner setup saved.");
   };
 
-  const appendCoachContextEvent = useCallback((event: string) => {
-    setCoachContextEvents((previous) => [...previous, event].slice(-10));
-  }, []);
-
-  const coachFocusGoalIds = useMemo(() => {
-    const ids = new Set<string>();
-    for (const unit of effectivePreview?.workUnits ?? []) {
-      ids.add(unit.originalGoalId);
-    }
-    if (ids.size === 0) {
-      for (const goalId of Object.keys(context?.goalTitles ?? {})) {
-        ids.add(goalId);
-      }
-    }
-    return Array.from(ids).slice(0, 20);
-  }, [context?.goalTitles, effectivePreview?.workUnits]);
-
   const draftPublishCommands = useMemo(
     () => effectiveDraftCommands,
     [effectiveDraftCommands]
@@ -639,99 +570,6 @@ export function CalendarSurface({
     const previewPayload = payload as PlannerPreviewResponsePayload;
     setDraftPreview(previewPayload.preview);
     return previewPayload.preview;
-  };
-
-  const sendCoachMessage = async () => {
-    if (!context?.capabilities.coachAi || !context.scopeMonth || !context.timezone) {
-      toast.error("Planner coach is currently unavailable.");
-      return;
-    }
-    const trimmed = coachInput.trim();
-    if (!trimmed) {
-      return;
-    }
-    const userMessage: CoachMessage = {
-      role: "user",
-      content: trimmed,
-      createdAt: Date.now(),
-    };
-    const nextMessages = [...coachMessages, userMessage].slice(
-      -COACH_SESSION_MAX_MESSAGES
-    );
-    setCoachMessages(nextMessages);
-    setCoachInput("");
-    setCoachLoading(true);
-    setCoachWarnings([]);
-
-    const deterministicSummary = buildCoachDeterministicSummary({
-      scopeMonth: context.scopeMonth,
-      timezone: context.timezone,
-      asOfDate: context.asOfDate,
-      workUnits: coachSummaryWorkUnits,
-      events: coachContextEvents,
-    });
-
-    try {
-      const response = await fetch("/api/planner/coach", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          scopeMonth: context.scopeMonth,
-          messages: nextMessages.map((message) => ({
-            role: message.role,
-            content: message.content,
-          })),
-          focusGoalIds: coachFocusGoalIds,
-          deterministicSummary,
-        }),
-      });
-      const payload = (await response.json()) as
-        | (CoachResponsePayload & {
-            message?: string;
-            recommendations?: Array<{ text: string }>;
-          })
-        | PlannerErrorPayload;
-      setCoachLoading(false);
-
-      if (!response.ok) {
-        toast.error(payload.message ?? "Coach response failed.");
-        return;
-      }
-
-      const assistantMessage: CoachMessage = {
-        role: "assistant",
-        content: (payload as CoachResponsePayload).reply,
-        createdAt: Date.now(),
-      };
-      const finalMessages = [...nextMessages, assistantMessage].slice(
-        -COACH_SESSION_MAX_MESSAGES
-      );
-      setCoachMessages(finalMessages);
-      saveCoachSession(context.scopeMonth, context.timezone, finalMessages);
-      const coachPayload = payload as CoachResponsePayload;
-      setCoachWarnings(coachPayload.warnings ?? []);
-      setCoachRecommendations(
-        (coachPayload.recommendations ?? []).map((item) => item.text)
-      );
-      const policyPatches = coachPayload.proposal?.policyPatches ?? [];
-      setCoachPendingPatches(policyPatches);
-      setCoachUnresolvedQuestions(coachPayload.proposal?.unresolvedQuestions ?? []);
-      setCoachLastProposalMeta({
-        policyPatchCount: policyPatches.length,
-      });
-    } catch {
-      setCoachLoading(false);
-      toast.error("Coach response failed.");
-    }
-  };
-
-  const startNewCoachConversation = () => {
-    if (context?.scopeMonth && context?.timezone) {
-      sessionStorage.removeItem(buildCoachSessionKey(context.scopeMonth, context.timezone));
-    }
-    resetCoachUiState([]);
-    setCoachInput("");
-    toast.success("Started a new coach conversation.");
   };
 
   const parseErrorMessage = (payload: unknown, fallback: string) => {
@@ -767,6 +605,22 @@ export function CalendarSurface({
     }
     return "This draft preview is not publishable yet. Regenerate and resolve planner issues before publishing.";
   };
+  const hasDraftSession =
+    effectiveDraftPolicy !== null || Object.keys(effectiveDraftItemEdits).length > 0;
+  const coach = usePlannerCoach({
+    activeTab,
+    context,
+    entriesByDate,
+    effectivePreview,
+    effectiveDraftPolicy,
+    hasDraftSession,
+    refreshDraftPreview,
+    applyDraftPolicy: (scopeMonth, policy) => {
+      setDraftScopeMonth(scopeMonth);
+      setDraftPolicy(policy);
+    },
+    getNonPublishablePreviewMessage: nonPublishablePreviewMessage,
+  });
 
   const isValidIsoDate = (value: string) => {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
@@ -878,154 +732,6 @@ export function CalendarSurface({
       longPressTriggeredRef.current = true;
       openDayPreview({ day, pinned: true, target });
     }, DAY_PREVIEW_LONG_PRESS_DELAY_MS);
-  };
-
-  const applyCoachProposal = async () => {
-    if (!context?.preferences || coachPendingPatches.length === 0) {
-      return;
-    }
-    const allowedGoalIds = new Set<string>([
-      ...Object.keys(context.goalTitles ?? {}),
-      ...(context.activePlan?.goals ?? []).map((goal) => goal.original_goal_id),
-    ]);
-    const priorPolicy = plannerPolicySchema.parse(
-      effectiveDraftPolicy ?? context.preferences.defaultPolicy
-    );
-    const result = applyCoachPolicyPatches({
-      policy: priorPolicy,
-      patches: coachPendingPatches,
-      allowedGoalIds,
-    });
-    if (result.appliedPatchCount === 0) {
-      if (
-        result.noOpPatchCount > 0 &&
-        result.outOfScopePatchCount === 0 &&
-        result.unsupportedPatchCount === 0
-      ) {
-        appendCoachContextEvent("Coach proposal already matched current draft");
-        toast.success(
-          hasDraftSession
-            ? "Coach proposal already matches your draft policy. Your manual draft edits are still pending publish."
-            : "Coach proposal already matches your current policy."
-        );
-        return;
-      }
-      toast.error(
-        result.outOfScopePatchCount > 0
-          ? "Coach edits were received but none matched your current goal scope."
-          : "No applicable policy changes were available to apply."
-      );
-      return;
-    }
-
-    setCoachPolicyApplying(true);
-    try {
-      const refreshedPreview = await refreshDraftPreview(result.policy);
-      if (!refreshedPreview) {
-        throw new Error("Preview refresh returned no planner data.");
-      }
-      const previousDatesByKey = new Map(
-        (effectivePreview?.workUnits ?? []).map((unit) => [
-          `${unit.originalGoalId}:${unit.unitKey}`,
-          unit.scheduledDate,
-        ])
-      );
-      const refreshedDatesByKey = new Map(
-        refreshedPreview.workUnits.map((unit) => [
-          `${unit.originalGoalId}:${unit.unitKey}`,
-          unit.scheduledDate,
-        ])
-      );
-      let assignmentChanges = 0;
-      for (const key of new Set([
-        ...previousDatesByKey.keys(),
-        ...refreshedDatesByKey.keys(),
-      ])) {
-        if (previousDatesByKey.get(key) !== refreshedDatesByKey.get(key)) {
-          assignmentChanges += 1;
-        }
-      }
-      setDraftScopeMonth(context.scopeMonth);
-      setDraftPolicy(result.policy);
-      setCoachUndoSnapshot({
-        timezone: context.preferences.timezone,
-        defaultPolicy: priorPolicy,
-      });
-      appendCoachContextEvent(
-        `Applied coach proposal to draft (${result.appliedPatchCount} patches)`
-      );
-      if (!refreshedPreview.solver.publishable) {
-        toast.error(
-          `Coach proposal applied, but this draft cannot publish yet. ${nonPublishablePreviewMessage(
-            refreshedPreview
-          )}`
-        );
-      } else if (assignmentChanges === 0) {
-        toast.success(
-          "Coach proposal applied. Policy changed, but scheduled sessions stayed the same."
-        );
-      } else {
-        toast.success(
-          `Coach proposal applied to draft preview (${assignmentChanges} session change${
-            assignmentChanges === 1 ? "" : "s"
-          }).`
-        );
-      }
-    } catch (error) {
-      toast.error(
-        error instanceof Error
-          ? error.message
-          : "Coach proposal apply failed."
-      );
-    } finally {
-      setCoachPolicyApplying(false);
-    }
-  };
-
-  const rejectCoachProposal = () => {
-    if (coachPendingPatches.length === 0) {
-      return;
-    }
-    appendCoachContextEvent("Rejected coach proposal");
-    setCoachPendingPatches([]);
-    setCoachUnresolvedQuestions([]);
-    toast.success("Coach proposal rejected.");
-  };
-
-  const requestCalendarEditsFromCoach = () => {
-    const goalHint =
-      coachFocusGoalIds.length > 0
-        ? `Current focus goals: ${coachFocusGoalIds
-            .map(
-              (goalId) =>
-                `${goalId} (${context?.goalTitles?.[goalId] ?? "Untitled goal"})`
-            )
-            .join(", ")}.`
-        : "There are no focus goals in the current planner scope.";
-    setCoachInput(
-      `Please convert your guidance into concrete calendar intent I can apply now. Make safe assumptions and keep them explicit. ${goalHint} Only use apply_to_goal when the requested activity clearly matches one of those goals; otherwise use needs_goal and do not repurpose an unrelated goal.`.trim()
-    );
-  };
-
-  const undoCoachProposal = async () => {
-    if (!coachUndoSnapshot) {
-      return;
-    }
-    setCoachPolicyApplying(true);
-    try {
-      await refreshDraftPreview(coachUndoSnapshot.defaultPolicy);
-      if (context?.scopeMonth) {
-        setDraftScopeMonth(context.scopeMonth);
-      }
-      setDraftPolicy(coachUndoSnapshot.defaultPolicy);
-      appendCoachContextEvent("Undid latest coach draft proposal");
-      setCoachUndoSnapshot(null);
-      toast.success("Latest coach draft apply has been undone.");
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Undo failed.");
-    } finally {
-      setCoachPolicyApplying(false);
-    }
   };
 
   const moveConflictByGoalDate = useMemo(() => {
@@ -1700,13 +1406,7 @@ export function CalendarSurface({
     dispatchDraftCommand({ type: "clear" });
     onPlannerMutation();
     await loadContext();
-    if (context.scopeMonth && context.timezone) {
-      sessionStorage.removeItem(
-        buildCoachSessionKey(context.scopeMonth, context.timezone)
-      );
-    }
-    resetCoachUiState([]);
-    setCoachInput("");
+    coach.actions.resetForPlannerStateReset();
     toast.success(payload.replayed ? "Publish replayed." : "Plan published.");
   };
 
@@ -1736,13 +1436,7 @@ export function CalendarSurface({
     dispatchDraftCommand({ type: "clear" });
     onPlannerMutation();
     await loadContext();
-    if (context.scopeMonth && context.timezone) {
-      sessionStorage.removeItem(
-        buildCoachSessionKey(context.scopeMonth, context.timezone)
-      );
-    }
-    resetCoachUiState([]);
-    setCoachInput("");
+    coach.actions.resetForPlannerStateReset();
     toast.success("Plan deactivated.");
   };
 
@@ -1751,8 +1445,7 @@ export function CalendarSurface({
     setDraftPolicy(null);
     setDraftPreview(null);
     dispatchDraftCommand({ type: "clear" });
-    setCoachUndoSnapshot(null);
-    appendCoachContextEvent("Discarded draft changes");
+    coach.actions.onDraftDiscarded();
     toast.success("Draft changes reverted to published baseline.");
   };
 
@@ -1840,19 +1533,6 @@ export function CalendarSurface({
     setDayPreview(null);
     onViewModeChange(nextViewMode, "push");
   };
-  const canUseCoach = Boolean(context?.capabilities.coachAi && context?.scopeMonth);
-  const hasCoachConversationState =
-    coachMessages.length > 0 ||
-    coachWarnings.length > 0 ||
-    coachRecommendations.length > 0 ||
-    coachPendingPatches.length > 0 ||
-    coachUnresolvedQuestions.length > 0 ||
-    coachContextEvents.length > 0 ||
-    coachUndoSnapshot !== null ||
-    coachLastProposalMeta !== null ||
-    coachInput.trim().length > 0;
-  const hasDraftSession =
-    effectiveDraftPolicy !== null || Object.keys(effectiveDraftItemEdits).length > 0;
   const draftPublishBlocked = Boolean(
     hasDraftSession &&
       effectivePreview &&
@@ -2427,173 +2107,7 @@ export function CalendarSurface({
             </PlannerDndProvider>
           </div>
 
-          {canUseCoach ? (
-            <div className="rounded-xl border bg-card p-4 shadow-sm">
-              <div className="mb-2 flex items-center gap-2">
-                <h3 className="text-base font-semibold">AI Coach</h3>
-                <Badge variant="outline">Experimental</Badge>
-              </div>
-              <p className="mb-3 text-sm text-muted-foreground">
-                Ask for habit and training guidance based on your current monthly scope.
-              </p>
-              <div className="max-h-72 space-y-2 overflow-y-auto rounded-md border p-3">
-                {coachMessages.length === 0 ? (
-                  <p className="rounded-md border border-primary/20 bg-primary/10 px-3 py-2 text-sm text-muted-foreground">
-                    Start with a goal question, for example: &quot;Help me build a 4-week running routine.&quot;
-                  </p>
-                ) : (
-                  coachMessages.map((message, index) => (
-                    <div
-                      key={`${message.createdAt}-${index}`}
-                      className={`rounded-md p-2 text-sm ${
-                        message.role === "user"
-                          ? "bg-primary/10"
-                          : "bg-muted"
-                      }`}
-                    >
-                      <p className="mb-1 text-xs uppercase text-muted-foreground">
-                        {message.role === "user" ? "You" : "Coach"}
-                      </p>
-                      <p className="whitespace-pre-wrap">{message.content}</p>
-                    </div>
-                  ))
-                )}
-              </div>
-              {coachRecommendations.length > 0 ? (
-                <div className="mt-3 rounded-md border border-dashed p-2 text-sm">
-                  <p className="mb-1 font-medium">Recommended next actions</p>
-                  <ul className="space-y-1 text-muted-foreground">
-                    {coachRecommendations.map((recommendation) => (
-                      <li key={recommendation}>- {recommendation}</li>
-                    ))}
-                  </ul>
-                </div>
-              ) : null}
-              {coachWarnings.length > 0 ? (
-                <div className="mt-3 rounded-md border border-amber-400/40 bg-amber-500/10 p-2 text-xs">
-                  {coachWarnings.join(" ")}
-                </div>
-              ) : null}
-              {coachPendingPatches.length > 0 ? (
-                <div className="mt-3 rounded-md border p-2 text-sm">
-                  <p className="font-medium">Coach proposal</p>
-                  <p className="text-xs text-muted-foreground">
-                    {coachPendingPatches.length} policy patch
-                    {coachPendingPatches.length === 1 ? "" : "es"} ready to apply.
-                  </p>
-                  <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
-                    {coachPendingPatches.slice(0, 6).map((patch, index) => (
-                      <li key={`${patch.kind}-${index}`}>- {patch.kind}</li>
-                    ))}
-                    {coachPendingPatches.length > 6 ? (
-                      <li>...and {coachPendingPatches.length - 6} more</li>
-                    ) : null}
-                  </ul>
-                  {coachUnresolvedQuestions.length > 0 ? (
-                    <div className="mt-2 rounded border border-dashed p-2">
-                      <p className="text-xs font-medium">Unresolved questions</p>
-                      <ul className="mt-1 space-y-1 text-xs text-muted-foreground">
-                        {coachUnresolvedQuestions.slice(0, 3).map((question) => (
-                          <li key={question}>- {question}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  ) : null}
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    <Button
-                      type="button"
-                      size="sm"
-                      onClick={() => void applyCoachProposal()}
-                      disabled={coachPolicyApplying}
-                    >
-                      {coachPolicyApplying ? "Applying..." : "Apply to calendar"}
-                    </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      onClick={rejectCoachProposal}
-                      disabled={coachPolicyApplying}
-                    >
-                      Reject
-                    </Button>
-                  </div>
-                </div>
-              ) : null}
-              {coachPendingPatches.length === 0 &&
-              coachLastProposalMeta &&
-              coachLastProposalMeta.policyPatchCount === 0 &&
-              (coachUnresolvedQuestions.length > 0 || coachWarnings.length > 0) ? (
-                <div className="mt-3 rounded-md border border-dashed p-2 text-sm">
-                  <p className="font-medium">No direct calendar edits returned</p>
-                  <p className="text-xs text-muted-foreground">
-                    This reply included guidance, but no applicable calendar changes.
-                  </p>
-                  {coachUnresolvedQuestions.length > 0 ? (
-                    <div className="mt-2 rounded border border-dashed p-2">
-                      <p className="text-xs font-medium">Coach follow-up questions</p>
-                      <ul className="mt-1 space-y-1 text-xs text-muted-foreground">
-                        {coachUnresolvedQuestions.slice(0, 3).map((question) => (
-                          <li key={question}>- {question}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  ) : null}
-                  <div className="mt-2">
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      onClick={requestCalendarEditsFromCoach}
-                    >
-                      Ask coach for apply-able edits
-                    </Button>
-                  </div>
-                </div>
-              ) : null}
-              {coachUndoSnapshot ? (
-                <div className="mt-3 flex justify-end">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => void undoCoachProposal()}
-                    disabled={coachPolicyApplying}
-                  >
-                    {coachPolicyApplying ? "Saving..." : "Undo latest apply"}
-                  </Button>
-                </div>
-              ) : null}
-              <div className="mt-3 space-y-2">
-                <Textarea
-                  value={coachInput}
-                  onChange={(event) => setCoachInput(event.target.value)}
-                  placeholder="Ask the coach for a specific plan..."
-                  rows={4}
-                  maxLength={4000}
-                />
-                <div className="flex justify-end gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={startNewCoachConversation}
-                    disabled={
-                      coachLoading || coachPolicyApplying || !hasCoachConversationState
-                    }
-                  >
-                    New conversation
-                  </Button>
-                  <Button
-                    type="button"
-                    onClick={sendCoachMessage}
-                    disabled={coachLoading || coachInput.trim().length === 0}
-                  >
-                    {coachLoading ? "Thinking..." : "Send to coach"}
-                  </Button>
-                </div>
-              </div>
-            </div>
-          ) : null}
+          <PlannerCoachPanel coach={coach} />
 
           <Dialog
             open={Boolean(effectiveSelectedDay)}

@@ -198,6 +198,30 @@ export interface CoachMessage {
   createdAt: number;
 }
 
+export interface CoachConversationSummary {
+  id: string;
+  scopeMonth: string;
+  timezone: string;
+  title: string;
+  previewText: string;
+  messageCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CoachConversationListPayload {
+  schemaVersion: "1";
+  conversations: CoachConversationSummary[];
+  correlationId?: string;
+}
+
+export interface CoachConversationDetailPayload {
+  schemaVersion: "1";
+  conversation: CoachConversationSummary;
+  messages: CoachMessage[];
+  correlationId?: string;
+}
+
 export interface CoachResponsePayload {
   schemaVersion: "1";
   phase: "discovery" | "review" | "ready" | "explain";

@@ -994,6 +994,43 @@ export type Database = {
           usage_date: string
         }[]
       }
+      get_planner_coach_conversation_service: {
+        Args: {
+          p_conversation_id: string
+          p_owner: string
+        }
+        Returns: {
+          conversation_id: string
+          created_at: string
+          message_content: string
+          message_count: number
+          message_created_at: string
+          message_ordinal: number
+          message_role: string
+          preview_text: string
+          scope_month: string
+          timezone: string
+          title: string
+          updated_at: string
+        }[]
+      }
+      list_planner_coach_conversations_service: {
+        Args: {
+          p_limit?: number
+          p_owner: string
+          p_scope_month?: string
+        }
+        Returns: {
+          conversation_id: string
+          created_at: string
+          message_count: number
+          preview_text: string
+          scope_month: string
+          timezone: string
+          title: string
+          updated_at: string
+        }[]
+      }
       dismiss_execution_plan_service: {
         Args: {
           p_expected_canonical_revision: number
@@ -1083,6 +1120,25 @@ export type Database = {
           p_usage_date: string
         }
         Returns: number
+      }
+      save_planner_coach_conversation_service: {
+        Args: {
+          p_messages: Json
+          p_owner: string
+          p_scope_month: string
+          p_timezone: string
+          p_title?: string
+        }
+        Returns: {
+          conversation_id: string
+          created_at: string
+          message_count: number
+          preview_text: string
+          scope_month: string
+          timezone: string
+          title: string
+          updated_at: string
+        }[]
       }
       set_execution_plan_goal_date_fact_service: {
         Args: {
