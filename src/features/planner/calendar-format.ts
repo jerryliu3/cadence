@@ -1,4 +1,5 @@
 import { format, parse } from "date-fns";
+import type { PlannerDraftVisualKind } from "@/lib/planner/diff";
 import { getDateInTimezone } from "@/lib/dates/timezone";
 import type {
   CompletionControlDisabledReason,
@@ -86,10 +87,70 @@ export function isEntryCredited(entry: PlannerDayDetailEntry) {
 export function isEntryImmovableForDraft(entry: PlannerDayDetailEntry) {
   return (
     isEntryCredited(entry) ||
+    entry.draftGhost ||
     entry.classification === "satisfied_elsewhere" ||
     entry.classification === "historical_miss" ||
     entry.classification === "historical_shortfall"
   );
+}
+
+export function getEntryDraftDiffSummary(entry: {
+  draftDiffKind: PlannerDraftVisualKind | null;
+  draftDiffFromDate: string | null;
+  draftDiffToDate: string | null;
+}) {
+  if (!entry.draftDiffKind) {
+    return null;
+  }
+  if (entry.draftDiffKind === "new") {
+    return "New draft placement.";
+  }
+  if (entry.draftDiffKind === "moved_to") {
+    return entry.draftDiffFromDate
+      ? `Moved from ${entry.draftDiffFromDate}.`
+      : "Moved to this date in draft.";
+  }
+  return entry.draftDiffToDate
+    ? `Moved to ${entry.draftDiffToDate}.`
+    : "Removed from this date in draft.";
+}
+
+export function getEntryDraftPillClasses(input: {
+  draftDiffKind: PlannerDraftVisualKind | null;
+  credited: boolean;
+}) {
+  if (input.draftDiffKind === "moved_from") {
+    return "border-amber-300 bg-amber-100 text-amber-950 dark:border-amber-300 dark:bg-amber-100 dark:text-amber-950";
+  }
+  if (input.draftDiffKind === "moved_to") {
+    return "border-sky-300 bg-sky-100 text-sky-950 dark:border-sky-300 dark:bg-sky-100 dark:text-sky-950";
+  }
+  if (input.draftDiffKind === "new") {
+    return "border-violet-300 bg-violet-100 text-violet-950 dark:border-violet-300 dark:bg-violet-100 dark:text-violet-950";
+  }
+  if (input.credited) {
+    return "border-emerald-300 bg-emerald-100 text-emerald-950 dark:border-emerald-300 dark:bg-emerald-100 dark:text-emerald-950";
+  }
+  return "border-border bg-background";
+}
+
+export function entryDisplayRank(entry: {
+  draftDiffKind: PlannerDraftVisualKind | null;
+  creditState: string;
+}) {
+  if (entry.draftDiffKind === "moved_from") {
+    return 0;
+  }
+  if (entry.draftDiffKind === "new") {
+    return 1;
+  }
+  if (entry.draftDiffKind === "moved_to") {
+    return 2;
+  }
+  if (entry.creditState !== "uncredited") {
+    return 4;
+  }
+  return 3;
 }
 
 export function completionDisabledReasonCopy(reason: CompletionControlDisabledReason) {

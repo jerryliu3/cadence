@@ -1,4 +1,7 @@
-import { getEntryDisplayTitle, isEntryCredited } from "@/features/planner/calendar-format";
+import {
+  entryDisplayRank,
+  getEntryDisplayTitle,
+} from "@/features/planner/calendar-format";
 import type {
   DraftItemEdit,
   PlannerActiveGoalSnapshot,
@@ -7,6 +10,7 @@ import type {
   PlannerDayDetailEntry,
   PlannerWorkUnit,
 } from "@/features/planner/calendar-surface.types";
+import { diffPlannerAssignmentsForDraftVisual } from "@/lib/planner/diff";
 import { draftCommandEntryKey } from "@/lib/planner/draft-commands";
 
 export function buildActiveGoalIndexes(
@@ -25,6 +29,7 @@ export function buildActiveGoalIndexes(
 }
 
 export function buildEntriesByDate({
+  baselineWorkUnits,
   workUnits,
   activeItems,
   activeGoalsByPlanGoalId,
@@ -32,6 +37,7 @@ export function buildEntriesByDate({
   goalTitles,
   draftItemEdits,
 }: {
+  baselineWorkUnits?: PlannerWorkUnit[];
   workUnits: PlannerWorkUnit[] | undefined;
   activeItems: PlannerActiveItemSnapshot[] | undefined;
   activeGoalsByPlanGoalId: Map<string, PlannerActiveGoalSnapshot>;
@@ -42,6 +48,8 @@ export function buildEntriesByDate({
   const byDate = new Map<string, Map<string, PlannerDayDetailEntry>>();
   const entryByKey = new Map<string, PlannerDayDetailEntry>();
   const entryDayByKey = new Map<string, string>();
+  const unitByEntryKey = new Map<string, PlannerWorkUnit>();
+  const activeItemByEntryKey = new Map<string, PlannerActiveItemSnapshot>();
 
   const setEntryOnDay = (day: string, key: string, entry: PlannerDayDetailEntry) => {
     const existingDay = entryDayByKey.get(key);
@@ -60,24 +68,61 @@ export function buildEntriesByDate({
     entryDayByKey.set(key, day);
   };
 
-  for (const unit of workUnits ?? []) {
-    if (!unit.scheduledDate) {
-      continue;
-    }
-    const key = `${unit.originalGoalId}:${unit.unitKey}`;
-    setEntryOnDay(unit.scheduledDate, key, {
+  const buildEntryFromUnit = ({
+    key,
+    day,
+    unit,
+    activeItem,
+    overrideGoalTitle,
+  }: {
+    key: string;
+    day: string;
+    unit: PlannerWorkUnit;
+    activeItem: PlannerActiveItemSnapshot | null;
+    overrideGoalTitle?: string | null;
+  }): PlannerDayDetailEntry => {
+    const activeGoal = activeGoalsByOriginalGoalId.get(unit.originalGoalId) ?? null;
+    return {
       key,
       originalGoalId: unit.originalGoalId,
       goalTitle:
-        activeGoalsByOriginalGoalId.get(unit.originalGoalId)?.title ??
+        overrideGoalTitle ??
+        activeGoal?.title ??
         goalTitles?.[unit.originalGoalId] ??
-        null,
+        unit.label ??
+        unit.unitKey,
       unitKey: unit.unitKey,
       label: unit.label,
       classification: unit.classification,
       creditState: unit.creditState,
-      activeGoal: activeGoalsByOriginalGoalId.get(unit.originalGoalId) ?? null,
-      activeItem: null,
+      activeGoal,
+      activeItem:
+        activeItem === null
+          ? null
+          : {
+              ...activeItem,
+              scheduled_date: day,
+            },
+      draftDiffKind: null,
+      draftDiffFromDate: null,
+      draftDiffToDate: null,
+      draftGhost: false,
+    };
+  };
+
+  for (const unit of workUnits ?? []) {
+    const key = `${unit.originalGoalId}:${unit.unitKey}`;
+    unitByEntryKey.set(key, unit);
+    if (!unit.scheduledDate) {
+      continue;
+    }
+    setEntryOnDay(unit.scheduledDate, key, {
+      ...buildEntryFromUnit({
+        key,
+        day: unit.scheduledDate,
+        unit,
+        activeItem: null,
+      }),
     });
   }
 
@@ -85,6 +130,7 @@ export function buildEntriesByDate({
     const activeGoal = activeGoalsByPlanGoalId.get(item.plan_goal_id) ?? null;
     const originalGoalId = activeGoal?.original_goal_id ?? item.plan_goal_id;
     const key = `${originalGoalId}:${item.unit_key}`;
+    activeItemByEntryKey.set(key, item);
     const existingEntry = entryByKey.get(key);
     if (existingEntry) {
       const existingDay = entryDayByKey.get(key);
@@ -116,27 +162,57 @@ export function buildEntriesByDate({
       creditState: item.credit_state,
       activeGoal,
       activeItem: item,
+      draftDiffKind: null,
+      draftDiffFromDate: null,
+      draftDiffToDate: null,
+      draftGhost: false,
     });
   }
 
   for (const [key, edit] of Object.entries(draftItemEdits)) {
-    const existingEntry = entryByKey.get(key);
-    if (!existingEntry) {
-      continue;
-    }
-    const currentDay = entryDayByKey.get(key) ?? null;
+    const existingEntry = entryByKey.get(key) ?? null;
+    const currentDay = existingEntry ? (entryDayByKey.get(key) ?? null) : null;
+    const unit = unitByEntryKey.get(key) ?? null;
     const nextDay = edit.scheduledDate === undefined ? currentDay : edit.scheduledDate;
     const nextGoalTitle =
       edit.label === undefined
-        ? existingEntry.goalTitle
-        : edit.label ?? existingEntry.goalTitle;
+        ? existingEntry?.goalTitle ??
+          (unit
+            ? activeGoalsByOriginalGoalId.get(unit.originalGoalId)?.title ??
+              goalTitles?.[unit.originalGoalId] ??
+              unit.label ??
+              unit.unitKey
+            : null)
+        : edit.label ??
+          existingEntry?.goalTitle ??
+          (unit ? goalTitles?.[unit.originalGoalId] ?? unit.label ?? unit.unitKey : null);
 
-    if (currentDay) {
+    if (existingEntry && currentDay) {
       byDate.get(currentDay)?.delete(key);
     }
     if (!nextDay) {
-      entryByKey.delete(key);
-      entryDayByKey.delete(key);
+      if (existingEntry) {
+        entryByKey.delete(key);
+        entryDayByKey.delete(key);
+      }
+      continue;
+    }
+
+    if (!existingEntry) {
+      if (!unit) {
+        continue;
+      }
+      setEntryOnDay(
+        nextDay,
+        key,
+        buildEntryFromUnit({
+          key,
+          day: nextDay,
+          unit,
+          activeItem: activeItemByEntryKey.get(key) ?? null,
+          overrideGoalTitle: nextGoalTitle,
+        })
+      );
       continue;
     }
 
@@ -150,6 +226,77 @@ export function buildEntriesByDate({
           }
         : null,
     });
+  }
+
+  const baseAssignments = (baselineWorkUnits ?? workUnits ?? []).map((unit) => ({
+    goalId: unit.originalGoalId,
+    unitKey: unit.unitKey,
+    scheduledDate: unit.scheduledDate,
+  }));
+  const nextAssignments = (workUnits ?? []).map((unit) => {
+    const entryKey = `${unit.originalGoalId}:${unit.unitKey}`;
+    const draftEdit = draftItemEdits[entryKey];
+    return {
+      goalId: unit.originalGoalId,
+      unitKey: unit.unitKey,
+      scheduledDate:
+        draftEdit?.scheduledDate === undefined
+          ? unit.scheduledDate
+          : draftEdit.scheduledDate ?? null,
+    };
+  });
+  const draftDiff = diffPlannerAssignmentsForDraftVisual({
+    baseAssignments,
+    nextAssignments,
+  });
+
+  for (const diffEntry of draftDiff) {
+    const entryKey = `${diffEntry.goalId}:${diffEntry.unitKey}`;
+    const dayEntries = byDate.get(diffEntry.date) ?? new Map<string, PlannerDayDetailEntry>();
+    let targetKey = entryKey;
+    if (!dayEntries.has(targetKey) && diffEntry.kind === "moved_from") {
+      targetKey = `${entryKey}:ghost:${diffEntry.date}`;
+    }
+    const existingEntry = dayEntries.get(targetKey);
+    if (existingEntry) {
+      dayEntries.set(targetKey, {
+        ...existingEntry,
+        draftDiffKind: diffEntry.kind,
+        draftDiffFromDate:
+          diffEntry.kind === "moved_to" ? diffEntry.counterpartDate : diffEntry.date,
+        draftDiffToDate:
+          diffEntry.kind === "moved_from" ? diffEntry.counterpartDate : diffEntry.date,
+      });
+      byDate.set(diffEntry.date, dayEntries);
+      continue;
+    }
+    if (diffEntry.kind !== "moved_from") {
+      byDate.set(diffEntry.date, dayEntries);
+      continue;
+    }
+
+    const unit = unitByEntryKey.get(entryKey);
+    const activeGoal = activeGoalsByOriginalGoalId.get(diffEntry.goalId) ?? null;
+    dayEntries.set(targetKey, {
+      key: targetKey,
+      originalGoalId: diffEntry.goalId,
+      goalTitle:
+        activeGoal?.title ??
+        goalTitles?.[diffEntry.goalId] ??
+        unit?.label ??
+        diffEntry.unitKey,
+      unitKey: diffEntry.unitKey,
+      label: unit?.label ?? null,
+      classification: unit?.classification ?? "open",
+      creditState: unit?.creditState ?? "uncredited",
+      activeGoal,
+      activeItem: null,
+      draftDiffKind: "moved_from",
+      draftDiffFromDate: diffEntry.date,
+      draftDiffToDate: diffEntry.counterpartDate,
+      draftGhost: true,
+    });
+    byDate.set(diffEntry.date, dayEntries);
   }
 
   return new Map(
@@ -275,6 +422,10 @@ export function orderEntriesForDay({
   ];
   const orderIndex = new Map(order.map((entryKey, index) => [entryKey, index]));
   const compareWithinGroup = (left: PlannerDayDetailEntry, right: PlannerDayDetailEntry) => {
+    const byRank = entryDisplayRank(left) - entryDisplayRank(right);
+    if (byRank !== 0) {
+      return byRank;
+    }
     const leftOrder = orderIndex.get(left.key);
     const rightOrder = orderIndex.get(right.key);
     if (leftOrder !== undefined && rightOrder !== undefined) {
@@ -288,13 +439,7 @@ export function orderEntriesForDay({
     }
     return getEntryDisplayTitle(left).localeCompare(getEntryDisplayTitle(right));
   };
-  const incomplete = entries
-    .filter((entry) => !isEntryCredited(entry))
-    .sort(compareWithinGroup);
-  const completed = entries
-    .filter((entry) => isEntryCredited(entry))
-    .sort(compareWithinGroup);
-  return [...incomplete, ...completed];
+  return [...entries].sort(compareWithinGroup);
 }
 
 export function buildCoachSummaryWorkUnits(

@@ -3,8 +3,8 @@ import { canonicalHash } from "@/lib/planner/canonical";
 import type { PlannerCanonicalSnapshot } from "@/lib/planner/context-loader";
 import {
   ASSESSMENT_SCHEMA_VERSION,
-  ELIGIBILITY_MODE,
   PLANNER_CONTRACT_VERSION,
+  type PlannerEligibilityMode,
   POLICY_COMPILER_VERSION,
   POLICY_SCHEMA_VERSION,
   REQUIREMENT_SCHEMA_VERSION,
@@ -28,6 +28,7 @@ import {
 type PlannerIssueSeverity = "informational" | "warning" | "blocking";
 
 export interface PlannerPublishIntent {
+  eligibilityMode: PlannerEligibilityMode;
   scopeMonth: string;
   previewHash: string;
   expectedCanonicalRevision: number;
@@ -52,6 +53,7 @@ export class PlannerDraftEditValidationError extends Error {
       | "draft_item_unknown"
       | "draft_item_unmovable"
       | "draft_item_out_of_window"
+      | "draft_item_scope_lineage_mismatch"
       | "draft_item_policy_blocked"
       | "draft_item_completion_exists"
       | "draft_item_collision",
@@ -174,12 +176,14 @@ function buildDraftItemEditsFromCommands(commands: PlannerDraftCommand[]) {
 }
 
 function applyValidatedDraftItemEdits({
+  eligibilityMode,
   scopeMonth,
   policy,
   kernelWorkUnits,
   draftItemEdits,
   completions,
 }: {
+  eligibilityMode: PlannerEligibilityMode;
   scopeMonth: string;
   policy: PlannerPolicy;
   kernelWorkUnits: PlannerKernelOutput["workUnits"];
@@ -258,12 +262,15 @@ function applyValidatedDraftItemEdits({
       );
     }
 
+    const moveWindow = unit.draftMoveWindow ?? unit.placementWindow;
+    const scopeConstrained =
+      eligibilityMode === "end_month_v1" &&
+      (edit.scheduledDate < scopeWindow.start || edit.scheduledDate > scopeWindow.end);
     if (
-      !unit.placementWindow ||
-      edit.scheduledDate < unit.placementWindow.start ||
-      edit.scheduledDate > unit.placementWindow.end ||
-      edit.scheduledDate < scopeWindow.start ||
-      edit.scheduledDate > scopeWindow.end
+      !moveWindow ||
+      edit.scheduledDate < moveWindow.start ||
+      edit.scheduledDate > moveWindow.end ||
+      scopeConstrained
     ) {
       throw new PlannerDraftEditValidationError(
         "draft_item_out_of_window",
@@ -273,6 +280,8 @@ function applyValidatedDraftItemEdits({
           unitKey: edit.unitKey,
           scheduledDate: edit.scheduledDate,
           placementWindow: unit.placementWindow,
+          draftMoveWindow: unit.draftMoveWindow,
+          moveWindow,
           scopeWindow,
         }
       );
@@ -464,12 +473,36 @@ export function buildPlannerPublishPersistencePayload({
     draftMovedCount,
     draftRelabeledCount,
   } = applyValidatedDraftItemEdits({
+    eligibilityMode: kernel.eligibilityMode,
     scopeMonth,
     policy,
     kernelWorkUnits: kernel.workUnits,
     draftItemEdits,
     completions: snapshot.completions,
   });
+  if (kernel.eligibilityMode !== "end_month_v1") {
+    const scopeWindow = getScopeDateRange(scopeMonth);
+    const outOfScopeDraftItem = workUnits.find((unit) => {
+      if (unit.scheduledDate === null) {
+        return false;
+      }
+      return (
+        unit.scheduledDate < scopeWindow.start || unit.scheduledDate > scopeWindow.end
+      );
+    });
+    if (outOfScopeDraftItem) {
+      throw new PlannerDraftEditValidationError(
+        "draft_item_scope_lineage_mismatch",
+        "Cross-month draft moves are not persistable with the current scope lineage schema.",
+        {
+          goalId: outOfScopeDraftItem.originalGoalId,
+          unitKey: outOfScopeDraftItem.unitKey,
+          scheduledDate: outOfScopeDraftItem.scheduledDate,
+          scopeMonth,
+        }
+      );
+    }
+  }
   const unitsByDate = new Map<string, typeof workUnits>();
   for (const unit of workUnits) {
     if (!unit.scheduledDate) {
@@ -574,7 +607,7 @@ export function plannerPlanMetadataFromKernel({
   kernel: PlannerKernelOutput;
 }) {
   return {
-    eligibilityMode: ELIGIBILITY_MODE,
+    eligibilityMode: kernel.eligibilityMode,
     timezone,
     contractVersion: PLANNER_CONTRACT_VERSION,
     schedulerVersion: SCHEDULER_VERSION,

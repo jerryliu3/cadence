@@ -146,10 +146,13 @@ export async function GET(request: Request) {
     const activeAssessmentByGoalId = new Map(
       activeAssessments.map((assessment) => [assessment.goalId, assessment])
     );
+    const eligibilityMode = routeContext.capabilities.overlap
+      ? "overlap_v1"
+      : ELIGIBILITY_MODE;
     const kernel = routeContext.capabilities.plannerGeneration
       ? runPlannerKernel({
           schemaVersion: PLANNER_CONTRACT_VERSION,
-          eligibilityMode: ELIGIBILITY_MODE,
+          eligibilityMode,
           ownerId: routeContext.userId,
           scopeMonth: parsedQuery.data.scopeMonth,
           asOfDate,
@@ -196,7 +199,10 @@ export async function GET(request: Request) {
                 : snapshot.activePlan.plan.status === "dismissed"
                   ? "dismissed"
                   : "superseded",
-            eligibilityMode: "end_month_v1",
+            eligibilityMode:
+              snapshot.activePlan.plan.eligibility_mode === "overlap_v1"
+                ? "overlap_v1"
+                : "end_month_v1",
             timezone: snapshot.activePlan.plan.timezone,
             policyFingerprint: canonicalHash(snapshot.activePlan.policy),
             goals: Object.fromEntries(
@@ -207,7 +213,7 @@ export async function GET(request: Request) {
             ),
           },
           current: {
-            eligibilityMode: "end_month_v1",
+            eligibilityMode,
             timezone: effectiveTimezone,
             policyFingerprint: canonicalHash(effectivePolicy),
             goals: currentGoals,

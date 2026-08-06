@@ -127,10 +127,13 @@ export async function POST(request: Request) {
         "Planner policy timezone must match the request timezone."
       );
     }
+    const eligibilityMode = routeContext.capabilities.overlap
+      ? "overlap_v1"
+      : ELIGIBILITY_MODE;
 
     const preview = runPlannerKernel({
       schemaVersion: PLANNER_CONTRACT_VERSION,
-      eligibilityMode: ELIGIBILITY_MODE,
+      eligibilityMode,
       ownerId: routeContext.userId,
       scopeMonth: body.scopeMonth,
       asOfDate,

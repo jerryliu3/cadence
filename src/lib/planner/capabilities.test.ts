@@ -14,7 +14,7 @@ describe("planner capabilities", () => {
       plannerPlanWrites: true,
       targetedExactCompletion: true,
       coachAi: true,
-      overlap: true,
+      overlap: false,
     });
   });
 
@@ -51,5 +51,12 @@ describe("planner capabilities", () => {
       expect.stringContaining("Invalid CALENDAR_ENABLED value")
     );
     warnSpy.mockRestore();
+  });
+
+  it("enables overlap only when explicitly flagged", () => {
+    vi.stubEnv("PLANNER_OVERLAP_ENABLED", "true");
+    expect(getPlannerCapabilities().overlap).toBe(true);
+    vi.stubEnv("PLANNER_OVERLAP_ENABLED", "false");
+    expect(getPlannerCapabilities().overlap).toBe(false);
   });
 });

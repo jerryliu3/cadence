@@ -1,4 +1,6 @@
 import type { CoachPolicyPatch } from "@/lib/planner/coach";
+import type { PlannerEligibilityMode } from "@/lib/planner/contracts/bounds";
+import type { PlannerDraftVisualKind } from "@/lib/planner/diff";
 import type { PlannerPolicy } from "@/lib/planner/policy";
 
 export type CalendarTab = "today" | "not-today" | "calendar";
@@ -21,6 +23,7 @@ export interface PlannerContextPayload {
     plannerPlanWrites: boolean;
     targetedExactCompletion: boolean;
     coachAi: boolean;
+    overlap: boolean;
   };
   activePlan: {
     plan: {
@@ -32,6 +35,7 @@ export interface PlannerContextPayload {
     items: PlannerActiveItemSnapshot[];
   } | null;
   preview: {
+    eligibilityMode: PlannerEligibilityMode;
     generationInputHash: string;
     solver: {
       placementStatus: "complete" | "partial";
@@ -40,7 +44,10 @@ export interface PlannerContextPayload {
         | "maximum_partial"
         | "blocked_invalid_lock"
         | "soft_optimization_exhausted";
+      capacityStatus: "unverified";
       issueCodes: string[];
+      invalidGoalIds: string[];
+      publishable: boolean;
       confirmationRequired: boolean;
     };
     workUnits: PlannerWorkUnit[];
@@ -61,11 +68,20 @@ export interface PlannerWorkUnit {
   kind?: "milestone_sequence" | "cadence" | "deadline_total";
   label: string | null;
   scheduledDate: string | null;
+  creditWindow?: {
+    start: string;
+    end: string;
+  };
   placementWindow?: {
     start: string;
     end: string;
   } | null;
+  draftMoveWindow?: {
+    start: string;
+    end: string;
+  } | null;
   restEligible?: boolean;
+  missPolicy?: "roll_forward" | "remain_missed";
   classification: string;
   creditState: string;
   creditedCompletionDate?: string | null;
@@ -105,6 +121,10 @@ export interface PlannerDayDetailEntry {
   creditState: string;
   activeGoal: PlannerActiveGoalSnapshot | null;
   activeItem: PlannerActiveItemSnapshot | null;
+  draftDiffKind: PlannerDraftVisualKind | null;
+  draftDiffFromDate: string | null;
+  draftDiffToDate: string | null;
+  draftGhost: boolean;
 }
 
 export interface PlannerCompletionFactMarker {

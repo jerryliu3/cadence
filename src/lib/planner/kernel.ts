@@ -12,7 +12,7 @@ import {
   MAX_ELIGIBLE_GOALS,
   MAX_POLICY_RANGES,
   MAX_WORK_UNITS,
-  ELIGIBILITY_MODE,
+  type PlannerEligibilityMode,
   PLANNER_CONTRACT_VERSION,
 } from "@/lib/planner/contracts/bounds";
 import {
@@ -63,7 +63,7 @@ import {
 
 export interface PlannerKernelInput {
   schemaVersion: typeof PLANNER_CONTRACT_VERSION;
-  eligibilityMode: typeof ELIGIBILITY_MODE;
+  eligibilityMode: PlannerEligibilityMode;
   ownerId: string;
   scopeMonth: string;
   asOfDate: string;
@@ -84,7 +84,7 @@ export interface PlannerKernelInput {
 
 export interface PlannerKernelOutput {
   schemaVersion: typeof PLANNER_CONTRACT_VERSION;
-  eligibilityMode: typeof ELIGIBILITY_MODE;
+  eligibilityMode: PlannerEligibilityMode;
   generationInputHash: string;
   scopeState: "historical" | "current" | "future";
   solver: PlannerSolverResult;
@@ -194,6 +194,7 @@ export function runPlannerKernel(
   const eligibility = goals.map((goal) => ({
     goal,
     decision: evaluateGoalEligibility({
+      eligibilityMode: rawInput.eligibilityMode,
       scopeMonth: rawInput.scopeMonth,
       ownerId: rawInput.ownerId,
       goal,
@@ -315,6 +316,7 @@ export function runPlannerKernel(
     const materialized = materializeWorkUnits({
       goal,
       normalizedRequirement: requirement,
+      eligibilityMode: rawInput.eligibilityMode,
       scopeMonth: rawInput.scopeMonth,
       asOfDate: rawInput.asOfDate,
       baseAssignments,
@@ -470,6 +472,7 @@ export function runPlannerKernel(
     (left, right) => compareCanonicalStrings(left.goalId, right.goalId)
   );
   const generationInputHash = computeGenerationInputHash({
+    eligibilityMode: rawInput.eligibilityMode,
     scopeMonth: rawInput.scopeMonth,
     asOfDate: rawInput.asOfDate,
     timezone: rawInput.timezone,
@@ -491,7 +494,7 @@ export function runPlannerKernel(
 
   const output: PlannerKernelOutput = {
     schemaVersion: PLANNER_CONTRACT_VERSION,
-    eligibilityMode: ELIGIBILITY_MODE,
+    eligibilityMode: rawInput.eligibilityMode,
     generationInputHash,
     scopeState: getScopeState(rawInput.scopeMonth, rawInput.asOfDate),
     solver,

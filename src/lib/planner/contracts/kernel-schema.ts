@@ -2,7 +2,7 @@ import { z } from "zod";
 import { goalAssessmentSchema } from "@/lib/planner/assessment";
 import {
   PLANNER_CONTRACT_VERSION,
-  ELIGIBILITY_MODE,
+  PLANNER_ELIGIBILITY_MODES,
   REQUIREMENT_SCHEMA_VERSION,
 } from "@/lib/planner/contracts/bounds";
 import { plannerPolicySchema } from "@/lib/planner/policy";
@@ -28,6 +28,7 @@ const requirementKindSchema = z.enum([
   "cadence",
   "deadline_total",
 ]);
+const eligibilityModeSchema = z.enum(PLANNER_ELIGIBILITY_MODES);
 
 export const plannerGoalSchema = z
   .object({
@@ -80,7 +81,7 @@ const validBaseAssignmentSchema = baseAssignmentSchema.refine(
 export const plannerKernelInputSchema = z
   .object({
     schemaVersion: z.literal(PLANNER_CONTRACT_VERSION),
-    eligibilityMode: z.literal(ELIGIBILITY_MODE),
+    eligibilityMode: eligibilityModeSchema,
     ownerId: z.string().min(1).max(100),
     scopeMonth: monthSchema,
     asOfDate: dateSchema,
@@ -143,6 +144,10 @@ const workUnitSchema = z
       .object({ start: dateSchema, end: dateSchema })
       .strict()
       .nullable(),
+    draftMoveWindow: z
+      .object({ start: dateSchema, end: dateSchema })
+      .strict()
+      .nullable(),
     classification: z.enum([
       "fulfilled",
       "open",
@@ -195,7 +200,7 @@ const solverResultSchema = z
 export const plannerKernelOutputSchema = z
   .object({
     schemaVersion: z.literal(PLANNER_CONTRACT_VERSION),
-    eligibilityMode: z.literal(ELIGIBILITY_MODE),
+    eligibilityMode: eligibilityModeSchema,
     generationInputHash: z.string().regex(/^[a-f0-9]{64}$/),
     scopeState: z.enum(["historical", "current", "future"]),
     solver: solverResultSchema,

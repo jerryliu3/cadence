@@ -4,7 +4,8 @@ import {
   DndContext,
   DragOverlay,
   KeyboardSensor,
-  PointerSensor,
+  MouseSensor,
+  TouchSensor,
   useDraggable,
   useDroppable,
   useSensor,
@@ -29,6 +30,10 @@ const ENTRY_ID_PREFIX = "planner-entry:";
 const PREVIEW_ENTRY_DRAG_ID_PREFIX = "planner-entry-preview:";
 const DAY_ID_PREFIX = "planner-day:";
 const PREVIEW_ENTRY_DROP_ID_PREFIX = "planner-preview-entry:";
+const MOUSE_PRESS_TO_DRAG_DELAY_MS = 120;
+const MOUSE_PRESS_TO_DRAG_TOLERANCE_PX = 24;
+const TOUCH_PRESS_TO_DRAG_DELAY_MS = 180;
+const TOUCH_PRESS_TO_DRAG_TOLERANCE_PX = 10;
 
 export function plannerEntryDragId(entryKey: string) {
   return `${ENTRY_ID_PREFIX}${entryKey}`;
@@ -136,8 +141,17 @@ export function PlannerDndProvider({
 }: PlannerDndProviderProps) {
   const [activeEntryKey, setActiveEntryKey] = useState<string | null>(null);
   const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: { distance: 6 },
+    useSensor(MouseSensor, {
+      activationConstraint: {
+        delay: MOUSE_PRESS_TO_DRAG_DELAY_MS,
+        tolerance: MOUSE_PRESS_TO_DRAG_TOLERANCE_PX,
+      },
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: {
+        delay: TOUCH_PRESS_TO_DRAG_DELAY_MS,
+        tolerance: TOUCH_PRESS_TO_DRAG_TOLERANCE_PX,
+      },
     }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,

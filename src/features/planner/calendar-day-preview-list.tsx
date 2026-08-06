@@ -5,6 +5,10 @@ import {
   PlannerDraggablePreviewEntry,
 } from "@/features/planner/calendar-dnd";
 import {
+  getEntryDraftDiffSummary,
+  getEntryDraftPillClasses,
+} from "@/features/planner/calendar-format";
+import {
   type CalendarCompletionFactMarkerBase,
   type CalendarMonthCellEntryBase,
 } from "@/features/planner/calendar-month-day-cell";
@@ -68,6 +72,11 @@ export function CalendarDayPreviewList<
             const subtitle = getEntrySubtitle(entry);
             const credited = isEntryCredited(entry);
             const immovable = isEntryImmovableForDraft(entry);
+            const draftDiffSummary = getEntryDraftDiffSummary(entry);
+            const pillToneClasses = getEntryDraftPillClasses({
+              draftDiffKind: entry.draftDiffKind,
+              credited,
+            });
             const completionToggleState = getCompletionToggleState(entry, day);
             return (
               <PlannerDraggablePreviewEntry
@@ -87,10 +96,8 @@ export function CalendarDayPreviewList<
                   <div
                     ref={setNodeRef}
                     style={style}
-                    className={`flex items-start gap-2 rounded border p-1.5 transition-colors ${
-                      credited
-                        ? "border-emerald-300 bg-emerald-100 text-emerald-950 dark:border-emerald-300 dark:bg-emerald-100 dark:text-emerald-950"
-                        : ""
+                    className={`flex items-start gap-2 rounded border p-1.5 transition-colors ${pillToneClasses} ${
+                      entry.draftGhost ? "opacity-75" : ""
                     } ${
                       isOver
                         ? "border-primary/70 ring-1 ring-primary/60"
@@ -101,9 +108,11 @@ export function CalendarDayPreviewList<
                         : "cursor-grab active:cursor-grabbing"
                     } ${isDragging ? "opacity-70 ring-1 ring-primary/60" : ""}`}
                     title={
-                      immovable
-                        ? "Completed or historical sessions can't be moved in draft."
-                        : "Click to view details or drag to move this session."
+                      `${draftDiffSummary ? `${draftDiffSummary} ` : ""}${
+                        immovable
+                          ? "Completed or historical sessions can't be moved in draft."
+                          : "Click to view details or drag to move this session."
+                      }`
                     }
                     onPointerDownCapture={() => {
                       onEntryPointerStart(immovable);
@@ -132,41 +141,48 @@ export function CalendarDayPreviewList<
                       </span>
                       <div className="min-w-0">
                         <p className="truncate font-medium">{displayTitle}</p>
+                        {draftDiffSummary ? (
+                          <p className="truncate text-muted-foreground">
+                            {draftDiffSummary}
+                          </p>
+                        ) : null}
                         {subtitle ? (
                           <p className="truncate text-muted-foreground">{subtitle}</p>
                         ) : null}
                       </div>
                     </button>
-                    <button
-                      type="button"
-                      className="group mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full border border-border bg-background transition-all hover:border-primary hover:bg-primary/5 disabled:cursor-not-allowed disabled:opacity-60"
-                      onPointerDown={(event) => {
-                        event.stopPropagation();
-                      }}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        onToggleCompletion(entry, day);
-                      }}
-                      disabled={
-                        mutationLoading ||
-                        completionToggleState.disabledReasonCopy !== null
-                      }
-                      aria-label={
-                        completionToggleState.currentlyCredited
-                          ? "Mark session not done"
-                          : "Mark session done"
-                      }
-                      title={
-                        completionToggleState.disabledReasonCopy ??
-                        "Toggle completion for this session"
-                      }
-                    >
-                      {completionToggleState.currentlyCredited ? (
-                        <CheckCircle2 className="size-3.5 text-primary transition-transform group-hover:scale-110" />
-                      ) : (
-                        <Circle className="size-3.5 text-muted-foreground transition-transform group-hover:scale-110" />
-                      )}
-                    </button>
+                    {!entry.draftGhost ? (
+                      <button
+                        type="button"
+                        className="group mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full border border-border bg-background transition-all hover:border-primary hover:bg-primary/5 disabled:cursor-not-allowed disabled:opacity-60"
+                        onPointerDown={(event) => {
+                          event.stopPropagation();
+                        }}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          onToggleCompletion(entry, day);
+                        }}
+                        disabled={
+                          mutationLoading ||
+                          completionToggleState.disabledReasonCopy !== null
+                        }
+                        aria-label={
+                          completionToggleState.currentlyCredited
+                            ? "Mark session not done"
+                            : "Mark session done"
+                        }
+                        title={
+                          completionToggleState.disabledReasonCopy ??
+                          "Toggle completion for this session"
+                        }
+                      >
+                        {completionToggleState.currentlyCredited ? (
+                          <CheckCircle2 className="size-3.5 text-primary transition-transform group-hover:scale-110" />
+                        ) : (
+                          <Circle className="size-3.5 text-muted-foreground transition-transform group-hover:scale-110" />
+                        )}
+                      </button>
+                    ) : null}
                   </div>
                 )}
               </PlannerDraggablePreviewEntry>

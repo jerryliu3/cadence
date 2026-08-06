@@ -45,6 +45,7 @@ function createSnapshot(completions: Completion[]): PlannerCanonicalSnapshot {
 
 function createKernel(scheduledDate: string): PlannerKernelOutput {
   return {
+    eligibilityMode: "end_month_v1",
     eligibility: [{ goalId: GOAL_ID, eligible: true, reason: "eligible" }],
     scopeState: "current",
     workUnits: [
@@ -59,6 +60,7 @@ function createKernel(scheduledDate: string): PlannerKernelOutput {
         label: "Run",
         creditWindow: { start: "2026-08-01", end: "2026-08-31" },
         placementWindow: { start: "2026-08-01", end: "2026-08-31" },
+        draftMoveWindow: { start: "2026-08-01", end: "2026-08-31" },
         classification: "open",
         missPolicy: "roll_forward",
         restEligible: true,
@@ -178,5 +180,41 @@ describe("buildPlannerPublishPersistencePayload draft edit validation", () => {
 
     const moved = payload.items.find((item) => item.unit_key === "total:1");
     expect(moved?.scheduled_date).toBe("2026-08-08");
+  });
+
+  it("rejects overlap draft moves when persistence lineage is scope-bound", () => {
+    const snapshot = createSnapshot([]);
+    const kernel = {
+      ...createKernel("2026-08-28"),
+      eligibilityMode: "overlap_v1" as const,
+      workUnits: [
+        {
+          ...createKernel("2026-08-28").workUnits[0],
+          draftMoveWindow: { start: "2026-08-01", end: "2026-09-15" },
+          creditWindow: { start: "2026-08-01", end: "2026-09-15" },
+        },
+      ],
+    } as PlannerKernelOutput;
+    const policy = createDefaultPlannerPolicy("UTC", "2026-08-01T00:00:00.000Z");
+
+    expect(() =>
+      buildPlannerPublishPersistencePayload({
+        scopeMonth: "2026-08",
+        policy,
+        kernel,
+        snapshot,
+        assessments: [createDefaultAssessment(baseGoal)],
+        draftCommands: [
+          {
+            id: "30000000-0000-4000-8000-000000000012",
+            sequence: 1,
+            kind: "move_item",
+            goalId: GOAL_ID,
+            unitKey: "total:1",
+            scheduledDate: "2026-09-03",
+          },
+        ],
+      })
+    ).toThrowError(PlannerDraftEditValidationError);
   });
 });

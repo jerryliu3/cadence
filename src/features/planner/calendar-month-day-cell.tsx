@@ -6,6 +6,10 @@ import {
   PlannerDraggableEntry,
   PlannerDroppableDay,
 } from "@/features/planner/calendar-dnd";
+import {
+  getEntryDraftDiffSummary,
+  getEntryDraftPillClasses,
+} from "@/features/planner/calendar-format";
 import { getGoalVisual } from "@/features/planner/goal-visuals";
 
 export interface CalendarMonthCellEntryBase {
@@ -18,6 +22,10 @@ export interface CalendarMonthCellEntryBase {
   creditState: string;
   activeGoal: { color: string | null } | null;
   activeItem: { credited_completion_id: string | null } | null;
+  draftDiffKind: "moved_from" | "moved_to" | "new" | null;
+  draftDiffFromDate: string | null;
+  draftDiffToDate: string | null;
+  draftGhost: boolean;
 }
 
 export interface CalendarCompletionFactMarkerBase {
@@ -42,6 +50,7 @@ interface CalendarMonthDayCellProps<
   getEntryDisplayTitle: (entry: TEntry) => string;
   isEntryCredited: (entry: TEntry) => boolean;
   isEntryImmovableForDraft: (entry: TEntry) => boolean;
+  onEntryClick: (day: string, entry: TEntry) => void;
   onCellClick: (target: EventTarget & HTMLElement) => void;
   onCellMouseEnter: (target: EventTarget & HTMLElement) => void;
   onCellMouseLeave: () => void;
@@ -74,6 +83,7 @@ export function CalendarMonthDayCell<
   getEntryDisplayTitle,
   isEntryCredited,
   isEntryImmovableForDraft,
+  onEntryClick,
   onCellClick,
   onCellMouseEnter,
   onCellMouseLeave,
@@ -113,6 +123,11 @@ export function CalendarMonthDayCell<
     const compactTitle = getEntryDisplayTitle(entry);
     const credited = isEntryCredited(entry);
     const immovable = isEntryImmovableForDraft(entry);
+    const draftDiffSummary = getEntryDraftDiffSummary(entry);
+    const pillToneClasses = getEntryDraftPillClasses({
+      draftDiffKind: entry.draftDiffKind,
+      credited,
+    });
     return (
       <PlannerDraggableEntry
         key={`cell-entry-${entry.key}`}
@@ -125,31 +140,33 @@ export function CalendarMonthDayCell<
             style={style}
             onClick={(event) => {
               event.stopPropagation();
+              if (isDragging) {
+                return;
+              }
+              onEntryClick(day, entry);
             }}
             onPointerDownCapture={() => {
               onEntryPointerStart(immovable);
             }}
-            onPointerUpCapture={(event) => {
-              event.stopPropagation();
+            onPointerUpCapture={() => {
               onEntryPointerEnd();
             }}
-            onPointerCancelCapture={(event) => {
-              event.stopPropagation();
+            onPointerCancelCapture={() => {
               onEntryPointerEnd();
             }}
-            className={`flex items-center gap-1 rounded px-1 py-0.5 text-[10px] ${
-              credited
-                ? "bg-emerald-100 text-emerald-950 dark:bg-emerald-100 dark:text-emerald-950"
-                : ""
+            className={`flex items-center gap-1 rounded border px-1 py-0.5 text-[10px] ${pillToneClasses} ${
+              entry.draftGhost ? "opacity-70 line-through" : ""
             } ${
               immovable
                 ? "cursor-not-allowed"
                 : "cursor-grab active:cursor-grabbing"
             } ${isDragging ? "opacity-70 ring-1 ring-primary/60" : ""}`}
             title={
-              immovable
-                ? "Completed or historical sessions can't be moved in draft."
-                : "Drag to another day to create a draft move command."
+              `${draftDiffSummary ? `${draftDiffSummary} ` : ""}${
+                immovable
+                  ? "Completed or historical sessions can't be moved in draft."
+                  : "Drag to another day to create a draft move command."
+              }`
             }
             data-calendar-day-entry="true"
             {...attributes}

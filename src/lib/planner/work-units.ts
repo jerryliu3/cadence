@@ -6,6 +6,10 @@ import {
 import type { Goal } from "@/lib/goals/types";
 import { compareCanonicalStrings } from "@/lib/planner/canonical";
 import {
+  ELIGIBILITY_MODE,
+  type PlannerEligibilityMode,
+} from "@/lib/planner/contracts/bounds";
+import {
   dateIsInWindow,
   getScopeDateRange,
   intersectDateWindows,
@@ -45,6 +49,7 @@ export interface PlannerWorkUnit {
   label: string | null;
   creditWindow: DateWindow;
   placementWindow: DateWindow | null;
+  draftMoveWindow: DateWindow | null;
   classification: WorkUnitClassification;
   missPolicy: "roll_forward" | "remain_missed";
   restEligible: boolean;
@@ -81,6 +86,7 @@ function createUnitBase({
   label,
   creditWindow,
   placementWindow,
+  draftMoveWindow,
   classification,
   missPolicy,
   restEligible,
@@ -95,6 +101,7 @@ function createUnitBase({
   label: string | null;
   creditWindow: DateWindow;
   placementWindow: DateWindow | null;
+  draftMoveWindow: DateWindow | null;
   classification: WorkUnitClassification;
   missPolicy: PlannerWorkUnit["missPolicy"];
   restEligible: boolean;
@@ -119,6 +126,7 @@ function createUnitBase({
     label,
     creditWindow,
     placementWindow,
+    draftMoveWindow,
     classification,
     missPolicy,
     restEligible,
@@ -131,15 +139,43 @@ function createUnitBase({
   };
 }
 
+function resolveDraftMoveWindow({
+  eligibilityMode,
+  missPolicy,
+  creditWindow,
+  placementWindow,
+}: {
+  eligibilityMode: PlannerEligibilityMode;
+  missPolicy: PlannerWorkUnit["missPolicy"];
+  creditWindow: DateWindow;
+  placementWindow: DateWindow | null;
+}) {
+  if (placementWindow === null) {
+    return null;
+  }
+  if (eligibilityMode !== "overlap_v1" || missPolicy !== "roll_forward") {
+    return placementWindow;
+  }
+  if (compareDateStrings(creditWindow.end, placementWindow.start) < 0) {
+    return placementWindow;
+  }
+  return {
+    start: placementWindow.start,
+    end: creditWindow.end,
+  };
+}
+
 export function materializeWorkUnits({
   goal,
   normalizedRequirement,
+  eligibilityMode = ELIGIBILITY_MODE,
   scopeMonth,
   asOfDate,
   baseAssignments = [],
 }: {
   goal: Goal;
   normalizedRequirement: NormalizedGoalRequirement;
+  eligibilityMode?: PlannerEligibilityMode;
   scopeMonth: string;
   asOfDate: string;
   baseAssignments?: PlannerBaseAssignment[];
@@ -195,6 +231,12 @@ export function materializeWorkUnits({
         label: milestone ? requirement.labels[index] ?? null : null,
         creditWindow: lifetime,
         placementWindow,
+        draftMoveWindow: resolveDraftMoveWindow({
+          eligibilityMode,
+          missPolicy: "roll_forward",
+          creditWindow: lifetime,
+          placementWindow,
+        }),
         classification,
         missPolicy: "roll_forward",
         restEligible: true,
@@ -258,6 +300,12 @@ export function materializeWorkUnits({
         label: null,
         creditWindow,
         placementWindow,
+        draftMoveWindow: resolveDraftMoveWindow({
+          eligibilityMode,
+          missPolicy: "remain_missed",
+          creditWindow,
+          placementWindow,
+        }),
         classification,
         missPolicy: "remain_missed",
         restEligible: interval !== "daily",

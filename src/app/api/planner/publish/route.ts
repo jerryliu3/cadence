@@ -12,7 +12,11 @@ import {
 } from "@/lib/planner/api";
 import { createDefaultAssessment, goalAssessmentSchema } from "@/lib/planner/assessment";
 import { loadPlannerCanonicalSnapshot } from "@/lib/planner/context-loader";
-import { MAX_API_BODY_BYTES } from "@/lib/planner/contracts/bounds";
+import {
+  ELIGIBILITY_MODE,
+  MAX_API_BODY_BYTES,
+  PLANNER_ELIGIBILITY_MODES,
+} from "@/lib/planner/contracts/bounds";
 import { runPlannerKernel } from "@/lib/planner/kernel";
 import {
   buildPlannerConfirmationHash,
@@ -51,6 +55,7 @@ const publishSchema = z.object({
   expectedBasePlanVersion: z.number().int().positive().nullable(),
   confirmationHash: z.string().regex(/^[a-f0-9]{64}$/).nullable(),
   policy: z.unknown().optional(),
+  eligibilityMode: z.enum(PLANNER_ELIGIBILITY_MODES).optional(),
   draftCommands: z.array(plannerDraftCommandSchema).max(4000).default([]),
   draftItemEdits: z
     .array(
@@ -114,6 +119,20 @@ export async function POST(request: Request) {
       ...body.draftCommands,
       ...buildPlannerDraftCommandsFromLegacyItemEdits(legacyDraftItemEdits),
     ];
+    const effectiveEligibilityMode =
+      body.eligibilityMode ??
+      (routeContext.capabilities.overlap ? "overlap_v1" : ELIGIBILITY_MODE);
+    if (effectiveEligibilityMode === "overlap_v1") {
+      throw new PlannerRouteError(
+        422,
+        "eligibility_mode_not_persistable",
+        "Cross-month overlap mode is not yet supported for persistence. Use end-month scope for publish.",
+        {
+          eligibilityMode: effectiveEligibilityMode,
+          scopeMonth: body.scopeMonth,
+        }
+      );
+    }
     telemetryScope = { month: body.scopeMonth, timezone: "UTC" };
     if (
       (body.expectedBasePlanId === null) !==
@@ -143,6 +162,7 @@ export async function POST(request: Request) {
     }
 
     const publishIntent = {
+      eligibilityMode: effectiveEligibilityMode,
       scopeMonth: body.scopeMonth,
       previewHash: body.previewHash,
       expectedCanonicalRevision: body.expectedCanonicalRevision,
@@ -318,7 +338,7 @@ export async function POST(request: Request) {
     );
     const kernel = runPlannerKernel({
       schemaVersion: "1",
-      eligibilityMode: "end_month_v1",
+      eligibilityMode: effectiveEligibilityMode,
       ownerId: routeContext.userId,
       scopeMonth: body.scopeMonth,
       asOfDate,
@@ -355,6 +375,22 @@ export async function POST(request: Request) {
           }
         );
       }
+    }
+    if (!kernel.solver.publishable) {
+      const blockedByInvalidLock = kernel.solver.issueCodes.includes("invalid_lock");
+      throw new PlannerRouteError(
+        422,
+        "planner_not_publishable",
+        blockedByInvalidLock
+          ? "Publish is blocked because one or more locked planner items conflict with this preview. Unlock the affected sessions and regenerate."
+          : "Publish is blocked because this preview is not currently publishable.",
+        {
+          issueCodes: kernel.solver.issueCodes,
+          searchStatus: kernel.solver.searchStatus,
+          invalidGoalIds: kernel.solver.invalidGoalIds,
+          confirmationRequired: kernel.solver.confirmationRequired,
+        }
+      );
     }
 
     let persistence: ReturnType<typeof buildPlannerPublishPersistencePayload>;
@@ -445,6 +481,19 @@ export async function POST(request: Request) {
           409,
           "idempotency_key_conflict",
           "Idempotency key was already used for a different planner publish."
+        );
+      }
+      if (message.includes("only publishable active plans may be inserted")) {
+        throw new PlannerRouteError(
+          422,
+          "planner_not_publishable",
+          "Publish is blocked because this preview is not currently publishable.",
+          {
+            issueCodes: kernel.solver.issueCodes,
+            searchStatus: kernel.solver.searchStatus,
+            invalidGoalIds: kernel.solver.invalidGoalIds,
+            confirmationRequired: kernel.solver.confirmationRequired,
+          }
         );
       }
       throw new PlannerRouteError(

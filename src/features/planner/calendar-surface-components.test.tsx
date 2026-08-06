@@ -34,6 +34,10 @@ const sampleEntry = {
   activeItem: {
     credited_completion_id: null,
   },
+  draftDiffKind: null,
+  draftDiffFromDate: null,
+  draftDiffToDate: null,
+  draftGhost: false,
 };
 
 const sampleMarker = {
@@ -47,6 +51,7 @@ describe("calendar surface extracted components", () => {
     const onCellClick = vi.fn();
     const onCellPointerDown = vi.fn();
     const onEntryPointerStart = vi.fn();
+    const onEntryClick = vi.fn();
     const user = userEvent.setup();
 
     renderWithDnd(
@@ -62,6 +67,7 @@ describe("calendar surface extracted components", () => {
         getEntryDisplayTitle={(entry) => entry.label ?? "Untitled"}
         isEntryCredited={() => false}
         isEntryImmovableForDraft={() => false}
+        onEntryClick={onEntryClick}
         onCellClick={onCellClick}
         onCellMouseEnter={() => {}}
         onCellMouseLeave={() => {}}
@@ -87,6 +93,8 @@ describe("calendar surface extracted components", () => {
     });
     expect(onEntryPointerStart).toHaveBeenCalledWith(false);
     expect(onCellPointerDown).not.toHaveBeenCalled();
+    await user.click(screen.getByText("Easy run"));
+    expect(onEntryClick).toHaveBeenCalledWith("2026-08-06", sampleEntry);
   });
 
   it("renders preview list and supports opening and completion toggle", async () => {

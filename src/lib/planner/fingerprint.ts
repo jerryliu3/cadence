@@ -6,10 +6,10 @@ import {
 } from "@/lib/planner/canonical";
 import {
   ASSESSMENT_SCHEMA_VERSION,
-  ELIGIBILITY_MODE,
   POLICY_COMPILER_VERSION,
   POLICY_SCHEMA_VERSION,
   PLANNER_CONTRACT_VERSION,
+  type PlannerEligibilityMode,
   REQUIREMENT_SCHEMA_VERSION,
   SCHEDULER_VERSION,
 } from "@/lib/planner/contracts/bounds";
@@ -26,6 +26,7 @@ export interface PlannerCanonicalLink {
 }
 
 export interface GenerationHashInput {
+  eligibilityMode: PlannerEligibilityMode;
   scopeMonth: string;
   asOfDate: string;
   timezone: string;
@@ -46,7 +47,7 @@ export function computeGenerationInputHash(input: GenerationHashInput) {
   return canonicalHash({
     versions: {
       plannerContract: PLANNER_CONTRACT_VERSION,
-      eligibilityMode: ELIGIBILITY_MODE,
+      eligibilityMode: input.eligibilityMode,
       scheduler: SCHEDULER_VERSION,
       requirementSchema: REQUIREMENT_SCHEMA_VERSION,
       assessmentSchema: ASSESSMENT_SCHEMA_VERSION,

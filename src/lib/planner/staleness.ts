@@ -2,6 +2,7 @@ import {
   canonicalSerialize,
   compareCanonicalStrings,
 } from "@/lib/planner/canonical";
+import type { PlannerEligibilityMode } from "@/lib/planner/contracts/bounds";
 import type {
   PlannerDriftFact,
   PlannerDriftType,
@@ -28,7 +29,7 @@ export type PlannerStalenessReasonCode =
 export interface PersistedPlanSemanticSnapshot {
   planId: string;
   status: ActivePlanStatus;
-  eligibilityMode: "end_month_v1";
+  eligibilityMode: PlannerEligibilityMode;
   timezone: string;
   policyFingerprint: string;
   goals: Record<string, PlannerGoalSemanticSnapshot>;
@@ -46,7 +47,7 @@ export interface PlannerGoalSemanticSnapshot {
 }
 
 export interface CurrentPlanSemanticState {
-  eligibilityMode: "end_month_v1";
+  eligibilityMode: PlannerEligibilityMode;
   timezone: string;
   policyFingerprint: string;
   goals: Record<string, PlannerGoalSemanticSnapshot>;

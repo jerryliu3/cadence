@@ -46,6 +46,8 @@ import {
 import {
   completionDisabledReasonCopy,
   createClientUuid,
+  getEntryDraftDiffSummary,
+  getEntryDraftPillClasses,
   getDayStatus,
   getEntryDisplayTitle,
   getEntrySubtitle,
@@ -335,6 +337,7 @@ export function CalendarSurface({
   const entriesByDate = useMemo(
     () =>
       buildEntriesByDate({
+        baselineWorkUnits: context?.preview?.workUnits,
         workUnits: effectivePreview?.workUnits,
         activeItems: context?.activePlan?.items,
         activeGoalsByPlanGoalId,
@@ -346,6 +349,7 @@ export function CalendarSurface({
       activeGoalsByOriginalGoalId,
       activeGoalsByPlanGoalId,
       context?.goalTitles,
+      context?.preview?.workUnits,
       context?.activePlan?.items,
       effectiveDraftItemEdits,
       effectivePreview?.workUnits,
@@ -691,6 +695,27 @@ export function CalendarSurface({
     return fallback;
   };
 
+  const nonPublishablePreviewMessage = (
+    preview: NonNullable<PlannerContextPayload["preview"]>
+  ) => {
+    if (preview.solver.issueCodes.includes("invalid_lock")) {
+      const affectedGoals = preview.solver.invalidGoalIds
+        .slice(0, 3)
+        .map((goalId) => context?.goalTitles?.[goalId] ?? goalId);
+      const affectedLabel =
+        affectedGoals.length > 0
+          ? `Affected goals: ${affectedGoals.join(", ")}. `
+          : "";
+      return `${affectedLabel}Locked sessions currently conflict with this regenerated preview. Unlock affected sessions, regenerate, then publish.`;
+    }
+    if (preview.solver.issueCodes.length > 0) {
+      return `Resolve planner issues before publishing: ${preview.solver.issueCodes.join(
+        ", "
+      )}.`;
+    }
+    return "This draft preview is not publishable yet. Regenerate and resolve planner issues before publishing.";
+  };
+
   const isValidIsoDate = (value: string) => {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
       return false;
@@ -825,8 +850,6 @@ export function CalendarSurface({
         result.outOfScopePatchCount === 0 &&
         result.unsupportedPatchCount === 0
       ) {
-        setCoachPendingPatches([]);
-        setCoachUnresolvedQuestions([]);
         appendCoachContextEvent("Coach proposal already matched current draft");
         toast.success(
           hasDraftSession
@@ -845,19 +868,57 @@ export function CalendarSurface({
 
     setCoachPolicyApplying(true);
     try {
-      await refreshDraftPreview(result.policy);
+      const refreshedPreview = await refreshDraftPreview(result.policy);
+      if (!refreshedPreview) {
+        throw new Error("Preview refresh returned no planner data.");
+      }
+      const previousDatesByKey = new Map(
+        (effectivePreview?.workUnits ?? []).map((unit) => [
+          `${unit.originalGoalId}:${unit.unitKey}`,
+          unit.scheduledDate,
+        ])
+      );
+      const refreshedDatesByKey = new Map(
+        refreshedPreview.workUnits.map((unit) => [
+          `${unit.originalGoalId}:${unit.unitKey}`,
+          unit.scheduledDate,
+        ])
+      );
+      let assignmentChanges = 0;
+      for (const key of new Set([
+        ...previousDatesByKey.keys(),
+        ...refreshedDatesByKey.keys(),
+      ])) {
+        if (previousDatesByKey.get(key) !== refreshedDatesByKey.get(key)) {
+          assignmentChanges += 1;
+        }
+      }
       setDraftScopeMonth(context.scopeMonth);
       setDraftPolicy(result.policy);
       setCoachUndoSnapshot({
         timezone: context.preferences.timezone,
         defaultPolicy: priorPolicy,
       });
-      setCoachPendingPatches([]);
-      setCoachUnresolvedQuestions([]);
       appendCoachContextEvent(
         `Applied coach proposal to draft (${result.appliedPatchCount} patches)`
       );
-      toast.success("Coach proposal applied to draft preview.");
+      if (!refreshedPreview.solver.publishable) {
+        toast.error(
+          `Coach proposal applied, but this draft cannot publish yet. ${nonPublishablePreviewMessage(
+            refreshedPreview
+          )}`
+        );
+      } else if (assignmentChanges === 0) {
+        toast.success(
+          "Coach proposal applied. Policy changed, but scheduled sessions stayed the same."
+        );
+      } else {
+        toast.success(
+          `Coach proposal applied to draft preview (${assignmentChanges} session change${
+            assignmentChanges === 1 ? "" : "s"
+          }).`
+        );
+      }
     } catch (error) {
       toast.error(
         error instanceof Error
@@ -919,6 +980,9 @@ export function CalendarSurface({
     const map = new Map<string, Set<string>>();
     for (const [day, entries] of entriesByDate.entries()) {
       for (const entry of entries) {
+        if (entry.draftGhost) {
+          continue;
+        }
         const key = `${entry.originalGoalId}:${day}`;
         const existing = map.get(key) ?? new Set<string>();
         existing.add(entry.key);
@@ -938,6 +1002,10 @@ export function CalendarSurface({
       nextDate: string;
       source: "date_input" | "drag_drop";
     }) => {
+      if (entry.draftGhost) {
+        toast.error("Original-date draft markers cannot be moved directly.");
+        return false;
+      }
       const normalized = nextDate.trim();
       if (!isValidIsoDate(normalized)) {
         toast.error("Pick a valid move date.");
@@ -946,7 +1014,11 @@ export function CalendarSurface({
       if (!context?.scopeMonth) {
         return false;
       }
-      if (!normalized.startsWith(`${context.scopeMonth}-`)) {
+      const eligibilityMode = effectivePreview?.eligibilityMode ?? "end_month_v1";
+      if (
+        eligibilityMode === "end_month_v1" &&
+        !normalized.startsWith(`${context.scopeMonth}-`)
+      ) {
         toast.error("Draft moves must stay inside the current planner month.");
         return false;
       }
@@ -957,13 +1029,18 @@ export function CalendarSurface({
         return false;
       }
       const baselineUnit = previewUnitByEntryKey.get(entry.key);
-      if (!baselineUnit?.placementWindow) {
+      if (!baselineUnit) {
+        toast.error("This session is unavailable in the current draft preview.");
+        return false;
+      }
+      const moveWindow = baselineUnit?.draftMoveWindow ?? baselineUnit?.placementWindow;
+      if (!moveWindow) {
         toast.error("This session does not have a movable placement window.");
         return false;
       }
       if (
-        normalized < baselineUnit.placementWindow.start ||
-        normalized > baselineUnit.placementWindow.end
+        normalized < moveWindow.start ||
+        normalized > moveWindow.end
       ) {
         toast.error(
           "That date is outside this session's allowed planner window."
@@ -1038,12 +1115,16 @@ export function CalendarSurface({
       compiledPolicyForDraftMoves,
       completionFactUnitsByGoalDate,
       context?.scopeMonth,
+      effectivePreview?.eligibilityMode,
       moveConflictByGoalDate,
       previewUnitByEntryKey,
     ]
   );
 
   const updateDraftLabel = (entry: PlannerDayDetailEntry, label: string) => {
+    if (entry.draftGhost) {
+      return;
+    }
     const normalized = label.trim();
     const baselineTitle =
       entry.activeGoal?.title ?? context?.goalTitles?.[entry.originalGoalId] ?? null;
@@ -1071,6 +1152,9 @@ export function CalendarSurface({
     entry: PlannerDayDetailEntry,
     date: string
   ) => {
+    if (entry.draftGhost) {
+      return;
+    }
     if (!date.trim()) {
       return;
     }
@@ -1305,6 +1389,9 @@ export function CalendarSurface({
     entry: PlannerDayDetailEntry,
     dispatch: ReturnType<typeof getDateFactDispatchForEntry>
   ): CompletionControlDisabledReason | null => {
+    if (entry.draftGhost) {
+      return "unsupported";
+    }
     if (!dispatch) {
       return "unsupported";
     }
@@ -1487,6 +1574,10 @@ export function CalendarSurface({
     if (!effectivePreview || !context?.capabilities.plannerPlanWrites) {
       return;
     }
+    if (!effectivePreview.solver.publishable) {
+      toast.error(nonPublishablePreviewMessage(effectivePreview));
+      return;
+    }
     const idempotencyKey = createClientUuid();
     const confirmationHash = effectivePreview.solver.confirmationRequired
       ? buildPlannerConfirmationHash({
@@ -1505,6 +1596,7 @@ export function CalendarSurface({
       body: JSON.stringify({
         scopeMonth: context.scopeMonth,
         previewHash: effectivePreview.generationInputHash,
+        eligibilityMode: effectivePreview.eligibilityMode,
         expectedCanonicalRevision: context.revisions.canonicalRevision,
         expectedExecutionRevision: context.revisions.executionRevision,
         expectedBasePlanId: context.activePlan?.plan.id ?? null,
@@ -1519,6 +1611,21 @@ export function CalendarSurface({
     };
     setPublishLoading(false);
     if (!response.ok) {
+      if (payload.code === "planner_not_publishable") {
+        const issueCodes = Array.isArray(payload.details?.issueCodes)
+          ? payload.details.issueCodes.filter(
+              (value): value is string => typeof value === "string"
+            )
+          : [];
+        const detailSuffix =
+          issueCodes.length > 0
+            ? ` (${issueCodes.join(", ")})`
+            : "";
+        toast.error(
+          `${payload.message ?? "Planner publish is currently blocked."}${detailSuffix}`
+        );
+        return;
+      }
       if (
         payload.code === "validation_failed" &&
         payload.details?.stage === "draft_edits" &&
@@ -1616,6 +1723,16 @@ export function CalendarSurface({
     coachInput.trim().length > 0;
   const hasDraftSession =
     effectiveDraftPolicy !== null || Object.keys(effectiveDraftItemEdits).length > 0;
+  const draftPublishBlocked = Boolean(
+    hasDraftSession &&
+      effectivePreview &&
+      context?.capabilities.plannerPlanWrites &&
+      !effectivePreview.solver.publishable
+  );
+  const draftPublishBlockedMessage =
+    draftPublishBlocked && effectivePreview
+      ? nonPublishablePreviewMessage(effectivePreview)
+      : null;
   const canMutatePlanItems = Boolean(
     context?.capabilities.plannerPlanWrites &&
       context?.activePlan?.plan.status === "active"
@@ -1712,10 +1829,11 @@ export function CalendarSurface({
                   size="sm"
                   variant={hasDraftSession ? "default" : "destructive"}
                   onClick={hasDraftSession ? publishPlan : deactivatePlan}
+                  title={hasDraftSession ? (draftPublishBlockedMessage ?? undefined) : undefined}
                   disabled={
                     loading ||
                     (hasDraftSession
-                      ? publishLoading || !effectivePreview
+                      ? publishLoading || !effectivePreview || draftPublishBlocked
                       : deactivateLoading)
                   }
                 >
@@ -1731,7 +1849,16 @@ export function CalendarSurface({
                   type="button"
                   size="sm"
                   onClick={publishPlan}
-                  disabled={publishLoading || loading}
+                  title={
+                    effectivePreview && !effectivePreview.solver.publishable
+                      ? nonPublishablePreviewMessage(effectivePreview)
+                      : undefined
+                  }
+                  disabled={
+                    publishLoading ||
+                    loading ||
+                    !effectivePreview.solver.publishable
+                  }
                 >
                   {publishButtonLabel}
                 </Button>
@@ -1912,6 +2039,13 @@ export function CalendarSurface({
                       getEntryDisplayTitle={getEntryDisplayTitle}
                       isEntryCredited={isEntryCredited}
                       isEntryImmovableForDraft={isEntryImmovableForDraft}
+                      onEntryClick={(day, entry) => {
+                        clearHoverPreviewTimer();
+                        clearHoverPreviewCloseTimer();
+                        setDayPreview(null);
+                        setLocalSelectedDay(day);
+                        setSelectedEventEntryKey(entry.key);
+                      }}
                       onCellClick={(target) => {
                         if (draggingEntryKey) {
                           return;
@@ -1944,14 +2078,10 @@ export function CalendarSurface({
                         clearLongPressTimer();
                       }}
                       onEntryPointerStart={(immovable) => {
+                        void immovable;
                         pointerPressActiveRef.current = true;
                         clearHoverPreviewTimer();
                         setDayPreview(null);
-                        if (immovable) {
-                          toast.error(
-                            "Completed or historical sessions cannot move in draft. Clear completion in publish mode first."
-                          );
-                        }
                       }}
                       onEntryPointerEnd={() => {
                         pointerPressActiveRef.current = false;
@@ -1960,6 +2090,14 @@ export function CalendarSurface({
                   );
                 })}
               </div>
+              {draftPublishBlockedMessage ? (
+                <div className="mt-3 rounded-md border border-amber-400/40 bg-amber-500/10 p-2 text-xs">
+                  <p className="font-medium">Draft publish is currently blocked.</p>
+                  <p className="mt-1 text-muted-foreground">
+                    {draftPublishBlockedMessage}
+                  </p>
+                </div>
+              ) : null}
 
               {dayPreview ? (
                 <div
@@ -2040,12 +2178,8 @@ export function CalendarSurface({
                   void toggleDateFact(entry, day);
                 }}
                 onEntryPointerStart={(immovable) => {
+                  void immovable;
                   pointerPressActiveRef.current = true;
-                  if (immovable) {
-                    toast.error(
-                      "Completed or historical sessions cannot move in draft. Clear completion in publish mode first."
-                    );
-                  }
                 }}
                 onEntryPointerEnd={() => {
                   pointerPressActiveRef.current = false;
@@ -2264,6 +2398,12 @@ export function CalendarSurface({
                       const Icon = visual.Icon;
                       const displayTitle = getEntryDisplayTitle(entry);
                       const subtitle = getEntrySubtitle(entry);
+                      const credited = isEntryCredited(entry);
+                      const draftDiffSummary = getEntryDraftDiffSummary(entry);
+                      const pillToneClasses = getEntryDraftPillClasses({
+                        draftDiffKind: entry.draftDiffKind,
+                        credited,
+                      });
                       const completionDispatch = getDateFactDispatchForEntry(entry);
                       const completionDisabledReason =
                         completionControlDisabledReasonForEntry(
@@ -2271,12 +2411,21 @@ export function CalendarSurface({
                           completionDispatch
                         );
                       return (
-                        <li key={entry.key} className="rounded-lg border p-2">
+                        <li
+                          key={entry.key}
+                          className={`rounded-lg border p-2 ${pillToneClasses} ${
+                            entry.draftGhost ? "opacity-75" : ""
+                          }`}
+                        >
                           <div className="flex items-start gap-2">
                             <button
                               type="button"
                               className="flex-1 text-left text-sm transition-colors hover:text-primary"
-                              onClick={() => setSelectedEventEntryKey(entry.key)}
+                              onClick={() => {
+                                if (!entry.draftGhost) {
+                                  setSelectedEventEntryKey(entry.key);
+                                }
+                              }}
                             >
                               <div className="flex items-center gap-2">
                                 <span
@@ -2292,40 +2441,49 @@ export function CalendarSurface({
                                   {subtitle}
                                 </p>
                               ) : null}
+                              {draftDiffSummary ? (
+                                <p className="mt-1 text-xs text-muted-foreground">
+                                  {draftDiffSummary}
+                                </p>
+                              ) : null}
                               <p className="mt-1 text-xs text-primary">
-                                View event details
+                                {entry.draftGhost
+                                  ? "Original date marker"
+                                  : "View event details"}
                               </p>
                             </button>
-                            <button
-                              type="button"
-                              className="group flex size-8 shrink-0 items-center justify-center rounded-full border border-border bg-background transition-all hover:border-primary hover:bg-primary/5 disabled:cursor-not-allowed disabled:opacity-60"
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                void toggleDateFact(entry);
-                              }}
-                              disabled={
-                                Boolean(mutationLoadingKey) ||
-                                completionDisabledReason !== null
-                              }
-                              aria-label={
-                                completionDispatch?.currentlyCredited
-                                  ? "Mark session not done"
-                                  : "Mark session done"
-                              }
-                              title={
-                                completionDisabledReason
-                                  ? completionDisabledReasonCopy(
-                                      completionDisabledReason
-                                    )
-                                  : "Toggle completion for this session"
-                              }
-                            >
-                              {completionDispatch?.currentlyCredited ? (
-                                <CheckCircle2 className="size-4 text-primary transition-transform group-hover:scale-110" />
-                              ) : (
-                                <Circle className="size-4 text-muted-foreground transition-transform group-hover:scale-110" />
-                              )}
-                            </button>
+                            {!entry.draftGhost ? (
+                              <button
+                                type="button"
+                                className="group flex size-8 shrink-0 items-center justify-center rounded-full border border-border bg-background transition-all hover:border-primary hover:bg-primary/5 disabled:cursor-not-allowed disabled:opacity-60"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  void toggleDateFact(entry);
+                                }}
+                                disabled={
+                                  Boolean(mutationLoadingKey) ||
+                                  completionDisabledReason !== null
+                                }
+                                aria-label={
+                                  completionDispatch?.currentlyCredited
+                                    ? "Mark session not done"
+                                    : "Mark session done"
+                                }
+                                title={
+                                  completionDisabledReason
+                                    ? completionDisabledReasonCopy(
+                                        completionDisabledReason
+                                      )
+                                    : "Toggle completion for this session"
+                                }
+                              >
+                                {completionDispatch?.currentlyCredited ? (
+                                  <CheckCircle2 className="size-4 text-primary transition-transform group-hover:scale-110" />
+                                ) : (
+                                  <Circle className="size-4 text-muted-foreground transition-transform group-hover:scale-110" />
+                                )}
+                              </button>
+                            ) : null}
                           </div>
                           {completionDisabledReason ? (
                             <p className="mt-2 text-[11px] text-muted-foreground">
@@ -2364,104 +2522,117 @@ export function CalendarSurface({
               </DialogHeader>
               {selectedEventEntry ? (
                 <div className="space-y-3 text-sm">
+                  {getEntryDraftDiffSummary(selectedEventEntry) ? (
+                    <p className="text-xs text-muted-foreground">
+                      {getEntryDraftDiffSummary(selectedEventEntry)}
+                    </p>
+                  ) : null}
                   {getEntrySubtitle(selectedEventEntry) ? (
                     <p className="text-xs text-muted-foreground">
                       {getEntrySubtitle(selectedEventEntry)}
                     </p>
                   ) : null}
-                  <div className="space-y-2 rounded-md border border-dashed p-2">
-                    <label className="flex items-center gap-2 text-xs text-muted-foreground">
-                      Title
-                      <Input
-                        value={
-                          selectedEventDraftEdit?.label ??
-                          selectedEventEntry.goalTitle ??
-                          selectedEventEntry.label ??
-                          ""
-                        }
-                        onChange={(event) =>
-                          updateDraftLabel(selectedEventEntry, event.target.value)
-                        }
-                        placeholder="Goal title"
-                        className="h-8 text-xs"
-                      />
-                    </label>
-                    <label className="flex items-center gap-2 text-xs text-muted-foreground">
-                      Move to
-                      <Input
-                        type="date"
-                        value={
-                          selectedEventDraftEdit?.scheduledDate ??
-                          selectedEventEntry.activeItem?.scheduled_date ??
-                          effectiveSelectedDay ??
-                          ""
-                        }
-                        onChange={(event) =>
-                          updateDraftScheduledDate(selectedEventEntry, event.target.value)
-                        }
-                        className="h-8 text-xs"
-                      />
-                    </label>
-                    <p className="text-[11px] text-muted-foreground">
-                      Drag month-cell session pills to move quickly, or use this
-                      date field as a keyboard-friendly fallback.
-                    </p>
-                    {selectedEventEntry.activeItem ? (
-                      <div className="flex flex-wrap gap-2">
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          onClick={() => void toggleItemLock(selectedEventEntry)}
-                          disabled={
-                            Boolean(mutationLoadingKey) ||
-                            !canMutatePlanItems
+                  {selectedEventEntry.draftGhost ? (
+                    <div className="rounded-md border border-dashed p-2 text-xs text-muted-foreground">
+                      This marker shows where the session was originally scheduled
+                      before your draft move. Edit the moved session on its new date
+                      to change or undo the move.
+                    </div>
+                  ) : (
+                    <div className="space-y-2 rounded-md border border-dashed p-2">
+                      <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                        Title
+                        <Input
+                          value={
+                            selectedEventDraftEdit?.label ??
+                            selectedEventEntry.goalTitle ??
+                            selectedEventEntry.label ??
+                            ""
                           }
-                        >
-                          {mutationLoadingKey ===
-                          `lock:${selectedEventEntry.activeItem.id}`
-                            ? "Saving..."
-                            : selectedEventEntry.activeItem.locked
-                              ? "Unlock"
-                              : "Lock"}
-                        </Button>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          className="gap-1"
-                          onClick={() => void toggleDateFact(selectedEventEntry)}
-                          disabled={
-                            Boolean(mutationLoadingKey) ||
-                            selectedEventCompletionDisabledReason !== null
+                          onChange={(event) =>
+                            updateDraftLabel(selectedEventEntry, event.target.value)
                           }
-                        >
-                          {mutationLoadingKey === `fact:${selectedEventEntry.key}`
-                            ? "Saving..."
-                            : selectedEventCompletionDispatch?.currentlyCredited
-                              ? (
-                                  <>
-                                    <CheckCircle2 className="size-4" />
-                                    Undo done
-                                  </>
-                                )
-                              : (
-                                  <>
-                                    <Circle className="size-4" />
-                                    Mark done
-                                  </>
-                                )}
-                        </Button>
-                      </div>
-                    ) : null}
-                    {selectedEventCompletionDisabledReason ? (
-                      <p className="text-xs text-muted-foreground">
-                        {completionDisabledReasonCopy(
-                          selectedEventCompletionDisabledReason
-                        )}
+                          placeholder="Goal title"
+                          className="h-8 text-xs"
+                        />
+                      </label>
+                      <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                        Move to
+                        <Input
+                          type="date"
+                          value={
+                            selectedEventDraftEdit?.scheduledDate ??
+                            selectedEventEntry.activeItem?.scheduled_date ??
+                            effectiveSelectedDay ??
+                            ""
+                          }
+                          onChange={(event) =>
+                            updateDraftScheduledDate(selectedEventEntry, event.target.value)
+                          }
+                          className="h-8 text-xs"
+                        />
+                      </label>
+                      <p className="text-[11px] text-muted-foreground">
+                        Drag month-cell session pills to move quickly, or use this
+                        date field as a keyboard-friendly fallback.
                       </p>
-                    ) : null}
-                  </div>
+                      {selectedEventEntry.activeItem ? (
+                        <div className="flex flex-wrap gap-2">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            onClick={() => void toggleItemLock(selectedEventEntry)}
+                            disabled={
+                              Boolean(mutationLoadingKey) ||
+                              !canMutatePlanItems
+                            }
+                          >
+                            {mutationLoadingKey ===
+                            `lock:${selectedEventEntry.activeItem.id}`
+                              ? "Saving..."
+                              : selectedEventEntry.activeItem.locked
+                                ? "Unlock"
+                                : "Lock"}
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="gap-1"
+                            onClick={() => void toggleDateFact(selectedEventEntry)}
+                            disabled={
+                              Boolean(mutationLoadingKey) ||
+                              selectedEventCompletionDisabledReason !== null
+                            }
+                          >
+                            {mutationLoadingKey === `fact:${selectedEventEntry.key}`
+                              ? "Saving..."
+                              : selectedEventCompletionDispatch?.currentlyCredited
+                                ? (
+                                    <>
+                                      <CheckCircle2 className="size-4" />
+                                      Undo done
+                                    </>
+                                  )
+                                : (
+                                    <>
+                                      <Circle className="size-4" />
+                                      Mark done
+                                    </>
+                                  )}
+                          </Button>
+                        </div>
+                      ) : null}
+                      {selectedEventCompletionDisabledReason ? (
+                        <p className="text-xs text-muted-foreground">
+                          {completionDisabledReasonCopy(
+                            selectedEventCompletionDisabledReason
+                          )}
+                        </p>
+                      ) : null}
+                    </div>
+                  )}
                 </div>
               ) : null}
             </DialogContent>

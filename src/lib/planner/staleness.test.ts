@@ -57,6 +57,10 @@ function unit(
       start: "2026-08-01",
       end: "2026-08-31",
     },
+    draftMoveWindow: {
+      start: "2026-08-01",
+      end: "2026-08-31",
+    },
     classification: "open",
     missPolicy: "roll_forward",
     restEligible: true,
