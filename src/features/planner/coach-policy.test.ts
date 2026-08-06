@@ -66,4 +66,32 @@ describe("applyCoachPolicyPatches", () => {
     expect(result.ignoredPatchCount).toBe(1);
     expect(result.policy.goalAllowedWeekdays).toEqual({});
   });
+
+  it("treats no-op patches as ignored changes", () => {
+    const policy = basePolicy();
+    policy.goalAllowedWeekdays["12000000-0000-4000-8000-000000000001"] = [
+      0, 1, 2, 3, 4, 5, 6,
+    ];
+    policy.goalSpacingStrategies["12000000-0000-4000-8000-000000000001"] =
+      "even";
+    const result = applyCoachPolicyPatches({
+      policy,
+      patches: [
+        {
+          kind: "set_goal_allowed_weekdays",
+          goalId: "12000000-0000-4000-8000-000000000001",
+          weekdays: [0, 1, 2, 3, 4, 5, 6],
+        },
+        {
+          kind: "set_goal_spacing_strategy",
+          goalId: "12000000-0000-4000-8000-000000000001",
+          spacingStrategy: "even",
+        },
+      ],
+      allowedGoalIds: new Set(["12000000-0000-4000-8000-000000000001"]),
+    });
+
+    expect(result.appliedPatchCount).toBe(0);
+    expect(result.ignoredPatchCount).toBe(2);
+  });
 });

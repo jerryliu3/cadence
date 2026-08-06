@@ -1041,7 +1041,7 @@ export function CalendarSurface({
     if (result.appliedPatchCount === 0) {
       toast.error(
         result.ignoredPatchCount > 0
-          ? "Coach edits were received but none matched your current goal scope."
+          ? "Coach edits were already reflected in your current draft policy."
           : "No applicable policy changes were available to apply."
       );
       return;

@@ -11,6 +11,13 @@ function dedupeWeekdays(weekdays: number[]) {
   return Array.from(new Set(weekdays)).sort((left, right) => left - right);
 }
 
+function sameNumberArray(left: number[] | undefined, right: number[]) {
+  if (!left || left.length !== right.length) {
+    return false;
+  }
+  return left.every((value, index) => value === right[index]);
+}
+
 function isAllowedGoalId(goalId: string | null, allowedGoalIds: Set<string>) {
   return goalId === null || allowedGoalIds.has(goalId);
 }
@@ -31,7 +38,12 @@ export function applyCoachPolicyPatches({
   for (const patch of patches) {
     switch (patch.kind) {
       case "set_rest_weekdays": {
-        nextPolicy.restWeekdays = dedupeWeekdays(patch.restWeekdays);
+        const normalized = dedupeWeekdays(patch.restWeekdays);
+        if (sameNumberArray(nextPolicy.restWeekdays, normalized)) {
+          ignoredPatchCount += 1;
+          break;
+        }
+        nextPolicy.restWeekdays = normalized;
         appliedPatchCount += 1;
         break;
       }
@@ -39,12 +51,14 @@ export function applyCoachPolicyPatches({
         const exists = nextPolicy.blackoutRanges.some(
           (range) => range.start === patch.start && range.end === patch.end
         );
-        if (!exists) {
-          nextPolicy.blackoutRanges.push({
-            start: patch.start,
-            end: patch.end,
-          });
+        if (exists) {
+          ignoredPatchCount += 1;
+          break;
         }
+        nextPolicy.blackoutRanges.push({
+          start: patch.start,
+          end: patch.end,
+        });
         appliedPatchCount += 1;
         break;
       }
@@ -65,9 +79,14 @@ export function applyCoachPolicyPatches({
           ignoredPatchCount += 1;
           break;
         }
-        nextPolicy.goalAllowedWeekdays[patch.goalId] = dedupeWeekdays(
-          patch.weekdays
-        );
+        const normalized = dedupeWeekdays(patch.weekdays);
+        if (
+          sameNumberArray(nextPolicy.goalAllowedWeekdays[patch.goalId], normalized)
+        ) {
+          ignoredPatchCount += 1;
+          break;
+        }
+        nextPolicy.goalAllowedWeekdays[patch.goalId] = normalized;
         appliedPatchCount += 1;
         break;
       }
@@ -103,8 +122,10 @@ export function applyCoachPolicyPatches({
             end: patch.end,
             effect: patch.effect,
           });
+          appliedPatchCount += 1;
+        } else {
+          ignoredPatchCount += 1;
         }
-        appliedPatchCount += 1;
         break;
       }
       case "clear_goal_date_preference": {
@@ -128,12 +149,20 @@ export function applyCoachPolicyPatches({
         break;
       }
       case "set_spacing_strategy": {
+        if (nextPolicy.spacingStrategy === patch.spacingStrategy) {
+          ignoredPatchCount += 1;
+          break;
+        }
         nextPolicy.spacingStrategy = patch.spacingStrategy;
         appliedPatchCount += 1;
         break;
       }
       case "set_goal_spacing_strategy": {
         if (!allowedGoalIds.has(patch.goalId)) {
+          ignoredPatchCount += 1;
+          break;
+        }
+        if (nextPolicy.goalSpacingStrategies[patch.goalId] === patch.spacingStrategy) {
           ignoredPatchCount += 1;
           break;
         }
