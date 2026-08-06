@@ -59,6 +59,18 @@ describe("telemetry event schema", () => {
         counts: { eligibleGoals: 101 },
       }).success
     ).toBe(false);
+    const publish = telemetryExamples.find(
+      (event) => event.eventName === "planner.publish.completed"
+    );
+    if (!publish) {
+      throw new Error("Missing publish telemetry fixture.");
+    }
+    expect(
+      telemetryEventV1Schema.safeParse({
+        ...publish,
+        counts: { timedUnits: 5001 },
+      }).success
+    ).toBe(false);
   });
 });
 
