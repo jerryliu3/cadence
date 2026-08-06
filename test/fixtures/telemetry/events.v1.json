@@ -79,7 +79,8 @@
       "eligibleGoals": 12,
       "workUnits": 180,
       "placedUnits": 176,
-      "shortfallUnits": 4
+      "shortfallUnits": 4,
+      "timedUnits": 64
     },
     "replay": false,
     "flags": {

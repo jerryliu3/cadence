@@ -493,6 +493,18 @@ export async function POST(request: Request) {
           "Another active month plan already schedules this goal on the destination date."
         );
       }
+      if (
+        message.includes("execution_plan_goals_default_local_time_format") ||
+        message.includes("execution_plan_items_scheduled_time_override_format") ||
+        message.includes("execution_plan_items_effective_scheduled_local_time_format") ||
+        message.includes("invalid eligibility mode")
+      ) {
+        throw new PlannerRouteError(
+          422,
+          "time_validation_failed",
+          "Publish is blocked because one or more proposed session times are invalid."
+        );
+      }
       throw new PlannerRouteError(
         409,
         "publish_failed",
@@ -534,6 +546,9 @@ export async function POST(request: Request) {
           .length,
         shortfallUnits: kernel.workUnits.filter((unit) => unit.scheduledDate === null)
           .length,
+        timedUnits: kernel.workUnits.filter(
+          (unit) => unit.effectiveScheduledLocalTime !== null
+        ).length,
       },
       data: {
         source: persistence.generationSource === "update" ? "update" : "manual",
