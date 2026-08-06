@@ -160,7 +160,7 @@ export function CalendarMonthDayCell<
               immovable
                 ? "cursor-not-allowed"
                 : "cursor-grab active:cursor-grabbing"
-            } ${isDragging ? "opacity-70 ring-1 ring-primary/60" : ""}`}
+            } ${isDragging ? "pointer-events-none opacity-0" : ""}`}
             title={
               `${draftDiffSummary ? `${draftDiffSummary} ` : ""}${
                 immovable

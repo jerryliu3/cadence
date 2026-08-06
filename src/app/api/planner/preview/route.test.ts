@@ -1,0 +1,108 @@
+// @vitest-environment node
+
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const mocks = vi.hoisted(() => ({
+  parseBoundedJsonBody: vi.fn(),
+  requirePlannerRouteContext: vi.fn(),
+  resolveCanonicalAsOfDate: vi.fn(),
+  loadPlannerCanonicalSnapshot: vi.fn(),
+  runPlannerKernel: vi.fn(),
+  emitTelemetryEvent: vi.fn(),
+}));
+
+vi.mock("@/lib/supabase/server", () => ({
+  createClient: async () => ({ auth: { getUser: vi.fn() } }),
+}));
+
+vi.mock("@/lib/planner/api", async () => {
+  const actual =
+    await vi.importActual<typeof import("@/lib/planner/api")>(
+      "@/lib/planner/api"
+    );
+  return {
+    ...actual,
+    createCorrelationId: () => "test-correlation-id",
+    parseBoundedJsonBody: mocks.parseBoundedJsonBody,
+    requirePlannerRouteContext: mocks.requirePlannerRouteContext,
+    resolveCanonicalAsOfDate: mocks.resolveCanonicalAsOfDate,
+  };
+});
+
+vi.mock("@/lib/planner/context-loader", () => ({
+  loadPlannerCanonicalSnapshot: mocks.loadPlannerCanonicalSnapshot,
+}));
+
+vi.mock("@/lib/planner/kernel", () => ({
+  runPlannerKernel: mocks.runPlannerKernel,
+}));
+
+vi.mock("@/lib/telemetry/runtime", async () => {
+  const actual =
+    await vi.importActual<typeof import("@/lib/telemetry/runtime")>(
+      "@/lib/telemetry/runtime"
+    );
+  return {
+    ...actual,
+    emitTelemetryEvent: mocks.emitTelemetryEvent,
+  };
+});
+
+import { POST } from "./route";
+
+describe("planner preview route", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.requirePlannerRouteContext.mockResolvedValue({
+      userId: "11111111-1111-4111-8111-111111111111",
+      supabase: {},
+      capabilities: {
+        calendarEnabled: true,
+        plannerRead: true,
+        plannerGeneration: true,
+        plannerPlanWrites: true,
+        targetedExactCompletion: true,
+        coachAi: true,
+        overlap: false,
+      },
+    });
+    mocks.resolveCanonicalAsOfDate.mockReturnValue("2026-08-05");
+    mocks.loadPlannerCanonicalSnapshot.mockResolvedValue({
+      preferences: {
+        timezone: "UTC",
+        default_policy: {
+          schemaVersion: "v1",
+          timezone: "UTC",
+        },
+      },
+    });
+  });
+
+  it("returns typed 400 when request policy fails schema validation", async () => {
+    mocks.parseBoundedJsonBody.mockResolvedValue({
+      scopeMonth: "2026-08",
+      source: "manual",
+      timezone: "UTC",
+      policy: {
+        timezone: "UTC",
+      },
+    });
+
+    const response = await POST(
+      new Request("http://localhost/api/planner/preview", {
+        method: "POST",
+      })
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "validation_failed",
+      message: "Planner policy failed validation.",
+      correlationId: "test-correlation-id",
+      details: {
+        stage: "request_policy",
+      },
+    });
+    expect(mocks.runPlannerKernel).not.toHaveBeenCalled();
+  });
+});

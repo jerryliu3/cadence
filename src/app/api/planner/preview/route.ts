@@ -112,14 +112,26 @@ export async function POST(request: Request) {
       month: body.scopeMonth,
       timezone: effectiveTimezone,
     };
-    const effectivePolicy = body.policy
-      ? plannerPolicySchema.parse(body.policy)
-      : snapshot.preferences
-        ? plannerPolicySchema.parse(snapshot.preferences.default_policy)
-        : createDefaultPlannerPolicy(
-            effectiveTimezone,
-            new Date().toISOString()
-          );
+    const policySource =
+      body.policy ??
+      snapshot.preferences?.default_policy ??
+      createDefaultPlannerPolicy(
+        effectiveTimezone,
+        new Date().toISOString()
+      );
+    const parsedPolicy = plannerPolicySchema.safeParse(policySource);
+    if (!parsedPolicy.success) {
+      throw new PlannerRouteError(
+        400,
+        "validation_failed",
+        "Planner policy failed validation.",
+        {
+          stage: body.policy ? "request_policy" : "stored_policy",
+          issues: parsedPolicy.error.issues,
+        }
+      );
+    }
+    const effectivePolicy = parsedPolicy.data;
     if (effectivePolicy.timezone !== effectiveTimezone) {
       throw new PlannerRouteError(
         400,

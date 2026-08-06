@@ -473,9 +473,9 @@ export function CalendarSurface({
   const selectedEventEntry = useMemo(
     () =>
       selectedEventEntryKey
-        ? selectedDayEntries.find((entry) => entry.key === selectedEventEntryKey) ?? null
+        ? entryByKey.get(selectedEventEntryKey) ?? null
         : null,
-    [selectedDayEntries, selectedEventEntryKey]
+    [entryByKey, selectedEventEntryKey]
   );
   const selectedEventDraftEdit = selectedEventEntry
     ? effectiveDraftItemEdits[selectedEventEntry.key]
@@ -1177,13 +1177,12 @@ export function CalendarSurface({
     if (entry.draftGhost) {
       return;
     }
-    const normalized = label.trim();
     const baselineTitle =
       entry.activeGoal?.title ?? context?.goalTitles?.[entry.originalGoalId] ?? null;
     if (context?.scopeMonth) {
       setDraftScopeMonth(context.scopeMonth);
     }
-    if (!normalized || normalized === baselineTitle) {
+    if (!label || label === baselineTitle) {
       dispatchDraftCommand({
         type: "remove_kind",
         kind: "rename_item",
@@ -1196,7 +1195,7 @@ export function CalendarSurface({
       type: "upsert_rename",
       goalId: entry.originalGoalId,
       unitKey: entry.unitKey,
-      label: normalized,
+      label,
     });
   };
 
@@ -1252,7 +1251,7 @@ export function CalendarSurface({
       const credited = isEntryCredited(entry);
       return (
         <div
-          className={`flex max-w-64 items-center gap-2 rounded-md border px-2 py-1 text-xs shadow-2xl ${
+          className={`flex max-w-64 items-center gap-2 rounded-md border px-2 py-1 text-xs ${
             credited
               ? "border-emerald-300 bg-emerald-100 text-emerald-950"
               : "border-primary/40 bg-card text-foreground"
