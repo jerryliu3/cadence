@@ -135,7 +135,11 @@ export function emitTelemetryEvent(input: TelemetryCommonInput) {
       scope: input.scope,
       versions: {
         telemetrySchema: TELEMETRY_SCHEMA_VERSION,
-        eligibilityMode: input.scope ? ELIGIBILITY_MODE : null,
+        eligibilityMode: input.scope
+          ? input.capabilities.overlap
+            ? "overlap_v1"
+            : ELIGIBILITY_MODE
+          : null,
         scheduler: input.scope ? SCHEDULER_VERSION : null,
         requirementSchema: REQUIREMENT_SCHEMA_VERSION,
         assessmentSchema: input.scope ? ASSESSMENT_SCHEMA_VERSION : null,

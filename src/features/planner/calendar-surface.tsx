@@ -804,14 +804,6 @@ export function CalendarSurface({
       if (!context?.scopeMonth) {
         return false;
       }
-      const eligibilityMode = effectivePreview?.eligibilityMode ?? "end_month_v1";
-      if (
-        eligibilityMode === "end_month_v1" &&
-        !normalized.startsWith(`${context.scopeMonth}-`)
-      ) {
-        toast.error("Draft moves must stay inside the current planner month.");
-        return false;
-      }
       if (isEntryImmovableForDraft(entry)) {
         toast.error(
           "Completed or historical sessions cannot move in draft. Clear completion in publish mode first."
@@ -832,9 +824,20 @@ export function CalendarSurface({
         normalized < moveWindow.start ||
         normalized > moveWindow.end
       ) {
-        toast.error(
-          "That date is outside this session's allowed planner window."
-        );
+        const creditWindowEnd = baselineUnit.creditWindow?.end ?? moveWindow.end;
+        if (normalized < moveWindow.start) {
+          toast.error(
+            `This session can only move on or after ${moveWindow.start}.`
+          );
+        } else if (normalized > creditWindowEnd) {
+          toast.error(
+            `That date is after this session's credit window end (${creditWindowEnd}), which usually reflects the goal end date or cadence period boundary.`
+          );
+        } else {
+          toast.error(
+            `That date is outside this session's allowed planner window (${moveWindow.start} to ${moveWindow.end}).`
+          );
+        }
         return false;
       }
       if (
@@ -905,7 +908,6 @@ export function CalendarSurface({
       compiledPolicyForDraftMoves,
       completionFactUnitsByGoalDate,
       context?.scopeMonth,
-      effectivePreview?.eligibilityMode,
       moveConflictByGoalDate,
       previewUnitByEntryKey,
     ]
@@ -1426,6 +1428,16 @@ export function CalendarSurface({
             : "the selected date";
         toast.error(
           `A draft move lands on ${blockedDate}, which is blocked by your active planner policy (rest days, blackout ranges, or goal weekday rules). Open Planner settings to adjust policy or move the item to an allowed date.`
+        );
+        return;
+      }
+      if (
+        payload.code === "validation_failed" &&
+        payload.details?.stage === "draft_edits" &&
+        payload.details?.code === "draft_item_scope_lineage_mismatch"
+      ) {
+        toast.error(
+          "Cross-month draft moves preview correctly, but publish still persists monthly scope snapshots. Move out-of-month sessions back into this month before publishing."
         );
         return;
       }

@@ -119,20 +119,9 @@ export async function POST(request: Request) {
       ...body.draftCommands,
       ...buildPlannerDraftCommandsFromLegacyItemEdits(legacyDraftItemEdits),
     ];
-    const effectiveEligibilityMode =
-      body.eligibilityMode ??
-      (routeContext.capabilities.overlap ? "overlap_v1" : ELIGIBILITY_MODE);
-    if (effectiveEligibilityMode === "overlap_v1") {
-      throw new PlannerRouteError(
-        422,
-        "eligibility_mode_not_persistable",
-        "Cross-month overlap mode is not yet supported for persistence. Use end-month scope for publish.",
-        {
-          eligibilityMode: effectiveEligibilityMode,
-          scopeMonth: body.scopeMonth,
-        }
-      );
-    }
+    const effectiveEligibilityMode = routeContext.capabilities.overlap
+      ? body.eligibilityMode ?? "overlap_v1"
+      : ELIGIBILITY_MODE;
     telemetryScope = { month: body.scopeMonth, timezone: "UTC" };
     if (
       (body.expectedBasePlanId === null) !==

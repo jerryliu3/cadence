@@ -14,7 +14,7 @@ describe("planner capabilities", () => {
       plannerPlanWrites: true,
       targetedExactCompletion: true,
       coachAi: true,
-      overlap: false,
+      overlap: true,
     });
   });
 
@@ -53,10 +53,10 @@ describe("planner capabilities", () => {
     warnSpy.mockRestore();
   });
 
-  it("enables overlap only when explicitly flagged", () => {
-    vi.stubEnv("PLANNER_OVERLAP_ENABLED", "true");
-    expect(getPlannerCapabilities().overlap).toBe(true);
+  it("supports explicit overlap override", () => {
     vi.stubEnv("PLANNER_OVERLAP_ENABLED", "false");
     expect(getPlannerCapabilities().overlap).toBe(false);
+    vi.stubEnv("PLANNER_OVERLAP_ENABLED", "true");
+    expect(getPlannerCapabilities().overlap).toBe(true);
   });
 });

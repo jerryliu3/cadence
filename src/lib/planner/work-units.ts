@@ -141,19 +141,17 @@ function createUnitBase({
 
 function resolveDraftMoveWindow({
   eligibilityMode,
-  missPolicy,
   creditWindow,
   placementWindow,
 }: {
   eligibilityMode: PlannerEligibilityMode;
-  missPolicy: PlannerWorkUnit["missPolicy"];
   creditWindow: DateWindow;
   placementWindow: DateWindow | null;
 }) {
   if (placementWindow === null) {
     return null;
   }
-  if (eligibilityMode !== "overlap_v1" || missPolicy !== "roll_forward") {
+  if (eligibilityMode !== "overlap_v1") {
     return placementWindow;
   }
   if (compareDateStrings(creditWindow.end, placementWindow.start) < 0) {
@@ -233,7 +231,6 @@ export function materializeWorkUnits({
         placementWindow,
         draftMoveWindow: resolveDraftMoveWindow({
           eligibilityMode,
-          missPolicy: "roll_forward",
           creditWindow: lifetime,
           placementWindow,
         }),
@@ -302,7 +299,6 @@ export function materializeWorkUnits({
         placementWindow,
         draftMoveWindow: resolveDraftMoveWindow({
           eligibilityMode,
-          missPolicy: "remain_missed",
           creditWindow,
           placementWindow,
         }),

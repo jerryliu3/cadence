@@ -189,6 +189,13 @@ export async function GET(request: Request) {
       })
     );
 
+    const activePlanEligibilityMode =
+      snapshot.activePlan?.plan.eligibility_mode === "overlap_v1" ||
+      (routeContext.capabilities.overlap &&
+        snapshot.activePlan?.plan.eligibility_mode === "end_month_v1")
+        ? "overlap_v1"
+        : "end_month_v1";
+
     const staleness = snapshot.activePlan && kernel
       ? evaluateActivePlanStaleness({
           snapshot: {
@@ -199,10 +206,7 @@ export async function GET(request: Request) {
                 : snapshot.activePlan.plan.status === "dismissed"
                   ? "dismissed"
                   : "superseded",
-            eligibilityMode:
-              snapshot.activePlan.plan.eligibility_mode === "overlap_v1"
-                ? "overlap_v1"
-                : "end_month_v1",
+            eligibilityMode: activePlanEligibilityMode,
             timezone: snapshot.activePlan.plan.timezone,
             policyFingerprint: canonicalHash(snapshot.activePlan.policy),
             goals: Object.fromEntries(
