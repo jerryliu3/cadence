@@ -6,7 +6,29 @@ import type {
   PlannerDayDetailEntry,
 } from "@/features/planner/calendar-surface.types";
 
-export const monthWeekdayLabels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+const weekdayLabelsSunFirst = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+export function normalizeWeekStartsOn(
+  weekStartsOn: number | null | undefined
+): number {
+  if (
+    typeof weekStartsOn === "number" &&
+    Number.isInteger(weekStartsOn) &&
+    weekStartsOn >= 0 &&
+    weekStartsOn <= 6
+  ) {
+    return weekStartsOn;
+  }
+  return 1;
+}
+
+export function buildWeekdayLabels(weekStartsOn: number) {
+  const normalizedWeekStartsOn = normalizeWeekStartsOn(weekStartsOn);
+  return Array.from({ length: 7 }, (_, index) => {
+    const weekday = (normalizedWeekStartsOn + index) % 7;
+    return weekdayLabelsSunFirst[weekday] ?? "Mon";
+  });
+}
 
 export const restWeekdayOptions: Array<{ value: number; label: string }> = [
   { value: 0, label: "Sun" },

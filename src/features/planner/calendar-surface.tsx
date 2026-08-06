@@ -50,6 +50,7 @@ import {
   orderEntriesForDay as orderEntriesForDayFromState,
 } from "@/features/planner/calendar-entries";
 import {
+  buildWeekdayLabels,
   completionDisabledReasonCopy,
   createClientUuid,
   getEntryDraftDiffSummary,
@@ -61,8 +62,8 @@ import {
   isEntryCredited,
   isEntryImmovableForDraft,
   monthToLabel,
-  monthWeekdayLabels,
   moveItemInArray,
+  normalizeWeekStartsOn,
   parseMonth,
   restWeekdayOptions,
 } from "@/features/planner/calendar-format";
@@ -78,7 +79,7 @@ import {
   draftCommandReducer,
   initialDraftCommandState,
 } from "@/features/planner/draft-command-reducer";
-import { buildMondayFirstMonthCells } from "@/features/planner/month-cells";
+import { buildMonthCells } from "@/features/planner/month-cells";
 import { computeDayPreviewPosition } from "@/features/planner/day-preview-popup";
 import { getGoalVisual } from "@/features/planner/goal-visuals";
 import { getDateInTimezone, isValidIanaTimezone } from "@/lib/dates/timezone";
@@ -165,6 +166,7 @@ export function CalendarSurface({
   const [setupSpacing, setSetupSpacing] = useState<"front_load" | "even" | "flexible">(
     "flexible"
   );
+  const [setupWeekStartsOn, setSetupWeekStartsOn] = useState(1);
   const [setupRestWeekdays, setSetupRestWeekdays] = useState<number[]>([]);
   const hoverPreviewTimerRef = useRef<number | null>(null);
   const hoverPreviewCloseTimerRef = useRef<number | null>(null);
@@ -173,6 +175,25 @@ export function CalendarSurface({
   const pointerPressActiveRef = useRef(false);
   const pointerInsideDayPreviewRef = useRef(false);
   const dayPreviewRef = useRef<HTMLDivElement | null>(null);
+
+  const timezoneOptions = useMemo(() => {
+    const intlWithSupportedValues = Intl as typeof Intl & {
+      supportedValuesOf?: (key: string) => string[];
+    };
+    const supportedTimezones =
+      typeof intlWithSupportedValues.supportedValuesOf === "function"
+        ? intlWithSupportedValues.supportedValuesOf("timeZone")
+        : [];
+    const detectedTimezone =
+      Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+    return Array.from(
+      new Set(
+        [setupTimezone, detectedTimezone, "UTC", ...supportedTimezones].filter(
+          (timezone): timezone is string => Boolean(timezone)
+        )
+      )
+    ).sort((left, right) => left.localeCompare(right));
+  }, [setupTimezone]);
 
   const loadContext = useCallback(
     async ({
@@ -254,6 +275,9 @@ export function CalendarSurface({
     if (contextPayload.preferences?.timezone) {
       setSetupTimezone(contextPayload.preferences.timezone);
       setSetupSpacing(contextPayload.preferences.defaultPolicy.spacingStrategy);
+      setSetupWeekStartsOn(
+        normalizeWeekStartsOn(contextPayload.preferences.defaultPolicy.weekStartsOn)
+      );
       setSetupRestWeekdays(contextPayload.preferences.defaultPolicy.restWeekdays);
     }
     return true;
@@ -266,9 +290,12 @@ export function CalendarSurface({
     return () => window.clearTimeout(timer);
   }, [loadContext]);
 
+  const weekStartsOn = normalizeWeekStartsOn(
+    context?.preferences?.defaultPolicy.weekStartsOn
+  );
   const cells = useMemo(
-    () => (month ? buildMondayFirstMonthCells(month) : []),
-    [month]
+    () => (month ? buildMonthCells(month, weekStartsOn) : []),
+    [month, weekStartsOn]
   );
   const cellByDate = useMemo(
     () => new Map(cells.map((cell) => [cell.date, cell])),
@@ -283,12 +310,16 @@ export function CalendarSurface({
     const safeFocusedDay = isValid(parsedFocusedDay)
       ? parsedFocusedDay
       : parse(calendarToday, "yyyy-MM-dd", new Date());
-    const mondayOffset = (safeFocusedDay.getDay() + 6) % 7;
-    const weekStart = addDays(safeFocusedDay, -mondayOffset);
+    const weekStartOffset = (safeFocusedDay.getDay() - weekStartsOn + 7) % 7;
+    const weekStart = addDays(safeFocusedDay, -weekStartOffset);
     return Array.from({ length: 7 }, (_, index) =>
       format(addDays(weekStart, index), "yyyy-MM-dd")
     );
-  }, [calendarToday, focusedDay]);
+  }, [calendarToday, focusedDay, weekStartsOn]);
+  const weekdayLabels = useMemo(
+    () => buildWeekdayLabels(weekStartsOn),
+    [weekStartsOn]
+  );
   const focusedWeekCells = useMemo(() => {
     const monthPrefix = month ? `${month}-` : null;
     return focusedWeekDays.map((day) => {
@@ -509,6 +540,7 @@ export function CalendarSurface({
     );
     defaultPolicy.restWeekdays = [...setupRestWeekdays].sort((a, b) => a - b);
     defaultPolicy.spacingStrategy = setupSpacing;
+    defaultPolicy.weekStartsOn = normalizeWeekStartsOn(setupWeekStartsOn);
 
     const response = await fetch("/api/planner/preferences", {
       method: "PUT",
@@ -1486,7 +1518,7 @@ export function CalendarSurface({
   )}ch + ${viewMode === "month" ? "11rem" : "8rem"}))`;
   const viewDescription =
     viewMode === "month"
-      ? "Monday-first month view. Drag session pills to draft-move them."
+      ? `${restWeekdayOptions.find((option) => option.value === weekStartsOn)?.label ?? "Mon"}-first month view. Drag session pills to draft-move them.`
       : viewMode === "week"
         ? "Expanded 7-day planner view with drag-and-drop editing."
         : "Day agenda view with completion and detail controls.";
@@ -1656,11 +1688,18 @@ export function CalendarSurface({
     <div className="space-y-4">
       <label className="block space-y-1 text-sm">
         <span>Timezone (IANA)</span>
-        <Input
-          value={setupTimezone}
-          onChange={(event) => setSetupTimezone(event.target.value)}
-          placeholder="America/New_York"
-        />
+        <Select value={setupTimezone} onValueChange={setSetupTimezone}>
+          <SelectTrigger>
+            <SelectValue placeholder="Select timezone" />
+          </SelectTrigger>
+          <SelectContent className="max-h-80">
+            {timezoneOptions.map((timezone) => (
+              <SelectItem key={timezone} value={timezone}>
+                {timezone}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </label>
       <label className="block space-y-1 text-sm">
         <span>Spacing strategy</span>
@@ -1677,6 +1716,28 @@ export function CalendarSurface({
             <SelectItem value="front_load">Front load</SelectItem>
             <SelectItem value="even">Even</SelectItem>
             <SelectItem value="flexible">Flexible</SelectItem>
+          </SelectContent>
+        </Select>
+      </label>
+      <label className="block space-y-1 text-sm">
+        <span>First day of week</span>
+        <Select
+          value={`${setupWeekStartsOn}`}
+          onValueChange={(value) =>
+            setSetupWeekStartsOn(
+              normalizeWeekStartsOn(Number.parseInt(value, 10))
+            )
+          }
+        >
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {restWeekdayOptions.map((option) => (
+              <SelectItem key={option.value} value={`${option.value}`}>
+                {option.label}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </label>
@@ -1976,7 +2037,7 @@ export function CalendarSurface({
                 ) : (
                   <>
                     <div className="grid grid-cols-7 gap-2 text-center text-xs text-muted-foreground">
-                      {monthWeekdayLabels.map((weekday) => (
+                      {weekdayLabels.map((weekday) => (
                         <span key={weekday}>{weekday}</span>
                       ))}
                     </div>

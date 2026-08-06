@@ -31,6 +31,7 @@ export const plannerPolicySchema = z
       .max(100)
       .refine(isValidIanaTimezone, "Invalid IANA timezone."),
     timezoneConfirmedAt: z.string().datetime({ offset: true }),
+    weekStartsOn: weekdaySchema.optional(),
     restWeekdays: z.array(weekdaySchema).max(7),
     blackoutRanges: z.array(dateWindowSchema).max(MAX_POLICY_RANGES),
     goalAllowedWeekdays: z.record(
@@ -78,6 +79,7 @@ export function createDefaultPlannerPolicy(
     schemaVersion: POLICY_SCHEMA_VERSION,
     timezone,
     timezoneConfirmedAt,
+    weekStartsOn: 1,
     restWeekdays: [],
     blackoutRanges: [],
     goalAllowedWeekdays: {},
@@ -92,10 +94,15 @@ export function compilePlannerPolicy(policy: PlannerPolicy): CompiledPolicy {
   const parsed = plannerPolicySchema.parse(policy);
   const normalizeWeekdays = (weekdays: number[]) =>
     Array.from(new Set(weekdays)).sort((left, right) => left - right);
+  const normalizeWeekStartsOn = (weekStartsOn: number | undefined) =>
+    weekStartsOn !== undefined && weekStartsOn >= 0 && weekStartsOn <= 6
+      ? weekStartsOn
+      : 1;
   return {
     compilerVersion: POLICY_COMPILER_VERSION,
     policy: {
       ...parsed,
+      weekStartsOn: normalizeWeekStartsOn(parsed.weekStartsOn),
       restWeekdays: normalizeWeekdays(parsed.restWeekdays),
       blackoutRanges: [...parsed.blackoutRanges]
         .sort((left, right) => {
