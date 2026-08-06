@@ -21,7 +21,11 @@ export type DraftCommandAction =
     }
   | {
       type: "remove_kind";
-      kind: PlannerDraftCommand["kind"];
+      kind:
+        | "move_item"
+        | "rename_item"
+        | "set_item_time_override"
+        | "clear_item_time_override";
       goalId: string;
       unitKey: string;
     }
@@ -37,7 +41,11 @@ function commandTargetsEntry(
   goalId: string,
   unitKey: string
 ) {
-  return command.goalId === goalId && command.unitKey === unitKey;
+  return (
+    command.goalId === goalId &&
+    "unitKey" in command &&
+    command.unitKey === unitKey
+  );
 }
 
 export function draftCommandReducer(
@@ -70,15 +78,21 @@ export function draftCommandReducer(
 
   if (existingIndex >= 0) {
     const existing = state.commands[existingIndex];
+    const identity = {
+      id: existing.id,
+      sequence: existing.sequence,
+      goalId: existing.goalId,
+      unitKey: action.unitKey,
+    };
     const nextCommand: PlannerDraftCommand =
       action.type === "upsert_move"
         ? {
-            ...existing,
+            ...identity,
             kind: "move_item",
             scheduledDate: action.scheduledDate,
           }
         : {
-            ...existing,
+            ...identity,
             kind: "rename_item",
             label: action.label,
           };
