@@ -20,10 +20,12 @@ import {
 import { createDefaultAssessment, type GoalAssessment } from "@/lib/planner/assessment";
 import { normalizeGoalRequirement } from "@/lib/planner/requirements";
 import {
+  projectPlannerGoalDefaultTimes,
   projectPlannerDraftCommands,
   sortPlannerDraftCommands,
   type PlannerDraftCommand,
 } from "@/lib/planner/draft-commands";
+import { resolvePlannerEffectiveScheduledTime } from "@/lib/planner/schedule-time";
 
 type PlannerIssueSeverity = "informational" | "warning" | "blocking";
 
@@ -44,6 +46,7 @@ export interface PlannerDraftItemEdit {
   unitKey: string;
   scheduledDate: string | null;
   label: string | null;
+  scheduledTimeOverride?: string | null;
 }
 
 export class PlannerDraftEditValidationError extends Error {
@@ -178,8 +181,10 @@ function buildDraftEditKey(goalId: string, unitKey: string) {
 }
 
 function buildDraftItemEditsFromCommands(commands: PlannerDraftCommand[]) {
-  const projected = projectPlannerDraftCommands(sortPlannerDraftCommands(commands));
-  return Object.entries(projected)
+  const sortedCommands = sortPlannerDraftCommands(commands);
+  const projectedItems = projectPlannerDraftCommands(sortedCommands);
+  const projectedGoalDefaultTimes = projectPlannerGoalDefaultTimes(sortedCommands);
+  const draftItemEdits = Object.entries(projectedItems)
     .map(([entryKey, edit]) => {
       const separatorIndex = entryKey.indexOf(":");
       if (separatorIndex <= 0 || separatorIndex === entryKey.length - 1) {
@@ -191,9 +196,14 @@ function buildDraftItemEditsFromCommands(commands: PlannerDraftCommand[]) {
         scheduledDate:
           edit.scheduledDate === undefined ? null : edit.scheduledDate,
         label: edit.label === undefined ? null : edit.label,
+        scheduledTimeOverride: edit.scheduledTimeOverride,
       } as PlannerDraftItemEdit;
     })
     .filter((edit): edit is PlannerDraftItemEdit => edit !== null);
+  return {
+    draftItemEdits,
+    goalDefaultTimeOverrides: projectedGoalDefaultTimes,
+  };
 }
 
 function applyValidatedDraftItemEdits({
@@ -202,6 +212,7 @@ function applyValidatedDraftItemEdits({
   policy,
   kernelWorkUnits,
   draftItemEdits,
+  goalDefaultTimeOverrides,
   completions,
 }: {
   eligibilityMode: PlannerEligibilityMode;
@@ -209,19 +220,30 @@ function applyValidatedDraftItemEdits({
   policy: PlannerPolicy;
   kernelWorkUnits: PlannerKernelOutput["workUnits"];
   draftItemEdits: PlannerDraftItemEdit[];
+  goalDefaultTimeOverrides: Record<string, string | null>;
   completions: PlannerCanonicalSnapshot["completions"];
 }) {
-  if (draftItemEdits.length === 0) {
+  if (
+    draftItemEdits.length === 0 &&
+    Object.keys(goalDefaultTimeOverrides).length === 0
+  ) {
     return {
       workUnits: kernelWorkUnits.map((unit) => ({ ...unit })),
       draftMovedCount: 0,
       draftRelabeledCount: 0,
+      draftRetimedCount: 0,
     };
   }
 
   const compiledPolicy = compilePlannerPolicy(policy);
   const scopeWindow = getScopeDateRange(scopeMonth);
   const workUnits = kernelWorkUnits.map((unit) => ({ ...unit }));
+  const priorEffectiveTimeByKey = new Map(
+    workUnits.map((unit) => [
+      buildDraftEditKey(unit.originalGoalId, unit.unitKey),
+      unit.effectiveScheduledLocalTime ?? null,
+    ])
+  );
   const unitByKey = new Map(
     workUnits.map((unit) => [buildDraftEditKey(unit.originalGoalId, unit.unitKey), unit])
   );
@@ -368,6 +390,14 @@ function applyValidatedDraftItemEdits({
 
   let draftMovedCount = 0;
   let draftRelabeledCount = 0;
+  for (const unit of workUnits) {
+    const goalDefaultTime = goalDefaultTimeOverrides[unit.originalGoalId];
+    if (goalDefaultTime === undefined) {
+      continue;
+    }
+    unit.goalDefaultLocalTime = goalDefaultTime;
+  }
+
   for (const edit of draftItemEdits) {
     const key = buildDraftEditKey(edit.goalId, edit.unitKey);
     const unit = unitByKey.get(key);
@@ -384,9 +414,44 @@ function applyValidatedDraftItemEdits({
       unit.label = edit.label;
       draftRelabeledCount += 1;
     }
+    if (edit.scheduledTimeOverride !== undefined) {
+      unit.scheduledTimeOverride = edit.scheduledTimeOverride;
+    }
+  }
+  for (const unit of workUnits) {
+    const resolvedTime = resolvePlannerEffectiveScheduledTime({
+      scheduledDate: unit.scheduledDate,
+      goalDefaultLocalTime: unit.goalDefaultLocalTime ?? null,
+      scheduledTimeOverride: unit.scheduledTimeOverride ?? null,
+    });
+    if (
+      resolvedTime.goalDefaultLocalTime === null &&
+      resolvedTime.scheduledTimeOverride === null &&
+      resolvedTime.effectiveScheduledLocalTime === null
+    ) {
+      delete unit.goalDefaultLocalTime;
+      delete unit.scheduledTimeOverride;
+      delete unit.effectiveScheduledLocalTime;
+      delete unit.effectiveScheduledAtLocal;
+      continue;
+    }
+    unit.goalDefaultLocalTime = resolvedTime.goalDefaultLocalTime;
+    unit.scheduledTimeOverride = resolvedTime.scheduledTimeOverride;
+    unit.effectiveScheduledLocalTime = resolvedTime.effectiveScheduledLocalTime;
+    unit.effectiveScheduledAtLocal = resolvedTime.effectiveScheduledAtLocal;
   }
 
-  return { workUnits, draftMovedCount, draftRelabeledCount };
+  let draftRetimedCount = 0;
+  for (const unit of workUnits) {
+    const key = buildDraftEditKey(unit.originalGoalId, unit.unitKey);
+    const previous = priorEffectiveTimeByKey.get(key) ?? null;
+    const current = unit.effectiveScheduledLocalTime ?? null;
+    if (previous !== current) {
+      draftRetimedCount += 1;
+    }
+  }
+
+  return { workUnits, draftMovedCount, draftRelabeledCount, draftRetimedCount };
 }
 
 function assessmentForGoal(
@@ -482,7 +547,8 @@ export function buildPlannerPublishPersistencePayload({
     };
   });
 
-  const draftItemEdits = buildDraftItemEditsFromCommands(draftCommands);
+  const { draftItemEdits, goalDefaultTimeOverrides } =
+    buildDraftItemEditsFromCommands(draftCommands);
   const originalScheduledDateByKey = new Map(
     kernel.workUnits.map((unit) => [
       buildDraftEditKey(unit.originalGoalId, unit.unitKey),
@@ -493,12 +559,14 @@ export function buildPlannerPublishPersistencePayload({
     workUnits,
     draftMovedCount,
     draftRelabeledCount,
+    draftRetimedCount,
   } = applyValidatedDraftItemEdits({
     eligibilityMode: kernel.eligibilityMode,
     scopeMonth,
     policy,
     kernelWorkUnits: kernel.workUnits,
     draftItemEdits,
+    goalDefaultTimeOverrides,
     completions: snapshot.completions,
   });
   const unitsByDate = new Map<string, typeof workUnits>();
@@ -597,6 +665,7 @@ export function buildPlannerPublishPersistencePayload({
       draftCommands: draftCommands.length,
       draftMoved: draftMovedCount,
       draftRelabeled: draftRelabeledCount,
+      draftRetimed: draftRetimedCount,
       confirmationRequired: kernel.solver.confirmationRequired,
       publishable: kernel.solver.publishable,
     },
