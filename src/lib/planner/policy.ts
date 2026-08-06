@@ -82,7 +82,7 @@ export function createDefaultPlannerPolicy(
     blackoutRanges: [],
     goalAllowedWeekdays: {},
     datePreferences: [],
-    spacingStrategy: "even",
+    spacingStrategy: "flexible",
     goalSpacingStrategies: {},
     dailyCadenceRestExemption: true,
   });

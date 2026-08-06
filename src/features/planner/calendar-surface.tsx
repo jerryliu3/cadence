@@ -380,7 +380,7 @@ export function CalendarSurface({
     Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"
   );
   const [setupSpacing, setSetupSpacing] = useState<"front_load" | "even" | "flexible">(
-    "even"
+    "flexible"
   );
   const [setupRestWeekdays, setSetupRestWeekdays] = useState<number[]>([]);
   const hoverPreviewTimerRef = useRef<number | null>(null);
@@ -1039,9 +1039,24 @@ export function CalendarSurface({
       allowedGoalIds,
     });
     if (result.appliedPatchCount === 0) {
+      if (
+        result.noOpPatchCount > 0 &&
+        result.outOfScopePatchCount === 0 &&
+        result.unsupportedPatchCount === 0
+      ) {
+        setCoachPendingPatches([]);
+        setCoachUnresolvedQuestions([]);
+        appendCoachContextEvent("Coach proposal already matched current draft");
+        toast.success(
+          hasDraftSession
+            ? "Coach proposal already matches your draft policy. Your manual draft edits are still pending publish."
+            : "Coach proposal already matches your current policy."
+        );
+        return;
+      }
       toast.error(
-        result.ignoredPatchCount > 0
-          ? "Coach edits were already reflected in your current draft policy."
+        result.outOfScopePatchCount > 0
+          ? "Coach edits were received but none matched your current goal scope."
           : "No applicable policy changes were available to apply."
       );
       return;

@@ -5,6 +5,9 @@ export interface ApplyCoachPolicyPatchesResult {
   policy: PlannerPolicy;
   appliedPatchCount: number;
   ignoredPatchCount: number;
+  noOpPatchCount: number;
+  outOfScopePatchCount: number;
+  unsupportedPatchCount: number;
 }
 
 function dedupeWeekdays(weekdays: number[]) {
@@ -34,6 +37,9 @@ export function applyCoachPolicyPatches({
   const nextPolicy = structuredClone(policy);
   let appliedPatchCount = 0;
   let ignoredPatchCount = 0;
+  let noOpPatchCount = 0;
+  let outOfScopePatchCount = 0;
+  let unsupportedPatchCount = 0;
 
   for (const patch of patches) {
     switch (patch.kind) {
@@ -41,6 +47,7 @@ export function applyCoachPolicyPatches({
         const normalized = dedupeWeekdays(patch.restWeekdays);
         if (sameNumberArray(nextPolicy.restWeekdays, normalized)) {
           ignoredPatchCount += 1;
+          noOpPatchCount += 1;
           break;
         }
         nextPolicy.restWeekdays = normalized;
@@ -53,6 +60,7 @@ export function applyCoachPolicyPatches({
         );
         if (exists) {
           ignoredPatchCount += 1;
+          noOpPatchCount += 1;
           break;
         }
         nextPolicy.blackoutRanges.push({
@@ -77,6 +85,7 @@ export function applyCoachPolicyPatches({
       case "set_goal_allowed_weekdays": {
         if (!allowedGoalIds.has(patch.goalId)) {
           ignoredPatchCount += 1;
+          outOfScopePatchCount += 1;
           break;
         }
         const normalized = dedupeWeekdays(patch.weekdays);
@@ -84,6 +93,7 @@ export function applyCoachPolicyPatches({
           sameNumberArray(nextPolicy.goalAllowedWeekdays[patch.goalId], normalized)
         ) {
           ignoredPatchCount += 1;
+          noOpPatchCount += 1;
           break;
         }
         nextPolicy.goalAllowedWeekdays[patch.goalId] = normalized;
@@ -93,6 +103,7 @@ export function applyCoachPolicyPatches({
       case "clear_goal_allowed_weekdays": {
         if (!allowedGoalIds.has(patch.goalId)) {
           ignoredPatchCount += 1;
+          outOfScopePatchCount += 1;
           break;
         }
         if (patch.goalId in nextPolicy.goalAllowedWeekdays) {
@@ -100,12 +111,14 @@ export function applyCoachPolicyPatches({
           appliedPatchCount += 1;
         } else {
           ignoredPatchCount += 1;
+          noOpPatchCount += 1;
         }
         break;
       }
       case "set_goal_date_preference": {
         if (!isAllowedGoalId(patch.goalId, allowedGoalIds)) {
           ignoredPatchCount += 1;
+          outOfScopePatchCount += 1;
           break;
         }
         const exists = nextPolicy.datePreferences.some(
@@ -125,12 +138,14 @@ export function applyCoachPolicyPatches({
           appliedPatchCount += 1;
         } else {
           ignoredPatchCount += 1;
+          noOpPatchCount += 1;
         }
         break;
       }
       case "clear_goal_date_preference": {
         if (!isAllowedGoalId(patch.goalId, allowedGoalIds)) {
           ignoredPatchCount += 1;
+          outOfScopePatchCount += 1;
           break;
         }
         const before = nextPolicy.datePreferences.length;
@@ -145,12 +160,14 @@ export function applyCoachPolicyPatches({
           appliedPatchCount += 1;
         } else {
           ignoredPatchCount += 1;
+          noOpPatchCount += 1;
         }
         break;
       }
       case "set_spacing_strategy": {
         if (nextPolicy.spacingStrategy === patch.spacingStrategy) {
           ignoredPatchCount += 1;
+          noOpPatchCount += 1;
           break;
         }
         nextPolicy.spacingStrategy = patch.spacingStrategy;
@@ -160,10 +177,12 @@ export function applyCoachPolicyPatches({
       case "set_goal_spacing_strategy": {
         if (!allowedGoalIds.has(patch.goalId)) {
           ignoredPatchCount += 1;
+          outOfScopePatchCount += 1;
           break;
         }
         if (nextPolicy.goalSpacingStrategies[patch.goalId] === patch.spacingStrategy) {
           ignoredPatchCount += 1;
+          noOpPatchCount += 1;
           break;
         }
         nextPolicy.goalSpacingStrategies[patch.goalId] = patch.spacingStrategy;
@@ -172,6 +191,7 @@ export function applyCoachPolicyPatches({
       }
       default: {
         ignoredPatchCount += 1;
+        unsupportedPatchCount += 1;
         break;
       }
     }
@@ -181,5 +201,8 @@ export function applyCoachPolicyPatches({
     policy: compilePlannerPolicy(nextPolicy).policy,
     appliedPatchCount,
     ignoredPatchCount,
+    noOpPatchCount,
+    outOfScopePatchCount,
+    unsupportedPatchCount,
   };
 }
