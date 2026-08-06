@@ -415,6 +415,7 @@ export async function POST(request: Request) {
     const publishArgs: PublishExecutionPlanArgs = {
         p_owner: routeContext.userId,
         p_scope_month: `${body.scopeMonth}-01`,
+        p_eligibility_mode: effectiveEligibilityMode,
         p_timezone: metadata.timezone,
         p_generation_source: persistence.generationSource,
         p_change_summary: persistence.changeSummary,
