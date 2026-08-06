@@ -33,11 +33,47 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
+  buildActiveGoalIndexes,
+  buildCoachSummaryWorkUnits,
+  buildCompletionFactMarkersByDate,
+  buildCompletionFactUnitsByGoalDate,
+  buildEntriesByDate,
+  buildEntryByKey,
+  buildEntryDayByKey,
+  buildPreviewUnitByEntryKey,
+  orderEntriesForDay as orderEntriesForDayFromState,
+} from "@/features/planner/calendar-entries";
+import {
+  completionDisabledReasonCopy,
+  createClientUuid,
+  getDayStatus,
+  getEntryDisplayTitle,
+  getEntrySubtitle,
+  getMonthInTimezone,
+  isEntryCredited,
+  isEntryImmovableForDraft,
+  monthToLabel,
+  monthWeekdayLabels,
+  moveItemInArray,
+  parseMonth,
+  restWeekdayOptions,
+} from "@/features/planner/calendar-format";
+import {
   type PlannerDragTarget,
   PlannerDndProvider,
 } from "@/features/planner/calendar-dnd";
 import { CalendarDayPreviewList } from "@/features/planner/calendar-day-preview-list";
 import { CalendarMonthDayCell } from "@/features/planner/calendar-month-day-cell";
+import {
+  buildCoachSessionKey,
+  COACH_SESSION_MAX_MESSAGES,
+  loadCoachSession,
+  saveCoachSession,
+} from "@/features/planner/coach-session";
+import {
+  draftCommandReducer,
+  initialDraftCommandState,
+} from "@/features/planner/draft-command-reducer";
 import { buildMondayFirstMonthCells } from "@/features/planner/month-cells";
 import { applyCoachPolicyPatches } from "@/features/planner/coach-policy";
 import { buildCoachDeterministicSummary } from "@/features/planner/coach-context";
@@ -51,10 +87,8 @@ import {
 } from "@/lib/planner/completion-dispatch";
 import type { CoachPolicyPatch } from "@/lib/planner/coach";
 import {
-  draftCommandEntryKey,
   projectPlannerDraftCommands,
   sortPlannerDraftCommands,
-  type PlannerDraftCommand,
 } from "@/lib/planner/draft-commands";
 import { buildPlannerConfirmationHash } from "@/lib/planner/publish-payload";
 import {
@@ -64,470 +98,23 @@ import {
   plannerPolicySchema,
   type PlannerPolicy,
 } from "@/lib/planner/policy";
-
-type CalendarTab = "today" | "not-today" | "calendar";
-
-interface PlannerContextPayload {
-  schemaVersion: "1";
-  scopeMonth: string;
-  asOfDate: string;
-  timezone: string;
-  goalTitles: Record<string, string>;
-  preferences: {
-    timezone: string;
-    timezoneConfirmedAt: string;
-    policyRevision: number;
-    defaultPolicy: PlannerPolicy;
-  } | null;
-  capabilities: {
-    plannerRead: boolean;
-    plannerGeneration: boolean;
-    plannerPlanWrites: boolean;
-    targetedExactCompletion: boolean;
-    coachAi: boolean;
-  };
-  activePlan: {
-    plan: {
-      id: string;
-      version: number;
-      status: "active" | "superseded" | "dismissed";
-    };
-    goals: PlannerActiveGoalSnapshot[];
-    items: PlannerActiveItemSnapshot[];
-  } | null;
-  preview: {
-    generationInputHash: string;
-    solver: {
-      placementStatus: "complete" | "partial";
-      searchStatus:
-        | "all_units_placed"
-        | "maximum_partial"
-        | "blocked_invalid_lock"
-        | "soft_optimization_exhausted";
-      issueCodes: string[];
-      confirmationRequired: boolean;
-    };
-    workUnits: PlannerWorkUnit[];
-  } | null;
-  revisions: {
-    canonicalRevision: number;
-    executionRevision: number;
-  };
-  staleness: {
-    stale: boolean;
-    reasons: Array<{ code: string }>;
-  };
-}
-
-interface PlannerWorkUnit {
-  originalGoalId: string;
-  unitKey: string;
-  kind?: "milestone_sequence" | "cadence" | "deadline_total";
-  label: string | null;
-  scheduledDate: string | null;
-  placementWindow?: {
-    start: string;
-    end: string;
-  } | null;
-  restEligible?: boolean;
-  classification: string;
-  creditState: string;
-  creditedCompletionDate?: string | null;
-}
-
-interface PlannerActiveGoalSnapshot {
-  id: string;
-  goal_id: string | null;
-  original_goal_id: string;
-  requirement_fingerprint: string;
-  title: string;
-  category: string;
-  color: string | null;
-}
-
-interface PlannerActiveItemSnapshot {
-  id: string;
-  plan_goal_id: string;
-  unit_key: string;
-  requirement_kind: "milestone_sequence" | "cadence" | "deadline_total";
-  scheduled_date: string | null;
-  classification: string;
-  credit_state: string;
-  locked: boolean;
-  revision: number;
-  credited_completion_id: string | null;
-  credited_completion_date: string | null;
-}
-
-interface PlannerDayDetailEntry {
-  key: string;
-  originalGoalId: string;
-  goalTitle: string | null;
-  unitKey: string;
-  label: string | null;
-  classification: string;
-  creditState: string;
-  activeGoal: PlannerActiveGoalSnapshot | null;
-  activeItem: PlannerActiveItemSnapshot | null;
-}
-
-interface PlannerCompletionFactMarker {
-  key: string;
-  originalGoalId: string;
-  unitKey: string;
-  goalTitle: string;
-  scheduledDate: string | null;
-}
-
-interface DayPreviewState {
-  day: string;
-  pinned: boolean;
-  position: {
-    top: number;
-    left: number;
-    width: number;
-    placement: "above" | "below";
-  };
-}
-
-interface PlannerErrorPayload {
-  code?: string;
-  message?: string;
-  details?: Record<string, unknown>;
-}
-
-interface DraftItemEdit {
-  scheduledDate?: string | null;
-  label?: string | null;
-}
-
-interface DraftCommandState {
-  commands: PlannerDraftCommand[];
-  nextSequence: number;
-}
-
-type DraftCommandAction =
-  | {
-      type: "upsert_move";
-      goalId: string;
-      unitKey: string;
-      scheduledDate: string | null;
-    }
-  | {
-      type: "upsert_rename";
-      goalId: string;
-      unitKey: string;
-      label: string | null;
-    }
-  | {
-      type: "remove_kind";
-      kind: PlannerDraftCommand["kind"];
-      goalId: string;
-      unitKey: string;
-    }
-  | { type: "clear" };
-
-const initialDraftCommandState: DraftCommandState = {
-  commands: [],
-  nextSequence: 0,
-};
-
-function commandTargetsEntry(
-  command: PlannerDraftCommand,
-  goalId: string,
-  unitKey: string
-) {
-  return command.goalId === goalId && command.unitKey === unitKey;
-}
-
-function draftCommandReducer(
-  state: DraftCommandState,
-  action: DraftCommandAction
-): DraftCommandState {
-  if (action.type === "clear") {
-    return initialDraftCommandState;
-  }
-
-  if (action.type === "remove_kind") {
-    return {
-      ...state,
-      commands: state.commands.filter(
-        (command) =>
-          !(
-            command.kind === action.kind &&
-            commandTargetsEntry(command, action.goalId, action.unitKey)
-          )
-      ),
-    };
-  }
-
-  const existingIndex = state.commands.findIndex(
-    (command) =>
-      command.kind ===
-        (action.type === "upsert_move" ? "move_item" : "rename_item") &&
-      commandTargetsEntry(command, action.goalId, action.unitKey)
-  );
-
-  if (existingIndex >= 0) {
-    const existing = state.commands[existingIndex];
-    const nextCommand: PlannerDraftCommand =
-      action.type === "upsert_move"
-        ? {
-            ...existing,
-            kind: "move_item",
-            scheduledDate: action.scheduledDate,
-          }
-        : {
-            ...existing,
-            kind: "rename_item",
-            label: action.label,
-          };
-    const nextCommands = [...state.commands];
-    nextCommands[existingIndex] = nextCommand;
-    return {
-      ...state,
-      commands: nextCommands,
-    };
-  }
-
-  const nextSequence = state.nextSequence + 1;
-  const nextCommand: PlannerDraftCommand =
-    action.type === "upsert_move"
-      ? {
-          id: createClientUuid(),
-          sequence: nextSequence,
-          kind: "move_item",
-          goalId: action.goalId,
-          unitKey: action.unitKey,
-          scheduledDate: action.scheduledDate,
-        }
-      : {
-          id: createClientUuid(),
-          sequence: nextSequence,
-          kind: "rename_item",
-          goalId: action.goalId,
-          unitKey: action.unitKey,
-          label: action.label,
-        };
-
-  return {
-    commands: [...state.commands, nextCommand],
-    nextSequence,
-  };
-}
-
-interface PlannerPreviewResponsePayload {
-  preview: PlannerContextPayload["preview"];
-}
-
-interface PlannerPreferencesPayload {
-  schemaVersion: "1";
-  preferences: {
-    timezone: string;
-    timezoneConfirmedAt: string;
-    policyRevision: number;
-    defaultPolicy: PlannerPolicy;
-  } | null;
-}
-
-interface CalendarSurfaceProps {
-  activeTab: CalendarTab;
-  month: string | null;
-  selectedDay: string | null;
-  onMonthChange: (month: string, mode: "push" | "replace") => void;
-  onCloseDay: () => void;
-  onPlannerMutation: () => void;
-}
-
-const monthWeekdayLabels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-const restWeekdayOptions: Array<{ value: number; label: string }> = [
-  { value: 0, label: "Sun" },
-  { value: 1, label: "Mon" },
-  { value: 2, label: "Tue" },
-  { value: 3, label: "Wed" },
-  { value: 4, label: "Thu" },
-  { value: 5, label: "Fri" },
-  { value: 6, label: "Sat" },
-];
-const COACH_SESSION_MAX_MESSAGES = 20;
-const COACH_SESSION_TTL_MS = 1000 * 60 * 60 * 12;
+import type {
+  CalendarSurfaceProps,
+  CoachLastProposalMeta,
+  CoachMessage,
+  CoachResponsePayload,
+  CompletionControlDisabledReason,
+  DayPreviewState,
+  DraftItemEdit,
+  PlannerContextPayload,
+  PlannerDayDetailEntry,
+  PlannerErrorPayload,
+  PlannerPreferencesPayload,
+  PlannerPreviewResponsePayload,
+} from "@/features/planner/calendar-surface.types";
 const DAY_PREVIEW_HOVER_DELAY_MS = 500;
 const DAY_PREVIEW_CLOSE_DELAY_MS = 180;
 const DAY_PREVIEW_LONG_PRESS_DELAY_MS = 500;
-
-type CoachMessageRole = "user" | "assistant";
-
-interface CoachMessage {
-  role: CoachMessageRole;
-  content: string;
-  createdAt: number;
-}
-
-interface CoachResponsePayload {
-  schemaVersion: "1";
-  phase: "discovery" | "review" | "ready" | "explain";
-  reply: string;
-  proposal?: {
-    policyPatches?: CoachPolicyPatch[];
-    unresolvedQuestions?: string[];
-  };
-  warnings?: string[];
-  recommendations?: Array<{ text: string }>;
-}
-
-interface CoachLastProposalMeta {
-  policyPatchCount: number;
-}
-
-function parseMonth(month: string) {
-  return parse(`${month}-01`, "yyyy-MM-dd", new Date());
-}
-
-function getMonthInTimezone(timezone: string) {
-  return getDateInTimezone(new Date(), timezone).slice(0, 7);
-}
-
-function isDerivedCounterLabel(value: string | null) {
-  if (!value) {
-    return false;
-  }
-  return /^total:\d+$/i.test(value.trim());
-}
-
-function getEntryDisplayTitle(entry: Pick<PlannerDayDetailEntry, "goalTitle" | "label" | "unitKey">) {
-  if (entry.goalTitle) {
-    return entry.goalTitle;
-  }
-  if (entry.label && !isDerivedCounterLabel(entry.label)) {
-    return entry.label;
-  }
-  return entry.unitKey;
-}
-
-function getEntrySubtitle(entry: Pick<PlannerDayDetailEntry, "goalTitle" | "label">) {
-  if (!entry.label || isDerivedCounterLabel(entry.label)) {
-    return null;
-  }
-  if (entry.goalTitle && entry.label === entry.goalTitle) {
-    return null;
-  }
-  return entry.label;
-}
-
-function monthToLabel(month: string) {
-  return format(parseMonth(month), "MMMM yyyy");
-}
-
-function getDayStatus(
-  itemsForDay: Array<{ classification: string; creditState: string }>,
-  fallback: string
-) {
-  if (!itemsForDay || itemsForDay.length === 0) {
-    return fallback;
-  }
-  if (itemsForDay.some((item) => item.classification.startsWith("historical"))) {
-    return "Historical";
-  }
-  if (itemsForDay.some((item) => item.creditState !== "uncredited")) {
-    return "Completed";
-  }
-  return "Planned";
-}
-
-type CompletionControlDisabledReason =
-  | "future_creation"
-  | "satisfied_elsewhere"
-  | "out_of_scope_route"
-  | "unsupported";
-
-function isEntryCredited(entry: PlannerDayDetailEntry) {
-  return (
-    entry.creditState !== "uncredited" ||
-    Boolean(entry.activeItem?.credited_completion_id)
-  );
-}
-
-function isEntryImmovableForDraft(entry: PlannerDayDetailEntry) {
-  return (
-    isEntryCredited(entry) ||
-    entry.classification === "satisfied_elsewhere" ||
-    entry.classification === "historical_miss" ||
-    entry.classification === "historical_shortfall"
-  );
-}
-
-function completionDisabledReasonCopy(reason: CompletionControlDisabledReason) {
-  if (reason === "future_creation") {
-    return "You can only mark planner sessions done for today or past dates.";
-  }
-  if (reason === "satisfied_elsewhere") {
-    return "This session is already satisfied by a completion elsewhere.";
-  }
-  if (reason === "out_of_scope_route") {
-    return "This session is outside the active publish scope for completion updates.";
-  }
-  return "This session cannot be updated from the current planner snapshot.";
-}
-
-function moveItemInArray<T>(items: T[], fromIndex: number, toIndex: number) {
-  const next = [...items];
-  const [moved] = next.splice(fromIndex, 1);
-  next.splice(toIndex, 0, moved);
-  return next;
-}
-
-function createClientUuid() {
-  if (globalThis.crypto?.randomUUID) {
-    return globalThis.crypto.randomUUID();
-  }
-  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (char) => {
-    const random = Math.floor(Math.random() * 16);
-    const value = char === "x" ? random : (random & 0x3) | 0x8;
-    return value.toString(16);
-  });
-}
-
-function buildCoachSessionKey(scopeMonth: string, timezone: string) {
-  return `planner-coach-session:v1:${scopeMonth}:${timezone}`;
-}
-
-function loadCoachSession(scopeMonth: string, timezone: string): CoachMessage[] {
-  try {
-    const raw = sessionStorage.getItem(buildCoachSessionKey(scopeMonth, timezone));
-    if (!raw) {
-      return [];
-    }
-    const parsed = JSON.parse(raw) as
-      | { expiresAt: number; messages: CoachMessage[] }
-      | null;
-    if (!parsed || parsed.expiresAt < Date.now()) {
-      sessionStorage.removeItem(buildCoachSessionKey(scopeMonth, timezone));
-      return [];
-    }
-    return parsed.messages.slice(-COACH_SESSION_MAX_MESSAGES);
-  } catch {
-    return [];
-  }
-}
-
-function saveCoachSession(
-  scopeMonth: string,
-  timezone: string,
-  messages: CoachMessage[]
-) {
-  try {
-    const payload = {
-      expiresAt: Date.now() + COACH_SESSION_TTL_MS,
-      messages: messages.slice(-COACH_SESSION_MAX_MESSAGES),
-    };
-    sessionStorage.setItem(
-      buildCoachSessionKey(scopeMonth, timezone),
-      JSON.stringify(payload)
-    );
-  } catch {
-    // Ignore storage failures (private mode/quota) and keep in-memory state.
-  }
-}
 
 export function CalendarSurface({
   activeTab,
@@ -577,6 +164,7 @@ export function CalendarSurface({
   const [dayPreview, setDayPreview] = useState<DayPreviewState | null>(null);
   const [draggingEntryKey, setDraggingEntryKey] = useState<string | null>(null);
   const [localSelectedDay, setLocalSelectedDay] = useState<string | null>(null);
+  const [expandedMonthRows, setExpandedMonthRows] = useState(false);
   const [previewEntryOrderByDay, setPreviewEntryOrderByDay] = useState<
     Record<string, string[]>
   >({});
@@ -737,239 +325,60 @@ export function CalendarSurface({
     [draftMatchesCurrentScope, effectiveDraftCommands]
   );
   const effectivePreview = effectiveDraftPreview ?? context?.preview ?? null;
-  const activeGoalsByPlanGoalId = useMemo(() => {
-    const map = new Map<string, PlannerActiveGoalSnapshot>();
-    for (const goal of context?.activePlan?.goals ?? []) {
-      map.set(goal.id, goal);
-    }
-    return map;
-  }, [context?.activePlan?.goals]);
+  const activeGoalIndexes = useMemo(
+    () => buildActiveGoalIndexes(context?.activePlan?.goals),
+    [context?.activePlan?.goals]
+  );
+  const activeGoalsByPlanGoalId = activeGoalIndexes.byPlanGoalId;
+  const activeGoalsByOriginalGoalId = activeGoalIndexes.byOriginalGoalId;
 
-  const activeGoalsByOriginalGoalId = useMemo(() => {
-    const map = new Map<string, PlannerActiveGoalSnapshot>();
-    for (const goal of context?.activePlan?.goals ?? []) {
-      map.set(goal.original_goal_id, goal);
-    }
-    return map;
-  }, [context?.activePlan?.goals]);
-
-  const entriesByDate = useMemo(() => {
-    const byDate = new Map<string, Map<string, PlannerDayDetailEntry>>();
-    const entryByKey = new Map<string, PlannerDayDetailEntry>();
-    const entryDayByKey = new Map<string, string>();
-    const setEntryOnDay = (
-      day: string,
-      key: string,
-      entry: PlannerDayDetailEntry
-    ) => {
-      const existingDay = entryDayByKey.get(key);
-      if (existingDay && existingDay !== day) {
-        byDate.get(existingDay)?.delete(key);
-      }
-      const existing = byDate.get(day);
-      if (existing) {
-        existing.set(key, entry);
-      } else {
-        const created = new Map<string, PlannerDayDetailEntry>();
-        created.set(key, entry);
-        byDate.set(day, created);
-      }
-      entryByKey.set(key, entry);
-      entryDayByKey.set(key, day);
-    };
-
-    for (const unit of effectivePreview?.workUnits ?? []) {
-      if (!unit.scheduledDate) {
-        continue;
-      }
-      const key = `${unit.originalGoalId}:${unit.unitKey}`;
-      setEntryOnDay(unit.scheduledDate, key, {
-        key,
-        originalGoalId: unit.originalGoalId,
-        goalTitle:
-          activeGoalsByOriginalGoalId.get(unit.originalGoalId)?.title ??
-          context?.goalTitles?.[unit.originalGoalId] ??
-          null,
-        unitKey: unit.unitKey,
-        label: unit.label,
-        classification: unit.classification,
-        creditState: unit.creditState,
-        activeGoal: activeGoalsByOriginalGoalId.get(unit.originalGoalId) ?? null,
-        activeItem: null,
-      });
-    }
-
-    for (const item of context?.activePlan?.items ?? []) {
-      const activeGoal = activeGoalsByPlanGoalId.get(item.plan_goal_id) ?? null;
-      const originalGoalId = activeGoal?.original_goal_id ?? item.plan_goal_id;
-      const key = `${originalGoalId}:${item.unit_key}`;
-      const existingEntry = entryByKey.get(key);
-      if (existingEntry) {
-        const existingDay = entryDayByKey.get(key);
-        if (!existingDay) {
-          continue;
-        }
-        setEntryOnDay(existingDay, key, {
-          ...existingEntry,
-          goalTitle:
-            existingEntry.goalTitle ??
-            activeGoal?.title ??
-            context?.goalTitles?.[originalGoalId] ??
-            null,
-          activeGoal: existingEntry.activeGoal ?? activeGoal,
-          activeItem: item,
-        });
-        continue;
-      }
-      if (!item.scheduled_date) {
-        continue;
-      }
-      setEntryOnDay(item.scheduled_date, key, {
-        key,
-        originalGoalId,
-        goalTitle: activeGoal?.title ?? context?.goalTitles?.[originalGoalId] ?? null,
-        unitKey: item.unit_key,
-        label: activeGoal?.title ?? item.unit_key,
-        classification: item.classification,
-        creditState: item.credit_state,
-        activeGoal,
-        activeItem: item,
-      });
-    }
-
-    for (const [key, edit] of Object.entries(effectiveDraftItemEdits)) {
-      const existingEntry = entryByKey.get(key);
-      if (!existingEntry) {
-        continue;
-      }
-      const currentDay = entryDayByKey.get(key) ?? null;
-      const nextDay =
-        edit.scheduledDate === undefined ? currentDay : edit.scheduledDate;
-      const nextGoalTitle =
-        edit.label === undefined
-          ? existingEntry.goalTitle
-          : edit.label ?? existingEntry.goalTitle;
-
-      if (currentDay) {
-        byDate.get(currentDay)?.delete(key);
-      }
-      if (!nextDay) {
-        entryByKey.delete(key);
-        entryDayByKey.delete(key);
-        continue;
-      }
-
-      setEntryOnDay(nextDay, key, {
-        ...existingEntry,
-        goalTitle: nextGoalTitle,
-        activeItem: existingEntry.activeItem
-          ? {
-              ...existingEntry.activeItem,
-              scheduled_date: nextDay,
-            }
-          : null,
-      });
-    }
-
-    return new Map(
-      Array.from(byDate.entries()).map(([day, dayEntries]) => [
-        day,
-        Array.from(dayEntries.values()),
-      ])
-    );
-  }, [
-    activeGoalsByOriginalGoalId,
-    activeGoalsByPlanGoalId,
-    context?.goalTitles,
-    context?.activePlan?.items,
-    effectiveDraftItemEdits,
-    effectivePreview?.workUnits,
-  ]);
-  const entryByKey = useMemo(() => {
-    const map = new Map<string, PlannerDayDetailEntry>();
-    for (const entries of entriesByDate.values()) {
-      for (const entry of entries) {
-        map.set(entry.key, entry);
-      }
-    }
-    return map;
-  }, [entriesByDate]);
-  const entryDayByKey = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const [day, entries] of entriesByDate.entries()) {
-      for (const entry of entries) {
-        map.set(entry.key, day);
-      }
-    }
-    return map;
-  }, [entriesByDate]);
-  const previewUnitByEntryKey = useMemo(() => {
-    const map = new Map<string, PlannerWorkUnit>();
-    for (const unit of effectivePreview?.workUnits ?? []) {
-      map.set(
-        draftCommandEntryKey({
-          goalId: unit.originalGoalId,
-          unitKey: unit.unitKey,
-        }),
-        unit
-      );
-    }
-    return map;
-  }, [effectivePreview?.workUnits]);
-  const completionFactUnitsByGoalDate = useMemo(() => {
-    const map = new Map<string, PlannerWorkUnit[]>();
-    for (const unit of effectivePreview?.workUnits ?? []) {
-      if (!unit.creditedCompletionDate) {
-        continue;
-      }
-      const key = `${unit.originalGoalId}:${unit.creditedCompletionDate}`;
-      const existing = map.get(key) ?? [];
-      existing.push(unit);
-      map.set(key, existing);
-    }
-    return map;
-  }, [effectivePreview?.workUnits]);
-  const completionFactMarkersByDate = useMemo(() => {
-    const map = new Map<string, PlannerCompletionFactMarker[]>();
-    const scopePrefix = currentScopeMonth ? `${currentScopeMonth}-` : null;
-    for (const unit of effectivePreview?.workUnits ?? []) {
-      if (!unit.creditedCompletionDate) {
-        continue;
-      }
-      if (unit.creditedCompletionDate === unit.scheduledDate) {
-        continue;
-      }
-      if (scopePrefix && !unit.creditedCompletionDate.startsWith(scopePrefix)) {
-        continue;
-      }
-      const markerDay = unit.creditedCompletionDate;
-      const markersForDay = map.get(markerDay) ?? [];
-      const goalTitle =
-        activeGoalsByOriginalGoalId.get(unit.originalGoalId)?.title ??
-        context?.goalTitles?.[unit.originalGoalId] ??
-        unit.label ??
-        unit.unitKey;
-      markersForDay.push({
-        key: `${unit.originalGoalId}:${unit.unitKey}:${markerDay}`,
-        originalGoalId: unit.originalGoalId,
-        unitKey: unit.unitKey,
-        goalTitle,
-        scheduledDate: unit.scheduledDate,
-      });
-      map.set(markerDay, markersForDay);
-    }
-    for (const markersForDay of map.values()) {
-      markersForDay.sort((left, right) =>
-        left.goalTitle.localeCompare(right.goalTitle)
-      );
-    }
-    return map;
-  }, [
-    activeGoalsByOriginalGoalId,
-    context?.goalTitles,
-    currentScopeMonth,
-    effectivePreview?.workUnits,
-  ]);
+  const entriesByDate = useMemo(
+    () =>
+      buildEntriesByDate({
+        workUnits: effectivePreview?.workUnits,
+        activeItems: context?.activePlan?.items,
+        activeGoalsByPlanGoalId,
+        activeGoalsByOriginalGoalId,
+        goalTitles: context?.goalTitles,
+        draftItemEdits: effectiveDraftItemEdits,
+      }),
+    [
+      activeGoalsByOriginalGoalId,
+      activeGoalsByPlanGoalId,
+      context?.goalTitles,
+      context?.activePlan?.items,
+      effectiveDraftItemEdits,
+      effectivePreview?.workUnits,
+    ]
+  );
+  const entryByKey = useMemo(() => buildEntryByKey(entriesByDate), [entriesByDate]);
+  const entryDayByKey = useMemo(
+    () => buildEntryDayByKey(entriesByDate),
+    [entriesByDate]
+  );
+  const previewUnitByEntryKey = useMemo(
+    () => buildPreviewUnitByEntryKey(effectivePreview?.workUnits),
+    [effectivePreview?.workUnits]
+  );
+  const completionFactUnitsByGoalDate = useMemo(
+    () => buildCompletionFactUnitsByGoalDate(effectivePreview?.workUnits),
+    [effectivePreview?.workUnits]
+  );
+  const completionFactMarkersByDate = useMemo(
+    () =>
+      buildCompletionFactMarkersByDate({
+        workUnits: effectivePreview?.workUnits,
+        currentScopeMonth,
+        activeGoalsByOriginalGoalId,
+        goalTitles: context?.goalTitles,
+      }),
+    [
+      activeGoalsByOriginalGoalId,
+      context?.goalTitles,
+      currentScopeMonth,
+      effectivePreview?.workUnits,
+    ]
+  );
   const compiledPolicyForDraftMoves = useMemo(() => {
     if (!context?.preferences) {
       return null;
@@ -985,42 +394,12 @@ export function CalendarSurface({
   );
 
   const orderEntriesForDay = useCallback(
-    (day: string | null, entries: PlannerDayDetailEntry[]) => {
-      if (!day || entries.length === 0) {
-        return entries;
-      }
-      const dayEntryKeys = entries.map((entry) => entry.key);
-      const savedOrder = previewEntryOrderByDay[day] ?? [];
-      const order = [
-        ...savedOrder.filter((entryKey) => dayEntryKeys.includes(entryKey)),
-        ...dayEntryKeys.filter((entryKey) => !savedOrder.includes(entryKey)),
-      ];
-      const orderIndex = new Map(order.map((entryKey, index) => [entryKey, index]));
-      const compareWithinGroup = (
-        left: PlannerDayDetailEntry,
-        right: PlannerDayDetailEntry
-      ) => {
-        const leftOrder = orderIndex.get(left.key);
-        const rightOrder = orderIndex.get(right.key);
-        if (leftOrder !== undefined && rightOrder !== undefined) {
-          return leftOrder - rightOrder;
-        }
-        if (leftOrder !== undefined) {
-          return -1;
-        }
-        if (rightOrder !== undefined) {
-          return 1;
-        }
-        return getEntryDisplayTitle(left).localeCompare(getEntryDisplayTitle(right));
-      };
-      const incomplete = entries
-        .filter((entry) => !isEntryCredited(entry))
-        .sort(compareWithinGroup);
-      const completed = entries
-        .filter((entry) => isEntryCredited(entry))
-        .sort(compareWithinGroup);
-      return [...incomplete, ...completed];
-    },
+    (day: string | null, entries: PlannerDayDetailEntry[]) =>
+      orderEntriesForDayFromState({
+        day,
+        entries,
+        previewEntryOrderByDay,
+      }),
     [previewEntryOrderByDay]
   );
 
@@ -1030,22 +409,10 @@ export function CalendarSurface({
       getEntriesForDay(effectiveSelectedDay)
     );
   }, [effectiveSelectedDay, getEntriesForDay, orderEntriesForDay]);
-  const coachSummaryWorkUnits = useMemo(() => {
-    const units: PlannerWorkUnit[] = [];
-    for (const [day, entries] of entriesByDate.entries()) {
-      for (const entry of entries) {
-        units.push({
-          originalGoalId: entry.originalGoalId,
-          unitKey: entry.unitKey,
-          label: entry.label,
-          scheduledDate: day,
-          classification: entry.classification,
-          creditState: entry.creditState,
-        });
-      }
-    }
-    return units;
-  }, [entriesByDate]);
+  const coachSummaryWorkUnits = useMemo(
+    () => buildCoachSummaryWorkUnits(entriesByDate),
+    [entriesByDate]
+  );
 
   const selectedEventEntry = useMemo(
     () =>
@@ -2475,9 +1842,20 @@ export function CalendarSurface({
                   </Badge>
                 ) : null}
               </div>
-              <p className="text-xs text-muted-foreground">
-                Monday-first month view. Drag session pills to draft-move them.
-              </p>
+              <div className="flex items-center gap-2">
+                <p className="text-xs text-muted-foreground">
+                  Monday-first month view. Drag session pills to draft-move them.
+                </p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={loading}
+                  onClick={() => setExpandedMonthRows((current) => !current)}
+                >
+                  {expandedMonthRows ? "Compact rows" : "Expand rows"}
+                </Button>
+              </div>
             </div>
             <PlannerDndProvider
               getEntryLabel={getDragEntryLabel}
@@ -2527,6 +1905,9 @@ export function CalendarSurface({
                       ariaLabel={ariaLabel}
                       entriesForDay={entriesForDay}
                       completionFactMarkersForDay={completionFactMarkersForDay}
+                      maxVisibleItems={
+                        expandedMonthRows ? Number.MAX_SAFE_INTEGER : 2
+                      }
                       isAnyEntryDragging={Boolean(draggingEntryKey)}
                       getEntryDisplayTitle={getEntryDisplayTitle}
                       isEntryCredited={isEntryCredited}

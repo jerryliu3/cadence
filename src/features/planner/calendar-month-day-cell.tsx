@@ -37,6 +37,7 @@ interface CalendarMonthDayCellProps<
   ariaLabel: string;
   entriesForDay: TEntry[];
   completionFactMarkersForDay: TCompletionFactMarker[];
+  maxVisibleItems?: number;
   isAnyEntryDragging: boolean;
   getEntryDisplayTitle: (entry: TEntry) => string;
   isEntryCredited: (entry: TEntry) => boolean;
@@ -55,7 +56,7 @@ interface CalendarMonthDayCellProps<
   onEntryPointerEnd: () => void;
 }
 
-const MAX_VISIBLE_ITEMS_PER_DAY_CELL = 2;
+const DEFAULT_MAX_VISIBLE_ITEMS_PER_DAY_CELL = 2;
 
 export function CalendarMonthDayCell<
   TEntry extends CalendarMonthCellEntryBase,
@@ -68,6 +69,7 @@ export function CalendarMonthDayCell<
   ariaLabel,
   entriesForDay,
   completionFactMarkersForDay,
+  maxVisibleItems = DEFAULT_MAX_VISIBLE_ITEMS_PER_DAY_CELL,
   isAnyEntryDragging,
   getEntryDisplayTitle,
   isEntryCredited,
@@ -84,10 +86,13 @@ export function CalendarMonthDayCell<
 }: CalendarMonthDayCellProps<TEntry, TCompletionFactMarker>) {
   const hasVisibleContent =
     entriesForDay.length > 0 || completionFactMarkersForDay.length > 0;
-  const visibleEntries = entriesForDay.slice(0, MAX_VISIBLE_ITEMS_PER_DAY_CELL);
+  const maxVisibleItemsPerCell = Number.isFinite(maxVisibleItems)
+    ? Math.max(0, Math.floor(maxVisibleItems))
+    : entriesForDay.length + completionFactMarkersForDay.length;
+  const visibleEntries = entriesForDay.slice(0, maxVisibleItemsPerCell);
   const remainingSlots = Math.max(
     0,
-    MAX_VISIBLE_ITEMS_PER_DAY_CELL - visibleEntries.length
+    maxVisibleItemsPerCell - visibleEntries.length
   );
   const visibleCompletionFactMarkers = completionFactMarkersForDay.slice(
     0,
