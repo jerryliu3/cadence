@@ -73,6 +73,7 @@ import {
   getGoalRequirement,
   isTargetedRecurringGoal,
 } from "@/lib/planner/requirements";
+import { withPlannerRefreshTimeout } from "@/lib/planner/refresh-timeout";
 import { createClient } from "@/lib/supabase/client";
 
 interface TodayData {
@@ -130,28 +131,6 @@ const recurrenceGroupLabel: Record<RecurrenceGroup, string> = {
   monthly: "Monthly",
   fixed: "Fixed",
 };
-const TODAY_COMPLETION_REFRESH_TIMEOUT_MS = 15_000;
-
-async function withTimeout<T>(
-  operation: Promise<T>,
-  timeoutMs: number,
-  timeoutMessage: string
-) {
-  let timeoutId: ReturnType<typeof setTimeout> | null = null;
-  const timeoutPromise = new Promise<T>((_, reject) => {
-    timeoutId = setTimeout(() => {
-      reject(new Error(timeoutMessage));
-    }, timeoutMs);
-  });
-  try {
-    return await Promise.race([operation, timeoutPromise]);
-  } finally {
-    if (timeoutId) {
-      clearTimeout(timeoutId);
-    }
-  }
-}
-
 function goalCompletionsMap(completions: CompletionDateFact[]) {
   const grouped = new Map<string, CompletionDateFact[]>();
   completions.forEach((completion) => {
@@ -651,11 +630,10 @@ export function TodayTab({
             : viewDate;
         toast.success(`Marked as incomplete for ${removedDate}.`);
       }
-      await withTimeout(
-        loadData({ showLoading: false, forceRefresh: true }),
-        TODAY_COMPLETION_REFRESH_TIMEOUT_MS,
-        "Goal progress refresh timed out. Please refresh to sync."
-      );
+      await withPlannerRefreshTimeout({
+        operation: loadData({ showLoading: false, forceRefresh: true }),
+        timeoutMessage: "Goal progress refresh timed out. Please refresh to sync.",
+      });
       requestAnimationFrame(() => {
         window.scrollTo({ top: currentScrollY, behavior: "auto" });
       });
