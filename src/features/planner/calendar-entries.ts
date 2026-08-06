@@ -8,6 +8,7 @@ import type {
   PlannerActiveItemSnapshot,
   PlannerCompletionFactMarker,
   PlannerDayDetailEntry,
+  PlannerVisibleMonthContextPayload,
   PlannerWorkUnit,
 } from "@/features/planner/calendar-surface.types";
 import { diffPlannerAssignmentsForDraftVisual } from "@/lib/planner/diff";
@@ -359,25 +360,19 @@ export function buildCompletionFactUnitsByGoalDate(
 
 export function buildCompletionFactMarkersByDate({
   workUnits,
-  currentScopeMonth,
   activeGoalsByOriginalGoalId,
   goalTitles,
 }: {
   workUnits: PlannerWorkUnit[] | undefined;
-  currentScopeMonth: string | null;
   activeGoalsByOriginalGoalId: Map<string, PlannerActiveGoalSnapshot>;
   goalTitles: Record<string, string> | undefined;
 }) {
   const map = new Map<string, PlannerCompletionFactMarker[]>();
-  const scopePrefix = currentScopeMonth ? `${currentScopeMonth}-` : null;
   for (const unit of workUnits ?? []) {
     if (!unit.creditedCompletionDate) {
       continue;
     }
     if (unit.creditedCompletionDate === unit.scheduledDate) {
-      continue;
-    }
-    if (scopePrefix && !unit.creditedCompletionDate.startsWith(scopePrefix)) {
       continue;
     }
     const markerDay = unit.creditedCompletionDate;
@@ -400,6 +395,93 @@ export function buildCompletionFactMarkersByDate({
     markersForDay.sort((left, right) => left.goalTitle.localeCompare(right.goalTitle));
   }
   return map;
+}
+
+export function buildVisibleMonthCalendarDataByMonth(
+  contextsByMonth: Record<string, PlannerVisibleMonthContextPayload>
+) {
+  const monthDataByMonth = new Map<
+    string,
+    {
+      entriesByDate: Map<string, PlannerDayDetailEntry[]>;
+      completionFactMarkersByDate: Map<string, PlannerCompletionFactMarker[]>;
+    }
+  >();
+  for (const [visibleMonth, visibleMonthContext] of Object.entries(contextsByMonth)) {
+    const visibleMonthGoalIndexes = buildActiveGoalIndexes(
+      visibleMonthContext.activePlan?.goals
+    );
+    const entriesByDate = buildEntriesByDate({
+      baselineWorkUnits: visibleMonthContext.preview?.workUnits,
+      workUnits: visibleMonthContext.preview?.workUnits,
+      activeItems: visibleMonthContext.activePlan?.items,
+      activeGoalsByPlanGoalId: visibleMonthGoalIndexes.byPlanGoalId,
+      activeGoalsByOriginalGoalId: visibleMonthGoalIndexes.byOriginalGoalId,
+      goalTitles: visibleMonthContext.goalTitles,
+      draftItemEdits: {},
+    });
+    const completionFactMarkersByDate = buildCompletionFactMarkersByDate({
+      workUnits: visibleMonthContext.preview?.workUnits,
+      activeGoalsByOriginalGoalId: visibleMonthGoalIndexes.byOriginalGoalId,
+      goalTitles: visibleMonthContext.goalTitles,
+    });
+    monthDataByMonth.set(visibleMonth, {
+      entriesByDate,
+      completionFactMarkersByDate,
+    });
+  }
+  return monthDataByMonth;
+}
+
+export function resolveCalendarDayData({
+  day,
+  entriesByDate,
+  completionFactMarkersByDate,
+  visibleMonthCalendarDataByMonth,
+}: {
+  day: string | null;
+  entriesByDate: Map<string, PlannerDayDetailEntry[]>;
+  completionFactMarkersByDate: Map<string, PlannerCompletionFactMarker[]>;
+  visibleMonthCalendarDataByMonth: Map<
+    string,
+    {
+      entriesByDate: Map<string, PlannerDayDetailEntry[]>;
+      completionFactMarkersByDate: Map<string, PlannerCompletionFactMarker[]>;
+    }
+  >;
+}) {
+  if (!day) {
+    return {
+      entries: [] as PlannerDayDetailEntry[],
+      completionFactMarkers: [] as PlannerCompletionFactMarker[],
+    };
+  }
+  const currentEntries = entriesByDate.get(day) ?? [];
+  const currentCompletionFactMarkers = completionFactMarkersByDate.get(day) ?? [];
+  const visibleMonthData = visibleMonthCalendarDataByMonth.get(day.slice(0, 7));
+  const supplementalEntries = visibleMonthData?.entriesByDate.get(day) ?? [];
+  const supplementalCompletionFactMarkers =
+    visibleMonthData?.completionFactMarkersByDate.get(day) ?? [];
+  const mergedEntriesByKey = new Map(
+    currentEntries.map((entry) => [entry.key, entry])
+  );
+  for (const entry of supplementalEntries) {
+    if (!mergedEntriesByKey.has(entry.key)) {
+      mergedEntriesByKey.set(entry.key, entry);
+    }
+  }
+  const mergedCompletionFactMarkersByKey = new Map(
+    currentCompletionFactMarkers.map((marker) => [marker.key, marker])
+  );
+  for (const marker of supplementalCompletionFactMarkers) {
+    if (!mergedCompletionFactMarkersByKey.has(marker.key)) {
+      mergedCompletionFactMarkersByKey.set(marker.key, marker);
+    }
+  }
+  return {
+    entries: Array.from(mergedEntriesByKey.values()),
+    completionFactMarkers: Array.from(mergedCompletionFactMarkersByKey.values()),
+  };
 }
 
 export function orderEntriesForDay({

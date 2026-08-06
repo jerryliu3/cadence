@@ -14,6 +14,7 @@ Set these server-side environment variables before enabling wider cohorts:
 - `PLANNER_TELEMETRY_HMAC_KEY`: minimum 32 characters, server-only secret.
 - `PLANNER_TELEMETRY_HMAC_KEY_VERSION`: positive integer key version (default `1`).
 - `CALENDAR_TELEMETRY_COHORT`: short cohort label (default `internal`).
+- `PLANNER_OVERLAP_ENABLED`: optional emergency override (`false`) to disable default-on overlap eligibility during incident response.
 
 Telemetry emits structured JSON log lines prefixed with `[planner-telemetry]`.
 Owner identifiers are never logged directly; events use HMAC pseudonyms.
@@ -98,3 +99,4 @@ Start with these minimum alerts:
 1. Enable manual planner cohort first (`CALENDAR_ENABLED=true` for internal users).
 2. Observe telemetry and query panels through soak window.
 3. Expand broader cohorts only after manual planner stability is established.
+4. Treat overlap as default-on baseline; use `PLANNER_OVERLAP_ENABLED=false` only as a rollback kill switch. Note that cross-month draft persistence remains intentionally guarded by month-scope lineage checks until the dedicated persistence expansion lands.

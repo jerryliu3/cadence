@@ -182,7 +182,7 @@ describe("buildPlannerPublishPersistencePayload draft edit validation", () => {
     expect(moved?.scheduled_date).toBe("2026-08-08");
   });
 
-  it("rejects overlap draft moves when persistence lineage is scope-bound", () => {
+  it("persists overlap draft moves outside the scope month", () => {
     const snapshot = createSnapshot([]);
     const kernel = {
       ...createKernel("2026-08-28"),
@@ -197,24 +197,30 @@ describe("buildPlannerPublishPersistencePayload draft edit validation", () => {
     } as PlannerKernelOutput;
     const policy = createDefaultPlannerPolicy("UTC", "2026-08-01T00:00:00.000Z");
 
-    expect(() =>
-      buildPlannerPublishPersistencePayload({
-        scopeMonth: "2026-08",
-        policy,
-        kernel,
-        snapshot,
-        assessments: [createDefaultAssessment(baseGoal)],
-        draftCommands: [
-          {
-            id: "30000000-0000-4000-8000-000000000012",
-            sequence: 1,
-            kind: "move_item",
-            goalId: GOAL_ID,
-            unitKey: "total:1",
-            scheduledDate: "2026-09-03",
-          },
-        ],
-      })
-    ).toThrowError(PlannerDraftEditValidationError);
+    const payload = buildPlannerPublishPersistencePayload({
+      scopeMonth: "2026-08",
+      policy,
+      kernel,
+      snapshot,
+      assessments: [createDefaultAssessment(baseGoal)],
+      draftCommands: [
+        {
+          id: "30000000-0000-4000-8000-000000000012",
+          sequence: 1,
+          kind: "move_item",
+          goalId: GOAL_ID,
+          unitKey: "total:1",
+          scheduledDate: "2026-09-03",
+        },
+      ],
+    });
+
+    const moved = payload.items.find((item) => item.unit_key === "total:1");
+    expect(moved).toMatchObject({
+      scheduled_date: "2026-09-03",
+      placement_window_start: "2026-08-01",
+      placement_window_end: "2026-09-15",
+    });
+    expect(payload.days.some((day) => day.date === "2026-09-03")).toBe(true);
   });
 });

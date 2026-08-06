@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { buildEntriesByDate } from "./calendar-entries";
+import {
+  buildCompletionFactMarkersByDate,
+  buildEntriesByDate,
+} from "./calendar-entries";
 import type { PlannerWorkUnit } from "./calendar-surface.types";
 
 function unit({
@@ -54,5 +57,35 @@ describe("buildEntriesByDate draft visual diff", () => {
       draftDiffFromDate: "2026-08-05",
       draftDiffToDate: "2026-08-07",
     });
+  });
+});
+
+describe("buildCompletionFactMarkersByDate", () => {
+  it("includes markers outside the current scope month when visible", () => {
+    const markersByDate = buildCompletionFactMarkersByDate({
+      workUnits: [
+        {
+          ...unit({
+            goalId: "goal-a",
+            unitKey: "total:1",
+            scheduledDate: "2026-08-31",
+          }),
+          creditedCompletionDate: "2026-09-01",
+          creditState: "completed_elsewhere",
+        },
+      ],
+      activeGoalsByOriginalGoalId: new Map(),
+      goalTitles: { "goal-a": "Goal A" },
+    });
+
+    expect(markersByDate.get("2026-09-01")).toEqual([
+      {
+        key: "goal-a:total:1:2026-09-01",
+        originalGoalId: "goal-a",
+        unitKey: "total:1",
+        goalTitle: "Goal A",
+        scheduledDate: "2026-08-31",
+      },
+    ]);
   });
 });

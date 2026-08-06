@@ -63,6 +63,24 @@ export interface PlannerContextPayload {
   };
 }
 
+export interface PlannerVisibleMonthContextPayload {
+  scopeMonth: string;
+  goalTitles: Record<string, string>;
+  activePlan: PlannerContextPayload["activePlan"];
+  preview: PlannerContextPayload["preview"];
+}
+
+export interface PlannerVisibleWindowContextPayload {
+  schemaVersion: "1";
+  scopeMonth: string;
+  window: {
+    startDate: string;
+    endDate: string;
+  };
+  contextsByMonth: Record<string, PlannerVisibleMonthContextPayload>;
+  correlationId?: string;
+}
+
 export interface PlannerWorkUnit {
   originalGoalId: string;
   unitKey: string;

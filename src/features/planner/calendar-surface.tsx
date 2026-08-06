@@ -46,7 +46,9 @@ import {
   buildEntriesByDate,
   buildEntryByKey,
   buildEntryDayByKey,
+  buildVisibleMonthCalendarDataByMonth,
   buildPreviewUnitByEntryKey,
+  resolveCalendarDayData,
   orderEntriesForDay as orderEntriesForDayFromState,
 } from "@/features/planner/calendar-entries";
 import {
@@ -111,6 +113,7 @@ import type {
   PlannerPreferencesPayload,
   PlannerPreviewResponsePayload,
 } from "@/features/planner/calendar-surface.types";
+import { usePlannerVisibleMonthContexts } from "@/features/planner/use-planner-visible-month-contexts";
 const DAY_PREVIEW_HOVER_DELAY_MS = 500;
 const DAY_PREVIEW_CLOSE_DELAY_MS = 180;
 const DAY_PREVIEW_LONG_PRESS_DELAY_MS = 500;
@@ -333,6 +336,20 @@ export function CalendarSurface({
       };
     });
   }, [cellByDate, focusedWeekDays, month]);
+  const visibleDays = useMemo(() => {
+    if (viewMode === "week") {
+      return focusedWeekDays;
+    }
+    if (viewMode === "day") {
+      return [focusedDay];
+    }
+    return cells.map((cell) => cell.date);
+  }, [cells, focusedDay, focusedWeekDays, viewMode]);
+  const visibleMonthContexts = usePlannerVisibleMonthContexts({
+    activeTab,
+    scopeMonth: month,
+    visibleDays,
+  });
   const currentScopeMonth = context?.scopeMonth ?? month;
   const draftMatchesCurrentScope =
     Boolean(currentScopeMonth) && draftScopeMonth === currentScopeMonth;
@@ -361,6 +378,9 @@ export function CalendarSurface({
   );
   const activeGoalsByPlanGoalId = activeGoalIndexes.byPlanGoalId;
   const activeGoalsByOriginalGoalId = activeGoalIndexes.byOriginalGoalId;
+  const visibleMonthCalendarDataByMonth = useMemo(() => {
+    return buildVisibleMonthCalendarDataByMonth(visibleMonthContexts);
+  }, [visibleMonthContexts]);
 
   const entriesByDate = useMemo(
     () =>
@@ -400,14 +420,12 @@ export function CalendarSurface({
     () =>
       buildCompletionFactMarkersByDate({
         workUnits: effectivePreview?.workUnits,
-        currentScopeMonth,
         activeGoalsByOriginalGoalId,
         goalTitles: context?.goalTitles,
       }),
     [
       activeGoalsByOriginalGoalId,
       context?.goalTitles,
-      currentScopeMonth,
       effectivePreview?.workUnits,
     ]
   );
@@ -420,9 +438,48 @@ export function CalendarSurface({
   }, [context?.preferences, effectiveDraftPolicy]);
   const effectiveSelectedDay = localSelectedDay;
 
+  const isDayInCurrentScopeMonth = useCallback(
+    (day: string | null) => {
+      if (!day || !month) {
+        return false;
+      }
+      return day.slice(0, 7) === month;
+    },
+    [month]
+  );
+  const getCalendarDayData = useCallback(
+    (day: string | null) =>
+      resolveCalendarDayData({
+        day,
+        entriesByDate,
+        completionFactMarkersByDate,
+        visibleMonthCalendarDataByMonth,
+      }),
+    [
+      completionFactMarkersByDate,
+      entriesByDate,
+      visibleMonthCalendarDataByMonth,
+    ]
+  );
+  const canMutateEntryOnDay = useCallback(
+    (entry: PlannerDayDetailEntry, day: string | null) => {
+      if (!day) {
+        return false;
+      }
+      if (isDayInCurrentScopeMonth(day)) {
+        return true;
+      }
+      return entryDayByKey.get(entry.key) === day;
+    },
+    [entryDayByKey, isDayInCurrentScopeMonth]
+  );
   const getEntriesForDay = useCallback(
-    (day: string | null) => (day ? entriesByDate.get(day) ?? [] : []),
-    [entriesByDate]
+    (day: string | null) => getCalendarDayData(day).entries,
+    [getCalendarDayData]
+  );
+  const getCompletionFactMarkersForDay = useCallback(
+    (day: string | null) => getCalendarDayData(day).completionFactMarkers,
+    [getCalendarDayData]
   );
 
   const orderEntriesForDay = useCallback(
@@ -446,8 +503,8 @@ export function CalendarSurface({
     [focusedDay, getEntriesForDay, orderEntriesForDay]
   );
   const focusedDayCompletionFactMarkers = useMemo(
-    () => completionFactMarkersByDate.get(focusedDay) ?? [],
-    [completionFactMarkersByDate, focusedDay]
+    () => getCompletionFactMarkersForDay(focusedDay),
+    [focusedDay, getCompletionFactMarkersForDay]
   );
   const selectedEventEntry = useMemo(
     () =>
@@ -469,8 +526,8 @@ export function CalendarSurface({
     [dayPreview?.day, getEntriesForDay, orderEntriesForDay]
   );
   const previewDayCompletionFactMarkers = useMemo(
-    () => completionFactMarkersByDate.get(dayPreview?.day ?? "") ?? [],
-    [completionFactMarkersByDate, dayPreview?.day]
+    () => getCompletionFactMarkersForDay(dayPreview?.day ?? null),
+    [dayPreview?.day, getCompletionFactMarkersForDay]
   );
 
   useEffect(
@@ -1431,16 +1488,6 @@ export function CalendarSurface({
         );
         return;
       }
-      if (
-        payload.code === "validation_failed" &&
-        payload.details?.stage === "draft_edits" &&
-        payload.details?.code === "draft_item_scope_lineage_mismatch"
-      ) {
-        toast.error(
-          "Cross-month draft moves preview correctly, but publish still persists monthly scope snapshots. Move out-of-month sessions back into this month before publishing."
-        );
-        return;
-      }
       toast.error(payload.message ?? "Planner publish failed.");
       return;
     }
@@ -1592,6 +1639,8 @@ export function CalendarSurface({
       context?.activePlan?.plan.status === "active"
   );
   const publishButtonLabel = publishLoading ? "Publishing..." : "Publish plan";
+  const readOnlyMonthHint =
+    "This session belongs to another month snapshot. Open that month to edit it.";
   const selectedEventCompletionDispatch = selectedEventEntry
     ? getDateFactDispatchForEntry(selectedEventEntry)
     : null;
@@ -1609,8 +1658,9 @@ export function CalendarSurface({
     setSelectedEventEntryKey(entryKey);
   };
   const renderCalendarDayCell = (cell: { date: string; inMonth: boolean }) => {
-    const entriesForDay = orderEntriesForDay(cell.date, getEntriesForDay(cell.date));
-    const completionFactMarkersForDay = completionFactMarkersByDate.get(cell.date) ?? [];
+    const dayData = getCalendarDayData(cell.date);
+    const entriesForDay = orderEntriesForDay(cell.date, dayData.entries);
+    const completionFactMarkersForDay = dayData.completionFactMarkers;
     const status =
       entriesForDay.length > 0
         ? getDayStatus(entriesForDay, "No items")
@@ -1648,8 +1698,13 @@ export function CalendarSurface({
         isAnyEntryDragging={Boolean(draggingEntryKey)}
         getEntryDisplayTitle={getEntryDisplayTitle}
         isEntryCredited={isEntryCredited}
-        isEntryImmovableForDraft={isEntryImmovableForDraft}
+        isEntryImmovableForDraft={(entry) =>
+          !canMutateEntryOnDay(entry, cell.date) || isEntryImmovableForDraft(entry)
+        }
         onEntryClick={(day, entry) => {
+          if (!canMutateEntryOnDay(entry, day)) {
+            return;
+          }
           openEntryDetails(day, entry.key);
         }}
         onCellClick={(target) => {
@@ -2013,8 +2068,17 @@ export function CalendarSurface({
                         getEntryDisplayTitle={getEntryDisplayTitle}
                         getEntrySubtitle={getEntrySubtitle}
                         isEntryCredited={isEntryCredited}
-                        isEntryImmovableForDraft={isEntryImmovableForDraft}
+                        isEntryImmovableForDraft={(entry) =>
+                          !canMutateEntryOnDay(entry, focusedDay) ||
+                          isEntryImmovableForDraft(entry)
+                        }
                         getCompletionToggleState={(entry, day) => {
+                          if (!canMutateEntryOnDay(entry, day)) {
+                            return {
+                              currentlyCredited: isEntryCredited(entry),
+                              disabledReasonCopy: readOnlyMonthHint,
+                            };
+                          }
                           const dayCompletionDispatch = getDateFactDispatchForEntry(entry, day);
                           const dayCompletionDisabledReason =
                             completionControlDisabledReasonForEntry(
@@ -2031,9 +2095,18 @@ export function CalendarSurface({
                           };
                         }}
                         onEntryOpen={(entryKey) => {
+                          const entry = focusedDayEntries.find(
+                            (candidate) => candidate.key === entryKey
+                          );
+                          if (!entry || !canMutateEntryOnDay(entry, focusedDay)) {
+                            return;
+                          }
                           openEntryDetails(focusedDay, entryKey);
                         }}
                         onToggleCompletion={(entry, day) => {
+                          if (!canMutateEntryOnDay(entry, day)) {
+                            return;
+                          }
                           void toggleDateFact(entry, day);
                         }}
                         onEntryPointerStart={(immovable) => {
@@ -2140,8 +2213,17 @@ export function CalendarSurface({
                     getEntryDisplayTitle={getEntryDisplayTitle}
                     getEntrySubtitle={getEntrySubtitle}
                     isEntryCredited={isEntryCredited}
-                    isEntryImmovableForDraft={isEntryImmovableForDraft}
+                    isEntryImmovableForDraft={(entry) =>
+                      !canMutateEntryOnDay(entry, dayPreview.day) ||
+                      isEntryImmovableForDraft(entry)
+                    }
                     getCompletionToggleState={(entry, day) => {
+                      if (!canMutateEntryOnDay(entry, day)) {
+                        return {
+                          currentlyCredited: isEntryCredited(entry),
+                          disabledReasonCopy: readOnlyMonthHint,
+                        };
+                      }
                       const previewCompletionDispatch = getDateFactDispatchForEntry(
                         entry,
                         day
@@ -2161,9 +2243,18 @@ export function CalendarSurface({
                       };
                     }}
                     onEntryOpen={(entryKey) => {
+                      const entry = previewDayEntries.find(
+                        (candidate) => candidate.key === entryKey
+                      );
+                      if (!entry || !canMutateEntryOnDay(entry, dayPreview.day)) {
+                        return;
+                      }
                       openEntryDetails(dayPreview.day, entryKey);
                     }}
                     onToggleCompletion={(entry, day) => {
+                      if (!canMutateEntryOnDay(entry, day)) {
+                        return;
+                      }
                       void toggleDateFact(entry, day);
                     }}
                     onEntryPointerStart={(immovable) => {

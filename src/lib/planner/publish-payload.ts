@@ -53,7 +53,6 @@ export class PlannerDraftEditValidationError extends Error {
       | "draft_item_unknown"
       | "draft_item_unmovable"
       | "draft_item_out_of_window"
-      | "draft_item_scope_lineage_mismatch"
       | "draft_item_policy_blocked"
       | "draft_item_completion_exists"
       | "draft_item_collision",
@@ -150,6 +149,28 @@ const issueSeverityByCode: Record<
 
 function countByKind(diff: PlannerKernelOutput["diff"], kind: PlannerKernelOutput["diff"][number]["kind"]) {
   return diff.filter((entry) => entry.kind === kind).length;
+}
+
+function mergePlacementAndDraftMoveWindow(
+  placementWindow: PlannerKernelOutput["workUnits"][number]["placementWindow"],
+  draftMoveWindow: PlannerKernelOutput["workUnits"][number]["draftMoveWindow"]
+) {
+  if (!placementWindow) {
+    return draftMoveWindow ?? null;
+  }
+  if (!draftMoveWindow) {
+    return placementWindow;
+  }
+  return {
+    start:
+      placementWindow.start <= draftMoveWindow.start
+        ? placementWindow.start
+        : draftMoveWindow.start,
+    end:
+      placementWindow.end >= draftMoveWindow.end
+        ? placementWindow.end
+        : draftMoveWindow.end,
+  };
 }
 
 function buildDraftEditKey(goalId: string, unitKey: string) {
@@ -480,29 +501,6 @@ export function buildPlannerPublishPersistencePayload({
     draftItemEdits,
     completions: snapshot.completions,
   });
-  if (kernel.eligibilityMode !== "end_month_v1") {
-    const scopeWindow = getScopeDateRange(scopeMonth);
-    const outOfScopeDraftItem = workUnits.find((unit) => {
-      if (unit.scheduledDate === null) {
-        return false;
-      }
-      return (
-        unit.scheduledDate < scopeWindow.start || unit.scheduledDate > scopeWindow.end
-      );
-    });
-    if (outOfScopeDraftItem) {
-      throw new PlannerDraftEditValidationError(
-        "draft_item_scope_lineage_mismatch",
-        "Cross-month draft moves are not persistable with the current scope lineage schema.",
-        {
-          goalId: outOfScopeDraftItem.originalGoalId,
-          unitKey: outOfScopeDraftItem.unitKey,
-          scheduledDate: outOfScopeDraftItem.scheduledDate,
-          scopeMonth,
-        }
-      );
-    }
-  }
   const unitsByDate = new Map<string, typeof workUnits>();
   for (const unit of workUnits) {
     if (!unit.scheduledDate) {
@@ -512,33 +510,43 @@ export function buildPlannerPublishPersistencePayload({
     existing.push(unit);
     unitsByDate.set(unit.scheduledDate, existing);
   }
-
-  const days = enumerateDates(getScopeDateRange(scopeMonth)).map((date) => {
-    const unitsForDate = unitsByDate.get(date) ?? [];
-    const effortMinutes = unitsForDate.reduce((total, unit) => {
-      const assessment = assessmentByGoalId.get(unit.originalGoalId);
-      return total + (assessment?.estimatedMinutesPerSession ?? 30);
-    }, 0);
-    const isBlocked = policy.blackoutRanges.some(
-      (range) => date >= range.start && date <= range.end
-    );
-    return {
-      date,
-      is_rest_day: policy.restWeekdays.includes(getUtcWeekday(date)),
-      is_blocked: isBlocked,
-      preference_cost: 0,
-      resolved_policy: {
-        schemaVersion: POLICY_SCHEMA_VERSION,
-        timezone: policy.timezone,
-      },
-      generation_session_count: unitsForDate.length,
-      generation_effort_minutes: effortMinutes,
-    };
-  });
+  const scopeWindow = getScopeDateRange(scopeMonth);
+  const dayDates = new Set(enumerateDates(scopeWindow));
+  for (const scheduledDate of unitsByDate.keys()) {
+    dayDates.add(scheduledDate);
+  }
+  const days = Array.from(dayDates)
+    .sort()
+    .map((date) => {
+      const unitsForDate = unitsByDate.get(date) ?? [];
+      const effortMinutes = unitsForDate.reduce((total, unit) => {
+        const assessment = assessmentByGoalId.get(unit.originalGoalId);
+        return total + (assessment?.estimatedMinutesPerSession ?? 30);
+      }, 0);
+      const isBlocked = policy.blackoutRanges.some(
+        (range) => date >= range.start && date <= range.end
+      );
+      return {
+        date,
+        is_rest_day: policy.restWeekdays.includes(getUtcWeekday(date)),
+        is_blocked: isBlocked,
+        preference_cost: 0,
+        resolved_policy: {
+          schemaVersion: POLICY_SCHEMA_VERSION,
+          timezone: policy.timezone,
+        },
+        generation_session_count: unitsForDate.length,
+        generation_effort_minutes: effortMinutes,
+      };
+    });
 
   const items = workUnits.map((unit) => {
     const assessment = assessmentByGoalId.get(unit.originalGoalId);
     const itemKey = buildDraftEditKey(unit.originalGoalId, unit.unitKey);
+    const persistedPlacementWindow = mergePlacementAndDraftMoveWindow(
+      unit.placementWindow,
+      unit.draftMoveWindow
+    );
     return {
       goal_id: unit.originalGoalId,
       unit_key: unit.unitKey,
@@ -548,8 +556,8 @@ export function buildPlannerPublishPersistencePayload({
       label: unit.label,
       credit_window_start: unit.creditWindow.start,
       credit_window_end: unit.creditWindow.end,
-      placement_window_start: unit.placementWindow?.start ?? null,
-      placement_window_end: unit.placementWindow?.end ?? null,
+      placement_window_start: persistedPlacementWindow?.start ?? null,
+      placement_window_end: persistedPlacementWindow?.end ?? null,
       classification: unit.classification,
       miss_policy: unit.missPolicy,
       rest_eligible: unit.restEligible,

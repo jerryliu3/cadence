@@ -485,6 +485,13 @@ export async function POST(request: Request) {
           }
         );
       }
+      if (message.includes("cross_plan_goal_date_conflict")) {
+        throw new PlannerRouteError(
+          409,
+          "cross_plan_conflict",
+          "Another active month plan already schedules this goal on the destination date."
+        );
+      }
       throw new PlannerRouteError(
         409,
         "publish_failed",
