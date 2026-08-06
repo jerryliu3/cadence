@@ -96,7 +96,7 @@ export function CalendarDayPreviewList<
                   <div
                     ref={setNodeRef}
                     style={style}
-                    className={`flex items-start gap-2 rounded border p-1.5 transition-colors ${pillToneClasses} ${
+                    className={`flex items-start gap-2 rounded-lg border p-1.5 transition-colors ${pillToneClasses} ${
                       entry.draftGhost ? "opacity-75" : ""
                     } ${
                       isOver
@@ -191,7 +191,7 @@ export function CalendarDayPreviewList<
           {completionFactMarkers.map((marker) => (
             <div
               key={`preview-completion-fact-${marker.key}`}
-              className="rounded border border-emerald-300 bg-emerald-100 p-1.5 text-emerald-950 dark:border-emerald-300 dark:bg-emerald-100 dark:text-emerald-950"
+              className="rounded-lg border border-emerald-300 bg-emerald-100 p-1.5 text-emerald-950 dark:border-emerald-300 dark:bg-emerald-100 dark:text-emerald-950"
             >
               <p className="truncate font-medium">{marker.goalTitle}</p>
               <p className="truncate text-[11px]">

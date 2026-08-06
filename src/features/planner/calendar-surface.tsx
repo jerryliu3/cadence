@@ -1251,7 +1251,7 @@ export function CalendarSurface({
       const credited = isEntryCredited(entry);
       return (
         <div
-          className={`flex max-w-64 items-center gap-2 rounded-md border px-2 py-1 text-xs ${
+          className={`flex max-w-64 items-center gap-2 rounded-lg border px-2 py-1 text-xs ${
             credited
               ? "border-emerald-300 bg-emerald-100 text-emerald-950"
               : "border-primary/40 bg-card text-foreground"
@@ -2649,7 +2649,7 @@ export function CalendarSurface({
                       return (
                         <li
                           key={entry.key}
-                          className={`rounded-lg border p-2 ${pillToneClasses} ${
+                          className={`rounded-xl border p-2 ${pillToneClasses} ${
                             entry.draftGhost ? "opacity-75" : ""
                           }`}
                         >

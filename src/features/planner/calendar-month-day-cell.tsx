@@ -154,7 +154,7 @@ export function CalendarMonthDayCell<
             onPointerCancelCapture={() => {
               onEntryPointerEnd();
             }}
-            className={`flex items-center gap-1 rounded border px-1 py-0.5 text-[10px] ${pillToneClasses} ${
+            className={`flex items-center gap-1 rounded-lg border px-1 py-0.5 text-[10px] ${pillToneClasses} ${
               entry.draftGhost ? "opacity-70 line-through" : ""
             } ${
               immovable
@@ -239,7 +239,7 @@ export function CalendarMonthDayCell<
               {visibleCompletionFactMarkers.map((marker) => (
                 <div
                   key={`completion-fact-${marker.key}`}
-                  className="flex items-center gap-1 rounded border border-emerald-300 bg-emerald-100 px-1 py-0.5 text-[10px] text-emerald-950 dark:border-emerald-300 dark:bg-emerald-100 dark:text-emerald-950"
+                  className="flex items-center gap-1 rounded-lg border border-emerald-300 bg-emerald-100 px-1 py-0.5 text-[10px] text-emerald-950 dark:border-emerald-300 dark:bg-emerald-100 dark:text-emerald-950"
                   title={
                     marker.scheduledDate && marker.scheduledDate !== day
                       ? `Marked done here, currently credited from the ${marker.scheduledDate} scheduled session.`
