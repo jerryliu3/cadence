@@ -54,6 +54,7 @@ const countsSchema = z
     chatMessages: z.number().int().min(0).max(MAX_CHAT_MESSAGES).optional(),
     placedUnits: z.number().int().min(0).max(MAX_WORK_UNITS).optional(),
     shortfallUnits: z.number().int().min(0).max(MAX_WORK_UNITS).optional(),
+    timedUnits: z.number().int().min(0).max(MAX_WORK_UNITS).optional(),
     changedItems: z.number().int().min(0).max(MAX_WORK_UNITS).optional(),
     inputBytes: z.number().int().min(0).max(MAX_API_BODY_BYTES).optional(),
     outputBytes: z.number().int().min(0).max(MAX_API_BODY_BYTES).optional(),
