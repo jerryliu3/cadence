@@ -1,6 +1,6 @@
-import { render, screen } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { PlannerCoachPanel } from "@/features/planner/coach/planner-coach-panel";
 import type { PlannerCoachModel } from "@/features/planner/coach/coach-types";
 
@@ -48,6 +48,10 @@ function buildCoachModel(
 }
 
 describe("planner coach panel", () => {
+  afterEach(() => {
+    cleanup();
+  });
+
   it("does not render when coach capability is unavailable", () => {
     const coach = buildCoachModel({ canUseCoach: false });
     render(<PlannerCoachPanel coach={coach} />);
@@ -74,5 +78,42 @@ describe("planner coach panel", () => {
 
     await user.click(screen.getByRole("button", { name: "Send to coach" }));
     expect(coach.actions.sendCoachMessage).toHaveBeenCalledTimes(1);
+  });
+
+  it("wires restore and proposal actions", async () => {
+    const coach = buildCoachModel({
+      selectedSavedCoachConversationId: "conversation-1",
+      savedCoachConversations: [
+        {
+          id: "conversation-1",
+          scopeMonth: "2026-08",
+          timezone: "UTC",
+          title: "Saved chat",
+          previewText: "Help me train",
+          messageCount: 2,
+          createdAt: "2026-08-01T00:00:00.000Z",
+          updatedAt: "2026-08-02T00:00:00.000Z",
+        },
+      ],
+      coachPendingPatches: [
+        {
+          kind: "set_spacing_strategy",
+          spacingStrategy: "even",
+        },
+      ],
+    });
+    const user = userEvent.setup();
+
+    render(<PlannerCoachPanel coach={coach} />);
+    await user.click(screen.getByRole("button", { name: "Restore" }));
+    expect(coach.actions.restoreSavedCoachConversation).toHaveBeenCalledWith(
+      "conversation-1"
+    );
+
+    await user.click(screen.getByRole("button", { name: "Apply to calendar" }));
+    expect(coach.actions.applyCoachProposal).toHaveBeenCalledTimes(1);
+
+    await user.click(screen.getByRole("button", { name: "Reject" }));
+    expect(coach.actions.rejectCoachProposal).toHaveBeenCalledTimes(1);
   });
 });

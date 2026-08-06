@@ -24,7 +24,6 @@ import {
 import type {
   CoachLastProposalMeta,
   CoachMessage,
-  PlannerContextPayload,
 } from "@/features/planner/calendar-surface.types";
 import type { CoachPolicyPatch } from "@/lib/planner/coach";
 import { plannerPolicySchema, type PlannerPolicy } from "@/lib/planner/policy";
@@ -99,7 +98,7 @@ export function usePlannerCoach({
       }
     }
     return Array.from(ids).slice(0, 20);
-  }, [context?.goalTitles, effectivePreview?.workUnits]);
+  }, [context, effectivePreview]);
 
   const loadSavedCoachConversations = useCallback(
     async (scopeMonth: string) => {
@@ -141,9 +140,11 @@ export function usePlannerCoach({
 
   useEffect(() => {
     if (activeTab !== "calendar" || !context?.scopeMonth || !context?.capabilities.coachAi) {
-      setSavedCoachConversations([]);
-      setSelectedSavedCoachConversationId("");
-      return;
+      const timer = window.setTimeout(() => {
+        setSavedCoachConversations([]);
+        setSelectedSavedCoachConversationId("");
+      }, 0);
+      return () => window.clearTimeout(timer);
     }
     const timer = window.setTimeout(() => {
       void loadSavedCoachConversations(context.scopeMonth);
@@ -253,7 +254,7 @@ export function usePlannerCoach({
     } finally {
       setCoachConversationSaving(false);
     }
-  }, [coachMessages, context?.scopeMonth, context?.timezone]);
+  }, [coachMessages, context]);
 
   const restoreSavedCoachConversation = useCallback(
     async (conversationId: string) => {
@@ -287,7 +288,7 @@ export function usePlannerCoach({
         setCoachConversationRestoring(false);
       }
     },
-    [context?.scopeMonth, context?.timezone, resetCoachUiState]
+    [context, resetCoachUiState]
   );
 
   const startNewCoachConversation = useCallback(() => {
@@ -298,7 +299,7 @@ export function usePlannerCoach({
     setCoachInput("");
     setSelectedSavedCoachConversationId("");
     toast.success("Started a new coach conversation.");
-  }, [context?.scopeMonth, context?.timezone, resetCoachUiState]);
+  }, [context, resetCoachUiState]);
 
   const applyCoachProposal = useCallback(async () => {
     if (!context?.preferences || coachPendingPatches.length === 0) {
@@ -405,7 +406,7 @@ export function usePlannerCoach({
     coachPendingPatches,
     context,
     effectiveDraftPolicy,
-    effectivePreview?.workUnits,
+    effectivePreview,
     getNonPublishablePreviewMessage,
     hasDraftSession,
     refreshDraftPreview,
@@ -434,7 +435,7 @@ export function usePlannerCoach({
     setCoachInput(
       `Please convert your guidance into concrete calendar intent I can apply now. Make safe assumptions and keep them explicit. ${goalHint} Only use apply_to_goal when the requested activity clearly matches one of those goals; otherwise use needs_goal and do not repurpose an unrelated goal.`.trim()
     );
-  }, [coachFocusGoalIds, context?.goalTitles]);
+  }, [coachFocusGoalIds, context]);
 
   const undoCoachProposal = useCallback(async () => {
     if (!coachUndoSnapshot) {
@@ -463,7 +464,7 @@ export function usePlannerCoach({
     resetCoachUiState([]);
     setCoachInput("");
     setSelectedSavedCoachConversationId("");
-  }, [context?.scopeMonth, context?.timezone, resetCoachUiState]);
+  }, [context, resetCoachUiState]);
 
   const onDraftDiscarded = useCallback(() => {
     setCoachUndoSnapshot(null);
