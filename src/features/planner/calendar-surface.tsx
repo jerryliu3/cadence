@@ -1650,12 +1650,12 @@ export function CalendarSurface({
         selectedEventCompletionDispatch
       )
     : null;
-  const openEntryDetails = (day: string, entryKey: string) => {
+  const openDayDetails = (day: string) => {
     clearHoverPreviewTimer();
     clearHoverPreviewCloseTimer();
     setDayPreview(null);
     setLocalSelectedDay(day);
-    setSelectedEventEntryKey(entryKey);
+    setSelectedEventEntryKey(null);
   };
   const renderCalendarDayCell = (cell: { date: string; inMonth: boolean }) => {
     const dayData = getCalendarDayData(cell.date);
@@ -1705,7 +1705,7 @@ export function CalendarSurface({
           if (!canMutateEntryOnDay(entry, day)) {
             return;
           }
-          openEntryDetails(day, entry.key);
+          openDayDetails(day);
         }}
         onCellClick={(target) => {
           if (draggingEntryKey) {
@@ -2101,7 +2101,7 @@ export function CalendarSurface({
                           if (!entry || !canMutateEntryOnDay(entry, focusedDay)) {
                             return;
                           }
-                          openEntryDetails(focusedDay, entryKey);
+                          openDayDetails(focusedDay);
                         }}
                         onToggleCompletion={(entry, day) => {
                           if (!canMutateEntryOnDay(entry, day)) {
@@ -2249,7 +2249,7 @@ export function CalendarSurface({
                       if (!entry || !canMutateEntryOnDay(entry, dayPreview.day)) {
                         return;
                       }
-                      openEntryDetails(dayPreview.day, entryKey);
+                      openDayDetails(dayPreview.day);
                     }}
                     onToggleCompletion={(entry, day) => {
                       if (!canMutateEntryOnDay(entry, day)) {
