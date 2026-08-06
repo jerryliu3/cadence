@@ -1794,6 +1794,11 @@ export function CalendarSurface({
               <div className="flex items-center gap-2">
                 <CalendarDays className="size-4 text-primary" />
                 <h2 className="text-lg font-semibold">Calendar</h2>
+                {hasDraftSession ? (
+                  <Badge className="h-7 border-yellow-300 bg-yellow-100 px-3 text-sm font-semibold text-orange-900 dark:border-yellow-300 dark:bg-yellow-100 dark:text-orange-900">
+                    Planning Mode
+                  </Badge>
+                ) : null}
               </div>
             </div>
             <div className="flex flex-wrap items-center justify-end gap-2">
@@ -1971,11 +1976,6 @@ export function CalendarSurface({
               </div>
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                  {hasDraftSession ? (
-                    <Badge className="border-yellow-300 bg-yellow-100 text-orange-900 dark:border-yellow-300 dark:bg-yellow-100 dark:text-orange-900">
-                      Planning Mode
-                    </Badge>
-                  ) : null}
                   <p>{viewDescription}</p>
                   {loading ? (
                     <span className="inline-flex items-center gap-1">
