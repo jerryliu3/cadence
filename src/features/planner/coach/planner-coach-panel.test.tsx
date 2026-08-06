@@ -101,19 +101,22 @@ describe("planner coach panel", () => {
           spacingStrategy: "even",
         },
       ],
+      coachLastProposalMeta: {
+        policyPatchCount: 1,
+        autoApplied: true,
+      },
+      hasCoachUndoSnapshot: true,
     });
     const user = userEvent.setup();
 
     render(<PlannerCoachPanel coach={coach} />);
-    await user.click(screen.getByRole("button", { name: "Restore" }));
-    expect(coach.actions.restoreSavedCoachConversation).toHaveBeenCalledWith(
-      "conversation-1"
-    );
+    expect(screen.queryByRole("button", { name: "Restore" })).not.toBeInTheDocument();
+    expect(screen.getByRole("combobox")).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "Apply to calendar" }));
+    await user.click(screen.getByRole("button", { name: "Re-apply changes" }));
     expect(coach.actions.applyCoachProposal).toHaveBeenCalledTimes(1);
 
-    await user.click(screen.getByRole("button", { name: "Reject" }));
-    expect(coach.actions.rejectCoachProposal).toHaveBeenCalledTimes(1);
+    await user.click(screen.getByRole("button", { name: "Undo latest proposal" }));
+    expect(coach.actions.undoCoachProposal).toHaveBeenCalledTimes(1);
   });
 });

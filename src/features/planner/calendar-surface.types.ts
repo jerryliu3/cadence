@@ -236,6 +236,7 @@ export interface CoachResponsePayload {
 
 export interface CoachLastProposalMeta {
   policyPatchCount: number;
+  autoApplied: boolean;
 }
 
 export type CompletionControlDisabledReason =

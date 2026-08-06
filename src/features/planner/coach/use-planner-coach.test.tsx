@@ -201,6 +201,14 @@ describe("usePlannerCoach", () => {
   });
 
   it("sends coach message and stores response metadata", async () => {
+    applyCoachPolicyPatchesMock.mockReturnValue({
+      policy: buildPolicy(),
+      appliedPatchCount: 0,
+      ignoredPatchCount: 0,
+      noOpPatchCount: 1,
+      outOfScopePatchCount: 0,
+      unsupportedPatchCount: 0,
+    });
     requestPlannerCoachReplyMock.mockResolvedValue({
       schemaVersion: "1",
       phase: "review",
@@ -251,11 +259,97 @@ describe("usePlannerCoach", () => {
     );
     expect(result.current.state.coachMessages).toHaveLength(2);
     expect(result.current.state.coachMessages.at(-1)?.content).toContain("three easy runs");
+    expect(result.current.state.coachMessages.at(-1)?.content).toContain(
+      "Recommended next actions:"
+    );
+    expect(result.current.state.coachMessages.at(-1)?.content).toContain(
+      "Draft updates already match your current policy:"
+    );
     expect(result.current.state.coachWarnings).toEqual(["Watch cumulative fatigue."]);
     expect(result.current.state.coachRecommendations).toEqual([
       "Keep one full rest day.",
     ]);
+    expect(result.current.state.coachPendingPatches).toHaveLength(1);
+    expect(result.current.state.coachLastProposalMeta).toEqual({
+      policyPatchCount: 1,
+      autoApplied: true,
+    });
+    expect(applyCoachPolicyPatchesMock).toHaveBeenCalled();
     expect(saveCoachSessionMock).toHaveBeenCalled();
+  });
+
+  it("keeps the latest proposal available across later non-proposal replies", async () => {
+    applyCoachPolicyPatchesMock.mockReturnValue({
+      policy: buildPolicy(),
+      appliedPatchCount: 0,
+      ignoredPatchCount: 0,
+      noOpPatchCount: 1,
+      outOfScopePatchCount: 0,
+      unsupportedPatchCount: 0,
+    });
+    requestPlannerCoachReplyMock
+      .mockResolvedValueOnce({
+        schemaVersion: "1",
+        phase: "ready",
+        reply: "I suggested weekday updates.",
+        proposal: {
+          policyPatches: [
+            {
+              kind: "set_spacing_strategy",
+              spacingStrategy: "even",
+            },
+          ],
+          unresolvedQuestions: [],
+        },
+        recommendations: [],
+        warnings: [],
+      })
+      .mockResolvedValueOnce({
+        schemaVersion: "1",
+        phase: "review",
+        reply: "Here is extra context with no new draft edits.",
+        proposal: {
+          policyPatches: [],
+          unresolvedQuestions: [],
+        },
+        recommendations: [],
+        warnings: [],
+      });
+
+    const context = buildContext();
+    const { result } = renderHook(() =>
+      usePlannerCoach(
+        buildArgs({
+          activeTab: "calendar",
+          context,
+          entriesByDate: new Map([["2026-08-01", [buildEntry()]]]),
+          effectivePreview: context.preview,
+        })
+      )
+    );
+
+    await waitFor(() => expect(loadCoachSessionMock).toHaveBeenCalled());
+
+    act(() => {
+      result.current.actions.setCoachInput("First request");
+    });
+    await act(async () => {
+      await result.current.actions.sendCoachMessage();
+    });
+    expect(result.current.state.coachPendingPatches).toHaveLength(1);
+
+    act(() => {
+      result.current.actions.setCoachInput("Second request");
+    });
+    await act(async () => {
+      await result.current.actions.sendCoachMessage();
+    });
+
+    expect(result.current.state.coachPendingPatches).toHaveLength(1);
+    expect(result.current.state.coachLastProposalMeta).toEqual({
+      policyPatchCount: 1,
+      autoApplied: true,
+    });
   });
 
   it("applies coach proposal and computes assignment change summary", async () => {
@@ -328,6 +422,20 @@ describe("usePlannerCoach", () => {
     expect(toastSuccessMock).toHaveBeenCalledWith(
       expect.stringContaining("session change")
     );
+    expect(result.current.state.hasCoachUndoSnapshot).toBe(true);
+
+    await act(async () => {
+      await result.current.actions.undoCoachProposal();
+    });
+
+    expect(refreshDraftPreviewMock).toHaveBeenCalledWith(
+      context.preferences!.defaultPolicy
+    );
+    expect(applyDraftPolicyMock).toHaveBeenLastCalledWith(
+      "2026-08",
+      context.preferences!.defaultPolicy
+    );
+    expect(result.current.state.hasCoachUndoSnapshot).toBe(true);
   });
 
   it("saves and restores persistent coach conversations", async () => {

@@ -52,7 +52,11 @@ export function PlannerCoachPanel({ coach }: PlannerCoachPanelProps) {
         </Button>
         <Select
           value={state.selectedSavedCoachConversationId || undefined}
-          onValueChange={actions.setSelectedSavedCoachConversationId}
+          onValueChange={(value) => {
+            actions.setSelectedSavedCoachConversationId(value);
+            void actions.restoreSavedCoachConversation(value);
+          }}
+          disabled={state.coachConversationsLoading || state.coachConversationRestoring}
         >
           <SelectTrigger className="h-8 w-[260px]">
             <SelectValue
@@ -71,23 +75,6 @@ export function PlannerCoachPanel({ coach }: PlannerCoachPanelProps) {
             ))}
           </SelectContent>
         </Select>
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          onClick={() =>
-            void actions.restoreSavedCoachConversation(
-              state.selectedSavedCoachConversationId
-            )
-          }
-          disabled={
-            state.coachConversationsLoading ||
-            state.coachConversationRestoring ||
-            !state.selectedSavedCoachConversationId
-          }
-        >
-          {state.coachConversationRestoring ? "Restoring..." : "Restore"}
-        </Button>
       </div>
       {!state.coachConversationsLoading && state.savedCoachConversations.length === 0 ? (
         <p className="mb-3 text-xs text-muted-foreground">
@@ -116,46 +103,14 @@ export function PlannerCoachPanel({ coach }: PlannerCoachPanelProps) {
           ))
         )}
       </div>
-      {state.coachRecommendations.length > 0 ? (
-        <div className="mt-3 rounded-md border border-dashed p-2 text-sm">
-          <p className="mb-1 font-medium">Recommended next actions</p>
-          <ul className="space-y-1 text-muted-foreground">
-            {state.coachRecommendations.map((recommendation) => (
-              <li key={recommendation}>- {recommendation}</li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
-      {state.coachWarnings.length > 0 ? (
-        <div className="mt-3 rounded-md border border-amber-400/40 bg-amber-500/10 p-2 text-xs">
-          {state.coachWarnings.join(" ")}
-        </div>
-      ) : null}
       {state.coachPendingPatches.length > 0 ? (
         <div className="mt-3 rounded-md border p-2 text-sm">
           <p className="font-medium">Coach proposal</p>
           <p className="text-xs text-muted-foreground">
-            {state.coachPendingPatches.length} policy patch
-            {state.coachPendingPatches.length === 1 ? "" : "es"} ready to apply.
+            {state.coachLastProposalMeta?.autoApplied
+              ? "Auto-applied to your draft preview."
+              : "Ready to apply to your draft preview."}
           </p>
-          <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
-            {state.coachPendingPatches.slice(0, 6).map((patch, index) => (
-              <li key={`${patch.kind}-${index}`}>- {patch.kind}</li>
-            ))}
-            {state.coachPendingPatches.length > 6 ? (
-              <li>...and {state.coachPendingPatches.length - 6} more</li>
-            ) : null}
-          </ul>
-          {state.coachUnresolvedQuestions.length > 0 ? (
-            <div className="mt-2 rounded border border-dashed p-2">
-              <p className="text-xs font-medium">Unresolved questions</p>
-              <ul className="mt-1 space-y-1 text-xs text-muted-foreground">
-                {state.coachUnresolvedQuestions.slice(0, 3).map((question) => (
-                  <li key={question}>- {question}</li>
-                ))}
-              </ul>
-            </div>
-          ) : null}
           <div className="mt-2 flex flex-wrap gap-2">
             <Button
               type="button"
@@ -163,62 +118,22 @@ export function PlannerCoachPanel({ coach }: PlannerCoachPanelProps) {
               onClick={() => void actions.applyCoachProposal()}
               disabled={state.coachPolicyApplying}
             >
-              {state.coachPolicyApplying ? "Applying..." : "Apply to calendar"}
+              {state.coachPolicyApplying
+                ? "Applying..."
+                : state.coachLastProposalMeta?.autoApplied
+                  ? "Re-apply changes"
+                  : "Apply changes"}
             </Button>
             <Button
               type="button"
               size="sm"
               variant="outline"
-              onClick={actions.rejectCoachProposal}
-              disabled={state.coachPolicyApplying}
+              onClick={() => void actions.undoCoachProposal()}
+              disabled={state.coachPolicyApplying || !state.hasCoachUndoSnapshot}
             >
-              Reject
+              {state.coachPolicyApplying ? "Undoing..." : "Undo latest proposal"}
             </Button>
           </div>
-        </div>
-      ) : null}
-      {state.coachPendingPatches.length === 0 &&
-      state.coachLastProposalMeta &&
-      state.coachLastProposalMeta.policyPatchCount === 0 &&
-      (state.coachUnresolvedQuestions.length > 0 || state.coachWarnings.length > 0) ? (
-        <div className="mt-3 rounded-md border border-dashed p-2 text-sm">
-          <p className="font-medium">No direct calendar edits returned</p>
-          <p className="text-xs text-muted-foreground">
-            This reply included guidance, but no applicable calendar changes.
-          </p>
-          {state.coachUnresolvedQuestions.length > 0 ? (
-            <div className="mt-2 rounded border border-dashed p-2">
-              <p className="text-xs font-medium">Coach follow-up questions</p>
-              <ul className="mt-1 space-y-1 text-xs text-muted-foreground">
-                {state.coachUnresolvedQuestions.slice(0, 3).map((question) => (
-                  <li key={question}>- {question}</li>
-                ))}
-              </ul>
-            </div>
-          ) : null}
-          <div className="mt-2">
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              onClick={actions.requestCalendarEditsFromCoach}
-            >
-              Ask coach for apply-able edits
-            </Button>
-          </div>
-        </div>
-      ) : null}
-      {state.hasCoachUndoSnapshot ? (
-        <div className="mt-3 flex justify-end">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => void actions.undoCoachProposal()}
-            disabled={state.coachPolicyApplying}
-          >
-            {state.coachPolicyApplying ? "Saving..." : "Undo latest apply"}
-          </Button>
         </div>
       ) : null}
       <div className="mt-3 space-y-2">

@@ -28,6 +28,148 @@ import type {
 import type { CoachPolicyPatch } from "@/lib/planner/coach";
 import { plannerPolicySchema, type PlannerPolicy } from "@/lib/planner/policy";
 
+const MAX_COACH_MESSAGE_CHARACTERS = 12_000;
+const WEEKDAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
+
+type CoachProposalApplyStatus =
+  | "not_attempted"
+  | "applied"
+  | "already_applied"
+  | "failed";
+
+function dedupeWeekdays(weekdays: number[]) {
+  return Array.from(new Set(weekdays)).sort((left, right) => left - right);
+}
+
+function formatWeekdayList(weekdays: number[]) {
+  const labels = dedupeWeekdays(weekdays)
+    .map((weekday) => WEEKDAY_NAMES[weekday] ?? null)
+    .filter((weekday): weekday is (typeof WEEKDAY_NAMES)[number] => weekday !== null);
+  return labels.length > 0 ? labels.join(", ") : "none";
+}
+
+function formatSpacingStrategy(strategy: "front_load" | "even" | "flexible") {
+  switch (strategy) {
+    case "front_load":
+      return "front-loaded";
+    case "even":
+      return "even";
+    case "flexible":
+      return "flexible";
+  }
+}
+
+function resolveGoalTitle(goalId: string, goalTitles: Record<string, string> | undefined) {
+  const title = goalTitles?.[goalId];
+  if (title && title.trim().length > 0) {
+    return title.trim();
+  }
+  return "Selected goal";
+}
+
+function describePolicyPatch(
+  patch: CoachPolicyPatch,
+  goalTitles: Record<string, string> | undefined
+) {
+  switch (patch.kind) {
+    case "set_rest_weekdays":
+      return `Set rest weekdays to ${formatWeekdayList(patch.restWeekdays)}.`;
+    case "add_blackout_range":
+      return `Avoid scheduling between ${patch.start} and ${patch.end}.`;
+    case "remove_blackout_range":
+      return `Remove blackout dates from ${patch.start} to ${patch.end}.`;
+    case "set_goal_allowed_weekdays":
+      return `${resolveGoalTitle(patch.goalId, goalTitles)}: allow ${formatWeekdayList(
+        patch.weekdays
+      )}.`;
+    case "clear_goal_allowed_weekdays":
+      return `${resolveGoalTitle(patch.goalId, goalTitles)}: clear weekday restrictions.`;
+    case "set_goal_date_preference":
+      return `${
+        patch.goalId ? resolveGoalTitle(patch.goalId, goalTitles) : "All goals"
+      }: ${patch.effect} ${patch.start} to ${patch.end}.`;
+    case "clear_goal_date_preference":
+      return `${
+        patch.goalId ? resolveGoalTitle(patch.goalId, goalTitles) : "All goals"
+      }: clear ${patch.effect} preference for ${patch.start} to ${patch.end}.`;
+    case "set_spacing_strategy":
+      return `Set overall spacing strategy to ${formatSpacingStrategy(
+        patch.spacingStrategy
+      )}.`;
+    case "set_goal_spacing_strategy":
+      return `${resolveGoalTitle(
+        patch.goalId,
+        goalTitles
+      )}: set spacing strategy to ${formatSpacingStrategy(patch.spacingStrategy)}.`;
+  }
+}
+
+function clampAssistantMessage(content: string) {
+  const trimmed = content.trim();
+  if (trimmed.length <= MAX_COACH_MESSAGE_CHARACTERS) {
+    return trimmed;
+  }
+  return `${trimmed.slice(0, MAX_COACH_MESSAGE_CHARACTERS - 1)}…`;
+}
+
+function buildAssistantMessage({
+  reply,
+  recommendations,
+  warnings,
+  unresolvedQuestions,
+  policyPatches,
+  goalTitles,
+  autoApplyStatus,
+}: {
+  reply: string;
+  recommendations: string[];
+  warnings: string[];
+  unresolvedQuestions: string[];
+  policyPatches: CoachPolicyPatch[];
+  goalTitles: Record<string, string> | undefined;
+  autoApplyStatus: CoachProposalApplyStatus;
+}) {
+  const lines: string[] = [reply.trim()];
+
+  if (recommendations.length > 0) {
+    lines.push("", "Recommended next actions:");
+    for (const recommendation of recommendations) {
+      lines.push(`- ${recommendation}`);
+    }
+  }
+
+  if (policyPatches.length > 0) {
+    if (autoApplyStatus === "applied") {
+      lines.push("", "Draft updates auto-applied:");
+    } else if (autoApplyStatus === "already_applied") {
+      lines.push("", "Draft updates already match your current policy:");
+    } else if (autoApplyStatus === "failed") {
+      lines.push("", "Draft updates proposed (auto-apply did not complete):");
+    } else {
+      lines.push("", "Draft updates proposed:");
+    }
+    for (const patch of policyPatches) {
+      lines.push(`- ${describePolicyPatch(patch, goalTitles)}`);
+    }
+  }
+
+  if (unresolvedQuestions.length > 0) {
+    lines.push("", "Questions to confirm:");
+    for (const question of unresolvedQuestions) {
+      lines.push(`- ${question}`);
+    }
+  }
+
+  if (warnings.length > 0) {
+    lines.push("", "Notes:");
+    for (const warning of warnings) {
+      lines.push(`- ${warning}`);
+    }
+  }
+
+  return clampAssistantMessage(lines.join("\n"));
+}
+
 export function usePlannerCoach({
   activeTab,
   context,
@@ -157,6 +299,135 @@ export function usePlannerCoach({
     loadSavedCoachConversations,
   ]);
 
+  const applyCoachPatchesToDraft = useCallback(
+    async ({
+      patches,
+      source,
+    }: {
+      patches: CoachPolicyPatch[];
+      source: "auto" | "manual";
+    }): Promise<CoachProposalApplyStatus> => {
+      if (!context?.preferences || patches.length === 0) {
+        return "not_attempted";
+      }
+      const allowedGoalIds = new Set<string>([
+        ...Object.keys(context.goalTitles ?? {}),
+        ...(context.activePlan?.goals ?? []).map((goal) => goal.original_goal_id),
+      ]);
+      const priorPolicy = plannerPolicySchema.parse(
+        effectiveDraftPolicy ?? context.preferences.defaultPolicy
+      );
+      const result = applyCoachPolicyPatches({
+        policy: priorPolicy,
+        patches,
+        allowedGoalIds,
+      });
+      if (result.appliedPatchCount === 0) {
+        if (
+          result.noOpPatchCount > 0 &&
+          result.outOfScopePatchCount === 0 &&
+          result.unsupportedPatchCount === 0
+        ) {
+          appendCoachContextEvent("Coach proposal already matched current draft");
+          toast.success(
+            hasDraftSession
+              ? "Coach proposal already matches your draft policy. Your manual draft edits are still pending publish."
+              : "Coach proposal already matches your current policy."
+          );
+          return "already_applied";
+        }
+        toast.error(
+          result.outOfScopePatchCount > 0
+            ? "Coach edits were received but none matched your current goal scope."
+            : "No applicable policy changes were available to apply."
+        );
+        return "failed";
+      }
+
+      setCoachPolicyApplying(true);
+      try {
+        const refreshedPreview = await refreshDraftPreview(result.policy);
+        if (!refreshedPreview) {
+          throw new Error("Preview refresh returned no planner data.");
+        }
+        const previousDatesByKey = new Map(
+          (effectivePreview?.workUnits ?? []).map((unit) => [
+            `${unit.originalGoalId}:${unit.unitKey}`,
+            unit.scheduledDate,
+          ])
+        );
+        const refreshedDatesByKey = new Map(
+          refreshedPreview.workUnits.map((unit) => [
+            `${unit.originalGoalId}:${unit.unitKey}`,
+            unit.scheduledDate,
+          ])
+        );
+        let assignmentChanges = 0;
+        for (const key of new Set([
+          ...previousDatesByKey.keys(),
+          ...refreshedDatesByKey.keys(),
+        ])) {
+          if (previousDatesByKey.get(key) !== refreshedDatesByKey.get(key)) {
+            assignmentChanges += 1;
+          }
+        }
+        if (context.scopeMonth) {
+          applyDraftPolicy(context.scopeMonth, result.policy);
+        }
+        setCoachUndoSnapshot({
+          timezone: context.preferences.timezone,
+          defaultPolicy: priorPolicy,
+        });
+        appendCoachContextEvent(
+          source === "auto"
+            ? `Auto-applied coach proposal to draft (${result.appliedPatchCount} patches)`
+            : `Applied coach proposal to draft (${result.appliedPatchCount} patches)`
+        );
+        if (!refreshedPreview.solver.publishable) {
+          toast.error(
+            `${source === "auto" ? "Coach updates auto-applied" : "Coach proposal applied"}, but this draft cannot publish yet. ${getNonPublishablePreviewMessage(
+              refreshedPreview
+            )}`
+          );
+        } else if (assignmentChanges === 0) {
+          toast.success(
+            source === "auto"
+              ? "Coach updates auto-applied. Policy changed, but scheduled sessions stayed the same."
+              : "Coach proposal applied. Policy changed, but scheduled sessions stayed the same."
+          );
+        } else {
+          toast.success(
+            `${source === "auto" ? "Coach updates auto-applied" : "Coach proposal applied"} to draft preview (${assignmentChanges} session change${
+              assignmentChanges === 1 ? "" : "s"
+            }).`
+          );
+        }
+        return "applied";
+      } catch (error) {
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : source === "auto"
+              ? "Coach proposal auto-apply failed."
+              : "Coach proposal apply failed."
+        );
+        return "failed";
+      } finally {
+        setCoachPolicyApplying(false);
+      }
+    },
+    [
+      appendCoachContextEvent,
+      applyDraftPolicy,
+      context,
+      effectiveDraftPolicy,
+      effectivePreview,
+      getNonPublishablePreviewMessage,
+      hasDraftSession,
+      refreshDraftPreview,
+    ]
+  );
+
   const sendCoachMessage = useCallback(async () => {
     if (!context?.capabilities.coachAi || !context.scopeMonth || !context.timezone) {
       toast.error("Planner coach is currently unavailable.");
@@ -194,9 +465,34 @@ export function usePlannerCoach({
         focusGoalIds: coachFocusGoalIds,
         deterministicSummary,
       });
+      const recommendations = (coachPayload.recommendations ?? []).map((item) => item.text);
+      const warnings = coachPayload.warnings ?? [];
+      const unresolvedQuestions = coachPayload.proposal?.unresolvedQuestions ?? [];
+      const policyPatches = coachPayload.proposal?.policyPatches ?? [];
+      let autoApplyStatus: CoachProposalApplyStatus = "not_attempted";
+      if (policyPatches.length > 0) {
+        setCoachPendingPatches(policyPatches);
+        autoApplyStatus = await applyCoachPatchesToDraft({
+          patches: policyPatches,
+          source: "auto",
+        });
+        setCoachLastProposalMeta({
+          policyPatchCount: policyPatches.length,
+          autoApplied:
+            autoApplyStatus === "applied" || autoApplyStatus === "already_applied",
+        });
+      }
       const assistantMessage: CoachMessage = {
         role: "assistant",
-        content: coachPayload.reply,
+        content: buildAssistantMessage({
+          reply: coachPayload.reply,
+          recommendations,
+          warnings,
+          unresolvedQuestions,
+          policyPatches,
+          goalTitles: context.goalTitles,
+          autoApplyStatus,
+        }),
         createdAt: Date.now(),
       };
       const finalMessages = [...nextMessages, assistantMessage].slice(
@@ -204,16 +500,9 @@ export function usePlannerCoach({
       );
       setCoachMessages(finalMessages);
       saveCoachSession(context.scopeMonth, context.timezone, finalMessages);
-      setCoachWarnings(coachPayload.warnings ?? []);
-      setCoachRecommendations(
-        (coachPayload.recommendations ?? []).map((item) => item.text)
-      );
-      const policyPatches = coachPayload.proposal?.policyPatches ?? [];
-      setCoachPendingPatches(policyPatches);
-      setCoachUnresolvedQuestions(coachPayload.proposal?.unresolvedQuestions ?? []);
-      setCoachLastProposalMeta({
-        policyPatchCount: policyPatches.length,
-      });
+      setCoachWarnings(warnings);
+      setCoachRecommendations(recommendations);
+      setCoachUnresolvedQuestions(unresolvedQuestions);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Coach response failed.");
     } finally {
@@ -226,6 +515,7 @@ export function usePlannerCoach({
     coachMessages,
     coachSummaryWorkUnits,
     context,
+    applyCoachPatchesToDraft,
   ]);
 
   const saveCoachConversation = useCallback(async () => {
@@ -302,115 +592,14 @@ export function usePlannerCoach({
   }, [context, resetCoachUiState]);
 
   const applyCoachProposal = useCallback(async () => {
-    if (!context?.preferences || coachPendingPatches.length === 0) {
+    if (coachPendingPatches.length === 0) {
       return;
     }
-    const allowedGoalIds = new Set<string>([
-      ...Object.keys(context.goalTitles ?? {}),
-      ...(context.activePlan?.goals ?? []).map((goal) => goal.original_goal_id),
-    ]);
-    const priorPolicy = plannerPolicySchema.parse(
-      effectiveDraftPolicy ?? context.preferences.defaultPolicy
-    );
-    const result = applyCoachPolicyPatches({
-      policy: priorPolicy,
+    await applyCoachPatchesToDraft({
       patches: coachPendingPatches,
-      allowedGoalIds,
+      source: "manual",
     });
-    if (result.appliedPatchCount === 0) {
-      if (
-        result.noOpPatchCount > 0 &&
-        result.outOfScopePatchCount === 0 &&
-        result.unsupportedPatchCount === 0
-      ) {
-        appendCoachContextEvent("Coach proposal already matched current draft");
-        toast.success(
-          hasDraftSession
-            ? "Coach proposal already matches your draft policy. Your manual draft edits are still pending publish."
-            : "Coach proposal already matches your current policy."
-        );
-        return;
-      }
-      toast.error(
-        result.outOfScopePatchCount > 0
-          ? "Coach edits were received but none matched your current goal scope."
-          : "No applicable policy changes were available to apply."
-      );
-      return;
-    }
-
-    setCoachPolicyApplying(true);
-    try {
-      const refreshedPreview = await refreshDraftPreview(result.policy);
-      if (!refreshedPreview) {
-        throw new Error("Preview refresh returned no planner data.");
-      }
-      const previousDatesByKey = new Map(
-        (effectivePreview?.workUnits ?? []).map((unit) => [
-          `${unit.originalGoalId}:${unit.unitKey}`,
-          unit.scheduledDate,
-        ])
-      );
-      const refreshedDatesByKey = new Map(
-        refreshedPreview.workUnits.map((unit) => [
-          `${unit.originalGoalId}:${unit.unitKey}`,
-          unit.scheduledDate,
-        ])
-      );
-      let assignmentChanges = 0;
-      for (const key of new Set([
-        ...previousDatesByKey.keys(),
-        ...refreshedDatesByKey.keys(),
-      ])) {
-        if (previousDatesByKey.get(key) !== refreshedDatesByKey.get(key)) {
-          assignmentChanges += 1;
-        }
-      }
-      if (context.scopeMonth) {
-        applyDraftPolicy(context.scopeMonth, result.policy);
-      }
-      setCoachUndoSnapshot({
-        timezone: context.preferences.timezone,
-        defaultPolicy: priorPolicy,
-      });
-      appendCoachContextEvent(
-        `Applied coach proposal to draft (${result.appliedPatchCount} patches)`
-      );
-      if (!refreshedPreview.solver.publishable) {
-        toast.error(
-          `Coach proposal applied, but this draft cannot publish yet. ${getNonPublishablePreviewMessage(
-            refreshedPreview
-          )}`
-        );
-      } else if (assignmentChanges === 0) {
-        toast.success(
-          "Coach proposal applied. Policy changed, but scheduled sessions stayed the same."
-        );
-      } else {
-        toast.success(
-          `Coach proposal applied to draft preview (${assignmentChanges} session change${
-            assignmentChanges === 1 ? "" : "s"
-          }).`
-        );
-      }
-    } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : "Coach proposal apply failed."
-      );
-    } finally {
-      setCoachPolicyApplying(false);
-    }
-  }, [
-    appendCoachContextEvent,
-    applyDraftPolicy,
-    coachPendingPatches,
-    context,
-    effectiveDraftPolicy,
-    effectivePreview,
-    getNonPublishablePreviewMessage,
-    hasDraftSession,
-    refreshDraftPreview,
-  ]);
+  }, [applyCoachPatchesToDraft, coachPendingPatches]);
 
   const rejectCoachProposal = useCallback(() => {
     if (coachPendingPatches.length === 0) {
@@ -419,6 +608,7 @@ export function usePlannerCoach({
     appendCoachContextEvent("Rejected coach proposal");
     setCoachPendingPatches([]);
     setCoachUnresolvedQuestions([]);
+    setCoachLastProposalMeta(null);
     toast.success("Coach proposal rejected.");
   }, [appendCoachContextEvent, coachPendingPatches.length]);
 
@@ -448,7 +638,6 @@ export function usePlannerCoach({
         applyDraftPolicy(context.scopeMonth, coachUndoSnapshot.defaultPolicy);
       }
       appendCoachContextEvent("Undid latest coach draft proposal");
-      setCoachUndoSnapshot(null);
       toast.success("Latest coach draft apply has been undone.");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Undo failed.");
