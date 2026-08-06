@@ -177,6 +177,7 @@ export interface PlannerErrorPayload {
 export interface DraftItemEdit {
   scheduledDate?: string | null;
   label?: string | null;
+  scheduledTimeOverride?: string | null;
 }
 
 export interface PlannerPreviewResponsePayload {

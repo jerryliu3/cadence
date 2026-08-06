@@ -3,33 +3,62 @@ import {
   canonicalHash,
   compareCanonicalStrings,
 } from "@/lib/planner/canonical";
+import { plannerLocalTimeSchema } from "@/lib/planner/schedule-time";
 
 const draftCommandBaseSchema = z
   .object({
     id: z.uuid(),
     sequence: z.number().int().nonnegative(),
     goalId: z.uuid(),
+  })
+  .strict();
+
+const itemDraftCommandBaseSchema = draftCommandBaseSchema
+  .extend({
     unitKey: z.string().trim().min(1).max(200),
   })
   .strict();
 
-const moveItemCommandSchema = draftCommandBaseSchema
+const moveItemCommandSchema = itemDraftCommandBaseSchema
   .extend({
     kind: z.literal("move_item"),
     scheduledDate: z.iso.date().nullable(),
   })
   .strict();
 
-const renameItemCommandSchema = draftCommandBaseSchema
+const renameItemCommandSchema = itemDraftCommandBaseSchema
   .extend({
     kind: z.literal("rename_item"),
     label: z.string().trim().min(1).max(200).nullable(),
   })
   .strict();
 
+const setItemTimeOverrideCommandSchema = itemDraftCommandBaseSchema
+  .extend({
+    kind: z.literal("set_item_time_override"),
+    localTime: plannerLocalTimeSchema,
+  })
+  .strict();
+
+const clearItemTimeOverrideCommandSchema = itemDraftCommandBaseSchema
+  .extend({
+    kind: z.literal("clear_item_time_override"),
+  })
+  .strict();
+
+const setGoalDefaultTimeCommandSchema = draftCommandBaseSchema
+  .extend({
+    kind: z.literal("set_goal_default_time"),
+    localTime: plannerLocalTimeSchema.nullable(),
+  })
+  .strict();
+
 export const plannerDraftCommandSchema = z.discriminatedUnion("kind", [
   moveItemCommandSchema,
   renameItemCommandSchema,
+  setItemTimeOverrideCommandSchema,
+  clearItemTimeOverrideCommandSchema,
+  setGoalDefaultTimeCommandSchema,
 ]);
 
 export type PlannerDraftCommand = z.infer<typeof plannerDraftCommandSchema>;
@@ -44,12 +73,22 @@ export interface PlannerLegacyDraftItemEdit {
 export interface PlannerDraftItemProjection {
   scheduledDate?: string | null;
   label?: string | null;
+  scheduledTimeOverride?: string | null;
 }
+
+export type PlannerDraftGoalTimeProjection = Record<string, string | null>;
 
 const commandKindOrder: Record<PlannerDraftCommand["kind"], number> = {
   move_item: 0,
-  rename_item: 1,
+  set_item_time_override: 1,
+  clear_item_time_override: 1,
+  rename_item: 2,
+  set_goal_default_time: 3,
 };
+
+function readCommandUnitKey(command: PlannerDraftCommand) {
+  return "unitKey" in command ? command.unitKey : "";
+}
 
 export function draftCommandEntryKey(command: {
   goalId: string;
@@ -67,13 +106,16 @@ export function sortPlannerDraftCommands(commands: PlannerDraftCommand[]) {
     if (byGoal !== 0) {
       return byGoal;
     }
-    const byUnit = compareCanonicalStrings(left.unitKey, right.unitKey);
-    if (byUnit !== 0) {
-      return byUnit;
-    }
     const byKind = commandKindOrder[left.kind] - commandKindOrder[right.kind];
     if (byKind !== 0) {
       return byKind;
+    }
+    const byUnit = compareCanonicalStrings(
+      readCommandUnitKey(left),
+      readCommandUnitKey(right)
+    );
+    if (byUnit !== 0) {
+      return byUnit;
     }
     return compareCanonicalStrings(left.id, right.id);
   });
@@ -84,14 +126,33 @@ export function projectPlannerDraftCommands(
 ): Record<string, PlannerDraftItemProjection> {
   const projection: Record<string, PlannerDraftItemProjection> = {};
   for (const command of sortPlannerDraftCommands(commands)) {
+    if (command.kind === "set_goal_default_time") {
+      continue;
+    }
     const key = draftCommandEntryKey(command);
     const next = projection[key] ?? {};
     if (command.kind === "move_item") {
       next.scheduledDate = command.scheduledDate;
-    } else {
+    } else if (command.kind === "rename_item") {
       next.label = command.label;
+    } else if (command.kind === "set_item_time_override") {
+      next.scheduledTimeOverride = command.localTime;
+    } else {
+      next.scheduledTimeOverride = null;
     }
     projection[key] = next;
+  }
+  return projection;
+}
+
+export function projectPlannerGoalDefaultTimes(
+  commands: PlannerDraftCommand[]
+): PlannerDraftGoalTimeProjection {
+  const projection: PlannerDraftGoalTimeProjection = {};
+  for (const command of sortPlannerDraftCommands(commands)) {
+    if (command.kind === "set_goal_default_time") {
+      projection[command.goalId] = command.localTime;
+    }
   }
   return projection;
 }
