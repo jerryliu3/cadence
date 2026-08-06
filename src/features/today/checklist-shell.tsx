@@ -86,13 +86,13 @@ export function ChecklistShell({ calendarEnabled }: ChecklistShellProps) {
     const monthValid = isValidMonth(rawMonth);
     const nextParams = new URLSearchParams(searchParams.toString());
     const rawViewModeValid = isValidCalendarViewMode(rawView);
+    const hasExplicitTab =
+      rawTab === "today" || rawTab === "not-today" || rawTab === "calendar";
     let viewMode: PlannerCalendarViewMode = rawViewModeValid
       ? rawView
       : defaultCalendarViewMode;
     let tab: PlannerShellTab =
-      rawTab === "today" || rawTab === "not-today" || rawTab === "calendar"
-        ? rawTab
-        : "today";
+      hasExplicitTab ? rawTab : "today";
     let changed = rawTab !== tab;
     if (!calendarEnabled && tab === "calendar") {
       tab = "today";
@@ -114,20 +114,22 @@ export function ChecklistShell({ calendarEnabled }: ChecklistShellProps) {
     }
 
     if (dayValid && calendarEnabled) {
-      const dayMonth = rawDay!.slice(0, 7);
-      if (nextParams.get("month") !== dayMonth) {
-        nextParams.set("month", dayMonth);
-        changed = true;
-      }
-      if (tab !== "calendar") {
-        tab = "calendar";
-        nextParams.set("tab", "calendar");
-        changed = true;
-      }
-      if (!rawViewModeValid && viewMode !== "day") {
-        viewMode = "day";
-        nextParams.set("view", "day");
-        changed = true;
+      if (!hasExplicitTab || tab === "calendar") {
+        const dayMonth = rawDay!.slice(0, 7);
+        if (nextParams.get("month") !== dayMonth) {
+          nextParams.set("month", dayMonth);
+          changed = true;
+        }
+        if (tab !== "calendar") {
+          tab = "calendar";
+          nextParams.set("tab", "calendar");
+          changed = true;
+        }
+        if (!rawViewModeValid && viewMode !== "day") {
+          viewMode = "day";
+          nextParams.set("view", "day");
+          changed = true;
+        }
       }
     } else if (nextParams.has("day")) {
       nextParams.delete("day");
@@ -185,9 +187,6 @@ export function ChecklistShell({ calendarEnabled }: ChecklistShellProps) {
         nextParams.delete("day");
         changed = true;
       }
-    } else if (nextParams.has("view")) {
-      nextParams.delete("view");
-      changed = true;
     }
     const normalizedMonthParam = nextParams.get("month");
     const normalizedDayParam = nextParams.get("day");
@@ -316,10 +315,7 @@ export function ChecklistShell({ calendarEnabled }: ChecklistShellProps) {
       applySearchParams(
         (params) => {
           params.set("tab", effectiveTab);
-          if (effectiveTab !== "calendar") {
-            params.delete("day");
-            params.delete("view");
-          } else {
+          if (effectiveTab === "calendar") {
             params.set("view", normalized.viewMode);
             if (normalized.viewMode === "month") {
               params.delete("day");
@@ -343,6 +339,8 @@ export function ChecklistShell({ calendarEnabled }: ChecklistShellProps) {
       applySearchParams,
       calendarEnabled,
       captureScroll,
+      normalized.day,
+      normalized.month,
       normalized.tab,
       normalized.viewMode,
     ]
