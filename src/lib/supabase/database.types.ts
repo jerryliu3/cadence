@@ -1220,6 +1220,7 @@ export type Database = {
           p_request_digest: string
           p_requirement_schema_version: string
           p_scheduler_version: string
+          p_eligibility_mode: string
           p_scope_month: string
           p_search_status: string
           p_timezone: string
