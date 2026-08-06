@@ -13,20 +13,29 @@ import {
 
 type PlannerShellTab = "today" | "not-today" | "calendar";
 type SurfaceKey = "checklist" | "calendar";
+type PlannerCalendarViewMode = "month" | "week" | "day";
 
 const monthPattern = /^\d{4}-(0[1-9]|1[0-2])$/;
 const datePattern = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
 
-function isValidMonth(value: string | null) {
+function isValidMonth(value: string | null): value is string {
   return Boolean(value && monthPattern.test(value));
 }
 
-function isValidDate(value: string | null) {
+function isValidDate(value: string | null): value is string {
   if (!value || !datePattern.test(value)) {
     return false;
   }
   const parsed = parse(value, "yyyy-MM-dd", new Date());
   return format(parsed, "yyyy-MM-dd") === value;
+}
+
+function isValidCalendarViewMode(value: string | null): value is PlannerCalendarViewMode {
+  return value === "month" || value === "week" || value === "day";
+}
+
+function getTodayDateParam() {
+  return format(new Date(), "yyyy-MM-dd");
 }
 
 function getSurfaceKey(tab: PlannerShellTab): SurfaceKey {
@@ -51,11 +60,35 @@ export function ChecklistShell({ calendarEnabled }: ChecklistShellProps) {
   const rawTab = searchParams.get("tab");
   const rawMonth = searchParams.get("month");
   const rawDay = searchParams.get("day");
+  const rawView = searchParams.get("view");
+  const [defaultCalendarViewMode, setDefaultCalendarViewMode] =
+    useState<PlannerCalendarViewMode>("month");
+
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
+      return;
+    }
+    const mediaQueryList = window.matchMedia("(max-width: 767px)");
+    const updateDefaultViewMode = () => {
+      setDefaultCalendarViewMode(mediaQueryList.matches ? "week" : "month");
+    };
+    updateDefaultViewMode();
+    if (typeof mediaQueryList.addEventListener === "function") {
+      mediaQueryList.addEventListener("change", updateDefaultViewMode);
+      return () => mediaQueryList.removeEventListener("change", updateDefaultViewMode);
+    }
+    mediaQueryList.addListener(updateDefaultViewMode);
+    return () => mediaQueryList.removeListener(updateDefaultViewMode);
+  }, []);
 
   const normalized = useMemo(() => {
     const dayValid = isValidDate(rawDay);
     const monthValid = isValidMonth(rawMonth);
     const nextParams = new URLSearchParams(searchParams.toString());
+    const rawViewModeValid = isValidCalendarViewMode(rawView);
+    let viewMode: PlannerCalendarViewMode = rawViewModeValid
+      ? rawView
+      : defaultCalendarViewMode;
     let tab: PlannerShellTab =
       rawTab === "today" || rawTab === "not-today" || rawTab === "calendar"
         ? rawTab
@@ -75,6 +108,10 @@ export function ChecklistShell({ calendarEnabled }: ChecklistShellProps) {
       nextParams.delete("month");
       changed = true;
     }
+    if (rawView && !rawViewModeValid) {
+      nextParams.delete("view");
+      changed = true;
+    }
 
     if (dayValid && calendarEnabled) {
       const dayMonth = rawDay!.slice(0, 7);
@@ -85,6 +122,11 @@ export function ChecklistShell({ calendarEnabled }: ChecklistShellProps) {
       if (tab !== "calendar") {
         tab = "calendar";
         nextParams.set("tab", "calendar");
+        changed = true;
+      }
+      if (!rawViewModeValid && viewMode !== "day") {
+        viewMode = "day";
+        nextParams.set("view", "day");
         changed = true;
       }
     } else if (nextParams.has("day")) {
@@ -100,16 +142,77 @@ export function ChecklistShell({ calendarEnabled }: ChecklistShellProps) {
         nextParams.delete("day");
         changed = true;
       }
+      if (nextParams.has("view")) {
+        nextParams.delete("view");
+        changed = true;
+      }
     }
+
+    if (tab === "calendar" && calendarEnabled) {
+      if (nextParams.get("view") !== viewMode) {
+        nextParams.set("view", viewMode);
+        changed = true;
+      }
+      if (viewMode === "day") {
+        const dayParam = nextParams.get("day");
+        const normalizedDay = isValidDate(dayParam) ? dayParam : getTodayDateParam();
+        if (nextParams.get("day") !== normalizedDay) {
+          nextParams.set("day", normalizedDay);
+          changed = true;
+        }
+        const normalizedMonth = normalizedDay.slice(0, 7);
+        if (nextParams.get("month") !== normalizedMonth) {
+          nextParams.set("month", normalizedMonth);
+          changed = true;
+        }
+      } else if (viewMode === "week") {
+        const dayParam = nextParams.get("day");
+        const monthParam = nextParams.get("month");
+        const fallbackDay = isValidMonth(monthParam)
+          ? `${monthParam}-01`
+          : getTodayDateParam();
+        const normalizedDay = isValidDate(dayParam) ? dayParam : fallbackDay;
+        if (nextParams.get("day") !== normalizedDay) {
+          nextParams.set("day", normalizedDay);
+          changed = true;
+        }
+        const normalizedMonth = normalizedDay.slice(0, 7);
+        if (nextParams.get("month") !== normalizedMonth) {
+          nextParams.set("month", normalizedMonth);
+          changed = true;
+        }
+      } else if (viewMode === "month" && nextParams.has("day")) {
+        nextParams.delete("day");
+        changed = true;
+      }
+    } else if (nextParams.has("view")) {
+      nextParams.delete("view");
+      changed = true;
+    }
+    const normalizedMonthParam = nextParams.get("month");
+    const normalizedDayParam = nextParams.get("day");
+    const normalizedViewParam = nextParams.get("view");
+    const normalizedViewMode = isValidCalendarViewMode(normalizedViewParam)
+      ? normalizedViewParam
+      : viewMode;
 
     return {
       tab,
-      month: isValidMonth(nextParams.get("month")) ? nextParams.get("month") : null,
-      day: isValidDate(nextParams.get("day")) ? nextParams.get("day") : null,
+      month: isValidMonth(normalizedMonthParam) ? normalizedMonthParam : null,
+      day: isValidDate(normalizedDayParam) ? normalizedDayParam : null,
+      viewMode: normalizedViewMode,
       changed,
       nextParams,
     };
-  }, [calendarEnabled, rawDay, rawMonth, rawTab, searchParams]);
+  }, [
+    calendarEnabled,
+    defaultCalendarViewMode,
+    rawDay,
+    rawMonth,
+    rawTab,
+    rawView,
+    searchParams,
+  ]);
 
   const [checklistMounted, setChecklistMounted] = useState(
     normalized.tab !== "calendar"
@@ -215,12 +318,34 @@ export function ChecklistShell({ calendarEnabled }: ChecklistShellProps) {
           params.set("tab", effectiveTab);
           if (effectiveTab !== "calendar") {
             params.delete("day");
+            params.delete("view");
+          } else {
+            params.set("view", normalized.viewMode);
+            if (normalized.viewMode === "month") {
+              params.delete("day");
+            } else {
+              const day =
+                normalized.day ??
+                (isValidMonth(normalized.month)
+                  ? `${normalized.month}-01`
+                  : getTodayDateParam());
+              if (isValidDate(day)) {
+                params.set("day", day);
+                params.set("month", day.slice(0, 7));
+              }
+            }
           }
         },
         mode
       );
     },
-    [applySearchParams, calendarEnabled, captureScroll, normalized.tab]
+    [
+      applySearchParams,
+      calendarEnabled,
+      captureScroll,
+      normalized.tab,
+      normalized.viewMode,
+    ]
   );
 
   const updateMonth = useCallback(
@@ -229,6 +354,7 @@ export function ChecklistShell({ calendarEnabled }: ChecklistShellProps) {
       applySearchParams(
         (params) => {
           params.set("tab", "calendar");
+          params.set("view", "month");
           params.set("month", month);
           params.delete("day");
         },
@@ -238,9 +364,60 @@ export function ChecklistShell({ calendarEnabled }: ChecklistShellProps) {
     [applySearchParams, captureScroll, normalized.tab]
   );
 
-  const closeDay = useCallback(() => {
-    applySearchParams((params) => params.delete("day"), "replace");
-  }, [applySearchParams]);
+  const updateViewMode = useCallback(
+    (viewMode: PlannerCalendarViewMode, mode: "push" | "replace") => {
+      captureScroll(getSurfaceKey(normalized.tab));
+      applySearchParams(
+        (params) => {
+          params.set("tab", "calendar");
+          params.set("view", viewMode);
+          if (viewMode === "month") {
+            params.delete("day");
+            return;
+          }
+          const day =
+            normalized.day ??
+            (isValidMonth(normalized.month)
+              ? `${normalized.month}-01`
+              : getTodayDateParam());
+          if (isValidDate(day)) {
+            params.set("day", day);
+            params.set("month", day.slice(0, 7));
+          }
+        },
+        mode
+      );
+    },
+    [applySearchParams, captureScroll, normalized.day, normalized.month, normalized.tab]
+  );
+
+  const updateSelectedDay = useCallback(
+    (
+      day: string | null,
+      mode: "push" | "replace",
+      nextViewMode?: PlannerCalendarViewMode
+    ) => {
+      captureScroll(getSurfaceKey(normalized.tab));
+      applySearchParams(
+        (params) => {
+          params.set("tab", "calendar");
+          if (day && isValidDate(day)) {
+            const resolvedViewMode =
+              nextViewMode ??
+              (normalized.viewMode === "month" ? "day" : normalized.viewMode);
+            params.set("view", resolvedViewMode);
+            params.set("day", day);
+            params.set("month", day.slice(0, 7));
+            return;
+          }
+          params.set("view", nextViewMode ?? "month");
+          params.delete("day");
+        },
+        mode
+      );
+    },
+    [applySearchParams, captureScroll, normalized.tab, normalized.viewMode]
+  );
 
   const onChecklistMutation = useCallback(() => {
     setChecklistRefreshToken((token) => token + 1);
@@ -297,8 +474,10 @@ export function ChecklistShell({ calendarEnabled }: ChecklistShellProps) {
               activeTab={normalized.tab}
               month={normalized.month}
               selectedDay={normalized.day}
+              viewMode={normalized.viewMode}
               onMonthChange={updateMonth}
-              onCloseDay={closeDay}
+              onViewModeChange={updateViewMode}
+              onSelectedDayChange={updateSelectedDay}
               onPlannerMutation={onChecklistMutation}
             />
           ) : null}

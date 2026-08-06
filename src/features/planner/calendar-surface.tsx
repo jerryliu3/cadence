@@ -1,6 +1,6 @@
 "use client";
 
-import { addMonths, format, isValid, parse } from "date-fns";
+import { addDays, addMonths, format, isValid, parse } from "date-fns";
 import {
   CalendarDays,
   CheckCircle2,
@@ -8,6 +8,8 @@ import {
   ChevronRight,
   Circle,
   Loader2,
+  Maximize2,
+  Minimize2,
   RotateCcw,
   Settings,
 } from "lucide-react";
@@ -117,13 +119,23 @@ import type {
 const DAY_PREVIEW_HOVER_DELAY_MS = 500;
 const DAY_PREVIEW_CLOSE_DELAY_MS = 180;
 const DAY_PREVIEW_LONG_PRESS_DELAY_MS = 500;
+const MAX_MONTH_HEADING_SAMPLE = "September 2026";
+const MAX_WEEK_HEADING_SAMPLE = "Sep 30 - Sep 30, 2026";
+const MAX_DAY_HEADING_SAMPLE = "Wed Aug 30";
+const PLANNER_VIEW_MODES = [
+  { value: "month", label: "Month" },
+  { value: "week", label: "Week" },
+  { value: "day", label: "Day" },
+] as const;
 
 export function CalendarSurface({
   activeTab,
   month,
   selectedDay,
+  viewMode,
   onMonthChange,
-  onCloseDay,
+  onViewModeChange,
+  onSelectedDayChange,
   onPlannerMutation,
 }: CalendarSurfaceProps) {
   const [context, setContext] = useState<PlannerContextPayload | null>(null);
@@ -305,6 +317,38 @@ export function CalendarSurface({
     () => (month ? buildMondayFirstMonthCells(month) : []),
     [month]
   );
+  const cellByDate = useMemo(
+    () => new Map(cells.map((cell) => [cell.date, cell])),
+    [cells]
+  );
+  const calendarToday =
+    context?.asOfDate ??
+    getDateInTimezone(new Date(), context?.timezone ?? setupTimezone);
+  const focusedDay = selectedDay ?? calendarToday;
+  const focusedWeekDays = useMemo(() => {
+    const parsedFocusedDay = parse(focusedDay, "yyyy-MM-dd", new Date());
+    const safeFocusedDay = isValid(parsedFocusedDay)
+      ? parsedFocusedDay
+      : parse(calendarToday, "yyyy-MM-dd", new Date());
+    const mondayOffset = (safeFocusedDay.getDay() + 6) % 7;
+    const weekStart = addDays(safeFocusedDay, -mondayOffset);
+    return Array.from({ length: 7 }, (_, index) =>
+      format(addDays(weekStart, index), "yyyy-MM-dd")
+    );
+  }, [calendarToday, focusedDay]);
+  const focusedWeekCells = useMemo(() => {
+    const monthPrefix = month ? `${month}-` : null;
+    return focusedWeekDays.map((day) => {
+      const existingCell = cellByDate.get(day);
+      if (existingCell) {
+        return existingCell;
+      }
+      return {
+        date: day,
+        inMonth: monthPrefix ? day.startsWith(monthPrefix) : false,
+      };
+    });
+  }, [cellByDate, focusedWeekDays, month]);
   const currentScopeMonth = context?.scopeMonth ?? month;
   const draftMatchesCurrentScope =
     Boolean(currentScopeMonth) && draftScopeMonth === currentScopeMonth;
@@ -390,7 +434,7 @@ export function CalendarSurface({
     const sourcePolicy = effectiveDraftPolicy ?? context.preferences.defaultPolicy;
     return compilePlannerPolicy(plannerPolicySchema.parse(sourcePolicy));
   }, [context?.preferences, effectiveDraftPolicy]);
-  const effectiveSelectedDay = selectedDay ?? localSelectedDay;
+  const effectiveSelectedDay = localSelectedDay;
 
   const getEntriesForDay = useCallback(
     (day: string | null) => (day ? entriesByDate.get(day) ?? [] : []),
@@ -413,6 +457,14 @@ export function CalendarSurface({
       getEntriesForDay(effectiveSelectedDay)
     );
   }, [effectiveSelectedDay, getEntriesForDay, orderEntriesForDay]);
+  const focusedDayEntries = useMemo(
+    () => orderEntriesForDay(focusedDay, getEntriesForDay(focusedDay)),
+    [focusedDay, getEntriesForDay, orderEntriesForDay]
+  );
+  const focusedDayCompletionFactMarkers = useMemo(
+    () => completionFactMarkersByDate.get(focusedDay) ?? [],
+    [completionFactMarkersByDate, focusedDay]
+  );
   const coachSummaryWorkUnits = useMemo(
     () => buildCoachSummaryWorkUnits(entriesByDate),
     [entriesByDate]
@@ -1706,10 +1758,89 @@ export function CalendarSurface({
   };
 
   const canShowSetup = !context?.preferences;
+  const showBlockingLoading = loading && context === null;
   const monthLabel = month ? monthToLabel(month) : "Calendar";
   const todayMonth = context?.timezone
     ? getMonthInTimezone(context.timezone)
     : getMonthInTimezone(setupTimezone);
+  const parsedFocusedDay = parse(focusedDay, "yyyy-MM-dd", new Date());
+  const safeFocusedDay = isValid(parsedFocusedDay)
+    ? parsedFocusedDay
+    : parse(calendarToday, "yyyy-MM-dd", new Date());
+  const focusedWeekStartDate = parse(
+    focusedWeekDays[0] ?? focusedDay,
+    "yyyy-MM-dd",
+    new Date()
+  );
+  const focusedWeekEndDate = parse(
+    focusedWeekDays[6] ?? focusedDay,
+    "yyyy-MM-dd",
+    new Date()
+  );
+  const viewHeading =
+    viewMode === "month"
+      ? monthLabel
+      : viewMode === "week"
+        ? `${format(focusedWeekStartDate, "MMM d")} - ${format(
+            focusedWeekEndDate,
+            "MMM d, yyyy"
+          )}`
+        : format(safeFocusedDay, "EEE MMM d");
+  const viewHeadingControlWidth = `min(100%, calc(${Math.max(
+    monthLabel.length,
+    MAX_MONTH_HEADING_SAMPLE.length,
+    MAX_WEEK_HEADING_SAMPLE.length,
+    MAX_DAY_HEADING_SAMPLE.length
+  )}ch + ${viewMode === "month" ? "11rem" : "8rem"}))`;
+  const viewDescription =
+    viewMode === "month"
+      ? "Monday-first month view. Drag session pills to draft-move them."
+      : viewMode === "week"
+        ? "Expanded 7-day planner view with drag-and-drop editing."
+        : "Day agenda view with completion and detail controls.";
+  const previousWindowAriaLabel =
+    viewMode === "month"
+      ? "Previous month"
+      : viewMode === "week"
+        ? "Previous week"
+        : "Previous day";
+  const nextWindowAriaLabel =
+    viewMode === "month"
+      ? "Next month"
+      : viewMode === "week"
+        ? "Next week"
+        : "Next day";
+  const canResetViewWindow =
+    viewMode === "month" ? month !== todayMonth : focusedDay !== calendarToday;
+  const moveViewWindow = (direction: -1 | 1) => {
+    if (viewMode === "month") {
+      if (!month) {
+        return;
+      }
+      onMonthChange(
+        format(addMonths(parseMonth(month), direction), "yyyy-MM"),
+        "push"
+      );
+      return;
+    }
+    const stepDays = viewMode === "week" ? 7 : 1;
+    const nextDay = format(addDays(safeFocusedDay, direction * stepDays), "yyyy-MM-dd");
+    onSelectedDayChange(nextDay, "push", viewMode);
+  };
+  const resetViewWindow = () => {
+    if (viewMode === "month") {
+      onMonthChange(todayMonth, "replace");
+      return;
+    }
+    onSelectedDayChange(calendarToday, "replace", viewMode);
+  };
+  const setCalendarViewMode = (nextViewMode: (typeof PLANNER_VIEW_MODES)[number]["value"]) => {
+    if (nextViewMode === viewMode) {
+      return;
+    }
+    setDayPreview(null);
+    onViewModeChange(nextViewMode, "push");
+  };
   const canUseCoach = Boolean(context?.capabilities.coachAi && context?.scopeMonth);
   const hasCoachConversationState =
     coachMessages.length > 0 ||
@@ -1738,9 +1869,6 @@ export function CalendarSurface({
       context?.activePlan?.plan.status === "active"
   );
   const publishButtonLabel = publishLoading ? "Publishing..." : "Publish plan";
-  const calendarToday =
-    context?.asOfDate ??
-    getDateInTimezone(new Date(), context?.timezone ?? setupTimezone);
   const selectedEventCompletionDispatch = selectedEventEntry
     ? getDateFactDispatchForEntry(selectedEventEntry)
     : null;
@@ -1750,6 +1878,100 @@ export function CalendarSurface({
         selectedEventCompletionDispatch
       )
     : null;
+  const openEntryDetails = (day: string, entryKey: string) => {
+    clearHoverPreviewTimer();
+    clearHoverPreviewCloseTimer();
+    setDayPreview(null);
+    setLocalSelectedDay(day);
+    setSelectedEventEntryKey(entryKey);
+  };
+  const renderCalendarDayCell = (cell: { date: string; inMonth: boolean }) => {
+    const entriesForDay = orderEntriesForDay(cell.date, getEntriesForDay(cell.date));
+    const completionFactMarkersForDay = completionFactMarkersByDate.get(cell.date) ?? [];
+    const status =
+      entriesForDay.length > 0
+        ? getDayStatus(entriesForDay, "No items")
+        : completionFactMarkersForDay.length > 0
+          ? "Completed elsewhere"
+          : "No items";
+    const isToday = cell.date === calendarToday;
+    const isPastInMonth = cell.inMonth && cell.date < calendarToday;
+    const ariaLabel = `${format(
+      parse(cell.date, "yyyy-MM-dd", new Date()),
+      "EEEE, MMMM d, yyyy"
+    )}. ${entriesForDay.length} planned item${
+      entriesForDay.length === 1 ? "" : "s"
+    }. ${completionFactMarkersForDay.length} completion fact${
+      completionFactMarkersForDay.length === 1 ? "" : "s"
+    }. ${status}.`;
+
+    return (
+      <CalendarMonthDayCell
+        key={`${viewMode}-${cell.date}`}
+        day={cell.date}
+        inMonth={cell.inMonth}
+        isToday={isToday}
+        isPastInMonth={isPastInMonth}
+        ariaLabel={ariaLabel}
+        entriesForDay={entriesForDay}
+        completionFactMarkersForDay={completionFactMarkersForDay}
+        maxVisibleItems={
+          viewMode === "week"
+            ? Number.MAX_SAFE_INTEGER
+            : expandedMonthRows
+              ? Number.MAX_SAFE_INTEGER
+              : 2
+        }
+        isAnyEntryDragging={Boolean(draggingEntryKey)}
+        getEntryDisplayTitle={getEntryDisplayTitle}
+        isEntryCredited={isEntryCredited}
+        isEntryImmovableForDraft={isEntryImmovableForDraft}
+        onEntryClick={(day, entry) => {
+          openEntryDetails(day, entry.key);
+        }}
+        onCellClick={(target) => {
+          if (draggingEntryKey) {
+            return;
+          }
+          handleDayCellClick(cell.date, target);
+        }}
+        onCellMouseEnter={(target) => {
+          scheduleHoverPreview(cell.date, target);
+        }}
+        onCellMouseLeave={() => {
+          clearHoverPreviewTimer();
+          scheduleHoverPreviewClose(cell.date);
+        }}
+        onCellPointerDown={(pointerType, target) => {
+          pointerPressActiveRef.current = true;
+          clearHoverPreviewTimer();
+          if (pointerType === "touch") {
+            startLongPressPreview(cell.date, target);
+          }
+        }}
+        onCellPointerUp={() => {
+          pointerPressActiveRef.current = false;
+          clearLongPressTimer();
+        }}
+        onCellPointerCancel={() => {
+          pointerPressActiveRef.current = false;
+          clearLongPressTimer();
+        }}
+        onCellPointerLeave={() => {
+          clearLongPressTimer();
+        }}
+        onEntryPointerStart={(immovable) => {
+          void immovable;
+          pointerPressActiveRef.current = true;
+          clearHoverPreviewTimer();
+          setDayPreview(null);
+        }}
+        onEntryPointerEnd={() => {
+          pointerPressActiveRef.current = false;
+        }}
+      />
+    );
+  };
 
   const setupForm = (
     <div className="space-y-4">
@@ -1892,7 +2114,7 @@ export function CalendarSurface({
         </div>
       </div>
 
-      {loading ? (
+      {showBlockingLoading ? (
         <div className="rounded-xl border bg-card p-8 text-sm text-muted-foreground">
           <div className="flex items-center gap-2">
             <Loader2 className="size-4 animate-spin" />
@@ -1917,71 +2139,99 @@ export function CalendarSurface({
       ) : month ? (
         <>
           <div className="rounded-xl border bg-card p-4 shadow-sm">
-            <div className="mb-3 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon-sm"
-                  disabled={loading}
-                  aria-label="Previous month"
-                  onClick={() =>
-                    onMonthChange(
-                      format(addMonths(parseMonth(month), -1), "yyyy-MM"),
-                      "push"
-                    )
-                  }
+            <div className="mb-3 space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div
+                  className={`grid max-w-full items-center gap-2 ${
+                    viewMode === "month"
+                      ? "grid-cols-[2rem_minmax(0,1fr)_2rem_2rem_2rem]"
+                      : "grid-cols-[2rem_minmax(0,1fr)_2rem_2rem]"
+                  }`}
+                  style={{ width: viewHeadingControlWidth }}
                 >
-                  <ChevronLeft className="size-4" />
-                </Button>
-                <h3 className="text-base font-semibold">{monthLabel}</h3>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon-sm"
-                  disabled={loading}
-                  aria-label="Next month"
-                  onClick={() =>
-                    onMonthChange(
-                      format(addMonths(parseMonth(month), 1), "yyyy-MM"),
-                      "push"
-                    )
-                  }
-                >
-                  <ChevronRight className="size-4" />
-                </Button>
-                {month !== todayMonth ? (
                   <Button
                     type="button"
                     variant="outline"
                     size="icon-sm"
                     disabled={loading}
-                    aria-label="Reset to current month"
-                    title="Go to current month"
-                    onClick={() => onMonthChange(todayMonth, "replace")}
+                    aria-label={previousWindowAriaLabel}
+                    onClick={() => moveViewWindow(-1)}
+                  >
+                    <ChevronLeft className="size-4" />
+                  </Button>
+                  <h3 className="truncate text-center text-base font-semibold">
+                    {viewHeading}
+                  </h3>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon-sm"
+                    disabled={loading}
+                    aria-label={nextWindowAriaLabel}
+                    onClick={() => moveViewWindow(1)}
+                  >
+                    <ChevronRight className="size-4" />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon-sm"
+                    disabled={loading || !canResetViewWindow}
+                    aria-label="Go to today"
+                    title="Go to today"
+                    onClick={resetViewWindow}
                   >
                     <RotateCcw className="size-4" />
                   </Button>
-                ) : null}
-                {hasDraftSession ? (
-                  <Badge className="border-yellow-300 bg-yellow-100 text-orange-900 dark:border-yellow-300 dark:bg-yellow-100 dark:text-orange-900">
-                    Planning Mode
-                  </Badge>
-                ) : null}
+                  {viewMode === "month" ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon-sm"
+                      disabled={loading}
+                      aria-label={expandedMonthRows ? "Compact rows" : "Expand rows"}
+                      title={expandedMonthRows ? "Compact rows" : "Expand rows"}
+                      onClick={() => setExpandedMonthRows((current) => !current)}
+                    >
+                      {expandedMonthRows ? (
+                        <Minimize2 className="size-4" />
+                      ) : (
+                        <Maximize2 className="size-4" />
+                      )}
+                    </Button>
+                  ) : null}
+                </div>
+                <div className="flex items-center gap-1 rounded-md border p-1">
+                  {PLANNER_VIEW_MODES.map((modeOption) => (
+                    <Button
+                      key={modeOption.value}
+                      type="button"
+                      size="sm"
+                      variant={viewMode === modeOption.value ? "default" : "ghost"}
+                      className="h-7 px-2 text-xs"
+                      disabled={loading}
+                      onClick={() => setCalendarViewMode(modeOption.value)}
+                    >
+                      {modeOption.label}
+                    </Button>
+                  ))}
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                <p className="text-xs text-muted-foreground">
-                  Monday-first month view. Drag session pills to draft-move them.
-                </p>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={loading}
-                  onClick={() => setExpandedMonthRows((current) => !current)}
-                >
-                  {expandedMonthRows ? "Compact rows" : "Expand rows"}
-                </Button>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                  {hasDraftSession ? (
+                    <Badge className="border-yellow-300 bg-yellow-100 text-orange-900 dark:border-yellow-300 dark:bg-yellow-100 dark:text-orange-900">
+                      Planning Mode
+                    </Badge>
+                  ) : null}
+                  <p>{viewDescription}</p>
+                  {loading ? (
+                    <span className="inline-flex items-center gap-1">
+                      <Loader2 className="size-3 animate-spin" />
+                      Updating...
+                    </span>
+                  ) : null}
+                </div>
               </div>
             </div>
             <PlannerDndProvider
@@ -1992,201 +2242,189 @@ export function CalendarSurface({
               onEntryDragEnd={handleDndEntryDragEnd}
               onEntryDragCancel={handleDndEntryDragCancel}
             >
-              <div className="grid grid-cols-7 gap-2 text-center text-xs text-muted-foreground">
-                {monthWeekdayLabels.map((weekday) => (
-                  <span key={weekday}>{weekday}</span>
-                ))}
-              </div>
-              <div className="mt-2 grid grid-cols-7 gap-2" data-no-swipe="true">
-                {cells.map((cell) => {
-                  const entriesForDay = orderEntriesForDay(
-                    cell.date,
-                    getEntriesForDay(cell.date)
-                  );
-                  const completionFactMarkersForDay =
-                    completionFactMarkersByDate.get(cell.date) ?? [];
-                  const status =
-                    entriesForDay.length > 0
-                      ? getDayStatus(entriesForDay, "No items")
-                      : completionFactMarkersForDay.length > 0
-                        ? "Completed elsewhere"
-                        : "No items";
-                  const isToday = cell.date === calendarToday;
-                  const isPastInMonth = cell.inMonth && cell.date < calendarToday;
-                  const ariaLabel = `${format(
-                    parse(cell.date, "yyyy-MM-dd", new Date()),
-                    "EEEE, MMMM d, yyyy"
-                  )}. ${entriesForDay.length} planned item${
-                    entriesForDay.length === 1 ? "" : "s"
-                  }. ${completionFactMarkersForDay.length} completion fact${
-                    completionFactMarkersForDay.length === 1 ? "" : "s"
-                  }. ${status}.`;
+              <div
+                className={`transition-opacity duration-150 motion-reduce:transition-none ${
+                  loading ? "opacity-70" : "opacity-100"
+                }`}
+              >
+                {viewMode === "day" ? (
+                  <div className="space-y-2" data-no-swipe="true">
+                    <div className="rounded-lg border p-3">
+                      <p className="mb-2 text-sm font-medium">
+                        {format(parse(focusedDay, "yyyy-MM-dd", new Date()), "EEE MMM d")}
+                      </p>
+                      <CalendarDayPreviewList
+                        day={focusedDay}
+                        entries={focusedDayEntries}
+                        completionFactMarkers={focusedDayCompletionFactMarkers}
+                        mutationLoading={Boolean(mutationLoadingKey)}
+                        getEntryDisplayTitle={getEntryDisplayTitle}
+                        getEntrySubtitle={getEntrySubtitle}
+                        isEntryCredited={isEntryCredited}
+                        isEntryImmovableForDraft={isEntryImmovableForDraft}
+                        getCompletionToggleState={(entry, day) => {
+                          const dayCompletionDispatch = getDateFactDispatchForEntry(entry, day);
+                          const dayCompletionDisabledReason =
+                            completionControlDisabledReasonForEntry(
+                              entry,
+                              dayCompletionDispatch
+                            );
+                          return {
+                            currentlyCredited: Boolean(
+                              dayCompletionDispatch?.currentlyCredited
+                            ),
+                            disabledReasonCopy: dayCompletionDisabledReason
+                              ? completionDisabledReasonCopy(dayCompletionDisabledReason)
+                              : null,
+                          };
+                        }}
+                        onEntryOpen={(entryKey) => {
+                          openEntryDetails(focusedDay, entryKey);
+                        }}
+                        onToggleCompletion={(entry, day) => {
+                          void toggleDateFact(entry, day);
+                        }}
+                        onEntryPointerStart={(immovable) => {
+                          void immovable;
+                          pointerPressActiveRef.current = true;
+                        }}
+                        onEntryPointerEnd={() => {
+                          pointerPressActiveRef.current = false;
+                        }}
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <div className="grid grid-cols-7 gap-2 text-center text-xs text-muted-foreground">
+                      {monthWeekdayLabels.map((weekday) => (
+                        <span key={weekday}>{weekday}</span>
+                      ))}
+                    </div>
+                    <div className="mt-2 grid grid-cols-7 gap-2" data-no-swipe="true">
+                      {(viewMode === "week" ? focusedWeekCells : cells).map(
+                        renderCalendarDayCell
+                      )}
+                    </div>
+                  </>
+                )}
+                {draftPublishBlockedMessage ? (
+                  <div className="mt-3 rounded-md border border-amber-400/40 bg-amber-500/10 p-2 text-xs">
+                    <p className="font-medium">Draft publish is currently blocked.</p>
+                    <p className="mt-1 text-muted-foreground">
+                      {draftPublishBlockedMessage}
+                    </p>
+                  </div>
+                ) : null}
 
-                  return (
-                    <CalendarMonthDayCell
-                      key={cell.date}
-                      day={cell.date}
-                      inMonth={cell.inMonth}
-                      isToday={isToday}
-                      isPastInMonth={isPastInMonth}
-                      ariaLabel={ariaLabel}
-                      entriesForDay={entriesForDay}
-                      completionFactMarkersForDay={completionFactMarkersForDay}
-                      maxVisibleItems={
-                        expandedMonthRows ? Number.MAX_SAFE_INTEGER : 2
-                      }
-                      isAnyEntryDragging={Boolean(draggingEntryKey)}
-                      getEntryDisplayTitle={getEntryDisplayTitle}
-                      isEntryCredited={isEntryCredited}
-                      isEntryImmovableForDraft={isEntryImmovableForDraft}
-                      onEntryClick={(day, entry) => {
-                        clearHoverPreviewTimer();
-                        clearHoverPreviewCloseTimer();
-                        setDayPreview(null);
-                        setLocalSelectedDay(day);
-                        setSelectedEventEntryKey(entry.key);
-                      }}
-                      onCellClick={(target) => {
-                        if (draggingEntryKey) {
-                          return;
-                        }
-                        handleDayCellClick(cell.date, target);
-                      }}
-                      onCellMouseEnter={(target) => {
-                        scheduleHoverPreview(cell.date, target);
-                      }}
-                      onCellMouseLeave={() => {
-                        clearHoverPreviewTimer();
-                        scheduleHoverPreviewClose(cell.date);
-                      }}
-                      onCellPointerDown={(pointerType, target) => {
-                        pointerPressActiveRef.current = true;
-                        clearHoverPreviewTimer();
-                        if (pointerType === "touch") {
-                          startLongPressPreview(cell.date, target);
-                        }
-                      }}
-                      onCellPointerUp={() => {
-                        pointerPressActiveRef.current = false;
-                        clearLongPressTimer();
-                      }}
-                      onCellPointerCancel={() => {
-                        pointerPressActiveRef.current = false;
-                        clearLongPressTimer();
-                      }}
-                      onCellPointerLeave={() => {
-                        clearLongPressTimer();
-                      }}
-                      onEntryPointerStart={(immovable) => {
-                        void immovable;
-                        pointerPressActiveRef.current = true;
-                        clearHoverPreviewTimer();
-                        setDayPreview(null);
-                      }}
-                      onEntryPointerEnd={() => {
-                        pointerPressActiveRef.current = false;
-                      }}
-                    />
-                  );
-                })}
-              </div>
-              {draftPublishBlockedMessage ? (
-                <div className="mt-3 rounded-md border border-amber-400/40 bg-amber-500/10 p-2 text-xs">
-                  <p className="font-medium">Draft publish is currently blocked.</p>
-                  <p className="mt-1 text-muted-foreground">
-                    {draftPublishBlockedMessage}
-                  </p>
-                </div>
-              ) : null}
-
-              {dayPreview ? (
-                <div
-                  ref={dayPreviewRef}
-                  className="fixed z-40 rounded-lg border bg-card p-3 shadow-lg"
-                  style={{
-                    top: dayPreview.position.top,
-                    left: dayPreview.position.left,
-                    width: dayPreview.position.width,
-                    transform:
-                      dayPreview.position.placement === "above"
-                        ? "translateY(-100%)"
-                        : undefined,
-                  }}
-                  onPointerDownCapture={() => {
-                    setDayPreview((current) =>
-                      current && !current.pinned
-                        ? { ...current, pinned: true }
-                        : current
-                    );
-                  }}
-                  onMouseEnter={() => {
-                    pointerInsideDayPreviewRef.current = true;
-                    clearHoverPreviewTimer();
-                    clearHoverPreviewCloseTimer();
-                  }}
-                  onMouseLeave={() => {
-                    pointerInsideDayPreviewRef.current = false;
-                    scheduleHoverPreviewClose(dayPreview.day);
-                  }}
-                >
-              <div className="mb-2 flex items-center justify-between gap-2">
-                <p className="text-sm font-medium">
-                  {format(parse(dayPreview.day, "yyyy-MM-dd", new Date()), "EEEE, MMM d")}
-                </p>
-                {dayPreview.pinned ? (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="h-6 px-2 text-xs"
-                    onClick={() => setDayPreview(null)}
+                {viewMode !== "day" && dayPreview ? (
+                  <div
+                    ref={dayPreviewRef}
+                    className="fixed z-40 rounded-lg border bg-card p-3 shadow-lg"
+                    style={{
+                      top: dayPreview.position.top,
+                      left: dayPreview.position.left,
+                      width: dayPreview.position.width,
+                      transform:
+                        dayPreview.position.placement === "above"
+                          ? "translateY(-100%)"
+                          : undefined,
+                    }}
+                    onPointerDownCapture={() => {
+                      setDayPreview((current) =>
+                        current && !current.pinned
+                          ? { ...current, pinned: true }
+                          : current
+                      );
+                    }}
+                    onMouseEnter={() => {
+                      pointerInsideDayPreviewRef.current = true;
+                      clearHoverPreviewTimer();
+                      clearHoverPreviewCloseTimer();
+                    }}
+                    onMouseLeave={() => {
+                      pointerInsideDayPreviewRef.current = false;
+                      scheduleHoverPreviewClose(dayPreview.day);
+                    }}
                   >
-                    X
-                  </Button>
+                    <div className="mb-2 flex items-center justify-between gap-2">
+                      <p className="text-sm font-medium">
+                        {format(
+                          parse(dayPreview.day, "yyyy-MM-dd", new Date()),
+                          "EEEE, MMM d"
+                        )}
+                      </p>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-6 px-2 text-xs"
+                          onClick={() => {
+                            setDayPreview(null);
+                            onSelectedDayChange(dayPreview.day, "push", "day");
+                          }}
+                        >
+                          Day view
+                        </Button>
+                        {dayPreview.pinned ? (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 px-2 text-xs"
+                            onClick={() => setDayPreview(null)}
+                          >
+                            X
+                          </Button>
+                        ) : null}
+                      </div>
+                    </div>
+                  <CalendarDayPreviewList
+                    day={dayPreview.day}
+                    entries={previewDayEntries}
+                    completionFactMarkers={previewDayCompletionFactMarkers}
+                    mutationLoading={Boolean(mutationLoadingKey)}
+                    getEntryDisplayTitle={getEntryDisplayTitle}
+                    getEntrySubtitle={getEntrySubtitle}
+                    isEntryCredited={isEntryCredited}
+                    isEntryImmovableForDraft={isEntryImmovableForDraft}
+                    getCompletionToggleState={(entry, day) => {
+                      const previewCompletionDispatch = getDateFactDispatchForEntry(
+                        entry,
+                        day
+                      );
+                      const previewCompletionDisabledReason =
+                        completionControlDisabledReasonForEntry(
+                          entry,
+                          previewCompletionDispatch
+                        );
+                      return {
+                        currentlyCredited: Boolean(
+                          previewCompletionDispatch?.currentlyCredited
+                        ),
+                        disabledReasonCopy: previewCompletionDisabledReason
+                          ? completionDisabledReasonCopy(previewCompletionDisabledReason)
+                          : null,
+                      };
+                    }}
+                    onEntryOpen={(entryKey) => {
+                      openEntryDetails(dayPreview.day, entryKey);
+                    }}
+                    onToggleCompletion={(entry, day) => {
+                      void toggleDateFact(entry, day);
+                    }}
+                    onEntryPointerStart={(immovable) => {
+                      void immovable;
+                      pointerPressActiveRef.current = true;
+                    }}
+                    onEntryPointerEnd={() => {
+                      pointerPressActiveRef.current = false;
+                    }}
+                  />
+                  </div>
                 ) : null}
               </div>
-              <CalendarDayPreviewList
-                day={dayPreview.day}
-                entries={previewDayEntries}
-                completionFactMarkers={previewDayCompletionFactMarkers}
-                mutationLoading={Boolean(mutationLoadingKey)}
-                getEntryDisplayTitle={getEntryDisplayTitle}
-                getEntrySubtitle={getEntrySubtitle}
-                isEntryCredited={isEntryCredited}
-                isEntryImmovableForDraft={isEntryImmovableForDraft}
-                getCompletionToggleState={(entry, day) => {
-                  const previewCompletionDispatch = getDateFactDispatchForEntry(entry, day);
-                  const previewCompletionDisabledReason =
-                    completionControlDisabledReasonForEntry(
-                      entry,
-                      previewCompletionDispatch
-                    );
-                  return {
-                    currentlyCredited: Boolean(
-                      previewCompletionDispatch?.currentlyCredited
-                    ),
-                    disabledReasonCopy: previewCompletionDisabledReason
-                      ? completionDisabledReasonCopy(previewCompletionDisabledReason)
-                      : null,
-                  };
-                }}
-                onEntryOpen={(entryKey) => {
-                  setLocalSelectedDay(dayPreview.day);
-                  setSelectedEventEntryKey(entryKey);
-                }}
-                onToggleCompletion={(entry, day) => {
-                  void toggleDateFact(entry, day);
-                }}
-                onEntryPointerStart={(immovable) => {
-                  void immovable;
-                  pointerPressActiveRef.current = true;
-                }}
-                onEntryPointerEnd={() => {
-                  pointerPressActiveRef.current = false;
-                }}
-              />
-                </div>
-              ) : null}
             </PlannerDndProvider>
           </div>
 
@@ -2359,12 +2597,11 @@ export function CalendarSurface({
           ) : null}
 
           <Dialog
-            open={Boolean(selectedDay)}
+            open={Boolean(effectiveSelectedDay)}
             onOpenChange={(open) => {
               if (!open) {
                 setSelectedEventEntryKey(null);
                 setLocalSelectedDay(null);
-                onCloseDay();
               }
             }}
           >
@@ -2374,9 +2611,9 @@ export function CalendarSurface({
             >
               <DialogHeader>
                 <DialogTitle>
-                  {selectedDay
+                  {effectiveSelectedDay
                     ? format(
-                        parse(selectedDay, "yyyy-MM-dd", new Date()),
+                        parse(effectiveSelectedDay, "yyyy-MM-dd", new Date()),
                         "EEEE, MMMM d"
                       )
                     : "Day detail"}
@@ -2506,9 +2743,6 @@ export function CalendarSurface({
             onOpenChange={(open) => {
               if (!open) {
                 setSelectedEventEntryKey(null);
-                if (!selectedDay) {
-                  setLocalSelectedDay(null);
-                }
               }
             }}
           >

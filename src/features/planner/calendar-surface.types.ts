@@ -4,6 +4,7 @@ import type { PlannerDraftVisualKind } from "@/lib/planner/diff";
 import type { PlannerPolicy } from "@/lib/planner/policy";
 
 export type CalendarTab = "today" | "not-today" | "calendar";
+export type PlannerCalendarViewMode = "month" | "week" | "day";
 
 export interface PlannerContextPayload {
   schemaVersion: "1";
@@ -175,8 +176,17 @@ export interface CalendarSurfaceProps {
   activeTab: CalendarTab;
   month: string | null;
   selectedDay: string | null;
+  viewMode: PlannerCalendarViewMode;
   onMonthChange: (month: string, mode: "push" | "replace") => void;
-  onCloseDay: () => void;
+  onViewModeChange: (
+    viewMode: PlannerCalendarViewMode,
+    mode: "push" | "replace"
+  ) => void;
+  onSelectedDayChange: (
+    day: string | null,
+    mode: "push" | "replace",
+    nextViewMode?: PlannerCalendarViewMode
+  ) => void;
   onPlannerMutation: () => void;
 }
 
