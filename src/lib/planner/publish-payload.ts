@@ -19,6 +19,11 @@ import {
 } from "@/lib/planner/policy";
 import { createDefaultAssessment, type GoalAssessment } from "@/lib/planner/assessment";
 import { normalizeGoalRequirement } from "@/lib/planner/requirements";
+import {
+  projectPlannerDraftCommands,
+  sortPlannerDraftCommands,
+  type PlannerDraftCommand,
+} from "@/lib/planner/draft-commands";
 
 type PlannerIssueSeverity = "informational" | "warning" | "blocking";
 
@@ -30,7 +35,7 @@ export interface PlannerPublishIntent {
   expectedBasePlanId: string | null;
   expectedBasePlanVersion: number | null;
   policyOverride: PlannerPolicy | null;
-  draftItemEdits: PlannerDraftItemEdit[];
+  draftCommands: PlannerDraftCommand[];
 }
 
 export interface PlannerDraftItemEdit {
@@ -147,6 +152,25 @@ function countByKind(diff: PlannerKernelOutput["diff"], kind: PlannerKernelOutpu
 
 function buildDraftEditKey(goalId: string, unitKey: string) {
   return `${goalId}:${unitKey}`;
+}
+
+function buildDraftItemEditsFromCommands(commands: PlannerDraftCommand[]) {
+  const projected = projectPlannerDraftCommands(sortPlannerDraftCommands(commands));
+  return Object.entries(projected)
+    .map(([entryKey, edit]) => {
+      const separatorIndex = entryKey.indexOf(":");
+      if (separatorIndex <= 0 || separatorIndex === entryKey.length - 1) {
+        return null;
+      }
+      return {
+        goalId: entryKey.slice(0, separatorIndex),
+        unitKey: entryKey.slice(separatorIndex + 1),
+        scheduledDate:
+          edit.scheduledDate === undefined ? null : edit.scheduledDate,
+        label: edit.label === undefined ? null : edit.label,
+      } as PlannerDraftItemEdit;
+    })
+    .filter((edit): edit is PlannerDraftItemEdit => edit !== null);
 }
 
 function applyValidatedDraftItemEdits({
@@ -377,14 +401,14 @@ export function buildPlannerPublishPersistencePayload({
   kernel,
   snapshot,
   assessments,
-  draftItemEdits = [],
+  draftCommands = [],
 }: {
   scopeMonth: string;
   policy: PlannerPolicy;
   kernel: PlannerKernelOutput;
   snapshot: PlannerCanonicalSnapshot;
   assessments: GoalAssessment[];
-  draftItemEdits?: PlannerDraftItemEdit[];
+  draftCommands?: PlannerDraftCommand[];
 }): PlannerPublishPersistencePayload {
   const eligibleGoalIds = new Set(
     kernel.eligibility.filter((entry) => entry.eligible).map((entry) => entry.goalId)
@@ -428,6 +452,7 @@ export function buildPlannerPublishPersistencePayload({
     };
   });
 
+  const draftItemEdits = buildDraftItemEditsFromCommands(draftCommands);
   const originalScheduledDateByKey = new Map(
     kernel.workUnits.map((unit) => [
       buildDraftEditKey(unit.originalGoalId, unit.unitKey),
@@ -528,6 +553,7 @@ export function buildPlannerPublishPersistencePayload({
       removed,
       moved,
       lockChanged,
+      draftCommands: draftCommands.length,
       draftMoved: draftMovedCount,
       draftRelabeled: draftRelabeledCount,
       confirmationRequired: kernel.solver.confirmationRequired,

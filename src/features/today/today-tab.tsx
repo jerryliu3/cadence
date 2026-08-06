@@ -65,7 +65,10 @@ import type {
   GoalLink,
   GoalParticipant,
 } from "@/lib/goals/types";
-import { resolveCompletionDispatch } from "@/lib/planner/completion-dispatch";
+import {
+  executeCompletionDispatch,
+  resolveCompletionDispatch,
+} from "@/lib/planner/completion-dispatch";
 import {
   getGoalRequirement,
   isTargetedRecurringGoal,
@@ -127,6 +130,27 @@ const recurrenceGroupLabel: Record<RecurrenceGroup, string> = {
   monthly: "Monthly",
   fixed: "Fixed",
 };
+const TODAY_COMPLETION_REFRESH_TIMEOUT_MS = 15_000;
+
+async function withTimeout<T>(
+  operation: Promise<T>,
+  timeoutMs: number,
+  timeoutMessage: string
+) {
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
+  const timeoutPromise = new Promise<T>((_, reject) => {
+    timeoutId = setTimeout(() => {
+      reject(new Error(timeoutMessage));
+    }, timeoutMs);
+  });
+  try {
+    return await Promise.race([operation, timeoutPromise]);
+  } finally {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
+  }
+}
 
 function goalCompletionsMap(completions: CompletionDateFact[]) {
   const grouped = new Map<string, CompletionDateFact[]>();
@@ -549,6 +573,7 @@ export function TodayTab({
       : latestCompletionInCurrentPeriod;
     const targetedRecurring = isTargetedRecurringGoal(goal);
     const requirement = getGoalRequirement(goal);
+    const desiredFactState = completedOnViewDate ? "absent" : "present";
     const decision = resolveCompletionDispatch({
       requirementKind: requirement.kind,
       targetedRecurring,
@@ -561,7 +586,7 @@ export function TodayTab({
             ? "today"
             : "future",
       existingExactFact: completedOnViewDate,
-      desiredFactState: completedOnViewDate ? "absent" : "present",
+      desiredFactState,
     });
 
     if (!decision.allowed) {
@@ -575,60 +600,71 @@ export function TodayTab({
 
     setSavingGoalId(goal.id);
     const currentScrollY = window.scrollY;
+    const routeDesiredFactState =
+      decision.route === "legacy_period"
+        ? completedForCurrentPeriod
+          ? "absent"
+          : "present"
+        : desiredFactState;
 
     try {
-      if (decision.route === "canonical_exact_date") {
-        const response = await fetch("/api/completions/exact-date", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            goalId: goal.id,
-            date: viewDate,
-            desiredFactState: completedOnViewDate ? "absent" : "present",
-            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-          }),
-        });
-        const payload = (await response.json()) as {
-          message?: string;
-        };
-        if (!response.ok) {
-          toast.error(
-            payload.message ?? "The exact-date completion could not be updated."
-          );
-        } else {
-          toast.success(
-            completedOnViewDate
-              ? `Removed completion for ${viewDate}.`
-              : `Great work. Goal completed for ${viewDate}.`
-          );
-        }
-      } else if (completedForCurrentPeriod && completionToUnmark) {
-        const unmarkDate = completionToUnmark.completed_on;
-        const { error } = await supabase.rpc("unmark_goal_complete", {
-          p_goal_id: goal.id,
-          p_date: unmarkDate,
-        });
-        if (error) {
-          toast.error(error.message);
-        } else {
-          toast.success(`Marked as incomplete for ${unmarkDate}.`);
-        }
-      } else {
-        const { error } = await supabase.rpc("mark_goal_complete", {
-          p_goal_id: goal.id,
-          p_date: viewDate,
-        });
-        if (error) {
-          toast.error(error.message);
-        } else {
-          toast.success(`Great work. Goal completed for ${viewDate}.`);
-        }
+      const result = await executeCompletionDispatch({
+        decision,
+        desiredFactState: routeDesiredFactState,
+        goalId: goal.id,
+        date: viewDate,
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        legacyExecutor: {
+          markPresent: async () => {
+            const { error } = await supabase.rpc("mark_goal_complete", {
+              p_goal_id: goal.id,
+              p_date: viewDate,
+            });
+            return error?.message ?? null;
+          },
+          markAbsent: async () => {
+            if (!completedForCurrentPeriod || !completionToUnmark) {
+              return "No completion was found to remove for this period.";
+            }
+            const { error } = await supabase.rpc("unmark_goal_complete", {
+              p_goal_id: goal.id,
+              p_date: completionToUnmark.completed_on,
+            });
+            return error?.message ?? null;
+          },
+        },
+      });
+
+      if (!result.ok) {
+        toast.error(
+          result.message ?? "The completion could not be updated."
+        );
+        return;
       }
 
-      await loadData({ showLoading: false, forceRefresh: true });
+      if (routeDesiredFactState === "present") {
+        toast.success(`Great work. Goal completed for ${viewDate}.`);
+      } else {
+        const removedDate =
+          decision.route === "legacy_period"
+            ? completionToUnmark?.completed_on ?? viewDate
+            : viewDate;
+        toast.success(`Marked as incomplete for ${removedDate}.`);
+      }
+      await withTimeout(
+        loadData({ showLoading: false, forceRefresh: true }),
+        TODAY_COMPLETION_REFRESH_TIMEOUT_MS,
+        "Goal progress refresh timed out. Please refresh to sync."
+      );
       requestAnimationFrame(() => {
         window.scrollTo({ top: currentScrollY, behavior: "auto" });
       });
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "The completion could not be updated."
+      );
     } finally {
       setSavingGoalId(null);
     }

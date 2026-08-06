@@ -135,21 +135,15 @@ export async function POST(request: Request) {
   const { goalId, date, desiredFactState, timezone } = parsedRequest.data;
   const { data: goal, error: goalError } = await supabase
     .from("goals")
-    .select("id, frequency_type, target_count, start_date, end_date")
+    .select("id, start_date, end_date")
     .eq("id", goalId)
     .maybeSingle();
 
-  if (
-    goalError ||
-    !goal ||
-    goal.frequency_type !== "recurring" ||
-    typeof goal.target_count !== "number" ||
-    goal.target_count <= 0
-  ) {
+  if (goalError || !goal) {
     return errorResponse(
       404,
       "targeted_goal_not_found",
-      "The targeted recurring goal was not found.",
+      "The goal was not found.",
       correlationId
     );
   }

@@ -90,12 +90,14 @@ describe("buildPlannerPublishPersistencePayload draft edit validation", () => {
       kernel,
       snapshot,
       assessments: [createDefaultAssessment(baseGoal)],
-      draftItemEdits: [
+      draftCommands: [
         {
+          id: "30000000-0000-4000-8000-000000000001",
+          sequence: 1,
+          kind: "move_item",
           goalId: GOAL_ID,
           unitKey: "total:1",
           scheduledDate: "2026-08-06",
-          label: null,
         },
       ],
     });
@@ -130,15 +132,51 @@ describe("buildPlannerPublishPersistencePayload draft edit validation", () => {
         kernel,
         snapshot,
         assessments: [createDefaultAssessment(baseGoal)],
-        draftItemEdits: [
+        draftCommands: [
           {
+            id: "30000000-0000-4000-8000-000000000002",
+            sequence: 1,
+            kind: "move_item",
             goalId: GOAL_ID,
             unitKey: "total:1",
             scheduledDate: "2026-08-06",
-            label: null,
           },
         ],
       })
     ).toThrowError(PlannerDraftEditValidationError);
+  });
+
+  it("applies move commands by deterministic sequence order", () => {
+    const snapshot = createSnapshot([]);
+    const kernel = createKernel("2026-08-05");
+    const policy = createDefaultPlannerPolicy("UTC", "2026-08-01T00:00:00.000Z");
+    const payload = buildPlannerPublishPersistencePayload({
+      scopeMonth: "2026-08",
+      policy,
+      kernel,
+      snapshot,
+      assessments: [createDefaultAssessment(baseGoal)],
+      draftCommands: [
+        {
+          id: "30000000-0000-4000-8000-000000000010",
+          sequence: 2,
+          kind: "move_item",
+          goalId: GOAL_ID,
+          unitKey: "total:1",
+          scheduledDate: "2026-08-08",
+        },
+        {
+          id: "30000000-0000-4000-8000-000000000011",
+          sequence: 1,
+          kind: "move_item",
+          goalId: GOAL_ID,
+          unitKey: "total:1",
+          scheduledDate: "2026-08-06",
+        },
+      ],
+    });
+
+    const moved = payload.items.find((item) => item.unit_key === "total:1");
+    expect(moved?.scheduled_date).toBe("2026-08-08");
   });
 });

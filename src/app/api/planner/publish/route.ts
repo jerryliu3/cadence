@@ -16,12 +16,16 @@ import { MAX_API_BODY_BYTES } from "@/lib/planner/contracts/bounds";
 import { runPlannerKernel } from "@/lib/planner/kernel";
 import {
   buildPlannerConfirmationHash,
-  type PlannerDraftItemEdit,
   PlannerDraftEditValidationError,
   buildPlannerPublishPersistencePayload,
   buildPlannerPublishRequestDigest,
   plannerPlanMetadataFromKernel,
 } from "@/lib/planner/publish-payload";
+import {
+  buildPlannerDraftCommandsFromLegacyItemEdits,
+  plannerDraftCommandSchema,
+  type PlannerDraftCommand,
+} from "@/lib/planner/draft-commands";
 import { plannerPolicySchema } from "@/lib/planner/policy";
 import { classifyTelemetryResult, emitTelemetryEvent } from "@/lib/telemetry/runtime";
 import type { Database, Json } from "@/lib/supabase/database.types";
@@ -47,6 +51,7 @@ const publishSchema = z.object({
   expectedBasePlanVersion: z.number().int().positive().nullable(),
   confirmationHash: z.string().regex(/^[a-f0-9]{64}$/).nullable(),
   policy: z.unknown().optional(),
+  draftCommands: z.array(plannerDraftCommandSchema).max(4000).default([]),
   draftItemEdits: z
     .array(
       z
@@ -99,12 +104,16 @@ export async function POST(request: Request) {
           return parsed.data;
         })()
       : null;
-    const draftItemEdits: PlannerDraftItemEdit[] = body.draftItemEdits.map((edit) => ({
+    const legacyDraftItemEdits = body.draftItemEdits.map((edit) => ({
       goalId: edit.goalId,
       unitKey: edit.unitKey,
       scheduledDate: edit.scheduledDate ?? null,
       label: edit.label ?? null,
     }));
+    const draftCommands: PlannerDraftCommand[] = [
+      ...body.draftCommands,
+      ...buildPlannerDraftCommandsFromLegacyItemEdits(legacyDraftItemEdits),
+    ];
     telemetryScope = { month: body.scopeMonth, timezone: "UTC" };
     if (
       (body.expectedBasePlanId === null) !==
@@ -141,7 +150,7 @@ export async function POST(request: Request) {
       expectedBasePlanId: body.expectedBasePlanId,
       expectedBasePlanVersion: body.expectedBasePlanVersion,
       policyOverride: requestedPolicy,
-      draftItemEdits,
+      draftCommands,
     };
     const requestDigest = buildPlannerPublishRequestDigest({
       ownerId: routeContext.userId,
@@ -356,7 +365,7 @@ export async function POST(request: Request) {
         kernel,
         snapshot,
         assessments,
-        draftItemEdits,
+        draftCommands,
       });
     } catch (error) {
       if (error instanceof PlannerDraftEditValidationError) {

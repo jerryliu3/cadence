@@ -31,6 +31,114 @@ export interface CompletionDispatchDecision {
     | "legacy_period_semantics";
 }
 
+export interface PlannerRevisionExpectation {
+  expectedCanonicalRevision: number;
+  expectedExecutionRevision: number;
+}
+
+export interface PlannerItemDateFactExpectation
+  extends PlannerRevisionExpectation {
+  itemId: string;
+  expectedItemRevision: number;
+  expectedCreditedUnit: {
+    goalId: string;
+    requirementFingerprint: string;
+    unitKey: string;
+    completedOn: string;
+  } | null;
+}
+
+export interface PlannerGoalDateFactExpectation
+  extends PlannerRevisionExpectation {
+  planGoalId: string;
+}
+
+export interface CompletionLegacyMutationExecutor {
+  markPresent: () => Promise<string | null>;
+  markAbsent: () => Promise<string | null>;
+}
+
+export interface ExecuteCompletionDispatchInput {
+  decision: CompletionDispatchDecision;
+  desiredFactState: "present" | "absent";
+  goalId: string;
+  date: string;
+  timezone: string;
+  plannerItemExpectation?: PlannerItemDateFactExpectation;
+  plannerGoalExpectation?: PlannerGoalDateFactExpectation;
+  legacyExecutor?: CompletionLegacyMutationExecutor;
+  fetcher?: typeof fetch;
+  timeoutMs?: number;
+}
+
+export interface CompletionDispatchExecutionResult {
+  ok: boolean;
+  route: CompletionDispatchDecision["route"];
+  message: string | null;
+}
+
+const DEFAULT_COMPLETION_DISPATCH_TIMEOUT_MS = 15_000;
+const COMPLETION_TIMEOUT_MESSAGE =
+  "The completion request timed out. Please try again.";
+
+function parseErrorMessage(payload: unknown, fallback: string) {
+  if (
+    payload &&
+    typeof payload === "object" &&
+    "message" in payload &&
+    typeof payload.message === "string" &&
+    payload.message.trim().length > 0
+  ) {
+    return payload.message;
+  }
+  return fallback;
+}
+
+function isAbortError(error: unknown) {
+  return error instanceof Error && error.name === "AbortError";
+}
+
+async function postJsonRoute({
+  fetcher,
+  route,
+  body,
+  fallbackError,
+  timeoutMs,
+}: {
+  fetcher: typeof fetch;
+  route: string;
+  body: Record<string, unknown>;
+  fallbackError: string;
+  timeoutMs: number;
+}) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  let response: Response;
+  try {
+    response = await fetcher(route, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+  } catch (error) {
+    return {
+      ok: false as const,
+      message: isAbortError(error) ? COMPLETION_TIMEOUT_MESSAGE : fallbackError,
+    };
+  } finally {
+    clearTimeout(timeoutId);
+  }
+  if (response.ok) {
+    return { ok: true as const, message: null };
+  }
+  const payload = await response.json().catch(() => null);
+  return {
+    ok: false as const,
+    message: parseErrorMessage(payload, fallbackError),
+  };
+}
+
 export function resolveCompletionDispatch({
   targetedRecurring,
   activePlanMembership,
@@ -80,5 +188,155 @@ export function resolveCompletionDispatch({
     exactDateOnly: true,
     allowed: !isFutureCreation,
     reason: isFutureCreation ? "future_creation" : "allowed",
+  };
+}
+
+export async function executeCompletionDispatch({
+  decision,
+  desiredFactState,
+  goalId,
+  date,
+  timezone,
+  plannerItemExpectation,
+  plannerGoalExpectation,
+  legacyExecutor,
+  fetcher = fetch,
+  timeoutMs = DEFAULT_COMPLETION_DISPATCH_TIMEOUT_MS,
+}: ExecuteCompletionDispatchInput): Promise<CompletionDispatchExecutionResult> {
+  if (!decision.allowed || decision.route === "disabled") {
+    const message =
+      decision.reason === "future_creation"
+        ? "You can only mark completions for today or a past date."
+        : decision.reason === "satisfied_elsewhere"
+          ? "This completion is already satisfied by another session."
+          : "This completion cannot be changed from here.";
+    return {
+      ok: false,
+      route: decision.route,
+      message,
+    };
+  }
+
+  if (decision.route === "canonical_exact_date") {
+    const result = await postJsonRoute({
+      fetcher,
+      route: "/api/completions/exact-date",
+      body: {
+        goalId,
+        date,
+        desiredFactState,
+        timezone,
+      },
+      fallbackError: "The exact-date completion could not be updated.",
+      timeoutMs,
+    });
+    return {
+      ok: result.ok,
+      route: decision.route,
+      message: result.message,
+    };
+  }
+
+  if (decision.route === "legacy_period") {
+    if (!legacyExecutor) {
+      return {
+        ok: false,
+        route: decision.route,
+        message: "This completion route is unavailable for the current view.",
+      };
+    }
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    const timeoutPromise = new Promise<string | null>((resolve) => {
+      timeoutId = setTimeout(
+        () => resolve(COMPLETION_TIMEOUT_MESSAGE),
+        timeoutMs
+      );
+    });
+    const operationPromise =
+      desiredFactState === "present"
+        ? legacyExecutor.markPresent()
+        : legacyExecutor.markAbsent();
+    const safeOperationPromise = operationPromise.catch(
+      () => "The completion could not be updated."
+    );
+    const errorMessage = await Promise.race([
+      safeOperationPromise,
+      timeoutPromise,
+    ]);
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
+    return {
+      ok: !errorMessage,
+      route: decision.route,
+      message: errorMessage,
+    };
+  }
+
+  if (decision.route === "item_date") {
+    if (!plannerItemExpectation) {
+      return {
+        ok: false,
+        route: decision.route,
+        message: "This planner session is outside the active publish scope.",
+      };
+    }
+    const result = await postJsonRoute({
+      fetcher,
+      route: "/api/planner/items/date-fact",
+      body: {
+        itemId: plannerItemExpectation.itemId,
+        desiredFactState,
+        expectedCreditedUnit: plannerItemExpectation.expectedCreditedUnit,
+        expectedItemRevision: plannerItemExpectation.expectedItemRevision,
+        expectedCanonicalRevision:
+          plannerItemExpectation.expectedCanonicalRevision,
+        expectedExecutionRevision:
+          plannerItemExpectation.expectedExecutionRevision,
+      },
+      fallbackError: "Planner completion update failed.",
+      timeoutMs,
+    });
+    return {
+      ok: result.ok,
+      route: decision.route,
+      message: result.message,
+    };
+  }
+
+  if (decision.route === "plan_goal_date") {
+    if (!plannerGoalExpectation) {
+      return {
+        ok: false,
+        route: decision.route,
+        message: "This planner goal is outside the active publish scope.",
+      };
+    }
+    const result = await postJsonRoute({
+      fetcher,
+      route: "/api/planner/goals/date-fact",
+      body: {
+        planGoalId: plannerGoalExpectation.planGoalId,
+        date,
+        desiredFactState,
+        expectedCanonicalRevision:
+          plannerGoalExpectation.expectedCanonicalRevision,
+        expectedExecutionRevision:
+          plannerGoalExpectation.expectedExecutionRevision,
+      },
+      fallbackError: "Planner completion update failed.",
+      timeoutMs,
+    });
+    return {
+      ok: result.ok,
+      route: decision.route,
+      message: result.message,
+    };
+  }
+
+  return {
+    ok: false,
+    route: decision.route,
+    message: "This completion route is not supported.",
   };
 }

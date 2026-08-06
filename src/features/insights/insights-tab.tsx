@@ -7,7 +7,6 @@ import {
   eachDayOfInterval,
   endOfYear,
   format,
-  isAfter,
   parseISO,
   startOfDay,
   startOfMonth,
@@ -53,7 +52,14 @@ import type {
   Goal,
   GoalParticipant,
 } from "@/lib/goals/types";
-import { isTargetedRecurringGoal } from "@/lib/planner/requirements";
+import {
+  executeCompletionDispatch,
+  resolveCompletionDispatch,
+} from "@/lib/planner/completion-dispatch";
+import {
+  getGoalRequirement,
+  isTargetedRecurringGoal,
+} from "@/lib/planner/requirements";
 import { createClient } from "@/lib/supabase/client";
 
 interface InsightsData {
@@ -419,10 +425,8 @@ export function InsightsTab() {
       }
 
       const isSelected = selectedDates.includes(completionDate);
-      if (
-        isAfter(parseISO(completionDate), startOfDay(new Date())) &&
-        !isSelected
-      ) {
+      const localToday = format(new Date(), "yyyy-MM-dd");
+      if (completionDate > localToday && !isSelected) {
         toast.error("You can only select today or past dates.");
         return;
       }
@@ -435,16 +439,58 @@ export function InsightsTab() {
       setPendingRetroDate(completionDate);
       const currentScrollY = window.scrollY;
       try {
-        const { error } = await supabase.rpc(
-          isSelected ? "unmark_goal_complete" : "mark_goal_complete",
-          {
-            p_goal_id: goal.id,
-            p_date: completionDate,
-          }
-        );
+        const desiredFactState = isSelected ? "absent" : "present";
+        const requirement = getGoalRequirement(goal);
+        const decision = resolveCompletionDispatch({
+          requirementKind: requirement.kind,
+          targetedRecurring: isTargetedRecurringGoal(goal),
+          activePlanMembership: false,
+          matchingItemState: "none",
+          selectedDateState:
+            completionDate < localToday
+              ? "past"
+              : completionDate > localToday
+                ? "future"
+                : "today",
+          existingExactFact: isSelected,
+          desiredFactState,
+        });
 
-        if (error) {
-          toast.error(error.message);
+        if (!decision.allowed) {
+          toast.error(
+            decision.reason === "future_creation"
+              ? "You can only select today or past dates."
+              : "This completion cannot be changed from this date."
+          );
+          return;
+        }
+
+        const result = await executeCompletionDispatch({
+          decision,
+          desiredFactState,
+          goalId: goal.id,
+          date: completionDate,
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          legacyExecutor: {
+            markPresent: async () => {
+              const { error } = await supabase.rpc("mark_goal_complete", {
+                p_goal_id: goal.id,
+                p_date: completionDate,
+              });
+              return error?.message ?? null;
+            },
+            markAbsent: async () => {
+              const { error } = await supabase.rpc("unmark_goal_complete", {
+                p_goal_id: goal.id,
+                p_date: completionDate,
+              });
+              return error?.message ?? null;
+            },
+          },
+        });
+
+        if (!result.ok) {
+          toast.error(result.message ?? "Completion update failed.");
           return;
         }
 
@@ -466,10 +512,8 @@ export function InsightsTab() {
         return;
       }
 
-      if (
-        isAfter(parseISO(completionDate), startOfDay(new Date())) &&
-        !hasCompletionOnDate
-      ) {
+      const localToday = format(new Date(), "yyyy-MM-dd");
+      if (completionDate > localToday && !hasCompletionOnDate) {
         toast.error("You can only select today or past dates.");
         return;
       }
@@ -477,39 +521,58 @@ export function InsightsTab() {
       setPendingRetroDate(completionDate);
       const currentScrollY = window.scrollY;
       try {
-        let errorMessage: string | null = null;
-        if (isTargetedRecurringGoal(goal)) {
-          const response = await fetch("/api/completions/exact-date", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              goalId: goal.id,
-              date: completionDate,
-              desiredFactState: hasCompletionOnDate ? "absent" : "present",
-              timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-            }),
-          });
-          const payload = (await response.json()) as { message?: string };
-          if (!response.ok) {
-            errorMessage =
-              payload.message ??
-              "The exact-date completion could not be updated.";
-          }
-        } else {
-          const { error } = await supabase.rpc(
-            hasCompletionOnDate
-              ? "unmark_goal_complete"
-              : "mark_goal_complete",
-            {
-              p_goal_id: goal.id,
-              p_date: completionDate,
-            }
+        const desiredFactState = hasCompletionOnDate ? "absent" : "present";
+        const requirement = getGoalRequirement(goal);
+        const decision = resolveCompletionDispatch({
+          requirementKind: requirement.kind,
+          targetedRecurring: isTargetedRecurringGoal(goal),
+          activePlanMembership: false,
+          matchingItemState: "none",
+          selectedDateState:
+            completionDate < localToday
+              ? "past"
+              : completionDate > localToday
+                ? "future"
+                : "today",
+          existingExactFact: hasCompletionOnDate,
+          desiredFactState,
+        });
+
+        if (!decision.allowed) {
+          toast.error(
+            decision.reason === "future_creation"
+              ? "You can only select today or past dates."
+              : "This completion cannot be changed from this date."
           );
-          errorMessage = error?.message ?? null;
+          return;
         }
 
-        if (errorMessage) {
-          toast.error(errorMessage);
+        const result = await executeCompletionDispatch({
+          decision,
+          desiredFactState,
+          goalId: goal.id,
+          date: completionDate,
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          legacyExecutor: {
+            markPresent: async () => {
+              const { error } = await supabase.rpc("mark_goal_complete", {
+                p_goal_id: goal.id,
+                p_date: completionDate,
+              });
+              return error?.message ?? null;
+            },
+            markAbsent: async () => {
+              const { error } = await supabase.rpc("unmark_goal_complete", {
+                p_goal_id: goal.id,
+                p_date: completionDate,
+              });
+              return error?.message ?? null;
+            },
+          },
+        });
+
+        if (!result.ok) {
+          toast.error(result.message ?? "Completion update failed.");
           return;
         }
 

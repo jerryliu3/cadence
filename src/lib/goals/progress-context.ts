@@ -21,10 +21,15 @@ export interface ProgressContextRequest {
 }
 
 const PROGRESS_CONTEXT_CACHE_TTL_MS = 15_000;
+const PROGRESS_CONTEXT_REQUEST_TIMEOUT_MS = 15_000;
 const progressContextCache = new Map<
   string,
   { expiresAt: number; payload: ProgressContextResponse }
 >();
+
+function isAbortError(error: unknown) {
+  return error instanceof Error && error.name === "AbortError";
+}
 
 export async function fetchProgressContext({
   asOfDate,
@@ -48,10 +53,26 @@ export async function fetchProgressContext({
     return cached.payload;
   }
 
-  const response = await fetch(`/api/progress/context?${search.toString()}`, {
-    credentials: "same-origin",
-    cache: "no-store",
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(
+    () => controller.abort(),
+    PROGRESS_CONTEXT_REQUEST_TIMEOUT_MS
+  );
+  let response: Response;
+  try {
+    response = await fetch(`/api/progress/context?${search.toString()}`, {
+      credentials: "same-origin",
+      cache: "no-store",
+      signal: controller.signal,
+    });
+  } catch (error) {
+    if (isAbortError(error)) {
+      throw new Error("Goal progress request timed out. Please try again.");
+    }
+    throw new Error("Goal progress could not be loaded.");
+  } finally {
+    clearTimeout(timeoutId);
+  }
   const payload = (await response.json()) as
     | ProgressContextResponse
     | { code?: string; message?: string; correlationId?: string };

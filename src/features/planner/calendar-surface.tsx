@@ -1,8 +1,24 @@
 "use client";
 
 import { addMonths, format, isValid, parse } from "date-fns";
-import { CalendarDays, ChevronLeft, ChevronRight, Loader2, Settings2 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  CalendarDays,
+  CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
+  Circle,
+  Loader2,
+  RotateCcw,
+  Settings,
+} from "lucide-react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useReducer,
+  useRef,
+  useState,
+} from "react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -16,16 +32,38 @@ import {
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  type PlannerDragTarget,
+  PlannerDndProvider,
+} from "@/features/planner/calendar-dnd";
+import { CalendarDayPreviewList } from "@/features/planner/calendar-day-preview-list";
+import { CalendarMonthDayCell } from "@/features/planner/calendar-month-day-cell";
 import { buildMondayFirstMonthCells } from "@/features/planner/month-cells";
 import { applyCoachPolicyPatches } from "@/features/planner/coach-policy";
 import { buildCoachDeterministicSummary } from "@/features/planner/coach-context";
 import { computeDayPreviewPosition } from "@/features/planner/day-preview-popup";
 import { getGoalVisual } from "@/features/planner/goal-visuals";
 import { getDateInTimezone, isValidIanaTimezone } from "@/lib/dates/timezone";
-import { resolveCompletionDispatch } from "@/lib/planner/completion-dispatch";
+import {
+  type CompletionDispatchDecision,
+  executeCompletionDispatch,
+  resolveCompletionDispatch,
+} from "@/lib/planner/completion-dispatch";
 import type { CoachPolicyPatch } from "@/lib/planner/coach";
+import {
+  draftCommandEntryKey,
+  projectPlannerDraftCommands,
+  sortPlannerDraftCommands,
+  type PlannerDraftCommand,
+} from "@/lib/planner/draft-commands";
 import { buildPlannerConfirmationHash } from "@/lib/planner/publish-payload";
-import { createDefaultPlannerPolicy, plannerPolicySchema, type PlannerPolicy } from "@/lib/planner/policy";
+import {
+  compilePlannerPolicy,
+  createDefaultPlannerPolicy,
+  isDateAllowedByPolicy,
+  plannerPolicySchema,
+  type PlannerPolicy,
+} from "@/lib/planner/policy";
 
 type CalendarTab = "today" | "not-today" | "calendar";
 
@@ -84,10 +122,17 @@ interface PlannerContextPayload {
 interface PlannerWorkUnit {
   originalGoalId: string;
   unitKey: string;
+  kind?: "milestone_sequence" | "cadence" | "deadline_total";
   label: string | null;
   scheduledDate: string | null;
+  placementWindow?: {
+    start: string;
+    end: string;
+  } | null;
+  restEligible?: boolean;
   classification: string;
   creditState: string;
+  creditedCompletionDate?: string | null;
 }
 
 interface PlannerActiveGoalSnapshot {
@@ -126,6 +171,14 @@ interface PlannerDayDetailEntry {
   activeItem: PlannerActiveItemSnapshot | null;
 }
 
+interface PlannerCompletionFactMarker {
+  key: string;
+  originalGoalId: string;
+  unitKey: string;
+  goalTitle: string;
+  scheduledDate: string | null;
+}
+
 interface DayPreviewState {
   day: string;
   pinned: boolean;
@@ -140,11 +193,127 @@ interface DayPreviewState {
 interface PlannerErrorPayload {
   code?: string;
   message?: string;
+  details?: Record<string, unknown>;
 }
 
 interface DraftItemEdit {
   scheduledDate?: string | null;
   label?: string | null;
+}
+
+interface DraftCommandState {
+  commands: PlannerDraftCommand[];
+  nextSequence: number;
+}
+
+type DraftCommandAction =
+  | {
+      type: "upsert_move";
+      goalId: string;
+      unitKey: string;
+      scheduledDate: string | null;
+    }
+  | {
+      type: "upsert_rename";
+      goalId: string;
+      unitKey: string;
+      label: string | null;
+    }
+  | {
+      type: "remove_kind";
+      kind: PlannerDraftCommand["kind"];
+      goalId: string;
+      unitKey: string;
+    }
+  | { type: "clear" };
+
+const initialDraftCommandState: DraftCommandState = {
+  commands: [],
+  nextSequence: 0,
+};
+
+function commandTargetsEntry(
+  command: PlannerDraftCommand,
+  goalId: string,
+  unitKey: string
+) {
+  return command.goalId === goalId && command.unitKey === unitKey;
+}
+
+function draftCommandReducer(
+  state: DraftCommandState,
+  action: DraftCommandAction
+): DraftCommandState {
+  if (action.type === "clear") {
+    return initialDraftCommandState;
+  }
+
+  if (action.type === "remove_kind") {
+    return {
+      ...state,
+      commands: state.commands.filter(
+        (command) =>
+          !(
+            command.kind === action.kind &&
+            commandTargetsEntry(command, action.goalId, action.unitKey)
+          )
+      ),
+    };
+  }
+
+  const existingIndex = state.commands.findIndex(
+    (command) =>
+      command.kind ===
+        (action.type === "upsert_move" ? "move_item" : "rename_item") &&
+      commandTargetsEntry(command, action.goalId, action.unitKey)
+  );
+
+  if (existingIndex >= 0) {
+    const existing = state.commands[existingIndex];
+    const nextCommand: PlannerDraftCommand =
+      action.type === "upsert_move"
+        ? {
+            ...existing,
+            kind: "move_item",
+            scheduledDate: action.scheduledDate,
+          }
+        : {
+            ...existing,
+            kind: "rename_item",
+            label: action.label,
+          };
+    const nextCommands = [...state.commands];
+    nextCommands[existingIndex] = nextCommand;
+    return {
+      ...state,
+      commands: nextCommands,
+    };
+  }
+
+  const nextSequence = state.nextSequence + 1;
+  const nextCommand: PlannerDraftCommand =
+    action.type === "upsert_move"
+      ? {
+          id: createClientUuid(),
+          sequence: nextSequence,
+          kind: "move_item",
+          goalId: action.goalId,
+          unitKey: action.unitKey,
+          scheduledDate: action.scheduledDate,
+        }
+      : {
+          id: createClientUuid(),
+          sequence: nextSequence,
+          kind: "rename_item",
+          goalId: action.goalId,
+          unitKey: action.unitKey,
+          label: action.label,
+        };
+
+  return {
+    commands: [...state.commands, nextCommand],
+    nextSequence,
+  };
 }
 
 interface PlannerPreviewResponsePayload {
@@ -183,6 +352,7 @@ const restWeekdayOptions: Array<{ value: number; label: string }> = [
 const COACH_SESSION_MAX_MESSAGES = 20;
 const COACH_SESSION_TTL_MS = 1000 * 60 * 60 * 12;
 const DAY_PREVIEW_HOVER_DELAY_MS = 500;
+const DAY_PREVIEW_CLOSE_DELAY_MS = 180;
 const DAY_PREVIEW_LONG_PRESS_DELAY_MS = 500;
 
 type CoachMessageRole = "user" | "assistant";
@@ -215,17 +385,6 @@ function parseMonth(month: string) {
 
 function getMonthInTimezone(timezone: string) {
   return getDateInTimezone(new Date(), timezone).slice(0, 7);
-}
-
-function splitEntryKey(entryKey: string) {
-  const separatorIndex = entryKey.indexOf(":");
-  if (separatorIndex <= 0 || separatorIndex === entryKey.length - 1) {
-    return null;
-  }
-  return {
-    goalId: entryKey.slice(0, separatorIndex),
-    unitKey: entryKey.slice(separatorIndex + 1),
-  };
 }
 
 function isDerivedCounterLabel(value: string | null) {
@@ -273,6 +432,48 @@ function getDayStatus(
     return "Completed";
   }
   return "Planned";
+}
+
+type CompletionControlDisabledReason =
+  | "future_creation"
+  | "satisfied_elsewhere"
+  | "out_of_scope_route"
+  | "unsupported";
+
+function isEntryCredited(entry: PlannerDayDetailEntry) {
+  return (
+    entry.creditState !== "uncredited" ||
+    Boolean(entry.activeItem?.credited_completion_id)
+  );
+}
+
+function isEntryImmovableForDraft(entry: PlannerDayDetailEntry) {
+  return (
+    isEntryCredited(entry) ||
+    entry.classification === "satisfied_elsewhere" ||
+    entry.classification === "historical_miss" ||
+    entry.classification === "historical_shortfall"
+  );
+}
+
+function completionDisabledReasonCopy(reason: CompletionControlDisabledReason) {
+  if (reason === "future_creation") {
+    return "You can only mark planner sessions done for today or past dates.";
+  }
+  if (reason === "satisfied_elsewhere") {
+    return "This session is already satisfied by a completion elsewhere.";
+  }
+  if (reason === "out_of_scope_route") {
+    return "This session is outside the active publish scope for completion updates.";
+  }
+  return "This session cannot be updated from the current planner snapshot.";
+}
+
+function moveItemInArray<T>(items: T[], fromIndex: number, toIndex: number) {
+  const next = [...items];
+  const [moved] = next.splice(fromIndex, 1);
+  next.splice(toIndex, 0, moved);
+  return next;
 }
 
 function createClientUuid() {
@@ -340,7 +541,7 @@ export function CalendarSurface({
   const [loading, setLoading] = useState(false);
   const [setupLoading, setSetupLoading] = useState(false);
   const [publishLoading, setPublishLoading] = useState(false);
-  const [dismissLoading, setDismissLoading] = useState(false);
+  const [deactivateLoading, setDeactivateLoading] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [coachLoading, setCoachLoading] = useState(false);
   const [coachInput, setCoachInput] = useState("");
@@ -365,15 +566,20 @@ export function CalendarSurface({
   const [draftPreview, setDraftPreview] = useState<PlannerContextPayload["preview"] | null>(
     null
   );
-  const [draftItemEdits, setDraftItemEdits] = useState<Record<string, DraftItemEdit>>(
-    {}
+  const [draftCommandState, dispatchDraftCommand] = useReducer(
+    draftCommandReducer,
+    initialDraftCommandState
   );
   const [coachContextEvents, setCoachContextEvents] = useState<string[]>([]);
   const [selectedEventEntryKey, setSelectedEventEntryKey] = useState<string | null>(
     null
   );
   const [dayPreview, setDayPreview] = useState<DayPreviewState | null>(null);
+  const [draggingEntryKey, setDraggingEntryKey] = useState<string | null>(null);
   const [localSelectedDay, setLocalSelectedDay] = useState<string | null>(null);
+  const [previewEntryOrderByDay, setPreviewEntryOrderByDay] = useState<
+    Record<string, string[]>
+  >({});
   const [mutationLoadingKey, setMutationLoadingKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [setupTimezone, setSetupTimezone] = useState(
@@ -384,8 +590,11 @@ export function CalendarSurface({
   );
   const [setupRestWeekdays, setSetupRestWeekdays] = useState<number[]>([]);
   const hoverPreviewTimerRef = useRef<number | null>(null);
+  const hoverPreviewCloseTimerRef = useRef<number | null>(null);
   const longPressTimerRef = useRef<number | null>(null);
   const longPressTriggeredRef = useRef(false);
+  const pointerPressActiveRef = useRef(false);
+  const pointerInsideDayPreviewRef = useRef(false);
   const dayPreviewRef = useRef<HTMLDivElement | null>(null);
 
   const resetCoachUiState = useCallback((messages: CoachMessage[] = []) => {
@@ -399,24 +608,43 @@ export function CalendarSurface({
     setCoachLastProposalMeta(null);
   }, []);
 
-  const loadContext = useCallback(async () => {
+  const loadContext = useCallback(
+    async ({
+      showLoading = true,
+      toastOnError = false,
+    }: {
+      showLoading?: boolean;
+      toastOnError?: boolean;
+    } = {}) => {
     if (activeTab !== "calendar") {
-      return;
+      return false;
     }
 
-    setError(null);
+    if (showLoading) {
+      setError(null);
+    }
     if (!month) {
-      setLoading(true);
+      if (showLoading) {
+        setLoading(true);
+      }
       const response = await fetch("/api/planner/preferences", {
         cache: "no-store",
         credentials: "same-origin",
       });
       const payload = await response.json();
-      setLoading(false);
+      if (showLoading) {
+        setLoading(false);
+      }
       if (!response.ok) {
         const errorPayload = payload as PlannerErrorPayload;
-        setError(errorPayload.message ?? "Planner setup could not be loaded.");
-        return;
+        const message = errorPayload.message ?? "Planner setup could not be loaded.";
+        if (showLoading) {
+          setError(message);
+        }
+        if (toastOnError) {
+          toast.error(message);
+        }
+        return false;
       }
       const preferencesPayload = payload as PlannerPreferencesPayload;
       if (preferencesPayload.preferences?.timezone) {
@@ -424,26 +652,35 @@ export function CalendarSurface({
           preferencesPayload.preferences.timezone
         );
         onMonthChange(resolvedMonth, "replace");
-        return;
+        return true;
       }
-      return;
+      return true;
     }
 
-    setLoading(true);
+    if (showLoading) {
+      setLoading(true);
+    }
     const query = new URLSearchParams({ scopeMonth: month });
     const response = await fetch(`/api/planner/context?${query.toString()}`, {
       cache: "no-store",
       credentials: "same-origin",
     });
     const payload = await response.json();
-    setLoading(false);
+    if (showLoading) {
+      setLoading(false);
+    }
     if (!response.ok) {
       const errorPayload = payload as PlannerErrorPayload;
-      setContext(null);
-      setError(
-        errorPayload.message ?? "Planner calendar context could not be loaded."
-      );
-      return;
+      const message =
+        errorPayload.message ?? "Planner calendar context could not be loaded.";
+      if (showLoading) {
+        setContext(null);
+        setError(message);
+      }
+      if (toastOnError) {
+        toast.error(message);
+      }
+      return false;
     }
 
     const contextPayload = payload as PlannerContextPayload;
@@ -453,6 +690,7 @@ export function CalendarSurface({
       setSetupSpacing(contextPayload.preferences.defaultPolicy.spacingStrategy);
       setSetupRestWeekdays(contextPayload.preferences.defaultPolicy.restWeekdays);
     }
+    return true;
   }, [activeTab, month, onMonthChange]);
 
   useEffect(() => {
@@ -482,9 +720,21 @@ export function CalendarSurface({
     Boolean(currentScopeMonth) && draftScopeMonth === currentScopeMonth;
   const effectiveDraftPolicy = draftMatchesCurrentScope ? draftPolicy : null;
   const effectiveDraftPreview = draftMatchesCurrentScope ? draftPreview : null;
+  const effectiveDraftCommands = useMemo(
+    () =>
+      draftMatchesCurrentScope
+        ? sortPlannerDraftCommands(draftCommandState.commands)
+        : [],
+    [draftCommandState.commands, draftMatchesCurrentScope]
+  );
   const effectiveDraftItemEdits = useMemo(
-    () => (draftMatchesCurrentScope ? draftItemEdits : {}),
-    [draftMatchesCurrentScope, draftItemEdits]
+    () =>
+      draftMatchesCurrentScope
+        ? (projectPlannerDraftCommands(
+            effectiveDraftCommands
+          ) as Record<string, DraftItemEdit>)
+        : {},
+    [draftMatchesCurrentScope, effectiveDraftCommands]
   );
   const effectivePreview = effectiveDraftPreview ?? context?.preview ?? null;
   const activeGoalsByPlanGoalId = useMemo(() => {
@@ -635,6 +885,98 @@ export function CalendarSurface({
     effectiveDraftItemEdits,
     effectivePreview?.workUnits,
   ]);
+  const entryByKey = useMemo(() => {
+    const map = new Map<string, PlannerDayDetailEntry>();
+    for (const entries of entriesByDate.values()) {
+      for (const entry of entries) {
+        map.set(entry.key, entry);
+      }
+    }
+    return map;
+  }, [entriesByDate]);
+  const entryDayByKey = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const [day, entries] of entriesByDate.entries()) {
+      for (const entry of entries) {
+        map.set(entry.key, day);
+      }
+    }
+    return map;
+  }, [entriesByDate]);
+  const previewUnitByEntryKey = useMemo(() => {
+    const map = new Map<string, PlannerWorkUnit>();
+    for (const unit of effectivePreview?.workUnits ?? []) {
+      map.set(
+        draftCommandEntryKey({
+          goalId: unit.originalGoalId,
+          unitKey: unit.unitKey,
+        }),
+        unit
+      );
+    }
+    return map;
+  }, [effectivePreview?.workUnits]);
+  const completionFactUnitsByGoalDate = useMemo(() => {
+    const map = new Map<string, PlannerWorkUnit[]>();
+    for (const unit of effectivePreview?.workUnits ?? []) {
+      if (!unit.creditedCompletionDate) {
+        continue;
+      }
+      const key = `${unit.originalGoalId}:${unit.creditedCompletionDate}`;
+      const existing = map.get(key) ?? [];
+      existing.push(unit);
+      map.set(key, existing);
+    }
+    return map;
+  }, [effectivePreview?.workUnits]);
+  const completionFactMarkersByDate = useMemo(() => {
+    const map = new Map<string, PlannerCompletionFactMarker[]>();
+    const scopePrefix = currentScopeMonth ? `${currentScopeMonth}-` : null;
+    for (const unit of effectivePreview?.workUnits ?? []) {
+      if (!unit.creditedCompletionDate) {
+        continue;
+      }
+      if (unit.creditedCompletionDate === unit.scheduledDate) {
+        continue;
+      }
+      if (scopePrefix && !unit.creditedCompletionDate.startsWith(scopePrefix)) {
+        continue;
+      }
+      const markerDay = unit.creditedCompletionDate;
+      const markersForDay = map.get(markerDay) ?? [];
+      const goalTitle =
+        activeGoalsByOriginalGoalId.get(unit.originalGoalId)?.title ??
+        context?.goalTitles?.[unit.originalGoalId] ??
+        unit.label ??
+        unit.unitKey;
+      markersForDay.push({
+        key: `${unit.originalGoalId}:${unit.unitKey}:${markerDay}`,
+        originalGoalId: unit.originalGoalId,
+        unitKey: unit.unitKey,
+        goalTitle,
+        scheduledDate: unit.scheduledDate,
+      });
+      map.set(markerDay, markersForDay);
+    }
+    for (const markersForDay of map.values()) {
+      markersForDay.sort((left, right) =>
+        left.goalTitle.localeCompare(right.goalTitle)
+      );
+    }
+    return map;
+  }, [
+    activeGoalsByOriginalGoalId,
+    context?.goalTitles,
+    currentScopeMonth,
+    effectivePreview?.workUnits,
+  ]);
+  const compiledPolicyForDraftMoves = useMemo(() => {
+    if (!context?.preferences) {
+      return null;
+    }
+    const sourcePolicy = effectiveDraftPolicy ?? context.preferences.defaultPolicy;
+    return compilePlannerPolicy(plannerPolicySchema.parse(sourcePolicy));
+  }, [context?.preferences, effectiveDraftPolicy]);
   const effectiveSelectedDay = selectedDay ?? localSelectedDay;
 
   const getEntriesForDay = useCallback(
@@ -642,9 +984,52 @@ export function CalendarSurface({
     [entriesByDate]
   );
 
+  const orderEntriesForDay = useCallback(
+    (day: string | null, entries: PlannerDayDetailEntry[]) => {
+      if (!day || entries.length === 0) {
+        return entries;
+      }
+      const dayEntryKeys = entries.map((entry) => entry.key);
+      const savedOrder = previewEntryOrderByDay[day] ?? [];
+      const order = [
+        ...savedOrder.filter((entryKey) => dayEntryKeys.includes(entryKey)),
+        ...dayEntryKeys.filter((entryKey) => !savedOrder.includes(entryKey)),
+      ];
+      const orderIndex = new Map(order.map((entryKey, index) => [entryKey, index]));
+      const compareWithinGroup = (
+        left: PlannerDayDetailEntry,
+        right: PlannerDayDetailEntry
+      ) => {
+        const leftOrder = orderIndex.get(left.key);
+        const rightOrder = orderIndex.get(right.key);
+        if (leftOrder !== undefined && rightOrder !== undefined) {
+          return leftOrder - rightOrder;
+        }
+        if (leftOrder !== undefined) {
+          return -1;
+        }
+        if (rightOrder !== undefined) {
+          return 1;
+        }
+        return getEntryDisplayTitle(left).localeCompare(getEntryDisplayTitle(right));
+      };
+      const incomplete = entries
+        .filter((entry) => !isEntryCredited(entry))
+        .sort(compareWithinGroup);
+      const completed = entries
+        .filter((entry) => isEntryCredited(entry))
+        .sort(compareWithinGroup);
+      return [...incomplete, ...completed];
+    },
+    [previewEntryOrderByDay]
+  );
+
   const selectedDayEntries = useMemo(() => {
-    return getEntriesForDay(effectiveSelectedDay);
-  }, [effectiveSelectedDay, getEntriesForDay]);
+    return orderEntriesForDay(
+      effectiveSelectedDay,
+      getEntriesForDay(effectiveSelectedDay)
+    );
+  }, [effectiveSelectedDay, getEntriesForDay, orderEntriesForDay]);
   const coachSummaryWorkUnits = useMemo(() => {
     const units: PlannerWorkUnit[] = [];
     for (const [day, entries] of entriesByDate.entries()) {
@@ -674,8 +1059,16 @@ export function CalendarSurface({
     : undefined;
 
   const previewDayEntries = useMemo(
-    () => getEntriesForDay(dayPreview?.day ?? null),
-    [dayPreview?.day, getEntriesForDay]
+    () =>
+      orderEntriesForDay(
+        dayPreview?.day ?? null,
+        getEntriesForDay(dayPreview?.day ?? null)
+      ),
+    [dayPreview?.day, getEntriesForDay, orderEntriesForDay]
+  );
+  const previewDayCompletionFactMarkers = useMemo(
+    () => completionFactMarkersByDate.get(dayPreview?.day ?? "") ?? [],
+    [completionFactMarkersByDate, dayPreview?.day]
   );
 
   useEffect(
@@ -683,12 +1076,29 @@ export function CalendarSurface({
       if (hoverPreviewTimerRef.current) {
         window.clearTimeout(hoverPreviewTimerRef.current);
       }
+      if (hoverPreviewCloseTimerRef.current) {
+        window.clearTimeout(hoverPreviewCloseTimerRef.current);
+      }
       if (longPressTimerRef.current) {
         window.clearTimeout(longPressTimerRef.current);
       }
     },
     []
   );
+
+  useEffect(() => {
+    const clearPointerPress = () => {
+      pointerPressActiveRef.current = false;
+    };
+    window.addEventListener("pointerup", clearPointerPress);
+    window.addEventListener("pointercancel", clearPointerPress);
+    window.addEventListener("blur", clearPointerPress);
+    return () => {
+      window.removeEventListener("pointerup", clearPointerPress);
+      window.removeEventListener("pointercancel", clearPointerPress);
+      window.removeEventListener("blur", clearPointerPress);
+    };
+  }, []);
 
   useEffect(() => {
     if (!dayPreview?.pinned) {
@@ -751,7 +1161,7 @@ export function CalendarSurface({
     setDraftScopeMonth(null);
     setDraftPolicy(null);
     setDraftPreview(null);
-    setDraftItemEdits({});
+    dispatchDraftCommand({ type: "clear" });
     setSettingsOpen(false);
     if (!month) {
       onMonthChange(getMonthInTimezone(setupTimezone), "replace");
@@ -778,32 +1188,10 @@ export function CalendarSurface({
     return Array.from(ids).slice(0, 20);
   }, [context?.goalTitles, effectivePreview?.workUnits]);
 
-  const draftPublishEdits = useMemo(() => {
-    return Object.entries(effectiveDraftItemEdits)
-      .map(([entryKey, edit]) => {
-        const parsed = splitEntryKey(entryKey);
-        if (!parsed) {
-          return null;
-        }
-        return {
-          goalId: parsed.goalId,
-          unitKey: parsed.unitKey,
-          scheduledDate:
-            edit.scheduledDate === undefined ? null : edit.scheduledDate,
-          label: edit.label === undefined ? null : edit.label,
-        };
-      })
-      .filter(
-        (
-          value
-        ): value is {
-          goalId: string;
-          unitKey: string;
-          scheduledDate: string | null;
-          label: string | null;
-        } => value !== null
-      );
-  }, [effectiveDraftItemEdits]);
+  const draftPublishCommands = useMemo(
+    () => effectiveDraftCommands,
+    [effectiveDraftCommands]
+  );
 
   const refreshDraftPreview = async (nextPolicy: PlannerPolicy) => {
     if (!context?.scopeMonth || !context?.timezone) {
@@ -951,6 +1339,28 @@ export function CalendarSurface({
     }
   };
 
+  const clearHoverPreviewCloseTimer = () => {
+    if (hoverPreviewCloseTimerRef.current) {
+      window.clearTimeout(hoverPreviewCloseTimerRef.current);
+      hoverPreviewCloseTimerRef.current = null;
+    }
+  };
+
+  const scheduleHoverPreviewClose = (day: string) => {
+    clearHoverPreviewCloseTimer();
+    hoverPreviewCloseTimerRef.current = window.setTimeout(() => {
+      setDayPreview((current) => {
+        if (!current || current.pinned || current.day !== day) {
+          return current;
+        }
+        if (pointerInsideDayPreviewRef.current) {
+          return current;
+        }
+        return null;
+      });
+    }, DAY_PREVIEW_CLOSE_DELAY_MS);
+  };
+
   const clearLongPressTimer = () => {
     if (longPressTimerRef.current) {
       window.clearTimeout(longPressTimerRef.current);
@@ -985,11 +1395,15 @@ export function CalendarSurface({
     day: string,
     target: EventTarget & HTMLElement
   ) => {
-    if (dayPreview?.pinned) {
+    if (dayPreview?.pinned || pointerPressActiveRef.current) {
       return;
     }
+    clearHoverPreviewCloseTimer();
     clearHoverPreviewTimer();
     hoverPreviewTimerRef.current = window.setTimeout(() => {
+      if (pointerPressActiveRef.current) {
+        return;
+      }
       openDayPreview({ day, pinned: false, target });
     }, DAY_PREVIEW_HOVER_DELAY_MS);
   };
@@ -1134,39 +1548,343 @@ export function CalendarSurface({
     }
   };
 
+  const moveConflictByGoalDate = useMemo(() => {
+    const map = new Map<string, Set<string>>();
+    for (const [day, entries] of entriesByDate.entries()) {
+      for (const entry of entries) {
+        const key = `${entry.originalGoalId}:${day}`;
+        const existing = map.get(key) ?? new Set<string>();
+        existing.add(entry.key);
+        map.set(key, existing);
+      }
+    }
+    return map;
+  }, [entriesByDate]);
+
+  const queueDraftMoveCommand = useCallback(
+    ({
+      entry,
+      nextDate,
+      source,
+    }: {
+      entry: PlannerDayDetailEntry;
+      nextDate: string;
+      source: "date_input" | "drag_drop";
+    }) => {
+      const normalized = nextDate.trim();
+      if (!isValidIsoDate(normalized)) {
+        toast.error("Pick a valid move date.");
+        return false;
+      }
+      if (!context?.scopeMonth) {
+        return false;
+      }
+      if (!normalized.startsWith(`${context.scopeMonth}-`)) {
+        toast.error("Draft moves must stay inside the current planner month.");
+        return false;
+      }
+      if (isEntryImmovableForDraft(entry)) {
+        toast.error(
+          "Completed or historical sessions cannot move in draft. Clear completion in publish mode first."
+        );
+        return false;
+      }
+      const baselineUnit = previewUnitByEntryKey.get(entry.key);
+      if (!baselineUnit?.placementWindow) {
+        toast.error("This session does not have a movable placement window.");
+        return false;
+      }
+      if (
+        normalized < baselineUnit.placementWindow.start ||
+        normalized > baselineUnit.placementWindow.end
+      ) {
+        toast.error(
+          "That date is outside this session's allowed planner window."
+        );
+        return false;
+      }
+      if (
+        compiledPolicyForDraftMoves &&
+        !isDateAllowedByPolicy(
+          compiledPolicyForDraftMoves,
+          entry.originalGoalId,
+          normalized,
+          Boolean(baselineUnit.restEligible)
+        )
+      ) {
+        toast.error("That date conflicts with your current planner policy.");
+        return false;
+      }
+      const collisionKey = `${entry.originalGoalId}:${normalized}`;
+      const conflictKeys = moveConflictByGoalDate.get(collisionKey);
+      if (
+        conflictKeys &&
+        (conflictKeys.size > 1 || !conflictKeys.has(entry.key))
+      ) {
+        toast.error(
+          "That goal already has a planner session on the selected date."
+        );
+        return false;
+      }
+      const completionFactConflict = (
+        completionFactUnitsByGoalDate.get(collisionKey) ?? []
+      ).find((unit) => unit.unitKey !== entry.unitKey);
+      if (completionFactConflict) {
+        if (
+          completionFactConflict.scheduledDate &&
+          completionFactConflict.scheduledDate !== normalized
+        ) {
+          toast.error(
+            `That goal is already marked done on ${normalized} (credited from the ${completionFactConflict.scheduledDate} session).`
+          );
+        } else {
+          toast.error("That date already has a completion fact for this goal.");
+        }
+        return false;
+      }
+
+      const originalDate = baselineUnit.scheduledDate;
+      setDraftScopeMonth(context.scopeMonth);
+      if (originalDate === normalized) {
+        dispatchDraftCommand({
+          type: "remove_kind",
+          kind: "move_item",
+          goalId: entry.originalGoalId,
+          unitKey: entry.unitKey,
+        });
+      } else {
+        dispatchDraftCommand({
+          type: "upsert_move",
+          goalId: entry.originalGoalId,
+          unitKey: entry.unitKey,
+          scheduledDate: normalized,
+        });
+      }
+      if (source === "drag_drop") {
+        toast.success(
+          `Moved ${getEntryDisplayTitle(entry)} to ${normalized} in draft.`
+        );
+      }
+      return true;
+    },
+    [
+      compiledPolicyForDraftMoves,
+      completionFactUnitsByGoalDate,
+      context?.scopeMonth,
+      moveConflictByGoalDate,
+      previewUnitByEntryKey,
+    ]
+  );
+
   const updateDraftLabel = (entry: PlannerDayDetailEntry, label: string) => {
     const normalized = label.trim();
+    const baselineTitle =
+      entry.activeGoal?.title ?? context?.goalTitles?.[entry.originalGoalId] ?? null;
     if (context?.scopeMonth) {
       setDraftScopeMonth(context.scopeMonth);
     }
-    setDraftItemEdits((previous) => ({
-      ...previous,
-      [entry.key]: {
-        ...(previous[entry.key] ?? {}),
-        label: normalized.length > 0 ? normalized : null,
-      },
-    }));
-  };
-
-  const updateDraftScheduledDate = (entry: PlannerDayDetailEntry, date: string) => {
-    const normalized = date.trim();
-    if (!normalized || !isValidIsoDate(normalized)) {
+    if (!normalized || normalized === baselineTitle) {
+      dispatchDraftCommand({
+        type: "remove_kind",
+        kind: "rename_item",
+        goalId: entry.originalGoalId,
+        unitKey: entry.unitKey,
+      });
       return;
     }
-    if (context?.scopeMonth) {
-      setDraftScopeMonth(context.scopeMonth);
-    }
-    setDraftItemEdits((previous) => ({
-      ...previous,
-      [entry.key]: {
-        ...(previous[entry.key] ?? {}),
-        scheduledDate: normalized,
-      },
-    }));
+    dispatchDraftCommand({
+      type: "upsert_rename",
+      goalId: entry.originalGoalId,
+      unitKey: entry.unitKey,
+      label: normalized,
+    });
   };
 
-  const getDateFactDispatchForEntry = (entry: PlannerDayDetailEntry) => {
-    if (!context || !effectiveSelectedDay) {
+  const updateDraftScheduledDate = (
+    entry: PlannerDayDetailEntry,
+    date: string
+  ) => {
+    if (!date.trim()) {
+      return;
+    }
+    void queueDraftMoveCommand({
+      entry,
+      nextDate: date,
+      source: "date_input",
+    });
+  };
+
+  const clearDragState = useCallback(() => {
+    pointerPressActiveRef.current = false;
+    setDraggingEntryKey(null);
+  }, []);
+
+  const getDragEntryLabel = useCallback(
+    (entryKey: string) => {
+      const entry = entryByKey.get(entryKey);
+      return entry ? getEntryDisplayTitle(entry) : "planner session";
+    },
+    [entryByKey]
+  );
+
+  const getDragDayLabel = useCallback((day: string) => {
+    if (!isValidIsoDate(day)) {
+      return day;
+    }
+    return format(parse(day, "yyyy-MM-dd", new Date()), "EEEE, MMMM d");
+  }, []);
+
+  const renderEntryDragOverlay = useCallback(
+    (entryKey: string) => {
+      const entry = entryByKey.get(entryKey);
+      if (!entry) {
+        return null;
+      }
+      const visual = getGoalVisual({
+        goalId: entry.originalGoalId,
+        color: entry.activeGoal?.color ?? null,
+      });
+      const Icon = visual.Icon;
+      const title = getEntryDisplayTitle(entry);
+      const credited = isEntryCredited(entry);
+      return (
+        <div
+          className={`flex max-w-64 items-center gap-2 rounded-md border px-2 py-1 text-xs shadow-2xl ${
+            credited
+              ? "border-emerald-300 bg-emerald-100 text-emerald-950"
+              : "border-primary/40 bg-card text-foreground"
+          }`}
+        >
+          <span
+            className="inline-flex size-4 items-center justify-center rounded-full"
+            style={{ backgroundColor: visual.color }}
+          >
+            <Icon className="size-2.5 text-white" />
+          </span>
+          <span className="truncate font-medium">{title}</span>
+        </div>
+      );
+    },
+    [entryByKey]
+  );
+
+  const handleDndEntryDragStart = useCallback(
+    (entryKey: string) => {
+      pointerPressActiveRef.current = true;
+      clearHoverPreviewTimer();
+      setDraggingEntryKey(entryKey);
+    },
+    []
+  );
+
+  const reorderPreviewEntriesForDay = useCallback(
+    (day: string, activeEntryKey: string, overEntryKey: string) => {
+      const entriesForDay = getEntriesForDay(day);
+      const incompleteKeys = entriesForDay
+        .filter((entry) => !isEntryCredited(entry))
+        .map((entry) => entry.key);
+      const completedKeys = entriesForDay
+        .filter((entry) => isEntryCredited(entry))
+        .map((entry) => entry.key);
+      const movingCompleted = completedKeys.includes(activeEntryKey);
+      const targetGroupKeys = movingCompleted ? completedKeys : incompleteKeys;
+      if (
+        !targetGroupKeys.includes(activeEntryKey) ||
+        !targetGroupKeys.includes(overEntryKey)
+      ) {
+        return;
+      }
+      setPreviewEntryOrderByDay((previous) => {
+        const fallbackOrder = [...incompleteKeys, ...completedKeys];
+        const existing = previous[day] ?? fallbackOrder;
+        const normalized = [
+          ...existing.filter((entryKey) => fallbackOrder.includes(entryKey)),
+          ...fallbackOrder.filter((entryKey) => !existing.includes(entryKey)),
+        ];
+        const groupOrder = normalized.filter((entryKey) =>
+          targetGroupKeys.includes(entryKey)
+        );
+        const fromIndex = groupOrder.indexOf(activeEntryKey);
+        const toIndex = groupOrder.indexOf(overEntryKey);
+        if (fromIndex < 0 || toIndex < 0 || fromIndex === toIndex) {
+          return previous;
+        }
+        const nextGroupOrder = moveItemInArray(groupOrder, fromIndex, toIndex);
+        const stableIncomplete = movingCompleted
+          ? normalized.filter((entryKey) => incompleteKeys.includes(entryKey))
+          : nextGroupOrder;
+        const stableCompleted = movingCompleted
+          ? nextGroupOrder
+          : normalized.filter((entryKey) => completedKeys.includes(entryKey));
+        const next = [...stableIncomplete, ...stableCompleted];
+        return {
+          ...previous,
+          [day]: next,
+        };
+      });
+    },
+    [getEntriesForDay]
+  );
+
+  const handleDndEntryDragEnd = useCallback(
+    (entryKey: string, target: PlannerDragTarget) => {
+      if (!target) {
+        clearDragState();
+        return;
+      }
+      const entry = entryByKey.get(entryKey);
+      if (!entry) {
+        clearDragState();
+        return;
+      }
+      if (target.type === "preview_entry") {
+        const sourceDay = entryDayByKey.get(entryKey) ?? null;
+        if (sourceDay === target.day) {
+          reorderPreviewEntriesForDay(target.day, entryKey, target.entryKey);
+          clearDragState();
+          return;
+        }
+        void queueDraftMoveCommand({
+          entry,
+          nextDate: target.day,
+          source: "drag_drop",
+        });
+        clearDragState();
+        return;
+      }
+      void queueDraftMoveCommand({
+        entry,
+        nextDate: target.day,
+        source: "drag_drop",
+      });
+      clearDragState();
+    },
+    [
+      clearDragState,
+      entryByKey,
+      entryDayByKey,
+      queueDraftMoveCommand,
+      reorderPreviewEntriesForDay,
+    ]
+  );
+
+  const handleDndEntryDragCancel = useCallback(
+    (entryKey: string | null) => {
+      void entryKey;
+      clearDragState();
+    },
+    [clearDragState]
+  );
+
+  const getDateFactDispatchForEntry = (
+    entry: PlannerDayDetailEntry,
+    selectedDate: string | null = effectiveSelectedDay
+  ): {
+    currentlyCredited: boolean;
+    desiredFactState: "present" | "absent";
+    decision: CompletionDispatchDecision;
+  } | null => {
+    if (!context || !selectedDate) {
       return null;
     }
 
@@ -1177,7 +1895,10 @@ export function CalendarSurface({
         : entry.unitKey.startsWith("cadence:")
           ? "cadence"
           : "deadline_total");
-    const targetedRecurring = requirementKind === "deadline_total";
+    // When a session is not part of an active published plan yet, we still
+    // prefer exact-date completion behavior from the calendar surface.
+    const targetedRecurring =
+      requirementKind === "deadline_total" || !entry.activeGoal;
     const currentlyCredited =
       entry.creditState !== "uncredited" || Boolean(entry.activeItem?.credited_completion_id);
     const desiredFactState = currentlyCredited ? "absent" : "present";
@@ -1190,9 +1911,9 @@ export function CalendarSurface({
             ? "actionable"
             : "none";
     const selectedDateState =
-      effectiveSelectedDay < context.asOfDate
+      selectedDate < context.asOfDate
         ? "past"
-        : effectiveSelectedDay > context.asOfDate
+        : selectedDate > context.asOfDate
           ? "future"
           : "today";
 
@@ -1211,6 +1932,42 @@ export function CalendarSurface({
       desiredFactState,
       decision,
     };
+  };
+
+  const completionControlDisabledReasonForEntry = (
+    entry: PlannerDayDetailEntry,
+    dispatch: ReturnType<typeof getDateFactDispatchForEntry>
+  ): CompletionControlDisabledReason | null => {
+    if (!dispatch) {
+      return "unsupported";
+    }
+    if (!dispatch.decision.allowed) {
+      if (dispatch.decision.reason === "future_creation") {
+        return "future_creation";
+      }
+      if (dispatch.decision.reason === "satisfied_elsewhere") {
+        return "satisfied_elsewhere";
+      }
+      return "unsupported";
+    }
+    if (dispatch.decision.route === "canonical_exact_date") {
+      return context?.capabilities.targetedExactCompletion
+        ? null
+        : "out_of_scope_route";
+    }
+    if (dispatch.decision.route === "item_date") {
+      if (!canMutatePlanItems || !entry.activeItem) {
+        return "out_of_scope_route";
+      }
+      return null;
+    }
+    if (dispatch.decision.route === "plan_goal_date") {
+      if (!canMutatePlanItems || !entry.activeGoal) {
+        return "out_of_scope_route";
+      }
+      return null;
+    }
+    return "out_of_scope_route";
   };
 
   const toggleItemLock = async (entry: PlannerDayDetailEntry) => {
@@ -1241,7 +1998,16 @@ export function CalendarSurface({
       }
 
       onPlannerMutation();
-      await loadContext();
+      const refreshed = await loadContext({
+        showLoading: false,
+        toastOnError: false,
+      });
+      if (!refreshed) {
+        toast.error(
+          "Lock updated, but calendar refresh failed. Please refresh the page."
+        );
+        return;
+      }
       toast.success(nextLocked ? "Planner item locked." : "Planner item unlocked.");
     } catch {
       toast.error("Planner lock update failed.");
@@ -1250,96 +2016,98 @@ export function CalendarSurface({
     }
   };
 
-  const toggleDateFact = async (entry: PlannerDayDetailEntry) => {
-    if (
-      !context ||
-      !effectiveSelectedDay ||
-      !context.capabilities.targetedExactCompletion
-    ) {
+  const toggleDateFact = async (
+    entry: PlannerDayDetailEntry,
+    selectedDateOverride?: string
+  ) => {
+    const selectedDate = selectedDateOverride ?? effectiveSelectedDay;
+    if (!context || !selectedDate) {
       return;
     }
-    const dispatch = getDateFactDispatchForEntry(entry);
+    const dispatch = getDateFactDispatchForEntry(entry, selectedDate);
+    const disabledReason = completionControlDisabledReasonForEntry(
+      entry,
+      dispatch
+    );
+    if (disabledReason) {
+      toast.error(completionDisabledReasonCopy(disabledReason));
+      return;
+    }
     if (!dispatch) {
       toast.error("This planner item cannot be updated from the current snapshot.");
       return;
     }
-    if (!dispatch.decision.allowed) {
-      const message =
-        dispatch.decision.reason === "satisfied_elsewhere"
-          ? "This session is already satisfied by a completion elsewhere."
-          : dispatch.decision.reason === "future_creation"
-            ? "You can only mark planner sessions done for today or past dates."
-            : "This planner item cannot be updated from the current snapshot.";
-      toast.error(message);
-      return;
-    }
-
     const desiredFactState = dispatch.desiredFactState;
     const mutationKey = `fact:${entry.key}`;
 
     setMutationLoadingKey(mutationKey);
     try {
-      let response: Response | null = null;
-      if (dispatch.decision.route === "item_date" && entry.activeItem) {
-        const expectedCreditedUnit =
-          desiredFactState === "absent" &&
-          entry.activeGoal &&
-          entry.activeItem.credited_completion_date
-            ? {
-                goalId: entry.activeGoal.original_goal_id,
-                requirementFingerprint: entry.activeGoal.requirement_fingerprint,
-                unitKey: entry.activeItem.unit_key,
-                completedOn: entry.activeItem.credited_completion_date,
-              }
-            : null;
+      const expectedCreditedUnit =
+        desiredFactState === "absent" &&
+        entry.activeGoal &&
+        entry.activeItem?.credited_completion_date
+          ? {
+              goalId: entry.activeGoal.original_goal_id,
+              requirementFingerprint: entry.activeGoal.requirement_fingerprint,
+              unitKey: entry.activeItem.unit_key,
+              completedOn: entry.activeItem.credited_completion_date,
+            }
+          : null;
 
-        if (desiredFactState === "present" || expectedCreditedUnit) {
-          response = await fetch("/api/planner/items/date-fact", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
+      const result = await executeCompletionDispatch({
+        decision: dispatch.decision,
+        desiredFactState,
+        goalId: entry.originalGoalId,
+        date: selectedDate,
+        timezone: context.timezone,
+        plannerItemExpectation: entry.activeItem
+          ? {
               itemId: entry.activeItem.id,
-              desiredFactState,
-              expectedCreditedUnit,
               expectedItemRevision: entry.activeItem.revision,
               expectedCanonicalRevision: context.revisions.canonicalRevision,
               expectedExecutionRevision: context.revisions.executionRevision,
-            }),
-          });
+              expectedCreditedUnit,
+            }
+          : undefined,
+        plannerGoalExpectation: entry.activeGoal
+          ? {
+              planGoalId: entry.activeGoal.id,
+              expectedCanonicalRevision: context.revisions.canonicalRevision,
+              expectedExecutionRevision: context.revisions.executionRevision,
+            }
+          : undefined,
+      });
+
+      if (!result.ok) {
+        toast.error(result.message ?? "Planner completion update failed.");
+        return;
+      }
+
+      if (hasDraftSession) {
+        const draftPolicyForRefresh =
+          effectiveDraftPolicy ?? context.preferences?.defaultPolicy ?? null;
+        if (draftPolicyForRefresh) {
+          try {
+            await refreshDraftPreview(draftPolicyForRefresh);
+          } catch {
+            toast.error(
+              "Completion saved, but draft preview could not refresh automatically."
+            );
+          }
         }
       }
 
-      if (
-        !response &&
-        dispatch.decision.route === "plan_goal_date" &&
-        entry.activeGoal
-      ) {
-        response = await fetch("/api/planner/goals/date-fact", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            planGoalId: entry.activeGoal.id,
-            date: effectiveSelectedDay,
-            desiredFactState,
-            expectedCanonicalRevision: context.revisions.canonicalRevision,
-            expectedExecutionRevision: context.revisions.executionRevision,
-          }),
-        });
-      }
-
-      if (!response) {
-        toast.error("This planner item cannot be updated from the current snapshot.");
-        return;
-      }
-
-      const payload = await response.json().catch(() => null);
-      if (!response.ok) {
-        toast.error(parseErrorMessage(payload, "Planner completion update failed."));
-        return;
-      }
-
       onPlannerMutation();
-      await loadContext();
+      const refreshed = await loadContext({
+        showLoading: false,
+        toastOnError: false,
+      });
+      if (!refreshed) {
+        toast.error(
+          "Completion updated, but calendar refresh failed. Please refresh the page."
+        );
+        return;
+      }
       toast.success(desiredFactState === "present" ? "Marked done." : "Marked not done.");
     } catch {
       toast.error("Planner completion update failed.");
@@ -1376,7 +2144,7 @@ export function CalendarSurface({
         expectedBasePlanVersion: context.activePlan?.plan.version ?? null,
         confirmationHash,
         policy: effectiveDraftPolicy ?? undefined,
-        draftItemEdits: draftPublishEdits,
+        draftCommands: draftPublishCommands,
       }),
     });
     const payload = (await response.json()) as PlannerErrorPayload & {
@@ -1384,13 +2152,27 @@ export function CalendarSurface({
     };
     setPublishLoading(false);
     if (!response.ok) {
+      if (
+        payload.code === "validation_failed" &&
+        payload.details?.stage === "draft_edits" &&
+        payload.details?.code === "draft_item_policy_blocked"
+      ) {
+        const blockedDate =
+          typeof payload.details.scheduledDate === "string"
+            ? payload.details.scheduledDate
+            : "the selected date";
+        toast.error(
+          `A draft move lands on ${blockedDate}, which is blocked by your active planner policy (rest days, blackout ranges, or goal weekday rules). Open Planner settings to adjust policy or move the item to an allowed date.`
+        );
+        return;
+      }
       toast.error(payload.message ?? "Planner publish failed.");
       return;
     }
     setDraftScopeMonth(null);
     setDraftPolicy(null);
     setDraftPreview(null);
-    setDraftItemEdits({});
+    dispatchDraftCommand({ type: "clear" });
     onPlannerMutation();
     await loadContext();
     if (context.scopeMonth && context.timezone) {
@@ -1403,11 +2185,11 @@ export function CalendarSurface({
     toast.success(payload.replayed ? "Publish replayed." : "Plan published.");
   };
 
-  const dismissPlan = async () => {
+  const deactivatePlan = async () => {
     if (!context?.activePlan || !context.capabilities.plannerPlanWrites) {
       return;
     }
-    setDismissLoading(true);
+    setDeactivateLoading(true);
     const response = await fetch("/api/planner/plans/dismiss", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -1418,15 +2200,15 @@ export function CalendarSurface({
       }),
     });
     const payload = (await response.json()) as PlannerErrorPayload;
-    setDismissLoading(false);
+    setDeactivateLoading(false);
     if (!response.ok) {
-      toast.error(payload.message ?? "Planner plan dismiss failed.");
+      toast.error(payload.message ?? "Planner plan deactivation failed.");
       return;
     }
     setDraftScopeMonth(null);
     setDraftPolicy(null);
     setDraftPreview(null);
-    setDraftItemEdits({});
+    dispatchDraftCommand({ type: "clear" });
     onPlannerMutation();
     await loadContext();
     if (context.scopeMonth && context.timezone) {
@@ -1436,30 +2218,18 @@ export function CalendarSurface({
     }
     resetCoachUiState([]);
     setCoachInput("");
-    toast.success("Plan dismissed.");
+    toast.success("Plan deactivated.");
   };
 
   const discardDraftChanges = () => {
     setDraftScopeMonth(null);
     setDraftPolicy(null);
     setDraftPreview(null);
-    setDraftItemEdits({});
+    dispatchDraftCommand({ type: "clear" });
     setCoachUndoSnapshot(null);
     appendCoachContextEvent("Discarded draft changes");
     toast.success("Draft changes reverted to published baseline.");
   };
-
-  const plannerSearchStatus = effectivePreview?.solver.searchStatus;
-  const monthStatusLabel =
-    plannerSearchStatus === "all_units_placed"
-      ? "Complete"
-      : plannerSearchStatus === "maximum_partial"
-        ? "Partial"
-        : plannerSearchStatus === "blocked_invalid_lock"
-          ? "Blocked"
-          : plannerSearchStatus === "soft_optimization_exhausted"
-            ? "Soft optimization exhausted"
-            : "Unplanned";
 
   const canShowSetup = !context?.preferences;
   const monthLabel = month ? monthToLabel(month) : "Calendar";
@@ -1483,11 +2253,18 @@ export function CalendarSurface({
     context?.capabilities.plannerPlanWrites &&
       context?.activePlan?.plan.status === "active"
   );
+  const publishButtonLabel = publishLoading ? "Publishing..." : "Publish plan";
   const calendarToday =
     context?.asOfDate ??
     getDateInTimezone(new Date(), context?.timezone ?? setupTimezone);
   const selectedEventCompletionDispatch = selectedEventEntry
     ? getDateFactDispatchForEntry(selectedEventEntry)
+    : null;
+  const selectedEventCompletionDisabledReason = selectedEventEntry
+    ? completionControlDisabledReasonForEntry(
+        selectedEventEntry,
+        selectedEventCompletionDispatch
+      )
     : null;
 
   const setupForm = (
@@ -1553,115 +2330,70 @@ export function CalendarSurface({
   return (
     <div className="space-y-4">
       <div className="rounded-xl border bg-card p-4 shadow-sm" data-no-swipe="true">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="space-y-1">
-            <div className="flex items-center gap-2">
-              <CalendarDays className="size-4 text-primary" />
-              <h2 className="text-lg font-semibold">Calendar</h2>
-              <Badge variant="secondary">{monthStatusLabel}</Badge>
-              {context?.staleness.stale ? (
-                <Badge variant="outline">Stale</Badge>
+        <div className="space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <CalendarDays className="size-4 text-primary" />
+                <h2 className="text-lg font-semibold">Calendar</h2>
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              {context?.capabilities.plannerPlanWrites && context.activePlan ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={hasDraftSession ? "default" : "destructive"}
+                  onClick={hasDraftSession ? publishPlan : deactivatePlan}
+                  disabled={
+                    loading ||
+                    (hasDraftSession
+                      ? publishLoading || !effectivePreview
+                      : deactivateLoading)
+                  }
+                >
+                  {hasDraftSession
+                    ? publishButtonLabel
+                    : deactivateLoading
+                      ? "Deactivating..."
+                      : "Deactivate Plan"}
+                </Button>
+              ) : context?.capabilities.plannerPlanWrites &&
+                effectivePreview ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={publishPlan}
+                  disabled={publishLoading || loading}
+                >
+                  {publishButtonLabel}
+                </Button>
+              ) : null}
+              {hasDraftSession ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={discardDraftChanges}
+                  disabled={publishLoading || loading}
+                >
+                  Undo changes
+                </Button>
+              ) : null}
+              {context?.preferences ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon-sm"
+                  aria-label="Settings"
+                  title="Settings"
+                  onClick={() => setSettingsOpen(true)}
+                  disabled={loading}
+                >
+                  <Settings className="size-4" />
+                </Button>
               ) : null}
             </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={!month || loading}
-              onClick={() =>
-                month
-                  ? onMonthChange(
-                      format(addMonths(parseMonth(month), -1), "yyyy-MM"),
-                      "push"
-                    )
-                  : undefined
-              }
-            >
-              <ChevronLeft className="size-4" />
-              Previous month
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={loading}
-              onClick={() => onMonthChange(todayMonth, "push")}
-            >
-              Today
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={!month || loading}
-              onClick={() =>
-                month
-                  ? onMonthChange(
-                      format(addMonths(parseMonth(month), 1), "yyyy-MM"),
-                      "push"
-                    )
-                  : undefined
-              }
-            >
-              Next month
-              <ChevronRight className="size-4" />
-            </Button>
-            {context?.preferences ? (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => setSettingsOpen(true)}
-                disabled={loading}
-              >
-                <Settings2 className="mr-1 size-4" />
-                Settings
-              </Button>
-            ) : null}
-            {context?.capabilities.plannerPlanWrites &&
-            effectivePreview ? (
-              <Button
-                type="button"
-                size="sm"
-                onClick={publishPlan}
-                disabled={publishLoading || loading}
-              >
-                {publishLoading
-                  ? "Publishing..."
-                  : hasDraftSession
-                    ? context.activePlan
-                      ? "Publish draft update"
-                      : "Publish draft plan"
-                    : context.activePlan
-                      ? "Update Plan"
-                      : "Publish Plan"}
-              </Button>
-            ) : null}
-            {hasDraftSession ? (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={discardDraftChanges}
-                disabled={publishLoading || loading}
-              >
-                Undo draft
-              </Button>
-            ) : null}
-            {context?.capabilities.plannerPlanWrites &&
-            context.activePlan ? (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={dismissPlan}
-                disabled={dismissLoading || loading}
-              >
-                {dismissLoading ? "Dismissing..." : "Dismiss Plan"}
-              </Button>
-            ) : null}
           </div>
         </div>
       </div>
@@ -1680,7 +2412,7 @@ export function CalendarSurface({
       ) : canShowSetup ? (
         <div className="rounded-xl border bg-card p-4 shadow-sm">
           <div className="mb-3 flex items-center gap-2">
-            <Settings2 className="size-4 text-primary" />
+            <Settings className="size-4 text-primary" />
             <h3 className="text-base font-semibold">Plan setup</h3>
           </div>
           <p className="mb-4 text-sm text-muted-foreground">
@@ -1693,138 +2425,191 @@ export function CalendarSurface({
           <div className="rounded-xl border bg-card p-4 shadow-sm">
             <div className="mb-3 flex items-center justify-between">
               <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon-sm"
+                  disabled={loading}
+                  aria-label="Previous month"
+                  onClick={() =>
+                    onMonthChange(
+                      format(addMonths(parseMonth(month), -1), "yyyy-MM"),
+                      "push"
+                    )
+                  }
+                >
+                  <ChevronLeft className="size-4" />
+                </Button>
                 <h3 className="text-base font-semibold">{monthLabel}</h3>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon-sm"
+                  disabled={loading}
+                  aria-label="Next month"
+                  onClick={() =>
+                    onMonthChange(
+                      format(addMonths(parseMonth(month), 1), "yyyy-MM"),
+                      "push"
+                    )
+                  }
+                >
+                  <ChevronRight className="size-4" />
+                </Button>
+                {month !== todayMonth ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon-sm"
+                    disabled={loading}
+                    aria-label="Reset to current month"
+                    title="Go to current month"
+                    onClick={() => onMonthChange(todayMonth, "replace")}
+                  >
+                    <RotateCcw className="size-4" />
+                  </Button>
+                ) : null}
                 {hasDraftSession ? (
-                  <Badge className="border-amber-500/40 bg-amber-500/15 text-amber-700 dark:text-amber-300">
+                  <Badge className="border-yellow-300 bg-yellow-100 text-orange-900 dark:border-yellow-300 dark:bg-yellow-100 dark:text-orange-900">
                     Planning Mode
                   </Badge>
                 ) : null}
               </div>
               <p className="text-xs text-muted-foreground">
-                Monday-first month view
+                Monday-first month view. Drag session pills to draft-move them.
               </p>
             </div>
-            <div className="grid grid-cols-7 gap-2 text-center text-xs text-muted-foreground">
-              {monthWeekdayLabels.map((weekday) => (
-                <span key={weekday}>{weekday}</span>
-              ))}
-            </div>
-            <div className="mt-2 grid grid-cols-7 gap-2" data-no-swipe="true">
-              {cells.map((cell) => {
-                const entriesForDay = getEntriesForDay(cell.date);
-                const status = getDayStatus(entriesForDay, "No items");
-                const isToday = cell.date === calendarToday;
-                const isPastInMonth = cell.inMonth && cell.date < calendarToday;
-                const ariaLabel = `${format(
-                  parse(cell.date, "yyyy-MM-dd", new Date()),
-                  "EEEE, MMMM d, yyyy"
-                )}. ${entriesForDay.length} planned item${
-                  entriesForDay.length === 1 ? "" : "s"
-                }. ${status}.`;
-                return (
-                  <button
-                    key={cell.date}
-                    type="button"
-                    onClick={(event) =>
-                      handleDayCellClick(cell.date, event.currentTarget)
-                    }
-                    onMouseEnter={(event) =>
-                      scheduleHoverPreview(cell.date, event.currentTarget)
-                    }
-                    onMouseLeave={() => {
-                      clearHoverPreviewTimer();
-                      if (dayPreview?.day === cell.date && !dayPreview.pinned) {
-                        setDayPreview(null);
-                      }
-                    }}
-                    onPointerDown={(event) => {
-                      if (event.pointerType === "touch") {
-                        startLongPressPreview(cell.date, event.currentTarget);
-                      }
-                    }}
-                    onPointerUp={() => {
-                      clearLongPressTimer();
-                    }}
-                    onPointerCancel={() => {
-                      clearLongPressTimer();
-                    }}
-                    onPointerLeave={() => {
-                      clearLongPressTimer();
-                    }}
-                    className={`min-h-24 rounded-lg border p-2 text-left transition-colors ${
-                      cell.inMonth
-                        ? isToday
-                          ? "bg-primary/10 ring-1 ring-primary/50 hover:border-primary"
-                          : isPastInMonth
-                            ? "bg-muted/20 hover:border-primary/50"
-                            : "bg-background hover:border-primary/60"
-                        : "bg-muted/30 text-muted-foreground"
-                    }`}
-                    aria-label={ariaLabel}
-                    data-no-swipe="true"
-                    data-day-cell="true"
-                    data-day={cell.date}
-                  >
-                    <p
-                      className={`text-xs font-medium ${
-                        isToday ? "text-primary" : ""
-                      }`}
-                    >
-                      {cell.date.slice(8, 10)}
-                    </p>
-                    {entriesForDay.length > 0 ? (
-                      <div className="mt-1 space-y-1">
-                        {entriesForDay.slice(0, 2).map((entry) => {
-                          const visual = getGoalVisual({
-                            goalId: entry.originalGoalId,
-                            color: entry.activeGoal?.color ?? null,
-                          });
-                          const Icon = visual.Icon;
-                          const compactTitle = getEntryDisplayTitle(entry);
-                          return (
-                            <div
-                              key={`cell-entry-${entry.key}`}
-                              className="flex items-center gap-1 text-[10px]"
-                            >
-                              <span
-                                className="inline-flex size-3 items-center justify-center rounded-full"
-                                style={{ backgroundColor: visual.color }}
-                              >
-                                <Icon className="size-2 text-white" />
-                              </span>
-                              <span className="truncate">
-                                {compactTitle}
-                              </span>
-                            </div>
-                          );
-                        })}
-                        {entriesForDay.length > 2 ? (
-                          <p className="text-[10px] text-muted-foreground">
-                            +{entriesForDay.length - 2} more
-                          </p>
-                        ) : null}
-                      </div>
-                    ) : null}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {dayPreview ? (
-            <div
-              ref={dayPreviewRef}
-              className="fixed z-40 rounded-lg border bg-card p-3 shadow-lg"
-              style={{
-                top: dayPreview.position.top,
-                left: dayPreview.position.left,
-                width: dayPreview.position.width,
-                transform:
-                  dayPreview.position.placement === "above"
-                    ? "translateY(-100%)"
-                    : undefined,
-              }}
+            <PlannerDndProvider
+              getEntryLabel={getDragEntryLabel}
+              getDayLabel={getDragDayLabel}
+              renderDragOverlay={renderEntryDragOverlay}
+              onEntryDragStart={handleDndEntryDragStart}
+              onEntryDragEnd={handleDndEntryDragEnd}
+              onEntryDragCancel={handleDndEntryDragCancel}
             >
+              <div className="grid grid-cols-7 gap-2 text-center text-xs text-muted-foreground">
+                {monthWeekdayLabels.map((weekday) => (
+                  <span key={weekday}>{weekday}</span>
+                ))}
+              </div>
+              <div className="mt-2 grid grid-cols-7 gap-2" data-no-swipe="true">
+                {cells.map((cell) => {
+                  const entriesForDay = orderEntriesForDay(
+                    cell.date,
+                    getEntriesForDay(cell.date)
+                  );
+                  const completionFactMarkersForDay =
+                    completionFactMarkersByDate.get(cell.date) ?? [];
+                  const status =
+                    entriesForDay.length > 0
+                      ? getDayStatus(entriesForDay, "No items")
+                      : completionFactMarkersForDay.length > 0
+                        ? "Completed elsewhere"
+                        : "No items";
+                  const isToday = cell.date === calendarToday;
+                  const isPastInMonth = cell.inMonth && cell.date < calendarToday;
+                  const ariaLabel = `${format(
+                    parse(cell.date, "yyyy-MM-dd", new Date()),
+                    "EEEE, MMMM d, yyyy"
+                  )}. ${entriesForDay.length} planned item${
+                    entriesForDay.length === 1 ? "" : "s"
+                  }. ${completionFactMarkersForDay.length} completion fact${
+                    completionFactMarkersForDay.length === 1 ? "" : "s"
+                  }. ${status}.`;
+
+                  return (
+                    <CalendarMonthDayCell
+                      key={cell.date}
+                      day={cell.date}
+                      inMonth={cell.inMonth}
+                      isToday={isToday}
+                      isPastInMonth={isPastInMonth}
+                      ariaLabel={ariaLabel}
+                      entriesForDay={entriesForDay}
+                      completionFactMarkersForDay={completionFactMarkersForDay}
+                      isAnyEntryDragging={Boolean(draggingEntryKey)}
+                      getEntryDisplayTitle={getEntryDisplayTitle}
+                      isEntryCredited={isEntryCredited}
+                      isEntryImmovableForDraft={isEntryImmovableForDraft}
+                      onCellClick={(target) => {
+                        if (draggingEntryKey) {
+                          return;
+                        }
+                        handleDayCellClick(cell.date, target);
+                      }}
+                      onCellMouseEnter={(target) => {
+                        scheduleHoverPreview(cell.date, target);
+                      }}
+                      onCellMouseLeave={() => {
+                        clearHoverPreviewTimer();
+                        scheduleHoverPreviewClose(cell.date);
+                      }}
+                      onCellPointerDown={(pointerType, target) => {
+                        pointerPressActiveRef.current = true;
+                        clearHoverPreviewTimer();
+                        if (pointerType === "touch") {
+                          startLongPressPreview(cell.date, target);
+                        }
+                      }}
+                      onCellPointerUp={() => {
+                        pointerPressActiveRef.current = false;
+                        clearLongPressTimer();
+                      }}
+                      onCellPointerCancel={() => {
+                        pointerPressActiveRef.current = false;
+                        clearLongPressTimer();
+                      }}
+                      onCellPointerLeave={() => {
+                        clearLongPressTimer();
+                      }}
+                      onEntryPointerStart={(immovable) => {
+                        pointerPressActiveRef.current = true;
+                        clearHoverPreviewTimer();
+                        setDayPreview(null);
+                        if (immovable) {
+                          toast.error(
+                            "Completed or historical sessions cannot move in draft. Clear completion in publish mode first."
+                          );
+                        }
+                      }}
+                      onEntryPointerEnd={() => {
+                        pointerPressActiveRef.current = false;
+                      }}
+                    />
+                  );
+                })}
+              </div>
+
+              {dayPreview ? (
+                <div
+                  ref={dayPreviewRef}
+                  className="fixed z-40 rounded-lg border bg-card p-3 shadow-lg"
+                  style={{
+                    top: dayPreview.position.top,
+                    left: dayPreview.position.left,
+                    width: dayPreview.position.width,
+                    transform:
+                      dayPreview.position.placement === "above"
+                        ? "translateY(-100%)"
+                        : undefined,
+                  }}
+                  onPointerDownCapture={() => {
+                    setDayPreview((current) =>
+                      current && !current.pinned
+                        ? { ...current, pinned: true }
+                        : current
+                    );
+                  }}
+                  onMouseEnter={() => {
+                    pointerInsideDayPreviewRef.current = true;
+                    clearHoverPreviewTimer();
+                    clearHoverPreviewCloseTimer();
+                  }}
+                  onMouseLeave={() => {
+                    pointerInsideDayPreviewRef.current = false;
+                    scheduleHoverPreviewClose(dayPreview.day);
+                  }}
+                >
               <div className="mb-2 flex items-center justify-between gap-2">
                 <p className="text-sm font-medium">
                   {format(parse(dayPreview.day, "yyyy-MM-dd", new Date()), "EEEE, MMM d")}
@@ -1841,56 +2626,58 @@ export function CalendarSurface({
                   </Button>
                 ) : null}
               </div>
-              <div className="max-h-44 space-y-1 overflow-y-auto text-xs">
-                {previewDayEntries.length === 0 ? (
-                  <p className="text-muted-foreground">No planned sessions.</p>
-                ) : (
-                  previewDayEntries.map((entry) => {
-                    const visual = getGoalVisual({
-                      goalId: entry.originalGoalId,
-                      color: entry.activeGoal?.color ?? null,
-                    });
-                    const Icon = visual.Icon;
-                    const displayTitle = getEntryDisplayTitle(entry);
-                    const subtitle = getEntrySubtitle(entry);
-                    return (
-                      <button
-                        key={`preview-entry-${entry.key}`}
-                        type="button"
-                        className="flex w-full items-start gap-2 rounded border p-1.5 text-left transition-colors hover:border-primary/60"
-                        onClick={() => {
-                          setLocalSelectedDay(dayPreview.day);
-                          setSelectedEventEntryKey(entry.key);
-                          setDayPreview(null);
-                        }}
-                      >
-                        <span
-                          className="mt-0.5 inline-flex size-4 items-center justify-center rounded-full"
-                          style={{ backgroundColor: visual.color }}
-                        >
-                          <Icon className="size-2.5 text-white" />
-                        </span>
-                        <div className="min-w-0">
-                          <p className="truncate font-medium">
-                            {displayTitle}
-                          </p>
-                          {subtitle ? (
-                            <p className="truncate text-muted-foreground">
-                              {subtitle}
-                            </p>
-                          ) : null}
-                        </div>
-                      </button>
+              <CalendarDayPreviewList
+                day={dayPreview.day}
+                entries={previewDayEntries}
+                completionFactMarkers={previewDayCompletionFactMarkers}
+                mutationLoading={Boolean(mutationLoadingKey)}
+                getEntryDisplayTitle={getEntryDisplayTitle}
+                getEntrySubtitle={getEntrySubtitle}
+                isEntryCredited={isEntryCredited}
+                isEntryImmovableForDraft={isEntryImmovableForDraft}
+                getCompletionToggleState={(entry, day) => {
+                  const previewCompletionDispatch = getDateFactDispatchForEntry(entry, day);
+                  const previewCompletionDisabledReason =
+                    completionControlDisabledReasonForEntry(
+                      entry,
+                      previewCompletionDispatch
                     );
-                  })
-                )}
-              </div>
-            </div>
-          ) : null}
+                  return {
+                    currentlyCredited: Boolean(
+                      previewCompletionDispatch?.currentlyCredited
+                    ),
+                    disabledReasonCopy: previewCompletionDisabledReason
+                      ? completionDisabledReasonCopy(previewCompletionDisabledReason)
+                      : null,
+                  };
+                }}
+                onEntryOpen={(entryKey) => {
+                  setLocalSelectedDay(dayPreview.day);
+                  setSelectedEventEntryKey(entryKey);
+                }}
+                onToggleCompletion={(entry, day) => {
+                  void toggleDateFact(entry, day);
+                }}
+                onEntryPointerStart={(immovable) => {
+                  pointerPressActiveRef.current = true;
+                  if (immovable) {
+                    toast.error(
+                      "Completed or historical sessions cannot move in draft. Clear completion in publish mode first."
+                    );
+                  }
+                }}
+                onEntryPointerEnd={() => {
+                  pointerPressActiveRef.current = false;
+                }}
+              />
+                </div>
+              ) : null}
+            </PlannerDndProvider>
+          </div>
 
           {canUseCoach ? (
             <div className="rounded-xl border bg-card p-4 shadow-sm">
-              <div className="mb-2 flex items-center justify-between">
+              <div className="mb-2 flex items-center gap-2">
                 <h3 className="text-base font-semibold">AI Coach</h3>
                 <Badge variant="outline">Experimental</Badge>
               </div>
@@ -1899,7 +2686,7 @@ export function CalendarSurface({
               </p>
               <div className="max-h-72 space-y-2 overflow-y-auto rounded-md border p-3">
                 {coachMessages.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">
+                  <p className="rounded-md border border-primary/20 bg-primary/10 px-3 py-2 text-sm text-muted-foreground">
                     Start with a goal question, for example: &quot;Help me build a 4-week running routine.&quot;
                   </p>
                 ) : (
@@ -2096,31 +2883,76 @@ export function CalendarSurface({
                       const Icon = visual.Icon;
                       const displayTitle = getEntryDisplayTitle(entry);
                       const subtitle = getEntrySubtitle(entry);
+                      const completionDispatch = getDateFactDispatchForEntry(entry);
+                      const completionDisabledReason =
+                        completionControlDisabledReasonForEntry(
+                          entry,
+                          completionDispatch
+                        );
                       return (
-                        <li key={entry.key}>
-                          <button
-                            type="button"
-                            className="w-full rounded-lg border p-2 text-left text-sm transition-colors hover:border-primary/60"
-                            onClick={() => setSelectedEventEntryKey(entry.key)}
-                          >
-                            <div className="flex items-center gap-2">
-                              <span
-                                className="inline-flex size-5 items-center justify-center rounded-full"
-                                style={{ backgroundColor: visual.color }}
-                              >
-                                <Icon className="size-3 text-white" />
-                              </span>
-                              <p className="font-medium">{displayTitle}</p>
-                            </div>
-                            {subtitle ? (
-                              <p className="mt-1 text-xs text-muted-foreground">
-                                {subtitle}
+                        <li key={entry.key} className="rounded-lg border p-2">
+                          <div className="flex items-start gap-2">
+                            <button
+                              type="button"
+                              className="flex-1 text-left text-sm transition-colors hover:text-primary"
+                              onClick={() => setSelectedEventEntryKey(entry.key)}
+                            >
+                              <div className="flex items-center gap-2">
+                                <span
+                                  className="inline-flex size-5 items-center justify-center rounded-full"
+                                  style={{ backgroundColor: visual.color }}
+                                >
+                                  <Icon className="size-3 text-white" />
+                                </span>
+                                <p className="font-medium">{displayTitle}</p>
+                              </div>
+                              {subtitle ? (
+                                <p className="mt-1 text-xs text-muted-foreground">
+                                  {subtitle}
+                                </p>
+                              ) : null}
+                              <p className="mt-1 text-xs text-primary">
+                                View event details
                               </p>
-                            ) : null}
-                            <p className="mt-1 text-xs text-primary">
-                              View event details
+                            </button>
+                            <button
+                              type="button"
+                              className="group flex size-8 shrink-0 items-center justify-center rounded-full border border-border bg-background transition-all hover:border-primary hover:bg-primary/5 disabled:cursor-not-allowed disabled:opacity-60"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                void toggleDateFact(entry);
+                              }}
+                              disabled={
+                                Boolean(mutationLoadingKey) ||
+                                completionDisabledReason !== null
+                              }
+                              aria-label={
+                                completionDispatch?.currentlyCredited
+                                  ? "Mark session not done"
+                                  : "Mark session done"
+                              }
+                              title={
+                                completionDisabledReason
+                                  ? completionDisabledReasonCopy(
+                                      completionDisabledReason
+                                    )
+                                  : "Toggle completion for this session"
+                              }
+                            >
+                              {completionDispatch?.currentlyCredited ? (
+                                <CheckCircle2 className="size-4 text-primary transition-transform group-hover:scale-110" />
+                              ) : (
+                                <Circle className="size-4 text-muted-foreground transition-transform group-hover:scale-110" />
+                              )}
+                            </button>
+                          </div>
+                          {completionDisabledReason ? (
+                            <p className="mt-2 text-[11px] text-muted-foreground">
+                              {completionDisabledReasonCopy(
+                                completionDisabledReason
+                              )}
                             </p>
-                          </button>
+                          ) : null}
                         </li>
                       );
                     })}
@@ -2189,6 +3021,10 @@ export function CalendarSurface({
                         className="h-8 text-xs"
                       />
                     </label>
+                    <p className="text-[11px] text-muted-foreground">
+                      Drag month-cell session pills to move quickly, or use this
+                      date field as a keyboard-friendly fallback.
+                    </p>
                     {selectedEventEntry.activeItem ? (
                       <div className="flex flex-wrap gap-2">
                         <Button
@@ -2211,21 +3047,38 @@ export function CalendarSurface({
                         <Button
                           type="button"
                           size="sm"
+                          variant="outline"
+                          className="gap-1"
                           onClick={() => void toggleDateFact(selectedEventEntry)}
                           disabled={
                             Boolean(mutationLoadingKey) ||
-                            !canMutatePlanItems ||
-                            !context?.capabilities.targetedExactCompletion ||
-                            !selectedEventCompletionDispatch?.decision.allowed
+                            selectedEventCompletionDisabledReason !== null
                           }
                         >
                           {mutationLoadingKey === `fact:${selectedEventEntry.key}`
                             ? "Saving..."
                             : selectedEventCompletionDispatch?.currentlyCredited
-                              ? "Undo done"
-                              : "Mark done"}
+                              ? (
+                                  <>
+                                    <CheckCircle2 className="size-4" />
+                                    Undo done
+                                  </>
+                                )
+                              : (
+                                  <>
+                                    <Circle className="size-4" />
+                                    Mark done
+                                  </>
+                                )}
                         </Button>
                       </div>
+                    ) : null}
+                    {selectedEventCompletionDisabledReason ? (
+                      <p className="text-xs text-muted-foreground">
+                        {completionDisabledReasonCopy(
+                          selectedEventCompletionDisabledReason
+                        )}
+                      </p>
                     ) : null}
                   </div>
                 </div>

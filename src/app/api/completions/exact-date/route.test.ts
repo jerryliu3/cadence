@@ -44,7 +44,7 @@ function request(
   });
 }
 
-describe("targeted exact-date completion route", () => {
+describe("exact-date completion route", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-08-05T13:00:00.000Z"));
@@ -110,6 +110,25 @@ describe("targeted exact-date completion route", () => {
     expect(mocks.rpc).toHaveBeenCalledWith("unmark_goal_complete", {
       p_goal_id: goalId,
       p_date: "2026-08-31",
+    });
+  });
+
+  it("supports exact-date completion for non-targeted goals", async () => {
+    mocks.maybeSingle.mockResolvedValueOnce({
+      data: {
+        id: goalId,
+        start_date: "2026-08-01",
+        end_date: "2026-08-31",
+      },
+      error: null,
+    });
+
+    const response = await POST(request("2026-08-05", "present"));
+
+    expect(response.status).toBe(200);
+    expect(mocks.rpc).toHaveBeenCalledWith("mark_goal_complete", {
+      p_goal_id: goalId,
+      p_date: "2026-08-05",
     });
   });
 });
