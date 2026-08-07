@@ -21,6 +21,37 @@ function sameNumberArray(left: number[] | undefined, right: number[]) {
   return left.every((value, index) => value === right[index]);
 }
 
+function normalizeMonthlyDistributionEntries(
+  entries: Array<{ month: string; count: number }>
+) {
+  const countByMonth = new Map<string, number>();
+  for (const entry of entries) {
+    if (entry.count <= 0) {
+      continue;
+    }
+    countByMonth.set(
+      entry.month,
+      (countByMonth.get(entry.month) ?? 0) + entry.count
+    );
+  }
+  return Array.from(countByMonth.entries())
+    .map(([month, count]) => ({ month, count }))
+    .sort((left, right) => left.month.localeCompare(right.month));
+}
+
+function sameMonthlyDistribution(
+  left: Array<{ month: string; count: number }> | undefined,
+  right: Array<{ month: string; count: number }>
+) {
+  if (!left || left.length !== right.length) {
+    return false;
+  }
+  return left.every(
+    (entry, index) =>
+      entry.month === right[index]?.month && entry.count === right[index]?.count
+  );
+}
+
 function isAllowedGoalId(goalId: string | null, allowedGoalIds: Set<string>) {
   return goalId === null || allowedGoalIds.has(goalId);
 }
@@ -187,6 +218,53 @@ export function applyCoachPolicyPatches({
         }
         nextPolicy.goalSpacingStrategies[patch.goalId] = patch.spacingStrategy;
         appliedPatchCount += 1;
+        break;
+      }
+      case "set_goal_monthly_distribution": {
+        if (!allowedGoalIds.has(patch.goalId)) {
+          ignoredPatchCount += 1;
+          outOfScopePatchCount += 1;
+          break;
+        }
+        const normalized = normalizeMonthlyDistributionEntries(
+          patch.distribution
+        );
+        const current = nextPolicy.goalMonthlyDistributions?.[patch.goalId];
+        if (normalized.length === 0) {
+          if (nextPolicy.goalMonthlyDistributions?.[patch.goalId]) {
+            delete nextPolicy.goalMonthlyDistributions[patch.goalId];
+            appliedPatchCount += 1;
+          } else {
+            ignoredPatchCount += 1;
+            noOpPatchCount += 1;
+          }
+          break;
+        }
+        if (sameMonthlyDistribution(current, normalized)) {
+          ignoredPatchCount += 1;
+          noOpPatchCount += 1;
+          break;
+        }
+        if (!nextPolicy.goalMonthlyDistributions) {
+          nextPolicy.goalMonthlyDistributions = {};
+        }
+        nextPolicy.goalMonthlyDistributions[patch.goalId] = normalized;
+        appliedPatchCount += 1;
+        break;
+      }
+      case "clear_goal_monthly_distribution": {
+        if (!allowedGoalIds.has(patch.goalId)) {
+          ignoredPatchCount += 1;
+          outOfScopePatchCount += 1;
+          break;
+        }
+        if (nextPolicy.goalMonthlyDistributions?.[patch.goalId]) {
+          delete nextPolicy.goalMonthlyDistributions[patch.goalId];
+          appliedPatchCount += 1;
+        } else {
+          ignoredPatchCount += 1;
+          noOpPatchCount += 1;
+        }
         break;
       }
       default: {

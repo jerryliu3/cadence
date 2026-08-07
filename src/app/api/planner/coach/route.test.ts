@@ -300,16 +300,24 @@ describe("planner coach route", () => {
         reply: "Applying running cadence preferences.",
         proposal: {
           calendarIntent: {
-            action: "apply_to_goal",
-            targetGoalId: "12000000-0000-4000-8000-000000000001",
-            allowedWeekdays: [2, 4, 6],
-            restWeekdays: [],
-            spacingStrategy: "flexible",
-            datePreferences: [
+            action: "apply",
+            global: null,
+            goals: [
               {
-                start: "2026-01-18",
-                end: "2026-01-18",
-                effect: "prefer",
+                targetGoalId: "12000000-0000-4000-8000-000000000001",
+                allowedWeekdays: [2, 4, 6],
+                spacingStrategy: "flexible",
+                datePreferences: [
+                  {
+                    start: "2026-01-18",
+                    end: "2026-01-18",
+                    effect: "prefer",
+                  },
+                ],
+                monthlyDistribution: [
+                  { month: "2026-01", count: 2 },
+                  { month: "2026-01", count: 2 },
+                ],
               },
             ],
           },
@@ -351,8 +359,18 @@ describe("planner coach route", () => {
             end: "2026-01-18",
             effect: "prefer",
           },
+          {
+            kind: "set_goal_monthly_distribution",
+            goalId: "12000000-0000-4000-8000-000000000001",
+            distribution: [
+              { month: "2026-01", count: 20 },
+            ],
+          },
         ],
       },
+      warnings: [
+        "Adjusted monthly distribution to match target count 20.",
+      ],
     });
   });
 
@@ -365,11 +383,8 @@ describe("planner coach route", () => {
         proposal: {
           calendarIntent: {
             action: "needs_goal",
-            targetGoalId: "",
-            allowedWeekdays: [2, 4, 6],
-            restWeekdays: [],
-            spacingStrategy: "flexible",
-            datePreferences: [],
+            global: null,
+            goals: [],
           },
           unresolvedQuestions: [],
         },
