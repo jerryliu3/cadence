@@ -72,6 +72,7 @@ const eligibilityReasonSchema = z.enum([
   "invalid_date_range",
   "end_outside_scope",
   "starts_after_scope",
+  "horizon_too_long",
 ]);
 
 export const eligibilityFixtureSchema = z

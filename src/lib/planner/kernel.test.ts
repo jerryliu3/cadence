@@ -262,33 +262,27 @@ describe("pure planner kernel", () => {
     expect(monthOutputs[2].workUnits.length).toBe(20);
   });
 
-  it("rejects ordinal goals with horizons larger than the supported bound", () => {
+  it("marks ordinal goals with oversized horizons as ineligible", () => {
     const oversizedHorizonGoal = goal({
       target_count: 48,
       start_date: "2026-01-01",
       end_date: "2028-12-31",
     });
+    const output = runPlannerKernel(
+      input({
+        eligibilityMode: "overlap_v1",
+        scopeMonth: "2026-08",
+        asOfDate: "2026-08-05",
+        goals: [oversizedHorizonGoal],
+      })
+    );
 
-    expect(() =>
-      runPlannerKernel(
-        input({
-          eligibilityMode: "overlap_v1",
-          scopeMonth: "2026-08",
-          asOfDate: "2026-08-05",
-          goals: [oversizedHorizonGoal],
-        })
-      )
-    ).toThrowError(PlannerError);
-    expect(() =>
-      runPlannerKernel(
-        input({
-          eligibilityMode: "overlap_v1",
-          scopeMonth: "2026-08",
-          asOfDate: "2026-08-05",
-          goals: [oversizedHorizonGoal],
-        })
-      )
-    ).toThrow(/horizon months exceeds the supported bound/);
+    expect(output.eligibility).toContainEqual({
+      goalId: oversizedHorizonGoal.id,
+      eligible: false,
+      reason: "horizon_too_long",
+    });
+    expect(output.workUnits).toHaveLength(0);
   });
 
   it("does not credit early milestone completions into a later-month slice", () => {

@@ -278,6 +278,7 @@ export const plannerKernelOutputSchema = z
             "invalid_date_range",
             "end_outside_scope",
             "starts_after_scope",
+            "horizon_too_long",
           ]),
         })
         .strict()
