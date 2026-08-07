@@ -152,6 +152,108 @@ describe("pure planner kernel", () => {
     expect(monthOutputs[2].workUnits.length).toBe(20);
   });
 
+  it("does not credit early milestone completions into a later-month slice", () => {
+    const milestoneGoal = goal({
+      id: "goal-milestone",
+      frequency_type: "fixed_milestones",
+      recurrence_interval: null,
+      target_count: 6,
+      milestone_names: ["One", "Two", "Three", "Four", "Five", "Six"],
+      start_date: "2026-08-01",
+      end_date: "2026-09-30",
+    });
+    const completions: Completion[] = [
+      {
+        id: "c1",
+        goal_id: milestoneGoal.id,
+        user_id: milestoneGoal.owner_id,
+        completed_on: "2026-08-03",
+        source: "manual",
+        created_at: "2026-08-03T12:00:00Z",
+      },
+      {
+        id: "c2",
+        goal_id: milestoneGoal.id,
+        user_id: milestoneGoal.owner_id,
+        completed_on: "2026-08-05",
+        source: "manual",
+        created_at: "2026-08-05T12:00:00Z",
+      },
+      {
+        id: "c3",
+        goal_id: milestoneGoal.id,
+        user_id: milestoneGoal.owner_id,
+        completed_on: "2026-08-07",
+        source: "manual",
+        created_at: "2026-08-07T12:00:00Z",
+      },
+    ];
+    const output = runPlannerKernel(
+      input({
+        eligibilityMode: "overlap_v1",
+        scopeMonth: "2026-09",
+        asOfDate: "2026-09-10",
+        goals: [milestoneGoal],
+        completions,
+      })
+    );
+
+    expect(output.workUnits.map((unit) => unit.unitKey)).toEqual([
+      "milestone:4",
+      "milestone:5",
+      "milestone:6",
+    ]);
+    expect(output.workUnits.every((unit) => unit.creditedCompletionId === null)).toBe(
+      true
+    );
+  });
+
+  it("does not credit early deadline completions into a later-month slice", () => {
+    const deadlineGoal = goal({
+      id: "goal-deadline",
+      target_count: 20,
+      recurrence_interval: "daily",
+      start_date: "2026-08-01",
+      end_date: "2026-09-30",
+    });
+    const completions: Completion[] = Array.from({ length: 10 }, (_, index) => {
+      const day = String(index + 1).padStart(2, "0");
+      return {
+        id: `c${index + 1}`,
+        goal_id: deadlineGoal.id,
+        user_id: deadlineGoal.owner_id,
+        completed_on: `2026-08-${day}`,
+        source: "manual",
+        created_at: `2026-08-${day}T12:00:00Z`,
+      };
+    });
+    const output = runPlannerKernel(
+      input({
+        eligibilityMode: "overlap_v1",
+        scopeMonth: "2026-09",
+        asOfDate: "2026-09-10",
+        goals: [deadlineGoal],
+        completions,
+      })
+    );
+
+    expect(output.workUnits.map((unit) => unit.unitKey)).toEqual([
+      "total:11",
+      "total:12",
+      "total:13",
+      "total:14",
+      "total:15",
+      "total:16",
+      "total:17",
+      "total:18",
+      "total:19",
+      "total:20",
+    ]);
+    expect(output.workUnits.every((unit) => unit.creditedCompletionId === null)).toBe(
+      true
+    );
+  });
+
   it("excludes either side of a current goal link", () => {
     const output = runPlannerKernel(
       input({

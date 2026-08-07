@@ -175,24 +175,6 @@ function ownerMonthForOrdinal({
   return months[ownerIndex] ?? null;
 }
 
-function parseOrdinalFromUnitKey({
-  unitKey,
-  kind,
-}: {
-  unitKey: string;
-  kind: "deadline_total" | "milestone_sequence";
-}) {
-  const prefix = kind === "deadline_total" ? "total:" : "milestone:";
-  if (!unitKey.startsWith(prefix)) {
-    return null;
-  }
-  const rawOrdinal = Number(unitKey.slice(prefix.length));
-  if (!Number.isInteger(rawOrdinal) || rawOrdinal <= 0) {
-    return null;
-  }
-  return rawOrdinal;
-}
-
 function countDateWindowDays({
   start,
   end,
@@ -215,16 +197,14 @@ function allocateOrdinalScopeMonth({
   compiledPolicy,
   scopeMonth,
   asOfDate,
-  goalCompletions,
-  previousCompletionToUnit,
+  reconciledUnits,
 }: {
   goal: Goal;
   normalizedRequirement: NormalizedGoalRequirement;
   compiledPolicy: CompiledPolicy;
   scopeMonth: string;
   asOfDate: string;
-  goalCompletions: Completion[];
-  previousCompletionToUnit: Record<string, PlannerCompletionUnitIdentity>;
+  reconciledUnits: PlannerWorkUnit[];
 }) {
   const requirement = normalizedRequirement.requirement;
   if (requirement.kind === "cadence") {
@@ -245,54 +225,10 @@ function allocateOrdinalScopeMonth({
     compareCanonicalStrings(asOfDate, goal.start_date) > 0
       ? asOfDate
       : goal.start_date;
-  const admissibleCompletions = goalCompletions.filter((completion) =>
-    isCompletionAdmissible(goal, completion.completed_on, { asOfDate })
-  );
-  const creditedCount = Math.min(
-    admissibleCompletions.length,
-    requirement.targetCount
-  );
-
-  const creditedOrdinals = new Set<number>();
-  for (const completion of admissibleCompletions) {
-    const previousIdentity = previousCompletionToUnit[completion.id];
-    if (
-      !previousIdentity ||
-      previousIdentity.goalId !== goal.id ||
-      previousIdentity.completedOn !== completion.completed_on ||
-      previousIdentity.requirementFingerprint !==
-        normalizedRequirement.requirementFingerprint
-    ) {
-      continue;
-    }
-    const ordinal = parseOrdinalFromUnitKey({
-      unitKey: previousIdentity.unitKey,
-      kind: requirement.kind,
-    });
-    if (
-      ordinal === null ||
-      ordinal > requirement.targetCount ||
-      creditedOrdinals.has(ordinal)
-    ) {
-      continue;
-    }
-    creditedOrdinals.add(ordinal);
-    if (creditedOrdinals.size >= creditedCount) {
-      break;
-    }
-  }
-  for (
-    let ordinal = 1;
-    ordinal <= requirement.targetCount && creditedOrdinals.size < creditedCount;
-    ordinal += 1
-  ) {
-    if (!creditedOrdinals.has(ordinal)) {
-      creditedOrdinals.add(ordinal);
-    }
-  }
-
   const reservedCompletionDates = new Set(
-    admissibleCompletions.map((completion) => completion.completed_on)
+    reconciledUnits
+      .map((unit) => unit.creditedCompletionDate)
+      .filter((date): date is string => date !== null)
   );
   const hasPolicyDateFilters =
     compiledPolicy.policy.restWeekdays.length > 0 ||
@@ -362,11 +298,36 @@ function allocateOrdinalScopeMonth({
     if (!ownerMonth) {
       continue;
     }
-    if (creditedOrdinals.has(ordinal)) {
-      finalOrdinalsByMonth.get(ownerMonth)!.push(ordinal);
+    ownerUncreditedByMonth.get(ownerMonth)!.push(ordinal);
+  }
+
+  for (const unit of reconciledUnits) {
+    if (
+      unit.kind !== requirement.kind ||
+      unit.creditedCompletionDate === null ||
+      unit.ordinal <= 0 ||
+      unit.ordinal > requirement.targetCount
+    ) {
       continue;
     }
-    ownerUncreditedByMonth.get(ownerMonth)!.push(ordinal);
+    const ownerMonth = ownerMonthForOrdinal({
+      months: lifetimeMonths,
+      targetCount: requirement.targetCount,
+      ordinal: unit.ordinal,
+    });
+    if (!ownerMonth) {
+      continue;
+    }
+    const completionMonth = monthFromDate(unit.creditedCompletionDate);
+    const pinnedMonth = lifetimeMonths.includes(completionMonth)
+      ? completionMonth
+      : ownerMonth;
+    const ownerQueue = ownerUncreditedByMonth.get(ownerMonth)!;
+    const ownerIndex = ownerQueue.indexOf(unit.ordinal);
+    if (ownerIndex >= 0) {
+      ownerQueue.splice(ownerIndex, 1);
+    }
+    finalOrdinalsByMonth.get(pinnedMonth)!.push(unit.ordinal);
   }
 
   const carryQueue: number[] = [];
@@ -514,12 +475,6 @@ export function runPlannerKernel(
         ? byDate
         : compareCanonicalStrings(left.id, right.id);
     });
-  const completionsByGoal = new Map<string, Completion[]>();
-  for (const completion of completions) {
-    const existing = completionsByGoal.get(completion.goal_id) ?? [];
-    existing.push(completion);
-    completionsByGoal.set(completion.goal_id, existing);
-  }
   throwBounds(
     completions.length > MAX_COMPLETION_FACTS,
     "completion facts",
@@ -609,6 +564,15 @@ export function runPlannerKernel(
         }
       );
     }
+    const reconcileAcrossAllOrdinals =
+      requirement.requirement.kind === "cadence"
+        ? undefined
+        : new Set(
+            Array.from(
+              { length: requirement.requirement.targetCount },
+              (_, index) => index + 1
+            )
+          );
     const materialized = materializeWorkUnits({
       goal,
       normalizedRequirement: requirement,
@@ -616,15 +580,7 @@ export function runPlannerKernel(
       scopeMonth: rawInput.scopeMonth,
       asOfDate: rawInput.asOfDate,
       baseAssignments,
-      ordinalsForScopeMonth: allocateOrdinalScopeMonth({
-        goal,
-        normalizedRequirement: requirement,
-        compiledPolicy,
-        scopeMonth: rawInput.scopeMonth,
-        asOfDate: rawInput.asOfDate,
-        goalCompletions: completionsByGoal.get(goal.id) ?? [],
-        previousCompletionToUnit,
-      }),
+      ordinalsForScopeMonth: reconcileAcrossAllOrdinals,
     });
     const reconciled = reconcilePlannerCompletions({
       goal,
@@ -633,14 +589,35 @@ export function runPlannerKernel(
       asOfDate: rawInput.asOfDate,
       previousCompletionToUnit,
     });
+    const scopedOrdinals =
+      requirement.requirement.kind === "cadence"
+        ? null
+        : (allocateOrdinalScopeMonth({
+            goal,
+            normalizedRequirement: requirement,
+            compiledPolicy,
+            scopeMonth: rawInput.scopeMonth,
+            asOfDate: rawInput.asOfDate,
+            reconciledUnits: reconciled.units,
+          }) ?? new Set<number>());
+    const scopedUnits =
+      scopedOrdinals === null
+        ? reconciled.units
+        : reconciled.units.filter((unit) => scopedOrdinals.has(unit.ordinal));
+    const scopedUnitKeys = new Set(scopedUnits.map((unit) => unit.unitKey));
+    const scopedCompletionToUnit = Object.fromEntries(
+      Object.entries(reconciled.completionToUnit).filter(([, identity]) =>
+        scopedUnitKeys.has(identity.unitKey)
+      )
+    );
     throwBounds(
-      workUnits.length + reconciled.units.length > MAX_WORK_UNITS,
+      workUnits.length + scopedUnits.length > MAX_WORK_UNITS,
       "work units",
-      workUnits.length + reconciled.units.length,
+      workUnits.length + scopedUnits.length,
       MAX_WORK_UNITS
     );
-    workUnits.push(...reconciled.units);
-    Object.assign(completionToUnit, reconciled.completionToUnit);
+    workUnits.push(...scopedUnits);
+    Object.assign(completionToUnit, scopedCompletionToUnit);
     driftFacts.push(...reconciled.driftFacts);
   }
   throwBounds(
