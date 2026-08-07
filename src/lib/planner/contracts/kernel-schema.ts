@@ -6,6 +6,10 @@ import {
   REQUIREMENT_SCHEMA_VERSION,
 } from "@/lib/planner/contracts/bounds";
 import { plannerPolicySchema } from "@/lib/planner/policy";
+import {
+  plannerLocalDateTimeSchema,
+  plannerLocalTimeSchema,
+} from "@/lib/planner/schedule-time";
 
 const dateSchema = z.iso.date();
 const nullableDateSchema = dateSchema.nullable();
@@ -71,6 +75,7 @@ const baseAssignmentSchema = z
     unitKey: z.string().min(1).max(100),
     scheduledDate: nullableDateSchema,
     locked: z.boolean(),
+    scheduledTimeOverride: plannerLocalTimeSchema.nullable().optional(),
   })
   .strict();
 const validBaseAssignmentSchema = baseAssignmentSchema.refine(
@@ -168,6 +173,9 @@ const workUnitSchema = z
     ]),
     scheduledDate: nullableDateSchema,
     locked: z.boolean(),
+    scheduledTimeOverride: plannerLocalTimeSchema.nullable().optional(),
+    effectiveScheduledLocalTime: plannerLocalTimeSchema.nullable().optional(),
+    effectiveScheduledAtLocal: plannerLocalDateTimeSchema.nullable().optional(),
   })
   .strict();
 

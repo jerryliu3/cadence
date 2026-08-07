@@ -16,6 +16,7 @@ import {
   type DateWindow,
 } from "@/lib/planner/dates";
 import type { NormalizedGoalRequirement } from "@/lib/planner/requirements";
+import { resolvePlannerEffectiveScheduledTime } from "@/lib/planner/schedule-time";
 
 export type WorkUnitClassification =
   | "fulfilled"
@@ -36,6 +37,7 @@ export interface PlannerBaseAssignment {
   unitKey: string;
   scheduledDate: string | null;
   locked: boolean;
+  scheduledTimeOverride?: string | null;
 }
 
 export interface PlannerWorkUnit {
@@ -59,6 +61,9 @@ export interface PlannerWorkUnit {
   creditState: WorkUnitCreditState;
   scheduledDate: string | null;
   locked: boolean;
+  scheduledTimeOverride?: string | null;
+  effectiveScheduledLocalTime?: string | null;
+  effectiveScheduledAtLocal?: string | null;
 }
 
 export function isEndMonthCadenceUnit(
@@ -114,6 +119,13 @@ function createUnitBase({
       unitKey
     )
   );
+  const resolvedTime = resolvePlannerEffectiveScheduledTime({
+    scheduledDate: base?.scheduledDate ?? null,
+    scheduledTimeOverride: base?.scheduledTimeOverride ?? null,
+  });
+  const hasTimeData =
+    resolvedTime.scheduledTimeOverride !== null ||
+    resolvedTime.effectiveScheduledLocalTime !== null;
   return {
     originalGoalId: goal.id,
     requirementSchemaVersion: normalizedRequirement.schemaVersion,
@@ -136,6 +148,13 @@ function createUnitBase({
     creditState: "uncredited",
     scheduledDate: base?.scheduledDate ?? null,
     locked: base?.locked ?? false,
+    ...(hasTimeData
+      ? {
+          scheduledTimeOverride: resolvedTime.scheduledTimeOverride,
+          effectiveScheduledLocalTime: resolvedTime.effectiveScheduledLocalTime,
+          effectiveScheduledAtLocal: resolvedTime.effectiveScheduledAtLocal,
+        }
+      : {}),
   };
 }
 

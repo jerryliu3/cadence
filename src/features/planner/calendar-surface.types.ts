@@ -104,6 +104,9 @@ export interface PlannerWorkUnit {
   classification: string;
   creditState: string;
   creditedCompletionDate?: string | null;
+  scheduledTimeOverride?: string | null;
+  effectiveScheduledLocalTime?: string | null;
+  effectiveScheduledAtLocal?: string | null;
 }
 
 export interface PlannerActiveGoalSnapshot {
