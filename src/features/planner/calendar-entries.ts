@@ -86,8 +86,6 @@ export function buildEntriesByDate({
     const activeGoal = activeGoalsByOriginalGoalId.get(unit.originalGoalId) ?? null;
     const resolvedTime = resolvePlannerEffectiveScheduledTime({
       scheduledDate: day,
-      goalDefaultLocalTime:
-        unit.goalDefaultLocalTime ?? activeGoal?.default_local_time ?? null,
       scheduledTimeOverride:
         unit.scheduledTimeOverride ??
         activeItem?.scheduled_time_override ??
@@ -118,7 +116,6 @@ export function buildEntriesByDate({
       draftDiffFromDate: null,
       draftDiffToDate: null,
       draftGhost: false,
-      goalDefaultLocalTime: resolvedTime.goalDefaultLocalTime,
       scheduledTimeOverride: resolvedTime.scheduledTimeOverride,
       effectiveScheduledLocalTime: resolvedTime.effectiveScheduledLocalTime,
     };
@@ -160,10 +157,6 @@ export function buildEntriesByDate({
           null,
         activeGoal: existingEntry.activeGoal ?? activeGoal,
         activeItem: item,
-        goalDefaultLocalTime:
-          existingEntry.goalDefaultLocalTime ??
-          activeGoal?.default_local_time ??
-          null,
         scheduledTimeOverride:
           existingEntry.scheduledTimeOverride ??
           item.scheduled_time_override ??
@@ -192,7 +185,6 @@ export function buildEntriesByDate({
       draftDiffFromDate: null,
       draftDiffToDate: null,
       draftGhost: false,
-      goalDefaultLocalTime: activeGoal?.default_local_time ?? null,
       scheduledTimeOverride: item.scheduled_time_override ?? null,
       effectiveScheduledLocalTime: item.effective_scheduled_local_time ?? null,
     });
@@ -215,18 +207,12 @@ export function buildEntriesByDate({
         : edit.label ??
           existingEntry?.goalTitle ??
           (unit ? goalTitles?.[unit.originalGoalId] ?? unit.label ?? unit.unitKey : null);
-    const nextGoalDefaultLocalTime =
-      existingEntry?.goalDefaultLocalTime ??
-      unit?.goalDefaultLocalTime ??
-      activeGoalsByOriginalGoalId.get(existingEntry?.originalGoalId ?? unit?.originalGoalId ?? "")?.default_local_time ??
-      null;
     const nextScheduledTimeOverride =
       edit.scheduledTimeOverride === undefined
         ? existingEntry?.scheduledTimeOverride ?? unit?.scheduledTimeOverride ?? null
         : edit.scheduledTimeOverride;
     const resolvedDraftTime = resolvePlannerEffectiveScheduledTime({
       scheduledDate: nextDay,
-      goalDefaultLocalTime: nextGoalDefaultLocalTime,
       scheduledTimeOverride: nextScheduledTimeOverride,
     });
 
@@ -268,7 +254,6 @@ export function buildEntriesByDate({
             scheduled_date: nextDay,
           }
         : null,
-      goalDefaultLocalTime: resolvedDraftTime.goalDefaultLocalTime,
       scheduledTimeOverride: resolvedDraftTime.scheduledTimeOverride,
       effectiveScheduledLocalTime: resolvedDraftTime.effectiveScheduledLocalTime,
     });
@@ -341,7 +326,6 @@ export function buildEntriesByDate({
       draftDiffFromDate: diffEntry.date,
       draftDiffToDate: diffEntry.counterpartDate,
       draftGhost: true,
-      goalDefaultLocalTime: unit?.goalDefaultLocalTime ?? activeGoal?.default_local_time ?? null,
       scheduledTimeOverride: unit?.scheduledTimeOverride ?? null,
       effectiveScheduledLocalTime: unit?.effectiveScheduledLocalTime ?? null,
     });
