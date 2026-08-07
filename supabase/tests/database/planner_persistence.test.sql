@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, private, extensions, pg_catalog;
-select plan(37);
+select plan(38);
 
 create temporary table planner_test_revisions (
   label text primary key,
@@ -776,6 +776,58 @@ select ok(
     )
   ),
   'service role can publish plans through wrapper functions'
+);
+
+select throws_ok(
+  $$
+    select plan_id
+    from public.publish_execution_plan_service(
+      '11111111-1111-4111-8111-111111111111',
+      (date_trunc('month', current_date) - interval '1 month')::date,
+      'overlap_v1',
+      'America/New_York',
+      'manual',
+      '{}'::jsonb,
+      (
+        select default_policy
+        from public.planner_preferences
+        where owner_id = '11111111-1111-4111-8111-111111111111'
+      ),
+      repeat('f', 64),
+      '1',
+      'ordered-dp-v1',
+      '1',
+      '1',
+      '1',
+      '1',
+      'complete',
+      'all_units_placed',
+      'unverified',
+      false,
+      true,
+      '23000000-0000-4000-8000-000000000003',
+      repeat('d', 64),
+      (
+        select canonical_revision
+        from private.planner_state
+        where owner_id = '11111111-1111-4111-8111-111111111111'
+      ),
+      (
+        select execution_revision
+        from private.planner_state
+        where owner_id = '11111111-1111-4111-8111-111111111111'
+      ),
+      null,
+      null,
+      '[]'::jsonb,
+      '[]'::jsonb,
+      '[]'::jsonb,
+      '[]'::jsonb
+    )
+  $$,
+  '23514'::character(5),
+  'elapsed_scope_month_publish_forbidden',
+  'wrapper publish rejects elapsed scope month requests'
 );
 
 select is(
