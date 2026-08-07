@@ -692,6 +692,210 @@ describe("usePlannerCoach", () => {
     );
   });
 
+  it("validates undo preview before persisting manual default restoration", async () => {
+    const baselinePolicy = buildPolicy({ spacingStrategy: "even" });
+    const appliedPolicy = buildPolicy({ spacingStrategy: "front_load" });
+    loadCoachSessionMock.mockReturnValue([
+      {
+        role: "assistant",
+        content: "Try front-loaded spacing.",
+        createdAt: 123,
+        proposal: {
+          schemaVersion: "1",
+          applyStatus: "manually_applied",
+          patchSignature:
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          baselineSnapshotToken:
+            "policy:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          baselinePolicy,
+          policyPatches: [
+            {
+              kind: "set_spacing_strategy",
+              spacingStrategy: "front_load",
+            },
+          ],
+          unresolvedQuestions: [],
+        },
+      },
+    ]);
+    applyCoachPolicyPatchesMock.mockImplementation(
+      ({
+        policy,
+        patches,
+      }: {
+        policy: PlannerPolicy;
+        patches: Array<{ kind: string; spacingStrategy?: PlannerPolicy["spacingStrategy"] }>;
+      }) => {
+        const nextPolicy = structuredClone(policy);
+        for (const patch of patches) {
+          if (
+            patch.kind === "set_spacing_strategy" &&
+            patch.spacingStrategy !== undefined
+          ) {
+            nextPolicy.spacingStrategy = patch.spacingStrategy;
+          }
+        }
+        return {
+          policy: nextPolicy,
+          appliedPatchCount: 1,
+          ignoredPatchCount: 0,
+          noOpPatchCount: 0,
+          outOfScopePatchCount: 0,
+          unsupportedPatchCount: 0,
+        };
+      }
+    );
+    const context = buildContext({
+      preferences: {
+        timezone: "UTC",
+        timezoneConfirmedAt: "2026-08-01T00:00:00.000Z",
+        policyRevision: 1,
+        defaultPolicy: baselinePolicy,
+      },
+    });
+    const refreshDraftPreviewMock = vi
+      .fn()
+      .mockRejectedValue(new Error("Undo preview failed."));
+    const applyDraftPolicyMock = vi.fn();
+    const { result } = renderHook(() =>
+      usePlannerCoach(
+        buildArgs({
+          activeTab: "calendar",
+          context,
+          entriesByDate: new Map([["2026-08-01", [buildEntry()]]]),
+          effectivePreview: context.preview,
+          hasDraftSession: true,
+          effectiveDraftPolicy: appliedPolicy,
+          refreshDraftPreview: refreshDraftPreviewMock,
+          applyDraftPolicy: applyDraftPolicyMock,
+        })
+      )
+    );
+
+    await waitFor(() => {
+      expect(result.current.state.coachMessages).toHaveLength(1);
+    });
+
+    await act(async () => {
+      await result.current.actions.undoCoachProposal(0);
+    });
+
+    expect(refreshDraftPreviewMock).toHaveBeenCalledWith(baselinePolicy);
+    expect(persistPlannerDefaultPolicyMock).not.toHaveBeenCalled();
+    expect(applyDraftPolicyMock).not.toHaveBeenCalled();
+    expect(result.current.state.coachMessages[0]?.proposal?.applyStatus).toBe(
+      "manually_applied"
+    );
+    expect(toastErrorMock).toHaveBeenCalledWith("Undo preview failed.");
+  });
+
+  it("restores draft preview when manual undo persistence fails", async () => {
+    const baselinePolicy = buildPolicy({ spacingStrategy: "even" });
+    const appliedPolicy = buildPolicy({ spacingStrategy: "front_load" });
+    loadCoachSessionMock.mockReturnValue([
+      {
+        role: "assistant",
+        content: "Try front-loaded spacing.",
+        createdAt: 123,
+        proposal: {
+          schemaVersion: "1",
+          applyStatus: "manually_applied",
+          patchSignature:
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          baselineSnapshotToken:
+            "policy:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          baselinePolicy,
+          policyPatches: [
+            {
+              kind: "set_spacing_strategy",
+              spacingStrategy: "front_load",
+            },
+          ],
+          unresolvedQuestions: [],
+        },
+      },
+    ]);
+    applyCoachPolicyPatchesMock.mockImplementation(
+      ({
+        policy,
+        patches,
+      }: {
+        policy: PlannerPolicy;
+        patches: Array<{ kind: string; spacingStrategy?: PlannerPolicy["spacingStrategy"] }>;
+      }) => {
+        const nextPolicy = structuredClone(policy);
+        for (const patch of patches) {
+          if (
+            patch.kind === "set_spacing_strategy" &&
+            patch.spacingStrategy !== undefined
+          ) {
+            nextPolicy.spacingStrategy = patch.spacingStrategy;
+          }
+        }
+        return {
+          policy: nextPolicy,
+          appliedPatchCount: 1,
+          ignoredPatchCount: 0,
+          noOpPatchCount: 0,
+          outOfScopePatchCount: 0,
+          unsupportedPatchCount: 0,
+        };
+      }
+    );
+    persistPlannerDefaultPolicyMock.mockRejectedValue(
+      new Error("Planner preferences could not be updated.")
+    );
+    const context = buildContext({
+      preferences: {
+        timezone: "UTC",
+        timezoneConfirmedAt: "2026-08-01T00:00:00.000Z",
+        policyRevision: 1,
+        defaultPolicy: baselinePolicy,
+      },
+    });
+    const refreshDraftPreviewMock = vi
+      .fn()
+      .mockResolvedValueOnce(context.preview)
+      .mockResolvedValueOnce(context.preview);
+    const applyDraftPolicyMock = vi.fn();
+    const { result } = renderHook(() =>
+      usePlannerCoach(
+        buildArgs({
+          activeTab: "calendar",
+          context,
+          entriesByDate: new Map([["2026-08-01", [buildEntry()]]]),
+          effectivePreview: context.preview,
+          hasDraftSession: true,
+          effectiveDraftPolicy: appliedPolicy,
+          refreshDraftPreview: refreshDraftPreviewMock,
+          applyDraftPolicy: applyDraftPolicyMock,
+        })
+      )
+    );
+
+    await waitFor(() => {
+      expect(result.current.state.coachMessages).toHaveLength(1);
+    });
+
+    await act(async () => {
+      await result.current.actions.undoCoachProposal(0);
+    });
+
+    expect(refreshDraftPreviewMock).toHaveBeenNthCalledWith(1, baselinePolicy);
+    expect(refreshDraftPreviewMock).toHaveBeenNthCalledWith(2, appliedPolicy);
+    expect(persistPlannerDefaultPolicyMock).toHaveBeenCalledWith({
+      timezone: "UTC",
+      defaultPolicy: baselinePolicy,
+    });
+    expect(applyDraftPolicyMock).toHaveBeenCalledWith("2026-08", appliedPolicy);
+    expect(result.current.state.coachMessages[0]?.proposal?.applyStatus).toBe(
+      "manually_applied"
+    );
+    expect(toastErrorMock).toHaveBeenCalledWith(
+      "Planner preferences could not be updated."
+    );
+  });
+
   it("keeps proposal unapplied when durable preference write fails", async () => {
     const context = buildContext();
     const nextPolicy = buildPolicy({ spacingStrategy: "front_load" });

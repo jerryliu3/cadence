@@ -775,13 +775,30 @@ export function usePlannerCoach({
         message.proposal.applyStatus === "manually_applied";
       setCoachPolicyApplying(true);
       try {
-        if (shouldPersistDurableUndo) {
-          await persistPlannerDefaultPolicy({
-            timezone: context.preferences.timezone,
-            defaultPolicy: baselinePolicy,
-          });
-        }
         await refreshDraftPreview(baselinePolicy);
+        if (shouldPersistDurableUndo) {
+          try {
+            await persistPlannerDefaultPolicy({
+              timezone: context.preferences.timezone,
+              defaultPolicy: baselinePolicy,
+            });
+          } catch (error) {
+            try {
+              await refreshDraftPreview(currentDraftPolicy);
+              if (context.scopeMonth) {
+                applyDraftPolicy(context.scopeMonth, currentDraftPolicy);
+              }
+              appendCoachContextEvent(
+                "Reverted undo preview after planner default restore failed"
+              );
+            } catch {
+              appendCoachContextEvent(
+                "Undo failed after preview update; draft preview may need regeneration"
+              );
+            }
+            throw error;
+          }
+        }
         if (context?.scopeMonth) {
           applyDraftPolicy(context.scopeMonth, baselinePolicy);
         }
