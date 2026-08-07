@@ -375,6 +375,25 @@ export function CalendarSurface({
     [draftMatchesCurrentScope, effectiveDraftCommands]
   );
   const effectivePreview = effectiveDraftPreview ?? context?.preview ?? null;
+  const horizonCounter = useMemo(() => {
+    const summary = effectivePreview?.horizonSummary ?? [];
+    if (summary.length === 0) {
+      return null;
+    }
+    const total = summary.reduce((count, goal) => count + goal.totalCount, 0);
+    if (total <= 0) {
+      return null;
+    }
+    const thisMonth = summary.reduce(
+      (count, goal) => count + goal.scopeMonthPlannedCount,
+      0
+    );
+    const remaining = summary.reduce(
+      (count, goal) => count + goal.remainingCount,
+      0
+    );
+    return { thisMonth, total, remaining };
+  }, [effectivePreview?.horizonSummary]);
   const activeGoalIndexes = useMemo(
     () => buildActiveGoalIndexes(context?.activePlan?.goals),
     [context?.activePlan?.goals]
@@ -1931,6 +1950,14 @@ export function CalendarSurface({
                   </Badge>
                 ) : null}
               </div>
+              {horizonCounter ? (
+                <p className="text-xs text-muted-foreground">
+                  {horizonCounter.thisMonth} this month / {horizonCounter.total} total{" "}
+                  {horizonCounter.remaining > 0
+                    ? `· ${horizonCounter.remaining} remaining`
+                    : "· all credited"}
+                </p>
+              ) : null}
             </div>
             <div className="flex flex-wrap items-center justify-end gap-2">
               {context?.capabilities.plannerPlanWrites && context.activePlan ? (

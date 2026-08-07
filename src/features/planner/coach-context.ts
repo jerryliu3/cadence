@@ -6,17 +6,34 @@ interface CoachSummaryWorkUnit {
   creditState: string;
 }
 
+interface CoachHorizonGoalSummary {
+  goalId: string;
+  totalCount: number;
+  creditedCount: number;
+  remainingCount: number;
+  scopeMonthPlannedCount: number;
+  months: Array<{
+    month: string;
+    plannedCount: number;
+  }>;
+}
+
 interface BuildCoachDeterministicSummaryInput {
   scopeMonth: string;
   timezone: string;
   asOfDate: string;
   workUnits: CoachSummaryWorkUnit[];
+  horizonSummary?: CoachHorizonGoalSummary[];
+  focusGoalIds?: string[];
+  goalTitles?: Record<string, string>;
   events?: string[];
 }
 
 const MAX_DAY_LINES = 14;
 const MAX_LABELS_PER_DAY = 3;
 const MAX_EVENT_LINES = 5;
+const MAX_HORIZON_GOALS = 8;
+const MAX_HORIZON_MONTH_LINES = 24;
 const MAX_SUMMARY_CHARS = 3500;
 
 function truncate(value: string, maxLength: number) {
@@ -31,6 +48,9 @@ export function buildCoachDeterministicSummary({
   timezone,
   asOfDate,
   workUnits,
+  horizonSummary = [],
+  focusGoalIds = [],
+  goalTitles = {},
   events = [],
 }: BuildCoachDeterministicSummaryInput) {
   const placed = workUnits.filter((unit) => unit.scheduledDate !== null);
@@ -58,6 +78,31 @@ export function buildCoachDeterministicSummary({
   const eventLines = events
     .slice(-MAX_EVENT_LINES)
     .map((event, index) => `event${index + 1}: ${truncate(event, 140)}`);
+  const horizonByGoal = new Map(
+    horizonSummary.map((summary) => [summary.goalId, summary])
+  );
+  const orderedGoalIds = focusGoalIds.length
+    ? focusGoalIds
+    : horizonSummary.map((summary) => summary.goalId);
+  const horizonLines = orderedGoalIds
+    .map((goalId) => horizonByGoal.get(goalId))
+    .filter((summary): summary is CoachHorizonGoalSummary => Boolean(summary))
+    .slice(0, MAX_HORIZON_GOALS)
+    .flatMap((summary) => {
+      const goalTitle = truncate(goalTitles[summary.goalId] ?? summary.goalId, 40);
+      const monthTokens = summary.months
+        .filter((month) => month.plannedCount > 0)
+        .map((month) => `${month.month}:${month.plannedCount}`);
+      const visibleMonthTokens = monthTokens.slice(0, MAX_HORIZON_MONTH_LINES);
+      const monthSuffix =
+        monthTokens.length > visibleMonthTokens.length
+          ? ` (+${monthTokens.length - visibleMonthTokens.length} more)`
+          : "";
+      return [
+        `goal=${goalTitle}|scope=${summary.scopeMonthPlannedCount}|total=${summary.totalCount}|credited=${summary.creditedCount}|remaining=${summary.remainingCount}`,
+        `months=${visibleMonthTokens.join(",")}${monthSuffix}`,
+      ];
+    });
 
   const summary = [
     `scopeMonth=${scopeMonth}`,
@@ -66,6 +111,7 @@ export function buildCoachDeterministicSummary({
     `totalWorkUnits=${workUnits.length}`,
     `scheduledUnits=${placed.length}`,
     `creditedUnits=${credited.length}`,
+    ...(horizonLines.length > 0 ? ["horizonSummary:", ...horizonLines] : []),
     `dayAssignments:`,
     ...dayLines,
     ...(eventLines.length > 0 ? ["recentCoachEvents:", ...eventLines] : []),

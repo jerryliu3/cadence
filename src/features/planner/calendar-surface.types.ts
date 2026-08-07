@@ -52,6 +52,7 @@ export interface PlannerContextPayload {
       confirmationRequired: boolean;
     };
     workUnits: PlannerWorkUnit[];
+    horizonSummary?: PlannerGoalHorizonSummary[];
   } | null;
   revisions: {
     canonicalRevision: number;
@@ -108,6 +109,19 @@ export interface PlannerWorkUnit {
   scheduledTimeOverride?: string | null;
   effectiveScheduledLocalTime?: string | null;
   effectiveScheduledAtLocal?: string | null;
+}
+
+export interface PlannerGoalHorizonSummary {
+  goalId: string;
+  kind: "milestone_sequence" | "deadline_total";
+  totalCount: number;
+  creditedCount: number;
+  remainingCount: number;
+  scopeMonthPlannedCount: number;
+  months: Array<{
+    month: string;
+    plannedCount: number;
+  }>;
 }
 
 export interface PlannerActiveGoalSnapshot {

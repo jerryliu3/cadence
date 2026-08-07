@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import eligibilityFixtureJson from "../../../test/fixtures/planner-contracts/eligibility.v1.json";
 import { eligibilityFixtureSchema } from "@/lib/planner/contracts/fixture-schema";
+import type { Goal } from "@/lib/goals/types";
 import {
   evaluateEndMonthV1Eligibility,
+  evaluateGoalEligibility,
   evaluateOverlapV1Eligibility,
   type EligibilityGoal,
 } from "@/lib/planner/eligibility";
@@ -62,6 +64,44 @@ describe("overlap-v1 eligibility", () => {
     ).toEqual({
       eligible: false,
       reason: "end_outside_scope",
+    });
+  });
+});
+
+describe("goal-level eligibility guards", () => {
+  it("marks ordinal goals with overlong horizons as ineligible", () => {
+    const longHorizonGoal: Goal = {
+      id: "goal-long",
+      owner_id: "owner-a",
+      title: "Long horizon goal",
+      description: null,
+      category: "Health",
+      color: null,
+      frequency_type: "recurring",
+      recurrence_interval: "weekly",
+      target_count: 52,
+      milestone_names: null,
+      start_date: "2026-01-01",
+      end_date: "2028-12-31",
+      photo_path: null,
+      is_group: false,
+      is_deleted: false,
+      archived_at: null,
+      created_at: "2026-01-01T00:00:00Z",
+      updated_at: "2026-01-01T00:00:00Z",
+    };
+
+    expect(
+      evaluateGoalEligibility({
+        eligibilityMode: "overlap_v1",
+        scopeMonth: "2026-08",
+        ownerId: "owner-a",
+        goal: longHorizonGoal,
+        currentLinkRole: "none",
+      })
+    ).toEqual({
+      eligible: false,
+      reason: "horizon_too_long",
     });
   });
 });

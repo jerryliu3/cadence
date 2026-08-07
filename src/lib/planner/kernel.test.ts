@@ -99,6 +99,31 @@ describe("pure planner kernel", () => {
     ).toBeLessThan(longGoal.target_count ?? 0);
   });
 
+  it("emits horizon summary using the same ordinal partition source", () => {
+    const longGoal = goal({
+      target_count: 9,
+      start_date: "2026-08-01",
+      end_date: "2026-10-31",
+    });
+    const output = runPlannerKernel(
+      input({
+        eligibilityMode: "overlap_v1",
+        scopeMonth: "2026-09",
+        asOfDate: "2026-08-05",
+        goals: [longGoal],
+      })
+    );
+
+    expect(output.horizonSummary).toHaveLength(1);
+    const summary = output.horizonSummary[0];
+    expect(summary.goalId).toBe(longGoal.id);
+    expect(summary.totalCount).toBe(longGoal.target_count);
+    expect(
+      summary.months.reduce((count, month) => count + month.plannedCount, 0)
+    ).toBe(longGoal.target_count);
+    expect(summary.scopeMonthPlannedCount).toBe(output.workUnits.length);
+  });
+
   it("carries forward elapsed ordinal obligations into remaining months", () => {
     const longGoal = goal({
       target_count: 60,
@@ -235,6 +260,29 @@ describe("pure planner kernel", () => {
     expect(monthOutputs[0].workUnits.length).toBe(12);
     expect(monthOutputs[1].workUnits.length).toBe(28);
     expect(monthOutputs[2].workUnits.length).toBe(20);
+  });
+
+  it("marks ordinal goals with oversized horizons as ineligible", () => {
+    const oversizedHorizonGoal = goal({
+      target_count: 48,
+      start_date: "2026-01-01",
+      end_date: "2028-12-31",
+    });
+    const output = runPlannerKernel(
+      input({
+        eligibilityMode: "overlap_v1",
+        scopeMonth: "2026-08",
+        asOfDate: "2026-08-05",
+        goals: [oversizedHorizonGoal],
+      })
+    );
+
+    expect(output.eligibility).toContainEqual({
+      goalId: oversizedHorizonGoal.id,
+      eligible: false,
+      reason: "horizon_too_long",
+    });
+    expect(output.workUnits).toHaveLength(0);
   });
 
   it("does not credit early milestone completions into a later-month slice", () => {

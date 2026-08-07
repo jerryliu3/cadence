@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { goalAssessmentSchema } from "@/lib/planner/assessment";
 import {
+  MAX_HORIZON_MONTHS,
   PLANNER_CONTRACT_VERSION,
   PLANNER_ELIGIBILITY_MODES,
   REQUIREMENT_SCHEMA_VERSION,
@@ -207,6 +208,27 @@ const solverResultSchema = z
   })
   .strict();
 
+const goalHorizonSummarySchema = z
+  .object({
+    goalId: z.string().min(1).max(100),
+    kind: z.enum(["milestone_sequence", "deadline_total"]),
+    totalCount: z.number().int().nonnegative(),
+    creditedCount: z.number().int().nonnegative(),
+    remainingCount: z.number().int().nonnegative(),
+    scopeMonthPlannedCount: z.number().int().nonnegative(),
+    months: z
+      .array(
+        z
+          .object({
+            month: monthSchema,
+            plannedCount: z.number().int().nonnegative(),
+          })
+          .strict()
+      )
+      .max(MAX_HORIZON_MONTHS),
+  })
+  .strict();
+
 export const plannerKernelOutputSchema = z
   .object({
     schemaVersion: z.literal(PLANNER_CONTRACT_VERSION),
@@ -256,6 +278,7 @@ export const plannerKernelOutputSchema = z
             "invalid_date_range",
             "end_outside_scope",
             "starts_after_scope",
+            "horizon_too_long",
           ]),
         })
         .strict()
@@ -290,5 +313,6 @@ export const plannerKernelOutputSchema = z
       })
       .strict(),
     suggestedRelaxations: z.array(z.string()),
+    horizonSummary: z.array(goalHorizonSummarySchema),
   })
   .strict();

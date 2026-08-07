@@ -6,11 +6,10 @@ import {
   PlannerRouteError,
   unknownPlannerErrorResponse,
 } from "@/lib/planner/api";
+import { MAX_HORIZON_MONTHS } from "@/lib/planner/contracts/bounds";
 import { enumerateMonthsInWindow } from "@/lib/planner/dates";
 
 export const runtime = "nodejs";
-
-const MAX_WINDOW_MONTHS = 24;
 
 const scopeMonthSchema = z
   .string()
@@ -115,13 +114,13 @@ export async function GET(request: Request) {
         "Visible window months could not be resolved."
       );
     }
-    if (monthsInWindow.length > MAX_WINDOW_MONTHS) {
+    if (monthsInWindow.length > MAX_HORIZON_MONTHS) {
       throw new PlannerRouteError(
         400,
         "validation_failed",
         "Visible window spans too many months.",
         {
-          maximumMonths: MAX_WINDOW_MONTHS,
+          maximumMonths: MAX_HORIZON_MONTHS,
           monthCount: monthsInWindow.length,
         }
       );

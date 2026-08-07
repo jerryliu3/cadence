@@ -507,6 +507,9 @@ export function usePlannerCoach({
       timezone: context.timezone,
       asOfDate: context.asOfDate,
       workUnits: coachSummaryWorkUnits,
+      horizonSummary: effectivePreview?.horizonSummary ?? [],
+      focusGoalIds: coachFocusGoalIds,
+      goalTitles: context.goalTitles,
       events: coachContextEvents,
     });
 
@@ -580,6 +583,7 @@ export function usePlannerCoach({
     context,
     applyCoachPatchesToDraft,
     effectiveDraftPolicy,
+    effectivePreview?.horizonSummary,
     persistCoachMessages,
   ]);
 
