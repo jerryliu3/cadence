@@ -48,7 +48,7 @@ function createSnapshot(
 
 function createKernel(scheduledDate: string): PlannerKernelOutput {
   return {
-    eligibilityMode: "end_month_v1",
+    eligibilityMode: "overlap_v1",
     eligibility: [{ goalId: GOAL_ID, eligible: true, reason: "eligible" }],
     scopeState: "current",
     workUnits: [

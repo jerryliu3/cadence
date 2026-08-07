@@ -214,7 +214,6 @@ function isDraftItemImmovable(unit: PlannerKernelOutput["workUnits"][number]) {
 }
 
 function applyValidatedDraftItemEdits({
-  eligibilityMode,
   scopeMonth,
   policy,
   kernelWorkUnits,
@@ -222,7 +221,6 @@ function applyValidatedDraftItemEdits({
   draftItemEdits,
   completions,
 }: {
-  eligibilityMode: PlannerEligibilityMode;
   scopeMonth: string;
   policy: PlannerPolicy;
   kernelWorkUnits: PlannerKernelOutput["workUnits"];
@@ -314,14 +312,10 @@ function applyValidatedDraftItemEdits({
     }
 
     const moveWindow = unit.draftMoveWindow ?? unit.placementWindow;
-    const scopeConstrained =
-      eligibilityMode === "end_month_v1" &&
-      (nextScheduledDate < scopeWindow.start || nextScheduledDate > scopeWindow.end);
     if (
       !moveWindow ||
       nextScheduledDate < moveWindow.start ||
-      nextScheduledDate > moveWindow.end ||
-      scopeConstrained
+      nextScheduledDate > moveWindow.end
     ) {
       throw new PlannerDraftEditValidationError(
         "draft_item_out_of_window",
@@ -572,7 +566,6 @@ export function buildPlannerPublishPersistencePayload({
     draftRelabeledCount,
     draftRetimedCount,
   } = applyValidatedDraftItemEdits({
-    eligibilityMode: kernel.eligibilityMode,
     scopeMonth,
     policy,
     kernelWorkUnits: kernel.workUnits,

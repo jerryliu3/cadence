@@ -288,7 +288,7 @@ async function main() {
          )
          select
            $1, $2, date_trunc('month', current_date)::date,
-           'end_month_v1', 'UTC', 1, 'active', 'manual', '{}'::jsonb,
+           'overlap_v1', 'UTC', 1, 'active', 'manual', '{}'::jsonb,
            '{
              "schemaVersion":"1",
              "timezone":"UTC",

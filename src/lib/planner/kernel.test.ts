@@ -35,7 +35,7 @@ function goal(overrides: Partial<Goal> = {}): Goal {
 function input(overrides: Partial<PlannerKernelInput> = {}): PlannerKernelInput {
   return {
     schemaVersion: "1",
-    eligibilityMode: "end_month_v1",
+    eligibilityMode: "overlap_v1",
     ownerId: "owner-a",
     scopeMonth: "2026-08",
     asOfDate: "2026-08-05",
@@ -53,7 +53,7 @@ function input(overrides: Partial<PlannerKernelInput> = {}): PlannerKernelInput 
 }
 
 describe("pure planner kernel", () => {
-  it("runs the end-month pipeline deterministically", () => {
+  it("runs the overlap pipeline deterministically", () => {
     const first = runPlannerKernel(input());
     const second = runPlannerKernel(input({ goals: [...input().goals] }));
 
@@ -320,7 +320,7 @@ describe("pure planner kernel", () => {
     });
     const output = runPlannerKernel(
       input({
-        eligibilityMode: "end_month_v1",
+        eligibilityMode: "overlap_v1",
         scopeMonth: "2026-08",
         asOfDate: "2026-08-05",
         goals: [openCadenceGoal],
