@@ -296,6 +296,7 @@ async function loadActivePlanSnapshot(
       unitKey: item.unit_key,
       scheduledDate: item.scheduled_date,
       locked: item.locked,
+      scheduledTimeOverride: item.scheduled_time_override,
     });
     if (item.credited_completion_id && item.credited_completion_date) {
       completionToUnit[item.credited_completion_id] = {

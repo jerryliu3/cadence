@@ -71,6 +71,7 @@ Create saved queries from your runtime logs for:
 
 - preview totals, success rate, conflict/error rate,
 - publish totals, success/conflict/error rate,
+- publish timed-session coverage (`counts.timedUnits / counts.workUnits`) and drift over time,
 - mutation error rates by `data.action`,
 - staleness reason frequencies,
 - targeted completion failures by `errorCode`,
@@ -90,6 +91,7 @@ Start with these minimum alerts:
 - any `planner.invariant.failed` in production,
 - any cross-owner/isolation error code if observed,
 - sustained `planner.publish.completed` failures above 1% excluding expected `stale_revision`,
+- sustained `time_validation_failed` publish rejections above baseline,
 - sustained AI request error rate above 5%,
 - repeated `response_bound_exceeded` failures (signals fail-closed read pressure).
 - `planner.preview.completed` p95 latency above 2 seconds for manual generation during soak.

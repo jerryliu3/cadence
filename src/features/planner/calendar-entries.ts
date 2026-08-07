@@ -13,6 +13,7 @@ import type {
 } from "@/features/planner/calendar-surface.types";
 import { diffPlannerAssignmentsForDraftVisual } from "@/lib/planner/diff";
 import { draftCommandEntryKey } from "@/lib/planner/draft-commands";
+import { resolvePlannerEffectiveScheduledTime } from "@/lib/planner/schedule-time";
 
 export function buildActiveGoalIndexes(
   activeGoals: PlannerActiveGoalSnapshot[] | undefined
@@ -83,6 +84,13 @@ export function buildEntriesByDate({
     overrideGoalTitle?: string | null;
   }): PlannerDayDetailEntry => {
     const activeGoal = activeGoalsByOriginalGoalId.get(unit.originalGoalId) ?? null;
+    const resolvedTime = resolvePlannerEffectiveScheduledTime({
+      scheduledDate: day,
+      scheduledTimeOverride:
+        unit.scheduledTimeOverride ??
+        activeItem?.scheduled_time_override ??
+        null,
+    });
     return {
       key,
       originalGoalId: unit.originalGoalId,
@@ -108,6 +116,8 @@ export function buildEntriesByDate({
       draftDiffFromDate: null,
       draftDiffToDate: null,
       draftGhost: false,
+      scheduledTimeOverride: resolvedTime.scheduledTimeOverride,
+      effectiveScheduledLocalTime: resolvedTime.effectiveScheduledLocalTime,
     };
   };
 
@@ -147,6 +157,14 @@ export function buildEntriesByDate({
           null,
         activeGoal: existingEntry.activeGoal ?? activeGoal,
         activeItem: item,
+        scheduledTimeOverride:
+          existingEntry.scheduledTimeOverride ??
+          item.scheduled_time_override ??
+          null,
+        effectiveScheduledLocalTime:
+          existingEntry.effectiveScheduledLocalTime ??
+          item.effective_scheduled_local_time ??
+          null,
       });
       continue;
     }
@@ -167,6 +185,8 @@ export function buildEntriesByDate({
       draftDiffFromDate: null,
       draftDiffToDate: null,
       draftGhost: false,
+      scheduledTimeOverride: item.scheduled_time_override ?? null,
+      effectiveScheduledLocalTime: item.effective_scheduled_local_time ?? null,
     });
   }
 
@@ -187,6 +207,14 @@ export function buildEntriesByDate({
         : edit.label ??
           existingEntry?.goalTitle ??
           (unit ? goalTitles?.[unit.originalGoalId] ?? unit.label ?? unit.unitKey : null);
+    const nextScheduledTimeOverride =
+      edit.scheduledTimeOverride === undefined
+        ? existingEntry?.scheduledTimeOverride ?? unit?.scheduledTimeOverride ?? null
+        : edit.scheduledTimeOverride;
+    const resolvedDraftTime = resolvePlannerEffectiveScheduledTime({
+      scheduledDate: nextDay,
+      scheduledTimeOverride: nextScheduledTimeOverride,
+    });
 
     if (existingEntry && currentDay) {
       byDate.get(currentDay)?.delete(key);
@@ -226,6 +254,8 @@ export function buildEntriesByDate({
             scheduled_date: nextDay,
           }
         : null,
+      scheduledTimeOverride: resolvedDraftTime.scheduledTimeOverride,
+      effectiveScheduledLocalTime: resolvedDraftTime.effectiveScheduledLocalTime,
     });
   }
 
@@ -296,6 +326,8 @@ export function buildEntriesByDate({
       draftDiffFromDate: diffEntry.date,
       draftDiffToDate: diffEntry.counterpartDate,
       draftGhost: true,
+      scheduledTimeOverride: unit?.scheduledTimeOverride ?? null,
+      effectiveScheduledLocalTime: unit?.effectiveScheduledLocalTime ?? null,
     });
     byDate.set(diffEntry.date, dayEntries);
   }
@@ -502,11 +534,27 @@ export function orderEntriesForDay({
     ...savedOrder.filter((entryKey) => dayEntryKeys.includes(entryKey)),
     ...dayEntryKeys.filter((entryKey) => !savedOrder.includes(entryKey)),
   ];
+  const savedOrderSet = new Set(savedOrder);
   const orderIndex = new Map(order.map((entryKey, index) => [entryKey, index]));
   const compareWithinGroup = (left: PlannerDayDetailEntry, right: PlannerDayDetailEntry) => {
     const byRank = entryDisplayRank(left) - entryDisplayRank(right);
     if (byRank !== 0) {
       return byRank;
+    }
+    const leftPinned = savedOrderSet.has(left.key);
+    const rightPinned = savedOrderSet.has(right.key);
+    if (!leftPinned && !rightPinned) {
+      const leftTime = left.effectiveScheduledLocalTime ?? null;
+      const rightTime = right.effectiveScheduledLocalTime ?? null;
+      if (leftTime && rightTime && leftTime !== rightTime) {
+        return leftTime.localeCompare(rightTime);
+      }
+      if (leftTime && !rightTime) {
+        return -1;
+      }
+      if (!leftTime && rightTime) {
+        return 1;
+      }
     }
     const leftOrder = orderIndex.get(left.key);
     const rightOrder = orderIndex.get(right.key);

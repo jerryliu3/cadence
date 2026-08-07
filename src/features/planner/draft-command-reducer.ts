@@ -20,6 +20,17 @@ export type DraftCommandAction =
       label: string | null;
     }
   | {
+      type: "upsert_time_override";
+      goalId: string;
+      unitKey: string;
+      localTime: string;
+    }
+  | {
+      type: "clear_time_override";
+      goalId: string;
+      unitKey: string;
+    }
+  | {
       type: "remove_kind";
       kind:
         | "move_item"
@@ -69,10 +80,18 @@ export function draftCommandReducer(
     };
   }
 
+  const actionKind =
+    action.type === "upsert_move"
+      ? "move_item"
+      : action.type === "upsert_rename"
+        ? "rename_item"
+        : action.type === "upsert_time_override"
+          ? "set_item_time_override"
+          : "clear_item_time_override";
+
   const existingIndex = state.commands.findIndex(
     (command) =>
-      command.kind ===
-        (action.type === "upsert_move" ? "move_item" : "rename_item") &&
+      command.kind === actionKind &&
       commandTargetsEntry(command, action.goalId, action.unitKey)
   );
 
@@ -91,11 +110,22 @@ export function draftCommandReducer(
             kind: "move_item",
             scheduledDate: action.scheduledDate,
           }
-        : {
+        : action.type === "upsert_rename"
+          ? {
             ...identity,
             kind: "rename_item",
             label: action.label,
-          };
+          }
+          : action.type === "upsert_time_override"
+            ? {
+                ...identity,
+                kind: "set_item_time_override",
+                localTime: action.localTime,
+              }
+            : {
+                ...identity,
+                kind: "clear_item_time_override",
+              };
     const nextCommands = [...state.commands];
     nextCommands[existingIndex] = nextCommand;
     return {
@@ -115,14 +145,31 @@ export function draftCommandReducer(
           unitKey: action.unitKey,
           scheduledDate: action.scheduledDate,
         }
-      : {
-          id: createClientUuid(),
-          sequence: nextSequence,
-          kind: "rename_item",
-          goalId: action.goalId,
-          unitKey: action.unitKey,
-          label: action.label,
-        };
+      : action.type === "upsert_rename"
+        ? {
+            id: createClientUuid(),
+            sequence: nextSequence,
+            kind: "rename_item",
+            goalId: action.goalId,
+            unitKey: action.unitKey,
+            label: action.label,
+          }
+        : action.type === "upsert_time_override"
+          ? {
+              id: createClientUuid(),
+              sequence: nextSequence,
+              kind: "set_item_time_override",
+              goalId: action.goalId,
+              unitKey: action.unitKey,
+              localTime: action.localTime,
+            }
+          : {
+              id: createClientUuid(),
+              sequence: nextSequence,
+              kind: "clear_item_time_override",
+              goalId: action.goalId,
+              unitKey: action.unitKey,
+            };
 
   return {
     commands: [...state.commands, nextCommand],
