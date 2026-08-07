@@ -80,6 +80,7 @@ describe("pure planner kernel", () => {
     const monthOutputs = ["2026-08", "2026-09", "2026-10"].map((scopeMonth) =>
       runPlannerKernel(
         input({
+          eligibilityMode: "overlap_v1",
           scopeMonth,
           asOfDate: "2026-08-05",
           goals: [longGoal],

@@ -245,6 +245,7 @@ describe("planner time defaults", () => {
     const goal = buildGoal({
       recurrence_interval: "daily",
       target_count: 1,
+      start_date: "2026-08-01",
       default_local_time: "09:15",
     });
     const requirement = normalizeGoalRequirement(goal);
@@ -277,6 +278,7 @@ describe("planner time defaults", () => {
     const goal = buildGoal({
       recurrence_interval: "daily",
       target_count: 1,
+      start_date: "2026-08-01",
       default_local_time: "09:15",
     });
     const requirement = normalizeGoalRequirement(goal);

@@ -442,7 +442,7 @@ export function CalendarSurface({
     }
     const sourcePolicy = effectiveDraftPolicy ?? context.preferences.defaultPolicy;
     return compilePlannerPolicy(plannerPolicySchema.parse(sourcePolicy));
-  }, [context?.preferences, effectiveDraftPolicy]);
+  }, [context, effectiveDraftPolicy]);
   const effectiveSelectedDay = localSelectedDay;
 
   const isDayInCurrentScopeMonth = useCallback(
