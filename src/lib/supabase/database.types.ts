@@ -888,6 +888,7 @@ export type Database = {
           category: string
           color: string | null
           created_at: string
+          default_local_time: string | null
           description: string | null
           end_date: string | null
           frequency_type: Database["public"]["Enums"]["goal_frequency_type"]
@@ -910,6 +911,7 @@ export type Database = {
           category?: string
           color?: string | null
           created_at?: string
+          default_local_time?: string | null
           description?: string | null
           end_date?: string | null
           frequency_type: Database["public"]["Enums"]["goal_frequency_type"]
@@ -932,6 +934,7 @@ export type Database = {
           category?: string
           color?: string | null
           created_at?: string
+          default_local_time?: string | null
           description?: string | null
           end_date?: string | null
           frequency_type?: Database["public"]["Enums"]["goal_frequency_type"]
