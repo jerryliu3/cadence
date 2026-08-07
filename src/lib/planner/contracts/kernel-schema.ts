@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { goalAssessmentSchema } from "@/lib/planner/assessment";
 import {
+  MAX_HORIZON_MONTHS,
   PLANNER_CONTRACT_VERSION,
   PLANNER_ELIGIBILITY_MODES,
   REQUIREMENT_SCHEMA_VERSION,
@@ -215,14 +216,16 @@ const goalHorizonSummarySchema = z
     creditedCount: z.number().int().nonnegative(),
     remainingCount: z.number().int().nonnegative(),
     scopeMonthPlannedCount: z.number().int().nonnegative(),
-    months: z.array(
-      z
-        .object({
-          month: monthSchema,
-          plannedCount: z.number().int().nonnegative(),
-        })
-        .strict()
-    ),
+    months: z
+      .array(
+        z
+          .object({
+            month: monthSchema,
+            plannedCount: z.number().int().nonnegative(),
+          })
+          .strict()
+      )
+      .max(MAX_HORIZON_MONTHS),
   })
   .strict();
 

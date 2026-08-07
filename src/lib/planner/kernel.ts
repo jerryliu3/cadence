@@ -12,6 +12,7 @@ import {
 import {
   MAX_COMPLETION_FACTS,
   MAX_ELIGIBLE_GOALS,
+  MAX_HORIZON_MONTHS,
   MAX_POLICY_RANGES,
   MAX_WORK_UNITS,
   type PlannerEligibilityMode,
@@ -511,6 +512,18 @@ export function runPlannerKernel(
   const assessments = new Map<string, GoalAssessment>();
   for (const goal of eligibleGoals) {
     const requirement = normalizeGoalRequirement(goal);
+    if (requirement.requirement.kind !== "cadence") {
+      const lifetimeMonths = enumerateMonthsInWindow({
+        start: goal.start_date,
+        end: goal.end_date ?? goal.start_date,
+      });
+      throwBounds(
+        lifetimeMonths.length > MAX_HORIZON_MONTHS,
+        "horizon months",
+        lifetimeMonths.length,
+        MAX_HORIZON_MONTHS
+      );
+    }
     normalizedRequirements.set(goal.id, requirement);
     const supplied = suppliedAssessments.get(goal.id);
     assessments.set(
@@ -630,12 +643,12 @@ export function runPlannerKernel(
           0
         ),
         scopeMonthPlannedCount: scopedOrdinals?.size ?? 0,
-        months: Array.from(ordinalAllocation.monthOrdinals.entries()).map(
-          ([month, ordinals]) => ({
+        months: Array.from(ordinalAllocation.monthOrdinals.entries())
+          .map(([month, ordinals]) => ({
             month,
             plannedCount: ordinals.length,
-          })
-        ),
+          }))
+          .filter((entry) => entry.plannedCount > 0),
       });
     }
   }

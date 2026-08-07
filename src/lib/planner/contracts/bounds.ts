@@ -16,6 +16,7 @@ export const MAX_ELIGIBLE_GOALS = 100;
 export const MAX_WORK_UNITS = 5_000;
 export const MAX_COMPLETION_FACTS = 20_000;
 export const MAX_POLICY_RANGES = 100;
+export const MAX_HORIZON_MONTHS = 24;
 export const MAX_CHAT_MESSAGES = 20;
 export const MAX_API_BODY_BYTES = 3 * 1024 * 1024;
 export const SOFT_REFINEMENT_MAX_OPERATIONS = 25_000;
