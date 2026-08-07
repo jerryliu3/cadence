@@ -13,6 +13,7 @@ const listPlannerCoachConversationsMock = vi.fn();
 const requestPlannerCoachReplyMock = vi.fn();
 const restorePlannerCoachConversationMock = vi.fn();
 const savePlannerCoachConversationMock = vi.fn();
+const persistPlannerDefaultPolicyMock = vi.fn();
 const loadCoachSessionMock = vi.fn();
 const saveCoachSessionMock = vi.fn();
 const applyCoachPolicyPatchesMock = vi.fn();
@@ -28,6 +29,8 @@ vi.mock("@/features/planner/coach/coach-client", () => ({
     restorePlannerCoachConversationMock(...args),
   savePlannerCoachConversation: (...args: unknown[]) =>
     savePlannerCoachConversationMock(...args),
+  persistPlannerDefaultPolicy: (...args: unknown[]) =>
+    persistPlannerDefaultPolicyMock(...args),
 }));
 
 vi.mock("@/features/planner/coach-session", () => ({
@@ -188,6 +191,7 @@ describe("usePlannerCoach", () => {
     requestPlannerCoachReplyMock.mockReset();
     restorePlannerCoachConversationMock.mockReset();
     savePlannerCoachConversationMock.mockReset();
+    persistPlannerDefaultPolicyMock.mockReset().mockResolvedValue(null);
     loadCoachSessionMock.mockReset().mockReturnValue([]);
     saveCoachSessionMock.mockReset();
     applyCoachPolicyPatchesMock.mockReset();
@@ -336,6 +340,7 @@ describe("usePlannerCoach", () => {
     expect(proposal?.patchSignature).toHaveLength(64);
     expect(proposal?.baselineSnapshotToken.startsWith("policy:")).toBe(true);
     expect(applyCoachPolicyPatchesMock).toHaveBeenCalled();
+    expect(persistPlannerDefaultPolicyMock).not.toHaveBeenCalled();
     expect(saveCoachSessionMock).toHaveBeenCalled();
   });
 
@@ -488,10 +493,17 @@ describe("usePlannerCoach", () => {
     });
 
     expect(applyCoachPolicyPatchesMock).toHaveBeenCalled();
+    expect(persistPlannerDefaultPolicyMock).toHaveBeenCalledWith({
+      timezone: "UTC",
+      defaultPolicy: nextPolicy,
+    });
     expect(refreshDraftPreviewMock).toHaveBeenCalledWith(nextPolicy);
     expect(applyDraftPolicyMock).toHaveBeenCalledWith("2026-08", nextPolicy);
     expect(toastSuccessMock).toHaveBeenCalledWith(
       expect.stringContaining("session change")
+    );
+    expect(toastSuccessMock).toHaveBeenCalledWith(
+      expect.stringContaining("Saved as your default planner policy")
     );
     expect(
       result.current.state.coachMessages[proposalIndex]?.proposal?.applyStatus
@@ -504,6 +516,10 @@ describe("usePlannerCoach", () => {
     expect(refreshDraftPreviewMock).toHaveBeenCalledWith(
       context.preferences!.defaultPolicy
     );
+    expect(persistPlannerDefaultPolicyMock).toHaveBeenLastCalledWith({
+      timezone: "UTC",
+      defaultPolicy: context.preferences!.defaultPolicy,
+    });
     expect(applyDraftPolicyMock).toHaveBeenLastCalledWith(
       "2026-08",
       context.preferences!.defaultPolicy
@@ -608,6 +624,81 @@ describe("usePlannerCoach", () => {
     expect(result.current.state.coachMessages[0]?.proposal?.applyStatus).toBe(
       "manually_applied"
     );
+  });
+
+  it("keeps proposal unapplied when durable preference write fails", async () => {
+    const context = buildContext();
+    const nextPolicy = buildPolicy({ spacingStrategy: "front_load" });
+    requestPlannerCoachReplyMock.mockResolvedValue({
+      schemaVersion: "1",
+      phase: "ready",
+      reply: "Try front-loading this month.",
+      proposal: {
+        policyPatches: [
+          {
+            kind: "set_spacing_strategy",
+            spacingStrategy: "front_load",
+          },
+        ],
+        unresolvedQuestions: [],
+      },
+      recommendations: [],
+      warnings: [],
+    });
+    applyCoachPolicyPatchesMock.mockReturnValue({
+      policy: nextPolicy,
+      appliedPatchCount: 1,
+      ignoredPatchCount: 0,
+      noOpPatchCount: 0,
+      outOfScopePatchCount: 0,
+      unsupportedPatchCount: 0,
+    });
+    persistPlannerDefaultPolicyMock.mockRejectedValue(
+      new Error("Planner preferences could not be updated.")
+    );
+    const refreshDraftPreviewMock = vi.fn().mockResolvedValue(context.preview);
+    const applyDraftPolicyMock = vi.fn();
+    const { result } = renderHook(() =>
+      usePlannerCoach(
+        buildArgs({
+          activeTab: "calendar",
+          context,
+          entriesByDate: new Map([["2026-08-01", [buildEntry()]]]),
+          effectivePreview: context.preview,
+          refreshDraftPreview: refreshDraftPreviewMock,
+          applyDraftPolicy: applyDraftPolicyMock,
+        })
+      )
+    );
+
+    await waitFor(() => expect(loadCoachSessionMock).toHaveBeenCalled());
+    act(() => {
+      result.current.actions.setCoachInput("Apply coach changes");
+    });
+    await act(async () => {
+      await result.current.actions.sendCoachMessage();
+    });
+    const proposalIndex = result.current.state.coachMessages.findIndex(
+      (message) => message.role === "assistant" && Boolean(message.proposal)
+    );
+    expect(proposalIndex).toBeGreaterThanOrEqual(0);
+
+    await act(async () => {
+      await result.current.actions.applyCoachProposal(proposalIndex);
+    });
+
+    expect(persistPlannerDefaultPolicyMock).toHaveBeenCalledWith({
+      timezone: "UTC",
+      defaultPolicy: nextPolicy,
+    });
+    expect(refreshDraftPreviewMock).toHaveBeenCalledTimes(1); // auto-apply only
+    expect(applyDraftPolicyMock).toHaveBeenCalledTimes(1); // auto-apply only
+    expect(toastErrorMock).toHaveBeenCalledWith(
+      "Planner preferences could not be updated."
+    );
+    expect(
+      result.current.state.coachMessages[proposalIndex]?.proposal?.applyStatus
+    ).toBe("auto_applied");
   });
 
   it("saves and restores persistent coach conversations", async () => {

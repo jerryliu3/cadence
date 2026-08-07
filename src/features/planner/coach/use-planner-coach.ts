@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { buildCoachSummaryWorkUnits } from "@/features/planner/calendar-entries";
 import {
   listPlannerCoachConversations,
+  persistPlannerDefaultPolicy,
   requestPlannerCoachReply,
   restorePlannerCoachConversation,
   savePlannerCoachConversation,
@@ -119,6 +120,10 @@ function buildProposalSignature(patches: CoachPolicyPatch[]) {
 
 function buildBaselineSnapshotToken(policy: PlannerPolicy) {
   return `policy:${canonicalHash(policy)}`;
+}
+
+function buildDurableApplyToastDetail(scopeMonth: string) {
+  return `Saved as your default planner policy from ${scopeMonth}. Unpublished months will regenerate as you navigate; already-published months require republish to persist the new rhythm.`;
 }
 
 function mapAutoApplyStatusToProposalStatus(
@@ -371,9 +376,36 @@ export function usePlannerCoach({
 
       setCoachPolicyApplying(true);
       try {
-        const refreshedPreview = await refreshDraftPreview(result.policy);
-        if (!refreshedPreview) {
-          throw new Error("Preview refresh returned no planner data.");
+        let persistedAsDefault = false;
+        if (source === "manual") {
+          await persistPlannerDefaultPolicy({
+            timezone: context.preferences.timezone,
+            defaultPolicy: result.policy,
+          });
+          persistedAsDefault = true;
+          appendCoachContextEvent("Persisted coach proposal to planner defaults");
+        }
+
+        let refreshedPreview: NonNullable<typeof effectivePreview> | null = null;
+        try {
+          refreshedPreview = await refreshDraftPreview(result.policy);
+          if (!refreshedPreview) {
+            throw new Error("Preview refresh returned no planner data.");
+          }
+        } catch (error) {
+          if (persistedAsDefault && source === "manual") {
+            if (context.scopeMonth) {
+              applyDraftPolicy(context.scopeMonth, result.policy);
+            }
+            appendCoachContextEvent(
+              "Saved planner defaults but preview refresh failed"
+            );
+            toast.error(
+              "Coach proposal was saved to planner defaults, but the draft preview could not refresh automatically. Regenerate preview to sync calendar assignments."
+            );
+            return "applied";
+          }
+          throw error;
         }
         const previousDatesByKey = new Map(
           (effectivePreview?.workUnits ?? []).map((unit) => [
@@ -422,6 +454,9 @@ export function usePlannerCoach({
               assignmentChanges === 1 ? "" : "s"
             }).`
           );
+        }
+        if (source === "manual" && context.scopeMonth) {
+          toast.success(buildDurableApplyToastDetail(context.scopeMonth));
         }
         return "applied";
       } catch (error) {
@@ -730,13 +765,21 @@ export function usePlannerCoach({
       }
       setCoachPolicyApplying(true);
       try {
+        await persistPlannerDefaultPolicy({
+          timezone: context.preferences.timezone,
+          defaultPolicy: baselinePolicy,
+        });
         await refreshDraftPreview(baselinePolicy);
         if (context?.scopeMonth) {
           applyDraftPolicy(context.scopeMonth, baselinePolicy);
         }
         updateCoachProposalStatus(messageIndex, "undone");
         appendCoachContextEvent("Undid coach draft proposal");
-        toast.success("Coach proposal changes were undone.");
+        toast.success(
+          context.scopeMonth
+            ? `Coach proposal changes were undone. Planner defaults were restored from ${context.scopeMonth}.`
+            : "Coach proposal changes were undone."
+        );
       } catch (error) {
         toast.error(error instanceof Error ? error.message : "Undo failed.");
       } finally {
