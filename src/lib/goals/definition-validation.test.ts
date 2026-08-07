@@ -59,6 +59,14 @@ describe("goal definition validation", () => {
         endDate: null,
       })
     ).toEqual([]);
+    expect(
+      validateGoalDefinition({
+        frequencyType: "recurring",
+        targetCount: 0,
+        startDate: "2026-08-01",
+        endDate: null,
+      })
+    ).toEqual([]);
   });
 
   it("rejects missing deadlines for milestones and targeted recurring goals", () => {

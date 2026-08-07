@@ -382,14 +382,6 @@ export function GoalForm({ goalId }: GoalFormProps) {
     }
 
     if (
-      state.frequency_type === "recurring" &&
-      state.target_count.trim().length > 0 &&
-      parsedTargetCount === null
-    ) {
-      return "Repeat goal target count must be a positive number.";
-    }
-
-    if (
       state.default_local_time.trim().length > 0 &&
       !localTimePattern.test(state.default_local_time.trim())
     ) {
@@ -720,7 +712,7 @@ export function GoalForm({ goalId }: GoalFormProps) {
                 <Input
                   id="target-count"
                   type="number"
-                  min={1}
+                  min={state.frequency_type === "fixed_milestones" ? 1 : 0}
                   value={state.target_count}
                   onChange={(event) => updateTargetCount(event.target.value)}
                   required={state.frequency_type === "fixed_milestones"}

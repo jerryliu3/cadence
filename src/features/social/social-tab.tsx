@@ -658,14 +658,6 @@ export function SocialTab() {
       return;
     }
 
-    if (
-      groupDraft.frequencyType === "recurring" &&
-      groupDraft.targetCount.trim().length > 0 &&
-      parsedGroupTargetCount === null
-    ) {
-      toast.error("Repeat target count must be positive.");
-      return;
-    }
     const definitionIssues = validateGoalDefinition({
       frequencyType: groupDraft.frequencyType,
       targetCount: groupDefinitionTargetCount,
@@ -1289,7 +1281,7 @@ export function SocialTab() {
                   <Input
                     id="group-target-count"
                     type="number"
-                    min={1}
+                    min={groupDraft.frequencyType === "fixed_milestones" ? 1 : 0}
                     value={groupDraft.targetCount}
                     onChange={(event) =>
                       setGroupDraft((prev) => ({ ...prev, targetCount: event.target.value }))

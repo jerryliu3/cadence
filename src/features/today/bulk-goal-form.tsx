@@ -275,12 +275,6 @@ function validateDraft(draft: BulkGoalDraft): string[] {
     }
   }
 
-  if (draft.frequency_type === "recurring" && draft.target_count.trim().length > 0) {
-    if (parsedTarget === null || parsedTarget <= 0) {
-      errors.push("Recurring target count must be a positive number.");
-    }
-  }
-
   if (!draft.start_date) {
     errors.push("Start date is required.");
   }
@@ -659,6 +653,12 @@ export function BulkGoalForm() {
     try {
       const preparedRows = selectedDrafts.map((draft) => {
         const parsedTargetCount = parseTargetCount(draft.target_count);
+        const normalizedTargetCount =
+          draft.frequency_type === "fixed_milestones"
+            ? parsedTargetCount
+            : parsedTargetCount !== null && parsedTargetCount > 0
+              ? parsedTargetCount
+              : null;
         const goalId = crypto.randomUUID();
         const milestoneNames =
           draft.frequency_type === "fixed_milestones" && parsedTargetCount
@@ -680,7 +680,7 @@ export function BulkGoalForm() {
             frequency_type: draft.frequency_type,
             recurrence_interval:
               draft.frequency_type === "recurring" ? draft.recurrence_interval : null,
-            target_count: parsedTargetCount,
+            target_count: normalizedTargetCount,
             milestone_names: milestoneNames,
             start_date: draft.start_date,
             end_date: draft.end_date || null,
@@ -1182,7 +1182,7 @@ export function BulkGoalForm() {
                         </Label>
                         <Input
                           type="number"
-                          min={1}
+                          min={draft.frequency_type === "fixed_milestones" ? 1 : 0}
                           value={draft.target_count}
                           onChange={(event) =>
                             updateDraft(draft.id, (previous) => ({
