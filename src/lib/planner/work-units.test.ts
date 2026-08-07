@@ -93,6 +93,75 @@ describe("end-month planner work units", () => {
     );
   });
 
+  it("allocates deadline-total ordinals across months without duplication inflation", () => {
+    const totalGoal = buildGoal({
+      target_count: 9,
+      start_date: "2026-08-01",
+      end_date: "2026-10-31",
+    });
+
+    const months = ["2026-08", "2026-09", "2026-10"] as const;
+    const unitsByMonth = months.map((scopeMonth) =>
+      materializeWorkUnits({
+        goal: totalGoal,
+        normalizedRequirement: normalizeGoalRequirement(totalGoal),
+        scopeMonth,
+        asOfDate: "2026-08-05",
+      })
+    );
+
+    const allUnitKeys = unitsByMonth.flatMap((units) =>
+      units.map((unit) => unit.unitKey)
+    );
+    const uniqueUnitKeys = new Set(allUnitKeys);
+
+    expect(uniqueUnitKeys.size).toBe(totalGoal.target_count);
+    expect(allUnitKeys).toHaveLength(totalGoal.target_count ?? 0);
+    expect(Math.max(...unitsByMonth.map((units) => units.length))).toBeLessThan(
+      totalGoal.target_count ?? 0
+    );
+  });
+
+  it("allocates milestone ordinals across months without duplication inflation", () => {
+    const milestoneGoal = buildGoal({
+      id: "milestone-goal",
+      frequency_type: "fixed_milestones",
+      recurrence_interval: null,
+      target_count: 7,
+      milestone_names: [
+        "One",
+        "Two",
+        "Three",
+        "Four",
+        "Five",
+        "Six",
+        "Seven",
+      ],
+      start_date: "2026-08-01",
+      end_date: "2026-10-31",
+    });
+
+    const months = ["2026-08", "2026-09", "2026-10"] as const;
+    const unitsByMonth = months.map((scopeMonth) =>
+      materializeWorkUnits({
+        goal: milestoneGoal,
+        normalizedRequirement: normalizeGoalRequirement(milestoneGoal),
+        scopeMonth,
+        asOfDate: "2026-08-05",
+      })
+    );
+    const allUnitKeys = unitsByMonth.flatMap((units) =>
+      units.map((unit) => unit.unitKey)
+    );
+    const uniqueUnitKeys = new Set(allUnitKeys);
+
+    expect(uniqueUnitKeys.size).toBe(milestoneGoal.target_count);
+    expect(allUnitKeys).toHaveLength(milestoneGoal.target_count ?? 0);
+    expect(Math.max(...unitsByMonth.map((units) => units.length))).toBeLessThan(
+      milestoneGoal.target_count ?? 0
+    );
+  });
+
   it("classifies non-placeable historical totals explicitly", () => {
     const goal = buildGoal({
       target_count: 2,
@@ -293,6 +362,65 @@ describe("planner completion reconciliation", () => {
       "fulfilled",
       "open",
     ]);
+  });
+
+  it("preserves prior deadline-total completion identity when still valid", () => {
+    const goal = buildGoal({
+      target_count: 2,
+      start_date: "2026-08-01",
+    });
+    const normalizedRequirement = normalizeGoalRequirement(goal);
+    const units = materializeWorkUnits({
+      goal,
+      normalizedRequirement,
+      scopeMonth: "2026-08",
+      asOfDate: "2026-08-20",
+      baseAssignments: [
+        {
+          goalId: goal.id,
+          requirementFingerprint: normalizedRequirement.requirementFingerprint,
+          unitKey: "total:1",
+          scheduledDate: "2026-08-05",
+          locked: false,
+        },
+        {
+          goalId: goal.id,
+          requirementFingerprint: normalizedRequirement.requirementFingerprint,
+          unitKey: "total:2",
+          scheduledDate: "2026-08-10",
+          locked: false,
+        },
+      ],
+    });
+    const result = reconcilePlannerCompletions({
+      goal,
+      workUnits: units,
+      completions: [completion("2026-08-07", "sticky")],
+      asOfDate: "2026-08-20",
+      previousCompletionToUnit: {
+        sticky: {
+          goalId: goal.id,
+          requirementFingerprint: normalizedRequirement.requirementFingerprint,
+          unitKey: "total:2",
+          completedOn: "2026-08-07",
+        },
+      },
+    });
+
+    expect(result.completionToUnit.sticky).toEqual({
+      goalId: goal.id,
+      requirementFingerprint: normalizedRequirement.requirementFingerprint,
+      unitKey: "total:2",
+      completedOn: "2026-08-07",
+    });
+    expect(result.driftFacts).toEqual([]);
+    expect(
+      result.units.find((unit) => unit.unitKey === "total:2")
+    ).toMatchObject({
+      classification: "satisfied_elsewhere",
+      creditState: "completed_elsewhere",
+      creditedCompletionId: "sticky",
+    });
   });
 
   it("maps milestones chronologically and never scheduled-first", () => {
