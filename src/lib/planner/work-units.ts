@@ -195,6 +195,7 @@ export function materializeWorkUnits({
   scopeMonth,
   asOfDate,
   baseAssignments = [],
+  ordinalsForScopeMonth,
 }: {
   goal: Goal;
   normalizedRequirement: NormalizedGoalRequirement;
@@ -202,6 +203,7 @@ export function materializeWorkUnits({
   scopeMonth: string;
   asOfDate: string;
   baseAssignments?: PlannerBaseAssignment[];
+  ordinalsForScopeMonth?: Set<number>;
 }): PlannerWorkUnit[] {
   if (goal.end_date === null) {
     throw new Error("Planner work units require a goal end date.");
@@ -225,6 +227,11 @@ export function materializeWorkUnits({
     requirement.kind === "milestone_sequence" ||
     requirement.kind === "deadline_total"
   ) {
+    if (!ordinalsForScopeMonth) {
+      throw new Error(
+        "Planner ordinal work units require an explicit ordinal scope allocation."
+      );
+    }
     const placementWindow = intersectDateWindows(scope, {
       start:
         compareDateStrings(asOfDate, goal.start_date) > 0
@@ -234,37 +241,41 @@ export function materializeWorkUnits({
     });
     const classification: WorkUnitClassification =
       placementWindow === null &&
-      compareDateStrings(asOfDate, goal.end_date) > 0
+      compareDateStrings(scope.end, asOfDate) < 0
         ? "historical_shortfall"
         : placementWindow &&
             compareDateStrings(placementWindow.start, asOfDate) > 0
           ? "future"
           : "open";
 
-    return Array.from({ length: requirement.targetCount }, (_, index) => {
-      const ordinal = index + 1;
-      const milestone = requirement.kind === "milestone_sequence";
-      return createUnitBase({
-        goal,
-        normalizedRequirement,
-        unitKey: `${milestone ? "milestone" : "total"}:${ordinal}`,
-        kind: requirement.kind,
-        ordinal,
-        periodKey: null,
-        label: milestone ? requirement.labels[index] ?? null : null,
-        creditWindow: lifetime,
-        placementWindow,
-        draftMoveWindow: resolveDraftMoveWindow({
-          eligibilityMode,
+    const candidateOrdinals = Array.from(ordinalsForScopeMonth).sort(
+      (left, right) => left - right
+    );
+
+    return candidateOrdinals
+      .map((ordinal) => {
+        const milestone = requirement.kind === "milestone_sequence";
+        return createUnitBase({
+          goal,
+          normalizedRequirement,
+          unitKey: `${milestone ? "milestone" : "total"}:${ordinal}`,
+          kind: requirement.kind,
+          ordinal,
+          periodKey: null,
+          label: milestone ? requirement.labels[ordinal - 1] ?? null : null,
           creditWindow: lifetime,
           placementWindow,
-        }),
-        classification,
-        missPolicy: "roll_forward",
-        restEligible: true,
-        baseAssignments: baseAssignmentMap,
+          draftMoveWindow: resolveDraftMoveWindow({
+            eligibilityMode,
+            creditWindow: lifetime,
+            placementWindow,
+          }),
+          classification,
+          missPolicy: "roll_forward",
+          restEligible: true,
+          baseAssignments: baseAssignmentMap,
+        });
       });
-    });
   }
 
   const units: PlannerWorkUnit[] = [];
