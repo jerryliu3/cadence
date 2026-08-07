@@ -15,7 +15,9 @@ export function buildPlannerPublishTelemetryCounts(
     (unit) => unit.scheduledDate !== null
   ).length;
   const timedUnits = workUnits.filter(
-    (unit) => unit.effectiveScheduledLocalTime != null
+    (unit) =>
+      unit.scheduledDate !== null &&
+      unit.effectiveScheduledLocalTime != null
   ).length;
   return {
     workUnits: workUnitCount,
