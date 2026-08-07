@@ -2554,7 +2554,7 @@ export function CalendarSurface({
                             updateDraftScheduledTimeOverride(selectedEventEntry, "")
                           }
                         >
-                          Inherit
+                          Clear
                         </Button>
                       </label>
                       <p className="text-[11px] text-muted-foreground">
@@ -2564,7 +2564,7 @@ export function CalendarSurface({
                       <p className="text-[11px] text-muted-foreground">
                         Effective local time:{" "}
                         {selectedEventEntry.effectiveScheduledLocalTime ??
-                          selectedEventBaselineUnit?.goalDefaultLocalTime ??
+                          selectedEventBaselineUnit?.effectiveScheduledLocalTime ??
                           "date only"}
                       </p>
                       {selectedEventEntry.activeItem ? (

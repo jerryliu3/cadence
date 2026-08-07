@@ -31,11 +31,6 @@ export type DraftCommandAction =
       unitKey: string;
     }
   | {
-      type: "set_goal_default_time";
-      goalId: string;
-      localTime: string | null;
-    }
-  | {
       type: "remove_kind";
       kind:
         | "move_item"
@@ -82,52 +77,6 @@ export function draftCommandReducer(
             commandTargetsEntry(command, action.goalId, action.unitKey)
           )
       ),
-    };
-  }
-
-  if (action.type === "set_goal_default_time") {
-    const existingIndex = state.commands.findIndex(
-      (command) =>
-        command.kind === "set_goal_default_time" &&
-        command.goalId === action.goalId
-    );
-    if (action.localTime === null) {
-      if (existingIndex < 0) {
-        return state;
-      }
-      return {
-        ...state,
-        commands: state.commands.filter((_, index) => index !== existingIndex),
-      };
-    }
-    if (existingIndex >= 0) {
-      const existing = state.commands[existingIndex];
-      const nextCommands = [...state.commands];
-      nextCommands[existingIndex] = {
-        id: existing.id,
-        sequence: existing.sequence,
-        kind: "set_goal_default_time",
-        goalId: action.goalId,
-        localTime: action.localTime,
-      };
-      return {
-        ...state,
-        commands: nextCommands,
-      };
-    }
-    const nextSequence = state.nextSequence + 1;
-    return {
-      commands: [
-        ...state.commands,
-        {
-          id: createClientUuid(),
-          sequence: nextSequence,
-          kind: "set_goal_default_time",
-          goalId: action.goalId,
-          localTime: action.localTime,
-        },
-      ],
-      nextSequence,
     };
   }
 
