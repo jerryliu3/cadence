@@ -99,6 +99,59 @@ describe("pure planner kernel", () => {
     ).toBeLessThan(longGoal.target_count ?? 0);
   });
 
+  it("carries forward elapsed ordinal obligations into remaining months", () => {
+    const longGoal = goal({
+      target_count: 60,
+      start_date: "2026-08-01",
+      end_date: "2027-01-31",
+    });
+    const monthOutputs = ["2026-10", "2026-11", "2026-12", "2027-01"].map(
+      (scopeMonth) =>
+        runPlannerKernel(
+          input({
+            eligibilityMode: "overlap_v1",
+            scopeMonth,
+            asOfDate: "2026-10-15",
+            goals: [longGoal],
+          })
+        )
+    );
+    const allUnitKeys = monthOutputs.flatMap((output) =>
+      output.workUnits.map((unit) => unit.unitKey)
+    );
+
+    expect(allUnitKeys).toHaveLength(longGoal.target_count ?? 0);
+    expect(new Set(allUnitKeys).size).toBe(longGoal.target_count);
+    expect(monthOutputs[0].workUnits.length).toBeGreaterThan(10);
+  });
+
+  it("spills ordinal allocations forward when current-month capacity is constrained", () => {
+    const constrainedStartGoal = goal({
+      target_count: 60,
+      start_date: "2026-08-20",
+      end_date: "2026-10-31",
+    });
+    const monthOutputs = ["2026-08", "2026-09", "2026-10"].map((scopeMonth) =>
+      runPlannerKernel(
+        input({
+          eligibilityMode: "overlap_v1",
+          scopeMonth,
+          asOfDate: "2026-08-20",
+          goals: [constrainedStartGoal],
+        })
+      )
+    );
+    const allUnitKeys = monthOutputs.flatMap((output) =>
+      output.workUnits.map((unit) => unit.unitKey)
+    );
+
+    expect(allUnitKeys).toHaveLength(constrainedStartGoal.target_count ?? 0);
+    expect(new Set(allUnitKeys).size).toBe(constrainedStartGoal.target_count);
+    expect(monthOutputs[0].workUnits.length).toBe(12);
+    expect(monthOutputs[1].workUnits.length).toBe(28);
+    expect(monthOutputs[2].workUnits.length).toBe(20);
+  });
+
   it("excludes either side of a current goal link", () => {
     const output = runPlannerKernel(
       input({

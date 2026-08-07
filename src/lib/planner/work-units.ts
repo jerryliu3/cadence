@@ -234,6 +234,7 @@ export function materializeWorkUnits({
   scopeMonth,
   asOfDate,
   baseAssignments = [],
+  ordinalsForScopeMonth,
 }: {
   goal: Goal;
   normalizedRequirement: NormalizedGoalRequirement;
@@ -241,6 +242,7 @@ export function materializeWorkUnits({
   scopeMonth: string;
   asOfDate: string;
   baseAssignments?: PlannerBaseAssignment[];
+  ordinalsForScopeMonth?: Set<number>;
 }): PlannerWorkUnit[] {
   if (goal.end_date === null) {
     throw new Error("Planner work units require a goal end date.");
@@ -284,15 +286,20 @@ export function materializeWorkUnits({
           ? "future"
           : "open";
 
-    return Array.from({ length: requirement.targetCount }, (_, index) => index + 1)
-      .filter(
-        (ordinal) =>
-          ownerMonthForOrdinal({
-            months: lifetimeMonths,
-            targetCount: requirement.targetCount,
-            ordinal,
-          }) === scopeMonth
-      )
+    const candidateOrdinals =
+      ordinalsForScopeMonth !== undefined
+        ? Array.from(ordinalsForScopeMonth).sort((left, right) => left - right)
+        : Array.from({ length: requirement.targetCount }, (_, index) => index + 1)
+            .filter(
+              (ordinal) =>
+                ownerMonthForOrdinal({
+                  months: lifetimeMonths,
+                  targetCount: requirement.targetCount,
+                  ordinal,
+                }) === scopeMonth
+            );
+
+    return candidateOrdinals
       .map((ordinal) => {
         const milestone = requirement.kind === "milestone_sequence";
         return createUnitBase({

@@ -162,6 +162,23 @@ describe("end-month planner work units", () => {
     );
   });
 
+  it("respects explicit ordinal scope allocation overrides", () => {
+    const goal = buildGoal({
+      target_count: 6,
+      start_date: "2026-08-01",
+      end_date: "2026-10-31",
+    });
+    const units = materializeWorkUnits({
+      goal,
+      normalizedRequirement: normalizeGoalRequirement(goal),
+      scopeMonth: "2026-09",
+      asOfDate: "2026-08-05",
+      ordinalsForScopeMonth: new Set([2, 5]),
+    });
+
+    expect(units.map((unit) => unit.unitKey)).toEqual(["total:2", "total:5"]);
+  });
+
   it("classifies non-placeable historical totals explicitly", () => {
     const goal = buildGoal({
       target_count: 2,
