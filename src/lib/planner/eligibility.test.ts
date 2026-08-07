@@ -69,6 +69,79 @@ describe("overlap-v1 eligibility", () => {
 });
 
 describe("goal-level eligibility guards", () => {
+  const cadenceGoal: Goal = {
+    id: "goal-cadence-open",
+    owner_id: "owner-a",
+    title: "Open cadence goal",
+    description: null,
+    category: "Health",
+    color: null,
+    frequency_type: "recurring",
+    recurrence_interval: "weekly",
+    target_count: null,
+    milestone_names: null,
+    start_date: "2026-01-01",
+    end_date: null,
+    photo_path: null,
+    is_group: false,
+    is_deleted: false,
+    archived_at: null,
+    created_at: "2026-01-01T00:00:00Z",
+    updated_at: "2026-01-01T00:00:00Z",
+  };
+
+  it("keeps open-ended cadence goals eligible once started", () => {
+    expect(
+      evaluateGoalEligibility({
+        eligibilityMode: "end_month_v1",
+        scopeMonth: "2026-08",
+        ownerId: "owner-a",
+        goal: cadenceGoal,
+        currentLinkRole: "none",
+      })
+    ).toEqual({
+      eligible: true,
+      reason: "eligible",
+    });
+  });
+
+  it("keeps future open-ended cadence goals out of the active month", () => {
+    expect(
+      evaluateGoalEligibility({
+        eligibilityMode: "overlap_v1",
+        scopeMonth: "2026-08",
+        ownerId: "owner-a",
+        goal: {
+          ...cadenceGoal,
+          start_date: "2026-09-01",
+        },
+        currentLinkRole: "none",
+      })
+    ).toEqual({
+      eligible: false,
+      reason: "starts_after_scope",
+    });
+  });
+
+  it("requires end dates for targeted recurring goals", () => {
+    expect(
+      evaluateGoalEligibility({
+        eligibilityMode: "overlap_v1",
+        scopeMonth: "2026-08",
+        ownerId: "owner-a",
+        goal: {
+          ...cadenceGoal,
+          id: "goal-target-no-end",
+          target_count: 12,
+        },
+        currentLinkRole: "none",
+      })
+    ).toEqual({
+      eligible: false,
+      reason: "missing_end_date",
+    });
+  });
+
   it("marks ordinal goals with overlong horizons as ineligible", () => {
     const longHorizonGoal: Goal = {
       id: "goal-long",
@@ -97,6 +170,25 @@ describe("goal-level eligibility guards", () => {
         scopeMonth: "2026-08",
         ownerId: "owner-a",
         goal: longHorizonGoal,
+        currentLinkRole: "none",
+      })
+    ).toEqual({
+      eligible: false,
+      reason: "horizon_too_long",
+    });
+  });
+
+  it("marks cadence goals with overlong bounded horizons as ineligible", () => {
+    expect(
+      evaluateGoalEligibility({
+        eligibilityMode: "overlap_v1",
+        scopeMonth: "2026-08",
+        ownerId: "owner-a",
+        goal: {
+          ...cadenceGoal,
+          id: "goal-cadence-overlong",
+          end_date: "2028-12-31",
+        },
         currentLinkRole: "none",
       })
     ).toEqual({

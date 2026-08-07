@@ -44,6 +44,10 @@ import {
   progressSummaryMap,
 } from "@/lib/goals/progress-context";
 import type { Goal, GoalFrequencyType, RecurrenceInterval } from "@/lib/goals/types";
+import {
+  goalRequiresDeadline,
+  validateGoalDefinition,
+} from "@/lib/goals/definition-validation";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 
@@ -275,17 +279,25 @@ function validateDraft(draft: BulkGoalDraft): string[] {
     if (parsedTarget === null || parsedTarget <= 0) {
       errors.push("Recurring target count must be a positive number.");
     }
-    if (!draft.end_date) {
-      errors.push("Recurring goals with a target count require an end date.");
-    }
   }
 
   if (!draft.start_date) {
     errors.push("Start date is required.");
   }
 
-  if (draft.end_date && draft.start_date && draft.end_date < draft.start_date) {
-    errors.push("End date cannot be before start date.");
+  const definitionTargetCount =
+    draft.frequency_type === "fixed_milestones"
+      ? parsedTarget
+      : draft.target_count.trim().length > 0
+        ? parsedTarget
+        : null;
+  for (const issue of validateGoalDefinition({
+    frequencyType: draft.frequency_type,
+    targetCount: definitionTargetCount,
+    startDate: draft.start_date,
+    endDate: draft.end_date || null,
+  })) {
+    errors.push(issue.message);
   }
 
   if (draft.is_group && draft.linked_target_goal_id !== "none") {
@@ -554,6 +566,7 @@ export function BulkGoalForm() {
 
       const payload = (await response.json()) as {
         goals?: LlmGoalDraftPayload[];
+        warnings?: string[];
         code?: string;
         message?: string;
         correlationId?: string;
@@ -587,6 +600,13 @@ export function BulkGoalForm() {
       }));
 
       loadDraftsFromRows(rows);
+      if (payload.warnings && payload.warnings.length > 0) {
+        toast.warning(
+          payload.warnings.length === 1
+            ? payload.warnings[0]
+            : `${payload.warnings.length} generated drafts need edits before saving.`
+        );
+      }
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : "Could not parse natural language input."
@@ -940,10 +960,21 @@ export function BulkGoalForm() {
             </p>
           ) : (
             drafts.map((draft) => {
+              const parsedTargetCount = parseTargetCount(draft.target_count);
               const fixedMilestoneCount =
                 draft.frequency_type === "fixed_milestones"
-                  ? parseTargetCount(draft.target_count) ?? 0
+                  ? parsedTargetCount ?? 0
                   : 0;
+              const definitionTargetCount =
+                draft.frequency_type === "fixed_milestones"
+                  ? parsedTargetCount
+                  : draft.target_count.trim().length > 0
+                    ? parsedTargetCount
+                    : null;
+              const requiresEndDate = goalRequiresDeadline({
+                frequencyType: draft.frequency_type,
+                targetCount: definitionTargetCount,
+              });
               const linkQuery = draft.link_target_search.trim().toLowerCase();
               const filteredLinkTargets = availableGoals.filter((goal) => {
                 if (linkQuery.length === 0) {
@@ -1191,7 +1222,7 @@ export function BulkGoalForm() {
                       </div>
 
                       <div className="space-y-2">
-                        <Label>End date</Label>
+                        <Label>{requiresEndDate ? "End date" : "End date (optional)"}</Label>
                         <Input
                           type="date"
                           value={draft.end_date}
@@ -1201,6 +1232,7 @@ export function BulkGoalForm() {
                               end_date: event.target.value,
                             }))
                           }
+                          required={requiresEndDate}
                         />
                       </div>
 

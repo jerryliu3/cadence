@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { GeminiRequestError, generateGeminiJson } from "@/lib/ai/gemini";
 import { getDateInTimezone, isValidIanaTimezone } from "@/lib/dates/timezone";
+import { validateGoalDefinition } from "@/lib/goals/definition-validation";
 import {
   consumePlannerAiQuota,
   readBulkParserQuotaLimit,
@@ -113,6 +114,10 @@ function buildPrompt(userPrompt: string, today: string): string {
     '- If recurrence interval is missing for recurring, default to "daily".',
     '- For fixed goals, include a positive target_count when possible.',
     "- For recurring goals, only set target_count when the user asks for a total count by a deadline.",
+    "- Fixed milestones always require an end_date.",
+    "- Recurring goals with a positive target_count always require an end_date.",
+    "- Open-ended goals are only valid for recurring cadence goals (target_count null).",
+    "- If end_date is present, keep the start_date..end_date window at 24 calendar months or less.",
     `- Return at most ${MAX_GOALS_PER_REQUEST} goals.`,
     "",
     "User input:",
@@ -136,28 +141,40 @@ function normalizeGeneratedPayload(
   payload: z.infer<typeof generatedPayloadSchema>,
   today: string
 ) {
-  return {
-    goals: payload.goals.map((goal) => {
-      const frequency = goal.frequency_type ?? "recurring";
-      const recurrence =
-        frequency === "recurring"
-          ? goal.recurrence_interval ?? "daily"
-          : undefined;
-      const startDate = toIsoDate(goal.start_date) ?? today;
-      const endDate = toIsoDate(goal.end_date ?? undefined) ?? null;
-      return {
-        title: goal.title.trim(),
-        description: goal.description?.trim() ?? "",
-        category: goal.category?.trim() ?? "Personal",
-        frequency_type: frequency,
-        recurrence_interval: recurrence,
-        target_count: goal.target_count ?? null,
-        start_date: startDate,
-        end_date: endDate,
-        default_local_time: normalizeLocalTime(goal.default_local_time),
-      };
-    }),
-  };
+  const warnings: string[] = [];
+  const goals = payload.goals.map((goal, index) => {
+    const frequency = goal.frequency_type ?? "recurring";
+    const recurrence =
+      frequency === "recurring"
+        ? goal.recurrence_interval ?? "daily"
+        : undefined;
+    const startDate = toIsoDate(goal.start_date) ?? today;
+    const endDate = toIsoDate(goal.end_date ?? undefined) ?? null;
+    const normalized = {
+      title: goal.title.trim(),
+      description: goal.description?.trim() ?? "",
+      category: goal.category?.trim() ?? "Personal",
+      frequency_type: frequency,
+      recurrence_interval: recurrence,
+      target_count: goal.target_count ?? null,
+      start_date: startDate,
+      end_date: endDate,
+      default_local_time: normalizeLocalTime(goal.default_local_time),
+    };
+    const validationIssues = validateGoalDefinition({
+      frequencyType: normalized.frequency_type,
+      targetCount: normalized.target_count,
+      startDate: normalized.start_date,
+      endDate: normalized.end_date,
+    });
+    if (validationIssues.length > 0) {
+      warnings.push(
+        `Draft ${index + 1} (${normalized.title}): ${validationIssues[0]!.message}`
+      );
+    }
+    return normalized;
+  });
+  return { goals, warnings };
 }
 
 function errorResponse(

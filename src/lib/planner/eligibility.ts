@@ -50,10 +50,7 @@ function evaluateStaticEligibility(goal: EligibilityGoal): EligibilityDecision |
   if (goal.currentLinkRole !== "none") {
     return { eligible: false, reason: "linked" };
   }
-  if (goal.endDate === null) {
-    return { eligible: false, reason: "missing_end_date" };
-  }
-  if (goal.startDate > goal.endDate) {
+  if (goal.endDate !== null && goal.startDate > goal.endDate) {
     return { eligible: false, reason: "invalid_date_range" };
   }
   return null;
@@ -67,9 +64,12 @@ export function evaluateEndMonthV1Eligibility(
   if (staticDecision) {
     return staticDecision;
   }
+  if (goal.endDate === null) {
+    return { eligible: false, reason: "missing_end_date" };
+  }
 
   const scope = getScopeDateRange(scopeMonth);
-  if (goal.endDate! < scope.start || goal.endDate! > scope.end) {
+  if (goal.endDate < scope.start || goal.endDate > scope.end) {
     return { eligible: false, reason: "end_outside_scope" };
   }
   if (goal.startDate > scope.end) {
@@ -86,9 +86,12 @@ export function evaluateOverlapV1Eligibility(
   if (staticDecision) {
     return staticDecision;
   }
+  if (goal.endDate === null) {
+    return { eligible: false, reason: "missing_end_date" };
+  }
 
   const scope = getScopeDateRange(scopeMonth);
-  if (goal.endDate! < scope.start) {
+  if (goal.endDate < scope.start) {
     return { eligible: false, reason: "end_outside_scope" };
   }
   if (goal.startDate > scope.end) {
@@ -125,11 +128,24 @@ export function evaluateGoalEligibility({
     startDate: goal.start_date,
     endDate: goal.end_date,
   };
-  const decision =
-    eligibilityMode === "overlap_v1"
-      ? evaluateOverlapV1Eligibility(scopeMonth, normalizedGoal)
-      : evaluateEndMonthV1Eligibility(scopeMonth, normalizedGoal);
-  if (!decision.eligible || !isOrdinalGoal || goal.end_date === null) {
+  let decision: EligibilityDecision;
+  if (goal.end_date === null) {
+    if (isOrdinalGoal) {
+      decision = { eligible: false, reason: "missing_end_date" };
+    } else {
+      const scope = getScopeDateRange(scopeMonth);
+      decision =
+        goal.start_date > scope.end
+          ? { eligible: false, reason: "starts_after_scope" }
+          : { eligible: true, reason: "eligible" };
+    }
+  } else {
+    decision =
+      eligibilityMode === "overlap_v1"
+        ? evaluateOverlapV1Eligibility(scopeMonth, normalizedGoal)
+        : evaluateEndMonthV1Eligibility(scopeMonth, normalizedGoal);
+  }
+  if (!decision.eligible || goal.end_date === null) {
     return decision;
   }
   const horizonMonths = enumerateMonthsInWindow({

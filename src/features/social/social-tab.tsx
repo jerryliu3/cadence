@@ -37,6 +37,10 @@ import {
   getCategoryLabel,
   getCategorySwatchColor,
 } from "@/lib/goals/category";
+import {
+  goalRequiresDeadline,
+  validateGoalDefinition,
+} from "@/lib/goals/definition-validation";
 import { toLocalDateString } from "@/lib/dates/day";
 import { GOAL_TYPE_OPTIONS, RECURRENCE_INTERVAL_OPTIONS } from "@/lib/goals/form-options";
 import { getGoalCompletionPercentage } from "@/lib/goals/progress";
@@ -108,6 +112,14 @@ function getInitials(profile: Profile | null) {
 
 function defaultMilestoneName(index: number): string {
   return `Milestone ${index + 1}`;
+}
+
+function parsePositiveTargetCount(value: string): number | null {
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return null;
+  }
+  return parsed;
 }
 
 function buildMilestoneNames(targetCount: number, names: string[] | null | undefined): string[] {
@@ -493,6 +505,17 @@ export function SocialTab() {
     () => groupCompletionsByGoal(state.completions),
     [state.completions]
   );
+  const parsedGroupTargetCount = parsePositiveTargetCount(groupDraft.targetCount);
+  const groupDefinitionTargetCount =
+    groupDraft.frequencyType === "fixed_milestones"
+      ? parsedGroupTargetCount
+      : groupDraft.targetCount.trim().length > 0
+        ? parsedGroupTargetCount
+        : null;
+  const groupRequiresEndDate = goalRequiresDeadline({
+    frequencyType: groupDraft.frequencyType,
+    targetCount: groupDefinitionTargetCount,
+  });
 
   const updateGroupFrequencyType = (nextFrequency: GroupGoalDraft["frequencyType"]) => {
     setGroupDraft((previous) => ({
@@ -629,7 +652,7 @@ export function SocialTab() {
 
     if (
       groupDraft.frequencyType === "fixed_milestones" &&
-      Number.parseInt(groupDraft.targetCount, 10) <= 0
+      parsedGroupTargetCount === null
     ) {
       toast.error("Milestone group goals need a positive target.");
       return;
@@ -638,23 +661,19 @@ export function SocialTab() {
     if (
       groupDraft.frequencyType === "recurring" &&
       groupDraft.targetCount.trim().length > 0 &&
-      Number.parseInt(groupDraft.targetCount, 10) <= 0
+      parsedGroupTargetCount === null
     ) {
       toast.error("Repeat target count must be positive.");
       return;
     }
-
-    if (
-      groupDraft.frequencyType === "recurring" &&
-      groupDraft.targetCount.trim().length > 0 &&
-      !groupDraft.endDate
-    ) {
-      toast.error("Repeat goals with a target count require an end date.");
-      return;
-    }
-
-    if (groupDraft.endDate && groupDraft.endDate < groupDraft.startDate) {
-      toast.error("End date cannot be before start date.");
+    const definitionIssues = validateGoalDefinition({
+      frequencyType: groupDraft.frequencyType,
+      targetCount: groupDefinitionTargetCount,
+      startDate: groupDraft.startDate,
+      endDate: groupDraft.endDate || null,
+    });
+    if (definitionIssues.length > 0) {
+      toast.error(definitionIssues[0]!.message);
       return;
     }
 
@@ -675,10 +694,10 @@ export function SocialTab() {
         groupDraft.frequencyType === "recurring" ? groupDraft.recurrenceInterval : null,
       target_count:
         groupDraft.frequencyType === "fixed_milestones"
-          ? Number.parseInt(groupDraft.targetCount, 10)
+          ? parsedGroupTargetCount
           : groupDraft.frequencyType === "recurring" &&
               groupDraft.targetCount.trim().length > 0
-            ? Number.parseInt(groupDraft.targetCount, 10)
+            ? parsedGroupTargetCount
           : null,
       start_date: groupDraft.startDate,
       end_date: groupDraft.endDate || null,
@@ -1290,7 +1309,9 @@ export function SocialTab() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="group-end-date">End date (optional)</Label>
+                <Label htmlFor="group-end-date">
+                  {groupRequiresEndDate ? "End date" : "End date (optional)"}
+                </Label>
                 <Input
                   id="group-end-date"
                   type="date"
@@ -1298,6 +1319,7 @@ export function SocialTab() {
                   onChange={(event) =>
                     setGroupDraft((prev) => ({ ...prev, endDate: event.target.value }))
                   }
+                  required={groupRequiresEndDate}
                 />
               </div>
             </div>

@@ -205,13 +205,12 @@ export function materializeWorkUnits({
   baseAssignments?: PlannerBaseAssignment[];
   ordinalsForScopeMonth?: Set<number>;
 }): PlannerWorkUnit[] {
-  if (goal.end_date === null) {
-    throw new Error("Planner work units require a goal end date.");
-  }
-
   const requirement = normalizedRequirement.requirement;
   const scope = getScopeDateRange(scopeMonth);
-  const lifetime = { start: goal.start_date, end: goal.end_date };
+  const lifetime = {
+    start: goal.start_date,
+    end: goal.end_date ?? scope.end,
+  };
   const baseAssignmentMap = new Map(
     baseAssignments.map((assignment) => [
       baseAssignmentKey(
@@ -227,6 +226,9 @@ export function materializeWorkUnits({
     requirement.kind === "milestone_sequence" ||
     requirement.kind === "deadline_total"
   ) {
+    if (goal.end_date === null) {
+      throw new Error("Planner ordinal work units require a goal end date.");
+    }
     if (!ordinalsForScopeMonth) {
       throw new Error(
         "Planner ordinal work units require an explicit ordinal scope allocation."
@@ -298,7 +300,8 @@ export function materializeWorkUnits({
     );
     if (
       compareDateStrings(periodStart, scope.end) > 0 ||
-      compareDateStrings(periodStart, goal.end_date) > 0
+      (goal.end_date !== null &&
+        compareDateStrings(periodStart, goal.end_date) > 0)
     ) {
       break;
     }
@@ -310,7 +313,7 @@ export function materializeWorkUnits({
 
     const placementWindow = intersectDateWindows(creditWindow, scope, {
       start: asOfDate,
-      end: goal.end_date,
+      end: goal.end_date ?? scope.end,
     });
     let classification: WorkUnitClassification = "open";
     if (compareDateStrings(creditWindow.end, asOfDate) < 0) {

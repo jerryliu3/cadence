@@ -45,6 +45,10 @@ import {
   progressSummaryMap,
 } from "@/lib/goals/progress-context";
 import type { Goal, GoalFrequencyType, GoalLink, RecurrenceInterval } from "@/lib/goals/types";
+import {
+  goalRequiresDeadline,
+  validateGoalDefinition,
+} from "@/lib/goals/definition-validation";
 import { createClient } from "@/lib/supabase/client";
 
 interface GoalFormProps {
@@ -264,9 +268,20 @@ export function GoalForm({ goalId }: GoalFormProps) {
   const canShowRecurrenceFields = state.frequency_type === "recurring";
   const canShowTargetCount =
     state.frequency_type === "fixed_milestones" || state.frequency_type === "recurring";
+  const parsedTargetCount = parsePositiveTargetCount(state.target_count);
+  const definitionTargetCount =
+    state.frequency_type === "fixed_milestones"
+      ? parsedTargetCount
+      : state.target_count.trim().length > 0
+        ? parsedTargetCount
+        : null;
+  const requiresEndDate = goalRequiresDeadline({
+    frequencyType: state.frequency_type,
+    targetCount: definitionTargetCount,
+  });
   const fixedMilestoneCount =
     state.frequency_type === "fixed_milestones"
-      ? parsePositiveTargetCount(state.target_count) ?? 0
+      ? parsedTargetCount ?? 0
       : 0;
   const filteredLinkTargets = useMemo(() => {
     const query = linkTargetSearch.trim().toLowerCase();
@@ -361,7 +376,7 @@ export function GoalForm({ goalId }: GoalFormProps) {
 
     if (
       state.frequency_type === "fixed_milestones" &&
-      (!state.target_count || Number.parseInt(state.target_count, 10) <= 0)
+      parsedTargetCount === null
     ) {
       return "Milestone goals require a positive target count.";
     }
@@ -369,21 +384,9 @@ export function GoalForm({ goalId }: GoalFormProps) {
     if (
       state.frequency_type === "recurring" &&
       state.target_count.trim().length > 0 &&
-      Number.parseInt(state.target_count, 10) <= 0
+      parsedTargetCount === null
     ) {
       return "Repeat goal target count must be a positive number.";
-    }
-
-    if (
-      state.frequency_type === "recurring" &&
-      state.target_count.trim().length > 0 &&
-      !state.end_date
-    ) {
-      return "Repeat goals with a target count require an end date.";
-    }
-
-    if (state.end_date && state.end_date < state.start_date) {
-      return "End date cannot be before start date.";
     }
 
     if (
@@ -400,8 +403,18 @@ export function GoalForm({ goalId }: GoalFormProps) {
       return "Custom category name is required.";
     }
 
+    const definitionErrors = validateGoalDefinition({
+      frequencyType: state.frequency_type,
+      targetCount: definitionTargetCount,
+      startDate: state.start_date,
+      endDate: state.end_date || null,
+    });
+    if (definitionErrors.length > 0) {
+      return definitionErrors[0]!.message;
+    }
+
     return null;
-  }, [state]);
+  }, [state, parsedTargetCount, definitionTargetCount]);
 
   const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -412,10 +425,10 @@ export function GoalForm({ goalId }: GoalFormProps) {
     }
 
     setSaving(true);
-    const parsedTargetCount = parsePositiveTargetCount(state.target_count);
+    const parsedTargetCountForSave = parsePositiveTargetCount(state.target_count);
     const milestoneNames =
-      state.frequency_type === "fixed_milestones" && parsedTargetCount !== null
-        ? normalizeMilestoneNamesForSave(parsedTargetCount, state.milestone_names)
+      state.frequency_type === "fixed_milestones" && parsedTargetCountForSave !== null
+        ? normalizeMilestoneNamesForSave(parsedTargetCountForSave, state.milestone_names)
         : null;
 
     const payload = {
@@ -428,9 +441,9 @@ export function GoalForm({ goalId }: GoalFormProps) {
       recurrence_interval: state.frequency_type === "recurring" ? state.recurrence_interval : null,
       target_count:
         state.frequency_type === "fixed_milestones"
-          ? parsedTargetCount
+          ? parsedTargetCountForSave
           : state.frequency_type === "recurring" && state.target_count.trim().length > 0
-            ? parsedTargetCount
+            ? parsedTargetCountForSave
           : null,
       milestone_names: milestoneNames,
       start_date: state.start_date,
@@ -804,7 +817,9 @@ export function GoalForm({ goalId }: GoalFormProps) {
             </div>
             <div className="space-y-2">
               <div className="flex items-center justify-between gap-2">
-                <Label htmlFor="end-date">End date (optional)</Label>
+                <Label htmlFor="end-date">
+                  {requiresEndDate ? "End date" : "End date (optional)"}
+                </Label>
                 <div className="flex items-center gap-2 text-xs">
                   <button
                     type="button"
@@ -827,6 +842,7 @@ export function GoalForm({ goalId }: GoalFormProps) {
                 type="date"
                 value={state.end_date}
                 onChange={(event) => setState((prev) => ({ ...prev, end_date: event.target.value }))}
+                  required={requiresEndDate}
               />
             </div>
           </div>

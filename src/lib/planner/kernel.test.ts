@@ -285,6 +285,58 @@ describe("pure planner kernel", () => {
     expect(output.workUnits).toHaveLength(0);
   });
 
+  it("marks cadence goals with oversized bounded horizons as ineligible", () => {
+    const oversizedCadenceGoal = goal({
+      id: "goal-cadence-overlong",
+      recurrence_interval: "weekly",
+      target_count: null,
+      start_date: "2026-01-01",
+      end_date: "2028-12-31",
+    });
+    const output = runPlannerKernel(
+      input({
+        eligibilityMode: "overlap_v1",
+        scopeMonth: "2026-08",
+        asOfDate: "2026-08-05",
+        goals: [oversizedCadenceGoal],
+      })
+    );
+
+    expect(output.eligibility).toContainEqual({
+      goalId: oversizedCadenceGoal.id,
+      eligible: false,
+      reason: "horizon_too_long",
+    });
+    expect(output.workUnits).toHaveLength(0);
+  });
+
+  it("supports open-ended cadence goals without synthetic horizons", () => {
+    const openCadenceGoal = goal({
+      id: "goal-cadence-open-ended",
+      recurrence_interval: "weekly",
+      target_count: null,
+      start_date: "2026-07-15",
+      end_date: null,
+    });
+    const output = runPlannerKernel(
+      input({
+        eligibilityMode: "end_month_v1",
+        scopeMonth: "2026-08",
+        asOfDate: "2026-08-05",
+        goals: [openCadenceGoal],
+      })
+    );
+
+    expect(output.eligibility).toContainEqual({
+      goalId: openCadenceGoal.id,
+      eligible: true,
+      reason: "eligible",
+    });
+    expect(output.workUnits.length).toBeGreaterThan(0);
+    expect(output.workUnits.every((unit) => unit.kind === "cadence")).toBe(true);
+    expect(output.horizonSummary).toEqual([]);
+  });
+
   it("normalizes monthly distributions and partitions ordinals deterministically", () => {
     const distributedGoal = goal({
       target_count: 12,
