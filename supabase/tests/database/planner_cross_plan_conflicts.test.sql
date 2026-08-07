@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, private, extensions, pg_catalog;
-select plan(2);
+select plan(3);
 
 insert into public.goals (
   id,
@@ -207,6 +207,14 @@ values
     (date_trunc('month', current_date) + interval '1 month')::date,
     date_trunc('month', current_date)::date + 5,
     '{}'::jsonb
+  ),
+  (
+    '33000000-0000-4000-8000-000000000003',
+    '31000000-0000-4000-8000-000000000002',
+    '11111111-1111-4111-8111-111111111111',
+    (date_trunc('month', current_date) + interval '1 month')::date,
+    date_trunc('month', current_date)::date + 6,
+    '{}'::jsonb
   );
 
 select lives_ok(
@@ -305,6 +313,56 @@ select throws_ok(
   '23514'::character(5),
   'cross_plan_goal_date_conflict',
   'cross-plan goal/date conflicts are blocked across active plans'
+);
+
+select throws_ok(
+  $$
+    insert into public.execution_plan_items (
+      id,
+      plan_id,
+      owner_id,
+      plan_goal_id,
+      unit_key,
+      requirement_kind,
+      ordinal,
+      credit_window_start,
+      credit_window_end,
+      placement_window_start,
+      placement_window_end,
+      classification,
+      miss_policy,
+      rest_eligible,
+      credit_state,
+      original_scheduled_date,
+      scheduled_date,
+      locked,
+      locked_at
+    )
+    values (
+      '34000000-0000-4000-8000-000000000003',
+      '31000000-0000-4000-8000-000000000002',
+      '11111111-1111-4111-8111-111111111111',
+      '32000000-0000-4000-8000-000000000002',
+      'total:1',
+      'deadline_total',
+      1,
+      date_trunc('month', current_date)::date,
+      (date_trunc('month', current_date) + interval '2 months - 1 day')::date,
+      date_trunc('month', current_date)::date,
+      (date_trunc('month', current_date) + interval '2 months - 1 day')::date,
+      'open',
+      'roll_forward',
+      true,
+      'uncredited',
+      date_trunc('month', current_date)::date + 6,
+      date_trunc('month', current_date)::date + 6,
+      false,
+      null
+    )
+  $$,
+  '23514'::character(5),
+  'cross_plan_goal_unit_conflict',
+  'cross-plan goal/unit key conflicts are blocked across active plans'
 );
 
 select * from finish();

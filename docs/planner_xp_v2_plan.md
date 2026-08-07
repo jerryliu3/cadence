@@ -46,6 +46,36 @@ This V2 plan incorporates lessons from deeper implementation and review, includi
 
 ---
 
+## Post-PR25 Execution Plan (PR-by-PR)
+
+1. **PR26 - Cross-plan ordinal unit ownership guard (point 1a)**
+   - Add DB trigger guard for active cross-month duplicates of `(original_goal_id, unit_key)` for ordinal kinds.
+   - Keep this independent from horizon publish RPC refactors.
+   - Add SQL tests for same unit key on different dates.
+2. **PR27 - Elapsed active-plan lifecycle policy (point 1b)**
+   - Add lifecycle behavior so elapsed active month plans no longer compete with current/future publishes.
+   - Preferred implementation: supersede elapsed active plans during publish under the existing owner advisory lock.
+   - Add SQL tests proving September publish is not blocked by stale August active ordinals.
+3. **PR28 - Eligibility reason surfacing**
+   - Type eligibility reasons in planner preview payload and render user-visible reason chips/messages for ineligible goals.
+4. **PR29 - Coach horizon framing cleanup**
+   - Remove lossy aggregate horizon span framing and rely on per-goal horizon/open-ended markers.
+5. **PR30 - Horizon-cap drift contract check**
+   - Add generated SQL assertion binding DB constraint behavior to `MAX_HORIZON_MONTHS`.
+6. **PR31 - Progress-oracle cross-check fixtures**
+   - Add fixture harness comparing goal progress credit counts, planner reconciliation aggregates, and XP credit projection (once active).
+
+### Point 1 Deep Dive (what else is required beyond guard)
+
+Guard-only hardening prevents silent duplication but can still dead-end publishes when elapsed-month plans remain `active` with stale ordinal rows. To fully close point 1, we need one additional behavior layer:
+
+- **Recommended:** lifecycle supersede of elapsed active plans inside publish service (same transaction and owner lock).
+- **Fallback:** treat elapsed active plans as non-authoritative in cross-plan guards (smaller change, weaker model).
+
+The recommended path keeps DB invariants explicit and prevents conflicts from stale historical "active" rows without requiring a horizon publish RPC in this phase.
+
+---
+
 ## Workstream A - Planner Cross-Month Correctness
 
 ### A0. Scope and Non-Goals
