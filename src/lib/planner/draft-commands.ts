@@ -46,19 +46,11 @@ const clearItemTimeOverrideCommandSchema = itemDraftCommandBaseSchema
   })
   .strict();
 
-const setGoalDefaultTimeCommandSchema = draftCommandBaseSchema
-  .extend({
-    kind: z.literal("set_goal_default_time"),
-    localTime: plannerLocalTimeSchema.nullable(),
-  })
-  .strict();
-
 export const plannerDraftCommandSchema = z.discriminatedUnion("kind", [
   moveItemCommandSchema,
   renameItemCommandSchema,
   setItemTimeOverrideCommandSchema,
   clearItemTimeOverrideCommandSchema,
-  setGoalDefaultTimeCommandSchema,
 ]);
 
 export type PlannerDraftCommand = z.infer<typeof plannerDraftCommandSchema>;
@@ -76,14 +68,11 @@ export interface PlannerDraftItemProjection {
   scheduledTimeOverride?: string | null;
 }
 
-export type PlannerDraftGoalTimeProjection = Record<string, string | null>;
-
 const commandKindOrder: Record<PlannerDraftCommand["kind"], number> = {
   move_item: 0,
   set_item_time_override: 1,
   clear_item_time_override: 1,
   rename_item: 2,
-  set_goal_default_time: 3,
 };
 
 function readCommandUnitKey(command: PlannerDraftCommand) {
@@ -126,9 +115,6 @@ export function projectPlannerDraftCommands(
 ): Record<string, PlannerDraftItemProjection> {
   const projection: Record<string, PlannerDraftItemProjection> = {};
   for (const command of sortPlannerDraftCommands(commands)) {
-    if (command.kind === "set_goal_default_time") {
-      continue;
-    }
     const key = draftCommandEntryKey(command);
     const next = projection[key] ?? {};
     if (command.kind === "move_item") {
@@ -141,18 +127,6 @@ export function projectPlannerDraftCommands(
       next.scheduledTimeOverride = null;
     }
     projection[key] = next;
-  }
-  return projection;
-}
-
-export function projectPlannerGoalDefaultTimes(
-  commands: PlannerDraftCommand[]
-): PlannerDraftGoalTimeProjection {
-  const projection: PlannerDraftGoalTimeProjection = {};
-  for (const command of sortPlannerDraftCommands(commands)) {
-    if (command.kind === "set_goal_default_time") {
-      projection[command.goalId] = command.localTime;
-    }
   }
   return projection;
 }

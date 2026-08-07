@@ -224,7 +224,7 @@ describe("buildPlannerPublishPersistencePayload draft edit validation", () => {
     expect(payload.days.some((day) => day.date === "2026-09-03")).toBe(true);
   });
 
-  it("applies goal default and item-level time override draft commands", () => {
+  it("applies item-level time override draft commands", () => {
     const snapshot = createSnapshot([]);
     const kernel = createKernel("2026-08-10");
     const policy = createDefaultPlannerPolicy("UTC", "2026-08-01T00:00:00.000Z");
@@ -237,15 +237,8 @@ describe("buildPlannerPublishPersistencePayload draft edit validation", () => {
       assessments: [createDefaultAssessment(baseGoal)],
       draftCommands: [
         {
-          id: "30000000-0000-4000-8000-000000000013",
-          sequence: 1,
-          kind: "set_goal_default_time",
-          goalId: GOAL_ID,
-          localTime: "08:00",
-        },
-        {
           id: "30000000-0000-4000-8000-000000000014",
-          sequence: 2,
+          sequence: 1,
           kind: "set_item_time_override",
           goalId: GOAL_ID,
           unitKey: "total:1",
@@ -255,5 +248,39 @@ describe("buildPlannerPublishPersistencePayload draft edit validation", () => {
     });
 
     expect(payload.changeSummary.draftRetimed).toBe(1);
+  });
+
+  it("rejects draft retiming for completed or historical units", () => {
+    const snapshot = createSnapshot([]);
+    const kernel = {
+      ...createKernel("2026-08-10"),
+      workUnits: [
+        {
+          ...createKernel("2026-08-10").workUnits[0],
+          creditState: "completed_as_scheduled" as const,
+        },
+      ],
+    } as PlannerKernelOutput;
+    const policy = createDefaultPlannerPolicy("UTC", "2026-08-01T00:00:00.000Z");
+
+    expect(() =>
+      buildPlannerPublishPersistencePayload({
+        scopeMonth: "2026-08",
+        policy,
+        kernel,
+        snapshot,
+        assessments: [createDefaultAssessment(baseGoal)],
+        draftCommands: [
+          {
+            id: "30000000-0000-4000-8000-000000000015",
+            sequence: 1,
+            kind: "set_item_time_override",
+            goalId: GOAL_ID,
+            unitKey: "total:1",
+            localTime: "23:45",
+          },
+        ],
+      })
+    ).toThrowError(PlannerDraftEditValidationError);
   });
 });

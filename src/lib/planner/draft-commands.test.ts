@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
   buildPlannerDraftCommandsFromLegacyItemEdits,
-  projectPlannerGoalDefaultTimes,
   projectPlannerDraftCommands,
   sortPlannerDraftCommands,
   type PlannerDraftCommand,
@@ -57,13 +56,6 @@ describe("planner draft commands", () => {
         label: "B",
       },
       {
-        id: "22000000-0000-4000-8000-000000000004",
-        sequence: 1,
-        kind: "set_goal_default_time",
-        goalId: GOAL_A,
-        localTime: "07:30",
-      },
-      {
         id: "22000000-0000-4000-8000-000000000001",
         sequence: 1,
         kind: "move_item",
@@ -82,24 +74,15 @@ describe("planner draft commands", () => {
     ];
 
     expect(
-      sortPlannerDraftCommands(commands).map((command) =>
-        "unitKey" in command ? command.unitKey : "(goal-default)"
-      )
-    ).toEqual(["total:1", "total:2", "(goal-default)", "total:1"]);
+      sortPlannerDraftCommands(commands).map((command) => command.unitKey)
+    ).toEqual(["total:1", "total:2", "total:1"]);
   });
 
-  it("projects goal defaults and per-item time overrides", () => {
+  it("projects per-item time overrides", () => {
     const commands: PlannerDraftCommand[] = [
       {
-        id: "23000000-0000-4000-8000-000000000001",
-        sequence: 1,
-        kind: "set_goal_default_time",
-        goalId: GOAL_A,
-        localTime: "08:00",
-      },
-      {
         id: "23000000-0000-4000-8000-000000000002",
-        sequence: 2,
+        sequence: 1,
         kind: "set_item_time_override",
         goalId: GOAL_A,
         unitKey: "total:1",
@@ -107,7 +90,7 @@ describe("planner draft commands", () => {
       },
       {
         id: "23000000-0000-4000-8000-000000000003",
-        sequence: 3,
+        sequence: 2,
         kind: "clear_item_time_override",
         goalId: GOAL_A,
         unitKey: "total:2",
@@ -121,9 +104,6 @@ describe("planner draft commands", () => {
     expect(itemProjection[`${GOAL_A}:total:2`]).toMatchObject({
       scheduledTimeOverride: null,
     });
-
-    const goalDefaults = projectPlannerGoalDefaultTimes(commands);
-    expect(goalDefaults[GOAL_A]).toBe("08:00");
   });
 
   it("converts legacy draft edits into typed draft commands", () => {
