@@ -79,7 +79,7 @@ export const plannerPolicySchema = z
         )
       )
       .optional(),
-    dailyCadenceRestExemption: z.literal(true),
+    dailyCadenceRestExemption: z.literal(true).optional(),
   })
   .strict();
 
@@ -106,12 +106,12 @@ export function createDefaultPlannerPolicy(
     datePreferences: [],
     spacingStrategy: "flexible",
     goalSpacingStrategies: {},
-    dailyCadenceRestExemption: true,
   });
 }
 
 export function compilePlannerPolicy(policy: PlannerPolicy): CompiledPolicy {
   const parsed = plannerPolicySchema.parse(policy);
+  const { dailyCadenceRestExemption: _legacyRestExemption, ...parsedPolicy } = parsed;
   const normalizeWeekdays = (weekdays: number[]) =>
     Array.from(new Set(weekdays)).sort((left, right) => left - right);
   const normalizeWeekStartsOn = (weekStartsOn: number | undefined) =>
@@ -136,7 +136,7 @@ export function compilePlannerPolicy(policy: PlannerPolicy): CompiledPolicy {
       .sort((left, right) => compareCanonicalStrings(left.month, right.month));
   };
   const normalizedGoalMonthlyDistributions = Object.fromEntries(
-    Object.entries(parsed.goalMonthlyDistributions ?? {})
+    Object.entries(parsedPolicy.goalMonthlyDistributions ?? {})
       .sort(([left], [right]) => compareCanonicalStrings(left, right))
       .map(([goalId, distribution]) => [
         goalId,
@@ -145,10 +145,10 @@ export function compilePlannerPolicy(policy: PlannerPolicy): CompiledPolicy {
       .filter(([, distribution]) => distribution.length > 0)
   );
   const normalizedPolicy: PlannerPolicy = {
-    ...parsed,
-    weekStartsOn: normalizeWeekStartsOn(parsed.weekStartsOn),
-    restWeekdays: normalizeWeekdays(parsed.restWeekdays),
-    blackoutRanges: [...parsed.blackoutRanges]
+    ...parsedPolicy,
+    weekStartsOn: normalizeWeekStartsOn(parsedPolicy.weekStartsOn),
+    restWeekdays: normalizeWeekdays(parsedPolicy.restWeekdays),
+    blackoutRanges: [...parsedPolicy.blackoutRanges]
       .sort((left, right) => {
         const byStart = compareCanonicalStrings(left.start, right.start);
         return byStart !== 0
@@ -162,7 +162,7 @@ export function compilePlannerPolicy(policy: PlannerPolicy): CompiledPolicy {
           range.end !== ranges[index - 1].end
       ),
     goalAllowedWeekdays: Object.fromEntries(
-      Object.entries(parsed.goalAllowedWeekdays)
+      Object.entries(parsedPolicy.goalAllowedWeekdays)
         .sort(([left], [right]) =>
           compareCanonicalStrings(left, right)
         )
@@ -171,7 +171,7 @@ export function compilePlannerPolicy(policy: PlannerPolicy): CompiledPolicy {
           normalizeWeekdays(weekdays),
         ])
     ),
-    datePreferences: [...parsed.datePreferences]
+    datePreferences: [...parsedPolicy.datePreferences]
       .sort((left, right) => {
         const leftGoal = left.goalId ?? "";
         const rightGoal = right.goalId ?? "";
