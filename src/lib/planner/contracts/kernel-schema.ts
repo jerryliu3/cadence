@@ -75,7 +75,6 @@ const baseAssignmentSchema = z
     unitKey: z.string().min(1).max(100),
     scheduledDate: nullableDateSchema,
     locked: z.boolean(),
-    goalDefaultLocalTime: plannerLocalTimeSchema.nullable().optional(),
     scheduledTimeOverride: plannerLocalTimeSchema.nullable().optional(),
   })
   .strict();
@@ -174,7 +173,6 @@ const workUnitSchema = z
     ]),
     scheduledDate: nullableDateSchema,
     locked: z.boolean(),
-    goalDefaultLocalTime: plannerLocalTimeSchema.nullable().optional(),
     scheduledTimeOverride: plannerLocalTimeSchema.nullable().optional(),
     effectiveScheduledLocalTime: plannerLocalTimeSchema.nullable().optional(),
     effectiveScheduledAtLocal: plannerLocalDateTimeSchema.nullable().optional(),
