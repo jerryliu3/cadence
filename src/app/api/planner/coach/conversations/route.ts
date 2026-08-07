@@ -130,6 +130,7 @@ export async function POST(request: Request) {
         p_messages: body.messages.map((message) => ({
           role: message.role,
           content: message.content,
+          proposal: message.proposal ?? null,
         })),
       }
     );

@@ -35,11 +35,8 @@ function buildCoachModel(
       coachConversationRestoring: false,
       coachWarnings: [],
       coachRecommendations: [],
-      coachPendingPatches: [],
       coachUnresolvedQuestions: [],
       coachPolicyApplying: false,
-      coachLastProposalMeta: null,
-      hasCoachUndoSnapshot: false,
       hasCoachConversationState: false,
       ...overrides,
     },
@@ -83,6 +80,40 @@ describe("planner coach panel", () => {
   it("wires restore and proposal actions", async () => {
     const coach = buildCoachModel({
       selectedSavedCoachConversationId: "conversation-1",
+      coachMessages: [
+        {
+          role: "assistant",
+          content: "Let's update your spacing strategy.",
+          createdAt: 123,
+          proposal: {
+            schemaVersion: "1",
+            applyStatus: "auto_applied",
+            patchSignature:
+              "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            baselineSnapshotToken:
+              "policy:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            baselinePolicy: {
+              schemaVersion: "1",
+              timezone: "UTC",
+              timezoneConfirmedAt: "2026-08-01T00:00:00.000Z",
+              restWeekdays: [],
+              blackoutRanges: [],
+              goalAllowedWeekdays: {},
+              datePreferences: [],
+              spacingStrategy: "even",
+              goalSpacingStrategies: {},
+              dailyCadenceRestExemption: true,
+            },
+            policyPatches: [
+              {
+                kind: "set_spacing_strategy",
+                spacingStrategy: "even",
+              },
+            ],
+            unresolvedQuestions: [],
+          },
+        },
+      ],
       savedCoachConversations: [
         {
           id: "conversation-1",
@@ -95,17 +126,6 @@ describe("planner coach panel", () => {
           updatedAt: "2026-08-02T00:00:00.000Z",
         },
       ],
-      coachPendingPatches: [
-        {
-          kind: "set_spacing_strategy",
-          spacingStrategy: "even",
-        },
-      ],
-      coachLastProposalMeta: {
-        policyPatchCount: 1,
-        autoApplied: true,
-      },
-      hasCoachUndoSnapshot: true,
     });
     const user = userEvent.setup();
 
@@ -114,9 +134,9 @@ describe("planner coach panel", () => {
     expect(screen.getByRole("combobox")).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Re-apply changes" }));
-    expect(coach.actions.applyCoachProposal).toHaveBeenCalledTimes(1);
+    expect(coach.actions.applyCoachProposal).toHaveBeenCalledWith(0);
 
-    await user.click(screen.getByRole("button", { name: "Undo latest proposal" }));
-    expect(coach.actions.undoCoachProposal).toHaveBeenCalledTimes(1);
+    await user.click(screen.getByRole("button", { name: "Undo proposal" }));
+    expect(coach.actions.undoCoachProposal).toHaveBeenCalledWith(0);
   });
 });

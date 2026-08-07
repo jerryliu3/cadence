@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { coachConversationSummarySchema } from "@/lib/planner/coach-conversations";
+import {
+  coachConversationMessageSchema,
+  coachConversationProposalSchema,
+  coachConversationSummarySchema,
+} from "@/lib/planner/coach-conversations";
 import {
   createCorrelationId,
   plannerErrorResponse,
@@ -34,8 +38,20 @@ const conversationMessageRowSchema = z
     message_role: z.enum(["user", "assistant"]),
     message_content: z.string(),
     message_created_at: z.string(),
+    message_proposal_meta: z.unknown().nullable().optional(),
   })
   .strict();
+
+function parseProposalMeta(raw: unknown) {
+  if (raw === null || raw === undefined) {
+    return null;
+  }
+  const parsed = coachConversationProposalSchema.safeParse(raw);
+  if (!parsed.success) {
+    return null;
+  }
+  return parsed.data;
+}
 
 export async function GET(
   _request: Request,
@@ -86,13 +102,20 @@ export async function GET(
       createdAt: head.created_at,
       updatedAt: head.updated_at,
     });
-    const messages = rows.map((row, index) => ({
-      role: row.message_role,
-      content: row.message_content,
-      createdAt: Number.isFinite(Date.parse(row.message_created_at))
-        ? Date.parse(row.message_created_at)
-        : Date.now() + index,
-    }));
+    const messages = rows.map((row, index) => {
+      const parsedProposal =
+        row.message_role === "assistant"
+          ? parseProposalMeta(row.message_proposal_meta)
+          : null;
+      return coachConversationMessageSchema.parse({
+        role: row.message_role,
+        content: row.message_content,
+        createdAt: Number.isFinite(Date.parse(row.message_created_at))
+          ? Date.parse(row.message_created_at)
+          : Date.now() + index,
+        proposal: parsedProposal ?? undefined,
+      });
+    });
 
     return NextResponse.json(
       {

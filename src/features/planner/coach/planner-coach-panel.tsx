@@ -25,6 +25,19 @@ function formatSavedConversationDate(isoTimestamp: string) {
   return format(parsed, "MMM d");
 }
 
+function formatProposalApplyStatus(status: string) {
+  switch (status) {
+    case "auto_applied":
+      return "Auto-applied";
+    case "manually_applied":
+      return "Applied manually";
+    case "undone":
+      return "Undone";
+    default:
+      return "Ready to apply";
+  }
+}
+
 export function PlannerCoachPanel({ coach }: PlannerCoachPanelProps) {
   const { state, actions } = coach;
   if (!state.canUseCoach) {
@@ -99,43 +112,50 @@ export function PlannerCoachPanel({ coach }: PlannerCoachPanelProps) {
                 {message.role === "user" ? "You" : "Coach"}
               </p>
               <p className="whitespace-pre-wrap">{message.content}</p>
+              {message.role === "assistant" && message.proposal ? (
+                <div className="mt-2 rounded border bg-background/70 p-2">
+                  <p className="text-xs font-medium text-foreground/90">
+                    Proposal status:{" "}
+                    {formatProposalApplyStatus(message.proposal.applyStatus)}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {message.proposal.policyPatches.length} draft change
+                    {message.proposal.policyPatches.length === 1 ? "" : "s"} available.
+                  </p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() => void actions.applyCoachProposal(index)}
+                      disabled={state.coachPolicyApplying}
+                    >
+                      {state.coachPolicyApplying
+                        ? "Applying..."
+                        : message.proposal.applyStatus === "not_applied"
+                          ? "Apply changes"
+                          : "Re-apply changes"}
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => void actions.undoCoachProposal(index)}
+                      disabled={
+                        state.coachPolicyApplying ||
+                        message.proposal.baselinePolicy === null ||
+                        (message.proposal.applyStatus !== "auto_applied" &&
+                          message.proposal.applyStatus !== "manually_applied")
+                      }
+                    >
+                      {state.coachPolicyApplying ? "Undoing..." : "Undo proposal"}
+                    </Button>
+                  </div>
+                </div>
+              ) : null}
             </div>
           ))
         )}
       </div>
-      {state.coachPendingPatches.length > 0 ? (
-        <div className="mt-3 rounded-md border p-2 text-sm">
-          <p className="font-medium">Coach proposal</p>
-          <p className="text-xs text-muted-foreground">
-            {state.coachLastProposalMeta?.autoApplied
-              ? "Auto-applied to your draft preview."
-              : "Ready to apply to your draft preview."}
-          </p>
-          <div className="mt-2 flex flex-wrap gap-2">
-            <Button
-              type="button"
-              size="sm"
-              onClick={() => void actions.applyCoachProposal()}
-              disabled={state.coachPolicyApplying}
-            >
-              {state.coachPolicyApplying
-                ? "Applying..."
-                : state.coachLastProposalMeta?.autoApplied
-                  ? "Re-apply changes"
-                  : "Apply changes"}
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              onClick={() => void actions.undoCoachProposal()}
-              disabled={state.coachPolicyApplying || !state.hasCoachUndoSnapshot}
-            >
-              {state.coachPolicyApplying ? "Undoing..." : "Undo latest proposal"}
-            </Button>
-          </div>
-        </div>
-      ) : null}
       <div className="mt-3 space-y-2">
         <Textarea
           value={state.coachInput}

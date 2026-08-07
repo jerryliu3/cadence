@@ -64,6 +64,7 @@ describe("planner coach conversation restore route", () => {
           message_role: "user",
           message_content: "Help me build next week.",
           message_created_at: "2026-08-06T12:00:00.000Z",
+          message_proposal_meta: null,
         },
         {
           conversation_id: "33333333-3333-4333-8333-333333333333",
@@ -78,6 +79,33 @@ describe("planner coach conversation restore route", () => {
           message_role: "assistant",
           message_content: "Let's start with three runs.",
           message_created_at: "2026-08-06T12:00:30.000Z",
+          message_proposal_meta: {
+            schemaVersion: "1",
+            applyStatus: "not_applied",
+            patchSignature:
+              "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            baselineSnapshotToken:
+              "policy:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            baselinePolicy: {
+              schemaVersion: "1",
+              timezone: "UTC",
+              timezoneConfirmedAt: "2026-08-01T00:00:00.000Z",
+              restWeekdays: [],
+              blackoutRanges: [],
+              goalAllowedWeekdays: {},
+              datePreferences: [],
+              spacingStrategy: "even",
+              goalSpacingStrategies: {},
+              dailyCadenceRestExemption: true,
+            },
+            policyPatches: [
+              {
+                kind: "set_spacing_strategy",
+                spacingStrategy: "even",
+              },
+            ],
+            unresolvedQuestions: [],
+          },
         },
       ],
       error: null,
@@ -100,7 +128,18 @@ describe("planner coach conversation restore route", () => {
       },
       messages: [
         { role: "user", content: "Help me build next week." },
-        { role: "assistant", content: "Let's start with three runs." },
+        {
+          role: "assistant",
+          content: "Let's start with three runs.",
+          proposal: expect.objectContaining({
+            applyStatus: "not_applied",
+            policyPatches: expect.arrayContaining([
+              expect.objectContaining({
+                kind: "set_spacing_strategy",
+              }),
+            ]),
+          }),
+        },
       ],
     });
   });

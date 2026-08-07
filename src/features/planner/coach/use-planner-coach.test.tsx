@@ -269,11 +269,19 @@ describe("usePlannerCoach", () => {
     expect(result.current.state.coachRecommendations).toEqual([
       "Keep one full rest day.",
     ]);
-    expect(result.current.state.coachPendingPatches).toHaveLength(1);
-    expect(result.current.state.coachLastProposalMeta).toEqual({
-      policyPatchCount: 1,
-      autoApplied: true,
+    const proposal = result.current.state.coachMessages.at(-1)?.proposal;
+    expect(proposal).toMatchObject({
+      schemaVersion: "1",
+      applyStatus: "auto_applied",
+      policyPatches: [
+        {
+          kind: "set_spacing_strategy",
+          spacingStrategy: "even",
+        },
+      ],
     });
+    expect(proposal?.patchSignature).toHaveLength(64);
+    expect(proposal?.baselineSnapshotToken.startsWith("policy:")).toBe(true);
     expect(applyCoachPolicyPatchesMock).toHaveBeenCalled();
     expect(saveCoachSessionMock).toHaveBeenCalled();
   });
@@ -336,7 +344,10 @@ describe("usePlannerCoach", () => {
     await act(async () => {
       await result.current.actions.sendCoachMessage();
     });
-    expect(result.current.state.coachPendingPatches).toHaveLength(1);
+    const firstProposalCount = result.current.state.coachMessages.filter(
+      (message) => message.role === "assistant" && Boolean(message.proposal)
+    ).length;
+    expect(firstProposalCount).toBe(1);
 
     act(() => {
       result.current.actions.setCoachInput("Second request");
@@ -345,11 +356,11 @@ describe("usePlannerCoach", () => {
       await result.current.actions.sendCoachMessage();
     });
 
-    expect(result.current.state.coachPendingPatches).toHaveLength(1);
-    expect(result.current.state.coachLastProposalMeta).toEqual({
-      policyPatchCount: 1,
-      autoApplied: true,
-    });
+    const proposalMessages = result.current.state.coachMessages.filter(
+      (message) => message.role === "assistant" && Boolean(message.proposal)
+    );
+    expect(proposalMessages).toHaveLength(1);
+    expect(proposalMessages[0]?.proposal?.applyStatus).toBe("auto_applied");
   });
 
   it("applies coach proposal and computes assignment change summary", async () => {
@@ -409,11 +420,18 @@ describe("usePlannerCoach", () => {
     await act(async () => {
       await result.current.actions.sendCoachMessage();
     });
+    const proposalIndex = result.current.state.coachMessages.findIndex(
+      (message) => message.role === "assistant" && Boolean(message.proposal)
+    );
+    expect(proposalIndex).toBeGreaterThanOrEqual(0);
     await waitFor(() => {
-      expect(result.current.state.coachPendingPatches).toHaveLength(1);
+      expect(
+        result.current.state.coachMessages[proposalIndex]?.proposal?.policyPatches
+          .length
+      ).toBe(1);
     });
     await act(async () => {
-      await result.current.actions.applyCoachProposal();
+      await result.current.actions.applyCoachProposal(proposalIndex);
     });
 
     expect(applyCoachPolicyPatchesMock).toHaveBeenCalled();
@@ -422,10 +440,12 @@ describe("usePlannerCoach", () => {
     expect(toastSuccessMock).toHaveBeenCalledWith(
       expect.stringContaining("session change")
     );
-    expect(result.current.state.hasCoachUndoSnapshot).toBe(true);
+    expect(
+      result.current.state.coachMessages[proposalIndex]?.proposal?.applyStatus
+    ).toBe("manually_applied");
 
     await act(async () => {
-      await result.current.actions.undoCoachProposal();
+      await result.current.actions.undoCoachProposal(proposalIndex);
     });
 
     expect(refreshDraftPreviewMock).toHaveBeenCalledWith(
@@ -435,7 +455,106 @@ describe("usePlannerCoach", () => {
       "2026-08",
       context.preferences!.defaultPolicy
     );
-    expect(result.current.state.hasCoachUndoSnapshot).toBe(true);
+    expect(
+      result.current.state.coachMessages[proposalIndex]?.proposal?.applyStatus
+    ).toBe("undone");
+  });
+
+  it("blocks undo when newer draft policy changes exist", async () => {
+    const baselinePolicy = buildPolicy({ spacingStrategy: "even" });
+    loadCoachSessionMock.mockReturnValue([
+      {
+        role: "assistant",
+        content: "Try even spacing with this adjustment.",
+        createdAt: 123,
+        proposal: {
+          schemaVersion: "1",
+          applyStatus: "manually_applied",
+          patchSignature:
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          baselineSnapshotToken:
+            "policy:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          baselinePolicy,
+          policyPatches: [
+            {
+              kind: "set_spacing_strategy",
+              spacingStrategy: "flexible",
+            },
+          ],
+          unresolvedQuestions: [],
+        },
+      },
+    ]);
+    applyCoachPolicyPatchesMock.mockImplementation(
+      ({
+        policy,
+        patches,
+      }: {
+        policy: PlannerPolicy;
+        patches: Array<{ kind: string; spacingStrategy?: PlannerPolicy["spacingStrategy"] }>;
+      }) => {
+        const nextPolicy = structuredClone(policy);
+        for (const patch of patches) {
+          if (
+            patch.kind === "set_spacing_strategy" &&
+            patch.spacingStrategy !== undefined
+          ) {
+            nextPolicy.spacingStrategy = patch.spacingStrategy;
+          }
+        }
+        return {
+          policy: nextPolicy,
+          appliedPatchCount: 1,
+          ignoredPatchCount: 0,
+          noOpPatchCount: 0,
+          outOfScopePatchCount: 0,
+          unsupportedPatchCount: 0,
+        };
+      }
+    );
+
+    const context = buildContext({
+      preferences: {
+        timezone: "UTC",
+        timezoneConfirmedAt: "2026-08-01T00:00:00.000Z",
+        policyRevision: 1,
+        defaultPolicy: baselinePolicy,
+      },
+    });
+    const refreshDraftPreviewMock = vi.fn().mockResolvedValue(context.preview);
+    const applyDraftPolicyMock = vi.fn();
+
+    const { result } = renderHook(() =>
+      usePlannerCoach(
+        buildArgs({
+          activeTab: "calendar",
+          context,
+          entriesByDate: new Map([["2026-08-01", [buildEntry()]]]),
+          effectivePreview: context.preview,
+          hasDraftSession: true,
+          effectiveDraftPolicy: buildPolicy({ spacingStrategy: "front_load" }),
+          refreshDraftPreview: refreshDraftPreviewMock,
+          applyDraftPolicy: applyDraftPolicyMock,
+        })
+      )
+    );
+
+    await waitFor(() => {
+      expect(result.current.state.coachMessages).toHaveLength(1);
+    });
+
+    await act(async () => {
+      await result.current.actions.undoCoachProposal(0);
+    });
+
+    expect(toastErrorMock).toHaveBeenCalledWith(
+      "Undo is blocked because newer draft policy changes were applied after this proposal. Undo newer proposals first or discard draft changes."
+    );
+    expect(refreshDraftPreviewMock).not.toHaveBeenCalled();
+    expect(applyDraftPolicyMock).not.toHaveBeenCalled();
+    expect(result.current.state.coachMessages[0]?.proposal?.applyStatus).toBe(
+      "manually_applied"
+    );
   });
 
   it("saves and restores persistent coach conversations", async () => {
@@ -471,7 +590,27 @@ describe("usePlannerCoach", () => {
       },
       messages: [
         { role: "user", content: "Initial saved message", createdAt: 123 },
-        { role: "assistant", content: "Restored assistant reply", createdAt: 456 },
+        {
+          role: "assistant",
+          content: "Restored assistant reply",
+          createdAt: 456,
+          proposal: {
+            schemaVersion: "1",
+            applyStatus: "not_applied",
+            patchSignature:
+              "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            baselineSnapshotToken:
+              "policy:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            baselinePolicy: context.preferences!.defaultPolicy,
+            policyPatches: [
+              {
+                kind: "set_spacing_strategy",
+                spacingStrategy: "even",
+              },
+            ],
+            unresolvedQuestions: [],
+          },
+        },
       ],
     });
 
