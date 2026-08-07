@@ -106,7 +106,7 @@ describe("planner draft commands", () => {
     });
   });
 
-  it("resolves same-sequence time toggles by operation intent", () => {
+  it("resolves same-sequence time toggles without UUID tiebreaks", () => {
     const commands: PlannerDraftCommand[] = [
       {
         id: "23000000-0000-4000-8000-000000000010",

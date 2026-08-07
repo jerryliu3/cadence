@@ -20,6 +20,7 @@ const MAX_REQUEST_BYTES = 32 * 1024;
 const MAX_PROVIDER_RESPONSE_BYTES = 256 * 1024;
 const PROVIDER_TIMEOUT_MS = 12_000;
 const MAX_PROVIDER_ATTEMPTS = 2;
+const localTimePattern = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 const requestSchema = z.object({
   prompt: z.string().trim().min(1).max(8000),
@@ -40,6 +41,12 @@ const generatedGoalSchema = z.object({
   target_count: z.number().int().positive().nullable().optional(),
   start_date: z.string().optional(),
   end_date: z.string().nullable().optional(),
+  default_local_time: z
+    .string()
+    .trim()
+    .regex(localTimePattern)
+    .nullable()
+    .optional(),
 });
 
 const generatedPayloadSchema = z.object({
@@ -69,6 +76,7 @@ const bulkGoalResponseSchema = {
           target_count: { type: "number" },
           start_date: { type: "string" },
           end_date: { type: "string" },
+          default_local_time: { type: "string" },
         },
         required: ["title"],
       },
@@ -102,6 +110,7 @@ function buildPrompt(userPrompt: string, today: string): string {
     '- "target_count" (positive integer or null)',
     '- "start_date" (YYYY-MM-DD)',
     '- "end_date" (YYYY-MM-DD or null)',
+    '- "default_local_time" (HH:MM 24-hour local time string or null)',
     "",
     "Rules:",
     `- If start date is missing, use ${today}.`,
@@ -138,6 +147,7 @@ function normalizeGeneratedPayload(
         target_count: goal.target_count ?? null,
         start_date: startDate,
         end_date: endDate,
+        default_local_time: goal.default_local_time ?? null,
       };
     }),
   };

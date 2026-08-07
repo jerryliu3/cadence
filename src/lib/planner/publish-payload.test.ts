@@ -32,9 +32,12 @@ const baseGoal: Goal = {
   updated_at: "2026-08-01T00:00:00.000Z",
 };
 
-function createSnapshot(completions: Completion[]): PlannerCanonicalSnapshot {
+function createSnapshot(
+  completions: Completion[],
+  goalOverrides: Partial<Goal> = {}
+): PlannerCanonicalSnapshot {
   return {
-    goals: [baseGoal],
+    goals: [{ ...baseGoal, ...goalOverrides }],
     completions,
     links: [],
     revisions: { canonicalRevision: 0, executionRevision: 0 },
@@ -252,6 +255,27 @@ describe("buildPlannerPublishPersistencePayload draft edit validation", () => {
       scheduled_time_override: "18:30",
       effective_scheduled_local_time: "18:30",
       effective_scheduled_at_local: "2026-08-10T18:30:00",
+    });
+  });
+
+  it("uses goal default time when no item override exists", () => {
+    const snapshot = createSnapshot([], { default_local_time: "07:15" });
+    const kernel = createKernel("2026-08-10");
+    const policy = createDefaultPlannerPolicy("UTC", "2026-08-01T00:00:00.000Z");
+
+    const payload = buildPlannerPublishPersistencePayload({
+      scopeMonth: "2026-08",
+      policy,
+      kernel,
+      snapshot,
+      assessments: [createDefaultAssessment(baseGoal)],
+      draftCommands: [],
+    });
+
+    expect(payload.items.find((item) => item.unit_key === "total:1")).toMatchObject({
+      scheduled_time_override: null,
+      effective_scheduled_local_time: "07:15",
+      effective_scheduled_at_local: "2026-08-10T07:15:00",
     });
   });
 

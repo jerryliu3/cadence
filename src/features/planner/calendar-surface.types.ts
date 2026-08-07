@@ -104,6 +104,7 @@ export interface PlannerWorkUnit {
   classification: string;
   creditState: string;
   creditedCompletionDate?: string | null;
+  goalDefaultLocalTime?: string | null;
   scheduledTimeOverride?: string | null;
   effectiveScheduledLocalTime?: string | null;
   effectiveScheduledAtLocal?: string | null;
@@ -149,6 +150,7 @@ export interface PlannerDayDetailEntry {
   draftDiffFromDate: string | null;
   draftDiffToDate: string | null;
   draftGhost: boolean;
+  goalDefaultLocalTime?: string | null;
   scheduledTimeOverride?: string | null;
   effectiveScheduledLocalTime?: string | null;
 }

@@ -86,6 +86,7 @@ export function buildEntriesByDate({
     const activeGoal = activeGoalsByOriginalGoalId.get(unit.originalGoalId) ?? null;
     const resolvedTime = resolvePlannerEffectiveScheduledTime({
       scheduledDate: day,
+      goalDefaultLocalTime: unit.goalDefaultLocalTime ?? null,
       scheduledTimeOverride:
         unit.scheduledTimeOverride ??
         activeItem?.scheduled_time_override ??
@@ -116,6 +117,7 @@ export function buildEntriesByDate({
       draftDiffFromDate: null,
       draftDiffToDate: null,
       draftGhost: false,
+      goalDefaultLocalTime: resolvedTime.goalDefaultLocalTime,
       scheduledTimeOverride: resolvedTime.scheduledTimeOverride,
       effectiveScheduledLocalTime: resolvedTime.effectiveScheduledLocalTime,
     };
@@ -157,6 +159,10 @@ export function buildEntriesByDate({
           null,
         activeGoal: existingEntry.activeGoal ?? activeGoal,
         activeItem: item,
+        goalDefaultLocalTime:
+          existingEntry.goalDefaultLocalTime ??
+          unitByEntryKey.get(key)?.goalDefaultLocalTime ??
+          null,
         scheduledTimeOverride:
           existingEntry.scheduledTimeOverride ??
           item.scheduled_time_override ??
@@ -185,6 +191,7 @@ export function buildEntriesByDate({
       draftDiffFromDate: null,
       draftDiffToDate: null,
       draftGhost: false,
+      goalDefaultLocalTime: null,
       scheduledTimeOverride: item.scheduled_time_override ?? null,
       effectiveScheduledLocalTime: item.effective_scheduled_local_time ?? null,
     });
@@ -213,6 +220,10 @@ export function buildEntriesByDate({
         : edit.scheduledTimeOverride;
     const resolvedDraftTime = resolvePlannerEffectiveScheduledTime({
       scheduledDate: nextDay,
+      goalDefaultLocalTime:
+        existingEntry?.goalDefaultLocalTime ??
+        unit?.goalDefaultLocalTime ??
+        null,
       scheduledTimeOverride: nextScheduledTimeOverride,
     });
 
@@ -254,6 +265,7 @@ export function buildEntriesByDate({
             scheduled_date: nextDay,
           }
         : null,
+      goalDefaultLocalTime: resolvedDraftTime.goalDefaultLocalTime,
       scheduledTimeOverride: resolvedDraftTime.scheduledTimeOverride,
       effectiveScheduledLocalTime: resolvedDraftTime.effectiveScheduledLocalTime,
     });

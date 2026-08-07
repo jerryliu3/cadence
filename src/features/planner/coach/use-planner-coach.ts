@@ -273,10 +273,19 @@ export function usePlannerCoach({
       } catch (error) {
         setSavedCoachConversations([]);
         setSelectedSavedCoachConversationId("");
-        toast.error(
+        const message =
           error instanceof Error
             ? error.message
-            : "Saved conversations could not be loaded."
+            : "Saved conversations could not be loaded.";
+        if (
+          message
+            .toLowerCase()
+            .includes("saved coach conversations are temporarily unavailable")
+        ) {
+          return;
+        }
+        toast.error(
+          message
         );
       } finally {
         setCoachConversationsLoading(false);

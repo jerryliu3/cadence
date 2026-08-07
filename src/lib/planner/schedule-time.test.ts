@@ -26,12 +26,28 @@ describe("planner schedule time", () => {
   it("resolves explicit item overrides", () => {
     const resolved = resolvePlannerEffectiveScheduledTime({
       scheduledDate: "2026-08-08",
+      goalDefaultLocalTime: "08:00",
       scheduledTimeOverride: "19:30",
     });
     expect(resolved).toEqual({
+      goalDefaultLocalTime: "08:00",
       scheduledTimeOverride: "19:30",
       effectiveScheduledLocalTime: "19:30",
       effectiveScheduledAtLocal: "2026-08-08T19:30:00",
+    });
+  });
+
+  it("falls back to goal default time when no item override exists", () => {
+    const resolved = resolvePlannerEffectiveScheduledTime({
+      scheduledDate: "2026-08-08",
+      goalDefaultLocalTime: "06:45",
+      scheduledTimeOverride: null,
+    });
+    expect(resolved).toEqual({
+      goalDefaultLocalTime: "06:45",
+      scheduledTimeOverride: null,
+      effectiveScheduledLocalTime: "06:45",
+      effectiveScheduledAtLocal: "2026-08-08T06:45:00",
     });
   });
 
@@ -39,11 +55,22 @@ describe("planner schedule time", () => {
     expect(
       resolvePlannerEffectiveScheduledTime({
         scheduledDate: "2026-08-08",
+        goalDefaultLocalTime: null,
         scheduledTimeOverride: null,
       })
     ).toMatchObject({
+      goalDefaultLocalTime: null,
       effectiveScheduledLocalTime: null,
       effectiveScheduledAtLocal: null,
     });
+  });
+
+  it("rejects calendar-invalid effective local date-times", () => {
+    expect(() =>
+      resolvePlannerEffectiveScheduledTime({
+        scheduledDate: "2026-02-30",
+        scheduledTimeOverride: "19:30",
+      })
+    ).toThrow();
   });
 });
