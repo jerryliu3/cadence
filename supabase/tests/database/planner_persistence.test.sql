@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, private, extensions, pg_catalog;
-select plan(32);
+select plan(33);
 
 create temporary table planner_test_revisions (
   label text primary key,
@@ -734,6 +734,7 @@ select ok(
     from public.publish_execution_plan_service(
       '11111111-1111-4111-8111-111111111111',
       date_trunc('month', current_date)::date,
+      'overlap_v1',
       'America/New_York',
       'manual',
       '{}'::jsonb,
@@ -779,10 +780,25 @@ select ok(
 
 select is(
   (
+    select eligibility_mode
+    from public.execution_plans
+    where owner_id = '11111111-1111-4111-8111-111111111111'
+      and scope_month = date_trunc('month', current_date)::date
+      and status = 'active'
+    order by version desc
+    limit 1
+  ),
+  'overlap_v1',
+  'service publish wrapper persists requested eligibility mode'
+);
+
+select is(
+  (
     select replayed
     from public.publish_execution_plan_service(
       '11111111-1111-4111-8111-111111111111',
       date_trunc('month', current_date)::date,
+      'overlap_v1',
       'America/New_York',
       'manual',
       '{}'::jsonb,
