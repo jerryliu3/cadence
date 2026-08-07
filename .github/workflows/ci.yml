@@ -9,10 +9,15 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  verify:
+  verify-static:
+    name: verify-static
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 20
 
     steps:
       - name: Check out repository
@@ -48,8 +53,29 @@ jobs:
       - name: Run timezone process matrix
         run: pnpm test:tz
 
-      - name: Start local Supabase
-        run: pnpm supabase:start
+  verify-integration:
+    name: verify-integration
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Start local Supabase (lean profile)
+        run: pnpm supabase:start -- --exclude studio,inbucket,imgproxy,analytics,vector,edge-runtime,functions
 
       - name: Reset and seed local database
         run: pnpm supabase:reset
@@ -89,10 +115,28 @@ jobs:
       - name: Build production application
         run: pnpm build
 
-      - name: Install Playwright browsers
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-playwright-
+
+      - name: Install Playwright Chromium browser
+        if: github.event_name == 'pull_request'
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Install Playwright browsers for main branch
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: pnpm exec playwright install --with-deps chromium webkit
 
-      - name: Run Chromium, WebKit, mobile, and API E2E
+      - name: Run Chromium + API E2E for pull requests
+        if: github.event_name == 'pull_request'
+        run: pnpm test:e2e:chromium
+
+      - name: Run full cross-browser E2E matrix on main
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: pnpm test:e2e
 
       - name: Upload Playwright report
@@ -104,6 +148,20 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-      - name: Stop local Supabase
-        if: always()
-        run: pnpm supabase:stop
+  verify:
+    name: verify
+    if: always()
+    needs:
+      - verify-static
+      - verify-integration
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Assert all verify jobs passed
+        run: |
+          if [[ "${{ needs.verify-static.result }}" != "success" || "${{ needs.verify-integration.result }}" != "success" ]]; then
+            echo "verify-static result: ${{ needs.verify-static.result }}"
+            echo "verify-integration result: ${{ needs.verify-integration.result }}"
+            exit 1
+          fi
