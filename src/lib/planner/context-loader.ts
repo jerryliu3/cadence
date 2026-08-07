@@ -14,8 +14,13 @@ import type {
   ExecutionPlanIssueRow,
   ExecutionPlanItemRow,
   ExecutionPlanRow,
-  PlannerPreferencesRow,
 } from "@/lib/planner/persistence-types";
+import {
+  parsePlannerLegacyPreferencesRow,
+  parsePlannerProfilePreferencesRow,
+  resolvePlannerPreferencesSnapshot,
+  type PlannerPreferencesSnapshot,
+} from "@/lib/planner/preferences-snapshot";
 import type { PlannerCompletionUnitIdentity } from "@/lib/planner/reconciliation";
 import type { PlannerBaseAssignment } from "@/lib/planner/work-units";
 import type { createClient as createServerClient } from "@/lib/supabase/server";
@@ -56,7 +61,7 @@ export interface PlannerCanonicalSnapshot {
   completions: Completion[];
   links: PlannerCanonicalLink[];
   revisions: PlannerRevisionTokens;
-  preferences: PlannerPreferencesRow | null;
+  preferences: PlannerPreferencesSnapshot | null;
   activePlan: ActiveExecutionPlanSnapshot | null;
 }
 
@@ -210,13 +215,51 @@ async function loadPlannerPreferences(
   supabase: ServerSupabaseClient,
   ownerId: string
 ) {
-  const response = await supabase
-    .from("planner_preferences")
-    .select("*")
-    .eq("owner_id", ownerId)
-    .maybeSingle();
-  requireTableRead(response.error, "preference_load_failed");
-  return (response.data as PlannerPreferencesRow | null) ?? null;
+  const [profileResponse, legacyResponse] = await Promise.all([
+    supabase
+      .from("profiles")
+      .select(
+        "timezone,timezone_confirmed_at,week_starts_on,rest_weekdays,blackout_ranges"
+      )
+      .eq("id", ownerId)
+      .maybeSingle(),
+    supabase
+      .from("planner_preferences")
+      .select("timezone,timezone_confirmed_at,policy_revision,default_policy")
+      .eq("owner_id", ownerId)
+      .maybeSingle(),
+  ]);
+
+  if (profileResponse.error) {
+    const code = (profileResponse.error.code ?? "").toUpperCase();
+    if (code !== "42P01" && code !== "42703" && code !== "PGRST204") {
+      throw new PlannerRouteError(
+        500,
+        "preference_load_failed",
+        "Planner data could not be loaded.",
+        { cause: profileResponse.error.message }
+      );
+    }
+  }
+  if (legacyResponse.error) {
+    const code = (legacyResponse.error.code ?? "").toUpperCase();
+    if (code !== "42P01" && code !== "PGRST205") {
+      throw new PlannerRouteError(
+        500,
+        "preference_load_failed",
+        "Planner data could not be loaded.",
+        { cause: legacyResponse.error.message }
+      );
+    }
+  }
+
+  const profile = profileResponse.data
+    ? parsePlannerProfilePreferencesRow(profileResponse.data)
+    : null;
+  const legacy = legacyResponse.data
+    ? parsePlannerLegacyPreferencesRow(legacyResponse.data)
+    : null;
+  return resolvePlannerPreferencesSnapshot({ profile, legacy });
 }
 
 async function loadActivePlanSnapshot(
