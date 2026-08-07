@@ -487,6 +487,13 @@ export async function POST(request: Request) {
           }
         );
       }
+      if (message.includes("cross_plan_goal_unit_conflict")) {
+        throw new PlannerRouteError(
+          409,
+          "cross_plan_conflict",
+          "Another active month plan already owns this goal unit."
+        );
+      }
       if (message.includes("cross_plan_goal_date_conflict")) {
         throw new PlannerRouteError(
           409,
