@@ -93,61 +93,72 @@ describe("end-month planner work units", () => {
     );
   });
 
-  it("keeps ordinal unit keys stable across adjacent scope months", () => {
+  it("allocates deadline-total ordinals across months without duplication inflation", () => {
     const totalGoal = buildGoal({
-      target_count: 3,
+      target_count: 9,
       start_date: "2026-08-01",
-      end_date: "2026-09-30",
+      end_date: "2026-10-31",
     });
+
+    const months = ["2026-08", "2026-09", "2026-10"] as const;
+    const unitsByMonth = months.map((scopeMonth) =>
+      materializeWorkUnits({
+        goal: totalGoal,
+        normalizedRequirement: normalizeGoalRequirement(totalGoal),
+        scopeMonth,
+        asOfDate: "2026-08-05",
+      })
+    );
+
+    const allUnitKeys = unitsByMonth.flatMap((units) =>
+      units.map((unit) => unit.unitKey)
+    );
+    const uniqueUnitKeys = new Set(allUnitKeys);
+
+    expect(uniqueUnitKeys.size).toBe(totalGoal.target_count);
+    expect(allUnitKeys).toHaveLength(totalGoal.target_count ?? 0);
+    expect(Math.max(...unitsByMonth.map((units) => units.length))).toBeLessThan(
+      totalGoal.target_count ?? 0
+    );
+  });
+
+  it("allocates milestone ordinals across months without duplication inflation", () => {
     const milestoneGoal = buildGoal({
       id: "milestone-goal",
       frequency_type: "fixed_milestones",
       recurrence_interval: null,
-      target_count: 2,
-      milestone_names: ["First", "Second"],
+      target_count: 7,
+      milestone_names: [
+        "One",
+        "Two",
+        "Three",
+        "Four",
+        "Five",
+        "Six",
+        "Seven",
+      ],
       start_date: "2026-08-01",
-      end_date: "2026-09-30",
+      end_date: "2026-10-31",
     });
 
-    const totalAugust = materializeWorkUnits({
-      goal: totalGoal,
-      normalizedRequirement: normalizeGoalRequirement(totalGoal),
-      scopeMonth: "2026-08",
-      asOfDate: "2026-08-05",
-    });
-    const totalSeptember = materializeWorkUnits({
-      goal: totalGoal,
-      normalizedRequirement: normalizeGoalRequirement(totalGoal),
-      scopeMonth: "2026-09",
-      asOfDate: "2026-08-05",
-    });
-    const milestoneAugust = materializeWorkUnits({
-      goal: milestoneGoal,
-      normalizedRequirement: normalizeGoalRequirement(milestoneGoal),
-      scopeMonth: "2026-08",
-      asOfDate: "2026-08-05",
-    });
-    const milestoneSeptember = materializeWorkUnits({
-      goal: milestoneGoal,
-      normalizedRequirement: normalizeGoalRequirement(milestoneGoal),
-      scopeMonth: "2026-09",
-      asOfDate: "2026-08-05",
-    });
-
-    expect(totalAugust.map((unit) => unit.unitKey)).toEqual([
-      "total:1",
-      "total:2",
-      "total:3",
-    ]);
-    expect(totalSeptember.map((unit) => unit.unitKey)).toEqual(
-      totalAugust.map((unit) => unit.unitKey)
+    const months = ["2026-08", "2026-09", "2026-10"] as const;
+    const unitsByMonth = months.map((scopeMonth) =>
+      materializeWorkUnits({
+        goal: milestoneGoal,
+        normalizedRequirement: normalizeGoalRequirement(milestoneGoal),
+        scopeMonth,
+        asOfDate: "2026-08-05",
+      })
     );
-    expect(milestoneAugust.map((unit) => unit.unitKey)).toEqual([
-      "milestone:1",
-      "milestone:2",
-    ]);
-    expect(milestoneSeptember.map((unit) => unit.unitKey)).toEqual(
-      milestoneAugust.map((unit) => unit.unitKey)
+    const allUnitKeys = unitsByMonth.flatMap((units) =>
+      units.map((unit) => unit.unitKey)
+    );
+    const uniqueUnitKeys = new Set(allUnitKeys);
+
+    expect(uniqueUnitKeys.size).toBe(milestoneGoal.target_count);
+    expect(allUnitKeys).toHaveLength(milestoneGoal.target_count ?? 0);
+    expect(Math.max(...unitsByMonth.map((units) => units.length))).toBeLessThan(
+      milestoneGoal.target_count ?? 0
     );
   });
 
