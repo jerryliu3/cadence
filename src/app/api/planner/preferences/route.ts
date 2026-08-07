@@ -16,6 +16,12 @@ import {
   POLICY_SCHEMA_VERSION,
 } from "@/lib/planner/contracts/bounds";
 import { createDefaultPlannerPolicy, plannerPolicySchema } from "@/lib/planner/policy";
+import {
+  parsePlannerLegacyPreferencesRow,
+  parsePlannerProfilePreferencesRow,
+  resolvePlannerPreferencesSnapshot,
+} from "@/lib/planner/preferences-snapshot";
+import { callAdminRpc } from "@/lib/supabase/admin-rpc";
 import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
@@ -30,6 +36,16 @@ const upsertSchema = z.object({
   defaultPolicy: z.unknown().optional(),
 });
 
+function shouldIgnoreProfilePreferenceError(error: { code?: string | null }) {
+  const code = (error.code ?? "").toUpperCase();
+  return code === "42P01" || code === "42703" || code === "PGRST204";
+}
+
+function shouldIgnoreLegacyPreferenceError(error: { code?: string | null }) {
+  const code = (error.code ?? "").toUpperCase();
+  return code === "42P01" || code === "PGRST205";
+}
+
 export async function GET() {
   const correlationId = createCorrelationId();
   try {
@@ -42,15 +58,28 @@ export async function GET() {
       disabledMessage: "Planner read APIs are not enabled for this owner.",
     });
 
-    const [preferencesResponse, revisionsResponse] = await Promise.all([
+    const [profileResponse, legacyResponse, revisionsResponse] = await Promise.all([
+      routeContext.supabase
+        .from("profiles")
+        .select(
+          "timezone,timezone_confirmed_at,week_starts_on,rest_weekdays,blackout_ranges"
+        )
+        .eq("id", routeContext.userId)
+        .maybeSingle(),
       routeContext.supabase
         .from("planner_preferences")
-        .select("*")
+        .select("timezone,timezone_confirmed_at,policy_revision,default_policy")
         .eq("owner_id", routeContext.userId)
         .maybeSingle(),
       routeContext.supabase.rpc("get_planner_state"),
     ]);
-    if (preferencesResponse.error || revisionsResponse.error) {
+    if (
+      (profileResponse.error &&
+        !shouldIgnoreProfilePreferenceError(profileResponse.error)) ||
+      (legacyResponse.error &&
+        !shouldIgnoreLegacyPreferenceError(legacyResponse.error)) ||
+      revisionsResponse.error
+    ) {
       throw new PlannerRouteError(
         500,
         "preference_load_failed",
@@ -58,14 +87,22 @@ export async function GET() {
       );
     }
 
-    const preferences = preferencesResponse.data
+    const profile = profileResponse.data
+      ? parsePlannerProfilePreferencesRow(profileResponse.data)
+      : null;
+    const legacy = legacyResponse.data
+      ? parsePlannerLegacyPreferencesRow(legacyResponse.data)
+      : null;
+    const snapshot = resolvePlannerPreferencesSnapshot({
+      profile,
+      legacy,
+    });
+    const preferences = snapshot
       ? {
-          timezone: preferencesResponse.data.timezone,
-          timezoneConfirmedAt: preferencesResponse.data.timezone_confirmed_at,
-          policyRevision: preferencesResponse.data.policy_revision,
-          defaultPolicy: plannerPolicySchema.parse(
-            preferencesResponse.data.default_policy
-          ),
+          timezone: snapshot.timezone,
+          timezoneConfirmedAt: snapshot.timezone_confirmed_at,
+          policyRevision: snapshot.policy_revision,
+          defaultPolicy: snapshot.default_policy,
         }
       : null;
     const revisions = (
@@ -127,7 +164,8 @@ export async function PUT(request: Request) {
     }
 
     const admin = requirePlannerAdminClient();
-    const upsertResponse = await admin.rpc(
+    const upsertResponse = await callAdminRpc(
+      admin,
       "upsert_planner_preferences_service",
       {
         p_owner: routeContext.userId,
@@ -157,6 +195,41 @@ export async function PUT(request: Request) {
         "Planner preference update did not return persisted data."
       );
     }
+    const parsedLegacy = parsePlannerLegacyPreferencesRow(updatedRow);
+
+    const profileResponse = await routeContext.supabase
+      .from("profiles")
+      .select(
+        "timezone,timezone_confirmed_at,week_starts_on,rest_weekdays,blackout_ranges"
+      )
+      .eq("id", routeContext.userId)
+      .maybeSingle();
+    if (
+      profileResponse.error &&
+      !shouldIgnoreProfilePreferenceError(profileResponse.error)
+    ) {
+      throw new PlannerRouteError(
+        500,
+        "preference_update_failed",
+        "Planner preferences could not be updated.",
+        { cause: profileResponse.error.message }
+      );
+    }
+
+    const parsedProfile = profileResponse.data
+      ? parsePlannerProfilePreferencesRow(profileResponse.data)
+      : null;
+    const resolvedPreferences = resolvePlannerPreferencesSnapshot({
+      profile: parsedProfile,
+      legacy: parsedLegacy,
+    });
+    if (!resolvedPreferences) {
+      throw new PlannerRouteError(
+        500,
+        "invariant_failed",
+        "Planner preference update did not produce resolved preference state."
+      );
+    }
 
     const revisionsResponse = await routeContext.supabase.rpc("get_planner_state");
     if (revisionsResponse.error) {
@@ -179,12 +252,10 @@ export async function PUT(request: Request) {
       {
         schemaVersion: "1",
         preferences: {
-          timezone: updatedRow.timezone as string,
-          timezoneConfirmedAt: updatedRow.timezone_confirmed_at as string,
-          policyRevision: updatedRow.policy_revision as number,
-          defaultPolicy: plannerPolicySchema.parse(
-            updatedRow.default_policy as unknown
-          ),
+          timezone: resolvedPreferences.timezone,
+          timezoneConfirmedAt: resolvedPreferences.timezone_confirmed_at,
+          policyRevision: resolvedPreferences.policy_revision,
+          defaultPolicy: resolvedPreferences.default_policy,
         },
         revisions: {
           canonicalRevision: revisions.canonical_revision,
