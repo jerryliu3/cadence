@@ -526,6 +526,7 @@ export type Database = {
           credit_window_start: string
           credited_completion_date: string | null
           credited_completion_id: string | null
+          effective_scheduled_local_time: string | null
           estimated_minutes: number
           id: string
           label: string | null
@@ -546,6 +547,7 @@ export type Database = {
           rest_eligible: boolean
           revision: number
           scheduled_date: string | null
+          scheduled_time_override: string | null
           unit_key: string
           updated_at: string
         }
@@ -557,6 +559,7 @@ export type Database = {
           credit_window_start: string
           credited_completion_date?: string | null
           credited_completion_id?: string | null
+          effective_scheduled_local_time?: string | null
           estimated_minutes?: number
           id?: string
           label?: string | null
@@ -577,6 +580,7 @@ export type Database = {
           rest_eligible: boolean
           revision?: number
           scheduled_date?: string | null
+          scheduled_time_override?: string | null
           unit_key: string
           updated_at?: string
         }
@@ -588,6 +592,7 @@ export type Database = {
           credit_window_start?: string
           credited_completion_date?: string | null
           credited_completion_id?: string | null
+          effective_scheduled_local_time?: string | null
           estimated_minutes?: number
           id?: string
           label?: string | null
@@ -608,6 +613,7 @@ export type Database = {
           rest_eligible?: boolean
           revision?: number
           scheduled_date?: string | null
+          scheduled_time_override?: string | null
           unit_key?: string
           updated_at?: string
         }

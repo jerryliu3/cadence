@@ -248,6 +248,11 @@ describe("buildPlannerPublishPersistencePayload draft edit validation", () => {
     });
 
     expect(payload.changeSummary.draftRetimed).toBe(1);
+    expect(payload.items.find((item) => item.unit_key === "total:1")).toMatchObject({
+      scheduled_time_override: "18:30",
+      effective_scheduled_local_time: "18:30",
+      effective_scheduled_at_local: "2026-08-10T18:30:00",
+    });
   });
 
   it("rejects draft retiming for completed or historical units", () => {
