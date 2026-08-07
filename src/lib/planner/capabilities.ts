@@ -38,9 +38,7 @@ function evaluateCapability(flagName: string, defaultValue = false) {
 
 export function getPlannerCapabilities(): PlannerCapabilities {
   const calendarEnabled = evaluateCapability("CALENDAR_ENABLED", true);
-  const overlap = calendarEnabled
-    ? evaluateCapability("PLANNER_OVERLAP_ENABLED", true)
-    : false;
+  const overlap = calendarEnabled;
   return {
     calendarEnabled,
     plannerRead: calendarEnabled,
