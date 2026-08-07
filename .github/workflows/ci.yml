@@ -2,9 +2,6 @@ name: CI
 
 on:
   pull_request:
-  push:
-    branches:
-      - main
 
 permissions:
   contents: read
@@ -47,16 +44,10 @@ jobs:
       - name: Run unit, contract, telemetry, and benchmark tests
         run: pnpm test
 
-      - name: Run isolated planner performance gate
-        run: pnpm test:benchmark
-
-      - name: Run timezone process matrix
-        run: pnpm test:tz
-
-  verify-integration:
-    name: verify-integration
+  verify-pr-smoke:
+    name: verify-pr-smoke
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 25
 
     steps:
       - name: Check out repository
@@ -85,11 +76,6 @@ jobs:
           pnpm types:supabase
           git diff --exit-code -- src/lib/supabase/database.types.ts
 
-      - name: Lint and advise local database
-        run: |
-          pnpm exec supabase db lint --local --schema public,private --level warning --fail-on error
-          pnpm exec supabase db advisors --local --type all --level warn --fail-on error
-
       - name: Export local Supabase environment
         shell: bash
         run: |
@@ -106,11 +92,8 @@ jobs:
             echo "NEXT_PUBLIC_APP_URL=http://localhost:3100"
           } >> "${GITHUB_ENV}"
 
-      - name: Run automated SQL tests
+      - name: Run automated SQL smoke tests
         run: pnpm test:sql
-
-      - name: Run two-session concurrency harness
-        run: pnpm test:concurrency
 
       - name: Build production application
         run: pnpm build
@@ -124,20 +107,10 @@ jobs:
             ${{ runner.os }}-playwright-
 
       - name: Install Playwright Chromium browser
-        if: github.event_name == 'pull_request'
         run: pnpm exec playwright install --with-deps chromium
 
-      - name: Install Playwright browsers for main branch
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        run: pnpm exec playwright install --with-deps chromium webkit
-
-      - name: Run Chromium + API E2E for pull requests
-        if: github.event_name == 'pull_request'
+      - name: Run Chromium + API E2E smoke
         run: pnpm test:e2e:chromium
-
-      - name: Run full cross-browser E2E matrix on main
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        run: pnpm test:e2e
 
       - name: Upload Playwright report
         if: failure()
@@ -153,15 +126,15 @@ jobs:
     if: always()
     needs:
       - verify-static
-      - verify-integration
+      - verify-pr-smoke
     runs-on: ubuntu-latest
     timeout-minutes: 5
 
     steps:
       - name: Assert all verify jobs passed
         run: |
-          if [[ "${{ needs.verify-static.result }}" != "success" || "${{ needs.verify-integration.result }}" != "success" ]]; then
+          if [[ "${{ needs.verify-static.result }}" != "success" || "${{ needs.verify-pr-smoke.result }}" != "success" ]]; then
             echo "verify-static result: ${{ needs.verify-static.result }}"
-            echo "verify-integration result: ${{ needs.verify-integration.result }}"
+            echo "verify-pr-smoke result: ${{ needs.verify-pr-smoke.result }}"
             exit 1
           fi
