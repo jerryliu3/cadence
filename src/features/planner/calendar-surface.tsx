@@ -81,6 +81,7 @@ import {
   draftCommandReducer,
   initialDraftCommandState,
 } from "@/features/planner/draft-command-reducer";
+import { planDraftTimeOverrideUpdate } from "@/features/planner/draft-time-override";
 import { buildMonthCells } from "@/features/planner/month-cells";
 import { computeDayPreviewPosition } from "@/features/planner/day-preview-popup";
 import { getGoalVisual } from "@/features/planner/goal-visuals";
@@ -102,7 +103,6 @@ import {
   plannerPolicySchema,
   type PlannerPolicy,
 } from "@/lib/planner/policy";
-import { normalizePlannerLocalTime } from "@/lib/planner/schedule-time";
 import type {
   CalendarSurfaceProps,
   CompletionControlDisabledReason,
@@ -1013,65 +1013,29 @@ export function CalendarSurface({
     entry: PlannerDayDetailEntry,
     localTime: string
   ) => {
-    if (entry.draftGhost) {
+    const baselineOverride =
+      previewUnitByEntryKey.get(entry.key)?.scheduledTimeOverride ?? null;
+    const nextPlan = planDraftTimeOverrideUpdate({
+      entry,
+      localTimeInput: localTime,
+      baselineOverride,
+    });
+    if (nextPlan.status === "blocked") {
+      if (nextPlan.reason === "invalid_time") {
+        toast.error("Time must be in 24-hour HH:MM format.");
+      } else {
+        toast.error(
+          "Completed or historical sessions cannot change time overrides in draft. Clear completion in publish mode first."
+        );
+      }
       return;
     }
     if (context?.scopeMonth) {
       setDraftScopeMonth(context.scopeMonth);
     }
-    let normalizedTime: string | null;
-    try {
-      normalizedTime = normalizePlannerLocalTime(localTime);
-    } catch {
-      toast.error("Time must be in 24-hour HH:MM format.");
-      return;
+    for (const action of nextPlan.actions) {
+      dispatchDraftCommand(action);
     }
-    const baselineOverride =
-      previewUnitByEntryKey.get(entry.key)?.scheduledTimeOverride ?? null;
-    if (!normalizedTime) {
-      if (baselineOverride === null) {
-        dispatchDraftCommand({
-          type: "remove_kind",
-          kind: "set_item_time_override",
-          goalId: entry.originalGoalId,
-          unitKey: entry.unitKey,
-        });
-        dispatchDraftCommand({
-          type: "remove_kind",
-          kind: "clear_item_time_override",
-          goalId: entry.originalGoalId,
-          unitKey: entry.unitKey,
-        });
-        return;
-      }
-      dispatchDraftCommand({
-        type: "clear_time_override",
-        goalId: entry.originalGoalId,
-        unitKey: entry.unitKey,
-      });
-      return;
-    }
-    if (normalizedTime === baselineOverride) {
-      dispatchDraftCommand({
-        type: "remove_kind",
-        kind: "set_item_time_override",
-        goalId: entry.originalGoalId,
-        unitKey: entry.unitKey,
-      });
-      dispatchDraftCommand({
-        type: "remove_kind",
-        kind: "clear_item_time_override",
-        goalId: entry.originalGoalId,
-        unitKey: entry.unitKey,
-      });
-      return;
-    }
-    dispatchDraftCommand({
-      type: "upsert_time_override",
-      goalId: entry.originalGoalId,
-      unitKey: entry.unitKey,
-      localTime: normalizedTime,
-    });
   };
 
   const updateDraftScheduledDate = (
