@@ -13,7 +13,6 @@ import {
 import { createDefaultAssessment, goalAssessmentSchema } from "@/lib/planner/assessment";
 import { loadPlannerCanonicalSnapshot } from "@/lib/planner/context-loader";
 import {
-  ELIGIBILITY_MODE,
   MAX_API_BODY_BYTES,
   PLANNER_ELIGIBILITY_MODES,
 } from "@/lib/planner/contracts/bounds";
@@ -120,7 +119,8 @@ export async function POST(request: Request) {
       ...body.draftCommands,
       ...buildPlannerDraftCommandsFromLegacyItemEdits(legacyDraftItemEdits),
     ];
-    const effectiveEligibilityMode = body.eligibilityMode ?? ELIGIBILITY_MODE;
+    const effectiveEligibilityMode =
+      body.eligibilityMode ?? PLANNER_ELIGIBILITY_MODES[0];
     telemetryScope = { month: body.scopeMonth, timezone: "UTC" };
     if (
       (body.expectedBasePlanId === null) !==

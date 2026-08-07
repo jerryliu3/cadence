@@ -1,6 +1,6 @@
 import {
   ASSESSMENT_SCHEMA_VERSION,
-  ELIGIBILITY_MODE,
+  PLANNER_ELIGIBILITY_MODES,
   REQUIREMENT_SCHEMA_VERSION,
   SCHEDULER_VERSION,
 } from "@/lib/planner/contracts/bounds";
@@ -135,7 +135,7 @@ export function emitTelemetryEvent(input: TelemetryCommonInput) {
       scope: input.scope,
       versions: {
         telemetrySchema: TELEMETRY_SCHEMA_VERSION,
-        eligibilityMode: input.scope ? ELIGIBILITY_MODE : null,
+        eligibilityMode: input.scope ? PLANNER_ELIGIBILITY_MODES[0] : null,
         scheduler: input.scope ? SCHEDULER_VERSION : null,
         requirementSchema: REQUIREMENT_SCHEMA_VERSION,
         assessmentSchema: input.scope ? ASSESSMENT_SCHEMA_VERSION : null,

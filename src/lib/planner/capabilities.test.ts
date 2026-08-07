@@ -53,10 +53,10 @@ describe("planner capabilities", () => {
     warnSpy.mockRestore();
   });
 
-  it("supports explicit overlap override", () => {
-    vi.stubEnv("PLANNER_OVERLAP_ENABLED", "false");
-    expect(getPlannerCapabilities().overlap).toBe(false);
-    vi.stubEnv("PLANNER_OVERLAP_ENABLED", "true");
+  it("keeps overlap tied to global calendar enablement", () => {
     expect(getPlannerCapabilities().overlap).toBe(true);
+
+    vi.stubEnv("CALENDAR_ENABLED", "false");
+    expect(getPlannerCapabilities().overlap).toBe(false);
   });
 });

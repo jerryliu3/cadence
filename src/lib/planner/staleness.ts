@@ -2,7 +2,6 @@ import {
   canonicalSerialize,
   compareCanonicalStrings,
 } from "@/lib/planner/canonical";
-import type { PlannerEligibilityMode } from "@/lib/planner/contracts/bounds";
 import type {
   PlannerDriftFact,
   PlannerDriftType,
@@ -17,7 +16,6 @@ export type PlannerStalenessReasonCode =
   | "orphaned_goal"
   | "policy_changed"
   | "timezone_changed"
-  | "eligibility_mode_changed"
   | "link_changed"
   | "inadmissible_fact"
   | "out_of_plan_fact"
@@ -29,7 +27,6 @@ export type PlannerStalenessReasonCode =
 export interface PersistedPlanSemanticSnapshot {
   planId: string;
   status: ActivePlanStatus;
-  eligibilityMode: PlannerEligibilityMode;
   timezone: string;
   policyFingerprint: string;
   goals: Record<string, PlannerGoalSemanticSnapshot>;
@@ -47,7 +44,6 @@ export interface PlannerGoalSemanticSnapshot {
 }
 
 export interface CurrentPlanSemanticState {
-  eligibilityMode: PlannerEligibilityMode;
   timezone: string;
   policyFingerprint: string;
   goals: Record<string, PlannerGoalSemanticSnapshot>;
@@ -154,14 +150,6 @@ export function evaluateActivePlanStaleness({
   if (snapshot.timezone !== current.timezone) {
     reasons.push({
       code: "timezone_changed",
-      goalId: null,
-      unitKey: null,
-      completionId: null,
-    });
-  }
-  if (snapshot.eligibilityMode !== current.eligibilityMode) {
-    reasons.push({
-      code: "eligibility_mode_changed",
       goalId: null,
       unitKey: null,
       completionId: null,
