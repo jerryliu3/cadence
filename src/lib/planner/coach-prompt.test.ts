@@ -27,7 +27,8 @@ describe("buildCoachPrompt", () => {
     expect(prompt).toContain("evidence-informed coaching");
     expect(prompt).toContain("sleep routines, flossing");
     expect(prompt).toContain("running and gym");
-    expect(prompt).toContain("Focus goal horizon span:");
+    expect(prompt).toContain("Focus goal horizon markers:");
+    expect(prompt).toContain("12000000-0000-4000-8000-000000000001:2026-08->open-ended");
   });
 
   it("adds explicit prompt-injection and output-contract rules", () => {
@@ -64,5 +65,40 @@ describe("buildCoachPrompt", () => {
     expect(prompt).toContain("Never map an unrelated activity to a focus goal");
     expect(prompt).toContain("cannot create goals");
     expect(prompt).toContain("Always include 2-5 concrete recommendations");
+  });
+
+  it("keeps mixed goal horizons explicit per goal", () => {
+    const prompt = buildCoachPrompt({
+      scopeMonth: "2026-08",
+      timezone: "UTC",
+      asOfDate: "2026-08-05",
+      allGoalsCount: 2,
+      focusGoals: [
+        {
+          id: "goal-open",
+          title: "Daily mobility",
+          category: "Health",
+          start_date: "2026-08-01",
+          end_date: null,
+          frequency_type: "recurring",
+          recurrence_interval: "daily",
+          target_count: null,
+        },
+        {
+          id: "goal-bounded",
+          title: "Half marathon build",
+          category: "Fitness",
+          start_date: "2026-08-01",
+          end_date: "2026-12-31",
+          frequency_type: "recurring",
+          recurrence_interval: "weekly",
+          target_count: 40,
+        },
+      ],
+      messages: [{ role: "user", content: "Balance these together." }],
+    });
+
+    expect(prompt).toContain("goal-open:2026-08->open-ended");
+    expect(prompt).toContain("goal-bounded:2026-08->2026-12 (5 months)");
   });
 });
