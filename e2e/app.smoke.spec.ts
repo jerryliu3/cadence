@@ -51,7 +51,9 @@ test("planner shell normalizes URL and preserves history navigation", async ({
 
   await page.getByRole("tab", { name: "Past", exact: true }).click();
   await expect(page).toHaveURL(/tab=not-today/);
-  await expect(page).not.toHaveURL(/day=/);
+  // Keep the selected calendar day in the URL so returning to calendar
+  // restores the previous day context.
+  await expect(page).toHaveURL(/day=2026-08-04/);
 
   await page.goBack();
   await expect(page).toHaveURL(/tab=calendar/);
