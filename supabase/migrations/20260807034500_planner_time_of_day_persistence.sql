@@ -142,40 +142,42 @@ begin
     p_issues
   ) as published;
 
-  with item_rows as (
-    select *
-    from jsonb_to_recordset(coalesce(p_items, '[]'::jsonb)) as rows(
-      goal_id uuid,
-      unit_key text,
-      scheduled_time_override text,
-      effective_scheduled_local_time text
+  if not v_replayed then
+    with item_rows as (
+      select *
+      from jsonb_to_recordset(coalesce(p_items, '[]'::jsonb)) as rows(
+        goal_id uuid,
+        unit_key text,
+        scheduled_time_override text,
+        effective_scheduled_local_time text
+      )
+    ),
+    goal_map as (
+      select id as plan_goal_id, goal_id
+      from public.execution_plan_goals
+      where public.execution_plan_goals.plan_id = v_plan_id
+        and public.execution_plan_goals.owner_id = p_owner
+    ),
+    mapped_item_times as (
+      select
+        goal_map.plan_goal_id,
+        item_rows.unit_key,
+        nullif(item_rows.scheduled_time_override, '') as scheduled_time_override,
+        nullif(item_rows.effective_scheduled_local_time, '') as effective_scheduled_local_time
+      from item_rows
+      join goal_map
+        on goal_map.goal_id = item_rows.goal_id
     )
-  ),
-  goal_map as (
-    select id as plan_goal_id, goal_id
-    from public.execution_plan_goals
-    where public.execution_plan_goals.plan_id = v_plan_id
-      and public.execution_plan_goals.owner_id = p_owner
-  ),
-  mapped_item_times as (
-    select
-      goal_map.plan_goal_id,
-      item_rows.unit_key,
-      nullif(item_rows.scheduled_time_override, '') as scheduled_time_override,
-      nullif(item_rows.effective_scheduled_local_time, '') as effective_scheduled_local_time
-    from item_rows
-    join goal_map
-      on goal_map.goal_id = item_rows.goal_id
-  )
-  update public.execution_plan_items as item
-  set
-    scheduled_time_override = mapped_item_times.scheduled_time_override,
-    effective_scheduled_local_time = mapped_item_times.effective_scheduled_local_time
-  from mapped_item_times
-  where item.plan_id = v_plan_id
-    and item.owner_id = p_owner
-    and item.plan_goal_id = mapped_item_times.plan_goal_id
-    and item.unit_key = mapped_item_times.unit_key;
+    update public.execution_plan_items as item
+    set
+      scheduled_time_override = mapped_item_times.scheduled_time_override,
+      effective_scheduled_local_time = mapped_item_times.effective_scheduled_local_time
+    from mapped_item_times
+    where item.plan_id = v_plan_id
+      and item.owner_id = p_owner
+      and item.plan_goal_id = mapped_item_times.plan_goal_id
+      and item.unit_key = mapped_item_times.unit_key;
+  end if;
 
   perform pg_catalog.set_config(
     'app.publish_eligibility_mode_override',
