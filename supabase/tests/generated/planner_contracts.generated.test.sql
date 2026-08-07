@@ -4,7 +4,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions, pg_catalog;
-select plan(15);
+select plan(17);
 
 create temporary table planner_contract_cases (
   contract text not null,
@@ -225,6 +225,26 @@ select ok(
       and (schema_version <> '1' or jsonb_typeof(payload) <> 'object')
   ),
   'solver generated payloads retain schema version and object shape'
+);
+
+select ok(
+  exists (
+    select 1
+    from pg_constraint
+    where conname = 'goals_deadline_horizon_max_24_months'
+      and conrelid = 'public.goals'::regclass
+  ),
+  'goals deadline horizon constraint exists'
+);
+select ok(
+  exists (
+    select 1
+    from pg_constraint
+    where conname = 'goals_deadline_horizon_max_24_months'
+      and conrelid = 'public.goals'::regclass
+      and replace(pg_get_constraintdef(oid), ' ', '') like ('%<=' || 24::text || ')%')
+  ),
+  'goals deadline horizon constraint matches MAX_HORIZON_MONTHS=24'
 );
 
 select * from finish();
