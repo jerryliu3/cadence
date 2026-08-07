@@ -1193,46 +1193,88 @@ export type Database = {
           scheduled_date: string
         }[]
       }
-      publish_execution_plan_service: {
-        Args: {
-          p_assessment_schema_version: string
-          p_capacity_status: string
-          p_change_summary: Json
-          p_confirmation_required: boolean
-          p_contract_version: string
-          p_days: Json
-          p_expected_base_plan_id: string
-          p_expected_base_plan_version: number
-          p_expected_canonical_revision: number
-          p_expected_execution_revision: number
-          p_generation_input_hash: string
-          p_generation_source: string
-          p_goals: Json
-          p_idempotency_key: string
-          p_issues: Json
-          p_items: Json
-          p_owner: string
-          p_placement_status: string
-          p_policy_compiler_version: string
-          p_policy_schema_version: string
-          p_policy_snapshot: Json
-          p_publishable: boolean
-          p_request_digest: string
-          p_requirement_schema_version: string
-          p_scheduler_version: string
-          p_scope_month: string
-          p_search_status: string
-          p_timezone: string
-        }
-        Returns: {
-          current_active_plan_id: string
-          execution_revision: number
-          is_currently_active: boolean
-          plan_id: string
-          replayed: boolean
-          version: number
-        }[]
-      }
+      publish_execution_plan_service:
+        | {
+            Args: {
+              p_assessment_schema_version: string
+              p_capacity_status: string
+              p_change_summary: Json
+              p_confirmation_required: boolean
+              p_contract_version: string
+              p_days: Json
+              p_eligibility_mode: string
+              p_expected_base_plan_id: string
+              p_expected_base_plan_version: number
+              p_expected_canonical_revision: number
+              p_expected_execution_revision: number
+              p_generation_input_hash: string
+              p_generation_source: string
+              p_goals: Json
+              p_idempotency_key: string
+              p_issues: Json
+              p_items: Json
+              p_owner: string
+              p_placement_status: string
+              p_policy_compiler_version: string
+              p_policy_schema_version: string
+              p_policy_snapshot: Json
+              p_publishable: boolean
+              p_request_digest: string
+              p_requirement_schema_version: string
+              p_scheduler_version: string
+              p_scope_month: string
+              p_search_status: string
+              p_timezone: string
+            }
+            Returns: {
+              current_active_plan_id: string
+              execution_revision: number
+              is_currently_active: boolean
+              plan_id: string
+              replayed: boolean
+              version: number
+            }[]
+          }
+        | {
+            Args: {
+              p_assessment_schema_version: string
+              p_capacity_status: string
+              p_change_summary: Json
+              p_confirmation_required: boolean
+              p_contract_version: string
+              p_days: Json
+              p_expected_base_plan_id: string
+              p_expected_base_plan_version: number
+              p_expected_canonical_revision: number
+              p_expected_execution_revision: number
+              p_generation_input_hash: string
+              p_generation_source: string
+              p_goals: Json
+              p_idempotency_key: string
+              p_issues: Json
+              p_items: Json
+              p_owner: string
+              p_placement_status: string
+              p_policy_compiler_version: string
+              p_policy_schema_version: string
+              p_policy_snapshot: Json
+              p_publishable: boolean
+              p_request_digest: string
+              p_requirement_schema_version: string
+              p_scheduler_version: string
+              p_scope_month: string
+              p_search_status: string
+              p_timezone: string
+            }
+            Returns: {
+              current_active_plan_id: string
+              execution_revision: number
+              is_currently_active: boolean
+              plan_id: string
+              replayed: boolean
+              version: number
+            }[]
+          }
       record_planner_ai_output_tokens_service: {
         Args: {
           p_feature: string
