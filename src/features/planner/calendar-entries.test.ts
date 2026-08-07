@@ -1,9 +1,16 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildCompletionFactMarkerDayByIdentity,
   buildCompletionFactMarkersByDate,
   buildEntriesByDate,
+  buildEntryDayByKey,
+  buildPreviewUnitByEntryKey,
+  resolveCalendarDayData,
 } from "./calendar-entries";
-import type { PlannerWorkUnit } from "./calendar-surface.types";
+import type {
+  PlannerCompletionFactMarker,
+  PlannerWorkUnit,
+} from "./calendar-surface.types";
 
 function unit({
   goalId,
@@ -85,6 +92,196 @@ describe("buildCompletionFactMarkersByDate", () => {
         unitKey: "total:1",
         goalTitle: "Goal A",
         scheduledDate: "2026-08-31",
+      },
+    ]);
+  });
+});
+
+describe("resolveCalendarDayData", () => {
+  it("suppresses supplemental duplicates for canonical units on other days", () => {
+    const currentWorkUnits = [
+      unit({
+        goalId: "goal-a",
+        unitKey: "total:1",
+        scheduledDate: "2026-08-31",
+      }),
+    ];
+    const currentEntriesByDate = buildEntriesByDate({
+      baselineWorkUnits: currentWorkUnits,
+      workUnits: currentWorkUnits,
+      activeItems: [],
+      activeGoalsByPlanGoalId: new Map(),
+      activeGoalsByOriginalGoalId: new Map(),
+      goalTitles: { "goal-a": "Goal A" },
+      draftItemEdits: {},
+    });
+
+    const supplementalWorkUnits = [
+      unit({
+        goalId: "goal-a",
+        unitKey: "total:1",
+        scheduledDate: "2026-09-01",
+      }),
+      unit({
+        goalId: "goal-b",
+        unitKey: "total:1",
+        scheduledDate: "2026-09-01",
+      }),
+    ];
+    const supplementalEntriesByDate = buildEntriesByDate({
+      baselineWorkUnits: supplementalWorkUnits,
+      workUnits: supplementalWorkUnits,
+      activeItems: [],
+      activeGoalsByPlanGoalId: new Map(),
+      activeGoalsByOriginalGoalId: new Map(),
+      goalTitles: { "goal-a": "Goal A", "goal-b": "Goal B" },
+      draftItemEdits: {},
+    });
+
+    const result = resolveCalendarDayData({
+      day: "2026-09-01",
+      entriesByDate: currentEntriesByDate,
+      entryDayByKey: buildEntryDayByKey(currentEntriesByDate),
+      previewUnitByEntryKey: buildPreviewUnitByEntryKey(currentWorkUnits),
+      completionFactMarkersByDate: new Map<string, PlannerCompletionFactMarker[]>(),
+      completionFactMarkerDayByIdentity: new Map(),
+      visibleMonthCalendarDataByMonth: new Map([
+        [
+          "2026-09",
+          {
+            entriesByDate: supplementalEntriesByDate,
+            completionFactMarkersByDate: new Map(),
+          },
+        ],
+      ]),
+    });
+
+    expect(result.entries.map((entry) => entry.key)).toEqual(["goal-b:total:1"]);
+  });
+
+  it("suppresses supplemental entries for unscheduled canonical units", () => {
+    const currentWorkUnits = [
+      unit({
+        goalId: "goal-a",
+        unitKey: "total:1",
+        scheduledDate: null,
+      }),
+    ];
+    const supplementalWorkUnits = [
+      unit({
+        goalId: "goal-a",
+        unitKey: "total:1",
+        scheduledDate: "2026-09-01",
+      }),
+    ];
+    const supplementalEntriesByDate = buildEntriesByDate({
+      baselineWorkUnits: supplementalWorkUnits,
+      workUnits: supplementalWorkUnits,
+      activeItems: [],
+      activeGoalsByPlanGoalId: new Map(),
+      activeGoalsByOriginalGoalId: new Map(),
+      goalTitles: { "goal-a": "Goal A" },
+      draftItemEdits: {},
+    });
+
+    const result = resolveCalendarDayData({
+      day: "2026-09-01",
+      entriesByDate: new Map(),
+      entryDayByKey: new Map(),
+      previewUnitByEntryKey: buildPreviewUnitByEntryKey(currentWorkUnits),
+      completionFactMarkersByDate: new Map(),
+      completionFactMarkerDayByIdentity: new Map(),
+      visibleMonthCalendarDataByMonth: new Map([
+        [
+          "2026-09",
+          {
+            entriesByDate: supplementalEntriesByDate,
+            completionFactMarkersByDate: new Map(),
+          },
+        ],
+      ]),
+    });
+
+    expect(result.entries).toEqual([]);
+  });
+
+  it("suppresses supplemental completion markers for canonical units", () => {
+    const currentWorkUnits = [
+      unit({
+        goalId: "goal-a",
+        unitKey: "total:1",
+        scheduledDate: "2026-08-30",
+      }),
+    ];
+    const currentCompletionFactMarkersByDate = new Map<
+      string,
+      PlannerCompletionFactMarker[]
+    >([
+      [
+        "2026-08-31",
+        [
+          {
+            key: "goal-a:total:1:2026-08-31",
+            originalGoalId: "goal-a",
+            unitKey: "total:1",
+            goalTitle: "Goal A",
+            scheduledDate: "2026-08-30",
+          },
+        ],
+      ],
+    ]);
+    const supplementalCompletionFactMarkersByDate = new Map<
+      string,
+      PlannerCompletionFactMarker[]
+    >([
+      [
+        "2026-09-01",
+        [
+          {
+            key: "goal-a:total:1:2026-09-01",
+            originalGoalId: "goal-a",
+            unitKey: "total:1",
+            goalTitle: "Goal A",
+            scheduledDate: "2026-08-30",
+          },
+          {
+            key: "goal-b:total:1:2026-09-01",
+            originalGoalId: "goal-b",
+            unitKey: "total:1",
+            goalTitle: "Goal B",
+            scheduledDate: "2026-09-01",
+          },
+        ],
+      ],
+    ]);
+
+    const result = resolveCalendarDayData({
+      day: "2026-09-01",
+      entriesByDate: new Map(),
+      entryDayByKey: new Map(),
+      previewUnitByEntryKey: buildPreviewUnitByEntryKey(currentWorkUnits),
+      completionFactMarkersByDate: currentCompletionFactMarkersByDate,
+      completionFactMarkerDayByIdentity: buildCompletionFactMarkerDayByIdentity(
+        currentCompletionFactMarkersByDate
+      ),
+      visibleMonthCalendarDataByMonth: new Map([
+        [
+          "2026-09",
+          {
+            entriesByDate: new Map(),
+            completionFactMarkersByDate: supplementalCompletionFactMarkersByDate,
+          },
+        ],
+      ]),
+    });
+
+    expect(result.completionFactMarkers).toEqual([
+      {
+        key: "goal-b:total:1:2026-09-01",
+        originalGoalId: "goal-b",
+        unitKey: "total:1",
+        goalTitle: "Goal B",
+        scheduledDate: "2026-09-01",
       },
     ]);
   });
