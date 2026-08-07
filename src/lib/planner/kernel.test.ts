@@ -71,6 +71,33 @@ describe("pure planner kernel", () => {
     expect(first.validation.valid).toBe(true);
   });
 
+  it("does not inflate planned ordinal totals when toggling months", () => {
+    const longGoal = goal({
+      target_count: 9,
+      start_date: "2026-08-01",
+      end_date: "2026-10-31",
+    });
+    const monthOutputs = ["2026-08", "2026-09", "2026-10"].map((scopeMonth) =>
+      runPlannerKernel(
+        input({
+          scopeMonth,
+          asOfDate: "2026-08-05",
+          goals: [longGoal],
+        })
+      )
+    );
+    const allUnitKeys = monthOutputs.flatMap((output) =>
+      output.workUnits.map((unit) => unit.unitKey)
+    );
+    const uniqueUnitKeys = new Set(allUnitKeys);
+
+    expect(allUnitKeys).toHaveLength(longGoal.target_count ?? 0);
+    expect(uniqueUnitKeys.size).toBe(longGoal.target_count);
+    expect(
+      Math.max(...monthOutputs.map((output) => output.workUnits.length))
+    ).toBeLessThan(longGoal.target_count ?? 0);
+  });
+
   it("excludes either side of a current goal link", () => {
     const output = runPlannerKernel(
       input({
