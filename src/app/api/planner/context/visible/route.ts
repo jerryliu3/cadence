@@ -1,4 +1,3 @@
-import { addMonths, format, isValid, parse } from "date-fns";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import {
@@ -7,6 +6,7 @@ import {
   PlannerRouteError,
   unknownPlannerErrorResponse,
 } from "@/lib/planner/api";
+import { enumerateMonthsInWindow } from "@/lib/planner/dates";
 
 export const runtime = "nodejs";
 
@@ -33,23 +33,11 @@ interface VisibleMonthContextPayload {
   preview: unknown;
 }
 
-function parseScopeMonthDate(scopeMonth: string) {
-  return parse(`${scopeMonth}-01`, "yyyy-MM-dd", new Date());
-}
-
 function listMonthsInWindow(startDate: string, endDate: string) {
-  const startMonth = parseScopeMonthDate(startDate.slice(0, 7));
-  const endMonth = parseScopeMonthDate(endDate.slice(0, 7));
-  if (!isValid(startMonth) || !isValid(endMonth) || startMonth > endMonth) {
+  if (startDate > endDate) {
     return [];
   }
-  const months: string[] = [];
-  let cursor = startMonth;
-  while (cursor <= endMonth) {
-    months.push(format(cursor, "yyyy-MM"));
-    cursor = addMonths(cursor, 1);
-  }
-  return months;
+  return enumerateMonthsInWindow({ start: startDate, end: endDate });
 }
 
 function buildForwardedHeaders(request: Request) {

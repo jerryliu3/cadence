@@ -41,6 +41,7 @@ import {
 } from "@/components/ui/select";
 import {
   buildActiveGoalIndexes,
+  buildCompletionFactMarkerDayByIdentity,
   buildCompletionFactMarkersByDate,
   buildCompletionFactUnitsByGoalDate,
   buildEntriesByDate,
@@ -431,13 +432,17 @@ export function CalendarSurface({
       effectivePreview?.workUnits,
     ]
   );
+  const completionFactMarkerDayByIdentity = useMemo(
+    () => buildCompletionFactMarkerDayByIdentity(completionFactMarkersByDate),
+    [completionFactMarkersByDate]
+  );
   const compiledPolicyForDraftMoves = useMemo(() => {
     if (!context?.preferences) {
       return null;
     }
     const sourcePolicy = effectiveDraftPolicy ?? context.preferences.defaultPolicy;
     return compilePlannerPolicy(plannerPolicySchema.parse(sourcePolicy));
-  }, [context?.preferences, effectiveDraftPolicy]);
+  }, [context, effectiveDraftPolicy]);
   const effectiveSelectedDay = localSelectedDay;
 
   const isDayInCurrentScopeMonth = useCallback(
@@ -454,12 +459,18 @@ export function CalendarSurface({
       resolveCalendarDayData({
         day,
         entriesByDate,
+        entryDayByKey,
+        previewUnitByEntryKey,
         completionFactMarkersByDate,
+        completionFactMarkerDayByIdentity,
         visibleMonthCalendarDataByMonth,
       }),
     [
+      completionFactMarkerDayByIdentity,
       completionFactMarkersByDate,
+      entryDayByKey,
       entriesByDate,
+      previewUnitByEntryKey,
       visibleMonthCalendarDataByMonth,
     ]
   );

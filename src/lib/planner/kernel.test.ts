@@ -71,6 +71,274 @@ describe("pure planner kernel", () => {
     expect(first.validation.valid).toBe(true);
   });
 
+  it("does not inflate planned ordinal totals when toggling months", () => {
+    const longGoal = goal({
+      target_count: 9,
+      start_date: "2026-08-01",
+      end_date: "2026-10-31",
+    });
+    const monthOutputs = ["2026-08", "2026-09", "2026-10"].map((scopeMonth) =>
+      runPlannerKernel(
+        input({
+          eligibilityMode: "overlap_v1",
+          scopeMonth,
+          asOfDate: "2026-08-05",
+          goals: [longGoal],
+        })
+      )
+    );
+    const allUnitKeys = monthOutputs.flatMap((output) =>
+      output.workUnits.map((unit) => unit.unitKey)
+    );
+    const uniqueUnitKeys = new Set(allUnitKeys);
+
+    expect(allUnitKeys).toHaveLength(longGoal.target_count ?? 0);
+    expect(uniqueUnitKeys.size).toBe(longGoal.target_count);
+    expect(
+      Math.max(...monthOutputs.map((output) => output.workUnits.length))
+    ).toBeLessThan(longGoal.target_count ?? 0);
+  });
+
+  it("carries forward elapsed ordinal obligations into remaining months", () => {
+    const longGoal = goal({
+      target_count: 60,
+      start_date: "2026-08-01",
+      end_date: "2027-01-31",
+    });
+    const monthOutputs = ["2026-10", "2026-11", "2026-12", "2027-01"].map(
+      (scopeMonth) =>
+        runPlannerKernel(
+          input({
+            eligibilityMode: "overlap_v1",
+            scopeMonth,
+            asOfDate: "2026-10-15",
+            goals: [longGoal],
+          })
+        )
+    );
+    const allUnitKeys = monthOutputs.flatMap((output) =>
+      output.workUnits.map((unit) => unit.unitKey)
+    );
+
+    expect(allUnitKeys).toHaveLength(longGoal.target_count ?? 0);
+    expect(new Set(allUnitKeys).size).toBe(longGoal.target_count);
+    expect(monthOutputs[0].workUnits.length).toBeGreaterThan(10);
+  });
+
+  it("keeps ordinal partitions stable when one month is regenerated from a published base plan", () => {
+    const longGoal = goal({
+      target_count: 12,
+      start_date: "2026-08-01",
+      end_date: "2026-10-31",
+    });
+    const augustPublished = runPlannerKernel(
+      input({
+        eligibilityMode: "overlap_v1",
+        scopeMonth: "2026-08",
+        asOfDate: "2026-08-05",
+        goals: [longGoal],
+      })
+    );
+    const completionDates = augustPublished.workUnits
+      .map((unit) => unit.scheduledDate)
+      .filter((date): date is string => date !== null)
+      .slice(2, 4);
+    expect(completionDates).toHaveLength(2);
+    const completions: Completion[] = completionDates.map((date, index) => ({
+      id: `published-c${index + 1}`,
+      goal_id: longGoal.id,
+      user_id: longGoal.owner_id,
+      completed_on: date,
+      source: "manual",
+      created_at: `${date}T12:00:00Z`,
+    }));
+    const augustBasePlan = {
+      planId: "plan-aug-1",
+      version: 1,
+      assignments: augustPublished.workUnits.map((unit) => ({
+        goalId: unit.originalGoalId,
+        requirementFingerprint: unit.requirementFingerprint,
+        unitKey: unit.unitKey,
+        scheduledDate: unit.scheduledDate,
+        locked: unit.locked,
+      })),
+      completionToUnit: augustPublished.completionToUnit,
+      issueCodes: augustPublished.solver.issueCodes,
+    };
+    const monthOutputs = [
+      runPlannerKernel(
+        input({
+          eligibilityMode: "overlap_v1",
+          scopeMonth: "2026-08",
+          asOfDate: "2026-09-10",
+          goals: [longGoal],
+          completions,
+          basePlan: augustBasePlan,
+        })
+      ),
+      runPlannerKernel(
+        input({
+          eligibilityMode: "overlap_v1",
+          scopeMonth: "2026-09",
+          asOfDate: "2026-09-10",
+          goals: [longGoal],
+          completions,
+          basePlan: null,
+        })
+      ),
+      runPlannerKernel(
+        input({
+          eligibilityMode: "overlap_v1",
+          scopeMonth: "2026-10",
+          asOfDate: "2026-09-10",
+          goals: [longGoal],
+          completions,
+          basePlan: null,
+        })
+      ),
+    ];
+    const allUnitKeys = monthOutputs.flatMap((output) =>
+      output.workUnits.map((unit) => unit.unitKey)
+    );
+    const expectedUnitKeys = Array.from(
+      { length: longGoal.target_count ?? 0 },
+      (_, index) => `total:${index + 1}`
+    );
+
+    expect(allUnitKeys).toHaveLength(longGoal.target_count ?? 0);
+    expect(new Set(allUnitKeys).size).toBe(longGoal.target_count);
+    expect(new Set(allUnitKeys)).toEqual(new Set(expectedUnitKeys));
+  });
+
+  it("spills ordinal allocations forward when current-month capacity is constrained", () => {
+    const constrainedStartGoal = goal({
+      target_count: 60,
+      start_date: "2026-08-20",
+      end_date: "2026-10-31",
+    });
+    const monthOutputs = ["2026-08", "2026-09", "2026-10"].map((scopeMonth) =>
+      runPlannerKernel(
+        input({
+          eligibilityMode: "overlap_v1",
+          scopeMonth,
+          asOfDate: "2026-08-20",
+          goals: [constrainedStartGoal],
+        })
+      )
+    );
+    const allUnitKeys = monthOutputs.flatMap((output) =>
+      output.workUnits.map((unit) => unit.unitKey)
+    );
+
+    expect(allUnitKeys).toHaveLength(constrainedStartGoal.target_count ?? 0);
+    expect(new Set(allUnitKeys).size).toBe(constrainedStartGoal.target_count);
+    expect(monthOutputs[0].workUnits.length).toBe(12);
+    expect(monthOutputs[1].workUnits.length).toBe(28);
+    expect(monthOutputs[2].workUnits.length).toBe(20);
+  });
+
+  it("does not credit early milestone completions into a later-month slice", () => {
+    const milestoneGoal = goal({
+      id: "goal-milestone",
+      frequency_type: "fixed_milestones",
+      recurrence_interval: null,
+      target_count: 6,
+      milestone_names: ["One", "Two", "Three", "Four", "Five", "Six"],
+      start_date: "2026-08-01",
+      end_date: "2026-09-30",
+    });
+    const completions: Completion[] = [
+      {
+        id: "c1",
+        goal_id: milestoneGoal.id,
+        user_id: milestoneGoal.owner_id,
+        completed_on: "2026-08-03",
+        source: "manual",
+        created_at: "2026-08-03T12:00:00Z",
+      },
+      {
+        id: "c2",
+        goal_id: milestoneGoal.id,
+        user_id: milestoneGoal.owner_id,
+        completed_on: "2026-08-05",
+        source: "manual",
+        created_at: "2026-08-05T12:00:00Z",
+      },
+      {
+        id: "c3",
+        goal_id: milestoneGoal.id,
+        user_id: milestoneGoal.owner_id,
+        completed_on: "2026-08-07",
+        source: "manual",
+        created_at: "2026-08-07T12:00:00Z",
+      },
+    ];
+    const output = runPlannerKernel(
+      input({
+        eligibilityMode: "overlap_v1",
+        scopeMonth: "2026-09",
+        asOfDate: "2026-09-10",
+        goals: [milestoneGoal],
+        completions,
+      })
+    );
+
+    expect(output.workUnits.map((unit) => unit.unitKey)).toEqual([
+      "milestone:4",
+      "milestone:5",
+      "milestone:6",
+    ]);
+    expect(output.workUnits.every((unit) => unit.creditedCompletionId === null)).toBe(
+      true
+    );
+  });
+
+  it("does not credit early deadline completions into a later-month slice", () => {
+    const deadlineGoal = goal({
+      id: "goal-deadline",
+      target_count: 20,
+      recurrence_interval: "daily",
+      start_date: "2026-08-01",
+      end_date: "2026-09-30",
+    });
+    const completions: Completion[] = Array.from({ length: 10 }, (_, index) => {
+      const day = String(index + 1).padStart(2, "0");
+      return {
+        id: `c${index + 1}`,
+        goal_id: deadlineGoal.id,
+        user_id: deadlineGoal.owner_id,
+        completed_on: `2026-08-${day}`,
+        source: "manual",
+        created_at: `2026-08-${day}T12:00:00Z`,
+      };
+    });
+    const output = runPlannerKernel(
+      input({
+        eligibilityMode: "overlap_v1",
+        scopeMonth: "2026-09",
+        asOfDate: "2026-09-10",
+        goals: [deadlineGoal],
+        completions,
+      })
+    );
+
+    expect(output.workUnits.map((unit) => unit.unitKey)).toEqual([
+      "total:11",
+      "total:12",
+      "total:13",
+      "total:14",
+      "total:15",
+      "total:16",
+      "total:17",
+      "total:18",
+      "total:19",
+      "total:20",
+    ]);
+    expect(output.workUnits.every((unit) => unit.creditedCompletionId === null)).toBe(
+      true
+    );
+  });
+
   it("excludes either side of a current goal link", () => {
     const output = runPlannerKernel(
       input({

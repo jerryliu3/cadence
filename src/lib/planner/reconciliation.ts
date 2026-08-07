@@ -61,6 +61,7 @@ export function reconcilePlannerCompletions({
   completions,
   asOfDate,
   previousCompletionToUnit = {},
+  allowScheduledDateMatching = true,
 }: {
   goal: Goal;
   workUnits: PlannerWorkUnit[];
@@ -70,8 +71,12 @@ export function reconcilePlannerCompletions({
     string,
     PlannerCompletionUnitIdentity
   >;
+  allowScheduledDateMatching?: boolean;
 }): ReconciliationResult {
   const units = cloneUnits(workUnits);
+  const isDeadlineTotal = units[0]?.kind === "deadline_total";
+  const canUseDeadlineScheduleAnchoring =
+    isDeadlineTotal && allowScheduledDateMatching;
   const relevantFacts = completions.filter(
     (completion) => completion.goal_id === goal.id
   );
@@ -114,6 +119,30 @@ export function reconcilePlannerCompletions({
     unit.creditedCompletionDate = completion.completed_on;
   };
 
+  if (canUseDeadlineScheduleAnchoring) {
+    const unitByKey = new Map(units.map((unit) => [unit.unitKey, unit]));
+    for (const completion of admissible) {
+      const previousIdentity = previousCompletionToUnit[completion.id];
+      if (
+        !previousIdentity ||
+        previousIdentity.goalId !== goal.id ||
+        previousIdentity.completedOn !== completion.completed_on
+      ) {
+        continue;
+      }
+      const unit = unitByKey.get(previousIdentity.unitKey);
+      if (
+        !unit ||
+        unit.creditedCompletionId !== null ||
+        unit.requirementFingerprint !== previousIdentity.requirementFingerprint ||
+        !workUnitCanCreditDate(unit, completion.completed_on)
+      ) {
+        continue;
+      }
+      credit(unit, completion);
+    }
+  }
+
   if (units[0]?.kind === "milestone_sequence") {
     for (
       let index = 0;
@@ -122,18 +151,20 @@ export function reconcilePlannerCompletions({
     ) {
       credit(units[index], admissible[index]);
     }
-  } else if (units[0]?.kind === "deadline_total") {
-    for (const unit of units) {
-      if (!unit.scheduledDate) {
-        continue;
-      }
-      const match = admissible.find(
-        (completion) =>
-          !used.has(completion.id) &&
-          completion.completed_on === unit.scheduledDate
-      );
-      if (match) {
-        credit(unit, match);
+  } else if (isDeadlineTotal) {
+    if (canUseDeadlineScheduleAnchoring) {
+      for (const unit of units) {
+        if (!unit.scheduledDate) {
+          continue;
+        }
+        const match = admissible.find(
+          (completion) =>
+            !used.has(completion.id) &&
+            completion.completed_on === unit.scheduledDate
+        );
+        if (match) {
+          credit(unit, match);
+        }
       }
     }
 
