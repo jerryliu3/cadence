@@ -23,35 +23,22 @@ describe("planner schedule time", () => {
     expect(() => normalizePlannerLocalTime("09:99")).toThrow();
   });
 
-  it("resolves overrides before goal defaults", () => {
+  it("resolves explicit item overrides", () => {
     const resolved = resolvePlannerEffectiveScheduledTime({
       scheduledDate: "2026-08-08",
-      goalDefaultLocalTime: "08:00",
       scheduledTimeOverride: "19:30",
     });
     expect(resolved).toEqual({
-      goalDefaultLocalTime: "08:00",
       scheduledTimeOverride: "19:30",
       effectiveScheduledLocalTime: "19:30",
       effectiveScheduledAtLocal: "2026-08-08T19:30:00",
     });
   });
 
-  it("falls back to goal defaults and preserves date-only semantics", () => {
+  it("preserves date-only semantics when no override exists", () => {
     expect(
       resolvePlannerEffectiveScheduledTime({
         scheduledDate: "2026-08-08",
-        goalDefaultLocalTime: "06:45",
-        scheduledTimeOverride: null,
-      })
-    ).toMatchObject({
-      effectiveScheduledLocalTime: "06:45",
-      effectiveScheduledAtLocal: "2026-08-08T06:45:00",
-    });
-    expect(
-      resolvePlannerEffectiveScheduledTime({
-        scheduledDate: "2026-08-08",
-        goalDefaultLocalTime: null,
         scheduledTimeOverride: null,
       })
     ).toMatchObject({

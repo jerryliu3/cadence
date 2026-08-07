@@ -19,16 +19,13 @@ export function normalizePlannerLocalTime(value: string | null | undefined) {
 
 export function resolvePlannerEffectiveScheduledTime({
   scheduledDate,
-  goalDefaultLocalTime,
   scheduledTimeOverride,
 }: {
   scheduledDate: string | null;
-  goalDefaultLocalTime: string | null | undefined;
   scheduledTimeOverride: string | null | undefined;
 }) {
-  const normalizedGoalDefault = normalizePlannerLocalTime(goalDefaultLocalTime);
   const normalizedOverride = normalizePlannerLocalTime(scheduledTimeOverride);
-  const effectiveScheduledLocalTime = normalizedOverride ?? normalizedGoalDefault;
+  const effectiveScheduledLocalTime = normalizedOverride;
   const effectiveScheduledAtLocal =
     scheduledDate && effectiveScheduledLocalTime
       ? `${scheduledDate}T${effectiveScheduledLocalTime}:00`
@@ -37,7 +34,6 @@ export function resolvePlannerEffectiveScheduledTime({
     plannerLocalDateTimeSchema.parse(effectiveScheduledAtLocal);
   }
   return {
-    goalDefaultLocalTime: normalizedGoalDefault,
     scheduledTimeOverride: normalizedOverride,
     effectiveScheduledLocalTime,
     effectiveScheduledAtLocal,
