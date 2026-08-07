@@ -79,6 +79,40 @@ function readCommandUnitKey(command: PlannerDraftCommand) {
   return "unitKey" in command ? command.unitKey : "";
 }
 
+function commandPayloadTiebreak(command: PlannerDraftCommand) {
+  switch (command.kind) {
+    case "move_item":
+      return canonicalHash({
+        kind: command.kind,
+        goalId: command.goalId,
+        unitKey: command.unitKey,
+        scheduledDate: command.scheduledDate,
+      });
+    case "rename_item":
+      return canonicalHash({
+        kind: command.kind,
+        goalId: command.goalId,
+        unitKey: command.unitKey,
+        label: command.label,
+      });
+    case "set_item_time_override":
+      return canonicalHash({
+        kind: command.kind,
+        goalId: command.goalId,
+        unitKey: command.unitKey,
+        localTime: command.localTime,
+      });
+    case "clear_item_time_override":
+      return canonicalHash({
+        kind: command.kind,
+        goalId: command.goalId,
+        unitKey: command.unitKey,
+      });
+    default:
+      return "";
+  }
+}
+
 export function draftCommandEntryKey(command: {
   goalId: string;
   unitKey: string;
@@ -105,6 +139,13 @@ export function sortPlannerDraftCommands(commands: PlannerDraftCommand[]) {
     );
     if (byUnit !== 0) {
       return byUnit;
+    }
+    const byPayload = compareCanonicalStrings(
+      commandPayloadTiebreak(left),
+      commandPayloadTiebreak(right)
+    );
+    if (byPayload !== 0) {
+      return byPayload;
     }
     return compareCanonicalStrings(left.id, right.id);
   });

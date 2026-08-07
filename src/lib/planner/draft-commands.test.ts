@@ -139,6 +139,54 @@ describe("planner draft commands", () => {
     });
   });
 
+  it("resolves same-sequence duplicate set overrides independent of UUID", () => {
+    const key = `${GOAL_A}:total:9`;
+    const commandsA: PlannerDraftCommand[] = [
+      {
+        id: "24000000-0000-4000-8000-000000000001",
+        sequence: 11,
+        kind: "set_item_time_override",
+        goalId: GOAL_A,
+        unitKey: "total:9",
+        localTime: "07:30",
+      },
+      {
+        id: "24000000-0000-4000-8000-000000000010",
+        sequence: 11,
+        kind: "set_item_time_override",
+        goalId: GOAL_A,
+        unitKey: "total:9",
+        localTime: "20:45",
+      },
+    ];
+    const commandsB: PlannerDraftCommand[] = [
+      {
+        id: "24000000-0000-4000-8000-000000000010",
+        sequence: 11,
+        kind: "set_item_time_override",
+        goalId: GOAL_A,
+        unitKey: "total:9",
+        localTime: "07:30",
+      },
+      {
+        id: "24000000-0000-4000-8000-000000000001",
+        sequence: 11,
+        kind: "set_item_time_override",
+        goalId: GOAL_A,
+        unitKey: "total:9",
+        localTime: "20:45",
+      },
+    ];
+
+    const projectedA = projectPlannerDraftCommands(commandsA)[key]
+      ?.scheduledTimeOverride;
+    const projectedB = projectPlannerDraftCommands(commandsB)[key]
+      ?.scheduledTimeOverride;
+
+    expect(projectedA).toBe(projectedB);
+    expect(["07:30", "20:45"]).toContain(projectedA);
+  });
+
   it("converts legacy draft edits into typed draft commands", () => {
     const commands = buildPlannerDraftCommandsFromLegacyItemEdits([
       {
