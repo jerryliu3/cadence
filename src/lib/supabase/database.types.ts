@@ -914,7 +914,6 @@ export type Database = {
           recurrence_interval:
             | Database["public"]["Enums"]["recurrence_interval"]
             | null
-          reward_text: string | null
           start_date: string
           target_count: number | null
           title: string
@@ -938,7 +937,6 @@ export type Database = {
           recurrence_interval?:
             | Database["public"]["Enums"]["recurrence_interval"]
             | null
-          reward_text?: string | null
           start_date?: string
           target_count?: number | null
           title: string
@@ -962,7 +960,6 @@ export type Database = {
           recurrence_interval?:
             | Database["public"]["Enums"]["recurrence_interval"]
             | null
-          reward_text?: string | null
           start_date?: string
           target_count?: number | null
           title?: string
