@@ -99,6 +99,33 @@ describe("planner coach conversations route", () => {
         {
           role: "assistant",
           content: "Let's start with three runs.",
+          proposal: {
+            schemaVersion: "1",
+            applyStatus: "not_applied",
+            patchSignature:
+              "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            baselineSnapshotToken:
+              "policy:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            baselinePolicy: {
+              schemaVersion: "1",
+              timezone: "UTC",
+              timezoneConfirmedAt: "2026-08-01T00:00:00.000Z",
+              restWeekdays: [],
+              blackoutRanges: [],
+              goalAllowedWeekdays: {},
+              datePreferences: [],
+              spacingStrategy: "even",
+              goalSpacingStrategies: {},
+              dailyCadenceRestExemption: true,
+            },
+            policyPatches: [
+              {
+                kind: "set_spacing_strategy",
+                spacingStrategy: "even",
+              },
+            ],
+            unresolvedQuestions: [],
+          },
         },
       ],
     });
@@ -131,6 +158,25 @@ describe("planner coach conversations route", () => {
       expect.objectContaining({
         p_scope_month: "2026-08",
         p_timezone: "UTC",
+        p_messages: [
+          {
+            role: "user",
+            content: "Help me build next week.",
+            proposal: null,
+          },
+          {
+            role: "assistant",
+            content: "Let's start with three runs.",
+            proposal: expect.objectContaining({
+              applyStatus: "not_applied",
+              policyPatches: expect.arrayContaining([
+                expect.objectContaining({
+                  kind: "set_spacing_strategy",
+                }),
+              ]),
+            }),
+          },
+        ],
       })
     );
     await expect(response.json()).resolves.toMatchObject({

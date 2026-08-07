@@ -97,6 +97,7 @@ export async function savePlannerCoachConversation({
         role: message.role,
         content: message.content,
         createdAt: message.createdAt,
+        proposal: message.proposal ?? null,
       })),
     }),
   });

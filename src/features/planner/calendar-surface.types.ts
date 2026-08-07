@@ -210,10 +210,27 @@ export interface CalendarSurfaceProps {
 
 export type CoachMessageRole = "user" | "assistant";
 
+export type CoachProposalApplyStatus =
+  | "not_applied"
+  | "auto_applied"
+  | "manually_applied"
+  | "undone";
+
+export interface CoachMessageProposal {
+  schemaVersion: "1";
+  applyStatus: CoachProposalApplyStatus;
+  patchSignature: string;
+  baselineSnapshotToken: string;
+  baselinePolicy: PlannerPolicy | null;
+  policyPatches: CoachPolicyPatch[];
+  unresolvedQuestions: string[];
+}
+
 export interface CoachMessage {
   role: CoachMessageRole;
   content: string;
   createdAt: number;
+  proposal?: CoachMessageProposal | null;
 }
 
 export interface CoachConversationSummary {
@@ -250,11 +267,6 @@ export interface CoachResponsePayload {
   };
   warnings?: string[];
   recommendations?: Array<{ text: string }>;
-}
-
-export interface CoachLastProposalMeta {
-  policyPatchCount: number;
-  autoApplied: boolean;
 }
 
 export type CompletionControlDisabledReason =

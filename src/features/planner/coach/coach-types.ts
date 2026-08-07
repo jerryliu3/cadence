@@ -1,12 +1,10 @@
 import type {
   CalendarTab,
   CoachConversationSummary,
-  CoachLastProposalMeta,
   CoachMessage,
   PlannerContextPayload,
   PlannerDayDetailEntry,
 } from "@/features/planner/calendar-surface.types";
-import type { CoachPolicyPatch } from "@/lib/planner/coach";
 import type { PlannerPolicy } from "@/lib/planner/policy";
 
 export interface UsePlannerCoachArgs {
@@ -37,11 +35,8 @@ export interface PlannerCoachState {
   coachConversationRestoring: boolean;
   coachWarnings: string[];
   coachRecommendations: string[];
-  coachPendingPatches: CoachPolicyPatch[];
   coachUnresolvedQuestions: string[];
   coachPolicyApplying: boolean;
-  coachLastProposalMeta: CoachLastProposalMeta | null;
-  hasCoachUndoSnapshot: boolean;
   hasCoachConversationState: boolean;
 }
 
@@ -52,10 +47,10 @@ export interface PlannerCoachActions {
   saveCoachConversation: () => Promise<void>;
   restoreSavedCoachConversation: (conversationId: string) => Promise<void>;
   startNewCoachConversation: () => void;
-  applyCoachProposal: () => Promise<void>;
+  applyCoachProposal: (messageIndex: number) => Promise<void>;
   rejectCoachProposal: () => void;
   requestCalendarEditsFromCoach: () => void;
-  undoCoachProposal: () => Promise<void>;
+  undoCoachProposal: (messageIndex: number) => Promise<void>;
   resetForPlannerStateReset: () => void;
   onDraftDiscarded: () => void;
 }

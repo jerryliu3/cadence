@@ -22,10 +22,11 @@ import {
   saveCoachSession,
 } from "@/features/planner/coach-session";
 import type {
-  CoachLastProposalMeta,
   CoachMessage,
+  CoachMessageProposal,
 } from "@/features/planner/calendar-surface.types";
 import type { CoachPolicyPatch } from "@/lib/planner/coach";
+import { canonicalHash } from "@/lib/planner/canonical";
 import { plannerPolicySchema, type PlannerPolicy } from "@/lib/planner/policy";
 
 const MAX_COACH_MESSAGE_CHARACTERS = 12_000;
@@ -112,6 +113,23 @@ function clampAssistantMessage(content: string) {
   return `${trimmed.slice(0, MAX_COACH_MESSAGE_CHARACTERS - 1)}…`;
 }
 
+function buildProposalSignature(patches: CoachPolicyPatch[]) {
+  return canonicalHash({ policyPatches: patches });
+}
+
+function buildBaselineSnapshotToken(policy: PlannerPolicy) {
+  return `policy:${canonicalHash(policy)}`;
+}
+
+function mapAutoApplyStatusToProposalStatus(
+  status: CoachProposalApplyStatus
+): CoachMessageProposal["applyStatus"] {
+  if (status === "applied" || status === "already_applied") {
+    return "auto_applied";
+  }
+  return "not_applied";
+}
+
 function buildAssistantMessage({
   reply,
   recommendations,
@@ -194,35 +212,33 @@ export function usePlannerCoach({
   const [coachConversationRestoring, setCoachConversationRestoring] = useState(false);
   const [coachWarnings, setCoachWarnings] = useState<string[]>([]);
   const [coachRecommendations, setCoachRecommendations] = useState<string[]>([]);
-  const [coachPendingPatches, setCoachPendingPatches] = useState<CoachPolicyPatch[]>(
-    []
-  );
   const [coachUnresolvedQuestions, setCoachUnresolvedQuestions] = useState<string[]>(
     []
   );
   const [coachPolicyApplying, setCoachPolicyApplying] = useState(false);
-  const [coachUndoSnapshot, setCoachUndoSnapshot] = useState<{
-    timezone: string;
-    defaultPolicy: PlannerPolicy;
-  } | null>(null);
-  const [coachLastProposalMeta, setCoachLastProposalMeta] =
-    useState<CoachLastProposalMeta | null>(null);
   const [coachContextEvents, setCoachContextEvents] = useState<string[]>([]);
 
   const resetCoachUiState = useCallback((messages: CoachMessage[] = []) => {
     setCoachMessages(messages);
     setCoachWarnings([]);
     setCoachRecommendations([]);
-    setCoachPendingPatches([]);
     setCoachUnresolvedQuestions([]);
     setCoachContextEvents([]);
-    setCoachUndoSnapshot(null);
-    setCoachLastProposalMeta(null);
   }, []);
 
   const appendCoachContextEvent = useCallback((event: string) => {
     setCoachContextEvents((previous) => [...previous, event].slice(-10));
   }, []);
+
+  const persistCoachMessages = useCallback(
+    (messages: CoachMessage[]) => {
+      if (!context?.scopeMonth || !context?.timezone) {
+        return;
+      }
+      saveCoachSession(context.scopeMonth, context.timezone, messages);
+    },
+    [context]
+  );
 
   const coachSummaryWorkUnits = useMemo(
     () => buildCoachSummaryWorkUnits(entriesByDate),
@@ -374,10 +390,6 @@ export function usePlannerCoach({
         if (context.scopeMonth) {
           applyDraftPolicy(context.scopeMonth, result.policy);
         }
-        setCoachUndoSnapshot({
-          timezone: context.preferences.timezone,
-          defaultPolicy: priorPolicy,
-        });
         appendCoachContextEvent(
           source === "auto"
             ? `Auto-applied coach proposal to draft (${result.appliedPatchCount} patches)`
@@ -470,17 +482,27 @@ export function usePlannerCoach({
       const unresolvedQuestions = coachPayload.proposal?.unresolvedQuestions ?? [];
       const policyPatches = coachPayload.proposal?.policyPatches ?? [];
       let autoApplyStatus: CoachProposalApplyStatus = "not_attempted";
+      const baselinePolicy = context.preferences
+        ? plannerPolicySchema.parse(effectiveDraftPolicy ?? context.preferences.defaultPolicy)
+        : null;
+      let proposal: CoachMessageProposal | null = null;
       if (policyPatches.length > 0) {
-        setCoachPendingPatches(policyPatches);
         autoApplyStatus = await applyCoachPatchesToDraft({
           patches: policyPatches,
           source: "auto",
         });
-        setCoachLastProposalMeta({
-          policyPatchCount: policyPatches.length,
-          autoApplied:
-            autoApplyStatus === "applied" || autoApplyStatus === "already_applied",
-        });
+        const patchSignature = buildProposalSignature(policyPatches);
+        proposal = {
+          schemaVersion: "1",
+          applyStatus: mapAutoApplyStatusToProposalStatus(autoApplyStatus),
+          patchSignature,
+          baselineSnapshotToken: baselinePolicy
+            ? buildBaselineSnapshotToken(baselinePolicy)
+            : `missing:${patchSignature.slice(0, 32)}`,
+          baselinePolicy,
+          policyPatches,
+          unresolvedQuestions,
+        };
       }
       const assistantMessage: CoachMessage = {
         role: "assistant",
@@ -494,12 +516,13 @@ export function usePlannerCoach({
           autoApplyStatus,
         }),
         createdAt: Date.now(),
+        proposal,
       };
       const finalMessages = [...nextMessages, assistantMessage].slice(
         -COACH_SESSION_MAX_MESSAGES
       );
       setCoachMessages(finalMessages);
-      saveCoachSession(context.scopeMonth, context.timezone, finalMessages);
+      persistCoachMessages(finalMessages);
       setCoachWarnings(warnings);
       setCoachRecommendations(recommendations);
       setCoachUnresolvedQuestions(unresolvedQuestions);
@@ -516,6 +539,8 @@ export function usePlannerCoach({
     coachSummaryWorkUnits,
     context,
     applyCoachPatchesToDraft,
+    effectiveDraftPolicy,
+    persistCoachMessages,
   ]);
 
   const saveCoachConversation = useCallback(async () => {
@@ -559,7 +584,7 @@ export function usePlannerCoach({
         );
         resetCoachUiState(restoredMessages);
         setCoachInput("");
-        saveCoachSession(context.scopeMonth, context.timezone, restoredMessages);
+        persistCoachMessages(restoredMessages);
         setSelectedSavedCoachConversationId(restorePayload.conversation.id);
         setSavedCoachConversations((previous) => {
           const remaining = previous.filter(
@@ -578,7 +603,7 @@ export function usePlannerCoach({
         setCoachConversationRestoring(false);
       }
     },
-    [context, resetCoachUiState]
+    [context, persistCoachMessages, resetCoachUiState]
   );
 
   const startNewCoachConversation = useCallback(() => {
@@ -591,26 +616,53 @@ export function usePlannerCoach({
     toast.success("Started a new coach conversation.");
   }, [context, resetCoachUiState]);
 
-  const applyCoachProposal = useCallback(async () => {
-    if (coachPendingPatches.length === 0) {
-      return;
-    }
-    await applyCoachPatchesToDraft({
-      patches: coachPendingPatches,
-      source: "manual",
-    });
-  }, [applyCoachPatchesToDraft, coachPendingPatches]);
+  const updateCoachProposalStatus = useCallback(
+    (messageIndex: number, applyStatus: CoachMessageProposal["applyStatus"]) => {
+      setCoachMessages((previous) => {
+        const target = previous[messageIndex];
+        if (!target || target.role !== "assistant" || !target.proposal) {
+          return previous;
+        }
+        const nextMessages = previous.map((message, index) =>
+          index === messageIndex
+            ? {
+                ...message,
+                proposal: {
+                  ...message.proposal!,
+                  applyStatus,
+                },
+              }
+            : message
+        );
+        persistCoachMessages(nextMessages);
+        return nextMessages;
+      });
+    },
+    [persistCoachMessages]
+  );
+
+  const applyCoachProposal = useCallback(
+    async (messageIndex: number) => {
+      const message = coachMessages[messageIndex];
+      if (!message || message.role !== "assistant" || !message.proposal) {
+        return;
+      }
+      const applyStatus = await applyCoachPatchesToDraft({
+        patches: message.proposal.policyPatches,
+        source: "manual",
+      });
+      if (applyStatus === "applied" || applyStatus === "already_applied") {
+        updateCoachProposalStatus(messageIndex, "manually_applied");
+      }
+    },
+    [applyCoachPatchesToDraft, coachMessages, updateCoachProposalStatus]
+  );
 
   const rejectCoachProposal = useCallback(() => {
-    if (coachPendingPatches.length === 0) {
-      return;
-    }
     appendCoachContextEvent("Rejected coach proposal");
-    setCoachPendingPatches([]);
     setCoachUnresolvedQuestions([]);
-    setCoachLastProposalMeta(null);
-    toast.success("Coach proposal rejected.");
-  }, [appendCoachContextEvent, coachPendingPatches.length]);
+    toast.success("Coach proposal dismissed.");
+  }, [appendCoachContextEvent]);
 
   const requestCalendarEditsFromCoach = useCallback(() => {
     const goalHint =
@@ -627,24 +679,72 @@ export function usePlannerCoach({
     );
   }, [coachFocusGoalIds, context]);
 
-  const undoCoachProposal = useCallback(async () => {
-    if (!coachUndoSnapshot) {
-      return;
-    }
-    setCoachPolicyApplying(true);
-    try {
-      await refreshDraftPreview(coachUndoSnapshot.defaultPolicy);
-      if (context?.scopeMonth) {
-        applyDraftPolicy(context.scopeMonth, coachUndoSnapshot.defaultPolicy);
+  const undoCoachProposal = useCallback(
+    async (messageIndex: number) => {
+      const message = coachMessages[messageIndex];
+      if (!message || message.role !== "assistant" || !message.proposal) {
+        return;
       }
-      appendCoachContextEvent("Undid latest coach draft proposal");
-      toast.success("Latest coach draft apply has been undone.");
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Undo failed.");
-    } finally {
-      setCoachPolicyApplying(false);
-    }
-  }, [appendCoachContextEvent, applyDraftPolicy, coachUndoSnapshot, context, refreshDraftPreview]);
+      if (!context?.preferences) {
+        toast.error("Undo is unavailable because planner policy is not loaded.");
+        return;
+      }
+      if (!message.proposal.baselinePolicy) {
+        toast.error(
+          "Undo is unavailable because this proposal has no baseline snapshot."
+        );
+        return;
+      }
+      const baselinePolicy = plannerPolicySchema.parse(message.proposal.baselinePolicy);
+      const allowedGoalIds = new Set<string>([
+        ...Object.keys(context.goalTitles ?? {}),
+        ...(context.activePlan?.goals ?? []).map((goal) => goal.original_goal_id),
+      ]);
+      const expectedAppliedPolicy = applyCoachPolicyPatches({
+        policy: baselinePolicy,
+        patches: message.proposal.policyPatches,
+        allowedGoalIds,
+      }).policy;
+      if (hasDraftSession || effectiveDraftPolicy !== null) {
+        const currentDraftPolicy = plannerPolicySchema.parse(
+          effectiveDraftPolicy ?? context.preferences.defaultPolicy
+        );
+        if (
+          buildBaselineSnapshotToken(currentDraftPolicy) !==
+          buildBaselineSnapshotToken(expectedAppliedPolicy)
+        ) {
+          toast.error(
+            "Undo is blocked because newer draft policy changes were applied after this proposal. Undo newer proposals first or discard draft changes."
+          );
+          return;
+        }
+      }
+      setCoachPolicyApplying(true);
+      try {
+        await refreshDraftPreview(baselinePolicy);
+        if (context?.scopeMonth) {
+          applyDraftPolicy(context.scopeMonth, baselinePolicy);
+        }
+        updateCoachProposalStatus(messageIndex, "undone");
+        appendCoachContextEvent("Undid coach draft proposal");
+        toast.success("Coach proposal changes were undone.");
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "Undo failed.");
+      } finally {
+        setCoachPolicyApplying(false);
+      }
+    },
+    [
+      appendCoachContextEvent,
+      applyDraftPolicy,
+      coachMessages,
+      context,
+      effectiveDraftPolicy,
+      hasDraftSession,
+      refreshDraftPreview,
+      updateCoachProposalStatus,
+    ]
+  );
 
   const resetForPlannerStateReset = useCallback(() => {
     if (context?.scopeMonth && context?.timezone) {
@@ -656,20 +756,41 @@ export function usePlannerCoach({
   }, [context, resetCoachUiState]);
 
   const onDraftDiscarded = useCallback(() => {
-    setCoachUndoSnapshot(null);
+    setCoachMessages((previous) => {
+      let changed = false;
+      const nextMessages = previous.map((message) => {
+        if (
+          message.proposal &&
+          (message.proposal.applyStatus === "auto_applied" ||
+            message.proposal.applyStatus === "manually_applied")
+        ) {
+          changed = true;
+          const nextProposal: CoachMessageProposal = {
+            ...message.proposal,
+            applyStatus: "undone",
+          };
+          return {
+            ...message,
+            proposal: nextProposal,
+          };
+        }
+        return message;
+      });
+      if (changed) {
+        persistCoachMessages(nextMessages);
+      }
+      return changed ? nextMessages : previous;
+    });
     appendCoachContextEvent("Discarded draft changes");
-  }, [appendCoachContextEvent]);
+  }, [appendCoachContextEvent, persistCoachMessages]);
 
   const canUseCoach = Boolean(context?.capabilities.coachAi && context?.scopeMonth);
   const hasCoachConversationState =
     coachMessages.length > 0 ||
     coachWarnings.length > 0 ||
     coachRecommendations.length > 0 ||
-    coachPendingPatches.length > 0 ||
     coachUnresolvedQuestions.length > 0 ||
     coachContextEvents.length > 0 ||
-    coachUndoSnapshot !== null ||
-    coachLastProposalMeta !== null ||
     coachInput.trim().length > 0;
 
   return {
@@ -685,11 +806,8 @@ export function usePlannerCoach({
       coachConversationRestoring,
       coachWarnings,
       coachRecommendations,
-      coachPendingPatches,
       coachUnresolvedQuestions,
       coachPolicyApplying,
-      coachLastProposalMeta,
-      hasCoachUndoSnapshot: coachUndoSnapshot !== null,
       hasCoachConversationState,
     },
     actions: {
