@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import { MAX_HORIZON_MONTHS } from "@/lib/planner/contracts/bounds";
 import {
   getGoalDeadlineMonthSpan,
-  goalRequiresDeadline,
   isOrdinalGoalDefinition,
   validateGoalDefinition,
 } from "@/lib/goals/definition-validation";
@@ -23,27 +22,6 @@ describe("goal definition validation", () => {
     ).toBe(true);
     expect(
       isOrdinalGoalDefinition({
-        frequencyType: "recurring",
-        targetCount: null,
-      })
-    ).toBe(false);
-  });
-
-  it("requires deadlines only for ordinal definitions", () => {
-    expect(
-      goalRequiresDeadline({
-        frequencyType: "fixed_milestones",
-        targetCount: 3,
-      })
-    ).toBe(true);
-    expect(
-      goalRequiresDeadline({
-        frequencyType: "recurring",
-        targetCount: 3,
-      })
-    ).toBe(true);
-    expect(
-      goalRequiresDeadline({
         frequencyType: "recurring",
         targetCount: null,
       })
@@ -103,5 +81,20 @@ describe("goal definition validation", () => {
         endDate: "2028-01-01",
       })[0]
     ).toMatchObject({ code: "horizon_too_long" });
+  });
+
+  it("uses strict civil-date parsing for month-span checks", () => {
+    expect(
+      getGoalDeadlineMonthSpan({
+        startDate: "2026-02-30",
+        endDate: "2026-03-01",
+      })
+    ).toBeNull();
+    expect(
+      getGoalDeadlineMonthSpan({
+        startDate: "2026-01-01",
+        endDate: "2026-13-45",
+      })
+    ).toBeNull();
   });
 });

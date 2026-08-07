@@ -46,7 +46,7 @@ import {
 } from "@/lib/goals/progress-context";
 import type { Goal, GoalFrequencyType, GoalLink, RecurrenceInterval } from "@/lib/goals/types";
 import {
-  goalRequiresDeadline,
+  isOrdinalGoalDefinition,
   validateGoalDefinition,
 } from "@/lib/goals/definition-validation";
 import { createClient } from "@/lib/supabase/client";
@@ -275,7 +275,7 @@ export function GoalForm({ goalId }: GoalFormProps) {
       : state.target_count.trim().length > 0
         ? parsedTargetCount
         : null;
-  const requiresEndDate = goalRequiresDeadline({
+  const requiresEndDate = isOrdinalGoalDefinition({
     frequencyType: state.frequency_type,
     targetCount: definitionTargetCount,
   });

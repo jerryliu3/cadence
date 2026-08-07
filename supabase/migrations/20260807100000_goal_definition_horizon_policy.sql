@@ -1,5 +1,6 @@
 do $$
 begin
+  -- Open-ended definitions are allowed only for recurring cadence goals.
   if not exists (
     select 1
     from pg_constraint
@@ -15,12 +16,15 @@ begin
           and (target_count is null or target_count <= 0)
         )
       )
+      -- Not validating historical rows keeps legacy over-limit definitions non-fatal
+      -- until users edit them, while still enforcing all new writes.
       not valid;
   end if;
 end $$;
 
 do $$
 begin
+  -- Keep the 24-month cap aligned with src/lib/planner/contracts/bounds.ts MAX_HORIZON_MONTHS.
   if not exists (
     select 1
     from pg_constraint
@@ -39,6 +43,8 @@ begin
           ) <= 24
         )
       )
+      -- Not validating historical rows keeps legacy over-limit definitions non-fatal
+      -- until users edit them, while still enforcing all new writes.
       not valid;
   end if;
 end $$;

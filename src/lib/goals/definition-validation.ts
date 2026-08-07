@@ -1,8 +1,7 @@
 import type { GoalFrequencyType } from "@/lib/goals/types";
+import { compareDateStrings } from "@/lib/goals/periods";
 import { MAX_HORIZON_MONTHS } from "@/lib/planner/contracts/bounds";
 import { enumerateMonthsInWindow } from "@/lib/planner/dates";
-
-const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 export interface GoalDefinitionValidationInput {
   frequencyType: GoalFrequencyType;
@@ -22,7 +21,15 @@ export interface GoalDefinitionValidationIssue {
 }
 
 function isIsoDate(value: string | null): value is string {
-  return typeof value === "string" && ISO_DATE_PATTERN.test(value);
+  if (typeof value !== "string") {
+    return false;
+  }
+  try {
+    compareDateStrings(value, value);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export function isOrdinalGoalDefinition({
@@ -37,12 +44,6 @@ export function isOrdinalGoalDefinition({
   );
 }
 
-export function goalRequiresDeadline(
-  input: Pick<GoalDefinitionValidationInput, "frequencyType" | "targetCount">
-) {
-  return isOrdinalGoalDefinition(input);
-}
-
 export function getGoalDeadlineMonthSpan({
   startDate,
   endDate,
@@ -50,7 +51,7 @@ export function getGoalDeadlineMonthSpan({
   if (!isIsoDate(startDate) || !isIsoDate(endDate)) {
     return null;
   }
-  if (startDate > endDate) {
+  if (compareDateStrings(startDate, endDate) > 0) {
     return null;
   }
   return enumerateMonthsInWindow({ start: startDate, end: endDate }).length;
@@ -60,10 +61,11 @@ export function validateGoalDefinition(
   input: GoalDefinitionValidationInput
 ): GoalDefinitionValidationIssue[] {
   const issues: GoalDefinitionValidationIssue[] = [];
-  const normalizedEndDate = input.endDate && input.endDate.length > 0
-    ? input.endDate
-    : null;
-  if (goalRequiresDeadline(input) && normalizedEndDate === null) {
+  const normalizedEndDate =
+    input.endDate && input.endDate.length > 0
+      ? input.endDate
+      : null;
+  if (isOrdinalGoalDefinition(input) && normalizedEndDate === null) {
     issues.push({
       code: "missing_end_date",
       message:
@@ -75,20 +77,17 @@ export function validateGoalDefinition(
   if (!isIsoDate(input.startDate) || !isIsoDate(normalizedEndDate)) {
     return issues;
   }
-  if (input.startDate > normalizedEndDate) {
+  if (compareDateStrings(input.startDate, normalizedEndDate) > 0) {
     issues.push({
       code: "invalid_date_range",
       message: "End date cannot be before start date.",
     });
     return issues;
   }
-  const monthSpan = getGoalDeadlineMonthSpan({
-    startDate: input.startDate,
-    endDate: normalizedEndDate,
-  });
-  if (monthSpan === null) {
-    return issues;
-  }
+  const monthSpan = enumerateMonthsInWindow({
+    start: input.startDate,
+    end: normalizedEndDate,
+  }).length;
   if (monthSpan > MAX_HORIZON_MONTHS) {
     issues.push({
       code: "horizon_too_long",

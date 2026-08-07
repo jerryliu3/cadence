@@ -67,7 +67,38 @@ describe("end-month planner work units", () => {
     ]);
     expect(units.at(-1)?.creditWindow).toEqual({
       start: "2026-08-26",
-      end: "2026-08-31",
+      end: "2026-09-01",
+    });
+  });
+
+  it("keeps open-ended cadence credit windows stable across month scopes", () => {
+    const goal = buildGoal({ end_date: null });
+    const august = materializeWorkUnits({
+      goal,
+      normalizedRequirement: normalizeGoalRequirement(goal),
+      scopeMonth: "2026-08",
+      asOfDate: "2026-08-01",
+    });
+    const september = materializeWorkUnits({
+      goal,
+      normalizedRequirement: normalizeGoalRequirement(goal),
+      scopeMonth: "2026-09",
+      asOfDate: "2026-09-01",
+    });
+    const boundaryInAugust = august.find(
+      (unit) => unit.unitKey === "cadence:2026-08-26"
+    );
+    const boundaryInSeptember = september.find(
+      (unit) => unit.unitKey === "cadence:2026-08-26"
+    );
+
+    expect(boundaryInAugust?.creditWindow).toEqual({
+      start: "2026-08-26",
+      end: "2026-09-01",
+    });
+    expect(boundaryInSeptember?.creditWindow).toEqual({
+      start: "2026-08-26",
+      end: "2026-09-01",
     });
   });
 

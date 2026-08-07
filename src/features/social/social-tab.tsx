@@ -38,7 +38,7 @@ import {
   getCategorySwatchColor,
 } from "@/lib/goals/category";
 import {
-  goalRequiresDeadline,
+  isOrdinalGoalDefinition,
   validateGoalDefinition,
 } from "@/lib/goals/definition-validation";
 import { toLocalDateString } from "@/lib/dates/day";
@@ -512,7 +512,7 @@ export function SocialTab() {
       : groupDraft.targetCount.trim().length > 0
         ? parsedGroupTargetCount
         : null;
-  const groupRequiresEndDate = goalRequiresDeadline({
+  const groupRequiresEndDate = isOrdinalGoalDefinition({
     frequencyType: groupDraft.frequencyType,
     targetCount: groupDefinitionTargetCount,
   });
