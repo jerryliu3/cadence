@@ -14,11 +14,10 @@ describe("coachResponseJsonSchema", () => {
       properties: {
         action: {
           type: "string",
-          enum: ["none", "needs_goal", "apply_to_goal", "apply_globally"],
+          enum: ["none", "needs_goal", "apply"],
         },
-        allowedWeekdays: {
+        goals: {
           type: "array",
-          items: { type: "integer", minimum: 0, maximum: 6 },
         },
       },
     });

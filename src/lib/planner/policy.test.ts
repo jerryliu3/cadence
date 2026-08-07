@@ -80,4 +80,17 @@ describe("versioned planner policy compiler", () => {
 
     expect(() => compilePlannerPolicy(policy)).toThrow();
   });
+
+  it("omits empty goal monthly distributions from compiled policy", () => {
+    const policy = createDefaultPlannerPolicy(
+      "UTC",
+      "2026-08-01T00:00:00Z"
+    );
+    policy.goalMonthlyDistributions = {};
+
+    const compiled = compilePlannerPolicy(policy);
+
+    expect(compiled.policy.goalMonthlyDistributions).toBeUndefined();
+    expect("goalMonthlyDistributions" in compiled.policy).toBe(false);
+  });
 });

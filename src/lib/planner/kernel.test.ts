@@ -285,6 +285,132 @@ describe("pure planner kernel", () => {
     expect(output.workUnits).toHaveLength(0);
   });
 
+  it("normalizes monthly distributions and partitions ordinals deterministically", () => {
+    const distributedGoal = goal({
+      target_count: 12,
+      start_date: "2026-08-01",
+      end_date: "2026-10-31",
+    });
+    const policy = createDefaultPlannerPolicy("UTC", "2026-08-01T00:00:00Z");
+    policy.goalMonthlyDistributions = {
+      [distributedGoal.id]: [
+        { month: "2026-08", count: 3 },
+        { month: "2026-09", count: 3 },
+        { month: "2026-10", count: 2 },
+      ],
+    };
+    const monthOutputs = ["2026-08", "2026-09", "2026-10"].map((scopeMonth) =>
+      runPlannerKernel(
+        input({
+          eligibilityMode: "overlap_v1",
+          scopeMonth,
+          asOfDate: "2026-08-05",
+          goals: [distributedGoal],
+          policy,
+        })
+      )
+    );
+
+    expect(monthOutputs.map((output) => output.workUnits.length)).toEqual([5, 4, 3]);
+    const unitKeys = monthOutputs.flatMap((output) =>
+      output.workUnits.map((unit) => unit.unitKey)
+    );
+    expect(new Set(unitKeys).size).toBe(distributedGoal.target_count);
+  });
+
+  it("carries and spills distributed quotas when an early month is elapsed", () => {
+    const distributedGoal = goal({
+      target_count: 12,
+      start_date: "2026-08-01",
+      end_date: "2026-10-31",
+    });
+    const policy = createDefaultPlannerPolicy("UTC", "2026-08-01T00:00:00Z");
+    policy.goalMonthlyDistributions = {
+      [distributedGoal.id]: [
+        { month: "2026-08", count: 6 },
+        { month: "2026-09", count: 3 },
+        { month: "2026-10", count: 3 },
+      ],
+    };
+    const september = runPlannerKernel(
+      input({
+        eligibilityMode: "overlap_v1",
+        scopeMonth: "2026-09",
+        asOfDate: "2026-09-10",
+        goals: [distributedGoal],
+        policy,
+      })
+    );
+    const october = runPlannerKernel(
+      input({
+        eligibilityMode: "overlap_v1",
+        scopeMonth: "2026-10",
+        asOfDate: "2026-09-10",
+        goals: [distributedGoal],
+        policy,
+      })
+    );
+
+    expect(september.workUnits.length).toBe(9);
+    expect(october.workUnits.length).toBe(3);
+    const unitKeys = [...september.workUnits, ...october.workUnits].map(
+      (unit) => unit.unitKey
+    );
+    expect(new Set(unitKeys).size).toBe(distributedGoal.target_count);
+  });
+
+  it("keeps distributed ordinal ownership unique with credited completions", () => {
+    const distributedGoal = goal({
+      target_count: 12,
+      start_date: "2026-08-01",
+      end_date: "2026-10-31",
+    });
+    const completions: Completion[] = Array.from({ length: 6 }, (_, index) => {
+      const day = String(index + 1).padStart(2, "0");
+      return {
+        id: `completion-${index + 1}`,
+        goal_id: distributedGoal.id,
+        user_id: distributedGoal.owner_id,
+        completed_on: `2026-08-${day}`,
+        source: "manual",
+        created_at: `2026-08-${day}T00:00:00Z`,
+      };
+    });
+    const policy = createDefaultPlannerPolicy("UTC", "2026-08-01T00:00:00Z");
+    policy.goalMonthlyDistributions = {
+      [distributedGoal.id]: [
+        { month: "2026-08", count: 8 },
+        { month: "2026-09", count: 2 },
+        { month: "2026-10", count: 2 },
+      ],
+    };
+    const monthOutputs = ["2026-08", "2026-09", "2026-10"].map((scopeMonth) =>
+      runPlannerKernel(
+        input({
+          eligibilityMode: "overlap_v1",
+          scopeMonth,
+          asOfDate: "2026-09-10",
+          goals: [distributedGoal],
+          completions,
+          policy,
+        })
+      )
+    );
+    const allUnitKeys = monthOutputs.flatMap((output) =>
+      output.workUnits.map((unit) => unit.unitKey)
+    );
+
+    expect(allUnitKeys).toHaveLength(distributedGoal.target_count ?? 0);
+    expect(new Set(allUnitKeys).size).toBe(distributedGoal.target_count);
+    expect(new Set(allUnitKeys)).toEqual(
+      new Set(
+        Array.from({ length: distributedGoal.target_count ?? 0 }, (_, index) =>
+          `total:${index + 1}`
+        )
+      )
+    );
+  });
+
   it("does not credit early milestone completions into a later-month slice", () => {
     const milestoneGoal = goal({
       id: "goal-milestone",

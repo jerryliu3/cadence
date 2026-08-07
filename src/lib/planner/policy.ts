@@ -14,6 +14,13 @@ import {
 
 const weekdaySchema = z.number().int().min(0).max(6);
 const dateSchema = z.iso.date();
+const monthSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}$/)
+  .refine((month) => {
+    const monthNumber = Number(month.slice(5, 7));
+    return monthNumber >= 1 && monthNumber <= 12;
+  }, "Invalid calendar month.");
 const dateWindowSchema = z
   .object({
     start: dateSchema,
@@ -59,6 +66,19 @@ export const plannerPolicySchema = z
       z.string().min(1).max(100),
       z.enum(["front_load", "even", "flexible"])
     ),
+    goalMonthlyDistributions: z
+      .record(
+        z.string().min(1).max(100),
+        z.array(
+          z
+            .object({
+              month: monthSchema,
+              count: z.number().int().nonnegative(),
+            })
+            .strict()
+        )
+      )
+      .optional(),
     dailyCadenceRestExemption: z.literal(true),
   })
   .strict();
@@ -98,57 +118,89 @@ export function compilePlannerPolicy(policy: PlannerPolicy): CompiledPolicy {
     weekStartsOn !== undefined && weekStartsOn >= 0 && weekStartsOn <= 6
       ? weekStartsOn
       : 1;
+  const normalizeGoalMonthlyDistribution = (
+    distribution: Array<{ month: string; count: number }>
+  ) => {
+    const countByMonth = new Map<string, number>();
+    for (const entry of distribution) {
+      if (entry.count <= 0) {
+        continue;
+      }
+      countByMonth.set(
+        entry.month,
+        (countByMonth.get(entry.month) ?? 0) + entry.count
+      );
+    }
+    return Array.from(countByMonth.entries())
+      .map(([month, count]) => ({ month, count }))
+      .sort((left, right) => compareCanonicalStrings(left.month, right.month));
+  };
+  const normalizedGoalMonthlyDistributions = Object.fromEntries(
+    Object.entries(parsed.goalMonthlyDistributions ?? {})
+      .sort(([left], [right]) => compareCanonicalStrings(left, right))
+      .map(([goalId, distribution]) => [
+        goalId,
+        normalizeGoalMonthlyDistribution(distribution),
+      ])
+      .filter(([, distribution]) => distribution.length > 0)
+  );
+  const normalizedPolicy: PlannerPolicy = {
+    ...parsed,
+    weekStartsOn: normalizeWeekStartsOn(parsed.weekStartsOn),
+    restWeekdays: normalizeWeekdays(parsed.restWeekdays),
+    blackoutRanges: [...parsed.blackoutRanges]
+      .sort((left, right) => {
+        const byStart = compareCanonicalStrings(left.start, right.start);
+        return byStart !== 0
+          ? byStart
+          : compareCanonicalStrings(left.end, right.end);
+      })
+      .filter(
+        (range, index, ranges) =>
+          index === 0 ||
+          range.start !== ranges[index - 1].start ||
+          range.end !== ranges[index - 1].end
+      ),
+    goalAllowedWeekdays: Object.fromEntries(
+      Object.entries(parsed.goalAllowedWeekdays)
+        .sort(([left], [right]) =>
+          compareCanonicalStrings(left, right)
+        )
+        .map(([goalId, weekdays]) => [
+          goalId,
+          normalizeWeekdays(weekdays),
+        ])
+    ),
+    datePreferences: [...parsed.datePreferences]
+      .sort((left, right) => {
+        const leftGoal = left.goalId ?? "";
+        const rightGoal = right.goalId ?? "";
+        const byGoal = compareCanonicalStrings(leftGoal, rightGoal);
+        if (byGoal !== 0) return byGoal;
+        const byStart = compareCanonicalStrings(left.start, right.start);
+        if (byStart !== 0) return byStart;
+        const byEnd = compareCanonicalStrings(left.end, right.end);
+        return byEnd !== 0
+          ? byEnd
+          : compareCanonicalStrings(left.effect, right.effect);
+      })
+      .filter(
+        (preference, index, preferences) =>
+          index === 0 ||
+          preference.goalId !== preferences[index - 1].goalId ||
+          preference.start !== preferences[index - 1].start ||
+          preference.end !== preferences[index - 1].end ||
+          preference.effect !== preferences[index - 1].effect
+      ),
+  };
+  if (Object.keys(normalizedGoalMonthlyDistributions).length > 0) {
+    normalizedPolicy.goalMonthlyDistributions = normalizedGoalMonthlyDistributions;
+  } else {
+    delete normalizedPolicy.goalMonthlyDistributions;
+  }
   return {
     compilerVersion: POLICY_COMPILER_VERSION,
-    policy: {
-      ...parsed,
-      weekStartsOn: normalizeWeekStartsOn(parsed.weekStartsOn),
-      restWeekdays: normalizeWeekdays(parsed.restWeekdays),
-      blackoutRanges: [...parsed.blackoutRanges]
-        .sort((left, right) => {
-          const byStart = compareCanonicalStrings(left.start, right.start);
-          return byStart !== 0
-            ? byStart
-            : compareCanonicalStrings(left.end, right.end);
-        })
-        .filter(
-          (range, index, ranges) =>
-            index === 0 ||
-            range.start !== ranges[index - 1].start ||
-            range.end !== ranges[index - 1].end
-        ),
-      goalAllowedWeekdays: Object.fromEntries(
-        Object.entries(parsed.goalAllowedWeekdays)
-          .sort(([left], [right]) =>
-            compareCanonicalStrings(left, right)
-          )
-          .map(([goalId, weekdays]) => [
-            goalId,
-            normalizeWeekdays(weekdays),
-          ])
-      ),
-      datePreferences: [...parsed.datePreferences]
-        .sort((left, right) => {
-          const leftGoal = left.goalId ?? "";
-          const rightGoal = right.goalId ?? "";
-          const byGoal = compareCanonicalStrings(leftGoal, rightGoal);
-          if (byGoal !== 0) return byGoal;
-          const byStart = compareCanonicalStrings(left.start, right.start);
-          if (byStart !== 0) return byStart;
-          const byEnd = compareCanonicalStrings(left.end, right.end);
-          return byEnd !== 0
-            ? byEnd
-            : compareCanonicalStrings(left.effect, right.effect);
-        })
-        .filter(
-          (preference, index, preferences) =>
-            index === 0 ||
-            preference.goalId !== preferences[index - 1].goalId ||
-            preference.start !== preferences[index - 1].start ||
-            preference.end !== preferences[index - 1].end ||
-            preference.effect !== preferences[index - 1].effect
-        ),
-    },
+    policy: normalizedPolicy,
   };
 }
 
