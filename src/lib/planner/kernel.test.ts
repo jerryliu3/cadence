@@ -142,7 +142,7 @@ describe("pure planner kernel", () => {
     const completionDates = augustPublished.workUnits
       .map((unit) => unit.scheduledDate)
       .filter((date): date is string => date !== null)
-      .slice(0, 2);
+      .slice(2, 4);
     expect(completionDates).toHaveLength(2);
     const completions: Completion[] = completionDates.map((date, index) => ({
       id: `published-c${index + 1}`,
