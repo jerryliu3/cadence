@@ -344,6 +344,67 @@ describe("usePlannerCoach", () => {
     expect(saveCoachSessionMock).toHaveBeenCalled();
   });
 
+  it("keeps proposal auto-applied when manual apply is a no-op", async () => {
+    applyCoachPolicyPatchesMock.mockReturnValue({
+      policy: buildPolicy(),
+      appliedPatchCount: 0,
+      ignoredPatchCount: 0,
+      noOpPatchCount: 1,
+      outOfScopePatchCount: 0,
+      unsupportedPatchCount: 0,
+    });
+    requestPlannerCoachReplyMock.mockResolvedValue({
+      schemaVersion: "1",
+      phase: "review",
+      reply: "Try three easy runs this week.",
+      proposal: {
+        policyPatches: [
+          {
+            kind: "set_spacing_strategy",
+            spacingStrategy: "even",
+          },
+        ],
+        unresolvedQuestions: [],
+      },
+      recommendations: [],
+      warnings: [],
+    });
+    const context = buildContext();
+    const { result } = renderHook(() =>
+      usePlannerCoach(
+        buildArgs({
+          activeTab: "calendar",
+          context,
+          entriesByDate: new Map([["2026-08-01", [buildEntry()]]]),
+          effectivePreview: context.preview,
+        })
+      )
+    );
+
+    await waitFor(() => {
+      expect(loadCoachSessionMock).toHaveBeenCalledWith("2026-08", "UTC");
+    });
+    act(() => {
+      result.current.actions.setCoachInput("Plan my running week");
+    });
+    await act(async () => {
+      await result.current.actions.sendCoachMessage();
+    });
+    const proposalIndex = result.current.state.coachMessages.findIndex(
+      (message) => message.role === "assistant" && Boolean(message.proposal)
+    );
+    expect(proposalIndex).toBeGreaterThanOrEqual(0);
+
+    await act(async () => {
+      await result.current.actions.applyCoachProposal(proposalIndex);
+    });
+
+    expect(persistPlannerDefaultPolicyMock).not.toHaveBeenCalled();
+    expect(
+      result.current.state.coachMessages[proposalIndex]?.proposal?.applyStatus
+    ).toBe("auto_applied");
+  });
+
   it("does not persist defaults during successful auto-apply", async () => {
     const context = buildContext();
     const nextPolicy = buildPolicy({ spacingStrategy: "flexible" });

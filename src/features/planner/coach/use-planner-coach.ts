@@ -361,12 +361,20 @@ export function usePlannerCoach({
         patches,
         allowedGoalIds,
       });
-      const onlyNoOpPatches =
-        result.appliedPatchCount === 0 &&
-        result.noOpPatchCount > 0 &&
-        result.outOfScopePatchCount === 0 &&
-        result.unsupportedPatchCount === 0;
-      if (result.appliedPatchCount === 0 && !onlyNoOpPatches) {
+      if (result.appliedPatchCount === 0) {
+        if (
+          result.noOpPatchCount > 0 &&
+          result.outOfScopePatchCount === 0 &&
+          result.unsupportedPatchCount === 0
+        ) {
+          appendCoachContextEvent("Coach proposal already matched current draft");
+          toast.success(
+            hasDraftSession
+              ? "Coach proposal already matches your draft policy. Your manual draft edits are still pending publish."
+              : "Coach proposal already matches your current policy."
+          );
+          return "already_applied";
+        }
         toast.error(
           result.outOfScopePatchCount > 0
             ? "Coach edits were received but none matched your current goal scope."
@@ -374,34 +382,19 @@ export function usePlannerCoach({
         );
         return "failed";
       }
-      if (source === "auto" && onlyNoOpPatches) {
-        appendCoachContextEvent("Coach proposal already matched current draft");
-        toast.success(
-          hasDraftSession
-            ? "Coach proposal already matches your draft policy. Your manual draft edits are still pending publish."
-            : "Coach proposal already matches your current policy."
-        );
-        return "already_applied";
-      }
-      const policyToApply =
-        result.appliedPatchCount > 0 ? result.policy : priorPolicy;
-      const persistedEvent =
-        result.appliedPatchCount > 0
-          ? "Persisted coach proposal to planner defaults"
-          : "Persisted current draft policy as planner defaults";
 
       setCoachPolicyApplying(true);
       try {
-        const refreshedPreview = await refreshDraftPreview(policyToApply);
+        const refreshedPreview = await refreshDraftPreview(result.policy);
         if (!refreshedPreview) {
           throw new Error("Preview refresh returned no planner data.");
         }
         if (source === "manual") {
           await persistPlannerDefaultPolicy({
             timezone: context.preferences.timezone,
-            defaultPolicy: policyToApply,
+            defaultPolicy: result.policy,
           });
-          appendCoachContextEvent(persistedEvent);
+          appendCoachContextEvent("Persisted coach proposal to planner defaults");
         }
         const previousDatesByKey = new Map(
           (effectivePreview?.workUnits ?? []).map((unit) => [
@@ -425,24 +418,18 @@ export function usePlannerCoach({
           }
         }
         if (context.scopeMonth) {
-          applyDraftPolicy(context.scopeMonth, policyToApply);
+          applyDraftPolicy(context.scopeMonth, result.policy);
         }
         appendCoachContextEvent(
           source === "auto"
             ? `Auto-applied coach proposal to draft (${result.appliedPatchCount} patches)`
-            : onlyNoOpPatches
-              ? "Applied and persisted current draft policy"
-              : `Applied coach proposal to draft (${result.appliedPatchCount} patches)`
+            : `Applied coach proposal to draft (${result.appliedPatchCount} patches)`
         );
         if (!refreshedPreview.solver.publishable) {
           toast.error(
             `${source === "auto" ? "Coach updates auto-applied" : "Coach proposal applied"}, but this draft cannot publish yet. ${getNonPublishablePreviewMessage(
               refreshedPreview
             )}`
-          );
-        } else if (source === "manual" && onlyNoOpPatches) {
-          toast.success(
-            "Coach proposal already matched your draft policy. Saved the current draft policy as your default."
           );
         } else if (assignmentChanges === 0) {
           toast.success(
@@ -463,12 +450,11 @@ export function usePlannerCoach({
               scopeMonth: context.scopeMonth,
               includedDraftPolicyChanges:
                 hasDraftSession ||
-                effectiveDraftPolicy !== null ||
-                onlyNoOpPatches,
+                effectiveDraftPolicy !== null,
             })
           );
         }
-        return onlyNoOpPatches ? "already_applied" : "applied";
+        return "applied";
       } catch (error) {
         toast.error(
           error instanceof Error
@@ -705,7 +691,7 @@ export function usePlannerCoach({
         patches: message.proposal.policyPatches,
         source: "manual",
       });
-      if (applyStatus === "applied" || applyStatus === "already_applied") {
+      if (applyStatus === "applied") {
         updateCoachProposalStatus(messageIndex, "manually_applied");
       }
     },
