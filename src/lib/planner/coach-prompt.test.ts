@@ -27,6 +27,7 @@ describe("buildCoachPrompt", () => {
     expect(prompt).toContain("evidence-informed coaching");
     expect(prompt).toContain("sleep routines, flossing");
     expect(prompt).toContain("running and gym");
+    expect(prompt).toContain("Focus goal horizon span:");
   });
 
   it("adds explicit prompt-injection and output-contract rules", () => {

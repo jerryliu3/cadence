@@ -39,6 +39,38 @@ function serializeFocusGoals(goals: CoachPromptGoalContext[]) {
   );
 }
 
+function monthFromDate(date: string | null) {
+  return date ? date.slice(0, 7) : null;
+}
+
+function compareMonth(left: string, right: string) {
+  return left.localeCompare(right);
+}
+
+function countMonthsInclusive(startMonth: string, endMonth: string) {
+  const startYear = Number(startMonth.slice(0, 4));
+  const startValue = Number(startMonth.slice(5, 7));
+  const endYear = Number(endMonth.slice(0, 4));
+  const endValue = Number(endMonth.slice(5, 7));
+  return (endYear - startYear) * 12 + (endValue - startValue) + 1;
+}
+
+function buildFocusHorizonSpan(goals: CoachPromptGoalContext[]) {
+  if (goals.length === 0) {
+    return "none";
+  }
+  const startMonths = goals.map((goal) => monthFromDate(goal.start_date)!);
+  const boundedEndMonths = goals
+    .map((goal) => monthFromDate(goal.end_date))
+    .filter((month): month is string => month !== null);
+  const startMonth = startMonths.sort(compareMonth)[0];
+  if (boundedEndMonths.length === 0) {
+    return `${startMonth} -> open-ended`;
+  }
+  const endMonth = boundedEndMonths.sort(compareMonth).at(-1)!;
+  return `${startMonth} -> ${endMonth} (${countMonthsInclusive(startMonth, endMonth)} months)`;
+}
+
 export function buildCoachPrompt({
   scopeMonth,
   timezone,
@@ -49,6 +81,7 @@ export function buildCoachPrompt({
   messages,
 }: BuildCoachPromptInput) {
   const focusGoalsJson = serializeFocusGoals(focusGoals);
+  const focusHorizonSpan = buildFocusHorizonSpan(focusGoals);
   return [
     "SYSTEM ROLE",
     "You are Cadence Coach, a highly experienced professional life coach.",
@@ -95,6 +128,7 @@ export function buildCoachPrompt({
     `Context month: ${scopeMonth}`,
     `Context as-of date: ${asOfDate}`,
     `Confirmed timezone: ${timezone}`,
+    `Focus goal horizon span: ${focusHorizonSpan}`,
     `Total owner goals in context: ${allGoalsCount}`,
     deterministicSummary
       ? `Deterministic summary: ${deterministicSummary}`

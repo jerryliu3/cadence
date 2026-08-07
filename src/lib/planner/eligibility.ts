@@ -1,6 +1,9 @@
 import type { Goal } from "@/lib/goals/types";
-import { getScopeDateRange } from "@/lib/planner/dates";
-import type { PlannerEligibilityMode } from "@/lib/planner/contracts/bounds";
+import { enumerateMonthsInWindow, getScopeDateRange } from "@/lib/planner/dates";
+import {
+  MAX_HORIZON_MONTHS,
+  type PlannerEligibilityMode,
+} from "@/lib/planner/contracts/bounds";
 
 export type EligibilityReason =
   | "eligible"
@@ -12,7 +15,8 @@ export type EligibilityReason =
   | "missing_end_date"
   | "invalid_date_range"
   | "end_outside_scope"
-  | "starts_after_scope";
+  | "starts_after_scope"
+  | "horizon_too_long";
 
 export interface EligibilityGoal {
   ownedByViewer: boolean;
@@ -105,7 +109,12 @@ export function evaluateGoalEligibility({
   ownerId: string;
   goal: Goal;
   currentLinkRole: EligibilityGoal["currentLinkRole"];
-}) {
+}): EligibilityDecision {
+  const isOrdinalGoal =
+    goal.frequency_type === "fixed_milestones" ||
+    (goal.frequency_type === "recurring" &&
+      typeof goal.target_count === "number" &&
+      goal.target_count > 0);
   const normalizedGoal: EligibilityGoal = {
     ownedByViewer: goal.owner_id === ownerId,
     isGroup: goal.is_group,
@@ -116,8 +125,19 @@ export function evaluateGoalEligibility({
     startDate: goal.start_date,
     endDate: goal.end_date,
   };
-  if (eligibilityMode === "overlap_v1") {
-    return evaluateOverlapV1Eligibility(scopeMonth, normalizedGoal);
+  const decision =
+    eligibilityMode === "overlap_v1"
+      ? evaluateOverlapV1Eligibility(scopeMonth, normalizedGoal)
+      : evaluateEndMonthV1Eligibility(scopeMonth, normalizedGoal);
+  if (!decision.eligible || !isOrdinalGoal || goal.end_date === null) {
+    return decision;
   }
-  return evaluateEndMonthV1Eligibility(scopeMonth, normalizedGoal);
+  const horizonMonths = enumerateMonthsInWindow({
+    start: goal.start_date,
+    end: goal.end_date,
+  });
+  if (horizonMonths.length > MAX_HORIZON_MONTHS) {
+    return { eligible: false, reason: "horizon_too_long" };
+  }
+  return decision;
 }
