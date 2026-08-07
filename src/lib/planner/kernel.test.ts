@@ -251,6 +251,38 @@ describe("pure planner kernel", () => {
     expect(output.validation.valid).toBe(true);
   });
 
+  it("recomputes effective local timestamps after solver date changes", () => {
+    const shortGoal = goal({ target_count: 1, end_date: "2026-08-06" });
+    const fingerprint = computeRequirementFingerprint(shortGoal);
+    const output = runPlannerKernel(
+      input({
+        goals: [shortGoal],
+        basePlan: {
+          planId: "plan-a",
+          version: 1,
+          assignments: [
+            {
+              goalId: shortGoal.id,
+              requirementFingerprint: fingerprint,
+              unitKey: "total:1",
+              scheduledDate: "2026-08-10",
+              locked: false,
+              scheduledTimeOverride: "19:30",
+            },
+          ],
+        },
+      })
+    );
+
+    expect(output.workUnits).toHaveLength(1);
+    const unit = output.workUnits[0];
+    expect(unit.scheduledDate).not.toBe("2026-08-10");
+    expect(unit.scheduledTimeOverride).toBe("19:30");
+    expect(unit.effectiveScheduledAtLocal).toBe(
+      unit.scheduledDate ? `${unit.scheduledDate}T19:30:00` : null
+    );
+  });
+
   it("does not let an inadmissible future fact create false shortfall", () => {
     const shortGoal = goal({ target_count: 2, end_date: "2026-08-06" });
     const futureFact: Completion = {

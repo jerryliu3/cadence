@@ -36,6 +36,7 @@ import {
   plannerPolicySchema,
   type PlannerPolicy,
 } from "@/lib/planner/policy";
+import { resolvePlannerEffectiveScheduledTime } from "@/lib/planner/schedule-time";
 import {
   reconcilePlannerCompletions,
   type PlannerCompletionUnitIdentity,
@@ -436,6 +437,25 @@ export function runPlannerKernel(
       unit.scheduledDate =
         solverAssignments.get(unitId) ?? null;
     }
+  }
+  for (const unit of orderedWorkUnits) {
+    const resolvedTime = resolvePlannerEffectiveScheduledTime({
+      scheduledDate: unit.scheduledDate,
+      scheduledTimeOverride: unit.scheduledTimeOverride ?? null,
+    });
+    if (
+      resolvedTime.scheduledTimeOverride === null &&
+      resolvedTime.effectiveScheduledLocalTime === null &&
+      resolvedTime.effectiveScheduledAtLocal === null
+    ) {
+      delete unit.scheduledTimeOverride;
+      delete unit.effectiveScheduledLocalTime;
+      delete unit.effectiveScheduledAtLocal;
+      continue;
+    }
+    unit.scheduledTimeOverride = resolvedTime.scheduledTimeOverride;
+    unit.effectiveScheduledLocalTime = resolvedTime.effectiveScheduledLocalTime;
+    unit.effectiveScheduledAtLocal = resolvedTime.effectiveScheduledAtLocal;
   }
   const mergedValidation =
     validateMergedWorkUnitAssignments(orderedWorkUnits);
