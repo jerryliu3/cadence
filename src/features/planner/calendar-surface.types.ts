@@ -52,6 +52,11 @@ export interface PlannerContextPayload {
       confirmationRequired: boolean;
     };
     workUnits: PlannerWorkUnit[];
+    eligibility?: Array<{
+      goalId: string;
+      eligible: boolean;
+      reason: string;
+    }>;
     horizonSummary?: PlannerGoalHorizonSummary[];
   } | null;
   revisions: {

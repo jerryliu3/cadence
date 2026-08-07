@@ -123,6 +123,27 @@ const DAY_PREVIEW_LONG_PRESS_DELAY_MS = 500;
 const MAX_MONTH_HEADING_SAMPLE = "September 2026";
 const MAX_WEEK_HEADING_SAMPLE = "Sep 30 - Sep 30, 2026";
 const MAX_DAY_HEADING_SAMPLE = "Wed Aug 30";
+const SCOPE_ONLY_ELIGIBILITY_REASONS = new Set([
+  "end_outside_scope",
+  "starts_after_scope",
+]);
+const ELIGIBILITY_REASON_LABELS: Record<string, string> = {
+  not_owner: "Only goals you own can be planned here.",
+  group_goal: "Group goals are excluded from personal planner scheduling.",
+  deleted: "Deleted goals are excluded from planning.",
+  archived: "Archived goals are excluded from planning.",
+  linked: "Linked goals are managed by their source relationship.",
+  missing_end_date:
+    "This goal needs a deadline before it can be planned in Calendar.",
+  invalid_date_range: "The goal dates are invalid (start is after end).",
+  horizon_too_long:
+    "This goal deadline exceeds the 24-month planning horizon limit.",
+};
+
+function getEligibilityReasonLabel(reason: string) {
+  return ELIGIBILITY_REASON_LABELS[reason] ?? "This goal is currently ineligible.";
+}
+
 const PLANNER_VIEW_MODES = [
   { value: "month", label: "Month" },
   { value: "week", label: "Week" },
@@ -394,6 +415,40 @@ export function CalendarSurface({
     );
     return { thisMonth, total, remaining };
   }, [effectivePreview?.horizonSummary]);
+  const eligibilityNotices = useMemo(() => {
+    const eligibilityEntries = effectivePreview?.eligibility ?? [];
+    if (eligibilityEntries.length === 0) {
+      return { hardIneligible: [] as Array<{ goalId: string; goalTitle: string; reasonCopy: string }>, scopeOnlyCount: 0 };
+    }
+
+    const hardIneligible: Array<{
+      goalId: string;
+      goalTitle: string;
+      reasonCopy: string;
+    }> = [];
+    let scopeOnlyCount = 0;
+
+    for (const eligibilityEntry of eligibilityEntries) {
+      if (eligibilityEntry.eligible) {
+        continue;
+      }
+      if (SCOPE_ONLY_ELIGIBILITY_REASONS.has(eligibilityEntry.reason)) {
+        scopeOnlyCount += 1;
+        continue;
+      }
+      hardIneligible.push({
+        goalId: eligibilityEntry.goalId,
+        goalTitle:
+          context?.goalTitles?.[eligibilityEntry.goalId] ?? eligibilityEntry.goalId,
+        reasonCopy: getEligibilityReasonLabel(eligibilityEntry.reason),
+      });
+    }
+
+    hardIneligible.sort((left, right) =>
+      left.goalTitle.localeCompare(right.goalTitle)
+    );
+    return { hardIneligible, scopeOnlyCount };
+  }, [context?.goalTitles, effectivePreview?.eligibility]);
   const activeGoalIndexes = useMemo(
     () => buildActiveGoalIndexes(context?.activePlan?.goals),
     [context?.activePlan?.goals]
@@ -1956,6 +2011,24 @@ export function CalendarSurface({
                   {horizonCounter.remaining > 0
                     ? `· ${horizonCounter.remaining} remaining`
                     : "· all credited"}
+                </p>
+              ) : null}
+              {eligibilityNotices.hardIneligible.length > 0 ? (
+                <div className="rounded-md border border-amber-300/70 bg-amber-50/80 px-3 py-2 text-xs text-amber-900 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-200">
+                  {eligibilityNotices.hardIneligible
+                    .slice(0, 4)
+                    .map((item) => `${item.goalTitle}: ${item.reasonCopy}`)
+                    .join(" · ")}
+                  {eligibilityNotices.hardIneligible.length > 4
+                    ? ` · +${eligibilityNotices.hardIneligible.length - 4} more`
+                    : ""}
+                </div>
+              ) : null}
+              {eligibilityNotices.scopeOnlyCount > 0 ? (
+                <p className="text-xs text-muted-foreground">
+                  {eligibilityNotices.scopeOnlyCount} goal
+                  {eligibilityNotices.scopeOnlyCount === 1 ? "" : "s"} outside this
+                  month&apos;s planning scope.
                 </p>
               ) : null}
             </div>
