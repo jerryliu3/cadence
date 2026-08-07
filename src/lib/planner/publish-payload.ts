@@ -119,6 +119,9 @@ export interface PlannerPublishPersistencePayload {
     credit_state: "uncredited" | "completed_as_scheduled" | "completed_elsewhere";
     original_scheduled_date: string | null;
     scheduled_date: string | null;
+    scheduled_time_override: string | null;
+    effective_scheduled_local_time: string | null;
+    effective_scheduled_at_local: string | null;
     locked: boolean;
     locked_at: string | null;
     estimated_minutes: number;
@@ -516,6 +519,8 @@ export function buildPlannerPublishPersistencePayload({
     .filter((goal) => eligibleGoalIds.has(goal.id))
     .sort((left, right) => left.id.localeCompare(right.id));
 
+  const { draftItemEdits } = buildDraftItemEditsFromCommands(draftCommands);
+
   const goalPayload = goals.map((goal) => {
     const normalizedRequirement = normalizeGoalRequirement(goal);
     const assessment = assessmentForGoal(goal, assessmentByGoalId);
@@ -547,8 +552,6 @@ export function buildPlannerPublishPersistencePayload({
       },
     };
   });
-
-  const { draftItemEdits } = buildDraftItemEditsFromCommands(draftCommands);
   const originalScheduledDateByKey = new Map(
     kernel.workUnits.map((unit) => [
       buildDraftEditKey(unit.originalGoalId, unit.unitKey),
@@ -635,6 +638,9 @@ export function buildPlannerPublishPersistencePayload({
       original_scheduled_date:
         originalScheduledDateByKey.get(itemKey) ?? unit.scheduledDate,
       scheduled_date: unit.scheduledDate,
+      scheduled_time_override: unit.scheduledTimeOverride ?? null,
+      effective_scheduled_local_time: unit.effectiveScheduledLocalTime ?? null,
+      effective_scheduled_at_local: unit.effectiveScheduledAtLocal ?? null,
       locked: unit.locked,
       locked_at: unit.locked ? new Date().toISOString() : null,
       estimated_minutes: assessment?.estimatedMinutesPerSession ?? 30,
