@@ -148,6 +148,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      apply_xp_delta: {
+        Args: { p_delta: number; p_user_id: string }
+        Returns: undefined
+      }
       bump_planner_canonical_revision: {
         Args: { p_owner: string }
         Returns: number
@@ -156,6 +160,7 @@ export type Database = {
         Args: { p_owner: string }
         Returns: number
       }
+      cascade_completion_xp_multiplier: { Args: never; Returns: number }
       consume_planner_ai_quota: {
         Args: {
           p_feature: string
@@ -172,6 +177,7 @@ export type Database = {
         }[]
       }
       ensure_planner_state: { Args: { p_owner: string }; Returns: undefined }
+      ensure_xp_profile: { Args: { p_user_id: string }; Returns: undefined }
       get_planner_coach_conversation: {
         Args: { p_conversation_id: string; p_owner: string }
         Returns: {
@@ -190,10 +196,12 @@ export type Database = {
           updated_at: string
         }[]
       }
+      goal_achievement_xp: { Args: never; Returns: number }
       is_valid_planner_timezone: {
         Args: { p_timezone: string }
         Returns: boolean
       }
+      level_for_total_xp: { Args: { p_total_xp: number }; Returns: number }
       list_planner_coach_conversations: {
         Args: { p_limit?: number; p_owner: string; p_scope_month?: string }
         Returns: {
@@ -211,6 +219,7 @@ export type Database = {
         Args: { p_timezone: string }
         Returns: string
       }
+      manual_completion_xp: { Args: never; Returns: number }
       planner_json_depth: { Args: { p_value: Json }; Returns: number }
       planner_owner_lock_key: { Args: { p_owner: string }; Returns: number }
       record_planner_ai_output_tokens: {
@@ -269,6 +278,10 @@ export type Database = {
           p_value: Json
         }
         Returns: boolean
+      }
+      xp_for_completion_source: {
+        Args: { p_source: Database["public"]["Enums"]["completion_source"] }
+        Returns: number
       }
     }
     Enums: {
@@ -901,6 +914,7 @@ export type Database = {
           recurrence_interval:
             | Database["public"]["Enums"]["recurrence_interval"]
             | null
+          reward_text: string | null
           start_date: string
           target_count: number | null
           title: string
@@ -924,6 +938,7 @@ export type Database = {
           recurrence_interval?:
             | Database["public"]["Enums"]["recurrence_interval"]
             | null
+          reward_text?: string | null
           start_date?: string
           target_count?: number | null
           title: string
@@ -947,6 +962,7 @@ export type Database = {
           recurrence_interval?:
             | Database["public"]["Enums"]["recurrence_interval"]
             | null
+          reward_text?: string | null
           start_date?: string
           target_count?: number | null
           title?: string
@@ -1101,6 +1117,140 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      xp_ledger: {
+        Row: {
+          completed_on: string
+          completion_id: string
+          completion_source: Database["public"]["Enums"]["completion_source"]
+          created_at: string
+          event_type: string
+          goal_id: string
+          id: string
+          metadata: Json
+          user_id: string
+          xp_delta: number
+        }
+        Insert: {
+          completed_on: string
+          completion_id: string
+          completion_source: Database["public"]["Enums"]["completion_source"]
+          created_at?: string
+          event_type: string
+          goal_id: string
+          id?: string
+          metadata?: Json
+          user_id: string
+          xp_delta: number
+        }
+        Update: {
+          completed_on?: string
+          completion_id?: string
+          completion_source?: Database["public"]["Enums"]["completion_source"]
+          created_at?: string
+          event_type?: string
+          goal_id?: string
+          id?: string
+          metadata?: Json
+          user_id?: string
+          xp_delta?: number
+        }
+        Relationships: []
+      }
+      xp_levels: {
+        Row: {
+          created_at: string
+          level: number
+          min_total_xp: number
+          title: string
+        }
+        Insert: {
+          created_at?: string
+          level: number
+          min_total_xp: number
+          title: string
+        }
+        Update: {
+          created_at?: string
+          level?: number
+          min_total_xp?: number
+          title?: string
+        }
+        Relationships: []
+      }
+      xp_profiles: {
+        Row: {
+          created_at: string
+          current_level: number
+          total_xp: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          current_level: number
+          total_xp?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          current_level?: number
+          total_xp?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "xp_profiles_current_level_fkey"
+            columns: ["current_level"]
+            isOneToOne: false
+            referencedRelation: "xp_levels"
+            referencedColumns: ["level"]
+          },
+          {
+            foreignKeyName: "xp_profiles_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      xp_rewards: {
+        Row: {
+          created_at: string
+          id: string
+          level: number
+          reward_code: string
+          reward_description: string
+          reward_title: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          level: number
+          reward_code: string
+          reward_description: string
+          reward_title: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          level?: number
+          reward_code?: string
+          reward_description?: string
+          reward_title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "xp_rewards_level_fkey"
+            columns: ["level"]
+            isOneToOne: true
+            referencedRelation: "xp_levels"
+            referencedColumns: ["level"]
+          },
+        ]
       }
     }
     Views: {
