@@ -71,8 +71,8 @@ export interface PlannerDraftItemProjection {
 const commandKindOrder: Record<PlannerDraftCommand["kind"], number> = {
   move_item: 0,
   set_item_time_override: 1,
-  clear_item_time_override: 1,
-  rename_item: 2,
+  clear_item_time_override: 2,
+  rename_item: 3,
 };
 
 function readCommandUnitKey(command: PlannerDraftCommand) {
