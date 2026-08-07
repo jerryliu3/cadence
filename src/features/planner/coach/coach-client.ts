@@ -5,6 +5,7 @@ import type {
   CoachResponsePayload,
   PlannerErrorPayload,
 } from "@/features/planner/calendar-surface.types";
+import type { PlannerPolicy } from "@/lib/planner/policy";
 
 function readPlannerErrorMessage(payload: unknown, fallback: string) {
   if (
@@ -136,4 +137,35 @@ export async function restorePlannerCoachConversation(conversationId: string) {
     );
   }
   return payload as CoachConversationDetailPayload;
+}
+
+export async function persistPlannerDefaultPolicy({
+  timezone,
+  defaultPolicy,
+}: {
+  timezone: string;
+  defaultPolicy: PlannerPolicy;
+}) {
+  const response = await fetch("/api/planner/preferences", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      timezone,
+      defaultPolicy,
+    }),
+  });
+  const payload = (await response.json()) as PlannerErrorPayload & {
+    preferences?: {
+      timezone: string;
+      policyRevision: number;
+      timezoneConfirmedAt: string;
+      defaultPolicy: PlannerPolicy;
+    };
+  };
+  if (!response.ok) {
+    throw new Error(
+      readPlannerErrorMessage(payload, "Planner preferences could not be updated.")
+    );
+  }
+  return payload.preferences ?? null;
 }
