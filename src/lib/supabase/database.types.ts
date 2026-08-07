@@ -42,6 +42,83 @@ export type Database = {
         }
         Relationships: []
       }
+      planner_coach_conversation_messages: {
+        Row: {
+          content: string
+          conversation_id: string
+          created_at: string
+          id: number
+          ordinal: number
+          owner_id: string
+          proposal_meta: Json | null
+          role: string
+        }
+        Insert: {
+          content: string
+          conversation_id: string
+          created_at?: string
+          id?: never
+          ordinal: number
+          owner_id: string
+          proposal_meta?: Json | null
+          role: string
+        }
+        Update: {
+          content?: string
+          conversation_id?: string
+          created_at?: string
+          id?: never
+          ordinal?: number
+          owner_id?: string
+          proposal_meta?: Json | null
+          role?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "planner_coach_conversation_messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "planner_coach_conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      planner_coach_conversations: {
+        Row: {
+          created_at: string
+          id: string
+          message_count: number
+          owner_id: string
+          preview_text: string
+          scope_month: string
+          timezone: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          message_count: number
+          owner_id: string
+          preview_text: string
+          scope_month: string
+          timezone: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          message_count?: number
+          owner_id?: string
+          preview_text?: string
+          scope_month?: string
+          timezone?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       planner_state: {
         Row: {
           canonical_revision: number
@@ -95,9 +172,40 @@ export type Database = {
         }[]
       }
       ensure_planner_state: { Args: { p_owner: string }; Returns: undefined }
+      get_planner_coach_conversation: {
+        Args: { p_conversation_id: string; p_owner: string }
+        Returns: {
+          conversation_id: string
+          created_at: string
+          message_content: string
+          message_count: number
+          message_created_at: string
+          message_ordinal: number
+          message_proposal_meta: Json
+          message_role: string
+          preview_text: string
+          scope_month: string
+          timezone: string
+          title: string
+          updated_at: string
+        }[]
+      }
       is_valid_planner_timezone: {
         Args: { p_timezone: string }
         Returns: boolean
+      }
+      list_planner_coach_conversations: {
+        Args: { p_limit?: number; p_owner: string; p_scope_month?: string }
+        Returns: {
+          conversation_id: string
+          created_at: string
+          message_count: number
+          preview_text: string
+          scope_month: string
+          timezone: string
+          title: string
+          updated_at: string
+        }[]
       }
       local_today_for_timezone: {
         Args: { p_timezone: string }
@@ -133,6 +241,25 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      save_planner_coach_conversation: {
+        Args: {
+          p_messages: Json
+          p_owner: string
+          p_scope_month: string
+          p_timezone: string
+          p_title?: string
+        }
+        Returns: {
+          conversation_id: string
+          created_at: string
+          message_count: number
+          preview_text: string
+          scope_month: string
+          timezone: string
+          title: string
+          updated_at: string
+        }[]
       }
       validate_planner_json: {
         Args: {
@@ -994,43 +1121,6 @@ export type Database = {
           usage_date: string
         }[]
       }
-      get_planner_coach_conversation_service: {
-        Args: {
-          p_conversation_id: string
-          p_owner: string
-        }
-        Returns: {
-          conversation_id: string
-          created_at: string
-          message_content: string
-          message_count: number
-          message_created_at: string
-          message_ordinal: number
-          message_role: string
-          preview_text: string
-          scope_month: string
-          timezone: string
-          title: string
-          updated_at: string
-        }[]
-      }
-      list_planner_coach_conversations_service: {
-        Args: {
-          p_limit?: number
-          p_owner: string
-          p_scope_month?: string
-        }
-        Returns: {
-          conversation_id: string
-          created_at: string
-          message_count: number
-          preview_text: string
-          scope_month: string
-          timezone: string
-          title: string
-          updated_at: string
-        }[]
-      }
       dismiss_execution_plan_service: {
         Args: {
           p_expected_canonical_revision: number
@@ -1044,11 +1134,42 @@ export type Database = {
           status: string
         }[]
       }
+      get_planner_coach_conversation_service: {
+        Args: { p_conversation_id: string; p_owner: string }
+        Returns: {
+          conversation_id: string
+          created_at: string
+          message_content: string
+          message_count: number
+          message_created_at: string
+          message_ordinal: number
+          message_proposal_meta: Json
+          message_role: string
+          preview_text: string
+          scope_month: string
+          timezone: string
+          title: string
+          updated_at: string
+        }[]
+      }
       get_planner_state: {
         Args: never
         Returns: {
           canonical_revision: number
           execution_revision: number
+        }[]
+      }
+      list_planner_coach_conversations_service: {
+        Args: { p_limit?: number; p_owner: string; p_scope_month?: string }
+        Returns: {
+          conversation_id: string
+          created_at: string
+          message_count: number
+          preview_text: string
+          scope_month: string
+          timezone: string
+          title: string
+          updated_at: string
         }[]
       }
       mark_goal_complete: {
