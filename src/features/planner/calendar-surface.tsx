@@ -81,6 +81,7 @@ import {
   draftCommandReducer,
   initialDraftCommandState,
 } from "@/features/planner/draft-command-reducer";
+import { planDraftTimeOverrideUpdate } from "@/features/planner/draft-time-override";
 import { buildMonthCells } from "@/features/planner/month-cells";
 import { computeDayPreviewPosition } from "@/features/planner/day-preview-popup";
 import { getGoalVisual } from "@/features/planner/goal-visuals";
@@ -516,6 +517,18 @@ export function CalendarSurface({
   const selectedEventDraftEdit = selectedEventEntry
     ? effectiveDraftItemEdits[selectedEventEntry.key]
     : undefined;
+  const selectedEventBaselineUnit = selectedEventEntry
+    ? previewUnitByEntryKey.get(selectedEventEntry.key) ?? null
+    : null;
+  const getEntryDisplayTitleWithTime = useCallback(
+    (entry: PlannerDayDetailEntry) => {
+      const baseTitle = getEntryDisplayTitle(entry);
+      return entry.effectiveScheduledLocalTime
+        ? `${entry.effectiveScheduledLocalTime} ${baseTitle}`
+        : baseTitle;
+    },
+    []
+  );
 
   const previewDayEntries = useMemo(
     () =>
@@ -996,6 +1009,37 @@ export function CalendarSurface({
     });
   };
 
+  const updateDraftScheduledTimeOverride = (
+    entry: PlannerDayDetailEntry,
+    localTime: string
+  ) => {
+    const baselineOverride =
+      previewUnitByEntryKey.get(entry.key)?.scheduledTimeOverride ??
+      entry.activeItem?.scheduled_time_override ??
+      null;
+    const nextPlan = planDraftTimeOverrideUpdate({
+      entry,
+      localTimeInput: localTime,
+      baselineOverride,
+    });
+    if (nextPlan.status === "blocked") {
+      if (nextPlan.reason === "invalid_time") {
+        toast.error("Time must be in 24-hour HH:MM format.");
+      } else {
+        toast.error(
+          "Completed or historical sessions cannot change time overrides in draft. Clear completion in publish mode first."
+        );
+      }
+      return;
+    }
+    if (context?.scopeMonth) {
+      setDraftScopeMonth(context.scopeMonth);
+    }
+    for (const action of nextPlan.actions) {
+      dispatchDraftCommand(action);
+    }
+  };
+
   const updateDraftScheduledDate = (
     entry: PlannerDayDetailEntry,
     date: string
@@ -1021,9 +1065,9 @@ export function CalendarSurface({
   const getDragEntryLabel = useCallback(
     (entryKey: string) => {
       const entry = entryByKey.get(entryKey);
-      return entry ? getEntryDisplayTitle(entry) : "planner session";
+      return entry ? getEntryDisplayTitleWithTime(entry) : "planner session";
     },
-    [entryByKey]
+    [entryByKey, getEntryDisplayTitleWithTime]
   );
 
   const getDragDayLabel = useCallback((day: string) => {
@@ -1044,7 +1088,7 @@ export function CalendarSurface({
         color: entry.activeGoal?.color ?? null,
       });
       const Icon = visual.Icon;
-      const title = getEntryDisplayTitle(entry);
+      const title = getEntryDisplayTitleWithTime(entry);
       const credited = isEntryCredited(entry);
       return (
         <div
@@ -1064,7 +1108,7 @@ export function CalendarSurface({
         </div>
       );
     },
-    [entryByKey]
+    [entryByKey, getEntryDisplayTitleWithTime]
   );
 
   const handleDndEntryDragStart = useCallback(
@@ -1696,7 +1740,7 @@ export function CalendarSurface({
               : 2
         }
         isAnyEntryDragging={Boolean(draggingEntryKey)}
-        getEntryDisplayTitle={getEntryDisplayTitle}
+        getEntryDisplayTitle={getEntryDisplayTitleWithTime}
         isEntryCredited={isEntryCredited}
         isEntryImmovableForDraft={(entry) =>
           !canMutateEntryOnDay(entry, cell.date) || isEntryImmovableForDraft(entry)
@@ -2065,7 +2109,7 @@ export function CalendarSurface({
                         entries={focusedDayEntries}
                         completionFactMarkers={focusedDayCompletionFactMarkers}
                         mutationLoading={Boolean(mutationLoadingKey)}
-                        getEntryDisplayTitle={getEntryDisplayTitle}
+                        getEntryDisplayTitle={getEntryDisplayTitleWithTime}
                         getEntrySubtitle={getEntrySubtitle}
                         isEntryCredited={isEntryCredited}
                         isEntryImmovableForDraft={(entry) =>
@@ -2210,7 +2254,7 @@ export function CalendarSurface({
                     entries={previewDayEntries}
                     completionFactMarkers={previewDayCompletionFactMarkers}
                     mutationLoading={Boolean(mutationLoadingKey)}
-                    getEntryDisplayTitle={getEntryDisplayTitle}
+                    getEntryDisplayTitle={getEntryDisplayTitleWithTime}
                     getEntrySubtitle={getEntrySubtitle}
                     isEntryCredited={isEntryCredited}
                     isEntryImmovableForDraft={(entry) =>
@@ -2310,7 +2354,7 @@ export function CalendarSurface({
                         color: entry.activeGoal?.color ?? null,
                       });
                       const Icon = visual.Icon;
-                      const displayTitle = getEntryDisplayTitle(entry);
+                      const displayTitle = getEntryDisplayTitleWithTime(entry);
                       const subtitle = getEntrySubtitle(entry);
                       const credited = isEntryCredited(entry);
                       const draftDiffSummary = getEntryDraftDiffSummary(entry);
@@ -2427,7 +2471,7 @@ export function CalendarSurface({
               <DialogHeader>
                 <DialogTitle>
                   {selectedEventEntry
-                    ? getEntryDisplayTitle(selectedEventEntry)
+                    ? getEntryDisplayTitleWithTime(selectedEventEntry)
                     : "Event detail"}
                 </DialogTitle>
               </DialogHeader>
@@ -2483,9 +2527,47 @@ export function CalendarSurface({
                           className="h-8 text-xs"
                         />
                       </label>
+                      <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                        Time
+                        <Input
+                          type="time"
+                          step={60}
+                          value={
+                            selectedEventDraftEdit?.scheduledTimeOverride === null
+                              ? ""
+                              : selectedEventDraftEdit?.scheduledTimeOverride ??
+                                selectedEventBaselineUnit?.scheduledTimeOverride ??
+                                ""
+                          }
+                          onChange={(event) =>
+                            updateDraftScheduledTimeOverride(
+                              selectedEventEntry,
+                              event.target.value
+                            )
+                          }
+                          className="h-8 text-xs"
+                        />
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          className="h-8 px-2 text-xs"
+                          onClick={() =>
+                            updateDraftScheduledTimeOverride(selectedEventEntry, "")
+                          }
+                        >
+                          Clear
+                        </Button>
+                      </label>
                       <p className="text-[11px] text-muted-foreground">
                         Drag month-cell session pills to move quickly, or use this
-                        date field as a keyboard-friendly fallback.
+                        date/time editor as a keyboard-friendly fallback.
+                      </p>
+                      <p className="text-[11px] text-muted-foreground">
+                        Effective local time:{" "}
+                        {selectedEventEntry.effectiveScheduledLocalTime ??
+                          selectedEventBaselineUnit?.effectiveScheduledLocalTime ??
+                          "date only"}
                       </p>
                       {selectedEventEntry.activeItem ? (
                         <div className="flex flex-wrap gap-2">
