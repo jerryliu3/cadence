@@ -173,7 +173,7 @@ export function materializeWorstCaseKernelInput({
 
   return {
     schemaVersion: "1",
-    eligibilityMode: "end_month_v1",
+    eligibilityMode: "overlap_v1",
     ownerId,
     scopeMonth: input.scopeMonth,
     asOfDate: `${input.scopeMonth}-01`,

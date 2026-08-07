@@ -131,7 +131,7 @@ function buildContext(
     },
     activePlan: null,
     preview: {
-      eligibilityMode: "end_month_v1",
+      eligibilityMode: "overlap_v1",
       generationInputHash: "hash",
       solver: {
         placementStatus: "complete",

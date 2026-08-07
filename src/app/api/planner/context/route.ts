@@ -146,9 +146,7 @@ export async function GET(request: Request) {
     const activeAssessmentByGoalId = new Map(
       activeAssessments.map((assessment) => [assessment.goalId, assessment])
     );
-    const eligibilityMode = routeContext.capabilities.overlap
-      ? "overlap_v1"
-      : ELIGIBILITY_MODE;
+    const eligibilityMode = ELIGIBILITY_MODE;
     const kernel = routeContext.capabilities.plannerGeneration
       ? runPlannerKernel({
           schemaVersion: PLANNER_CONTRACT_VERSION,
@@ -189,12 +187,7 @@ export async function GET(request: Request) {
       })
     );
 
-    const activePlanEligibilityMode =
-      snapshot.activePlan?.plan.eligibility_mode === "overlap_v1" ||
-      (routeContext.capabilities.overlap &&
-        snapshot.activePlan?.plan.eligibility_mode === "end_month_v1")
-        ? "overlap_v1"
-        : "end_month_v1";
+    const activePlanEligibilityMode = "overlap_v1" as const;
 
     const staleness = snapshot.activePlan && kernel
       ? evaluateActivePlanStaleness({

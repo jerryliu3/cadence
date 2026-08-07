@@ -3,18 +3,17 @@ import eligibilityFixtureJson from "../../../test/fixtures/planner-contracts/eli
 import { eligibilityFixtureSchema } from "@/lib/planner/contracts/fixture-schema";
 import type { Goal } from "@/lib/goals/types";
 import {
-  evaluateEndMonthV1Eligibility,
   evaluateGoalEligibility,
   evaluateOverlapV1Eligibility,
   type EligibilityGoal,
 } from "@/lib/planner/eligibility";
 
-describe("end-month-v1 eligibility", () => {
+describe("frozen overlap eligibility fixture", () => {
   const fixture = eligibilityFixtureSchema.parse(eligibilityFixtureJson);
 
   it.each(fixture.cases)("$id", (fixtureCase) => {
     expect(
-      evaluateEndMonthV1Eligibility(
+      evaluateOverlapV1Eligibility(
         fixtureCase.scopeMonth,
         fixtureCase.goal
       )
@@ -93,7 +92,6 @@ describe("goal-level eligibility guards", () => {
   it("keeps open-ended cadence goals eligible once started", () => {
     expect(
       evaluateGoalEligibility({
-        eligibilityMode: "end_month_v1",
         scopeMonth: "2026-08",
         ownerId: "owner-a",
         goal: cadenceGoal,
@@ -108,7 +106,6 @@ describe("goal-level eligibility guards", () => {
   it("keeps future open-ended cadence goals out of the active month", () => {
     expect(
       evaluateGoalEligibility({
-        eligibilityMode: "overlap_v1",
         scopeMonth: "2026-08",
         ownerId: "owner-a",
         goal: {
@@ -126,7 +123,6 @@ describe("goal-level eligibility guards", () => {
   it("requires end dates for targeted recurring goals", () => {
     expect(
       evaluateGoalEligibility({
-        eligibilityMode: "overlap_v1",
         scopeMonth: "2026-08",
         ownerId: "owner-a",
         goal: {
@@ -166,7 +162,6 @@ describe("goal-level eligibility guards", () => {
 
     expect(
       evaluateGoalEligibility({
-        eligibilityMode: "overlap_v1",
         scopeMonth: "2026-08",
         ownerId: "owner-a",
         goal: longHorizonGoal,
@@ -181,7 +176,6 @@ describe("goal-level eligibility guards", () => {
   it("marks cadence goals with overlong bounded horizons as ineligible", () => {
     expect(
       evaluateGoalEligibility({
-        eligibilityMode: "overlap_v1",
         scopeMonth: "2026-08",
         ownerId: "owner-a",
         goal: {

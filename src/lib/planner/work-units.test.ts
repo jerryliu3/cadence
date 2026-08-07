@@ -48,7 +48,7 @@ function allOrdinals(goal: Goal) {
   );
 }
 
-describe("end-month planner work units", () => {
+describe("planner work units", () => {
   it("materializes open-ended cadence goals month-locally", () => {
     const goal = buildGoal({ end_date: null });
     const units = materializeWorkUnits({
@@ -221,35 +221,14 @@ describe("end-month planner work units", () => {
     expect(units[2].classification).toBe("open");
   });
 
-  it("keeps cadence draft move windows month-bounded in end-month mode", () => {
-    const goal = buildGoal({ end_date: "2026-09-30" });
-    const units = materializeWorkUnits({
-      goal,
-      normalizedRequirement: normalizeGoalRequirement(goal),
-      eligibilityMode: "end_month_v1",
-      scopeMonth: "2026-08",
-      asOfDate: "2026-08-01",
-    });
-
-    const boundaryUnit = units.find((unit) => unit.unitKey === "cadence:2026-08-26");
-    expect(boundaryUnit?.placementWindow).toEqual({
-      start: "2026-08-26",
-      end: "2026-08-31",
-    });
-    expect(boundaryUnit?.draftMoveWindow).toEqual({
-      start: "2026-08-26",
-      end: "2026-08-31",
-    });
-  });
 });
 
-describe("overlap planner draft move windows", () => {
+describe("planner draft move windows", () => {
   it("extends cadence draft move windows into overlap credit days", () => {
     const goal = buildGoal({ end_date: "2026-09-30" });
     const units = materializeWorkUnits({
       goal,
       normalizedRequirement: normalizeGoalRequirement(goal),
-      eligibilityMode: "overlap_v1",
       scopeMonth: "2026-08",
       asOfDate: "2026-08-01",
     });

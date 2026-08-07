@@ -79,7 +79,7 @@ export const eligibilityFixtureSchema = z
   .object({
     schemaVersion: z.literal(PLANNER_CONTRACT_VERSION),
     contract: z.literal("eligibility"),
-    eligibilityMode: z.literal("end_month_v1"),
+    eligibilityMode: z.literal("overlap_v1"),
     cases: z
       .array(
         z

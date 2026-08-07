@@ -39,7 +39,7 @@ const completion: Completion = {
 
 function input(): GenerationHashInput {
   return {
-    eligibilityMode: "end_month_v1",
+    eligibilityMode: "overlap_v1",
     scopeMonth: "2026-08",
     asOfDate: "2026-08-10",
     timezone: "UTC",

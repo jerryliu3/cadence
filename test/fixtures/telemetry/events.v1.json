@@ -14,7 +14,7 @@
     },
     "versions": {
       "telemetrySchema": "1",
-      "eligibilityMode": "end_month_v1",
+      "eligibilityMode": "overlap_v1",
       "scheduler": "ordered-dp-v1",
       "requirementSchema": "1",
       "assessmentSchema": "1",
@@ -65,7 +65,7 @@
     },
     "versions": {
       "telemetrySchema": "1",
-      "eligibilityMode": "end_month_v1",
+      "eligibilityMode": "overlap_v1",
       "scheduler": "ordered-dp-v1",
       "requirementSchema": "1",
       "assessmentSchema": "1",
@@ -112,7 +112,7 @@
     },
     "versions": {
       "telemetrySchema": "1",
-      "eligibilityMode": "end_month_v1",
+      "eligibilityMode": "overlap_v1",
       "scheduler": "ordered-dp-v1",
       "requirementSchema": "1",
       "assessmentSchema": "1",
@@ -151,7 +151,7 @@
     },
     "versions": {
       "telemetrySchema": "1",
-      "eligibilityMode": "end_month_v1",
+      "eligibilityMode": "overlap_v1",
       "scheduler": "ordered-dp-v1",
       "requirementSchema": "1",
       "assessmentSchema": "1",
@@ -190,7 +190,7 @@
     },
     "versions": {
       "telemetrySchema": "1",
-      "eligibilityMode": "end_month_v1",
+      "eligibilityMode": "overlap_v1",
       "scheduler": "ordered-dp-v1",
       "requirementSchema": "1",
       "assessmentSchema": "1",

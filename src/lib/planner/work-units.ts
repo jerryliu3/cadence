@@ -6,10 +6,6 @@ import {
 import type { Goal } from "@/lib/goals/types";
 import { compareCanonicalStrings } from "@/lib/planner/canonical";
 import {
-  ELIGIBILITY_MODE,
-  type PlannerEligibilityMode,
-} from "@/lib/planner/contracts/bounds";
-import {
   dateIsInWindow,
   getScopeDateRange,
   intersectDateWindows,
@@ -167,19 +163,14 @@ function createUnitBase({
 }
 
 function resolveDraftMoveWindow({
-  eligibilityMode,
   creditWindow,
   placementWindow,
 }: {
-  eligibilityMode: PlannerEligibilityMode;
   creditWindow: DateWindow;
   placementWindow: DateWindow | null;
 }) {
   if (placementWindow === null) {
     return null;
-  }
-  if (eligibilityMode !== "overlap_v1") {
-    return placementWindow;
   }
   if (compareDateStrings(creditWindow.end, placementWindow.start) < 0) {
     return placementWindow;
@@ -193,7 +184,6 @@ function resolveDraftMoveWindow({
 export function materializeWorkUnits({
   goal,
   normalizedRequirement,
-  eligibilityMode = ELIGIBILITY_MODE,
   scopeMonth,
   asOfDate,
   baseAssignments = [],
@@ -201,7 +191,6 @@ export function materializeWorkUnits({
 }: {
   goal: Goal;
   normalizedRequirement: NormalizedGoalRequirement;
-  eligibilityMode?: PlannerEligibilityMode;
   scopeMonth: string;
   asOfDate: string;
   baseAssignments?: PlannerBaseAssignment[];
@@ -274,7 +263,6 @@ export function materializeWorkUnits({
           creditWindow: lifetime,
           placementWindow,
           draftMoveWindow: resolveDraftMoveWindow({
-            eligibilityMode,
             creditWindow: lifetime,
             placementWindow,
           }),
@@ -339,7 +327,6 @@ export function materializeWorkUnits({
         creditWindow,
         placementWindow,
         draftMoveWindow: resolveDraftMoveWindow({
-          eligibilityMode,
           creditWindow,
           placementWindow,
         }),
