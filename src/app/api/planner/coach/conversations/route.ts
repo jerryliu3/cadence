@@ -46,6 +46,16 @@ function mapSummaryRow(row: z.infer<typeof conversationSummaryRowSchema>) {
   });
 }
 
+function shouldFallbackToEmptyConversationList(error: {
+  code?: string | null;
+  message?: string | null;
+  details?: string | null;
+  hint?: string | null;
+}) {
+  const code = (error.code ?? "").toUpperCase();
+  return code === "PGRST202" || code === "42883" || code === "42P01";
+}
+
 export async function GET(request: Request) {
   const correlationId = createCorrelationId();
   try {
@@ -79,6 +89,25 @@ export async function GET(request: Request) {
       }
     );
     if (rpcResponse.error) {
+      if (shouldFallbackToEmptyConversationList(rpcResponse.error)) {
+        console.warn(
+          "[planner:coach] conversations fallback fired",
+          {
+            correlationId,
+            userId: routeContext.userId,
+            errorCode: rpcResponse.error.code,
+            errorMessage: rpcResponse.error.message,
+          }
+        );
+        return NextResponse.json(
+          {
+            schemaVersion: "1",
+            conversations: [],
+            correlationId,
+          },
+          { headers: { "Cache-Control": "private, no-store" } }
+        );
+      }
       throw new PlannerRouteError(
         503,
         "conversation_list_unavailable",

@@ -70,6 +70,7 @@ const columnAliases = {
   milestone_names: ["milestone_names", "milestones_list", "steps", "step_names"],
   start_date: ["start_date", "start", "startdate"],
   end_date: ["end_date", "end", "enddate", "due_date", "due"],
+  default_local_time: ["default_local_time", "default_time", "time_of_day", "local_time"],
 } as const;
 
 interface BulkGoalDraft {
@@ -88,6 +89,7 @@ interface BulkGoalDraft {
   milestone_names: string[];
   start_date: string;
   end_date: string;
+  default_local_time: string;
   linked_target_goal_id: string;
   link_target_search: string;
   link_target_open: boolean;
@@ -105,13 +107,14 @@ interface LlmGoalDraftPayload {
   target_count?: number | null;
   start_date?: string | null;
   end_date?: string | null;
+  default_local_time?: string | null;
 }
 
 type BulkInputMode = "natural_language" | "csv";
 
-const csvExample = `title,description,category,color,is_group,frequency_type,recurrence_interval,target_count,milestone_names,start_date,end_date
-Morning run,Train for a half marathon,Health,#16a34a,false,recurring,daily,20,,2026-06-01,2026-12-31
-Read 12 books,One book per month,Personal,#6366f1,false,fixed,,12,Book 1|Book 2|Book 3,2026-06-01,2026-12-31`;
+const csvExample = `title,description,category,color,is_group,frequency_type,recurrence_interval,target_count,milestone_names,start_date,end_date,default_local_time
+Morning run,Train for a half marathon,Health,#16a34a,false,recurring,daily,20,,2026-06-01,2026-12-31,06:45
+Read 12 books,One book per month,Personal,#6366f1,false,fixed,,12,Book 1|Book 2|Book 3,2026-06-01,2026-12-31,`;
 
 function defaultMilestoneName(index: number): string {
   return `Milestone ${index + 1}`;
@@ -200,6 +203,18 @@ function isValidHexColor(raw: string): boolean {
   return /^#[0-9a-f]{6}$/i.test(raw.trim());
 }
 
+function isValidLocalTime(raw: string): boolean {
+  return /^([01]\d|2[0-3]):[0-5]\d$/.test(raw.trim());
+}
+
+function normalizeLocalTimeValue(raw: string): string {
+  const trimmed = raw.trim();
+  if (!trimmed) {
+    return "";
+  }
+  return isValidLocalTime(trimmed) ? trimmed : "";
+}
+
 function trimMilestoneNames(names: string[], targetCount: number): string[] {
   return Array.from({ length: Math.max(targetCount, 0) }, (_, index) => names[index] ?? "");
 }
@@ -237,6 +252,13 @@ function validateDraft(draft: BulkGoalDraft): string[] {
 
   if (!isValidHexColor(draft.color)) {
     errors.push("Color accent must be a valid hex color.");
+  }
+
+  if (
+    draft.default_local_time.trim().length > 0 &&
+    !isValidLocalTime(draft.default_local_time)
+  ) {
+    errors.push("Default time must be a valid 24-hour HH:MM value.");
   }
 
   if (draft.frequency_type === "fixed_milestones") {
@@ -331,6 +353,9 @@ function buildDraftFromRow(row: Record<string, unknown>, rowIndex: number): Bulk
     end_date:
       normalizeDateValue(normalizedRow[normalizeHeaderKey(columnAliases.end_date[0])]) ||
       normalizeDateValue(extractText(normalizedRow, columnAliases.end_date)),
+    default_local_time: normalizeLocalTimeValue(
+      extractText(normalizedRow, columnAliases.default_local_time)
+    ),
     linked_target_goal_id: "none",
     link_target_search: "",
     link_target_open: false,
@@ -558,6 +583,7 @@ export function BulkGoalForm() {
             : String(goal.target_count),
         start_date: goal.start_date ?? "",
         end_date: goal.end_date ?? "",
+        default_local_time: normalizeLocalTimeValue(goal.default_local_time ?? ""),
       }));
 
       loadDraftsFromRows(rows);
@@ -638,6 +664,7 @@ export function BulkGoalForm() {
             milestone_names: milestoneNames,
             start_date: draft.start_date,
             end_date: draft.end_date || null,
+            default_local_time: draft.default_local_time.trim() || null,
             is_group: draft.is_group,
             is_deleted: false,
           },
@@ -822,7 +849,7 @@ export function BulkGoalForm() {
                   id="bulk-csv-input"
                   value={csvInput}
                   onChange={(event) => setCsvInput(event.target.value)}
-                  placeholder="title,description,category,color,is_group,frequency_type,recurrence_interval,target_count,milestone_names,start_date,end_date"
+                  placeholder="title,description,category,color,is_group,frequency_type,recurrence_interval,target_count,milestone_names,start_date,end_date,default_local_time"
                   className="min-h-36"
                 />
                 <div className="flex flex-wrap items-center gap-2">
@@ -869,7 +896,7 @@ export function BulkGoalForm() {
                 <p className="text-xs text-muted-foreground">
                   Supported columns: title, description, category, color, is_group,
                   frequency_type, recurrence_interval, target_count, milestone_names, start_date,
-                  end_date.
+                  end_date, default_local_time.
                 </p>
               </section>
             </>
@@ -1175,6 +1202,25 @@ export function BulkGoalForm() {
                             }))
                           }
                         />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label>Default time of day</Label>
+                        <Input
+                          type="time"
+                          value={draft.default_local_time}
+                          onChange={(event) =>
+                            updateDraft(draft.id, (previous) => ({
+                              ...previous,
+                              default_local_time: normalizeLocalTimeValue(
+                                event.target.value
+                              ),
+                            }))
+                          }
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Optional fallback planner time when no item override is set.
+                        </p>
                       </div>
                     </div>
 

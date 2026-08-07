@@ -61,6 +61,7 @@ export interface PlannerWorkUnit {
   creditState: WorkUnitCreditState;
   scheduledDate: string | null;
   locked: boolean;
+  goalDefaultLocalTime?: string | null;
   scheduledTimeOverride?: string | null;
   effectiveScheduledLocalTime?: string | null;
   effectiveScheduledAtLocal?: string | null;
@@ -121,9 +122,11 @@ function createUnitBase({
   );
   const resolvedTime = resolvePlannerEffectiveScheduledTime({
     scheduledDate: base?.scheduledDate ?? null,
+    goalDefaultLocalTime: goal.default_local_time ?? null,
     scheduledTimeOverride: base?.scheduledTimeOverride ?? null,
   });
   const hasTimeData =
+    resolvedTime.goalDefaultLocalTime !== null ||
     resolvedTime.scheduledTimeOverride !== null ||
     resolvedTime.effectiveScheduledLocalTime !== null;
   return {
@@ -150,6 +153,9 @@ function createUnitBase({
     locked: base?.locked ?? false,
     ...(hasTimeData
       ? {
+          ...(resolvedTime.goalDefaultLocalTime !== null
+            ? { goalDefaultLocalTime: resolvedTime.goalDefaultLocalTime }
+            : {}),
           scheduledTimeOverride: resolvedTime.scheduledTimeOverride,
           effectiveScheduledLocalTime: resolvedTime.effectiveScheduledLocalTime,
           effectiveScheduledAtLocal: resolvedTime.effectiveScheduledAtLocal,

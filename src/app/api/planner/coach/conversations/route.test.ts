@@ -87,6 +87,32 @@ describe("planner coach conversations route", () => {
     });
   });
 
+  it("falls back to an empty list when conversation RPC wiring is unavailable", async () => {
+    mocks.callAdminRpc.mockResolvedValue({
+      data: null,
+      error: {
+        code: "PGRST202",
+        message:
+          "Could not find the function public.list_planner_coach_conversations_service in the schema cache",
+        details: null,
+        hint: null,
+      },
+    });
+
+    const response = await GET(
+      new Request(
+        "http://localhost/api/planner/coach/conversations?scopeMonth=2026-08&limit=10"
+      )
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      schemaVersion: "1",
+      conversations: [],
+      correlationId: "test-correlation-id",
+    });
+  });
+
   it("saves coach conversations with message history", async () => {
     mocks.parseBoundedJsonBody.mockResolvedValue({
       scopeMonth: "2026-08",
