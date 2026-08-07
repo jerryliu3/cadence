@@ -93,6 +93,64 @@ describe("end-month planner work units", () => {
     );
   });
 
+  it("keeps ordinal unit keys stable across adjacent scope months", () => {
+    const totalGoal = buildGoal({
+      target_count: 3,
+      start_date: "2026-08-01",
+      end_date: "2026-09-30",
+    });
+    const milestoneGoal = buildGoal({
+      id: "milestone-goal",
+      frequency_type: "fixed_milestones",
+      recurrence_interval: null,
+      target_count: 2,
+      milestone_names: ["First", "Second"],
+      start_date: "2026-08-01",
+      end_date: "2026-09-30",
+    });
+
+    const totalAugust = materializeWorkUnits({
+      goal: totalGoal,
+      normalizedRequirement: normalizeGoalRequirement(totalGoal),
+      scopeMonth: "2026-08",
+      asOfDate: "2026-08-05",
+    });
+    const totalSeptember = materializeWorkUnits({
+      goal: totalGoal,
+      normalizedRequirement: normalizeGoalRequirement(totalGoal),
+      scopeMonth: "2026-09",
+      asOfDate: "2026-08-05",
+    });
+    const milestoneAugust = materializeWorkUnits({
+      goal: milestoneGoal,
+      normalizedRequirement: normalizeGoalRequirement(milestoneGoal),
+      scopeMonth: "2026-08",
+      asOfDate: "2026-08-05",
+    });
+    const milestoneSeptember = materializeWorkUnits({
+      goal: milestoneGoal,
+      normalizedRequirement: normalizeGoalRequirement(milestoneGoal),
+      scopeMonth: "2026-09",
+      asOfDate: "2026-08-05",
+    });
+
+    expect(totalAugust.map((unit) => unit.unitKey)).toEqual([
+      "total:1",
+      "total:2",
+      "total:3",
+    ]);
+    expect(totalSeptember.map((unit) => unit.unitKey)).toEqual(
+      totalAugust.map((unit) => unit.unitKey)
+    );
+    expect(milestoneAugust.map((unit) => unit.unitKey)).toEqual([
+      "milestone:1",
+      "milestone:2",
+    ]);
+    expect(milestoneSeptember.map((unit) => unit.unitKey)).toEqual(
+      milestoneAugust.map((unit) => unit.unitKey)
+    );
+  });
+
   it("classifies non-placeable historical totals explicitly", () => {
     const goal = buildGoal({
       target_count: 2,
@@ -293,6 +351,65 @@ describe("planner completion reconciliation", () => {
       "fulfilled",
       "open",
     ]);
+  });
+
+  it("preserves prior deadline-total completion identity when still valid", () => {
+    const goal = buildGoal({
+      target_count: 2,
+      start_date: "2026-08-01",
+    });
+    const normalizedRequirement = normalizeGoalRequirement(goal);
+    const units = materializeWorkUnits({
+      goal,
+      normalizedRequirement,
+      scopeMonth: "2026-08",
+      asOfDate: "2026-08-20",
+      baseAssignments: [
+        {
+          goalId: goal.id,
+          requirementFingerprint: normalizedRequirement.requirementFingerprint,
+          unitKey: "total:1",
+          scheduledDate: "2026-08-05",
+          locked: false,
+        },
+        {
+          goalId: goal.id,
+          requirementFingerprint: normalizedRequirement.requirementFingerprint,
+          unitKey: "total:2",
+          scheduledDate: "2026-08-10",
+          locked: false,
+        },
+      ],
+    });
+    const result = reconcilePlannerCompletions({
+      goal,
+      workUnits: units,
+      completions: [completion("2026-08-07", "sticky")],
+      asOfDate: "2026-08-20",
+      previousCompletionToUnit: {
+        sticky: {
+          goalId: goal.id,
+          requirementFingerprint: normalizedRequirement.requirementFingerprint,
+          unitKey: "total:2",
+          completedOn: "2026-08-07",
+        },
+      },
+    });
+
+    expect(result.completionToUnit.sticky).toEqual({
+      goalId: goal.id,
+      requirementFingerprint: normalizedRequirement.requirementFingerprint,
+      unitKey: "total:2",
+      completedOn: "2026-08-07",
+    });
+    expect(result.driftFacts).toEqual([]);
+    expect(
+      result.units.find((unit) => unit.unitKey === "total:2")
+    ).toMatchObject({
+      classification: "satisfied_elsewhere",
+      creditState: "completed_elsewhere",
+      creditedCompletionId: "sticky",
+    });
   });
 
   it("maps milestones chronologically and never scheduled-first", () => {
