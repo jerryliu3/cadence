@@ -685,6 +685,10 @@ export function usePlannerCoach({
       if (!message || message.role !== "assistant" || !message.proposal) {
         return;
       }
+      if (!context?.preferences) {
+        toast.error("Undo is unavailable because planner policy is not loaded.");
+        return;
+      }
       if (!message.proposal.baselinePolicy) {
         toast.error(
           "Undo is unavailable because this proposal has no baseline snapshot."
@@ -692,6 +696,29 @@ export function usePlannerCoach({
         return;
       }
       const baselinePolicy = plannerPolicySchema.parse(message.proposal.baselinePolicy);
+      const allowedGoalIds = new Set<string>([
+        ...Object.keys(context.goalTitles ?? {}),
+        ...(context.activePlan?.goals ?? []).map((goal) => goal.original_goal_id),
+      ]);
+      const expectedAppliedPolicy = applyCoachPolicyPatches({
+        policy: baselinePolicy,
+        patches: message.proposal.policyPatches,
+        allowedGoalIds,
+      }).policy;
+      if (hasDraftSession || effectiveDraftPolicy !== null) {
+        const currentDraftPolicy = plannerPolicySchema.parse(
+          effectiveDraftPolicy ?? context.preferences.defaultPolicy
+        );
+        if (
+          buildBaselineSnapshotToken(currentDraftPolicy) !==
+          buildBaselineSnapshotToken(expectedAppliedPolicy)
+        ) {
+          toast.error(
+            "Undo is blocked because newer draft policy changes were applied after this proposal. Undo newer proposals first or discard draft changes."
+          );
+          return;
+        }
+      }
       setCoachPolicyApplying(true);
       try {
         await refreshDraftPreview(baselinePolicy);
@@ -712,6 +739,8 @@ export function usePlannerCoach({
       applyDraftPolicy,
       coachMessages,
       context,
+      effectiveDraftPolicy,
+      hasDraftSession,
       refreshDraftPreview,
       updateCoachProposalStatus,
     ]
