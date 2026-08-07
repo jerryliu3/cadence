@@ -78,3 +78,28 @@ export function getScopeState(scopeMonth: string, asOfDate: string) {
   }
   return "current" as const;
 }
+
+export function monthFromDate(date: string) {
+  return date.slice(0, 7);
+}
+
+export function nextMonth(month: string) {
+  const year = Number(month.slice(0, 4));
+  const monthIndex = Number(month.slice(5, 7));
+  if (!Number.isInteger(year) || !Number.isInteger(monthIndex)) {
+    throw new Error(`Invalid month: ${month}`);
+  }
+  const nextYear = monthIndex === 12 ? year + 1 : year;
+  const nextMonthNumber = monthIndex === 12 ? 1 : monthIndex + 1;
+  return `${String(nextYear).padStart(4, "0")}-${String(nextMonthNumber).padStart(2, "0")}`;
+}
+
+export function enumerateMonthsInWindow(window: DateWindow) {
+  const startMonth = monthFromDate(window.start);
+  const endMonth = monthFromDate(window.end);
+  const months: string[] = [];
+  for (let month = startMonth; month <= endMonth; month = nextMonth(month)) {
+    months.push(month);
+  }
+  return months;
+}

@@ -23,10 +23,12 @@ import {
 } from "@/lib/planner/contracts/kernel-schema";
 import { diffPlannerAssignments } from "@/lib/planner/diff";
 import {
+  enumerateMonthsInWindow,
   enumerateDates,
   getScopeDateRange,
   getScopeState,
   intersectDateWindows,
+  monthFromDate,
 } from "@/lib/planner/dates";
 import {
   evaluateGoalEligibility,
@@ -126,42 +128,6 @@ function currentLinkRole(
   return "none";
 }
 
-function monthFromDate(date: string) {
-  return date.slice(0, 7);
-}
-
-function nextMonth(month: string) {
-  const year = Number(month.slice(0, 4));
-  const monthIndex = Number(month.slice(5, 7));
-  if (!Number.isInteger(year) || !Number.isInteger(monthIndex)) {
-    throw new Error(`Invalid month: ${month}`);
-  }
-  const nextYear = monthIndex === 12 ? year + 1 : year;
-  const nextMonthNumber = monthIndex === 12 ? 1 : monthIndex + 1;
-  return `${String(nextYear).padStart(4, "0")}-${String(nextMonthNumber).padStart(2, "0")}`;
-}
-
-function enumerateMonthsInWindow({
-  start,
-  end,
-}: {
-  start: string;
-  end: string;
-}) {
-  const months: string[] = [];
-  const startMonth = monthFromDate(start);
-  const endMonth = monthFromDate(end);
-  for (
-    let month = startMonth;
-    compareCanonicalStrings(month, endMonth) <= 0;
-
-  ) {
-    months.push(month);
-    month = nextMonth(month);
-  }
-  return months;
-}
-
 function ownerMonthForOrdinal({
   months,
   targetCount,
@@ -172,7 +138,7 @@ function ownerMonthForOrdinal({
   ordinal: number;
 }) {
   const ownerIndex = Math.floor(((ordinal - 1) * months.length) / targetCount);
-  return months[ownerIndex] ?? null;
+  return months[ownerIndex]!;
 }
 
 function countDateWindowDays({
@@ -295,9 +261,6 @@ function allocateOrdinalScopeMonth({
       targetCount: requirement.targetCount,
       ordinal,
     });
-    if (!ownerMonth) {
-      continue;
-    }
     ownerUncreditedByMonth.get(ownerMonth)!.push(ordinal);
   }
 
@@ -315,9 +278,6 @@ function allocateOrdinalScopeMonth({
       targetCount: requirement.targetCount,
       ordinal: unit.ordinal,
     });
-    if (!ownerMonth) {
-      continue;
-    }
     const completionMonth = monthFromDate(unit.creditedCompletionDate);
     const pinnedMonth = lifetimeMonths.includes(completionMonth)
       ? completionMonth

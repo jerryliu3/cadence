@@ -188,45 +188,6 @@ function resolveDraftMoveWindow({
   };
 }
 
-function monthFromDate(date: string) {
-  return date.slice(0, 7);
-}
-
-function nextMonth(month: string) {
-  const year = Number(month.slice(0, 4));
-  const monthIndex = Number(month.slice(5, 7));
-  if (!Number.isInteger(year) || !Number.isInteger(monthIndex)) {
-    throw new Error(`Invalid month: ${month}`);
-  }
-  const nextYear = monthIndex === 12 ? year + 1 : year;
-  const nextMonthNumber = monthIndex === 12 ? 1 : monthIndex + 1;
-  return `${String(nextYear).padStart(4, "0")}-${String(nextMonthNumber).padStart(2, "0")}`;
-}
-
-function enumerateMonthsInWindow(window: DateWindow) {
-  const startMonth = monthFromDate(window.start);
-  const endMonth = monthFromDate(window.end);
-  const months: string[] = [];
-  for (let month = startMonth; compareCanonicalStrings(month, endMonth) <= 0; ) {
-    months.push(month);
-    month = nextMonth(month);
-  }
-  return months;
-}
-
-function ownerMonthForOrdinal({
-  months,
-  targetCount,
-  ordinal,
-}: {
-  months: string[];
-  targetCount: number;
-  ordinal: number;
-}) {
-  const ownerIndex = Math.floor(((ordinal - 1) * months.length) / targetCount);
-  return months[ownerIndex] ?? null;
-}
-
 export function materializeWorkUnits({
   goal,
   normalizedRequirement,
@@ -266,9 +227,10 @@ export function materializeWorkUnits({
     requirement.kind === "milestone_sequence" ||
     requirement.kind === "deadline_total"
   ) {
-    const lifetimeMonths = enumerateMonthsInWindow(lifetime);
-    if (!lifetimeMonths.includes(scopeMonth)) {
-      return [];
+    if (!ordinalsForScopeMonth) {
+      throw new Error(
+        "Planner ordinal work units require an explicit ordinal scope allocation."
+      );
     }
     const placementWindow = intersectDateWindows(scope, {
       start:
@@ -286,18 +248,9 @@ export function materializeWorkUnits({
           ? "future"
           : "open";
 
-    const candidateOrdinals =
-      ordinalsForScopeMonth !== undefined
-        ? Array.from(ordinalsForScopeMonth).sort((left, right) => left - right)
-        : Array.from({ length: requirement.targetCount }, (_, index) => index + 1)
-            .filter(
-              (ordinal) =>
-                ownerMonthForOrdinal({
-                  months: lifetimeMonths,
-                  targetCount: requirement.targetCount,
-                  ordinal,
-                }) === scopeMonth
-            );
+    const candidateOrdinals = Array.from(ordinalsForScopeMonth).sort(
+      (left, right) => left - right
+    );
 
     return candidateOrdinals
       .map((ordinal) => {

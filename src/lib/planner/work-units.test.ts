@@ -42,6 +42,12 @@ function completion(date: string, id = date): Completion {
   };
 }
 
+function allOrdinals(goal: Goal) {
+  return new Set(
+    Array.from({ length: Math.max(goal.target_count ?? 0, 0) }, (_, index) => index + 1)
+  );
+}
+
 describe("end-month planner work units", () => {
   it("owns boundary cadence windows by clipped scope intersection", () => {
     const goal = buildGoal();
@@ -81,6 +87,7 @@ describe("end-month planner work units", () => {
       normalizedRequirement: normalizeGoalRequirement(goal),
       scopeMonth: "2026-08",
       asOfDate: "2026-08-05",
+      ordinalsForScopeMonth: allOrdinals(goal),
     });
 
     expect(units.map((unit) => unit.unitKey)).toEqual([
@@ -93,73 +100,21 @@ describe("end-month planner work units", () => {
     );
   });
 
-  it("allocates deadline-total ordinals across months without duplication inflation", () => {
+  it("requires explicit ordinal scope allocation for ordinal goals", () => {
     const totalGoal = buildGoal({
-      target_count: 9,
+      target_count: 2,
       start_date: "2026-08-01",
-      end_date: "2026-10-31",
+      end_date: "2026-08-31",
     });
 
-    const months = ["2026-08", "2026-09", "2026-10"] as const;
-    const unitsByMonth = months.map((scopeMonth) =>
+    expect(() =>
       materializeWorkUnits({
         goal: totalGoal,
         normalizedRequirement: normalizeGoalRequirement(totalGoal),
-        scopeMonth,
+        scopeMonth: "2026-08",
         asOfDate: "2026-08-05",
       })
-    );
-
-    const allUnitKeys = unitsByMonth.flatMap((units) =>
-      units.map((unit) => unit.unitKey)
-    );
-    const uniqueUnitKeys = new Set(allUnitKeys);
-
-    expect(uniqueUnitKeys.size).toBe(totalGoal.target_count);
-    expect(allUnitKeys).toHaveLength(totalGoal.target_count ?? 0);
-    expect(Math.max(...unitsByMonth.map((units) => units.length))).toBeLessThan(
-      totalGoal.target_count ?? 0
-    );
-  });
-
-  it("allocates milestone ordinals across months without duplication inflation", () => {
-    const milestoneGoal = buildGoal({
-      id: "milestone-goal",
-      frequency_type: "fixed_milestones",
-      recurrence_interval: null,
-      target_count: 7,
-      milestone_names: [
-        "One",
-        "Two",
-        "Three",
-        "Four",
-        "Five",
-        "Six",
-        "Seven",
-      ],
-      start_date: "2026-08-01",
-      end_date: "2026-10-31",
-    });
-
-    const months = ["2026-08", "2026-09", "2026-10"] as const;
-    const unitsByMonth = months.map((scopeMonth) =>
-      materializeWorkUnits({
-        goal: milestoneGoal,
-        normalizedRequirement: normalizeGoalRequirement(milestoneGoal),
-        scopeMonth,
-        asOfDate: "2026-08-05",
-      })
-    );
-    const allUnitKeys = unitsByMonth.flatMap((units) =>
-      units.map((unit) => unit.unitKey)
-    );
-    const uniqueUnitKeys = new Set(allUnitKeys);
-
-    expect(uniqueUnitKeys.size).toBe(milestoneGoal.target_count);
-    expect(allUnitKeys).toHaveLength(milestoneGoal.target_count ?? 0);
-    expect(Math.max(...unitsByMonth.map((units) => units.length))).toBeLessThan(
-      milestoneGoal.target_count ?? 0
-    );
+    ).toThrowError("Planner ordinal work units require an explicit ordinal scope allocation.");
   });
 
   it("respects explicit ordinal scope allocation overrides", () => {
@@ -189,6 +144,7 @@ describe("end-month planner work units", () => {
       normalizedRequirement: normalizeGoalRequirement(goal),
       scopeMonth: "2026-08",
       asOfDate: "2026-09-01",
+      ordinalsForScopeMonth: allOrdinals(goal),
     });
 
     expect(units.map((unit) => unit.classification)).toEqual([
@@ -271,6 +227,7 @@ describe("planner time defaults", () => {
       normalizedRequirement: requirement,
       scopeMonth: "2026-08",
       asOfDate: "2026-08-01",
+      ordinalsForScopeMonth: allOrdinals(goal),
       baseAssignments: [
         {
           goalId: goal.id,
@@ -304,6 +261,7 @@ describe("planner time defaults", () => {
       normalizedRequirement: requirement,
       scopeMonth: "2026-08",
       asOfDate: "2026-08-01",
+      ordinalsForScopeMonth: allOrdinals(goal),
       baseAssignments: [
         {
           goalId: goal.id,
@@ -348,6 +306,7 @@ describe("planner completion reconciliation", () => {
       normalizedRequirement: normalizeGoalRequirement(goal),
       scopeMonth: "2026-08",
       asOfDate: "2026-08-20",
+      ordinalsForScopeMonth: allOrdinals(goal),
       baseAssignments,
     });
     const result = reconcilePlannerCompletions({
@@ -394,6 +353,7 @@ describe("planner completion reconciliation", () => {
       normalizedRequirement,
       scopeMonth: "2026-08",
       asOfDate: "2026-08-20",
+      ordinalsForScopeMonth: allOrdinals(goal),
       baseAssignments: [
         {
           goalId: goal.id,
@@ -455,6 +415,7 @@ describe("planner completion reconciliation", () => {
       normalizedRequirement: normalizeGoalRequirement(goal),
       scopeMonth: "2026-08",
       asOfDate: "2026-08-20",
+      ordinalsForScopeMonth: allOrdinals(goal),
       baseAssignments: [
         {
           goalId: goal.id,
@@ -504,6 +465,7 @@ describe("planner completion reconciliation", () => {
       normalizedRequirement: normalizeGoalRequirement(goal),
       scopeMonth: "2026-08",
       asOfDate: "2026-08-20",
+      ordinalsForScopeMonth: allOrdinals(goal),
     });
     const result = reconcilePlannerCompletions({
       goal,

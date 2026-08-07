@@ -125,6 +125,91 @@ describe("pure planner kernel", () => {
     expect(monthOutputs[0].workUnits.length).toBeGreaterThan(10);
   });
 
+  it("keeps ordinal partitions stable when one month is regenerated from a published base plan", () => {
+    const longGoal = goal({
+      target_count: 12,
+      start_date: "2026-08-01",
+      end_date: "2026-10-31",
+    });
+    const augustPublished = runPlannerKernel(
+      input({
+        eligibilityMode: "overlap_v1",
+        scopeMonth: "2026-08",
+        asOfDate: "2026-08-05",
+        goals: [longGoal],
+      })
+    );
+    const completionDates = augustPublished.workUnits
+      .map((unit) => unit.scheduledDate)
+      .filter((date): date is string => date !== null)
+      .slice(0, 2);
+    expect(completionDates).toHaveLength(2);
+    const completions: Completion[] = completionDates.map((date, index) => ({
+      id: `published-c${index + 1}`,
+      goal_id: longGoal.id,
+      user_id: longGoal.owner_id,
+      completed_on: date,
+      source: "manual",
+      created_at: `${date}T12:00:00Z`,
+    }));
+    const augustBasePlan = {
+      planId: "plan-aug-1",
+      version: 1,
+      assignments: augustPublished.workUnits.map((unit) => ({
+        goalId: unit.originalGoalId,
+        requirementFingerprint: unit.requirementFingerprint,
+        unitKey: unit.unitKey,
+        scheduledDate: unit.scheduledDate,
+        locked: unit.locked,
+      })),
+      completionToUnit: augustPublished.completionToUnit,
+      issueCodes: augustPublished.solver.issueCodes,
+    };
+    const monthOutputs = [
+      runPlannerKernel(
+        input({
+          eligibilityMode: "overlap_v1",
+          scopeMonth: "2026-08",
+          asOfDate: "2026-09-10",
+          goals: [longGoal],
+          completions,
+          basePlan: augustBasePlan,
+        })
+      ),
+      runPlannerKernel(
+        input({
+          eligibilityMode: "overlap_v1",
+          scopeMonth: "2026-09",
+          asOfDate: "2026-09-10",
+          goals: [longGoal],
+          completions,
+          basePlan: null,
+        })
+      ),
+      runPlannerKernel(
+        input({
+          eligibilityMode: "overlap_v1",
+          scopeMonth: "2026-10",
+          asOfDate: "2026-09-10",
+          goals: [longGoal],
+          completions,
+          basePlan: null,
+        })
+      ),
+    ];
+    const allUnitKeys = monthOutputs.flatMap((output) =>
+      output.workUnits.map((unit) => unit.unitKey)
+    );
+    const expectedUnitKeys = Array.from(
+      { length: longGoal.target_count ?? 0 },
+      (_, index) => `total:${index + 1}`
+    );
+
+    expect(allUnitKeys).toHaveLength(longGoal.target_count ?? 0);
+    expect(new Set(allUnitKeys).size).toBe(longGoal.target_count);
+    expect(new Set(allUnitKeys)).toEqual(new Set(expectedUnitKeys));
+  });
+
   it("spills ordinal allocations forward when current-month capacity is constrained", () => {
     const constrainedStartGoal = goal({
       target_count: 60,
