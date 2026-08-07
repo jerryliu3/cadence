@@ -32,7 +32,6 @@ function snapshot(
   return {
     planId: "plan-a",
     status: "active",
-    eligibilityMode: "overlap_v1",
     timezone: "America/New_York",
     policyFingerprint: fingerprintA,
     goals: { "goal-a": semanticGoal() },
@@ -78,7 +77,6 @@ function current(
   overrides: Partial<CurrentPlanSemanticState> = {}
 ): CurrentPlanSemanticState {
   return {
-    eligibilityMode: "overlap_v1",
     timezone: "America/New_York",
     policyFingerprint: fingerprintA,
     goals: { "goal-a": semanticGoal() },

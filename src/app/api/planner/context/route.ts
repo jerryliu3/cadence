@@ -13,8 +13,8 @@ import { createDefaultAssessment, goalAssessmentSchema } from "@/lib/planner/ass
 import { canonicalHash } from "@/lib/planner/canonical";
 import { loadPlannerCanonicalSnapshot } from "@/lib/planner/context-loader";
 import {
-  ELIGIBILITY_MODE,
   MAX_API_BODY_BYTES,
+  PLANNER_ELIGIBILITY_MODES,
   PLANNER_CONTRACT_VERSION,
 } from "@/lib/planner/contracts/bounds";
 import { runPlannerKernel } from "@/lib/planner/kernel";
@@ -146,7 +146,7 @@ export async function GET(request: Request) {
     const activeAssessmentByGoalId = new Map(
       activeAssessments.map((assessment) => [assessment.goalId, assessment])
     );
-    const eligibilityMode = ELIGIBILITY_MODE;
+    const eligibilityMode = PLANNER_ELIGIBILITY_MODES[0];
     const kernel = routeContext.capabilities.plannerGeneration
       ? runPlannerKernel({
           schemaVersion: PLANNER_CONTRACT_VERSION,
@@ -187,8 +187,6 @@ export async function GET(request: Request) {
       })
     );
 
-    const activePlanEligibilityMode = "overlap_v1" as const;
-
     const staleness = snapshot.activePlan && kernel
       ? evaluateActivePlanStaleness({
           snapshot: {
@@ -199,7 +197,6 @@ export async function GET(request: Request) {
                 : snapshot.activePlan.plan.status === "dismissed"
                   ? "dismissed"
                   : "superseded",
-            eligibilityMode: activePlanEligibilityMode,
             timezone: snapshot.activePlan.plan.timezone,
             policyFingerprint: canonicalHash(snapshot.activePlan.policy),
             goals: Object.fromEntries(
@@ -210,7 +207,6 @@ export async function GET(request: Request) {
             ),
           },
           current: {
-            eligibilityMode,
             timezone: effectiveTimezone,
             policyFingerprint: canonicalHash(effectivePolicy),
             goals: currentGoals,
