@@ -13,8 +13,6 @@ import {
 import { enumerateDates, getScopeDateRange, getUtcWeekday } from "@/lib/planner/dates";
 import type { PlannerKernelOutput } from "@/lib/planner/kernel";
 import {
-  compilePlannerPolicy,
-  isDateAllowedByPolicy,
   type PlannerPolicy,
 } from "@/lib/planner/policy";
 import { createDefaultAssessment, type GoalAssessment } from "@/lib/planner/assessment";
@@ -55,7 +53,6 @@ export class PlannerDraftEditValidationError extends Error {
       | "draft_item_unknown"
       | "draft_item_unmovable"
       | "draft_item_out_of_window"
-      | "draft_item_policy_blocked"
       | "draft_item_completion_exists"
       | "draft_item_collision",
     message: string,
@@ -215,20 +212,17 @@ function isDraftItemImmovable(unit: PlannerKernelOutput["workUnits"][number]) {
 
 function applyValidatedDraftItemEdits({
   scopeMonth,
-  policy,
   kernelWorkUnits,
   goalDefaultLocalTimeByGoalId,
   draftItemEdits,
   completions,
 }: {
   scopeMonth: string;
-  policy: PlannerPolicy;
   kernelWorkUnits: PlannerKernelOutput["workUnits"];
   goalDefaultLocalTimeByGoalId: Map<string, string | null>;
   draftItemEdits: PlannerDraftItemEdit[];
   completions: PlannerCanonicalSnapshot["completions"];
 }) {
-  const compiledPolicy = compilePlannerPolicy(policy);
   const scopeWindow = getScopeDateRange(scopeMonth);
   const workUnits = kernelWorkUnits.map((unit) => ({ ...unit }));
   const priorEffectiveTimeByKey = new Map(
@@ -328,25 +322,6 @@ function applyValidatedDraftItemEdits({
           draftMoveWindow: unit.draftMoveWindow,
           moveWindow,
           scopeWindow,
-        }
-      );
-    }
-
-    if (
-      !isDateAllowedByPolicy(
-        compiledPolicy,
-        unit.originalGoalId,
-        nextScheduledDate,
-        unit.restEligible
-      )
-    ) {
-      throw new PlannerDraftEditValidationError(
-        "draft_item_policy_blocked",
-        "Draft move date conflicts with the active planning policy.",
-        {
-          goalId: edit.goalId,
-          unitKey: edit.unitKey,
-          scheduledDate: nextScheduledDate,
         }
       );
     }
@@ -567,7 +542,6 @@ export function buildPlannerPublishPersistencePayload({
     draftRetimedCount,
   } = applyValidatedDraftItemEdits({
     scopeMonth,
-    policy,
     kernelWorkUnits: kernel.workUnits,
     goalDefaultLocalTimeByGoalId,
     draftItemEdits,

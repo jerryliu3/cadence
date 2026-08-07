@@ -1624,20 +1624,6 @@ export function CalendarSurface({
         );
         return;
       }
-      if (
-        payload.code === "validation_failed" &&
-        payload.details?.stage === "draft_edits" &&
-        payload.details?.code === "draft_item_policy_blocked"
-      ) {
-        const blockedDate =
-          typeof payload.details.scheduledDate === "string"
-            ? payload.details.scheduledDate
-            : "the selected date";
-        toast.error(
-          `A draft move lands on ${blockedDate}, which is blocked by your active planner policy (rest days, blackout ranges, or goal weekday rules). Open Planner settings to adjust policy or move the item to an allowed date.`
-        );
-        return;
-      }
       toast.error(payload.message ?? "Planner publish failed.");
       return;
     }
