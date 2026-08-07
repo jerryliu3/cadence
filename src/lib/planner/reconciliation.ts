@@ -114,6 +114,30 @@ export function reconcilePlannerCompletions({
     unit.creditedCompletionDate = completion.completed_on;
   };
 
+  if (units[0]?.kind === "deadline_total") {
+    const unitByKey = new Map(units.map((unit) => [unit.unitKey, unit]));
+    for (const completion of admissible) {
+      const previousIdentity = previousCompletionToUnit[completion.id];
+      if (
+        !previousIdentity ||
+        previousIdentity.goalId !== goal.id ||
+        previousIdentity.completedOn !== completion.completed_on
+      ) {
+        continue;
+      }
+      const unit = unitByKey.get(previousIdentity.unitKey);
+      if (
+        !unit ||
+        unit.creditedCompletionId !== null ||
+        unit.requirementFingerprint !== previousIdentity.requirementFingerprint ||
+        !workUnitCanCreditDate(unit, completion.completed_on)
+      ) {
+        continue;
+      }
+      credit(unit, completion);
+    }
+  }
+
   if (units[0]?.kind === "milestone_sequence") {
     for (
       let index = 0;
