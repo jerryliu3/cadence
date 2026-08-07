@@ -46,6 +46,25 @@ function mapSummaryRow(row: z.infer<typeof conversationSummaryRowSchema>) {
   });
 }
 
+function shouldFallbackToEmptyConversationList(error: {
+  code?: string | null;
+  message?: string | null;
+  details?: string | null;
+  hint?: string | null;
+}) {
+  const code = (error.code ?? "").toUpperCase();
+  if (code === "PGRST202" || code === "42883" || code === "42P01") {
+    return true;
+  }
+  const text = `${error.message ?? ""} ${error.details ?? ""} ${error.hint ?? ""}`
+    .toLowerCase()
+    .trim();
+  return (
+    text.includes("list_planner_coach_conversations_service") ||
+    text.includes("planner_coach_conversations")
+  );
+}
+
 export async function GET(request: Request) {
   const correlationId = createCorrelationId();
   try {
@@ -79,6 +98,16 @@ export async function GET(request: Request) {
       }
     );
     if (rpcResponse.error) {
+      if (shouldFallbackToEmptyConversationList(rpcResponse.error)) {
+        return NextResponse.json(
+          {
+            schemaVersion: "1",
+            conversations: [],
+            correlationId,
+          },
+          { headers: { "Cache-Control": "private, no-store" } }
+        );
+      }
       throw new PlannerRouteError(
         503,
         "conversation_list_unavailable",
