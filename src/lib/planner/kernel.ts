@@ -381,6 +381,7 @@ export function runPlannerKernel(
     plannerPolicySchema.parse(rawInput.policy)
   );
   const policy = compiledPolicy.policy;
+  const scopeState = getScopeState(rawInput.scopeMonth, rawInput.asOfDate);
   if (policy.timezone !== rawInput.timezone) {
     throw new PlannerError(
       "validation_failed",
@@ -548,6 +549,9 @@ export function runPlannerKernel(
       completions,
       asOfDate: rawInput.asOfDate,
       previousCompletionToUnit,
+      // Historical scope re-runs should not anchor credits to month-local
+      // scheduled dates, which can differ between scope-month base plans.
+      allowScheduledDateMatching: scopeState !== "historical",
     });
     const scopedOrdinals =
       requirement.requirement.kind === "cadence"
@@ -756,7 +760,7 @@ export function runPlannerKernel(
     schemaVersion: PLANNER_CONTRACT_VERSION,
     eligibilityMode: rawInput.eligibilityMode,
     generationInputHash,
-    scopeState: getScopeState(rawInput.scopeMonth, rawInput.asOfDate),
+    scopeState,
     solver,
     workUnits: orderedWorkUnits,
     completionToUnit,

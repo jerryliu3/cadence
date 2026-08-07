@@ -61,6 +61,7 @@ export function reconcilePlannerCompletions({
   completions,
   asOfDate,
   previousCompletionToUnit = {},
+  allowScheduledDateMatching = true,
 }: {
   goal: Goal;
   workUnits: PlannerWorkUnit[];
@@ -70,14 +71,12 @@ export function reconcilePlannerCompletions({
     string,
     PlannerCompletionUnitIdentity
   >;
+  allowScheduledDateMatching?: boolean;
 }): ReconciliationResult {
   const units = cloneUnits(workUnits);
   const isDeadlineTotal = units[0]?.kind === "deadline_total";
-  // Cross-month runs only carry scoped base assignments today; scheduled-date
-  // and prior-identity matching are only deterministic when every ordinal has a schedule.
-  const hasFullDeadlineSchedule =
-    isDeadlineTotal &&
-    units.every((unit) => unit.scheduledDate !== null);
+  const canUseDeadlineScheduleAnchoring =
+    isDeadlineTotal && allowScheduledDateMatching;
   const relevantFacts = completions.filter(
     (completion) => completion.goal_id === goal.id
   );
@@ -120,7 +119,7 @@ export function reconcilePlannerCompletions({
     unit.creditedCompletionDate = completion.completed_on;
   };
 
-  if (isDeadlineTotal && hasFullDeadlineSchedule) {
+  if (canUseDeadlineScheduleAnchoring) {
     const unitByKey = new Map(units.map((unit) => [unit.unitKey, unit]));
     for (const completion of admissible) {
       const previousIdentity = previousCompletionToUnit[completion.id];
@@ -153,7 +152,7 @@ export function reconcilePlannerCompletions({
       credit(units[index], admissible[index]);
     }
   } else if (isDeadlineTotal) {
-    if (hasFullDeadlineSchedule) {
+    if (canUseDeadlineScheduleAnchoring) {
       for (const unit of units) {
         if (!unit.scheduledDate) {
           continue;
