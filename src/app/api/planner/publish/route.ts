@@ -494,6 +494,13 @@ export async function POST(request: Request) {
           "Another active month plan already owns this goal unit."
         );
       }
+      if (message.includes("elapsed_scope_month_publish_forbidden")) {
+        throw new PlannerRouteError(
+          422,
+          "validation_failed",
+          "Publishing an elapsed month is not supported. Publish the current or a future month."
+        );
+      }
       if (message.includes("cross_plan_goal_date_conflict")) {
         throw new PlannerRouteError(
           409,

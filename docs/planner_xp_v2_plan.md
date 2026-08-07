@@ -55,7 +55,9 @@ This V2 plan incorporates lessons from deeper implementation and review, includi
 2. **PR27 - Elapsed active-plan lifecycle policy (point 1b)**
    - Add lifecycle behavior so elapsed active month plans no longer compete with current/future publishes.
    - Preferred implementation: supersede elapsed active plans during publish under the existing owner advisory lock.
+   - Add publish guard rejecting elapsed `scope_month` in the base (28-arg) publish RPC using owner-timezone month boundary (`private.local_today_for_timezone`) so historical active rows cannot be recreated.
    - Add SQL tests proving September publish is not blocked by stale August active ordinals.
+   - **Stage 3 carry-over:** when publish RPC logic is ported to TypeScript, keep this elapsed-scope guard or point-1 regression returns.
 3. **PR28 - Eligibility reason surfacing**
    - Type eligibility reasons in planner preview payload and render user-visible reason chips/messages for ineligible goals.
 4. **PR29 - Coach horizon framing cleanup**
