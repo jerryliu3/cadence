@@ -54,6 +54,7 @@ interface GoalFormProps {
 interface GoalFormState {
   title: string;
   description: string;
+  reward_text: string;
   category_selection: CategorySelection;
   custom_category: string;
   color: string;
@@ -70,6 +71,7 @@ interface GoalFormState {
 const defaultState: GoalFormState = {
   title: "",
   description: "",
+  reward_text: "",
   category_selection: "personal",
   custom_category: "",
   color: getCategorySwatchColor("personal"),
@@ -215,6 +217,7 @@ export function GoalForm({ goalId }: GoalFormProps) {
         setState({
           title: goal.title,
           description: goal.description ?? "",
+          reward_text: goal.reward_text ?? "",
           category_selection: categoryState.selection,
           custom_category: categoryState.customValue,
           color: getCategorySwatchColor(categoryState.selection),
@@ -400,6 +403,10 @@ export function GoalForm({ goalId }: GoalFormProps) {
       return "Custom category name is required.";
     }
 
+    if (state.reward_text.trim().length > 500) {
+      return "Reward text must be 500 characters or fewer.";
+    }
+
     return null;
   }, [state]);
 
@@ -422,6 +429,7 @@ export function GoalForm({ goalId }: GoalFormProps) {
       owner_id: currentUserId,
       title: state.title.trim(),
       description: state.description.trim() || null,
+      reward_text: state.reward_text.trim() || null,
       category: getCategoryLabel(state.category_selection, state.custom_category),
       color: state.color,
       frequency_type: state.frequency_type,
@@ -934,6 +942,22 @@ export function GoalForm({ goalId }: GoalFormProps) {
                       }
                       placeholder="Why this goal matters"
                     />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="goal-reward-text">Reward (optional)</Label>
+                    <Textarea
+                      id="goal-reward-text"
+                      value={state.reward_text}
+                      onChange={(event) =>
+                        setState((prev) => ({ ...prev, reward_text: event.target.value }))
+                      }
+                      maxLength={500}
+                      placeholder="Example: New running shoes after 20 sessions."
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Personal reward copy shown when this goal levels up.
+                    </p>
                   </div>
 
                   <div className="space-y-2">

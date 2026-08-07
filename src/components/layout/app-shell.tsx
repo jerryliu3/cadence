@@ -3,7 +3,14 @@
 import { format } from "date-fns";
 import { LogOut } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
-import { type ReactNode, type TouchEventHandler, useMemo, useRef, useState } from "react";
+import {
+  type ReactNode,
+  type TouchEventHandler,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { TabNav } from "@/components/navigation/tab-nav";
 import { Button } from "@/components/ui/button";
 import { unsubscribeCurrentBrowser } from "@/lib/push/client";
@@ -15,6 +22,15 @@ interface AppShellProps {
 }
 
 const tabOrder = ["/insights", "/", "/settings"] as const;
+
+interface XpProfilePayload {
+  profile: {
+    totalXp: number;
+    currentLevel: number;
+    nextLevel: number | null;
+    xpToNextLevel: number | null;
+  };
+}
 
 function getActiveTabPath(pathname: string): (typeof tabOrder)[number] {
   if (pathname.startsWith("/insights")) {
@@ -34,6 +50,41 @@ export function AppShell({ children, userEmail }: AppShellProps) {
   const pathname = usePathname();
   const [isSigningOut, setIsSigningOut] = useState(false);
   const swipeStartRef = useRef<{ x: number; y: number } | null>(null);
+  const [xpProfile, setXpProfile] = useState<XpProfilePayload["profile"] | null>(
+    null
+  );
+
+  useEffect(() => {
+    let active = true;
+
+    const loadXpProfile = async () => {
+      try {
+        const response = await fetch("/api/xp/profile", {
+          method: "GET",
+          cache: "no-store",
+        });
+
+        if (!response.ok) {
+          return;
+        }
+
+        const payload = (await response.json()) as XpProfilePayload;
+        if (!active) {
+          return;
+        }
+
+        setXpProfile(payload.profile);
+      } catch {
+        // XP UI is best-effort and should not block shell rendering.
+      }
+    };
+
+    void loadXpProfile();
+
+    return () => {
+      active = false;
+    };
+  }, [pathname]);
 
   const signOut = async () => {
     setIsSigningOut(true);
@@ -120,16 +171,30 @@ export function AppShell({ children, userEmail }: AppShellProps) {
               <h1 className="text-2xl font-semibold tracking-tight">Goalmaxxing</h1>
               <p className="text-xs text-muted-foreground">{userEmail}</p>
             </div>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={signOut}
-              disabled={isSigningOut}
-            >
-              <LogOut className="size-4" />
-              {isSigningOut ? "Signing out..." : "Sign out"}
-            </Button>
+            <div className="flex items-center gap-2">
+              {xpProfile ? (
+                <div className="rounded-lg border bg-muted/40 px-3 py-1.5 text-right">
+                  <p className="text-xs font-medium">
+                    Lv {xpProfile.currentLevel} · {xpProfile.totalXp} XP
+                  </p>
+                  <p className="text-[11px] text-muted-foreground">
+                    {xpProfile.xpToNextLevel === null || xpProfile.nextLevel === null
+                      ? "Top level unlocked"
+                      : `${xpProfile.xpToNextLevel} XP to Lv ${xpProfile.nextLevel}`}
+                  </p>
+                </div>
+              ) : null}
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={signOut}
+                disabled={isSigningOut}
+              >
+                <LogOut className="size-4" />
+                {isSigningOut ? "Signing out..." : "Sign out"}
+              </Button>
+            </div>
           </div>
           <div className="mt-4 hidden md:block">
             <TabNav />

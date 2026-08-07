@@ -61,6 +61,7 @@ const recurrenceOptions: Array<{ value: RecurrenceInterval; label: string }> = [
 const columnAliases = {
   title: ["title", "goal", "goal_title", "name"],
   description: ["description", "details", "notes"],
+  reward_text: ["reward_text", "reward", "reward_copy", "custom_reward"],
   category: ["category", "tag"],
   color: ["color", "accent_color", "hex_color"],
   is_group: ["is_group", "group_goal", "collaborative", "is_collaborative"],
@@ -79,6 +80,7 @@ interface BulkGoalDraft {
   include: boolean;
   title: string;
   description: string;
+  reward_text: string;
   category_selection: CategorySelection;
   custom_category: string;
   color: string;
@@ -101,6 +103,7 @@ interface BulkGoalDraft {
 interface LlmGoalDraftPayload {
   title?: string;
   description?: string | null;
+  reward_text?: string | null;
   category?: string | null;
   frequency_type?: GoalFrequencyType;
   recurrence_interval?: RecurrenceInterval | null;
@@ -112,9 +115,9 @@ interface LlmGoalDraftPayload {
 
 type BulkInputMode = "natural_language" | "csv";
 
-const csvExample = `title,description,category,color,is_group,frequency_type,recurrence_interval,target_count,milestone_names,start_date,end_date,default_local_time
-Morning run,Train for a half marathon,Health,#16a34a,false,recurring,daily,20,,2026-06-01,2026-12-31,06:45
-Read 12 books,One book per month,Personal,#6366f1,false,fixed,,12,Book 1|Book 2|Book 3,2026-06-01,2026-12-31,`;
+const csvExample = `title,description,reward_text,category,color,is_group,frequency_type,recurrence_interval,target_count,milestone_names,start_date,end_date,default_local_time
+Morning run,Train for a half marathon,Buy new running shoes,Health,#16a34a,false,recurring,daily,20,,2026-06-01,2026-12-31,06:45
+Read 12 books,One book per month,Weekend bookstore trip,Personal,#6366f1,false,fixed,,12,Book 1|Book 2|Book 3,2026-06-01,2026-12-31,`;
 
 function defaultMilestoneName(index: number): string {
   return `Milestone ${index + 1}`;
@@ -246,6 +249,10 @@ function validateDraft(draft: BulkGoalDraft): string[] {
     errors.push("Title is required.");
   }
 
+  if (draft.reward_text.trim().length > 500) {
+    errors.push("Reward text must be 500 characters or fewer.");
+  }
+
   if (draft.category_selection === "custom" && !draft.custom_category.trim()) {
     errors.push("Custom category name is required.");
   }
@@ -332,6 +339,7 @@ function buildDraftFromRow(row: Record<string, unknown>, rowIndex: number): Bulk
     include: true,
     title: extractText(normalizedRow, columnAliases.title),
     description: extractText(normalizedRow, columnAliases.description),
+    reward_text: extractText(normalizedRow, columnAliases.reward_text),
     category_selection: categoryState.selection,
     custom_category: categoryState.customValue,
     color: draftColor,
@@ -574,6 +582,7 @@ export function BulkGoalForm() {
       const rows = goals.map((goal) => ({
         title: goal.title ?? "",
         description: goal.description ?? "",
+        reward_text: goal.reward_text ?? "",
         category: goal.category ?? "",
         frequency_type: goal.frequency_type ?? "recurring",
         recurrence_interval: goal.recurrence_interval ?? "",
@@ -653,6 +662,7 @@ export function BulkGoalForm() {
             owner_id: currentUserId,
             title: draft.title.trim(),
             description: draft.description.trim() || null,
+            reward_text: draft.reward_text.trim() || null,
             category: getCategoryLabel(draft.category_selection, draft.custom_category),
             color: isValidHexColor(draft.color)
               ? draft.color.trim()
@@ -849,7 +859,7 @@ export function BulkGoalForm() {
                   id="bulk-csv-input"
                   value={csvInput}
                   onChange={(event) => setCsvInput(event.target.value)}
-                  placeholder="title,description,category,color,is_group,frequency_type,recurrence_interval,target_count,milestone_names,start_date,end_date,default_local_time"
+                  placeholder="title,description,reward_text,category,color,is_group,frequency_type,recurrence_interval,target_count,milestone_names,start_date,end_date,default_local_time"
                   className="min-h-36"
                 />
                 <div className="flex flex-wrap items-center gap-2">
@@ -894,9 +904,10 @@ export function BulkGoalForm() {
                   ) : null}
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Supported columns: title, description, category, color, is_group,
-                  frequency_type, recurrence_interval, target_count, milestone_names, start_date,
-                  end_date, default_local_time.
+                  Supported columns: title, description, reward_text, category,
+                  color, is_group, frequency_type, recurrence_interval,
+                  target_count, milestone_names, start_date, end_date,
+                  default_local_time.
                 </p>
               </section>
             </>
@@ -1290,6 +1301,24 @@ export function BulkGoalForm() {
                                 }
                                 placeholder="Why this goal matters"
                               />
+                            </div>
+
+                            <div className="space-y-2">
+                              <Label>Reward (optional)</Label>
+                              <Textarea
+                                value={draft.reward_text}
+                                onChange={(event) =>
+                                  updateDraft(draft.id, (previous) => ({
+                                    ...previous,
+                                    reward_text: event.target.value,
+                                  }))
+                                }
+                                maxLength={500}
+                                placeholder="Example: Coffee from my favorite cafe."
+                              />
+                              <p className="text-xs text-muted-foreground">
+                                Personal reward copy shown when this goal levels up.
+                              </p>
                             </div>
 
                             <div className="space-y-2">

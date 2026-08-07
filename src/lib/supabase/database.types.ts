@@ -911,6 +911,7 @@ export type Database = {
           milestone_names: string[] | null
           owner_id: string
           photo_path: string | null
+          reward_text: string | null
           recurrence_interval:
             | Database["public"]["Enums"]["recurrence_interval"]
             | null
@@ -935,6 +936,7 @@ export type Database = {
           milestone_names?: string[] | null
           owner_id: string
           photo_path?: string | null
+          reward_text?: string | null
           recurrence_interval?:
             | Database["public"]["Enums"]["recurrence_interval"]
             | null
@@ -959,6 +961,7 @@ export type Database = {
           milestone_names?: string[] | null
           owner_id?: string
           photo_path?: string | null
+          reward_text?: string | null
           recurrence_interval?:
             | Database["public"]["Enums"]["recurrence_interval"]
             | null

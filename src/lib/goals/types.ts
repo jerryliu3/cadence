@@ -8,6 +8,7 @@ export interface Goal {
   owner_id: string;
   title: string;
   description: string | null;
+  reward_text?: string | null;
   category: string;
   color: string | null;
   frequency_type: GoalFrequencyType;
