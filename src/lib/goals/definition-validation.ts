@@ -82,10 +82,13 @@ export function validateGoalDefinition(
     });
     return issues;
   }
-  const monthSpan = enumerateMonthsInWindow({
-    start: input.startDate,
-    end: normalizedEndDate,
-  }).length;
+  const monthSpan = getGoalDeadlineMonthSpan({
+    startDate: input.startDate,
+    endDate: normalizedEndDate,
+  });
+  if (monthSpan === null) {
+    return issues;
+  }
   if (monthSpan > MAX_HORIZON_MONTHS) {
     issues.push({
       code: "horizon_too_long",
