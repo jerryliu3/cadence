@@ -106,6 +106,39 @@ describe("planner draft commands", () => {
     });
   });
 
+  it("resolves same-sequence time toggles by operation intent", () => {
+    const commands: PlannerDraftCommand[] = [
+      {
+        id: "23000000-0000-4000-8000-000000000010",
+        sequence: 7,
+        kind: "clear_item_time_override",
+        goalId: GOAL_A,
+        unitKey: "total:3",
+      },
+      {
+        id: "23000000-0000-4000-8000-000000000001",
+        sequence: 7,
+        kind: "set_item_time_override",
+        goalId: GOAL_A,
+        unitKey: "total:3",
+        localTime: "21:15",
+      },
+    ];
+
+    const sortedKinds = sortPlannerDraftCommands(commands).map(
+      (command) => command.kind
+    );
+    expect(sortedKinds).toEqual([
+      "set_item_time_override",
+      "clear_item_time_override",
+    ]);
+
+    const itemProjection = projectPlannerDraftCommands(commands);
+    expect(itemProjection[`${GOAL_A}:total:3`]).toMatchObject({
+      scheduledTimeOverride: null,
+    });
+  });
+
   it("converts legacy draft edits into typed draft commands", () => {
     const commands = buildPlannerDraftCommandsFromLegacyItemEdits([
       {
