@@ -200,6 +200,59 @@ describe("usePlannerCoach", () => {
     expect(result.current.state.canUseCoach).toBe(false);
   });
 
+  it("suppresses toast when saved conversation listing is temporarily unavailable", async () => {
+    listPlannerCoachConversationsMock.mockRejectedValue(
+      new Error("Saved coach conversations are temporarily unavailable.")
+    );
+    const context = buildContext();
+    const { result } = renderHook(() =>
+      usePlannerCoach(
+        buildArgs({
+          activeTab: "calendar",
+          context,
+          entriesByDate: new Map([["2026-08-01", [buildEntry()]]]),
+          effectivePreview: context.preview,
+        })
+      )
+    );
+
+    await waitFor(() => {
+      expect(listPlannerCoachConversationsMock).toHaveBeenCalledWith({
+        scopeMonth: "2026-08",
+        limit: 20,
+      });
+    });
+    await waitFor(() => {
+      expect(result.current.state.coachConversationsLoading).toBe(false);
+    });
+
+    expect(result.current.state.savedCoachConversations).toEqual([]);
+    expect(toastErrorMock).not.toHaveBeenCalled();
+  });
+
+  it("shows toast when saved conversation listing fails unexpectedly", async () => {
+    listPlannerCoachConversationsMock.mockRejectedValue(
+      new Error("Saved conversations endpoint failed.")
+    );
+    const context = buildContext();
+    renderHook(() =>
+      usePlannerCoach(
+        buildArgs({
+          activeTab: "calendar",
+          context,
+          entriesByDate: new Map([["2026-08-01", [buildEntry()]]]),
+          effectivePreview: context.preview,
+        })
+      )
+    );
+
+    await waitFor(() => {
+      expect(toastErrorMock).toHaveBeenCalledWith(
+        "Saved conversations endpoint failed."
+      );
+    });
+  });
+
   it("sends coach message and stores response metadata", async () => {
     applyCoachPolicyPatchesMock.mockReturnValue({
       policy: buildPolicy(),

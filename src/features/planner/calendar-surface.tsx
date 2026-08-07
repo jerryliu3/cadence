@@ -103,6 +103,7 @@ import {
   plannerPolicySchema,
   type PlannerPolicy,
 } from "@/lib/planner/policy";
+import { withPlannerRefreshTimeout } from "@/lib/planner/refresh-timeout";
 import type {
   CalendarSurfaceProps,
   CompletionControlDisabledReason,
@@ -1385,6 +1386,13 @@ export function CalendarSurface({
     }
     const desiredFactState = dispatch.desiredFactState;
     const mutationKey = `fact:${entry.key}`;
+    const draftDateOverlayActive = Boolean(
+      hasDraftSession &&
+        !entry.draftGhost &&
+        (entry.draftDiffKind === "moved_to" ||
+          entry.draftDiffKind === "new" ||
+          effectiveDraftItemEdits[entry.key]?.scheduledDate !== undefined)
+    );
 
     setMutationLoadingKey(mutationKey);
     try {
@@ -1429,6 +1437,7 @@ export function CalendarSurface({
         return;
       }
 
+      let draftPreviewRefreshFailed = false;
       if (hasDraftSession) {
         const draftPolicyForRefresh =
           effectiveDraftPolicy ?? context.preferences?.defaultPolicy ?? null;
@@ -1436,17 +1445,22 @@ export function CalendarSurface({
           try {
             await refreshDraftPreview(draftPolicyForRefresh);
           } catch {
-            toast.error(
-              "Completion saved, but draft preview could not refresh automatically."
+            draftPreviewRefreshFailed = true;
+            toast(
+              "Completion saved, but your draft overlay could not refresh automatically. Regenerate preview to sync."
             );
           }
         }
       }
 
       onPlannerMutation();
-      const refreshed = await loadContext({
-        showLoading: false,
-        toastOnError: false,
+      const refreshed = await withPlannerRefreshTimeout({
+        operation: loadContext({
+          showLoading: false,
+          toastOnError: false,
+        }),
+        timeoutMessage:
+          "Completion updated, but calendar refresh timed out. Please refresh the page.",
       });
       if (!refreshed) {
         toast.error(
@@ -1455,8 +1469,15 @@ export function CalendarSurface({
         return;
       }
       toast.success(desiredFactState === "present" ? "Marked done." : "Marked not done.");
-    } catch {
-      toast.error("Planner completion update failed.");
+      if (draftDateOverlayActive || draftPreviewRefreshFailed) {
+        toast(
+          "This entry is still shown with draft overlays. Publish or discard draft moves to view canonical placement only."
+        );
+      }
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Planner completion update failed."
+      );
     } finally {
       setMutationLoadingKey(null);
     }

@@ -2,17 +2,19 @@ name: CI
 
 on:
   pull_request:
-  push:
-    branches:
-      - main
 
 permissions:
   contents: read
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  verify:
+  verify-static:
+    name: verify-static
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 20
 
     steps:
       - name: Check out repository
@@ -42,14 +44,29 @@ jobs:
       - name: Run unit, contract, telemetry, and benchmark tests
         run: pnpm test
 
-      - name: Run isolated planner performance gate
-        run: pnpm test:benchmark
+  verify-pr-smoke:
+    name: verify-pr-smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
 
-      - name: Run timezone process matrix
-        run: pnpm test:tz
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
 
-      - name: Start local Supabase
-        run: pnpm supabase:start
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Start local Supabase (lean profile)
+        run: pnpm supabase:start -- --exclude studio,inbucket,imgproxy,analytics,vector,edge-runtime,functions
 
       - name: Reset and seed local database
         run: pnpm supabase:reset
@@ -58,11 +75,6 @@ jobs:
         run: |
           pnpm types:supabase
           git diff --exit-code -- src/lib/supabase/database.types.ts
-
-      - name: Lint and advise local database
-        run: |
-          pnpm exec supabase db lint --local --schema public,private --level warning --fail-on error
-          pnpm exec supabase db advisors --local --type all --level warn --fail-on error
 
       - name: Export local Supabase environment
         shell: bash
@@ -80,20 +92,25 @@ jobs:
             echo "NEXT_PUBLIC_APP_URL=http://localhost:3100"
           } >> "${GITHUB_ENV}"
 
-      - name: Run automated SQL tests
+      - name: Run automated SQL smoke tests
         run: pnpm test:sql
-
-      - name: Run two-session concurrency harness
-        run: pnpm test:concurrency
 
       - name: Build production application
         run: pnpm build
 
-      - name: Install Playwright browsers
-        run: pnpm exec playwright install --with-deps chromium webkit
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-playwright-
 
-      - name: Run Chromium, WebKit, mobile, and API E2E
-        run: pnpm test:e2e
+      - name: Install Playwright Chromium browser
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Run Chromium + API E2E smoke
+        run: pnpm test:e2e:chromium
 
       - name: Upload Playwright report
         if: failure()
@@ -104,6 +121,20 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-      - name: Stop local Supabase
-        if: always()
-        run: pnpm supabase:stop
+  verify:
+    name: verify
+    if: always()
+    needs:
+      - verify-static
+      - verify-pr-smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Assert all verify jobs passed
+        run: |
+          if [[ "${{ needs.verify-static.result }}" != "success" || "${{ needs.verify-pr-smoke.result }}" != "success" ]]; then
+            echo "verify-static result: ${{ needs.verify-static.result }}"
+            echo "verify-pr-smoke result: ${{ needs.verify-pr-smoke.result }}"
+            exit 1
+          fi

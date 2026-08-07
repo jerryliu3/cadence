@@ -171,6 +171,72 @@ describe("overlap planner draft move windows", () => {
   });
 });
 
+describe("planner time defaults", () => {
+  it("uses goal default time when no item override exists", () => {
+    const goal = buildGoal({
+      recurrence_interval: "daily",
+      target_count: 1,
+      default_local_time: "09:15",
+    });
+    const requirement = normalizeGoalRequirement(goal);
+    const units = materializeWorkUnits({
+      goal,
+      normalizedRequirement: requirement,
+      scopeMonth: "2026-08",
+      asOfDate: "2026-08-01",
+      baseAssignments: [
+        {
+          goalId: goal.id,
+          requirementFingerprint: requirement.requirementFingerprint,
+          unitKey: "total:1",
+          scheduledDate: "2026-08-12",
+          locked: false,
+          scheduledTimeOverride: null,
+        },
+      ],
+    });
+
+    expect(units[0]).toMatchObject({
+      goalDefaultLocalTime: "09:15",
+      scheduledTimeOverride: null,
+      effectiveScheduledLocalTime: "09:15",
+      effectiveScheduledAtLocal: "2026-08-12T09:15:00",
+    });
+  });
+
+  it("prefers item override over goal default time", () => {
+    const goal = buildGoal({
+      recurrence_interval: "daily",
+      target_count: 1,
+      default_local_time: "09:15",
+    });
+    const requirement = normalizeGoalRequirement(goal);
+    const units = materializeWorkUnits({
+      goal,
+      normalizedRequirement: requirement,
+      scopeMonth: "2026-08",
+      asOfDate: "2026-08-01",
+      baseAssignments: [
+        {
+          goalId: goal.id,
+          requirementFingerprint: requirement.requirementFingerprint,
+          unitKey: "total:1",
+          scheduledDate: "2026-08-12",
+          locked: false,
+          scheduledTimeOverride: "18:20",
+        },
+      ],
+    });
+
+    expect(units[0]).toMatchObject({
+      goalDefaultLocalTime: "09:15",
+      scheduledTimeOverride: "18:20",
+      effectiveScheduledLocalTime: "18:20",
+      effectiveScheduledAtLocal: "2026-08-12T18:20:00",
+    });
+  });
+});
+
 describe("planner completion reconciliation", () => {
   it("matches deadline totals scheduled-date-first, then chronologically", () => {
     const goal = buildGoal({

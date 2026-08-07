@@ -63,6 +63,7 @@ interface GoalFormState {
   milestone_names: string[];
   start_date: string;
   end_date: string;
+  default_local_time: string;
   is_group: boolean;
 }
 
@@ -78,8 +79,11 @@ const defaultState: GoalFormState = {
   milestone_names: [],
   start_date: toLocalDateString(),
   end_date: "",
+  default_local_time: "",
   is_group: false,
 };
+
+const localTimePattern = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 function defaultMilestoneName(index: number): string {
   return `Milestone ${index + 1}`;
@@ -223,6 +227,7 @@ export function GoalForm({ goalId }: GoalFormProps) {
           ),
           start_date: goal.start_date,
           end_date: goal.end_date ?? "",
+          default_local_time: goal.default_local_time ?? "",
           is_group: goal.is_group,
         });
 
@@ -382,6 +387,13 @@ export function GoalForm({ goalId }: GoalFormProps) {
     }
 
     if (
+      state.default_local_time.trim().length > 0 &&
+      !localTimePattern.test(state.default_local_time.trim())
+    ) {
+      return "Default time must be a valid 24-hour HH:MM value.";
+    }
+
+    if (
       state.category_selection === "custom" &&
       state.custom_category.trim().length === 0
     ) {
@@ -423,6 +435,7 @@ export function GoalForm({ goalId }: GoalFormProps) {
       milestone_names: milestoneNames,
       start_date: state.start_date,
       end_date: state.end_date || null,
+      default_local_time: state.default_local_time.trim() || null,
       is_group: state.is_group,
     };
 
@@ -816,6 +829,37 @@ export function GoalForm({ goalId }: GoalFormProps) {
                 onChange={(event) => setState((prev) => ({ ...prev, end_date: event.target.value }))}
               />
             </div>
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <Label htmlFor="default-local-time">Default time of day (optional)</Label>
+              {state.default_local_time ? (
+                <button
+                  type="button"
+                  className="text-xs text-primary hover:underline"
+                  onClick={() =>
+                    setState((previous) => ({ ...previous, default_local_time: "" }))
+                  }
+                >
+                  clear
+                </button>
+              ) : null}
+            </div>
+            <Input
+              id="default-local-time"
+              type="time"
+              value={state.default_local_time}
+              onChange={(event) =>
+                setState((previous) => ({
+                  ...previous,
+                  default_local_time: event.target.value,
+                }))
+              }
+            />
+            <p className="text-xs text-muted-foreground">
+              Used as the default planner time when an item-level override is not set.
+            </p>
           </div>
 
           {validationError ? (

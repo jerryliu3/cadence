@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, private, extensions, pg_catalog;
-select plan(33);
+select plan(37);
 
 create temporary table planner_test_revisions (
   label text primary key,
@@ -833,6 +833,265 @@ select is(
   ),
   true,
   'idempotent publish replay bypasses stale revision checks'
+);
+
+select ok(
+  (
+    select plan_id is not null
+    from public.publish_execution_plan_service(
+      '11111111-1111-4111-8111-111111111111',
+      date_trunc('month', current_date)::date,
+      'overlap_v1',
+      'America/New_York',
+      'manual',
+      '{}'::jsonb,
+      '{}'::jsonb,
+      repeat('e', 64),
+      '1',
+      'ordered-dp-v1',
+      '1',
+      '1',
+      '1',
+      '1',
+      'complete',
+      'all_units_placed',
+      'unverified',
+      false,
+      true,
+      '23000000-0000-4000-8000-000000000002',
+      repeat('c', 64),
+      (
+        select canonical_revision
+        from private.planner_state
+        where owner_id = '11111111-1111-4111-8111-111111111111'
+      ),
+      (
+        select execution_revision
+        from private.planner_state
+        where owner_id = '11111111-1111-4111-8111-111111111111'
+      ),
+      (
+        select id
+        from public.execution_plans
+        where owner_id = '11111111-1111-4111-8111-111111111111'
+          and scope_month = date_trunc('month', current_date)::date
+          and status = 'active'
+        order by version desc
+        limit 1
+      ),
+      (
+        select version
+        from public.execution_plans
+        where owner_id = '11111111-1111-4111-8111-111111111111'
+          and scope_month = date_trunc('month', current_date)::date
+          and status = 'active'
+        order by version desc
+        limit 1
+      ),
+      '[
+        {
+          "goal_id": "10000000-0000-4000-8000-000000000001",
+          "title": "Timed Goal",
+          "category": "Health",
+          "color": null,
+          "start_date": "2026-07-18",
+          "end_date": "2026-08-17",
+          "requirement_kind": "cadence",
+          "requirement_fingerprint": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "requirement_snapshot": {},
+          "assessment_snapshot": {},
+          "assessment_input_hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "admissible_credit_basis": {},
+          "generation_summary": {}
+        }
+      ]'::jsonb,
+      '[
+        {
+          "date": "2026-08-15",
+          "is_rest_day": false,
+          "is_blocked": false,
+          "preference_cost": 0,
+          "resolved_policy": {},
+          "generation_session_count": 1,
+          "generation_effort_minutes": 30
+        }
+      ]'::jsonb,
+      '[
+        {
+          "goal_id": "10000000-0000-4000-8000-000000000001",
+          "unit_key": "cadence:2026-08-15",
+          "requirement_kind": "cadence",
+          "ordinal": 1,
+          "period_key": null,
+          "label": "Timed session",
+          "credit_window_start": "2026-08-15",
+          "credit_window_end": "2026-08-15",
+          "placement_window_start": "2026-08-01",
+          "placement_window_end": "2026-08-31",
+          "classification": "future",
+          "miss_policy": "roll_forward",
+          "rest_eligible": true,
+          "max_per_day": 1,
+          "credited_completion_id": null,
+          "credited_completion_date": null,
+          "credit_state": "uncredited",
+          "original_scheduled_date": "2026-08-15",
+          "scheduled_date": "2026-08-15",
+          "locked": false,
+          "locked_at": null,
+          "estimated_minutes": 30,
+          "priority": 1,
+          "scheduled_time_override": "23:55",
+          "effective_scheduled_local_time": "23:55"
+        }
+      ]'::jsonb,
+      '[]'::jsonb
+    )
+  ),
+  'wrapper publish can hydrate per-item local time fields'
+);
+
+select results_eq(
+  $$
+    select
+      item.scheduled_time_override,
+      item.effective_scheduled_local_time
+    from public.execution_plan_items item
+    join public.execution_plans plan
+      on plan.id = item.plan_id
+     and plan.owner_id = item.owner_id
+    join public.execution_plan_goals goal
+      on goal.id = item.plan_goal_id
+     and goal.plan_id = item.plan_id
+     and goal.owner_id = item.owner_id
+    where plan.owner_id = '11111111-1111-4111-8111-111111111111'
+      and plan.scope_month = date_trunc('month', current_date)::date
+      and plan.status = 'active'
+      and goal.original_goal_id = '10000000-0000-4000-8000-000000000001'
+      and item.unit_key = 'cadence:2026-08-15'
+  $$,
+  $$
+    values ('23:55'::text, '23:55'::text)
+  $$,
+  'wrapper publish stores timed item fields on first publish'
+);
+
+select is(
+  (
+    select replayed
+    from public.publish_execution_plan_service(
+      '11111111-1111-4111-8111-111111111111',
+      date_trunc('month', current_date)::date,
+      'overlap_v1',
+      'America/New_York',
+      'manual',
+      '{}'::jsonb,
+      '{}'::jsonb,
+      repeat('e', 64),
+      '1',
+      'ordered-dp-v1',
+      '1',
+      '1',
+      '1',
+      '1',
+      'complete',
+      'all_units_placed',
+      'unverified',
+      false,
+      true,
+      '23000000-0000-4000-8000-000000000002',
+      repeat('c', 64),
+      0,
+      0,
+      null,
+      null,
+      '[
+        {
+          "goal_id": "10000000-0000-4000-8000-000000000001",
+          "title": "Timed Goal",
+          "category": "Health",
+          "color": null,
+          "start_date": "2026-07-18",
+          "end_date": "2026-08-17",
+          "requirement_kind": "cadence",
+          "requirement_fingerprint": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "requirement_snapshot": {},
+          "assessment_snapshot": {},
+          "assessment_input_hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "admissible_credit_basis": {},
+          "generation_summary": {}
+        }
+      ]'::jsonb,
+      '[
+        {
+          "date": "2026-08-15",
+          "is_rest_day": false,
+          "is_blocked": false,
+          "preference_cost": 0,
+          "resolved_policy": {},
+          "generation_session_count": 1,
+          "generation_effort_minutes": 30
+        }
+      ]'::jsonb,
+      '[
+        {
+          "goal_id": "10000000-0000-4000-8000-000000000001",
+          "unit_key": "cadence:2026-08-15",
+          "requirement_kind": "cadence",
+          "ordinal": 1,
+          "period_key": null,
+          "label": "Timed session",
+          "credit_window_start": "2026-08-15",
+          "credit_window_end": "2026-08-15",
+          "placement_window_start": "2026-08-01",
+          "placement_window_end": "2026-08-31",
+          "classification": "future",
+          "miss_policy": "roll_forward",
+          "rest_eligible": true,
+          "max_per_day": 1,
+          "credited_completion_id": null,
+          "credited_completion_date": null,
+          "credit_state": "uncredited",
+          "original_scheduled_date": "2026-08-15",
+          "scheduled_date": "2026-08-15",
+          "locked": false,
+          "locked_at": null,
+          "estimated_minutes": 30,
+          "priority": 1,
+          "scheduled_time_override": "05:30",
+          "effective_scheduled_local_time": "05:30"
+        }
+      ]'::jsonb,
+      '[]'::jsonb
+    )
+  ),
+  true,
+  'idempotent replay still returns replayed for timed publish payloads'
+);
+
+select results_eq(
+  $$
+    select
+      item.scheduled_time_override,
+      item.effective_scheduled_local_time
+    from public.execution_plan_items item
+    join public.execution_plans plan
+      on plan.id = item.plan_id
+     and plan.owner_id = item.owner_id
+    join public.execution_plan_goals goal
+      on goal.id = item.plan_goal_id
+     and goal.plan_id = item.plan_id
+     and goal.owner_id = item.owner_id
+    where plan.owner_id = '11111111-1111-4111-8111-111111111111'
+      and plan.scope_month = date_trunc('month', current_date)::date
+      and plan.status = 'active'
+      and goal.original_goal_id = '10000000-0000-4000-8000-000000000001'
+      and item.unit_key = 'cadence:2026-08-15'
+  $$,
+  $$
+    values ('23:55'::text, '23:55'::text)
+  $$,
+  'replayed timed publishes do not mutate persisted item time fields'
 );
 reset role;
 

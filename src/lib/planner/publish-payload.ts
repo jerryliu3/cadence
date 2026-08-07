@@ -218,6 +218,7 @@ function applyValidatedDraftItemEdits({
   scopeMonth,
   policy,
   kernelWorkUnits,
+  goalDefaultLocalTimeByGoalId,
   draftItemEdits,
   completions,
 }: {
@@ -225,18 +226,10 @@ function applyValidatedDraftItemEdits({
   scopeMonth: string;
   policy: PlannerPolicy;
   kernelWorkUnits: PlannerKernelOutput["workUnits"];
+  goalDefaultLocalTimeByGoalId: Map<string, string | null>;
   draftItemEdits: PlannerDraftItemEdit[];
   completions: PlannerCanonicalSnapshot["completions"];
 }) {
-  if (draftItemEdits.length === 0) {
-    return {
-      workUnits: kernelWorkUnits.map((unit) => ({ ...unit })),
-      draftMovedCount: 0,
-      draftRelabeledCount: 0,
-      draftRetimedCount: 0,
-    };
-  }
-
   const compiledPolicy = compilePlannerPolicy(policy);
   const scopeWindow = getScopeDateRange(scopeMonth);
   const workUnits = kernelWorkUnits.map((unit) => ({ ...unit }));
@@ -427,18 +420,30 @@ function applyValidatedDraftItemEdits({
     }
   }
   for (const unit of workUnits) {
+    const goalDefaultLocalTime =
+      goalDefaultLocalTimeByGoalId.get(unit.originalGoalId) ??
+      unit.goalDefaultLocalTime ??
+      null;
     const resolvedTime = resolvePlannerEffectiveScheduledTime({
       scheduledDate: unit.scheduledDate,
+      goalDefaultLocalTime,
       scheduledTimeOverride: unit.scheduledTimeOverride ?? null,
     });
     if (
+      resolvedTime.goalDefaultLocalTime === null &&
       resolvedTime.scheduledTimeOverride === null &&
       resolvedTime.effectiveScheduledLocalTime === null
     ) {
+      delete unit.goalDefaultLocalTime;
       delete unit.scheduledTimeOverride;
       delete unit.effectiveScheduledLocalTime;
       delete unit.effectiveScheduledAtLocal;
       continue;
+    }
+    if (resolvedTime.goalDefaultLocalTime === null) {
+      delete unit.goalDefaultLocalTime;
+    } else {
+      unit.goalDefaultLocalTime = resolvedTime.goalDefaultLocalTime;
     }
     unit.scheduledTimeOverride = resolvedTime.scheduledTimeOverride;
     unit.effectiveScheduledLocalTime = resolvedTime.effectiveScheduledLocalTime;
@@ -518,6 +523,9 @@ export function buildPlannerPublishPersistencePayload({
   const goals = snapshot.goals
     .filter((goal) => eligibleGoalIds.has(goal.id))
     .sort((left, right) => left.id.localeCompare(right.id));
+  const goalDefaultLocalTimeByGoalId = new Map(
+    goals.map((goal) => [goal.id, goal.default_local_time ?? null])
+  );
 
   const { draftItemEdits } = buildDraftItemEditsFromCommands(draftCommands);
 
@@ -568,6 +576,7 @@ export function buildPlannerPublishPersistencePayload({
     scopeMonth,
     policy,
     kernelWorkUnits: kernel.workUnits,
+    goalDefaultLocalTimeByGoalId,
     draftItemEdits,
     completions: snapshot.completions,
   });
