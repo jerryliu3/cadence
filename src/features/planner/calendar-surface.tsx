@@ -1014,7 +1014,9 @@ export function CalendarSurface({
     localTime: string
   ) => {
     const baselineOverride =
-      previewUnitByEntryKey.get(entry.key)?.scheduledTimeOverride ?? null;
+      previewUnitByEntryKey.get(entry.key)?.scheduledTimeOverride ??
+      entry.activeItem?.scheduled_time_override ??
+      null;
     const nextPlan = planDraftTimeOverrideUpdate({
       entry,
       localTimeInput: localTime,
