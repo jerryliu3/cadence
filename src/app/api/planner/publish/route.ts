@@ -25,6 +25,7 @@ import {
   buildPlannerPublishRequestDigest,
   plannerPlanMetadataFromKernel,
 } from "@/lib/planner/publish-payload";
+import { buildPlannerPublishTelemetryCounts } from "@/lib/planner/publish-telemetry";
 import {
   buildPlannerDraftCommandsFromLegacyItemEdits,
   plannerDraftCommandSchema,
@@ -541,14 +542,7 @@ export async function POST(request: Request) {
       replay: Boolean(publishedRow.replayed),
       counts: {
         eligibleGoals: snapshot.goals.length,
-        workUnits: kernel.workUnits.length,
-        placedUnits: kernel.workUnits.filter((unit) => unit.scheduledDate !== null)
-          .length,
-        shortfallUnits: kernel.workUnits.filter((unit) => unit.scheduledDate === null)
-          .length,
-        timedUnits: kernel.workUnits.filter(
-          (unit) => unit.effectiveScheduledLocalTime !== null
-        ).length,
+        ...buildPlannerPublishTelemetryCounts(kernel.workUnits),
       },
       data: {
         source: persistence.generationSource === "update" ? "update" : "manual",
