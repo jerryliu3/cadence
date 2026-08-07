@@ -55,20 +55,24 @@ function countMonthsInclusive(startMonth: string, endMonth: string) {
   return (endYear - startYear) * 12 + (endValue - startValue) + 1;
 }
 
-function buildFocusHorizonSpan(goals: CoachPromptGoalContext[]) {
+function buildFocusGoalHorizonMarkers(goals: CoachPromptGoalContext[]) {
   if (goals.length === 0) {
     return "none";
   }
-  const startMonths = goals.map((goal) => monthFromDate(goal.start_date)!);
-  const boundedEndMonths = goals
-    .map((goal) => monthFromDate(goal.end_date))
-    .filter((month): month is string => month !== null);
-  const startMonth = startMonths.sort(compareMonth)[0];
-  if (boundedEndMonths.length === 0) {
-    return `${startMonth} -> open-ended`;
-  }
-  const endMonth = boundedEndMonths.sort(compareMonth).at(-1)!;
-  return `${startMonth} -> ${endMonth} (${countMonthsInclusive(startMonth, endMonth)} months)`;
+  return goals
+    .map((goal) => {
+      const startMonth = monthFromDate(goal.start_date)!;
+      const endMonth = monthFromDate(goal.end_date);
+      if (!endMonth) {
+        return `${goal.id}:${startMonth}->open-ended`;
+      }
+      return `${goal.id}:${startMonth}->${endMonth} (${countMonthsInclusive(
+        startMonth,
+        endMonth
+      )} months)`;
+    })
+    .sort(compareMonth)
+    .join("; ");
 }
 
 export function buildCoachPrompt({
@@ -81,7 +85,7 @@ export function buildCoachPrompt({
   messages,
 }: BuildCoachPromptInput) {
   const focusGoalsJson = serializeFocusGoals(focusGoals);
-  const focusHorizonSpan = buildFocusHorizonSpan(focusGoals);
+  const focusHorizonMarkers = buildFocusGoalHorizonMarkers(focusGoals);
   return [
     "SYSTEM ROLE",
     "You are Cadence Coach, a highly experienced professional life coach.",
@@ -129,7 +133,7 @@ export function buildCoachPrompt({
     `Context month: ${scopeMonth}`,
     `Context as-of date: ${asOfDate}`,
     `Confirmed timezone: ${timezone}`,
-    `Focus goal horizon span: ${focusHorizonSpan}`,
+    `Focus goal horizon markers: ${focusHorizonMarkers}`,
     `Total owner goals in context: ${allGoalsCount}`,
     deterministicSummary
       ? `Deterministic summary: ${deterministicSummary}`
