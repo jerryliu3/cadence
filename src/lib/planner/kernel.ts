@@ -376,6 +376,7 @@ function allocateOrdinalScopeMonth({
   const ownerUncreditedByMonth = new Map(
     lifetimeMonths.map((month) => [month, [] as number[]])
   );
+  const ownerMonthByOrdinal = new Map<number, string>();
   const policyDistribution = normalizeMonthlyDistributionForLifetime({
     lifetimeMonths,
     targetCount: requirement.targetCount,
@@ -392,6 +393,7 @@ function allocateOrdinalScopeMonth({
         assigned += 1
       ) {
         queue.push(ordinal);
+        ownerMonthByOrdinal.set(ordinal, month);
         ordinal += 1;
       }
     }
@@ -402,6 +404,7 @@ function allocateOrdinalScopeMonth({
         targetCount: requirement.targetCount,
         ordinal,
       });
+      ownerMonthByOrdinal.set(ordinal, ownerMonth);
       ownerUncreditedByMonth.get(ownerMonth)!.push(ordinal);
     }
   }
@@ -415,11 +418,13 @@ function allocateOrdinalScopeMonth({
     ) {
       continue;
     }
-    const ownerMonth = ownerMonthForOrdinal({
-      months: lifetimeMonths,
-      targetCount: requirement.targetCount,
-      ordinal: unit.ordinal,
-    });
+    const ownerMonth =
+      ownerMonthByOrdinal.get(unit.ordinal) ??
+      ownerMonthForOrdinal({
+        months: lifetimeMonths,
+        targetCount: requirement.targetCount,
+        ordinal: unit.ordinal,
+      });
     const completionMonth = monthFromDate(unit.creditedCompletionDate);
     const pinnedMonth = lifetimeMonths.includes(completionMonth)
       ? completionMonth

@@ -103,6 +103,15 @@ function describePolicyPatch(
         patch.goalId,
         goalTitles
       )}: set spacing strategy to ${formatSpacingStrategy(patch.spacingStrategy)}.`;
+    case "set_goal_monthly_distribution":
+      return `${resolveGoalTitle(
+        patch.goalId,
+        goalTitles
+      )}: set monthly distribution (${patch.distribution
+        .map((entry) => `${entry.month}: ${entry.count}`)
+        .join(", ")}).`;
+    case "clear_goal_monthly_distribution":
+      return `${resolveGoalTitle(patch.goalId, goalTitles)}: clear monthly distribution.`;
   }
 }
 
@@ -719,7 +728,7 @@ export function usePlannerCoach({
             .join(", ")}.`
         : "There are no focus goals in the current planner scope.";
     setCoachInput(
-      `Please convert your guidance into concrete calendar intent I can apply now. Make safe assumptions and keep them explicit. ${goalHint} Only use apply_to_goal when the requested activity clearly matches one of those goals; otherwise use needs_goal and do not repurpose an unrelated goal.`.trim()
+      `Please convert your guidance into concrete calendar intent I can apply now. Make safe assumptions and keep them explicit. ${goalHint} Use action="apply" for concrete scheduling edits. Include a goal entry only when the requested activity clearly matches one of those goals; otherwise use action="needs_goal" and do not repurpose an unrelated goal.`.trim()
     );
   }, [coachFocusGoalIds, context]);
 

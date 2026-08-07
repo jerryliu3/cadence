@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { Goal } from "@/lib/goals/types";
 import type { GoalAssessment } from "@/lib/planner/assessment";
+import { compareCanonicalStrings } from "@/lib/planner/canonical";
 import { enumerateMonthsInWindow } from "@/lib/planner/dates";
 
 export const MAX_COACH_MESSAGES = 20;
@@ -222,7 +223,7 @@ function dedupeMonthDistribution(
   }
   return Array.from(countByMonth.entries())
     .map(([month, count]) => ({ month, count }))
-    .sort((left, right) => left.month.localeCompare(right.month));
+    .sort((left, right) => compareCanonicalStrings(left.month, right.month));
 }
 
 function resolveGoalTargetCount(goal: Goal) {
@@ -260,7 +261,7 @@ function normalizeDistributionToTarget({
     if (left.fractionalRemainder !== right.fractionalRemainder) {
       return right.fractionalRemainder - left.fractionalRemainder;
     }
-    return left.month.localeCompare(right.month);
+    return compareCanonicalStrings(left.month, right.month);
   })) {
     if (remaining <= 0) {
       break;
@@ -275,7 +276,7 @@ function normalizeDistributionToTarget({
   return normalized
     .map(({ month, count }) => ({ month, count }))
     .filter((entry) => entry.count > 0)
-    .sort((left, right) => left.month.localeCompare(right.month));
+    .sort((left, right) => compareCanonicalStrings(left.month, right.month));
 }
 
 function normalizeGoalMonthlyDistribution({

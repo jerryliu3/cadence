@@ -84,7 +84,7 @@ describe("applyCoachPolicyPatches", () => {
     expect(result.appliedPatchCount).toBe(0);
     expect(result.ignoredPatchCount).toBe(2);
     expect(result.policy.goalAllowedWeekdays).toEqual({});
-    expect(result.policy.goalMonthlyDistributions).toEqual({});
+    expect(result.policy.goalMonthlyDistributions).toBeUndefined();
   });
 
   it("treats no-op patches as ignored changes", () => {
@@ -151,6 +151,6 @@ describe("applyCoachPolicyPatches", () => {
 
     expect(result.appliedPatchCount).toBe(1);
     expect(result.ignoredPatchCount).toBe(1);
-    expect(result.policy.goalMonthlyDistributions).toEqual({});
+    expect(result.policy.goalMonthlyDistributions).toBeUndefined();
   });
 });

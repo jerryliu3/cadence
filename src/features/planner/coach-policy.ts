@@ -1,3 +1,4 @@
+import { compareCanonicalStrings } from "@/lib/planner/canonical";
 import { compilePlannerPolicy, type PlannerPolicy } from "@/lib/planner/policy";
 import type { CoachPolicyPatch } from "@/lib/planner/coach";
 
@@ -36,7 +37,7 @@ function normalizeMonthlyDistributionEntries(
   }
   return Array.from(countByMonth.entries())
     .map(([month, count]) => ({ month, count }))
-    .sort((left, right) => left.month.localeCompare(right.month));
+    .sort((left, right) => compareCanonicalStrings(left.month, right.month));
 }
 
 function sameMonthlyDistribution(
