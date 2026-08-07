@@ -113,6 +113,25 @@ export interface PlannerKernelOutput {
   diff: ReturnType<typeof diffPlannerAssignments>;
   validation: ReturnType<typeof validateSolverResult>;
   suggestedRelaxations: string[];
+  horizonSummary: PlannerGoalHorizonSummary[];
+}
+
+export interface PlannerGoalHorizonSummary {
+  goalId: string;
+  kind: "milestone_sequence" | "deadline_total";
+  totalCount: number;
+  creditedCount: number;
+  remainingCount: number;
+  scopeMonthPlannedCount: number;
+  months: Array<{
+    month: string;
+    plannedCount: number;
+  }>;
+}
+
+interface OrdinalScopeAllocation {
+  scopedOrdinals: Set<number>;
+  monthOrdinals: Map<string, number[]>;
 }
 
 function currentLinkRole(
@@ -171,7 +190,7 @@ function allocateOrdinalScopeMonth({
   scopeMonth: string;
   asOfDate: string;
   reconciledUnits: PlannerWorkUnit[];
-}) {
+}): OrdinalScopeAllocation | undefined {
   const requirement = normalizedRequirement.requirement;
   if (requirement.kind === "cadence") {
     return undefined;
@@ -181,7 +200,10 @@ function allocateOrdinalScopeMonth({
     end: goal.end_date ?? goal.start_date,
   });
   if (!lifetimeMonths.includes(scopeMonth)) {
-    return new Set<number>();
+    return {
+      scopedOrdinals: new Set<number>(),
+      monthOrdinals: new Map(),
+    };
   }
 
   const monthWindows = new Map(
@@ -323,7 +345,10 @@ function allocateOrdinalScopeMonth({
     }
   }
 
-  return new Set(finalOrdinalsByMonth.get(scopeMonth) ?? []);
+  return {
+    scopedOrdinals: new Set(finalOrdinalsByMonth.get(scopeMonth) ?? []),
+    monthOrdinals: finalOrdinalsByMonth,
+  };
 }
 
 function throwBounds(
@@ -506,6 +531,7 @@ export function runPlannerKernel(
     PlannerCompletionUnitIdentity
   > = {};
   const driftFacts: PlannerKernelOutput["driftFacts"] = [];
+  const horizonSummary: PlannerGoalHorizonSummary[] = [];
   for (const goal of eligibleGoals) {
     const requirement = normalizedRequirements.get(goal.id)!;
     if (
@@ -553,17 +579,21 @@ export function runPlannerKernel(
       // scheduled dates, which can differ between scope-month base plans.
       allowScheduledDateMatching: scopeState !== "historical",
     });
-    const scopedOrdinals =
+    const ordinalAllocation =
       requirement.requirement.kind === "cadence"
-        ? null
-        : (allocateOrdinalScopeMonth({
+        ? undefined
+        : allocateOrdinalScopeMonth({
             goal,
             normalizedRequirement: requirement,
             compiledPolicy,
             scopeMonth: rawInput.scopeMonth,
             asOfDate: rawInput.asOfDate,
             reconciledUnits: reconciled.units,
-          }) ?? new Set<number>());
+          });
+    const scopedOrdinals =
+      requirement.requirement.kind === "cadence"
+        ? null
+        : (ordinalAllocation?.scopedOrdinals ?? new Set<number>());
     const scopedUnits =
       scopedOrdinals === null
         ? reconciled.units
@@ -583,6 +613,31 @@ export function runPlannerKernel(
     workUnits.push(...scopedUnits);
     Object.assign(completionToUnit, scopedCompletionToUnit);
     driftFacts.push(...reconciled.driftFacts);
+    if (
+      requirement.requirement.kind !== "cadence" &&
+      ordinalAllocation !== undefined
+    ) {
+      const creditedCount = reconciled.units.filter(
+        (unit) => unit.creditedCompletionId !== null
+      ).length;
+      horizonSummary.push({
+        goalId: goal.id,
+        kind: requirement.requirement.kind,
+        totalCount: requirement.requirement.targetCount,
+        creditedCount,
+        remainingCount: Math.max(
+          requirement.requirement.targetCount - creditedCount,
+          0
+        ),
+        scopeMonthPlannedCount: scopedOrdinals?.size ?? 0,
+        months: Array.from(ordinalAllocation.monthOrdinals.entries()).map(
+          ([month, ordinals]) => ({
+            month,
+            plannedCount: ordinals.length,
+          })
+        ),
+      });
+    }
   }
   throwBounds(
     workUnits.length > MAX_WORK_UNITS,
@@ -791,6 +846,7 @@ export function runPlannerKernel(
     }),
     validation,
     suggestedRelaxations: suggestedRelaxations(solver.issueCodes),
+    horizonSummary,
   };
   plannerKernelOutputSchema.parse(output);
   return output;
