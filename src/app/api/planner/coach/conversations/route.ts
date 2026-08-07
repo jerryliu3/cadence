@@ -53,16 +53,7 @@ function shouldFallbackToEmptyConversationList(error: {
   hint?: string | null;
 }) {
   const code = (error.code ?? "").toUpperCase();
-  if (code === "PGRST202" || code === "42883" || code === "42P01") {
-    return true;
-  }
-  const text = `${error.message ?? ""} ${error.details ?? ""} ${error.hint ?? ""}`
-    .toLowerCase()
-    .trim();
-  return (
-    text.includes("list_planner_coach_conversations_service") ||
-    text.includes("planner_coach_conversations")
-  );
+  return code === "PGRST202" || code === "42883" || code === "42P01";
 }
 
 export async function GET(request: Request) {
@@ -99,6 +90,15 @@ export async function GET(request: Request) {
     );
     if (rpcResponse.error) {
       if (shouldFallbackToEmptyConversationList(rpcResponse.error)) {
+        console.warn(
+          "[planner:coach] conversations fallback fired",
+          {
+            correlationId,
+            userId: routeContext.userId,
+            errorCode: rpcResponse.error.code,
+            errorMessage: rpcResponse.error.message,
+          }
+        );
         return NextResponse.json(
           {
             schemaVersion: "1",

@@ -41,12 +41,7 @@ const generatedGoalSchema = z.object({
   target_count: z.number().int().positive().nullable().optional(),
   start_date: z.string().optional(),
   end_date: z.string().nullable().optional(),
-  default_local_time: z
-    .string()
-    .trim()
-    .regex(localTimePattern)
-    .nullable()
-    .optional(),
+  default_local_time: z.string().nullable().optional(),
 });
 
 const generatedPayloadSchema = z.object({
@@ -125,6 +120,18 @@ function buildPrompt(userPrompt: string, today: string): string {
   ].join("\n");
 }
 
+function normalizeLocalTime(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const trimmed = value.trim();
+  if (localTimePattern.test(trimmed)) return trimmed;
+  const match = trimmed.match(/^(\d{1,2}):(\d{2})/);
+  if (match) {
+    const candidate = `${match[1].padStart(2, "0")}:${match[2]}`;
+    if (localTimePattern.test(candidate)) return candidate;
+  }
+  return null;
+}
+
 function normalizeGeneratedPayload(
   payload: z.infer<typeof generatedPayloadSchema>,
   today: string
@@ -147,7 +154,7 @@ function normalizeGeneratedPayload(
         target_count: goal.target_count ?? null,
         start_date: startDate,
         end_date: endDate,
-        default_local_time: goal.default_local_time ?? null,
+        default_local_time: normalizeLocalTime(goal.default_local_time),
       };
     }),
   };
