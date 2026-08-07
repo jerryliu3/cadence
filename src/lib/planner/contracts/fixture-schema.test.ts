@@ -55,7 +55,7 @@ describe("planner contract fixtures", () => {
     expect(lateFact?.expected.outcome).toBe("ended_with_shortfall");
   });
 
-  it("freezes end-month eligibility and outgoing-share behavior", () => {
+  it("freezes overlap eligibility and outgoing-share behavior", () => {
     const fixture = fixtures.find(
       (candidate) => candidate.contract === "eligibility"
     );
@@ -78,7 +78,7 @@ describe("planner contract fixtures", () => {
       fixture.cases.find(
         (fixtureCase) => fixtureCase.id === "deadline_after_scope"
       )?.expected.reason
-    ).toBe("end_outside_scope");
+    ).toBe("eligible");
   });
 
   it("never dispatches targeted totals to legacy period unmarking", () => {

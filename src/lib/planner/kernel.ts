@@ -555,7 +555,6 @@ export function runPlannerKernel(
   const eligibility = goals.map((goal) => ({
     goal,
     decision: evaluateGoalEligibility({
-      eligibilityMode: rawInput.eligibilityMode,
       scopeMonth: rawInput.scopeMonth,
       ownerId: rawInput.ownerId,
       goal,
@@ -688,7 +687,6 @@ export function runPlannerKernel(
     const materialized = materializeWorkUnits({
       goal,
       normalizedRequirement: requirement,
-      eligibilityMode: rawInput.eligibilityMode,
       scopeMonth: rawInput.scopeMonth,
       asOfDate: rawInput.asOfDate,
       baseAssignments,

@@ -120,9 +120,7 @@ export async function POST(request: Request) {
       ...body.draftCommands,
       ...buildPlannerDraftCommandsFromLegacyItemEdits(legacyDraftItemEdits),
     ];
-    const effectiveEligibilityMode = routeContext.capabilities.overlap
-      ? body.eligibilityMode ?? "overlap_v1"
-      : ELIGIBILITY_MODE;
+    const effectiveEligibilityMode = body.eligibilityMode ?? ELIGIBILITY_MODE;
     telemetryScope = { month: body.scopeMonth, timezone: "UTC" };
     if (
       (body.expectedBasePlanId === null) !==

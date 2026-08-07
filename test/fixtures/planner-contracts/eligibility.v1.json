@@ -1,7 +1,7 @@
 {
   "schemaVersion": "1",
   "contract": "eligibility",
-  "eligibilityMode": "end_month_v1",
+  "eligibilityMode": "overlap_v1",
   "cases": [
     {
       "id": "owned_personal_goal",
@@ -233,7 +233,7 @@
     },
     {
       "id": "deadline_after_scope",
-      "description": "V1 does not pull a later deadline into an earlier overlapping month.",
+      "description": "Overlap mode includes goals that start in scope and end in a later month.",
       "scopeMonth": "2026-08",
       "goal": {
         "ownedByViewer": true,
@@ -246,8 +246,8 @@
         "endDate": "2026-09-15"
       },
       "expected": {
-        "eligible": false,
-        "reason": "end_outside_scope"
+        "eligible": true,
+        "reason": "eligible"
       }
     }
   ]

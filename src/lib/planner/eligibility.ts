@@ -1,10 +1,7 @@
 import type { Goal } from "@/lib/goals/types";
 import { isOrdinalGoalDefinition } from "@/lib/goals/definition-validation";
 import { enumerateMonthsInWindow, getScopeDateRange } from "@/lib/planner/dates";
-import {
-  MAX_HORIZON_MONTHS,
-  type PlannerEligibilityMode,
-} from "@/lib/planner/contracts/bounds";
+import { MAX_HORIZON_MONTHS } from "@/lib/planner/contracts/bounds";
 
 export type EligibilityReason =
   | "eligible"
@@ -61,28 +58,6 @@ function evaluateStaticEligibility(goal: EligibilityGoal): EligibilityDecision |
   return null;
 }
 
-export function evaluateEndMonthV1Eligibility(
-  scopeMonth: string,
-  goal: EligibilityGoal
-): EligibilityDecision {
-  const staticDecision = evaluateStaticEligibility(goal);
-  if (staticDecision) {
-    return staticDecision;
-  }
-
-  const scope = getScopeDateRange(scopeMonth);
-  if (
-    goal.endDate !== null &&
-    (goal.endDate < scope.start || goal.endDate > scope.end)
-  ) {
-    return { eligible: false, reason: "end_outside_scope" };
-  }
-  if (goal.startDate > scope.end) {
-    return { eligible: false, reason: "starts_after_scope" };
-  }
-  return { eligible: true, reason: "eligible" };
-}
-
 export function evaluateOverlapV1Eligibility(
   scopeMonth: string,
   goal: EligibilityGoal
@@ -103,13 +78,11 @@ export function evaluateOverlapV1Eligibility(
 }
 
 export function evaluateGoalEligibility({
-  eligibilityMode,
   scopeMonth,
   ownerId,
   goal,
   currentLinkRole,
 }: {
-  eligibilityMode: PlannerEligibilityMode;
   scopeMonth: string;
   ownerId: string;
   goal: Goal;
@@ -130,10 +103,7 @@ export function evaluateGoalEligibility({
     endDate: goal.end_date,
     requiresDeadline,
   };
-  const decision =
-    eligibilityMode === "overlap_v1"
-      ? evaluateOverlapV1Eligibility(scopeMonth, normalizedGoal)
-      : evaluateEndMonthV1Eligibility(scopeMonth, normalizedGoal);
+  const decision = evaluateOverlapV1Eligibility(scopeMonth, normalizedGoal);
   if (!decision.eligible || goal.end_date === null) {
     return decision;
   }
