@@ -13,9 +13,9 @@ import {
 import { goalAssessmentSchema } from "@/lib/planner/assessment";
 import { loadPlannerCanonicalSnapshot } from "@/lib/planner/context-loader";
 import {
-  ELIGIBILITY_MODE,
   MAX_API_BODY_BYTES,
   MAX_ELIGIBLE_GOALS,
+  PLANNER_ELIGIBILITY_MODES,
   PLANNER_CONTRACT_VERSION,
 } from "@/lib/planner/contracts/bounds";
 import { PlannerError } from "@/lib/planner/errors";
@@ -139,7 +139,7 @@ export async function POST(request: Request) {
         "Planner policy timezone must match the request timezone."
       );
     }
-    const eligibilityMode = ELIGIBILITY_MODE;
+    const eligibilityMode = PLANNER_ELIGIBILITY_MODES[0];
 
     const preview = runPlannerKernel({
       schemaVersion: PLANNER_CONTRACT_VERSION,

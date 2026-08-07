@@ -7,7 +7,6 @@ export const SCHEDULER_VERSION = "ordered-dp-v1" as const;
 export const PLANNER_ELIGIBILITY_MODES = ["overlap_v1"] as const;
 export type PlannerEligibilityMode =
   (typeof PLANNER_ELIGIBILITY_MODES)[number];
-export const ELIGIBILITY_MODE = "overlap_v1" as const;
 
 export const MAX_ELIGIBLE_GOALS = 100;
 export const MAX_WORK_UNITS = 5_000;
