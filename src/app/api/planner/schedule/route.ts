@@ -130,7 +130,6 @@ export async function DELETE(request: Request) {
       admin,
       ownerId: routeContext.userId,
       correlationId,
-      scopeMonth: body.scopeMonth,
       source: "planner-schedule",
     });
     const scheduleDigest = syncResult.scheduleDigest;
