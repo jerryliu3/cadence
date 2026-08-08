@@ -61,6 +61,17 @@ begin
   if not exists (
     select 1
     from pg_constraint
+    where conname = 'profiles_timezone_length'
+      and conrelid = 'public.profiles'::regclass
+  ) then
+    alter table public.profiles
+    add constraint profiles_timezone_length
+    check (char_length(timezone) between 1 and 100);
+  end if;
+
+  if not exists (
+    select 1
+    from pg_constraint
     where conname = 'profiles_week_starts_on_range'
       and conrelid = 'public.profiles'::regclass
   ) then
@@ -89,6 +100,31 @@ begin
     alter table public.profiles
     add constraint profiles_blackout_ranges_array
     check (jsonb_typeof(blackout_ranges) = 'array');
+  end if;
+
+  if not exists (
+    select 1
+    from pg_constraint
+    where conname = 'profiles_blackout_ranges_cardinality'
+      and conrelid = 'public.profiles'::regclass
+  ) then
+    alter table public.profiles
+    add constraint profiles_blackout_ranges_cardinality
+    check (
+      jsonb_typeof(blackout_ranges) = 'array'
+      and jsonb_array_length(blackout_ranges) <= 100
+    );
+  end if;
+
+  if not exists (
+    select 1
+    from pg_constraint
+    where conname = 'profiles_blackout_ranges_octets'
+      and conrelid = 'public.profiles'::regclass
+  ) then
+    alter table public.profiles
+    add constraint profiles_blackout_ranges_octets
+    check (octet_length(blackout_ranges::text) <= 16384);
   end if;
 end;
 $$;
