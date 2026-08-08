@@ -237,8 +237,7 @@ select is(
   (
     select synced_count
     from public.sync_planner_items_from_active_execution_plan_service(
-      '11111111-1111-4111-8111-111111111111',
-      date_trunc('month', current_date)::date
+      '11111111-1111-4111-8111-111111111111'
     )
   ),
   1,
@@ -289,8 +288,7 @@ select is(
   (
     select synced_count
     from public.sync_planner_items_from_active_execution_plan_service(
-      '11111111-1111-4111-8111-111111111111',
-      date_trunc('month', current_date)::date
+      '11111111-1111-4111-8111-111111111111'
     )
   ),
   1,
@@ -320,8 +318,7 @@ select is(
   (
     select synced_count
     from public.sync_planner_items_from_active_execution_plan_service(
-      '11111111-1111-4111-8111-111111111111',
-      date_trunc('month', current_date)::date
+      '11111111-1111-4111-8111-111111111111'
     )
   ),
   0,
@@ -642,8 +639,7 @@ select is(
   (
     select synced_count
     from public.sync_planner_items_from_active_execution_plan_service(
-      '11111111-1111-4111-8111-111111111111',
-      (date_trunc('month', current_date) + interval '2 month')::date
+      '11111111-1111-4111-8111-111111111111'
     )
   ),
   2,
@@ -669,8 +665,7 @@ select is(
     with replay as (
       select *
       from public.sync_planner_items_from_active_execution_plan_service(
-        '11111111-1111-4111-8111-111111111111',
-        (date_trunc('month', current_date) + interval '3 month')::date
+        '11111111-1111-4111-8111-111111111111'
       )
     )
     select synced_count

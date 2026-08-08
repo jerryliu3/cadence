@@ -399,7 +399,6 @@ export function SocialTab() {
   useEffect(() => {
     const searchQuery = searchTerm.trim().toLowerCase();
     if (!searchQuery) {
-      setSearchResults([]);
       return;
     }
 
