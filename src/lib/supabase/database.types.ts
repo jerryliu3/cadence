@@ -1258,6 +1258,25 @@ export type Database = {
         }
         Returns: number
       }
+      save_planner_coach_conversation_service: {
+        Args: {
+          p_messages: Json
+          p_preview_text: string
+          p_scope_month: string
+          p_timezone: string
+          p_title: string
+        }
+        Returns: {
+          created_at: string
+          id: string
+          message_count: number
+          preview_text: string
+          scope_month: string
+          timezone: string
+          title: string
+          updated_at: string
+        }[]
+      }
       set_execution_plan_goal_date_fact_service: {
         Args: {
           p_date: string
