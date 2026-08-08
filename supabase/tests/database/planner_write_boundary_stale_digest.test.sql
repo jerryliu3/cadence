@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions, pg_catalog;
-select plan(1);
+select plan(3);
 
 set local role service_role;
 
@@ -83,6 +83,64 @@ select throws_ok(
   'P0001'::character(5),
   'stale_schedule',
   'stale digest writes are rejected'
+);
+
+create temp table tmp_replay_digests (
+  returned_digest text,
+  current_digest text
+);
+
+select lives_ok(
+  $tap$
+  do $$
+  declare
+    v_scope_month date := date_trunc('month', current_date)::date;
+    v_stale_digest text;
+    v_replay_digest text;
+  begin
+    v_stale_digest := public.get_planner_schedule_digest();
+
+    perform *
+    from public.set_planner_schedule(
+      v_scope_month,
+      jsonb_build_array(
+        jsonb_build_object(
+          'goal_id', '91200000-0000-4000-8000-000000000001',
+          'unit_key', 'unit:1',
+          'scheduled_date', (v_scope_month + 2)::text,
+          'locked', false
+        )
+      ),
+      v_stale_digest
+    );
+
+    select schedule_digest
+    into v_replay_digest
+    from public.set_planner_schedule(
+      v_scope_month,
+      jsonb_build_array(
+        jsonb_build_object(
+          'goal_id', '91200000-0000-4000-8000-000000000001',
+          'unit_key', 'unit:1',
+          'scheduled_date', (v_scope_month + 2)::text,
+          'locked', false
+        )
+      ),
+      v_stale_digest
+    );
+
+    insert into tmp_replay_digests (returned_digest, current_digest)
+    values (v_replay_digest, public.get_planner_schedule_digest());
+  end;
+  $$;
+  $tap$,
+  'stale digest replay with identical payload succeeds'
+);
+
+select is(
+  (select returned_digest from tmp_replay_digests limit 1),
+  (select current_digest from tmp_replay_digests limit 1),
+  'stale digest replay returns the current digest'
 );
 
 reset role;

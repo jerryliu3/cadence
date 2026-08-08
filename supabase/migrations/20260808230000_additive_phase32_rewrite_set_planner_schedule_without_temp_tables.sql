@@ -17,6 +17,7 @@ as $$
 declare
   v_owner uuid := auth.uid();
   v_current_digest text;
+  v_is_replay boolean := false;
   v_upserted_count integer := 0;
 begin
   if v_owner is null then
@@ -35,10 +36,6 @@ begin
 
   select public.get_planner_schedule_digest(v_owner)
   into v_current_digest;
-
-  if coalesce(p_expected_digest, '') <> coalesce(v_current_digest, '') then
-    raise exception using errcode = 'P0001', message = 'stale_schedule';
-  end if;
 
   if exists (
     with schedule_input as (
@@ -236,6 +233,50 @@ begin
       and incoming.incoming_count + coalesce(existing.existing_count, 0) > goal.target_count
   ) then
     raise exception using errcode = 'P0001', message = 'exceeds_target_count';
+  end if;
+
+  with schedule_input as (
+    select
+      row.goal_id,
+      btrim(row.unit_key) as unit_key,
+      row.scheduled_date,
+      nullif(btrim(row.scheduled_time), '') as scheduled_time,
+      coalesce(row.locked, false) as locked
+    from jsonb_to_recordset(p_items) as row(
+      goal_id uuid,
+      unit_key text,
+      scheduled_date date,
+      original_scheduled_date date,
+      scheduled_time text,
+      locked boolean
+    )
+  ),
+  existing_scope as (
+    select
+      item.goal_id,
+      item.unit_key,
+      item.scheduled_date,
+      item.scheduled_time,
+      item.locked
+    from public.planner_items item
+    where item.owner_id = v_owner
+      and date_trunc('month', item.scheduled_date)::date = p_month
+  )
+  select not exists (
+    (table schedule_input except table existing_scope)
+    union all
+    (table existing_scope except table schedule_input)
+  )
+  into v_is_replay;
+
+  if v_is_replay then
+    return query
+    select v_current_digest, 0;
+    return;
+  end if;
+
+  if coalesce(p_expected_digest, '') <> coalesce(v_current_digest, '') then
+    raise exception using errcode = 'P0001', message = 'stale_schedule';
   end if;
 
   begin
