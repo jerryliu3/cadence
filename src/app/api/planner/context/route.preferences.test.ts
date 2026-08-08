@@ -37,7 +37,7 @@ vi.mock("@/lib/supabase/admin", () => ({
   }),
 }));
 
-import { PUT } from "../context/route";
+import { PUT } from "./route";
 
 function request(body: unknown) {
   return new Request("http://localhost/api/planner/context", {
@@ -75,10 +75,6 @@ describe("planner context preferences route", () => {
       },
       error: null,
     });
-    mocks.rpc.mockResolvedValue({
-      data: [{ canonical_revision: 11, execution_revision: 5 }],
-      error: null,
-    });
     mocks.adminProfileUpdateMaybeSingle.mockResolvedValue({
       data: {
         timezone,
@@ -112,18 +108,13 @@ describe("planner context preferences route", () => {
         policyRevision: 1,
       },
       revisions: {
-        canonicalRevision: 11,
-        executionRevision: 5,
+        canonicalRevision: 0,
+        executionRevision: 0,
       },
     });
   });
 
-  it("degrades post-commit revision reload failures instead of returning 500", async () => {
-    mocks.rpc.mockResolvedValue({
-      data: null,
-      error: { code: "XX000", message: "revision reload failed" },
-    });
-
+  it("does not depend on planner state RPC after profile updates", async () => {
     const response = await PUT(
       request({
         timezone,
@@ -143,5 +134,6 @@ describe("planner context preferences route", () => {
         executionRevision: 0,
       },
     });
+    expect(mocks.rpc).not.toHaveBeenCalled();
   });
 });
