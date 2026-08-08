@@ -12,15 +12,12 @@ import {
 } from "@/lib/planner/api";
 import {
   MAX_API_BODY_BYTES,
-  POLICY_COMPILER_VERSION,
-  POLICY_SCHEMA_VERSION,
 } from "@/lib/planner/contracts/bounds";
 import { createDefaultPlannerPolicy, plannerPolicySchema } from "@/lib/planner/policy";
 import {
   parsePlannerProfilePreferencesRow,
   resolvePlannerPreferencesSnapshot,
 } from "@/lib/planner/preferences-snapshot";
-import { callAdminRpc } from "@/lib/supabase/admin-rpc";
 import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
@@ -38,19 +35,6 @@ const upsertSchema = z.object({
 function shouldIgnoreProfilePreferenceError(error: { code?: string | null }) {
   const code = (error.code ?? "").toUpperCase();
   return code === "42P01" || code === "42703" || code === "PGRST204";
-}
-
-function normalizePolicyRevision(value: unknown) {
-  if (typeof value === "number" && Number.isSafeInteger(value) && value >= 1) {
-    return value;
-  }
-  if (typeof value === "string") {
-    const parsed = Number.parseInt(value, 10);
-    if (Number.isSafeInteger(parsed) && parsed >= 1) {
-      return parsed;
-    }
-  }
-  return 1;
 }
 
 export async function GET() {
@@ -168,79 +152,54 @@ export async function PUT(request: Request) {
       );
     }
 
+    const normalizedWeekStartsOn =
+      defaultPolicy.weekStartsOn !== undefined &&
+      defaultPolicy.weekStartsOn >= 0 &&
+      defaultPolicy.weekStartsOn <= 6
+        ? defaultPolicy.weekStartsOn
+        : 1;
+    const normalizedRestWeekdays = Array.from(
+      new Set(defaultPolicy.restWeekdays)
+    ).sort((left, right) => left - right);
+
     const admin = requirePlannerAdminClient();
-    const upsertResponse = await callAdminRpc(
-      admin,
-      "upsert_planner_preferences_service",
-      {
-        p_owner: routeContext.userId,
-        p_timezone: body.timezone,
-        p_default_policy: defaultPolicy,
-        p_policy_schema_version: POLICY_SCHEMA_VERSION,
-        p_policy_compiler_version: POLICY_COMPILER_VERSION,
-        p_timezone_confirmed_at: timezoneConfirmedAt,
-      }
-    );
-    if (upsertResponse.error) {
+    const updateResponse = await admin
+      .from("profiles")
+      .update({
+        timezone: body.timezone,
+        timezone_confirmed_at: timezoneConfirmedAt,
+        week_starts_on: normalizedWeekStartsOn,
+        rest_weekdays: normalizedRestWeekdays,
+        blackout_ranges: defaultPolicy.blackoutRanges,
+      })
+      .eq("id", routeContext.userId)
+      .select(
+        "timezone,timezone_confirmed_at,week_starts_on,rest_weekdays,blackout_ranges"
+      )
+      .maybeSingle();
+    if (updateResponse.error) {
       throw new PlannerRouteError(
         409,
         "preference_update_failed",
         "Planner preferences could not be updated.",
-        { cause: upsertResponse.error.message }
+        { cause: updateResponse.error.message }
       );
     }
-
-    const updatedRow = Array.isArray(upsertResponse.data)
-      ? upsertResponse.data[0]
-      : upsertResponse.data;
-    if (!updatedRow) {
+    if (!updateResponse.data) {
       throw new PlannerRouteError(
         500,
         "invariant_failed",
-        "Planner preference update did not return persisted data."
+        "Planner preference update did not return an updated profile row."
       );
     }
-    const updatedRowRecord =
-      typeof updatedRow === "object" && updatedRow !== null
-        ? (updatedRow as Record<string, unknown>)
-        : null;
-    const persistedPolicyRevision = normalizePolicyRevision(
-      updatedRowRecord?.policy_revision
-    );
-
-    const profileResponse = await routeContext.supabase
-      .from("profiles")
-      .select(
-        "timezone,timezone_confirmed_at,week_starts_on,rest_weekdays,blackout_ranges"
-      )
-      .eq("id", routeContext.userId)
-      .maybeSingle();
-    if (profileResponse.error && !shouldIgnoreProfilePreferenceError(profileResponse.error)) {
-      // The write has already committed; avoid surfacing a false failure.
-      console.error("[planner.preferences.put] post-commit profile reload failed", {
-        correlationId,
-        ownerId: routeContext.userId,
-        code: profileResponse.error.code,
-        message: profileResponse.error.message,
-      });
-    }
-
-    let parsedProfile = null;
-    if (profileResponse.data) {
-      try {
-        parsedProfile = parsePlannerProfilePreferencesRow(profileResponse.data);
-      } catch {
-        parsedProfile = null;
-      }
-    }
+    const parsedProfile = parsePlannerProfilePreferencesRow(updateResponse.data);
     const resolvedPreferences =
       resolvePlannerPreferencesSnapshot({
         profile: parsedProfile,
-        policyRevision: persistedPolicyRevision,
       }) ?? {
         timezone: body.timezone,
         timezone_confirmed_at: timezoneConfirmedAt,
-        policy_revision: persistedPolicyRevision,
+        policy_revision: 1,
         default_policy: defaultPolicy,
       };
 

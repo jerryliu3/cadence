@@ -11,7 +11,6 @@ truncate table
   public.execution_plan_days,
   public.execution_plan_goals,
   public.execution_plans,
-  public.planner_preferences,
   public.goal_shares,
   public.goal_participants,
   public.goal_links,
