@@ -50,10 +50,6 @@ const defaultPolicy = {
   weekStartsOn: 1,
   restWeekdays: [],
   blackoutRanges: [],
-  goalAllowedWeekdays: {},
-  datePreferences: [],
-  spacingStrategy: "flexible" as const,
-  goalSpacingStrategies: {},
 };
 
 describe("planner preferences route", () => {

@@ -81,7 +81,7 @@ export async function GET() {
         .maybeSingle(),
       routeContext.supabase
         .from("planner_preferences")
-        .select("timezone,timezone_confirmed_at,policy_revision,default_policy")
+        .select("timezone,timezone_confirmed_at,policy_revision")
         .eq("owner_id", routeContext.userId)
         .maybeSingle(),
       routeContext.supabase.rpc("get_planner_state"),
@@ -237,7 +237,6 @@ export async function PUT(request: Request) {
             ? updatedRowRecord.timezone_confirmed_at
             : timezoneConfirmedAt,
         policy_revision: normalizePolicyRevision(updatedRowRecord?.policy_revision),
-        default_policy: updatedRowRecord?.default_policy ?? defaultPolicy,
       });
     } catch (error) {
       console.error("[planner.preferences.put] post-commit legacy parse failed", {
@@ -249,7 +248,6 @@ export async function PUT(request: Request) {
         timezone: body.timezone,
         timezone_confirmed_at: timezoneConfirmedAt,
         policy_revision: 1,
-        default_policy: defaultPolicy,
       });
     }
 

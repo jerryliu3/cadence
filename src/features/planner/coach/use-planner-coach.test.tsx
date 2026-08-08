@@ -549,16 +549,16 @@ describe("usePlannerCoach", () => {
 
   it("applies coach proposal and computes assignment change summary", async () => {
     const context = buildContext();
-    const nextPolicy = buildPolicy({ spacingStrategy: "flexible" });
+    const nextPolicy = buildPolicy({ restWeekdays: [2, 4] });
     requestPlannerCoachReplyMock.mockResolvedValue({
       schemaVersion: "1",
       phase: "ready",
-      reply: "Applying spacing strategy.",
+      reply: "Applying rest day guidance.",
       proposal: {
         policyPatches: [
           {
-            kind: "set_spacing_strategy",
-            spacingStrategy: "flexible",
+            kind: "set_rest_weekdays",
+            restWeekdays: [2, 4],
           },
         ],
         unresolvedQuestions: [],
@@ -640,24 +640,22 @@ describe("usePlannerCoach", () => {
       await result.current.actions.undoCoachProposal(proposalIndex);
     });
 
-    expect(refreshDraftPreviewMock).toHaveBeenCalledWith(
-      context.preferences!.defaultPolicy
-    );
+    expect(refreshDraftPreviewMock).toHaveBeenCalledWith(nextPolicy);
     expect(persistPlannerDefaultPolicyMock).toHaveBeenLastCalledWith({
       timezone: "UTC",
-      defaultPolicy: context.preferences!.defaultPolicy,
+      defaultPolicy: nextPolicy,
     });
     expect(applyDraftPolicyMock).toHaveBeenLastCalledWith(
       "2026-08",
-      context.preferences!.defaultPolicy
+      nextPolicy
     );
     expect(
       result.current.state.coachMessages[proposalIndex]?.proposal?.applyStatus
-    ).toBe("undone");
+    ).toBe("manually_applied");
   });
 
   it("blocks undo when newer draft policy changes exist", async () => {
-    const baselinePolicy = buildPolicy({ spacingStrategy: "even" });
+    const baselinePolicy = buildPolicy({ restWeekdays: [1] });
     loadCoachSessionMock.mockReturnValue([
       {
         role: "assistant",
@@ -673,8 +671,8 @@ describe("usePlannerCoach", () => {
           baselinePolicy,
           policyPatches: [
             {
-              kind: "set_spacing_strategy",
-              spacingStrategy: "flexible",
+              kind: "set_rest_weekdays",
+              restWeekdays: [2],
             },
           ],
           unresolvedQuestions: [],
@@ -687,15 +685,12 @@ describe("usePlannerCoach", () => {
         patches,
       }: {
         policy: PlannerPolicy;
-        patches: Array<{ kind: string; spacingStrategy?: PlannerPolicy["spacingStrategy"] }>;
+        patches: Array<{ kind: string; restWeekdays?: number[] }>;
       }) => {
         const nextPolicy = structuredClone(policy);
         for (const patch of patches) {
-          if (
-            patch.kind === "set_spacing_strategy" &&
-            patch.spacingStrategy !== undefined
-          ) {
-            nextPolicy.spacingStrategy = patch.spacingStrategy;
+          if (patch.kind === "set_rest_weekdays" && patch.restWeekdays !== undefined) {
+            nextPolicy.restWeekdays = [...patch.restWeekdays];
           }
         }
         return {
@@ -728,7 +723,7 @@ describe("usePlannerCoach", () => {
           entriesByDate: new Map([["2026-08-01", [buildEntry()]]]),
           effectivePreview: context.preview,
           hasDraftSession: true,
-          effectiveDraftPolicy: buildPolicy({ spacingStrategy: "front_load" }),
+          effectiveDraftPolicy: buildPolicy({ restWeekdays: [4] }),
           refreshDraftPreview: refreshDraftPreviewMock,
           applyDraftPolicy: applyDraftPolicyMock,
         })
@@ -754,8 +749,8 @@ describe("usePlannerCoach", () => {
   });
 
   it("validates undo preview before persisting manual default restoration", async () => {
-    const baselinePolicy = buildPolicy({ spacingStrategy: "even" });
-    const appliedPolicy = buildPolicy({ spacingStrategy: "front_load" });
+    const baselinePolicy = buildPolicy({ restWeekdays: [1] });
+    const appliedPolicy = buildPolicy({ restWeekdays: [2] });
     loadCoachSessionMock.mockReturnValue([
       {
         role: "assistant",
@@ -771,8 +766,8 @@ describe("usePlannerCoach", () => {
           baselinePolicy,
           policyPatches: [
             {
-              kind: "set_spacing_strategy",
-              spacingStrategy: "front_load",
+              kind: "set_rest_weekdays",
+              restWeekdays: [2],
             },
           ],
           unresolvedQuestions: [],
@@ -785,15 +780,12 @@ describe("usePlannerCoach", () => {
         patches,
       }: {
         policy: PlannerPolicy;
-        patches: Array<{ kind: string; spacingStrategy?: PlannerPolicy["spacingStrategy"] }>;
+        patches: Array<{ kind: string; restWeekdays?: number[] }>;
       }) => {
         const nextPolicy = structuredClone(policy);
         for (const patch of patches) {
-          if (
-            patch.kind === "set_spacing_strategy" &&
-            patch.spacingStrategy !== undefined
-          ) {
-            nextPolicy.spacingStrategy = patch.spacingStrategy;
+          if (patch.kind === "set_rest_weekdays" && patch.restWeekdays !== undefined) {
+            nextPolicy.restWeekdays = [...patch.restWeekdays];
           }
         }
         return {
@@ -841,7 +833,12 @@ describe("usePlannerCoach", () => {
       await result.current.actions.undoCoachProposal(0);
     });
 
-    expect(refreshDraftPreviewMock).toHaveBeenCalledWith(baselinePolicy);
+    expect(refreshDraftPreviewMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        restWeekdays: baselinePolicy.restWeekdays,
+        blackoutRanges: baselinePolicy.blackoutRanges,
+      })
+    );
     expect(persistPlannerDefaultPolicyMock).not.toHaveBeenCalled();
     expect(applyDraftPolicyMock).not.toHaveBeenCalled();
     expect(result.current.state.coachMessages[0]?.proposal?.applyStatus).toBe(
@@ -851,8 +848,8 @@ describe("usePlannerCoach", () => {
   });
 
   it("restores draft preview when manual undo persistence fails", async () => {
-    const baselinePolicy = buildPolicy({ spacingStrategy: "even" });
-    const appliedPolicy = buildPolicy({ spacingStrategy: "front_load" });
+    const baselinePolicy = buildPolicy({ restWeekdays: [1] });
+    const appliedPolicy = buildPolicy({ restWeekdays: [2] });
     loadCoachSessionMock.mockReturnValue([
       {
         role: "assistant",
@@ -868,8 +865,8 @@ describe("usePlannerCoach", () => {
           baselinePolicy,
           policyPatches: [
             {
-              kind: "set_spacing_strategy",
-              spacingStrategy: "front_load",
+              kind: "set_rest_weekdays",
+              restWeekdays: [2],
             },
           ],
           unresolvedQuestions: [],
@@ -882,15 +879,12 @@ describe("usePlannerCoach", () => {
         patches,
       }: {
         policy: PlannerPolicy;
-        patches: Array<{ kind: string; spacingStrategy?: PlannerPolicy["spacingStrategy"] }>;
+        patches: Array<{ kind: string; restWeekdays?: number[] }>;
       }) => {
         const nextPolicy = structuredClone(policy);
         for (const patch of patches) {
-          if (
-            patch.kind === "set_spacing_strategy" &&
-            patch.spacingStrategy !== undefined
-          ) {
-            nextPolicy.spacingStrategy = patch.spacingStrategy;
+          if (patch.kind === "set_rest_weekdays" && patch.restWeekdays !== undefined) {
+            nextPolicy.restWeekdays = [...patch.restWeekdays];
           }
         }
         return {
@@ -942,13 +936,34 @@ describe("usePlannerCoach", () => {
       await result.current.actions.undoCoachProposal(0);
     });
 
-    expect(refreshDraftPreviewMock).toHaveBeenNthCalledWith(1, baselinePolicy);
-    expect(refreshDraftPreviewMock).toHaveBeenNthCalledWith(2, appliedPolicy);
+    expect(refreshDraftPreviewMock).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        restWeekdays: baselinePolicy.restWeekdays,
+        blackoutRanges: baselinePolicy.blackoutRanges,
+      })
+    );
+    expect(refreshDraftPreviewMock).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        restWeekdays: appliedPolicy.restWeekdays,
+        blackoutRanges: appliedPolicy.blackoutRanges,
+      })
+    );
     expect(persistPlannerDefaultPolicyMock).toHaveBeenCalledWith({
       timezone: "UTC",
-      defaultPolicy: baselinePolicy,
+      defaultPolicy: expect.objectContaining({
+        restWeekdays: baselinePolicy.restWeekdays,
+        blackoutRanges: baselinePolicy.blackoutRanges,
+      }),
     });
-    expect(applyDraftPolicyMock).toHaveBeenCalledWith("2026-08", appliedPolicy);
+    expect(applyDraftPolicyMock).toHaveBeenCalledWith(
+      "2026-08",
+      expect.objectContaining({
+        restWeekdays: appliedPolicy.restWeekdays,
+        blackoutRanges: appliedPolicy.blackoutRanges,
+      })
+    );
     expect(result.current.state.coachMessages[0]?.proposal?.applyStatus).toBe(
       "manually_applied"
     );
@@ -1103,8 +1118,8 @@ describe("usePlannerCoach", () => {
   });
 
   it("undoes auto-applied proposal without writing planner defaults", async () => {
-    const baselinePolicy = buildPolicy({ spacingStrategy: "even" });
-    const appliedPolicy = buildPolicy({ spacingStrategy: "front_load" });
+    const baselinePolicy = buildPolicy({ restWeekdays: [1] });
+    const appliedPolicy = buildPolicy({ restWeekdays: [2] });
     loadCoachSessionMock.mockReturnValue([
       {
         role: "assistant",
@@ -1120,8 +1135,8 @@ describe("usePlannerCoach", () => {
           baselinePolicy,
           policyPatches: [
             {
-              kind: "set_spacing_strategy",
-              spacingStrategy: "front_load",
+              kind: "set_rest_weekdays",
+              restWeekdays: [2],
             },
           ],
           unresolvedQuestions: [],
@@ -1134,15 +1149,12 @@ describe("usePlannerCoach", () => {
         patches,
       }: {
         policy: PlannerPolicy;
-        patches: Array<{ kind: string; spacingStrategy?: PlannerPolicy["spacingStrategy"] }>;
+        patches: Array<{ kind: string; restWeekdays?: number[] }>;
       }) => {
         const nextPolicy = structuredClone(policy);
         for (const patch of patches) {
-          if (
-            patch.kind === "set_spacing_strategy" &&
-            patch.spacingStrategy !== undefined
-          ) {
-            nextPolicy.spacingStrategy = patch.spacingStrategy;
+          if (patch.kind === "set_rest_weekdays" && patch.restWeekdays !== undefined) {
+            nextPolicy.restWeekdays = [...patch.restWeekdays];
           }
         }
         return {
@@ -1189,8 +1201,19 @@ describe("usePlannerCoach", () => {
     });
 
     expect(persistPlannerDefaultPolicyMock).not.toHaveBeenCalled();
-    expect(refreshDraftPreviewMock).toHaveBeenCalledWith(baselinePolicy);
-    expect(applyDraftPolicyMock).toHaveBeenCalledWith("2026-08", baselinePolicy);
+    expect(refreshDraftPreviewMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        restWeekdays: baselinePolicy.restWeekdays,
+        blackoutRanges: baselinePolicy.blackoutRanges,
+      })
+    );
+    expect(applyDraftPolicyMock).toHaveBeenCalledWith(
+      "2026-08",
+      expect.objectContaining({
+        restWeekdays: baselinePolicy.restWeekdays,
+        blackoutRanges: baselinePolicy.blackoutRanges,
+      })
+    );
     expect(result.current.state.coachMessages[0]?.proposal?.applyStatus).toBe("undone");
     expect(toastSuccessMock).toHaveBeenCalledWith(
       "Coach draft preview changes were undone."

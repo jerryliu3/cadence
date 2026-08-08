@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { createDefaultPlannerPolicy } from "./policy";
 import {
   parsePlannerLegacyPreferencesRow,
   resolvePlannerPreferencesSnapshot,
@@ -23,16 +22,7 @@ describe("resolvePlannerPreferencesSnapshot", () => {
     expect(snapshot).toBeNull();
   });
 
-  it("keeps legacy policy fields while profile-owned fields win", () => {
-    const legacyPolicy = {
-      ...createDefaultPlannerPolicy("America/New_York", confirmedAt),
-      spacingStrategy: "front_load" as const,
-      goalSpacingStrategies: { strength: "even" as const },
-      weekStartsOn: 6,
-      restWeekdays: [6],
-      blackoutRanges: [{ start: "2026-08-10", end: "2026-08-11" }],
-    };
-
+  it("ignores legacy-only policy fields and keeps profile-owned fields", () => {
     const snapshot = resolvePlannerPreferencesSnapshot({
       profile: {
         timezone: "America/New_York",
@@ -45,13 +35,11 @@ describe("resolvePlannerPreferencesSnapshot", () => {
         timezone: "America/New_York",
         timezone_confirmed_at: confirmedAt,
         policy_revision: 4,
-        default_policy: legacyPolicy,
       },
     });
 
     expect(snapshot).not.toBeNull();
     expect(snapshot?.policy_revision).toBe(4);
-    expect(snapshot?.default_policy.spacingStrategy).toBe("front_load");
     expect(snapshot?.default_policy.weekStartsOn).toBe(2);
     expect(snapshot?.default_policy.restWeekdays).toEqual([2, 5]);
     expect(snapshot?.default_policy.blackoutRanges).toEqual([
@@ -83,7 +71,6 @@ describe("parsePlannerLegacyPreferencesRow", () => {
         timezone: "UTC",
         timezone_confirmed_at: confirmedAt,
         policy_revision: 0,
-        default_policy: createDefaultPlannerPolicy("UTC", confirmedAt),
       })
     ).toThrow();
   });

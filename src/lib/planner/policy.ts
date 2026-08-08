@@ -14,13 +14,6 @@ import {
 
 const weekdaySchema = z.number().int().min(0).max(6);
 const dateSchema = z.iso.date();
-const monthSchema = z
-  .string()
-  .regex(/^\d{4}-\d{2}$/)
-  .refine((month) => {
-    const monthNumber = Number(month.slice(5, 7));
-    return monthNumber >= 1 && monthNumber <= 12;
-  }, "Invalid calendar month.");
 const dateWindowSchema = z
   .object({
     start: dateSchema,
@@ -41,50 +34,28 @@ export const plannerPolicySchema = z
     weekStartsOn: weekdaySchema.optional(),
     restWeekdays: z.array(weekdaySchema).max(7),
     blackoutRanges: z.array(dateWindowSchema).max(MAX_POLICY_RANGES),
-    goalAllowedWeekdays: z.record(
-      z.string().min(1).max(100),
-      z.array(weekdaySchema).min(1).max(7)
-    ),
-    datePreferences: z
-      .array(
-        z
-          .object({
-            goalId: z.string().min(1).max(100).nullable(),
-            start: dateSchema,
-            end: dateSchema,
-            effect: z.enum(["avoid", "prefer"]),
-          })
-          .strict()
-          .refine(
-            (preference) => preference.start <= preference.end,
-            "Invalid preference range."
-          )
-      )
-      .max(MAX_POLICY_RANGES),
-    spacingStrategy: z.enum(["front_load", "even", "flexible"]),
-    goalSpacingStrategies: z.record(
-      z.string().min(1).max(100),
-      z.enum(["front_load", "even", "flexible"])
-    ),
-    goalMonthlyDistributions: z
-      .record(
-        z.string().min(1).max(100),
-        z.array(
-          z
-            .object({
-              month: monthSchema,
-              count: z.number().int().nonnegative(),
-            })
-            .strict()
-        )
-      )
-      .optional(),
-    dailyCadenceRestExemption: z.literal(true).optional(),
   })
-  .strict();
+  .strip();
 
-export type PlannerPolicy = z.infer<typeof plannerPolicySchema>;
-export type SpacingStrategy = PlannerPolicy["spacingStrategy"];
+export type SpacingStrategy = "front_load" | "even" | "flexible";
+export interface LegacyPlannerPolicyFields {
+  goalAllowedWeekdays?: Record<string, number[]>;
+  datePreferences?: Array<{
+    goalId: string | null;
+    start: string;
+    end: string;
+    effect: "avoid" | "prefer";
+  }>;
+  spacingStrategy?: SpacingStrategy;
+  goalSpacingStrategies?: Record<string, SpacingStrategy>;
+  goalMonthlyDistributions?: Record<
+    string,
+    Array<{ month: string; count: number }>
+  >;
+  dailyCadenceRestExemption?: true;
+}
+export type PlannerPolicy = z.infer<typeof plannerPolicySchema> &
+  LegacyPlannerPolicyFields;
 
 export interface CompiledPolicy {
   compilerVersion: typeof POLICY_COMPILER_VERSION;
@@ -102,48 +73,17 @@ export function createDefaultPlannerPolicy(
     weekStartsOn: 1,
     restWeekdays: [],
     blackoutRanges: [],
-    goalAllowedWeekdays: {},
-    datePreferences: [],
-    spacingStrategy: "flexible",
-    goalSpacingStrategies: {},
   });
 }
 
 export function compilePlannerPolicy(policy: PlannerPolicy): CompiledPolicy {
-  const parsed = plannerPolicySchema.parse(policy);
-  const { dailyCadenceRestExemption: _legacyRestExemption, ...parsedPolicy } = parsed;
+  const parsedPolicy = plannerPolicySchema.parse(policy);
   const normalizeWeekdays = (weekdays: number[]) =>
     Array.from(new Set(weekdays)).sort((left, right) => left - right);
   const normalizeWeekStartsOn = (weekStartsOn: number | undefined) =>
     weekStartsOn !== undefined && weekStartsOn >= 0 && weekStartsOn <= 6
       ? weekStartsOn
       : 1;
-  const normalizeGoalMonthlyDistribution = (
-    distribution: Array<{ month: string; count: number }>
-  ) => {
-    const countByMonth = new Map<string, number>();
-    for (const entry of distribution) {
-      if (entry.count <= 0) {
-        continue;
-      }
-      countByMonth.set(
-        entry.month,
-        (countByMonth.get(entry.month) ?? 0) + entry.count
-      );
-    }
-    return Array.from(countByMonth.entries())
-      .map(([month, count]) => ({ month, count }))
-      .sort((left, right) => compareCanonicalStrings(left.month, right.month));
-  };
-  const normalizedGoalMonthlyDistributions = Object.fromEntries(
-    Object.entries(parsedPolicy.goalMonthlyDistributions ?? {})
-      .sort(([left], [right]) => compareCanonicalStrings(left, right))
-      .map(([goalId, distribution]) => [
-        goalId,
-        normalizeGoalMonthlyDistribution(distribution),
-      ])
-      .filter(([, distribution]) => distribution.length > 0)
-  );
   const normalizedPolicy: PlannerPolicy = {
     ...parsedPolicy,
     weekStartsOn: normalizeWeekStartsOn(parsedPolicy.weekStartsOn),
@@ -161,43 +101,7 @@ export function compilePlannerPolicy(policy: PlannerPolicy): CompiledPolicy {
           range.start !== ranges[index - 1].start ||
           range.end !== ranges[index - 1].end
       ),
-    goalAllowedWeekdays: Object.fromEntries(
-      Object.entries(parsedPolicy.goalAllowedWeekdays)
-        .sort(([left], [right]) =>
-          compareCanonicalStrings(left, right)
-        )
-        .map(([goalId, weekdays]) => [
-          goalId,
-          normalizeWeekdays(weekdays),
-        ])
-    ),
-    datePreferences: [...parsedPolicy.datePreferences]
-      .sort((left, right) => {
-        const leftGoal = left.goalId ?? "";
-        const rightGoal = right.goalId ?? "";
-        const byGoal = compareCanonicalStrings(leftGoal, rightGoal);
-        if (byGoal !== 0) return byGoal;
-        const byStart = compareCanonicalStrings(left.start, right.start);
-        if (byStart !== 0) return byStart;
-        const byEnd = compareCanonicalStrings(left.end, right.end);
-        return byEnd !== 0
-          ? byEnd
-          : compareCanonicalStrings(left.effect, right.effect);
-      })
-      .filter(
-        (preference, index, preferences) =>
-          index === 0 ||
-          preference.goalId !== preferences[index - 1].goalId ||
-          preference.start !== preferences[index - 1].start ||
-          preference.end !== preferences[index - 1].end ||
-          preference.effect !== preferences[index - 1].effect
-      ),
   };
-  if (Object.keys(normalizedGoalMonthlyDistributions).length > 0) {
-    normalizedPolicy.goalMonthlyDistributions = normalizedGoalMonthlyDistributions;
-  } else {
-    delete normalizedPolicy.goalMonthlyDistributions;
-  }
   return {
     compilerVersion: POLICY_COMPILER_VERSION,
     policy: normalizedPolicy,
@@ -206,7 +110,7 @@ export function compilePlannerPolicy(policy: PlannerPolicy): CompiledPolicy {
 
 export function isDateAllowedByPolicy(
   compiled: CompiledPolicy,
-  goalId: string,
+  _goalId: string,
   date: string,
   restEligible: boolean
 ) {
@@ -224,50 +128,35 @@ export function isDateAllowedByPolicy(
     return false;
   }
 
-  const allowedWeekdays = policy.goalAllowedWeekdays[goalId];
-  return !allowedWeekdays || allowedWeekdays.includes(weekday);
+  return true;
 }
 
 export function getCompiledDateCost(
   compiled: CompiledPolicy,
-  goalId: string,
+  _goalId: string,
   date: string,
   restEligible = true
 ) {
   const { policy } = compiled;
   const weekday = getUtcWeekday(date);
-  const allowedWeekdays = policy.goalAllowedWeekdays[goalId];
   const advisoryPenalty =
     (policy.blackoutRanges.some((range) =>
       dateIsInWindow(date, range as DateWindow)
     )
       ? 10
       : 0) +
-    (restEligible && policy.restWeekdays.includes(weekday) ? 6 : 0) +
-    (allowedWeekdays && !allowedWeekdays.includes(weekday) ? 6 : 0);
+    (restEligible && policy.restWeekdays.includes(weekday) ? 6 : 0);
 
-  return policy.datePreferences.reduce((cost, preference) => {
-    if (
-      preference.goalId !== null &&
-      preference.goalId !== goalId
-    ) {
-      return cost;
-    }
-    if (date < preference.start || date > preference.end) {
-      return cost;
-    }
-    return cost + (preference.effect === "avoid" ? 8 : -3);
-  }, advisoryPenalty);
+  return advisoryPenalty;
 }
 
 export function getSpacingStrategy(
   compiled: CompiledPolicy,
   goalId: string
 ): SpacingStrategy {
-  return (
-    compiled.policy.goalSpacingStrategies[goalId] ??
-    compiled.policy.spacingStrategy
-  );
+  void compiled;
+  void goalId;
+  return "flexible";
 }
 
 export function getSpacingIdealDate(
