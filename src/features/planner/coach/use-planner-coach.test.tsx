@@ -64,11 +64,6 @@ function buildPolicy(overrides: Partial<PlannerPolicy> = {}): PlannerPolicy {
     timezoneConfirmedAt: "2026-08-01T00:00:00.000Z",
     restWeekdays: [],
     blackoutRanges: [],
-    goalAllowedWeekdays: {},
-    datePreferences: [],
-    spacingStrategy: "even",
-    goalSpacingStrategies: {},
-    dailyCadenceRestExemption: true,
     ...overrides,
   };
 }
@@ -273,8 +268,8 @@ describe("usePlannerCoach", () => {
       proposal: {
         policyPatches: [
           {
-            kind: "set_spacing_strategy",
-            spacingStrategy: "even",
+            kind: "set_rest_weekdays",
+            restWeekdays: [2, 4],
           },
         ],
         unresolvedQuestions: ["Which day should be your long run?"],
@@ -332,8 +327,8 @@ describe("usePlannerCoach", () => {
       applyStatus: "auto_applied",
       policyPatches: [
         {
-          kind: "set_spacing_strategy",
-          spacingStrategy: "even",
+          kind: "set_rest_weekdays",
+          restWeekdays: [2, 4],
         },
       ],
     });
@@ -360,8 +355,8 @@ describe("usePlannerCoach", () => {
       proposal: {
         policyPatches: [
           {
-            kind: "set_spacing_strategy",
-            spacingStrategy: "even",
+            kind: "set_rest_weekdays",
+            restWeekdays: [2, 4],
           },
         ],
         unresolvedQuestions: [],
@@ -407,7 +402,7 @@ describe("usePlannerCoach", () => {
 
   it("does not persist defaults during successful auto-apply", async () => {
     const context = buildContext();
-    const nextPolicy = buildPolicy({ spacingStrategy: "flexible" });
+    const nextPolicy = buildPolicy({ restWeekdays: [0, 6] });
     applyCoachPolicyPatchesMock.mockReturnValue({
       policy: nextPolicy,
       appliedPatchCount: 1,
@@ -423,8 +418,8 @@ describe("usePlannerCoach", () => {
       proposal: {
         policyPatches: [
           {
-            kind: "set_spacing_strategy",
-            spacingStrategy: "flexible",
+            kind: "set_rest_weekdays",
+            restWeekdays: [0, 6],
           },
         ],
         unresolvedQuestions: [],
@@ -487,8 +482,8 @@ describe("usePlannerCoach", () => {
         proposal: {
           policyPatches: [
             {
-              kind: "set_spacing_strategy",
-              spacingStrategy: "even",
+              kind: "set_rest_weekdays",
+              restWeekdays: [2, 4],
             },
           ],
           unresolvedQuestions: [],
@@ -640,18 +635,29 @@ describe("usePlannerCoach", () => {
       await result.current.actions.undoCoachProposal(proposalIndex);
     });
 
-    expect(refreshDraftPreviewMock).toHaveBeenCalledWith(nextPolicy);
+    expect(refreshDraftPreviewMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        restWeekdays: [],
+        blackoutRanges: [],
+      })
+    );
     expect(persistPlannerDefaultPolicyMock).toHaveBeenLastCalledWith({
       timezone: "UTC",
-      defaultPolicy: nextPolicy,
+      defaultPolicy: expect.objectContaining({
+        restWeekdays: [],
+        blackoutRanges: [],
+      }),
     });
     expect(applyDraftPolicyMock).toHaveBeenLastCalledWith(
       "2026-08",
-      nextPolicy
+      expect.objectContaining({
+        restWeekdays: [],
+        blackoutRanges: [],
+      })
     );
     expect(
       result.current.state.coachMessages[proposalIndex]?.proposal?.applyStatus
-    ).toBe("manually_applied");
+    ).toBe("undone");
   });
 
   it("blocks undo when newer draft policy changes exist", async () => {
@@ -974,7 +980,7 @@ describe("usePlannerCoach", () => {
 
   it("keeps proposal unapplied when durable preference write fails", async () => {
     const context = buildContext();
-    const nextPolicy = buildPolicy({ spacingStrategy: "front_load" });
+    const nextPolicy = buildPolicy({ restWeekdays: [1, 5] });
     requestPlannerCoachReplyMock.mockResolvedValue({
       schemaVersion: "1",
       phase: "ready",
@@ -982,8 +988,8 @@ describe("usePlannerCoach", () => {
       proposal: {
         policyPatches: [
           {
-            kind: "set_spacing_strategy",
-            spacingStrategy: "front_load",
+            kind: "set_rest_weekdays",
+            restWeekdays: [1, 5],
           },
         ],
         unresolvedQuestions: [],
@@ -1049,7 +1055,7 @@ describe("usePlannerCoach", () => {
 
   it("does not persist defaults when manual apply preview refresh fails", async () => {
     const context = buildContext();
-    const nextPolicy = buildPolicy({ spacingStrategy: "front_load" });
+    const nextPolicy = buildPolicy({ restWeekdays: [1, 5] });
     requestPlannerCoachReplyMock.mockResolvedValue({
       schemaVersion: "1",
       phase: "ready",
@@ -1057,8 +1063,8 @@ describe("usePlannerCoach", () => {
       proposal: {
         policyPatches: [
           {
-            kind: "set_spacing_strategy",
-            spacingStrategy: "front_load",
+            kind: "set_rest_weekdays",
+            restWeekdays: [1, 5],
           },
         ],
         unresolvedQuestions: [],
@@ -1267,8 +1273,8 @@ describe("usePlannerCoach", () => {
             baselinePolicy: context.preferences!.defaultPolicy,
             policyPatches: [
               {
-                kind: "set_spacing_strategy",
-                spacingStrategy: "even",
+                kind: "set_rest_weekdays",
+                restWeekdays: [2, 4],
               },
             ],
             unresolvedQuestions: [],

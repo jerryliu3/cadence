@@ -19,10 +19,7 @@ function unitCost(unit: SolverUnit, date: string) {
       unit.previousDate && unit.previousDate !== date
         ? Math.abs(differenceInDateStrings(date, unit.previousDate))
         : 0,
-    policy:
-      (unit.idealDate
-        ? Math.abs(differenceInDateStrings(date, unit.idealDate))
-        : 0) + (unit.dateCosts?.[date] ?? 0),
+    policy: unit.dateCosts?.[date] ?? 0,
   };
 }
 

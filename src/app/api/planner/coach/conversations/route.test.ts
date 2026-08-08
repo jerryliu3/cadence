@@ -138,16 +138,11 @@ describe("planner coach conversations route", () => {
               timezoneConfirmedAt: "2026-08-01T00:00:00.000Z",
               restWeekdays: [],
               blackoutRanges: [],
-              goalAllowedWeekdays: {},
-              datePreferences: [],
-              spacingStrategy: "even",
-              goalSpacingStrategies: {},
-              dailyCadenceRestExemption: true,
             },
             policyPatches: [
               {
-                kind: "set_spacing_strategy",
-                spacingStrategy: "even",
+                kind: "set_rest_weekdays",
+                restWeekdays: [2, 4],
               },
             ],
             unresolvedQuestions: [],
@@ -197,7 +192,7 @@ describe("planner coach conversations route", () => {
               applyStatus: "not_applied",
               policyPatches: expect.arrayContaining([
                 expect.objectContaining({
-                  kind: "set_spacing_strategy",
+                  kind: "set_rest_weekdays",
                 }),
               ]),
             }),

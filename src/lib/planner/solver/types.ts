@@ -11,7 +11,6 @@ export interface SolverUnit {
   candidateDates: string[];
   previousDate: string | null;
   lockedDate: string | null;
-  idealDate: string | null;
   dateCosts?: Record<string, number>;
   estimatedMinutes?: number;
 }

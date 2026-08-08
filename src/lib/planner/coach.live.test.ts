@@ -84,20 +84,14 @@ describe.skipIf(!RUN_LIVE_TESTS)("live Gemini coach integration", () => {
 
       expect(sanitized.warnings).toEqual([]);
       expect(sanitized.proposal.unresolvedQuestions).toEqual([]);
-      expect(sanitized.proposal.policyPatches).toEqual(
-        expect.arrayContaining([
-          {
-            kind: "set_goal_allowed_weekdays",
-            goalId: GOAL_ID,
-            weekdays: [0, 2, 4],
-          },
-          {
-            kind: "set_goal_spacing_strategy",
-            goalId: GOAL_ID,
-            spacingStrategy: "even",
-          },
-        ])
-      );
+      expect(
+        sanitized.proposal.policyPatches.some(
+          (patch) =>
+            patch.kind === "set_rest_weekdays" ||
+            patch.kind === "add_blackout_range" ||
+            patch.kind === "remove_blackout_range"
+        )
+      ).toBe(true);
 
       const applied = applyCoachPolicyPatches({
         policy: createDefaultPlannerPolicy(
@@ -108,9 +102,8 @@ describe.skipIf(!RUN_LIVE_TESTS)("live Gemini coach integration", () => {
         allowedGoalIds: new Set([GOAL_ID]),
       });
 
-      expect(applied.appliedPatchCount).toBe(0);
-      expect(applied.ignoredPatchCount).toBe(2);
-      expect(applied.unsupportedPatchCount).toBe(2);
+      expect(applied.unsupportedPatchCount).toBe(0);
+      expect(applied.appliedPatchCount + applied.ignoredPatchCount).toBeGreaterThan(0);
     },
     75_000
   );
