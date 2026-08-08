@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, private, extensions, pg_catalog;
-select plan(16);
+select plan(33);
 
 select is(
   to_regprocedure(
@@ -111,6 +111,114 @@ select is(
   ),
   null::regprocedure,
   'legacy 28-argument publish overload remains dropped'
+);
+
+select is(
+  to_regprocedure('public.get_planner_state()'),
+  null::regprocedure,
+  'legacy planner state read helper remains dropped'
+);
+
+select is(
+  to_regprocedure(
+    'public.dismiss_execution_plan_service(uuid,uuid,bigint,bigint)'
+  ),
+  null::regprocedure,
+  'legacy planner dismiss service remains dropped'
+);
+
+select is(
+  to_regprocedure(
+    'public.set_execution_plan_item_lock_service(uuid,uuid,boolean,bigint,bigint,bigint)'
+  ),
+  null::regprocedure,
+  'legacy planner lock service remains dropped'
+);
+
+select is(
+  to_regprocedure(
+    'public.publish_execution_plan_service(uuid,date,text,text,text,jsonb,jsonb,text,text,text,text,text,text,text,text,text,text,boolean,boolean,uuid,text,bigint,bigint,uuid,integer,jsonb,jsonb,jsonb,jsonb)'
+  ),
+  null::regprocedure,
+  'legacy planner publish service remains dropped'
+);
+
+select is(
+  to_regclass('public.execution_plans'),
+  null::regclass,
+  'execution_plans table remains dropped'
+);
+
+select is(
+  to_regclass('public.execution_plan_goals'),
+  null::regclass,
+  'execution_plan_goals table remains dropped'
+);
+
+select is(
+  to_regclass('public.execution_plan_days'),
+  null::regclass,
+  'execution_plan_days table remains dropped'
+);
+
+select is(
+  to_regclass('public.execution_plan_items'),
+  null::regclass,
+  'execution_plan_items table remains dropped'
+);
+
+select is(
+  to_regclass('public.execution_plan_issues'),
+  null::regclass,
+  'execution_plan_issues table remains dropped'
+);
+
+select is(
+  to_regclass('private.planner_state'),
+  null::regclass,
+  'private planner_state table remains dropped'
+);
+
+select is(
+  to_regprocedure('private.ensure_planner_state(uuid)'),
+  null::regprocedure,
+  'planner-state initialization helper remains dropped'
+);
+
+select is(
+  to_regprocedure('private.bump_planner_canonical_revision(uuid)'),
+  null::regprocedure,
+  'planner canonical revision helper remains dropped'
+);
+
+select is(
+  to_regprocedure('private.require_planner_state_revisions(uuid,bigint,bigint)'),
+  null::regprocedure,
+  'planner revision guard helper remains dropped'
+);
+
+select is(
+  to_regprocedure('private.guard_execution_plan()'),
+  null::regprocedure,
+  'execution plan guard helper remains dropped'
+);
+
+select is(
+  to_regprocedure('private.guard_execution_plan_goal()'),
+  null::regprocedure,
+  'execution plan goal guard helper remains dropped'
+);
+
+select is(
+  to_regprocedure('private.guard_execution_plan_item()'),
+  null::regprocedure,
+  'execution plan item guard helper remains dropped'
+);
+
+select is(
+  to_regprocedure('private.supersede_elapsed_active_execution_plans()'),
+  null::regprocedure,
+  'elapsed active execution-plan supersede helper remains dropped'
 );
 
 select * from finish();
