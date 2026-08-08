@@ -32,7 +32,6 @@ import {
   scopeMonthDate,
   syncPlannerItemsFromActiveExecutionPlan,
 } from "@/lib/planner/planner-items-runtime-sync";
-import { monthFromDate } from "@/lib/planner/dates";
 import { plannerPolicySchema } from "@/lib/planner/policy";
 import { classifyTelemetryResult, emitTelemetryEvent } from "@/lib/telemetry/runtime";
 import type { Database, Json } from "@/lib/supabase/database.types";
@@ -203,16 +202,10 @@ export async function POST(request: Request) {
         canonical_revision: 0,
         execution_revision: 0,
       };
-      const replayScopeMonth =
-        typeof replayLookup.data.scope_month === "string" &&
-        replayLookup.data.scope_month.length >= 7
-          ? monthFromDate(replayLookup.data.scope_month)
-          : body.scopeMonth;
       const replaySync = await syncPlannerItemsFromActiveExecutionPlan({
         admin,
         ownerId: routeContext.userId,
         correlationId,
-        scopeMonth: replayScopeMonth,
         source: "planner-publish",
       });
       const replayScheduleDigest = replaySync.scheduleDigest;
@@ -535,7 +528,6 @@ export async function POST(request: Request) {
       admin,
       ownerId: routeContext.userId,
       correlationId,
-      scopeMonth: body.scopeMonth,
       source: "planner-publish",
     });
     const publishScheduleDigest = publishSync.scheduleDigest;
