@@ -11,9 +11,9 @@ import {
 } from "@/lib/planner/api";
 import { MAX_API_BODY_BYTES } from "@/lib/planner/contracts/bounds";
 import {
-  scopeMonthFromDate,
   syncPlannerItemsFromActiveExecutionPlan,
 } from "@/lib/planner/planner-items-runtime-sync";
+import { monthFromDate } from "@/lib/planner/dates";
 import { classifyTelemetryResult, emitTelemetryEvent } from "@/lib/telemetry/runtime";
 import { callAdminRpc } from "@/lib/supabase/admin-rpc";
 import { createClient } from "@/lib/supabase/server";
@@ -116,25 +116,15 @@ export async function POST(request: Request) {
         "Planner dismiss did not return a valid scope month."
       );
     }
-    let scheduleDigest: string | null = null;
-    const scopeMonth = scopeMonthFromDate(scopeMonthDateValue);
-    try {
-      const syncResult = await syncPlannerItemsFromActiveExecutionPlan({
-        admin,
-        ownerId: routeContext.userId,
-        scopeMonth,
-      });
-      scheduleDigest = syncResult.scheduleDigest;
-    } catch (error) {
-      console.error(
-        "[planner-dismiss] planner_items mirror sync failed after dismiss mutation",
-        {
-          correlationId,
-          scopeMonth,
-          error: error instanceof Error ? error.message : String(error),
-        }
-      );
-    }
+    const scopeMonth = monthFromDate(scopeMonthDateValue);
+    const syncResult = await syncPlannerItemsFromActiveExecutionPlan({
+      admin,
+      ownerId: routeContext.userId,
+      correlationId,
+      scopeMonth,
+      source: "planner-dismiss",
+    });
+    const scheduleDigest = syncResult.scheduleDigest;
 
     emitTelemetryEvent({
       eventName: "planner.mutation.completed",

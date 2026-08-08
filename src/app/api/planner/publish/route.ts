@@ -32,9 +32,9 @@ import {
 } from "@/lib/planner/draft-commands";
 import {
   scopeMonthDate,
-  scopeMonthFromDate,
   syncPlannerItemsFromActiveExecutionPlan,
 } from "@/lib/planner/planner-items-runtime-sync";
+import { monthFromDate } from "@/lib/planner/dates";
 import { plannerPolicySchema } from "@/lib/planner/policy";
 import { classifyTelemetryResult, emitTelemetryEvent } from "@/lib/telemetry/runtime";
 import type { Database, Json } from "@/lib/supabase/database.types";
@@ -230,26 +230,16 @@ export async function POST(request: Request) {
       const replayScopeMonth =
         typeof replayLookup.data.scope_month === "string" &&
         replayLookup.data.scope_month.length >= 7
-          ? scopeMonthFromDate(replayLookup.data.scope_month)
+          ? monthFromDate(replayLookup.data.scope_month)
           : body.scopeMonth;
-      let replayScheduleDigest: string | null = null;
-      try {
-        const replaySync = await syncPlannerItemsFromActiveExecutionPlan({
-          admin,
-          ownerId: routeContext.userId,
-          scopeMonth: replayScopeMonth,
-        });
-        replayScheduleDigest = replaySync.scheduleDigest;
-      } catch (error) {
-        console.error(
-          "[planner-publish] planner_items mirror sync failed after replay",
-          {
-            correlationId,
-            scopeMonth: replayScopeMonth,
-            error: error instanceof Error ? error.message : String(error),
-          }
-        );
-      }
+      const replaySync = await syncPlannerItemsFromActiveExecutionPlan({
+        admin,
+        ownerId: routeContext.userId,
+        correlationId,
+        scopeMonth: replayScopeMonth,
+        source: "planner-publish",
+      });
+      const replayScheduleDigest = replaySync.scheduleDigest;
       emitTelemetryEvent({
         eventName: "planner.publish.completed",
         ownerId: routeContext.userId,
@@ -565,24 +555,14 @@ export async function POST(request: Request) {
         "Planner publish did not return persisted plan metadata."
       );
     }
-    let publishScheduleDigest: string | null = null;
-    try {
-      const publishSync = await syncPlannerItemsFromActiveExecutionPlan({
-        admin,
-        ownerId: routeContext.userId,
-        scopeMonth: body.scopeMonth,
-      });
-      publishScheduleDigest = publishSync.scheduleDigest;
-    } catch (error) {
-      console.error(
-        "[planner-publish] planner_items mirror sync failed after publish",
-        {
-          correlationId,
-          scopeMonth: body.scopeMonth,
-          error: error instanceof Error ? error.message : String(error),
-        }
-      );
-    }
+    const publishSync = await syncPlannerItemsFromActiveExecutionPlan({
+      admin,
+      ownerId: routeContext.userId,
+      correlationId,
+      scopeMonth: body.scopeMonth,
+      source: "planner-publish",
+    });
+    const publishScheduleDigest = publishSync.scheduleDigest;
 
     emitTelemetryEvent({
       eventName: "planner.publish.completed",
