@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, private, extensions, pg_catalog;
-select plan(10);
+select plan(12);
 
 select is(
   to_regprocedure(
@@ -69,6 +69,20 @@ select is(
   to_regclass('public.completion_backfill_log'),
   null::regclass,
   'legacy completion backfill log table remains dropped'
+);
+
+select is(
+  to_regprocedure('private.apply_publish_eligibility_mode_override()'),
+  null::regprocedure,
+  'publish eligibility trigger helper remains dropped'
+);
+
+select is(
+  to_regprocedure(
+    'public.publish_execution_plan_service(uuid,date,text,text,jsonb,jsonb,text,text,text,text,text,text,text,text,text,text,boolean,boolean,uuid,text,bigint,bigint,uuid,integer,jsonb,jsonb,jsonb,jsonb)'
+  ),
+  null::regprocedure,
+  'legacy 28-argument publish overload remains dropped'
 );
 
 select * from finish();
