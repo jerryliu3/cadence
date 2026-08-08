@@ -31,27 +31,16 @@ export interface CompletionDispatchDecision {
     | "legacy_period_semantics";
 }
 
-export interface PlannerRevisionExpectation {
-  expectedCanonicalRevision: number;
-  expectedExecutionRevision: number;
+export interface PlannerDigestExpectation {
+  expectedDigest: string;
 }
 
 export interface PlannerItemDateFactExpectation
-  extends PlannerRevisionExpectation {
+  extends PlannerDigestExpectation {
   itemId: string;
-  expectedItemRevision: number;
-  expectedCreditedUnit: {
-    goalId: string;
-    requirementFingerprint: string;
-    unitKey: string;
-    completedOn: string;
-  } | null;
 }
 
-export interface PlannerGoalDateFactExpectation
-  extends PlannerRevisionExpectation {
-  planGoalId: string;
-}
+export type PlannerGoalDateFactExpectation = PlannerDigestExpectation;
 
 export interface CompletionLegacyMutationExecutor {
   markPresent: () => Promise<string | null>;
@@ -274,31 +263,22 @@ export async function executeCompletionDispatch({
   }
 
   if (decision.route === "item_date") {
-    if (!plannerItemExpectation) {
-      return {
-        ok: false,
-        route: decision.route,
-        message: "This planner session is outside the active publish scope.",
+    const body: Record<string, unknown> = {
+      goalId,
+      date,
+      desiredFactState,
+      timezone,
+    };
+    if (plannerItemExpectation) {
+      body.plannerItemExpectation = {
+        itemId: plannerItemExpectation.itemId,
+        expectedDigest: plannerItemExpectation.expectedDigest,
       };
     }
     const result = await postJsonRoute({
       fetcher,
       route: "/api/completions/exact-date",
-      body: {
-        goalId,
-        date,
-        desiredFactState,
-        timezone,
-        plannerItemExpectation: {
-          itemId: plannerItemExpectation.itemId,
-          expectedCreditedUnit: plannerItemExpectation.expectedCreditedUnit,
-          expectedItemRevision: plannerItemExpectation.expectedItemRevision,
-          expectedCanonicalRevision:
-            plannerItemExpectation.expectedCanonicalRevision,
-          expectedExecutionRevision:
-            plannerItemExpectation.expectedExecutionRevision,
-        },
-      },
+      body,
       fallbackError: "Planner completion update failed.",
       timeoutMs,
     });
@@ -310,29 +290,21 @@ export async function executeCompletionDispatch({
   }
 
   if (decision.route === "plan_goal_date") {
-    if (!plannerGoalExpectation) {
-      return {
-        ok: false,
-        route: decision.route,
-        message: "This planner goal is outside the active publish scope.",
+    const body: Record<string, unknown> = {
+      goalId,
+      date,
+      desiredFactState,
+      timezone,
+    };
+    if (plannerGoalExpectation) {
+      body.plannerGoalExpectation = {
+        expectedDigest: plannerGoalExpectation.expectedDigest,
       };
     }
     const result = await postJsonRoute({
       fetcher,
       route: "/api/completions/exact-date",
-      body: {
-        goalId,
-        date,
-        desiredFactState,
-        timezone,
-        plannerGoalExpectation: {
-          planGoalId: plannerGoalExpectation.planGoalId,
-          expectedCanonicalRevision:
-            plannerGoalExpectation.expectedCanonicalRevision,
-          expectedExecutionRevision:
-            plannerGoalExpectation.expectedExecutionRevision,
-        },
-      },
+      body,
       fallbackError: "Planner completion update failed.",
       timeoutMs,
     });
