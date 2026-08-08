@@ -55,7 +55,6 @@ import {
 import {
   buildWeekdayLabels,
   completionDisabledReasonCopy,
-  createClientUuid,
   getEntryDraftDiffSummary,
   getEntryDraftPillClasses,
   getDayStatus,
@@ -1521,7 +1520,6 @@ export function CalendarSurface({
       toast.error(nonPublishablePreviewMessage(effectivePreview));
       return;
     }
-    const idempotencyKey = createClientUuid();
     const confirmationHash = effectivePreview.solver.confirmationRequired
       ? buildPlannerConfirmationHash({
           previewHash: effectivePreview.generationInputHash,
@@ -1532,10 +1530,7 @@ export function CalendarSurface({
     setPublishLoading(true);
     const response = await fetch("/api/planner/publish", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Idempotency-Key": idempotencyKey,
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         scopeMonth: context.scopeMonth,
         previewHash: effectivePreview.generationInputHash,
