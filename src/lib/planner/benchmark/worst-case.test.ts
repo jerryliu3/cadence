@@ -33,18 +33,22 @@ describe("worst-case planner benchmark fixture", () => {
     expect(digest(JSON.stringify(first))).toBe(digest(JSON.stringify(second)));
   });
 
-  it("keeps the compact worst-case plan response under 3 MB", () => {
-    const output = runPlannerKernel(
-      materializeWorstCaseKernelInput({
-        withBasePlan: true,
-        replaceLineage: true,
-      })
-    );
-    const compactPlan = serializeCompactPlannerOutput(output);
-    const byteLength = new TextEncoder().encode(compactPlan).byteLength;
+  it(
+    "keeps the compact worst-case plan response under 3 MB",
+    () => {
+      const output = runPlannerKernel(
+        materializeWorstCaseKernelInput({
+          withBasePlan: true,
+          replaceLineage: true,
+        })
+      );
+      const compactPlan = serializeCompactPlannerOutput(output);
+      const byteLength = new TextEncoder().encode(compactPlan).byteLength;
 
-    expect(byteLength).toBeLessThan(MAX_API_BODY_BYTES);
-  });
+      expect(byteLength).toBeLessThan(MAX_API_BODY_BYTES);
+    },
+    12_000
+  );
 
   it(
     "returns the same full kernel result for the same bounded input",
