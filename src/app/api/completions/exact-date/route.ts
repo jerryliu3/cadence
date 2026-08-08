@@ -1,70 +1,20 @@
 import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
-import { z } from "zod";
 import {
   getDateInTimezone,
-  isValidIanaTimezone,
 } from "@/lib/dates/timezone";
-import { requirePlannerAdminClient } from "@/lib/planner/api";
 import { getPlannerCapabilities } from "@/lib/planner/capabilities";
+import {
+  applyPlannerGoalDateFact,
+  applyPlannerItemDateFact,
+  targetedExactDateRequestSchema,
+} from "@/lib/planner/exact-date-dispatch";
 import { classifyTelemetryResult, emitTelemetryEvent } from "@/lib/telemetry/runtime";
-import { callAdminRpc } from "@/lib/supabase/admin-rpc";
 import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 
 const MAX_REQUEST_BYTES = 16 * 1024;
-const plannerItemExpectationSchema = z
-  .object({
-    itemId: z.string().uuid(),
-    expectedCreditedUnit: z
-      .object({
-        goalId: z.string().min(1).max(100),
-        requirementFingerprint: z.string().regex(/^[a-f0-9]{64}$/),
-        unitKey: z.string().min(1).max(100),
-        completedOn: z.iso.date(),
-      })
-      .nullable(),
-    expectedCanonicalRevision: z.number().int().nonnegative(),
-    expectedExecutionRevision: z.number().int().nonnegative(),
-    expectedItemRevision: z.number().int().nonnegative(),
-  })
-  .strict();
-
-const plannerGoalExpectationSchema = z
-  .object({
-    planGoalId: z.string().uuid(),
-    expectedCanonicalRevision: z.number().int().nonnegative(),
-    expectedExecutionRevision: z.number().int().nonnegative(),
-  })
-  .strict();
-
-const requestSchema = z
-  .object({
-    goalId: z.uuid(),
-    date: z.iso.date(),
-    desiredFactState: z.enum(["present", "absent"]),
-    timezone: z
-      .string()
-      .trim()
-      .min(1)
-      .max(100)
-      .refine(isValidIanaTimezone, "Provide a valid IANA timezone."),
-    plannerItemExpectation: plannerItemExpectationSchema.optional(),
-    plannerGoalExpectation: plannerGoalExpectationSchema.optional(),
-  })
-  .strict()
-  .refine(
-    (value) =>
-      !(
-        value.plannerItemExpectation !== undefined &&
-        value.plannerGoalExpectation !== undefined
-      ),
-    {
-      message: "Only one planner expectation can be supplied per request.",
-      path: ["plannerGoalExpectation"],
-    }
-  );
 
 function errorResponse(
   status: number,
@@ -207,7 +157,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const parsedRequest = requestSchema.safeParse(parsedBody);
+  const parsedRequest = targetedExactDateRequestSchema.safeParse(parsedBody);
   if (!parsedRequest.success) {
     return errorResponse(
       400,
@@ -227,135 +177,28 @@ export async function POST(request: Request) {
   } = parsedRequest.data;
 
   if (plannerItemExpectation) {
-    const admin = requirePlannerAdminClient();
-    const response = await callAdminRpc(
-      admin,
-      "set_execution_plan_item_date_fact_service",
-      {
-        p_owner: user.id,
-        p_item_id: plannerItemExpectation.itemId,
-        p_desired_fact_state: desiredFactState,
-        p_expected_credited_unit: plannerItemExpectation.expectedCreditedUnit,
-        p_expected_canonical_revision:
-          plannerItemExpectation.expectedCanonicalRevision,
-        p_expected_execution_revision:
-          plannerItemExpectation.expectedExecutionRevision,
-        p_expected_item_revision: plannerItemExpectation.expectedItemRevision,
-      }
-    );
-    if (response.error) {
-      const message = response.error.message.toLowerCase();
-      if (
-        message.includes("planner revision mismatch") ||
-        message.includes("planner item revision mismatch") ||
-        message.includes("credited unit mismatch")
-      ) {
-        emitTargetedCompletionTelemetry({
-          ownerId: user.id,
-          correlationId,
-          capabilities,
-          startedAt,
-          route: "item_date",
-          desiredFactState,
-          statusCode: 409,
-          errorCode: "stale_revision",
-        });
-        return errorResponse(
-          409,
-          "stale_revision",
-          "Planner completion state is stale. Refresh and try again.",
-          correlationId
-        );
-      }
-      if (message.includes("future_completion_not_allowed")) {
-        emitTargetedCompletionTelemetry({
-          ownerId: user.id,
-          correlationId,
-          capabilities,
-          startedAt,
-          route: "item_date",
-          desiredFactState,
-          statusCode: 422,
-          errorCode: "future_completion_not_allowed",
-        });
-        return errorResponse(
-          422,
-          "future_completion_not_allowed",
-          "Completions can only be added for today or a past date.",
-          correlationId
-        );
-      }
-      if (message.includes("item state cannot accept exact-date facts")) {
-        emitTargetedCompletionTelemetry({
-          ownerId: user.id,
-          correlationId,
-          capabilities,
-          startedAt,
-          route: "item_date",
-          desiredFactState,
-          statusCode: 422,
-          errorCode: "item_date_fact_disallowed",
-        });
-        return errorResponse(
-          422,
-          "item_date_fact_disallowed",
-          "This item state cannot be updated with exact-date completion facts.",
-          correlationId
-        );
-      }
-      if (message.includes("active planner item not found")) {
-        emitTargetedCompletionTelemetry({
-          ownerId: user.id,
-          correlationId,
-          capabilities,
-          startedAt,
-          route: "item_date",
-          desiredFactState,
-          statusCode: 404,
-          errorCode: "planner_item_not_found",
-        });
-        return errorResponse(
-          404,
-          "planner_item_not_found",
-          "Planner item was not found in the active plan.",
-          correlationId
-        );
-      }
-
+    const result = await applyPlannerItemDateFact({
+      ownerId: user.id,
+      fallbackGoalId: goalId,
+      fallbackDate: date,
+      desiredFactState,
+      expectation: plannerItemExpectation,
+    });
+    if (!result.ok) {
       emitTargetedCompletionTelemetry({
         ownerId: user.id,
         correlationId,
         capabilities,
         startedAt,
-        route: "item_date",
+        route: result.route,
         desiredFactState,
-        statusCode: 409,
-        errorCode: "planner_item_date_fact_failed",
+        statusCode: result.status,
+        errorCode: result.code,
       });
       return errorResponse(
-        409,
-        "planner_item_date_fact_failed",
-        "Planner item date fact could not be updated.",
-        correlationId
-      );
-    }
-
-    const row = Array.isArray(response.data) ? response.data[0] : response.data;
-    if (!row) {
-      emitTargetedCompletionTelemetry({
-        ownerId: user.id,
-        correlationId,
-        capabilities,
-        startedAt,
-        route: "item_date",
-        desiredFactState,
-        statusCode: 500,
-        errorCode: "invariant_failed",
-      });
-      return errorResponse(
-        500,
-        "invariant_failed",
-        "Planner item date fact did not return updated state.",
+        result.status,
+        result.code,
+        result.message,
         correlationId
       );
     }
@@ -365,7 +208,7 @@ export async function POST(request: Request) {
       correlationId,
       capabilities,
       startedAt,
-      route: "item_date",
+      route: result.route,
       desiredFactState,
       statusCode: 200,
       errorCode: null,
@@ -374,9 +217,7 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         schemaVersion: "1",
-        goalId: typeof row.goal_id === "string" ? row.goal_id : goalId,
-        date: typeof row.date === "string" ? row.date : date,
-        factState: row.fact_state as "present" | "absent",
+        ...result.payload,
         correlationId,
       },
       { headers: { "Cache-Control": "no-store" } }
@@ -384,148 +225,28 @@ export async function POST(request: Request) {
   }
 
   if (plannerGoalExpectation) {
-    const admin = requirePlannerAdminClient();
-    const response = await callAdminRpc(
-      admin,
-      "set_execution_plan_goal_date_fact_service",
-      {
-        p_owner: user.id,
-        p_plan_goal_id: plannerGoalExpectation.planGoalId,
-        p_date: date,
-        p_desired_fact_state: desiredFactState,
-        p_expected_canonical_revision:
-          plannerGoalExpectation.expectedCanonicalRevision,
-        p_expected_execution_revision:
-          plannerGoalExpectation.expectedExecutionRevision,
-      }
-    );
-    if (response.error) {
-      const message = response.error.message.toLowerCase();
-      if (message.includes("planner revision mismatch")) {
-        emitTargetedCompletionTelemetry({
-          ownerId: user.id,
-          correlationId,
-          capabilities,
-          startedAt,
-          route: "plan_goal_date",
-          desiredFactState,
-          statusCode: 409,
-          errorCode: "stale_revision",
-        });
-        return errorResponse(
-          409,
-          "stale_revision",
-          "Planner completion state is stale. Refresh and try again.",
-          correlationId
-        );
-      }
-      if (message.includes("future_completion_not_allowed")) {
-        emitTargetedCompletionTelemetry({
-          ownerId: user.id,
-          correlationId,
-          capabilities,
-          startedAt,
-          route: "plan_goal_date",
-          desiredFactState,
-          statusCode: 422,
-          errorCode: "future_completion_not_allowed",
-        });
-        return errorResponse(
-          422,
-          "future_completion_not_allowed",
-          "Completions can only be added for today or a past date.",
-          correlationId
-        );
-      }
-      if (message.includes("completion_outside_goal_lifetime")) {
-        emitTargetedCompletionTelemetry({
-          ownerId: user.id,
-          correlationId,
-          capabilities,
-          startedAt,
-          route: "plan_goal_date",
-          desiredFactState,
-          statusCode: 422,
-          errorCode: "completion_outside_goal_lifetime",
-        });
-        return errorResponse(
-          422,
-          "completion_outside_goal_lifetime",
-          "The completion date must be within the goal lifetime.",
-          correlationId
-        );
-      }
-      if (message.includes("linked goals cannot use planner plan-goal date facts")) {
-        emitTargetedCompletionTelemetry({
-          ownerId: user.id,
-          correlationId,
-          capabilities,
-          startedAt,
-          route: "plan_goal_date",
-          desiredFactState,
-          statusCode: 422,
-          errorCode: "linked_goal_disallowed",
-        });
-        return errorResponse(
-          422,
-          "linked_goal_disallowed",
-          "Linked goals cannot be completed through plan-goal date facts.",
-          correlationId
-        );
-      }
-      if (message.includes("active planner goal not found")) {
-        emitTargetedCompletionTelemetry({
-          ownerId: user.id,
-          correlationId,
-          capabilities,
-          startedAt,
-          route: "plan_goal_date",
-          desiredFactState,
-          statusCode: 404,
-          errorCode: "planner_goal_not_found",
-        });
-        return errorResponse(
-          404,
-          "planner_goal_not_found",
-          "Planner goal was not found in the active plan.",
-          correlationId
-        );
-      }
-
+    const result = await applyPlannerGoalDateFact({
+      ownerId: user.id,
+      fallbackGoalId: goalId,
+      fallbackDate: date,
+      desiredFactState,
+      expectation: plannerGoalExpectation,
+    });
+    if (!result.ok) {
       emitTargetedCompletionTelemetry({
         ownerId: user.id,
         correlationId,
         capabilities,
         startedAt,
-        route: "plan_goal_date",
+        route: result.route,
         desiredFactState,
-        statusCode: 409,
-        errorCode: "planner_goal_date_fact_failed",
+        statusCode: result.status,
+        errorCode: result.code,
       });
       return errorResponse(
-        409,
-        "planner_goal_date_fact_failed",
-        "Planner goal date fact could not be updated.",
-        correlationId
-      );
-    }
-
-    const row = Array.isArray(response.data) ? response.data[0] : response.data;
-    if (!row) {
-      emitTargetedCompletionTelemetry({
-        ownerId: user.id,
-        correlationId,
-        capabilities,
-        startedAt,
-        route: "plan_goal_date",
-        desiredFactState,
-        statusCode: 500,
-        errorCode: "invariant_failed",
-      });
-      return errorResponse(
-        500,
-        "invariant_failed",
-        "Planner goal date fact did not return updated state.",
+        result.status,
+        result.code,
+        result.message,
         correlationId
       );
     }
@@ -535,7 +256,7 @@ export async function POST(request: Request) {
       correlationId,
       capabilities,
       startedAt,
-      route: "plan_goal_date",
+      route: result.route,
       desiredFactState,
       statusCode: 200,
       errorCode: null,
@@ -544,9 +265,7 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         schemaVersion: "1",
-        goalId: typeof row.goal_id === "string" ? row.goal_id : goalId,
-        date: typeof row.date === "string" ? row.date : date,
-        factState: row.fact_state as "present" | "absent",
+        ...result.payload,
         correlationId,
       },
       { headers: { "Cache-Control": "no-store" } }
