@@ -43,13 +43,11 @@ export async function syncPlannerItemsFromActiveExecutionPlan({
   admin,
   ownerId,
   correlationId,
-  scopeMonth,
   source,
 }: {
   admin: AdminClient;
   ownerId: string;
   correlationId: string;
-  scopeMonth?: string;
   source:
     | "planner-publish"
     | "planner-lock"
@@ -66,7 +64,6 @@ export async function syncPlannerItemsFromActiveExecutionPlan({
     if (response.error) {
       console.error(`[${source}] planner_items mirror sync failed`, {
         correlationId,
-        scopeMonth,
         cause: response.error.message,
       });
       return {
@@ -78,7 +75,6 @@ export async function syncPlannerItemsFromActiveExecutionPlan({
   } catch (error) {
     console.error(`[${source}] planner_items mirror sync failed`, {
       correlationId,
-      scopeMonth,
       error: error instanceof Error ? error.message : String(error),
     });
     return {
