@@ -116,11 +116,25 @@ export async function POST(request: Request) {
         "Planner dismiss did not return a valid scope month."
       );
     }
-    const syncResult = await syncPlannerItemsFromActiveExecutionPlan({
-      admin,
-      ownerId: routeContext.userId,
-      scopeMonth: scopeMonthFromDate(scopeMonthDateValue),
-    });
+    let scheduleDigest: string | null = null;
+    const scopeMonth = scopeMonthFromDate(scopeMonthDateValue);
+    try {
+      const syncResult = await syncPlannerItemsFromActiveExecutionPlan({
+        admin,
+        ownerId: routeContext.userId,
+        scopeMonth,
+      });
+      scheduleDigest = syncResult.scheduleDigest;
+    } catch (error) {
+      console.error(
+        "[planner-dismiss] planner_items mirror sync failed after dismiss mutation",
+        {
+          correlationId,
+          scopeMonth,
+          error: error instanceof Error ? error.message : String(error),
+        }
+      );
+    }
 
     emitTelemetryEvent({
       eventName: "planner.mutation.completed",
@@ -147,7 +161,7 @@ export async function POST(request: Request) {
           canonicalRevision: body.expectedCanonicalRevision,
           executionRevision: row.execution_revision as number,
         },
-        scheduleDigest: syncResult.scheduleDigest,
+        scheduleDigest,
         correlationId,
       },
       { headers: { "Cache-Control": "no-store" } }

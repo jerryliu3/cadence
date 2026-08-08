@@ -232,11 +232,24 @@ export async function POST(request: Request) {
         replayLookup.data.scope_month.length >= 7
           ? scopeMonthFromDate(replayLookup.data.scope_month)
           : body.scopeMonth;
-      const replaySync = await syncPlannerItemsFromActiveExecutionPlan({
-        admin,
-        ownerId: routeContext.userId,
-        scopeMonth: replayScopeMonth,
-      });
+      let replayScheduleDigest: string | null = null;
+      try {
+        const replaySync = await syncPlannerItemsFromActiveExecutionPlan({
+          admin,
+          ownerId: routeContext.userId,
+          scopeMonth: replayScopeMonth,
+        });
+        replayScheduleDigest = replaySync.scheduleDigest;
+      } catch (error) {
+        console.error(
+          "[planner-publish] planner_items mirror sync failed after replay",
+          {
+            correlationId,
+            scopeMonth: replayScopeMonth,
+            error: error instanceof Error ? error.message : String(error),
+          }
+        );
+      }
       emitTelemetryEvent({
         eventName: "planner.publish.completed",
         ownerId: routeContext.userId,
@@ -278,7 +291,7 @@ export async function POST(request: Request) {
             canonicalRevision: revisions.canonical_revision,
             executionRevision: revisions.execution_revision,
           },
-          scheduleDigest: replaySync.scheduleDigest,
+          scheduleDigest: replayScheduleDigest,
           correlationId,
         },
         { headers: { "Cache-Control": "private, no-store" } }
@@ -552,11 +565,24 @@ export async function POST(request: Request) {
         "Planner publish did not return persisted plan metadata."
       );
     }
-    const publishSync = await syncPlannerItemsFromActiveExecutionPlan({
-      admin,
-      ownerId: routeContext.userId,
-      scopeMonth: body.scopeMonth,
-    });
+    let publishScheduleDigest: string | null = null;
+    try {
+      const publishSync = await syncPlannerItemsFromActiveExecutionPlan({
+        admin,
+        ownerId: routeContext.userId,
+        scopeMonth: body.scopeMonth,
+      });
+      publishScheduleDigest = publishSync.scheduleDigest;
+    } catch (error) {
+      console.error(
+        "[planner-publish] planner_items mirror sync failed after publish",
+        {
+          correlationId,
+          scopeMonth: body.scopeMonth,
+          error: error instanceof Error ? error.message : String(error),
+        }
+      );
+    }
 
     emitTelemetryEvent({
       eventName: "planner.publish.completed",
@@ -596,7 +622,7 @@ export async function POST(request: Request) {
           canonicalRevision: body.expectedCanonicalRevision,
           executionRevision: publishedRow.execution_revision as number,
         },
-        scheduleDigest: publishSync.scheduleDigest,
+        scheduleDigest: publishScheduleDigest,
         correlationId,
       },
       { headers: { "Cache-Control": "private, no-store" } }
