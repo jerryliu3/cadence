@@ -161,7 +161,7 @@ export function CalendarSurface({
   const [loading, setLoading] = useState(false);
   const [setupLoading, setSetupLoading] = useState(false);
   const [publishLoading, setPublishLoading] = useState(false);
-  const [deactivateLoading, setDeactivateLoading] = useState(false);
+  const [unpublishLoading, setUnpublishLoading] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [draftScopeMonth, setDraftScopeMonth] = useState<string | null>(null);
   const [draftPolicy, setDraftPolicy] = useState<PlannerPolicy | null>(null);
@@ -1579,7 +1579,7 @@ export function CalendarSurface({
     toast.success(payload.replayed ? "Publish replayed." : "Plan published.");
   };
 
-  const deactivatePlan = async () => {
+  const unpublishPlan = async () => {
     if (!context?.scopeMonth || !context.capabilities.plannerPlanWrites) {
       return;
     }
@@ -1588,7 +1588,7 @@ export function CalendarSurface({
       toast.error("Planner state is stale. Refresh and try again.");
       return;
     }
-    setDeactivateLoading(true);
+    setUnpublishLoading(true);
     const response = await fetch("/api/planner/schedule", {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
@@ -1598,9 +1598,9 @@ export function CalendarSurface({
       }),
     });
     const payload = (await response.json()) as PlannerErrorPayload;
-    setDeactivateLoading(false);
+    setUnpublishLoading(false);
     if (!response.ok) {
-      toast.error(payload.message ?? "Planner plan deactivation failed.");
+      toast.error(payload.message ?? "Planner month could not be unpublished.");
       return;
     }
     setDraftScopeMonth(null);
@@ -1610,7 +1610,7 @@ export function CalendarSurface({
     onPlannerMutation();
     await loadContext();
     coach.actions.resetForPlannerStateReset();
-    toast.success("Plan deactivated.");
+    toast.success("Month unpublished.");
   };
 
   const discardDraftChanges = () => {
@@ -1719,6 +1719,17 @@ export function CalendarSurface({
   const canMutatePlanItems = Boolean(
     context?.capabilities.plannerPlanWrites &&
       context?.activePlan?.plan.status === "active"
+  );
+  const hasLockedPlanItems = Boolean(
+    context?.activePlan?.items.some((item) => item.locked)
+  );
+  const canUnpublishPlan = Boolean(
+    context?.capabilities.plannerPlanWrites &&
+      !hasDraftSession &&
+      hasLockedPlanItems
+  );
+  const canShowPublishAction = Boolean(
+    context?.capabilities.plannerPlanWrites && effectivePreview
   );
   const publishButtonLabel = publishLoading ? "Publishing..." : "Publish plan";
   const readOnlyMonthHint =
@@ -1947,40 +1958,33 @@ export function CalendarSurface({
               ) : null}
             </div>
             <div className="flex flex-wrap items-center justify-end gap-2">
-              {context?.capabilities.plannerPlanWrites && context.activePlan ? (
+              {canUnpublishPlan ? (
                 <Button
                   type="button"
                   size="sm"
-                  variant={hasDraftSession ? "default" : "destructive"}
-                  onClick={hasDraftSession ? publishPlan : deactivatePlan}
-                  title={hasDraftSession ? (draftPublishBlockedMessage ?? undefined) : undefined}
-                  disabled={
-                    loading ||
-                    (hasDraftSession
-                      ? publishLoading || !effectivePreview || draftPublishBlocked
-                      : deactivateLoading)
-                  }
+                  variant="destructive"
+                  onClick={unpublishPlan}
+                  disabled={loading || unpublishLoading}
                 >
-                  {hasDraftSession
-                    ? publishButtonLabel
-                    : deactivateLoading
-                      ? "Deactivating..."
-                      : "Deactivate Plan"}
+                  {unpublishLoading ? "Unpublishing..." : "Unpublish"}
                 </Button>
-              ) : context?.capabilities.plannerPlanWrites &&
-                effectivePreview ? (
+              ) : canShowPublishAction ? (
                 <Button
                   type="button"
                   size="sm"
                   onClick={publishPlan}
                   title={
-                    effectivePreview && !effectivePreview.solver.publishable
+                    hasDraftSession &&
+                    effectivePreview &&
+                    !effectivePreview.solver.publishable
                       ? nonPublishablePreviewMessage(effectivePreview)
                       : undefined
                   }
                   disabled={
                     publishLoading ||
                     loading ||
+                    !effectivePreview ||
+                    (hasDraftSession && draftPublishBlocked) ||
                     !effectivePreview.solver.publishable
                   }
                 >
