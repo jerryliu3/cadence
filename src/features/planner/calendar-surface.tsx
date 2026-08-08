@@ -1615,15 +1615,15 @@ export function CalendarSurface({
   };
 
   const deactivatePlan = async () => {
-    if (!context?.activePlan || !context.capabilities.plannerPlanWrites) {
+    if (!context?.scopeMonth || !context.capabilities.plannerPlanWrites) {
       return;
     }
     setDeactivateLoading(true);
-    const response = await fetch("/api/planner/plans/dismiss", {
-      method: "POST",
+    const response = await fetch("/api/planner/schedule", {
+      method: "DELETE",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        planId: context.activePlan.plan.id,
+        scopeMonth: context.scopeMonth,
         expectedCanonicalRevision: context.revisions.canonicalRevision,
         expectedExecutionRevision: context.revisions.executionRevision,
       }),
