@@ -32,11 +32,6 @@ const upsertSchema = z.object({
   defaultPolicy: z.unknown().optional(),
 });
 
-function shouldIgnoreProfilePreferenceError(error: { code?: string | null }) {
-  const code = (error.code ?? "").toUpperCase();
-  return code === "42P01" || code === "42703" || code === "PGRST204";
-}
-
 export async function GET() {
   const correlationId = createCorrelationId();
   try {
@@ -59,11 +54,7 @@ export async function GET() {
         .maybeSingle(),
       routeContext.supabase.rpc("get_planner_state"),
     ]);
-    if (
-      (profileResponse.error &&
-        !shouldIgnoreProfilePreferenceError(profileResponse.error)) ||
-      revisionsResponse.error
-    ) {
+    if (profileResponse.error || revisionsResponse.error) {
       throw new PlannerRouteError(
         500,
         "preference_load_failed",
