@@ -58,11 +58,8 @@ export const targetedExactDateRequestSchema = z
 export type PlannerItemExpectation = z.infer<typeof plannerItemExpectationSchema>;
 export type PlannerGoalExpectation = z.infer<typeof plannerGoalExpectationSchema>;
 
-export type PlannerExactDateDispatchRoute = "item_date" | "plan_goal_date";
-
 interface PlannerExactDateDispatchFailure {
   ok: false;
-  route: PlannerExactDateDispatchRoute;
   status: number;
   code: string;
   message: string;
@@ -70,7 +67,6 @@ interface PlannerExactDateDispatchFailure {
 
 interface PlannerExactDateDispatchSuccess {
   ok: true;
-  route: PlannerExactDateDispatchRoute;
   payload: {
     goalId: string;
     date: string;
@@ -83,14 +79,12 @@ export type PlannerExactDateDispatchResult =
   | PlannerExactDateDispatchSuccess;
 
 function dispatchFailure(
-  route: PlannerExactDateDispatchRoute,
   status: number,
   code: string,
   message: string
 ): PlannerExactDateDispatchFailure {
   return {
     ok: false,
-    route,
     status,
     code,
     message,
@@ -132,7 +126,6 @@ export async function applyPlannerItemDateFact({
       message.includes("credited unit mismatch")
     ) {
       return dispatchFailure(
-        "item_date",
         409,
         "stale_revision",
         "Planner completion state is stale. Refresh and try again."
@@ -140,7 +133,6 @@ export async function applyPlannerItemDateFact({
     }
     if (message.includes("future_completion_not_allowed")) {
       return dispatchFailure(
-        "item_date",
         422,
         "future_completion_not_allowed",
         "Completions can only be added for today or a past date."
@@ -148,7 +140,6 @@ export async function applyPlannerItemDateFact({
     }
     if (message.includes("item state cannot accept exact-date facts")) {
       return dispatchFailure(
-        "item_date",
         422,
         "item_date_fact_disallowed",
         "This item state cannot be updated with exact-date completion facts."
@@ -156,14 +147,12 @@ export async function applyPlannerItemDateFact({
     }
     if (message.includes("active planner item not found")) {
       return dispatchFailure(
-        "item_date",
         404,
         "planner_item_not_found",
         "Planner item was not found in the active plan."
       );
     }
     return dispatchFailure(
-      "item_date",
       409,
       "planner_item_date_fact_failed",
       "Planner item date fact could not be updated."
@@ -173,7 +162,6 @@ export async function applyPlannerItemDateFact({
   const row = Array.isArray(response.data) ? response.data[0] : response.data;
   if (!row) {
     return dispatchFailure(
-      "item_date",
       500,
       "invariant_failed",
       "Planner item date fact did not return updated state."
@@ -182,7 +170,6 @@ export async function applyPlannerItemDateFact({
 
   return {
     ok: true,
-    route: "item_date",
     payload: {
       goalId:
         typeof row.goal_id === "string" ? row.goal_id : fallbackGoalId,
@@ -222,7 +209,6 @@ export async function applyPlannerGoalDateFact({
     const message = response.error.message.toLowerCase();
     if (message.includes("planner revision mismatch")) {
       return dispatchFailure(
-        "plan_goal_date",
         409,
         "stale_revision",
         "Planner completion state is stale. Refresh and try again."
@@ -230,7 +216,6 @@ export async function applyPlannerGoalDateFact({
     }
     if (message.includes("future_completion_not_allowed")) {
       return dispatchFailure(
-        "plan_goal_date",
         422,
         "future_completion_not_allowed",
         "Completions can only be added for today or a past date."
@@ -238,7 +223,6 @@ export async function applyPlannerGoalDateFact({
     }
     if (message.includes("completion_outside_goal_lifetime")) {
       return dispatchFailure(
-        "plan_goal_date",
         422,
         "completion_outside_goal_lifetime",
         "The completion date must be within the goal lifetime."
@@ -248,7 +232,6 @@ export async function applyPlannerGoalDateFact({
       message.includes("linked goals cannot use planner plan-goal date facts")
     ) {
       return dispatchFailure(
-        "plan_goal_date",
         422,
         "linked_goal_disallowed",
         "Linked goals cannot be completed through plan-goal date facts."
@@ -256,14 +239,12 @@ export async function applyPlannerGoalDateFact({
     }
     if (message.includes("active planner goal not found")) {
       return dispatchFailure(
-        "plan_goal_date",
         404,
         "planner_goal_not_found",
         "Planner goal was not found in the active plan."
       );
     }
     return dispatchFailure(
-      "plan_goal_date",
       409,
       "planner_goal_date_fact_failed",
       "Planner goal date fact could not be updated."
@@ -273,7 +254,6 @@ export async function applyPlannerGoalDateFact({
   const row = Array.isArray(response.data) ? response.data[0] : response.data;
   if (!row) {
     return dispatchFailure(
-      "plan_goal_date",
       500,
       "invariant_failed",
       "Planner goal date fact did not return updated state."
@@ -282,7 +262,6 @@ export async function applyPlannerGoalDateFact({
 
   return {
     ok: true,
-    route: "plan_goal_date",
     payload: {
       goalId:
         typeof row.goal_id === "string" ? row.goal_id : fallbackGoalId,

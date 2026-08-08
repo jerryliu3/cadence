@@ -72,7 +72,6 @@ describe("exact-date dispatch helpers", () => {
 
     expect(result).toEqual({
       ok: false,
-      route: "item_date",
       status: 409,
       code: "stale_revision",
       message: "Planner completion state is stale. Refresh and try again.",
@@ -101,7 +100,6 @@ describe("exact-date dispatch helpers", () => {
 
     expect(result).toEqual({
       ok: false,
-      route: "plan_goal_date",
       status: 422,
       code: "linked_goal_disallowed",
       message: "Linked goals cannot be completed through plan-goal date facts.",
@@ -134,7 +132,6 @@ describe("exact-date dispatch helpers", () => {
 
     expect(result).toEqual({
       ok: true,
-      route: "plan_goal_date",
       payload: {
         goalId: "10000000-0000-4000-8000-000000000011",
         date: "2026-08-05",
