@@ -5,7 +5,6 @@
 -- carla@example.com / password123
 
 truncate table
-  private.planner_ai_usage_daily,
   public.execution_plan_issues,
   public.execution_plan_items,
   public.execution_plan_days,

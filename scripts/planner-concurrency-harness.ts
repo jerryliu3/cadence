@@ -183,7 +183,7 @@ async function main() {
     );
 
     await control.query(
-      `delete from private.planner_ai_usage_daily
+      `delete from public.planner_ai_usage_daily
        where owner_id = $1
          and usage_date = (clock_timestamp() at time zone 'UTC')::date
          and feature = 'planner_coach'`,
@@ -193,7 +193,7 @@ async function main() {
       [sessionA, sessionB].map((session) =>
         session.query<{ allowed: boolean; request_count: number }>(
           `select allowed, request_count
-           from private.consume_planner_ai_quota(
+           from public.consume_planner_ai_quota(
              $1::uuid,
              'planner_coach',
              1,
@@ -216,7 +216,7 @@ async function main() {
       1
     );
     await control.query(
-      `delete from private.planner_ai_usage_daily
+      `delete from public.planner_ai_usage_daily
        where owner_id = $1
          and usage_date = (clock_timestamp() at time zone 'UTC')::date
          and feature = 'planner_coach'`,

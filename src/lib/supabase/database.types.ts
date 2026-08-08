@@ -9,116 +9,6 @@ export type Json =
 export type Database = {
   private: {
     Tables: {
-      planner_ai_usage_daily: {
-        Row: {
-          created_at: string
-          feature: string
-          input_tokens: number
-          output_tokens: number
-          owner_id: string
-          request_count: number
-          updated_at: string
-          usage_date: string
-        }
-        Insert: {
-          created_at?: string
-          feature: string
-          input_tokens?: number
-          output_tokens?: number
-          owner_id: string
-          request_count?: number
-          updated_at?: string
-          usage_date: string
-        }
-        Update: {
-          created_at?: string
-          feature?: string
-          input_tokens?: number
-          output_tokens?: number
-          owner_id?: string
-          request_count?: number
-          updated_at?: string
-          usage_date?: string
-        }
-        Relationships: []
-      }
-      planner_coach_conversation_messages: {
-        Row: {
-          content: string
-          conversation_id: string
-          created_at: string
-          id: number
-          ordinal: number
-          owner_id: string
-          proposal_meta: Json | null
-          role: string
-        }
-        Insert: {
-          content: string
-          conversation_id: string
-          created_at?: string
-          id?: never
-          ordinal: number
-          owner_id: string
-          proposal_meta?: Json | null
-          role: string
-        }
-        Update: {
-          content?: string
-          conversation_id?: string
-          created_at?: string
-          id?: never
-          ordinal?: number
-          owner_id?: string
-          proposal_meta?: Json | null
-          role?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "planner_coach_conversation_messages_conversation_id_fkey"
-            columns: ["conversation_id"]
-            isOneToOne: false
-            referencedRelation: "planner_coach_conversations"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      planner_coach_conversations: {
-        Row: {
-          created_at: string
-          id: string
-          message_count: number
-          owner_id: string
-          preview_text: string
-          scope_month: string
-          timezone: string
-          title: string
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          message_count: number
-          owner_id: string
-          preview_text: string
-          scope_month: string
-          timezone: string
-          title: string
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          message_count?: number
-          owner_id?: string
-          preview_text?: string
-          scope_month?: string
-          timezone?: string
-          title?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
       planner_state: {
         Row: {
           canonical_revision: number
@@ -156,56 +46,10 @@ export type Database = {
         Args: { p_owner: string }
         Returns: number
       }
-      consume_planner_ai_quota: {
-        Args: {
-          p_feature: string
-          p_input_tokens?: number
-          p_limit?: number
-          p_owner: string
-        }
-        Returns: {
-          allowed: boolean
-          quota_usage_date: string
-          remaining: number
-          request_count: number
-          retry_after_seconds: number
-        }[]
-      }
       ensure_planner_state: { Args: { p_owner: string }; Returns: undefined }
-      get_planner_coach_conversation: {
-        Args: { p_conversation_id: string; p_owner: string }
-        Returns: {
-          conversation_id: string
-          created_at: string
-          message_content: string
-          message_count: number
-          message_created_at: string
-          message_ordinal: number
-          message_proposal_meta: Json
-          message_role: string
-          preview_text: string
-          scope_month: string
-          timezone: string
-          title: string
-          updated_at: string
-        }[]
-      }
       is_valid_planner_timezone: {
         Args: { p_timezone: string }
         Returns: boolean
-      }
-      list_planner_coach_conversations: {
-        Args: { p_limit?: number; p_owner: string; p_scope_month?: string }
-        Returns: {
-          conversation_id: string
-          created_at: string
-          message_count: number
-          preview_text: string
-          scope_month: string
-          timezone: string
-          title: string
-          updated_at: string
-        }[]
       }
       local_today_for_timezone: {
         Args: { p_timezone: string }
@@ -213,15 +57,6 @@ export type Database = {
       }
       planner_json_depth: { Args: { p_value: Json }; Returns: number }
       planner_owner_lock_key: { Args: { p_owner: string }; Returns: number }
-      record_planner_ai_output_tokens: {
-        Args: {
-          p_feature: string
-          p_output_tokens: number
-          p_owner: string
-          p_usage_date: string
-        }
-        Returns: number
-      }
       require_planner_state_revisions: {
         Args: {
           p_expected_canonical_revision: number
@@ -241,25 +76,6 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
-      }
-      save_planner_coach_conversation: {
-        Args: {
-          p_messages: Json
-          p_owner: string
-          p_scope_month: string
-          p_timezone: string
-          p_title?: string
-        }
-        Returns: {
-          conversation_id: string
-          created_at: string
-          message_count: number
-          preview_text: string
-          scope_month: string
-          timezone: string
-          title: string
-          updated_at: string
-        }[]
       }
       sha256_hex_digest: { Args: { p_value: string }; Returns: string }
       validate_planner_json: {

@@ -9,24 +9,8 @@ type PublicPlannerTables = Pick<
   | "execution_plan_issues"
 >;
 
-export type PlannerPersistenceTableName = keyof PublicPlannerTables;
-
-export type PlannerPersistenceRow<
-  Table extends PlannerPersistenceTableName,
-> = PublicPlannerTables[Table]["Row"];
-
-type GeneratedPlannerPersistenceInsert<
-  Table extends PlannerPersistenceTableName,
-> = PublicPlannerTables[Table]["Insert"];
-
-export type PlannerPersistenceInsert<
-  Table extends PlannerPersistenceTableName,
-> = Table extends "execution_plan_goals"
-  ? Omit<
-      GeneratedPlannerPersistenceInsert<Table>,
-      "original_goal_id"
-    > & { original_goal_id?: never }
-  : GeneratedPlannerPersistenceInsert<Table>;
+type PlannerPersistenceRow<Table extends keyof PublicPlannerTables> =
+  PublicPlannerTables[Table]["Row"];
 
 export type ExecutionPlanRow =
   PlannerPersistenceRow<"execution_plans">;
@@ -38,14 +22,3 @@ export type ExecutionPlanItemRow =
   PlannerPersistenceRow<"execution_plan_items">;
 export type ExecutionPlanIssueRow =
   PlannerPersistenceRow<"execution_plan_issues">;
-
-export type ExecutionPlanInsert =
-  PlannerPersistenceInsert<"execution_plans">;
-export type ExecutionPlanGoalInsert =
-  PlannerPersistenceInsert<"execution_plan_goals">;
-export type ExecutionPlanDayInsert =
-  PlannerPersistenceInsert<"execution_plan_days">;
-export type ExecutionPlanItemInsert =
-  PlannerPersistenceInsert<"execution_plan_items">;
-export type ExecutionPlanIssueInsert =
-  PlannerPersistenceInsert<"execution_plan_issues">;
