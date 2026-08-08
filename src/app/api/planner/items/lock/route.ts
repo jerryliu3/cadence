@@ -5,15 +5,10 @@ import {
   parseBoundedJsonBody,
   plannerErrorResponse,
   PlannerRouteError,
-  requirePlannerAdminClient,
   requirePlannerRouteContext,
   unknownPlannerErrorResponse,
 } from "@/lib/planner/api";
 import { MAX_API_BODY_BYTES } from "@/lib/planner/contracts/bounds";
-import {
-  syncPlannerItemsFromActiveExecutionPlan,
-} from "@/lib/planner/planner-items-runtime-sync";
-import { callAdminRpc } from "@/lib/supabase/admin-rpc";
 import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
@@ -21,9 +16,7 @@ export const runtime = "nodejs";
 const lockSchema = z.object({
   itemId: z.string().uuid(),
   locked: z.boolean(),
-  expectedItemRevision: z.number().int().nonnegative(),
-  expectedCanonicalRevision: z.number().int().nonnegative(),
-  expectedExecutionRevision: z.number().int().nonnegative(),
+  expectedDigest: z.string().regex(/^[a-f0-9]{64}$/),
 });
 
 export async function POST(request: Request) {
@@ -41,32 +34,21 @@ export async function POST(request: Request) {
       Math.min(MAX_API_BODY_BYTES, 128 * 1024),
       lockSchema
     );
-    const admin = requirePlannerAdminClient();
-    const response = await callAdminRpc(
-      admin,
-      "set_execution_plan_item_lock_service",
-      {
-        p_owner: routeContext.userId,
-        p_item_id: body.itemId,
-        p_locked: body.locked,
-        p_expected_item_revision: body.expectedItemRevision,
-        p_expected_canonical_revision: body.expectedCanonicalRevision,
-        p_expected_execution_revision: body.expectedExecutionRevision,
-      }
-    );
+    const response = await routeContext.supabase.rpc("set_planner_item_lock", {
+      p_item_id: body.itemId,
+      p_locked: body.locked,
+      p_expected_digest: body.expectedDigest,
+    });
     if (response.error) {
       const message = response.error.message.toLowerCase();
-      if (
-        message.includes("planner revision mismatch") ||
-        message.includes("planner item revision mismatch")
-      ) {
+      if (message.includes("stale_schedule")) {
         throw new PlannerRouteError(
           409,
           "stale_revision",
           "Planner item state is stale. Refresh and try again."
         );
       }
-      if (message.includes("active planner item not found")) {
+      if (message.includes("planner_item_not_found")) {
         throw new PlannerRouteError(
           404,
           "planner_item_not_found",
@@ -89,26 +71,14 @@ export async function POST(request: Request) {
         "Planner item lock change did not return updated state."
       );
     }
-    const syncResult = await syncPlannerItemsFromActiveExecutionPlan({
-      admin,
-      ownerId: routeContext.userId,
-      correlationId,
-      source: "planner-lock",
-    });
-    const scheduleDigest = syncResult.scheduleDigest;
 
     return NextResponse.json(
       {
         schemaVersion: "1",
         itemId: row.item_id as string,
-        scheduledDate: (row.scheduled_date as string | null) ?? null,
         locked: Boolean(row.locked),
-        itemRevision: row.item_revision as number,
-        revisions: {
-          canonicalRevision: body.expectedCanonicalRevision,
-          executionRevision: row.execution_revision as number,
-        },
-        scheduleDigest,
+        scheduleDigest:
+          typeof row.schedule_digest === "string" ? row.schedule_digest : null,
         correlationId,
       },
       { headers: { "Cache-Control": "no-store" } }
