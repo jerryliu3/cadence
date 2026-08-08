@@ -20,7 +20,20 @@ import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 
-const conversationSummaryRowSchema = z
+const conversationSummaryTableRowSchema = z
+  .object({
+    id: z.uuid(),
+    scope_month: z.string(),
+    timezone: z.string(),
+    title: z.string(),
+    preview_text: z.string(),
+    message_count: z.number().int(),
+    created_at: z.string(),
+    updated_at: z.string(),
+  })
+  .strict();
+
+const conversationServiceSummaryRowSchema = z
   .object({
     conversation_id: z.uuid(),
     scope_month: z.string(),
@@ -33,7 +46,24 @@ const conversationSummaryRowSchema = z
   })
   .strict();
 
-function mapSummaryRow(row: z.infer<typeof conversationSummaryRowSchema>) {
+function mapTableSummaryRow(
+  row: z.infer<typeof conversationSummaryTableRowSchema>
+) {
+  return coachConversationSummarySchema.parse({
+    id: row.id,
+    scopeMonth: row.scope_month,
+    timezone: row.timezone,
+    title: row.title,
+    previewText: row.preview_text,
+    messageCount: row.message_count,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  });
+}
+
+function mapServiceSummaryRow(
+  row: z.infer<typeof conversationServiceSummaryRowSchema>
+) {
   return coachConversationSummarySchema.parse({
     id: row.conversation_id,
     scopeMonth: row.scope_month,
@@ -53,7 +83,14 @@ function shouldFallbackToEmptyConversationList(error: {
   hint?: string | null;
 }) {
   const code = (error.code ?? "").toUpperCase();
-  return code === "PGRST202" || code === "42883" || code === "42P01";
+  return (
+    code === "PGRST202" ||
+    code === "PGRST204" ||
+    code === "PGRST205" ||
+    code === "42883" ||
+    code === "42703" ||
+    code === "42P01"
+  );
 }
 
 export async function GET(request: Request) {
@@ -78,25 +115,25 @@ export async function GET(request: Request) {
       );
     }
 
-    const admin = requirePlannerAdminClient();
-    const rpcResponse = await callAdminRpc(
-      admin,
-      "list_planner_coach_conversations_service",
-      {
-        p_owner: routeContext.userId,
-        p_scope_month: parsedQuery.data.scopeMonth,
-        p_limit: parsedQuery.data.limit,
-      }
-    );
-    if (rpcResponse.error) {
-      if (shouldFallbackToEmptyConversationList(rpcResponse.error)) {
+    let query = routeContext.supabase
+      .from("planner_coach_conversations")
+      .select("id,scope_month,timezone,title,preview_text,message_count,created_at,updated_at")
+      .eq("owner_id", routeContext.userId)
+      .order("updated_at", { ascending: false })
+      .limit(parsedQuery.data.limit);
+    if (parsedQuery.data.scopeMonth) {
+      query = query.eq("scope_month", parsedQuery.data.scopeMonth);
+    }
+    const listResponse = await query;
+    if (listResponse.error) {
+      if (shouldFallbackToEmptyConversationList(listResponse.error)) {
         console.warn(
           "[planner:coach] conversations fallback fired",
           {
             correlationId,
             userId: routeContext.userId,
-            errorCode: rpcResponse.error.code,
-            errorMessage: rpcResponse.error.message,
+            errorCode: listResponse.error.code,
+            errorMessage: listResponse.error.message,
           }
         );
         return NextResponse.json(
@@ -111,11 +148,14 @@ export async function GET(request: Request) {
       throw new PlannerRouteError(
         503,
         "conversation_list_unavailable",
-        "Saved coach conversations are temporarily unavailable."
+        "Saved coach conversations are temporarily unavailable.",
+        { cause: listResponse.error.message }
       );
     }
-    const rows = z.array(conversationSummaryRowSchema).parse(rpcResponse.data ?? []);
-    const conversations = rows.map(mapSummaryRow);
+    const rows = z
+      .array(conversationSummaryTableRowSchema)
+      .parse(listResponse.data ?? []);
+    const conversations = rows.map(mapTableSummaryRow);
     return NextResponse.json(
       {
         schemaVersion: "1",
@@ -171,7 +211,9 @@ export async function POST(request: Request) {
       );
     }
 
-    const rows = z.array(conversationSummaryRowSchema).parse(rpcResponse.data ?? []);
+    const rows = z
+      .array(conversationServiceSummaryRowSchema)
+      .parse(rpcResponse.data ?? []);
     const summary = rows[0];
     if (!summary) {
       throw new PlannerRouteError(
@@ -180,7 +222,7 @@ export async function POST(request: Request) {
         "Conversation save did not return a persisted summary."
       );
     }
-    const conversation = mapSummaryRow(summary);
+    const conversation = mapServiceSummaryRow(summary);
     return NextResponse.json(
       {
         schemaVersion: "1",

@@ -207,12 +207,7 @@ select
     'timezone', 'UTC',
     'timezoneConfirmedAt', '2026-08-01T00:00:00.000Z',
     'restWeekdays', '[]'::jsonb,
-    'blackoutRanges', '[]'::jsonb,
-    'goalAllowedWeekdays', '{}'::jsonb,
-    'datePreferences', '[]'::jsonb,
-    'spacingStrategy', 'even',
-    'goalSpacingStrategies', '{}'::jsonb,
-    'dailyCadenceRestExemption', true
+    'blackoutRanges', '[]'::jsonb
   ),
   repeat('a', 64),
   state.canonical_revision,
@@ -704,12 +699,7 @@ select ok(
         'timezone', 'America/New_York',
         'timezoneConfirmedAt', '2026-08-02T00:00:00.000Z',
         'restWeekdays', '[]'::jsonb,
-        'blackoutRanges', '[]'::jsonb,
-        'goalAllowedWeekdays', '{}'::jsonb,
-        'datePreferences', '[]'::jsonb,
-        'spacingStrategy', 'even',
-        'goalSpacingStrategies', '{}'::jsonb,
-        'dailyCadenceRestExemption', true
+        'blackoutRanges', '[]'::jsonb
       ),
       repeat('f', 64),
       '1',
@@ -761,12 +751,7 @@ select throws_ok(
         'timezone', 'America/New_York',
         'timezoneConfirmedAt', '2026-08-02T00:00:00.000Z',
         'restWeekdays', '[]'::jsonb,
-        'blackoutRanges', '[]'::jsonb,
-        'goalAllowedWeekdays', '{}'::jsonb,
-        'datePreferences', '[]'::jsonb,
-        'spacingStrategy', 'even',
-        'goalSpacingStrategies', '{}'::jsonb,
-        'dailyCadenceRestExemption', true
+        'blackoutRanges', '[]'::jsonb
       ),
       repeat('f', 64),
       '1',
@@ -834,12 +819,7 @@ select is(
         'timezone', 'America/New_York',
         'timezoneConfirmedAt', '2026-08-02T00:00:00.000Z',
         'restWeekdays', '[]'::jsonb,
-        'blackoutRanges', '[]'::jsonb,
-        'goalAllowedWeekdays', '{}'::jsonb,
-        'datePreferences', '[]'::jsonb,
-        'spacingStrategy', 'even',
-        'goalSpacingStrategies', '{}'::jsonb,
-        'dailyCadenceRestExemption', true
+        'blackoutRanges', '[]'::jsonb
       ),
       repeat('f', 64),
       '1',

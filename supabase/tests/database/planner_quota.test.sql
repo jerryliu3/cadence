@@ -128,7 +128,7 @@ select throws_ok(
 select throws_ok(
   $$
     select *
-    from public.consume_planner_ai_quota_service(
+    from public.consume_planner_ai_quota(
       '11111111-1111-4111-8111-111111111111',
       'bulk_parser',
       20,
@@ -136,8 +136,8 @@ select throws_ok(
     )
   $$,
   '42501'::character(5),
-  'permission denied for function consume_planner_ai_quota_service',
-  'authenticated clients cannot execute service-only quota wrappers'
+  'permission denied for function consume_planner_ai_quota',
+  'authenticated clients cannot execute service-only quota functions'
 );
 
 reset role;
@@ -145,14 +145,14 @@ set local role service_role;
 select ok(
   (
     select allowed
-    from public.consume_planner_ai_quota_service(
+    from public.consume_planner_ai_quota(
       '11111111-1111-4111-8111-111111111111',
       'bulk_parser',
       20,
       0
     )
   ),
-  'service_role can consume quota through the wrapper'
+  'service_role can consume quota through the service function'
 );
 
 reset role;

@@ -4,7 +4,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   requirePlannerRouteContext: vi.fn(),
-  callAdminRpc: vi.fn(),
+  conversationMaybeSingle: vi.fn(),
+  messageOrder: vi.fn(),
 }));
 
 vi.mock("@/lib/supabase/server", () => ({
@@ -20,13 +21,8 @@ vi.mock("@/lib/planner/api", async () => {
     ...actual,
     createCorrelationId: () => "test-correlation-id",
     requirePlannerRouteContext: mocks.requirePlannerRouteContext,
-    requirePlannerAdminClient: () => ({}),
   };
 });
-
-vi.mock("@/lib/supabase/admin-rpc", () => ({
-  callAdminRpc: mocks.callAdminRpc,
-}));
 
 import { GET } from "./route";
 
@@ -35,7 +31,33 @@ describe("planner coach conversation restore route", () => {
     vi.clearAllMocks();
     mocks.requirePlannerRouteContext.mockResolvedValue({
       userId: "11111111-1111-4111-8111-111111111111",
-      supabase: {},
+      supabase: {
+        from: vi.fn((table: string) => {
+          if (table === "planner_coach_conversations") {
+            return {
+              select: () => ({
+                eq: () => ({
+                  eq: () => ({
+                    maybeSingle: mocks.conversationMaybeSingle,
+                  }),
+                }),
+              }),
+            };
+          }
+          if (table === "planner_coach_conversation_messages") {
+            return {
+              select: () => ({
+                eq: () => ({
+                  eq: () => ({
+                    order: mocks.messageOrder,
+                  }),
+                }),
+              }),
+            };
+          }
+          throw new Error(`Unexpected table ${table}`);
+        }),
+      },
       capabilities: {
         calendarEnabled: true,
         plannerRead: true,
@@ -46,40 +68,34 @@ describe("planner coach conversation restore route", () => {
         overlap: false,
       },
     });
-  });
-
-  it("restores saved conversation messages", async () => {
-    mocks.callAdminRpc.mockResolvedValue({
+    mocks.conversationMaybeSingle.mockResolvedValue({
+      data: {
+        id: "33333333-3333-4333-8333-333333333333",
+        scope_month: "2026-08",
+        timezone: "UTC",
+        title: "Weekly running plan",
+        preview_text: "Help me build next week.",
+        message_count: 2,
+        created_at: "2026-08-06T12:00:00.000Z",
+        updated_at: "2026-08-06T12:00:00.000Z",
+      },
+      error: null,
+    });
+    mocks.messageOrder.mockResolvedValue({
       data: [
         {
-          conversation_id: "33333333-3333-4333-8333-333333333333",
-          scope_month: "2026-08",
-          timezone: "UTC",
-          title: "Weekly running plan",
-          preview_text: "Help me build next week.",
-          message_count: 2,
+          ordinal: 1,
+          role: "user",
+          content: "Help me build next week.",
           created_at: "2026-08-06T12:00:00.000Z",
-          updated_at: "2026-08-06T12:00:00.000Z",
-          message_ordinal: 1,
-          message_role: "user",
-          message_content: "Help me build next week.",
-          message_created_at: "2026-08-06T12:00:00.000Z",
-          message_proposal_meta: null,
+          proposal_meta: null,
         },
         {
-          conversation_id: "33333333-3333-4333-8333-333333333333",
-          scope_month: "2026-08",
-          timezone: "UTC",
-          title: "Weekly running plan",
-          preview_text: "Help me build next week.",
-          message_count: 2,
-          created_at: "2026-08-06T12:00:00.000Z",
-          updated_at: "2026-08-06T12:00:00.000Z",
-          message_ordinal: 2,
-          message_role: "assistant",
-          message_content: "Let's start with three runs.",
-          message_created_at: "2026-08-06T12:00:30.000Z",
-          message_proposal_meta: {
+          ordinal: 2,
+          role: "assistant",
+          content: "Let's start with three runs.",
+          created_at: "2026-08-06T12:00:30.000Z",
+          proposal_meta: {
             schemaVersion: "1",
             applyStatus: "not_applied",
             patchSignature:
@@ -105,7 +121,9 @@ describe("planner coach conversation restore route", () => {
       ],
       error: null,
     });
+  });
 
+  it("restores saved conversation messages", async () => {
     const response = await GET(
       new Request("http://localhost/api/planner/coach/conversations/restore"),
       {
@@ -140,8 +158,8 @@ describe("planner coach conversation restore route", () => {
   });
 
   it("returns not found when no conversation rows exist", async () => {
-    mocks.callAdminRpc.mockResolvedValue({
-      data: [],
+    mocks.conversationMaybeSingle.mockResolvedValue({
+      data: null,
       error: null,
     });
 
