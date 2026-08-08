@@ -8,7 +8,7 @@ const HARD_DAILY_PROVIDER_LIMIT = 100;
 const DEV_UNLIMITED_COACH_LIMIT = 1_000_000;
 
 const quotaResultSchema = z.object({
-  usage_date: z.iso.date(),
+  quota_usage_date: z.iso.date(),
   allowed: z.boolean(),
   request_count: z.number().int().nonnegative(),
   remaining: z.number().int().nonnegative(),
@@ -88,7 +88,7 @@ export async function consumePlannerAiQuota({
 }): Promise<PlannerAiQuotaResult> {
   const quotaResponse = await callAdminRpc(
     admin,
-    "consume_planner_ai_quota_service",
+    "consume_planner_ai_quota",
     {
       p_owner: ownerId,
       p_feature: feature,
@@ -109,7 +109,7 @@ export async function consumePlannerAiQuota({
   }
 
   return {
-    usageDate: quotaRow.data.usage_date,
+    usageDate: quotaRow.data.quota_usage_date,
     allowed: quotaRow.data.allowed,
     requestCount: quotaRow.data.request_count,
     remaining: quotaRow.data.remaining,
@@ -133,7 +133,7 @@ export async function recordPlannerAiOutputTokens({
   if (outputTokens <= 0) {
     return;
   }
-  await callAdminRpc(admin, "record_planner_ai_output_tokens_service", {
+  await callAdminRpc(admin, "record_planner_ai_output_tokens", {
     p_owner: ownerId,
     p_usage_date: usageDate,
     p_feature: feature,

@@ -87,20 +87,19 @@ select is(
 select is(
   (
     select count(*)::integer
-    from public.get_planner_coach_conversation_service(
-      '11111111-1111-4111-8111-111111111111',
-      (
+    from public.planner_coach_conversation_messages
+    where owner_id = '11111111-1111-4111-8111-111111111111'
+      and conversation_id = (
         select id
         from public.planner_coach_conversations
         where owner_id = '11111111-1111-4111-8111-111111111111'
           and scope_month = '2099-12'
         limit 1
       )
-    )
-    where message_proposal_meta is not null
+      and proposal_meta is not null
   ),
   1,
-  'get service returns proposal metadata from public messages'
+  'proposal metadata persists on public coach messages'
 );
 
 reset role;
