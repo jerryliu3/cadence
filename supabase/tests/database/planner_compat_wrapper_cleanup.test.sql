@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, private, extensions, pg_catalog;
-select plan(8);
+select plan(10);
 
 select is(
   to_regprocedure(
@@ -57,6 +57,18 @@ select is(
   ),
   null::regprocedure,
   'legacy planner move wrapper remains dropped'
+);
+
+select is(
+  to_regprocedure('private.bump_canonical_for_preferences()'),
+  null::regprocedure,
+  'legacy planner preference canonical revision helper remains dropped'
+);
+
+select is(
+  to_regclass('public.completion_backfill_log'),
+  null::regclass,
+  'legacy completion backfill log table remains dropped'
 );
 
 select * from finish();
