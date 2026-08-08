@@ -965,6 +965,7 @@ export type Database = {
           goal_id: string
           id: string
           locked: boolean
+          original_scheduled_date: string | null
           owner_id: string
           scheduled_date: string
           scheduled_time: string | null
@@ -976,6 +977,7 @@ export type Database = {
           goal_id: string
           id?: string
           locked?: boolean
+          original_scheduled_date?: string | null
           owner_id: string
           scheduled_date: string
           scheduled_time?: string | null
@@ -987,6 +989,7 @@ export type Database = {
           goal_id?: string
           id?: string
           locked?: boolean
+          original_scheduled_date?: string | null
           owner_id?: string
           scheduled_date?: string
           scheduled_time?: string | null
@@ -1289,14 +1292,27 @@ export type Database = {
           scheduled_date: string
         }[]
       }
-      set_planner_item_lock: {
-        Args: { p_item_id: string; p_locked: boolean }
-        Returns: {
-          item_id: string
-          locked: boolean
-          schedule_digest: string
-        }[]
-      }
+      set_planner_item_lock:
+        | {
+            Args: { p_item_id: string; p_locked: boolean }
+            Returns: {
+              item_id: string
+              locked: boolean
+              schedule_digest: string
+            }[]
+          }
+        | {
+            Args: {
+              p_expected_digest: string
+              p_item_id: string
+              p_locked: boolean
+            }
+            Returns: {
+              item_id: string
+              locked: boolean
+              schedule_digest: string
+            }[]
+          }
       set_planner_schedule: {
         Args: { p_expected_digest: string; p_items: Json; p_month: string }
         Returns: {

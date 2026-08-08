@@ -274,31 +274,27 @@ export async function executeCompletionDispatch({
   }
 
   if (decision.route === "item_date") {
-    if (!plannerItemExpectation) {
-      return {
-        ok: false,
-        route: decision.route,
-        message: "This planner session is outside the active publish scope.",
+    const body: Record<string, unknown> = {
+      goalId,
+      date,
+      desiredFactState,
+      timezone,
+    };
+    if (plannerItemExpectation) {
+      body.plannerItemExpectation = {
+        itemId: plannerItemExpectation.itemId,
+        expectedCreditedUnit: plannerItemExpectation.expectedCreditedUnit,
+        expectedItemRevision: plannerItemExpectation.expectedItemRevision,
+        expectedCanonicalRevision:
+          plannerItemExpectation.expectedCanonicalRevision,
+        expectedExecutionRevision:
+          plannerItemExpectation.expectedExecutionRevision,
       };
     }
     const result = await postJsonRoute({
       fetcher,
       route: "/api/completions/exact-date",
-      body: {
-        goalId,
-        date,
-        desiredFactState,
-        timezone,
-        plannerItemExpectation: {
-          itemId: plannerItemExpectation.itemId,
-          expectedCreditedUnit: plannerItemExpectation.expectedCreditedUnit,
-          expectedItemRevision: plannerItemExpectation.expectedItemRevision,
-          expectedCanonicalRevision:
-            plannerItemExpectation.expectedCanonicalRevision,
-          expectedExecutionRevision:
-            plannerItemExpectation.expectedExecutionRevision,
-        },
-      },
+      body,
       fallbackError: "Planner completion update failed.",
       timeoutMs,
     });
@@ -310,29 +306,25 @@ export async function executeCompletionDispatch({
   }
 
   if (decision.route === "plan_goal_date") {
-    if (!plannerGoalExpectation) {
-      return {
-        ok: false,
-        route: decision.route,
-        message: "This planner goal is outside the active publish scope.",
+    const body: Record<string, unknown> = {
+      goalId,
+      date,
+      desiredFactState,
+      timezone,
+    };
+    if (plannerGoalExpectation) {
+      body.plannerGoalExpectation = {
+        planGoalId: plannerGoalExpectation.planGoalId,
+        expectedCanonicalRevision:
+          plannerGoalExpectation.expectedCanonicalRevision,
+        expectedExecutionRevision:
+          plannerGoalExpectation.expectedExecutionRevision,
       };
     }
     const result = await postJsonRoute({
       fetcher,
       route: "/api/completions/exact-date",
-      body: {
-        goalId,
-        date,
-        desiredFactState,
-        timezone,
-        plannerGoalExpectation: {
-          planGoalId: plannerGoalExpectation.planGoalId,
-          expectedCanonicalRevision:
-            plannerGoalExpectation.expectedCanonicalRevision,
-          expectedExecutionRevision:
-            plannerGoalExpectation.expectedExecutionRevision,
-        },
-      },
+      body,
       fallbackError: "Planner completion update failed.",
       timeoutMs,
     });

@@ -248,6 +248,94 @@ describe("completion dispatch executor", () => {
     ]);
   });
 
+  it("falls back to canonical payload for item-date route without expectations", async () => {
+    const calls: Array<{ route: string; body: Record<string, unknown> }> = [];
+    const fetcher = async (route: string, init?: RequestInit) => {
+      calls.push({
+        route,
+        body: JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>,
+      });
+      return new Response(JSON.stringify({ schemaVersion: "1" }), {
+        status: 200,
+      });
+    };
+
+    const result = await executeCompletionDispatch({
+      decision: {
+        route: "item_date",
+        exactDateOnly: true,
+        allowed: true,
+        reason: "allowed",
+      },
+      desiredFactState: "present",
+      goalId: "12000000-0000-4000-8000-000000000001",
+      date: "2026-08-05",
+      timezone: "UTC",
+      fetcher: fetcher as typeof fetch,
+    });
+
+    expect(result).toEqual({
+      ok: true,
+      route: "item_date",
+      message: null,
+    });
+    expect(calls).toEqual([
+      {
+        route: "/api/completions/exact-date",
+        body: {
+          goalId: "12000000-0000-4000-8000-000000000001",
+          date: "2026-08-05",
+          desiredFactState: "present",
+          timezone: "UTC",
+        },
+      },
+    ]);
+  });
+
+  it("falls back to canonical payload for plan-goal route without expectations", async () => {
+    const calls: Array<{ route: string; body: Record<string, unknown> }> = [];
+    const fetcher = async (route: string, init?: RequestInit) => {
+      calls.push({
+        route,
+        body: JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>,
+      });
+      return new Response(JSON.stringify({ schemaVersion: "1" }), {
+        status: 200,
+      });
+    };
+
+    const result = await executeCompletionDispatch({
+      decision: {
+        route: "plan_goal_date",
+        exactDateOnly: true,
+        allowed: true,
+        reason: "allowed",
+      },
+      desiredFactState: "absent",
+      goalId: "12000000-0000-4000-8000-000000000001",
+      date: "2026-08-05",
+      timezone: "UTC",
+      fetcher: fetcher as typeof fetch,
+    });
+
+    expect(result).toEqual({
+      ok: true,
+      route: "plan_goal_date",
+      message: null,
+    });
+    expect(calls).toEqual([
+      {
+        route: "/api/completions/exact-date",
+        body: {
+          goalId: "12000000-0000-4000-8000-000000000001",
+          date: "2026-08-05",
+          desiredFactState: "absent",
+          timezone: "UTC",
+        },
+      },
+    ]);
+  });
+
   it("returns timeout when exact-date mutation stalls", async () => {
     vi.useFakeTimers();
     try {

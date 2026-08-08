@@ -5,7 +5,6 @@ import {
   parseBoundedJsonBody,
   plannerErrorResponse,
   PlannerRouteError,
-  requirePlannerAdminClient,
   requirePlannerRouteContext,
   resolveCanonicalAsOfDate,
   unknownPlannerErrorResponse,
@@ -21,24 +20,16 @@ import {
   buildPlannerConfirmationHash,
   PlannerDraftEditValidationError,
   buildPlannerPublishPersistencePayload,
-  buildPlannerPublishRequestDigest,
-  plannerPlanMetadataFromKernel,
 } from "@/lib/planner/publish-payload";
 import {
   plannerDraftCommandSchema,
 } from "@/lib/planner/draft-commands";
-import {
-  scopeMonthDate,
-  syncPlannerItemsFromActiveExecutionPlan,
-} from "@/lib/planner/planner-items-runtime-sync";
+import { toScopeMonthDate } from "@/lib/planner/scope-month";
 import { plannerPolicySchema } from "@/lib/planner/policy";
-import type { Database, Json } from "@/lib/supabase/database.types";
-import { callAdminRpc } from "@/lib/supabase/admin-rpc";
+import type { Json } from "@/lib/supabase/database.types";
 import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
-type PublishExecutionPlanArgs =
-  Database["public"]["Functions"]["publish_execution_plan_service"]["Args"];
 
 const publishSchema = z.object({
   scopeMonth: z
@@ -49,10 +40,7 @@ const publishSchema = z.object({
       return monthNumber >= 1 && monthNumber <= 12;
     }),
   previewHash: z.string().regex(/^[a-f0-9]{64}$/),
-  expectedCanonicalRevision: z.number().int().nonnegative(),
-  expectedExecutionRevision: z.number().int().nonnegative(),
-  expectedBasePlanId: z.string().uuid().nullable(),
-  expectedBasePlanVersion: z.number().int().positive().nullable(),
+  expectedDigest: z.string().regex(/^[a-f0-9]{64}$/),
   confirmationHash: z.string().regex(/^[a-f0-9]{64}$/).nullable(),
   policy: z.unknown().optional(),
   eligibilityMode: z.enum(PLANNER_ELIGIBILITY_MODES).optional(),
@@ -91,159 +79,12 @@ export async function POST(request: Request) {
     const draftCommands = body.draftCommands;
     const effectiveEligibilityMode =
       body.eligibilityMode ?? PLANNER_ELIGIBILITY_MODES[0];
-    if (
-      (body.expectedBasePlanId === null) !==
-      (body.expectedBasePlanVersion === null)
-    ) {
-      throw new PlannerRouteError(
-        400,
-        "validation_failed",
-        "Expected base plan id and version must be provided together."
-      );
-    }
-
-    const idempotencyKey = request.headers.get("Idempotency-Key")?.trim();
-    if (!idempotencyKey) {
-      throw new PlannerRouteError(
-        400,
-        "validation_failed",
-        "Provide an Idempotency-Key header for planner publish."
-      );
-    }
-    if (!z.uuid().safeParse(idempotencyKey).success) {
-      throw new PlannerRouteError(
-        400,
-        "validation_failed",
-        "Idempotency-Key must be a UUID."
-      );
-    }
-
-    const publishIntent = {
-      eligibilityMode: effectiveEligibilityMode,
-      scopeMonth: body.scopeMonth,
-      previewHash: body.previewHash,
-      expectedCanonicalRevision: body.expectedCanonicalRevision,
-      expectedExecutionRevision: body.expectedExecutionRevision,
-      expectedBasePlanId: body.expectedBasePlanId,
-      expectedBasePlanVersion: body.expectedBasePlanVersion,
-      policyOverride: requestedPolicy,
-      draftCommands,
-    };
-    const requestDigest = buildPlannerPublishRequestDigest({
-      ownerId: routeContext.userId,
-      idempotencyKey,
-      intent: publishIntent,
-    });
-
-    const admin = requirePlannerAdminClient();
-    const replayLookup = await admin
-      .from("execution_plans")
-      .select("id, version, status, scope_month, request_digest, placement_status, generation_source, timezone")
-      .eq("owner_id", routeContext.userId)
-      .eq("idempotency_key", idempotencyKey)
-      .maybeSingle();
-    if (replayLookup.error) {
-      throw new PlannerRouteError(
-        500,
-        "publish_lookup_failed",
-        "Planner publish state could not be loaded.",
-        { cause: replayLookup.error.message }
-      );
-    }
-
-    if (replayLookup.data) {
-      if (replayLookup.data.request_digest !== requestDigest) {
-        throw new PlannerRouteError(
-          409,
-          "idempotency_key_conflict",
-          "Idempotency key was already used for a different planner publish."
-        );
-      }
-
-      const currentActive = await admin
-        .from("execution_plans")
-        .select("id")
-        .eq("owner_id", routeContext.userId)
-        .eq("scope_month", replayLookup.data.scope_month)
-        .eq("status", "active")
-        .maybeSingle();
-      if (currentActive.error) {
-        throw new PlannerRouteError(
-          500,
-          "publish_lookup_failed",
-          "Planner publish replay state could not be loaded.",
-          { cause: currentActive.error.message }
-        );
-      }
-      const revisionsResponse = await routeContext.supabase.rpc("get_planner_state");
-      if (revisionsResponse.error) {
-        throw new PlannerRouteError(
-          500,
-          "revision_load_failed",
-          "Planner revision state could not be loaded."
-        );
-      }
-      const revisions = (
-        (revisionsResponse.data as
-          | Array<{ canonical_revision: number; execution_revision: number }>
-          | null) ?? []
-      )[0] ?? {
-        canonical_revision: 0,
-        execution_revision: 0,
-      };
-      const replaySync = await syncPlannerItemsFromActiveExecutionPlan({
-        admin,
-        ownerId: routeContext.userId,
-        correlationId,
-        source: "planner-publish",
-      });
-      const replayScheduleDigest = replaySync.scheduleDigest;
-      return NextResponse.json(
-        {
-          schemaVersion: "1",
-          planId: replayLookup.data.id,
-          version: replayLookup.data.version,
-          replayed: true,
-          isCurrentlyActive: replayLookup.data.status === "active",
-          currentActivePlanId: currentActive.data?.id ?? null,
-          revisions: {
-            canonicalRevision: revisions.canonical_revision,
-            executionRevision: revisions.execution_revision,
-          },
-          scheduleDigest: replayScheduleDigest,
-          correlationId,
-        },
-        { headers: { "Cache-Control": "private, no-store" } }
-      );
-    }
 
     const snapshot = await loadPlannerCanonicalSnapshot({
       supabase: routeContext.supabase,
       ownerId: routeContext.userId,
       scopeMonth: body.scopeMonth,
     });
-    if (
-      snapshot.revisions.canonicalRevision !== body.expectedCanonicalRevision ||
-      snapshot.revisions.executionRevision !== body.expectedExecutionRevision
-    ) {
-      throw new PlannerRouteError(
-        409,
-        "stale_revision",
-        "Planner publish revisions are stale. Refresh and try again."
-      );
-    }
-    const liveBasePlanId = snapshot.activePlan?.plan.id ?? null;
-    const liveBasePlanVersion = snapshot.activePlan?.plan.version ?? null;
-    if (
-      liveBasePlanId !== body.expectedBasePlanId ||
-      liveBasePlanVersion !== body.expectedBasePlanVersion
-    ) {
-      throw new PlannerRouteError(
-        409,
-        "base_plan_conflict",
-        "The active plan changed before publish. Refresh and retry."
-      );
-    }
 
     if (!snapshot.preferences) {
       throw new PlannerRouteError(
@@ -350,116 +191,65 @@ export async function POST(request: Request) {
       }
       throw error;
     }
-    const metadata = plannerPlanMetadataFromKernel({
-      timezone: snapshot.preferences.timezone,
-      kernel,
+    const scheduledItems = persistence.items
+      .filter((item) => item.scheduled_date !== null)
+      .map((item) => ({
+        goal_id: item.goal_id,
+        unit_key: item.unit_key,
+        scheduled_date: item.scheduled_date,
+        original_scheduled_date: item.original_scheduled_date ?? item.scheduled_date,
+        scheduled_time:
+          item.scheduled_time_override ?? item.effective_scheduled_local_time ?? null,
+        locked: item.locked,
+      }));
+    const publishResponse = await routeContext.supabase.rpc("set_planner_schedule", {
+      p_month: toScopeMonthDate(body.scopeMonth),
+      p_items: scheduledItems as unknown as Json,
+      p_expected_digest: body.expectedDigest,
     });
-
-    const publishArgs: PublishExecutionPlanArgs = {
-        p_owner: routeContext.userId,
-        p_scope_month: scopeMonthDate(body.scopeMonth),
-        p_eligibility_mode: effectiveEligibilityMode,
-        p_timezone: metadata.timezone,
-        p_generation_source: persistence.generationSource,
-        p_change_summary: persistence.changeSummary,
-        p_policy_snapshot: effectivePolicy,
-        p_generation_input_hash: metadata.generationInputHash,
-        p_contract_version: metadata.contractVersion,
-        p_scheduler_version: metadata.schedulerVersion,
-        p_requirement_schema_version: metadata.requirementSchemaVersion,
-        p_assessment_schema_version: metadata.assessmentSchemaVersion,
-        p_policy_schema_version: metadata.policySchemaVersion,
-        p_policy_compiler_version: metadata.policyCompilerVersion,
-        p_placement_status: metadata.placementStatus,
-        p_search_status: metadata.searchStatus,
-        p_capacity_status: metadata.capacityStatus,
-        p_confirmation_required: metadata.confirmationRequired,
-        p_publishable: metadata.publishable,
-        p_idempotency_key: idempotencyKey,
-        p_request_digest: requestDigest,
-        p_expected_canonical_revision: body.expectedCanonicalRevision,
-        p_expected_execution_revision: body.expectedExecutionRevision,
-        p_expected_base_plan_id:
-          body.expectedBasePlanId as PublishExecutionPlanArgs["p_expected_base_plan_id"],
-        p_expected_base_plan_version:
-          body.expectedBasePlanVersion as PublishExecutionPlanArgs["p_expected_base_plan_version"],
-        p_goals: persistence.goals as Json,
-        p_days: persistence.days as Json,
-        p_items: persistence.items as Json,
-        p_issues: persistence.issues as Json,
-      };
-    const publishResponse = await callAdminRpc(
-      admin,
-      "publish_execution_plan_service",
-      publishArgs
-    );
     if (publishResponse.error) {
       const message = publishResponse.error.message.toLowerCase();
-      if (message.includes("planner revision mismatch")) {
+      if (message.includes("stale_schedule")) {
         throw new PlannerRouteError(
           409,
           "stale_revision",
-          "Planner publish revisions are stale. Refresh and try again."
+          "Planner publish state is stale. Refresh and try again."
         );
       }
-      if (message.includes("base plan mismatch")) {
+      if (message.includes("invalid_scheduled_time")) {
         throw new PlannerRouteError(
-          409,
-          "base_plan_conflict",
-          "The active plan changed before publish. Refresh and retry."
+          422,
+          "time_validation_failed",
+          "Publish is blocked because one or more proposed session times are invalid."
         );
       }
-      if (message.includes("idempotency digest mismatch")) {
-        throw new PlannerRouteError(
-          409,
-          "idempotency_key_conflict",
-          "Idempotency key was already used for a different planner publish."
-        );
-      }
-      if (message.includes("only publishable active plans may be inserted")) {
+      if (message.includes("scheduled_outside_goal_lifetime")) {
         throw new PlannerRouteError(
           422,
           "planner_not_publishable",
-          "Publish is blocked because this preview is not currently publishable.",
-          {
-            issueCodes: kernel.solver.issueCodes,
-            searchStatus: kernel.solver.searchStatus,
-            invalidGoalIds: kernel.solver.invalidGoalIds,
-            confirmationRequired: kernel.solver.confirmationRequired,
-          }
+          "Publish is blocked because one or more sessions fall outside goal lifetime."
         );
       }
-      if (message.includes("cross_plan_goal_unit_conflict")) {
+      if (message.includes("exceeds_target_count")) {
         throw new PlannerRouteError(
           409,
           "cross_plan_conflict",
           "Another active month plan already owns this goal unit."
         );
       }
-      if (message.includes("elapsed_scope_month_publish_forbidden")) {
-        throw new PlannerRouteError(
-          422,
-          "validation_failed",
-          "Publishing an elapsed month is not supported. Publish the current or a future month."
-        );
-      }
-      if (message.includes("cross_plan_goal_date_conflict")) {
-        throw new PlannerRouteError(
-          409,
-          "cross_plan_conflict",
-          "Another active month plan already schedules this goal on the destination date."
-        );
-      }
       if (
-        message.includes("execution_plan_goals_default_local_time_format") ||
-        message.includes("execution_plan_items_scheduled_time_override_format") ||
-        message.includes("execution_plan_items_effective_scheduled_local_time_format") ||
-        message.includes("invalid eligibility mode")
+        message.includes("invalid_scope_month") ||
+        message.includes("invalid_schedule_payload") ||
+        message.includes("invalid_unit_key") ||
+        message.includes("scheduled_date_outside_scope_month") ||
+        message.includes("duplicate_goal_unit") ||
+        message.includes("duplicate_goal_date") ||
+        message.includes("unknown_goal")
       ) {
         throw new PlannerRouteError(
-          422,
-          "time_validation_failed",
-          "Publish is blocked because one or more proposed session times are invalid."
+          400,
+          "validation_failed",
+          "Planner publish payload failed validation."
         );
       }
       throw new PlannerRouteError(
@@ -469,7 +259,6 @@ export async function POST(request: Request) {
         { cause: publishResponse.error.message }
       );
     }
-
     const publishedRow = Array.isArray(publishResponse.data)
       ? publishResponse.data[0]
       : publishResponse.data;
@@ -480,27 +269,39 @@ export async function POST(request: Request) {
         "Planner publish did not return persisted plan metadata."
       );
     }
-    const publishSync = await syncPlannerItemsFromActiveExecutionPlan({
-      admin,
-      ownerId: routeContext.userId,
-      correlationId,
-      source: "planner-publish",
-    });
-    const publishScheduleDigest = publishSync.scheduleDigest;
+    const revisionsResponse = await routeContext.supabase.rpc("get_planner_state");
+    if (revisionsResponse.error) {
+      throw new PlannerRouteError(
+        500,
+        "revision_load_failed",
+        "Planner revision state could not be loaded."
+      );
+    }
+    const revisions = (
+      (revisionsResponse.data as
+        | Array<{ canonical_revision: number; execution_revision: number }>
+        | null) ?? []
+    )[0] ?? {
+      canonical_revision: 0,
+      execution_revision: 0,
+    };
 
     return NextResponse.json(
       {
         schemaVersion: "1",
-        planId: publishedRow.plan_id as string,
-        version: publishedRow.version as number,
-        replayed: Boolean(publishedRow.replayed),
-        isCurrentlyActive: Boolean(publishedRow.is_currently_active),
-        currentActivePlanId: (publishedRow.current_active_plan_id as string | null) ?? null,
+        replayed: false,
+        upsertedCount:
+          typeof publishedRow.upserted_count === "number"
+            ? publishedRow.upserted_count
+            : 0,
         revisions: {
-          canonicalRevision: body.expectedCanonicalRevision,
-          executionRevision: publishedRow.execution_revision as number,
+          canonicalRevision: revisions.canonical_revision,
+          executionRevision: revisions.execution_revision,
         },
-        scheduleDigest: publishScheduleDigest,
+        scheduleDigest:
+          typeof publishedRow.schedule_digest === "string"
+            ? publishedRow.schedule_digest
+            : null,
         correlationId,
       },
       { headers: { "Cache-Control": "private, no-store" } }
