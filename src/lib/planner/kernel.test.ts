@@ -344,13 +344,6 @@ describe("pure planner kernel", () => {
       end_date: "2026-10-31",
     });
     const policy = createDefaultPlannerPolicy("UTC", "2026-08-01T00:00:00Z");
-    policy.goalMonthlyDistributions = {
-      [distributedGoal.id]: [
-        { month: "2026-08", count: 3 },
-        { month: "2026-09", count: 3 },
-        { month: "2026-10", count: 2 },
-      ],
-    };
     const monthOutputs = ["2026-08", "2026-09", "2026-10"].map((scopeMonth) =>
       runPlannerKernel(
         input({
@@ -377,13 +370,6 @@ describe("pure planner kernel", () => {
       end_date: "2026-10-31",
     });
     const policy = createDefaultPlannerPolicy("UTC", "2026-08-01T00:00:00Z");
-    policy.goalMonthlyDistributions = {
-      [distributedGoal.id]: [
-        { month: "2026-08", count: 6 },
-        { month: "2026-09", count: 3 },
-        { month: "2026-10", count: 3 },
-      ],
-    };
     const september = runPlannerKernel(
       input({
         eligibilityMode: "overlap_v1",
@@ -429,13 +415,6 @@ describe("pure planner kernel", () => {
       };
     });
     const policy = createDefaultPlannerPolicy("UTC", "2026-08-01T00:00:00Z");
-    policy.goalMonthlyDistributions = {
-      [distributedGoal.id]: [
-        { month: "2026-08", count: 8 },
-        { month: "2026-09", count: 2 },
-        { month: "2026-10", count: 2 },
-      ],
-    };
     const monthOutputs = ["2026-08", "2026-09", "2026-10"].map((scopeMonth) =>
       runPlannerKernel(
         input({

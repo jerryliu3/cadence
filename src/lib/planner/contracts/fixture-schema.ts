@@ -175,9 +175,8 @@ const solverUnitSchema = z
     candidateDates: z.array(dateSchema).max(31),
     previousDate: nullableDateSchema,
     lockedDate: nullableDateSchema,
-    idealDate: nullableDateSchema,
   })
-  .strict();
+  .strip();
 
 export const solverFixtureSchema = z
   .object({

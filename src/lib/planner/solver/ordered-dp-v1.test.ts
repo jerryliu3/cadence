@@ -26,7 +26,6 @@ describe("ordered-dp-v1 solver", () => {
       candidateDates: ["2026-08-05"],
       previousDate: null,
       lockedDate: null,
-      idealDate: "2026-08-05",
     }));
     const result = solveOrderedDpV1({
       dates: ["2026-08-05"],
@@ -57,7 +56,6 @@ describe("ordered-dp-v1 solver", () => {
         candidateDates: [],
         previousDate: null,
         lockedDate: null,
-        idealDate: null,
       })),
     });
 
@@ -77,7 +75,6 @@ describe("ordered-dp-v1 solver", () => {
           candidateDates: [],
           previousDate: null,
           lockedDate: null,
-          idealDate: null,
         },
         {
           unitKey: "total:2",
@@ -87,7 +84,6 @@ describe("ordered-dp-v1 solver", () => {
           candidateDates: ["2026-08-05"],
           previousDate: "2026-08-05",
           lockedDate: "2026-08-05",
-          idealDate: null,
         },
       ],
     });
@@ -108,7 +104,6 @@ describe("ordered-dp-v1 solver", () => {
           candidateDates: ["2026-08-05", "2026-08-10"],
           previousDate: "2026-08-10",
           lockedDate: "2026-08-10",
-          idealDate: null,
         },
         {
           unitKey: "total:2",
@@ -118,7 +113,6 @@ describe("ordered-dp-v1 solver", () => {
           candidateDates: ["2026-08-05", "2026-08-10"],
           previousDate: "2026-08-05",
           lockedDate: "2026-08-05",
-          idealDate: null,
         },
         {
           unitKey: "total:1",
@@ -128,7 +122,6 @@ describe("ordered-dp-v1 solver", () => {
           candidateDates: ["2026-08-05"],
           previousDate: null,
           lockedDate: null,
-          idealDate: "2026-08-05",
         },
       ],
     });
@@ -154,7 +147,6 @@ describe("ordered-dp-v1 solver", () => {
           candidateDates: ["2026-08-01", "2026-08-03"],
           previousDate: null,
           lockedDate: null,
-          idealDate: null,
         },
       ],
     });

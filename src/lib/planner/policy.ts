@@ -37,25 +37,7 @@ export const plannerPolicySchema = z
   })
   .strip();
 
-export type SpacingStrategy = "front_load" | "even" | "flexible";
-export interface LegacyPlannerPolicyFields {
-  goalAllowedWeekdays?: Record<string, number[]>;
-  datePreferences?: Array<{
-    goalId: string | null;
-    start: string;
-    end: string;
-    effect: "avoid" | "prefer";
-  }>;
-  spacingStrategy?: SpacingStrategy;
-  goalSpacingStrategies?: Record<string, SpacingStrategy>;
-  goalMonthlyDistributions?: Record<
-    string,
-    Array<{ month: string; count: number }>
-  >;
-  dailyCadenceRestExemption?: true;
-}
-export type PlannerPolicy = z.infer<typeof plannerPolicySchema> &
-  LegacyPlannerPolicyFields;
+export type PlannerPolicy = z.infer<typeof plannerPolicySchema>;
 
 export interface CompiledPolicy {
   compilerVersion: typeof POLICY_COMPILER_VERSION;
@@ -110,7 +92,6 @@ export function compilePlannerPolicy(policy: PlannerPolicy): CompiledPolicy {
 
 export function getCompiledDateCost(
   compiled: CompiledPolicy,
-  _goalId: string,
   date: string,
   restEligible = true
 ) {
@@ -125,34 +106,4 @@ export function getCompiledDateCost(
     (restEligible && policy.restWeekdays.includes(weekday) ? 6 : 0);
 
   return advisoryPenalty;
-}
-
-export function getSpacingStrategy(
-  compiled: CompiledPolicy,
-  goalId: string
-): SpacingStrategy {
-  void compiled;
-  void goalId;
-  return "flexible";
-}
-
-export function getSpacingIdealDate(
-  strategy: SpacingStrategy,
-  unitIndex: number,
-  unitCount: number,
-  candidateDates: string[]
-) {
-  if (strategy === "flexible" || candidateDates.length === 0) {
-    return null;
-  }
-  if (strategy === "front_load") {
-    return candidateDates[Math.min(unitIndex, candidateDates.length - 1)];
-  }
-  if (unitCount <= 1) {
-    return candidateDates[Math.floor((candidateDates.length - 1) / 2)];
-  }
-  const idealIndex = Math.round(
-    (unitIndex * (candidateDates.length - 1)) / (unitCount - 1)
-  );
-  return candidateDates[idealIndex];
 }

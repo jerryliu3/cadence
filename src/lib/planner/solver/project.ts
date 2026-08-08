@@ -3,8 +3,6 @@ import { compareCanonicalStrings } from "@/lib/planner/canonical";
 import type { GoalAssessment } from "@/lib/planner/assessment";
 import {
   getCompiledDateCost,
-  getSpacingIdealDate,
-  getSpacingStrategy,
   type CompiledPolicy,
 } from "@/lib/planner/policy";
 import type { SolverUnit } from "@/lib/planner/solver/types";
@@ -75,18 +73,7 @@ export function projectWorkUnitsToSolver({
         right.source.unitKey
       );
     });
-    const goalDates = Array.from(
-      new Set(entries.flatMap((entry) => entry.candidateDates))
-    ).sort();
-    const spacing = getSpacingStrategy(compiledPolicy, goalId);
-
-    entries.forEach((entry, index) => {
-      const idealDate = getSpacingIdealDate(
-        spacing,
-        index,
-        entries.length,
-        goalDates
-      );
+    entries.forEach((entry) => {
       solverUnits.push({
         unitKey: entry.source.unitKey,
         goalId,
@@ -97,13 +84,11 @@ export function projectWorkUnitsToSolver({
         lockedDate: entry.source.locked
           ? entry.source.scheduledDate
           : null,
-        idealDate,
         dateCosts: Object.fromEntries(
           entry.candidateDates.map((date) => [
             date,
             getCompiledDateCost(
               compiledPolicy,
-              goalId,
               date,
               entry.source.restEligible
             ),

@@ -50,29 +50,7 @@ function formatWeekdayList(weekdays: number[]) {
   return labels.length > 0 ? labels.join(", ") : "none";
 }
 
-function formatSpacingStrategy(strategy: "front_load" | "even" | "flexible") {
-  switch (strategy) {
-    case "front_load":
-      return "front-loaded";
-    case "even":
-      return "even";
-    case "flexible":
-      return "flexible";
-  }
-}
-
-function resolveGoalTitle(goalId: string, goalTitles: Record<string, string> | undefined) {
-  const title = goalTitles?.[goalId];
-  if (title && title.trim().length > 0) {
-    return title.trim();
-  }
-  return "Selected goal";
-}
-
-function describePolicyPatch(
-  patch: CoachPolicyPatch,
-  goalTitles: Record<string, string> | undefined
-) {
+function describePolicyPatch(patch: CoachPolicyPatch) {
   switch (patch.kind) {
     case "set_rest_weekdays":
       return `Set rest weekdays to ${formatWeekdayList(patch.restWeekdays)}.`;
@@ -80,38 +58,6 @@ function describePolicyPatch(
       return `Avoid scheduling between ${patch.start} and ${patch.end}.`;
     case "remove_blackout_range":
       return `Remove blackout dates from ${patch.start} to ${patch.end}.`;
-    case "set_goal_allowed_weekdays":
-      return `${resolveGoalTitle(patch.goalId, goalTitles)}: allow ${formatWeekdayList(
-        patch.weekdays
-      )}.`;
-    case "clear_goal_allowed_weekdays":
-      return `${resolveGoalTitle(patch.goalId, goalTitles)}: clear weekday restrictions.`;
-    case "set_goal_date_preference":
-      return `${
-        patch.goalId ? resolveGoalTitle(patch.goalId, goalTitles) : "All goals"
-      }: ${patch.effect} ${patch.start} to ${patch.end}.`;
-    case "clear_goal_date_preference":
-      return `${
-        patch.goalId ? resolveGoalTitle(patch.goalId, goalTitles) : "All goals"
-      }: clear ${patch.effect} preference for ${patch.start} to ${patch.end}.`;
-    case "set_spacing_strategy":
-      return `Set overall spacing strategy to ${formatSpacingStrategy(
-        patch.spacingStrategy
-      )}.`;
-    case "set_goal_spacing_strategy":
-      return `${resolveGoalTitle(
-        patch.goalId,
-        goalTitles
-      )}: set spacing strategy to ${formatSpacingStrategy(patch.spacingStrategy)}.`;
-    case "set_goal_monthly_distribution":
-      return `${resolveGoalTitle(
-        patch.goalId,
-        goalTitles
-      )}: set monthly distribution (${patch.distribution
-        .map((entry) => `${entry.month}: ${entry.count}`)
-        .join(", ")}).`;
-    case "clear_goal_monthly_distribution":
-      return `${resolveGoalTitle(patch.goalId, goalTitles)}: clear monthly distribution.`;
   }
 }
 
@@ -159,7 +105,6 @@ function buildAssistantMessage({
   warnings,
   unresolvedQuestions,
   policyPatches,
-  goalTitles,
   autoApplyStatus,
 }: {
   reply: string;
@@ -167,7 +112,6 @@ function buildAssistantMessage({
   warnings: string[];
   unresolvedQuestions: string[];
   policyPatches: CoachPolicyPatch[];
-  goalTitles: Record<string, string> | undefined;
   autoApplyStatus: CoachProposalApplyStatus;
 }) {
   const lines: string[] = [reply.trim()];
@@ -190,7 +134,7 @@ function buildAssistantMessage({
       lines.push("", "Draft updates proposed:");
     }
     for (const patch of policyPatches) {
-      lines.push(`- ${describePolicyPatch(patch, goalTitles)}`);
+      lines.push(`- ${describePolicyPatch(patch)}`);
     }
   }
 
@@ -564,7 +508,6 @@ export function usePlannerCoach({
           warnings,
           unresolvedQuestions,
           policyPatches,
-          goalTitles: context.goalTitles,
           autoApplyStatus,
         }),
         createdAt: Date.now(),
@@ -728,7 +671,7 @@ export function usePlannerCoach({
             .join(", ")}.`
         : "There are no focus goals in the current planner scope.";
     setCoachInput(
-      `Please convert your guidance into concrete calendar intent I can apply now. Make safe assumptions and keep them explicit. ${goalHint} Use action="apply" for concrete scheduling edits. Include a goal entry only when the requested activity clearly matches one of those goals; otherwise use action="needs_goal" and do not repurpose an unrelated goal.`.trim()
+      `Please convert your guidance into concrete calendar intent I can apply now. Make safe assumptions and keep them explicit. ${goalHint} Use action="apply" for concrete scheduling edits. Restrict edits to restWeekdays and blackout ranges; use action="needs_goal" when the request cannot be represented by those planner fields.`.trim()
     );
   }, [coachFocusGoalIds, context]);
 
