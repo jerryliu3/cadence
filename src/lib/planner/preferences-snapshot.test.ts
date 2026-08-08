@@ -1,8 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  parsePlannerLegacyPreferencesRow,
-  resolvePlannerPreferencesSnapshot,
-} from "./preferences-snapshot";
+import { resolvePlannerPreferencesSnapshot } from "./preferences-snapshot";
 
 const confirmedAt = "2026-08-07T00:00:00.000Z";
 
@@ -16,7 +13,6 @@ describe("resolvePlannerPreferencesSnapshot", () => {
         rest_weekdays: [],
         blackout_ranges: [],
       },
-      legacy: null,
     });
 
     expect(snapshot).toBeNull();
@@ -31,11 +27,7 @@ describe("resolvePlannerPreferencesSnapshot", () => {
         rest_weekdays: [5, 2, 5],
         blackout_ranges: [{ start: "2026-08-20", end: "2026-08-21" }],
       },
-      legacy: {
-        timezone: "America/New_York",
-        timezone_confirmed_at: confirmedAt,
-        policy_revision: 4,
-      },
+      policyRevision: 4,
     });
 
     expect(snapshot).not.toBeNull();
@@ -47,7 +39,7 @@ describe("resolvePlannerPreferencesSnapshot", () => {
     ]);
   });
 
-  it("uses policy revision 1 when no legacy row exists", () => {
+  it("uses policy revision 1 when no explicit policy revision exists", () => {
     const snapshot = resolvePlannerPreferencesSnapshot({
       profile: {
         timezone: "UTC",
@@ -56,22 +48,9 @@ describe("resolvePlannerPreferencesSnapshot", () => {
         rest_weekdays: [],
         blackout_ranges: [],
       },
-      legacy: null,
     });
 
     expect(snapshot).not.toBeNull();
     expect(snapshot?.policy_revision).toBe(1);
-  });
-});
-
-describe("parsePlannerLegacyPreferencesRow", () => {
-  it("rejects policy revision zero", () => {
-    expect(() =>
-      parsePlannerLegacyPreferencesRow({
-        timezone: "UTC",
-        timezone_confirmed_at: confirmedAt,
-        policy_revision: 0,
-      })
-    ).toThrow();
   });
 });

@@ -16,7 +16,6 @@ import type {
   ExecutionPlanRow,
 } from "@/lib/planner/persistence-types";
 import {
-  parsePlannerLegacyPreferencesRow,
   parsePlannerProfilePreferencesRow,
   resolvePlannerPreferencesSnapshot,
   type PlannerPreferencesSnapshot,
@@ -238,20 +237,13 @@ async function loadPlannerPreferences(
   supabase: ServerSupabaseClient,
   ownerId: string
 ) {
-  const [profileResponse, legacyResponse] = await Promise.all([
-    supabase
-      .from("profiles")
-      .select(
-        "timezone,timezone_confirmed_at,week_starts_on,rest_weekdays,blackout_ranges"
-      )
-      .eq("id", ownerId)
-      .maybeSingle(),
-    supabase
-      .from("planner_preferences")
-      .select("timezone,timezone_confirmed_at,policy_revision")
-      .eq("owner_id", ownerId)
-      .maybeSingle(),
-  ]);
+  const profileResponse = await supabase
+    .from("profiles")
+    .select(
+      "timezone,timezone_confirmed_at,week_starts_on,rest_weekdays,blackout_ranges"
+    )
+    .eq("id", ownerId)
+    .maybeSingle();
 
   if (profileResponse.error) {
     const code = (profileResponse.error.code ?? "").toUpperCase();
@@ -264,25 +256,10 @@ async function loadPlannerPreferences(
       );
     }
   }
-  if (legacyResponse.error) {
-    const code = (legacyResponse.error.code ?? "").toUpperCase();
-    if (code !== "42P01" && code !== "PGRST205") {
-      throw new PlannerRouteError(
-        500,
-        "preference_load_failed",
-        "Planner data could not be loaded.",
-        { cause: legacyResponse.error.message }
-      );
-    }
-  }
-
   const profile = profileResponse.data
     ? parsePlannerProfilePreferencesRow(profileResponse.data)
     : null;
-  const legacy = legacyResponse.data
-    ? parsePlannerLegacyPreferencesRow(legacyResponse.data)
-    : null;
-  return resolvePlannerPreferencesSnapshot({ profile, legacy });
+  return resolvePlannerPreferencesSnapshot({ profile });
 }
 
 async function loadActivePlanSnapshot(
