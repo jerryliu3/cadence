@@ -999,7 +999,199 @@ export type Database = {
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "notification_schedules_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      planner_ai_usage_daily: {
+        Row: {
+          created_at: string
+          feature: string
+          input_tokens: number
+          output_tokens: number
+          owner_id: string
+          request_count: number
+          updated_at: string
+          usage_date: string
+        }
+        Insert: {
+          created_at?: string
+          feature: string
+          input_tokens?: number
+          output_tokens?: number
+          owner_id: string
+          request_count?: number
+          updated_at?: string
+          usage_date: string
+        }
+        Update: {
+          created_at?: string
+          feature?: string
+          input_tokens?: number
+          output_tokens?: number
+          owner_id?: string
+          request_count?: number
+          updated_at?: string
+          usage_date?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "planner_ai_usage_daily_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      planner_coach_conversation_messages: {
+        Row: {
+          content: string
+          conversation_id: string
+          created_at: string
+          id: number
+          ordinal: number
+          owner_id: string
+          proposal_meta: Json | null
+          role: string
+        }
+        Insert: {
+          content: string
+          conversation_id: string
+          created_at?: string
+          id?: never
+          ordinal: number
+          owner_id: string
+          proposal_meta?: Json | null
+          role: string
+        }
+        Update: {
+          content?: string
+          conversation_id?: string
+          created_at?: string
+          id?: never
+          ordinal?: number
+          owner_id?: string
+          proposal_meta?: Json | null
+          role?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "planner_coach_conversation_messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "planner_coach_conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "planner_coach_conversation_messages_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      planner_coach_conversations: {
+        Row: {
+          created_at: string
+          id: string
+          message_count: number
+          owner_id: string
+          preview_text: string
+          scope_month: string
+          timezone: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          message_count: number
+          owner_id: string
+          preview_text: string
+          scope_month: string
+          timezone: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          message_count?: number
+          owner_id?: string
+          preview_text?: string
+          scope_month?: string
+          timezone?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "planner_coach_conversations_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      planner_items: {
+        Row: {
+          created_at: string
+          goal_id: string
+          id: string
+          locked: boolean
+          owner_id: string
+          scheduled_date: string
+          scheduled_time: string | null
+          unit_key: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          goal_id: string
+          id?: string
+          locked?: boolean
+          owner_id: string
+          scheduled_date: string
+          scheduled_time?: string | null
+          unit_key: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          goal_id?: string
+          id?: string
+          locked?: boolean
+          owner_id?: string
+          scheduled_date?: string
+          scheduled_time?: string | null
+          unit_key?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "planner_items_goal_id_fkey"
+            columns: ["goal_id"]
+            isOneToOne: false
+            referencedRelation: "goals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "planner_items_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       planner_preferences: {
         Row: {
@@ -1048,24 +1240,39 @@ export type Database = {
       profiles: {
         Row: {
           avatar_url: string | null
+          blackout_ranges: Json
           created_at: string
           display_name: string | null
           id: string
+          rest_weekdays: number[]
+          timezone: string
+          timezone_confirmed_at: string | null
           username: string
+          week_starts_on: number
         }
         Insert: {
           avatar_url?: string | null
+          blackout_ranges?: Json
           created_at?: string
           display_name?: string | null
           id: string
+          rest_weekdays?: number[]
+          timezone?: string
+          timezone_confirmed_at?: string | null
           username: string
+          week_starts_on?: number
         }
         Update: {
           avatar_url?: string | null
+          blackout_ranges?: Json
           created_at?: string
           display_name?: string | null
           id?: string
+          rest_weekdays?: number[]
+          timezone?: string
+          timezone_confirmed_at?: string | null
           username?: string
+          week_starts_on?: number
         }
         Relationships: []
       }
@@ -1100,13 +1307,25 @@ export type Database = {
           user_agent?: string | null
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "push_subscriptions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
+      can_administer_goal: {
+        Args: { p_goal_id: string; p_uid: string }
+        Returns: boolean
+      }
       can_complete_goal: {
         Args: { p_goal_id: string; p_uid: string }
         Returns: boolean
@@ -1115,14 +1334,26 @@ export type Database = {
         Args: { p_goal_id: string; p_uid: string }
         Returns: boolean
       }
-      find_profile_by_username: {
-        Args: { p_limit?: number; p_query: string }
+      clear_planner_schedule: {
+        Args: { p_expected_digest: string; p_month: string }
         Returns: {
-          avatar_url: string | null
-          created_at: string
-          display_name: string | null
-          id: string
-          username: string
+          deleted_count: number
+          schedule_digest: string
+        }[]
+      }
+      consume_planner_ai_quota: {
+        Args: {
+          p_feature: string
+          p_input_tokens?: number
+          p_limit?: number
+          p_owner: string
+        }
+        Returns: {
+          allowed: boolean
+          quota_usage_date: string
+          remaining: number
+          request_count: number
+          retry_after_seconds: number
         }[]
       }
       consume_planner_ai_quota_service: {
@@ -1153,6 +1384,16 @@ export type Database = {
           status: string
         }[]
       }
+      find_profile_by_username: {
+        Args: { p_limit?: number; p_query: string }
+        Returns: {
+          avatar_url: string
+          created_at: string
+          display_name: string
+          id: string
+          username: string
+        }[]
+      }
       get_planner_coach_conversation_service: {
         Args: { p_conversation_id: string; p_owner: string }
         Returns: {
@@ -1170,6 +1411,10 @@ export type Database = {
           title: string
           updated_at: string
         }[]
+      }
+      get_planner_schedule_digest: {
+        Args: { p_owner?: string }
+        Returns: string
       }
       get_planner_state: {
         Args: never
@@ -1294,6 +1539,15 @@ export type Database = {
               version: number
             }[]
           }
+      record_planner_ai_output_tokens: {
+        Args: {
+          p_feature: string
+          p_output_tokens: number
+          p_owner: string
+          p_usage_date: string
+        }
+        Returns: number
+      }
       record_planner_ai_output_tokens_service: {
         Args: {
           p_feature: string
@@ -1375,13 +1629,31 @@ export type Database = {
           scheduled_date: string
         }[]
       }
+      set_planner_item_lock: {
+        Args: { p_item_id: string; p_locked: boolean }
+        Returns: {
+          item_id: string
+          locked: boolean
+          schedule_digest: string
+        }[]
+      }
+      set_planner_schedule: {
+        Args: { p_expected_digest: string; p_items: Json; p_month: string }
+        Returns: {
+          schedule_digest: string
+          upserted_count: number
+        }[]
+      }
+      sync_planner_items_from_active_execution_plan_service: {
+        Args: { p_owner: string }
+        Returns: {
+          schedule_digest: string
+          synced_count: number
+        }[]
+      }
       unmark_goal_complete: {
         Args: { p_date?: string; p_goal_id: string }
         Returns: undefined
-      }
-      username_is_available: {
-        Args: { p_username: string }
-        Returns: boolean
       }
       upsert_planner_preferences_service: {
         Args: {
@@ -1410,6 +1682,7 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      username_is_available: { Args: { p_username: string }; Returns: boolean }
     }
     Enums: {
       completion_source: "manual" | "linked_cascade"

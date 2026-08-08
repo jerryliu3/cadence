@@ -1,4 +1,4 @@
-import { PlannerRouteError } from "@/lib/planner/api";
+import { callAdminRpc } from "@/lib/supabase/admin-rpc";
 import type { createAdminClient } from "@/lib/supabase/admin";
 
 type AdminClient = ReturnType<typeof createAdminClient>;
@@ -39,45 +39,48 @@ export function scopeMonthDate(scopeMonth: string) {
   return `${scopeMonth}-01`;
 }
 
-export function scopeMonthFromDate(value: string) {
-  return value.slice(0, 7);
-}
-
 export async function syncPlannerItemsFromActiveExecutionPlan({
   admin,
   ownerId,
+  correlationId,
   scopeMonth,
+  source,
 }: {
   admin: AdminClient;
   ownerId: string;
-  scopeMonth: string;
+  correlationId: string;
+  scopeMonth?: string;
+  source: "planner-publish" | "planner-lock" | "planner-move" | "planner-dismiss" | "planner-schedule";
 }): Promise<PlannerItemsSyncResult> {
-  const rpc = (admin as unknown as {
-    rpc: (
-      functionName: string,
-      params: Record<string, unknown>
-    ) => Promise<{
-      data: unknown;
-      error: { message: string } | null;
-    }>;
-  }).rpc.bind(admin);
-
-  const response = await rpc(
-    "sync_planner_items_from_active_execution_plan_service",
-    {
-      p_owner: ownerId,
-      p_scope_month: scopeMonthDate(scopeMonth),
-    }
-  );
-
-  if (response.error) {
-    throw new PlannerRouteError(
-      500,
-      "planner_items_sync_failed",
-      "Planner schedule mirror could not be updated.",
-      { cause: response.error.message, scopeMonth }
+  try {
+    const response = await callAdminRpc(
+      admin,
+      "sync_planner_items_from_active_execution_plan_service",
+      {
+        p_owner: ownerId,
+      }
     );
+    if (response.error) {
+      console.error(`[${source}] planner_items mirror sync failed`, {
+        correlationId,
+        scopeMonth,
+        cause: response.error.message,
+      });
+      return {
+        scheduleDigest: null,
+        syncedCount: 0,
+      };
+    }
+    return parsePlannerItemsSyncResult(response.data);
+  } catch (error) {
+    console.error(`[${source}] planner_items mirror sync failed`, {
+      correlationId,
+      scopeMonth,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return {
+      scheduleDigest: null,
+      syncedCount: 0,
+    };
   }
-
-  return parsePlannerItemsSyncResult(response.data);
 }

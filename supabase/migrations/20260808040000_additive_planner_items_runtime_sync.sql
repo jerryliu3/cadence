@@ -2,8 +2,7 @@
 -- Keep planner_items in sync while legacy execution-plan runtime is still active.
 
 create or replace function public.sync_planner_items_from_active_execution_plan_service(
-  p_owner uuid,
-  p_scope_month date
+  p_owner uuid
 )
 returns table (
   schedule_digest text,
@@ -18,9 +17,6 @@ declare
 begin
   if p_owner is null then
     raise exception using errcode = '22023', message = 'owner_required';
-  end if;
-  if p_scope_month is null or extract(day from p_scope_month) <> 1 then
-    raise exception using errcode = '22023', message = 'invalid_scope_month';
   end if;
 
   perform pg_catalog.pg_advisory_xact_lock(
@@ -128,11 +124,9 @@ end;
 $$;
 
 revoke execute on function public.sync_planner_items_from_active_execution_plan_service(
-  uuid,
-  date
+  uuid
 ) from public, anon, authenticated, service_role;
 
 grant execute on function public.sync_planner_items_from_active_execution_plan_service(
-  uuid,
-  date
+  uuid
 ) to service_role;
