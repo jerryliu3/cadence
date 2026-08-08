@@ -119,6 +119,99 @@ function plannerKernelErrorToRouteError(error: PlannerError) {
   );
 }
 
+type PlannerCanonicalSnapshotResult = Awaited<
+  ReturnType<typeof loadPlannerCanonicalSnapshot>
+>;
+
+function resolvePlannerPreview({
+  ownerId,
+  scopeMonth,
+  requestedAsOfDate,
+  requestedTimezone,
+  requestedPolicy,
+  snapshot,
+  assessments,
+  requireExplicitTimezone,
+  includeKernel = true,
+}: {
+  ownerId: string;
+  scopeMonth: string;
+  requestedAsOfDate?: string;
+  requestedTimezone?: string;
+  requestedPolicy?: unknown;
+  snapshot: PlannerCanonicalSnapshotResult;
+  assessments?: ReturnType<typeof goalAssessmentSchema.parse>[];
+  requireExplicitTimezone: boolean;
+  includeKernel?: boolean;
+}) {
+  const effectiveTimezone =
+    requestedTimezone ??
+    snapshot.preferences?.timezone ??
+    (requireExplicitTimezone ? null : "UTC");
+
+  if (!effectiveTimezone) {
+    throw new PlannerRouteError(
+      422,
+      "timezone_confirmation_required",
+      "Confirm planner timezone before requesting a preview."
+    );
+  }
+
+  const asOfDate = resolveCanonicalAsOfDate({
+    timezone: effectiveTimezone,
+    requestedAsOfDate,
+  });
+
+  const policySource =
+    requestedPolicy ??
+    snapshot.preferences?.default_policy ??
+    createDefaultPlannerPolicy(effectiveTimezone, new Date().toISOString());
+  const parsedPolicy = plannerPolicySchema.safeParse(policySource);
+  if (!parsedPolicy.success) {
+    throw new PlannerRouteError(
+      400,
+      "validation_failed",
+      "Planner policy failed validation.",
+      {
+        stage: requestedPolicy ? "request_policy" : "stored_policy",
+        issues: parsedPolicy.error.issues,
+      }
+    );
+  }
+  const effectivePolicy = parsedPolicy.data;
+  if (effectivePolicy.timezone !== effectiveTimezone) {
+    throw new PlannerRouteError(
+      400,
+      "validation_failed",
+      "Planner policy timezone must match the request timezone."
+    );
+  }
+
+  const preview = includeKernel
+    ? runPlannerKernel({
+        schemaVersion: PLANNER_CONTRACT_VERSION,
+        eligibilityMode: PLANNER_ELIGIBILITY_MODES[0],
+        ownerId,
+        scopeMonth,
+        asOfDate,
+        timezone: effectiveTimezone,
+        goals: snapshot.goals,
+        completions: snapshot.completions,
+        links: snapshot.links,
+        assessments,
+        policy: effectivePolicy,
+        basePlan: snapshot.activePlan?.basePlan ?? null,
+      })
+    : null;
+
+  return {
+    asOfDate,
+    effectiveTimezone,
+    effectivePolicy,
+    preview,
+  };
+}
+
 export async function GET(request: Request) {
   const correlationId = createCorrelationId();
   try {
@@ -151,44 +244,28 @@ export async function GET(request: Request) {
       scopeMonth: parsedQuery.data.scopeMonth,
     });
 
-    const effectiveTimezone =
-      snapshot.preferences?.timezone ??
-      parsedQuery.data.timezone ??
-      "UTC";
-    const effectivePolicy = snapshot.preferences
-      ? plannerPolicySchema.parse(snapshot.preferences.default_policy)
-      : createDefaultPlannerPolicy(
-          effectiveTimezone,
-          new Date().toISOString()
-        );
-    const asOfDate = resolveCanonicalAsOfDate({
-      timezone: effectiveTimezone,
-      requestedAsOfDate: parsedQuery.data.asOfDate,
-    });
     const activeAssessments = (snapshot.activePlan?.goals ?? []).map((goal) =>
       goalAssessmentSchema.parse(goal.assessment_snapshot)
     );
     const activeAssessmentByGoalId = new Map(
       activeAssessments.map((assessment) => [assessment.goalId, assessment])
     );
-    const eligibilityMode = PLANNER_ELIGIBILITY_MODES[0];
-    const kernel = routeContext.capabilities.plannerGeneration
-      ? runPlannerKernel({
-          schemaVersion: PLANNER_CONTRACT_VERSION,
-          eligibilityMode,
-          ownerId: routeContext.userId,
-          scopeMonth: parsedQuery.data.scopeMonth,
-          asOfDate,
-          timezone: effectiveTimezone,
-          goals: snapshot.goals,
-          completions: snapshot.completions,
-          links: snapshot.links,
-          assessments:
-            activeAssessments.length > 0 ? activeAssessments : undefined,
-          policy: effectivePolicy,
-          basePlan: snapshot.activePlan?.basePlan ?? null,
-        })
-      : null;
+    const {
+      asOfDate,
+      effectiveTimezone,
+      effectivePolicy,
+      preview: kernel,
+    } = resolvePlannerPreview({
+      ownerId: routeContext.userId,
+      scopeMonth: parsedQuery.data.scopeMonth,
+      requestedAsOfDate: parsedQuery.data.asOfDate,
+      requestedTimezone: parsedQuery.data.timezone,
+      snapshot,
+      assessments:
+        activeAssessments.length > 0 ? activeAssessments : undefined,
+      requireExplicitTimezone: false,
+      includeKernel: routeContext.capabilities.plannerGeneration,
+    });
 
     const currentGoals = Object.fromEntries(
       snapshot.goals.map((goal) => {
@@ -323,60 +400,15 @@ export async function POST(request: Request) {
       scopeMonth: body.scopeMonth,
     });
 
-    const effectiveTimezone = body.timezone ?? snapshot.preferences?.timezone;
-    if (!effectiveTimezone) {
-      throw new PlannerRouteError(
-        422,
-        "timezone_confirmation_required",
-        "Confirm planner timezone before requesting a preview."
-      );
-    }
-    const asOfDate = resolveCanonicalAsOfDate({
-      timezone: effectiveTimezone,
-      requestedAsOfDate: body.asOfDate,
-    });
-    const policySource =
-      body.policy ??
-      snapshot.preferences?.default_policy ??
-      createDefaultPlannerPolicy(
-        effectiveTimezone,
-        new Date().toISOString()
-      );
-    const parsedPolicy = plannerPolicySchema.safeParse(policySource);
-    if (!parsedPolicy.success) {
-      throw new PlannerRouteError(
-        400,
-        "validation_failed",
-        "Planner policy failed validation.",
-        {
-          stage: body.policy ? "request_policy" : "stored_policy",
-          issues: parsedPolicy.error.issues,
-        }
-      );
-    }
-    const effectivePolicy = parsedPolicy.data;
-    if (effectivePolicy.timezone !== effectiveTimezone) {
-      throw new PlannerRouteError(
-        400,
-        "validation_failed",
-        "Planner policy timezone must match the request timezone."
-      );
-    }
-    const eligibilityMode = PLANNER_ELIGIBILITY_MODES[0];
-
-    const preview = runPlannerKernel({
-      schemaVersion: PLANNER_CONTRACT_VERSION,
-      eligibilityMode,
+    const { asOfDate, effectiveTimezone, preview } = resolvePlannerPreview({
       ownerId: routeContext.userId,
       scopeMonth: body.scopeMonth,
-      asOfDate,
-      timezone: effectiveTimezone,
-      goals: snapshot.goals,
-      completions: snapshot.completions,
-      links: snapshot.links,
+      requestedAsOfDate: body.asOfDate,
+      requestedTimezone: body.timezone,
+      requestedPolicy: body.policy,
+      snapshot,
       assessments: body.assessments,
-      policy: effectivePolicy,
-      basePlan: snapshot.activePlan?.basePlan ?? null,
+      requireExplicitTimezone: true,
     });
 
     const responseBody = {
@@ -513,27 +545,6 @@ export async function PUT(request: Request) {
         default_policy: defaultPolicy,
       };
 
-    const revisionsResponse = await routeContext.supabase.rpc("get_planner_state");
-    if (revisionsResponse.error) {
-      // The write has already committed; return a degraded revision snapshot.
-      console.error("[planner.context.put] post-commit revision reload failed", {
-        correlationId,
-        ownerId: routeContext.userId,
-        code: revisionsResponse.error.code,
-        message: revisionsResponse.error.message,
-      });
-    }
-    const revisions = (
-      revisionsResponse.error
-        ? null
-        : ((revisionsResponse.data as
-            | Array<{ canonical_revision: number; execution_revision: number }>
-            | null) ?? [])
-    )?.[0] ?? {
-        canonical_revision: 0,
-        execution_revision: 0,
-      };
-
     return NextResponse.json(
       {
         schemaVersion: "1",
@@ -544,8 +555,8 @@ export async function PUT(request: Request) {
           defaultPolicy: resolvedPreferences.default_policy,
         },
         revisions: {
-          canonicalRevision: revisions.canonical_revision,
-          executionRevision: revisions.execution_revision,
+          canonicalRevision: 0,
+          executionRevision: 0,
         },
         correlationId,
       },

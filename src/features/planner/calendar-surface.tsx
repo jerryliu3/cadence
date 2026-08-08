@@ -232,13 +232,7 @@ export function CalendarSurface({
       setError(null);
     }
     if (!month) {
-      if (showLoading) {
-        setLoading(true);
-      }
       const resolvedMonth = getMonthInTimezone(setupTimezone);
-      if (showLoading) {
-        setLoading(false);
-      }
       onMonthChange(resolvedMonth, "replace");
       return true;
     }

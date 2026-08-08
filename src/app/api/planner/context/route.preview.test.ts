@@ -36,7 +36,7 @@ vi.mock("@/lib/planner/kernel", () => ({
   runPlannerKernel: mocks.runPlannerKernel,
 }));
 
-import { POST } from "../context/route";
+import { POST } from "./route";
 
 describe("planner context preview route", () => {
   beforeEach(() => {
