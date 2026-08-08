@@ -283,16 +283,21 @@ export async function executeCompletionDispatch({
     }
     const result = await postJsonRoute({
       fetcher,
-      route: "/api/planner/items/date-fact",
+      route: "/api/completions/exact-date",
       body: {
-        itemId: plannerItemExpectation.itemId,
+        goalId,
+        date,
         desiredFactState,
-        expectedCreditedUnit: plannerItemExpectation.expectedCreditedUnit,
-        expectedItemRevision: plannerItemExpectation.expectedItemRevision,
-        expectedCanonicalRevision:
-          plannerItemExpectation.expectedCanonicalRevision,
-        expectedExecutionRevision:
-          plannerItemExpectation.expectedExecutionRevision,
+        timezone,
+        plannerItemExpectation: {
+          itemId: plannerItemExpectation.itemId,
+          expectedCreditedUnit: plannerItemExpectation.expectedCreditedUnit,
+          expectedItemRevision: plannerItemExpectation.expectedItemRevision,
+          expectedCanonicalRevision:
+            plannerItemExpectation.expectedCanonicalRevision,
+          expectedExecutionRevision:
+            plannerItemExpectation.expectedExecutionRevision,
+        },
       },
       fallbackError: "Planner completion update failed.",
       timeoutMs,
@@ -314,15 +319,19 @@ export async function executeCompletionDispatch({
     }
     const result = await postJsonRoute({
       fetcher,
-      route: "/api/planner/goals/date-fact",
+      route: "/api/completions/exact-date",
       body: {
-        planGoalId: plannerGoalExpectation.planGoalId,
+        goalId,
         date,
         desiredFactState,
-        expectedCanonicalRevision:
-          plannerGoalExpectation.expectedCanonicalRevision,
-        expectedExecutionRevision:
-          plannerGoalExpectation.expectedExecutionRevision,
+        timezone,
+        plannerGoalExpectation: {
+          planGoalId: plannerGoalExpectation.planGoalId,
+          expectedCanonicalRevision:
+            plannerGoalExpectation.expectedCanonicalRevision,
+          expectedExecutionRevision:
+            plannerGoalExpectation.expectedExecutionRevision,
+        },
       },
       fallbackError: "Planner completion update failed.",
       timeoutMs,

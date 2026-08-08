@@ -176,14 +176,19 @@ describe("completion dispatch executor", () => {
     });
     expect(calls).toEqual([
       {
-        route: "/api/planner/items/date-fact",
+        route: "/api/completions/exact-date",
         body: {
-          itemId: "22000000-0000-4000-8000-000000000001",
+          goalId: "12000000-0000-4000-8000-000000000001",
+          date: "2026-08-05",
+          timezone: "UTC",
           desiredFactState: "present",
-          expectedCreditedUnit: null,
-          expectedItemRevision: 7,
-          expectedCanonicalRevision: 11,
-          expectedExecutionRevision: 13,
+          plannerItemExpectation: {
+            itemId: "22000000-0000-4000-8000-000000000001",
+            expectedCreditedUnit: null,
+            expectedItemRevision: 7,
+            expectedCanonicalRevision: 11,
+            expectedExecutionRevision: 13,
+          },
         },
       },
     ]);
@@ -227,13 +232,17 @@ describe("completion dispatch executor", () => {
     });
     expect(calls).toEqual([
       {
-        route: "/api/planner/goals/date-fact",
+        route: "/api/completions/exact-date",
         body: {
-          planGoalId: "33000000-0000-4000-8000-000000000001",
+          goalId: "12000000-0000-4000-8000-000000000001",
           date: "2026-08-05",
+          timezone: "UTC",
           desiredFactState: "present",
-          expectedCanonicalRevision: 5,
-          expectedExecutionRevision: 6,
+          plannerGoalExpectation: {
+            planGoalId: "33000000-0000-4000-8000-000000000001",
+            expectedCanonicalRevision: 5,
+            expectedExecutionRevision: 6,
+          },
         },
       },
     ]);
