@@ -337,7 +337,7 @@ describe("pure planner kernel", () => {
     expect(output.horizonSummary).toEqual([]);
   });
 
-  it("normalizes monthly distributions and partitions ordinals deterministically", () => {
+  it("ignores legacy monthly distribution hints and partitions ordinals deterministically", () => {
     const distributedGoal = goal({
       target_count: 12,
       start_date: "2026-08-01",
@@ -363,14 +363,14 @@ describe("pure planner kernel", () => {
       )
     );
 
-    expect(monthOutputs.map((output) => output.workUnits.length)).toEqual([5, 4, 3]);
+    expect(monthOutputs.map((output) => output.workUnits.length)).toEqual([4, 4, 4]);
     const unitKeys = monthOutputs.flatMap((output) =>
       output.workUnits.map((unit) => unit.unitKey)
     );
     expect(new Set(unitKeys).size).toBe(distributedGoal.target_count);
   });
 
-  it("carries and spills distributed quotas when an early month is elapsed", () => {
+  it("carries and spills deterministically when an early month is elapsed", () => {
     const distributedGoal = goal({
       target_count: 12,
       start_date: "2026-08-01",
@@ -403,8 +403,8 @@ describe("pure planner kernel", () => {
       })
     );
 
-    expect(september.workUnits.length).toBe(9);
-    expect(october.workUnits.length).toBe(3);
+    expect(september.workUnits.length).toBe(8);
+    expect(october.workUnits.length).toBe(4);
     const unitKeys = [...september.workUnits, ...october.workUnits].map(
       (unit) => unit.unitKey
     );

@@ -199,7 +199,7 @@ export async function POST(request: Request) {
         eligibleGoals: snapshot.goals.length,
         workUnits: preview.workUnits.length,
         completionFacts: snapshot.completions.length,
-        policyRanges: effectivePolicy.datePreferences.length,
+        policyRanges: effectivePolicy.blackoutRanges.length,
         placedUnits: preview.workUnits.filter((unit) => unit.scheduledDate !== null)
           .length,
         shortfallUnits: preview.workUnits.filter((unit) => unit.scheduledDate === null)

@@ -43,7 +43,6 @@ import {
 import {
   compilePlannerPolicy,
   plannerPolicySchema,
-  type CompiledPolicy,
   type PlannerPolicy,
 } from "@/lib/planner/policy";
 import { resolvePlannerEffectiveScheduledTime } from "@/lib/planner/schedule-time";
@@ -175,116 +174,15 @@ function countDateWindowDays({
   );
 }
 
-function dedupeMonthDistribution(
-  entries: Array<{ month: string; count: number }>
-) {
-  const countByMonth = new Map<string, number>();
-  for (const entry of entries) {
-    if (entry.count <= 0) {
-      continue;
-    }
-    countByMonth.set(
-      entry.month,
-      (countByMonth.get(entry.month) ?? 0) + entry.count
-    );
-  }
-  return Array.from(countByMonth.entries())
-    .map(([month, count]) => ({ month, count }))
-    .sort((left, right) => compareCanonicalStrings(left.month, right.month));
-}
-
-function normalizeDistributionToTarget({
-  distribution,
-  targetCount,
-}: {
-  distribution: Array<{ month: string; count: number }>;
-  targetCount: number;
-}) {
-  const total = distribution.reduce((count, entry) => count + entry.count, 0);
-  if (targetCount <= 0 || total <= 0) {
-    return [] as Array<{ month: string; count: number }>;
-  }
-  if (total === targetCount) {
-    return distribution;
-  }
-  const normalized = distribution.map((entry) => {
-    const raw = (entry.count * targetCount) / total;
-    const floorCount = Math.floor(raw);
-    return {
-      month: entry.month,
-      count: floorCount,
-      fractionalRemainder: raw - floorCount,
-    };
-  });
-  let remaining = targetCount - normalized.reduce((count, entry) => count + entry.count, 0);
-  for (const candidate of [...normalized].sort((left, right) => {
-    if (left.fractionalRemainder !== right.fractionalRemainder) {
-      return right.fractionalRemainder - left.fractionalRemainder;
-    }
-    return compareCanonicalStrings(left.month, right.month);
-  })) {
-    if (remaining <= 0) {
-      break;
-    }
-    const target = normalized.find((entry) => entry.month === candidate.month);
-    if (!target) {
-      continue;
-    }
-    target.count += 1;
-    remaining -= 1;
-  }
-  return normalized
-    .map(({ month, count }) => ({ month, count }))
-    .filter((entry) => entry.count > 0)
-    .sort((left, right) => compareCanonicalStrings(left.month, right.month));
-}
-
-function normalizeMonthlyDistributionForLifetime({
-  lifetimeMonths,
-  targetCount,
-  distribution,
-}: {
-  lifetimeMonths: string[];
-  targetCount: number;
-  distribution: Array<{ month: string; count: number }> | undefined;
-}) {
-  if (!distribution || distribution.length === 0) {
-    return null;
-  }
-  const lifetimeMonthSet = new Set(lifetimeMonths);
-  const bounded = dedupeMonthDistribution(distribution).filter((entry) =>
-    lifetimeMonthSet.has(entry.month)
-  );
-  if (bounded.length === 0) {
-    return null;
-  }
-  const normalized = normalizeDistributionToTarget({
-    distribution: bounded,
-    targetCount,
-  });
-  if (normalized.length === 0) {
-    return null;
-  }
-  const countByMonth = new Map(
-    lifetimeMonths.map((month) => [month, 0])
-  );
-  for (const entry of normalized) {
-    countByMonth.set(entry.month, entry.count);
-  }
-  return countByMonth;
-}
-
 function allocateOrdinalScopeMonth({
   goal,
   normalizedRequirement,
-  compiledPolicy,
   scopeMonth,
   asOfDate,
   reconciledUnits,
 }: {
   goal: Goal;
   normalizedRequirement: NormalizedGoalRequirement;
-  compiledPolicy: CompiledPolicy;
   scopeMonth: string;
   asOfDate: string;
   reconciledUnits: PlannerWorkUnit[];
@@ -356,36 +254,14 @@ function allocateOrdinalScopeMonth({
     lifetimeMonths.map((month) => [month, [] as number[]])
   );
   const ownerMonthByOrdinal = new Map<number, string>();
-  const policyDistribution = normalizeMonthlyDistributionForLifetime({
-    lifetimeMonths,
-    targetCount: requirement.targetCount,
-    distribution: compiledPolicy.policy.goalMonthlyDistributions?.[goal.id],
-  });
-  if (policyDistribution) {
-    let ordinal = 1;
-    for (const month of lifetimeMonths) {
-      const monthCount = policyDistribution.get(month) ?? 0;
-      const queue = ownerUncreditedByMonth.get(month)!;
-      for (
-        let assigned = 0;
-        assigned < monthCount && ordinal <= requirement.targetCount;
-        assigned += 1
-      ) {
-        queue.push(ordinal);
-        ownerMonthByOrdinal.set(ordinal, month);
-        ordinal += 1;
-      }
-    }
-  } else {
-    for (let ordinal = 1; ordinal <= requirement.targetCount; ordinal += 1) {
-      const ownerMonth = ownerMonthForOrdinal({
-        months: lifetimeMonths,
-        targetCount: requirement.targetCount,
-        ordinal,
-      });
-      ownerMonthByOrdinal.set(ordinal, ownerMonth);
-      ownerUncreditedByMonth.get(ownerMonth)!.push(ordinal);
-    }
+  for (let ordinal = 1; ordinal <= requirement.targetCount; ordinal += 1) {
+    const ownerMonth = ownerMonthForOrdinal({
+      months: lifetimeMonths,
+      targetCount: requirement.targetCount,
+      ordinal,
+    });
+    ownerMonthByOrdinal.set(ordinal, ownerMonth);
+    ownerUncreditedByMonth.get(ownerMonth)!.push(ordinal);
   }
 
   for (const unit of reconciledUnits) {
@@ -570,8 +446,7 @@ export function runPlannerKernel(
     completions.length,
     MAX_COMPLETION_FACTS
   );
-  const policyRangeCount =
-    policy.blackoutRanges.length + policy.datePreferences.length;
+  const policyRangeCount = policy.blackoutRanges.length;
   throwBounds(
     policyRangeCount > MAX_POLICY_RANGES,
     "policy ranges",
@@ -687,7 +562,6 @@ export function runPlannerKernel(
         : allocateOrdinalScopeMonth({
             goal,
             normalizedRequirement: requirement,
-            compiledPolicy,
             scopeMonth: rawInput.scopeMonth,
             asOfDate: rawInput.asOfDate,
             reconciledUnits: reconciled.units,

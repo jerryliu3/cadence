@@ -187,9 +187,6 @@ export function CalendarSurface({
   const [setupTimezone, setSetupTimezone] = useState(
     Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"
   );
-  const [setupSpacing, setSetupSpacing] = useState<"front_load" | "even" | "flexible">(
-    "flexible"
-  );
   const [setupWeekStartsOn, setSetupWeekStartsOn] = useState(1);
   const [setupRestWeekdays, setSetupRestWeekdays] = useState<number[]>([]);
   const hoverPreviewTimerRef = useRef<number | null>(null);
@@ -298,7 +295,6 @@ export function CalendarSurface({
     setContext(contextPayload);
     if (contextPayload.preferences?.timezone) {
       setSetupTimezone(contextPayload.preferences.timezone);
-      setSetupSpacing(contextPayload.preferences.defaultPolicy.spacingStrategy);
       setSetupWeekStartsOn(
         normalizeWeekStartsOn(contextPayload.preferences.defaultPolicy.weekStartsOn)
       );
@@ -685,7 +681,6 @@ export function CalendarSurface({
       new Date().toISOString()
     );
     defaultPolicy.restWeekdays = [...setupRestWeekdays].sort((a, b) => a - b);
-    defaultPolicy.spacingStrategy = setupSpacing;
     defaultPolicy.weekStartsOn = normalizeWeekStartsOn(setupWeekStartsOn);
 
     const response = await fetch("/api/planner/preferences", {
@@ -1878,24 +1873,6 @@ export function CalendarSurface({
                 {timezone}
               </SelectItem>
             ))}
-          </SelectContent>
-        </Select>
-      </label>
-      <label className="block space-y-1 text-sm">
-        <span>Spacing strategy</span>
-        <Select
-          value={setupSpacing}
-          onValueChange={(value: "front_load" | "even" | "flexible") =>
-            setSetupSpacing(value)
-          }
-        >
-          <SelectTrigger>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="front_load">Front load</SelectItem>
-            <SelectItem value="even">Even</SelectItem>
-            <SelectItem value="flexible">Flexible</SelectItem>
           </SelectContent>
         </Select>
       </label>

@@ -108,10 +108,9 @@ describe.skipIf(!RUN_LIVE_TESTS)("live Gemini coach integration", () => {
         allowedGoalIds: new Set([GOAL_ID]),
       });
 
-      expect(applied.ignoredPatchCount).toBe(0);
-      expect(applied.appliedPatchCount).toBeGreaterThanOrEqual(2);
-      expect(applied.policy.goalAllowedWeekdays[GOAL_ID]).toEqual([0, 2, 4]);
-      expect(applied.policy.goalSpacingStrategies[GOAL_ID]).toBe("even");
+      expect(applied.appliedPatchCount).toBe(0);
+      expect(applied.ignoredPatchCount).toBe(2);
+      expect(applied.unsupportedPatchCount).toBe(2);
     },
     75_000
   );
