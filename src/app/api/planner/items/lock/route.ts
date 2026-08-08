@@ -13,7 +13,6 @@ import { MAX_API_BODY_BYTES } from "@/lib/planner/contracts/bounds";
 import {
   syncPlannerItemsFromActiveExecutionPlan,
 } from "@/lib/planner/planner-items-runtime-sync";
-import { monthFromDate } from "@/lib/planner/dates";
 import { classifyTelemetryResult, emitTelemetryEvent } from "@/lib/telemetry/runtime";
 import { callAdminRpc } from "@/lib/supabase/admin-rpc";
 import { createClient } from "@/lib/supabase/server";
@@ -98,21 +97,10 @@ export async function POST(request: Request) {
         "Planner item lock change did not return updated state."
       );
     }
-    const scheduledDate =
-      typeof row.scheduled_date === "string" ? row.scheduled_date : null;
-    if (!scheduledDate || scheduledDate.length < 7) {
-      throw new PlannerRouteError(
-        500,
-        "invariant_failed",
-        "Planner item lock change did not return a valid scheduled date."
-      );
-    }
-    const scopeMonth = monthFromDate(scheduledDate);
     const syncResult = await syncPlannerItemsFromActiveExecutionPlan({
       admin,
       ownerId: routeContext.userId,
       correlationId,
-      scopeMonth,
       source: "planner-lock",
     });
     const scheduleDigest = syncResult.scheduleDigest;
