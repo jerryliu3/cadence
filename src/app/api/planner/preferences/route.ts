@@ -17,7 +17,6 @@ import {
 } from "@/lib/planner/contracts/bounds";
 import { createDefaultPlannerPolicy, plannerPolicySchema } from "@/lib/planner/policy";
 import {
-  parsePlannerLegacyPreferencesRow,
   parsePlannerProfilePreferencesRow,
   resolvePlannerPreferencesSnapshot,
 } from "@/lib/planner/preferences-snapshot";
@@ -39,11 +38,6 @@ const upsertSchema = z.object({
 function shouldIgnoreProfilePreferenceError(error: { code?: string | null }) {
   const code = (error.code ?? "").toUpperCase();
   return code === "42P01" || code === "42703" || code === "PGRST204";
-}
-
-function shouldIgnoreLegacyPreferenceError(error: { code?: string | null }) {
-  const code = (error.code ?? "").toUpperCase();
-  return code === "42P01" || code === "PGRST205";
 }
 
 function normalizePolicyRevision(value: unknown) {
@@ -71,7 +65,7 @@ export async function GET() {
       disabledMessage: "Planner read APIs are not enabled for this owner.",
     });
 
-    const [profileResponse, legacyResponse, revisionsResponse] = await Promise.all([
+    const [profileResponse, revisionsResponse] = await Promise.all([
       routeContext.supabase
         .from("profiles")
         .select(
@@ -79,18 +73,11 @@ export async function GET() {
         )
         .eq("id", routeContext.userId)
         .maybeSingle(),
-      routeContext.supabase
-        .from("planner_preferences")
-        .select("timezone,timezone_confirmed_at,policy_revision")
-        .eq("owner_id", routeContext.userId)
-        .maybeSingle(),
       routeContext.supabase.rpc("get_planner_state"),
     ]);
     if (
       (profileResponse.error &&
         !shouldIgnoreProfilePreferenceError(profileResponse.error)) ||
-      (legacyResponse.error &&
-        !shouldIgnoreLegacyPreferenceError(legacyResponse.error)) ||
       revisionsResponse.error
     ) {
       throw new PlannerRouteError(
@@ -103,13 +90,7 @@ export async function GET() {
     const profile = profileResponse.data
       ? parsePlannerProfilePreferencesRow(profileResponse.data)
       : null;
-    const legacy = legacyResponse.data
-      ? parsePlannerLegacyPreferencesRow(legacyResponse.data)
-      : null;
-    const snapshot = resolvePlannerPreferencesSnapshot({
-      profile,
-      legacy,
-    });
+    const snapshot = resolvePlannerPreferencesSnapshot({ profile });
     const preferences = snapshot
       ? {
           timezone: snapshot.timezone,
@@ -223,33 +204,9 @@ export async function PUT(request: Request) {
       typeof updatedRow === "object" && updatedRow !== null
         ? (updatedRow as Record<string, unknown>)
         : null;
-    let parsedLegacy;
-    try {
-      parsedLegacy = parsePlannerLegacyPreferencesRow({
-        timezone:
-          typeof updatedRowRecord?.timezone === "string" &&
-          updatedRowRecord.timezone.trim().length > 0
-            ? updatedRowRecord.timezone
-            : body.timezone,
-        timezone_confirmed_at:
-          typeof updatedRowRecord?.timezone_confirmed_at === "string" &&
-          Number.isFinite(Date.parse(updatedRowRecord.timezone_confirmed_at))
-            ? updatedRowRecord.timezone_confirmed_at
-            : timezoneConfirmedAt,
-        policy_revision: normalizePolicyRevision(updatedRowRecord?.policy_revision),
-      });
-    } catch (error) {
-      console.error("[planner.preferences.put] post-commit legacy parse failed", {
-        correlationId,
-        ownerId: routeContext.userId,
-        error: error instanceof Error ? error.message : String(error),
-      });
-      parsedLegacy = parsePlannerLegacyPreferencesRow({
-        timezone: body.timezone,
-        timezone_confirmed_at: timezoneConfirmedAt,
-        policy_revision: 1,
-      });
-    }
+    const persistedPolicyRevision = normalizePolicyRevision(
+      updatedRowRecord?.policy_revision
+    );
 
     const profileResponse = await routeContext.supabase
       .from("profiles")
@@ -279,12 +236,11 @@ export async function PUT(request: Request) {
     const resolvedPreferences =
       resolvePlannerPreferencesSnapshot({
         profile: parsedProfile,
-        legacy: parsedLegacy,
+        policyRevision: persistedPolicyRevision,
       }) ?? {
-        timezone: parsedLegacy.timezone,
-        timezone_confirmed_at:
-          parsedLegacy.timezone_confirmed_at ?? timezoneConfirmedAt,
-        policy_revision: parsedLegacy.policy_revision ?? 1,
+        timezone: body.timezone,
+        timezone_confirmed_at: timezoneConfirmedAt,
+        policy_revision: persistedPolicyRevision,
         default_policy: defaultPolicy,
       };
 
