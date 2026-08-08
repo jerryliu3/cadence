@@ -27,7 +27,7 @@ const plannerLegacyPreferencesRowSchema = z
   .object({
     timezone: z.string().trim().min(1).max(100),
     timezone_confirmed_at: z.string().datetime({ offset: true }).nullable().optional(),
-    policy_revision: z.number().int().nonnegative().optional(),
+    policy_revision: z.number().int().min(1).optional(),
     default_policy: z.unknown(),
   })
   .strict();
@@ -50,34 +50,11 @@ function normalizeConfirmedAt(value: string | null | undefined) {
   if (value && Number.isFinite(Date.parse(value))) {
     return value;
   }
-  return new Date().toISOString();
+  return null;
 }
 
 function normalizeWeekdays(days: number[] | null | undefined) {
   return Array.from(new Set(days ?? [])).sort((left, right) => left - right);
-}
-
-function buildPolicyFromProfile({
-  timezone,
-  timezoneConfirmedAt,
-  weekStartsOn,
-  restWeekdays,
-  blackoutRanges,
-}: {
-  timezone: string;
-  timezoneConfirmedAt: string;
-  weekStartsOn: number | null | undefined;
-  restWeekdays: number[] | null | undefined;
-  blackoutRanges:
-    | Array<{ start: string; end: string }>
-    | null
-    | undefined;
-}) {
-  const policy = createDefaultPlannerPolicy(timezone, timezoneConfirmedAt);
-  policy.weekStartsOn = weekStartsOn ?? 1;
-  policy.restWeekdays = normalizeWeekdays(restWeekdays);
-  policy.blackoutRanges = blackoutRanges ?? [];
-  return plannerPolicySchema.parse(policy);
 }
 
 function parseLegacyPolicy(
@@ -112,44 +89,37 @@ export function resolvePlannerPreferencesSnapshot({
   legacy: PlannerLegacyPreferencesRow | null;
 }): PlannerPreferencesSnapshot | null {
   const timezone = profile?.timezone ?? legacy?.timezone ?? null;
-  if (!timezone) {
-    return null;
-  }
   const timezoneConfirmedAt = normalizeConfirmedAt(
     profile?.timezone_confirmed_at ?? legacy?.timezone_confirmed_at
   );
-  const profilePolicy = profile
-    ? buildPolicyFromProfile({
-        timezone,
-        timezoneConfirmedAt,
-        weekStartsOn: profile.week_starts_on,
-        restWeekdays: profile.rest_weekdays,
-        blackoutRanges: profile.blackout_ranges,
-      })
-    : null;
+  if (!timezone || !timezoneConfirmedAt) {
+    return null;
+  }
   const legacyPolicy = legacy
     ? parseLegacyPolicy(legacy.default_policy, timezone, timezoneConfirmedAt)
     : null;
+  const basePolicy = legacyPolicy ?? createDefaultPlannerPolicy(timezone, timezoneConfirmedAt);
 
   const mergedPolicyInput = {
-    ...(legacyPolicy ?? profilePolicy ?? createDefaultPlannerPolicy(timezone, timezoneConfirmedAt)),
+    ...basePolicy,
     timezone,
     timezoneConfirmedAt,
-    weekStartsOn: profile?.week_starts_on ?? legacyPolicy?.weekStartsOn ?? 1,
+    weekStartsOn: profile?.week_starts_on ?? basePolicy.weekStartsOn ?? 1,
     restWeekdays:
       profile?.rest_weekdays !== undefined && profile?.rest_weekdays !== null
         ? normalizeWeekdays(profile.rest_weekdays)
-        : normalizeWeekdays(legacyPolicy?.restWeekdays),
+        : normalizeWeekdays(basePolicy.restWeekdays),
     blackoutRanges:
       profile?.blackout_ranges !== undefined && profile?.blackout_ranges !== null
         ? profile.blackout_ranges
-        : legacyPolicy?.blackoutRanges ?? [],
+        : basePolicy.blackoutRanges ?? [],
   };
 
+  const policyRevision = legacy?.policy_revision;
   return {
     timezone,
     timezone_confirmed_at: timezoneConfirmedAt,
-    policy_revision: legacy?.policy_revision ?? 0,
+    policy_revision: policyRevision && policyRevision >= 1 ? policyRevision : 1,
     default_policy: plannerPolicySchema.parse(mergedPolicyInput),
   };
 }
