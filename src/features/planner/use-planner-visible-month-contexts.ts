@@ -3,8 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import type {
   CalendarTab,
+  PlannerContextPayload,
   PlannerVisibleMonthContextPayload,
-  PlannerVisibleWindowContextPayload,
 } from "@/features/planner/calendar-surface.types";
 
 interface UsePlannerVisibleMonthContextsArgs {
@@ -22,26 +22,24 @@ export function usePlannerVisibleMonthContexts({
     Record<string, PlannerVisibleMonthContextPayload>
   >({});
 
-  const visibleWindowRange = useMemo(() => {
-    if (visibleDays.length === 0) {
-      return null;
+  const visibleMonths = useMemo(() => {
+    if (!scopeMonth || visibleDays.length === 0) {
+      return [] as string[];
     }
-    const sortedDays = [...visibleDays].sort();
-    const startDate = sortedDays[0] ?? null;
-    const endDate = sortedDays.at(-1) ?? null;
-    if (!startDate || !endDate) {
-      return null;
-    }
-    return { startDate, endDate };
-  }, [visibleDays]);
+    return Array.from(
+      new Set(
+        visibleDays
+          .map((day) => day.slice(0, 7))
+          .filter((month) => month !== scopeMonth)
+      )
+    ).sort();
+  }, [scopeMonth, visibleDays]);
 
   useEffect(() => {
     if (
       activeTab !== "calendar" ||
       !scopeMonth ||
-      !visibleWindowRange ||
-      (visibleWindowRange.startDate.slice(0, 7) === scopeMonth &&
-        visibleWindowRange.endDate.slice(0, 7) === scopeMonth)
+      visibleMonths.length === 0
     ) {
       const resetTimer = window.setTimeout(() => {
         setVisibleMonthContexts((current) =>
@@ -52,25 +50,35 @@ export function usePlannerVisibleMonthContexts({
     }
     let cancelled = false;
     const timer = window.setTimeout(() => {
-      const query = new URLSearchParams({
-        scopeMonth,
-        startDate: visibleWindowRange.startDate,
-        endDate: visibleWindowRange.endDate,
-      });
-      void fetch(`/api/planner/context/visible?${query.toString()}`, {
-        cache: "no-store",
-        credentials: "same-origin",
-      })
-        .then(async (response) => {
+      void Promise.all(
+        visibleMonths.map(async (visibleMonth) => {
+          const query = new URLSearchParams({
+            scopeMonth: visibleMonth,
+          });
+          const response = await fetch(`/api/planner/context?${query.toString()}`, {
+            cache: "no-store",
+            credentials: "same-origin",
+          });
           if (!response.ok) {
             throw new Error("visible_context_load_failed");
           }
-          const payload =
-            (await response.json()) as PlannerVisibleWindowContextPayload;
+          const payload = (await response.json()) as PlannerContextPayload;
+          return [
+            visibleMonth,
+            {
+              scopeMonth: payload.scopeMonth,
+              goalTitles: payload.goalTitles,
+              activePlan: payload.activePlan,
+              preview: payload.preview,
+            } satisfies PlannerVisibleMonthContextPayload,
+          ] as const;
+        })
+      )
+        .then((entries) => {
           if (cancelled) {
             return;
           }
-          setVisibleMonthContexts(payload.contextsByMonth ?? {});
+          setVisibleMonthContexts(Object.fromEntries(entries));
         })
         .catch(() => {
           if (!cancelled) {
@@ -82,7 +90,7 @@ export function usePlannerVisibleMonthContexts({
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [activeTab, scopeMonth, visibleWindowRange]);
+  }, [activeTab, scopeMonth, visibleMonths]);
 
   return visibleMonthContexts;
 }
