@@ -732,6 +732,9 @@ export function CalendarSurface({
   const nonPublishablePreviewMessage = (
     preview: NonNullable<PlannerContextPayload["preview"]>
   ) => {
+    if (context && context.scopeMonth < context.asOfDate.slice(0, 7)) {
+      return "Publishing an elapsed month is not supported. Publish the current or a future month.";
+    }
     if (preview.solver.issueCodes.includes("invalid_lock")) {
       const affectedGoals = preview.solver.invalidGoalIds
         .slice(0, 3)
@@ -1516,7 +1519,9 @@ export function CalendarSurface({
       toast.error("Planner state is stale. Refresh and regenerate the preview.");
       return;
     }
-    if (!effectivePreview.solver.publishable) {
+    const publishBlockedByElapsedMonth =
+      context.scopeMonth < context.asOfDate.slice(0, 7);
+    if (publishBlockedByElapsedMonth || !effectivePreview.solver.publishable) {
       toast.error(nonPublishablePreviewMessage(effectivePreview));
       return;
     }
@@ -1705,7 +1710,8 @@ export function CalendarSurface({
     hasDraftSession &&
       effectivePreview &&
       context?.capabilities.plannerPlanWrites &&
-      !effectivePreview.solver.publishable
+      (context.scopeMonth < context.asOfDate.slice(0, 7) ||
+        !effectivePreview.solver.publishable)
   );
   const draftPublishBlockedMessage =
     draftPublishBlocked && effectivePreview
@@ -1969,13 +1975,16 @@ export function CalendarSurface({
                   size="sm"
                   onClick={publishPlan}
                   title={
-                    effectivePreview && !effectivePreview.solver.publishable
+                    effectivePreview &&
+                    (context.scopeMonth < context.asOfDate.slice(0, 7) ||
+                      !effectivePreview.solver.publishable)
                       ? nonPublishablePreviewMessage(effectivePreview)
                       : undefined
                   }
                   disabled={
                     publishLoading ||
                     loading ||
+                    context.scopeMonth < context.asOfDate.slice(0, 7) ||
                     !effectivePreview.solver.publishable
                   }
                 >

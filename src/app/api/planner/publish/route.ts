@@ -101,6 +101,13 @@ export async function POST(request: Request) {
     const asOfDate = resolveCanonicalAsOfDate({
       timezone: snapshot.preferences.timezone,
     });
+    if (body.scopeMonth < asOfDate.slice(0, 7)) {
+      throw new PlannerRouteError(
+        422,
+        "elapsed_scope_month_publish_forbidden",
+        "Publishing an elapsed month is not supported. Publish the current or a future month."
+      );
+    }
     const activeAssessments = (snapshot.activePlan?.goals ?? []).map((goal) =>
       goalAssessmentSchema.parse(goal.assessment_snapshot)
     );
