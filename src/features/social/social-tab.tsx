@@ -397,18 +397,25 @@ export function SocialTab() {
   }, [loadData]);
 
   useEffect(() => {
-    if (!searchTerm.trim()) {
+    const searchQuery = searchTerm.trim().toLowerCase();
+    if (!searchQuery) {
+      setSearchResults([]);
       return;
     }
 
     let cancelled = false;
     const run = async () => {
-      const { data } = await supabase
-        .from("profiles")
-        .select("*")
-        .ilike("username", `%${searchTerm.trim().toLowerCase()}%`)
-        .neq("id", state.userId)
-        .limit(8);
+      const { data, error } = await supabase.rpc("find_profile_by_username", {
+        p_query: searchQuery,
+        p_limit: 8,
+      });
+
+      if (error) {
+        if (!cancelled) {
+          setSearchResults([]);
+        }
+        return;
+      }
 
       if (!cancelled) {
         setSearchResults((data ?? []) as Profile[]);
@@ -420,7 +427,7 @@ export function SocialTab() {
     return () => {
       cancelled = true;
     };
-  }, [searchTerm, state.userId, supabase]);
+  }, [searchTerm, supabase]);
 
   useEffect(() => {
     if (!shareMenuOpen) {

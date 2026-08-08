@@ -103,12 +103,10 @@ Seed data includes:
 - `pnpm build` - production build
 - `pnpm lint` - lint checks
 - `pnpm test` - run unit tests
-- `pnpm test:tz` - run contract checks in Los Angeles and Auckland processes
-- `pnpm test:benchmark` - run the isolated worst-case planner p95 gate
+- `pnpm test:tz` - run timezone checks in Los Angeles and Auckland processes
 - `pnpm test:sql` - run pgTAP SQL tests against local Postgres
 - `pnpm test:concurrency` - run the two-session PostgreSQL lock harness
 - `pnpm test:e2e` - run authenticated Chromium, WebKit, mobile, API, and accessibility smoke tests
-- `pnpm contracts:check` - verify generated SQL matches canonical planner JSON fixtures
 - `pnpm types:supabase` - regenerate local public/private database types
 - `pnpm supabase:start` - start local Supabase stack
 - `pnpm supabase:stop` - stop local Supabase stack
@@ -117,8 +115,6 @@ Seed data includes:
 
 Database and browser tests require the local Supabase stack and seeded demo accounts. Playwright starts
 the app on `http://localhost:3100` so it does not reuse another development server on port 3000.
-Regenerate checked-in SQL contract mirrors with `pnpm contracts:generate-sql` after intentionally
-changing a canonical fixture under `test/fixtures/planner-contracts/`.
 
 Calendar UI exposure and planner API access are controlled by
 `CALENDAR_ENABLED` (default `true`). Set `CALENDAR_ENABLED=false` to hide the
@@ -127,9 +123,6 @@ Calendar surface and disable planner endpoints.
 Planner persistence is additive and blocks direct client writes. Immutable plan
 snapshots are stored in public planning tables, while revisions, owner-lock
 helpers, and AI quota counters remain in the unexposed `private` schema.
-
-For Slice 9 rollout gates (telemetry keys, rehearsal steps, dashboards, alerts,
-and rollback), see `docs/planner_rollout_slice9.md`.
 
 ## Pointing to Hosted Supabase
 

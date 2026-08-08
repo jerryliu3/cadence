@@ -4,9 +4,8 @@ import {
   MAX_POLICY_RANGES,
   MAX_WORK_UNITS,
 } from "../contracts/bounds";
-import {
-  loadWorstCaseBenchmarkSpec,
-} from "../contracts/load-fixtures";
+import benchmarkWorstCase from "../../../../test/fixtures/planner-contracts/benchmark-worst-case.v1.json";
+import { worstCaseBenchmarkSpecSchema } from "../contracts/fixture-schema";
 import { createDefaultPlannerPolicy } from "@/lib/planner/policy";
 import type { PlannerKernelInput, PlannerKernelOutput } from "@/lib/planner/kernel";
 import { computeRequirementFingerprint } from "@/lib/planner/requirements";
@@ -44,7 +43,7 @@ function addUtcDays(date: string, days: number) {
 }
 
 export function materializeWorstCasePlannerInput(): WorstCasePlannerInput {
-  const spec = loadWorstCaseBenchmarkSpec();
+  const spec = worstCaseBenchmarkSpecSchema.parse(benchmarkWorstCase);
   const scopeStart = `${spec.scopeMonth}-01`;
   const scopeEnd = addUtcDays(scopeStart, 30);
   const unitsPerGoal = spec.counts.workUnits / spec.counts.goals;

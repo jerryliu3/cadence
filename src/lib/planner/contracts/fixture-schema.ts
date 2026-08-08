@@ -235,67 +235,11 @@ export const solverFixtureSchema = z
   })
   .strict();
 
-const mutationKindSchema = z.enum([
-  "scheduled_completion_added",
-  "scheduled_completion_removed",
-  "out_of_plan_completion_added",
-  "inadmissible_completion_added",
-  "item_moved",
-  "item_lock_changed",
-  "goal_requirement_changed",
-  "policy_changed",
-  "link_changed",
-  "plan_published",
-  "plan_dismissed",
-  "live_clock_became_overdue",
-]);
-
-export const mutationFreshnessFixtureSchema = z
-  .object({
-    schemaVersion: z.literal(PLANNER_CONTRACT_VERSION),
-    contract: z.literal("mutation_freshness"),
-    cases: z
-      .array(
-        z
-          .object({
-            id: caseIdSchema,
-            description: z.string().min(1).max(300),
-            mutation: mutationKindSchema,
-            expected: z
-              .object({
-                strictHashChanges: z.boolean(),
-                semanticBanner: z.enum(["none", "stale", "not_applicable"]),
-                canonicalRevisionChanges: z.boolean(),
-                executionRevisionChanges: z.boolean(),
-                reasonCode: z
-                  .enum([
-                    "expected_progress",
-                    "accepted_execution_change",
-                    "credited_work_removed",
-                    "out_of_plan_fact",
-                    "inadmissible_fact",
-                    "goal_changed",
-                    "policy_changed",
-                    "link_changed",
-                    "active_plan_changed",
-                    "overdue_item",
-                  ])
-                  .nullable(),
-              })
-              .strict(),
-          })
-          .strict()
-      )
-      .min(1),
-  })
-  .strict();
-
 export const plannerContractFixtureSchema = z.discriminatedUnion("contract", [
   lifecycleOutcomeFixtureSchema,
   eligibilityFixtureSchema,
   completionDispatchFixtureSchema,
   solverFixtureSchema,
-  mutationFreshnessFixtureSchema,
 ]);
 
 export const worstCaseBenchmarkSpecSchema = z

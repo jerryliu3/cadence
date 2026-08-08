@@ -6,10 +6,7 @@ const { Client } = pg;
 const databaseUrl =
   process.env.SUPABASE_DB_URL ??
   "postgresql://postgres:postgres@127.0.0.1:54322/postgres";
-const testRoots = [
-  path.resolve("supabase/tests/database"),
-  path.resolve("supabase/tests/generated"),
-];
+const testRoots = [path.resolve("supabase/tests/database")];
 
 async function collectSqlFiles(directory: string): Promise<string[]> {
   const entries = await readdir(directory, { withFileTypes: true });

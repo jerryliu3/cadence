@@ -5,7 +5,6 @@ import {
   getCompiledDateCost,
   getSpacingIdealDate,
   getSpacingStrategy,
-  isDateAllowedByPolicy,
   type CompiledPolicy,
 } from "@/lib/planner/policy";
 import type { SolverUnit } from "@/lib/planner/solver/types";
@@ -50,16 +49,7 @@ export function projectWorkUnitsToSolver({
         throw new Error(`Locked unit ${unit.unitKey} has no scheduled date.`);
       }
       const candidateDates = enumerateDates(unit.placementWindow!).filter(
-        (date) =>
-          isDateAllowedByPolicy(
-            compiledPolicy,
-            unit.originalGoalId,
-            date,
-            unit.restEligible
-          ) &&
-          !reservedDatesByGoal
-            .get(unit.originalGoalId)
-            ?.has(date)
+        (date) => !reservedDatesByGoal.get(unit.originalGoalId)?.has(date)
       );
       return {
         source: unit,
@@ -111,7 +101,12 @@ export function projectWorkUnitsToSolver({
         dateCosts: Object.fromEntries(
           entry.candidateDates.map((date) => [
             date,
-            getCompiledDateCost(compiledPolicy, goalId, date),
+            getCompiledDateCost(
+              compiledPolicy,
+              goalId,
+              date,
+              entry.source.restEligible
+            ),
           ])
         ),
         estimatedMinutes:

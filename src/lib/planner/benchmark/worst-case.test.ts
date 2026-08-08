@@ -54,6 +54,6 @@ describe("worst-case planner benchmark fixture", () => {
 
     expect(canonicalHash(first)).toBe(canonicalHash(second));
     },
-    20_000
+    12_000
   );
 });
