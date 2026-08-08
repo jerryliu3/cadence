@@ -24,7 +24,6 @@ import {
   buildPlannerPublishRequestDigest,
   plannerPlanMetadataFromKernel,
 } from "@/lib/planner/publish-payload";
-import { buildPlannerPublishTelemetryCounts } from "@/lib/planner/publish-telemetry";
 import {
   plannerDraftCommandSchema,
 } from "@/lib/planner/draft-commands";
@@ -33,7 +32,6 @@ import {
   syncPlannerItemsFromActiveExecutionPlan,
 } from "@/lib/planner/planner-items-runtime-sync";
 import { plannerPolicySchema } from "@/lib/planner/policy";
-import { classifyTelemetryResult, emitTelemetryEvent } from "@/lib/telemetry/runtime";
 import type { Database, Json } from "@/lib/supabase/database.types";
 import { callAdminRpc } from "@/lib/supabase/admin-rpc";
 import { createClient } from "@/lib/supabase/server";
@@ -63,12 +61,6 @@ const publishSchema = z.object({
 
 export async function POST(request: Request) {
   const correlationId = createCorrelationId();
-  const startedAt = Date.now();
-  let telemetryOwnerId: string | null = null;
-  let telemetryCapabilities:
-    | Awaited<ReturnType<typeof requirePlannerRouteContext>>["capabilities"]
-    | null = null;
-  let telemetryScope: { month: string; timezone: string } | null = null;
   try {
     const supabase = await createClient();
     const routeContext = await requirePlannerRouteContext({
@@ -77,8 +69,6 @@ export async function POST(request: Request) {
       disabledCode: "planner_plan_writes_disabled",
       disabledMessage: "Planner write APIs are not enabled for this owner.",
     });
-    telemetryOwnerId = routeContext.userId;
-    telemetryCapabilities = routeContext.capabilities;
     const body = await parseBoundedJsonBody(
       request,
       Math.min(MAX_API_BODY_BYTES, 256 * 1024),
@@ -101,7 +91,6 @@ export async function POST(request: Request) {
     const draftCommands = body.draftCommands;
     const effectiveEligibilityMode =
       body.eligibilityMode ?? PLANNER_ELIGIBILITY_MODES[0];
-    telemetryScope = { month: body.scopeMonth, timezone: "UTC" };
     if (
       (body.expectedBasePlanId === null) !==
       (body.expectedBasePlanVersion === null)
@@ -209,35 +198,6 @@ export async function POST(request: Request) {
         source: "planner-publish",
       });
       const replayScheduleDigest = replaySync.scheduleDigest;
-      emitTelemetryEvent({
-        eventName: "planner.publish.completed",
-        ownerId: routeContext.userId,
-        correlationId,
-        capabilities: routeContext.capabilities,
-        scope: {
-          month: body.scopeMonth,
-          timezone: (replayLookup.data.timezone as string) ?? "UTC",
-        },
-        result: "success",
-        statusCode: 200,
-        errorCode: null,
-        durationMs: Date.now() - startedAt,
-        replay: true,
-        data: {
-          source:
-            ((replayLookup.data.generation_source as string | null) ??
-              "manual") === "ai"
-              ? "ai"
-              : ((replayLookup.data.generation_source as string | null) ??
-                    "manual") === "update"
-                ? "update"
-                : "manual",
-          placementStatus:
-            (replayLookup.data.placement_status as "complete" | "partial" | null) ??
-            "partial",
-          activated: replayLookup.data.status === "active",
-        },
-      });
       return NextResponse.json(
         {
           schemaVersion: "1",
@@ -299,10 +259,6 @@ export async function POST(request: Request) {
     const asOfDate = resolveCanonicalAsOfDate({
       timezone: snapshot.preferences.timezone,
     });
-    telemetryScope = {
-      month: body.scopeMonth,
-      timezone: snapshot.preferences.timezone,
-    };
     const activeAssessments = (snapshot.activePlan?.goals ?? []).map((goal) =>
       goalAssessmentSchema.parse(goal.assessment_snapshot)
     );
@@ -532,32 +488,6 @@ export async function POST(request: Request) {
     });
     const publishScheduleDigest = publishSync.scheduleDigest;
 
-    emitTelemetryEvent({
-      eventName: "planner.publish.completed",
-      ownerId: routeContext.userId,
-      correlationId,
-      capabilities: routeContext.capabilities,
-      scope: {
-        month: body.scopeMonth,
-        timezone: snapshot.preferences.timezone,
-      },
-      result:
-        metadata.placementStatus === "partial" ? "partial" : "success",
-      statusCode: 200,
-      errorCode: null,
-      durationMs: Date.now() - startedAt,
-      replay: Boolean(publishedRow.replayed),
-      counts: {
-        eligibleGoals: snapshot.goals.length,
-        ...buildPlannerPublishTelemetryCounts(kernel.workUnits),
-      },
-      data: {
-        source: persistence.generationSource === "update" ? "update" : "manual",
-        placementStatus: metadata.placementStatus,
-        activated: Boolean(publishedRow.is_currently_active),
-      },
-    });
-
     return NextResponse.json(
       {
         schemaVersion: "1",
@@ -578,64 +508,7 @@ export async function POST(request: Request) {
 
   } catch (error) {
     if (error instanceof PlannerRouteError) {
-      if (telemetryOwnerId && telemetryCapabilities && telemetryScope) {
-        emitTelemetryEvent({
-          eventName: "planner.publish.completed",
-          ownerId: telemetryOwnerId,
-          correlationId,
-          capabilities: telemetryCapabilities,
-          scope: telemetryScope,
-          result: classifyTelemetryResult({
-            statusCode: error.status,
-            errorCode: error.code,
-          }),
-          statusCode: error.status,
-          errorCode: error.code,
-          durationMs: Date.now() - startedAt,
-          data: {
-            source: "manual",
-            placementStatus: "partial",
-            activated: false,
-          },
-        });
-        if (error.code === "invariant_failed") {
-          emitTelemetryEvent({
-            eventName: "planner.invariant.failed",
-            ownerId: telemetryOwnerId,
-            correlationId,
-            capabilities: telemetryCapabilities,
-            scope: telemetryScope,
-            result: "error",
-            statusCode: 500,
-            errorCode: error.code,
-            durationMs: Date.now() - startedAt,
-            counts: {},
-            data: {
-              invariantCode: error.code,
-              stage: "publish",
-            },
-          });
-        }
-      }
       return plannerErrorResponse(error, correlationId);
-    }
-    if (telemetryOwnerId && telemetryCapabilities && telemetryScope) {
-      emitTelemetryEvent({
-        eventName: "planner.publish.completed",
-        ownerId: telemetryOwnerId,
-        correlationId,
-        capabilities: telemetryCapabilities,
-        scope: telemetryScope,
-        result: "error",
-        statusCode: 500,
-        errorCode: "internal_error",
-        durationMs: Date.now() - startedAt,
-        data: {
-          source: "manual",
-          placementStatus: "partial",
-          activated: false,
-        },
-      });
     }
     return unknownPlannerErrorResponse(correlationId);
   }
