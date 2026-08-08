@@ -64,6 +64,10 @@ begin
     raise exception using errcode = '22023', message = 'invalid_schedule_payload';
   end if;
 
+  perform pg_catalog.pg_advisory_xact_lock(
+    private.planner_owner_lock_key(v_owner)
+  );
+
   select public.get_planner_schedule_digest(v_owner)
   into v_current_digest;
 
@@ -169,6 +173,12 @@ begin
       from public.planner_items item
       where item.owner_id = v_owner
         and date_trunc('month', item.scheduled_date)::date <> p_month
+        and not exists (
+          select 1
+          from tmp_schedule_input incoming_item
+          where incoming_item.goal_id = item.goal_id
+            and incoming_item.unit_key = item.unit_key
+        )
       group by item.goal_id
     )
     select 1
@@ -249,6 +259,10 @@ begin
     raise exception using errcode = '22023', message = 'invalid_scope_month';
   end if;
 
+  perform pg_catalog.pg_advisory_xact_lock(
+    private.planner_owner_lock_key(v_owner)
+  );
+
   select public.get_planner_schedule_digest(v_owner)
   into v_current_digest;
 
@@ -288,6 +302,10 @@ begin
   if v_owner is null then
     raise exception using errcode = '28000', message = 'authentication_required';
   end if;
+
+  perform pg_catalog.pg_advisory_xact_lock(
+    private.planner_owner_lock_key(v_owner)
+  );
 
   update public.planner_items item
   set locked = p_locked
