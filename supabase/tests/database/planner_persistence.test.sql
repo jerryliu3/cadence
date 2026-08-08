@@ -615,27 +615,11 @@ select throws_ok(
 );
 
 select is(
-  (
-    select scheduled_date
-    from public.move_execution_plan_item_service(
-      '11111111-1111-4111-8111-111111111111',
-      '16000000-0000-4000-8000-000000000001',
-      date_trunc('month', current_date)::date + 5,
-      1,
-      (
-        select canonical_revision
-        from private.planner_state
-        where owner_id = '11111111-1111-4111-8111-111111111111'
-      ),
-      (
-        select execution_revision
-        from private.planner_state
-        where owner_id = '11111111-1111-4111-8111-111111111111'
-      )
-    )
+  to_regprocedure(
+    'public.move_execution_plan_item_service(uuid,uuid,date,bigint,bigint,bigint)'
   ),
-  date_trunc('month', current_date)::date + 5,
-  'service role can move active planner items through wrapper functions'
+  null::regprocedure,
+  'legacy move wrapper is removed after schedule teardown'
 );
 
 select is(
@@ -645,7 +629,7 @@ select is(
       '11111111-1111-4111-8111-111111111111',
       '16000000-0000-4000-8000-000000000001',
       false,
-      2,
+      1,
       (
         select canonical_revision
         from private.planner_state

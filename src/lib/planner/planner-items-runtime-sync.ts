@@ -50,7 +50,10 @@ export async function syncPlannerItemsFromActiveExecutionPlan({
   ownerId: string;
   correlationId: string;
   scopeMonth?: string;
-  source: "planner-publish" | "planner-lock" | "planner-move" | "planner-dismiss" | "planner-schedule";
+  source:
+    | "planner-publish"
+    | "planner-lock"
+    | "planner-schedule";
 }): Promise<PlannerItemsSyncResult> {
   try {
     const response = await callAdminRpc(
