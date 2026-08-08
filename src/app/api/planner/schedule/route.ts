@@ -63,7 +63,7 @@ export async function DELETE(request: Request) {
       throw new PlannerRouteError(
         409,
         "planner_schedule_clear_failed",
-        "Planner schedule could not be cleared.",
+        "Planner month could not be unpublished.",
         { cause: clearResponse.error.message }
       );
     }
@@ -74,7 +74,7 @@ export async function DELETE(request: Request) {
       throw new PlannerRouteError(
         500,
         "invariant_failed",
-        "Planner schedule clear did not return updated state."
+        "Planner unpublish did not return updated state."
       );
     }
 
@@ -82,8 +82,10 @@ export async function DELETE(request: Request) {
       {
         schemaVersion: "1",
         scopeMonth: body.scopeMonth,
-        deletedCount:
-          typeof clearedRow.deleted_count === "number" ? clearedRow.deleted_count : 0,
+        unlockedCount:
+          typeof clearedRow.unlocked_count === "number"
+            ? clearedRow.unlocked_count
+            : 0,
         scheduleDigest:
           typeof clearedRow.schedule_digest === "string"
             ? clearedRow.schedule_digest

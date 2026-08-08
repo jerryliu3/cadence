@@ -1113,8 +1113,8 @@ export type Database = {
       clear_planner_schedule: {
         Args: { p_expected_digest: string; p_month: string }
         Returns: {
-          deleted_count: number
           schedule_digest: string
+          unlocked_count: number
         }[]
       }
       consume_planner_ai_quota: {
