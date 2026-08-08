@@ -27,7 +27,6 @@ import {
   unknownPlannerErrorResponse,
 } from "@/lib/planner/api";
 import { MAX_API_BODY_BYTES } from "@/lib/planner/contracts/bounds";
-import { classifyTelemetryResult, emitTelemetryEvent } from "@/lib/telemetry/runtime";
 import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
@@ -106,13 +105,6 @@ function readCoachTimeoutMs() {
 
 export async function POST(request: Request) {
   const correlationId = createCorrelationId();
-  const startedAt = Date.now();
-  let telemetryOwnerId: string | null = null;
-  let telemetryCapabilities:
-    | Awaited<ReturnType<typeof requirePlannerRouteContext>>["capabilities"]
-    | null = null;
-  let telemetryInputBytes = 0;
-  let aiTelemetryEmitted = false;
   const coachTimeoutMs = readCoachTimeoutMs();
   try {
     const supabase = await createClient();
@@ -122,15 +114,12 @@ export async function POST(request: Request) {
       disabledCode: "planner_coach_disabled",
       disabledMessage: "Planner coach is not enabled.",
     });
-    telemetryOwnerId = routeContext.userId;
-    telemetryCapabilities = routeContext.capabilities;
 
     const body = await parseBoundedJsonBody(
       request,
       Math.min(MAX_API_BODY_BYTES, 128 * 1024),
       coachRequestSchema
     );
-    telemetryInputBytes = Buffer.byteLength(JSON.stringify(body), "utf8");
 
     const snapshot = await loadPlannerCanonicalSnapshot({
       supabase: routeContext.supabase,
@@ -207,30 +196,6 @@ export async function POST(request: Request) {
       });
     }
     if (!quota.allowed) {
-      emitTelemetryEvent({
-        eventName: "ai.request.completed",
-        ownerId: routeContext.userId,
-        correlationId,
-        capabilities: routeContext.capabilities,
-        scope: null,
-        result: "quota_rejected",
-        statusCode: 429,
-        errorCode: "quota_exceeded",
-        durationMs: Date.now() - startedAt,
-        counts: {
-          chatMessages: body.messages.length,
-          inputBytes: telemetryInputBytes,
-          outputBytes: 0,
-          providerAttempts: 0,
-        },
-        versions: { prompt: "planner-coach-v2" },
-        data: {
-          feature: "planner_coach",
-          provider: "gemini",
-          attempt: 1,
-        },
-      });
-      aiTelemetryEmitted = true;
       return NextResponse.json(
         {
           code: "quota_exceeded",
@@ -278,48 +243,6 @@ export async function POST(request: Request) {
           focusGoals: focusGoalIds.length,
         });
       }
-      const statusCode =
-        error instanceof GeminiRequestError && error.code === "timeout"
-          ? 504
-          : 502;
-      const errorCode =
-        error instanceof GeminiRequestError && error.code === "timeout"
-          ? "ai_timeout"
-          : error instanceof GeminiRequestError &&
-              error.code === "response_too_large"
-            ? "ai_response_too_large"
-            : error instanceof GeminiRequestError &&
-                (error.code === "invalid_response" ||
-                  error.code === "empty_response")
-              ? "ai_invalid_output"
-              : "ai_provider_error";
-      emitTelemetryEvent({
-        eventName: "ai.request.completed",
-        ownerId: routeContext.userId,
-        correlationId,
-        capabilities: routeContext.capabilities,
-        scope: null,
-        result: classifyTelemetryResult({
-          statusCode,
-          errorCode,
-        }),
-        statusCode,
-        errorCode,
-        durationMs: Date.now() - startedAt,
-        counts: {
-          chatMessages: body.messages.length,
-          inputBytes: telemetryInputBytes,
-          outputBytes: 0,
-          providerAttempts: 1,
-        },
-        versions: { prompt: "planner-coach-v2" },
-        data: {
-          feature: "planner_coach",
-          provider: "gemini",
-          attempt: 1,
-        },
-      });
-      aiTelemetryEmitted = true;
       if (error instanceof GeminiRequestError) {
         if (error.code === "timeout") {
           throw new PlannerRouteError(
@@ -431,31 +354,6 @@ export async function POST(request: Request) {
       correlationId,
     };
 
-    emitTelemetryEvent({
-      eventName: "ai.request.completed",
-      ownerId: routeContext.userId,
-      correlationId,
-      capabilities: routeContext.capabilities,
-      scope: null,
-      result: "success",
-      statusCode: 200,
-      errorCode: null,
-      durationMs: Date.now() - startedAt,
-      counts: {
-        chatMessages: body.messages.length,
-        inputBytes: telemetryInputBytes,
-        outputBytes: Buffer.byteLength(JSON.stringify(responsePayload), "utf8"),
-        providerAttempts: response.attempts,
-      },
-      versions: { prompt: "planner-coach-v2" },
-      data: {
-        feature: "planner_coach",
-        provider: "gemini",
-        attempt: response.attempts,
-      },
-    });
-    aiTelemetryEmitted = true;
-
     return NextResponse.json(
       responsePayload,
       { headers: { "Cache-Control": "private, no-store" } }
@@ -468,38 +366,6 @@ export async function POST(request: Request) {
         message: error.message,
         details: error.details ?? null,
       });
-      if (
-        telemetryOwnerId &&
-        telemetryCapabilities &&
-        !aiTelemetryEmitted
-      ) {
-        emitTelemetryEvent({
-          eventName: "ai.request.completed",
-          ownerId: telemetryOwnerId,
-          correlationId,
-          capabilities: telemetryCapabilities,
-          scope: null,
-          result: classifyTelemetryResult({
-            statusCode: error.status,
-            errorCode: error.code,
-          }),
-          statusCode: error.status,
-          errorCode: error.code,
-          durationMs: Date.now() - startedAt,
-          counts: {
-            chatMessages: 0,
-            inputBytes: telemetryInputBytes,
-            outputBytes: 0,
-            providerAttempts: 0,
-          },
-          versions: { prompt: "planner-coach-v2" },
-          data: {
-            feature: "planner_coach",
-            provider: "gemini",
-            attempt: 1,
-          },
-        });
-      }
       return plannerErrorResponse(error, correlationId);
     }
     logCoachError("route", correlationId, {

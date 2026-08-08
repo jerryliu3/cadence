@@ -1,38 +1,32 @@
 import type { Completion, Goal } from "@/lib/goals/types";
+import { createDefaultAssessment } from "@/lib/planner/assessment";
+import { PlannerRouteError } from "@/lib/planner/api";
 import {
   MAX_COMPLETION_FACTS,
   MAX_ELIGIBLE_GOALS,
 } from "@/lib/planner/contracts/bounds";
 import { plannerCompletionSchema, plannerGoalSchema } from "@/lib/planner/contracts/kernel-schema";
 import type { PlannerCanonicalLink } from "@/lib/planner/fingerprint";
-import { PlannerRouteError } from "@/lib/planner/api";
-import { plannerPolicySchema, type PlannerPolicy } from "@/lib/planner/policy";
-import type { PlannerIssueCode } from "@/lib/planner/solver/types";
-import type {
-  ExecutionPlanDayRow,
-  ExecutionPlanGoalRow,
-  ExecutionPlanIssueRow,
-  ExecutionPlanItemRow,
-  ExecutionPlanRow,
-} from "@/lib/planner/persistence-types";
+import {
+  createDefaultPlannerPolicy,
+  plannerPolicySchema,
+  type PlannerPolicy,
+} from "@/lib/planner/policy";
 import {
   parsePlannerProfilePreferencesRow,
   resolvePlannerPreferencesSnapshot,
   type PlannerPreferencesSnapshot,
 } from "@/lib/planner/preferences-snapshot";
 import type { PlannerCompletionUnitIdentity } from "@/lib/planner/reconciliation";
+import { normalizeGoalRequirement } from "@/lib/planner/requirements";
+import type { PlannerIssueCode } from "@/lib/planner/solver/types";
 import type { PlannerBaseAssignment } from "@/lib/planner/work-units";
+import type { Database } from "@/lib/supabase/database.types";
 import type { createClient as createServerClient } from "@/lib/supabase/server";
 
 type ServerSupabaseClient = Awaited<ReturnType<typeof createServerClient>>;
+type PlannerItemRow = Database["public"]["Tables"]["planner_items"]["Row"];
 const PAGE_SIZE = 1_000;
-const allowedIssueCodes = new Set<PlannerIssueCode>([
-  "placement_shortfall",
-  "invalid_lock",
-  "soft_optimization_exhausted",
-  "historical_miss",
-  "historical_shortfall",
-]);
 
 export interface PlannerRevisionTokens {
   canonicalRevision: number;
@@ -40,13 +34,58 @@ export interface PlannerRevisionTokens {
   scheduleDigest?: string | null;
 }
 
+export interface PlannerActivePlanRow {
+  id: string;
+  version: number;
+  status: "active" | "superseded" | "dismissed";
+  timezone: string;
+  generation_input_hash: string;
+}
+
+export interface PlannerActiveGoalRow {
+  id: string;
+  goal_id: string;
+  original_goal_id: string;
+  requirement_fingerprint: string;
+  title: string;
+  category: string;
+  color: string | null;
+  start_date: string;
+  end_date: string | null;
+  assessment_snapshot: ReturnType<typeof createDefaultAssessment>;
+  assessment_input_hash: string;
+}
+
+export interface PlannerActiveItemRow {
+  id: string;
+  plan_goal_id: string;
+  unit_key: string;
+  requirement_kind: "milestone_sequence" | "cadence" | "deadline_total";
+  scheduled_date: string | null;
+  original_scheduled_date: string | null;
+  classification:
+    | "fulfilled"
+    | "open"
+    | "future"
+    | "historical_shortfall"
+    | "historical_miss"
+    | "satisfied_elsewhere";
+  credit_state: "uncredited" | "completed_as_scheduled" | "completed_elsewhere";
+  locked: boolean;
+  revision: number;
+  credited_completion_id: string | null;
+  credited_completion_date: string | null;
+  scheduled_time_override: string | null;
+  effective_scheduled_local_time: string | null;
+}
+
 export interface ActiveExecutionPlanSnapshot {
-  plan: ExecutionPlanRow;
+  plan: PlannerActivePlanRow;
   policy: PlannerPolicy;
-  goals: ExecutionPlanGoalRow[];
-  days: ExecutionPlanDayRow[];
-  items: ExecutionPlanItemRow[];
-  issues: ExecutionPlanIssueRow[];
+  goals: PlannerActiveGoalRow[];
+  days: Array<{ date: string }>;
+  items: PlannerActiveItemRow[];
+  issues: Array<{ issue_code: PlannerIssueCode }>;
   basePlan: {
     planId: string;
     version: number;
@@ -67,6 +106,24 @@ export interface PlannerCanonicalSnapshot {
 
 function toScopeMonthDate(scopeMonth: string) {
   return `${scopeMonth}-01`;
+}
+
+function nextScopeMonthDate(scopeMonthDate: string) {
+  const [yearText, monthText] = scopeMonthDate.split("-");
+  const year = Number(yearText);
+  const month = Number(monthText);
+  if (!Number.isFinite(year) || !Number.isFinite(month)) {
+    throw new PlannerRouteError(
+      400,
+      "validation_failed",
+      "Provide a valid scope month and optional bounded planner context dates."
+    );
+  }
+  const nextMonth = month === 12 ? 1 : month + 1;
+  const nextYear = month === 12 ? year + 1 : year;
+  return `${nextYear.toString().padStart(4, "0")}-${nextMonth
+    .toString()
+    .padStart(2, "0")}-01`;
 }
 
 function requireTableRead(error: { message: string } | null, code: string) {
@@ -198,11 +255,10 @@ async function loadOwnerLinks(
 async function loadRevisionTokens(
   supabase: ServerSupabaseClient
 ): Promise<PlannerRevisionTokens> {
-  const [revisionResponse, scheduleDigestResponse] = await Promise.all([
-    supabase.rpc("get_planner_state"),
-    supabase.rpc("get_planner_schedule_digest", {}),
-  ]);
-  requireTableRead(revisionResponse.error, "revision_load_failed");
+  const scheduleDigestResponse = await supabase.rpc(
+    "get_planner_schedule_digest",
+    {}
+  );
   if (scheduleDigestResponse.error) {
     const digestErrorCode = (scheduleDigestResponse.error.code ?? "").toUpperCase();
     const digestErrorMessage = scheduleDigestResponse.error.message.toLowerCase();
@@ -215,11 +271,6 @@ async function loadRevisionTokens(
       requireTableRead(scheduleDigestResponse.error, "revision_load_failed");
     }
   }
-  const row = (
-    (revisionResponse.data as
-      | Array<{ canonical_revision: number; execution_revision: number }>
-      | null) ?? []
-  )[0];
   const scheduleDigest =
     scheduleDigestResponse.error
       ? null
@@ -227,8 +278,8 @@ async function loadRevisionTokens(
       ? scheduleDigestResponse.data
       : null;
   return {
-    canonicalRevision: row?.canonical_revision ?? 0,
-    executionRevision: row?.execution_revision ?? 0,
+    canonicalRevision: 0,
+    executionRevision: 0,
     scheduleDigest,
   };
 }
@@ -259,122 +310,164 @@ async function loadPlannerPreferences(
   return resolvePlannerPreferencesSnapshot({ profile });
 }
 
-async function loadActivePlanSnapshot(
+async function loadPlannerItemsForScope(
   supabase: ServerSupabaseClient,
   ownerId: string,
   scopeMonth: string
-): Promise<ActiveExecutionPlanSnapshot | null> {
+) {
   const scopeMonthDate = toScopeMonthDate(scopeMonth);
-  const activePlanResponse = await supabase
-    .from("execution_plans")
+  const nextMonthDate = nextScopeMonthDate(scopeMonthDate);
+  const itemsResponse = await supabase
+    .from("planner_items")
     .select("*")
     .eq("owner_id", ownerId)
-    .eq("scope_month", scopeMonthDate)
-    .eq("status", "active")
-    .maybeSingle();
-  requireTableRead(activePlanResponse.error, "active_plan_load_failed");
-  const plan = (activePlanResponse.data as ExecutionPlanRow | null) ?? null;
-  if (!plan) {
+    .gte("scheduled_date", scopeMonthDate)
+    .lt("scheduled_date", nextMonthDate)
+    .order("scheduled_date")
+    .order("goal_id")
+    .order("unit_key");
+  requireTableRead(itemsResponse.error, "active_plan_item_load_failed");
+  return (itemsResponse.data ?? []) as PlannerItemRow[];
+}
+
+async function loadActivePlanSnapshot(
+  ownerId: string,
+  scopeMonth: string,
+  plannerItems: PlannerItemRow[],
+  goals: Goal[],
+  completions: Completion[],
+  preferences: PlannerPreferencesSnapshot | null
+): Promise<ActiveExecutionPlanSnapshot | null> {
+  if (plannerItems.length === 0) {
     return null;
   }
 
-  const [goalsResponse, daysResponse, itemsResponse, issuesResponse] =
-    await Promise.all([
-      supabase
-        .from("execution_plan_goals")
-        .select("*")
-        .eq("plan_id", plan.id)
-        .eq("owner_id", ownerId)
-        .order("original_goal_id")
-        .order("id"),
-      supabase
-        .from("execution_plan_days")
-        .select("*")
-        .eq("plan_id", plan.id)
-        .eq("owner_id", ownerId)
-        .order("date"),
-      supabase
-        .from("execution_plan_items")
-        .select("*")
-        .eq("plan_id", plan.id)
-        .eq("owner_id", ownerId)
-        .order("ordinal")
-        .order("unit_key"),
-      supabase
-        .from("execution_plan_issues")
-        .select("*")
-        .eq("plan_id", plan.id)
-        .eq("owner_id", ownerId)
-        .order("created_at"),
-    ]);
-  requireTableRead(goalsResponse.error, "active_plan_goal_load_failed");
-  requireTableRead(daysResponse.error, "active_plan_day_load_failed");
-  requireTableRead(itemsResponse.error, "active_plan_item_load_failed");
-  requireTableRead(issuesResponse.error, "active_plan_issue_load_failed");
+  const goalById = new Map(goals.map((goal) => [goal.id, goal]));
+  const completionByGoalDate = new Map<string, Completion>();
+  for (const completion of completions) {
+    completionByGoalDate.set(
+      `${completion.goal_id}:${completion.completed_on}`,
+      completion
+    );
+  }
 
-  const goals = (goalsResponse.data ?? []) as ExecutionPlanGoalRow[];
-  const days = (daysResponse.data ?? []) as ExecutionPlanDayRow[];
-  const items = (itemsResponse.data ?? []) as ExecutionPlanItemRow[];
-  const issues = (issuesResponse.data ?? []) as ExecutionPlanIssueRow[];
-  const policy = plannerPolicySchema.parse(plan.policy_snapshot);
-  const goalByPlanGoalId = new Map(goals.map((goal) => [goal.id, goal]));
+  const activeGoalByGoalId = new Map<string, PlannerActiveGoalRow>();
+  const requirementKindByGoalId = new Map<
+    string,
+    PlannerActiveItemRow["requirement_kind"]
+  >();
+  const items: PlannerActiveItemRow[] = [];
   const assignments: PlannerBaseAssignment[] = [];
   const completionToUnit: Record<string, PlannerCompletionUnitIdentity> = {};
-  for (const item of items) {
-    const planGoal = goalByPlanGoalId.get(item.plan_goal_id);
-    if (!planGoal) {
+  for (const item of plannerItems) {
+    const goal = goalById.get(item.goal_id);
+    if (!goal) {
       throw new PlannerRouteError(
         500,
         "invariant_failed",
-        "Execution plan item referenced a missing plan goal.",
-        { itemId: item.id, planGoalId: item.plan_goal_id }
+        "Planner item referenced a missing goal.",
+        { itemId: item.id, goalId: item.goal_id }
       );
     }
+    let activeGoal = activeGoalByGoalId.get(goal.id);
+    let requirementKind = requirementKindByGoalId.get(goal.id);
+    if (!activeGoal) {
+      const normalizedRequirement = normalizeGoalRequirement(goal);
+      const assessment = createDefaultAssessment(goal);
+      requirementKind = normalizedRequirement.requirement.kind;
+      activeGoal = {
+        id: goal.id,
+        goal_id: goal.id,
+        original_goal_id: goal.id,
+        requirement_fingerprint: normalizedRequirement.requirementFingerprint,
+        title: goal.title,
+        category: goal.category,
+        color: goal.color,
+        start_date: goal.start_date,
+        end_date: goal.end_date,
+        assessment_snapshot: assessment,
+        assessment_input_hash: assessment.assessmentInputHash,
+      };
+      activeGoalByGoalId.set(goal.id, activeGoal);
+      requirementKindByGoalId.set(goal.id, requirementKind);
+    }
+    if (!requirementKind) {
+      continue;
+    }
+    const completion = completionByGoalDate.get(
+      `${goal.id}:${item.scheduled_date}`
+    );
+    const creditState = completion
+      ? "completed_as_scheduled"
+      : "uncredited";
+    const originalScheduledDate =
+      item.original_scheduled_date ?? item.scheduled_date;
+    items.push({
+      id: item.id,
+      plan_goal_id: goal.id,
+      unit_key: item.unit_key,
+      requirement_kind: requirementKind,
+      scheduled_date: item.scheduled_date,
+      original_scheduled_date: originalScheduledDate,
+      classification: completion ? "fulfilled" : "open",
+      credit_state: creditState,
+      locked: item.locked,
+      revision: 0,
+      credited_completion_id: completion?.id ?? null,
+      credited_completion_date: completion?.completed_on ?? null,
+      scheduled_time_override: item.scheduled_time,
+      effective_scheduled_local_time: item.scheduled_time,
+    });
     assignments.push({
-      goalId: planGoal.original_goal_id,
-      requirementFingerprint: planGoal.requirement_fingerprint,
+      goalId: goal.id,
+      requirementFingerprint: activeGoal.requirement_fingerprint,
       unitKey: item.unit_key,
       scheduledDate: item.scheduled_date,
       locked: item.locked,
-      scheduledTimeOverride: item.scheduled_time_override,
+      scheduledTimeOverride: item.scheduled_time,
     });
-    if (item.credited_completion_id && item.credited_completion_date) {
-      completionToUnit[item.credited_completion_id] = {
-        goalId: planGoal.original_goal_id,
-        requirementFingerprint: planGoal.requirement_fingerprint,
+    if (completion) {
+      completionToUnit[completion.id] = {
+        goalId: goal.id,
+        requirementFingerprint: activeGoal.requirement_fingerprint,
         unitKey: item.unit_key,
-        completedOn: item.credited_completion_date,
+        completedOn: completion.completed_on,
       };
     }
   }
 
-  const issueCodes = Array.from(
-    new Set(
-      issues
-        .map((issue) => issue.issue_code)
-        .filter((issueCode): issueCode is PlannerIssueCode =>
-          allowedIssueCodes.has(issueCode as PlannerIssueCode)
-        )
-    )
-  ).sort();
+  const timezone = preferences?.timezone ?? "UTC";
+  const policy = plannerPolicySchema.parse(
+    preferences?.default_policy ??
+      createDefaultPlannerPolicy(timezone, new Date().toISOString())
+  );
+  const planId = `planner-items-${scopeMonth}`;
 
   return {
-    plan,
+    plan: {
+      id: planId,
+      version: 1,
+      status: "active",
+      timezone,
+      generation_input_hash: planId,
+    },
     policy,
-    goals,
-    days,
+    goals: Array.from(activeGoalByGoalId.values()).sort(
+      (left, right) => left.original_goal_id.localeCompare(right.original_goal_id)
+    ),
+    days: [],
     items,
-    issues,
+    issues: [],
     basePlan: {
-      planId: plan.id,
-      version: plan.version,
+      planId,
+      version: 1,
       assignments: assignments.sort(
         (left, right) =>
           left.goalId.localeCompare(right.goalId) ||
           left.unitKey.localeCompare(right.unitKey)
       ),
       completionToUnit,
-      issueCodes,
+      issueCodes: [],
     },
   };
 }
@@ -388,17 +481,25 @@ export async function loadPlannerCanonicalSnapshot({
   ownerId: string;
   scopeMonth: string;
 }): Promise<PlannerCanonicalSnapshot> {
-  const [goals, links, revisions, preferences, activePlan] = await Promise.all([
+  const [goals, links, revisions, preferences, plannerItems] = await Promise.all([
     loadOwnerGoals(supabase, ownerId),
     loadOwnerLinks(supabase, ownerId),
     loadRevisionTokens(supabase),
     loadPlannerPreferences(supabase, ownerId),
-    loadActivePlanSnapshot(supabase, ownerId, scopeMonth),
+    loadPlannerItemsForScope(supabase, ownerId, scopeMonth),
   ]);
   const completions = await loadOwnerCompletions(
     supabase,
     ownerId,
     goals.map((goal) => goal.id)
+  );
+  const activePlan = await loadActivePlanSnapshot(
+    ownerId,
+    scopeMonth,
+    plannerItems,
+    goals,
+    completions,
+    preferences
   );
 
   return {

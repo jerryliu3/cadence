@@ -40,7 +40,7 @@ vi.mock("@/lib/supabase/admin", () => ({
 import { PUT } from "./route";
 
 function request(body: unknown) {
-  return new Request("http://localhost/api/planner/preferences", {
+  return new Request("http://localhost/api/planner/context", {
     method: "PUT",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body),
@@ -58,7 +58,7 @@ const defaultPolicy = {
   blackoutRanges: [],
 };
 
-describe("planner preferences route", () => {
+describe("planner context preferences route", () => {
   beforeEach(() => {
     vi.stubEnv("CALENDAR_ENABLED", "true");
     mocks.getUser.mockResolvedValue({
@@ -73,10 +73,6 @@ describe("planner preferences route", () => {
         rest_weekdays: [],
         blackout_ranges: [],
       },
-      error: null,
-    });
-    mocks.rpc.mockResolvedValue({
-      data: [{ canonical_revision: 11, execution_revision: 5 }],
       error: null,
     });
     mocks.adminProfileUpdateMaybeSingle.mockResolvedValue({
@@ -112,18 +108,13 @@ describe("planner preferences route", () => {
         policyRevision: 1,
       },
       revisions: {
-        canonicalRevision: 11,
-        executionRevision: 5,
+        canonicalRevision: 0,
+        executionRevision: 0,
       },
     });
   });
 
-  it("degrades post-commit revision reload failures instead of returning 500", async () => {
-    mocks.rpc.mockResolvedValue({
-      data: null,
-      error: { code: "XX000", message: "revision reload failed" },
-    });
-
+  it("does not depend on planner state RPC after profile updates", async () => {
     const response = await PUT(
       request({
         timezone,
@@ -143,5 +134,6 @@ describe("planner preferences route", () => {
         executionRevision: 0,
       },
     });
+    expect(mocks.rpc).not.toHaveBeenCalled();
   });
 });
