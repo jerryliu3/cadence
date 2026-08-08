@@ -392,8 +392,7 @@ async function loadActivePlanSnapshot(
       requirementKindByGoalId.set(goal.id, requirementKind);
     }
     if (!requirementKind) {
-      requirementKind = normalizeGoalRequirement(goal).requirement.kind;
-      requirementKindByGoalId.set(goal.id, requirementKind);
+      continue;
     }
     const completion = completionByGoalDate.get(
       `${goal.id}:${item.scheduled_date}`
