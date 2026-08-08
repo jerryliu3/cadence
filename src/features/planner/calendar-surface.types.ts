@@ -62,6 +62,7 @@ export interface PlannerContextPayload {
   revisions: {
     canonicalRevision: number;
     executionRevision: number;
+    scheduleDigest?: string | null;
   };
   staleness: {
     stale: boolean;
