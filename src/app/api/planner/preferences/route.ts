@@ -46,6 +46,19 @@ function shouldIgnoreLegacyPreferenceError(error: { code?: string | null }) {
   return code === "42P01" || code === "PGRST205";
 }
 
+function normalizePolicyRevision(value: unknown) {
+  if (typeof value === "number" && Number.isSafeInteger(value) && value >= 1) {
+    return value;
+  }
+  if (typeof value === "string") {
+    const parsed = Number.parseInt(value, 10);
+    if (Number.isSafeInteger(parsed) && parsed >= 1) {
+      return parsed;
+    }
+  }
+  return 1;
+}
+
 export async function GET() {
   const correlationId = createCorrelationId();
   try {
@@ -153,7 +166,18 @@ export async function PUT(request: Request) {
     );
     const timezoneConfirmedAt = new Date().toISOString();
     const defaultPolicy = body.defaultPolicy
-      ? plannerPolicySchema.parse(body.defaultPolicy)
+      ? (() => {
+          const parsedPolicy = plannerPolicySchema.safeParse(body.defaultPolicy);
+          if (!parsedPolicy.success) {
+            throw new PlannerRouteError(
+              400,
+              "validation_failed",
+              "Planner default policy failed validation.",
+              { issues: parsedPolicy.error.issues }
+            );
+          }
+          return parsedPolicy.data;
+        })()
       : createDefaultPlannerPolicy(body.timezone, timezoneConfirmedAt);
     if (defaultPolicy.timezone !== body.timezone) {
       throw new PlannerRouteError(
@@ -195,7 +219,39 @@ export async function PUT(request: Request) {
         "Planner preference update did not return persisted data."
       );
     }
-    const parsedLegacy = parsePlannerLegacyPreferencesRow(updatedRow);
+    const updatedRowRecord =
+      typeof updatedRow === "object" && updatedRow !== null
+        ? (updatedRow as Record<string, unknown>)
+        : null;
+    let parsedLegacy;
+    try {
+      parsedLegacy = parsePlannerLegacyPreferencesRow({
+        timezone:
+          typeof updatedRowRecord?.timezone === "string" &&
+          updatedRowRecord.timezone.trim().length > 0
+            ? updatedRowRecord.timezone
+            : body.timezone,
+        timezone_confirmed_at:
+          typeof updatedRowRecord?.timezone_confirmed_at === "string" &&
+          Number.isFinite(Date.parse(updatedRowRecord.timezone_confirmed_at))
+            ? updatedRowRecord.timezone_confirmed_at
+            : timezoneConfirmedAt,
+        policy_revision: normalizePolicyRevision(updatedRowRecord?.policy_revision),
+        default_policy: updatedRowRecord?.default_policy ?? defaultPolicy,
+      });
+    } catch (error) {
+      console.error("[planner.preferences.put] post-commit legacy parse failed", {
+        correlationId,
+        ownerId: routeContext.userId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      parsedLegacy = parsePlannerLegacyPreferencesRow({
+        timezone: body.timezone,
+        timezone_confirmed_at: timezoneConfirmedAt,
+        policy_revision: 1,
+        default_policy: defaultPolicy,
+      });
+    }
 
     const profileResponse = await routeContext.supabase
       .from("profiles")
@@ -204,49 +260,56 @@ export async function PUT(request: Request) {
       )
       .eq("id", routeContext.userId)
       .maybeSingle();
-    if (
-      profileResponse.error &&
-      !shouldIgnoreProfilePreferenceError(profileResponse.error)
-    ) {
-      throw new PlannerRouteError(
-        500,
-        "preference_update_failed",
-        "Planner preferences could not be updated.",
-        { cause: profileResponse.error.message }
-      );
+    if (profileResponse.error && !shouldIgnoreProfilePreferenceError(profileResponse.error)) {
+      // The write has already committed; avoid surfacing a false failure.
+      console.error("[planner.preferences.put] post-commit profile reload failed", {
+        correlationId,
+        ownerId: routeContext.userId,
+        code: profileResponse.error.code,
+        message: profileResponse.error.message,
+      });
     }
 
-    const parsedProfile = profileResponse.data
-      ? parsePlannerProfilePreferencesRow(profileResponse.data)
-      : null;
-    const resolvedPreferences = resolvePlannerPreferencesSnapshot({
-      profile: parsedProfile,
-      legacy: parsedLegacy,
-    });
-    if (!resolvedPreferences) {
-      throw new PlannerRouteError(
-        500,
-        "invariant_failed",
-        "Planner preference update did not produce resolved preference state."
-      );
+    let parsedProfile = null;
+    if (profileResponse.data) {
+      try {
+        parsedProfile = parsePlannerProfilePreferencesRow(profileResponse.data);
+      } catch {
+        parsedProfile = null;
+      }
     }
+    const resolvedPreferences =
+      resolvePlannerPreferencesSnapshot({
+        profile: parsedProfile,
+        legacy: parsedLegacy,
+      }) ?? {
+        timezone: parsedLegacy.timezone,
+        timezone_confirmed_at:
+          parsedLegacy.timezone_confirmed_at ?? timezoneConfirmedAt,
+        policy_revision: parsedLegacy.policy_revision ?? 1,
+        default_policy: defaultPolicy,
+      };
 
     const revisionsResponse = await routeContext.supabase.rpc("get_planner_state");
     if (revisionsResponse.error) {
-      throw new PlannerRouteError(
-        500,
-        "revision_load_failed",
-        "Planner revision state could not be loaded."
-      );
+      // The write has already committed; return a degraded revision snapshot.
+      console.error("[planner.preferences.put] post-commit revision reload failed", {
+        correlationId,
+        ownerId: routeContext.userId,
+        code: revisionsResponse.error.code,
+        message: revisionsResponse.error.message,
+      });
     }
     const revisions = (
-      (revisionsResponse.data as
-        | Array<{ canonical_revision: number; execution_revision: number }>
-        | null) ?? []
-    )[0] ?? {
-      canonical_revision: 0,
-      execution_revision: 0,
-    };
+      revisionsResponse.error
+        ? null
+        : ((revisionsResponse.data as
+            | Array<{ canonical_revision: number; execution_revision: number }>
+            | null) ?? [])
+    )?.[0] ?? {
+        canonical_revision: 0,
+        execution_revision: 0,
+      };
 
     return NextResponse.json(
       {
