@@ -98,10 +98,7 @@ import {
 } from "@/lib/planner/draft-commands";
 import { buildPlannerConfirmationHash } from "@/lib/planner/publish-payload";
 import {
-  compilePlannerPolicy,
   createDefaultPlannerPolicy,
-  isDateAllowedByPolicy,
-  plannerPolicySchema,
   type PlannerPolicy,
 } from "@/lib/planner/policy";
 import { withPlannerRefreshTimeout } from "@/lib/planner/refresh-timeout";
@@ -510,13 +507,6 @@ export function CalendarSurface({
     () => buildCompletionFactMarkerDayByIdentity(completionFactMarkersByDate),
     [completionFactMarkersByDate]
   );
-  const compiledPolicyForDraftMoves = useMemo(() => {
-    if (!context?.preferences) {
-      return null;
-    }
-    const sourcePolicy = effectiveDraftPolicy ?? context.preferences.defaultPolicy;
-    return compilePlannerPolicy(plannerPolicySchema.parse(sourcePolicy));
-  }, [context, effectiveDraftPolicy]);
   const effectiveSelectedDay = localSelectedDay;
 
   const isDayInCurrentScopeMonth = useCallback(
@@ -996,18 +986,6 @@ export function CalendarSurface({
         }
         return false;
       }
-      if (
-        compiledPolicyForDraftMoves &&
-        !isDateAllowedByPolicy(
-          compiledPolicyForDraftMoves,
-          entry.originalGoalId,
-          normalized,
-          Boolean(baselineUnit.restEligible)
-        )
-      ) {
-        toast.error("That date conflicts with your current planner policy.");
-        return false;
-      }
       const collisionKey = `${entry.originalGoalId}:${normalized}`;
       const conflictKeys = moveConflictByGoalDate.get(collisionKey);
       if (
@@ -1061,7 +1039,6 @@ export function CalendarSurface({
       return true;
     },
     [
-      compiledPolicyForDraftMoves,
       completionFactUnitsByGoalDate,
       context?.scopeMonth,
       moveConflictByGoalDate,

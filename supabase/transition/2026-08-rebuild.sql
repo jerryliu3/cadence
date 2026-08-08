@@ -1,7 +1,11 @@
 -- Additive one-off transition script for backend simplification.
 --
--- This script is intended to run on hosted legacy data after additive cutover
--- migrations have created:
+-- This script is intended to run on hosted legacy data only after additive
+-- cutover migrations are applied and runtime writes have moved to the new
+-- surfaces (planner_items + public coach persistence). Running this before
+-- runtime cutover can make migrated rows stale on the next planner/coach write.
+--
+-- Required schema preconditions:
 --   - profiles preference columns
 --   - planner_items
 --   - public coach persistence tables

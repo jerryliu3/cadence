@@ -42,7 +42,6 @@ import {
 } from "@/lib/planner/fingerprint";
 import {
   compilePlannerPolicy,
-  isDateAllowedByPolicy,
   plannerPolicySchema,
   type CompiledPolicy,
   type PlannerPolicy,
@@ -317,10 +316,6 @@ function allocateOrdinalScopeMonth({
       .map((unit) => unit.creditedCompletionDate)
       .filter((date): date is string => date !== null)
   );
-  const hasPolicyDateFilters =
-    compiledPolicy.policy.restWeekdays.length > 0 ||
-    compiledPolicy.policy.blackoutRanges.length > 0 ||
-    Boolean(compiledPolicy.policy.goalAllowedWeekdays[goal.id]);
   const monthCapacity = new Map<string, number>();
   for (const month of lifetimeMonths) {
     const monthWindow = monthWindows.get(month)!;
@@ -336,37 +331,21 @@ function allocateOrdinalScopeMonth({
       monthCapacity.set(month, 0);
       continue;
     }
-    if (!hasPolicyDateFilters) {
-      let reservedDatesInWindow = 0;
-      for (const date of reservedCompletionDates) {
-        if (
-          compareCanonicalStrings(date, projectableWindow.start) >= 0 &&
-          compareCanonicalStrings(date, projectableWindow.end) <= 0
-        ) {
-          reservedDatesInWindow += 1;
-        }
-      }
-      monthCapacity.set(
-        month,
-        Math.max(
-          countDateWindowDays(projectableWindow) - reservedDatesInWindow,
-          0
-        )
-      );
-      continue;
-    }
-    const allowedDates = enumerateDates(projectableWindow).filter((date) =>
-      isDateAllowedByPolicy(compiledPolicy, goal.id, date, true)
-    );
     let reservedDatesInWindow = 0;
-    for (const date of allowedDates) {
-      if (reservedCompletionDates.has(date)) {
+    for (const date of reservedCompletionDates) {
+      if (
+        compareCanonicalStrings(date, projectableWindow.start) >= 0 &&
+        compareCanonicalStrings(date, projectableWindow.end) <= 0
+      ) {
         reservedDatesInWindow += 1;
       }
     }
     monthCapacity.set(
       month,
-      Math.max(allowedDates.length - reservedDatesInWindow, 0)
+      Math.max(
+        countDateWindowDays(projectableWindow) - reservedDatesInWindow,
+        0
+      )
     );
   }
 

@@ -231,9 +231,22 @@ export function isDateAllowedByPolicy(
 export function getCompiledDateCost(
   compiled: CompiledPolicy,
   goalId: string,
-  date: string
+  date: string,
+  restEligible = true
 ) {
-  return compiled.policy.datePreferences.reduce((cost, preference) => {
+  const { policy } = compiled;
+  const weekday = getUtcWeekday(date);
+  const allowedWeekdays = policy.goalAllowedWeekdays[goalId];
+  const advisoryPenalty =
+    (policy.blackoutRanges.some((range) =>
+      dateIsInWindow(date, range as DateWindow)
+    )
+      ? 10
+      : 0) +
+    (restEligible && policy.restWeekdays.includes(weekday) ? 6 : 0) +
+    (allowedWeekdays && !allowedWeekdays.includes(weekday) ? 6 : 0);
+
+  return policy.datePreferences.reduce((cost, preference) => {
     if (
       preference.goalId !== null &&
       preference.goalId !== goalId
@@ -244,7 +257,7 @@ export function getCompiledDateCost(
       return cost;
     }
     return cost + (preference.effect === "avoid" ? 8 : -3);
-  }, 0);
+  }, advisoryPenalty);
 }
 
 export function getSpacingStrategy(
