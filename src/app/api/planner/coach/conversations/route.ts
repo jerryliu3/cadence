@@ -10,12 +10,10 @@ import {
   parseBoundedJsonBody,
   plannerErrorResponse,
   PlannerRouteError,
-  requirePlannerAdminClient,
   requirePlannerRouteContext,
   unknownPlannerErrorResponse,
 } from "@/lib/planner/api";
 import { MAX_API_BODY_BYTES } from "@/lib/planner/contracts/bounds";
-import { callAdminRpc } from "@/lib/supabase/admin-rpc";
 import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
@@ -23,19 +21,6 @@ export const runtime = "nodejs";
 const conversationSummaryTableRowSchema = z
   .object({
     id: z.uuid(),
-    scope_month: z.string(),
-    timezone: z.string(),
-    title: z.string(),
-    preview_text: z.string(),
-    message_count: z.number().int(),
-    created_at: z.string(),
-    updated_at: z.string(),
-  })
-  .strict();
-
-const conversationServiceSummaryRowSchema = z
-  .object({
-    conversation_id: z.uuid(),
     scope_month: z.string(),
     timezone: z.string(),
     title: z.string(),
@@ -61,19 +46,37 @@ function mapTableSummaryRow(
   });
 }
 
-function mapServiceSummaryRow(
-  row: z.infer<typeof conversationServiceSummaryRowSchema>
+type CoachConversationSaveBody = z.infer<typeof coachConversationSaveRequestSchema>;
+
+function truncateText(value: string, maxLength: number) {
+  return value.length > maxLength ? value.slice(0, maxLength) : value;
+}
+
+function deriveConversationTitle(body: CoachConversationSaveBody) {
+  const explicitTitle = body.title?.trim();
+  if (explicitTitle) {
+    return truncateText(explicitTitle, 120);
+  }
+  const firstUserMessage = body.messages.find(
+    (message) => message.role === "user"
+  );
+  if (firstUserMessage) {
+    return truncateText(firstUserMessage.content.trim(), 120);
+  }
+  return truncateText(body.messages[0]?.content.trim() ?? "Coach conversation", 120);
+}
+
+function deriveConversationPreview(
+  body: CoachConversationSaveBody,
+  fallbackTitle: string
 ) {
-  return coachConversationSummarySchema.parse({
-    id: row.conversation_id,
-    scopeMonth: row.scope_month,
-    timezone: row.timezone,
-    title: row.title,
-    previewText: row.preview_text,
-    messageCount: row.message_count,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
-  });
+  const latestAssistantMessage = [...body.messages]
+    .reverse()
+    .find((message) => message.role === "assistant");
+  if (latestAssistantMessage) {
+    return truncateText(latestAssistantMessage.content.trim(), 180);
+  }
+  return truncateText(fallbackTitle, 180);
 }
 
 function shouldFallbackToEmptyConversationList(error: {
@@ -187,42 +190,74 @@ export async function POST(request: Request) {
       Math.min(MAX_API_BODY_BYTES, 128 * 1024),
       coachConversationSaveRequestSchema
     );
-    const admin = requirePlannerAdminClient();
-    const rpcResponse = await callAdminRpc(
-      admin,
-      "save_planner_coach_conversation_service",
-      {
-        p_owner: routeContext.userId,
-        p_scope_month: body.scopeMonth,
-        p_timezone: body.timezone,
-        p_title: body.title,
-        p_messages: body.messages.map((message) => ({
-          role: message.role,
-          content: message.content,
-          proposal: message.proposal ?? null,
-        })),
-      }
-    );
-    if (rpcResponse.error) {
+    const title = deriveConversationTitle(body);
+    const previewText = deriveConversationPreview(body, title);
+    const conversationResponse = await routeContext.supabase
+      .from("planner_coach_conversations")
+      .insert({
+        owner_id: routeContext.userId,
+        scope_month: body.scopeMonth,
+        timezone: body.timezone,
+        title,
+        preview_text: previewText,
+        message_count: body.messages.length,
+      })
+      .select("id,scope_month,timezone,title,preview_text,message_count,created_at,updated_at")
+      .maybeSingle();
+    if (conversationResponse.error) {
       throw new PlannerRouteError(
         503,
         "conversation_save_failed",
-        "Coach conversation could not be saved."
+        "Coach conversation could not be saved.",
+        { cause: conversationResponse.error.message }
       );
     }
-
-    const rows = z
-      .array(conversationServiceSummaryRowSchema)
-      .parse(rpcResponse.data ?? []);
-    const summary = rows[0];
-    if (!summary) {
+    if (!conversationResponse.data) {
       throw new PlannerRouteError(
         500,
         "conversation_save_invariant_failed",
         "Conversation save did not return a persisted summary."
       );
     }
-    const conversation = mapServiceSummaryRow(summary);
+    const conversationRow = conversationResponse.data;
+    const messageInsertResponse = await routeContext.supabase
+      .from("planner_coach_conversation_messages")
+      .insert(
+        body.messages.map((message, index) => ({
+          conversation_id: conversationRow.id,
+          owner_id: routeContext.userId,
+          ordinal: index + 1,
+          role: message.role,
+          content: message.content,
+          proposal_meta:
+            message.role === "assistant" ? message.proposal ?? null : null,
+        }))
+      );
+    if (messageInsertResponse.error) {
+      const cleanupResponse = await routeContext.supabase
+        .from("planner_coach_conversations")
+        .delete()
+        .eq("id", conversationRow.id)
+        .eq("owner_id", routeContext.userId);
+      if (cleanupResponse.error) {
+        console.error("[planner:coach] failed to clean up partial conversation", {
+          correlationId,
+          userId: routeContext.userId,
+          conversationId: conversationRow.id,
+          errorCode: cleanupResponse.error.code,
+          errorMessage: cleanupResponse.error.message,
+        });
+      }
+      throw new PlannerRouteError(
+        503,
+        "conversation_save_failed",
+        "Coach conversation could not be saved.",
+        { cause: messageInsertResponse.error.message }
+      );
+    }
+
+    const summary = conversationSummaryTableRowSchema.parse(conversationRow);
+    const conversation = mapTableSummaryRow(summary);
     return NextResponse.json(
       {
         schemaVersion: "1",
