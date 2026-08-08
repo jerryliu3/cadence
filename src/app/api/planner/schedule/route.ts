@@ -5,16 +5,12 @@ import {
   parseBoundedJsonBody,
   plannerErrorResponse,
   PlannerRouteError,
-  requirePlannerAdminClient,
   requirePlannerRouteContext,
   unknownPlannerErrorResponse,
 } from "@/lib/planner/api";
 import { MAX_API_BODY_BYTES } from "@/lib/planner/contracts/bounds";
-import {
-  scopeMonthDate,
-  syncPlannerItemsFromActiveExecutionPlan,
-} from "@/lib/planner/planner-items-runtime-sync";
-import { callAdminRpc } from "@/lib/supabase/admin-rpc";
+import { postgresErrorMatches } from "@/lib/planner/postgres-errors";
+import { toScopeMonthDate } from "@/lib/planner/scope-month";
 import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
@@ -27,8 +23,7 @@ const clearScheduleSchema = z.object({
       const monthNumber = Number(month.slice(5, 7));
       return monthNumber >= 1 && monthNumber <= 12;
     }),
-  expectedCanonicalRevision: z.number().int().nonnegative(),
-  expectedExecutionRevision: z.number().int().nonnegative(),
+  expectedDigest: z.string().regex(/^[a-f0-9]{64}$/),
 });
 
 export async function DELETE(request: Request) {
@@ -46,96 +41,53 @@ export async function DELETE(request: Request) {
       Math.min(MAX_API_BODY_BYTES, 128 * 1024),
       clearScheduleSchema
     );
-
-    const admin = requirePlannerAdminClient();
-    const scopeMonthDateValue = scopeMonthDate(body.scopeMonth);
-    const activePlanLookup = await admin
-      .from("execution_plans")
-      .select("id")
-      .eq("owner_id", routeContext.userId)
-      .eq("scope_month", scopeMonthDateValue)
-      .eq("status", "active")
-      .maybeSingle();
-    if (activePlanLookup.error) {
-      throw new PlannerRouteError(
-        500,
-        "planner_schedule_clear_failed",
-        "Planner schedule could not be cleared.",
-        { cause: activePlanLookup.error.message }
-      );
-    }
-
-    let executionRevision = body.expectedExecutionRevision;
-    let dismissedPlanId: string | null = null;
-    if (activePlanLookup.data?.id) {
-      const dismissResponse = await callAdminRpc(
-        admin,
-        "dismiss_execution_plan_service",
-        {
-          p_owner: routeContext.userId,
-          p_plan_id: activePlanLookup.data.id,
-          p_expected_canonical_revision: body.expectedCanonicalRevision,
-          p_expected_execution_revision: body.expectedExecutionRevision,
-        }
-      );
-      if (dismissResponse.error) {
-        const message = dismissResponse.error.message.toLowerCase();
-        if (message.includes("planner revision mismatch")) {
-          throw new PlannerRouteError(
-            409,
-            "stale_revision",
-            "Planner plan state is stale. Refresh and try again."
-          );
-        }
-        if (message.includes("active planner plan not found")) {
-          throw new PlannerRouteError(
-            404,
-            "planner_plan_not_found",
-            "Planner plan was not found or is no longer active."
-          );
-        }
+    const clearResponse = await routeContext.supabase.rpc("clear_planner_schedule", {
+      p_month: toScopeMonthDate(body.scopeMonth),
+      p_expected_digest: body.expectedDigest,
+    });
+    if (clearResponse.error) {
+      if (postgresErrorMatches(clearResponse.error, "P0001", "stale_schedule")) {
         throw new PlannerRouteError(
           409,
-          "planner_schedule_clear_failed",
-          "Planner schedule could not be cleared.",
-          { cause: dismissResponse.error.message }
+          "stale_revision",
+          "Planner plan state is stale. Refresh and try again."
         );
       }
-      const dismissedRow = Array.isArray(dismissResponse.data)
-        ? dismissResponse.data[0]
-        : dismissResponse.data;
-      if (!dismissedRow) {
+      if (postgresErrorMatches(clearResponse.error, "22023", "invalid_scope_month")) {
         throw new PlannerRouteError(
-          500,
-          "invariant_failed",
-          "Planner schedule clear did not return updated state."
+          400,
+          "validation_failed",
+          "Provide a valid scope month for schedule clear."
         );
       }
-      executionRevision =
-        typeof dismissedRow.execution_revision === "number"
-          ? dismissedRow.execution_revision
-          : executionRevision;
-      dismissedPlanId =
-        typeof dismissedRow.plan_id === "string" ? dismissedRow.plan_id : null;
+      throw new PlannerRouteError(
+        409,
+        "planner_schedule_clear_failed",
+        "Planner schedule could not be cleared.",
+        { cause: clearResponse.error.message }
+      );
     }
-    const syncResult = await syncPlannerItemsFromActiveExecutionPlan({
-      admin,
-      ownerId: routeContext.userId,
-      correlationId,
-      source: "planner-schedule",
-    });
-    const scheduleDigest = syncResult.scheduleDigest;
+    const clearedRow = Array.isArray(clearResponse.data)
+      ? clearResponse.data[0]
+      : clearResponse.data;
+    if (!clearedRow) {
+      throw new PlannerRouteError(
+        500,
+        "invariant_failed",
+        "Planner schedule clear did not return updated state."
+      );
+    }
 
     return NextResponse.json(
       {
         schemaVersion: "1",
         scopeMonth: body.scopeMonth,
-        dismissedPlanId,
-        revisions: {
-          canonicalRevision: body.expectedCanonicalRevision,
-          executionRevision,
-        },
-        scheduleDigest,
+        deletedCount:
+          typeof clearedRow.deleted_count === "number" ? clearedRow.deleted_count : 0,
+        scheduleDigest:
+          typeof clearedRow.schedule_digest === "string"
+            ? clearedRow.schedule_digest
+            : null,
         correlationId,
       },
       { headers: { "Cache-Control": "no-store" } }

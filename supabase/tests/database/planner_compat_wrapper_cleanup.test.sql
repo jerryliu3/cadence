@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, private, extensions, pg_catalog;
-select plan(12);
+select plan(16);
 
 select is(
   to_regprocedure(
@@ -57,6 +57,34 @@ select is(
   ),
   null::regprocedure,
   'legacy planner move wrapper remains dropped'
+);
+
+select is(
+  to_regprocedure('public.sync_planner_items_from_active_execution_plan_service(uuid)'),
+  null::regprocedure,
+  'legacy planner-items runtime sync wrapper remains dropped'
+);
+
+select is(
+  to_regprocedure(
+    'public.set_execution_plan_goal_date_fact_service(uuid,uuid,date,text,bigint,bigint)'
+  ),
+  null::regprocedure,
+  'legacy planner goal date-fact wrapper remains dropped'
+);
+
+select is(
+  to_regprocedure(
+    'public.set_execution_plan_item_date_fact_service(uuid,uuid,text,jsonb,bigint,bigint,bigint)'
+  ),
+  null::regprocedure,
+  'legacy planner item date-fact wrapper remains dropped'
+);
+
+select is(
+  to_regprocedure('public.set_planner_item_lock(uuid,boolean)'),
+  null::regprocedure,
+  'legacy planner lock compatibility overload remains dropped'
 );
 
 select is(

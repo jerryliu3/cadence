@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions, pg_catalog;
-select plan(3);
+select plan(4);
 
 set local role service_role;
 
@@ -116,6 +116,17 @@ select is(
   ),
   date_trunc('month', current_date)::date,
   'cross-month move updates existing unit instead of counting as an extra allocation'
+);
+
+select is(
+  (
+    select original_scheduled_date
+    from public.planner_items
+    where goal_id = '91100000-0000-4000-8000-000000000001'
+      and unit_key = 'unit:move'
+  ),
+  (date_trunc('month', current_date) + interval '1 month')::date,
+  'cross-month move preserves planner item original_scheduled_date'
 );
 
 reset role;

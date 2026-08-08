@@ -1350,6 +1350,11 @@ export function CalendarSurface({
     if (!context || !entry.activeItem) {
       return;
     }
+    const expectedDigest = context.revisions.scheduleDigest;
+    if (!expectedDigest) {
+      toast.error("Planner state is stale. Refresh and try again.");
+      return;
+    }
 
     const nextLocked = !entry.activeItem.locked;
     const mutationKey = `lock:${entry.activeItem.id}`;
@@ -1361,9 +1366,7 @@ export function CalendarSurface({
         body: JSON.stringify({
           itemId: entry.activeItem.id,
           locked: nextLocked,
-          expectedItemRevision: entry.activeItem.revision,
-          expectedCanonicalRevision: context.revisions.canonicalRevision,
-          expectedExecutionRevision: context.revisions.executionRevision,
+          expectedDigest,
         }),
       });
       const payload = await response.json().catch(() => null);
@@ -1414,6 +1417,14 @@ export function CalendarSurface({
       return;
     }
     const desiredFactState = dispatch.desiredFactState;
+    const requiresPlannerExpectation =
+      dispatch.decision.route === "item_date" ||
+      dispatch.decision.route === "plan_goal_date";
+    const expectedDigest = context.revisions.scheduleDigest;
+    if (requiresPlannerExpectation && !expectedDigest) {
+      toast.error("Planner state is stale. Refresh and try again.");
+      return;
+    }
     const mutationKey = `fact:${entry.key}`;
     const draftDateOverlayActive = Boolean(
       hasDraftSession &&
@@ -1425,38 +1436,23 @@ export function CalendarSurface({
 
     setMutationLoadingKey(mutationKey);
     try {
-      const expectedCreditedUnit =
-        desiredFactState === "absent" &&
-        entry.activeGoal &&
-        entry.activeItem?.credited_completion_date
-          ? {
-              goalId: entry.activeGoal.original_goal_id,
-              requirementFingerprint: entry.activeGoal.requirement_fingerprint,
-              unitKey: entry.activeItem.unit_key,
-              completedOn: entry.activeItem.credited_completion_date,
-            }
-          : null;
-
       const result = await executeCompletionDispatch({
         decision: dispatch.decision,
         desiredFactState,
         goalId: entry.originalGoalId,
         date: selectedDate,
         timezone: context.timezone,
-        plannerItemExpectation: entry.activeItem
+        plannerItemExpectation:
+          requiresPlannerExpectation && entry.activeItem && expectedDigest
           ? {
               itemId: entry.activeItem.id,
-              expectedItemRevision: entry.activeItem.revision,
-              expectedCanonicalRevision: context.revisions.canonicalRevision,
-              expectedExecutionRevision: context.revisions.executionRevision,
-              expectedCreditedUnit,
+              expectedDigest,
             }
           : undefined,
-        plannerGoalExpectation: entry.activeGoal
+        plannerGoalExpectation:
+          requiresPlannerExpectation && entry.activeGoal && expectedDigest
           ? {
-              planGoalId: entry.activeGoal.id,
-              expectedCanonicalRevision: context.revisions.canonicalRevision,
-              expectedExecutionRevision: context.revisions.executionRevision,
+              expectedDigest,
             }
           : undefined,
       });
@@ -1516,6 +1512,11 @@ export function CalendarSurface({
     if (!effectivePreview || !context?.capabilities.plannerPlanWrites) {
       return;
     }
+    const expectedDigest = context.revisions.scheduleDigest;
+    if (!expectedDigest) {
+      toast.error("Planner state is stale. Refresh and regenerate the preview.");
+      return;
+    }
     if (!effectivePreview.solver.publishable) {
       toast.error(nonPublishablePreviewMessage(effectivePreview));
       return;
@@ -1539,10 +1540,7 @@ export function CalendarSurface({
         scopeMonth: context.scopeMonth,
         previewHash: effectivePreview.generationInputHash,
         eligibilityMode: effectivePreview.eligibilityMode,
-        expectedCanonicalRevision: context.revisions.canonicalRevision,
-        expectedExecutionRevision: context.revisions.executionRevision,
-        expectedBasePlanId: context.activePlan?.plan.id ?? null,
-        expectedBasePlanVersion: context.activePlan?.plan.version ?? null,
+        expectedDigest,
         confirmationHash,
         policy: effectiveDraftPolicy ?? undefined,
         draftCommands: draftPublishCommands,
@@ -1585,14 +1583,18 @@ export function CalendarSurface({
     if (!context?.scopeMonth || !context.capabilities.plannerPlanWrites) {
       return;
     }
+    const expectedDigest = context.revisions.scheduleDigest;
+    if (!expectedDigest) {
+      toast.error("Planner state is stale. Refresh and try again.");
+      return;
+    }
     setDeactivateLoading(true);
     const response = await fetch("/api/planner/schedule", {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         scopeMonth: context.scopeMonth,
-        expectedCanonicalRevision: context.revisions.canonicalRevision,
-        expectedExecutionRevision: context.revisions.executionRevision,
+        expectedDigest,
       }),
     });
     const payload = (await response.json()) as PlannerErrorPayload;
