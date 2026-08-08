@@ -10,6 +10,10 @@ import {
   unknownPlannerErrorResponse,
 } from "@/lib/planner/api";
 import { MAX_API_BODY_BYTES } from "@/lib/planner/contracts/bounds";
+import {
+  scopeMonthFromDate,
+  syncPlannerItemsFromActiveExecutionPlan,
+} from "@/lib/planner/planner-items-runtime-sync";
 import { classifyTelemetryResult, emitTelemetryEvent } from "@/lib/telemetry/runtime";
 import { callAdminRpc } from "@/lib/supabase/admin-rpc";
 import { createClient } from "@/lib/supabase/server";
@@ -45,6 +49,20 @@ export async function POST(request: Request) {
       dismissSchema
     );
     const admin = requirePlannerAdminClient();
+    const planScopeLookup = await admin
+      .from("execution_plans")
+      .select("scope_month")
+      .eq("owner_id", routeContext.userId)
+      .eq("id", body.planId)
+      .maybeSingle();
+    if (planScopeLookup.error) {
+      throw new PlannerRouteError(
+        500,
+        "planner_plan_dismiss_failed",
+        "Planner plan could not be dismissed.",
+        { cause: planScopeLookup.error.message }
+      );
+    }
     const response = await callAdminRpc(
       admin,
       "dismiss_execution_plan_service",
@@ -87,6 +105,22 @@ export async function POST(request: Request) {
         "Planner dismiss did not return updated state."
       );
     }
+    const scopeMonthDateValue =
+      typeof planScopeLookup.data?.scope_month === "string"
+        ? planScopeLookup.data.scope_month
+        : null;
+    if (!scopeMonthDateValue || scopeMonthDateValue.length < 7) {
+      throw new PlannerRouteError(
+        500,
+        "invariant_failed",
+        "Planner dismiss did not return a valid scope month."
+      );
+    }
+    const syncResult = await syncPlannerItemsFromActiveExecutionPlan({
+      admin,
+      ownerId: routeContext.userId,
+      scopeMonth: scopeMonthFromDate(scopeMonthDateValue),
+    });
 
     emitTelemetryEvent({
       eventName: "planner.mutation.completed",
@@ -113,6 +147,7 @@ export async function POST(request: Request) {
           canonicalRevision: body.expectedCanonicalRevision,
           executionRevision: row.execution_revision as number,
         },
+        scheduleDigest: syncResult.scheduleDigest,
         correlationId,
       },
       { headers: { "Cache-Control": "no-store" } }

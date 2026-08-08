@@ -30,6 +30,11 @@ import {
   plannerDraftCommandSchema,
   type PlannerDraftCommand,
 } from "@/lib/planner/draft-commands";
+import {
+  scopeMonthDate,
+  scopeMonthFromDate,
+  syncPlannerItemsFromActiveExecutionPlan,
+} from "@/lib/planner/planner-items-runtime-sync";
 import { plannerPolicySchema } from "@/lib/planner/policy";
 import { classifyTelemetryResult, emitTelemetryEvent } from "@/lib/telemetry/runtime";
 import type { Database, Json } from "@/lib/supabase/database.types";
@@ -222,6 +227,16 @@ export async function POST(request: Request) {
         canonical_revision: 0,
         execution_revision: 0,
       };
+      const replayScopeMonth =
+        typeof replayLookup.data.scope_month === "string" &&
+        replayLookup.data.scope_month.length >= 7
+          ? scopeMonthFromDate(replayLookup.data.scope_month)
+          : body.scopeMonth;
+      const replaySync = await syncPlannerItemsFromActiveExecutionPlan({
+        admin,
+        ownerId: routeContext.userId,
+        scopeMonth: replayScopeMonth,
+      });
       emitTelemetryEvent({
         eventName: "planner.publish.completed",
         ownerId: routeContext.userId,
@@ -263,6 +278,7 @@ export async function POST(request: Request) {
             canonicalRevision: revisions.canonical_revision,
             executionRevision: revisions.execution_revision,
           },
+          scheduleDigest: replaySync.scheduleDigest,
           correlationId,
         },
         { headers: { "Cache-Control": "private, no-store" } }
@@ -413,7 +429,7 @@ export async function POST(request: Request) {
 
     const publishArgs: PublishExecutionPlanArgs = {
         p_owner: routeContext.userId,
-        p_scope_month: `${body.scopeMonth}-01`,
+        p_scope_month: scopeMonthDate(body.scopeMonth),
         p_eligibility_mode: effectiveEligibilityMode,
         p_timezone: metadata.timezone,
         p_generation_source: persistence.generationSource,
@@ -536,6 +552,11 @@ export async function POST(request: Request) {
         "Planner publish did not return persisted plan metadata."
       );
     }
+    const publishSync = await syncPlannerItemsFromActiveExecutionPlan({
+      admin,
+      ownerId: routeContext.userId,
+      scopeMonth: body.scopeMonth,
+    });
 
     emitTelemetryEvent({
       eventName: "planner.publish.completed",
@@ -575,6 +596,7 @@ export async function POST(request: Request) {
           canonicalRevision: body.expectedCanonicalRevision,
           executionRevision: publishedRow.execution_revision as number,
         },
+        scheduleDigest: publishSync.scheduleDigest,
         correlationId,
       },
       { headers: { "Cache-Control": "private, no-store" } }
