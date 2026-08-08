@@ -5,8 +5,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   parseBoundedJsonBody: vi.fn(),
   requirePlannerRouteContext: vi.fn(),
-  callAdminRpc: vi.fn(),
   listConversationsResponse: vi.fn(),
+  conversationsInsert: vi.fn(),
+  conversationsInsertMaybeSingle: vi.fn(),
+  conversationsDeleteOwnerEq: vi.fn(),
+  messagesInsert: vi.fn(),
 }));
 
 vi.mock("@/lib/supabase/server", () => ({
@@ -23,19 +26,22 @@ vi.mock("@/lib/planner/api", async () => {
     createCorrelationId: () => "test-correlation-id",
     parseBoundedJsonBody: mocks.parseBoundedJsonBody,
     requirePlannerRouteContext: mocks.requirePlannerRouteContext,
-    requirePlannerAdminClient: () => ({}),
   };
 });
-
-vi.mock("@/lib/supabase/admin-rpc", () => ({
-  callAdminRpc: mocks.callAdminRpc,
-}));
 
 import { GET, POST } from "./route";
 
 describe("planner coach conversations route", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.conversationsInsert.mockImplementation(() => ({
+      select: () => ({
+        maybeSingle: mocks.conversationsInsertMaybeSingle,
+      }),
+    }));
+    mocks.conversationsDeleteOwnerEq.mockResolvedValue({ error: null });
+    mocks.messagesInsert.mockResolvedValue({ error: null });
+
     const conversationQuery = {
       select: vi.fn(() => conversationQuery),
       eq: vi.fn(() => conversationQuery),
@@ -50,7 +56,20 @@ describe("planner coach conversations route", () => {
       supabase: {
         from: vi.fn((table: string) => {
           if (table === "planner_coach_conversations") {
-            return conversationQuery;
+            return {
+              select: vi.fn(() => conversationQuery),
+              insert: mocks.conversationsInsert,
+              delete: vi.fn(() => ({
+                eq: vi.fn(() => ({
+                  eq: mocks.conversationsDeleteOwnerEq,
+                })),
+              })),
+            };
+          }
+          if (table === "planner_coach_conversation_messages") {
+            return {
+              insert: mocks.messagesInsert,
+            };
           }
           throw new Error(`Unexpected table ${table}`);
         }),
@@ -103,7 +122,7 @@ describe("planner coach conversations route", () => {
     });
   });
 
-  it("falls back to an empty list when conversation RPC wiring is unavailable", async () => {
+  it("falls back to an empty list when conversation table wiring is unavailable", async () => {
     mocks.listConversationsResponse.mockReturnValue({
       data: null,
       error: {
@@ -166,19 +185,17 @@ describe("planner coach conversations route", () => {
         },
       ],
     });
-    mocks.callAdminRpc.mockResolvedValue({
-      data: [
-        {
-          conversation_id: "33333333-3333-4333-8333-333333333333",
-          scope_month: "2026-08",
-          timezone: "UTC",
-          title: "Help me build next week.",
-          preview_text: "Help me build next week.",
-          message_count: 2,
-          created_at: "2026-08-06T12:00:00.000Z",
-          updated_at: "2026-08-06T12:00:00.000Z",
-        },
-      ],
+    mocks.conversationsInsertMaybeSingle.mockResolvedValue({
+      data: {
+        id: "33333333-3333-4333-8333-333333333333",
+        scope_month: "2026-08",
+        timezone: "UTC",
+        title: "Help me build next week.",
+        preview_text: "Let's start with three runs.",
+        message_count: 2,
+        created_at: "2026-08-06T12:00:00.000Z",
+        updated_at: "2026-08-06T12:00:00.000Z",
+      },
       error: null,
     });
 
@@ -189,39 +206,98 @@ describe("planner coach conversations route", () => {
     );
 
     expect(response.status).toBe(200);
-    expect(mocks.callAdminRpc).toHaveBeenCalledWith(
-      expect.anything(),
-      "save_planner_coach_conversation_service",
+    expect(mocks.conversationsInsert).toHaveBeenCalledWith(
       expect.objectContaining({
-        p_scope_month: "2026-08",
-        p_timezone: "UTC",
-        p_messages: [
-          {
-            role: "user",
-            content: "Help me build next week.",
-            proposal: null,
-          },
-          {
-            role: "assistant",
-            content: "Let's start with three runs.",
-            proposal: expect.objectContaining({
-              applyStatus: "not_applied",
-              policyPatches: expect.arrayContaining([
-                expect.objectContaining({
-                  kind: "set_rest_weekdays",
-                }),
-              ]),
-            }),
-          },
-        ],
+        owner_id: "11111111-1111-4111-8111-111111111111",
+        scope_month: "2026-08",
+        timezone: "UTC",
+        title: "Help me build next week.",
+        preview_text: "Let's start with three runs.",
+        message_count: 2,
       })
+    );
+    expect(mocks.messagesInsert).toHaveBeenCalledWith(
+      [
+        {
+          conversation_id: "33333333-3333-4333-8333-333333333333",
+          owner_id: "11111111-1111-4111-8111-111111111111",
+          ordinal: 1,
+          role: "user",
+          content: "Help me build next week.",
+          proposal_meta: null,
+        },
+        {
+          conversation_id: "33333333-3333-4333-8333-333333333333",
+          owner_id: "11111111-1111-4111-8111-111111111111",
+          ordinal: 2,
+          role: "assistant",
+          content: "Let's start with three runs.",
+          proposal_meta: expect.objectContaining({
+            applyStatus: "not_applied",
+            policyPatches: expect.arrayContaining([
+              expect.objectContaining({
+                kind: "set_rest_weekdays",
+              }),
+            ]),
+          }),
+        },
+      ]
     );
     await expect(response.json()).resolves.toMatchObject({
       schemaVersion: "1",
       conversation: {
         id: "33333333-3333-4333-8333-333333333333",
         messageCount: 2,
+        previewText: "Let's start with three runs.",
       },
+    });
+  });
+
+  it("cleans up the inserted conversation when message insert fails", async () => {
+    mocks.parseBoundedJsonBody.mockResolvedValue({
+      scopeMonth: "2026-08",
+      timezone: "UTC",
+      messages: [
+        {
+          role: "user",
+          content: "Help me build next week.",
+        },
+      ],
+    });
+    mocks.conversationsInsertMaybeSingle.mockResolvedValue({
+      data: {
+        id: "33333333-3333-4333-8333-333333333333",
+        scope_month: "2026-08",
+        timezone: "UTC",
+        title: "Help me build next week.",
+        preview_text: "Help me build next week.",
+        message_count: 1,
+        created_at: "2026-08-06T12:00:00.000Z",
+        updated_at: "2026-08-06T12:00:00.000Z",
+      },
+      error: null,
+    });
+    mocks.messagesInsert.mockResolvedValue({
+      error: {
+        code: "23505",
+        message: "duplicate key value violates unique constraint",
+      },
+      data: null,
+    });
+
+    const response = await POST(
+      new Request("http://localhost/api/planner/coach/conversations", {
+        method: "POST",
+      })
+    );
+
+    expect(response.status).toBe(503);
+    expect(mocks.conversationsDeleteOwnerEq).toHaveBeenCalledWith(
+      "owner_id",
+      "11111111-1111-4111-8111-111111111111"
+    );
+    await expect(response.json()).resolves.toMatchObject({
+      code: "conversation_save_failed",
     });
   });
 });

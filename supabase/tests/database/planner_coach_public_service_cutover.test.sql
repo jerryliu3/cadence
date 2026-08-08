@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions, pg_catalog;
-select plan(4);
+select plan(5);
 
 do $$
 declare
@@ -25,35 +25,77 @@ begin
 end;
 $$;
 
-set local role service_role;
+set local role authenticated;
+select set_config(
+  'request.jwt.claim.sub',
+  '11111111-1111-4111-8111-111111111111',
+  true
+);
+select set_config('request.jwt.claim.role', 'authenticated', true);
 
-select is(
-  (
-    with saved as (
-      select *
-      from public.save_planner_coach_conversation_service(
-        '11111111-1111-4111-8111-111111111111',
-        '2099-12',
-        'UTC',
-        jsonb_build_array(
-          jsonb_build_object(
-            'role', 'user',
-            'content', 'Can you help me improve spacing?'
-          ),
-          jsonb_build_object(
-            'role', 'assistant',
-            'content', 'Yes. I suggest moving one unit to the weekend.',
-            'proposal', jsonb_build_object('example', true)
-          )
-        ),
-        'Spacing help'
-      )
+select lives_ok(
+  $$
+    insert into public.planner_coach_conversations (
+      owner_id,
+      scope_month,
+      timezone,
+      title,
+      preview_text,
+      message_count
     )
-    select count(*)::integer
-    from saved
-  ),
-  1,
-  'save service returns one conversation summary row'
+    values (
+      '11111111-1111-4111-8111-111111111111',
+      '2099-12',
+      'UTC',
+      'Spacing help',
+      'Yes. I suggest moving one unit to the weekend.',
+      2
+    )
+  $$,
+  'authenticated owners can insert coach conversations directly'
+);
+
+select lives_ok(
+  $$
+    insert into public.planner_coach_conversation_messages (
+      conversation_id,
+      owner_id,
+      ordinal,
+      role,
+      content,
+      proposal_meta
+    )
+    values
+      (
+        (
+          select id
+          from public.planner_coach_conversations
+          where owner_id = '11111111-1111-4111-8111-111111111111'
+            and scope_month = '2099-12'
+          limit 1
+        ),
+        '11111111-1111-4111-8111-111111111111',
+        1,
+        'user',
+        'Can you help me improve spacing?',
+        null
+      ),
+      (
+        (
+          select id
+          from public.planner_coach_conversations
+          where owner_id = '11111111-1111-4111-8111-111111111111'
+            and scope_month = '2099-12'
+          limit 1
+        ),
+        '11111111-1111-4111-8111-111111111111',
+        2,
+        'assistant',
+        'Yes. I suggest moving one unit to the weekend.',
+        '{"example": true}'::jsonb
+      )
+  $$,
+  'authenticated owners can insert coach conversation messages directly'
 );
 
 select is(
@@ -64,7 +106,7 @@ select is(
       and scope_month = '2099-12'
   ),
   1,
-  'save service writes conversation to public table'
+  'direct writes persist conversations to the public table'
 );
 
 select is(
@@ -81,7 +123,7 @@ select is(
       )
   ),
   2,
-  'save service writes messages to public table'
+  'direct writes persist messages to the public table'
 );
 
 select is(
