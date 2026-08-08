@@ -217,7 +217,8 @@ export const coachResponseJsonSchema = {
               enum: ["none", "needs_goal", "apply"],
             },
             global: {
-              type: ["object", "null"],
+              type: "object",
+              nullable: true,
               properties: {
                 restWeekdays: {
                   type: "array",
