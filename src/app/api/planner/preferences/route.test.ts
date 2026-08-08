@@ -37,10 +37,10 @@ vi.mock("@/lib/supabase/admin", () => ({
   }),
 }));
 
-import { PUT } from "./route";
+import { PUT } from "../context/route";
 
 function request(body: unknown) {
-  return new Request("http://localhost/api/planner/preferences", {
+  return new Request("http://localhost/api/planner/context", {
     method: "PUT",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body),
@@ -58,7 +58,7 @@ const defaultPolicy = {
   blackoutRanges: [],
 };
 
-describe("planner preferences route", () => {
+describe("planner context preferences route", () => {
   beforeEach(() => {
     vi.stubEnv("CALENDAR_ENABLED", "true");
     mocks.getUser.mockResolvedValue({

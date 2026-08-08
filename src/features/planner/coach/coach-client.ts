@@ -146,7 +146,7 @@ export async function persistPlannerDefaultPolicy({
   timezone: string;
   defaultPolicy: PlannerPolicy;
 }) {
-  const response = await fetch("/api/planner/preferences", {
+  const response = await fetch("/api/planner/context", {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
