@@ -5,8 +5,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   getUser: vi.fn(),
   profileMaybeSingle: vi.fn(),
+  adminProfileUpdateMaybeSingle: vi.fn(),
   rpc: vi.fn(),
-  callAdminRpc: vi.fn(),
 }));
 
 vi.mock("@/lib/supabase/server", () => ({
@@ -24,11 +24,17 @@ vi.mock("@/lib/supabase/server", () => ({
 }));
 
 vi.mock("@/lib/supabase/admin", () => ({
-  createAdminClient: () => ({}),
-}));
-
-vi.mock("@/lib/supabase/admin-rpc", () => ({
-  callAdminRpc: mocks.callAdminRpc,
+  createAdminClient: () => ({
+    from: () => ({
+      update: () => ({
+        eq: () => ({
+          select: () => ({
+            maybeSingle: mocks.adminProfileUpdateMaybeSingle,
+          }),
+        }),
+      }),
+    }),
+  }),
 }));
 
 import { PUT } from "./route";
@@ -73,17 +79,13 @@ describe("planner preferences route", () => {
       data: [{ canonical_revision: 11, execution_revision: 5 }],
       error: null,
     });
-    mocks.callAdminRpc.mockResolvedValue({
+    mocks.adminProfileUpdateMaybeSingle.mockResolvedValue({
       data: {
-        owner_id: "11111111-1111-4111-8111-111111111111",
         timezone,
-        default_policy: defaultPolicy,
-        policy_schema_version: "1",
-        policy_compiler_version: "1",
-        policy_revision: 7,
         timezone_confirmed_at: timezoneConfirmedAt,
-        created_at: timezoneConfirmedAt,
-        updated_at: timezoneConfirmedAt,
+        week_starts_on: 1,
+        rest_weekdays: [],
+        blackout_ranges: [],
       },
       error: null,
     });
@@ -95,7 +97,7 @@ describe("planner preferences route", () => {
     vi.restoreAllMocks();
   });
 
-  it("accepts full RPC rows when persisting preferences", async () => {
+  it("persists profile-backed planner preferences", async () => {
     const response = await PUT(
       request({
         timezone,
@@ -107,7 +109,7 @@ describe("planner preferences route", () => {
       schemaVersion: "1",
       preferences: {
         timezone,
-        policyRevision: 7,
+        policyRevision: 1,
       },
       revisions: {
         canonicalRevision: 11,
@@ -116,11 +118,7 @@ describe("planner preferences route", () => {
     });
   });
 
-  it("degrades post-commit reload failures instead of returning 500", async () => {
-    mocks.profileMaybeSingle.mockResolvedValue({
-      data: null,
-      error: { code: "XX000", message: "profile reload failed" },
-    });
+  it("degrades post-commit revision reload failures instead of returning 500", async () => {
     mocks.rpc.mockResolvedValue({
       data: null,
       error: { code: "XX000", message: "revision reload failed" },
@@ -138,7 +136,7 @@ describe("planner preferences route", () => {
       schemaVersion: "1",
       preferences: {
         timezone,
-        policyRevision: 7,
+        policyRevision: 1,
       },
       revisions: {
         canonicalRevision: 0,

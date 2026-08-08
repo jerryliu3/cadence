@@ -131,60 +131,36 @@ select ok(
   'personal completion writes advance the goal owner revision'
 );
 
-insert into public.planner_preferences (
-  owner_id,
-  timezone,
-  default_policy,
-  policy_schema_version,
-  policy_compiler_version,
-  timezone_confirmed_at
-)
-values (
-  '11111111-1111-4111-8111-111111111111',
+update public.profiles
+set timezone = 'UTC',
+    timezone_confirmed_at = '2026-08-01T00:00:00.000Z'::timestamptz,
+    week_starts_on = 1,
+    rest_weekdays = '{}'::smallint[],
+    blackout_ranges = '[]'::jsonb
+where id = '11111111-1111-4111-8111-111111111111';
+
+select is(
+  (
+    select timezone
+    from public.profiles
+    where id = '11111111-1111-4111-8111-111111111111'
+  ),
   'UTC',
-  '{
-    "schemaVersion": "1",
-    "timezone": "UTC",
-    "timezoneConfirmedAt": "2026-08-01T00:00:00.000Z",
-    "restWeekdays": [],
-    "blackoutRanges": [],
-    "goalAllowedWeekdays": {},
-    "datePreferences": [],
-    "spacingStrategy": "even",
-    "goalSpacingStrategies": {},
-    "dailyCadenceRestExemption": true
-  }'::jsonb,
-  '1',
-  '1',
-  '2026-08-01T00:00:00.000Z'
+  'profile-backed planner preference timezone is persisted'
 );
+
+update public.profiles
+set rest_weekdays = '{1,3}'::smallint[]
+where id = '11111111-1111-4111-8111-111111111111';
 
 select is(
   (
-    select policy_revision
-    from public.planner_preferences
-    where owner_id = '11111111-1111-4111-8111-111111111111'
+    select rest_weekdays
+    from public.profiles
+    where id = '11111111-1111-4111-8111-111111111111'
   ),
-  1::bigint,
-  'planner preferences start at policy revision one'
-);
-
-update public.planner_preferences
-set default_policy = jsonb_set(
-  default_policy,
-  '{spacingStrategy}',
-  '"front_load"'::jsonb
-)
-where owner_id = '11111111-1111-4111-8111-111111111111';
-
-select is(
-  (
-    select policy_revision
-    from public.planner_preferences
-    where owner_id = '11111111-1111-4111-8111-111111111111'
-  ),
-  2::bigint,
-  'semantic preference updates advance the policy revision'
+  '{1,3}'::smallint[],
+  'profile-backed planner rest weekdays update persists'
 );
 
 insert into public.execution_plans (
@@ -226,7 +202,18 @@ select
   'active',
   'manual',
   '{"added": 2}'::jsonb,
-  default_policy,
+  jsonb_build_object(
+    'schemaVersion', '1',
+    'timezone', 'UTC',
+    'timezoneConfirmedAt', '2026-08-01T00:00:00.000Z',
+    'restWeekdays', '[]'::jsonb,
+    'blackoutRanges', '[]'::jsonb,
+    'goalAllowedWeekdays', '{}'::jsonb,
+    'datePreferences', '[]'::jsonb,
+    'spacingStrategy', 'even',
+    'goalSpacingStrategies', '{}'::jsonb,
+    'dailyCadenceRestExemption', true
+  ),
   repeat('a', 64),
   state.canonical_revision,
   state.execution_revision,
@@ -244,10 +231,8 @@ select
   true,
   '13000000-0000-4000-8000-000000000099',
   repeat('b', 64)
-from public.planner_preferences preferences
-join private.planner_state state
-  on state.owner_id = preferences.owner_id
-where preferences.owner_id = '11111111-1111-4111-8111-111111111111';
+from private.planner_state state
+where state.owner_id = '11111111-1111-4111-8111-111111111111';
 
 insert into public.execution_plan_goals (
   id,
@@ -565,32 +550,17 @@ select ok(
   'authenticated owners can read only their planner revision tokens'
 );
 
-select throws_ok(
+select lives_ok(
   $$
-    select timezone
-    from public.upsert_planner_preferences_service(
-      '11111111-1111-4111-8111-111111111111',
-      'UTC',
-      jsonb_build_object(
-        'schemaVersion', '1',
-        'timezone', 'UTC',
-        'timezoneConfirmedAt', '2026-08-01T00:00:00.000Z',
-        'restWeekdays', '[]'::jsonb,
-        'blackoutRanges', '[]'::jsonb,
-        'goalAllowedWeekdays', '{}'::jsonb,
-        'datePreferences', '[]'::jsonb,
-        'spacingStrategy', 'even',
-        'goalSpacingStrategies', '{}'::jsonb,
-        'dailyCadenceRestExemption', true
-      ),
-      '1',
-      '1',
-      '2026-08-01T00:00:00.000Z'::timestamptz
-    )
+    update public.profiles
+    set timezone = 'UTC',
+        timezone_confirmed_at = '2026-08-01T00:00:00.000Z'::timestamptz,
+        week_starts_on = 1,
+        rest_weekdays = '{}'::smallint[],
+        blackout_ranges = '[]'::jsonb
+    where id = '11111111-1111-4111-8111-111111111111'
   $$,
-  '42501'::character(5),
-  'permission denied for function upsert_planner_preferences_service',
-  'authenticated clients cannot execute service-only planner write wrappers'
+  'authenticated owners can update profile-backed planner preferences directly'
 );
 
 select throws_ok(
@@ -611,31 +581,22 @@ select throws_ok(
 reset role;
 
 set local role service_role;
+update public.profiles
+set timezone = 'America/New_York',
+    timezone_confirmed_at = '2026-08-02T00:00:00.000Z'::timestamptz,
+    week_starts_on = 1,
+    rest_weekdays = '{}'::smallint[],
+    blackout_ranges = '[]'::jsonb
+where id = '11111111-1111-4111-8111-111111111111';
+
 select is(
   (
     select timezone
-    from public.upsert_planner_preferences_service(
-      '11111111-1111-4111-8111-111111111111',
-      'America/New_York',
-      jsonb_build_object(
-        'schemaVersion', '1',
-        'timezone', 'America/New_York',
-        'timezoneConfirmedAt', '2026-08-02T00:00:00.000Z',
-        'restWeekdays', '[]'::jsonb,
-        'blackoutRanges', '[]'::jsonb,
-        'goalAllowedWeekdays', '{}'::jsonb,
-        'datePreferences', '[]'::jsonb,
-        'spacingStrategy', 'even',
-        'goalSpacingStrategies', '{}'::jsonb,
-        'dailyCadenceRestExemption', true
-      ),
-      '1',
-      '1',
-      '2026-08-02T00:00:00.000Z'::timestamptz
-    )
+    from public.profiles
+    where id = '11111111-1111-4111-8111-111111111111'
   ),
   'America/New_York',
-  'service role can update planner preferences only through wrapper functions'
+  'service role can update profile-backed planner preferences directly'
 );
 
 select throws_ok(
@@ -738,10 +699,17 @@ select ok(
       'America/New_York',
       'manual',
       '{}'::jsonb,
-      (
-        select default_policy
-        from public.planner_preferences
-        where owner_id = '11111111-1111-4111-8111-111111111111'
+      jsonb_build_object(
+        'schemaVersion', '1',
+        'timezone', 'America/New_York',
+        'timezoneConfirmedAt', '2026-08-02T00:00:00.000Z',
+        'restWeekdays', '[]'::jsonb,
+        'blackoutRanges', '[]'::jsonb,
+        'goalAllowedWeekdays', '{}'::jsonb,
+        'datePreferences', '[]'::jsonb,
+        'spacingStrategy', 'even',
+        'goalSpacingStrategies', '{}'::jsonb,
+        'dailyCadenceRestExemption', true
       ),
       repeat('f', 64),
       '1',
@@ -788,10 +756,17 @@ select throws_ok(
       'America/New_York',
       'manual',
       '{}'::jsonb,
-      (
-        select default_policy
-        from public.planner_preferences
-        where owner_id = '11111111-1111-4111-8111-111111111111'
+      jsonb_build_object(
+        'schemaVersion', '1',
+        'timezone', 'America/New_York',
+        'timezoneConfirmedAt', '2026-08-02T00:00:00.000Z',
+        'restWeekdays', '[]'::jsonb,
+        'blackoutRanges', '[]'::jsonb,
+        'goalAllowedWeekdays', '{}'::jsonb,
+        'datePreferences', '[]'::jsonb,
+        'spacingStrategy', 'even',
+        'goalSpacingStrategies', '{}'::jsonb,
+        'dailyCadenceRestExemption', true
       ),
       repeat('f', 64),
       '1',
@@ -854,10 +829,17 @@ select is(
       'America/New_York',
       'manual',
       '{}'::jsonb,
-      (
-        select default_policy
-        from public.planner_preferences
-        where owner_id = '11111111-1111-4111-8111-111111111111'
+      jsonb_build_object(
+        'schemaVersion', '1',
+        'timezone', 'America/New_York',
+        'timezoneConfirmedAt', '2026-08-02T00:00:00.000Z',
+        'restWeekdays', '[]'::jsonb,
+        'blackoutRanges', '[]'::jsonb,
+        'goalAllowedWeekdays', '{}'::jsonb,
+        'datePreferences', '[]'::jsonb,
+        'spacingStrategy', 'even',
+        'goalSpacingStrategies', '{}'::jsonb,
+        'dailyCadenceRestExemption', true
       ),
       repeat('f', 64),
       '1',
