@@ -1,30 +1,19 @@
 import { z } from "zod";
-import { isValidIanaTimezone } from "@/lib/dates/timezone";
-import { requirePlannerAdminClient } from "@/lib/planner/api";
-import { callAdminRpc } from "@/lib/supabase/admin-rpc";
+import { getDateInTimezone, isValidIanaTimezone } from "@/lib/dates/timezone";
+import type { createClient as createServerClient } from "@/lib/supabase/server";
+
+const digestSchema = z.string().regex(/^[a-f0-9]{64}$/);
 
 export const plannerItemExpectationSchema = z
   .object({
     itemId: z.string().uuid(),
-    expectedCreditedUnit: z
-      .object({
-        goalId: z.string().min(1).max(100),
-        requirementFingerprint: z.string().regex(/^[a-f0-9]{64}$/),
-        unitKey: z.string().min(1).max(100),
-        completedOn: z.iso.date(),
-      })
-      .nullable(),
-    expectedCanonicalRevision: z.number().int().nonnegative(),
-    expectedExecutionRevision: z.number().int().nonnegative(),
-    expectedItemRevision: z.number().int().nonnegative(),
+    expectedDigest: digestSchema,
   })
   .strict();
 
 export const plannerGoalExpectationSchema = z
   .object({
-    planGoalId: z.string().uuid(),
-    expectedCanonicalRevision: z.number().int().nonnegative(),
-    expectedExecutionRevision: z.number().int().nonnegative(),
+    expectedDigest: digestSchema,
   })
   .strict();
 
@@ -58,6 +47,9 @@ export const targetedExactDateRequestSchema = z
 export type PlannerItemExpectation = z.infer<typeof plannerItemExpectationSchema>;
 export type PlannerGoalExpectation = z.infer<typeof plannerGoalExpectationSchema>;
 
+type ServerSupabaseClient = Awaited<ReturnType<typeof createServerClient>>;
+type ExactDateClient = Pick<ServerSupabaseClient, "from" | "rpc">;
+
 interface PlannerExactDateDispatchFailure {
   ok: false;
   status: number;
@@ -78,6 +70,11 @@ export type PlannerExactDateDispatchResult =
   | PlannerExactDateDispatchFailure
   | PlannerExactDateDispatchSuccess;
 
+interface GoalLifetimeWindow {
+  startDate: string;
+  endDate: string | null;
+}
+
 function dispatchFailure(
   status: number,
   code: string,
@@ -91,67 +88,148 @@ function dispatchFailure(
   };
 }
 
-export async function applyPlannerItemDateFact({
+function dateOutsideGoalLifetime(date: string, goal: GoalLifetimeWindow) {
+  return date < goal.startDate || (goal.endDate !== null && date > goal.endDate);
+}
+
+async function ensureExpectedDigest({
+  supabase,
+  expectedDigest,
+}: {
+  supabase: ExactDateClient;
+  expectedDigest: string;
+}) {
+  const digestResponse = await supabase.rpc("get_planner_schedule_digest", {});
+  if (digestResponse.error) {
+    return dispatchFailure(
+      503,
+      "planner_state_unavailable",
+      "Planner completion state could not be loaded."
+    );
+  }
+  const actualDigest =
+    typeof digestResponse.data === "string"
+      ? digestResponse.data.toLowerCase()
+      : null;
+  if (!actualDigest || actualDigest !== expectedDigest.toLowerCase()) {
+    return dispatchFailure(
+      409,
+      "stale_revision",
+      "Planner completion state is stale. Refresh and try again."
+    );
+  }
+  return null;
+}
+
+async function applyDirectCompletionFact({
+  supabase,
   ownerId,
-  fallbackGoalId,
-  fallbackDate,
+  goalId,
+  date,
   desiredFactState,
+}: {
+  supabase: ExactDateClient;
+  ownerId: string;
+  goalId: string;
+  date: string;
+  desiredFactState: "present" | "absent";
+}) {
+  if (desiredFactState === "present") {
+    const upsertResponse = await supabase.from("completions").upsert(
+      {
+        goal_id: goalId,
+        user_id: ownerId,
+        completed_on: date,
+        source: "manual",
+      },
+      { onConflict: "goal_id,user_id,completed_on", ignoreDuplicates: true }
+    );
+    return upsertResponse.error;
+  }
+
+  const deleteResponse = await supabase
+    .from("completions")
+    .delete()
+    .eq("goal_id", goalId)
+    .eq("user_id", ownerId)
+    .eq("completed_on", date);
+  return deleteResponse.error;
+}
+
+export async function applyPlannerItemDateFact({
+  supabase,
+  ownerId,
+  goalId,
+  desiredFactState,
+  timezone,
+  goalLifetime,
   expectation,
 }: {
+  supabase: ExactDateClient;
   ownerId: string;
-  fallbackGoalId: string;
-  fallbackDate: string;
+  goalId: string;
   desiredFactState: "present" | "absent";
+  timezone: string;
+  goalLifetime: GoalLifetimeWindow;
   expectation: PlannerItemExpectation;
 }): Promise<PlannerExactDateDispatchResult> {
-  const admin = requirePlannerAdminClient();
-  const response = await callAdminRpc(
-    admin,
-    "set_execution_plan_item_date_fact_service",
-    {
-      p_owner: ownerId,
-      p_item_id: expectation.itemId,
-      p_desired_fact_state: desiredFactState,
-      p_expected_credited_unit: expectation.expectedCreditedUnit,
-      p_expected_canonical_revision: expectation.expectedCanonicalRevision,
-      p_expected_execution_revision: expectation.expectedExecutionRevision,
-      p_expected_item_revision: expectation.expectedItemRevision,
-    }
-  );
-  if (response.error) {
-    const message = response.error.message.toLowerCase();
-    if (
-      message.includes("planner revision mismatch") ||
-      message.includes("planner item revision mismatch") ||
-      message.includes("credited unit mismatch")
-    ) {
-      return dispatchFailure(
-        409,
-        "stale_revision",
-        "Planner completion state is stale. Refresh and try again."
-      );
-    }
-    if (message.includes("future_completion_not_allowed")) {
+  const digestFailure = await ensureExpectedDigest({
+    supabase,
+    expectedDigest: expectation.expectedDigest,
+  });
+  if (digestFailure) {
+    return digestFailure;
+  }
+
+  const itemResponse = await supabase
+    .from("planner_items")
+    .select("id, goal_id, scheduled_date")
+    .eq("id", expectation.itemId)
+    .maybeSingle();
+
+  if (itemResponse.error) {
+    return dispatchFailure(
+      503,
+      "planner_item_lookup_failed",
+      "Planner item state could not be loaded."
+    );
+  }
+  const item = itemResponse.data;
+  if (!item || item.goal_id !== goalId) {
+    return dispatchFailure(
+      404,
+      "planner_item_not_found",
+      "Planner item was not found in the active plan."
+    );
+  }
+
+  const itemDate = item.scheduled_date;
+  if (desiredFactState === "present") {
+    const localToday = getDateInTimezone(new Date(), timezone);
+    if (itemDate > localToday) {
       return dispatchFailure(
         422,
         "future_completion_not_allowed",
         "Completions can only be added for today or a past date."
       );
     }
-    if (message.includes("item state cannot accept exact-date facts")) {
+    if (dateOutsideGoalLifetime(itemDate, goalLifetime)) {
       return dispatchFailure(
         422,
-        "item_date_fact_disallowed",
-        "This item state cannot be updated with exact-date completion facts."
+        "completion_outside_goal_lifetime",
+        "The completion date must be within the goal lifetime."
       );
     }
-    if (message.includes("active planner item not found")) {
-      return dispatchFailure(
-        404,
-        "planner_item_not_found",
-        "Planner item was not found in the active plan."
-      );
-    }
+  }
+
+  const mutationError = await applyDirectCompletionFact({
+    supabase,
+    ownerId,
+    goalId,
+    date: itemDate,
+    desiredFactState,
+  });
+  if (mutationError) {
     return dispatchFailure(
       409,
       "planner_item_date_fact_failed",
@@ -159,91 +237,100 @@ export async function applyPlannerItemDateFact({
     );
   }
 
-  const row = Array.isArray(response.data) ? response.data[0] : response.data;
-  if (!row) {
-    return dispatchFailure(
-      500,
-      "invariant_failed",
-      "Planner item date fact did not return updated state."
-    );
-  }
-
   return {
     ok: true,
     payload: {
-      goalId:
-        typeof row.goal_id === "string" ? row.goal_id : fallbackGoalId,
-      date: typeof row.date === "string" ? row.date : fallbackDate,
-      factState: row.fact_state as "present" | "absent",
+      goalId,
+      date: itemDate,
+      factState: desiredFactState,
     },
   };
 }
 
 export async function applyPlannerGoalDateFact({
+  supabase,
   ownerId,
-  fallbackGoalId,
-  fallbackDate,
+  goalId,
+  date,
   desiredFactState,
+  timezone,
+  goalLifetime,
   expectation,
 }: {
+  supabase: ExactDateClient;
   ownerId: string;
-  fallbackGoalId: string;
-  fallbackDate: string;
+  goalId: string;
+  date: string;
   desiredFactState: "present" | "absent";
+  timezone: string;
+  goalLifetime: GoalLifetimeWindow;
   expectation: PlannerGoalExpectation;
 }): Promise<PlannerExactDateDispatchResult> {
-  const admin = requirePlannerAdminClient();
-  const response = await callAdminRpc(
-    admin,
-    "set_execution_plan_goal_date_fact_service",
-    {
-      p_owner: ownerId,
-      p_plan_goal_id: expectation.planGoalId,
-      p_date: fallbackDate,
-      p_desired_fact_state: desiredFactState,
-      p_expected_canonical_revision: expectation.expectedCanonicalRevision,
-      p_expected_execution_revision: expectation.expectedExecutionRevision,
-    }
-  );
-  if (response.error) {
-    const message = response.error.message.toLowerCase();
-    if (message.includes("planner revision mismatch")) {
-      return dispatchFailure(
-        409,
-        "stale_revision",
-        "Planner completion state is stale. Refresh and try again."
-      );
-    }
-    if (message.includes("future_completion_not_allowed")) {
+  const digestFailure = await ensureExpectedDigest({
+    supabase,
+    expectedDigest: expectation.expectedDigest,
+  });
+  if (digestFailure) {
+    return digestFailure;
+  }
+
+  const [sourceLinksResponse, targetLinksResponse] = await Promise.all([
+    supabase
+      .from("goal_links")
+      .select("id")
+      .eq("source_goal_id", goalId)
+      .limit(1),
+    supabase
+      .from("goal_links")
+      .select("id")
+      .eq("target_goal_id", goalId)
+      .limit(1),
+  ]);
+
+  if (sourceLinksResponse.error || targetLinksResponse.error) {
+    return dispatchFailure(
+      503,
+      "planner_goal_lookup_failed",
+      "Planner goal state could not be loaded."
+    );
+  }
+  if (
+    (sourceLinksResponse.data ?? []).length > 0 ||
+    (targetLinksResponse.data ?? []).length > 0
+  ) {
+    return dispatchFailure(
+      422,
+      "linked_goal_disallowed",
+      "Linked goals cannot be completed through plan-goal date facts."
+    );
+  }
+
+  if (desiredFactState === "present") {
+    const localToday = getDateInTimezone(new Date(), timezone);
+    if (date > localToday) {
       return dispatchFailure(
         422,
         "future_completion_not_allowed",
         "Completions can only be added for today or a past date."
       );
     }
-    if (message.includes("completion_outside_goal_lifetime")) {
+    if (dateOutsideGoalLifetime(date, goalLifetime)) {
       return dispatchFailure(
         422,
         "completion_outside_goal_lifetime",
         "The completion date must be within the goal lifetime."
       );
     }
-    if (
-      message.includes("linked goals cannot use planner plan-goal date facts")
-    ) {
-      return dispatchFailure(
-        422,
-        "linked_goal_disallowed",
-        "Linked goals cannot be completed through plan-goal date facts."
-      );
-    }
-    if (message.includes("active planner goal not found")) {
-      return dispatchFailure(
-        404,
-        "planner_goal_not_found",
-        "Planner goal was not found in the active plan."
-      );
-    }
+  }
+
+  const mutationError = await applyDirectCompletionFact({
+    supabase,
+    ownerId,
+    goalId,
+    date,
+    desiredFactState,
+  });
+  if (mutationError) {
     return dispatchFailure(
       409,
       "planner_goal_date_fact_failed",
@@ -251,22 +338,12 @@ export async function applyPlannerGoalDateFact({
     );
   }
 
-  const row = Array.isArray(response.data) ? response.data[0] : response.data;
-  if (!row) {
-    return dispatchFailure(
-      500,
-      "invariant_failed",
-      "Planner goal date fact did not return updated state."
-    );
-  }
-
   return {
     ok: true,
     payload: {
-      goalId:
-        typeof row.goal_id === "string" ? row.goal_id : fallbackGoalId,
-      date: typeof row.date === "string" ? row.date : fallbackDate,
-      factState: row.fact_state as "present" | "absent",
+      goalId,
+      date,
+      factState: desiredFactState,
     },
   };
 }
