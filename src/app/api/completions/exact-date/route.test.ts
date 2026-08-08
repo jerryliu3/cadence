@@ -6,8 +6,8 @@ const mocks = vi.hoisted(() => ({
   getUser: vi.fn(),
   maybeSingle: vi.fn(),
   rpc: vi.fn(),
-  callAdminRpc: vi.fn(),
-  requirePlannerAdminClient: vi.fn(),
+  applyPlannerItemDateFact: vi.fn(),
+  applyPlannerGoalDateFact: vi.fn(),
 }));
 
 vi.mock("@/lib/supabase/server", () => ({
@@ -25,13 +25,16 @@ vi.mock("@/lib/supabase/server", () => ({
   },
 }));
 
-vi.mock("@/lib/planner/api", () => ({
-  requirePlannerAdminClient: mocks.requirePlannerAdminClient,
-}));
-
-vi.mock("@/lib/supabase/admin-rpc", () => ({
-  callAdminRpc: mocks.callAdminRpc,
-}));
+vi.mock("@/lib/planner/exact-date-dispatch", async () => {
+  const actual = await vi.importActual<
+    typeof import("@/lib/planner/exact-date-dispatch")
+  >("@/lib/planner/exact-date-dispatch");
+  return {
+    ...actual,
+    applyPlannerItemDateFact: mocks.applyPlannerItemDateFact,
+    applyPlannerGoalDateFact: mocks.applyPlannerGoalDateFact,
+  };
+});
 
 import { POST } from "./route";
 
@@ -76,8 +79,8 @@ describe("exact-date completion route", () => {
       error: null,
     });
     mocks.rpc.mockResolvedValue({ error: null });
-    mocks.requirePlannerAdminClient.mockReturnValue({});
-    mocks.callAdminRpc.mockReset();
+    mocks.applyPlannerItemDateFact.mockReset();
+    mocks.applyPlannerGoalDateFact.mockReset();
   });
 
   afterEach(() => {
@@ -146,75 +149,73 @@ describe("exact-date completion route", () => {
     });
   });
 
-  it("routes planner item expectation payloads through the item date-fact RPC", async () => {
-    mocks.callAdminRpc.mockResolvedValue({
-      data: [
-        {
-          item_id: "22000000-0000-4000-8000-000000000001",
-          goal_id: goalId,
-          date: "2026-08-05",
-          fact_state: "present",
-        },
-      ],
-      error: null,
+  it("routes planner item expectation payloads through planner item dispatch", async () => {
+    mocks.applyPlannerItemDateFact.mockResolvedValue({
+      ok: true,
+      payload: {
+        goalId,
+        date: "2026-08-05",
+        factState: "present",
+      },
     });
 
     const response = await POST(
       request("2026-08-05", "present", "UTC", {
         plannerItemExpectation: {
           itemId: "22000000-0000-4000-8000-000000000001",
-          expectedCreditedUnit: null,
-          expectedItemRevision: 4,
-          expectedCanonicalRevision: 10,
-          expectedExecutionRevision: 11,
+          expectedDigest:
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
         },
       })
     );
 
     expect(response.status).toBe(200);
-    expect(mocks.callAdminRpc).toHaveBeenCalledWith(
-      {},
-      "set_execution_plan_item_date_fact_service",
+    expect(mocks.applyPlannerItemDateFact).toHaveBeenCalledWith(
       expect.objectContaining({
-        p_owner: "11111111-1111-4111-8111-111111111111",
-        p_item_id: "22000000-0000-4000-8000-000000000001",
-        p_desired_fact_state: "present",
-        p_expected_item_revision: 4,
+        ownerId: "11111111-1111-4111-8111-111111111111",
+        goalId,
+        desiredFactState: "present",
+        timezone: "UTC",
+        expectation: {
+          itemId: "22000000-0000-4000-8000-000000000001",
+          expectedDigest:
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        },
       })
     );
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
 
-  it("routes planner goal expectation payloads through the plan-goal date-fact RPC", async () => {
-    mocks.callAdminRpc.mockResolvedValue({
-      data: [
-        {
-          goal_id: goalId,
-          date: "2026-08-05",
-          fact_state: "absent",
-        },
-      ],
-      error: null,
+  it("routes planner goal expectation payloads through planner goal dispatch", async () => {
+    mocks.applyPlannerGoalDateFact.mockResolvedValue({
+      ok: true,
+      payload: {
+        goalId,
+        date: "2026-08-05",
+        factState: "absent",
+      },
     });
 
     const response = await POST(
       request("2026-08-05", "absent", "UTC", {
         plannerGoalExpectation: {
-          planGoalId: "33000000-0000-4000-8000-000000000001",
-          expectedCanonicalRevision: 5,
-          expectedExecutionRevision: 6,
+          expectedDigest:
+            "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
         },
       })
     );
 
     expect(response.status).toBe(200);
-    expect(mocks.callAdminRpc).toHaveBeenCalledWith(
-      {},
-      "set_execution_plan_goal_date_fact_service",
+    expect(mocks.applyPlannerGoalDateFact).toHaveBeenCalledWith(
       expect.objectContaining({
-        p_owner: "11111111-1111-4111-8111-111111111111",
-        p_plan_goal_id: "33000000-0000-4000-8000-000000000001",
-        p_desired_fact_state: "absent",
+        ownerId: "11111111-1111-4111-8111-111111111111",
+        goalId,
+        desiredFactState: "absent",
+        timezone: "UTC",
+        expectation: {
+          expectedDigest:
+            "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        },
       })
     );
     expect(mocks.rpc).not.toHaveBeenCalled();
