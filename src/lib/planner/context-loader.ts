@@ -246,15 +246,12 @@ async function loadPlannerPreferences(
     .maybeSingle();
 
   if (profileResponse.error) {
-    const code = (profileResponse.error.code ?? "").toUpperCase();
-    if (code !== "42P01" && code !== "42703" && code !== "PGRST204") {
-      throw new PlannerRouteError(
-        500,
-        "preference_load_failed",
-        "Planner data could not be loaded.",
-        { cause: profileResponse.error.message }
-      );
-    }
+    throw new PlannerRouteError(
+      500,
+      "preference_load_failed",
+      "Planner data could not be loaded.",
+      { cause: profileResponse.error.message }
+    );
   }
   const profile = profileResponse.data
     ? parsePlannerProfilePreferencesRow(profileResponse.data)
