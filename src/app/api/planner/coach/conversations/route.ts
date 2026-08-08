@@ -192,67 +192,37 @@ export async function POST(request: Request) {
     );
     const title = deriveConversationTitle(body);
     const previewText = deriveConversationPreview(body, title);
-    const conversationResponse = await routeContext.supabase
-      .from("planner_coach_conversations")
-      .insert({
-        owner_id: routeContext.userId,
-        scope_month: body.scopeMonth,
-        timezone: body.timezone,
-        title,
-        preview_text: previewText,
-        message_count: body.messages.length,
-      })
-      .select("id,scope_month,timezone,title,preview_text,message_count,created_at,updated_at")
-      .maybeSingle();
-    if (conversationResponse.error) {
+    const saveResponse = await routeContext.supabase.rpc(
+      "save_planner_coach_conversation_service",
+      {
+        p_scope_month: body.scopeMonth,
+        p_timezone: body.timezone,
+        p_title: title,
+        p_preview_text: previewText,
+        p_messages: body.messages.map((message) => ({
+          role: message.role,
+          content: message.content,
+          proposal:
+            message.role === "assistant" ? (message.proposal ?? null) : null,
+        })),
+      }
+    );
+    if (saveResponse.error) {
       throw new PlannerRouteError(
         503,
         "conversation_save_failed",
         "Coach conversation could not be saved.",
-        { cause: conversationResponse.error.message }
+        { cause: saveResponse.error.message }
       );
     }
-    if (!conversationResponse.data) {
+    const conversationRow = Array.isArray(saveResponse.data)
+      ? saveResponse.data[0]
+      : saveResponse.data;
+    if (!conversationRow) {
       throw new PlannerRouteError(
         500,
         "conversation_save_invariant_failed",
         "Conversation save did not return a persisted summary."
-      );
-    }
-    const conversationRow = conversationResponse.data;
-    const messageInsertResponse = await routeContext.supabase
-      .from("planner_coach_conversation_messages")
-      .insert(
-        body.messages.map((message, index) => ({
-          conversation_id: conversationRow.id,
-          owner_id: routeContext.userId,
-          ordinal: index + 1,
-          role: message.role,
-          content: message.content,
-          proposal_meta:
-            message.role === "assistant" ? message.proposal ?? null : null,
-        }))
-      );
-    if (messageInsertResponse.error) {
-      const cleanupResponse = await routeContext.supabase
-        .from("planner_coach_conversations")
-        .delete()
-        .eq("id", conversationRow.id)
-        .eq("owner_id", routeContext.userId);
-      if (cleanupResponse.error) {
-        console.error("[planner:coach] failed to clean up partial conversation", {
-          correlationId,
-          userId: routeContext.userId,
-          conversationId: conversationRow.id,
-          errorCode: cleanupResponse.error.code,
-          errorMessage: cleanupResponse.error.message,
-        });
-      }
-      throw new PlannerRouteError(
-        503,
-        "conversation_save_failed",
-        "Coach conversation could not be saved.",
-        { cause: messageInsertResponse.error.message }
       );
     }
 
