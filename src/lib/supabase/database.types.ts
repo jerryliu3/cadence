@@ -261,6 +261,7 @@ export type Database = {
           updated_at: string
         }[]
       }
+      sha256_hex_digest: { Args: { p_value: string }; Returns: string }
       validate_planner_json: {
         Args: {
           p_expected_type: string
@@ -914,7 +915,7 @@ export type Database = {
           default_local_time?: string | null
           description?: string | null
           end_date?: string | null
-          frequency_type: Database["public"]["Enums"]["goal_frequency_type"]
+          frequency_type?: Database["public"]["Enums"]["goal_frequency_type"]
           id?: string
           is_deleted?: boolean
           is_group?: boolean
@@ -1615,7 +1616,7 @@ export type Database = {
     }
     Enums: {
       completion_source: "manual" | "linked_cascade"
-      goal_frequency_type: "one_time" | "fixed_milestones" | "recurring"
+      goal_frequency_type: "fixed_milestones" | "recurring"
       participant_role: "owner" | "participant"
       recurrence_interval: "daily" | "weekly" | "monthly"
     }
@@ -1749,7 +1750,7 @@ export const Constants = {
   public: {
     Enums: {
       completion_source: ["manual", "linked_cascade"],
-      goal_frequency_type: ["one_time", "fixed_milestones", "recurring"],
+      goal_frequency_type: ["fixed_milestones", "recurring"],
       participant_role: ["owner", "participant"],
       recurrence_interval: ["daily", "weekly", "monthly"],
     },
