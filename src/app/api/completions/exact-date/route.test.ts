@@ -6,6 +6,8 @@ const mocks = vi.hoisted(() => ({
   getUser: vi.fn(),
   maybeSingle: vi.fn(),
   rpc: vi.fn(),
+  callAdminRpc: vi.fn(),
+  requirePlannerAdminClient: vi.fn(),
 }));
 
 vi.mock("@/lib/supabase/server", () => ({
@@ -23,6 +25,14 @@ vi.mock("@/lib/supabase/server", () => ({
   },
 }));
 
+vi.mock("@/lib/planner/api", () => ({
+  requirePlannerAdminClient: mocks.requirePlannerAdminClient,
+}));
+
+vi.mock("@/lib/supabase/admin-rpc", () => ({
+  callAdminRpc: mocks.callAdminRpc,
+}));
+
 import { POST } from "./route";
 
 const goalId = "10000000-0000-4000-8000-000000000011";
@@ -30,7 +40,8 @@ const goalId = "10000000-0000-4000-8000-000000000011";
 function request(
   date: string,
   desiredFactState: "present" | "absent",
-  timezone = "UTC"
+  timezone = "UTC",
+  extra: Record<string, unknown> = {}
 ) {
   return new Request("http://localhost/api/completions/exact-date", {
     method: "POST",
@@ -40,6 +51,7 @@ function request(
       date,
       desiredFactState,
       timezone,
+      ...extra,
     }),
   });
 }
@@ -64,6 +76,8 @@ describe("exact-date completion route", () => {
       error: null,
     });
     mocks.rpc.mockResolvedValue({ error: null });
+    mocks.requirePlannerAdminClient.mockReturnValue({});
+    mocks.callAdminRpc.mockReset();
   });
 
   afterEach(() => {
@@ -130,5 +144,79 @@ describe("exact-date completion route", () => {
       p_goal_id: goalId,
       p_date: "2026-08-05",
     });
+  });
+
+  it("routes planner item expectation payloads through the item date-fact RPC", async () => {
+    mocks.callAdminRpc.mockResolvedValue({
+      data: [
+        {
+          item_id: "22000000-0000-4000-8000-000000000001",
+          goal_id: goalId,
+          date: "2026-08-05",
+          fact_state: "present",
+        },
+      ],
+      error: null,
+    });
+
+    const response = await POST(
+      request("2026-08-05", "present", "UTC", {
+        plannerItemExpectation: {
+          itemId: "22000000-0000-4000-8000-000000000001",
+          expectedCreditedUnit: null,
+          expectedItemRevision: 4,
+          expectedCanonicalRevision: 10,
+          expectedExecutionRevision: 11,
+        },
+      })
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.callAdminRpc).toHaveBeenCalledWith(
+      {},
+      "set_execution_plan_item_date_fact_service",
+      expect.objectContaining({
+        p_owner: "11111111-1111-4111-8111-111111111111",
+        p_item_id: "22000000-0000-4000-8000-000000000001",
+        p_desired_fact_state: "present",
+        p_expected_item_revision: 4,
+      })
+    );
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it("routes planner goal expectation payloads through the plan-goal date-fact RPC", async () => {
+    mocks.callAdminRpc.mockResolvedValue({
+      data: [
+        {
+          goal_id: goalId,
+          date: "2026-08-05",
+          fact_state: "absent",
+        },
+      ],
+      error: null,
+    });
+
+    const response = await POST(
+      request("2026-08-05", "absent", "UTC", {
+        plannerGoalExpectation: {
+          planGoalId: "33000000-0000-4000-8000-000000000001",
+          expectedCanonicalRevision: 5,
+          expectedExecutionRevision: 6,
+        },
+      })
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.callAdminRpc).toHaveBeenCalledWith(
+      {},
+      "set_execution_plan_goal_date_fact_service",
+      expect.objectContaining({
+        p_owner: "11111111-1111-4111-8111-111111111111",
+        p_plan_goal_id: "33000000-0000-4000-8000-000000000001",
+        p_desired_fact_state: "absent",
+      })
+    );
+    expect(mocks.rpc).not.toHaveBeenCalled();
   });
 });
