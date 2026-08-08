@@ -26,9 +26,7 @@ import {
 } from "@/lib/planner/publish-payload";
 import { buildPlannerPublishTelemetryCounts } from "@/lib/planner/publish-telemetry";
 import {
-  buildPlannerDraftCommandsFromLegacyItemEdits,
   plannerDraftCommandSchema,
-  type PlannerDraftCommand,
 } from "@/lib/planner/draft-commands";
 import {
   scopeMonthDate,
@@ -62,19 +60,6 @@ const publishSchema = z.object({
   policy: z.unknown().optional(),
   eligibilityMode: z.enum(PLANNER_ELIGIBILITY_MODES).optional(),
   draftCommands: z.array(plannerDraftCommandSchema).max(4000).default([]),
-  draftItemEdits: z
-    .array(
-      z
-        .object({
-          goalId: z.uuid(),
-          unitKey: z.string().trim().min(1).max(200),
-          scheduledDate: z.iso.date().nullable().optional(),
-          label: z.string().trim().min(1).max(200).nullable().optional(),
-        })
-        .strict()
-    )
-    .max(2000)
-    .default([]),
 });
 
 export async function POST(request: Request) {
@@ -114,16 +99,7 @@ export async function POST(request: Request) {
           return parsed.data;
         })()
       : null;
-    const legacyDraftItemEdits = body.draftItemEdits.map((edit) => ({
-      goalId: edit.goalId,
-      unitKey: edit.unitKey,
-      scheduledDate: edit.scheduledDate ?? null,
-      label: edit.label ?? null,
-    }));
-    const draftCommands: PlannerDraftCommand[] = [
-      ...body.draftCommands,
-      ...buildPlannerDraftCommandsFromLegacyItemEdits(legacyDraftItemEdits),
-    ];
+    const draftCommands = body.draftCommands;
     const effectiveEligibilityMode =
       body.eligibilityMode ?? PLANNER_ELIGIBILITY_MODES[0];
     telemetryScope = { month: body.scopeMonth, timezone: "UTC" };
