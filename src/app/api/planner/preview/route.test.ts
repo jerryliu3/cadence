@@ -8,7 +8,6 @@ const mocks = vi.hoisted(() => ({
   resolveCanonicalAsOfDate: vi.fn(),
   loadPlannerCanonicalSnapshot: vi.fn(),
   runPlannerKernel: vi.fn(),
-  emitTelemetryEvent: vi.fn(),
 }));
 
 vi.mock("@/lib/supabase/server", () => ({
@@ -37,20 +36,9 @@ vi.mock("@/lib/planner/kernel", () => ({
   runPlannerKernel: mocks.runPlannerKernel,
 }));
 
-vi.mock("@/lib/telemetry/runtime", async () => {
-  const actual =
-    await vi.importActual<typeof import("@/lib/telemetry/runtime")>(
-      "@/lib/telemetry/runtime"
-    );
-  return {
-    ...actual,
-    emitTelemetryEvent: mocks.emitTelemetryEvent,
-  };
-});
+import { POST } from "../context/route";
 
-import { POST } from "./route";
-
-describe("planner preview route", () => {
+describe("planner context preview route", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.requirePlannerRouteContext.mockResolvedValue({
@@ -89,7 +77,7 @@ describe("planner preview route", () => {
     });
 
     const response = await POST(
-      new Request("http://localhost/api/planner/preview", {
+      new Request("http://localhost/api/planner/context", {
         method: "POST",
       })
     );

@@ -235,33 +235,11 @@ export function CalendarSurface({
       if (showLoading) {
         setLoading(true);
       }
-      const response = await fetch("/api/planner/preferences", {
-        cache: "no-store",
-        credentials: "same-origin",
-      });
-      const payload = await response.json();
+      const resolvedMonth = getMonthInTimezone(setupTimezone);
       if (showLoading) {
         setLoading(false);
       }
-      if (!response.ok) {
-        const errorPayload = payload as PlannerErrorPayload;
-        const message = errorPayload.message ?? "Planner setup could not be loaded.";
-        if (showLoading) {
-          setError(message);
-        }
-        if (toastOnError) {
-          toast.error(message);
-        }
-        return false;
-      }
-      const preferencesPayload = payload as PlannerPreferencesPayload;
-      if (preferencesPayload.preferences?.timezone) {
-        const resolvedMonth = getMonthInTimezone(
-          preferencesPayload.preferences.timezone
-        );
-        onMonthChange(resolvedMonth, "replace");
-        return true;
-      }
+      onMonthChange(resolvedMonth, "replace");
       return true;
     }
 
@@ -301,7 +279,7 @@ export function CalendarSurface({
       setSetupRestWeekdays(contextPayload.preferences.defaultPolicy.restWeekdays);
     }
     return true;
-  }, [activeTab, month, onMonthChange]);
+  }, [activeTab, month, onMonthChange, setupTimezone]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -683,7 +661,7 @@ export function CalendarSurface({
     defaultPolicy.restWeekdays = [...setupRestWeekdays].sort((a, b) => a - b);
     defaultPolicy.weekStartsOn = normalizeWeekStartsOn(setupWeekStartsOn);
 
-    const response = await fetch("/api/planner/preferences", {
+    const response = await fetch("/api/planner/context", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -724,7 +702,7 @@ export function CalendarSurface({
     if (!context?.scopeMonth || !context?.timezone) {
       throw new Error("Planner context is unavailable.");
     }
-    const response = await fetch("/api/planner/preview", {
+    const response = await fetch("/api/planner/context", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
