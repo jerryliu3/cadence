@@ -9,6 +9,7 @@ import {
   unknownPlannerErrorResponse,
 } from "@/lib/planner/api";
 import { MAX_API_BODY_BYTES } from "@/lib/planner/contracts/bounds";
+import { postgresErrorMatches } from "@/lib/planner/postgres-errors";
 import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
@@ -40,19 +41,25 @@ export async function POST(request: Request) {
       p_expected_digest: body.expectedDigest,
     });
     if (response.error) {
-      const message = response.error.message.toLowerCase();
-      if (message.includes("stale_schedule")) {
+      if (postgresErrorMatches(response.error, "P0001", "stale_schedule")) {
         throw new PlannerRouteError(
           409,
           "stale_revision",
           "Planner item state is stale. Refresh and try again."
         );
       }
-      if (message.includes("planner_item_not_found")) {
+      if (postgresErrorMatches(response.error, "P0001", "planner_item_not_found")) {
         throw new PlannerRouteError(
           404,
           "planner_item_not_found",
           "Planner item was not found in the active plan."
+        );
+      }
+      if (postgresErrorMatches(response.error, "22023", "invalid_lock_state")) {
+        throw new PlannerRouteError(
+          400,
+          "validation_failed",
+          "Provide a valid lock state."
         );
       }
       throw new PlannerRouteError(

@@ -9,6 +9,7 @@ import {
   unknownPlannerErrorResponse,
 } from "@/lib/planner/api";
 import { MAX_API_BODY_BYTES } from "@/lib/planner/contracts/bounds";
+import { postgresErrorMatches } from "@/lib/planner/postgres-errors";
 import { toScopeMonthDate } from "@/lib/planner/scope-month";
 import { createClient } from "@/lib/supabase/server";
 
@@ -45,15 +46,14 @@ export async function DELETE(request: Request) {
       p_expected_digest: body.expectedDigest,
     });
     if (clearResponse.error) {
-      const message = clearResponse.error.message.toLowerCase();
-      if (message.includes("stale_schedule")) {
+      if (postgresErrorMatches(clearResponse.error, "P0001", "stale_schedule")) {
         throw new PlannerRouteError(
           409,
           "stale_revision",
           "Planner plan state is stale. Refresh and try again."
         );
       }
-      if (message.includes("invalid_scope_month")) {
+      if (postgresErrorMatches(clearResponse.error, "22023", "invalid_scope_month")) {
         throw new PlannerRouteError(
           400,
           "validation_failed",

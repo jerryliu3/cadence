@@ -21,6 +21,7 @@ import {
   PlannerDraftEditValidationError,
   buildPlannerPublishPersistencePayload,
 } from "@/lib/planner/publish-payload";
+import { postgresErrorMatches } from "@/lib/planner/postgres-errors";
 import {
   plannerDraftCommandSchema,
 } from "@/lib/planner/draft-commands";
@@ -208,29 +209,42 @@ export async function POST(request: Request) {
       p_expected_digest: body.expectedDigest,
     });
     if (publishResponse.error) {
-      const message = publishResponse.error.message.toLowerCase();
-      if (message.includes("stale_schedule")) {
+      if (postgresErrorMatches(publishResponse.error, "P0001", "stale_schedule")) {
         throw new PlannerRouteError(
           409,
           "stale_revision",
           "Planner publish state is stale. Refresh and try again."
         );
       }
-      if (message.includes("invalid_scheduled_time")) {
+      if (
+        postgresErrorMatches(
+          publishResponse.error,
+          "22023",
+          "invalid_scheduled_time"
+        )
+      ) {
         throw new PlannerRouteError(
           422,
           "time_validation_failed",
           "Publish is blocked because one or more proposed session times are invalid."
         );
       }
-      if (message.includes("scheduled_outside_goal_lifetime")) {
+      if (
+        postgresErrorMatches(
+          publishResponse.error,
+          "P0001",
+          "scheduled_outside_goal_lifetime"
+        )
+      ) {
         throw new PlannerRouteError(
           422,
           "planner_not_publishable",
           "Publish is blocked because one or more sessions fall outside goal lifetime."
         );
       }
-      if (message.includes("exceeds_target_count")) {
+      if (
+        postgresErrorMatches(publishResponse.error, "P0001", "exceeds_target_count")
+      ) {
         throw new PlannerRouteError(
           409,
           "cross_plan_conflict",
@@ -238,13 +252,21 @@ export async function POST(request: Request) {
         );
       }
       if (
-        message.includes("invalid_scope_month") ||
-        message.includes("invalid_schedule_payload") ||
-        message.includes("invalid_unit_key") ||
-        message.includes("scheduled_date_outside_scope_month") ||
-        message.includes("duplicate_goal_unit") ||
-        message.includes("duplicate_goal_date") ||
-        message.includes("unknown_goal")
+        postgresErrorMatches(publishResponse.error, "22023", "invalid_scope_month") ||
+        postgresErrorMatches(
+          publishResponse.error,
+          "22023",
+          "invalid_schedule_payload"
+        ) ||
+        postgresErrorMatches(publishResponse.error, "22023", "invalid_unit_key") ||
+        postgresErrorMatches(
+          publishResponse.error,
+          "22023",
+          "scheduled_date_outside_scope_month"
+        ) ||
+        postgresErrorMatches(publishResponse.error, "22023", "duplicate_goal_unit") ||
+        postgresErrorMatches(publishResponse.error, "22023", "duplicate_goal_date") ||
+        postgresErrorMatches(publishResponse.error, "22023", "unknown_goal")
       ) {
         throw new PlannerRouteError(
           400,
@@ -269,23 +291,6 @@ export async function POST(request: Request) {
         "Planner publish did not return persisted plan metadata."
       );
     }
-    const revisionsResponse = await routeContext.supabase.rpc("get_planner_state");
-    if (revisionsResponse.error) {
-      throw new PlannerRouteError(
-        500,
-        "revision_load_failed",
-        "Planner revision state could not be loaded."
-      );
-    }
-    const revisions = (
-      (revisionsResponse.data as
-        | Array<{ canonical_revision: number; execution_revision: number }>
-        | null) ?? []
-    )[0] ?? {
-      canonical_revision: 0,
-      execution_revision: 0,
-    };
-
     return NextResponse.json(
       {
         schemaVersion: "1",
@@ -295,8 +300,8 @@ export async function POST(request: Request) {
             ? publishedRow.upserted_count
             : 0,
         revisions: {
-          canonicalRevision: revisions.canonical_revision,
-          executionRevision: revisions.execution_revision,
+          canonicalRevision: 0,
+          executionRevision: 0,
         },
         scheduleDigest:
           typeof publishedRow.schedule_digest === "string"

@@ -255,11 +255,10 @@ async function loadOwnerLinks(
 async function loadRevisionTokens(
   supabase: ServerSupabaseClient
 ): Promise<PlannerRevisionTokens> {
-  const [revisionResponse, scheduleDigestResponse] = await Promise.all([
-    supabase.rpc("get_planner_state"),
-    supabase.rpc("get_planner_schedule_digest", {}),
-  ]);
-  requireTableRead(revisionResponse.error, "revision_load_failed");
+  const scheduleDigestResponse = await supabase.rpc(
+    "get_planner_schedule_digest",
+    {}
+  );
   if (scheduleDigestResponse.error) {
     const digestErrorCode = (scheduleDigestResponse.error.code ?? "").toUpperCase();
     const digestErrorMessage = scheduleDigestResponse.error.message.toLowerCase();
@@ -272,11 +271,6 @@ async function loadRevisionTokens(
       requireTableRead(scheduleDigestResponse.error, "revision_load_failed");
     }
   }
-  const row = (
-    (revisionResponse.data as
-      | Array<{ canonical_revision: number; execution_revision: number }>
-      | null) ?? []
-  )[0];
   const scheduleDigest =
     scheduleDigestResponse.error
       ? null
@@ -284,8 +278,8 @@ async function loadRevisionTokens(
       ? scheduleDigestResponse.data
       : null;
   return {
-    canonicalRevision: row?.canonical_revision ?? 0,
-    executionRevision: row?.execution_revision ?? 0,
+    canonicalRevision: 0,
+    executionRevision: 0,
     scheduleDigest,
   };
 }
@@ -316,14 +310,11 @@ async function loadPlannerPreferences(
   return resolvePlannerPreferencesSnapshot({ profile });
 }
 
-async function loadActivePlanSnapshot(
+async function loadPlannerItemsForScope(
   supabase: ServerSupabaseClient,
   ownerId: string,
-  scopeMonth: string,
-  goals: Goal[],
-  completions: Completion[],
-  preferences: PlannerPreferencesSnapshot | null
-): Promise<ActiveExecutionPlanSnapshot | null> {
+  scopeMonth: string
+) {
   const scopeMonthDate = toScopeMonthDate(scopeMonth);
   const nextMonthDate = nextScopeMonthDate(scopeMonthDate);
   const itemsResponse = await supabase
@@ -336,7 +327,17 @@ async function loadActivePlanSnapshot(
     .order("goal_id")
     .order("unit_key");
   requireTableRead(itemsResponse.error, "active_plan_item_load_failed");
-  const plannerItems = (itemsResponse.data ?? []) as PlannerItemRow[];
+  return (itemsResponse.data ?? []) as PlannerItemRow[];
+}
+
+async function loadActivePlanSnapshot(
+  ownerId: string,
+  scopeMonth: string,
+  plannerItems: PlannerItemRow[],
+  goals: Goal[],
+  completions: Completion[],
+  preferences: PlannerPreferencesSnapshot | null
+): Promise<ActiveExecutionPlanSnapshot | null> {
   if (plannerItems.length === 0) {
     return null;
   }
@@ -351,6 +352,10 @@ async function loadActivePlanSnapshot(
   }
 
   const activeGoalByGoalId = new Map<string, PlannerActiveGoalRow>();
+  const requirementKindByGoalId = new Map<
+    string,
+    PlannerActiveItemRow["requirement_kind"]
+  >();
   const items: PlannerActiveItemRow[] = [];
   const assignments: PlannerBaseAssignment[] = [];
   const completionToUnit: Record<string, PlannerCompletionUnitIdentity> = {};
@@ -365,9 +370,11 @@ async function loadActivePlanSnapshot(
       );
     }
     let activeGoal = activeGoalByGoalId.get(goal.id);
+    let requirementKind = requirementKindByGoalId.get(goal.id);
     if (!activeGoal) {
       const normalizedRequirement = normalizeGoalRequirement(goal);
       const assessment = createDefaultAssessment(goal);
+      requirementKind = normalizedRequirement.requirement.kind;
       activeGoal = {
         id: goal.id,
         goal_id: goal.id,
@@ -382,8 +389,12 @@ async function loadActivePlanSnapshot(
         assessment_input_hash: assessment.assessmentInputHash,
       };
       activeGoalByGoalId.set(goal.id, activeGoal);
+      requirementKindByGoalId.set(goal.id, requirementKind);
     }
-    const normalizedRequirement = normalizeGoalRequirement(goal);
+    if (!requirementKind) {
+      requirementKind = normalizeGoalRequirement(goal).requirement.kind;
+      requirementKindByGoalId.set(goal.id, requirementKind);
+    }
     const completion = completionByGoalDate.get(
       `${goal.id}:${item.scheduled_date}`
     );
@@ -396,7 +407,7 @@ async function loadActivePlanSnapshot(
       id: item.id,
       plan_goal_id: goal.id,
       unit_key: item.unit_key,
-      requirement_kind: normalizedRequirement.requirement.kind,
+      requirement_kind: requirementKind,
       scheduled_date: item.scheduled_date,
       original_scheduled_date: originalScheduledDate,
       classification: completion ? "fulfilled" : "open",
@@ -471,11 +482,12 @@ export async function loadPlannerCanonicalSnapshot({
   ownerId: string;
   scopeMonth: string;
 }): Promise<PlannerCanonicalSnapshot> {
-  const [goals, links, revisions, preferences] = await Promise.all([
+  const [goals, links, revisions, preferences, plannerItems] = await Promise.all([
     loadOwnerGoals(supabase, ownerId),
     loadOwnerLinks(supabase, ownerId),
     loadRevisionTokens(supabase),
     loadPlannerPreferences(supabase, ownerId),
+    loadPlannerItemsForScope(supabase, ownerId, scopeMonth),
   ]);
   const completions = await loadOwnerCompletions(
     supabase,
@@ -483,9 +495,9 @@ export async function loadPlannerCanonicalSnapshot({
     goals.map((goal) => goal.id)
   );
   const activePlan = await loadActivePlanSnapshot(
-    supabase,
     ownerId,
     scopeMonth,
+    plannerItems,
     goals,
     completions,
     preferences
