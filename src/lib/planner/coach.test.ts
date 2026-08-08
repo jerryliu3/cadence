@@ -16,8 +16,8 @@ describe("coachResponseJsonSchema", () => {
           type: "string",
           enum: ["none", "needs_goal", "apply"],
         },
-        goals: {
-          type: "array",
+        global: {
+          type: ["object", "null"],
         },
       },
     });

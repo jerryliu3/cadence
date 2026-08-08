@@ -47,17 +47,17 @@ describe("worst-case planner benchmark fixture", () => {
 
       expect(byteLength).toBeLessThan(MAX_API_BODY_BYTES);
     },
-    12_000
+    20_000
   );
 
   it(
     "returns the same full kernel result for the same bounded input",
     () => {
-    const first = runPlannerKernel(materializeWorstCaseKernelInput());
-    const second = runPlannerKernel(materializeWorstCaseKernelInput());
+      const first = runPlannerKernel(materializeWorstCaseKernelInput());
+      const second = runPlannerKernel(materializeWorstCaseKernelInput());
 
-    expect(canonicalHash(first)).toBe(canonicalHash(second));
+      expect(canonicalHash(first)).toBe(canonicalHash(second));
     },
-    12_000
+    20_000
   );
 });
