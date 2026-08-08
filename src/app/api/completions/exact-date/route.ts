@@ -9,7 +9,6 @@ import {
   applyPlannerItemDateFact,
   targetedExactDateRequestSchema,
 } from "@/lib/planner/exact-date-dispatch";
-import { classifyTelemetryResult, emitTelemetryEvent } from "@/lib/telemetry/runtime";
 import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
@@ -28,52 +27,8 @@ function errorResponse(
   );
 }
 
-type TargetedCompletionRoute = "item_date" | "plan_goal_date" | "canonical_exact_date";
-
-function emitTargetedCompletionTelemetry({
-  ownerId,
-  correlationId,
-  capabilities,
-  startedAt,
-  route,
-  desiredFactState,
-  statusCode,
-  errorCode,
-}: {
-  ownerId: string;
-  correlationId: string;
-  capabilities: ReturnType<typeof getPlannerCapabilities>;
-  startedAt: number;
-  route: TargetedCompletionRoute;
-  desiredFactState: "present" | "absent";
-  statusCode: number;
-  errorCode: string | null;
-}) {
-  emitTelemetryEvent({
-    eventName: "targeted_completion.completed",
-    ownerId,
-    correlationId,
-    capabilities,
-    scope: null,
-    result: errorCode
-      ? classifyTelemetryResult({
-          statusCode,
-          errorCode,
-        })
-      : "success",
-    statusCode,
-    errorCode,
-    durationMs: Date.now() - startedAt,
-    data: {
-      route,
-      desiredFactState,
-    },
-  });
-}
-
 export async function POST(request: Request) {
   const correlationId = randomUUID();
-  const startedAt = Date.now();
   const supabase = await createClient();
   const {
     data: { user },
@@ -101,28 +56,12 @@ export async function POST(request: Request) {
     );
   }
   if (!capabilities.targetedExactCompletion) {
-    const response = errorResponse(
+    return errorResponse(
       503,
       "targeted_exact_completion_disabled",
       "Exact-date completion updates are temporarily unavailable.",
       correlationId
     );
-    emitTelemetryEvent({
-      eventName: "targeted_completion.completed",
-      ownerId: user.id,
-      correlationId,
-      capabilities,
-      scope: null,
-      result: "disabled",
-      statusCode: 503,
-      errorCode: "targeted_exact_completion_disabled",
-      durationMs: Date.now() - startedAt,
-      data: {
-        route: "canonical_exact_date",
-        desiredFactState: "absent",
-      },
-    });
-    return response;
   }
 
   const contentLength = Number(request.headers.get("content-length") ?? "0");
@@ -185,16 +124,6 @@ export async function POST(request: Request) {
       expectation: plannerItemExpectation,
     });
     if (!result.ok) {
-      emitTargetedCompletionTelemetry({
-        ownerId: user.id,
-        correlationId,
-        capabilities,
-        startedAt,
-        route: result.route,
-        desiredFactState,
-        statusCode: result.status,
-        errorCode: result.code,
-      });
       return errorResponse(
         result.status,
         result.code,
@@ -202,17 +131,6 @@ export async function POST(request: Request) {
         correlationId
       );
     }
-
-    emitTargetedCompletionTelemetry({
-      ownerId: user.id,
-      correlationId,
-      capabilities,
-      startedAt,
-      route: result.route,
-      desiredFactState,
-      statusCode: 200,
-      errorCode: null,
-    });
 
     return NextResponse.json(
       {
@@ -233,16 +151,6 @@ export async function POST(request: Request) {
       expectation: plannerGoalExpectation,
     });
     if (!result.ok) {
-      emitTargetedCompletionTelemetry({
-        ownerId: user.id,
-        correlationId,
-        capabilities,
-        startedAt,
-        route: result.route,
-        desiredFactState,
-        statusCode: result.status,
-        errorCode: result.code,
-      });
       return errorResponse(
         result.status,
         result.code,
@@ -250,17 +158,6 @@ export async function POST(request: Request) {
         correlationId
       );
     }
-
-    emitTargetedCompletionTelemetry({
-      ownerId: user.id,
-      correlationId,
-      capabilities,
-      startedAt,
-      route: result.route,
-      desiredFactState,
-      statusCode: 200,
-      errorCode: null,
-    });
 
     return NextResponse.json(
       {
@@ -321,16 +218,6 @@ export async function POST(request: Request) {
   );
 
   if (mutationError) {
-    emitTargetedCompletionTelemetry({
-      ownerId: user.id,
-      correlationId,
-      capabilities,
-      startedAt,
-      route: "canonical_exact_date",
-      desiredFactState,
-      statusCode: 409,
-      errorCode: "completion_update_failed",
-    });
     return errorResponse(
       409,
       "completion_update_failed",
@@ -338,17 +225,6 @@ export async function POST(request: Request) {
       correlationId
     );
   }
-
-  emitTargetedCompletionTelemetry({
-    ownerId: user.id,
-    correlationId,
-    capabilities,
-    startedAt,
-    route: "canonical_exact_date",
-    desiredFactState,
-    statusCode: 200,
-    errorCode: null,
-  });
 
   return NextResponse.json(
     {
