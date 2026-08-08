@@ -103,7 +103,7 @@ async function ensureExpectedDigest({
   if (digestResponse.error) {
     return dispatchFailure(
       503,
-      "planner_state_unavailable",
+      "planner_digest_unavailable",
       "Planner completion state could not be loaded."
     );
   }
