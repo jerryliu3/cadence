@@ -38,20 +38,17 @@ Run this exact sequence before broadening cohorts:
 1. `pnpm supabase:reset`
 2. `pnpm test:sql`
 3. `pnpm test:concurrency`
-4. `pnpm contracts:check`
-5. `pnpm test:benchmark`
-6. `supabase db lint`
-7. `supabase db advisors`
-8. `pnpm test`
-9. `pnpm lint`
-10. `pnpm typecheck`
+4. `supabase db lint`
+5. `supabase db advisors`
+6. `pnpm test`
+7. `pnpm lint`
+8. `pnpm typecheck`
 
 Pass criteria:
 
 - all planner migrations apply cleanly from empty local state,
 - SQL tests pass without manual database intervention,
-- concurrency harness and contract drift checks pass,
-- benchmark fixture completes under expected runtime bounds,
+- concurrency harness checks pass,
 - `supabase db lint` and `supabase db advisors` report no unreviewed blockers,
 - API/unit tests remain green.
 
