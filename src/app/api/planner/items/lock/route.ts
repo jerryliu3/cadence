@@ -107,11 +107,25 @@ export async function POST(request: Request) {
         "Planner item lock change did not return a valid scheduled date."
       );
     }
-    const syncResult = await syncPlannerItemsFromActiveExecutionPlan({
-      admin,
-      ownerId: routeContext.userId,
-      scopeMonth: scopeMonthFromDate(scheduledDate),
-    });
+    let scheduleDigest: string | null = null;
+    const scopeMonth = scopeMonthFromDate(scheduledDate);
+    try {
+      const syncResult = await syncPlannerItemsFromActiveExecutionPlan({
+        admin,
+        ownerId: routeContext.userId,
+        scopeMonth,
+      });
+      scheduleDigest = syncResult.scheduleDigest;
+    } catch (error) {
+      console.error(
+        "[planner-lock] planner_items mirror sync failed after lock mutation",
+        {
+          correlationId,
+          scopeMonth,
+          error: error instanceof Error ? error.message : String(error),
+        }
+      );
+    }
 
     emitTelemetryEvent({
       eventName: "planner.mutation.completed",
@@ -140,7 +154,7 @@ export async function POST(request: Request) {
           canonicalRevision: body.expectedCanonicalRevision,
           executionRevision: row.execution_revision as number,
         },
-        scheduleDigest: syncResult.scheduleDigest,
+        scheduleDigest,
         correlationId,
       },
       { headers: { "Cache-Control": "no-store" } }
