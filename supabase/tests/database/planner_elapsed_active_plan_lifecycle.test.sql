@@ -3,6 +3,20 @@ create extension if not exists pgtap with schema extensions;
 set local search_path = public, private, extensions, pg_catalog;
 select plan(3);
 
+insert into auth.users (id, email)
+values (
+  '11111111-1111-4111-8111-111111111111',
+  'planner-elapsed-active-plan-lifecycle@example.com'
+)
+on conflict (id) do nothing;
+
+insert into public.profiles (id, username)
+values (
+  '11111111-1111-4111-8111-111111111111',
+  'planner_elapsed_active_plan_lifecycle_fixture'
+)
+on conflict (id) do nothing;
+
 insert into public.goals (
   id,
   owner_id,

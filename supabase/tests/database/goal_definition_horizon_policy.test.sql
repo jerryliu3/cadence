@@ -3,6 +3,20 @@ create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions, pg_catalog;
 select plan(8);
 
+insert into auth.users (id, email)
+values (
+  '11111111-1111-4111-8111-111111111111',
+  'goal-definition-horizon-policy@example.com'
+)
+on conflict (id) do nothing;
+
+insert into public.profiles (id, username)
+values (
+  '11111111-1111-4111-8111-111111111111',
+  'goal_horizon_policy_fixture'
+)
+on conflict (id) do nothing;
+
 set local role service_role;
 
 select lives_ok(
