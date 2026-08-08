@@ -6,7 +6,7 @@ select plan(11);
 select results_eq(
   $$
     select allowed, request_count, remaining
-    from private.consume_planner_ai_quota(
+    from public.consume_planner_ai_quota(
       '11111111-1111-4111-8111-111111111111',
       'planner_coach',
       2,
@@ -20,7 +20,7 @@ select results_eq(
 select results_eq(
   $$
     select allowed, request_count, remaining
-    from private.consume_planner_ai_quota(
+    from public.consume_planner_ai_quota(
       '11111111-1111-4111-8111-111111111111',
       'planner_coach',
       2,
@@ -34,7 +34,7 @@ select results_eq(
 select results_eq(
   $$
     select allowed, request_count, remaining
-    from private.consume_planner_ai_quota(
+    from public.consume_planner_ai_quota(
       '11111111-1111-4111-8111-111111111111',
       'planner_coach',
       2,
@@ -48,7 +48,7 @@ select results_eq(
 select ok(
   (
     select retry_after_seconds > 0
-    from private.consume_planner_ai_quota(
+    from public.consume_planner_ai_quota(
       '11111111-1111-4111-8111-111111111111',
       'planner_coach',
       2,
@@ -61,7 +61,7 @@ select ok(
 select is(
   (
     select input_tokens
-    from private.planner_ai_usage_daily
+    from public.planner_ai_usage_daily
     where owner_id = '11111111-1111-4111-8111-111111111111'
       and usage_date = (clock_timestamp() at time zone 'UTC')::date
       and feature = 'planner_coach'
@@ -71,7 +71,7 @@ select is(
 );
 
 select is(
-  private.record_planner_ai_output_tokens(
+  public.record_planner_ai_output_tokens(
     '11111111-1111-4111-8111-111111111111',
     (clock_timestamp() at time zone 'UTC')::date,
     'planner_coach',
@@ -84,7 +84,7 @@ select is(
 select results_eq(
   $$
     select allowed, request_count
-    from private.consume_planner_ai_quota(
+    from public.consume_planner_ai_quota(
       '11111111-1111-4111-8111-111111111111',
       'bulk_parser',
       20,
@@ -98,7 +98,7 @@ select results_eq(
 select throws_ok(
   $$
     select *
-    from private.consume_planner_ai_quota(
+    from public.consume_planner_ai_quota(
       '11111111-1111-4111-8111-111111111111',
       'planner_coach',
       101,
@@ -119,10 +119,10 @@ select set_config(
 select set_config('request.jwt.claim.role', 'authenticated', true);
 
 select throws_ok(
-  $$ select * from private.planner_ai_usage_daily $$,
+  $$ select * from public.planner_ai_usage_daily $$,
   '42501'::character(5),
-  'permission denied for schema private',
-  'authenticated clients cannot read private quota telemetry'
+  'permission denied for table planner_ai_usage_daily',
+  'authenticated clients cannot read planner quota telemetry'
 );
 
 select throws_ok(
