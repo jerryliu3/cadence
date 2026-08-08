@@ -1167,23 +1167,6 @@ export type Database = {
         Args: { p_date?: string; p_goal_id: string }
         Returns: undefined
       }
-      move_execution_plan_item_service: {
-        Args: {
-          p_date: string
-          p_expected_canonical_revision: number
-          p_expected_execution_revision: number
-          p_expected_item_revision: number
-          p_item_id: string
-          p_owner: string
-        }
-        Returns: {
-          execution_revision: number
-          item_id: string
-          item_revision: number
-          locked: boolean
-          scheduled_date: string
-        }[]
-      }
       publish_execution_plan_service:
         | {
             Args: {
@@ -1274,25 +1257,6 @@ export type Database = {
           p_usage_date: string
         }
         Returns: number
-      }
-      save_planner_coach_conversation_service: {
-        Args: {
-          p_messages: Json
-          p_owner: string
-          p_scope_month: string
-          p_timezone: string
-          p_title?: string
-        }
-        Returns: {
-          conversation_id: string
-          created_at: string
-          message_count: number
-          preview_text: string
-          scope_month: string
-          timezone: string
-          title: string
-          updated_at: string
-        }[]
       }
       set_execution_plan_goal_date_fact_service: {
         Args: {
