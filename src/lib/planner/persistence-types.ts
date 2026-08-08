@@ -2,7 +2,6 @@ import type { Database } from "@/lib/supabase/database.types";
 
 type PublicPlannerTables = Pick<
   Database["public"]["Tables"],
-  | "planner_preferences"
   | "execution_plans"
   | "execution_plan_goals"
   | "execution_plan_days"
@@ -29,8 +28,6 @@ export type PlannerPersistenceInsert<
     > & { original_goal_id?: never }
   : GeneratedPlannerPersistenceInsert<Table>;
 
-export type PlannerPreferencesRow =
-  PlannerPersistenceRow<"planner_preferences">;
 export type ExecutionPlanRow =
   PlannerPersistenceRow<"execution_plans">;
 export type ExecutionPlanGoalRow =
@@ -42,8 +39,6 @@ export type ExecutionPlanItemRow =
 export type ExecutionPlanIssueRow =
   PlannerPersistenceRow<"execution_plan_issues">;
 
-export type PlannerPreferencesInsert =
-  PlannerPersistenceInsert<"planner_preferences">;
 export type ExecutionPlanInsert =
   PlannerPersistenceInsert<"execution_plans">;
 export type ExecutionPlanGoalInsert =

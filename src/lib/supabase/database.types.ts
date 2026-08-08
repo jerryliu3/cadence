@@ -1193,50 +1193,6 @@ export type Database = {
           },
         ]
       }
-      planner_preferences: {
-        Row: {
-          created_at: string
-          default_policy: Json
-          owner_id: string
-          policy_compiler_version: string
-          policy_revision: number
-          policy_schema_version: string
-          timezone: string
-          timezone_confirmed_at: string
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          default_policy: Json
-          owner_id: string
-          policy_compiler_version: string
-          policy_revision?: number
-          policy_schema_version: string
-          timezone: string
-          timezone_confirmed_at: string
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          default_policy?: Json
-          owner_id?: string
-          policy_compiler_version?: string
-          policy_revision?: number
-          policy_schema_version?: string
-          timezone?: string
-          timezone_confirmed_at?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "planner_preferences_owner_id_fkey"
-            columns: ["owner_id"]
-            isOneToOne: true
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -1654,33 +1610,6 @@ export type Database = {
       unmark_goal_complete: {
         Args: { p_date?: string; p_goal_id: string }
         Returns: undefined
-      }
-      upsert_planner_preferences_service: {
-        Args: {
-          p_default_policy: Json
-          p_owner: string
-          p_policy_compiler_version?: string
-          p_policy_schema_version?: string
-          p_timezone: string
-          p_timezone_confirmed_at?: string
-        }
-        Returns: {
-          created_at: string
-          default_policy: Json
-          owner_id: string
-          policy_compiler_version: string
-          policy_revision: number
-          policy_schema_version: string
-          timezone: string
-          timezone_confirmed_at: string
-          updated_at: string
-        }
-        SetofOptions: {
-          from: "*"
-          to: "planner_preferences"
-          isOneToOne: true
-          isSetofReturn: false
-        }
       }
       username_is_available: { Args: { p_username: string }; Returns: boolean }
     }
