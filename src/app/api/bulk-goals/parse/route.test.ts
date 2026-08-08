@@ -36,11 +36,11 @@ describe("bulk goal parser route", () => {
     });
     vi.stubEnv("GEMINI_API_KEY", "test-api-key");
     mocks.adminRpc.mockImplementation((functionName: string) => {
-      if (functionName === "consume_planner_ai_quota_service") {
+      if (functionName === "consume_planner_ai_quota") {
         return Promise.resolve({
           data: [
             {
-              usage_date: "2026-01-31",
+              quota_usage_date: "2026-01-31",
               allowed: true,
               request_count: 1,
               remaining: 19,
@@ -50,7 +50,7 @@ describe("bulk goal parser route", () => {
           error: null,
         });
       }
-      if (functionName === "record_planner_ai_output_tokens_service") {
+      if (functionName === "record_planner_ai_output_tokens") {
         return Promise.resolve({ data: 10, error: null });
       }
       return Promise.resolve({ data: null, error: null });
@@ -102,11 +102,11 @@ describe("bulk goal parser route", () => {
     const fetchSpy = vi.fn();
     vi.stubGlobal("fetch", fetchSpy);
     mocks.adminRpc.mockImplementation((functionName: string) => {
-      if (functionName === "consume_planner_ai_quota_service") {
+      if (functionName === "consume_planner_ai_quota") {
         return Promise.resolve({
           data: [
             {
-              usage_date: "2026-01-31",
+              quota_usage_date: "2026-01-31",
               allowed: false,
               request_count: 20,
               remaining: 0,

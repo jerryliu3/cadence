@@ -9,11 +9,9 @@ import {
   createCorrelationId,
   plannerErrorResponse,
   PlannerRouteError,
-  requirePlannerAdminClient,
   requirePlannerRouteContext,
   unknownPlannerErrorResponse,
 } from "@/lib/planner/api";
-import { callAdminRpc } from "@/lib/supabase/admin-rpc";
 import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
@@ -26,7 +24,17 @@ const routeParamsSchema = z
 
 const conversationMessageRowSchema = z
   .object({
-    conversation_id: z.uuid(),
+    message_ordinal: z.number().int(),
+    message_role: z.enum(["user", "assistant"]),
+    message_content: z.string(),
+    message_created_at: z.string(),
+    message_proposal_meta: z.unknown().nullable().optional(),
+  })
+  .strict();
+
+const conversationSummaryRowSchema = z
+  .object({
+    id: z.uuid(),
     scope_month: z.string(),
     timezone: z.string(),
     title: z.string(),
@@ -34,11 +42,6 @@ const conversationMessageRowSchema = z
     message_count: z.number().int(),
     created_at: z.string(),
     updated_at: z.string(),
-    message_ordinal: z.number().int(),
-    message_role: z.enum(["user", "assistant"]),
-    message_content: z.string(),
-    message_created_at: z.string(),
-    message_proposal_meta: z.unknown().nullable().optional(),
   })
   .strict();
 
@@ -67,23 +70,50 @@ export async function GET(
       disabledCode: "planner_coach_disabled",
       disabledMessage: "Planner coach is not enabled.",
     });
-    const admin = requirePlannerAdminClient();
-    const rpcResponse = await callAdminRpc(
-      admin,
-      "get_planner_coach_conversation_service",
-      {
-        p_owner: routeContext.userId,
-        p_conversation_id: params.conversationId,
-      }
-    );
-    if (rpcResponse.error) {
+
+    const [conversationResponse, messageResponse] = await Promise.all([
+      routeContext.supabase
+        .from("planner_coach_conversations")
+        .select("id,scope_month,timezone,title,preview_text,message_count,created_at,updated_at")
+        .eq("id", params.conversationId)
+        .eq("owner_id", routeContext.userId)
+        .maybeSingle(),
+      routeContext.supabase
+        .from("planner_coach_conversation_messages")
+        .select("ordinal,role,content,created_at,proposal_meta")
+        .eq("conversation_id", params.conversationId)
+        .eq("owner_id", routeContext.userId)
+        .order("ordinal"),
+    ]);
+
+    if (conversationResponse.error || messageResponse.error) {
+      const cause = conversationResponse.error?.message ?? messageResponse.error?.message;
       throw new PlannerRouteError(
         503,
         "conversation_restore_unavailable",
-        "Saved coach conversation could not be loaded."
+        "Saved coach conversation could not be loaded.",
+        { cause }
       );
     }
-    const rows = z.array(conversationMessageRowSchema).parse(rpcResponse.data ?? []);
+    if (!conversationResponse.data) {
+      throw new PlannerRouteError(
+        404,
+        "conversation_not_found",
+        "The requested coach conversation was not found."
+      );
+    }
+    const summaryRow = conversationSummaryRowSchema.parse(conversationResponse.data);
+    const rows = z
+      .array(conversationMessageRowSchema)
+      .parse(
+        (messageResponse.data ?? []).map((row) => ({
+          message_ordinal: row.ordinal,
+          message_role: row.role,
+          message_content: row.content,
+          message_created_at: row.created_at,
+          message_proposal_meta: row.proposal_meta,
+        }))
+      );
     if (rows.length === 0) {
       throw new PlannerRouteError(
         404,
@@ -91,16 +121,15 @@ export async function GET(
         "The requested coach conversation was not found."
       );
     }
-    const head = rows[0];
     const conversation = coachConversationSummarySchema.parse({
-      id: head.conversation_id,
-      scopeMonth: head.scope_month,
-      timezone: head.timezone,
-      title: head.title,
-      previewText: head.preview_text,
-      messageCount: head.message_count,
-      createdAt: head.created_at,
-      updatedAt: head.updated_at,
+      id: summaryRow.id,
+      scopeMonth: summaryRow.scope_month,
+      timezone: summaryRow.timezone,
+      title: summaryRow.title,
+      previewText: summaryRow.preview_text,
+      messageCount: summaryRow.message_count,
+      createdAt: summaryRow.created_at,
+      updatedAt: summaryRow.updated_at,
     });
     const messages = rows.map((row, index) => {
       const parsedProposal =

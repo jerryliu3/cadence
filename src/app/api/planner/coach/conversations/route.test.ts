@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   parseBoundedJsonBody: vi.fn(),
   requirePlannerRouteContext: vi.fn(),
   callAdminRpc: vi.fn(),
+  listConversationsResponse: vi.fn(),
 }));
 
 vi.mock("@/lib/supabase/server", () => ({
@@ -35,9 +36,25 @@ import { GET, POST } from "./route";
 describe("planner coach conversations route", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    const conversationQuery = {
+      select: vi.fn(() => conversationQuery),
+      eq: vi.fn(() => conversationQuery),
+      order: vi.fn(() => conversationQuery),
+      limit: vi.fn(() => conversationQuery),
+      then: (
+        resolve: (value: Awaited<ReturnType<typeof mocks.listConversationsResponse>>) => unknown
+      ) => resolve(mocks.listConversationsResponse()),
+    };
     mocks.requirePlannerRouteContext.mockResolvedValue({
       userId: "11111111-1111-4111-8111-111111111111",
-      supabase: {},
+      supabase: {
+        from: vi.fn((table: string) => {
+          if (table === "planner_coach_conversations") {
+            return conversationQuery;
+          }
+          throw new Error(`Unexpected table ${table}`);
+        }),
+      },
       capabilities: {
         calendarEnabled: true,
         plannerRead: true,
@@ -48,13 +65,10 @@ describe("planner coach conversations route", () => {
         overlap: false,
       },
     });
-  });
-
-  it("lists saved conversations for the active scope", async () => {
-    mocks.callAdminRpc.mockResolvedValue({
+    mocks.listConversationsResponse.mockReturnValue({
       data: [
         {
-          conversation_id: "22222222-2222-4222-8222-222222222222",
+          id: "22222222-2222-4222-8222-222222222222",
           scope_month: "2026-08",
           timezone: "UTC",
           title: "Weekly running plan",
@@ -66,7 +80,9 @@ describe("planner coach conversations route", () => {
       ],
       error: null,
     });
+  });
 
+  it("lists saved conversations for the active scope", async () => {
     const response = await GET(
       new Request(
         "http://localhost/api/planner/coach/conversations?scopeMonth=2026-08&limit=10"
@@ -88,12 +104,12 @@ describe("planner coach conversations route", () => {
   });
 
   it("falls back to an empty list when conversation RPC wiring is unavailable", async () => {
-    mocks.callAdminRpc.mockResolvedValue({
+    mocks.listConversationsResponse.mockReturnValue({
       data: null,
       error: {
-        code: "PGRST202",
+        code: "PGRST205",
         message:
-          "Could not find the function public.list_planner_coach_conversations_service in the schema cache",
+          "Could not find the table public.planner_coach_conversations in the schema cache",
         details: null,
         hint: null,
       },

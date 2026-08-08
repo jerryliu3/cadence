@@ -731,7 +731,7 @@ export type Database = {
           default_local_time?: string | null
           description?: string | null
           end_date?: string | null
-          frequency_type?: Database["public"]["Enums"]["goal_frequency_type"]
+          frequency_type: Database["public"]["Enums"]["goal_frequency_type"]
           id?: string
           is_deleted?: boolean
           is_group?: boolean
@@ -1129,21 +1129,6 @@ export type Database = {
           retry_after_seconds: number
         }[]
       }
-      consume_planner_ai_quota_service: {
-        Args: {
-          p_feature: string
-          p_input_tokens?: number
-          p_limit?: number
-          p_owner: string
-        }
-        Returns: {
-          allowed: boolean
-          remaining: number
-          request_count: number
-          retry_after_seconds: number
-          usage_date: string
-        }[]
-      }
       dismiss_execution_plan_service: {
         Args: {
           p_expected_canonical_revision: number
@@ -1167,24 +1152,6 @@ export type Database = {
           username: string
         }[]
       }
-      get_planner_coach_conversation_service: {
-        Args: { p_conversation_id: string; p_owner: string }
-        Returns: {
-          conversation_id: string
-          created_at: string
-          message_content: string
-          message_count: number
-          message_created_at: string
-          message_ordinal: number
-          message_proposal_meta: Json
-          message_role: string
-          preview_text: string
-          scope_month: string
-          timezone: string
-          title: string
-          updated_at: string
-        }[]
-      }
       get_planner_schedule_digest: {
         Args: { p_owner?: string }
         Returns: string
@@ -1194,19 +1161,6 @@ export type Database = {
         Returns: {
           canonical_revision: number
           execution_revision: number
-        }[]
-      }
-      list_planner_coach_conversations_service: {
-        Args: { p_limit?: number; p_owner: string; p_scope_month?: string }
-        Returns: {
-          conversation_id: string
-          created_at: string
-          message_count: number
-          preview_text: string
-          scope_month: string
-          timezone: string
-          title: string
-          updated_at: string
         }[]
       }
       mark_goal_complete: {
@@ -1313,15 +1267,6 @@ export type Database = {
             }[]
           }
       record_planner_ai_output_tokens: {
-        Args: {
-          p_feature: string
-          p_output_tokens: number
-          p_owner: string
-          p_usage_date: string
-        }
-        Returns: number
-      }
-      record_planner_ai_output_tokens_service: {
         Args: {
           p_feature: string
           p_output_tokens: number

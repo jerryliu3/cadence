@@ -35,7 +35,7 @@ export function applyCoachPolicyPatches({
   let appliedPatchCount = 0;
   let ignoredPatchCount = 0;
   let noOpPatchCount = 0;
-  let outOfScopePatchCount = 0;
+  const outOfScopePatchCount = 0;
   let unsupportedPatchCount = 0;
 
   for (const patch of patches) {
