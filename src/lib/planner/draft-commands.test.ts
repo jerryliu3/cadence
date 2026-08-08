@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-  buildPlannerDraftCommandsFromLegacyItemEdits,
   projectPlannerDraftCommands,
   sortPlannerDraftCommands,
   type PlannerDraftCommand,
@@ -187,36 +186,4 @@ describe("planner draft commands", () => {
     expect(["07:30", "20:45"]).toContain(projectedA);
   });
 
-  it("converts legacy draft edits into typed draft commands", () => {
-    const commands = buildPlannerDraftCommandsFromLegacyItemEdits([
-      {
-        goalId: GOAL_B,
-        unitKey: "total:2",
-        scheduledDate: null,
-        label: "Long run",
-      },
-      {
-        goalId: GOAL_A,
-        unitKey: "total:1",
-        scheduledDate: "2026-08-06",
-        label: null,
-      },
-    ]);
-
-    expect(commands).toHaveLength(2);
-    expect(commands[0]).toMatchObject({
-      sequence: 1,
-      kind: "move_item",
-      goalId: GOAL_A,
-      unitKey: "total:1",
-      scheduledDate: "2026-08-06",
-    });
-    expect(commands[1]).toMatchObject({
-      sequence: 2,
-      kind: "rename_item",
-      goalId: GOAL_B,
-      unitKey: "total:2",
-      label: "Long run",
-    });
-  });
 });
