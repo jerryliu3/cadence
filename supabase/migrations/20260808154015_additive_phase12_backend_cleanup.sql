@@ -153,10 +153,6 @@ begin
     alter type public.goal_frequency_type_v2 rename to goal_frequency_type;
 
     alter table public.goals
-    alter column frequency_type
-    set default 'fixed_milestones'::public.goal_frequency_type;
-
-    alter table public.goals
     add constraint milestones_need_target
     check (
       frequency_type <> 'fixed_milestones'::public.goal_frequency_type
