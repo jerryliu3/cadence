@@ -5,11 +5,7 @@
 -- carla@example.com / password123
 
 truncate table
-  public.execution_plan_issues,
-  public.execution_plan_items,
-  public.execution_plan_days,
-  public.execution_plan_goals,
-  public.execution_plans,
+  public.planner_items,
   public.goal_shares,
   public.goal_participants,
   public.goal_links,
