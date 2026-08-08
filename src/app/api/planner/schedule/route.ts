@@ -11,24 +11,28 @@ import {
 } from "@/lib/planner/api";
 import { MAX_API_BODY_BYTES } from "@/lib/planner/contracts/bounds";
 import {
+  scopeMonthDate,
   syncPlannerItemsFromActiveExecutionPlan,
 } from "@/lib/planner/planner-items-runtime-sync";
-import { monthFromDate } from "@/lib/planner/dates";
 import { classifyTelemetryResult, emitTelemetryEvent } from "@/lib/telemetry/runtime";
 import { callAdminRpc } from "@/lib/supabase/admin-rpc";
 import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 
-const moveSchema = z.object({
-  itemId: z.string().uuid(),
-  date: z.iso.date(),
-  expectedItemRevision: z.number().int().nonnegative(),
+const clearScheduleSchema = z.object({
+  scopeMonth: z
+    .string()
+    .regex(/^\d{4}-\d{2}$/)
+    .refine((month) => {
+      const monthNumber = Number(month.slice(5, 7));
+      return monthNumber >= 1 && monthNumber <= 12;
+    }),
   expectedCanonicalRevision: z.number().int().nonnegative(),
   expectedExecutionRevision: z.number().int().nonnegative(),
 });
 
-export async function POST(request: Request) {
+export async function DELETE(request: Request) {
   const correlationId = createCorrelationId();
   const startedAt = Date.now();
   let telemetryOwnerId: string | null = null;
@@ -48,89 +52,86 @@ export async function POST(request: Request) {
     const body = await parseBoundedJsonBody(
       request,
       Math.min(MAX_API_BODY_BYTES, 128 * 1024),
-      moveSchema
+      clearScheduleSchema
     );
+
     const admin = requirePlannerAdminClient();
-    const response = await callAdminRpc(admin, "move_execution_plan_item_service", {
-      p_owner: routeContext.userId,
-      p_item_id: body.itemId,
-      p_date: body.date,
-      p_expected_item_revision: body.expectedItemRevision,
-      p_expected_canonical_revision: body.expectedCanonicalRevision,
-      p_expected_execution_revision: body.expectedExecutionRevision,
-    });
-    if (response.error) {
-      const message = response.error.message.toLowerCase();
-      if (
-        message.includes("planner revision mismatch") ||
-        message.includes("planner item revision mismatch")
-      ) {
-        throw new PlannerRouteError(
-          409,
-          "stale_revision",
-          "Planner item state is stale. Refresh and try again."
-        );
-      }
-      if (message.includes("completion_exists")) {
-        throw new PlannerRouteError(
-          409,
-          "completion_exists",
-          "This goal already has a completion on the destination date."
-        );
-      }
-      if (message.includes("completed or historical items cannot move")) {
-        throw new PlannerRouteError(
-          422,
-          "item_move_disallowed",
-          "Completed or historical planner items cannot be moved."
-        );
-      }
-      if (message.includes("active planner item not found")) {
-        throw new PlannerRouteError(
-          404,
-          "planner_item_not_found",
-          "Planner item was not found in the active plan."
-        );
-      }
-      if (message.includes("cross_plan_goal_date_conflict")) {
-        throw new PlannerRouteError(
-          409,
-          "cross_plan_conflict",
-          "Another active month plan already schedules this goal on the destination date."
-        );
-      }
+    const scopeMonthDateValue = scopeMonthDate(body.scopeMonth);
+    const activePlanLookup = await admin
+      .from("execution_plans")
+      .select("id")
+      .eq("owner_id", routeContext.userId)
+      .eq("scope_month", scopeMonthDateValue)
+      .eq("status", "active")
+      .maybeSingle();
+    if (activePlanLookup.error) {
       throw new PlannerRouteError(
-        409,
-        "planner_item_move_failed",
-        "Planner item move could not be completed.",
-        { cause: response.error.message }
+        500,
+        "planner_schedule_clear_failed",
+        "Planner schedule could not be cleared.",
+        { cause: activePlanLookup.error.message }
       );
     }
 
-    const row = Array.isArray(response.data) ? response.data[0] : response.data;
-    if (!row) {
-      throw new PlannerRouteError(
-        500,
-        "invariant_failed",
-        "Planner item move did not return updated state."
+    let executionRevision = body.expectedExecutionRevision;
+    let dismissedPlanId: string | null = null;
+    if (activePlanLookup.data?.id) {
+      const dismissResponse = await callAdminRpc(
+        admin,
+        "dismiss_execution_plan_service",
+        {
+          p_owner: routeContext.userId,
+          p_plan_id: activePlanLookup.data.id,
+          p_expected_canonical_revision: body.expectedCanonicalRevision,
+          p_expected_execution_revision: body.expectedExecutionRevision,
+        }
       );
+      if (dismissResponse.error) {
+        const message = dismissResponse.error.message.toLowerCase();
+        if (message.includes("planner revision mismatch")) {
+          throw new PlannerRouteError(
+            409,
+            "stale_revision",
+            "Planner plan state is stale. Refresh and try again."
+          );
+        }
+        if (message.includes("active planner plan not found")) {
+          throw new PlannerRouteError(
+            404,
+            "planner_plan_not_found",
+            "Planner plan was not found or is no longer active."
+          );
+        }
+        throw new PlannerRouteError(
+          409,
+          "planner_schedule_clear_failed",
+          "Planner schedule could not be cleared.",
+          { cause: dismissResponse.error.message }
+        );
+      }
+      const dismissedRow = Array.isArray(dismissResponse.data)
+        ? dismissResponse.data[0]
+        : dismissResponse.data;
+      if (!dismissedRow) {
+        throw new PlannerRouteError(
+          500,
+          "invariant_failed",
+          "Planner schedule clear did not return updated state."
+        );
+      }
+      executionRevision =
+        typeof dismissedRow.execution_revision === "number"
+          ? dismissedRow.execution_revision
+          : executionRevision;
+      dismissedPlanId =
+        typeof dismissedRow.plan_id === "string" ? dismissedRow.plan_id : null;
     }
-    const scheduledDate =
-      typeof row.scheduled_date === "string" ? row.scheduled_date : null;
-    if (!scheduledDate || scheduledDate.length < 7) {
-      throw new PlannerRouteError(
-        500,
-        "invariant_failed",
-        "Planner item move did not return a valid scheduled date."
-      );
-    }
-    const scopeMonth = monthFromDate(scheduledDate);
     const syncResult = await syncPlannerItemsFromActiveExecutionPlan({
       admin,
       ownerId: routeContext.userId,
       correlationId,
-      scopeMonth,
-      source: "planner-move",
+      scopeMonth: body.scopeMonth,
+      source: "planner-schedule",
     });
     const scheduleDigest = syncResult.scheduleDigest;
 
@@ -140,26 +141,24 @@ export async function POST(request: Request) {
       correlationId,
       capabilities: routeContext.capabilities,
       scope: {
-        month: new Date().toISOString().slice(0, 7),
+        month: body.scopeMonth,
         timezone: "UTC",
       },
       result: "success",
       statusCode: 200,
       errorCode: null,
       durationMs: Date.now() - startedAt,
-      data: { action: "move" },
+      data: { action: "dismiss" },
     });
 
     return NextResponse.json(
       {
         schemaVersion: "1",
-        itemId: row.item_id as string,
-        scheduledDate: row.scheduled_date as string,
-        locked: Boolean(row.locked),
-        itemRevision: row.item_revision as number,
+        scopeMonth: body.scopeMonth,
+        dismissedPlanId,
         revisions: {
           canonicalRevision: body.expectedCanonicalRevision,
-          executionRevision: row.execution_revision as number,
+          executionRevision,
         },
         scheduleDigest,
         correlationId,
@@ -185,25 +184,8 @@ export async function POST(request: Request) {
           statusCode: error.status,
           errorCode: error.code,
           durationMs: Date.now() - startedAt,
-          data: { action: "move" },
+          data: { action: "dismiss" },
         });
-        if (error.code === "invariant_failed") {
-          emitTelemetryEvent({
-            eventName: "planner.invariant.failed",
-            ownerId: telemetryOwnerId,
-            correlationId,
-            capabilities: telemetryCapabilities,
-            scope: null,
-            result: "error",
-            statusCode: 500,
-            errorCode: error.code,
-            durationMs: Date.now() - startedAt,
-            data: {
-              invariantCode: error.code,
-              stage: "mutation",
-            },
-          });
-        }
       }
       return plannerErrorResponse(error, correlationId);
     }
@@ -221,7 +203,7 @@ export async function POST(request: Request) {
         statusCode: 500,
         errorCode: "internal_error",
         durationMs: Date.now() - startedAt,
-        data: { action: "move" },
+        data: { action: "dismiss" },
       });
     }
     return unknownPlannerErrorResponse(correlationId);
