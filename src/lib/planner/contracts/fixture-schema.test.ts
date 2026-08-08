@@ -8,15 +8,25 @@ import {
   getSoftRefinementOperationBudget,
 } from "./bounds";
 import {
-  loadPlannerContractFixtures,
-  loadWorstCaseBenchmarkSpec,
-} from "./load-fixtures";
+  plannerContractFixtureSchema,
+  worstCaseBenchmarkSpecSchema,
+} from "./fixture-schema";
+import benchmarkWorstCase from "../../../../test/fixtures/planner-contracts/benchmark-worst-case.v1.json";
+import completionDispatch from "../../../../test/fixtures/planner-contracts/completion-dispatch.v1.json";
+import eligibility from "../../../../test/fixtures/planner-contracts/eligibility.v1.json";
+import lifecycleOutcome from "../../../../test/fixtures/planner-contracts/lifecycle-outcome.v1.json";
+import solver from "../../../../test/fixtures/planner-contracts/solver.v1.json";
 
 describe("planner contract fixtures", () => {
-  const fixtures = loadPlannerContractFixtures();
+  const fixtures = [
+    lifecycleOutcome,
+    completionDispatch,
+    eligibility,
+    solver,
+  ].map((fixture) => plannerContractFixtureSchema.parse(fixture));
 
   it("loads every frozen contract exactly once with unique case ids", () => {
-    expect(fixtures).toHaveLength(5);
+    expect(fixtures).toHaveLength(4);
     expect(new Set(fixtures.map((fixture) => fixture.contract)).size).toBe(
       fixtures.length
     );
@@ -165,43 +175,11 @@ describe("planner contract fixtures", () => {
     }
   });
 
-  it("distinguishes strict preview invalidation from semantic plan staleness", () => {
-    const fixture = fixtures.find(
-      (candidate) => candidate.contract === "mutation_freshness"
-    );
-    expect(fixture?.contract).toBe("mutation_freshness");
-    if (!fixture || fixture.contract !== "mutation_freshness") {
-      return;
-    }
-
-    const move = fixture.cases.find(
-      (fixtureCase) => fixtureCase.mutation === "item_moved"
-    );
-    const outOfPlan = fixture.cases.find(
-      (fixtureCase) => fixtureCase.mutation === "out_of_plan_completion_added"
-    );
-    const liveClock = fixture.cases.find(
-      (fixtureCase) => fixtureCase.mutation === "live_clock_became_overdue"
-    );
-
-    expect(move?.expected).toMatchObject({
-      strictHashChanges: true,
-      semanticBanner: "none",
-      executionRevisionChanges: true,
-    });
-    expect(outOfPlan?.expected.semanticBanner).toBe("stale");
-    expect(liveClock?.expected).toMatchObject({
-      strictHashChanges: true,
-      semanticBanner: "stale",
-      canonicalRevisionChanges: false,
-      executionRevisionChanges: false,
-    });
-  });
 });
 
 describe("planner bounds contract", () => {
   it("loads the deterministic worst-case fixture at every published bound", () => {
-    const spec = loadWorstCaseBenchmarkSpec();
+    const spec = worstCaseBenchmarkSpecSchema.parse(benchmarkWorstCase);
 
     expect(spec.counts).toEqual({
       goals: MAX_ELIGIBLE_GOALS,

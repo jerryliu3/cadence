@@ -1115,6 +1115,16 @@ export type Database = {
         Args: { p_goal_id: string; p_uid: string }
         Returns: boolean
       }
+      find_profile_by_username: {
+        Args: { p_limit?: number; p_query: string }
+        Returns: {
+          avatar_url: string | null
+          created_at: string
+          display_name: string | null
+          id: string
+          username: string
+        }[]
+      }
       consume_planner_ai_quota_service: {
         Args: {
           p_feature: string
@@ -1368,6 +1378,10 @@ export type Database = {
       unmark_goal_complete: {
         Args: { p_date?: string; p_goal_id: string }
         Returns: undefined
+      }
+      username_is_available: {
+        Args: { p_username: string }
+        Returns: boolean
       }
       upsert_planner_preferences_service: {
         Args: {

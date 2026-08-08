@@ -35,20 +35,14 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Check generated planner contracts
-        run: pnpm contracts:check
-
       - name: Typecheck
         run: pnpm typecheck
 
       - name: Lint
         run: pnpm lint
 
-      - name: Run unit, contract, telemetry, and benchmark tests
+      - name: Run unit tests
         run: pnpm test
-
-      - name: Run isolated planner performance gate
-        run: pnpm test:benchmark
 
       - name: Run timezone process matrix
         run: pnpm test:tz

@@ -50,6 +50,24 @@ describe("versioned planner policy compiler", () => {
     expect(getCompiledDateCost(compiled, "goal-b", "2026-08-04")).toBe(0);
   });
 
+  it("treats rest days and blackouts as advisory costs", () => {
+    const policy = createDefaultPlannerPolicy(
+      "UTC",
+      "2026-08-01T00:00:00Z"
+    );
+    policy.restWeekdays = [0];
+    policy.blackoutRanges = [{ start: "2026-08-03", end: "2026-08-03" }];
+    const compiled = compilePlannerPolicy(policy);
+
+    expect(getCompiledDateCost(compiled, "goal-a", "2026-08-03")).toBe(10);
+    expect(getCompiledDateCost(compiled, "goal-a", "2026-08-02", true)).toBe(
+      6
+    );
+    expect(getCompiledDateCost(compiled, "goal-a", "2026-08-02", false)).toBe(
+      0
+    );
+  });
+
   it("uses deterministic front-load, even, and flexible ideals", () => {
     const dates = ["2026-08-01", "2026-08-02", "2026-08-03"];
     expect(getSpacingIdealDate("front_load", 1, 3, dates)).toBe(

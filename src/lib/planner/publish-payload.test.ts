@@ -227,6 +227,36 @@ describe("buildPlannerPublishPersistencePayload draft edit validation", () => {
     expect(payload.days.some((day) => day.date === "2026-09-03")).toBe(true);
   });
 
+  it("allows draft moves that conflict with advisory policy preferences", () => {
+    const snapshot = createSnapshot([]);
+    const kernel = createKernel("2026-08-05");
+    const policy = createDefaultPlannerPolicy("UTC", "2026-08-01T00:00:00.000Z");
+    policy.restWeekdays = [4];
+    policy.blackoutRanges = [{ start: "2026-08-08", end: "2026-08-08" }];
+
+    const payload = buildPlannerPublishPersistencePayload({
+      scopeMonth: "2026-08",
+      policy,
+      kernel,
+      snapshot,
+      assessments: [createDefaultAssessment(baseGoal)],
+      draftCommands: [
+        {
+          id: "30000000-0000-4000-8000-000000000013",
+          sequence: 1,
+          kind: "move_item",
+          goalId: GOAL_ID,
+          unitKey: "total:1",
+          scheduledDate: "2026-08-08",
+        },
+      ],
+    });
+
+    const moved = payload.items.find((item) => item.unit_key === "total:1");
+    expect(moved?.scheduled_date).toBe("2026-08-08");
+    expect(payload.changeSummary.draftMoved).toBe(1);
+  });
+
   it("applies item-level time override draft commands", () => {
     const snapshot = createSnapshot([]);
     const kernel = createKernel("2026-08-10");

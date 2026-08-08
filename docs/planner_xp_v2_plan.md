@@ -346,7 +346,7 @@ pnpm vitest run src/lib/planner src/features/planner/calendar-entries.test.ts sr
 DB and contracts:
 
 ```bash
-pnpm test:sql && pnpm contracts:check
+pnpm test:sql && pnpm test:concurrency
 ```
 
 General quality:

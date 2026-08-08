@@ -51,18 +51,16 @@ export function SignupForm() {
       }
 
       setUsernameStatus("checking");
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("id")
-        .eq("username", normalized)
-        .maybeSingle();
+      const { data, error } = await supabase.rpc("username_is_available", {
+        p_username: normalized,
+      });
 
       if (error) {
         setUsernameStatus("error");
         return "error";
       }
 
-      if (data) {
+      if (!data) {
         setUsernameStatus("taken");
         return "taken";
       }
