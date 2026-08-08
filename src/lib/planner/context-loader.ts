@@ -38,6 +38,7 @@ const allowedIssueCodes = new Set<PlannerIssueCode>([
 export interface PlannerRevisionTokens {
   canonicalRevision: number;
   executionRevision: number;
+  scheduleDigest?: string | null;
 }
 
 export interface ActiveExecutionPlanSnapshot {
@@ -198,16 +199,46 @@ async function loadOwnerLinks(
 async function loadRevisionTokens(
   supabase: ServerSupabaseClient
 ): Promise<PlannerRevisionTokens> {
-  const response = await supabase.rpc("get_planner_state");
-  requireTableRead(response.error, "revision_load_failed");
+  const rpc = (supabase as unknown as {
+    rpc: (
+      functionName: string,
+      parameters?: Record<string, unknown>
+    ) => Promise<{
+      data: unknown;
+      error: { message: string; code?: string } | null;
+    }>;
+  }).rpc.bind(supabase);
+
+  const [revisionResponse, scheduleDigestResponse] = await Promise.all([
+    supabase.rpc("get_planner_state"),
+    rpc("get_planner_schedule_digest"),
+  ]);
+  requireTableRead(revisionResponse.error, "revision_load_failed");
+  if (scheduleDigestResponse.error) {
+    const digestErrorCode = (scheduleDigestResponse.error.code ?? "").toUpperCase();
+    const digestErrorMessage = scheduleDigestResponse.error.message.toLowerCase();
+    const missingDigestFunction =
+      digestErrorCode === "42883" ||
+      digestErrorMessage.includes("does not exist");
+    if (!missingDigestFunction) {
+      requireTableRead(scheduleDigestResponse.error, "revision_load_failed");
+    }
+  }
   const row = (
-    (response.data as
+    (revisionResponse.data as
       | Array<{ canonical_revision: number; execution_revision: number }>
       | null) ?? []
   )[0];
+  const scheduleDigest =
+    scheduleDigestResponse.error
+      ? null
+      : typeof scheduleDigestResponse.data === "string"
+      ? scheduleDigestResponse.data
+      : null;
   return {
     canonicalRevision: row?.canonical_revision ?? 0,
     executionRevision: row?.execution_revision ?? 0,
+    scheduleDigest,
   };
 }
 

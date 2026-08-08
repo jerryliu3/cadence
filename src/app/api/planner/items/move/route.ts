@@ -10,6 +10,10 @@ import {
   unknownPlannerErrorResponse,
 } from "@/lib/planner/api";
 import { MAX_API_BODY_BYTES } from "@/lib/planner/contracts/bounds";
+import {
+  scopeMonthFromDate,
+  syncPlannerItemsFromActiveExecutionPlan,
+} from "@/lib/planner/planner-items-runtime-sync";
 import { classifyTelemetryResult, emitTelemetryEvent } from "@/lib/telemetry/runtime";
 import { callAdminRpc } from "@/lib/supabase/admin-rpc";
 import { createClient } from "@/lib/supabase/server";
@@ -111,6 +115,20 @@ export async function POST(request: Request) {
         "Planner item move did not return updated state."
       );
     }
+    const scheduledDate =
+      typeof row.scheduled_date === "string" ? row.scheduled_date : null;
+    if (!scheduledDate || scheduledDate.length < 7) {
+      throw new PlannerRouteError(
+        500,
+        "invariant_failed",
+        "Planner item move did not return a valid scheduled date."
+      );
+    }
+    const syncResult = await syncPlannerItemsFromActiveExecutionPlan({
+      admin,
+      ownerId: routeContext.userId,
+      scopeMonth: scopeMonthFromDate(scheduledDate),
+    });
 
     emitTelemetryEvent({
       eventName: "planner.mutation.completed",
@@ -139,6 +157,7 @@ export async function POST(request: Request) {
           canonicalRevision: body.expectedCanonicalRevision,
           executionRevision: row.execution_revision as number,
         },
+        scheduleDigest: syncResult.scheduleDigest,
         correlationId,
       },
       { headers: { "Cache-Control": "no-store" } }
