@@ -115,12 +115,32 @@ export async function POST(request: Request) {
     plannerGoalExpectation,
   } = parsedRequest.data;
 
+  const { data: goal, error: goalError } = await supabase
+    .from("goals")
+    .select("id, start_date, end_date")
+    .eq("id", goalId)
+    .maybeSingle();
+
+  if (goalError || !goal) {
+    return errorResponse(
+      404,
+      "targeted_goal_not_found",
+      "The goal was not found.",
+      correlationId
+    );
+  }
+
   if (plannerItemExpectation) {
     const result = await applyPlannerItemDateFact({
+      supabase,
       ownerId: user.id,
-      fallbackGoalId: goalId,
-      fallbackDate: date,
+      goalId,
       desiredFactState,
+      timezone,
+      goalLifetime: {
+        startDate: goal.start_date,
+        endDate: goal.end_date,
+      },
       expectation: plannerItemExpectation,
     });
     if (!result.ok) {
@@ -144,10 +164,16 @@ export async function POST(request: Request) {
 
   if (plannerGoalExpectation) {
     const result = await applyPlannerGoalDateFact({
+      supabase,
       ownerId: user.id,
-      fallbackGoalId: goalId,
-      fallbackDate: date,
+      goalId,
+      date,
       desiredFactState,
+      timezone,
+      goalLifetime: {
+        startDate: goal.start_date,
+        endDate: goal.end_date,
+      },
       expectation: plannerGoalExpectation,
     });
     if (!result.ok) {
@@ -166,21 +192,6 @@ export async function POST(request: Request) {
         correlationId,
       },
       { headers: { "Cache-Control": "no-store" } }
-    );
-  }
-
-  const { data: goal, error: goalError } = await supabase
-    .from("goals")
-    .select("id, start_date, end_date")
-    .eq("id", goalId)
-    .maybeSingle();
-
-  if (goalError || !goal) {
-    return errorResponse(
-      404,
-      "targeted_goal_not_found",
-      "The goal was not found.",
-      correlationId
     );
   }
 

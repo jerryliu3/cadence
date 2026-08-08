@@ -31,27 +31,16 @@ export interface CompletionDispatchDecision {
     | "legacy_period_semantics";
 }
 
-export interface PlannerRevisionExpectation {
-  expectedCanonicalRevision: number;
-  expectedExecutionRevision: number;
+export interface PlannerDigestExpectation {
+  expectedDigest: string;
 }
 
 export interface PlannerItemDateFactExpectation
-  extends PlannerRevisionExpectation {
+  extends PlannerDigestExpectation {
   itemId: string;
-  expectedItemRevision: number;
-  expectedCreditedUnit: {
-    goalId: string;
-    requirementFingerprint: string;
-    unitKey: string;
-    completedOn: string;
-  } | null;
 }
 
-export interface PlannerGoalDateFactExpectation
-  extends PlannerRevisionExpectation {
-  planGoalId: string;
-}
+export type PlannerGoalDateFactExpectation = PlannerDigestExpectation;
 
 export interface CompletionLegacyMutationExecutor {
   markPresent: () => Promise<string | null>;
@@ -283,12 +272,7 @@ export async function executeCompletionDispatch({
     if (plannerItemExpectation) {
       body.plannerItemExpectation = {
         itemId: plannerItemExpectation.itemId,
-        expectedCreditedUnit: plannerItemExpectation.expectedCreditedUnit,
-        expectedItemRevision: plannerItemExpectation.expectedItemRevision,
-        expectedCanonicalRevision:
-          plannerItemExpectation.expectedCanonicalRevision,
-        expectedExecutionRevision:
-          plannerItemExpectation.expectedExecutionRevision,
+        expectedDigest: plannerItemExpectation.expectedDigest,
       };
     }
     const result = await postJsonRoute({
@@ -314,11 +298,7 @@ export async function executeCompletionDispatch({
     };
     if (plannerGoalExpectation) {
       body.plannerGoalExpectation = {
-        planGoalId: plannerGoalExpectation.planGoalId,
-        expectedCanonicalRevision:
-          plannerGoalExpectation.expectedCanonicalRevision,
-        expectedExecutionRevision:
-          plannerGoalExpectation.expectedExecutionRevision,
+        expectedDigest: plannerGoalExpectation.expectedDigest,
       };
     }
     const result = await postJsonRoute({

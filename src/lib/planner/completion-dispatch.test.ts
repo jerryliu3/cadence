@@ -136,7 +136,7 @@ describe("completion dispatch executor", () => {
     });
   });
 
-  it("executes planner item/date mutation with revision expectations", async () => {
+  it("executes planner item/date mutation with digest expectations", async () => {
     const calls: Array<{ route: string; body: Record<string, unknown> }> = [];
     const fetcher = async (route: string, init?: RequestInit) => {
       calls.push({
@@ -161,10 +161,8 @@ describe("completion dispatch executor", () => {
       timezone: "UTC",
       plannerItemExpectation: {
         itemId: "22000000-0000-4000-8000-000000000001",
-        expectedItemRevision: 7,
-        expectedCanonicalRevision: 11,
-        expectedExecutionRevision: 13,
-        expectedCreditedUnit: null,
+        expectedDigest:
+          "0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f",
       },
       fetcher: fetcher as typeof fetch,
     });
@@ -184,10 +182,8 @@ describe("completion dispatch executor", () => {
           desiredFactState: "present",
           plannerItemExpectation: {
             itemId: "22000000-0000-4000-8000-000000000001",
-            expectedCreditedUnit: null,
-            expectedItemRevision: 7,
-            expectedCanonicalRevision: 11,
-            expectedExecutionRevision: 13,
+            expectedDigest:
+              "0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f",
           },
         },
       },
@@ -218,9 +214,8 @@ describe("completion dispatch executor", () => {
       date: "2026-08-05",
       timezone: "UTC",
       plannerGoalExpectation: {
-        planGoalId: "33000000-0000-4000-8000-000000000001",
-        expectedCanonicalRevision: 5,
-        expectedExecutionRevision: 6,
+        expectedDigest:
+          "abababababababababababababababababababababababababababababababab",
       },
       fetcher: fetcher as typeof fetch,
     });
@@ -239,9 +234,8 @@ describe("completion dispatch executor", () => {
           timezone: "UTC",
           desiredFactState: "present",
           plannerGoalExpectation: {
-            planGoalId: "33000000-0000-4000-8000-000000000001",
-            expectedCanonicalRevision: 5,
-            expectedExecutionRevision: 6,
+            expectedDigest:
+              "abababababababababababababababababababababababababababababababab",
           },
         },
       },

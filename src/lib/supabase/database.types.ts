@@ -1239,42 +1239,6 @@ export type Database = {
           updated_at: string
         }[]
       }
-      set_execution_plan_goal_date_fact_service: {
-        Args: {
-          p_date: string
-          p_desired_fact_state: string
-          p_expected_canonical_revision: number
-          p_expected_execution_revision: number
-          p_owner: string
-          p_plan_goal_id: string
-        }
-        Returns: {
-          canonical_revision: number
-          date: string
-          execution_revision: number
-          fact_state: string
-          goal_id: string
-        }[]
-      }
-      set_execution_plan_item_date_fact_service: {
-        Args: {
-          p_desired_fact_state: string
-          p_expected_canonical_revision: number
-          p_expected_credited_unit: Json
-          p_expected_execution_revision: number
-          p_expected_item_revision: number
-          p_item_id: string
-          p_owner: string
-        }
-        Returns: {
-          canonical_revision: number
-          date: string
-          execution_revision: number
-          fact_state: string
-          goal_id: string
-          item_id: string
-        }[]
-      }
       set_execution_plan_item_lock_service: {
         Args: {
           p_expected_canonical_revision: number
@@ -1292,39 +1256,23 @@ export type Database = {
           scheduled_date: string
         }[]
       }
-      set_planner_item_lock:
-        | {
-            Args: { p_item_id: string; p_locked: boolean }
-            Returns: {
-              item_id: string
-              locked: boolean
-              schedule_digest: string
-            }[]
-          }
-        | {
-            Args: {
-              p_expected_digest: string
-              p_item_id: string
-              p_locked: boolean
-            }
-            Returns: {
-              item_id: string
-              locked: boolean
-              schedule_digest: string
-            }[]
-          }
+      set_planner_item_lock: {
+        Args: {
+          p_expected_digest: string
+          p_item_id: string
+          p_locked: boolean
+        }
+        Returns: {
+          item_id: string
+          locked: boolean
+          schedule_digest: string
+        }[]
+      }
       set_planner_schedule: {
         Args: { p_expected_digest: string; p_items: Json; p_month: string }
         Returns: {
           schedule_digest: string
           upserted_count: number
-        }[]
-      }
-      sync_planner_items_from_active_execution_plan_service: {
-        Args: { p_owner: string }
-        Returns: {
-          schedule_digest: string
-          synced_count: number
         }[]
       }
       unmark_goal_complete: {

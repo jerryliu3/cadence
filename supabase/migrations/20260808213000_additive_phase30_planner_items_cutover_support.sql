@@ -274,12 +274,12 @@ begin
       ),
       scheduled_time = excluded.scheduled_time,
       locked = excluded.locked;
+
+    get diagnostics v_upserted_count = row_count;
   exception
     when unique_violation then
       raise exception using errcode = 'P0001', message = 'schedule_conflict';
   end;
-
-  get diagnostics v_upserted_count = row_count;
 
   return query
   select
@@ -310,6 +310,9 @@ declare
 begin
   if v_owner is null then
     raise exception using errcode = '28000', message = 'authentication_required';
+  end if;
+  if p_locked is null then
+    raise exception using errcode = '22023', message = 'invalid_lock_state';
   end if;
 
   perform pg_catalog.pg_advisory_xact_lock(
