@@ -247,8 +247,8 @@ export async function POST(request: Request) {
       ) {
         throw new PlannerRouteError(
           409,
-          "cross_plan_conflict",
-          "Another active month plan already owns this goal unit."
+          "exceeds_target_count",
+          "This goal already has all of its planned sessions scheduled."
         );
       }
       if (

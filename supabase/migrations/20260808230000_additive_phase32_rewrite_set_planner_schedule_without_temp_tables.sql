@@ -256,15 +256,6 @@ begin
         locked boolean
       )
     ),
-    existing_original as (
-      select
-        item.goal_id,
-        item.unit_key,
-        item.original_scheduled_date,
-        item.scheduled_date
-      from public.planner_items item
-      where item.owner_id = v_owner
-    ),
     deleted_scope as (
       delete from public.planner_items item
       where item.owner_id = v_owner
@@ -285,29 +276,16 @@ begin
       item.goal_id,
       item.unit_key,
       item.scheduled_date,
-      coalesce(
-        existing.original_scheduled_date,
-        existing.scheduled_date,
-        item.original_scheduled_date,
-        item.scheduled_date
-      ),
+      item.original_scheduled_date,
       item.scheduled_time,
       item.locked
     from schedule_input item
-    left join existing_original existing
-      on existing.goal_id = item.goal_id
-     and existing.unit_key = item.unit_key
     on conflict (goal_id, unit_key)
     do update
     set
       owner_id = excluded.owner_id,
       scheduled_date = excluded.scheduled_date,
-      original_scheduled_date = coalesce(
-        public.planner_items.original_scheduled_date,
-        public.planner_items.scheduled_date,
-        excluded.original_scheduled_date,
-        excluded.scheduled_date
-      ),
+      original_scheduled_date = excluded.original_scheduled_date,
       scheduled_time = excluded.scheduled_time,
       locked = excluded.locked;
 
