@@ -108,29 +108,6 @@ export function compilePlannerPolicy(policy: PlannerPolicy): CompiledPolicy {
   };
 }
 
-export function isDateAllowedByPolicy(
-  compiled: CompiledPolicy,
-  _goalId: string,
-  date: string,
-  restEligible: boolean
-) {
-  const { policy } = compiled;
-  if (
-    policy.blackoutRanges.some((range) =>
-      dateIsInWindow(date, range as DateWindow)
-    )
-  ) {
-    return false;
-  }
-
-  const weekday = getUtcWeekday(date);
-  if (restEligible && policy.restWeekdays.includes(weekday)) {
-    return false;
-  }
-
-  return true;
-}
-
 export function getCompiledDateCost(
   compiled: CompiledPolicy,
   _goalId: string,

@@ -4,7 +4,6 @@ import {
   createDefaultPlannerPolicy,
   getCompiledDateCost,
   getSpacingIdealDate,
-  isDateAllowedByPolicy,
   plannerPolicySchema,
 } from "@/lib/planner/policy";
 
@@ -17,12 +16,10 @@ describe("versioned planner policy compiler", () => {
     policy.restWeekdays = [0];
     const compiled = compilePlannerPolicy(policy);
 
-    expect(
-      isDateAllowedByPolicy(compiled, "goal-a", "2026-08-02", true)
-    ).toBe(false);
-    expect(
-      isDateAllowedByPolicy(compiled, "goal-a", "2026-08-02", false)
-    ).toBe(true);
+    expect(getCompiledDateCost(compiled, "goal-a", "2026-08-02", true)).toBe(6);
+    expect(getCompiledDateCost(compiled, "goal-a", "2026-08-02", false)).toBe(
+      0
+    );
   });
 
   it("compiles hard blackout and rest-day advisory costs", () => {
@@ -36,9 +33,9 @@ describe("versioned planner policy compiler", () => {
     policy.restWeekdays = [1];
     const compiled = compilePlannerPolicy(policy);
 
-    expect(
-      isDateAllowedByPolicy(compiled, "goal-a", "2026-08-03", true)
-    ).toBe(false);
+    expect(getCompiledDateCost(compiled, "goal-a", "2026-08-03", true)).toBe(
+      16
+    );
     expect(getCompiledDateCost(compiled, "goal-a", "2026-08-04", true)).toBe(0);
     expect(getCompiledDateCost(compiled, "goal-b", "2026-08-04", false)).toBe(0);
   });
