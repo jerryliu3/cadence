@@ -248,7 +248,7 @@ async function loadPlannerPreferences(
       .maybeSingle(),
     supabase
       .from("planner_preferences")
-      .select("timezone,timezone_confirmed_at,policy_revision,default_policy")
+      .select("timezone,timezone_confirmed_at,policy_revision")
       .eq("owner_id", ownerId)
       .maybeSingle(),
   ]);

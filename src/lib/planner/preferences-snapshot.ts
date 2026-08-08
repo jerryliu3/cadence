@@ -28,7 +28,6 @@ const plannerLegacyPreferencesRowSchema = z
     timezone: z.string().trim().min(1).max(100),
     timezone_confirmed_at: z.string().datetime({ offset: true }).nullable().optional(),
     policy_revision: z.number().int().min(1).optional(),
-    default_policy: z.unknown(),
   })
   .strict();
 
@@ -57,22 +56,6 @@ function normalizeWeekdays(days: number[] | null | undefined) {
   return Array.from(new Set(days ?? [])).sort((left, right) => left - right);
 }
 
-function parseLegacyPolicy(
-  policy: unknown,
-  timezone: string,
-  timezoneConfirmedAt: string
-) {
-  const parsed = plannerPolicySchema.safeParse(policy);
-  if (!parsed.success) {
-    return null;
-  }
-  return plannerPolicySchema.parse({
-    ...parsed.data,
-    timezone,
-    timezoneConfirmedAt,
-  });
-}
-
 export function parsePlannerProfilePreferencesRow(raw: unknown) {
   return plannerProfilePreferencesRowSchema.parse(raw);
 }
@@ -95,10 +78,7 @@ export function resolvePlannerPreferencesSnapshot({
   if (!timezone || !timezoneConfirmedAt) {
     return null;
   }
-  const legacyPolicy = legacy
-    ? parseLegacyPolicy(legacy.default_policy, timezone, timezoneConfirmedAt)
-    : null;
-  const basePolicy = legacyPolicy ?? createDefaultPlannerPolicy(timezone, timezoneConfirmedAt);
+  const basePolicy = createDefaultPlannerPolicy(timezone, timezoneConfirmedAt);
 
   const mergedPolicyInput = {
     ...basePolicy,

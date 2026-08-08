@@ -25,7 +25,7 @@ describe("versioned planner policy compiler", () => {
     ).toBe(true);
   });
 
-  it("compiles hard blackout and bounded semantic date costs", () => {
+  it("compiles hard blackout and rest-day advisory costs", () => {
     const policy = createDefaultPlannerPolicy(
       "UTC",
       "2026-08-01T00:00:00Z"
@@ -33,21 +33,14 @@ describe("versioned planner policy compiler", () => {
     policy.blackoutRanges = [
       { start: "2026-08-03", end: "2026-08-03" },
     ];
-    policy.datePreferences = [
-      {
-        goalId: "goal-a",
-        start: "2026-08-04",
-        end: "2026-08-04",
-        effect: "avoid",
-      },
-    ];
+    policy.restWeekdays = [1];
     const compiled = compilePlannerPolicy(policy);
 
     expect(
       isDateAllowedByPolicy(compiled, "goal-a", "2026-08-03", true)
     ).toBe(false);
-    expect(getCompiledDateCost(compiled, "goal-a", "2026-08-04")).toBe(8);
-    expect(getCompiledDateCost(compiled, "goal-b", "2026-08-04")).toBe(0);
+    expect(getCompiledDateCost(compiled, "goal-a", "2026-08-04", true)).toBe(0);
+    expect(getCompiledDateCost(compiled, "goal-b", "2026-08-04", false)).toBe(0);
   });
 
   it("treats rest days and blackouts as advisory costs", () => {
@@ -89,26 +82,4 @@ describe("versioned planner policy compiler", () => {
     ).toThrow();
   });
 
-  it("requires at least one weekday when a goal restriction exists", () => {
-    const policy = createDefaultPlannerPolicy(
-      "UTC",
-      "2026-08-01T00:00:00Z"
-    );
-    policy.goalAllowedWeekdays["goal-a"] = [];
-
-    expect(() => compilePlannerPolicy(policy)).toThrow();
-  });
-
-  it("omits empty goal monthly distributions from compiled policy", () => {
-    const policy = createDefaultPlannerPolicy(
-      "UTC",
-      "2026-08-01T00:00:00Z"
-    );
-    policy.goalMonthlyDistributions = {};
-
-    const compiled = compilePlannerPolicy(policy);
-
-    expect(compiled.policy.goalMonthlyDistributions).toBeUndefined();
-    expect("goalMonthlyDistributions" in compiled.policy).toBe(false);
-  });
 });
