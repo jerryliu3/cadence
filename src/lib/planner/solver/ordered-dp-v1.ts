@@ -53,10 +53,7 @@ function scheduledObjective(unit: SolverUnit, date: string): SolverObjective {
       moved && unit.previousDate
         ? Math.abs(differenceInDateStrings(date, unit.previousDate))
         : 0,
-    policyCost:
-      (unit.idealDate
-        ? Math.abs(differenceInDateStrings(date, unit.idealDate))
-        : 0) + (unit.dateCosts?.[date] ?? 0),
+    policyCost: unit.dateCosts?.[date] ?? 0,
   };
 }
 

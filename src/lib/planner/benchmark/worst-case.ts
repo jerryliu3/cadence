@@ -143,9 +143,9 @@ export function materializeWorstCaseKernelInput({
   const ownerId = "benchmark-owner";
   const confirmedAt = `${input.scopeMonth}-01T00:00:00.000Z`;
   const policy = createDefaultPlannerPolicy("UTC", confirmedAt);
-  policy.datePreferences = input.policyRanges.map((range) => ({
-    goalId: null,
-    ...range,
+  policy.blackoutRanges = input.policyRanges.map((range) => ({
+    start: range.start,
+    end: range.end,
   }));
 
   const goals: PlannerKernelInput["goals"] = input.goals.map((goal) => ({

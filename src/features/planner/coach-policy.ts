@@ -21,10 +21,6 @@ function sameNumberArray(left: number[] | undefined, right: number[]) {
   return left.every((value, index) => value === right[index]);
 }
 
-function isAllowedGoalId(goalId: string | null, allowedGoalIds: Set<string>) {
-  return goalId === null || allowedGoalIds.has(goalId);
-}
-
 export function applyCoachPolicyPatches({
   policy,
   patches,
@@ -34,6 +30,7 @@ export function applyCoachPolicyPatches({
   patches: CoachPolicyPatch[];
   allowedGoalIds: Set<string>;
 }): ApplyCoachPolicyPatchesResult {
+  void allowedGoalIds;
   const nextPolicy = structuredClone(policy);
   let appliedPatchCount = 0;
   let ignoredPatchCount = 0;
@@ -80,67 +77,6 @@ export function applyCoachPolicyPatches({
         } else {
           ignoredPatchCount += 1;
         }
-        break;
-      }
-      case "set_goal_allowed_weekdays": {
-        if (!allowedGoalIds.has(patch.goalId)) {
-          outOfScopePatchCount += 1;
-        }
-        ignoredPatchCount += 1;
-        unsupportedPatchCount += 1;
-        break;
-      }
-      case "clear_goal_allowed_weekdays": {
-        if (!allowedGoalIds.has(patch.goalId)) {
-          outOfScopePatchCount += 1;
-        }
-        ignoredPatchCount += 1;
-        unsupportedPatchCount += 1;
-        break;
-      }
-      case "set_goal_date_preference": {
-        if (!isAllowedGoalId(patch.goalId, allowedGoalIds)) {
-          outOfScopePatchCount += 1;
-        }
-        ignoredPatchCount += 1;
-        unsupportedPatchCount += 1;
-        break;
-      }
-      case "clear_goal_date_preference": {
-        if (!isAllowedGoalId(patch.goalId, allowedGoalIds)) {
-          outOfScopePatchCount += 1;
-        }
-        ignoredPatchCount += 1;
-        unsupportedPatchCount += 1;
-        break;
-      }
-      case "set_spacing_strategy": {
-        ignoredPatchCount += 1;
-        unsupportedPatchCount += 1;
-        break;
-      }
-      case "set_goal_spacing_strategy": {
-        if (!allowedGoalIds.has(patch.goalId)) {
-          outOfScopePatchCount += 1;
-        }
-        ignoredPatchCount += 1;
-        unsupportedPatchCount += 1;
-        break;
-      }
-      case "set_goal_monthly_distribution": {
-        if (!allowedGoalIds.has(patch.goalId)) {
-          outOfScopePatchCount += 1;
-        }
-        ignoredPatchCount += 1;
-        unsupportedPatchCount += 1;
-        break;
-      }
-      case "clear_goal_monthly_distribution": {
-        if (!allowedGoalIds.has(patch.goalId)) {
-          outOfScopePatchCount += 1;
-        }
-        ignoredPatchCount += 1;
-        unsupportedPatchCount += 1;
         break;
       }
       default: {

@@ -109,11 +109,6 @@ describe("planner coach route", () => {
           timezoneConfirmedAt: "2026-01-01T00:00:00.000Z",
           restWeekdays: [],
           blackoutRanges: [],
-          goalAllowedWeekdays: {},
-          datePreferences: [],
-          spacingStrategy: "even",
-          goalSpacingStrategies: {},
-          dailyCadenceRestExemption: true,
         },
         policy_schema_version: "1",
         policy_compiler_version: "1",
@@ -140,12 +135,12 @@ describe("planner coach route", () => {
         reply: "Try reducing rest days this week.",
         proposal: {
           calendarIntent: {
-            action: "apply_to_goal",
-            targetGoalId: "12000000-0000-4000-8000-000000000001",
-            allowedWeekdays: [1, 3, 5],
-            restWeekdays: [],
-            spacingStrategy: "even",
-            datePreferences: [],
+            action: "apply",
+            global: {
+              restWeekdays: [1, 3, 5],
+              addBlackoutRanges: [],
+              removeBlackoutRanges: [],
+            },
           },
           unresolvedQuestions: ["Do you have blackout dates this month?"],
         },
@@ -222,14 +217,8 @@ describe("planner coach route", () => {
         assessments: [],
         policyPatches: [
           {
-            kind: "set_goal_allowed_weekdays",
-            goalId: "12000000-0000-4000-8000-000000000001",
-            weekdays: [1, 3, 5],
-          },
-          {
-            kind: "set_goal_spacing_strategy",
-            goalId: "12000000-0000-4000-8000-000000000001",
-            spacingStrategy: "even",
+            kind: "set_rest_weekdays",
+            restWeekdays: [1, 3, 5],
           },
         ],
       },
@@ -292,34 +281,20 @@ describe("planner coach route", () => {
     );
   });
 
-  it("compiles explicit calendar intent into goal-scoped policy patches", async () => {
+  it("compiles explicit calendar intent into supported global policy patches", async () => {
     mocks.generateGeminiJson.mockResolvedValue({
       candidateJson: {
         schemaVersion: "1",
         phase: "ready",
-        reply: "Applying running cadence preferences.",
+        reply: "Applying rest weekdays and blackout windows.",
         proposal: {
           calendarIntent: {
             action: "apply",
-            global: null,
-            goals: [
-              {
-                targetGoalId: "12000000-0000-4000-8000-000000000001",
-                allowedWeekdays: [2, 4, 6],
-                spacingStrategy: "flexible",
-                datePreferences: [
-                  {
-                    start: "2026-01-18",
-                    end: "2026-01-18",
-                    effect: "prefer",
-                  },
-                ],
-                monthlyDistribution: [
-                  { month: "2026-01", count: 2 },
-                  { month: "2026-01", count: 2 },
-                ],
-              },
-            ],
+            global: {
+              restWeekdays: [2, 4, 6],
+              addBlackoutRanges: [{ start: "2026-01-18", end: "2026-01-18" }],
+              removeBlackoutRanges: [{ start: "2026-01-20", end: "2026-01-20" }],
+            },
           },
           unresolvedQuestions: [],
         },
@@ -343,34 +318,22 @@ describe("planner coach route", () => {
         assessments: [],
         policyPatches: [
           {
-            kind: "set_goal_allowed_weekdays",
-            goalId: "12000000-0000-4000-8000-000000000001",
-            weekdays: [2, 4, 6],
+            kind: "set_rest_weekdays",
+            restWeekdays: [2, 4, 6],
           },
           {
-            kind: "set_goal_spacing_strategy",
-            goalId: "12000000-0000-4000-8000-000000000001",
-            spacingStrategy: "flexible",
-          },
-          {
-            kind: "set_goal_date_preference",
-            goalId: "12000000-0000-4000-8000-000000000001",
+            kind: "add_blackout_range",
             start: "2026-01-18",
             end: "2026-01-18",
-            effect: "prefer",
           },
           {
-            kind: "set_goal_monthly_distribution",
-            goalId: "12000000-0000-4000-8000-000000000001",
-            distribution: [
-              { month: "2026-01", count: 20 },
-            ],
+            kind: "remove_blackout_range",
+            start: "2026-01-20",
+            end: "2026-01-20",
           },
         ],
       },
-      warnings: [
-        "Adjusted monthly distribution to match target count 20.",
-      ],
+      warnings: [],
     });
   });
 
@@ -384,7 +347,6 @@ describe("planner coach route", () => {
           calendarIntent: {
             action: "needs_goal",
             global: null,
-            goals: [],
           },
           unresolvedQuestions: [],
         },

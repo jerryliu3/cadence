@@ -28,48 +28,22 @@ function goal(overrides: Partial<Goal> = {}): Goal {
 }
 
 describe("sanitizeCoachTurn", () => {
-  it("compiles global and multi-goal intents in one turn", () => {
+  it("compiles supported global planner patches", () => {
     const goalA = goal();
-    const goalB = goal({
-      id: "12000000-0000-4000-8000-000000000002",
-      title: "Strength",
-      target_count: 6,
-    });
     const result = sanitizeCoachTurn({
-      goalsById: new Map(
-        [goalA, goalB].map((entry) => [entry.id, entry] as const)
-      ),
+      goalsById: new Map([[goalA.id, goalA]]),
       raw: {
         schemaVersion: "1",
         phase: "ready",
-        reply: "Applied your weekly and monthly updates.",
+        reply: "Applied your rest-day and blackout updates.",
         proposal: {
           calendarIntent: {
             action: "apply",
             global: {
               restWeekdays: [0, 6],
-              spacingStrategy: "even",
-              datePreferences: [],
+              addBlackoutRanges: [{ start: "2026-08-12", end: "2026-08-15" }],
+              removeBlackoutRanges: [{ start: "2026-08-01", end: "2026-08-02" }],
             },
-            goals: [
-              {
-                targetGoalId: goalA.id,
-                allowedWeekdays: [1, 3, 5],
-                spacingStrategy: "flexible",
-                datePreferences: [],
-                monthlyDistribution: [
-                  { month: "2026-08", count: 2 },
-                  { month: "2026-09", count: 2 },
-                ],
-              },
-              {
-                targetGoalId: goalB.id,
-                allowedWeekdays: [1, 2, 4],
-                spacingStrategy: "unchanged",
-                datePreferences: [],
-                monthlyDistribution: [],
-              },
-            ],
           },
           unresolvedQuestions: [],
         },
@@ -77,68 +51,26 @@ describe("sanitizeCoachTurn", () => {
       },
     });
 
-    expect(result.proposal.policyPatches).toEqual(
-      expect.arrayContaining([
-        { kind: "set_rest_weekdays", restWeekdays: [0, 6] },
-        { kind: "set_spacing_strategy", spacingStrategy: "even" },
-        {
-          kind: "set_goal_allowed_weekdays",
-          goalId: goalA.id,
-          weekdays: [1, 3, 5],
-        },
-        {
-          kind: "set_goal_spacing_strategy",
-          goalId: goalA.id,
-          spacingStrategy: "flexible",
-        },
-        {
-          kind: "set_goal_allowed_weekdays",
-          goalId: goalB.id,
-          weekdays: [1, 2, 4],
-        },
-        {
-          kind: "set_goal_monthly_distribution",
-          goalId: goalA.id,
-          distribution: [
-            { month: "2026-08", count: 5 },
-            { month: "2026-09", count: 5 },
-          ],
-        },
-      ])
-    );
-    expect(result.warnings).toContain(
-      "Adjusted monthly distribution to match target count 10."
-    );
+    expect(result.proposal.policyPatches).toEqual([
+      { kind: "set_rest_weekdays", restWeekdays: [0, 6] },
+      { kind: "add_blackout_range", start: "2026-08-12", end: "2026-08-15" },
+      { kind: "remove_blackout_range", start: "2026-08-01", end: "2026-08-02" },
+    ]);
+    expect(result.warnings).toEqual([]);
   });
 
-  it("warns and skips unknown goal entries while applying valid edits", () => {
+  it("warns when action is needs_goal", () => {
     const goalA = goal();
     const result = sanitizeCoachTurn({
       goalsById: new Map([[goalA.id, goalA]]),
       raw: {
         schemaVersion: "1",
         phase: "review",
-        reply: "Applied what I could.",
+        reply: "I need a mapped goal before proposing edits.",
         proposal: {
           calendarIntent: {
-            action: "apply",
+            action: "needs_goal",
             global: null,
-            goals: [
-              {
-                targetGoalId: "12000000-0000-4000-8000-000000000999",
-                allowedWeekdays: [1, 3],
-                spacingStrategy: "even",
-                datePreferences: [],
-                monthlyDistribution: [],
-              },
-              {
-                targetGoalId: goalA.id,
-                allowedWeekdays: [2, 4],
-                spacingStrategy: "front_load",
-                datePreferences: [],
-                monthlyDistribution: [],
-              },
-            ],
           },
           unresolvedQuestions: [],
         },
@@ -146,41 +78,28 @@ describe("sanitizeCoachTurn", () => {
       },
     });
 
-    expect(result.proposal.policyPatches).toEqual(
-      expect.arrayContaining([
-        {
-          kind: "set_goal_allowed_weekdays",
-          goalId: goalA.id,
-          weekdays: [2, 4],
-        },
-        {
-          kind: "set_goal_spacing_strategy",
-          goalId: goalA.id,
-          spacingStrategy: "front_load",
-        },
-      ])
-    );
+    expect(result.proposal.policyPatches).toEqual([]);
     expect(result.warnings).toContain(
-      "Skipped one goal-level edit because the selected goal is not in the current planner scope."
+      "No calendar edits were generated because this plan does not map to an existing goal."
     );
   });
 
-  it("keeps legacy calendar intent envelopes backward compatible", () => {
+  it("warns when apply action has no supported changes", () => {
     const goalA = goal();
     const result = sanitizeCoachTurn({
       goalsById: new Map([[goalA.id, goalA]]),
       raw: {
         schemaVersion: "1",
         phase: "ready",
-        reply: "Applied your running weekdays.",
+        reply: "No edits applied.",
         proposal: {
           calendarIntent: {
-            action: "apply_to_goal",
-            targetGoalId: goalA.id,
-            allowedWeekdays: [1, 3, 5],
-            restWeekdays: [],
-            spacingStrategy: "even",
-            datePreferences: [],
+            action: "apply",
+            global: {
+              restWeekdays: [],
+              addBlackoutRanges: [],
+              removeBlackoutRanges: [],
+            },
           },
           unresolvedQuestions: [],
         },
@@ -188,19 +107,9 @@ describe("sanitizeCoachTurn", () => {
       },
     });
 
-    expect(result.proposal.policyPatches).toEqual(
-      expect.arrayContaining([
-        {
-          kind: "set_goal_allowed_weekdays",
-          goalId: goalA.id,
-          weekdays: [1, 3, 5],
-        },
-        {
-          kind: "set_goal_spacing_strategy",
-          goalId: goalA.id,
-          spacingStrategy: "even",
-        },
-      ])
+    expect(result.proposal.policyPatches).toEqual([]);
+    expect(result.warnings).toContain(
+      "The calendar intent did not contain any scheduling changes."
     );
   });
 });

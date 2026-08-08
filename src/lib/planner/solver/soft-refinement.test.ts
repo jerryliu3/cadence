@@ -11,7 +11,6 @@ function unit(goalId: string): SolverUnit {
     candidateDates: ["2026-08-01", "2026-08-02"],
     previousDate: null,
     lockedDate: null,
-    idealDate: null,
     estimatedMinutes: 30,
   };
 }

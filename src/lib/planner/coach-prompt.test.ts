@@ -62,7 +62,7 @@ describe("buildCoachPrompt", () => {
     expect(prompt).toContain("Return only JSON");
     expect(prompt).toContain("Never respond with only clarifying questions");
     expect(prompt).toContain("proposal.calendarIntent");
-    expect(prompt).toContain("Never map an unrelated activity to a focus goal");
+    expect(prompt).toContain("does not clearly map to current focus goals");
     expect(prompt).toContain("cannot create goals");
     expect(prompt).toContain("Always include 2-5 concrete recommendations");
   });
