@@ -49,6 +49,97 @@ to authenticated
 using (id = (select auth.uid()))
 with check (id = (select auth.uid()));
 
+create or replace function public.find_profile_by_username(
+  p_query text,
+  p_limit integer default 8
+)
+returns table (
+  id uuid,
+  username text,
+  display_name text,
+  avatar_url text,
+  created_at timestamptz
+)
+language plpgsql
+security definer
+stable
+set search_path = ''
+as $$
+declare
+  v_uid uuid := auth.uid();
+  v_query text := lower(btrim(coalesce(p_query, '')));
+  v_limit integer := least(greatest(coalesce(p_limit, 8), 1), 20);
+begin
+  if v_uid is null then
+    raise exception using errcode = '28000', message = 'authentication_required';
+  end if;
+
+  if v_query = '' then
+    return;
+  end if;
+
+  return query
+  select
+    profile.id,
+    profile.username,
+    profile.display_name,
+    profile.avatar_url,
+    profile.created_at
+  from public.profiles profile
+  where profile.id <> v_uid
+    and profile.username ilike ('%' || v_query || '%')
+  order by profile.username asc
+  limit v_limit;
+end;
+$$;
+
+create or replace function public.username_is_available(
+  p_username text
+)
+returns boolean
+language plpgsql
+security definer
+stable
+set search_path = ''
+as $$
+declare
+  v_username text := lower(btrim(coalesce(p_username, '')));
+begin
+  if char_length(v_username) < 3 or char_length(v_username) > 32 then
+    return false;
+  end if;
+
+  if v_username !~ '^[a-z0-9_]+$' then
+    return false;
+  end if;
+
+  return not exists (
+    select 1
+    from public.profiles profile
+    where profile.username = v_username
+  );
+end;
+$$;
+
+grant execute on function public.find_profile_by_username(text, integer) to authenticated;
+grant execute on function public.username_is_available(text) to anon;
+grant execute on function public.username_is_available(text) to authenticated;
+
+create or replace function public.can_administer_goal(p_goal_id uuid, p_uid uuid)
+returns boolean
+language sql
+security definer
+stable
+set search_path = public
+as $$
+  select exists (
+    select 1
+    from public.goals g
+    where g.id = p_goal_id
+      and g.owner_id = p_uid
+  );
+$$;
+
 -- Keep goal owner write boundaries explicit and standardized.
 drop policy if exists goals_insert_owner_only on public.goals;
 create policy goals_insert_owner_only
