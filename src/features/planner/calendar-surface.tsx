@@ -159,8 +159,8 @@ export function CalendarSurface({
   const [context, setContext] = useState<PlannerContextPayload | null>(null);
   const [loading, setLoading] = useState(false);
   const [setupLoading, setSetupLoading] = useState(false);
-  const [publishLoading, setPublishLoading] = useState(false);
-  const [deactivateLoading, setDeactivateLoading] = useState(false);
+  const [saveLoading, setSaveLoading] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [draftScopeMonth, setDraftScopeMonth] = useState<string | null>(null);
   const [draftPolicy, setDraftPolicy] = useState<PlannerPolicy | null>(null);
@@ -686,7 +686,7 @@ export function CalendarSurface({
     toast.success("Planner setup saved.");
   };
 
-  const draftPublishCommands = useMemo(
+  const draftSaveCommands = useMemo(
     () => effectiveDraftCommands,
     [effectiveDraftCommands]
   );
@@ -743,14 +743,14 @@ export function CalendarSurface({
         affectedGoals.length > 0
           ? `Affected goals: ${affectedGoals.join(", ")}. `
           : "";
-      return `${affectedLabel}Locked sessions currently conflict with this regenerated preview. Unlock affected sessions, regenerate, then publish.`;
+      return `${affectedLabel}Locked sessions currently conflict with this regenerated preview. Unlock affected sessions, regenerate, then save.`;
     }
     if (preview.solver.issueCodes.length > 0) {
-      return `Resolve planner issues before publishing: ${preview.solver.issueCodes.join(
+      return `Resolve planner issues before saving: ${preview.solver.issueCodes.join(
         ", "
       )}.`;
     }
-    return "This draft preview is not publishable yet. Regenerate and resolve planner issues before publishing.";
+    return "This preview is not savable yet. Regenerate and resolve planner issues before saving.";
   };
   const hasDraftSession =
     effectiveDraftPolicy !== null || Object.keys(effectiveDraftItemEdits).length > 0;
@@ -908,7 +908,7 @@ export function CalendarSurface({
       source: "date_input" | "drag_drop";
     }) => {
       if (entry.draftGhost) {
-        toast.error("Original-date draft markers cannot be moved directly.");
+        toast.error("Original-date preview markers cannot be moved directly.");
         return false;
       }
       const normalized = nextDate.trim();
@@ -921,13 +921,13 @@ export function CalendarSurface({
       }
       if (isEntryImmovableForDraft(entry)) {
         toast.error(
-          "Completed or historical sessions cannot move in draft. Clear completion in publish mode first."
+          "Completed or historical sessions cannot move in preview mode. Clear completion in the saved plan first."
         );
         return false;
       }
       const baselineUnit = previewUnitByEntryKey.get(entry.key);
       if (!baselineUnit) {
-        toast.error("This session is unavailable in the current draft preview.");
+        toast.error("This session is unavailable in the current preview.");
         return false;
       }
       const moveWindow = baselineUnit?.draftMoveWindow ?? baselineUnit?.placementWindow;
@@ -1002,7 +1002,7 @@ export function CalendarSurface({
       }
       if (source === "drag_drop") {
         toast.success(
-          `Moved ${getEntryDisplayTitle(entry)} to ${normalized} in draft.`
+          `Moved ${getEntryDisplayTitle(entry)} in preview mode to ${normalized}.`
         );
       }
       return true;
@@ -1059,7 +1059,7 @@ export function CalendarSurface({
         toast.error("Time must be in 24-hour HH:MM format.");
       } else {
         toast.error(
-          "Completed or historical sessions cannot change time overrides in draft. Clear completion in publish mode first."
+          "Completed or historical sessions cannot change time overrides in preview mode. Clear completion in the saved plan first."
         );
       }
       return;
@@ -1474,7 +1474,7 @@ export function CalendarSurface({
           } catch {
             draftPreviewRefreshFailed = true;
             toast(
-              "Completion saved, but your draft overlay could not refresh automatically. Regenerate preview to sync."
+              "Completion saved, but your preview overlay could not refresh automatically. Regenerate preview to sync."
             );
           }
         }
@@ -1498,7 +1498,7 @@ export function CalendarSurface({
       toast.success(desiredFactState === "present" ? "Marked done." : "Marked not done.");
       if (draftDateOverlayActive || draftPreviewRefreshFailed) {
         toast(
-          "This entry is still shown with draft overlays. Publish or discard draft moves to view canonical placement only."
+          "This entry is still shown with preview overlays. Save or discard preview edits to view canonical placement only."
         );
       }
     } catch (error) {
@@ -1510,7 +1510,7 @@ export function CalendarSurface({
     }
   };
 
-  const publishPlan = async () => {
+  const savePlan = async () => {
     if (!effectivePreview || !context?.capabilities.plannerPlanWrites) {
       return;
     }
@@ -1532,7 +1532,7 @@ export function CalendarSurface({
         })
       : null;
 
-    setPublishLoading(true);
+    setSaveLoading(true);
     const response = await fetch("/api/planner/publish", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -1543,13 +1543,13 @@ export function CalendarSurface({
         expectedDigest,
         confirmationHash,
         policy: effectiveDraftPolicy ?? undefined,
-        draftCommands: draftPublishCommands,
+        draftCommands: draftSaveCommands,
       }),
     });
     const payload = (await response.json()) as PlannerErrorPayload & {
       replayed?: boolean;
     };
-    setPublishLoading(false);
+    setSaveLoading(false);
     if (!response.ok) {
       if (payload.code === "planner_not_publishable") {
         const issueCodes = Array.isArray(payload.details?.issueCodes)
@@ -1562,11 +1562,11 @@ export function CalendarSurface({
             ? ` (${issueCodes.join(", ")})`
             : "";
         toast.error(
-          `${payload.message ?? "Planner publish is currently blocked."}${detailSuffix}`
+          `${payload.message ?? "Planner save is currently blocked."}${detailSuffix}`
         );
         return;
       }
-      toast.error(payload.message ?? "Planner publish failed.");
+      toast.error(payload.message ?? "Planner save failed.");
       return;
     }
     setDraftScopeMonth(null);
@@ -1576,10 +1576,10 @@ export function CalendarSurface({
     onPlannerMutation();
     await loadContext();
     coach.actions.resetForPlannerStateReset();
-    toast.success(payload.replayed ? "Publish replayed." : "Plan published.");
+    toast.success(payload.replayed ? "Save replayed." : "Plan saved.");
   };
 
-  const deactivatePlan = async () => {
+  const resetPlan = async () => {
     if (!context?.scopeMonth || !context.capabilities.plannerPlanWrites) {
       return;
     }
@@ -1588,7 +1588,7 @@ export function CalendarSurface({
       toast.error("Planner state is stale. Refresh and try again.");
       return;
     }
-    setDeactivateLoading(true);
+    setResetLoading(true);
     const response = await fetch("/api/planner/schedule", {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
@@ -1598,9 +1598,9 @@ export function CalendarSurface({
       }),
     });
     const payload = (await response.json()) as PlannerErrorPayload;
-    setDeactivateLoading(false);
+    setResetLoading(false);
     if (!response.ok) {
-      toast.error(payload.message ?? "Planner plan deactivation failed.");
+      toast.error(payload.message ?? "Planner month could not be reset.");
       return;
     }
     setDraftScopeMonth(null);
@@ -1610,7 +1610,7 @@ export function CalendarSurface({
     onPlannerMutation();
     await loadContext();
     coach.actions.resetForPlannerStateReset();
-    toast.success("Plan deactivated.");
+    toast.success("Plan reset.");
   };
 
   const discardDraftChanges = () => {
@@ -1619,7 +1619,7 @@ export function CalendarSurface({
     setDraftPreview(null);
     dispatchDraftCommand({ type: "clear" });
     coach.actions.onDraftDiscarded();
-    toast.success("Draft changes reverted to published baseline.");
+    toast.success("Preview changes reverted to the saved baseline.");
   };
 
   const canShowSetup = !context?.preferences;
@@ -1659,7 +1659,7 @@ export function CalendarSurface({
   )}ch + ${viewMode === "month" ? "11rem" : "8rem"}))`;
   const viewDescription =
     viewMode === "month"
-      ? `${restWeekdayOptions.find((option) => option.value === weekStartsOn)?.label ?? "Mon"}-first month view. Drag session pills to draft-move them.`
+      ? `${restWeekdayOptions.find((option) => option.value === weekStartsOn)?.label ?? "Mon"}-first month view. Drag session pills to stage preview edits.`
       : viewMode === "week"
         ? "Expanded 7-day planner view with drag-and-drop editing."
         : "Day agenda view with completion and detail controls.";
@@ -1706,22 +1706,33 @@ export function CalendarSurface({
     setDayPreview(null);
     onViewModeChange(nextViewMode, "push");
   };
-  const draftPublishBlocked = Boolean(
+  const draftSaveBlocked = Boolean(
     hasDraftSession &&
       effectivePreview &&
       context?.capabilities.plannerPlanWrites &&
       (context.scopeMonth < context.asOfDate.slice(0, 7) ||
         !effectivePreview.solver.publishable)
   );
-  const draftPublishBlockedMessage =
-    draftPublishBlocked && effectivePreview
+  const draftSaveBlockedMessage =
+    draftSaveBlocked && effectivePreview
       ? nonPublishablePreviewMessage(effectivePreview)
       : null;
   const canMutatePlanItems = Boolean(
     context?.capabilities.plannerPlanWrites &&
       context?.activePlan?.plan.status === "active"
   );
-  const publishButtonLabel = publishLoading ? "Publishing..." : "Publish plan";
+  const hasLockedPlanItems = Boolean(
+    context?.activePlan?.items.some((item) => item.locked)
+  );
+  const canResetPlan = Boolean(
+    context?.capabilities.plannerPlanWrites &&
+      !hasDraftSession &&
+      hasLockedPlanItems
+  );
+  const canShowSaveAction = Boolean(
+    context?.capabilities.plannerPlanWrites && effectivePreview
+  );
+  const saveButtonLabel = saveLoading ? "Saving..." : "Save plan";
   const readOnlyMonthHint =
     "This session belongs to another month snapshot. Open that month to edit it.";
   const selectedEventCompletionDispatch = selectedEventEntry
@@ -1948,32 +1959,21 @@ export function CalendarSurface({
               ) : null}
             </div>
             <div className="flex flex-wrap items-center justify-end gap-2">
-              {context?.capabilities.plannerPlanWrites && context.activePlan ? (
+              {canResetPlan ? (
                 <Button
                   type="button"
                   size="sm"
-                  variant={hasDraftSession ? "default" : "destructive"}
-                  onClick={hasDraftSession ? publishPlan : deactivatePlan}
-                  title={hasDraftSession ? (draftPublishBlockedMessage ?? undefined) : undefined}
-                  disabled={
-                    loading ||
-                    (hasDraftSession
-                      ? publishLoading || !effectivePreview || draftPublishBlocked
-                      : deactivateLoading)
-                  }
+                  variant="destructive"
+                  onClick={resetPlan}
+                  disabled={loading || resetLoading}
                 >
-                  {hasDraftSession
-                    ? publishButtonLabel
-                    : deactivateLoading
-                      ? "Deactivating..."
-                      : "Deactivate Plan"}
+                  {resetLoading ? "Resetting..." : "Reset plan"}
                 </Button>
-              ) : context?.capabilities.plannerPlanWrites &&
-                effectivePreview ? (
+              ) : canShowSaveAction ? (
                 <Button
                   type="button"
                   size="sm"
-                  onClick={publishPlan}
+                  onClick={savePlan}
                   title={
                     effectivePreview &&
                     (context.scopeMonth < context.asOfDate.slice(0, 7) ||
@@ -1982,13 +1982,14 @@ export function CalendarSurface({
                       : undefined
                   }
                   disabled={
-                    publishLoading ||
+                    saveLoading ||
                     loading ||
-                    context.scopeMonth < context.asOfDate.slice(0, 7) ||
+                    !effectivePreview ||
+                    (hasDraftSession && draftSaveBlocked) ||
                     !effectivePreview.solver.publishable
                   }
                 >
-                  {publishButtonLabel}
+                  {saveButtonLabel}
                 </Button>
               ) : null}
               {hasDraftSession ? (
@@ -1997,7 +1998,7 @@ export function CalendarSurface({
                   variant="outline"
                   size="sm"
                   onClick={discardDraftChanges}
-                  disabled={publishLoading || loading}
+                  disabled={saveLoading || loading}
                 >
                   Undo changes
                 </Button>
@@ -2227,11 +2228,11 @@ export function CalendarSurface({
                     </div>
                   </>
                 )}
-                {draftPublishBlockedMessage ? (
+                {draftSaveBlockedMessage ? (
                   <div className="mt-3 rounded-md border border-amber-400/40 bg-amber-500/10 p-2 text-xs">
-                    <p className="font-medium">Draft publish is currently blocked.</p>
+                    <p className="font-medium">Preview save is currently blocked.</p>
                     <p className="mt-1 text-muted-foreground">
-                      {draftPublishBlockedMessage}
+                      {draftSaveBlockedMessage}
                     </p>
                   </div>
                 ) : null}
@@ -2540,7 +2541,7 @@ export function CalendarSurface({
                   {selectedEventEntry.draftGhost ? (
                     <div className="rounded-md border border-dashed p-2 text-xs text-muted-foreground">
                       This marker shows where the session was originally scheduled
-                      before your draft move. Edit the moved session on its new date
+                      before your preview move. Edit the moved session on its new date
                       to change or undo the move.
                     </div>
                   ) : (
