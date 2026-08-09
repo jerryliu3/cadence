@@ -46,12 +46,6 @@ describe("planner context preview route", () => {
       supabase: {},
       capabilities: {
         calendarEnabled: true,
-        plannerRead: true,
-        plannerGeneration: true,
-        plannerPlanWrites: true,
-        targetedExactCompletion: true,
-        coachAi: true,
-        overlap: false,
       },
     });
     mocks.resolveCanonicalAsOfDate.mockReturnValue("2026-08-05");
