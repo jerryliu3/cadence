@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { noStoreErrorResponse } from "@/lib/api/route-helpers";
 import { isValidIanaTimezone } from "@/lib/dates/timezone";
 import { getAnchoredPeriod } from "@/lib/goals/periods";
 import {
@@ -56,10 +57,12 @@ function errorResponse(
   message: string,
   correlationId: string
 ) {
-  return NextResponse.json(
-    { code, message, correlationId },
-    { status, headers: { "Cache-Control": "no-store" } }
-  );
+  return noStoreErrorResponse({
+    status,
+    code,
+    message,
+    correlationId,
+  });
 }
 
 function groupCompletions(completions: Completion[]) {

@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
+import { noStoreErrorResponse } from "@/lib/api/route-helpers";
 import {
   getDateInTimezone,
 } from "@/lib/dates/timezone";
@@ -20,10 +21,12 @@ function errorResponse(
   message: string,
   correlationId: string
 ) {
-  return NextResponse.json(
-    { code, message, correlationId },
-    { status, headers: { "Cache-Control": "no-store" } }
-  );
+  return noStoreErrorResponse({
+    status,
+    code,
+    message,
+    correlationId,
+  });
 }
 
 export async function handleCompletionPost(request: Request) {

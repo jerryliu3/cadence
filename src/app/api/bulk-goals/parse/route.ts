@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { GeminiRequestError, generateGeminiJson } from "@/lib/ai/gemini";
+import { noStoreErrorResponse } from "@/lib/api/route-helpers";
 import { getDateInTimezone, isValidIanaTimezone } from "@/lib/dates/timezone";
 import { validateGoalDefinition } from "@/lib/goals/definition-validation";
 import {
@@ -179,10 +180,12 @@ function errorResponse(
   message: string,
   correlationId: string
 ) {
-  return NextResponse.json(
-    { code, message, correlationId },
-    { status, headers: { "Cache-Control": "no-store" } }
-  );
+  return noStoreErrorResponse({
+    status,
+    code,
+    message,
+    correlationId,
+  });
 }
 
 export async function POST(request: Request) {
