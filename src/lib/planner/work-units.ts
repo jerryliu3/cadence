@@ -1,4 +1,5 @@
 import {
+  addDaysToDateString,
   compareDateStrings,
   getAnchoredPeriod,
   getAnchoredPeriodStart,
@@ -68,9 +69,31 @@ export interface PlannerWorkUnit {
 
 export function isEndMonthCadenceUnit(
   scopeMonth: string,
-  creditWindow: DateWindow
+  period: DateWindow
 ) {
-  return creditWindow.start.slice(0, 7) === scopeMonth;
+  return owningMonthForPeriod(period) === scopeMonth;
+}
+
+export function owningMonthForPeriod(period: DateWindow) {
+  const periodStartMonth = period.start.slice(0, 7);
+  const daysByMonth = new Map<string, number>();
+  let cursor = period.start;
+  while (compareDateStrings(cursor, period.end) <= 0) {
+    const month = cursor.slice(0, 7);
+    daysByMonth.set(month, (daysByMonth.get(month) ?? 0) + 1);
+    cursor = addDaysToDateString(cursor, 1);
+  }
+
+  let owningMonth = periodStartMonth;
+  let maxDays = daysByMonth.get(periodStartMonth) ?? 0;
+  for (const [month, days] of daysByMonth) {
+    if (days > maxDays) {
+      owningMonth = month;
+      maxDays = days;
+    }
+  }
+
+  return owningMonth;
 }
 
 function baseAssignmentKey(
@@ -307,7 +330,7 @@ export function materializeWorkUnits({
       weeklyAnchor
     );
     const creditWindow = intersectDateWindows(period, lifetime);
-    if (!creditWindow || !isEndMonthCadenceUnit(scopeMonth, creditWindow)) {
+    if (!creditWindow || !isEndMonthCadenceUnit(scopeMonth, period)) {
       continue;
     }
 
