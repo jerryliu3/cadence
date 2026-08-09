@@ -377,7 +377,6 @@ function applyValidatedDraftItemEdits({
     const nextScheduledDate = nextScheduledByKey.get(key) ?? unit.scheduledDate;
     if (nextScheduledDate !== unit.scheduledDate) {
       unit.scheduledDate = nextScheduledDate;
-      unit.locked = true;
       draftMovedCount += 1;
     }
     if (edit.label !== null && edit.label !== unit.label) {

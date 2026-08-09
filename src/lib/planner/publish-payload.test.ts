@@ -85,7 +85,7 @@ function createKernel(scheduledDate: string): PlannerKernelOutput {
 }
 
 describe("buildPlannerPublishPersistencePayload draft edit validation", () => {
-  it("locks moved draft items and preserves original date", () => {
+  it("keeps moved preview items unlocked unless explicitly locked", () => {
     const snapshot = createSnapshot([]);
     const kernel = createKernel("2026-08-05");
     const policy = createDefaultPlannerPolicy("UTC", "2026-08-01T00:00:00.000Z");
@@ -112,7 +112,7 @@ describe("buildPlannerPublishPersistencePayload draft edit validation", () => {
     expect(moved).toMatchObject({
       scheduled_date: "2026-08-06",
       original_scheduled_date: "2026-08-05",
-      locked: true,
+      locked: false,
     });
   });
 

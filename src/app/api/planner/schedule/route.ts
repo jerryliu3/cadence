@@ -41,6 +41,7 @@ export async function DELETE(request: Request) {
       Math.min(MAX_API_BODY_BYTES, 128 * 1024),
       clearScheduleSchema
     );
+
     const clearResponse = await routeContext.supabase.rpc("clear_planner_schedule", {
       p_month: toScopeMonthDate(body.scopeMonth),
       p_expected_digest: body.expectedDigest,
@@ -57,16 +58,17 @@ export async function DELETE(request: Request) {
         throw new PlannerRouteError(
           400,
           "validation_failed",
-          "Provide a valid scope month for schedule clear."
+          "Provide a valid scope month for planner reset."
         );
       }
       throw new PlannerRouteError(
         409,
-        "planner_schedule_clear_failed",
-        "Planner month could not be unpublished.",
+        "planner_reset_failed",
+        "Planner month could not be reset.",
         { cause: clearResponse.error.message }
       );
     }
+
     const clearedRow = Array.isArray(clearResponse.data)
       ? clearResponse.data[0]
       : clearResponse.data;
@@ -74,7 +76,7 @@ export async function DELETE(request: Request) {
       throw new PlannerRouteError(
         500,
         "invariant_failed",
-        "Planner unpublish did not return updated state."
+        "Planner reset did not return updated state."
       );
     }
 
