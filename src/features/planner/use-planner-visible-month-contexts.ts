@@ -1,12 +1,15 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { getJson } from "@/lib/api/client";
 import type {
   CalendarTab,
   PlannerContextPayload,
   PlannerVisibleMonthContextPayload,
 } from "@/features/planner/calendar-surface.types";
 import { MAX_HORIZON_MONTHS } from "@/lib/planner/contracts/bounds";
+
+const VISIBLE_MONTH_FETCH_DEBOUNCE_MS = 80;
 
 interface UsePlannerVisibleMonthContextsArgs {
   activeTab: CalendarTab;
@@ -47,7 +50,9 @@ export function usePlannerVisibleMonthContexts({
           Object.keys(current).length === 0 ? current : {}
         );
       }, 0);
-      return () => window.clearTimeout(resetTimer);
+      return () => {
+        window.clearTimeout(resetTimer);
+      };
     }
     if (visibleMonths.length > MAX_HORIZON_MONTHS) {
       console.error("[planner-visible-contexts] visible month window exceeded", {
@@ -59,25 +64,19 @@ export function usePlannerVisibleMonthContexts({
           Object.keys(current).length === 0 ? current : {}
         );
       }, 0);
-      return () => window.clearTimeout(resetTimer);
+      return () => {
+        window.clearTimeout(resetTimer);
+      };
     }
     let cancelled = false;
     const abortController = new AbortController();
     const timer = window.setTimeout(() => {
       void Promise.allSettled(
         visibleMonths.map(async (visibleMonth) => {
-          const query = new URLSearchParams({
-            scopeMonth: visibleMonth,
-          });
-          const response = await fetch(`/api/planner/context?${query.toString()}`, {
-            cache: "no-store",
-            credentials: "same-origin",
+          const payload = await getJson<PlannerContextPayload>("/api/planner/context", {
+            query: { scopeMonth: visibleMonth },
             signal: abortController.signal,
           });
-          if (!response.ok) {
-            throw new Error("visible_context_load_failed");
-          }
-          const payload = (await response.json()) as PlannerContextPayload;
           return [
             visibleMonth,
             {
@@ -114,7 +113,7 @@ export function usePlannerVisibleMonthContexts({
           });
           setVisibleMonthContexts(Object.fromEntries(entries));
         });
-    }, 0);
+    }, VISIBLE_MONTH_FETCH_DEBOUNCE_MS);
     return () => {
       cancelled = true;
       abortController.abort();
