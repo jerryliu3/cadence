@@ -135,13 +135,7 @@ begin
         if p_subject_kind = 'user'::public.social_subject_kind then
           v_source_key := 'challenge:' || p_challenge_id::text || ':user:' || v_member_id::text;
         else
-          v_source_key := 'ch:' || pg_catalog.substr(
-            md5(
-              p_challenge_id::text || ':' || p_subject_kind::text || ':' || p_subject_id::text || ':' || v_member_id::text
-            ),
-            1,
-            24
-          );
+          v_source_key := 'challenge:' || p_challenge_id::text || ':team:' || p_subject_id::text;
         end if;
 
         select public.award_social_xp_service(
