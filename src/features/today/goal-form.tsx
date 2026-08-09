@@ -31,6 +31,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { getApiErrorMessage } from "@/lib/api/client";
+import {
+  createGoal,
+  replaceGoalLink,
+  updateGoal,
+} from "@/lib/api/goals-social-client";
 import { toLocalDateString } from "@/lib/dates/day";
 import {
   CATEGORY_PRESETS,
@@ -155,6 +161,7 @@ export function GoalForm({ goalId }: GoalFormProps) {
   const [milestoneNamesOpen, setMilestoneNamesOpen] = useState(false);
   const [linkTargetSearch, setLinkTargetSearch] = useState("");
   const [linkTargetOpen, setLinkTargetOpen] = useState(false);
+  const [pendingCreateGoalId] = useState(() => goalId ?? crypto.randomUUID());
 
   const isEditing = Boolean(goalId);
 
@@ -424,7 +431,6 @@ export function GoalForm({ goalId }: GoalFormProps) {
         : null;
 
     const payload = {
-      owner_id: currentUserId,
       title: state.title.trim(),
       description: state.description.trim() || null,
       category: getCategoryLabel(state.category_selection, state.custom_category),
@@ -444,28 +450,30 @@ export function GoalForm({ goalId }: GoalFormProps) {
       is_group: state.is_group,
     };
 
-    const savedGoalId = goalId ?? crypto.randomUUID();
+    const savedGoalId = goalId ?? pendingCreateGoalId;
 
     if (goalId) {
-      const { error } = await supabase
-        .from("goals")
-        .update(payload)
-        .eq("id", goalId)
-        .eq("owner_id", currentUserId);
-
-      if (error) {
-        toast.error(error.message ?? "Failed to save goal.");
+      try {
+        await updateGoal({
+          goalId,
+          updates: payload,
+        });
+      } catch (error) {
+        toast.error(getApiErrorMessage(error, "Failed to save goal."));
         setSaving(false);
         return;
       }
     } else {
-      const { error } = await supabase.from("goals").insert({
-        id: savedGoalId,
-        ...payload,
-      });
-
-      if (error) {
-        toast.error(error.message ?? "Failed to save goal.");
+      try {
+        await createGoal({
+          goal: {
+            id: savedGoalId,
+            ...payload,
+            is_deleted: false,
+          },
+        });
+      } catch (error) {
+        toast.error(getApiErrorMessage(error, "Failed to save goal."));
         setSaving(false);
         return;
       }
@@ -484,29 +492,24 @@ export function GoalForm({ goalId }: GoalFormProps) {
       if (uploadResponse.error) {
         toast.error(uploadResponse.error.message);
       } else {
-        await supabase
-          .from("goals")
-          .update({ photo_path: objectPath })
-          .eq("id", savedGoalId)
-          .eq("owner_id", currentUserId);
+        try {
+          await updateGoal({
+            goalId: savedGoalId,
+            updates: { photo_path: objectPath },
+          });
+        } catch (error) {
+          toast.error(getApiErrorMessage(error, "Photo path could not be saved."));
+        }
       }
     }
 
-    await supabase
-      .from("goal_links")
-      .delete()
-      .eq("owner_id", currentUserId)
-      .eq("source_goal_id", savedGoalId);
-
-    if (selectedLinkTarget !== "none") {
-      const { error: linkError } = await supabase.from("goal_links").insert({
-        owner_id: currentUserId,
-        source_goal_id: savedGoalId,
-        target_goal_id: selectedLinkTarget,
+    try {
+      await replaceGoalLink({
+        sourceGoalId: savedGoalId,
+        targetGoalId: selectedLinkTarget === "none" ? null : selectedLinkTarget,
       });
-      if (linkError) {
-        toast.error(linkError.message);
-      }
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, "Goal link could not be saved."));
     }
 
     toast.success(isEditing ? "Goal updated." : "Goal created.");
@@ -521,17 +524,15 @@ export function GoalForm({ goalId }: GoalFormProps) {
     }
     setSaving(true);
 
-    const { error } = await supabase
-      .from("goals")
-      .update({ archived_at: archived ? null : new Date().toISOString() })
-      .eq("id", goalId)
-      .eq("owner_id", currentUserId);
-
-    if (error) {
-      toast.error(error.message);
-    } else {
+    try {
+      await updateGoal({
+        goalId,
+        updates: { archived_at: archived ? null : new Date().toISOString() },
+      });
       toast.success(archived ? "Goal restored to active." : "Goal archived.");
       router.refresh();
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, "Goal archive state could not be updated."));
     }
 
     setSaving(false);
@@ -543,14 +544,13 @@ export function GoalForm({ goalId }: GoalFormProps) {
     }
 
     setSaving(true);
-    const { error } = await supabase
-      .from("goals")
-      .update({ is_deleted: true })
-      .eq("id", goalId)
-      .eq("owner_id", currentUserId);
-
-    if (error) {
-      toast.error(error.message);
+    try {
+      await updateGoal({
+        goalId,
+        updates: { is_deleted: true },
+      });
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, "Goal could not be deleted."));
       setSaving(false);
       return;
     }

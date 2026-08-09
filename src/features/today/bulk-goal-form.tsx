@@ -31,6 +31,16 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  getApiErrorMessage,
+  isApiClientError,
+  postJson,
+} from "@/lib/api/client";
+import {
+  createGoalLinksBulk,
+  createGoalsBulk,
+  updateGoal,
+} from "@/lib/api/goals-social-client";
 import { toLocalDateString } from "@/lib/dates/day";
 import {
   CATEGORY_PRESETS,
@@ -61,6 +71,8 @@ const recurrenceOptions: Array<{ value: RecurrenceInterval; label: string }> = [
   { value: "weekly", label: "Weekly" },
   { value: "monthly", label: "Monthly" },
 ];
+
+const BULK_GOALS_PARSE_TIMEOUT_MS = 20_000;
 
 const columnAliases = {
   title: ["title", "goal", "goal_title", "name"],
@@ -547,30 +559,20 @@ export function BulkGoalForm() {
 
     setParsing(true);
     try {
-      const response = await fetch("/api/bulk-goals/parse", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          prompt: trimmed,
-          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-        }),
-      });
-
-      const payload = (await response.json()) as {
+      const payload = await postJson<{
         goals?: LlmGoalDraftPayload[];
         warnings?: string[];
         code?: string;
         message?: string;
         correlationId?: string;
-      };
-
-      if (!response.ok) {
-        throw new Error(
-          payload.message ?? "Could not parse natural language input."
-        );
-      }
+      }>(
+        "/api/bulk-goals/parse",
+        {
+          prompt: trimmed,
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        },
+        { timeoutMs: BULK_GOALS_PARSE_TIMEOUT_MS }
+      );
 
       const goals = payload.goals ?? [];
       if (goals.length === 0) {
@@ -603,7 +605,7 @@ export function BulkGoalForm() {
       }
     } catch (error) {
       toast.error(
-        error instanceof Error ? error.message : "Could not parse natural language input."
+        getApiErrorMessage(error, "Could not parse natural language input.")
       );
     } finally {
       setParsing(false);
@@ -659,7 +661,7 @@ export function BulkGoalForm() {
             : parsedTargetCount !== null && parsedTargetCount > 0
               ? parsedTargetCount
               : null;
-        const goalId = crypto.randomUUID();
+        const goalId = draft.id;
         const milestoneNames =
           draft.frequency_type === "fixed_milestones" && parsedTargetCount
             ? normalizeMilestoneNamesForSave(parsedTargetCount, draft.milestone_names)
@@ -670,7 +672,6 @@ export function BulkGoalForm() {
           goalId,
           row: {
             id: goalId,
-            owner_id: currentUserId,
             title: draft.title.trim(),
             description: draft.description.trim() || null,
             category: getCategoryLabel(draft.category_selection, draft.custom_category),
@@ -691,9 +692,19 @@ export function BulkGoalForm() {
         };
       });
 
-      const { error } = await supabase.from("goals").insert(preparedRows.map((entry) => entry.row));
-      if (error) {
-        toast.error(error.message ?? "Failed to create bulk goals.");
+      try {
+        await createGoalsBulk(preparedRows.map((entry) => entry.row));
+      } catch (error) {
+        if (
+          isApiClientError(error) &&
+          (error.code === "validation_failed" || error.code === "request_too_large")
+        ) {
+          toast.error(
+            "Bulk imports are processed in smaller batches. Please reduce very long descriptions or split the file and try again."
+          );
+          return;
+        }
+        toast.error(getApiErrorMessage(error, "Failed to create bulk goals."));
         return;
       }
 
@@ -702,19 +713,34 @@ export function BulkGoalForm() {
           ({ draft }) => !draft.is_group && draft.linked_target_goal_id && draft.linked_target_goal_id !== "none"
         )
         .map(({ draft, goalId }) => ({
-          owner_id: currentUserId,
-          source_goal_id: goalId,
-          target_goal_id: draft.linked_target_goal_id,
+          sourceGoalId: goalId,
+          targetGoalId: draft.linked_target_goal_id,
         }));
 
       if (linkRows.length > 0) {
-        const { error: linkError } = await supabase.from("goal_links").insert(linkRows);
-        if (linkError) {
-          toast.error(`Some linked goals were not saved: ${linkError.message}`);
+        try {
+          await createGoalLinksBulk(linkRows);
+        } catch (error) {
+          if (
+            isApiClientError(error) &&
+            (error.code === "validation_failed" || error.code === "request_too_large")
+          ) {
+            toast.error(
+              "Linked goals were too large to save in one pass. Please retry with fewer linked rows."
+            );
+            return;
+          }
+          toast.error(
+            `Some linked goals were not saved: ${getApiErrorMessage(
+              error,
+              "Goal link write failed."
+            )}`
+          );
         }
       }
 
       let failedPhotoUploads = 0;
+      let failedPhotoPathWrites = 0;
       for (const { draft, goalId } of preparedRows) {
         if (!draft.photo_file) {
           continue;
@@ -732,20 +758,31 @@ export function BulkGoalForm() {
           continue;
         }
 
-        const { error: updateError } = await supabase
-          .from("goals")
-          .update({ photo_path: objectPath })
-          .eq("id", goalId)
-          .eq("owner_id", currentUserId);
-
-        if (updateError) {
-          failedPhotoUploads += 1;
+        try {
+          await updateGoal({
+            goalId,
+            updates: { photo_path: objectPath },
+          });
+        } catch (error) {
+          failedPhotoPathWrites += 1;
+          console.error("Photo uploaded but photo_path update failed", error);
         }
       }
 
-      if (failedPhotoUploads > 0) {
+      if (failedPhotoUploads > 0 || failedPhotoPathWrites > 0) {
+        const parts: string[] = [];
+        if (failedPhotoUploads > 0) {
+          parts.push(
+            `${failedPhotoUploads} photo upload${failedPhotoUploads === 1 ? "" : "s"} failed`
+          );
+        }
+        if (failedPhotoPathWrites > 0) {
+          parts.push(
+            `${failedPhotoPathWrites} photo path update${failedPhotoPathWrites === 1 ? "" : "s"} failed`
+          );
+        }
         toast.error(
-          `${failedPhotoUploads} photo upload${failedPhotoUploads === 1 ? "" : "s"} could not be saved.`
+          `${parts.join(", ")}.`
         );
       }
 

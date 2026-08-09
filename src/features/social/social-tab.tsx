@@ -32,16 +32,16 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  createDefaultGroupDraft,
+  type GroupGoalDraft,
+  useSocialMutations,
+} from "@/features/social/use-social-mutations";
+import {
   CATEGORY_PRESETS,
   type CategorySelection,
-  getCategoryLabel,
   getCategorySwatchColor,
 } from "@/lib/goals/category";
-import {
-  isOrdinalGoalDefinition,
-  validateGoalDefinition,
-} from "@/lib/goals/definition-validation";
-import { toLocalDateString } from "@/lib/dates/day";
+import { isOrdinalGoalDefinition } from "@/lib/goals/definition-validation";
 import { GOAL_TYPE_OPTIONS, RECURRENCE_INTERVAL_OPTIONS } from "@/lib/goals/form-options";
 import { getGoalCompletionPercentage } from "@/lib/goals/progress";
 import { MonthHeatmap } from "@/features/insights/month-heatmap";
@@ -49,11 +49,9 @@ import { NotificationSettings } from "@/features/settings/notification-settings"
 import type {
   Completion,
   Goal,
-  GoalFrequencyType,
   GoalParticipant,
   GoalShare,
   Profile,
-  RecurrenceInterval,
 } from "@/lib/goals/types";
 import { createClient } from "@/lib/supabase/client";
 
@@ -179,30 +177,6 @@ function MilestoneSummaryPills({
   );
 }
 
-interface GroupGoalDraft {
-  title: string;
-  description: string;
-  categorySelection: CategorySelection;
-  customCategory: string;
-  frequencyType: GoalFrequencyType;
-  recurrenceInterval: RecurrenceInterval;
-  targetCount: string;
-  startDate: string;
-  endDate: string;
-}
-
-const defaultGroupDraft: GroupGoalDraft = {
-  title: "",
-  description: "",
-  categorySelection: "personal",
-  customCategory: "",
-  frequencyType: "recurring",
-  recurrenceInterval: "weekly",
-  targetCount: "",
-  startDate: toLocalDateString(),
-  endDate: "",
-};
-
 export function SocialTab() {
   const supabase = useMemo(() => createClient(), []);
   const [state, setState] = useState<SocialState>(initialState);
@@ -220,7 +194,8 @@ export function SocialTab() {
     top: 0,
   });
   const [sharedMonthCursor, setSharedMonthCursor] = useState(new Date());
-  const [groupDraft, setGroupDraft] = useState<GroupGoalDraft>(defaultGroupDraft);
+  const [groupDraft, setGroupDraft] =
+    useState<GroupGoalDraft>(createDefaultGroupDraft);
   const [profileDraft, setProfileDraft] = useState({
     username: "",
     display_name: "",
@@ -270,122 +245,127 @@ export function SocialTab() {
 
   const loadData = useCallback(async () => {
     setLoading(true);
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      setState(initialState);
-      setLoading(false);
-      return;
-    }
-
-    const [profileResponse, ownGoalsResponse, sharesResponse, membershipsResponse] = await Promise.all([
-      supabase.from("profiles").select("*").eq("id", user.id).maybeSingle(),
-      supabase
-        .from("goals")
-        .select("*")
-        .eq("owner_id", user.id)
-        .eq("is_deleted", false)
-        .order("created_at", { ascending: false }),
-      supabase.from("goal_shares").select("*").eq("shared_with", user.id),
-      supabase.from("goal_participants").select("*").eq("user_id", user.id),
-    ]);
-
-    const profile = (profileResponse.data ?? null) as Profile | null;
-    const ownGoals = (ownGoalsResponse.data ?? []) as Goal[];
-    const sharedEntries = (sharesResponse.data ?? []) as GoalShare[];
-    const memberships = (membershipsResponse.data ?? []) as GoalParticipant[];
-
-    setProfileDraft({
-      username: profile?.username ?? "",
-      display_name: profile?.display_name ?? "",
-      avatar_url: profile?.avatar_url ?? "",
-    });
-
-    const sharedGoalIds = sharedEntries.map((entry) => entry.goal_id);
-    const ownShareableGoalIds = ownGoals
-      .filter((goal) => !goal.is_group)
-      .map((goal) => goal.id);
-
-    const [sharedGoalsResponse, groupGoalsResponse, outgoingSharesResponse] = await Promise.all([
-      sharedGoalIds.length > 0
-        ? supabase.from("goals").select("*").in("id", sharedGoalIds).eq("is_deleted", false)
-        : Promise.resolve({ data: [], error: null } as const),
-      supabase.from("goals").select("*").eq("is_group", true).eq("is_deleted", false),
-      ownShareableGoalIds.length > 0
-        ? supabase.from("goal_shares").select("*").in("goal_id", ownShareableGoalIds)
-        : Promise.resolve({ data: [], error: null } as const),
-    ]);
-
-    const sharedGoals = (sharedGoalsResponse.data ?? []) as Goal[];
-    const outgoingShares = (outgoingSharesResponse.data ?? []) as GoalShare[];
-    const visibleGroupGoals = ((groupGoalsResponse.data ?? []) as Goal[]).filter((goal) => {
-      return goal.owner_id === user.id || memberships.some((entry) => entry.goal_id === goal.id);
-    });
-
-    const allGoalIds = Array.from(
-      new Set([
-        ...sharedGoals.map((goal) => goal.id),
-        ...visibleGroupGoals.map((goal) => goal.id),
-      ])
-    );
-
-    const [participantsResponse, completionsResponse] = await Promise.all([
-      allGoalIds.length > 0
-        ? supabase.from("goal_participants").select("*").in("goal_id", allGoalIds)
-        : Promise.resolve({ data: [], error: null } as const),
-      allGoalIds.length > 0
-        ? supabase.from("completions").select("*").in("goal_id", allGoalIds)
-        : Promise.resolve({ data: [], error: null } as const),
-    ]);
-
-    const participants = (participantsResponse.data ?? []) as GoalParticipant[];
-    const completions = (completionsResponse.data ?? []) as Completion[];
-
-    const profileIds = Array.from(
-      new Set([
-        ...sharedGoals.map((goal) => goal.owner_id),
-        ...participants.map((entry) => entry.user_id),
-        ...outgoingShares.map((entry) => entry.shared_with),
-        user.id,
-      ])
-    );
-
-    const profileDirectoryResponse =
-      profileIds.length > 0
-        ? await supabase.from("profiles").select("*").in("id", profileIds)
-        : ({ data: [], error: null } as const);
-
-    const profileDirectory = (profileDirectoryResponse.data ?? []) as Profile[];
-    const profileById = profileDirectory.reduce<Record<string, Profile>>((accumulator, item) => {
-      accumulator[item.id] = item;
-      return accumulator;
-    }, {});
-
-    const sharedOwners: Record<string, Profile> = {};
-    sharedGoals.forEach((goal) => {
-      const owner = profileById[goal.owner_id];
-      if (owner) {
-        sharedOwners[goal.id] = owner;
+      if (!user) {
+        setState(initialState);
+        return;
       }
-    });
 
-    setState({
-      userId: user.id,
-      profile,
-      ownGoals,
-      sharedGoals,
-      sharedEntries,
-      outgoingShares,
-      sharedOwners,
-      groupGoals: visibleGroupGoals,
-      participants,
-      completions,
-      profileDirectory: profileById,
-    });
-    setLoading(false);
+      const [profileResponse, ownGoalsResponse, sharesResponse, membershipsResponse] = await Promise.all([
+        supabase.from("profiles").select("*").eq("id", user.id).maybeSingle(),
+        supabase
+          .from("goals")
+          .select("*")
+          .eq("owner_id", user.id)
+          .eq("is_deleted", false)
+          .order("created_at", { ascending: false }),
+        supabase.from("goal_shares").select("*").eq("shared_with", user.id),
+        supabase.from("goal_participants").select("*").eq("user_id", user.id),
+      ]);
+
+      const profile = (profileResponse.data ?? null) as Profile | null;
+      const ownGoals = (ownGoalsResponse.data ?? []) as Goal[];
+      const sharedEntries = (sharesResponse.data ?? []) as GoalShare[];
+      const memberships = (membershipsResponse.data ?? []) as GoalParticipant[];
+
+      setProfileDraft({
+        username: profile?.username ?? "",
+        display_name: profile?.display_name ?? "",
+        avatar_url: profile?.avatar_url ?? "",
+      });
+
+      const sharedGoalIds = sharedEntries.map((entry) => entry.goal_id);
+      const ownShareableGoalIds = ownGoals
+        .filter((goal) => !goal.is_group)
+        .map((goal) => goal.id);
+
+      const [sharedGoalsResponse, groupGoalsResponse, outgoingSharesResponse] = await Promise.all([
+        sharedGoalIds.length > 0
+          ? supabase.from("goals").select("*").in("id", sharedGoalIds).eq("is_deleted", false)
+          : Promise.resolve({ data: [], error: null } as const),
+        supabase.from("goals").select("*").eq("is_group", true).eq("is_deleted", false),
+        ownShareableGoalIds.length > 0
+          ? supabase.from("goal_shares").select("*").in("goal_id", ownShareableGoalIds)
+          : Promise.resolve({ data: [], error: null } as const),
+      ]);
+
+      const sharedGoals = (sharedGoalsResponse.data ?? []) as Goal[];
+      const outgoingShares = (outgoingSharesResponse.data ?? []) as GoalShare[];
+      const visibleGroupGoals = ((groupGoalsResponse.data ?? []) as Goal[]).filter((goal) => {
+        return goal.owner_id === user.id || memberships.some((entry) => entry.goal_id === goal.id);
+      });
+
+      const allGoalIds = Array.from(
+        new Set([
+          ...sharedGoals.map((goal) => goal.id),
+          ...visibleGroupGoals.map((goal) => goal.id),
+        ])
+      );
+
+      const [participantsResponse, completionsResponse] = await Promise.all([
+        allGoalIds.length > 0
+          ? supabase.from("goal_participants").select("*").in("goal_id", allGoalIds)
+          : Promise.resolve({ data: [], error: null } as const),
+        allGoalIds.length > 0
+          ? supabase.from("completions").select("*").in("goal_id", allGoalIds)
+          : Promise.resolve({ data: [], error: null } as const),
+      ]);
+
+      const participants = (participantsResponse.data ?? []) as GoalParticipant[];
+      const completions = (completionsResponse.data ?? []) as Completion[];
+
+      const profileIds = Array.from(
+        new Set([
+          ...sharedGoals.map((goal) => goal.owner_id),
+          ...participants.map((entry) => entry.user_id),
+          ...outgoingShares.map((entry) => entry.shared_with),
+          user.id,
+        ])
+      );
+
+      const profileDirectoryResponse =
+        profileIds.length > 0
+          ? await supabase.from("profiles").select("*").in("id", profileIds)
+          : ({ data: [], error: null } as const);
+
+      const profileDirectory = (profileDirectoryResponse.data ?? []) as Profile[];
+      const profileById = profileDirectory.reduce<Record<string, Profile>>((accumulator, item) => {
+        accumulator[item.id] = item;
+        return accumulator;
+      }, {});
+
+      const sharedOwners: Record<string, Profile> = {};
+      sharedGoals.forEach((goal) => {
+        const owner = profileById[goal.owner_id];
+        if (owner) {
+          sharedOwners[goal.id] = owner;
+        }
+      });
+
+      setState({
+        userId: user.id,
+        profile,
+        ownGoals,
+        sharedGoals,
+        sharedEntries,
+        outgoingShares,
+        sharedOwners,
+        groupGoals: visibleGroupGoals,
+        participants,
+        completions,
+        profileDirectory: profileById,
+      });
+    } catch (error) {
+      console.error("Failed to load social settings data:", error);
+      setState(initialState);
+      toast.error("Social settings could not be loaded. Please refresh the page.");
+    } finally {
+      setLoading(false);
+    }
   }, [supabase]);
 
   useEffect(() => {
@@ -534,236 +514,34 @@ export function SocialTab() {
     }));
   };
 
-  const saveProfile = async () => {
-    if (!state.userId) {
-      return;
-    }
-    setSaving(true);
-    const payload = {
-      id: state.userId,
-      username: profileDraft.username.trim().toLowerCase(),
-      display_name: profileDraft.display_name.trim() || null,
-      avatar_url: profileDraft.avatar_url.trim() || null,
-    };
+  const resetGroupDraft = useCallback(() => {
+    setGroupDraft(createDefaultGroupDraft());
+  }, []);
 
-    const { error } = await supabase.from("profiles").upsert(payload, { onConflict: "id" });
-    if (error) {
-      toast.error(error.message);
-    } else {
-      toast.success("Profile saved.");
-      await loadData();
-    }
-    setSaving(false);
-  };
-
-  const shareGoalWithUser = async (targetUserId: string) => {
-    if (activeSelectedShareGoalIds.length === 0) {
-      toast.error("Select at least one goal to share.");
-      return;
-    }
-
-    const existingGoalIds = new Set(
-      state.outgoingShares
-        .filter((entry) => entry.shared_with === targetUserId)
-        .map((entry) => entry.goal_id)
-    );
-    const newGoalIds = activeSelectedShareGoalIds.filter((goalId) => !existingGoalIds.has(goalId));
-
-    if (newGoalIds.length === 0) {
-      toast("All selected goals are already shared with this user.");
-      return;
-    }
-
-    const { error } = await supabase
-      .from("goal_shares")
-      .insert(newGoalIds.map((goalId) => ({ goal_id: goalId, shared_with: targetUserId })));
-
-    if (error) {
-      toast.error(error.message);
-    } else {
-      toast.success(
-        newGoalIds.length === 1 ? "Shared 1 goal." : `Shared ${newGoalIds.length} goals.`
-      );
-      setShareMenuOpen(false);
-      await loadData();
-    }
-  };
-
-  const revokeGoalShare = async (goalId: string, sharedWithUserId: string) => {
-    const { error } = await supabase
-      .from("goal_shares")
-      .delete()
-      .eq("goal_id", goalId)
-      .eq("shared_with", sharedWithUserId);
-    if (error) {
-      toast.error(error.message);
-    } else {
-      toast.success("Removed access.");
-      await loadData();
-    }
-  };
-
-  const removeSharedGoalForMe = async (goalId: string) => {
-    const { error } = await supabase
-      .from("goal_shares")
-      .delete()
-      .eq("goal_id", goalId)
-      .eq("shared_with", state.userId);
-    if (error) {
-      toast.error(error.message);
-    } else {
-      toast.success("Removed from shared goals.");
-      await loadData();
-    }
-  };
-
-  const inviteToGroupGoal = async (targetUserId: string) => {
-    if (!selectedGroupGoalId) {
-      toast.error("Choose a group goal first.");
-      return;
-    }
-
-    const { error } = await supabase.from("goal_participants").insert({
-      goal_id: selectedGroupGoalId,
-      user_id: targetUserId,
-      role: "participant",
-    });
-
-    if (error) {
-      toast.error(error.message);
-    } else {
-      toast.success("Participant invited.");
-      await loadData();
-    }
-  };
-
-  const createGroupGoal = async () => {
-    if (!groupDraft.title.trim()) {
-      toast.error("Group goal title is required.");
-      return;
-    }
-
-    if (!groupDraft.startDate) {
-      toast.error("Start date is required.");
-      return;
-    }
-
-    if (
-      groupDraft.categorySelection === "custom" &&
-      groupDraft.customCategory.trim().length === 0
-    ) {
-      toast.error("Custom category name is required.");
-      return;
-    }
-
-    if (
-      groupDraft.frequencyType === "fixed_milestones" &&
-      parsedGroupTargetCount === null
-    ) {
-      toast.error("Milestone group goals need a positive target.");
-      return;
-    }
-
-    const definitionIssues = validateGoalDefinition({
-      frequencyType: groupDraft.frequencyType,
-      targetCount: groupDefinitionTargetCount,
-      startDate: groupDraft.startDate,
-      endDate: groupDraft.endDate || null,
-    });
-    if (definitionIssues.length > 0) {
-      toast.error(definitionIssues[0]!.message);
-      return;
-    }
-
-    setSaving(true);
-    const newGroupGoalId = crypto.randomUUID();
-    const { error } = await supabase.from("goals").insert({
-      id: newGroupGoalId,
-      owner_id: state.userId,
-      title: groupDraft.title.trim(),
-      description: groupDraft.description.trim() || null,
-      category: getCategoryLabel(
-        groupDraft.categorySelection,
-        groupDraft.customCategory
-      ),
-      color: "#0ea5e9",
-      frequency_type: groupDraft.frequencyType,
-      recurrence_interval:
-        groupDraft.frequencyType === "recurring" ? groupDraft.recurrenceInterval : null,
-      target_count:
-        groupDraft.frequencyType === "fixed_milestones"
-          ? parsedGroupTargetCount
-          : groupDraft.frequencyType === "recurring" &&
-              groupDraft.targetCount.trim().length > 0
-            ? parsedGroupTargetCount
-          : null,
-      start_date: groupDraft.startDate,
-      end_date: groupDraft.endDate || null,
-      is_group: true,
-    });
-
-    if (error) {
-      toast.error(error.message ?? "Could not create group goal.");
-      setSaving(false);
-      return;
-    }
-
-    await supabase.from("goal_participants").insert({
-      goal_id: newGroupGoalId,
-      user_id: state.userId,
-      role: "owner",
-    });
-
-    toast.success("Group goal created.");
-    setGroupDraft({
-      ...defaultGroupDraft,
-      startDate: toLocalDateString(),
-    });
-    await loadData();
-    setSaving(false);
-  };
-
-  const removeParticipant = async (goalId: string, participantUserId: string) => {
-    const { error } = await supabase
-      .from("goal_participants")
-      .delete()
-      .eq("goal_id", goalId)
-      .eq("user_id", participantUserId);
-    if (error) {
-      toast.error(error.message);
-    } else {
-      toast.success("Participant removed.");
-      await loadData();
-    }
-  };
-
-  const leaveGroup = async (goalId: string) => {
-    const { error } = await supabase
-      .from("goal_participants")
-      .delete()
-      .eq("goal_id", goalId)
-      .eq("user_id", state.userId);
-    if (error) {
-      toast.error(error.message);
-    } else {
-      toast.success("You left the group goal.");
-      await loadData();
-    }
-  };
-
-  const deleteGroupGoal = async (goalId: string) => {
-    const { error } = await supabase
-      .from("goals")
-      .update({ is_deleted: true })
-      .eq("id", goalId)
-      .eq("owner_id", state.userId);
-    if (error) {
-      toast.error(error.message);
-    } else {
-      toast.success("Group goal deleted.");
-      await loadData();
-    }
-  };
+  const {
+    saveProfile,
+    shareGoalWithUser,
+    revokeGoalShare,
+    removeSharedGoalForMe,
+    inviteToGroupGoal,
+    createGroupGoal,
+    removeParticipant,
+    leaveGroup,
+    deleteGroupGoal,
+  } = useSocialMutations({
+    userId: state.userId,
+    profileDraft,
+    outgoingShares: state.outgoingShares,
+    activeSelectedShareGoalIds,
+    selectedGroupGoalId,
+    groupDraft,
+    parsedGroupTargetCount,
+    groupDefinitionTargetCount,
+    loadData,
+    setSaving,
+    setShareMenuOpen,
+    resetGroupDraft,
+  });
 
   if (loading) {
     return (
