@@ -136,10 +136,24 @@ export async function requirePlannerRouteContext({
   disabledMessage: string;
   disabledStatus?: number;
 }): Promise<AuthenticatedPlannerRouteContext> {
-  const { userId } = await requireAuthenticatedRouteContext({
-    supabase,
-    unauthorizedMessage: "Sign in to access planner APIs.",
-  });
+  let userId: string;
+  try {
+    ({ userId } = await requireAuthenticatedRouteContext({
+      supabase,
+      unauthorizedMessage: "Sign in to access planner APIs.",
+    }));
+  } catch (error) {
+    if (error instanceof ApiRouteError) {
+      throw new PlannerRouteError(
+        error.status,
+        error.code,
+        error.message,
+        error.details,
+        (error as Error & { cause?: unknown }).cause
+      );
+    }
+    throw error;
+  }
 
   let capabilities: PlannerCapabilities;
   try {
