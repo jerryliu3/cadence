@@ -5,7 +5,6 @@ import {
   getCompiledDateCost,
   type CompiledPolicy,
 } from "@/lib/planner/policy";
-import type { SolverSolveIntent } from "@/lib/planner/solver/types";
 import type { SolverUnit } from "@/lib/planner/solver/types";
 import type { PlannerWorkUnit } from "@/lib/planner/work-units";
 
@@ -14,15 +13,11 @@ export function projectWorkUnitsToSolver({
   compiledPolicy,
   assessments,
   completionDatesByGoal = new Map(),
-  preserveExistingAssignments = false,
-  solveIntent = "stable",
 }: {
   workUnits: PlannerWorkUnit[];
   compiledPolicy: CompiledPolicy;
   assessments: Map<string, GoalAssessment>;
   completionDatesByGoal?: Map<string, Set<string>>;
-  preserveExistingAssignments?: boolean;
-  solveIntent?: SolverSolveIntent;
 }): SolverUnit[] {
   const isProjectable = (unit: PlannerWorkUnit) =>
     (unit.classification === "open" ||
@@ -85,13 +80,8 @@ export function projectWorkUnitsToSolver({
         kind: entry.source.kind,
         ordinal: entry.source.ordinal,
         candidateDates: entry.candidateDates,
-        previousDate:
-          solveIntent === "replan" ? null : entry.source.scheduledDate,
-        lockedDate:
-          entry.source.locked ||
-          (preserveExistingAssignments && entry.source.scheduledDate !== null)
-            ? entry.source.scheduledDate
-            : null,
+        previousDate: entry.source.scheduledDate,
+        lockedDate: entry.source.locked ? entry.source.scheduledDate : null,
         dateCosts: Object.fromEntries(
           entry.candidateDates.map((date) => [
             date,

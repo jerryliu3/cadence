@@ -6,8 +6,12 @@ import { projectWorkUnitsToSolver } from "./project";
 
 function createWorkUnit({
   restEligible = true,
+  scheduledDate = null,
+  locked = false,
 }: {
   restEligible?: boolean;
+  scheduledDate?: string | null;
+  locked?: boolean;
 } = {}): PlannerWorkUnit {
   return {
     originalGoalId: "goal-a",
@@ -28,8 +32,8 @@ function createWorkUnit({
     creditedCompletionId: null,
     creditedCompletionDate: null,
     creditState: "uncredited",
-    scheduledDate: null,
-    locked: false,
+    scheduledDate,
+    locked,
   };
 }
 
@@ -83,5 +87,40 @@ describe("projectWorkUnitsToSolver", () => {
       throw new Error("Expected date costs");
     }
     expect(solverUnit.dateCosts["2026-08-02"]).toBe(0);
+  });
+
+  it("preserves previousDate under replan projection", () => {
+    const compiledPolicy = compilePlannerPolicy(
+      createDefaultPlannerPolicy("UTC", "2026-08-01T00:00:00Z")
+    );
+    const result = projectWorkUnitsToSolver({
+      workUnits: [createWorkUnit({ scheduledDate: "2026-08-02" })],
+      compiledPolicy,
+      assessments: new Map<string, GoalAssessment>(),
+    });
+
+    expect(result).toHaveLength(1);
+    const [solverUnit] = result;
+    expect(solverUnit?.previousDate).toBe("2026-08-02");
+    expect(solverUnit?.lockedDate).toBeNull();
+  });
+
+  it("only locks assignments that are explicitly locked", () => {
+    const compiledPolicy = compilePlannerPolicy(
+      createDefaultPlannerPolicy("UTC", "2026-08-01T00:00:00Z")
+    );
+    const unlocked = projectWorkUnitsToSolver({
+      workUnits: [createWorkUnit({ scheduledDate: "2026-08-02", locked: false })],
+      compiledPolicy,
+      assessments: new Map<string, GoalAssessment>(),
+    });
+    const locked = projectWorkUnitsToSolver({
+      workUnits: [createWorkUnit({ scheduledDate: "2026-08-02", locked: true })],
+      compiledPolicy,
+      assessments: new Map<string, GoalAssessment>(),
+    });
+
+    expect(unlocked[0]?.lockedDate).toBeNull();
+    expect(locked[0]?.lockedDate).toBe("2026-08-02");
   });
 });

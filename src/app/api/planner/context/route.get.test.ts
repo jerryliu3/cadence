@@ -98,7 +98,7 @@ describe("planner context GET route", () => {
     });
     expect(mocks.runPlannerKernel).toHaveBeenCalledWith(
       expect.objectContaining({
-        preserveExistingAssignments: true,
+        solveIntent: "stable",
       })
     );
   });
