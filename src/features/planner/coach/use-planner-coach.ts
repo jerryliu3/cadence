@@ -907,7 +907,7 @@ export function usePlannerCoach({
       }
       try {
         if (hasPolicyEdits && baselinePolicy) {
-          await refreshDraftPreview(baselinePolicy, "replan");
+          await refreshDraftPreview(baselinePolicy, "stable");
           if (shouldPersistDurableUndo && context?.preferences) {
             try {
               await persistPlannerDefaultPolicy({
@@ -917,7 +917,7 @@ export function usePlannerCoach({
             } catch (error) {
               try {
                 if (currentDraftPolicy) {
-                  await refreshDraftPreview(currentDraftPolicy, "replan");
+                  await refreshDraftPreview(currentDraftPolicy, "stable");
                   if (context.scopeMonth) {
                     applyDraftPolicy(context.scopeMonth, currentDraftPolicy);
                   }
