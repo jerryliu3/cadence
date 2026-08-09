@@ -44,6 +44,25 @@ vi.mock("@/lib/planner/api", async () => {
     requirePlannerRouteContext: mocks.requirePlannerRouteContext,
     unknownPlannerErrorResponse: (correlationId: string) =>
       NextResponse.json({ code: "internal_error", correlationId }, { status: 500 }),
+    withPlannerRoute: async (
+      handler: (context: { correlationId: string }) => Promise<Response>
+    ) => {
+      const correlationId = "corr-id";
+      try {
+        return await handler({ correlationId });
+      } catch (error) {
+        if (error instanceof PlannerRouteError) {
+          return NextResponse.json(
+            { code: error.code, message: error.message, correlationId },
+            { status: error.status }
+          );
+        }
+        return NextResponse.json(
+          { code: "internal_error", correlationId },
+          { status: 500 }
+        );
+      }
+    },
   };
 });
 
