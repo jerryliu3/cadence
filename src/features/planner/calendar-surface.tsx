@@ -118,6 +118,7 @@ const DAY_PREVIEW_LONG_PRESS_DELAY_MS = 500;
 const MAX_MONTH_HEADING_SAMPLE = "September 2026";
 const MAX_WEEK_HEADING_SAMPLE = "Sep 30 - Sep 30, 2026";
 const MAX_DAY_HEADING_SAMPLE = "Wed Aug 30";
+const PLANNER_CONTEXT_REQUEST_TIMEOUT_MS = 15_000;
 const SCOPE_ONLY_ELIGIBILITY_REASONS = new Set([
   "end_outside_scope",
   "starts_after_scope",
@@ -137,6 +138,21 @@ const ELIGIBILITY_REASON_LABELS: Record<string, string> = {
 
 function getEligibilityReasonLabel(reason: string) {
   return ELIGIBILITY_REASON_LABELS[reason] ?? "This goal is currently ineligible.";
+}
+
+function isAbortError(error: unknown) {
+  if (error instanceof DOMException) {
+    return error.name === "AbortError";
+  }
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "name" in error &&
+    (error as { name?: unknown }).name === "AbortError"
+  ) {
+    return true;
+  }
+  return false;
 }
 
 const PLANNER_VIEW_MODES = [
@@ -239,18 +255,46 @@ export function CalendarSurface({
       setLoading(true);
     }
     const query = new URLSearchParams({ scopeMonth: month });
-    const response = await fetch(`/api/planner/context?${query.toString()}`, {
-      cache: "no-store",
-      credentials: "same-origin",
-    });
-    const payload = await response.json();
-    if (showLoading) {
-      setLoading(false);
-    }
-    if (!response.ok) {
-      const errorPayload = payload as PlannerErrorPayload;
-      const message =
-        errorPayload.message ?? "Planner calendar context could not be loaded.";
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(
+      () => controller.abort(),
+      PLANNER_CONTEXT_REQUEST_TIMEOUT_MS
+    );
+    try {
+      const response = await fetch(`/api/planner/context?${query.toString()}`, {
+        cache: "no-store",
+        credentials: "same-origin",
+        signal: controller.signal,
+      });
+      const payload = await response.json();
+      if (!response.ok) {
+        const errorPayload = payload as PlannerErrorPayload;
+        const message =
+          errorPayload.message ?? "Planner calendar context could not be loaded.";
+        if (showLoading) {
+          setContext(null);
+          setError(message);
+        }
+        if (toastOnError) {
+          toast.error(message);
+        }
+        return false;
+      }
+
+      const contextPayload = payload as PlannerContextPayload;
+      setContext(contextPayload);
+      if (contextPayload.preferences?.timezone) {
+        setSetupTimezone(contextPayload.preferences.timezone);
+        setSetupWeekStartsOn(
+          normalizeWeekStartsOn(contextPayload.preferences.defaultPolicy.weekStartsOn)
+        );
+        setSetupRestWeekdays(contextPayload.preferences.defaultPolicy.restWeekdays);
+      }
+      return true;
+    } catch (error) {
+      const message = isAbortError(error)
+        ? "Planner calendar context request timed out. Please try again."
+        : "Planner calendar context could not be loaded.";
       if (showLoading) {
         setContext(null);
         setError(message);
@@ -259,18 +303,12 @@ export function CalendarSurface({
         toast.error(message);
       }
       return false;
+    } finally {
+      window.clearTimeout(timeoutId);
+      if (showLoading) {
+        setLoading(false);
+      }
     }
-
-    const contextPayload = payload as PlannerContextPayload;
-    setContext(contextPayload);
-    if (contextPayload.preferences?.timezone) {
-      setSetupTimezone(contextPayload.preferences.timezone);
-      setSetupWeekStartsOn(
-        normalizeWeekStartsOn(contextPayload.preferences.defaultPolicy.weekStartsOn)
-      );
-      setSetupRestWeekdays(contextPayload.preferences.defaultPolicy.restWeekdays);
-    }
-    return true;
   }, [activeTab, month, onMonthChange, setupTimezone]);
 
   useEffect(() => {
