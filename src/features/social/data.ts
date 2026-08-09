@@ -4,6 +4,8 @@ import type {
   TeamStateRow,
   SocialChallenge,
   SocialFeedEvent,
+  TeamPartnerPlanItem,
+  TeamPlannerProposal,
 } from "@/features/social/types";
 
 interface SocialFeedResponse {
@@ -37,6 +39,17 @@ interface SocialLeaderboardStandingsResponse {
 interface SocialTeamStateResponse {
   schemaVersion: "1";
   items: TeamStateRow[];
+}
+
+interface SocialTeamPartnerPlanResponse {
+  schemaVersion: "1";
+  scopeMonth: string;
+  items: TeamPartnerPlanItem[];
+}
+
+interface SocialTeamPlannerProposalsResponse {
+  schemaVersion: "1";
+  items: TeamPlannerProposal[];
 }
 
 export type FeedReactionKind = "cheer" | "fire" | "clap" | "strong";
@@ -281,3 +294,88 @@ export async function sendTeamNudge({
   }
   return (await response.json()) as { schemaVersion: "1"; nudgeId: string };
 }
+
+export async function fetchTeamPartnerPlan(scopeMonth: string) {
+  const params = new URLSearchParams();
+  params.set("scopeMonth", scopeMonth);
+  const response = await fetch(`/api/social/team/plan?${params.toString()}`, {
+    cache: "no-store",
+    credentials: "include",
+  });
+  if (!response.ok) {
+    await parseApiError(response, "Failed to load partner plan.");
+  }
+  return (await response.json()) as SocialTeamPartnerPlanResponse;
+}
+
+export async function fetchTeamPlannerProposals(scopeMonth?: string) {
+  const params = new URLSearchParams();
+  if (scopeMonth) {
+    params.set("scopeMonth", scopeMonth);
+  }
+  const response = await fetch(`/api/social/team/planner-proposals?${params.toString()}`, {
+    cache: "no-store",
+    credentials: "include",
+  });
+  if (!response.ok) {
+    await parseApiError(response, "Failed to load planner proposals.");
+  }
+  return (await response.json()) as SocialTeamPlannerProposalsResponse;
+}
+
+export async function createTeamPlannerProposal(payload: {
+  targetOwnerId: string;
+  scopeMonth: string;
+  operations: Array<Record<string, unknown>>;
+  note?: string;
+}) {
+  const response = await fetch("/api/social/team/planner-proposals", {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) {
+    await parseApiError(response, "Failed to create planner proposal.");
+  }
+  return (await response.json()) as { schemaVersion: "1"; proposalId: string };
+}
+
+export async function acceptTeamPlannerProposal(proposalId: string) {
+  const response = await fetch(`/api/social/team/planner-proposals/${proposalId}/accept`, {
+    method: "POST",
+    credentials: "include",
+  });
+  if (!response.ok) {
+    await parseApiError(response, "Failed to accept planner proposal.");
+  }
+  return (await response.json()) as {
+    schemaVersion: "1";
+    proposalId: string;
+    accepted: boolean;
+    scheduleDigest: string | null;
+  };
+}
+
+export async function rejectTeamPlannerProposal(proposalId: string) {
+  const response = await fetch(`/api/social/team/planner-proposals/${proposalId}/reject`, {
+    method: "POST",
+    credentials: "include",
+  });
+  if (!response.ok) {
+    await parseApiError(response, "Failed to reject planner proposal.");
+  }
+  return (await response.json()) as { schemaVersion: "1"; proposalId: string; rejected: boolean };
+}
+
+export async function withdrawTeamPlannerProposal(proposalId: string) {
+  const response = await fetch(`/api/social/team/planner-proposals/${proposalId}`, {
+    method: "DELETE",
+    credentials: "include",
+  });
+  if (!response.ok) {
+    await parseApiError(response, "Failed to withdraw planner proposal.");
+  }
+  return (await response.json()) as { schemaVersion: "1"; proposalId: string; withdrawn: boolean };
+}
+

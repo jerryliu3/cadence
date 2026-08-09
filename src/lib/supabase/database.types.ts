@@ -2002,6 +2002,15 @@ export type Database = {
         Args: { p_message?: string; p_partner_id: string }
         Returns: string
       }
+      create_planner_proposal_service: {
+        Args: {
+          p_note?: string
+          p_operations: Json
+          p_scope_month: string
+          p_target_owner_id: string
+        }
+        Returns: string
+      }
       decline_team_invite_service: {
         Args: { p_team_id: string }
         Returns: boolean
@@ -2057,9 +2066,39 @@ export type Database = {
         Args: { p_owner_id: string }
         Returns: Json
       }
+      get_planner_proposals_service: {
+        Args: { p_scope_month?: string }
+        Returns: {
+          applied_digest: string
+          baseline_schedule_digest: string
+          created_at: string
+          decided_at: string
+          id: string
+          note: string
+          operations: Json
+          proposer_id: string
+          scope_month: string
+          status: string
+          target_owner_id: string
+          team_id: string
+        }[]
+      }
       get_planner_schedule_digest: {
         Args: { p_owner?: string }
         Returns: string
+      }
+      get_team_partner_plan_service: {
+        Args: { p_scope_month: string }
+        Returns: {
+          goal_id: string
+          goal_title: string
+          item_id: string
+          locked: boolean
+          owner_id: string
+          scheduled_date: string
+          scheduled_time: string
+          unit_key: string
+        }[]
       }
       get_social_challenges: {
         Args: never
@@ -2217,6 +2256,14 @@ export type Database = {
       }
       resolve_notification_outbox_delivery_service: {
         Args: { p_error?: string; p_outbox_id: string; p_sent: boolean }
+        Returns: boolean
+      }
+      resolve_planner_proposal_service: {
+        Args: {
+          p_applied_digest?: string
+          p_proposal_id: string
+          p_resolution: string
+        }
         Returns: boolean
       }
       rollover_leaderboard_seasons_service: { Args: never; Returns: number }
