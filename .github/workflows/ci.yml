@@ -80,6 +80,9 @@ jobs:
           config_path.write_text(config)
           PY
 
+      - name: Stop stale Supabase containers
+        run: pnpm exec supabase stop --all || true
+
       - name: Start local Supabase (lean profile)
         run: pnpm supabase:start -- --exclude studio,mailpit,imgproxy,analytics,vector,edge-runtime,postgres-meta,logflare,supavisor
 
