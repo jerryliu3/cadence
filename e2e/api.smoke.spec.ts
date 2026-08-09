@@ -67,7 +67,7 @@ test("planner bridge APIs authenticate before validation", async ({ page }) => {
   const bulkParser = await postJson(page, "/api/bulk-goals/parse", null);
   const exactCompletion = await postJson(
     page,
-    "/api/completions/exact-date",
+    "/api/completions",
     null
   );
 
@@ -118,7 +118,7 @@ test("planner bridge APIs reject unauthenticated callers", async ({ page }) => {
   const bulkParser = await postJson(page, "/api/bulk-goals/parse", null);
   const exactCompletion = await postJson(
     page,
-    "/api/completions/exact-date",
+    "/api/completions",
     null
   );
 
@@ -154,7 +154,7 @@ test("targeted recurring bridge mutates only the requested date", async ({
     const selectedDate = `${values.year}-${values.month}-${values.day}`;
     const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
     const mutation = async (desiredFactState: "present" | "absent") => {
-      const response = await fetch("/api/completions/exact-date", {
+      const response = await fetch("/api/completions", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
