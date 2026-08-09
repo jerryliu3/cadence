@@ -100,7 +100,6 @@ import {
   createDefaultPlannerPolicy,
   type PlannerPolicy,
 } from "@/lib/planner/policy";
-import { withPlannerRefreshTimeout } from "@/lib/planner/refresh-timeout";
 import type {
   CalendarSurfaceProps,
   CompletionControlDisabledReason,
@@ -1481,13 +1480,9 @@ export function CalendarSurface({
       }
 
       onPlannerMutation();
-      const refreshed = await withPlannerRefreshTimeout({
-        operation: loadContext({
-          showLoading: false,
-          toastOnError: false,
-        }),
-        timeoutMessage:
-          "Completion updated, but calendar refresh timed out. Please refresh the page.",
+      const refreshed = await loadContext({
+        showLoading: false,
+        toastOnError: false,
       });
       if (!refreshed) {
         toast.error(

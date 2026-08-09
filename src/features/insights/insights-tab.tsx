@@ -60,7 +60,6 @@ import {
   getGoalRequirement,
   isTargetedRecurringGoal,
 } from "@/lib/planner/requirements";
-import { withPlannerRefreshTimeout } from "@/lib/planner/refresh-timeout";
 import { createClient } from "@/lib/supabase/client";
 
 interface InsightsData {
@@ -480,10 +479,7 @@ export function InsightsTab() {
         }
 
         toast.success(isSelected ? `Removed ${completionDate}.` : `Selected ${completionDate}.`);
-        await withPlannerRefreshTimeout({
-          operation: loadData({ showLoading: false, forceRefresh: true }),
-          timeoutMessage: "Insights refresh timed out. Please refresh to sync.",
-        });
+        await loadData({ showLoading: false, forceRefresh: true });
         requestAnimationFrame(() => {
           window.scrollTo({ top: currentScrollY, behavior: "auto" });
         });
@@ -553,10 +549,7 @@ export function InsightsTab() {
         }
 
         toast.success(hasCompletionOnDate ? `Removed ${completionDate}.` : `Selected ${completionDate}.`);
-        await withPlannerRefreshTimeout({
-          operation: loadData({ showLoading: false, forceRefresh: true }),
-          timeoutMessage: "Insights refresh timed out. Please refresh to sync.",
-        });
+        await loadData({ showLoading: false, forceRefresh: true });
         requestAnimationFrame(() => {
           window.scrollTo({ top: currentScrollY, behavior: "auto" });
         });
@@ -593,10 +586,7 @@ export function InsightsTab() {
         }
 
         toast.success("Milestone names updated.");
-        await withPlannerRefreshTimeout({
-          operation: loadData({ showLoading: false, forceRefresh: true }),
-          timeoutMessage: "Insights refresh timed out. Please refresh to sync.",
-        });
+        await loadData({ showLoading: false, forceRefresh: true });
         requestAnimationFrame(() => {
           window.scrollTo({ top: currentScrollY, behavior: "auto" });
         });
