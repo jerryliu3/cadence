@@ -1976,6 +1976,7 @@ export function CalendarSurface({
                   onClick={savePlan}
                   title={
                     effectivePreview &&
+                    context &&
                     (context.scopeMonth < context.asOfDate.slice(0, 7) ||
                       !effectivePreview.solver.publishable)
                       ? nonPublishablePreviewMessage(effectivePreview)
@@ -1984,6 +1985,7 @@ export function CalendarSurface({
                   disabled={
                     saveLoading ||
                     loading ||
+                    !context ||
                     !effectivePreview ||
                     (hasDraftSession && draftSaveBlocked) ||
                     !effectivePreview.solver.publishable

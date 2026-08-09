@@ -19,7 +19,6 @@ as $$
 declare
   v_owner uuid := auth.uid();
   v_current_digest text;
-  v_execution_unlocked_count integer := 0;
   v_planner_items_unlocked_count integer := 0;
 begin
   if v_owner is null then
@@ -40,24 +39,6 @@ begin
     raise exception using errcode = 'P0001', message = 'stale_schedule';
   end if;
 
-  update public.execution_plan_items item
-  set
-    locked = false,
-    revision = item.revision + 1
-  from public.execution_plans plan
-  where item.owner_id = v_owner
-    and item.plan_id = plan.id
-    and plan.owner_id = v_owner
-    and plan.scope_month = p_month
-    and plan.status = 'active'
-    and item.locked;
-
-  get diagnostics v_execution_unlocked_count = row_count;
-
-  if v_execution_unlocked_count > 0 then
-    perform private.bump_planner_execution_revision(v_owner);
-  end if;
-
   update public.planner_items item
   set locked = false
   where item.owner_id = v_owner
@@ -69,7 +50,7 @@ begin
   return query
   select
     public.get_planner_schedule_digest(v_owner),
-    greatest(v_execution_unlocked_count, v_planner_items_unlocked_count);
+    v_planner_items_unlocked_count;
 end;
 $$;
 
