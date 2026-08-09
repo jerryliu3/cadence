@@ -57,21 +57,39 @@ async function fetchPlannerContextSnapshot(
           scheduled_date: string | null;
         }>;
       } | null;
+      preview: {
+        workUnits: Array<{
+          originalGoalId: string;
+          unitKey: string;
+          scheduledDate: string | null;
+        }>;
+      } | null;
     };
-    if (!body.activePlan) {
-      throw new Error("Planner context has no active plan; cannot snapshot placements.");
-    }
-    const goalIdByPlanGoalId = new Map(
-      body.activePlan.goals.map((goal) => [goal.id, goal.original_goal_id])
-    );
     const placementsByEntryKey: Record<string, string | null> = {};
-    for (const item of body.activePlan.items) {
-      const originalGoalId = goalIdByPlanGoalId.get(item.plan_goal_id);
-      if (!originalGoalId) {
-        continue;
+    if (body.activePlan) {
+      const goalIdByPlanGoalId = new Map(
+        body.activePlan.goals.map((goal) => [goal.id, goal.original_goal_id])
+      );
+      for (const item of body.activePlan.items) {
+        const originalGoalId = goalIdByPlanGoalId.get(item.plan_goal_id);
+        if (!originalGoalId || item.scheduled_date === null) {
+          continue;
+        }
+        placementsByEntryKey[`${originalGoalId}:${item.unit_key}`] =
+          item.scheduled_date;
       }
-      placementsByEntryKey[`${originalGoalId}:${item.unit_key}`] =
-        item.scheduled_date ?? null;
+    } else if (body.preview) {
+      for (const unit of body.preview.workUnits) {
+        if (unit.scheduledDate === null) {
+          continue;
+        }
+        placementsByEntryKey[`${unit.originalGoalId}:${unit.unitKey}`] =
+          unit.scheduledDate;
+      }
+    } else {
+      throw new Error(
+        "Planner context has neither active plan nor preview; cannot snapshot placements."
+      );
     }
     return {
       scopeMonth: body.scopeMonth,
@@ -253,10 +271,16 @@ test.describe("planner critical rails", () => {
     await openCalendar(page);
     const after = await fetchPlannerContextSnapshot(page, before.scopeMonth);
 
-    const changedEntries = Object.keys(before.placementsByEntryKey)
+    const changedEntries = Array.from(
+      new Set([
+        ...Object.keys(before.placementsByEntryKey),
+        ...Object.keys(after.placementsByEntryKey),
+      ])
+    )
       .filter(
         (entryKey) =>
-          before.placementsByEntryKey[entryKey] !== after.placementsByEntryKey[entryKey]
+          (before.placementsByEntryKey[entryKey] ?? null) !==
+          (after.placementsByEntryKey[entryKey] ?? null)
       )
       .sort();
     expect(changedEntries).toEqual([movedEntryKey]);
