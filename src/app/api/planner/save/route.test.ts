@@ -2,7 +2,7 @@
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createDefaultPlannerPolicy } from "@/lib/planner/policy";
-import { PlannerError } from "@/lib/planner/errors";
+import { PlannerError } from "@/lib/planner/kernel";
 
 const mocks = vi.hoisted(() => ({
   parseBoundedJsonBody: vi.fn(),
@@ -34,9 +34,16 @@ vi.mock("@/lib/planner/context-loader", () => ({
   loadPlannerCanonicalSnapshot: mocks.loadPlannerCanonicalSnapshot,
 }));
 
-vi.mock("@/lib/planner/kernel", () => ({
-  runPlannerKernel: mocks.runPlannerKernel,
-}));
+vi.mock("@/lib/planner/kernel", async () => {
+  const actual =
+    await vi.importActual<typeof import("@/lib/planner/kernel")>(
+      "@/lib/planner/kernel"
+    );
+  return {
+    ...actual,
+    runPlannerKernel: mocks.runPlannerKernel,
+  };
+});
 
 import { POST } from "./route";
 
