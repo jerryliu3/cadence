@@ -443,10 +443,7 @@ export const coachResponseJsonSchema = {
                   unitKey: { type: "string" },
                   scheduledDate: { type: "string" },
                   label: { type: "string" },
-                  localTime: {
-                    type: "string",
-                    description: `24-hour HH:MM, or ${COACH_CLEAR_TIME_SENTINEL} to clear an existing override.`,
-                  },
+                  localTime: { type: "string" },
                 },
                 required: ["goalId", "unitKey"],
               },
