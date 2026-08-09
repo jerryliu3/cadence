@@ -1,5 +1,6 @@
 import type { GoalProgressSnapshot } from "@/lib/goals/progress";
 import type { CompletionDateFact } from "@/lib/goals/types";
+import { getApiErrorMessage, getJson } from "@/lib/api/client";
 
 export interface ProgressContextResponse {
   schemaVersion: "1";
@@ -27,10 +28,6 @@ const progressContextCache = new Map<
   { expiresAt: number; payload: ProgressContextResponse }
 >();
 
-function isAbortError(error: unknown) {
-  return error instanceof Error && error.name === "AbortError";
-}
-
 export async function fetchProgressContext({
   asOfDate,
   timezone = Intl.DateTimeFormat().resolvedOptions().timeZone,
@@ -53,35 +50,21 @@ export async function fetchProgressContext({
     return cached.payload;
   }
 
-  const controller = new AbortController();
-  const timeoutId = setTimeout(
-    () => controller.abort(),
-    PROGRESS_CONTEXT_REQUEST_TIMEOUT_MS
-  );
-  let response: Response;
+  let payload: ProgressContextResponse;
   try {
-    response = await fetch(`/api/progress/context?${search.toString()}`, {
-      credentials: "same-origin",
-      cache: "no-store",
-      signal: controller.signal,
+    payload = await getJson<ProgressContextResponse>("/api/progress/context", {
+      query: {
+        asOfDate,
+        timezone,
+        viewDate,
+        factsFrom,
+        factsTo,
+      },
+      timeoutMs: PROGRESS_CONTEXT_REQUEST_TIMEOUT_MS,
     });
   } catch (error) {
-    if (isAbortError(error)) {
-      throw new Error("Goal progress request timed out. Please try again.");
-    }
-    throw new Error("Goal progress could not be loaded.");
-  } finally {
-    clearTimeout(timeoutId);
-  }
-  const payload = (await response.json()) as
-    | ProgressContextResponse
-    | { code?: string; message?: string; correlationId?: string };
-
-  if (!response.ok || !("summaries" in payload)) {
     throw new Error(
-      "message" in payload && payload.message
-        ? payload.message
-        : "Goal progress could not be loaded."
+      getApiErrorMessage(error, "Goal progress could not be loaded.")
     );
   }
   if (payload.truncated !== false) {

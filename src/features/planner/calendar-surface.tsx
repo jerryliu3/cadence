@@ -87,6 +87,13 @@ import { computeDayPreviewPosition } from "@/features/planner/day-preview-popup"
 import { getGoalVisual } from "@/features/planner/goal-visuals";
 import { getDateInTimezone, isValidIanaTimezone } from "@/lib/dates/timezone";
 import {
+  getApiErrorMessage,
+  isApiClientError,
+  getJson,
+  postJson,
+  putJson,
+} from "@/lib/api/client";
+import {
   type CompletionDispatchDecision,
   executeCompletionDispatch,
   resolveCompletionDispatch,
@@ -238,19 +245,19 @@ export function CalendarSurface({
     if (showLoading) {
       setLoading(true);
     }
-    const query = new URLSearchParams({ scopeMonth: month });
-    const response = await fetch(`/api/planner/context?${query.toString()}`, {
-      cache: "no-store",
-      credentials: "same-origin",
-    });
-    const payload = await response.json();
-    if (showLoading) {
-      setLoading(false);
-    }
-    if (!response.ok) {
-      const errorPayload = payload as PlannerErrorPayload;
-      const message =
-        errorPayload.message ?? "Planner calendar context could not be loaded.";
+    let contextPayload: PlannerContextPayload;
+    try {
+      contextPayload = await getJson<PlannerContextPayload>("/api/planner/context", {
+        query: { scopeMonth: month },
+      });
+    } catch (error) {
+      if (showLoading) {
+        setLoading(false);
+      }
+      const message = getApiErrorMessage(
+        error,
+        "Planner calendar context could not be loaded."
+      );
       if (showLoading) {
         setContext(null);
         setError(message);
@@ -260,8 +267,10 @@ export function CalendarSurface({
       }
       return false;
     }
+    if (showLoading) {
+      setLoading(false);
+    }
 
-    const contextPayload = payload as PlannerContextPayload;
     setContext(contextPayload);
     if (contextPayload.preferences?.timezone) {
       setSetupTimezone(contextPayload.preferences.timezone);
@@ -653,23 +662,23 @@ export function CalendarSurface({
     defaultPolicy.restWeekdays = [...setupRestWeekdays].sort((a, b) => a - b);
     defaultPolicy.weekStartsOn = normalizeWeekStartsOn(setupWeekStartsOn);
 
-    const response = await fetch("/api/planner/context", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
+    try {
+      await putJson<
+        { message?: string; preferences?: PlannerPreferencesPayload["preferences"] },
+        {
+          timezone: string;
+          defaultPolicy: PlannerPolicy;
+        }
+      >("/api/planner/context", {
         timezone: setupTimezone,
         defaultPolicy,
-      }),
-    });
-    const payload = (await response.json()) as
-      | { message?: string; preferences?: PlannerPreferencesPayload["preferences"] }
-      | PlannerErrorPayload;
-    setSetupLoading(false);
-
-    if (!response.ok) {
-      toast.error(payload.message ?? "Planner setup could not be saved.");
+      });
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, "Planner setup could not be saved."));
+      setSetupLoading(false);
       return;
     }
+    setSetupLoading(false);
 
     onPlannerMutation();
     setDraftScopeMonth(null);
@@ -694,38 +703,21 @@ export function CalendarSurface({
     if (!context?.scopeMonth || !context?.timezone) {
       throw new Error("Planner context is unavailable.");
     }
-    const response = await fetch("/api/planner/context", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
+    try {
+      const previewPayload = await postJson<PlannerPreviewResponsePayload>(
+        "/api/planner/context",
+        {
         scopeMonth: context.scopeMonth,
         timezone: context.timezone,
         policy: nextPolicy,
         source: context.activePlan ? "update" : "manual",
-      }),
-    });
-    const payload = (await response.json()) as
-      | (PlannerPreviewResponsePayload & PlannerErrorPayload)
-      | PlannerErrorPayload;
-    if (!response.ok) {
-      throw new Error(payload.message ?? "Preview refresh failed.");
+        }
+      );
+      setDraftPreview(previewPayload.preview);
+      return previewPayload.preview;
+    } catch (error) {
+      throw new Error(getApiErrorMessage(error, "Preview refresh failed."));
     }
-    const previewPayload = payload as PlannerPreviewResponsePayload;
-    setDraftPreview(previewPayload.preview);
-    return previewPayload.preview;
-  };
-
-  const parseErrorMessage = (payload: unknown, fallback: string) => {
-    if (
-      payload &&
-      typeof payload === "object" &&
-      "message" in payload &&
-      typeof payload.message === "string" &&
-      payload.message.trim().length > 0
-    ) {
-      return payload.message;
-    }
-    return fallback;
   };
 
   const nonPublishablePreviewMessage = (
@@ -1361,21 +1353,11 @@ export function CalendarSurface({
     const mutationKey = `lock:${entry.activeItem.id}`;
     setMutationLoadingKey(mutationKey);
     try {
-      const response = await fetch("/api/planner/items/lock", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      await postJson("/api/planner/items/lock", {
           itemId: entry.activeItem.id,
           locked: nextLocked,
           expectedDigest,
-        }),
       });
-      const payload = await response.json().catch(() => null);
-
-      if (!response.ok) {
-        toast.error(parseErrorMessage(payload, "Planner lock update failed."));
-        return;
-      }
 
       onPlannerMutation();
       const refreshed = await loadContext({
@@ -1389,8 +1371,8 @@ export function CalendarSurface({
         return;
       }
       toast.success(nextLocked ? "Planner item locked." : "Planner item unlocked.");
-    } catch {
-      toast.error("Planner lock update failed.");
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, "Planner lock update failed."));
     } finally {
       setMutationLoadingKey(null);
     }
@@ -1528,50 +1510,45 @@ export function CalendarSurface({
       : null;
 
     setSaveLoading(true);
-    const response = await fetch("/api/planner/save", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        scopeMonth: context.scopeMonth,
-        previewHash: effectivePreview.generationInputHash,
-        eligibilityMode: effectivePreview.eligibilityMode,
-        expectedDigest,
-        confirmationHash,
-        policy: effectiveDraftPolicy ?? undefined,
-        draftCommands: draftSaveCommands,
-      }),
-    });
-    const payload = (await response.json()) as PlannerErrorPayload & {
-      replayed?: boolean;
-    };
-    setSaveLoading(false);
-    if (!response.ok) {
-      if (payload.code === "planner_not_publishable") {
-        const issueCodes = Array.isArray(payload.details?.issueCodes)
-          ? payload.details.issueCodes.filter(
+    try {
+      const payload = await postJson<PlannerErrorPayload & { replayed?: boolean }>(
+        "/api/planner/save",
+        {
+          scopeMonth: context.scopeMonth,
+          previewHash: effectivePreview.generationInputHash,
+          eligibilityMode: effectivePreview.eligibilityMode,
+          expectedDigest,
+          confirmationHash,
+          policy: effectiveDraftPolicy ?? undefined,
+          draftCommands: draftSaveCommands,
+        }
+      );
+      setDraftScopeMonth(null);
+      setDraftPolicy(null);
+      setDraftPreview(null);
+      dispatchDraftCommand({ type: "clear" });
+      onPlannerMutation();
+      await loadContext();
+      coach.actions.resetForPlannerStateReset();
+      toast.success(payload.replayed ? "Save replayed." : "Plan saved.");
+    } catch (error) {
+      if (isApiClientError(error) && error.code === "planner_not_publishable") {
+        const issueCodes = Array.isArray(error.details?.issueCodes)
+          ? error.details.issueCodes.filter(
               (value): value is string => typeof value === "string"
             )
           : [];
         const detailSuffix =
-          issueCodes.length > 0
-            ? ` (${issueCodes.join(", ")})`
-            : "";
+          issueCodes.length > 0 ? ` (${issueCodes.join(", ")})` : "";
         toast.error(
-          `${payload.message ?? "Planner save is currently blocked."}${detailSuffix}`
+          `${error.message ?? "Planner save is currently blocked."}${detailSuffix}`
         );
         return;
       }
-      toast.error(payload.message ?? "Planner save failed.");
-      return;
+      toast.error(getApiErrorMessage(error, "Planner save failed."));
+    } finally {
+      setSaveLoading(false);
     }
-    setDraftScopeMonth(null);
-    setDraftPolicy(null);
-    setDraftPreview(null);
-    dispatchDraftCommand({ type: "clear" });
-    onPlannerMutation();
-    await loadContext();
-    coach.actions.resetForPlannerStateReset();
-    toast.success(payload.replayed ? "Save replayed." : "Plan saved.");
   };
 
   const resetPlan = async () => {
@@ -1584,28 +1561,24 @@ export function CalendarSurface({
       return;
     }
     setResetLoading(true);
-    const response = await fetch("/api/planner/reset", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
+    try {
+      await postJson("/api/planner/reset", {
         scopeMonth: context.scopeMonth,
         expectedDigest,
-      }),
-    });
-    const payload = (await response.json()) as PlannerErrorPayload;
-    setResetLoading(false);
-    if (!response.ok) {
-      toast.error(payload.message ?? "Planner month could not be reset.");
-      return;
+      });
+      setDraftScopeMonth(null);
+      setDraftPolicy(null);
+      setDraftPreview(null);
+      dispatchDraftCommand({ type: "clear" });
+      onPlannerMutation();
+      await loadContext();
+      coach.actions.resetForPlannerStateReset();
+      toast.success("Plan reset.");
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, "Planner month could not be reset."));
+    } finally {
+      setResetLoading(false);
     }
-    setDraftScopeMonth(null);
-    setDraftPolicy(null);
-    setDraftPreview(null);
-    dispatchDraftCommand({ type: "clear" });
-    onPlannerMutation();
-    await loadContext();
-    coach.actions.resetForPlannerStateReset();
-    toast.success("Plan reset.");
   };
 
   const discardDraftChanges = () => {
