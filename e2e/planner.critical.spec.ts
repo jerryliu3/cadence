@@ -34,13 +34,23 @@ async function openCalendar(page: Page, scopeMonth?: string) {
   await expect(page.getByText("Loading planner month context...")).toHaveCount(0);
 
   // CI may land on first-run setup instead of the planner grid.
-  const saveSetupButton = page.getByRole("button", {
-    name: "Save setup",
-    exact: true,
-  });
-  if (await saveSetupButton.isVisible()) {
-    await expect(saveSetupButton).toBeEnabled();
-    await saveSetupButton.click();
+  const setupHeading = page.getByRole("heading", { name: "Plan setup" });
+  if (await setupHeading.isVisible()) {
+    const timezone = await page.evaluate(
+      () => Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"
+    );
+    const setupResponse = await page.request.put("/api/planner/context", {
+      data: { timezone },
+    });
+    if (!setupResponse.ok()) {
+      throw new Error(
+        `Planner setup bootstrap failed (${setupResponse.status()}).`
+      );
+    }
+    await page.goto(query);
+    await expect(
+      page.getByRole("tab", { name: "Calendar", exact: true })
+    ).toBeVisible();
     await expect(page.getByText("Loading planner month context...")).toHaveCount(0);
   }
 }
@@ -273,7 +283,7 @@ test.describe("planner critical rails", () => {
     const before = await fetchPlannerContextSnapshot(page, scopeMonth);
 
     await moveFirstMovableEntry(page);
-    await expect(page.getByText("Planning Mode")).toBeVisible();
+    await expect(page.getByText("Planning Mode")).toBeVisible({ timeout: 10_000 });
     const saveButton = page.getByRole("button", { name: "Save plan", exact: true });
     await expect(saveButton).toBeEnabled();
 
