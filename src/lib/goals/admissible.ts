@@ -1,12 +1,14 @@
 import {
   compareDateStrings,
   getAnchoredPeriod,
+  type WeeklyAnchorContext,
 } from "@/lib/goals/periods";
 import type { Completion, Goal } from "@/lib/goals/types";
 import { getGoalRequirement } from "@/lib/planner/requirements";
 
 export interface GoalProgressContext {
   asOfDate: string;
+  weeklyAnchor?: WeeklyAnchorContext | null;
 }
 
 function getCreditEndDate(goal: Goal, asOfDate: string) {
@@ -55,7 +57,7 @@ export function getAdmissibleCompletions(
 
 export function getExpectedCadencePeriodCount(
   goal: Goal,
-  { asOfDate }: GoalProgressContext
+  { asOfDate, weeklyAnchor }: GoalProgressContext
 ) {
   if (
     goal.frequency_type !== "recurring" ||
@@ -67,7 +69,9 @@ export function getExpectedCadencePeriodCount(
 
   const interval = goal.recurrence_interval ?? "daily";
   const creditEnd = getCreditEndDate(goal, asOfDate);
-  return getAnchoredPeriod(goal.start_date, interval, creditEnd).index + 1;
+  return getAnchoredPeriod(goal.start_date, interval, creditEnd, {
+    weekly: interval === "weekly" ? weeklyAnchor ?? null : null,
+  }).index + 1;
 }
 
 export function getCreditedUnitCount(
@@ -88,7 +92,13 @@ export function getCreditedUnitCount(
         getAnchoredPeriod(
           goal.start_date,
           requirement.interval,
-          completion.completed_on
+          completion.completed_on,
+          {
+            weekly:
+              requirement.interval === "weekly"
+                ? context.weeklyAnchor ?? null
+                : null,
+          }
         ).periodKey
     )
   ).size;

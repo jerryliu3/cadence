@@ -532,6 +532,7 @@ export type Database = {
           rest_weekdays: number[]
           timezone: string
           timezone_confirmed_at: string | null
+          weekly_anchor_effective_on: string
           username: string
           week_starts_on: number
         }
@@ -544,6 +545,7 @@ export type Database = {
           rest_weekdays?: number[]
           timezone?: string
           timezone_confirmed_at?: string | null
+          weekly_anchor_effective_on?: string
           username: string
           week_starts_on?: number
         }
@@ -556,6 +558,7 @@ export type Database = {
           rest_weekdays?: number[]
           timezone?: string
           timezone_confirmed_at?: string | null
+          weekly_anchor_effective_on?: string
           username?: string
           week_starts_on?: number
         }

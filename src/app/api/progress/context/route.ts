@@ -6,7 +6,10 @@ import {
   withRoute,
 } from "@/lib/api/route";
 import { isValidIanaTimezone } from "@/lib/dates/timezone";
-import { getAnchoredPeriod } from "@/lib/goals/periods";
+import {
+  getAnchoredPeriod,
+  type WeeklyAnchorContext,
+} from "@/lib/goals/periods";
 import {
   getGoalProgressSnapshot,
   type GoalProgressSnapshot,
@@ -68,7 +71,8 @@ function groupCompletions(completions: Completion[]) {
 function getChecklistFacts(
   goals: Goal[],
   completionsByGoal: Map<string, Completion[]>,
-  viewDate: string
+  viewDate: string,
+  weeklyAnchor: WeeklyAnchorContext | null
 ) {
   return goals.flatMap((goal) => {
     const completions = completionsByGoal.get(goal.id) ?? [];
@@ -84,7 +88,11 @@ function getChecklistFacts(
     const period = getAnchoredPeriod(
       goal.start_date,
       goal.recurrence_interval ?? "daily",
-      viewDate
+      viewDate,
+      {
+        weekly:
+          goal.recurrence_interval === "weekly" ? weeklyAnchor : null,
+      }
     );
     return completions.filter(
       (completion) =>
@@ -117,6 +125,24 @@ export async function GET(request: Request) {
         "Provide valid bounded progress dates."
       );
     }
+    const profileResponse = await supabase
+      .from("profiles")
+      .select("week_starts_on,weekly_anchor_effective_on")
+      .eq("id", userId)
+      .maybeSingle();
+    if (profileResponse.error) {
+      throw new ApiRouteError(
+        500,
+        "progress_load_failed",
+        "Goal progress could not be loaded."
+      );
+    }
+    const weeklyAnchor: WeeklyAnchorContext | null = profileResponse.data
+      ? {
+          weekStartsOn: profileResponse.data.week_starts_on ?? 1,
+          effectiveFrom: profileResponse.data.weekly_anchor_effective_on ?? null,
+        }
+      : null;
 
     const goals: Goal[] = [];
     let lastGoalId: string | null = null;
@@ -194,7 +220,8 @@ export async function GET(request: Request) {
       getGoalProgressSnapshot(
         goal,
         completionsByGoal.get(goal.id) ?? [],
-        parsedQuery.data.asOfDate
+        parsedQuery.data.asOfDate,
+        { weeklyAnchor }
       )
     );
 
@@ -203,7 +230,8 @@ export async function GET(request: Request) {
       facts = getChecklistFacts(
         goals,
         completionsByGoal,
-        parsedQuery.data.viewDate
+        parsedQuery.data.viewDate,
+        weeklyAnchor
       );
     } else if (parsedQuery.data.factsFrom && parsedQuery.data.factsTo) {
       facts = completions.filter(
@@ -217,6 +245,8 @@ export async function GET(request: Request) {
       schemaVersion: "1",
       asOfDate: parsedQuery.data.asOfDate,
       timezone: parsedQuery.data.timezone,
+      weekStartsOn: weeklyAnchor?.weekStartsOn ?? 1,
+      weeklyAnchorEffectiveOn: weeklyAnchor?.effectiveFrom ?? null,
       summaries,
       facts: facts.map(({ goal_id, completed_on, source }) => ({
         goal_id,

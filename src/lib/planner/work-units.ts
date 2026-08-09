@@ -2,6 +2,7 @@ import {
   compareDateStrings,
   getAnchoredPeriod,
   getAnchoredPeriodStart,
+  type WeeklyAnchorContext,
 } from "@/lib/goals/periods";
 import type { Goal } from "@/lib/goals/types";
 import { compareCanonicalStrings } from "@/lib/planner/canonical";
@@ -188,6 +189,7 @@ export function materializeWorkUnits({
   asOfDate,
   baseAssignments = [],
   ordinalsForScopeMonth,
+  weeklyAnchor = null,
 }: {
   goal: Goal;
   normalizedRequirement: NormalizedGoalRequirement;
@@ -195,6 +197,7 @@ export function materializeWorkUnits({
   asOfDate: string;
   baseAssignments?: PlannerBaseAssignment[];
   ordinalsForScopeMonth?: Set<number>;
+  weeklyAnchor?: WeeklyAnchorContext | null;
 }): PlannerWorkUnit[] {
   const requirement = normalizedRequirement.requirement;
   const scope = getScopeDateRange(scopeMonth);
@@ -279,7 +282,10 @@ export function materializeWorkUnits({
   const firstPeriod = getAnchoredPeriod(
     goal.start_date,
     interval,
-    scope.start
+    scope.start,
+    {
+      weekly: interval === "weekly" ? weeklyAnchor : null,
+    }
   );
 
   for (
@@ -290,12 +296,17 @@ export function materializeWorkUnits({
     const periodStart = getAnchoredPeriodStart(
       goal.start_date,
       interval,
-      index
+      index,
+      {
+        weekly: interval === "weekly" ? weeklyAnchor : null,
+      }
     );
     if (compareDateStrings(periodStart, planningWindowEnd) > 0) {
       break;
     }
-    const period = getAnchoredPeriod(goal.start_date, interval, periodStart);
+    const period = getAnchoredPeriod(goal.start_date, interval, periodStart, {
+      weekly: interval === "weekly" ? weeklyAnchor : null,
+    });
     const creditWindow = intersectDateWindows(period, lifetime);
     if (!creditWindow || !isEndMonthCadenceUnit(scopeMonth, creditWindow)) {
       continue;
