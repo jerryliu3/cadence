@@ -29,8 +29,6 @@ type PlannerItemRow = Database["public"]["Tables"]["planner_items"]["Row"];
 const PAGE_SIZE = 1_000;
 
 export interface PlannerRevisionTokens {
-  canonicalRevision: number;
-  executionRevision: number;
   scheduleDigest?: string | null;
 }
 
@@ -278,8 +276,6 @@ async function loadRevisionTokens(
       ? scheduleDigestResponse.data
       : null;
   return {
-    canonicalRevision: 0,
-    executionRevision: 0,
     scheduleDigest,
   };
 }

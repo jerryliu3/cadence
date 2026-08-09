@@ -86,7 +86,7 @@ describe("planner coach route", () => {
       ],
       completions: [],
       links: [],
-      revisions: { canonicalRevision: 1, executionRevision: 1 },
+      revisions: {},
       preferences: {
         owner_id: "11111111-1111-4111-8111-111111111111",
         timezone: "UTC",

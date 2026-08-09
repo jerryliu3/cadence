@@ -319,10 +319,6 @@ export async function handlePlannerSave(request: Request) {
           typeof publishedRow.upserted_count === "number"
             ? publishedRow.upserted_count
             : 0,
-        revisions: {
-          canonicalRevision: 0,
-          executionRevision: 0,
-        },
         scheduleDigest:
           typeof publishedRow.schedule_digest === "string"
             ? publishedRow.schedule_digest

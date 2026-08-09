@@ -36,10 +36,7 @@ describe("usePlannerVisibleMonthContexts", () => {
           },
           activePlan: null,
           preview: null,
-          revisions: {
-            canonicalRevision: 1,
-            executionRevision: 1,
-          },
+          revisions: {},
           staleness: {
             stale: false,
             reasons: [],
@@ -59,10 +56,7 @@ describe("usePlannerVisibleMonthContexts", () => {
           },
           activePlan: null,
           preview: null,
-          revisions: {
-            canonicalRevision: 1,
-            executionRevision: 1,
-          },
+          revisions: {},
           staleness: {
             stale: false,
             reasons: [],
@@ -106,10 +100,7 @@ describe("usePlannerVisibleMonthContexts", () => {
           },
           activePlan: null,
           preview: null,
-          revisions: {
-            canonicalRevision: 1,
-            executionRevision: 1,
-          },
+          revisions: {},
           staleness: {
             stale: false,
             reasons: [],

@@ -61,8 +61,6 @@ export interface PlannerContextPayload {
     horizonSummary?: PlannerGoalHorizonSummary[];
   } | null;
   revisions: {
-    canonicalRevision: number;
-    executionRevision: number;
     scheduleDigest?: string | null;
   };
   staleness: {

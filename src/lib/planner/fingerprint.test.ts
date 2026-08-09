@@ -56,19 +56,18 @@ function input(): GenerationHashInput {
 }
 
 describe("strict generation input fingerprint", () => {
-  it("changes for canonical facts but not external revision counters", () => {
+  it("changes for canonical facts but not unrelated metadata", () => {
     const base = input();
-    const withRevision = {
+    const withMetadata = {
       ...base,
-      canonicalRevision: 100,
-      executionRevision: 200,
-    } as GenerationHashInput;
+      __legacyRevisionCounter: 100,
+    } as GenerationHashInput & { __legacyRevisionCounter: number };
     const withChangedFact = {
       ...base,
       completions: [{ ...completion, completed_on: "2026-08-06" }],
     };
 
-    expect(computeGenerationInputHash(withRevision)).toBe(
+    expect(computeGenerationInputHash(withMetadata)).toBe(
       computeGenerationInputHash(base)
     );
     expect(computeGenerationInputHash(withChangedFact)).not.toBe(

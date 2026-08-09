@@ -555,8 +555,7 @@ export async function PUT(request: Request) {
           defaultPolicy: resolvedPreferences.default_policy,
         },
         revisions: {
-          canonicalRevision: 0,
-          executionRevision: 0,
+          scheduleDigest: null,
         },
         correlationId,
       },

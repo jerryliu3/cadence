@@ -108,8 +108,7 @@ describe("planner context preferences route", () => {
         policyRevision: 1,
       },
       revisions: {
-        canonicalRevision: 0,
-        executionRevision: 0,
+        scheduleDigest: null,
       },
     });
   });
@@ -130,8 +129,7 @@ describe("planner context preferences route", () => {
         policyRevision: 1,
       },
       revisions: {
-        canonicalRevision: 0,
-        executionRevision: 0,
+        scheduleDigest: null,
       },
     });
     expect(mocks.rpc).not.toHaveBeenCalled();

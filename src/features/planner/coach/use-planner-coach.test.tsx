@@ -135,8 +135,7 @@ function buildContext(
       workUnits: [buildWorkUnit()],
     },
     revisions: {
-      canonicalRevision: 1,
-      executionRevision: 1,
+      scheduleDigest: "digest",
     },
     staleness: {
       stale: false,

@@ -39,7 +39,7 @@ function createSnapshot(
     goals: [{ ...baseGoal, ...goalOverrides }],
     completions,
     links: [],
-    revisions: { canonicalRevision: 0, executionRevision: 0 },
+    revisions: {},
     preferences: null,
     activePlan: null,
   };

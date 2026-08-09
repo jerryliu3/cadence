@@ -66,10 +66,7 @@ describe("planner context GET route", () => {
       goals: [],
       completions: [],
       links: [],
-      revisions: {
-        canonicalRevision: 0,
-        executionRevision: 0,
-      },
+      revisions: {},
       preferences: {
         timezone: "UTC",
         timezone_confirmed_at: "2026-08-01T00:00:00.000Z",
