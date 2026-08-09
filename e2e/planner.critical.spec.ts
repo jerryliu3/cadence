@@ -18,6 +18,17 @@ async function openCalendar(page: Page) {
     page.getByRole("tab", { name: "Calendar", exact: true })
   ).toBeVisible();
   await expect(page.getByText("Loading planner month context...")).toHaveCount(0);
+
+  // CI may land on first-run setup instead of the planner grid.
+  const saveSetupButton = page.getByRole("button", {
+    name: "Save setup",
+    exact: true,
+  });
+  if ((await saveSetupButton.count()) > 0) {
+    await expect(saveSetupButton).toBeEnabled();
+    await saveSetupButton.click();
+    await expect(page.getByText("Loading planner month context...")).toHaveCount(0);
+  }
 }
 
 async function ensureMovableEntryAvailable(page: Page, maxMonthJumps = 6) {
@@ -33,9 +44,13 @@ async function ensureMovableEntryAvailable(page: Page, maxMonthJumps = 6) {
       break;
     }
 
-    const nextMonthButton = page.getByRole("button", { name: "Next month" });
-    await expect(nextMonthButton).toBeVisible();
-    await nextMonthButton.click();
+    const nextWindowButton = page.locator('button[aria-label^="Next "]').first();
+    if ((await nextWindowButton.count()) === 0) {
+      throw new Error("Planner navigation control was not found while scanning for movable entries.");
+    }
+    await expect(nextWindowButton).toBeVisible();
+    await expect(nextWindowButton).toBeEnabled();
+    await nextWindowButton.click();
     await expect(page.getByText("Loading planner month context...")).toHaveCount(0);
   }
 
