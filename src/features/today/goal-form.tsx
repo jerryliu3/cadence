@@ -33,11 +33,14 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { toLocalDateString } from "@/lib/dates/day";
 import {
-  CATEGORY_PRESETS,
+  CATEGORY_CUSTOM_VALUE,
+  DEFAULT_GOAL_CATEGORIES,
   type CategorySelection,
-  getCategoryLabel,
+  type GoalCategory,
+  fetchGoalCategories,
   getCategorySelectionFromValue,
   getCategorySwatchColor,
+  getCategoryValueForWrite,
 } from "@/lib/goals/category";
 import { GOAL_TYPE_OPTIONS, RECURRENCE_INTERVAL_OPTIONS } from "@/lib/goals/form-options";
 import {
@@ -151,6 +154,7 @@ export function GoalForm({ goalId }: GoalFormProps) {
   const [saving, setSaving] = useState(false);
   const [editingGoal, setEditingGoal] = useState<Goal | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string>("");
+  const [categoryCatalog, setCategoryCatalog] = useState<GoalCategory[]>(DEFAULT_GOAL_CATEGORIES);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [milestoneNamesOpen, setMilestoneNamesOpen] = useState(false);
   const [linkTargetSearch, setLinkTargetSearch] = useState("");
@@ -173,8 +177,15 @@ export function GoalForm({ goalId }: GoalFormProps) {
 
       setCurrentUserId(user.id);
 
-      const [goalOptionsResponse, goalResponse, linksResponse, progress] =
+      const [
+        categoryCatalogData,
+        goalOptionsResponse,
+        goalResponse,
+        linksResponse,
+        progress,
+      ] =
         await Promise.all([
+        fetchGoalCategories(supabase),
         supabase
           .from("goals")
           .select("*")
@@ -200,6 +211,7 @@ export function GoalForm({ goalId }: GoalFormProps) {
       ]);
 
       const goals = (goalOptionsResponse.data ?? []) as Goal[];
+      setCategoryCatalog(categoryCatalogData);
       const progressByGoal = progressSummaryMap(progress);
       // Achievement stops planner placement, but active goals remain linkable
       // so users can intentionally continue beyond a target.
@@ -214,14 +226,18 @@ export function GoalForm({ goalId }: GoalFormProps) {
 
       if (goalResponse.data) {
         const goal = goalResponse.data as Goal;
-        const categoryState = getCategorySelectionFromValue(goal.category);
+        const categoryState = getCategorySelectionFromValue(
+          goal.category,
+          categoryCatalogData,
+          goal.category_key ?? null
+        );
         setEditingGoal(goal);
         setState({
           title: goal.title,
           description: goal.description ?? "",
           category_selection: categoryState.selection,
           custom_category: categoryState.customValue,
-          color: getCategorySwatchColor(categoryState.selection),
+          color: getCategorySwatchColor(categoryState.selection, categoryCatalogData),
           frequency_type: goal.frequency_type,
           recurrence_interval: goal.recurrence_interval ?? "daily",
           target_count: goal.target_count?.toString() ?? "",
@@ -389,7 +405,7 @@ export function GoalForm({ goalId }: GoalFormProps) {
     }
 
     if (
-      state.category_selection === "custom" &&
+      state.category_selection === CATEGORY_CUSTOM_VALUE &&
       state.custom_category.trim().length === 0
     ) {
       return "Custom category name is required.";
@@ -418,6 +434,11 @@ export function GoalForm({ goalId }: GoalFormProps) {
 
     setSaving(true);
     const parsedTargetCountForSave = parsePositiveTargetCount(state.target_count);
+    const categoryValue = getCategoryValueForWrite(
+      state.category_selection,
+      state.custom_category,
+      categoryCatalog
+    );
     const milestoneNames =
       state.frequency_type === "fixed_milestones" && parsedTargetCountForSave !== null
         ? normalizeMilestoneNamesForSave(parsedTargetCountForSave, state.milestone_names)
@@ -427,7 +448,8 @@ export function GoalForm({ goalId }: GoalFormProps) {
       owner_id: currentUserId,
       title: state.title.trim(),
       description: state.description.trim() || null,
-      category: getCategoryLabel(state.category_selection, state.custom_category),
+      category: categoryValue.category,
+      category_key: categoryValue.categoryKey,
       color: state.color,
       frequency_type: state.frequency_type,
       recurrence_interval: state.frequency_type === "recurring" ? state.recurrence_interval : null,
@@ -611,7 +633,7 @@ export function GoalForm({ goalId }: GoalFormProps) {
                 setState((prev) => ({
                   ...prev,
                   category_selection: value,
-                  color: getCategorySwatchColor(value),
+                  color: getCategorySwatchColor(value, categoryCatalog),
                 }))
               }
             >
@@ -619,22 +641,29 @@ export function GoalForm({ goalId }: GoalFormProps) {
                 <SelectValue placeholder="Select category" />
               </SelectTrigger>
               <SelectContent>
-                {CATEGORY_PRESETS.map((preset) => (
-                  <SelectItem key={preset.id} value={preset.id}>
-                    <span className="inline-flex items-center gap-2">
-                      <span
-                        className="size-2 rounded-full"
-                        style={{ backgroundColor: getCategorySwatchColor(preset.id) }}
-                      />
-                      {preset.label}
-                    </span>
-                  </SelectItem>
-                ))}
-                <SelectItem value="custom">
+                {categoryCatalog
+                  .filter((category) => category.key !== "other")
+                  .map((category) => (
+                    <SelectItem key={category.key} value={category.key}>
+                      <span className="inline-flex items-center gap-2">
+                        <span
+                          className="size-2 rounded-full"
+                          style={{
+                            backgroundColor: getCategorySwatchColor(
+                              category.key,
+                              categoryCatalog
+                            ),
+                          }}
+                        />
+                        {category.label}
+                      </span>
+                    </SelectItem>
+                  ))}
+                <SelectItem value={CATEGORY_CUSTOM_VALUE}>
                   <span className="inline-flex items-center gap-2">
                     <span
                       className="size-2 rounded-full"
-                      style={{ backgroundColor: getCategorySwatchColor("custom") }}
+                      style={{ backgroundColor: getCategorySwatchColor(CATEGORY_CUSTOM_VALUE, categoryCatalog) }}
                     />
                     Custom
                   </span>
@@ -643,7 +672,7 @@ export function GoalForm({ goalId }: GoalFormProps) {
             </Select>
           </div>
 
-          {state.category_selection === "custom" ? (
+          {state.category_selection === CATEGORY_CUSTOM_VALUE ? (
             <div className="space-y-2">
               <Label htmlFor="custom-category">Custom category label</Label>
               <Input

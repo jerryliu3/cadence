@@ -32,9 +32,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  CATEGORY_CUSTOM_VALUE,
   CATEGORY_PRESETS,
   type CategorySelection,
-  getCategoryLabel,
+  getCategoryValueForWrite,
   getCategorySwatchColor,
 } from "@/lib/goals/category";
 import {
@@ -649,7 +650,7 @@ export function SocialTab() {
     }
 
     if (
-      groupDraft.categorySelection === "custom" &&
+      groupDraft.categorySelection === CATEGORY_CUSTOM_VALUE &&
       groupDraft.customCategory.trim().length === 0
     ) {
       toast.error("Custom category name is required.");
@@ -676,16 +677,18 @@ export function SocialTab() {
     }
 
     setSaving(true);
+    const categoryValue = getCategoryValueForWrite(
+      groupDraft.categorySelection,
+      groupDraft.customCategory
+    );
     const newGroupGoalId = crypto.randomUUID();
     const { error } = await supabase.from("goals").insert({
       id: newGroupGoalId,
       owner_id: state.userId,
       title: groupDraft.title.trim(),
       description: groupDraft.description.trim() || null,
-      category: getCategoryLabel(
-        groupDraft.categorySelection,
-        groupDraft.customCategory
-      ),
+      category: categoryValue.category,
+      category_key: categoryValue.categoryKey,
       color: "#0ea5e9",
       frequency_type: groupDraft.frequencyType,
       recurrence_interval:
@@ -1219,11 +1222,11 @@ export function SocialTab() {
                         </span>
                       </SelectItem>
                     ))}
-                    <SelectItem value="custom">
+                    <SelectItem value={CATEGORY_CUSTOM_VALUE}>
                       <span className="inline-flex items-center gap-2">
                         <span
                           className="size-2 rounded-full"
-                          style={{ backgroundColor: getCategorySwatchColor("custom") }}
+                          style={{ backgroundColor: getCategorySwatchColor(CATEGORY_CUSTOM_VALUE) }}
                         />
                         Custom
                       </span>
@@ -1329,7 +1332,7 @@ export function SocialTab() {
                 setGroupDraft((prev) => ({ ...prev, description: event.target.value }))
               }
             />
-            {groupDraft.categorySelection === "custom" ? (
+            {groupDraft.categorySelection === CATEGORY_CUSTOM_VALUE ? (
               <Input
                 className="mt-3"
                 placeholder="Custom category label"

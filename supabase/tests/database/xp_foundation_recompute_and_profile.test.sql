@@ -1,9 +1,12 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions, pg_catalog;
-select plan(14);
+select plan(13);
 
 set local role service_role;
+
+delete from public.user_awards
+where user_id = '11111111-1111-4111-8111-111111111111';
 
 delete from public.xp_ledger
 where user_id = '11111111-1111-4111-8111-111111111111';
@@ -34,12 +37,21 @@ values (
   '#10b981',
   'recurring',
   'weekly',
-  5,
+  3,
   current_date - 30,
   current_date + 30,
   false
 )
 on conflict (id) do nothing;
+
+update public.goals
+set
+  category = 'health',
+  category_key = 'health',
+  target_count = 3,
+  start_date = current_date - 30,
+  end_date = current_date + 30
+where id = 'b3400000-0000-4000-8000-000000000001';
 
 reset role;
 set local role authenticated;
@@ -57,59 +69,7 @@ select lives_ok(
       current_date
     );
   $tap$,
-  'first completion write succeeds'
-);
-
-select is(
-  (
-    select coalesce(sum(l.xp_delta), 0)::integer
-    from public.xp_ledger l
-    where l.user_id = '11111111-1111-4111-8111-111111111111'
-      and l.goal_id = 'b3400000-0000-4000-8000-000000000001'
-  ),
-  10,
-  'first completion yields 10 goal XP'
-);
-
-select is(
-  (
-    select p.total_xp
-    from public.xp_profiles p
-    where p.user_id = '11111111-1111-4111-8111-111111111111'
-  ),
-  10,
-  'profile total xp refreshes after completion write'
-);
-
-select is(
-  (
-    select p.current_level
-    from public.xp_profiles p
-    where p.user_id = '11111111-1111-4111-8111-111111111111'
-  ),
-  1,
-  'level remains at 1 under first threshold'
-);
-
-select lives_ok(
-  $tap$
-    select public.mark_goal_complete(
-      'b3400000-0000-4000-8000-000000000001',
-      current_date
-    );
-  $tap$,
-  'duplicate same-day completion call remains idempotent'
-);
-
-select is(
-  (
-    select coalesce(sum(l.xp_delta), 0)::integer
-    from public.xp_ledger l
-    where l.user_id = '11111111-1111-4111-8111-111111111111'
-      and l.goal_id = 'b3400000-0000-4000-8000-000000000001'
-  ),
-  10,
-  'duplicate completion does not mint extra xp'
+  'first completion succeeds'
 );
 
 select lives_ok(
@@ -119,7 +79,17 @@ select lives_ok(
       current_date - 1
     );
   $tap$,
-  'second distinct completion write succeeds'
+  'second completion succeeds'
+);
+
+select lives_ok(
+  $tap$
+    select public.mark_goal_complete(
+      'b3400000-0000-4000-8000-000000000001',
+      current_date - 2
+    );
+  $tap$,
+  'third completion succeeds and hits achievement threshold'
 );
 
 select is(
@@ -128,19 +98,32 @@ select is(
     from public.xp_ledger l
     where l.user_id = '11111111-1111-4111-8111-111111111111'
       and l.goal_id = 'b3400000-0000-4000-8000-000000000001'
+      and l.track_key = 'health'
   ),
-  20,
-  'second completion lifts recomputed goal xp to 20'
+  160,
+  'three credited completions plus one achievement yield 160 xp on health track'
+);
+
+select ok(
+  exists(
+    select 1
+    from public.user_awards ua
+    join public.xp_rewards xr on xr.id = ua.reward_id
+    where ua.user_id = '11111111-1111-4111-8111-111111111111'
+      and xr.level = 2
+      and ua.revoked_at is null
+  ),
+  'crossing level threshold unlocks level-2 reward'
 );
 
 select lives_ok(
   $tap$
     select public.unmark_goal_complete(
       'b3400000-0000-4000-8000-000000000001',
-      current_date - 1
+      current_date - 2
     );
   $tap$,
-  'unmark completion succeeds'
+  'unmarking a credited completion succeeds'
 );
 
 select is(
@@ -149,55 +132,61 @@ select is(
     from public.xp_ledger l
     where l.user_id = '11111111-1111-4111-8111-111111111111'
       and l.goal_id = 'b3400000-0000-4000-8000-000000000001'
+      and l.track_key = 'health'
   ),
-  10,
-  'recompute writes reversal delta after completion removal'
+  40,
+  'achievement and unit xp both reverse when progress drops below target'
+);
+
+select ok(
+  exists(
+    select 1
+    from public.user_awards ua
+    join public.xp_rewards xr on xr.id = ua.reward_id
+    where ua.user_id = '11111111-1111-4111-8111-111111111111'
+      and xr.level = 2
+      and ua.revoked_at is not null
+  ),
+  'reward row is retained and marked revoked after regression'
 );
 
 reset role;
 set local role service_role;
 
-select is(
+select ok(
   (
-    select applied
-    from public.award_social_xp_service(
+    select public.award_social_xp_service(
       '11111111-1111-4111-8111-111111111111',
-      25,
-      'global',
-      'xp-foundation-test',
-      'xp-foundation-event-1',
-      current_date
+      'challenge_award',
+      'challenge:test:1',
+      25
     )
-  ),
-  true,
-  'first social award event applies'
+  ) is not null,
+  'first social award inserts a ledger row'
 );
 
-select is(
+select ok(
   (
-    select applied
-    from public.award_social_xp_service(
+    select public.award_social_xp_service(
       '11111111-1111-4111-8111-111111111111',
-      25,
-      'global',
-      'xp-foundation-test',
-      'xp-foundation-event-1',
-      current_date
+      'challenge_award',
+      'challenge:test:1',
+      25
     )
-  ),
-  false,
-  'duplicate social source event is idempotent'
+  ) is null,
+  'duplicate social award key is idempotent'
 );
 
-select is(
+select ok(
   (
-    select coalesce(sum(l.xp_delta), 0)::integer
-    from public.xp_ledger l
-    where l.user_id = '11111111-1111-4111-8111-111111111111'
-      and l.source_event_id = 'xp-foundation-event-1'
-  ),
-  25,
-  'social event id contributes xp exactly once'
+    select public.award_social_xp_service(
+      '11111111-1111-4111-8111-111111111111',
+      'challenge_award',
+      'challenge:test:1:reversal',
+      -10
+    )
+  ) is not null,
+  'negative social xp writes a reversal row'
 );
 
 select is(
@@ -205,9 +194,21 @@ select is(
     select p.total_xp
     from public.xp_profiles p
     where p.user_id = '11111111-1111-4111-8111-111111111111'
+      and p.track_key = 'global'
   ),
-  35,
-  'profile total includes goal and social xp after refresh'
+  55,
+  'global profile total reflects goal xp plus social award deltas'
+);
+
+select is(
+  (
+    select p.total_xp
+    from public.xp_profiles p
+    where p.user_id = '11111111-1111-4111-8111-111111111111'
+      and p.track_key = 'health'
+  ),
+  40,
+  'health track profile remains scoped to goal-derived xp only'
 );
 
 reset role;

@@ -33,11 +33,14 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { toLocalDateString } from "@/lib/dates/day";
 import {
-  CATEGORY_PRESETS,
+  CATEGORY_CUSTOM_VALUE,
+  DEFAULT_GOAL_CATEGORIES,
   type CategorySelection,
-  getCategoryLabel,
+  type GoalCategory,
+  fetchGoalCategories,
   getCategorySelectionFromValue,
   getCategorySwatchColor,
+  getCategoryValueForWrite,
 } from "@/lib/goals/category";
 import {
   fetchProgressContext,
@@ -66,6 +69,7 @@ const columnAliases = {
   title: ["title", "goal", "goal_title", "name"],
   description: ["description", "details", "notes"],
   category: ["category", "tag"],
+  category_key: ["category_key", "categorykey", "category_id"],
   color: ["color", "accent_color", "hex_color"],
   is_group: ["is_group", "group_goal", "collaborative", "is_collaborative"],
   frequency_type: ["frequency_type", "frequency", "type"],
@@ -106,6 +110,7 @@ interface LlmGoalDraftPayload {
   title?: string;
   description?: string | null;
   category?: string | null;
+  category_key?: string | null;
   frequency_type?: GoalFrequencyType;
   recurrence_interval?: RecurrenceInterval | null;
   target_count?: number | null;
@@ -116,9 +121,9 @@ interface LlmGoalDraftPayload {
 
 type BulkInputMode = "natural_language" | "csv";
 
-const csvExample = `title,description,category,color,is_group,frequency_type,recurrence_interval,target_count,milestone_names,start_date,end_date,default_local_time
-Morning run,Train for a half marathon,Health,#16a34a,false,recurring,daily,20,,2026-06-01,2026-12-31,06:45
-Read 12 books,One book per month,Personal,#6366f1,false,fixed,,12,Book 1|Book 2|Book 3,2026-06-01,2026-12-31,`;
+const csvExample = `title,description,category,category_key,color,is_group,frequency_type,recurrence_interval,target_count,milestone_names,start_date,end_date,default_local_time
+Morning run,Train for a half marathon,Health,health,#16a34a,false,recurring,daily,20,,2026-06-01,2026-12-31,06:45
+Read 12 books,One book per month,Personal,personal,#6366f1,false,fixed_milestones,,12,Book 1|Book 2|Book 3,2026-06-01,2026-12-31,`;
 
 function defaultMilestoneName(index: number): string {
   return `Milestone ${index + 1}`;
@@ -250,7 +255,7 @@ function validateDraft(draft: BulkGoalDraft): string[] {
     errors.push("Title is required.");
   }
 
-  if (draft.category_selection === "custom" && !draft.custom_category.trim()) {
+  if (draft.category_selection === CATEGORY_CUSTOM_VALUE && !draft.custom_category.trim()) {
     errors.push("Custom category name is required.");
   }
 
@@ -308,12 +313,21 @@ function withValidatedDraft(draft: Omit<BulkGoalDraft, "errors">): BulkGoalDraft
   };
 }
 
-function buildDraftFromRow(row: Record<string, unknown>, rowIndex: number): BulkGoalDraft {
+function buildDraftFromRow(
+  row: Record<string, unknown>,
+  rowIndex: number,
+  categoryCatalog: GoalCategory[]
+): BulkGoalDraft {
   const normalizedRow = normalizeRowKeys(row);
   const categoryRaw = extractText(normalizedRow, columnAliases.category);
+  const categoryKeyRaw = extractText(normalizedRow, columnAliases.category_key);
   const categoryState =
-    categoryRaw.length > 0
-      ? getCategorySelectionFromValue(categoryRaw)
+    categoryRaw.length > 0 || categoryKeyRaw.length > 0
+      ? getCategorySelectionFromValue(
+          categoryRaw,
+          categoryCatalog,
+          categoryKeyRaw.length > 0 ? categoryKeyRaw : null
+        )
       : { selection: "personal" as CategorySelection, customValue: "" };
   const frequencyType = parseFrequencyType(
     extractText(normalizedRow, columnAliases.frequency_type)
@@ -328,7 +342,7 @@ function buildDraftFromRow(row: Record<string, unknown>, rowIndex: number): Bulk
   const parsedMilestoneNames = parseMilestoneNames(
     extractText(normalizedRow, columnAliases.milestone_names)
   );
-  const categoryColor = getCategorySwatchColor(categoryState.selection);
+  const categoryColor = getCategorySwatchColor(categoryState.selection, categoryCatalog);
   const parsedColor = extractText(normalizedRow, columnAliases.color);
   const draftColor = isValidHexColor(parsedColor) ? parsedColor : categoryColor;
 
@@ -434,6 +448,7 @@ export function BulkGoalForm() {
   const [saving, setSaving] = useState(false);
   const [drafts, setDrafts] = useState<BulkGoalDraft[]>([]);
   const [availableGoals, setAvailableGoals] = useState<Goal[]>([]);
+  const [categoryCatalog, setCategoryCatalog] = useState<GoalCategory[]>(DEFAULT_GOAL_CATEGORIES);
 
   useEffect(() => {
     const run = async () => {
@@ -447,7 +462,8 @@ export function BulkGoalForm() {
       }
 
       setCurrentUserId(user.id);
-      const [goalOptionsResponse, progress] = await Promise.all([
+      const [catalog, goalOptionsResponse, progress] = await Promise.all([
+        fetchGoalCategories(supabase),
         supabase
           .from("goals")
           .select("*")
@@ -456,6 +472,8 @@ export function BulkGoalForm() {
           .order("title"),
         fetchProgressContext({ asOfDate: toLocalDateString() }),
       ]);
+
+      setCategoryCatalog(catalog);
 
       if (goalOptionsResponse.error) {
         toast.error("Could not load linkable goals.");
@@ -513,7 +531,9 @@ export function BulkGoalForm() {
       return;
     }
 
-    const nextDrafts = rows.map((row, index) => buildDraftFromRow(row, index));
+    const nextDrafts = rows.map((row, index) =>
+      buildDraftFromRow(row, index, categoryCatalog)
+    );
     setDrafts(nextDrafts);
     toast.success(`Loaded ${nextDrafts.length} goal draft${nextDrafts.length === 1 ? "" : "s"}.`);
   };
@@ -582,6 +602,7 @@ export function BulkGoalForm() {
         title: goal.title ?? "",
         description: goal.description ?? "",
         category: goal.category ?? "",
+        category_key: goal.category_key ?? "",
         frequency_type: goal.frequency_type ?? "recurring",
         recurrence_interval: goal.recurrence_interval ?? "",
         target_count:
@@ -653,6 +674,11 @@ export function BulkGoalForm() {
     try {
       const preparedRows = selectedDrafts.map((draft) => {
         const parsedTargetCount = parseTargetCount(draft.target_count);
+        const categoryValue = getCategoryValueForWrite(
+          draft.category_selection,
+          draft.custom_category,
+          categoryCatalog
+        );
         const normalizedTargetCount =
           draft.frequency_type === "fixed_milestones"
             ? parsedTargetCount
@@ -673,10 +699,11 @@ export function BulkGoalForm() {
             owner_id: currentUserId,
             title: draft.title.trim(),
             description: draft.description.trim() || null,
-            category: getCategoryLabel(draft.category_selection, draft.custom_category),
+            category: categoryValue.category,
+            category_key: categoryValue.categoryKey,
             color: isValidHexColor(draft.color)
               ? draft.color.trim()
-              : getCategorySwatchColor(draft.category_selection),
+              : getCategorySwatchColor(draft.category_selection, categoryCatalog),
             frequency_type: draft.frequency_type,
             recurrence_interval:
               draft.frequency_type === "recurring" ? draft.recurrence_interval : null,
@@ -869,7 +896,7 @@ export function BulkGoalForm() {
                   id="bulk-csv-input"
                   value={csvInput}
                   onChange={(event) => setCsvInput(event.target.value)}
-                  placeholder="title,description,category,color,is_group,frequency_type,recurrence_interval,target_count,milestone_names,start_date,end_date,default_local_time"
+                  placeholder="title,description,category,category_key,color,is_group,frequency_type,recurrence_interval,target_count,milestone_names,start_date,end_date,default_local_time"
                   className="min-h-36"
                 />
                 <div className="flex flex-wrap items-center gap-2">
@@ -914,9 +941,9 @@ export function BulkGoalForm() {
                   ) : null}
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Supported columns: title, description, category, color, is_group,
-                  frequency_type, recurrence_interval, target_count, milestone_names, start_date,
-                  end_date, default_local_time.
+                  Supported columns: title, description, category, category_key, color,
+                  is_group, frequency_type, recurrence_interval, target_count,
+                  milestone_names, start_date, end_date, default_local_time.
                 </p>
               </section>
             </>
@@ -1057,7 +1084,7 @@ export function BulkGoalForm() {
                             updateDraft(draft.id, (previous) => ({
                               ...previous,
                               category_selection: value,
-                              color: getCategorySwatchColor(value),
+                              color: getCategorySwatchColor(value, categoryCatalog),
                             }))
                           }
                         >
@@ -1065,22 +1092,34 @@ export function BulkGoalForm() {
                             <SelectValue placeholder="Select category" />
                           </SelectTrigger>
                           <SelectContent>
-                            {CATEGORY_PRESETS.map((preset) => (
-                              <SelectItem key={preset.id} value={preset.id}>
-                                <span className="inline-flex items-center gap-2">
-                                  <span
-                                    className="size-2 rounded-full"
-                                    style={{ backgroundColor: getCategorySwatchColor(preset.id) }}
-                                  />
-                                  {preset.label}
-                                </span>
-                              </SelectItem>
-                            ))}
-                            <SelectItem value="custom">
+                            {categoryCatalog
+                              .filter((category) => category.key !== "other")
+                              .map((category) => (
+                                <SelectItem key={category.key} value={category.key}>
+                                  <span className="inline-flex items-center gap-2">
+                                    <span
+                                      className="size-2 rounded-full"
+                                      style={{
+                                        backgroundColor: getCategorySwatchColor(
+                                          category.key,
+                                          categoryCatalog
+                                        ),
+                                      }}
+                                    />
+                                    {category.label}
+                                  </span>
+                                </SelectItem>
+                              ))}
+                            <SelectItem value={CATEGORY_CUSTOM_VALUE}>
                               <span className="inline-flex items-center gap-2">
                                 <span
                                   className="size-2 rounded-full"
-                                  style={{ backgroundColor: getCategorySwatchColor("custom") }}
+                                  style={{
+                                    backgroundColor: getCategorySwatchColor(
+                                      CATEGORY_CUSTOM_VALUE,
+                                      categoryCatalog
+                                    ),
+                                  }}
                                 />
                                 Custom
                               </span>
@@ -1089,7 +1128,7 @@ export function BulkGoalForm() {
                         </Select>
                       </div>
 
-                      {draft.category_selection === "custom" ? (
+                      {draft.category_selection === CATEGORY_CUSTOM_VALUE ? (
                         <div className="space-y-2">
                           <Label>Custom category</Label>
                           <Input

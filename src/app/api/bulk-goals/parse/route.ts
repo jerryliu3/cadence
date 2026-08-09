@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { GeminiRequestError, generateGeminiJson } from "@/lib/ai/gemini";
 import { getDateInTimezone, isValidIanaTimezone } from "@/lib/dates/timezone";
+import { DEFAULT_GOAL_CATEGORIES, resolveCategoryKey } from "@/lib/goals/category";
 import { validateGoalDefinition } from "@/lib/goals/definition-validation";
 import {
   consumePlannerAiQuota,
@@ -19,6 +20,8 @@ const MAX_PROVIDER_RESPONSE_BYTES = 256 * 1024;
 const PROVIDER_TIMEOUT_MS = 12_000;
 const MAX_PROVIDER_ATTEMPTS = 2;
 const localTimePattern = /^([01]\d|2[0-3]):[0-5]\d$/;
+const CATEGORY_KEYS = DEFAULT_GOAL_CATEGORIES.map((category) => category.key);
+const CATEGORY_KEY_SET = new Set(CATEGORY_KEYS);
 
 const requestSchema = z.object({
   prompt: z.string().trim().min(1).max(8000),
@@ -34,6 +37,11 @@ const generatedGoalSchema = z.object({
   title: z.string().trim().min(1).max(200),
   description: z.string().trim().max(2_000).optional(),
   category: z.string().trim().min(1).max(80).optional(),
+  category_key: z
+    .string()
+    .trim()
+    .refine((value) => CATEGORY_KEY_SET.has(value), "category_key must be known")
+    .optional(),
   frequency_type: z.enum(["recurring", "fixed_milestones"]).optional(),
   recurrence_interval: z.enum(["daily", "weekly", "monthly"]).optional(),
   target_count: z.number().int().positive().nullable().optional(),
@@ -58,6 +66,10 @@ const bulkGoalResponseSchema = {
           title: { type: "string" },
           description: { type: "string" },
           category: { type: "string" },
+          category_key: {
+            type: "string",
+            enum: CATEGORY_KEYS,
+          },
           frequency_type: {
             type: "string",
             enum: ["recurring", "fixed_milestones"],
@@ -98,6 +110,7 @@ function buildPrompt(userPrompt: string, today: string): string {
     '- "title" (required string)',
     '- "description" (optional string)',
     '- "category" (string, prefer Personal/Relationships/Health; otherwise custom)',
+    `- "category_key" (${CATEGORY_KEYS.join(" | ")})`,
     '- "frequency_type" ("recurring" | "fixed_milestones")',
     '- "recurrence_interval" ("daily" | "weekly" | "monthly", only for recurring)',
     '- "target_count" (positive integer or null)',
@@ -151,6 +164,9 @@ function normalizeGeneratedPayload(
       title: goal.title.trim(),
       description: goal.description?.trim() ?? "",
       category: goal.category?.trim() ?? "Personal",
+      category_key: goal.category_key
+        ? goal.category_key
+        : resolveCategoryKey(goal.category?.trim() ?? "Personal"),
       frequency_type: frequency,
       recurrence_interval: recurrence,
       target_count: goal.target_count ?? null,

@@ -70,6 +70,21 @@ interface InsightsData {
   progress: ProgressContextResponse | null;
 }
 
+interface XpInsightSummary {
+  profile: {
+    totalXp: number;
+    currentLevel: number;
+    nextLevel: number | null;
+    xpToNextLevel: number | null;
+  };
+  tracks: Array<{
+    trackKey: string;
+    label: string;
+    totalXp: number;
+    currentLevel: number;
+  }>;
+}
+
 const emptyInsights: InsightsData = {
   userId: "",
   goals: [],
@@ -210,6 +225,7 @@ function getCompletionCountLabel(goal: Goal, completionCount: number): string {
 export function InsightsTab() {
   const supabase = useMemo(() => createClient(), []);
   const [state, setState] = useState<InsightsData>(emptyInsights);
+  const [xpSummary, setXpSummary] = useState<XpInsightSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [monthCursor, setMonthCursor] = useState(new Date());
   const [goalMonthOverrides, setGoalMonthOverrides] = useState<Record<string, Date>>({});
@@ -286,10 +302,28 @@ export function InsightsTab() {
     [monthCursor, supabase]
   );
 
+  const loadXpSummary = useCallback(async () => {
+    try {
+      const response = await fetch("/api/xp/profile", {
+        method: "GET",
+        headers: { "Cache-Control": "no-store" },
+      });
+      if (!response.ok) {
+        setXpSummary(null);
+        return;
+      }
+      const payload = (await response.json()) as XpInsightSummary;
+      setXpSummary(payload);
+    } catch {
+      setXpSummary(null);
+    }
+  }, []);
+
   useEffect(() => {
     const run = async () => {
       try {
         await loadData();
+        await loadXpSummary();
       } catch (error) {
         setLoading(false);
         toast.error(
@@ -301,7 +335,17 @@ export function InsightsTab() {
     };
 
     void run();
-  }, [loadData]);
+  }, [loadData, loadXpSummary]);
+
+  useEffect(() => {
+    const onRefreshRequested = () => {
+      void loadXpSummary();
+    };
+    window.addEventListener("xp:refresh-requested", onRefreshRequested);
+    return () => {
+      window.removeEventListener("xp:refresh-requested", onRefreshRequested);
+    };
+  }, [loadXpSummary]);
 
   const completableGoalIds = useMemo(() => {
     const ids = new Set<string>();
@@ -479,6 +523,7 @@ export function InsightsTab() {
         }
 
         toast.success(isSelected ? `Removed ${completionDate}.` : `Selected ${completionDate}.`);
+        window.dispatchEvent(new CustomEvent("xp:refresh-requested"));
         try {
           await loadData({ showLoading: false, forceRefresh: true });
           requestAnimationFrame(() => {
@@ -502,7 +547,7 @@ export function InsightsTab() {
         setPendingRetroDate(null);
       }
     },
-    [loadData, pendingRetroDate, supabase]
+    [loadData, pendingRetroDate]
   );
 
   const toggleRecurringDateSelection = useCallback(
@@ -560,6 +605,7 @@ export function InsightsTab() {
         }
 
         toast.success(hasCompletionOnDate ? `Removed ${completionDate}.` : `Selected ${completionDate}.`);
+        window.dispatchEvent(new CustomEvent("xp:refresh-requested"));
         try {
           await loadData({ showLoading: false, forceRefresh: true });
           requestAnimationFrame(() => {
@@ -583,7 +629,7 @@ export function InsightsTab() {
         setPendingRetroDate(null);
       }
     },
-    [loadData, pendingRetroDate, supabase]
+    [loadData, pendingRetroDate]
   );
 
   const saveMilestoneNames = useCallback(
@@ -753,6 +799,44 @@ export function InsightsTab() {
           <Progress value={overallCompletion} />
         </CardContent>
       </Card>
+
+      {xpSummary ? (
+        <Card className="shadow-sm">
+          <CardHeader>
+            <div className="flex items-center justify-between gap-2">
+              <CardTitle>XP progress</CardTitle>
+              <Badge variant="secondary">{`Lv ${xpSummary.profile.currentLevel} · ${xpSummary.profile.totalXp} XP`}</Badge>
+            </div>
+            <CardDescription>
+              {xpSummary.profile.nextLevel !== null && xpSummary.profile.xpToNextLevel !== null
+                ? `${xpSummary.profile.xpToNextLevel} XP to Level ${xpSummary.profile.nextLevel}`
+                : "Top level unlocked"}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {xpSummary.tracks.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                Track-level XP appears after category-scoped goal progress.
+              </p>
+            ) : (
+              xpSummary.tracks.map((track) => (
+                <div
+                  key={track.trackKey}
+                  className="flex items-center justify-between rounded-lg border bg-muted/20 px-3 py-2"
+                >
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" className={getCategoryBadgeClass(track.trackKey)}>
+                      {track.label}
+                    </Badge>
+                    <span className="text-xs text-muted-foreground">{`Lv ${track.currentLevel}`}</span>
+                  </div>
+                  <span className="text-sm font-medium">{`${track.totalXp} XP`}</span>
+                </div>
+              ))
+            )}
+          </CardContent>
+        </Card>
+      ) : null}
 
       <Card className="shadow-sm">
         <CardHeader className="pb-3">
@@ -940,7 +1024,7 @@ export function InsightsTab() {
                         <div className="flex flex-wrap items-center gap-1.5">
                           <Badge
                             variant="outline"
-                            className={`w-fit ${getCategoryBadgeClass(goal.category)}`}
+                            className={`w-fit ${getCategoryBadgeClass(goal.category_key ?? "other")}`}
                           >
                             {goal.category}
                           </Badge>

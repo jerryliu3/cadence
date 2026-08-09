@@ -38,7 +38,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { GoalEndMonthBadge } from "@/features/goals/goal-end-month-badge";
 import { GoalListControls } from "@/features/goals/goal-list-controls";
 import { toLocalDateString } from "@/lib/dates/day";
-import { getCategoryBadgeClass } from "@/lib/goals/category";
+import {
+  type GoalCategory,
+  fetchGoalCategories,
+  getCategoryBadgeClass,
+} from "@/lib/goals/category";
 import { getGoalLifecycle } from "@/lib/goals/lifecycle";
 import {
   filterGoalsByEndMonth,
@@ -78,6 +82,7 @@ import { createClient } from "@/lib/supabase/client";
 interface TodayData {
   userId: string;
   goals: Goal[];
+  categories: GoalCategory[];
   completions: CompletionDateFact[];
   participants: GoalParticipant[];
   links: GoalLink[];
@@ -88,6 +93,7 @@ interface TodayData {
 const emptyData: TodayData = {
   userId: "",
   goals: [],
+  categories: [],
   completions: [],
   participants: [],
   links: [],
@@ -234,8 +240,9 @@ export function TodayTab({
         return;
       }
 
-      const [goalsResponse, participantsResponse, linksResponse, progress] =
+      const [categories, goalsResponse, participantsResponse, linksResponse, progress] =
         await Promise.all([
+          fetchGoalCategories(supabase),
           supabase
             .from("goals")
             .select("*")
@@ -279,6 +286,7 @@ export function TodayTab({
       setData({
         userId: user.id,
         goals,
+        categories,
         completions,
         participants,
         links,
@@ -403,16 +411,31 @@ export function TodayTab({
   }, [completableGoals, lifecycleByGoalAtViewDate]);
 
   const availableCategories = useMemo(() => {
-    const categories = new Set<string>();
+    const keys = new Set<string>();
     data.goals.forEach((goal) => {
-      const category = goal.category.trim();
-      if (category.length > 0) {
-        categories.add(category);
+      const key = goal.category_key?.trim() || "other";
+      if (key.length > 0) {
+        keys.add(key);
       }
     });
 
-    return Array.from(categories).sort((left, right) => left.localeCompare(right));
-  }, [data.goals]);
+    const categorySortOrderByKey = new Map(
+      data.categories.map((category) => [category.key, category.sortOrder])
+    );
+    return Array.from(keys).sort((left, right) => {
+      const leftOrder = categorySortOrderByKey.get(left) ?? Number.MAX_SAFE_INTEGER;
+      const rightOrder = categorySortOrderByKey.get(right) ?? Number.MAX_SAFE_INTEGER;
+      if (leftOrder !== rightOrder) {
+        return leftOrder - rightOrder;
+      }
+      return left.localeCompare(right);
+    });
+  }, [data.categories, data.goals]);
+
+  const categoryLabelByKey = useMemo(
+    () => new Map(data.categories.map((category) => [category.key, category.label])),
+    [data.categories]
+  );
 
   const todayDate = viewDate;
   const checklistFilterStartMonth = viewDate.slice(0, 7);
@@ -426,7 +449,10 @@ export function TodayTab({
       : null;
   const matchesTodayFacetFilters = useCallback(
     (goal: Goal) => {
-      if (categoryFilter !== allCategoriesFilterValue && goal.category !== categoryFilter) {
+      if (
+        categoryFilter !== allCategoriesFilterValue &&
+        (goal.category_key?.trim() || "other") !== categoryFilter
+      ) {
         return false;
       }
 
@@ -615,6 +641,8 @@ export function TodayTab({
         toast.success(`Marked as incomplete for ${removedDate}.`);
       }
 
+      window.dispatchEvent(new CustomEvent("xp:refresh-requested"));
+
       try {
         await loadData({ showLoading: false, forceRefresh: true });
         requestAnimationFrame(() => {
@@ -743,9 +771,9 @@ export function TodayTab({
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value={allCategoriesFilterValue}>All Categories</SelectItem>
-                    {availableCategories.map((category) => (
-                      <SelectItem key={category} value={category}>
-                        {category}
+                    {availableCategories.map((categoryKey) => (
+                      <SelectItem key={categoryKey} value={categoryKey}>
+                        {categoryLabelByKey.get(categoryKey) ?? categoryKey}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -1256,7 +1284,10 @@ function GoalCard({
               />
               <h3 className="truncate text-sm font-semibold">{goal.title}</h3>
               <GoalEndMonthBadge endDate={goal.end_date} />
-              <Badge variant="outline" className={getCategoryBadgeClass(goal.category)}>
+              <Badge
+                variant="outline"
+                className={getCategoryBadgeClass(goal.category_key ?? "other")}
+              >
                 {goal.category}
               </Badge>
               {progress?.outcome === "achieved" ? (

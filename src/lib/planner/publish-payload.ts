@@ -328,7 +328,7 @@ export function buildPlannerConfirmationHash({
 
 export function buildPlannerPublishPersistencePayload({
   scopeMonth,
-  policy: _policy,
+  policy,
   kernel,
   snapshot,
   draftCommands = [],
@@ -339,6 +339,8 @@ export function buildPlannerPublishPersistencePayload({
   snapshot: PlannerCanonicalSnapshot;
   draftCommands?: PlannerDraftCommand[];
 }): PlannerPublishPersistencePayload {
+  void policy;
+
   const goalDefaultLocalTimeByGoalId = new Map(
     snapshot.goals.map((goal) => [goal.id, goal.default_local_time ?? null])
   );
