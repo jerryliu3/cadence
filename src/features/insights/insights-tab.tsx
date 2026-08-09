@@ -36,7 +36,6 @@ import { GoalEndMonthBadge } from "@/features/goals/goal-end-month-badge";
 import { GoalListControls } from "@/features/goals/goal-list-controls";
 import { MonthHeatmap } from "@/features/insights/month-heatmap";
 import { getApiErrorMessage } from "@/lib/api/client";
-import { updateGoal } from "@/lib/api/goals-social-client";
 import { getCategoryBadgeClass } from "@/lib/goals/category";
 import {
   filterGoalsByEndMonth,
@@ -582,10 +581,15 @@ export function InsightsTab() {
       setSavingMilestoneNamesGoalId(goal.id);
       const currentScrollY = window.scrollY;
       try {
-        await updateGoal({
-          goalId: goal.id,
-          updates: { milestone_names: names },
-        });
+        const { error } = await supabase
+          .from("goals")
+          .update({ milestone_names: names })
+          .eq("id", goal.id)
+          .eq("owner_id", state.userId);
+        if (error) {
+          toast.error(error.message);
+          return;
+        }
 
         toast.success("Milestone names updated.");
         await withPlannerRefreshTimeout({
@@ -603,7 +607,7 @@ export function InsightsTab() {
         setSavingMilestoneNamesGoalId(null);
       }
     },
-    [loadData, state.userId]
+    [loadData, state.userId, supabase]
   );
 
   const onMonthSectionTouchStart: TouchEventHandler<HTMLDivElement> = (event) => {
