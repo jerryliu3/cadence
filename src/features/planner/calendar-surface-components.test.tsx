@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import { PlannerDndProvider } from "./calendar-dnd";
 import { CalendarDayPreviewList } from "./calendar-day-preview-list";
 import { CalendarMonthDayCell } from "./calendar-month-day-cell";
+import { CalendarSurfaceHeader } from "./calendar-surface-header";
 
 function renderWithDnd(ui: ReactNode) {
   return render(
@@ -130,6 +131,70 @@ describe("calendar surface extracted components", () => {
 
     await user.click(within(view.container).getByText("Run"));
     expect(onEntryOpen).toHaveBeenCalledWith(sampleEntry.key);
+  });
+
+  it("renders header action gates for reset and save states", async () => {
+    const onResetPlan = vi.fn();
+    const onSavePlan = vi.fn();
+    const onDiscardDraftChanges = vi.fn();
+    const onOpenSettings = vi.fn();
+    const user = userEvent.setup();
+
+    const { rerender } = render(
+      <CalendarSurfaceHeader
+        hasDraftSession
+        horizonCounter={{ thisMonth: 2, total: 5, remaining: 3 }}
+        eligibilityNotices={{ hardIneligible: [], scopeOnlyCount: 0 }}
+        canResetPlan
+        resetLoading={false}
+        loading={false}
+        canShowSaveAction={false}
+        saveButtonLabel="Save plan"
+        saveDisabled={false}
+        onResetPlan={onResetPlan}
+        onSavePlan={onSavePlan}
+        onDiscardDraftChanges={onDiscardDraftChanges}
+        onOpenSettings={onOpenSettings}
+        showSettingsButton
+        discardDisabled={false}
+      />
+    );
+
+    await user.click(screen.getByRole("button", { name: "Reset plan" }));
+    expect(onResetPlan).toHaveBeenCalledTimes(1);
+    await user.click(screen.getByRole("button", { name: "Undo changes" }));
+    expect(onDiscardDraftChanges).toHaveBeenCalledTimes(1);
+    await user.click(screen.getByRole("button", { name: "Settings" }));
+    expect(onOpenSettings).toHaveBeenCalledTimes(1);
+    expect(
+      screen.queryByRole("button", { name: "Save plan" })
+    ).not.toBeInTheDocument();
+
+    rerender(
+      <CalendarSurfaceHeader
+        hasDraftSession={false}
+        horizonCounter={null}
+        eligibilityNotices={{ hardIneligible: [], scopeOnlyCount: 0 }}
+        canResetPlan={false}
+        resetLoading={false}
+        loading={false}
+        canShowSaveAction
+        saveButtonLabel="Save plan"
+        saveDisabled
+        saveTitle="Missing draft edits"
+        onResetPlan={onResetPlan}
+        onSavePlan={onSavePlan}
+        onDiscardDraftChanges={onDiscardDraftChanges}
+        onOpenSettings={onOpenSettings}
+        showSettingsButton={false}
+        discardDisabled={false}
+      />
+    );
+
+    expect(
+      screen.queryByRole("button", { name: "Reset plan" })
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save plan" })).toBeDisabled();
   });
 });
 
