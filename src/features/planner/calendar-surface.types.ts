@@ -20,6 +20,12 @@ export interface PlannerContextPayload {
   } | null;
   capabilities: {
     calendarEnabled: boolean;
+    plannerRead?: boolean;
+    plannerGeneration?: boolean;
+    plannerPlanWrites?: boolean;
+    targetedExactCompletion?: boolean;
+    coachAi?: boolean;
+    overlap?: boolean;
   };
   activePlan: {
     plan: {
