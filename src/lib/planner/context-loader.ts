@@ -331,7 +331,6 @@ async function loadPlannerItemsForScope(
 }
 
 async function loadActivePlanSnapshot(
-  ownerId: string,
   scopeMonth: string,
   plannerItems: PlannerItemRow[],
   goals: Goal[],
@@ -494,7 +493,6 @@ export async function loadPlannerCanonicalSnapshot({
     goals.map((goal) => goal.id)
   );
   const activePlan = await loadActivePlanSnapshot(
-    ownerId,
     scopeMonth,
     plannerItems,
     goals,
