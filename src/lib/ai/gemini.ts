@@ -343,6 +343,20 @@ function isRetryableHttpStatus(status: number) {
   return status === 408 || status === 429 || status >= 500;
 }
 
+function shouldRetryWithoutResponseSchema(status: number, errorBody: string) {
+  if (status !== 400) {
+    return false;
+  }
+  const normalized = errorBody.toLowerCase();
+  return (
+    normalized.includes("invalid_argument") ||
+    normalized.includes("unknown name") ||
+    normalized.includes("cannot find field") ||
+    normalized.includes("response_schema") ||
+    normalized.includes("responseschema")
+  );
+}
+
 async function executeGeminiAttempt({
   prompt,
   responseSchema,
@@ -365,45 +379,66 @@ async function executeGeminiAttempt({
   signal?: AbortSignal;
 }) {
   const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
-  let response: Response;
-  try {
-    response = await fetch(endpoint, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-goog-api-key": apiKey,
-      },
-      body: JSON.stringify({
-        contents: [
-          {
-            parts: [{ text: prompt }],
-          },
-        ],
-        generationConfig: {
-          temperature,
-          responseMimeType: "application/json",
-          responseSchema,
-          maxOutputTokens,
+  const requestSignal = signal
+    ? AbortSignal.any([signal, AbortSignal.timeout(timeoutMs)])
+    : AbortSignal.timeout(timeoutMs);
+  const sendRequest = async (includeResponseSchema: boolean) => {
+    const generationConfig: Record<string, unknown> = {
+      temperature,
+      responseMimeType: "application/json",
+      maxOutputTokens,
+    };
+    if (includeResponseSchema && responseSchema) {
+      generationConfig.responseSchema = responseSchema;
+    }
+    try {
+      return await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-goog-api-key": apiKey,
         },
-      }),
-      cache: "no-store",
-      signal: signal
-        ? AbortSignal.any([signal, AbortSignal.timeout(timeoutMs)])
-        : AbortSignal.timeout(timeoutMs),
-    });
-  } catch (error) {
-    const aborted =
-      error instanceof Error &&
-      (error.name === "AbortError" || error.name === "TimeoutError");
-    throw new GeminiRequestError(
-      aborted ? "timeout" : "provider_error",
-      !aborted,
-      aborted ? "Gemini request timed out." : "Gemini request failed."
-    );
+        body: JSON.stringify({
+          contents: [
+            {
+              parts: [{ text: prompt }],
+            },
+          ],
+          generationConfig,
+        }),
+        cache: "no-store",
+        signal: requestSignal,
+      });
+    } catch (error) {
+      const aborted =
+        error instanceof Error &&
+        (error.name === "AbortError" || error.name === "TimeoutError");
+      throw new GeminiRequestError(
+        aborted ? "timeout" : "provider_error",
+        !aborted,
+        aborted ? "Gemini request timed out." : "Gemini request failed."
+      );
+    }
+  };
+
+  let response = await sendRequest(Boolean(responseSchema));
+  let errorBody = "";
+  if (!response.ok) {
+    errorBody = await response.text().catch(() => "");
+    if (
+      responseSchema &&
+      shouldRetryWithoutResponseSchema(response.status, errorBody)
+    ) {
+      // Gemini occasionally rejects otherwise valid requests due strict schema
+      // keyword compatibility. Retry once without responseSchema.
+      response = await sendRequest(false);
+      if (!response.ok) {
+        errorBody = await response.text().catch(() => "");
+      }
+    }
   }
 
   if (!response.ok) {
-    const errorBody = await response.text().catch(() => "");
     const compactErrorBody = errorBody
       .replace(/\s+/g, " ")
       .trim()

@@ -46,12 +46,17 @@ export const coachRequestSchema = z
   })
   .strict();
 
-const coachRecommendationSchema = z
+const coachRecommendationPayloadSchema = z
   .object({
     text: z.string().trim().min(1).max(1000),
     tags: z.array(z.string().trim().min(1).max(50)).max(10).optional(),
   })
   .passthrough();
+const coachRecommendationSchema = z.preprocess(
+  (value) =>
+    typeof value === "string" ? { text: value } : value,
+  coachRecommendationPayloadSchema
+);
 
 const weekdayArraySchema = z.array(z.number().int().min(0).max(6)).max(7);
 const dateRangeSchema = z
@@ -63,9 +68,9 @@ const dateRangeSchema = z
   .refine((range) => range.start <= range.end);
 const calendarIntentGlobalSchema = z
   .object({
-    restWeekdays: weekdayArraySchema,
-    addBlackoutRanges: z.array(dateRangeSchema).max(20),
-    removeBlackoutRanges: z.array(dateRangeSchema).max(20),
+    restWeekdays: weekdayArraySchema.optional().default([]),
+    addBlackoutRanges: z.array(dateRangeSchema).max(20).optional().default([]),
+    removeBlackoutRanges: z.array(dateRangeSchema).max(20).optional().default([]),
   })
   .strict();
 const calendarIntentItemSchema = z
@@ -91,7 +96,7 @@ const calendarIntentItemSchema = z
 const calendarIntentSchema = z
   .object({
     action: z.enum(["none", "needs_goal", "apply"]),
-    global: calendarIntentGlobalSchema.nullable(),
+    global: calendarIntentGlobalSchema.nullable().optional().default(null),
     items: z.array(z.unknown()).max(100).default([]),
   })
   .strict();
@@ -106,10 +111,14 @@ export const coachTurnResponseSchema = z
     proposal: z
       .object({
         calendarIntent: calendarIntentSchema,
-        unresolvedQuestions: z.array(z.string().trim().min(1).max(500)).max(20),
+        unresolvedQuestions: z
+          .array(z.string().trim().min(1).max(500))
+          .max(20)
+          .optional()
+          .default([]),
       })
       .passthrough(),
-    recommendations: z.array(coachRecommendationSchema).max(20),
+    recommendations: z.array(coachRecommendationSchema).max(20).optional().default([]),
   })
   .passthrough();
 
@@ -383,11 +392,10 @@ export const coachResponseJsonSchema = {
             },
             global: {
               type: "object",
-              nullable: true,
               properties: {
                 restWeekdays: {
                   type: "array",
-                  items: { type: "integer", minimum: 0, maximum: 6 },
+                  items: { type: "integer" },
                 },
                 addBlackoutRanges: {
                   type: "array",
@@ -423,27 +431,18 @@ export const coachResponseJsonSchema = {
               maxItems: 100,
               items: {
                 type: "object",
-                additionalProperties: false,
                 properties: {
-                  goalId: { type: "string", format: "uuid" },
+                  goalId: { type: "string" },
                   unitKey: { type: "string" },
-                  scheduledDate: {
-                    type: "string",
-                    format: "date",
-                    nullable: true,
-                  },
-                  label: { type: "string", maxLength: 200, nullable: true },
-                  localTime: {
-                    type: "string",
-                    pattern: "^([01][0-9]|2[0-3]):[0-5][0-9]$",
-                    nullable: true,
-                  },
+                  scheduledDate: { type: "string" },
+                  label: { type: "string" },
+                  localTime: { type: "string" },
                 },
                 required: ["goalId", "unitKey"],
               },
             },
           },
-          required: ["action", "global", "items"],
+          required: ["action"],
         },
         unresolvedQuestions: {
           type: "array",

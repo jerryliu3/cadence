@@ -173,4 +173,71 @@ describe("sanitizeCoachTurn", () => {
     );
     expect(result.reply).toBe("I scheduled your existing sessions where possible.");
   });
+
+  it("accepts missing global and normalizes string recommendations", () => {
+    const goalA = goal();
+    const result = sanitizeCoachTurn({
+      goalsById: new Map([[goalA.id, goalA]]),
+      raw: {
+        schemaVersion: "1",
+        phase: "ready",
+        reply: "I shifted one session.",
+        proposal: {
+          calendarIntent: {
+            action: "apply",
+            items: [
+              {
+                goalId: goalA.id,
+                unitKey: "cadence:2026-08-11",
+                scheduledDate: "2026-08-12",
+              },
+            ],
+          },
+        },
+        recommendations: ["Keep one easy day after each harder session."],
+      },
+    });
+
+    expect(result.proposal.draftCommands).toEqual([
+      expect.objectContaining({
+        kind: "move_item",
+        goalId: goalA.id,
+        unitKey: "cadence:2026-08-11",
+        scheduledDate: "2026-08-12",
+      }),
+    ]);
+    expect(result.proposal.policyPatches).toEqual([]);
+    expect(result.proposal.unresolvedQuestions).toEqual([]);
+    expect(result.recommendations).toEqual([
+      { text: "Keep one easy day after each harder session." },
+    ]);
+  });
+
+  it("accepts partial global payloads with only rest weekdays", () => {
+    const goalA = goal();
+    const result = sanitizeCoachTurn({
+      goalsById: new Map([[goalA.id, goalA]]),
+      raw: {
+        schemaVersion: "1",
+        phase: "ready",
+        reply: "I set weekend recovery days.",
+        proposal: {
+          calendarIntent: {
+            action: "apply",
+            global: {
+              restWeekdays: [0, 6],
+            },
+          },
+          unresolvedQuestions: [],
+        },
+        recommendations: [{ text: "Protect recovery quality on weekends." }],
+      },
+    });
+
+    expect(result.proposal.policyPatches).toEqual([
+      { kind: "set_rest_weekdays", restWeekdays: [0, 6] },
+    ]);
+    expect(result.proposal.draftCommands).toEqual([]);
+    expect(result.warnings).toEqual([]);
+  });
 });

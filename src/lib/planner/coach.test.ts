@@ -41,7 +41,6 @@ describe("coachResponseJsonSchema", () => {
         },
         global: {
           type: "object",
-          nullable: true,
         },
       },
     });
@@ -53,5 +52,38 @@ describe("coachResponseJsonSchema", () => {
 
   it("avoids array-valued `type` fields incompatible with Gemini schema validation", () => {
     expect(() => assertNoArrayValuedType(coachResponseJsonSchema)).not.toThrow();
+  });
+
+  it("avoids schema keywords rejected by Gemini structured-output validation", () => {
+    const forbiddenKeywords = new Set([
+      "additionalProperties",
+      "nullable",
+      "format",
+      "pattern",
+      "maxLength",
+      "minLength",
+      "minimum",
+      "maximum",
+    ]);
+    const failures: string[] = [];
+
+    const visit = (value: unknown, path: string) => {
+      if (!value || typeof value !== "object") {
+        return;
+      }
+      if (Array.isArray(value)) {
+        value.forEach((entry, index) => visit(entry, `${path}[${index}]`));
+        return;
+      }
+      for (const [key, nested] of Object.entries(value)) {
+        if (forbiddenKeywords.has(key)) {
+          failures.push(`${path}.${key}`);
+        }
+        visit(nested, `${path}.${key}`);
+      }
+    };
+
+    visit(coachResponseJsonSchema, "root");
+    expect(failures).toEqual([]);
   });
 });
