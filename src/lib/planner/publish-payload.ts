@@ -51,10 +51,6 @@ export interface PlannerPublishPersistencePayload {
   }>;
 };
 
-function countByKind(diff: PlannerKernelOutput["diff"], kind: PlannerKernelOutput["diff"][number]["kind"]) {
-  return diff.filter((entry) => entry.kind === kind).length;
-}
-
 function buildDraftEditKey(goalId: string, unitKey: string) {
   return `${goalId}:${unitKey}`;
 }
@@ -378,16 +374,8 @@ export function buildPlannerPublishPersistencePayload({
     };
   });
 
-  const added = countByKind(kernel.diff, "added");
-  const removed = countByKind(kernel.diff, "removed");
-  const moved = countByKind(kernel.diff, "moved");
-  const lockChanged = countByKind(kernel.diff, "lock_changed");
   return {
     changeSummary: {
-      added,
-      removed,
-      moved,
-      lockChanged,
       draftCommands: draftCommands.length,
       draftMoved: draftMovedCount,
       draftRelabeled: draftRelabeledCount,

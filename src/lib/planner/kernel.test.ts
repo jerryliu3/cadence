@@ -610,10 +610,9 @@ describe("pure planner kernel", () => {
       "2026-08-10",
       "2026-08-05",
     ]);
-    expect(output.diff.some((entry) => entry.kind === "moved")).toBe(false);
   });
 
-  it("emits a usable unaffected-goal diff beside an invalid lock", () => {
+  it("keeps unaffected-goal scheduling beside an invalid lock", () => {
     const invalidGoal = goal({ target_count: 2 });
     const unaffectedGoal = goal({ id: "goal-b", target_count: 1 });
     const invalidFingerprint =
@@ -651,11 +650,6 @@ describe("pure planner kernel", () => {
         (unit) => unit.originalGoalId === "goal-b"
       )?.scheduledDate
     ).not.toBeNull();
-    expect(
-      output.diff.some(
-        (entry) => entry.kind === "added" && entry.goalId === "goal-b"
-      )
-    ).toBe(true);
   });
 
   it("reserves fulfilled scheduled dates during open-unit placement", () => {
@@ -951,6 +945,7 @@ describe("pure planner kernel", () => {
   it("does not reuse assignments across a material requirement lineage", () => {
     const previousGoal = goal({ target_count: 2 });
     const currentGoal = goal({ target_count: 3 });
+    const currentFingerprint = computeRequirementFingerprint(currentGoal);
     const output = runPlannerKernel(
       input({
         goals: [currentGoal],
@@ -973,21 +968,11 @@ describe("pure planner kernel", () => {
     );
 
     expect(
-      output.diff.some(
-        (entry) =>
-          entry.kind === "removed" &&
-          entry.requirementFingerprint ===
-            computeRequirementFingerprint(previousGoal)
+      output.workUnits.every(
+        (workUnit) => workUnit.requirementFingerprint === currentFingerprint
       )
     ).toBe(true);
-    expect(
-      output.diff.some(
-        (entry) =>
-          entry.kind === "added" &&
-          entry.requirementFingerprint ===
-            computeRequirementFingerprint(currentGoal)
-      )
-    ).toBe(true);
+    expect(output.workUnits.some((workUnit) => workUnit.locked)).toBe(false);
   });
 
   it("surfaces credited-work reassignment from the active credit basis", () => {

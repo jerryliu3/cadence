@@ -21,7 +21,6 @@ import {
   plannerKernelInputSchema,
   plannerKernelOutputSchema,
 } from "@/lib/planner/contracts/kernel-schema";
-import { diffPlannerAssignments } from "@/lib/planner/diff";
 import {
   enumerateMonthsInWindow,
   enumerateDates,
@@ -122,7 +121,6 @@ export interface PlannerKernelOutput {
     eligible: boolean;
     reason: EligibilityReason;
   }>;
-  diff: ReturnType<typeof diffPlannerAssignments>;
   horizonSummary: PlannerGoalHorizonSummary[];
 }
 
@@ -750,15 +748,6 @@ export function runPlannerKernel(
       { invariantViolations: validation.invariantViolations }
     );
   }
-  const nextAssignments: PlannerBaseAssignment[] = orderedWorkUnits.map(
-    (unit) => ({
-      goalId: unit.originalGoalId,
-      requirementFingerprint: unit.requirementFingerprint,
-      unitKey: unit.unitKey,
-      scheduledDate: unit.scheduledDate,
-      locked: unit.locked,
-    })
-  );
   const normalizedAssessments = Array.from(assessments.values()).sort(
     (left, right) => compareCanonicalStrings(left.goalId, right.goalId)
   );
@@ -808,12 +797,6 @@ export function runPlannerKernel(
       eligible: decision.eligible,
       reason: decision.reason,
     })),
-    diff: diffPlannerAssignments({
-      baseAssignments,
-      nextAssignments,
-      baseIssues: rawInput.basePlan?.issueCodes ?? [],
-      nextIssues: solver.issueCodes,
-    }),
     horizonSummary,
   };
   plannerKernelOutputSchema.parse(output);

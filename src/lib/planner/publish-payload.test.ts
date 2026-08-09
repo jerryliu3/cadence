@@ -78,7 +78,6 @@ function createKernel(scheduledDate: string): PlannerKernelOutput {
       confirmationRequired: false,
       publishable: true,
     },
-    diff: [],
   } as unknown as PlannerKernelOutput;
 }
 

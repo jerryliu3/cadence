@@ -271,29 +271,6 @@ export const plannerKernelOutputSchema = z
         })
         .strict()
     ),
-    diff: z.array(
-      z
-        .object({
-          kind: z.enum([
-            "added",
-            "removed",
-            "moved",
-            "lock_changed",
-            "issue_added",
-            "issue_resolved",
-          ]),
-          goalId: z.string().nullable(),
-          requirementFingerprint: z
-            .string()
-            .regex(/^[a-f0-9]{64}$/)
-            .nullable(),
-          unitKey: z.string().nullable(),
-          fromDate: nullableDateSchema,
-          toDate: nullableDateSchema,
-          issueCode: issueCodeSchema.nullable(),
-        })
-        .strict()
-    ),
     horizonSummary: z.array(goalHorizonSummarySchema),
   })
   .strict();

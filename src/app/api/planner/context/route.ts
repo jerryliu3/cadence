@@ -11,8 +11,7 @@ import {
   resolveCanonicalAsOfDate,
   unknownPlannerErrorResponse,
 } from "@/lib/planner/api";
-import { createDefaultAssessment, goalAssessmentSchema } from "@/lib/planner/assessment";
-import { canonicalHash } from "@/lib/planner/canonical";
+import { goalAssessmentSchema } from "@/lib/planner/assessment";
 import { loadPlannerCanonicalSnapshot } from "@/lib/planner/context-loader";
 import {
   MAX_API_BODY_BYTES,
@@ -25,7 +24,6 @@ import {
   parsePlannerProfilePreferencesRow,
   resolvePlannerPreferencesSnapshot,
 } from "@/lib/planner/preferences-snapshot";
-import { normalizeGoalRequirement } from "@/lib/planner/requirements";
 import { evaluateActivePlanStaleness } from "@/lib/planner/staleness";
 import { createClient } from "@/lib/supabase/server";
 
@@ -77,28 +75,6 @@ const upsertPreferencesSchema = z.object({
     .refine(isValidIanaTimezone),
   defaultPolicy: z.unknown().optional(),
 });
-
-function toPlannerGoalSemanticSnapshot(goal: {
-  title: string;
-  category: string;
-  color: string | null;
-  start_date: string;
-  end_date: string | null;
-  requirement_fingerprint: string;
-  assessment_input_hash: string;
-  assessment_snapshot: unknown;
-}) {
-  return {
-    title: goal.title,
-    category: goal.category,
-    color: goal.color,
-    startDate: goal.start_date,
-    endDate: goal.end_date,
-    requirementFingerprint: goal.requirement_fingerprint,
-    assessmentInputHash: goal.assessment_input_hash,
-    assessmentFingerprint: canonicalHash(goal.assessment_snapshot),
-  };
-}
 
 function plannerKernelErrorToRouteError(error: PlannerError) {
   if (error.httpStatus === 413) {
@@ -242,9 +218,6 @@ export async function GET(request: Request) {
     const activeAssessments = (snapshot.activePlan?.goals ?? []).map((goal) =>
       goalAssessmentSchema.parse(goal.assessment_snapshot)
     );
-    const activeAssessmentByGoalId = new Map(
-      activeAssessments.map((assessment) => [assessment.goalId, assessment])
-    );
     const {
       asOfDate,
       effectiveTimezone,
@@ -262,59 +235,17 @@ export async function GET(request: Request) {
       includeKernel: routeContext.capabilities.calendarEnabled,
     });
 
-    const currentGoals = Object.fromEntries(
-      snapshot.goals.map((goal) => {
-        const assessment =
-          activeAssessmentByGoalId.get(goal.id) ??
-          createDefaultAssessment(goal);
-        return [
-          goal.id,
-          {
-            title: goal.title,
-            category: goal.category,
-            color: goal.color,
-            startDate: goal.start_date,
-            endDate: goal.end_date,
-            requirementFingerprint:
-              normalizeGoalRequirement(goal).requirementFingerprint,
-            assessmentInputHash: assessment.assessmentInputHash,
-            assessmentFingerprint: canonicalHash(assessment),
-          },
-        ];
-      })
-    );
-
     const staleness = snapshot.activePlan && kernel
       ? evaluateActivePlanStaleness({
           snapshot: {
-            planId: snapshot.activePlan.plan.id,
             status:
               snapshot.activePlan.plan.status === "active"
                 ? "active"
                 : snapshot.activePlan.plan.status === "dismissed"
                   ? "dismissed"
                   : "superseded",
-            timezone: snapshot.activePlan.plan.timezone,
-            policyFingerprint: canonicalHash(snapshot.activePlan.policy),
-            goals: Object.fromEntries(
-              snapshot.activePlan.goals.map((goal) => [
-                goal.original_goal_id,
-                toPlannerGoalSemanticSnapshot(goal),
-              ])
-            ),
           },
           current: {
-            timezone: effectiveTimezone,
-            policyFingerprint: canonicalHash(effectivePolicy),
-            goals: currentGoals,
-            linkedGoalIds: Array.from(
-              new Set(
-                snapshot.links.flatMap((link) => [
-                  link.sourceGoalId,
-                  link.targetGoalId,
-                ])
-              )
-            ),
             workUnits: kernel.workUnits,
             driftFacts: kernel.driftFacts,
             invalidGoalIds: kernel.solver.invalidGoalIds,

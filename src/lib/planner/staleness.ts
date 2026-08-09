@@ -1,7 +1,4 @@
-import {
-  canonicalSerialize,
-  compareCanonicalStrings,
-} from "@/lib/planner/canonical";
+import { compareCanonicalStrings } from "@/lib/planner/canonical";
 import type {
   PlannerDriftFact,
   PlannerDriftType,
@@ -11,43 +8,18 @@ import type { PlannerWorkUnit } from "@/lib/planner/work-units";
 export type ActivePlanStatus = "active" | "superseded" | "dismissed";
 
 export type PlannerStalenessReasonCode =
-  | "goal_changed"
-  | "goal_added"
-  | "orphaned_goal"
-  | "policy_changed"
-  | "timezone_changed"
-  | "link_changed"
-  | "inadmissible_fact"
-  | "out_of_plan_fact"
-  | "credited_work_removed"
   | "credited_work_reassigned"
-  | "overdue_item"
-  | "invalid_lock";
+  | "credited_work_removed"
+  | "inadmissible_fact"
+  | "invalid_lock"
+  | "out_of_plan_fact"
+  | "overdue_item";
 
 export interface PersistedPlanSemanticSnapshot {
-  planId: string;
   status: ActivePlanStatus;
-  timezone: string;
-  policyFingerprint: string;
-  goals: Record<string, PlannerGoalSemanticSnapshot>;
-}
-
-export interface PlannerGoalSemanticSnapshot {
-  title: string;
-  category: string;
-  color: string | null;
-  startDate: string;
-  endDate: string | null;
-  requirementFingerprint: string;
-  assessmentInputHash: string;
-  assessmentFingerprint: string;
 }
 
 export interface CurrentPlanSemanticState {
-  timezone: string;
-  policyFingerprint: string;
-  goals: Record<string, PlannerGoalSemanticSnapshot>;
-  linkedGoalIds: string[];
   workUnits: PlannerWorkUnit[];
   driftFacts: PlannerDriftFact[];
   invalidGoalIds: string[];
@@ -67,14 +39,11 @@ export interface PlannerStalenessResult {
   reasons: PlannerStalenessReason[];
 }
 
-const driftReasonByType: Record<
-  PlannerDriftType,
-  PlannerStalenessReasonCode
-> = {
+const driftReasonByType: Record<PlannerDriftType, PlannerStalenessReasonCode> = {
+  credited_work_reassigned: "credited_work_reassigned",
+  credited_work_removed: "credited_work_removed",
   inadmissible: "inadmissible_fact",
   out_of_plan: "out_of_plan_fact",
-  credited_work_removed: "credited_work_removed",
-  credited_work_reassigned: "credited_work_reassigned",
 };
 
 function compareNullable(left: string | null, right: string | null) {
@@ -124,13 +93,6 @@ function isOverdueIncomplete(
   );
 }
 
-/**
- * Compares current semantics with an immutable persisted plan snapshot.
- *
- * Accepted execution changes are already represented by current work units,
- * so moved dates and valid locks are deliberately not compared with original
- * assignments. Likewise, expected completed-as-scheduled progress is fresh.
- */
 export function evaluateActivePlanStaleness({
   snapshot,
   current,
@@ -147,70 +109,6 @@ export function evaluateActivePlanStaleness({
   }
 
   const reasons: PlannerStalenessReason[] = [];
-  if (snapshot.timezone !== current.timezone) {
-    reasons.push({
-      code: "timezone_changed",
-      goalId: null,
-      unitKey: null,
-      completionId: null,
-    });
-  }
-  if (snapshot.policyFingerprint !== current.policyFingerprint) {
-    reasons.push({
-      code: "policy_changed",
-      goalId: null,
-      unitKey: null,
-      completionId: null,
-    });
-  }
-
-  const snapshotGoalIds = Object.keys(snapshot.goals).sort();
-  const currentGoalIds = Object.keys(current.goals).sort();
-  for (const goalId of snapshotGoalIds) {
-    const currentGoal = current.goals[goalId];
-    if (currentGoal === undefined) {
-      reasons.push({
-        code: "orphaned_goal",
-        goalId,
-        unitKey: null,
-        completionId: null,
-      });
-    } else if (
-      canonicalSerialize(currentGoal) !==
-      canonicalSerialize(snapshot.goals[goalId])
-    ) {
-      reasons.push({
-        code: "goal_changed",
-        goalId,
-        unitKey: null,
-        completionId: null,
-      });
-    }
-  }
-  for (const goalId of currentGoalIds) {
-    if (
-      snapshot.goals[goalId] === undefined
-    ) {
-      reasons.push({
-        code: "goal_added",
-        goalId,
-        unitKey: null,
-        completionId: null,
-      });
-    }
-  }
-
-  const plannedGoalIds = new Set(snapshotGoalIds);
-  for (const goalId of current.linkedGoalIds) {
-    if (plannedGoalIds.has(goalId)) {
-      reasons.push({
-        code: "link_changed",
-        goalId,
-        unitKey: null,
-        completionId: null,
-      });
-    }
-  }
   for (const drift of current.driftFacts) {
     reasons.push({
       code: driftReasonByType[drift.driftType],

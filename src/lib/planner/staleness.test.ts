@@ -4,37 +4,15 @@ import {
   evaluateActivePlanStaleness,
   type CurrentPlanSemanticState,
   type PersistedPlanSemanticSnapshot,
-  type PlannerGoalSemanticSnapshot,
 } from "./staleness";
 
 const fingerprintA = "a".repeat(64);
-const fingerprintB = "b".repeat(64);
-
-function semanticGoal(
-  overrides: Partial<PlannerGoalSemanticSnapshot> = {}
-): PlannerGoalSemanticSnapshot {
-  return {
-    title: "Goal A",
-    category: "fitness",
-    color: "#000000",
-    startDate: "2026-08-01",
-    endDate: "2026-08-31",
-    requirementFingerprint: fingerprintA,
-    assessmentInputHash: fingerprintA,
-    assessmentFingerprint: fingerprintA,
-    ...overrides,
-  };
-}
 
 function snapshot(
   overrides: Partial<PersistedPlanSemanticSnapshot> = {}
 ): PersistedPlanSemanticSnapshot {
   return {
-    planId: "plan-a",
     status: "active",
-    timezone: "America/New_York",
-    policyFingerprint: fingerprintA,
-    goals: { "goal-a": semanticGoal() },
     ...overrides,
   };
 }
@@ -77,10 +55,6 @@ function current(
   overrides: Partial<CurrentPlanSemanticState> = {}
 ): CurrentPlanSemanticState {
   return {
-    timezone: "America/New_York",
-    policyFingerprint: fingerprintA,
-    goals: { "goal-a": semanticGoal() },
-    linkedGoalIds: [],
     workUnits: [unit()],
     driftFacts: [],
     invalidGoalIds: [],
@@ -90,7 +64,7 @@ function current(
 }
 
 describe("active plan semantic staleness", () => {
-  it("keeps expected progress and accepted execution edits fresh", () => {
+  it("keeps stale-free plans fresh", () => {
     expect(
       evaluateActivePlanStaleness({
         snapshot: snapshot(),
@@ -99,78 +73,12 @@ describe("active plan semantic staleness", () => {
             unit({
               scheduledDate: "2026-08-12",
               locked: true,
-              classification: "fulfilled",
-              creditedCompletionId: "completion-a",
-              creditedCompletionDate: "2026-08-12",
-              creditState: "completed_as_scheduled",
+              classification: "open",
             }),
           ],
         }),
       })
     ).toEqual({ status: "fresh", stale: false, reasons: [] });
-  });
-
-  it("reports changed, added, and orphaned goal requirements", () => {
-    const result = evaluateActivePlanStaleness({
-      snapshot: snapshot({
-        goals: {
-          "goal-a": semanticGoal(),
-          "goal-removed": semanticGoal({ title: "Removed" }),
-        },
-      }),
-      current: current({
-        goals: {
-          "goal-a": semanticGoal({ assessmentFingerprint: fingerprintB }),
-          "goal-added": semanticGoal({ title: "Added" }),
-        },
-      }),
-    });
-
-    expect(result.reasons).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ code: "goal_changed", goalId: "goal-a" }),
-        expect.objectContaining({ code: "goal_added", goalId: "goal-added" }),
-        expect.objectContaining({
-          code: "orphaned_goal",
-          goalId: "goal-removed",
-        }),
-      ])
-    );
-  });
-
-  it("treats metadata-only goal edits as semantic changes", () => {
-    const result = evaluateActivePlanStaleness({
-      snapshot: snapshot(),
-      current: current({
-        goals: {
-          "goal-a": semanticGoal({
-            title: "Renamed goal",
-            color: "#ffffff",
-          }),
-        },
-      }),
-    });
-
-    expect(result.reasons).toEqual([
-      expect.objectContaining({ code: "goal_changed", goalId: "goal-a" }),
-    ]);
-  });
-
-  it("reports policy, timezone, and link semantic changes", () => {
-    const result = evaluateActivePlanStaleness({
-      snapshot: snapshot(),
-      current: current({
-        timezone: "UTC",
-        policyFingerprint: fingerprintB,
-        linkedGoalIds: ["goal-a", "unplanned-goal"],
-      }),
-    });
-
-    expect(result.reasons.map((reason) => reason.code)).toEqual([
-      "link_changed",
-      "policy_changed",
-      "timezone_changed",
-    ]);
   });
 
   it("maps completion reconciliation drift to stable reasons", () => {
@@ -260,10 +168,7 @@ describe("active plan semantic staleness", () => {
     expect(
       evaluateActivePlanStaleness({
         snapshot: snapshot({ status: "superseded" }),
-        current: current({
-          timezone: "UTC",
-          invalidGoalIds: ["goal-a"],
-        }),
+        current: current({ invalidGoalIds: ["goal-a"] }),
       })
     ).toEqual({
       status: "not_applicable",
