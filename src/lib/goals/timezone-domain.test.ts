@@ -44,9 +44,9 @@ describe("string-based progress under the process timezone matrix", () => {
     completion("2026-03-31"),
   ];
 
-  it("keeps monthly progress invariant across gap-day periods", () => {
+  it("keeps monthly progress invariant across calendar-month periods", () => {
     expect(
-      getGoalProgressSnapshot(monthlyGoal, completions.slice(0, 2), "2026-03-30")
+      getGoalProgressSnapshot(monthlyGoal, completions.slice(0, 2), "2026-02-28")
     ).toMatchObject({
       creditedUnitCount: 2,
       expectedUnitCount: 2,

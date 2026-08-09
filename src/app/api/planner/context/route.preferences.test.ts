@@ -86,7 +86,6 @@ describe("planner context preferences route", () => {
         timezone,
         timezone_confirmed_at: timezoneConfirmedAt,
         week_starts_on: 1,
-        weekly_anchor_effective_on: "2026-01-05",
         rest_weekdays: [],
         blackout_ranges: [],
       },
@@ -95,7 +94,6 @@ describe("planner context preferences route", () => {
     mocks.adminProfileSelectMaybeSingle.mockResolvedValue({
       data: {
         week_starts_on: 1,
-        weekly_anchor_effective_on: "2026-01-05",
       },
       error: null,
     });

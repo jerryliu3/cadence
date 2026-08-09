@@ -27,7 +27,6 @@ export interface AnchoredPeriod {
 
 export interface WeeklyAnchorContext {
   weekStartsOn?: number | null;
-  effectiveFrom?: string | null;
 }
 
 function parseCivilDate(value: string): CivilDate {
@@ -86,44 +85,28 @@ function startOfWeekDateString(value: string, weekStartsOn: number) {
   return addDaysToDateString(value, -offset);
 }
 
-function parseWeeklyAnchorMeta(
-  anchorDate: string,
-  weekly: WeeklyAnchorContext | null | undefined
-) {
-  if (!weekly?.effectiveFrom) {
-    return null;
-  }
-  const weekStartsOn = normalizeWeekStartsOn(weekly.weekStartsOn);
-  const effectiveFrom = getNextWeekStartOnOrAfter(
-    weekly.effectiveFrom,
-    weekStartsOn
-  );
-  const dayBeforeCutover = addDaysToDateString(effectiveFrom, -1);
-  const lastLegacyIndex =
-    compareDateStrings(dayBeforeCutover, anchorDate) < 0
-      ? -1
-      : Math.floor(differenceInDateStrings(dayBeforeCutover, anchorDate) / 7);
-  return {
-    weekStartsOn,
-    effectiveFrom,
-    lastLegacyIndex,
-  };
+function monthStartDateString(value: string) {
+  const civilDate = parseCivilDate(value);
+  return formatCivilDate({
+    year: civilDate.year,
+    month: civilDate.month,
+    day: 1,
+  });
 }
 
-export function getNextWeekStartOnOrAfter(
-  date: string,
-  weekStartsOn: number
-) {
-  parseCivilDate(date);
-  const weekStart = startOfWeekDateString(date, weekStartsOn);
-  if (compareDateStrings(weekStart, date) === 0) {
-    return weekStart;
+function addMonthsToMonthStart(value: string, months: number) {
+  if (!Number.isSafeInteger(months)) {
+    throw new RangeError("months must be a safe integer.");
   }
-  return addDaysToDateString(weekStart, 7);
-}
-
-function daysInMonth(year: number, month: number) {
-  return civilDateToUtcDate({ year, month: month + 1, day: 0 }).getUTCDate();
+  const anchor = parseCivilDate(monthStartDateString(value));
+  const zeroBasedMonth = anchor.month - 1 + months;
+  const year = anchor.year + Math.floor(zeroBasedMonth / 12);
+  const month = ((zeroBasedMonth % 12) + 12) % 12 + 1;
+  return formatCivilDate({
+    year,
+    month,
+    day: 1,
+  });
 }
 
 export function compareDateStrings(left: string, right: string) {
@@ -157,32 +140,11 @@ export function getAnchoredPeriodStart(
     return addDaysToDateString(anchorDate, index);
   }
   if (interval === "weekly") {
-    const weeklyAnchorMeta = parseWeeklyAnchorMeta(
-      anchorDate,
-      weeklyAnchor ?? null
-    );
-    if (
-      weeklyAnchorMeta &&
-      index > weeklyAnchorMeta.lastLegacyIndex
-    ) {
-      return addDaysToDateString(
-        weeklyAnchorMeta.effectiveFrom,
-        (index - weeklyAnchorMeta.lastLegacyIndex - 1) * 7
-      );
-    }
-    return addDaysToDateString(anchorDate, index * 7);
+    const weekStartsOn = normalizeWeekStartsOn(weeklyAnchor?.weekStartsOn);
+    const anchorWeekStart = startOfWeekDateString(anchorDate, weekStartsOn);
+    return addDaysToDateString(anchorWeekStart, index * 7);
   }
-
-  const anchor = parseCivilDate(anchorDate);
-  const zeroBasedMonth = anchor.month - 1 + index;
-  const year = anchor.year + Math.floor(zeroBasedMonth / 12);
-  const month = ((zeroBasedMonth % 12) + 12) % 12 + 1;
-
-  return formatCivilDate({
-    year,
-    month,
-    day: Math.min(anchor.day, daysInMonth(year, month)),
-  });
+  return addMonthsToMonthStart(monthStartDateString(anchorDate), index);
 }
 
 export function getAnchoredPeriod(
@@ -193,68 +155,29 @@ export function getAnchoredPeriod(
 ): AnchoredPeriod {
   parseCivilDate(anchorDate);
   parseCivilDate(referenceDate);
-  const weeklyAnchorMeta =
-    interval === "weekly"
-      ? parseWeeklyAnchorMeta(anchorDate, weeklyAnchor ?? null)
-      : null;
 
   let index = 0;
   if (compareDateStrings(referenceDate, anchorDate) >= 0) {
     if (interval === "daily") {
       index = differenceInDateStrings(referenceDate, anchorDate);
     } else if (interval === "weekly") {
-      if (
-        weeklyAnchorMeta &&
-        compareDateStrings(referenceDate, weeklyAnchorMeta.effectiveFrom) >= 0
-      ) {
-        const alignedStart = startOfWeekDateString(
-          referenceDate,
-          weeklyAnchorMeta.weekStartsOn
-        );
-        const boundedStart =
-          compareDateStrings(alignedStart, weeklyAnchorMeta.effectiveFrom) < 0
-            ? weeklyAnchorMeta.effectiveFrom
-            : alignedStart;
-        index =
-          weeklyAnchorMeta.lastLegacyIndex +
-          1 +
-          Math.floor(
-            differenceInDateStrings(
-              boundedStart,
-              weeklyAnchorMeta.effectiveFrom
-            ) / 7
-          );
-      } else {
-        index = Math.floor(
-          differenceInDateStrings(referenceDate, anchorDate) / 7
-        );
-      }
+      const weekStartsOn = normalizeWeekStartsOn(weeklyAnchor?.weekStartsOn);
+      const anchorWeekStart = startOfWeekDateString(anchorDate, weekStartsOn);
+      const referenceWeekStart = startOfWeekDateString(
+        referenceDate,
+        weekStartsOn
+      );
+      index = Math.floor(
+        differenceInDateStrings(referenceWeekStart, anchorWeekStart) / 7
+      );
     } else {
-      const anchor = parseCivilDate(anchorDate);
-      const reference = parseCivilDate(referenceDate);
+      const anchorMonth = parseCivilDate(monthStartDateString(anchorDate));
+      const referenceMonth = parseCivilDate(monthStartDateString(referenceDate));
       index = Math.max(
         0,
-        (reference.year - anchor.year) * 12 +
-          (reference.month - anchor.month)
+        (referenceMonth.year - anchorMonth.year) * 12 +
+          (referenceMonth.month - anchorMonth.month)
       );
-
-      while (
-        index > 0 &&
-        compareDateStrings(
-          getAnchoredPeriodStart(anchorDate, interval, index, weeklyAnchor),
-          referenceDate
-        ) > 0
-      ) {
-        index -= 1;
-      }
-      while (
-        compareDateStrings(
-          getAnchoredPeriodStart(anchorDate, interval, index + 1, weeklyAnchor),
-          referenceDate
-        ) <= 0
-      ) {
-        index += 1;
-      }
     }
   }
 

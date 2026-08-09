@@ -71,7 +71,7 @@ describe("completion admissibility", () => {
     ).toBe(2);
   });
 
-  it("uses weekly cutover anchor for expected cadence period denominator", () => {
+  it("uses profile week starts for the expected weekly period denominator", () => {
     const goal = buildGoal({
       start_date: "2026-08-06",
     });
@@ -80,19 +80,18 @@ describe("completion admissibility", () => {
       getExpectedCadencePeriodCount(goal, {
         asOfDate: "2026-08-18",
       })
-    ).toBe(2);
+    ).toBe(3);
     expect(
       getExpectedCadencePeriodCount(goal, {
         asOfDate: "2026-08-18",
         weeklyAnchor: {
-          weekStartsOn: 1,
-          effectiveFrom: "2026-08-17",
+          weekStartsOn: 4,
         },
       })
-    ).toBe(3);
+    ).toBe(2);
   });
 
-  it("dedupes cadence credits against cutover-adjusted weekly period keys", () => {
+  it("dedupes cadence credits against profile-week weekly period keys", () => {
     const goal = buildGoal({
       start_date: "2026-08-06",
     });
@@ -102,16 +101,15 @@ describe("completion admissibility", () => {
       getCreditedUnitCount(goal, facts, {
         asOfDate: "2026-08-20",
       })
-    ).toBe(1);
+    ).toBe(2);
     expect(
       getCreditedUnitCount(goal, facts, {
         asOfDate: "2026-08-20",
         weeklyAnchor: {
-          weekStartsOn: 1,
-          effectiveFrom: "2026-08-17",
+          weekStartsOn: 4,
         },
       })
-    ).toBe(2);
+    ).toBe(1);
   });
 
   it("credits targeted totals by exact admissible dates", () => {
