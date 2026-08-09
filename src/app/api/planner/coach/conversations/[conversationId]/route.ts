@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import {
-  coachConversationMessageSchema,
-  coachConversationProposalSchema,
-  coachConversationSummarySchema,
+  coachConversationMessageTableRowSchema,
+  coachConversationSummaryTableRowSchema,
+  mapCoachConversationMessageRow,
+  mapCoachConversationSummaryRow,
 } from "@/lib/planner/coach-conversations";
 import {
   createCorrelationId,
@@ -21,40 +22,6 @@ const routeParamsSchema = z
     conversationId: z.uuid(),
   })
   .strict();
-
-const conversationMessageRowSchema = z
-  .object({
-    ordinal: z.number().int(),
-    role: z.enum(["user", "assistant"]),
-    content: z.string(),
-    created_at: z.string(),
-    proposal_meta: z.unknown().nullable().optional(),
-  })
-  .strict();
-
-const conversationSummaryRowSchema = z
-  .object({
-    id: z.uuid(),
-    scope_month: z.string(),
-    timezone: z.string(),
-    title: z.string(),
-    preview_text: z.string(),
-    message_count: z.number().int(),
-    created_at: z.string(),
-    updated_at: z.string(),
-  })
-  .strict();
-
-function parseProposalMeta(raw: unknown) {
-  if (raw === null || raw === undefined) {
-    return null;
-  }
-  const parsed = coachConversationProposalSchema.safeParse(raw);
-  if (!parsed.success) {
-    return null;
-  }
-  return parsed.data;
-}
 
 export async function GET(
   _request: Request,
@@ -101,9 +68,11 @@ export async function GET(
         "The requested coach conversation was not found."
       );
     }
-    const summaryRow = conversationSummaryRowSchema.parse(conversationResponse.data);
+    const summaryRow = coachConversationSummaryTableRowSchema.parse(
+      conversationResponse.data
+    );
     const rows = z
-      .array(conversationMessageRowSchema)
+      .array(coachConversationMessageTableRowSchema)
       .parse(messageResponse.data ?? []);
     if (rows.length === 0) {
       throw new PlannerRouteError(
@@ -112,30 +81,8 @@ export async function GET(
         "The requested coach conversation was not found."
       );
     }
-    const conversation = coachConversationSummarySchema.parse({
-      id: summaryRow.id,
-      scopeMonth: summaryRow.scope_month,
-      timezone: summaryRow.timezone,
-      title: summaryRow.title,
-      previewText: summaryRow.preview_text,
-      messageCount: summaryRow.message_count,
-      createdAt: summaryRow.created_at,
-      updatedAt: summaryRow.updated_at,
-    });
-    const messages = rows.map((row, index) => {
-      const parsedProposal =
-        row.role === "assistant"
-          ? parseProposalMeta(row.proposal_meta)
-          : null;
-      return coachConversationMessageSchema.parse({
-        role: row.role,
-        content: row.content,
-        createdAt: Number.isFinite(Date.parse(row.created_at))
-          ? Date.parse(row.created_at)
-          : Date.now() + index,
-        proposal: parsedProposal ?? undefined,
-      });
-    });
+    const conversation = mapCoachConversationSummaryRow(summaryRow);
+    const messages = rows.map(mapCoachConversationMessageRow);
 
     return NextResponse.json(
       {

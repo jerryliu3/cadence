@@ -2,8 +2,9 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import {
   coachConversationListQuerySchema,
+  coachConversationSummaryTableRowSchema,
   coachConversationSaveRequestSchema,
-  coachConversationSummarySchema,
+  mapCoachConversationSummaryRow,
 } from "@/lib/planner/coach-conversations";
 import {
   createCorrelationId,
@@ -17,34 +18,6 @@ import { MAX_API_BODY_BYTES } from "@/lib/planner/contracts/bounds";
 import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
-
-const conversationSummaryTableRowSchema = z
-  .object({
-    id: z.uuid(),
-    scope_month: z.string(),
-    timezone: z.string(),
-    title: z.string(),
-    preview_text: z.string(),
-    message_count: z.number().int(),
-    created_at: z.string(),
-    updated_at: z.string(),
-  })
-  .strict();
-
-function mapTableSummaryRow(
-  row: z.infer<typeof conversationSummaryTableRowSchema>
-) {
-  return coachConversationSummarySchema.parse({
-    id: row.id,
-    scopeMonth: row.scope_month,
-    timezone: row.timezone,
-    title: row.title,
-    previewText: row.preview_text,
-    messageCount: row.message_count,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
-  });
-}
 
 type CoachConversationSaveBody = z.infer<typeof coachConversationSaveRequestSchema>;
 
@@ -119,9 +92,9 @@ export async function GET(request: Request) {
       );
     }
     const rows = z
-      .array(conversationSummaryTableRowSchema)
+      .array(coachConversationSummaryTableRowSchema)
       .parse(listResponse.data ?? []);
-    const conversations = rows.map(mapTableSummaryRow);
+    const conversations = rows.map(mapCoachConversationSummaryRow);
     return NextResponse.json(
       {
         schemaVersion: "1",
@@ -188,8 +161,8 @@ export async function POST(request: Request) {
       );
     }
 
-    const summary = conversationSummaryTableRowSchema.parse(conversationRow);
-    const conversation = mapTableSummaryRow(summary);
+    const summary = coachConversationSummaryTableRowSchema.parse(conversationRow);
+    const conversation = mapCoachConversationSummaryRow(summary);
     return NextResponse.json(
       {
         schemaVersion: "1",
