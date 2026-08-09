@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  getCompletionsForCurrentPeriod,
   isGoalDoneForCurrentPeriod,
   isGoalManuallyArchived,
 } from "@/lib/goals/schedule";
@@ -61,6 +62,43 @@ describe("goal schedule semantics", () => {
     });
 
     expect(isGoalDoneForCurrentPeriod(goal, [completion("2026-05-09")], referenceDate)).toBe(false);
+  });
+
+  it("uses cutover-aligned weekly windows for checklist and done-state checks", () => {
+    const goal = buildGoal({
+      frequency_type: "recurring",
+      recurrence_interval: "weekly",
+      start_date: "2026-08-06",
+    });
+    const completions = [completion("2026-08-16"), completion("2026-08-18")];
+    const referenceDate = new Date("2026-08-18T12:00:00.000Z");
+
+    expect(
+      getCompletionsForCurrentPeriod(goal, completions, referenceDate).map(
+        (entry) => entry.completed_on
+      )
+    ).toEqual(["2026-08-16", "2026-08-18"]);
+    expect(isGoalDoneForCurrentPeriod(goal, [completion("2026-08-16")], referenceDate)).toBe(true);
+
+    const weeklyAnchor = {
+      weekStartsOn: 1,
+      effectiveFrom: "2026-08-17",
+    };
+    expect(
+      getCompletionsForCurrentPeriod(goal, completions, referenceDate, {
+        weeklyAnchor,
+      }).map((entry) => entry.completed_on)
+    ).toEqual(["2026-08-18"]);
+    expect(
+      isGoalDoneForCurrentPeriod(goal, [completion("2026-08-16")], referenceDate, {
+        weeklyAnchor,
+      })
+    ).toBe(false);
+    expect(
+      isGoalDoneForCurrentPeriod(goal, [completion("2026-08-18")], referenceDate, {
+        weeklyAnchor,
+      })
+    ).toBe(true);
   });
 
   it("anchors monthly recurring periods to start day-of-month", () => {

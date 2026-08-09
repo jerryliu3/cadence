@@ -2,6 +2,7 @@ import type { Completion, Goal } from "@/lib/goals/types";
 import {
   isCompletionAdmissible,
 } from "@/lib/goals/admissible";
+import { normalizeWeekStartsOn } from "@/lib/dates/week-start";
 import { compareCanonicalStrings } from "@/lib/planner/canonical";
 import {
   createDefaultAssessment,
@@ -403,6 +404,10 @@ export function runPlannerKernel(
     plannerPolicySchema.parse(rawInput.policy)
   );
   const policy = compiledPolicy.policy;
+  const weeklyAnchorContext = {
+    weekStartsOn: normalizeWeekStartsOn(policy.weekStartsOn),
+    effectiveFrom: policy.weeklyAnchorEffectiveOn ?? null,
+  };
   const scopeState = getScopeState(rawInput.scopeMonth, rawInput.asOfDate);
   if (policy.timezone !== rawInput.timezone) {
     throw new PlannerError(
@@ -562,6 +567,7 @@ export function runPlannerKernel(
       asOfDate: rawInput.asOfDate,
       baseAssignments,
       ordinalsForScopeMonth: reconcileAcrossAllOrdinals,
+      weeklyAnchor: weeklyAnchorContext,
     });
     const reconciled = reconcilePlannerCompletions({
       goal,
@@ -659,6 +665,7 @@ export function runPlannerKernel(
       !goal ||
       !isCompletionAdmissible(goal, completion.completed_on, {
         asOfDate: rawInput.asOfDate,
+        weeklyAnchor: weeklyAnchorContext,
       })
     ) {
       continue;

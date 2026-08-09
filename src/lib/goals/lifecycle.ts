@@ -50,6 +50,7 @@ export function getGoalOutcome(
       compareDateStrings(archivedOn, context.asOfDate) < 0
         ? archivedOn
         : context.asOfDate,
+    weeklyAnchor: context.weeklyAnchor ?? null,
   };
   const requirement = getGoalRequirement(goal);
   const creditedUnits = getCreditedUnitCount(
@@ -67,6 +68,7 @@ export function getGoalOutcome(
     }
     const expectedUnits = getExpectedCadencePeriodCount(goal, {
       asOfDate: goal.end_date ?? context.asOfDate,
+      weeklyAnchor: context.weeklyAnchor ?? null,
     });
     return creditedUnits >= expectedUnits
       ? "achieved"

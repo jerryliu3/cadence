@@ -6,16 +6,11 @@ import {
   parse,
   startOfMonth,
 } from "date-fns";
+import { normalizeWeekStartsOn } from "@/lib/dates/week-start";
 
 export interface MonthCell {
   date: string;
   inMonth: boolean;
-}
-
-function normalizeWeekStartsOn(weekStartsOn: number) {
-  return Number.isInteger(weekStartsOn) && weekStartsOn >= 0 && weekStartsOn <= 6
-    ? weekStartsOn
-    : 1;
 }
 
 function parseMonth(month: string) {
