@@ -17,9 +17,6 @@ export type GoalRequirement =
   | {
       kind: "deadline_total";
       targetCount: number;
-      // Target-total progress is always exact-date. The legacy interval is
-      // preserved only as soft-spacing metadata; it never creates buckets.
-      spacingHint: RecurrenceInterval;
       maxPerDay: 1;
     };
 
@@ -60,7 +57,6 @@ export function getGoalRequirement(goal: Goal): GoalRequirement {
     return {
       kind: "deadline_total",
       targetCount: positiveTarget(goal),
-      spacingHint: interval,
       maxPerDay: 1,
     };
   }

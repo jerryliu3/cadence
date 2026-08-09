@@ -46,7 +46,6 @@ describe("legacy goal requirement mapping", () => {
     expect(getGoalRequirement(goal)).toEqual({
       kind: "deadline_total",
       targetCount: 12,
-      spacingHint: "weekly",
       maxPerDay: 1,
     });
   });
