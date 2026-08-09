@@ -9,6 +9,7 @@ export interface Goal {
   title: string;
   description: string | null;
   category: string;
+  category_key?: string;
   color: string | null;
   frequency_type: GoalFrequencyType;
   recurrence_interval: RecurrenceInterval | null;
