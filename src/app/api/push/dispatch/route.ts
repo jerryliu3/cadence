@@ -3,8 +3,6 @@ import webpush from "web-push";
 import { getLocalScheduleSlot } from "@/lib/push/schedule";
 import { createAdminClient } from "@/lib/supabase/admin";
 
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
 
 interface NotificationSchedule {
   id: string;

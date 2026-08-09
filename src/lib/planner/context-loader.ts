@@ -72,7 +72,6 @@ export interface PlannerActiveItemRow {
     | "satisfied_elsewhere";
   credit_state: "uncredited" | "completed_as_scheduled" | "completed_elsewhere";
   locked: boolean;
-  revision: number;
   credited_completion_id: string | null;
   credited_completion_date: string | null;
   scheduled_time_override: string | null;
@@ -83,9 +82,7 @@ export interface ActiveExecutionPlanSnapshot {
   plan: PlannerActivePlanRow;
   policy: PlannerPolicy;
   goals: PlannerActiveGoalRow[];
-  days: Array<{ date: string }>;
   items: PlannerActiveItemRow[];
-  issues: Array<{ issue_code: PlannerIssueCode }>;
   basePlan: {
     planId: string;
     version: number;
@@ -411,7 +408,6 @@ async function loadActivePlanSnapshot(
       classification: completion ? "fulfilled" : "open",
       credit_state: creditState,
       locked: item.locked,
-      revision: 0,
       credited_completion_id: completion?.id ?? null,
       credited_completion_date: completion?.completed_on ?? null,
       scheduled_time_override: item.scheduled_time,
@@ -454,9 +450,7 @@ async function loadActivePlanSnapshot(
     goals: Array.from(activeGoalByGoalId.values()).sort(
       (left, right) => left.original_goal_id.localeCompare(right.original_goal_id)
     ),
-    days: [],
     items,
-    issues: [],
     basePlan: {
       planId,
       version: 1,

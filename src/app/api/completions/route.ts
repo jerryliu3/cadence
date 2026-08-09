@@ -11,7 +11,6 @@ import {
 } from "@/lib/planner/exact-date-dispatch";
 import { createClient } from "@/lib/supabase/server";
 
-export const runtime = "nodejs";
 
 const MAX_REQUEST_BYTES = 16 * 1024;
 

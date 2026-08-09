@@ -133,7 +133,6 @@ export interface PlannerActiveItemSnapshot {
   classification: string;
   credit_state: string;
   locked: boolean;
-  revision: number;
   credited_completion_id: string | null;
   credited_completion_date: string | null;
   scheduled_time_override?: string | null;

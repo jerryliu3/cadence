@@ -68,7 +68,6 @@ describe("pure planner kernel", () => {
       "total:2",
       "total:3",
     ]);
-    expect(first.validation.valid).toBe(true);
   });
 
   it("does not inflate planned ordinal totals when toggling months", () => {
@@ -187,7 +186,23 @@ describe("pure planner kernel", () => {
         scheduledDate: unit.scheduledDate,
         locked: unit.locked,
       })),
-      completionToUnit: augustPublished.completionToUnit,
+      completionToUnit: Object.fromEntries(
+        augustPublished.workUnits.flatMap((unit) =>
+          unit.creditedCompletionId && unit.creditedCompletionDate
+            ? [
+                [
+                  unit.creditedCompletionId,
+                  {
+                    goalId: unit.originalGoalId,
+                    requirementFingerprint: unit.requirementFingerprint,
+                    unitKey: unit.unitKey,
+                    completedOn: unit.creditedCompletionDate,
+                  },
+                ] as const,
+              ]
+            : []
+        )
+      ),
       issueCodes: augustPublished.solver.issueCodes,
     };
     const monthOutputs = [
@@ -591,15 +606,11 @@ describe("pure planner kernel", () => {
 
     expect(output.solver.issueCodes).toEqual(["invalid_lock"]);
     expect(output.solver.publishable).toBe(false);
-    expect(output.validation.valid).toBe(false);
     expect(output.workUnits.map((unit) => unit.scheduledDate)).toEqual([
       "2026-08-10",
       "2026-08-05",
     ]);
     expect(output.diff.some((entry) => entry.kind === "moved")).toBe(false);
-    expect(output.suggestedRelaxations).toContain(
-      "Unlock the conflicting item before regenerating."
-    );
   });
 
   it("emits a usable unaffected-goal diff beside an invalid lock", () => {
@@ -697,7 +708,6 @@ describe("pure planner kernel", () => {
       "2026-08-05",
       "2026-08-06",
     ]);
-    expect(output.validation.valid).toBe(true);
   });
 
   it("reserves canonical completion dates without a prior schedule", () => {
@@ -721,7 +731,6 @@ describe("pure planner kernel", () => {
       null,
       "2026-08-06",
     ]);
-    expect(output.validation.valid).toBe(true);
   });
 
   it("recomputes effective local timestamps after solver date changes", () => {
@@ -881,7 +890,6 @@ describe("pure planner kernel", () => {
       ["total:1", "open", "2026-08-06"],
       ["total:2", "fulfilled", "2026-08-05"],
     ]);
-    expect(output.validation.valid).toBe(true);
   });
 
   it("rejects excessive target counts before allocating work units", () => {

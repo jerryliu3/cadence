@@ -234,20 +234,8 @@ export const plannerKernelOutputSchema = z
     schemaVersion: z.literal(PLANNER_CONTRACT_VERSION),
     eligibilityMode: eligibilityModeSchema,
     generationInputHash: z.string().regex(/^[a-f0-9]{64}$/),
-    scopeState: z.enum(["historical", "current", "future"]),
     solver: solverResultSchema,
     workUnits: z.array(workUnitSchema),
-    completionToUnit: z.record(
-      z.string(),
-      z
-        .object({
-          goalId: z.string().min(1).max(100),
-          requirementFingerprint: z.string().regex(/^[a-f0-9]{64}$/),
-          unitKey: z.string().min(1).max(100),
-          completedOn: dateSchema,
-        })
-        .strict()
-    ),
     driftFacts: z.array(
       z
         .object({
@@ -306,13 +294,6 @@ export const plannerKernelOutputSchema = z
         })
         .strict()
     ),
-    validation: z
-      .object({
-        valid: z.boolean(),
-        invariantViolations: z.array(z.string()),
-      })
-      .strict(),
-    suggestedRelaxations: z.array(z.string()),
     horizonSummary: z.array(goalHorizonSummarySchema),
   })
   .strict();

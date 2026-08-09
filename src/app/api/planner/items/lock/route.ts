@@ -12,7 +12,6 @@ import { MAX_API_BODY_BYTES } from "@/lib/planner/contracts/bounds";
 import { postgresErrorMatches } from "@/lib/planner/postgres-errors";
 import { createClient } from "@/lib/supabase/server";
 
-export const runtime = "nodejs";
 
 const lockSchema = z.object({
   itemId: z.string().uuid(),

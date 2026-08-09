@@ -16,7 +16,6 @@ import {
 import { MAX_API_BODY_BYTES } from "@/lib/planner/contracts/bounds";
 import { createClient } from "@/lib/supabase/server";
 
-export const runtime = "nodejs";
 
 const conversationSummaryTableRowSchema = z
   .object({

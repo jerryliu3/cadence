@@ -29,7 +29,6 @@ import { normalizeGoalRequirement } from "@/lib/planner/requirements";
 import { evaluateActivePlanStaleness } from "@/lib/planner/staleness";
 import { createClient } from "@/lib/supabase/server";
 
-export const runtime = "nodejs";
 
 const contextQuerySchema = z.object({
   scopeMonth: z

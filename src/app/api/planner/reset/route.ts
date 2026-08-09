@@ -13,7 +13,6 @@ import { postgresErrorMatches } from "@/lib/planner/postgres-errors";
 import { toScopeMonthDate } from "@/lib/planner/scope-month";
 import { createClient } from "@/lib/supabase/server";
 
-export const runtime = "nodejs";
 
 const clearScheduleSchema = z.object({
   scopeMonth: z

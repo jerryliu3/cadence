@@ -30,7 +30,6 @@ import { plannerPolicySchema } from "@/lib/planner/policy";
 import type { Json } from "@/lib/supabase/database.types";
 import { createClient } from "@/lib/supabase/server";
 
-export const runtime = "nodejs";
 
 const publishSchema = z.object({
   scopeMonth: z

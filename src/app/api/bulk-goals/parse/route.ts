@@ -11,7 +11,6 @@ import {
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
-export const runtime = "nodejs";
 
 const MAX_GOALS_PER_REQUEST = 50;
 const MAX_REQUEST_BYTES = 32 * 1024;

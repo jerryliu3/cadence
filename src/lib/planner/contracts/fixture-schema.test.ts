@@ -1,8 +1,4 @@
 import { describe, expect, it } from "vitest";
-import {
-  MAX_WORK_UNITS,
-  getSoftRefinementOperationBudget,
-} from "./bounds";
 import { plannerContractFixtureSchema } from "./fixture-schema";
 import completionDispatch from "../../../../test/fixtures/planner-contracts/completion-dispatch.v1.json";
 import eligibility from "../../../../test/fixtures/planner-contracts/eligibility.v1.json";
@@ -167,13 +163,4 @@ describe("planner contract fixtures", () => {
     }
   });
 
-});
-
-describe("planner bounds contract", () => {
-  it("caps deterministic soft refinement operations", () => {
-    expect(getSoftRefinementOperationBudget(0)).toBe(500);
-    expect(getSoftRefinementOperationBudget(100)).toBe(2_500);
-    expect(getSoftRefinementOperationBudget(MAX_WORK_UNITS)).toBe(25_000);
-    expect(() => getSoftRefinementOperationBudget(-1)).toThrow(RangeError);
-  });
 });

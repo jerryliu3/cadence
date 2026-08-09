@@ -14,7 +14,6 @@ import {
 } from "@/lib/planner/api";
 import { createClient } from "@/lib/supabase/server";
 
-export const runtime = "nodejs";
 
 const routeParamsSchema = z
   .object({

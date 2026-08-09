@@ -112,10 +112,8 @@ export interface PlannerKernelOutput {
   schemaVersion: typeof PLANNER_CONTRACT_VERSION;
   eligibilityMode: PlannerEligibilityMode;
   generationInputHash: string;
-  scopeState: "historical" | "current" | "future";
   solver: PlannerSolverResult;
   workUnits: PlannerWorkUnit[];
-  completionToUnit: Record<string, PlannerCompletionUnitIdentity>;
   driftFacts: ReturnType<
     typeof reconcilePlannerCompletions
   >["driftFacts"];
@@ -125,8 +123,6 @@ export interface PlannerKernelOutput {
     reason: EligibilityReason;
   }>;
   diff: ReturnType<typeof diffPlannerAssignments>;
-  validation: ReturnType<typeof validateSolverResult>;
-  suggestedRelaxations: string[];
   horizonSummary: PlannerGoalHorizonSummary[];
 }
 
@@ -361,22 +357,6 @@ function throwBounds(
       { dimension, actual, maximum }
     );
   }
-}
-
-function suggestedRelaxations(issueCodes: PlannerIssueCode[]) {
-  const suggestions = new Set<string>();
-  if (issueCodes.includes("placement_shortfall")) {
-    suggestions.add("Reduce rest weekdays or blackout dates.");
-    suggestions.add("Allow more weekdays for affected goals.");
-    suggestions.add("Accept a reviewed partial plan.");
-  }
-  if (issueCodes.includes("invalid_lock")) {
-    suggestions.add("Unlock the conflicting item before regenerating.");
-  }
-  if (issueCodes.includes("soft_optimization_exhausted")) {
-    suggestions.add("Keep the hard-feasible plan or retry optimization.");
-  }
-  return Array.from(suggestions);
 }
 
 export function runPlannerKernel(
@@ -807,10 +787,8 @@ export function runPlannerKernel(
     schemaVersion: PLANNER_CONTRACT_VERSION,
     eligibilityMode: rawInput.eligibilityMode,
     generationInputHash,
-    scopeState,
     solver,
     workUnits: orderedWorkUnits,
-    completionToUnit,
     driftFacts: driftFacts.sort((left, right) => {
       const byDate = compareCanonicalStrings(
         left.completedOn,
@@ -836,8 +814,6 @@ export function runPlannerKernel(
       baseIssues: rawInput.basePlan?.issueCodes ?? [],
       nextIssues: solver.issueCodes,
     }),
-    validation,
-    suggestedRelaxations: suggestedRelaxations(solver.issueCodes),
     horizonSummary,
   };
   plannerKernelOutputSchema.parse(output);

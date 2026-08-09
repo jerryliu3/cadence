@@ -14,15 +14,3 @@ export const MAX_COMPLETION_FACTS = 20_000;
 export const MAX_POLICY_RANGES = 100;
 export const MAX_HORIZON_MONTHS = 24;
 export const MAX_API_BODY_BYTES = 3 * 1024 * 1024;
-export const SOFT_REFINEMENT_MAX_OPERATIONS = 25_000;
-
-export function getSoftRefinementOperationBudget(openUnitCount: number) {
-  if (!Number.isSafeInteger(openUnitCount) || openUnitCount < 0) {
-    throw new RangeError("openUnitCount must be a non-negative safe integer.");
-  }
-
-  return Math.min(
-    SOFT_REFINEMENT_MAX_OPERATIONS,
-    500 + 20 * openUnitCount
-  );
-}

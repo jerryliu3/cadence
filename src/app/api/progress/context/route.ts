@@ -15,7 +15,6 @@ import {
 import { isTargetedRecurringGoal } from "@/lib/planner/requirements";
 import { createClient } from "@/lib/supabase/server";
 
-export const runtime = "nodejs";
 
 const PAGE_SIZE = 1_000;
 const MAX_PROGRESS_GOALS = 1_000;

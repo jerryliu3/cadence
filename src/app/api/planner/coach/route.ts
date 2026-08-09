@@ -28,7 +28,6 @@ import {
 import { MAX_API_BODY_BYTES } from "@/lib/planner/contracts/bounds";
 import { createClient } from "@/lib/supabase/server";
 
-export const runtime = "nodejs";
 
 const MAX_RESPONSE_BYTES = 256 * 1024;
 const DEFAULT_COACH_TIMEOUT_MS = 30_000;
