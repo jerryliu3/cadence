@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { getJson } from "@/lib/api/client";
 import type {
   CalendarTab,
   PlannerContextPayload,
@@ -73,10 +72,18 @@ export function usePlannerVisibleMonthContexts({
     const timer = window.setTimeout(() => {
       void Promise.allSettled(
         visibleMonths.map(async (visibleMonth) => {
-          const payload = await getJson<PlannerContextPayload>("/api/planner/context", {
-            query: { scopeMonth: visibleMonth },
+          const query = new URLSearchParams({
+            scopeMonth: visibleMonth,
+          });
+          const response = await fetch(`/api/planner/context?${query.toString()}`, {
+            cache: "no-store",
+            credentials: "same-origin",
             signal: abortController.signal,
           });
+          if (!response.ok) {
+            throw new Error("visible_context_load_failed");
+          }
+          const payload = (await response.json()) as PlannerContextPayload;
           return [
             visibleMonth,
             {
