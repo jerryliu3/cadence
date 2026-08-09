@@ -1,12 +1,10 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import {
-  createCorrelationId,
   parseBoundedJsonBody,
-  plannerErrorResponse,
   PlannerRouteError,
   requirePlannerRouteContext,
-  unknownPlannerErrorResponse,
+  withPlannerRoute,
 } from "@/lib/planner/api";
 import { MAX_API_BODY_BYTES } from "@/lib/planner/contracts/bounds";
 import { postgresErrorMatches } from "@/lib/planner/postgres-errors";
@@ -21,8 +19,7 @@ const lockSchema = z.object({
 });
 
 export async function POST(request: Request) {
-  const correlationId = createCorrelationId();
-  try {
+  return withPlannerRoute(async ({ correlationId }) => {
     const supabase = await createClient();
     const routeContext = await requirePlannerRouteContext({
       supabase,
@@ -89,10 +86,5 @@ export async function POST(request: Request) {
       },
       { headers: { "Cache-Control": "no-store" } }
     );
-  } catch (error) {
-    if (error instanceof PlannerRouteError) {
-      return plannerErrorResponse(error, correlationId);
-    }
-    return unknownPlannerErrorResponse(correlationId);
-  }
+  });
 }

@@ -1,6 +1,10 @@
-import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import {
+  ApiRouteError,
+  requireAuthenticatedRouteContext,
+  withRoute,
+} from "@/lib/api/route";
 import { isValidIanaTimezone } from "@/lib/dates/timezone";
 import { getAnchoredPeriod } from "@/lib/goals/periods";
 import {
@@ -51,18 +55,6 @@ const querySchema = z
     "Choose a Checklist view date or an Insights fact window."
   );
 
-function errorResponse(
-  status: number,
-  code: string,
-  message: string,
-  correlationId: string
-) {
-  return NextResponse.json(
-    { code, message, correlationId },
-    { status, headers: { "Cache-Control": "no-store" } }
-  );
-}
-
 function groupCompletions(completions: Completion[]) {
   const grouped = new Map<string, Completion[]>();
   for (const completion of completions) {
@@ -103,164 +95,150 @@ function getChecklistFacts(
 }
 
 export async function GET(request: Request) {
-  const correlationId = randomUUID();
-  const supabase = await createClient();
-  const {
-    data: { user },
-    error: userError,
-  } = await supabase.auth.getUser();
+  return withRoute(async ({ correlationId }) => {
+    const supabase = await createClient();
+    const { userId } = await requireAuthenticatedRouteContext({
+      supabase,
+      unauthorizedMessage: "Sign in to view goal progress.",
+    });
 
-  if (userError || !user) {
-    return errorResponse(
-      401,
-      "authentication_required",
-      "Sign in to view goal progress.",
-      correlationId
-    );
-  }
-
-  const url = new URL(request.url);
-  const parsedQuery = querySchema.safeParse({
-    asOfDate: url.searchParams.get("asOfDate") ?? undefined,
-    timezone: url.searchParams.get("timezone") ?? undefined,
-    viewDate: url.searchParams.get("viewDate") ?? undefined,
-    factsFrom: url.searchParams.get("factsFrom") ?? undefined,
-    factsTo: url.searchParams.get("factsTo") ?? undefined,
-  });
-  if (!parsedQuery.success) {
-    return errorResponse(
-      400,
-      "validation_failed",
-      "Provide valid bounded progress dates.",
-      correlationId
-    );
-  }
-
-  const goals: Goal[] = [];
-  let lastGoalId: string | null = null;
-  for (;;) {
-    let query = supabase
-      .from("goals")
-      .select("*")
-      .eq("is_deleted", false)
-      .order("id")
-      .limit(PAGE_SIZE);
-    if (lastGoalId) {
-      query = query.gt("id", lastGoalId);
-    }
-    const response = await query;
-    if (response.error) {
-      return errorResponse(
-        500,
-        "progress_load_failed",
-        "Goal progress could not be loaded.",
-        correlationId
+    const url = new URL(request.url);
+    const parsedQuery = querySchema.safeParse({
+      asOfDate: url.searchParams.get("asOfDate") ?? undefined,
+      timezone: url.searchParams.get("timezone") ?? undefined,
+      viewDate: url.searchParams.get("viewDate") ?? undefined,
+      factsFrom: url.searchParams.get("factsFrom") ?? undefined,
+      factsTo: url.searchParams.get("factsTo") ?? undefined,
+    });
+    if (!parsedQuery.success) {
+      throw new ApiRouteError(
+        400,
+        "validation_failed",
+        "Provide valid bounded progress dates."
       );
     }
-    const page = (response.data ?? []) as Goal[];
-    goals.push(...page);
-    if (goals.length > MAX_PROGRESS_GOALS) {
-      return errorResponse(
+
+    const goals: Goal[] = [];
+    let lastGoalId: string | null = null;
+    for (;;) {
+      let query = supabase
+        .from("goals")
+        .select("*")
+        .eq("is_deleted", false)
+        .order("id")
+        .limit(PAGE_SIZE);
+      if (lastGoalId) {
+        query = query.gt("id", lastGoalId);
+      }
+      const response = await query;
+      if (response.error) {
+        throw new ApiRouteError(
+          500,
+          "progress_load_failed",
+          "Goal progress could not be loaded."
+        );
+      }
+      const page = (response.data ?? []) as Goal[];
+      goals.push(...page);
+      if (goals.length > MAX_PROGRESS_GOALS) {
+        throw new ApiRouteError(
+          413,
+          "goal_bound_exceeded",
+          "Too many goals are available for one progress context."
+        );
+      }
+      if (page.length < PAGE_SIZE) {
+        break;
+      }
+      lastGoalId = page.at(-1)?.id ?? null;
+    }
+
+    const completions: Completion[] = [];
+    let lastCompletionId: string | null = null;
+    for (;;) {
+      let query = supabase
+        .from("completions")
+        .select("*")
+        .eq("user_id", userId)
+        .order("id")
+        .limit(PAGE_SIZE);
+      if (lastCompletionId) {
+        query = query.gt("id", lastCompletionId);
+      }
+      const response = await query;
+      if (response.error) {
+        throw new ApiRouteError(
+          500,
+          "progress_load_failed",
+          "Goal progress could not be loaded."
+        );
+      }
+
+      const page = (response.data ?? []) as Completion[];
+      completions.push(...page);
+      if (completions.length > MAX_COMPLETION_FACTS) {
+        throw new ApiRouteError(
+          413,
+          "completion_bound_exceeded",
+          "Completion history exceeds the supported progress bound."
+        );
+      }
+      if (page.length < PAGE_SIZE) {
+        break;
+      }
+      lastCompletionId = page.at(-1)?.id ?? null;
+    }
+
+    const completionsByGoal = groupCompletions(completions);
+    const summaries: GoalProgressSnapshot[] = goals.map((goal) =>
+      getGoalProgressSnapshot(
+        goal,
+        completionsByGoal.get(goal.id) ?? [],
+        parsedQuery.data.asOfDate
+      )
+    );
+
+    let facts: Completion[] = [];
+    if (parsedQuery.data.viewDate) {
+      facts = getChecklistFacts(
+        goals,
+        completionsByGoal,
+        parsedQuery.data.viewDate
+      );
+    } else if (parsedQuery.data.factsFrom && parsedQuery.data.factsTo) {
+      facts = completions.filter(
+        (completion) =>
+          completion.completed_on >= parsedQuery.data.factsFrom! &&
+          completion.completed_on <= parsedQuery.data.factsTo!
+      );
+    }
+
+    const responsePayload = {
+      schemaVersion: "1",
+      asOfDate: parsedQuery.data.asOfDate,
+      timezone: parsedQuery.data.timezone,
+      summaries,
+      facts: facts.map(({ goal_id, completed_on, source }) => ({
+        goal_id,
+        completed_on,
+        source,
+      })),
+      truncated: false,
+      correlationId,
+    } as const;
+    if (
+      Buffer.byteLength(JSON.stringify(responsePayload), "utf8") >
+      MAX_API_BODY_BYTES
+    ) {
+      throw new ApiRouteError(
         413,
-        "goal_bound_exceeded",
-        "Too many goals are available for one progress context.",
-        correlationId
-      );
-    }
-    if (page.length < PAGE_SIZE) {
-      break;
-    }
-    lastGoalId = page.at(-1)?.id ?? null;
-  }
-
-  const completions: Completion[] = [];
-  let lastCompletionId: string | null = null;
-  for (;;) {
-    let query = supabase
-      .from("completions")
-      .select("*")
-      .eq("user_id", user.id)
-      .order("id")
-      .limit(PAGE_SIZE);
-    if (lastCompletionId) {
-      query = query.gt("id", lastCompletionId);
-    }
-    const response = await query;
-    if (response.error) {
-      return errorResponse(
-        500,
-        "progress_load_failed",
-        "Goal progress could not be loaded.",
-        correlationId
+        "response_bound_exceeded",
+        "The requested progress context is too large."
       );
     }
 
-    const page = (response.data ?? []) as Completion[];
-    completions.push(...page);
-    if (completions.length > MAX_COMPLETION_FACTS) {
-      return errorResponse(
-        413,
-        "completion_bound_exceeded",
-        "Completion history exceeds the supported progress bound.",
-        correlationId
-      );
-    }
-    if (page.length < PAGE_SIZE) {
-      break;
-    }
-    lastCompletionId = page.at(-1)?.id ?? null;
-  }
-
-  const completionsByGoal = groupCompletions(completions);
-  const summaries: GoalProgressSnapshot[] = goals.map((goal) =>
-    getGoalProgressSnapshot(
-      goal,
-      completionsByGoal.get(goal.id) ?? [],
-      parsedQuery.data.asOfDate
-    )
-  );
-
-  let facts: Completion[] = [];
-  if (parsedQuery.data.viewDate) {
-    facts = getChecklistFacts(
-      goals,
-      completionsByGoal,
-      parsedQuery.data.viewDate
-    );
-  } else if (parsedQuery.data.factsFrom && parsedQuery.data.factsTo) {
-    facts = completions.filter(
-      (completion) =>
-        completion.completed_on >= parsedQuery.data.factsFrom! &&
-        completion.completed_on <= parsedQuery.data.factsTo!
-    );
-  }
-
-  const responsePayload = {
-    schemaVersion: "1",
-    asOfDate: parsedQuery.data.asOfDate,
-    timezone: parsedQuery.data.timezone,
-    summaries,
-    facts: facts.map(({ goal_id, completed_on, source }) => ({
-      goal_id,
-      completed_on,
-      source,
-    })),
-    truncated: false,
-    correlationId,
-  } as const;
-  if (
-    Buffer.byteLength(JSON.stringify(responsePayload), "utf8") >
-    MAX_API_BODY_BYTES
-  ) {
-    return errorResponse(
-      413,
-      "response_bound_exceeded",
-      "The requested progress context is too large.",
-      correlationId
-    );
-  }
-
-  return NextResponse.json(responsePayload, {
-    headers: { "Cache-Control": "private, no-store" },
+    return NextResponse.json(responsePayload, {
+      headers: { "Cache-Control": "private, no-store" },
+    });
   });
 }

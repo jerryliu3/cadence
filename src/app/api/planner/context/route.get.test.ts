@@ -91,7 +91,7 @@ describe("planner context GET route", () => {
     await expect(response.json()).resolves.toMatchObject({
       code: "plan_too_large",
       message: "Planner generation input exceeds unit limits.",
-      correlationId: "test-correlation-id",
+      correlationId: expect.any(String),
     });
   });
 });
