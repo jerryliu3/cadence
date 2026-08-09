@@ -1,4 +1,5 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { AdminFeedModerationForm } from "@/features/social/admin-feed-moderation-form";
 
 export default function AdminModerationPage() {
   return (
@@ -10,7 +11,10 @@ export default function AdminModerationPage() {
         </CardDescription>
       </CardHeader>
       <CardContent className="text-sm text-muted-foreground">
-        Moderation tooling is not enabled yet.
+        <p className="mb-3">
+          Hide and unhide feed events while social feed rollout is in progress.
+        </p>
+        <AdminFeedModerationForm />
       </CardContent>
     </Card>
   );
