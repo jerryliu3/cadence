@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { normalizeWeekStartsOn } from "@/lib/dates/week-start";
 import { getDateInTimezone, isValidIanaTimezone } from "@/lib/dates/timezone";
+import { getNextWeekStartOnOrAfter } from "@/lib/goals/periods";
 import {
   parseBoundedJsonBody,
   PlannerRouteError,
@@ -488,29 +490,49 @@ export async function PUT(request: Request) {
       );
     }
 
-    const normalizedWeekStartsOn =
-      defaultPolicy.weekStartsOn !== undefined &&
-      defaultPolicy.weekStartsOn >= 0 &&
-      defaultPolicy.weekStartsOn <= 6
-        ? defaultPolicy.weekStartsOn
-        : 1;
+    const normalizedWeekStartsOn = normalizeWeekStartsOn(
+      defaultPolicy.weekStartsOn
+    );
+    const admin = requirePlannerAdminClient();
+    const currentProfileResponse = await admin
+      .from("profiles")
+      .select("week_starts_on,weekly_anchor_effective_on")
+      .eq("id", routeContext.userId)
+      .maybeSingle();
+    if (currentProfileResponse.error) {
+      throw new PlannerRouteError(
+        500,
+        "preference_load_failed",
+        "Planner preferences could not be loaded.",
+        { cause: currentProfileResponse.error.message }
+      );
+    }
+    const localToday = getDateInTimezone(new Date(), body.timezone);
+    const nextWeeklyAnchorEffectiveOn = (() => {
+      const currentEffectiveOn =
+        currentProfileResponse.data?.weekly_anchor_effective_on ?? null;
+      const currentWeekStartsOn = currentProfileResponse.data?.week_starts_on ?? null;
+      if (currentEffectiveOn === null || currentWeekStartsOn !== normalizedWeekStartsOn) {
+        return getNextWeekStartOnOrAfter(localToday, normalizedWeekStartsOn);
+      }
+      return currentEffectiveOn;
+    })();
     const normalizedRestWeekdays = Array.from(
       new Set(defaultPolicy.restWeekdays)
     ).sort((left, right) => left - right);
-
-    const admin = requirePlannerAdminClient();
     const updateResponse = await admin
       .from("profiles")
       .update({
         timezone: body.timezone,
         timezone_confirmed_at: timezoneConfirmedAt,
         week_starts_on: normalizedWeekStartsOn,
+        weekly_anchor_effective_on: nextWeeklyAnchorEffectiveOn,
         rest_weekdays: normalizedRestWeekdays,
         blackout_ranges: defaultPolicy.blackoutRanges,
       })
       .eq("id", routeContext.userId)
       .select(
-        "timezone,timezone_confirmed_at,week_starts_on,rest_weekdays,blackout_ranges"
+        "timezone,timezone_confirmed_at,week_starts_on,weekly_anchor_effective_on,rest_weekdays,blackout_ranges"
       )
       .maybeSingle();
     if (updateResponse.error) {

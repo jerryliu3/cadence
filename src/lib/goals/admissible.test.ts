@@ -3,6 +3,7 @@ import type { Completion, Goal } from "@/lib/goals/types";
 import {
   getAdmissibleCompletions,
   getCreditedUnitCount,
+  getExpectedCadencePeriodCount,
 } from "./admissible";
 
 function buildGoal(overrides: Partial<Goal> = {}): Goal {
@@ -67,6 +68,49 @@ describe("completion admissibility", () => {
 
     expect(
       getCreditedUnitCount(goal, facts, { asOfDate: "2026-08-15" })
+    ).toBe(2);
+  });
+
+  it("uses weekly cutover anchor for expected cadence period denominator", () => {
+    const goal = buildGoal({
+      start_date: "2026-08-06",
+    });
+
+    expect(
+      getExpectedCadencePeriodCount(goal, {
+        asOfDate: "2026-08-18",
+      })
+    ).toBe(2);
+    expect(
+      getExpectedCadencePeriodCount(goal, {
+        asOfDate: "2026-08-18",
+        weeklyAnchor: {
+          weekStartsOn: 1,
+          effectiveFrom: "2026-08-17",
+        },
+      })
+    ).toBe(3);
+  });
+
+  it("dedupes cadence credits against cutover-adjusted weekly period keys", () => {
+    const goal = buildGoal({
+      start_date: "2026-08-06",
+    });
+    const facts = [completion("2026-08-16"), completion("2026-08-18")];
+
+    expect(
+      getCreditedUnitCount(goal, facts, {
+        asOfDate: "2026-08-20",
+      })
+    ).toBe(1);
+    expect(
+      getCreditedUnitCount(goal, facts, {
+        asOfDate: "2026-08-20",
+        weeklyAnchor: {
+          weekStartsOn: 1,
+          effectiveFrom: "2026-08-17",
+        },
+      })
     ).toBe(2);
   });
 

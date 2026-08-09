@@ -37,6 +37,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { GoalEndMonthBadge } from "@/features/goals/goal-end-month-badge";
 import { GoalListControls } from "@/features/goals/goal-list-controls";
 import { toLocalDateString } from "@/lib/dates/day";
+import { normalizeWeekStartsOn } from "@/lib/dates/week-start";
 import { getCategoryBadgeClass } from "@/lib/goals/category";
 import { getGoalLifecycle } from "@/lib/goals/lifecycle";
 import {
@@ -422,6 +423,13 @@ export function TodayTab({
     () => progressSummaryMap(data.progress),
     [data.progress]
   );
+  const weeklyAnchor = useMemo(
+    () => ({
+      weekStartsOn: normalizeWeekStartsOn(data.progress?.weekStartsOn),
+      effectiveFrom: data.progress?.weeklyAnchorEffectiveOn ?? null,
+    }),
+    [data.progress?.weekStartsOn, data.progress?.weeklyAnchorEffectiveOn]
+  );
   // Day browsing answers "where did this goal belong on that date?" while
   // progress/outcome badges continue to show the latest known result.
   const lifecycleByGoalAtViewDate = useMemo(
@@ -601,7 +609,12 @@ export function TodayTab({
   const toggleCompletion = async (goal: Goal) => {
     const completions = completionsByGoal.get(goal.id) ?? [];
     const completedOnViewDate = hasCompletionToday(completions, viewDateObj);
-    const completionsInCurrentPeriod = getCompletionsForCurrentPeriod(goal, completions, viewDateObj);
+    const completionsInCurrentPeriod = getCompletionsForCurrentPeriod(
+      goal,
+      completions,
+      viewDateObj,
+      { weeklyAnchor }
+    );
     const completedForCurrentPeriod = completionsInCurrentPeriod.length > 0;
     const latestCompletionInCurrentPeriod = [...completionsInCurrentPeriod]
       .sort((left, right) => left.completed_on.localeCompare(right.completed_on))
@@ -888,6 +901,7 @@ export function TodayTab({
                               disabled={savingGoalId === goal.id}
                               selectedDate={viewDate}
                               referenceDate={viewDateObj}
+                              weeklyAnchor={weeklyAnchor}
                               onToggle={() => toggleCompletion(goal)}
                             />
                           )}
@@ -906,6 +920,7 @@ export function TodayTab({
                             disabled={savingGoalId === goal.id}
                             selectedDate={viewDate}
                             referenceDate={viewDateObj}
+                            weeklyAnchor={weeklyAnchor}
                             onToggle={() => toggleCompletion(goal)}
                           />
                         ))}
@@ -928,6 +943,7 @@ export function TodayTab({
                   disabled={savingGoalId === goal.id}
                   selectedDate={viewDate}
                   referenceDate={viewDateObj}
+                  weeklyAnchor={weeklyAnchor}
                   onToggle={() => toggleCompletion(goal)}
                 />
               ))}
@@ -991,6 +1007,7 @@ export function TodayTab({
                     disabled={savingGoalId === goal.id}
                     selectedDate={viewDate}
                     referenceDate={viewDateObj}
+                    weeklyAnchor={weeklyAnchor}
                     onToggle={() => toggleCompletion(goal)}
                   />
                 ))
@@ -1032,6 +1049,7 @@ export function TodayTab({
                     disabled={savingGoalId === goal.id}
                     selectedDate={viewDate}
                     referenceDate={viewDateObj}
+                    weeklyAnchor={weeklyAnchor}
                     onToggle={() => toggleCompletion(goal)}
                   />
                 ))
@@ -1074,6 +1092,7 @@ export function TodayTab({
                     archived
                     selectedDate={viewDate}
                     referenceDate={viewDateObj}
+                    weeklyAnchor={weeklyAnchor}
                     onToggle={() => undefined}
                   />
                 ))
@@ -1207,6 +1226,10 @@ interface GoalCardProps {
   imageUrl?: string;
   selectedDate: string;
   referenceDate: Date;
+  weeklyAnchor: {
+    weekStartsOn: number;
+    effectiveFrom: string | null;
+  };
   disabled?: boolean;
   archived?: boolean;
   onToggle: () => void;
@@ -1220,6 +1243,7 @@ function GoalCard({
   imageUrl,
   selectedDate,
   referenceDate,
+  weeklyAnchor,
   disabled = false,
   archived = false,
   onToggle,
@@ -1228,14 +1252,25 @@ function GoalCard({
     progress?.admissibleCompletionCount ?? completions.length;
   const displayCompletionCount = totalCompletionCount;
   const targetedRecurring = isTargetedRecurringGoal(goal);
-  const doneForCurrentPeriod = isGoalDoneForCurrentPeriod(goal, completions, referenceDate);
+  const doneForCurrentPeriod = isGoalDoneForCurrentPeriod(
+    goal,
+    completions,
+    referenceDate,
+    { weeklyAnchor }
+  );
   const doneOnSelectedDate = hasCompletionToday(completions, referenceDate);
   const currentMilestoneName = getNextMilestoneName(goal, totalCompletionCount);
   const nextRecurringStartDate =
     goal.frequency_type === "recurring" &&
     !targetedRecurring &&
     doneForCurrentPeriod
-      ? format(addDays(getGoalPeriodEndDate(goal, referenceDate), 1), "yyyy-MM-dd")
+      ? format(
+          addDays(
+            getGoalPeriodEndDate(goal, referenceDate, { weeklyAnchor }),
+            1
+          ),
+          "yyyy-MM-dd"
+        )
       : null;
   const completionSourceForSelectedDate = completions.find(
     (completion) => completion.completed_on === selectedDate

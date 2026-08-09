@@ -12,6 +12,7 @@ import {
 import {
   compareDateStrings,
   getAnchoredPeriod,
+  type WeeklyAnchorContext,
 } from "@/lib/goals/periods";
 import type { Completion, Goal } from "@/lib/goals/types";
 import {
@@ -33,12 +34,20 @@ export interface GoalProgressSnapshot {
   milestoneDates: string[];
 }
 
+interface GoalWeeklyAnchorOptions {
+  weeklyAnchor?: WeeklyAnchorContext | null;
+}
+
 export function getGoalCompletionPercentage(
   goal: Goal,
   completions: Completion[],
-  referenceDate = new Date()
+  referenceDate = new Date(),
+  options: GoalWeeklyAnchorOptions = {}
 ): number {
-  const context = { asOfDate: toLocalDateString(referenceDate) };
+  const context = {
+    asOfDate: toLocalDateString(referenceDate),
+    weeklyAnchor: options.weeklyAnchor ?? null,
+  };
   const requirement = getGoalRequirement(goal);
   const completedUnits = getCreditedUnitCount(goal, completions, context);
   const expected =
@@ -55,7 +64,8 @@ export function getGoalCompletionPercentage(
 export function getOverallCompletionPercentage(
   goals: Goal[],
   completionsByGoal: Map<string, Completion[]>,
-  referenceDate = new Date()
+  referenceDate = new Date(),
+  options: GoalWeeklyAnchorOptions = {}
 ): number {
   if (goals.length === 0) {
     return 0;
@@ -63,7 +73,10 @@ export function getOverallCompletionPercentage(
 
   const total = goals.reduce((accumulator, goal) => {
     const completions = completionsByGoal.get(goal.id) ?? [];
-    return accumulator + getGoalCompletionPercentage(goal, completions, referenceDate);
+    return (
+      accumulator +
+      getGoalCompletionPercentage(goal, completions, referenceDate, options)
+    );
   }, 0);
 
   return total / goals.length;
@@ -72,19 +85,22 @@ export function getOverallCompletionPercentage(
 export function getRecurringStreaks(
   goal: Goal,
   completions: Completion[],
-  referenceDate = new Date()
+  referenceDate = new Date(),
+  options: GoalWeeklyAnchorOptions = {}
 ): { current: number; longest: number } {
   return getRecurringStreaksAtDate(
     goal,
     completions,
-    toLocalDateString(referenceDate)
+    toLocalDateString(referenceDate),
+    options
   );
 }
 
 export function getRecurringStreaksAtDate(
   goal: Goal,
   completions: Completion[],
-  asOfDate: string
+  asOfDate: string,
+  options: GoalWeeklyAnchorOptions = {}
 ): { current: number; longest: number } {
   if (
     goal.frequency_type !== "recurring" ||
@@ -93,14 +109,21 @@ export function getRecurringStreaksAtDate(
     return { current: 0, longest: 0 };
   }
 
-  const admissible = getAdmissibleCompletions(goal, completions, { asOfDate });
+  const admissible = getAdmissibleCompletions(goal, completions, {
+    asOfDate,
+    weeklyAnchor: options.weeklyAnchor ?? null,
+  });
   const interval = goal.recurrence_interval ?? "daily";
   const uniqueIndices = Array.from(
     new Set(
       admissible.map(
         (entry) =>
-          getAnchoredPeriod(goal.start_date, interval, entry.completed_on)
-            .index
+          getAnchoredPeriod(
+            goal.start_date,
+            interval,
+            entry.completed_on,
+            options.weeklyAnchor ?? null
+          ).index
       )
     )
   ).sort((left, right) => left - right);
@@ -129,7 +152,8 @@ export function getRecurringStreaksAtDate(
   const currentPeriodIndex = getAnchoredPeriod(
     goal.start_date,
     interval,
-    boundedReference
+    boundedReference,
+    options.weeklyAnchor ?? null
   ).index;
   const lastCompleted = uniqueIndices[uniqueIndices.length - 1];
   let current = 0;
@@ -155,9 +179,10 @@ export function getRecurringStreaksAtDate(
 export function getGoalProgressSnapshot(
   goal: Goal,
   completions: Completion[],
-  asOfDate: string
+  asOfDate: string,
+  options: GoalWeeklyAnchorOptions = {}
 ): GoalProgressSnapshot {
-  const context = { asOfDate };
+  const context = { asOfDate, weeklyAnchor: options.weeklyAnchor ?? null };
   const admissible = getAdmissibleCompletions(goal, completions, context);
   const requirement = getGoalRequirement(goal);
   const creditedUnitCount = getCreditedUnitCount(goal, completions, context);
@@ -170,7 +195,7 @@ export function getGoalProgressSnapshot(
     completions,
     context
   );
-  const streaks = getRecurringStreaksAtDate(goal, completions, asOfDate);
+  const streaks = getRecurringStreaksAtDate(goal, completions, asOfDate, options);
 
   return {
     goalId: goal.id,

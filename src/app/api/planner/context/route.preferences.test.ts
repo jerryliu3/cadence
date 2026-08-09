@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   getUser: vi.fn(),
   profileMaybeSingle: vi.fn(),
+  adminProfileSelectMaybeSingle: vi.fn(),
   adminProfileUpdateMaybeSingle: vi.fn(),
   rpc: vi.fn(),
 }));
@@ -26,6 +27,11 @@ vi.mock("@/lib/supabase/server", () => ({
 vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: () => ({
     from: () => ({
+      select: () => ({
+        eq: () => ({
+          maybeSingle: mocks.adminProfileSelectMaybeSingle,
+        }),
+      }),
       update: () => ({
         eq: () => ({
           select: () => ({
@@ -80,8 +86,16 @@ describe("planner context preferences route", () => {
         timezone,
         timezone_confirmed_at: timezoneConfirmedAt,
         week_starts_on: 1,
+        weekly_anchor_effective_on: "2026-01-05",
         rest_weekdays: [],
         blackout_ranges: [],
+      },
+      error: null,
+    });
+    mocks.adminProfileSelectMaybeSingle.mockResolvedValue({
+      data: {
+        week_starts_on: 1,
+        weekly_anchor_effective_on: "2026-01-05",
       },
       error: null,
     });

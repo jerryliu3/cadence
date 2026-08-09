@@ -534,6 +534,7 @@ export type Database = {
           timezone_confirmed_at: string | null
           username: string
           week_starts_on: number
+          weekly_anchor_effective_on: string
         }
         Insert: {
           avatar_url?: string | null
@@ -546,6 +547,7 @@ export type Database = {
           timezone_confirmed_at?: string | null
           username: string
           week_starts_on?: number
+          weekly_anchor_effective_on?: string
         }
         Update: {
           avatar_url?: string | null
@@ -558,6 +560,7 @@ export type Database = {
           timezone_confirmed_at?: string | null
           username?: string
           week_starts_on?: number
+          weekly_anchor_effective_on?: string
         }
         Relationships: []
       }

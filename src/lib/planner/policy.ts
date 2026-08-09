@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { isValidIanaTimezone } from "@/lib/dates/timezone";
+import { normalizeWeekStartsOn } from "@/lib/dates/week-start";
 import { compareCanonicalStrings } from "@/lib/planner/canonical";
 import {
   dateIsInWindow,
@@ -32,6 +33,7 @@ export const plannerPolicySchema = z
       .refine(isValidIanaTimezone, "Invalid IANA timezone."),
     timezoneConfirmedAt: z.string().datetime({ offset: true }),
     weekStartsOn: weekdaySchema.optional(),
+    weeklyAnchorEffectiveOn: dateSchema.nullable().optional(),
     restWeekdays: z.array(weekdaySchema).max(7),
     blackoutRanges: z.array(dateWindowSchema).max(MAX_POLICY_RANGES),
   })
@@ -53,6 +55,7 @@ export function createDefaultPlannerPolicy(
     timezone,
     timezoneConfirmedAt,
     weekStartsOn: 1,
+    weeklyAnchorEffectiveOn: null,
     restWeekdays: [],
     blackoutRanges: [],
   });
@@ -62,13 +65,15 @@ export function compilePlannerPolicy(policy: PlannerPolicy): CompiledPolicy {
   const parsedPolicy = plannerPolicySchema.parse(policy);
   const normalizeWeekdays = (weekdays: number[]) =>
     Array.from(new Set(weekdays)).sort((left, right) => left - right);
-  const normalizeWeekStartsOn = (weekStartsOn: number | undefined) =>
-    weekStartsOn !== undefined && weekStartsOn >= 0 && weekStartsOn <= 6
-      ? weekStartsOn
-      : 1;
+  const normalizeWeeklyAnchorEffectiveOn = (
+    weeklyAnchorEffectiveOn: string | null | undefined
+  ) => (weeklyAnchorEffectiveOn ? weeklyAnchorEffectiveOn : null);
   const normalizedPolicy: PlannerPolicy = {
     ...parsedPolicy,
     weekStartsOn: normalizeWeekStartsOn(parsedPolicy.weekStartsOn),
+    weeklyAnchorEffectiveOn: normalizeWeeklyAnchorEffectiveOn(
+      parsedPolicy.weeklyAnchorEffectiveOn
+    ),
     restWeekdays: normalizeWeekdays(parsedPolicy.restWeekdays),
     blackoutRanges: [...parsedPolicy.blackoutRanges]
       .sort((left, right) => {

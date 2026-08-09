@@ -10,6 +10,8 @@ export interface ProgressContextResponse {
   schemaVersion: "1";
   asOfDate: string;
   timezone: string;
+  weekStartsOn: number;
+  weeklyAnchorEffectiveOn: string | null;
   summaries: GoalProgressSnapshot[];
   facts: CompletionDateFact[];
   truncated: false;

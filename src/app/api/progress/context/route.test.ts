@@ -43,6 +43,15 @@ class FakeQuery {
     return this;
   }
 
+  async maybeSingle() {
+    const data = this.rows
+      .filter((row) =>
+        Array.from(this.filters).every(([column, value]) => row[column] === value)
+      )
+      .at(0) ?? null;
+    return { data, error: null };
+  }
+
   then<TResult1 = unknown, TResult2 = never>(
     onfulfilled?:
       | ((value: { data: unknown[]; error: null }) => TResult1 | PromiseLike<TResult1>)
@@ -100,6 +109,13 @@ describe("bounded progress context route", () => {
   it("keyset-pages beyond the PostgREST 1000-row ceiling", async () => {
     const goalRows = [goal()];
     const completionRows = completions(1_005);
+    const profileRows = [
+      {
+        id: "11111111-1111-4111-8111-111111111111",
+        week_starts_on: 1,
+        weekly_anchor_effective_on: "2026-01-05",
+      },
+    ];
     mocks.client = {
       auth: {
         getUser: async () => ({
@@ -111,9 +127,13 @@ describe("bounded progress context route", () => {
       },
       from: (table: string) =>
         new FakeQuery(
-          (table === "goals" ? goalRows : completionRows) as unknown as Array<
-            Record<string, unknown>
-          >
+          (
+            table === "goals"
+              ? goalRows
+              : table === "completions"
+                ? completionRows
+                : profileRows
+          ) as unknown as Array<Record<string, unknown>>
         ),
     };
 
