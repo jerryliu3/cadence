@@ -1354,17 +1354,27 @@ export function CalendarSurface({
     const nextLocked = !entry.activeItem.locked;
     const mutationKey = `lock:${entry.activeItem.id}`;
     setMutationLoadingKey(mutationKey);
+    let lockUpdated = false;
     try {
       await postJson("/api/planner/items/lock", {
-          itemId: entry.activeItem.id,
-          locked: nextLocked,
-          expectedDigest,
+        itemId: entry.activeItem.id,
+        locked: nextLocked,
+        expectedDigest,
       });
-
+      lockUpdated = true;
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, "Planner lock update failed."));
+      return;
+    }
+    try {
       onPlannerMutation();
-      const refreshed = await loadContext({
-        showLoading: false,
-        toastOnError: false,
+      const refreshed = await withPlannerRefreshTimeout({
+        operation: loadContext({
+          showLoading: false,
+          toastOnError: false,
+        }),
+        timeoutMessage:
+          "Lock updated, but calendar refresh timed out. Please refresh the page.",
       });
       if (!refreshed) {
         toast.error(
@@ -1374,6 +1384,14 @@ export function CalendarSurface({
       }
       toast.success(nextLocked ? "Planner item locked." : "Planner item unlocked.");
     } catch (error) {
+      if (lockUpdated) {
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : "Lock updated, but calendar refresh failed. Please refresh the page."
+        );
+        return;
+      }
       toast.error(getApiErrorMessage(error, "Planner lock update failed."));
     } finally {
       setMutationLoadingKey(null);
@@ -1517,8 +1535,9 @@ export function CalendarSurface({
       : null;
 
     setSaveLoading(true);
+    let payload: PlannerErrorPayload & { replayed?: boolean };
     try {
-      const payload = await postJson<PlannerErrorPayload & { replayed?: boolean }>(
+      payload = await postJson<PlannerErrorPayload & { replayed?: boolean }>(
         "/api/planner/save",
         {
           scopeMonth: context.scopeMonth,
@@ -1530,14 +1549,6 @@ export function CalendarSurface({
           draftCommands: draftSaveCommands,
         }
       );
-      setDraftScopeMonth(null);
-      setDraftPolicy(null);
-      setDraftPreview(null);
-      dispatchDraftCommand({ type: "clear" });
-      onPlannerMutation();
-      await loadContext();
-      coach.actions.resetForPlannerStateReset();
-      toast.success(payload.replayed ? "Save replayed." : "Plan saved.");
     } catch (error) {
       if (isApiClientError(error) && error.code === "planner_not_publishable") {
         const issueCodes = Array.isArray(error.details?.issueCodes)
@@ -1553,6 +1564,36 @@ export function CalendarSurface({
         return;
       }
       toast.error(getApiErrorMessage(error, "Planner save failed."));
+      return;
+    }
+    try {
+      setDraftScopeMonth(null);
+      setDraftPolicy(null);
+      setDraftPreview(null);
+      dispatchDraftCommand({ type: "clear" });
+      onPlannerMutation();
+      const refreshed = await withPlannerRefreshTimeout({
+        operation: loadContext({
+          showLoading: false,
+          toastOnError: false,
+        }),
+        timeoutMessage:
+          "Plan saved, but calendar refresh timed out. Please refresh the page.",
+      });
+      if (!refreshed) {
+        toast.error(
+          "Plan saved, but calendar refresh failed. Please refresh the page."
+        );
+        return;
+      }
+      coach.actions.resetForPlannerStateReset();
+      toast.success(payload.replayed ? "Save replayed." : "Plan saved.");
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Plan saved, but calendar refresh failed. Please refresh the page."
+      );
     } finally {
       setSaveLoading(false);
     }
@@ -1573,16 +1614,38 @@ export function CalendarSurface({
         scopeMonth: context.scopeMonth,
         expectedDigest,
       });
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, "Planner month could not be reset."));
+      return;
+    }
+    try {
       setDraftScopeMonth(null);
       setDraftPolicy(null);
       setDraftPreview(null);
       dispatchDraftCommand({ type: "clear" });
       onPlannerMutation();
-      await loadContext();
+      const refreshed = await withPlannerRefreshTimeout({
+        operation: loadContext({
+          showLoading: false,
+          toastOnError: false,
+        }),
+        timeoutMessage:
+          "Plan reset, but calendar refresh timed out. Please refresh the page.",
+      });
+      if (!refreshed) {
+        toast.error(
+          "Plan reset, but calendar refresh failed. Please refresh the page."
+        );
+        return;
+      }
       coach.actions.resetForPlannerStateReset();
       toast.success("Plan reset.");
     } catch (error) {
-      toast.error(getApiErrorMessage(error, "Planner month could not be reset."));
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Plan reset, but calendar refresh failed. Please refresh the page."
+      );
     } finally {
       setResetLoading(false);
     }
