@@ -55,12 +55,6 @@ describe("planner save route", () => {
       supabase: {},
       capabilities: {
         calendarEnabled: true,
-        plannerRead: true,
-        plannerGeneration: true,
-        plannerPlanWrites: true,
-        targetedExactCompletion: true,
-        coachAi: true,
-        overlap: true,
       },
     });
     mocks.parseBoundedJsonBody.mockResolvedValue({

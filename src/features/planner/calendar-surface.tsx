@@ -1437,7 +1437,7 @@ export function CalendarSurface({
       return "unsupported";
     }
     if (dispatch.decision.route === "canonical_exact_date") {
-      return context?.capabilities.targetedExactCompletion
+      return context?.capabilities.calendarEnabled
         ? null
         : "out_of_scope_route";
     }
@@ -1628,7 +1628,7 @@ export function CalendarSurface({
   };
 
   const savePlan = async () => {
-    if (!effectivePreview || !context?.capabilities.plannerPlanWrites) {
+    if (!effectivePreview || !context?.capabilities.calendarEnabled) {
       return;
     }
     const expectedDigest = context.revisions.scheduleDigest;
@@ -1713,7 +1713,7 @@ export function CalendarSurface({
   };
 
   const resetPlan = async () => {
-    if (!context?.scopeMonth || !context.capabilities.plannerPlanWrites) {
+    if (!context?.scopeMonth || !context.capabilities.calendarEnabled) {
       return;
     }
     const expectedDigest = context.revisions.scheduleDigest;
@@ -1857,7 +1857,7 @@ export function CalendarSurface({
   const draftSaveBlocked = Boolean(
     hasDraftSession &&
       effectivePreview &&
-      context?.capabilities.plannerPlanWrites &&
+      context?.capabilities.calendarEnabled &&
       (context.scopeMonth < context.asOfDate.slice(0, 7) ||
         !effectivePreview.solver.publishable)
   );
@@ -1866,19 +1866,19 @@ export function CalendarSurface({
       ? nonPublishablePreviewMessage(effectivePreview)
       : null;
   const canMutatePlanItems = Boolean(
-    context?.capabilities.plannerPlanWrites &&
+    context?.capabilities.calendarEnabled &&
       context?.activePlan?.plan.status === "active"
   );
   const hasLockedPlanItems = Boolean(
     context?.activePlan?.items.some((item) => item.locked)
   );
   const canResetPlan = Boolean(
-    context?.capabilities.plannerPlanWrites &&
+    context?.capabilities.calendarEnabled &&
       !hasDraftSession &&
       hasLockedPlanItems
   );
   const canShowSaveAction = Boolean(
-    context?.capabilities.plannerPlanWrites && effectivePreview
+    context?.capabilities.calendarEnabled && effectivePreview
   );
   const saveButtonLabel = saveLoading ? "Saving..." : "Save plan";
   const readOnlyMonthHint =
