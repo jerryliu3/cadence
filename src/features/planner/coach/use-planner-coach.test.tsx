@@ -117,12 +117,7 @@ function buildContext(
       defaultPolicy: buildPolicy(),
     },
     capabilities: {
-      plannerRead: true,
-      plannerGeneration: true,
-      plannerPlanWrites: true,
-      targetedExactCompletion: true,
-      coachAi: true,
-      overlap: false,
+      calendarEnabled: true,
     },
     activePlan: null,
     preview: {

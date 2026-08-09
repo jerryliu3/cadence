@@ -263,7 +263,7 @@ export async function GET(request: Request) {
       assessments:
         activeAssessments.length > 0 ? activeAssessments : undefined,
       requireExplicitTimezone: false,
-      includeKernel: routeContext.capabilities.plannerGeneration,
+      includeKernel: routeContext.capabilities.calendarEnabled,
     });
 
     const currentGoals = Object.fromEntries(

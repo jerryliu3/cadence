@@ -55,7 +55,7 @@ export async function handleCompletionPost(request: Request) {
       correlationId
     );
   }
-  if (!capabilities.targetedExactCompletion) {
+  if (!capabilities.calendarEnabled) {
     return errorResponse(
       503,
       "targeted_exact_completion_disabled",
