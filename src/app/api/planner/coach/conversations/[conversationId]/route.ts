@@ -24,11 +24,11 @@ const routeParamsSchema = z
 
 const conversationMessageRowSchema = z
   .object({
-    message_ordinal: z.number().int(),
-    message_role: z.enum(["user", "assistant"]),
-    message_content: z.string(),
-    message_created_at: z.string(),
-    message_proposal_meta: z.unknown().nullable().optional(),
+    ordinal: z.number().int(),
+    role: z.enum(["user", "assistant"]),
+    content: z.string(),
+    created_at: z.string(),
+    proposal_meta: z.unknown().nullable().optional(),
   })
   .strict();
 
@@ -104,15 +104,7 @@ export async function GET(
     const summaryRow = conversationSummaryRowSchema.parse(conversationResponse.data);
     const rows = z
       .array(conversationMessageRowSchema)
-      .parse(
-        (messageResponse.data ?? []).map((row) => ({
-          message_ordinal: row.ordinal,
-          message_role: row.role,
-          message_content: row.content,
-          message_created_at: row.created_at,
-          message_proposal_meta: row.proposal_meta,
-        }))
-      );
+      .parse(messageResponse.data ?? []);
     if (rows.length === 0) {
       throw new PlannerRouteError(
         404,
@@ -132,14 +124,14 @@ export async function GET(
     });
     const messages = rows.map((row, index) => {
       const parsedProposal =
-        row.message_role === "assistant"
-          ? parseProposalMeta(row.message_proposal_meta)
+        row.role === "assistant"
+          ? parseProposalMeta(row.proposal_meta)
           : null;
       return coachConversationMessageSchema.parse({
-        role: row.message_role,
-        content: row.message_content,
-        createdAt: Number.isFinite(Date.parse(row.message_created_at))
-          ? Date.parse(row.message_created_at)
+        role: row.role,
+        content: row.content,
+        createdAt: Number.isFinite(Date.parse(row.created_at))
+          ? Date.parse(row.created_at)
           : Date.now() + index,
         proposal: parsedProposal ?? undefined,
       });
