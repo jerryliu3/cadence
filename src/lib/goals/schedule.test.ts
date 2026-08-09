@@ -42,7 +42,7 @@ function completion(date: string): Completion {
 }
 
 describe("goal schedule semantics", () => {
-  it("treats weekly recurring as done when completion exists in anchored 7-day period", () => {
+  it("treats weekly recurring as done when completion exists in the current profile week", () => {
     const referenceDate = new Date("2026-05-11T12:00:00.000Z");
     const goal = buildGoal({
       frequency_type: "recurring",
@@ -50,7 +50,7 @@ describe("goal schedule semantics", () => {
       start_date: "2026-05-07",
     });
 
-    expect(isGoalDoneForCurrentPeriod(goal, [completion("2026-05-09")], referenceDate)).toBe(true);
+    expect(isGoalDoneForCurrentPeriod(goal, [completion("2026-05-11")], referenceDate)).toBe(true);
   });
 
   it("does not carry weekly completion across anchored period boundary", () => {
@@ -64,7 +64,7 @@ describe("goal schedule semantics", () => {
     expect(isGoalDoneForCurrentPeriod(goal, [completion("2026-05-09")], referenceDate)).toBe(false);
   });
 
-  it("uses cutover-aligned weekly windows for checklist and done-state checks", () => {
+  it("uses profile week-start windows for checklist and done-state checks", () => {
     const goal = buildGoal({
       frequency_type: "recurring",
       recurrence_interval: "weekly",
@@ -77,23 +77,22 @@ describe("goal schedule semantics", () => {
       getCompletionsForCurrentPeriod(goal, completions, referenceDate).map(
         (entry) => entry.completed_on
       )
-    ).toEqual(["2026-08-16", "2026-08-18"]);
-    expect(isGoalDoneForCurrentPeriod(goal, [completion("2026-08-16")], referenceDate)).toBe(true);
+    ).toEqual(["2026-08-18"]);
+    expect(isGoalDoneForCurrentPeriod(goal, [completion("2026-08-16")], referenceDate)).toBe(false);
 
     const weeklyAnchor = {
-      weekStartsOn: 1,
-      effectiveFrom: "2026-08-17",
+      weekStartsOn: 4,
     };
     expect(
       getCompletionsForCurrentPeriod(goal, completions, referenceDate, {
         weeklyAnchor,
       }).map((entry) => entry.completed_on)
-    ).toEqual(["2026-08-18"]);
+    ).toEqual(["2026-08-16", "2026-08-18"]);
     expect(
       isGoalDoneForCurrentPeriod(goal, [completion("2026-08-16")], referenceDate, {
         weeklyAnchor,
       })
-    ).toBe(false);
+    ).toBe(true);
     expect(
       isGoalDoneForCurrentPeriod(goal, [completion("2026-08-18")], referenceDate, {
         weeklyAnchor,
@@ -101,7 +100,7 @@ describe("goal schedule semantics", () => {
     ).toBe(true);
   });
 
-  it("anchors monthly recurring periods to start day-of-month", () => {
+  it("anchors monthly recurring periods to calendar month boundaries", () => {
     const goal = buildGoal({
       frequency_type: "recurring",
       recurrence_interval: "monthly",
@@ -110,10 +109,10 @@ describe("goal schedule semantics", () => {
 
     expect(
       isGoalDoneForCurrentPeriod(goal, [completion("2026-01-31")], new Date("2026-02-27T12:00:00.000Z"))
-    ).toBe(true);
-    expect(
-      isGoalDoneForCurrentPeriod(goal, [completion("2026-01-31")], new Date("2026-02-28T12:00:00.000Z"))
     ).toBe(false);
+    expect(
+      isGoalDoneForCurrentPeriod(goal, [completion("2026-02-05")], new Date("2026-02-28T12:00:00.000Z"))
+    ).toBe(true);
   });
 
   it("treats fixed goals as done for current period only when completed today", () => {

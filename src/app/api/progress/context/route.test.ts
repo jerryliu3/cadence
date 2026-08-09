@@ -113,7 +113,6 @@ describe("bounded progress context route", () => {
       {
         id: "11111111-1111-4111-8111-111111111111",
         week_starts_on: 1,
-        weekly_anchor_effective_on: "2026-01-05",
       },
     ];
     mocks.client = {

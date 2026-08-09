@@ -19,7 +19,6 @@ const plannerProfilePreferencesRowSchema = z
     timezone: z.string().trim().min(1).max(100),
     timezone_confirmed_at: z.string().datetime({ offset: true }).nullable().optional(),
     week_starts_on: z.number().int().min(0).max(6).nullable().optional(),
-    weekly_anchor_effective_on: z.iso.date().nullable().optional(),
     rest_weekdays: z.array(z.number().int().min(0).max(6)).nullable().optional(),
     blackout_ranges: z.array(profileBlackoutRangeSchema).nullable().optional(),
   })
@@ -72,10 +71,6 @@ export function resolvePlannerPreferencesSnapshot({
     weekStartsOn: normalizeWeekStartsOn(
       profile?.week_starts_on ?? basePolicy.weekStartsOn
     ),
-    weeklyAnchorEffectiveOn:
-      profile?.weekly_anchor_effective_on ??
-      basePolicy.weeklyAnchorEffectiveOn ??
-      null,
     restWeekdays:
       profile?.rest_weekdays !== undefined && profile?.rest_weekdays !== null
         ? normalizeWeekdays(profile.rest_weekdays)

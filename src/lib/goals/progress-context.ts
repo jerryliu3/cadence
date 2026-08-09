@@ -11,7 +11,6 @@ export interface ProgressContextResponse {
   asOfDate: string;
   timezone: string;
   weekStartsOn: number;
-  weeklyAnchorEffectiveOn: string | null;
   summaries: GoalProgressSnapshot[];
   facts: CompletionDateFact[];
   truncated: false;

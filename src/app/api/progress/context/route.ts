@@ -125,7 +125,7 @@ export async function GET(request: Request) {
     }
     const profileResponse = await supabase
       .from("profiles")
-      .select("week_starts_on,weekly_anchor_effective_on")
+      .select("week_starts_on")
       .eq("id", userId)
       .maybeSingle();
     if (profileResponse.error) {
@@ -138,7 +138,6 @@ export async function GET(request: Request) {
     const weeklyAnchor: WeeklyAnchorContext | null = profileResponse.data
       ? {
           weekStartsOn: normalizeWeekStartsOn(profileResponse.data.week_starts_on),
-          effectiveFrom: profileResponse.data.weekly_anchor_effective_on ?? null,
         }
       : null;
 
@@ -244,7 +243,6 @@ export async function GET(request: Request) {
       asOfDate: parsedQuery.data.asOfDate,
       timezone: parsedQuery.data.timezone,
       weekStartsOn: normalizeWeekStartsOn(weeklyAnchor?.weekStartsOn),
-      weeklyAnchorEffectiveOn: weeklyAnchor?.effectiveFrom ?? null,
       summaries,
       facts: facts.map(({ goal_id, completed_on, source }) => ({
         goal_id,
