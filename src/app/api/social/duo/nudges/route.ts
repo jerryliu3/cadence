@@ -4,44 +4,59 @@ import { runAfterResponse } from "@/lib/api/after";
 import { parseBoundedJsonBody } from "@/lib/api/body";
 import { createCorrelationId } from "@/lib/api/context";
 import { RouteError, routeErrorResponse, unknownRouteErrorResponse } from "@/lib/api/errors";
-import { flushNotificationOutbox } from "@/lib/push/outbox";
+import { flushNotificationsForUser } from "@/lib/push/outbox";
 import { requireSocialRouteContext } from "@/lib/social/api";
 import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 
 const requestSchema = z.object({
-  partnerId: z.uuid(),
-  message: z.string().trim().max(400).optional(),
+  toUserId: z.uuid(),
+  kind: z.enum(["cheer", "remind", "custom"]).default("cheer"),
+  goalId: z.uuid().optional(),
+  message: z.string().trim().max(140).optional(),
 });
+
+function mapNudgeError(message: string) {
+  if (message === "duo_required") {
+    return new RouteError(409, "duo_required", "You need an active duo to send nudges.");
+  }
+  if (message === "nudges_not_allowed") {
+    return new RouteError(403, "nudges_not_allowed", "Your partner has nudges disabled.");
+  }
+  if (message === "nudge_rate_limited_24h" || message === "nudge_rate_limited_goal_daily") {
+    return new RouteError(429, message, "Nudge rate limit reached for this timeframe.");
+  }
+  return new RouteError(500, "nudge_send_failed", "Nudge send failed.", { cause: message });
+}
 
 export async function POST(request: Request) {
   const correlationId = createCorrelationId();
   try {
+    const body = await parseBoundedJsonBody(request, 16 * 1024, requestSchema);
     const supabase = await createClient();
-    const context = await requireSocialRouteContext({
+    const socialContext = await requireSocialRouteContext({
       supabase,
       requireDuo: true,
     });
-    const body = await parseBoundedJsonBody(request, 32 * 1024, requestSchema);
 
-    const { data, error } = await context.supabase.rpc("create_duo_invite_service", {
-      p_partner_id: body.partnerId,
+    const { data, error } = await socialContext.supabase.rpc("send_nudge_service", {
+      p_to_user_id: body.toUserId,
+      p_kind: body.kind,
+      p_goal_id: body.goalId ?? undefined,
       p_message: body.message ?? undefined,
     });
     if (error) {
-      throw new RouteError(500, "duo_invite_failed", "Could not create duo invite.", {
-        cause: error.message,
-      });
+      throw mapNudgeError(error.message);
     }
 
-    runAfterResponse(() => flushNotificationOutbox({ limit: 20 }));
+    runAfterResponse(() => flushNotificationsForUser(body.toUserId));
 
     return NextResponse.json(
       {
         schemaVersion: "1",
         correlationId,
-        duoId: data,
+        nudgeId: data,
       },
       { status: 201, headers: { "Cache-Control": "no-store" } }
     );
@@ -59,7 +74,7 @@ export async function POST(request: Request) {
     }
     return unknownRouteErrorResponse({
       correlationId,
-      message: "Duo invite request failed unexpectedly.",
+      message: "Nudge request failed unexpectedly.",
     });
   }
 }

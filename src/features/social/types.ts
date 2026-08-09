@@ -86,7 +86,13 @@ export interface LeaderboardStanding {
   viewerRank: number | null;
 }
 
-export type DuoStatus = "pending" | "active" | "declined" | "cancelled" | "dissolved";
+export type DuoStatus =
+  | "pending"
+  | "active"
+  | "declined"
+  | "cancelled"
+  | "dissolved"
+  | "expired";
 
 export interface DuoStateRow {
   duoId: string;

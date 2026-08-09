@@ -12,6 +12,7 @@ import {
   fetchSocialDuoState,
 } from "@/features/social/data";
 import type { DuoStateRow } from "@/features/social/types";
+import { NudgeButton } from "@/features/social/duo/nudge-button";
 
 export function DuoPanel() {
   const [rows, setRows] = useState<DuoStateRow[]>([]);
@@ -129,9 +130,17 @@ export function DuoPanel() {
         </CardHeader>
         <CardContent>
           {activeDuo ? (
-            <Button type="button" variant="outline" onClick={() => void dissolveActiveDuo()}>
-              Dissolve duo
-            </Button>
+            <div className="flex flex-wrap items-center gap-2">
+              <NudgeButton
+                partnerId={activeDuo.partnerId}
+                onSent={() => {
+                  void load();
+                }}
+              />
+              <Button type="button" variant="outline" onClick={() => void dissolveActiveDuo()}>
+                Dissolve duo
+              </Button>
+            </div>
           ) : (
             <p className="text-sm text-muted-foreground">Accept an invite to activate duo features.</p>
           )}

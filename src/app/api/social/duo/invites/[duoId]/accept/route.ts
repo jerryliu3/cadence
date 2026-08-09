@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { runAfterResponse } from "@/lib/api/after";
 import { parseBoundedJsonBody } from "@/lib/api/body";
 import { createCorrelationId } from "@/lib/api/context";
 import { RouteError, routeErrorResponse, unknownRouteErrorResponse } from "@/lib/api/errors";
+import { flushNotificationOutbox } from "@/lib/push/outbox";
 import { requireSocialRouteContext } from "@/lib/social/api";
 import { createClient } from "@/lib/supabase/server";
 
@@ -36,6 +38,8 @@ export async function POST(
         cause: error.message,
       });
     }
+
+    runAfterResponse(() => flushNotificationOutbox({ limit: 20 }));
 
     return NextResponse.json(
       {

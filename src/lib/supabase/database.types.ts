@@ -39,6 +39,18 @@ export type Database = {
         }
         Returns: string
       }
+      enqueue_notification_outbox: {
+        Args: {
+          p_available_at?: string
+          p_body: string
+          p_dedupe_key?: string
+          p_kind: Database["public"]["Enums"]["notification_kind"]
+          p_title: string
+          p_url?: string
+          p_user_id: string
+        }
+        Returns: string
+      }
       goal_anchored_period_start: {
         Args: {
           p_anchor: string
@@ -97,6 +109,10 @@ export type Database = {
       normalize_goal_category_key: {
         Args: { p_category: string }
         Returns: string
+      }
+      partner_notifications_allowed: {
+        Args: { p_duo_id: string; p_user_id: string }
+        Returns: boolean
       }
       planner_json_depth: { Args: { p_value: Json }; Returns: number }
       planner_owner_lock_key: { Args: { p_owner: string }; Returns: number }
@@ -341,6 +357,48 @@ export type Database = {
           },
         ]
       }
+      duo_preferences: {
+        Row: {
+          allow_nudges: boolean
+          duo_id: string
+          notify_partner_activity: boolean
+          share_completions: boolean
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          allow_nudges?: boolean
+          duo_id: string
+          notify_partner_activity?: boolean
+          share_completions?: boolean
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          allow_nudges?: boolean
+          duo_id?: string
+          notify_partner_activity?: boolean
+          share_completions?: boolean
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "duo_preferences_duo_id_fkey"
+            columns: ["duo_id"]
+            isOneToOne: false
+            referencedRelation: "duos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "duo_preferences_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       duos: {
         Row: {
           accepted_at: string | null
@@ -484,6 +542,42 @@ export type Database = {
           {
             foreignKeyName: "feed_events_hidden_by_fkey"
             columns: ["hidden_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      feed_reactions: {
+        Row: {
+          created_at: string
+          feed_event_id: string
+          reaction: Database["public"]["Enums"]["reaction_kind"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          feed_event_id: string
+          reaction: Database["public"]["Enums"]["reaction_kind"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          feed_event_id?: string
+          reaction?: Database["public"]["Enums"]["reaction_kind"]
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "feed_reactions_feed_event_id_fkey"
+            columns: ["feed_event_id"]
+            isOneToOne: false
+            referencedRelation: "feed_events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "feed_reactions_user_id_fkey"
+            columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -946,6 +1040,65 @@ export type Database = {
           },
         ]
       }
+      notification_outbox: {
+        Row: {
+          attempts: number
+          available_at: string
+          body: string
+          channel: Database["public"]["Enums"]["notification_channel"]
+          created_at: string
+          dedupe_key: string | null
+          id: string
+          kind: Database["public"]["Enums"]["notification_kind"]
+          last_error: string | null
+          sent_at: string | null
+          state: Database["public"]["Enums"]["notification_state"]
+          title: string
+          url: string | null
+          user_id: string
+        }
+        Insert: {
+          attempts?: number
+          available_at?: string
+          body: string
+          channel?: Database["public"]["Enums"]["notification_channel"]
+          created_at?: string
+          dedupe_key?: string | null
+          id?: string
+          kind: Database["public"]["Enums"]["notification_kind"]
+          last_error?: string | null
+          sent_at?: string | null
+          state?: Database["public"]["Enums"]["notification_state"]
+          title: string
+          url?: string | null
+          user_id: string
+        }
+        Update: {
+          attempts?: number
+          available_at?: string
+          body?: string
+          channel?: Database["public"]["Enums"]["notification_channel"]
+          created_at?: string
+          dedupe_key?: string | null
+          id?: string
+          kind?: Database["public"]["Enums"]["notification_kind"]
+          last_error?: string | null
+          sent_at?: string | null
+          state?: Database["public"]["Enums"]["notification_state"]
+          title?: string
+          url?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_outbox_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       notification_schedules: {
         Row: {
           created_at: string
@@ -987,6 +1140,71 @@ export type Database = {
           {
             foreignKeyName: "notification_schedules_user_id_fkey"
             columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      nudges: {
+        Row: {
+          created_at: string
+          duo_id: string
+          from_user_id: string
+          goal_id: string | null
+          id: string
+          kind: Database["public"]["Enums"]["nudge_kind"]
+          message: string | null
+          read_at: string | null
+          to_user_id: string
+        }
+        Insert: {
+          created_at?: string
+          duo_id: string
+          from_user_id: string
+          goal_id?: string | null
+          id?: string
+          kind?: Database["public"]["Enums"]["nudge_kind"]
+          message?: string | null
+          read_at?: string | null
+          to_user_id: string
+        }
+        Update: {
+          created_at?: string
+          duo_id?: string
+          from_user_id?: string
+          goal_id?: string | null
+          id?: string
+          kind?: Database["public"]["Enums"]["nudge_kind"]
+          message?: string | null
+          read_at?: string | null
+          to_user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "nudges_duo_id_fkey"
+            columns: ["duo_id"]
+            isOneToOne: false
+            referencedRelation: "duos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "nudges_from_user_id_fkey"
+            columns: ["from_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "nudges_goal_id_fkey"
+            columns: ["goal_id"]
+            isOneToOne: false
+            referencedRelation: "goals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "nudges_to_user_id_fkey"
+            columns: ["to_user_id"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -1528,6 +1746,13 @@ export type Database = {
         Args: { p_award_id: string; p_user_id: string }
         Returns: boolean
       }
+      add_feed_reaction_service: {
+        Args: {
+          p_feed_event_id: string
+          p_reaction: Database["public"]["Enums"]["reaction_kind"]
+        }
+        Returns: boolean
+      }
       assert_xp_ledger_consistency_service: { Args: never; Returns: number }
       award_social_xp_service: {
         Args: {
@@ -1553,6 +1778,18 @@ export type Database = {
       can_view_goal_content: {
         Args: { p_goal_id: string; p_uid: string }
         Returns: boolean
+      }
+      claim_notification_outbox_service: {
+        Args: { p_limit?: number }
+        Returns: {
+          attempts: number
+          body: string
+          id: string
+          kind: Database["public"]["Enums"]["notification_kind"]
+          title: string
+          url: string
+          user_id: string
+        }[]
       }
       clear_planner_schedule: {
         Args: { p_expected_digest: string; p_month: string }
@@ -1585,6 +1822,7 @@ export type Database = {
         Returns: boolean
       }
       dissolve_duo_service: { Args: never; Returns: boolean }
+      expire_pending_duo_invites_service: { Args: never; Returns: number }
       find_profile_by_username: {
         Args: { p_limit?: number; p_query: string }
         Returns: {
@@ -1757,6 +1995,17 @@ export type Database = {
       }
       refresh_challenge_progress_service: { Args: never; Returns: number }
       refresh_leaderboard_standings_service: { Args: never; Returns: number }
+      remove_feed_reaction_service: {
+        Args: {
+          p_feed_event_id: string
+          p_reaction: Database["public"]["Enums"]["reaction_kind"]
+        }
+        Returns: boolean
+      }
+      resolve_notification_outbox_delivery_service: {
+        Args: { p_error?: string; p_outbox_id: string; p_sent: boolean }
+        Returns: boolean
+      }
       rollover_leaderboard_seasons_service: { Args: never; Returns: number }
       save_planner_coach_conversation_service: {
         Args: {
@@ -1776,6 +2025,15 @@ export type Database = {
           title: string
           updated_at: string
         }[]
+      }
+      send_nudge_service: {
+        Args: {
+          p_goal_id?: string
+          p_kind?: Database["public"]["Enums"]["nudge_kind"]
+          p_message?: string
+          p_to_user_id: string
+        }
+        Returns: string
       }
       set_planner_item_lock: {
         Args: {
@@ -1813,7 +2071,13 @@ export type Database = {
         | "max_streak_days"
       challenge_status: "draft" | "scheduled" | "active" | "closed" | "archived"
       completion_source: "manual" | "linked_cascade"
-      duo_status: "pending" | "active" | "declined" | "cancelled" | "dissolved"
+      duo_status:
+        | "pending"
+        | "active"
+        | "declined"
+        | "cancelled"
+        | "dissolved"
+        | "expired"
       feed_event_type:
         | "xp_earned"
         | "level_up"
@@ -1834,7 +2098,23 @@ export type Database = {
         | "remove_participant"
         | "close_challenge"
       moderation_target: "feed_event" | "user" | "challenge" | "duo"
+      notification_channel: "push"
+      notification_kind:
+        | "duo_invite"
+        | "duo_accepted"
+        | "duo_dissolved"
+        | "nudge"
+        | "reaction"
+        | "challenge_joined"
+        | "challenge_completed"
+        | "challenge_ending_soon"
+        | "season_closed"
+        | "planner_proposal"
+        | "planner_proposal_decided"
+      notification_state: "pending" | "sent" | "failed" | "skipped"
+      nudge_kind: "cheer" | "remind" | "custom"
       participant_role: "owner" | "participant"
+      reaction_kind: "cheer" | "fire" | "clap" | "strong"
       recurrence_interval: "daily" | "weekly" | "monthly"
       social_subject_kind: "user" | "duo"
     }
@@ -1978,7 +2258,14 @@ export const Constants = {
       ],
       challenge_status: ["draft", "scheduled", "active", "closed", "archived"],
       completion_source: ["manual", "linked_cascade"],
-      duo_status: ["pending", "active", "declined", "cancelled", "dissolved"],
+      duo_status: [
+        "pending",
+        "active",
+        "declined",
+        "cancelled",
+        "dissolved",
+        "expired",
+      ],
       feed_event_type: [
         "xp_earned",
         "level_up",
@@ -2001,7 +2288,24 @@ export const Constants = {
         "close_challenge",
       ],
       moderation_target: ["feed_event", "user", "challenge", "duo"],
+      notification_channel: ["push"],
+      notification_kind: [
+        "duo_invite",
+        "duo_accepted",
+        "duo_dissolved",
+        "nudge",
+        "reaction",
+        "challenge_joined",
+        "challenge_completed",
+        "challenge_ending_soon",
+        "season_closed",
+        "planner_proposal",
+        "planner_proposal_decided",
+      ],
+      notification_state: ["pending", "sent", "failed", "skipped"],
+      nudge_kind: ["cheer", "remind", "custom"],
       participant_role: ["owner", "participant"],
+      reaction_kind: ["cheer", "fire", "clap", "strong"],
       recurrence_interval: ["daily", "weekly", "monthly"],
       social_subject_kind: ["user", "duo"],
     },

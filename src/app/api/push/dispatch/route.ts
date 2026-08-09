@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import webpush from "web-push";
 import { getLocalScheduleSlot } from "@/lib/push/schedule";
+import { configureWebPush, sendPushToUser } from "@/lib/push/send";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export const runtime = "nodejs";
@@ -13,37 +13,6 @@ interface NotificationSchedule {
   timezone: string;
   message: string;
   last_sent_local_date: string | null;
-}
-
-interface PushSubscriptionRow {
-  id: string;
-  user_id: string;
-  endpoint: string;
-  p256dh: string;
-  auth: string;
-}
-
-function isExpiredSubscriptionError(error: unknown): boolean {
-  if (!error || typeof error !== "object" || !("statusCode" in error)) {
-    return false;
-  }
-
-  const statusCode = (error as { statusCode?: unknown }).statusCode;
-  return statusCode === 404 || statusCode === 410;
-}
-
-function configureWebPush() {
-  const subject = process.env.VAPID_SUBJECT?.trim();
-  const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY?.trim();
-  const privateKey = process.env.VAPID_PRIVATE_KEY?.trim();
-
-  if (!subject || !publicKey || !privateKey) {
-    throw new Error(
-      "VAPID_SUBJECT, NEXT_PUBLIC_VAPID_PUBLIC_KEY, and VAPID_PRIVATE_KEY are required."
-    );
-  }
-
-  webpush.setVapidDetails(subject, publicKey, privateKey);
 }
 
 async function dispatchNotifications(request: Request) {
@@ -121,88 +90,34 @@ async function dispatchNotifications(request: Request) {
       return NextResponse.json({ due: 0, sent: 0, removedSubscriptions: 0 });
     }
 
-    const dueUserIds = Array.from(
-      new Set(dueSchedules.map(({ schedule }) => schedule.user_id))
-    );
-    const { data: subscriptionData, error: subscriptionError } = await admin
-      .from("push_subscriptions")
-      .select("id,user_id,endpoint,p256dh,auth")
-      .in("user_id", dueUserIds);
-
-    if (subscriptionError) {
-      throw subscriptionError;
-    }
-
-    const subscriptionsByUser = new Map<string, PushSubscriptionRow[]>();
-
-    for (const subscription of (subscriptionData ?? []) as PushSubscriptionRow[]) {
-      const current = subscriptionsByUser.get(subscription.user_id) ?? [];
-      current.push(subscription);
-      subscriptionsByUser.set(subscription.user_id, current);
-    }
-
-    const expiredSubscriptionIds = new Set<string>();
+    let removedSubscriptions = 0;
     let sent = 0;
 
     await Promise.all(
       dueSchedules.map(async ({ schedule, localDate }) => {
-        const subscriptions = subscriptionsByUser.get(schedule.user_id) ?? [];
-
-        await Promise.all(
-          subscriptions.map(async (subscription) => {
-            try {
-              await webpush.sendNotification(
-                {
-                  endpoint: subscription.endpoint,
-                  keys: {
-                    p256dh: subscription.p256dh,
-                    auth: subscription.auth,
-                  },
-                },
-                JSON.stringify({
-                  title: "Goalmaxxing",
-                  body: schedule.message,
-                  icon: "/cadence-icon.svg",
-                  badge: "/cadence-icon.svg",
-                  tag: `cadence-${schedule.id}-${localDate}`,
-                  url: "/",
-                }),
-                {
-                  TTL: 60 * 60,
-                  urgency: "normal",
-                }
-              );
-              sent += 1;
-            } catch (error) {
-              if (isExpiredSubscriptionError(error)) {
-                expiredSubscriptionIds.add(subscription.id);
-              } else {
-                console.error(
-                  `Failed to send schedule ${schedule.id} to subscription ${subscription.id}:`,
-                  error
-                );
-              }
-            }
-          })
-        );
+        try {
+          const result = await sendPushToUser({
+            admin,
+            userId: schedule.user_id,
+            payload: {
+              title: "Goalmaxxing",
+              body: schedule.message,
+              tag: `cadence-${schedule.id}-${localDate}`,
+              url: "/",
+            },
+          });
+          sent += result.sent;
+          removedSubscriptions += result.removedSubscriptions;
+        } catch (error) {
+          console.error(`Failed to send scheduled push ${schedule.id}:`, error);
+        }
       })
     );
-
-    if (expiredSubscriptionIds.size > 0) {
-      const { error: deleteError } = await admin
-        .from("push_subscriptions")
-        .delete()
-        .in("id", Array.from(expiredSubscriptionIds));
-
-      if (deleteError) {
-        console.error("Failed to remove expired push subscriptions:", deleteError);
-      }
-    }
 
     return NextResponse.json({
       due: dueSchedules.length,
       sent,
-      removedSubscriptions: expiredSubscriptionIds.size,
+      removedSubscriptions,
     });
   } catch (error) {
     console.error("Push notification dispatch failed:", error);

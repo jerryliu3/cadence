@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
+import { runAfterResponse } from "@/lib/api/after";
 import { createCorrelationId } from "@/lib/api/context";
 import { RouteError, routeErrorResponse, unknownRouteErrorResponse } from "@/lib/api/errors";
+import { flushNotificationOutbox } from "@/lib/push/outbox";
 import { requireSocialRouteContext } from "@/lib/social/api";
 import { createClient } from "@/lib/supabase/server";
 
@@ -8,7 +10,7 @@ export const runtime = "nodejs";
 
 function toDuoDto(row: {
   duo_id: string;
-  status: "pending" | "active" | "declined" | "cancelled" | "dissolved";
+  status: "pending" | "active" | "declined" | "cancelled" | "dissolved" | "expired";
   partner_id: string;
   partner_username: string | null;
   partner_display_name: string | null;
@@ -82,6 +84,8 @@ export async function DELETE() {
         cause: error.message,
       });
     }
+
+    runAfterResponse(() => flushNotificationOutbox({ limit: 20 }));
 
     return NextResponse.json(
       {

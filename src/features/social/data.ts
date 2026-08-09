@@ -39,6 +39,8 @@ interface SocialDuoStateResponse {
   items: DuoStateRow[];
 }
 
+export type FeedReactionKind = "cheer" | "fire" | "clap" | "strong";
+
 async function parseApiError(response: Response, fallbackMessage: string) {
   const errorBody = (await response.json().catch(() => ({}))) as {
     message?: string;
@@ -212,4 +214,72 @@ export async function dissolveSocialDuo() {
     await parseApiError(response, "Failed to dissolve duo.");
   }
   return (await response.json()) as { schemaVersion: "1"; dissolved: boolean };
+}
+
+export async function addSocialFeedReaction({
+  eventId,
+  reaction,
+  actorId,
+}: {
+  eventId: string;
+  reaction: FeedReactionKind;
+  actorId?: string;
+}) {
+  const response = await fetch(`/api/social/feed/${eventId}/reactions`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ reaction, actorId }),
+  });
+  if (!response.ok) {
+    await parseApiError(response, "Failed to add reaction.");
+  }
+  return (await response.json()) as { schemaVersion: "1" };
+}
+
+export async function removeSocialFeedReaction({
+  eventId,
+  reaction,
+}: {
+  eventId: string;
+  reaction: FeedReactionKind;
+}) {
+  const response = await fetch(`/api/social/feed/${eventId}/reactions`, {
+    method: "DELETE",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ reaction }),
+  });
+  if (!response.ok) {
+    await parseApiError(response, "Failed to remove reaction.");
+  }
+  return (await response.json()) as { schemaVersion: "1" };
+}
+
+export async function sendDuoNudge({
+  toUserId,
+  kind = "cheer",
+  goalId,
+  message,
+}: {
+  toUserId: string;
+  kind?: "cheer" | "remind" | "custom";
+  goalId?: string;
+  message?: string;
+}) {
+  const response = await fetch("/api/social/duo/nudges", {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      toUserId,
+      kind,
+      goalId,
+      message,
+    }),
+  });
+  if (!response.ok) {
+    await parseApiError(response, "Failed to send nudge.");
+  }
+  return (await response.json()) as { schemaVersion: "1"; nudgeId: string };
 }
