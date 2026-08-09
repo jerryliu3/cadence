@@ -106,15 +106,40 @@ describe("planner context preview route", () => {
     expect(mocks.runPlannerKernel).not.toHaveBeenCalled();
   });
 
-  it("uses fresh recomputation for explicit preview generation", async () => {
-    mocks.parseBoundedJsonBody.mockResolvedValueOnce({
+  it("routes solveIntent through preview generation and response payload", async () => {
+    mocks.parseBoundedJsonBody.mockResolvedValue({
       scopeMonth: "2026-08",
       source: "manual",
       timezone: "UTC",
-      policy: createDefaultPlannerPolicy("UTC", "2026-08-01T00:00:00.000Z"),
+      solveIntent: "replan",
+      policy: {
+        schemaVersion: "1",
+        timezone: "UTC",
+        timezoneConfirmedAt: "2026-08-01T00:00:00.000Z",
+        weekStartsOn: 1,
+        restWeekdays: [],
+        blackoutRanges: [],
+      },
     });
-    mocks.runPlannerKernel.mockImplementationOnce(() => {
-      throw new Error("forced");
+    mocks.runPlannerKernel.mockReturnValue({
+      schemaVersion: "1",
+      eligibilityMode: "overlap_v1",
+      solveIntent: "replan",
+      generationInputHash:
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      solver: {
+        placementStatus: "complete",
+        searchStatus: "all_units_placed",
+        capacityStatus: "unverified",
+        issueCodes: [],
+        invalidGoalIds: [],
+        publishable: true,
+        confirmationRequired: false,
+      },
+      workUnits: [],
+      driftFacts: [],
+      eligibility: [],
+      horizonSummary: [],
     });
 
     const response = await POST(
@@ -123,10 +148,14 @@ describe("planner context preview route", () => {
       })
     );
 
-    expect(response.status).toBe(500);
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      source: "manual",
+      solveIntent: "replan",
+    });
     expect(mocks.runPlannerKernel).toHaveBeenCalledWith(
       expect.objectContaining({
-        preserveExistingAssignments: false,
+        solveIntent: "replan",
       })
     );
   });

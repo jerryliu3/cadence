@@ -147,4 +147,39 @@ describe("planner save route", () => {
       })
     );
   });
+
+  it("returns preview_hash_mismatch when solveIntent does not match the preview hash", async () => {
+    mocks.parseBoundedJsonBody.mockResolvedValue({
+      scopeMonth: "2026-08",
+      previewHash:
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      expectedDigest:
+        "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      confirmationHash: null,
+      draftCommands: [],
+      solveIntent: "stable",
+    });
+    mocks.runPlannerKernel.mockReturnValue({
+      generationInputHash:
+        "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    });
+
+    const response = await POST(
+      new Request("http://localhost/api/planner/save", {
+        method: "POST",
+      })
+    );
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "preview_hash_mismatch",
+      message: "Planner preview hash is stale. Regenerate and publish again.",
+      correlationId: "test-correlation-id",
+    });
+    expect(mocks.runPlannerKernel).toHaveBeenCalledWith(
+      expect.objectContaining({
+        solveIntent: "stable",
+      })
+    );
+  });
 });

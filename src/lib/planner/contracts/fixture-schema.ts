@@ -172,6 +172,8 @@ const solverUnitSchema = z
     candidateDates: z.array(dateSchema).max(31),
     previousDate: nullableDateSchema,
     lockedDate: nullableDateSchema,
+    dateCosts: z.record(dateSchema, z.number().int()).optional(),
+    estimatedMinutes: z.number().int().positive().optional(),
   })
   .strip();
 
@@ -188,6 +190,7 @@ export const solverFixtureSchema = z
             description: z.string().min(1).max(300),
             dates: z.array(dateSchema).max(31),
             units: z.array(solverUnitSchema).max(MAX_WORK_UNITS),
+            solveIntent: z.enum(["stable", "replan"]).optional(),
             simulateSoftBudgetExhaustion: z.boolean(),
             expected: z
               .object({
