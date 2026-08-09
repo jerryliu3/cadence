@@ -1,7 +1,7 @@
 import { parseBoundedJsonBody } from "@/lib/api/body";
 import { createCorrelationId, requireAuthenticatedUser } from "@/lib/api/context";
 import {
-  RouteError,
+  RouteError as PlannerRouteError,
   routeErrorResponse,
   type RouteErrorBody,
   unknownRouteErrorResponse,
@@ -16,10 +16,10 @@ type ServerSupabaseClient = Awaited<ReturnType<typeof createServerClient>>;
 
 export type PlannerApiErrorBody = RouteErrorBody;
 export { createCorrelationId, parseBoundedJsonBody };
-export { RouteError as PlannerRouteError };
+export { PlannerRouteError };
 
 export function plannerErrorResponse(
-  error: RouteError,
+  error: PlannerRouteError,
   correlationId: string
 ) {
   return routeErrorResponse(error, correlationId);
