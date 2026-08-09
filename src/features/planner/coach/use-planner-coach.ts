@@ -126,6 +126,30 @@ function buildDurableApplyToastDetail({
   return `Saved as your default planner policy from ${scopeMonth}.${draftNote} Unpublished months will regenerate as you navigate; already-published months require republish to persist the new rhythm.`;
 }
 
+function buildUndoToastMessage({
+  shouldPersistDurableUndo,
+  scopeMonth,
+  hasPolicyEdits,
+  hasDraftEdits,
+}: {
+  shouldPersistDurableUndo: boolean;
+  scopeMonth: string | null | undefined;
+  hasPolicyEdits: boolean;
+  hasDraftEdits: boolean;
+}) {
+  if (shouldPersistDurableUndo) {
+    return scopeMonth
+      ? `Coach proposal changes were undone. Planner defaults were restored from ${scopeMonth}.`
+      : "Coach proposal changes were undone.";
+  }
+  if (hasPolicyEdits && hasDraftEdits) {
+    return "Coach draft policy and item edits were undone.";
+  }
+  return hasPolicyEdits
+    ? "Coach draft policy changes were undone."
+    : "Coach draft item edits were undone.";
+}
+
 function mapAutoApplyStatusToProposalStatus(
   status: CoachProposalApplyStatus
 ): CoachMessageProposal["applyStatus"] {
@@ -949,15 +973,12 @@ export function usePlannerCoach({
         });
         appendCoachContextEvent("Undid coach draft proposal");
         toast.success(
-          shouldPersistDurableUndo
-            ? context?.scopeMonth
-              ? `Coach proposal changes were undone. Planner defaults were restored from ${context.scopeMonth}.`
-              : "Coach proposal changes were undone."
-            : hasPolicyEdits && hasDraftEdits
-              ? "Coach draft policy and item edits were undone."
-              : hasPolicyEdits
-                ? "Coach draft policy changes were undone."
-                : "Coach draft item edits were undone."
+          buildUndoToastMessage({
+            shouldPersistDurableUndo,
+            scopeMonth: context?.scopeMonth,
+            hasPolicyEdits,
+            hasDraftEdits,
+          })
         );
       } catch (error) {
         toast.error(error instanceof Error ? error.message : "Undo failed.");
