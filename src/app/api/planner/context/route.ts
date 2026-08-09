@@ -16,7 +16,6 @@ import { canonicalHash } from "@/lib/planner/canonical";
 import { loadPlannerCanonicalSnapshot } from "@/lib/planner/context-loader";
 import {
   MAX_API_BODY_BYTES,
-  MAX_ELIGIBLE_GOALS,
   PLANNER_ELIGIBILITY_MODES,
   PLANNER_CONTRACT_VERSION,
 } from "@/lib/planner/contracts/bounds";
@@ -67,7 +66,6 @@ const previewRequestSchema = z.object({
     .refine(isValidIanaTimezone)
     .optional(),
   policy: z.unknown().optional(),
-  assessments: z.array(goalAssessmentSchema).max(MAX_ELIGIBLE_GOALS).optional(),
   source: z.enum(["manual", "ai", "update"]).default("manual"),
 });
 
@@ -408,7 +406,6 @@ export async function POST(request: Request) {
       requestedTimezone: body.timezone,
       requestedPolicy: body.policy,
       snapshot,
-      assessments: body.assessments,
       requireExplicitTimezone: true,
     });
 
