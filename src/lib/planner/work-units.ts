@@ -283,9 +283,7 @@ export function materializeWorkUnits({
     goal.start_date,
     interval,
     scope.start,
-    {
-      weekly: interval === "weekly" ? weeklyAnchor : null,
-    }
+    weeklyAnchor
   );
 
   for (
@@ -297,16 +295,17 @@ export function materializeWorkUnits({
       goal.start_date,
       interval,
       index,
-      {
-        weekly: interval === "weekly" ? weeklyAnchor : null,
-      }
+      weeklyAnchor
     );
     if (compareDateStrings(periodStart, planningWindowEnd) > 0) {
       break;
     }
-    const period = getAnchoredPeriod(goal.start_date, interval, periodStart, {
-      weekly: interval === "weekly" ? weeklyAnchor : null,
-    });
+    const period = getAnchoredPeriod(
+      goal.start_date,
+      interval,
+      periodStart,
+      weeklyAnchor
+    );
     const creditWindow = intersectDateWindows(period, lifetime);
     if (!creditWindow || !isEndMonthCadenceUnit(scopeMonth, creditWindow)) {
       continue;

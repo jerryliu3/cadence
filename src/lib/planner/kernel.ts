@@ -2,6 +2,7 @@ import type { Completion, Goal } from "@/lib/goals/types";
 import {
   isCompletionAdmissible,
 } from "@/lib/goals/admissible";
+import { normalizeWeekStartsOn } from "@/lib/dates/week-start";
 import { compareCanonicalStrings } from "@/lib/planner/canonical";
 import {
   createDefaultAssessment,
@@ -404,7 +405,7 @@ export function runPlannerKernel(
   );
   const policy = compiledPolicy.policy;
   const weeklyAnchorContext = {
-    weekStartsOn: policy.weekStartsOn ?? 1,
+    weekStartsOn: normalizeWeekStartsOn(policy.weekStartsOn),
     effectiveFrom: policy.weeklyAnchorEffectiveOn ?? null,
   };
   const scopeState = getScopeState(rawInput.scopeMonth, rawInput.asOfDate);

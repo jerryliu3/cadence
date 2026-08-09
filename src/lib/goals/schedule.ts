@@ -30,12 +30,7 @@ export function getGoalPeriodStartDate(
     goal.start_date,
     goal.recurrence_interval ?? "daily",
     toLocalDateString(normalizedDate),
-    {
-      weekly:
-        goal.recurrence_interval === "weekly"
-          ? options.weeklyAnchor ?? null
-          : null,
-    }
+    options.weeklyAnchor ?? null
   );
   return startOfDay(parseISO(period.start));
 }
@@ -55,12 +50,7 @@ export function getGoalPeriodEndDate(
     goal.start_date,
     goal.recurrence_interval ?? "daily",
     toLocalDateString(referenceDate),
-    {
-      weekly:
-        goal.recurrence_interval === "weekly"
-          ? options.weeklyAnchor ?? null
-          : null,
-    }
+    options.weeklyAnchor ?? null
   );
   return startOfDay(parseISO(period.end));
 }

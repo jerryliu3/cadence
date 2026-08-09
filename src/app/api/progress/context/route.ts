@@ -5,6 +5,7 @@ import {
   requireAuthenticatedRouteContext,
   withRoute,
 } from "@/lib/api/route";
+import { normalizeWeekStartsOn } from "@/lib/dates/week-start";
 import { isValidIanaTimezone } from "@/lib/dates/timezone";
 import {
   getAnchoredPeriod,
@@ -89,10 +90,7 @@ function getChecklistFacts(
       goal.start_date,
       goal.recurrence_interval ?? "daily",
       viewDate,
-      {
-        weekly:
-          goal.recurrence_interval === "weekly" ? weeklyAnchor : null,
-      }
+      weeklyAnchor
     );
     return completions.filter(
       (completion) =>
@@ -139,7 +137,7 @@ export async function GET(request: Request) {
     }
     const weeklyAnchor: WeeklyAnchorContext | null = profileResponse.data
       ? {
-          weekStartsOn: profileResponse.data.week_starts_on ?? 1,
+          weekStartsOn: normalizeWeekStartsOn(profileResponse.data.week_starts_on),
           effectiveFrom: profileResponse.data.weekly_anchor_effective_on ?? null,
         }
       : null;
@@ -245,7 +243,7 @@ export async function GET(request: Request) {
       schemaVersion: "1",
       asOfDate: parsedQuery.data.asOfDate,
       timezone: parsedQuery.data.timezone,
-      weekStartsOn: weeklyAnchor?.weekStartsOn ?? 1,
+      weekStartsOn: normalizeWeekStartsOn(weeklyAnchor?.weekStartsOn),
       weeklyAnchorEffectiveOn: weeklyAnchor?.effectiveFrom ?? null,
       summaries,
       facts: facts.map(({ goal_id, completed_on, source }) => ({

@@ -37,6 +37,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { GoalEndMonthBadge } from "@/features/goals/goal-end-month-badge";
 import { GoalListControls } from "@/features/goals/goal-list-controls";
 import { toLocalDateString } from "@/lib/dates/day";
+import { normalizeWeekStartsOn } from "@/lib/dates/week-start";
 import { getCategoryBadgeClass } from "@/lib/goals/category";
 import { getGoalLifecycle } from "@/lib/goals/lifecycle";
 import {
@@ -424,7 +425,7 @@ export function TodayTab({
   );
   const weeklyAnchor = useMemo(
     () => ({
-      weekStartsOn: data.progress?.weekStartsOn ?? 1,
+      weekStartsOn: normalizeWeekStartsOn(data.progress?.weekStartsOn),
       effectiveFrom: data.progress?.weeklyAnchorEffectiveOn ?? null,
     }),
     [data.progress?.weekStartsOn, data.progress?.weeklyAnchorEffectiveOn]

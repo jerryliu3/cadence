@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { normalizeWeekStartsOn } from "@/lib/dates/week-start";
 import {
   createDefaultPlannerPolicy,
   plannerPolicySchema,
@@ -68,7 +69,9 @@ export function resolvePlannerPreferencesSnapshot({
     ...basePolicy,
     timezone,
     timezoneConfirmedAt,
-    weekStartsOn: profile?.week_starts_on ?? basePolicy.weekStartsOn ?? 1,
+    weekStartsOn: normalizeWeekStartsOn(
+      profile?.week_starts_on ?? basePolicy.weekStartsOn
+    ),
     weeklyAnchorEffectiveOn:
       profile?.weekly_anchor_effective_on ??
       basePolicy.weeklyAnchorEffectiveOn ??

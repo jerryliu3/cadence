@@ -69,9 +69,10 @@ export function getExpectedCadencePeriodCount(
 
   const interval = goal.recurrence_interval ?? "daily";
   const creditEnd = getCreditEndDate(goal, asOfDate);
-  return getAnchoredPeriod(goal.start_date, interval, creditEnd, {
-    weekly: interval === "weekly" ? weeklyAnchor ?? null : null,
-  }).index + 1;
+  return (
+    getAnchoredPeriod(goal.start_date, interval, creditEnd, weeklyAnchor ?? null)
+      .index + 1
+  );
 }
 
 export function getCreditedUnitCount(
@@ -93,12 +94,7 @@ export function getCreditedUnitCount(
           goal.start_date,
           requirement.interval,
           completion.completed_on,
-          {
-            weekly:
-              requirement.interval === "weekly"
-                ? context.weeklyAnchor ?? null
-                : null,
-          }
+          context.weeklyAnchor ?? null
         ).periodKey
     )
   ).size;

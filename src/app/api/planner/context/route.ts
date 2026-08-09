@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { normalizeWeekStartsOn } from "@/lib/dates/week-start";
 import { getDateInTimezone, isValidIanaTimezone } from "@/lib/dates/timezone";
 import { getNextWeekStartOnOrAfter } from "@/lib/goals/periods";
 import {
@@ -489,12 +490,9 @@ export async function PUT(request: Request) {
       );
     }
 
-    const normalizedWeekStartsOn =
-      defaultPolicy.weekStartsOn !== undefined &&
-      defaultPolicy.weekStartsOn >= 0 &&
-      defaultPolicy.weekStartsOn <= 6
-        ? defaultPolicy.weekStartsOn
-        : 1;
+    const normalizedWeekStartsOn = normalizeWeekStartsOn(
+      defaultPolicy.weekStartsOn
+    );
     const admin = requirePlannerAdminClient();
     const currentProfileResponse = await admin
       .from("profiles")

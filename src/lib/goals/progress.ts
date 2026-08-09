@@ -118,9 +118,12 @@ export function getRecurringStreaksAtDate(
     new Set(
       admissible.map(
         (entry) =>
-          getAnchoredPeriod(goal.start_date, interval, entry.completed_on, {
-            weekly: interval === "weekly" ? options.weeklyAnchor ?? null : null,
-          }).index
+          getAnchoredPeriod(
+            goal.start_date,
+            interval,
+            entry.completed_on,
+            options.weeklyAnchor ?? null
+          ).index
       )
     )
   ).sort((left, right) => left - right);
@@ -150,9 +153,7 @@ export function getRecurringStreaksAtDate(
     goal.start_date,
     interval,
     boundedReference,
-    {
-      weekly: interval === "weekly" ? options.weeklyAnchor ?? null : null,
-    }
+    options.weeklyAnchor ?? null
   ).index;
   const lastCompleted = uniqueIndices[uniqueIndices.length - 1];
   let current = 0;

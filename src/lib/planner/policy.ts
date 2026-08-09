@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { isValidIanaTimezone } from "@/lib/dates/timezone";
+import { normalizeWeekStartsOn } from "@/lib/dates/week-start";
 import { compareCanonicalStrings } from "@/lib/planner/canonical";
 import {
   dateIsInWindow,
@@ -64,10 +65,6 @@ export function compilePlannerPolicy(policy: PlannerPolicy): CompiledPolicy {
   const parsedPolicy = plannerPolicySchema.parse(policy);
   const normalizeWeekdays = (weekdays: number[]) =>
     Array.from(new Set(weekdays)).sort((left, right) => left - right);
-  const normalizeWeekStartsOn = (weekStartsOn: number | undefined) =>
-    weekStartsOn !== undefined && weekStartsOn >= 0 && weekStartsOn <= 6
-      ? weekStartsOn
-      : 1;
   const normalizeWeeklyAnchorEffectiveOn = (
     weeklyAnchorEffectiveOn: string | null | undefined
   ) => (weeklyAnchorEffectiveOn ? weeklyAnchorEffectiveOn : null);

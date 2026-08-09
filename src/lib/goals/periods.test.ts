@@ -69,10 +69,8 @@ describe("anchored civil-date periods", () => {
   it("keeps pre-cutover weekly periods on the legacy anchor", () => {
     expect(
       getAnchoredPeriod("2026-08-06", "weekly", "2026-08-16", {
-        weekly: {
-          weekStartsOn: 1,
-          effectiveFrom: "2026-08-17",
-        },
+        weekStartsOn: 1,
+        effectiveFrom: "2026-08-17",
       })
     ).toMatchObject({
       index: 1,
@@ -85,10 +83,8 @@ describe("anchored civil-date periods", () => {
   it("switches to weekStartsOn-aligned weekly periods on and after cutover", () => {
     expect(
       getAnchoredPeriod("2026-08-06", "weekly", "2026-08-18", {
-        weekly: {
-          weekStartsOn: 1,
-          effectiveFrom: "2026-08-17",
-        },
+        weekStartsOn: 1,
+        effectiveFrom: "2026-08-17",
       })
     ).toMatchObject({
       index: 2,
@@ -102,10 +98,8 @@ describe("anchored civil-date periods", () => {
   it("normalizes non-week-aligned cutover dates to the next week boundary", () => {
     expect(
       getAnchoredPeriod("2026-08-06", "weekly", "2026-08-18", {
-        weekly: {
-          weekStartsOn: 1,
-          effectiveFrom: "2026-08-12",
-        },
+        weekStartsOn: 1,
+        effectiveFrom: "2026-08-12",
       })
     ).toMatchObject({
       index: 2,
@@ -115,32 +109,24 @@ describe("anchored civil-date periods", () => {
     });
     expect(
       getAnchoredPeriodStart("2026-08-20", "weekly", 0, {
-        weekly: {
-          weekStartsOn: 1,
-          effectiveFrom: "2026-08-13",
-        },
+        weekStartsOn: 1,
+        effectiveFrom: "2026-08-13",
       })
     ).toBe("2026-08-17");
   });
 
   it("keeps period indices monotonic across the cutover seam", () => {
     const before = getAnchoredPeriod("2026-08-06", "weekly", "2026-08-16", {
-      weekly: {
-        weekStartsOn: 1,
-        effectiveFrom: "2026-08-17",
-      },
+      weekStartsOn: 1,
+      effectiveFrom: "2026-08-17",
     });
     const atCutover = getAnchoredPeriod("2026-08-06", "weekly", "2026-08-17", {
-      weekly: {
-        weekStartsOn: 1,
-        effectiveFrom: "2026-08-17",
-      },
+      weekStartsOn: 1,
+      effectiveFrom: "2026-08-17",
     });
     const after = getAnchoredPeriod("2026-08-06", "weekly", "2026-08-24", {
-      weekly: {
-        weekStartsOn: 1,
-        effectiveFrom: "2026-08-17",
-      },
+      weekStartsOn: 1,
+      effectiveFrom: "2026-08-17",
     });
 
     expect(before.index).toBe(1);
@@ -151,18 +137,14 @@ describe("anchored civil-date periods", () => {
   it("treats cutovers before start_date as week-aligned from index zero", () => {
     expect(
       getAnchoredPeriodStart("2026-08-20", "weekly", 0, {
-        weekly: {
-          weekStartsOn: 1,
-          effectiveFrom: "2026-08-11",
-        },
+        weekStartsOn: 1,
+        effectiveFrom: "2026-08-11",
       })
     ).toBe("2026-08-17");
     expect(
       getAnchoredPeriod("2026-08-20", "weekly", "2026-08-20", {
-        weekly: {
-          weekStartsOn: 1,
-          effectiveFrom: "2026-08-11",
-        },
+        weekStartsOn: 1,
+        effectiveFrom: "2026-08-11",
       })
     ).toMatchObject({
       index: 0,

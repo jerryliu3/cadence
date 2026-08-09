@@ -1,26 +1,14 @@
 import { format, parse } from "date-fns";
 import type { PlannerDraftVisualKind } from "@/lib/planner/diff";
 import { getDateInTimezone } from "@/lib/dates/timezone";
+import { normalizeWeekStartsOn } from "@/lib/dates/week-start";
 import type {
   CompletionControlDisabledReason,
   PlannerDayDetailEntry,
 } from "@/features/planner/calendar-surface.types";
 
 const weekdayLabelsSunFirst = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-
-export function normalizeWeekStartsOn(
-  weekStartsOn: number | null | undefined
-): number {
-  if (
-    typeof weekStartsOn === "number" &&
-    Number.isInteger(weekStartsOn) &&
-    weekStartsOn >= 0 &&
-    weekStartsOn <= 6
-  ) {
-    return weekStartsOn;
-  }
-  return 1;
-}
+export { normalizeWeekStartsOn };
 
 export function buildWeekdayLabels(weekStartsOn: number) {
   const normalizedWeekStartsOn = normalizeWeekStartsOn(weekStartsOn);

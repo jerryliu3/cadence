@@ -1,4 +1,5 @@
 import type { RecurrenceInterval } from "@/lib/goals/types";
+import { normalizeWeekStartsOn } from "@/lib/dates/week-start";
 
 const ISO_DATE_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
 const MILLISECONDS_PER_DAY = 86_400_000;
@@ -27,10 +28,6 @@ export interface AnchoredPeriod {
 export interface WeeklyAnchorContext {
   weekStartsOn?: number | null;
   effectiveFrom?: string | null;
-}
-
-export interface AnchoredPeriodOptions {
-  weekly?: WeeklyAnchorContext | null;
 }
 
 function parseCivilDate(value: string): CivilDate {
@@ -76,18 +73,6 @@ function epochDayToCivilDate(epochDay: number) {
     month: date.getUTCMonth() + 1,
     day: date.getUTCDate(),
   });
-}
-
-function normalizeWeekStartsOn(value: number | null | undefined) {
-  if (
-    typeof value === "number" &&
-    Number.isSafeInteger(value) &&
-    value >= 0 &&
-    value <= 6
-  ) {
-    return value;
-  }
-  return 1;
 }
 
 function getUtcWeekday(value: string) {
@@ -162,7 +147,7 @@ export function getAnchoredPeriodStart(
   anchorDate: string,
   interval: RecurrenceInterval,
   index: number,
-  options?: AnchoredPeriodOptions
+  weeklyAnchor?: WeeklyAnchorContext | null
 ) {
   if (!Number.isSafeInteger(index) || index < 0) {
     throw new RangeError("Period index must be a non-negative safe integer.");
@@ -174,7 +159,7 @@ export function getAnchoredPeriodStart(
   if (interval === "weekly") {
     const weeklyAnchorMeta = parseWeeklyAnchorMeta(
       anchorDate,
-      options?.weekly ?? null
+      weeklyAnchor ?? null
     );
     if (
       weeklyAnchorMeta &&
@@ -204,13 +189,13 @@ export function getAnchoredPeriod(
   anchorDate: string,
   interval: RecurrenceInterval,
   referenceDate: string,
-  options?: AnchoredPeriodOptions
+  weeklyAnchor?: WeeklyAnchorContext | null
 ): AnchoredPeriod {
   parseCivilDate(anchorDate);
   parseCivilDate(referenceDate);
   const weeklyAnchorMeta =
     interval === "weekly"
-      ? parseWeeklyAnchorMeta(anchorDate, options?.weekly ?? null)
+      ? parseWeeklyAnchorMeta(anchorDate, weeklyAnchor ?? null)
       : null;
 
   let index = 0;
@@ -256,7 +241,7 @@ export function getAnchoredPeriod(
       while (
         index > 0 &&
         compareDateStrings(
-          getAnchoredPeriodStart(anchorDate, interval, index, options),
+          getAnchoredPeriodStart(anchorDate, interval, index, weeklyAnchor),
           referenceDate
         ) > 0
       ) {
@@ -264,7 +249,7 @@ export function getAnchoredPeriod(
       }
       while (
         compareDateStrings(
-          getAnchoredPeriodStart(anchorDate, interval, index + 1, options),
+          getAnchoredPeriodStart(anchorDate, interval, index + 1, weeklyAnchor),
           referenceDate
         ) <= 0
       ) {
@@ -273,12 +258,17 @@ export function getAnchoredPeriod(
     }
   }
 
-  const start = getAnchoredPeriodStart(anchorDate, interval, index, options);
+  const start = getAnchoredPeriodStart(
+    anchorDate,
+    interval,
+    index,
+    weeklyAnchor
+  );
   const nextStart = getAnchoredPeriodStart(
     anchorDate,
     interval,
     index + 1,
-    options
+    weeklyAnchor
   );
   const end =
     interval === "daily" ? start : addDaysToDateString(nextStart, -1);
