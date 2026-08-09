@@ -77,10 +77,10 @@ describe("usePlannerVisibleMonthContexts", () => {
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledTimes(2);
+      expect(result.current["2026-07"]?.scopeMonth).toBe("2026-07");
+      expect(result.current["2026-09"]?.scopeMonth).toBe("2026-09");
+      expect(result.current["2026-08"]).toBeUndefined();
     });
-    expect(result.current["2026-07"]?.scopeMonth).toBe("2026-07");
-    expect(result.current["2026-09"]?.scopeMonth).toBe("2026-09");
-    expect(result.current["2026-08"]).toBeUndefined();
   });
 
   it("keeps successful month contexts when one fetch fails", async () => {
