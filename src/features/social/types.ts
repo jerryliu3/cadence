@@ -57,3 +57,31 @@ export interface SocialChallenge {
   viewerCompletedAt: string | null;
   viewerAwardedAt: string | null;
 }
+
+export type LeaderboardSeasonStatus = "upcoming" | "open" | "closed";
+export type LeaderboardRollover = "none" | "weekly" | "monthly" | "quarterly";
+
+export interface LeaderboardSeason {
+  id: string;
+  slug: string;
+  title: string;
+  subjectKind: SocialSubjectKind;
+  metric: ChallengeMetric;
+  metricTrackKey: string | null;
+  startsAt: string;
+  endsAt: string | null;
+  status: LeaderboardSeasonStatus;
+  rollover: LeaderboardRollover;
+  closedAt: string | null;
+}
+
+export interface LeaderboardStanding {
+  seasonId: string;
+  subjectKind: SocialSubjectKind;
+  subjectId: string;
+  displayName: string;
+  score: number;
+  rank: number;
+  tieBreakAt: string | null;
+  viewerRank: number | null;
+}

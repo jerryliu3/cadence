@@ -83,6 +83,13 @@ export type Database = {
         Args: { p_timezone: string }
         Returns: string
       }
+      next_rollover_end: {
+        Args: {
+          p_rollover: Database["public"]["Enums"]["leaderboard_rollover"]
+          p_starts_at: string
+        }
+        Returns: string
+      }
       normalize_goal_category_key: {
         Args: { p_category: string }
         Returns: string
@@ -655,6 +662,171 @@ export type Database = {
             columns: ["owner_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      leaderboard_season_results: {
+        Row: {
+          display_name: string
+          frozen_at: string
+          rank: number
+          score: number
+          season_id: string
+          subject_id: string
+          subject_kind: Database["public"]["Enums"]["social_subject_kind"]
+          tie_break_at: string | null
+        }
+        Insert: {
+          display_name: string
+          frozen_at?: string
+          rank: number
+          score: number
+          season_id: string
+          subject_id: string
+          subject_kind: Database["public"]["Enums"]["social_subject_kind"]
+          tie_break_at?: string | null
+        }
+        Update: {
+          display_name?: string
+          frozen_at?: string
+          rank?: number
+          score?: number
+          season_id?: string
+          subject_id?: string
+          subject_kind?: Database["public"]["Enums"]["social_subject_kind"]
+          tie_break_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "leaderboard_season_results_season_id_fkey"
+            columns: ["season_id"]
+            isOneToOne: false
+            referencedRelation: "leaderboard_seasons"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      leaderboard_seasons: {
+        Row: {
+          closed_at: string | null
+          created_at: string
+          created_by: string | null
+          ends_at: string | null
+          id: string
+          metric: Database["public"]["Enums"]["challenge_metric"]
+          metric_track_key: string | null
+          next_season_id: string | null
+          previous_season_id: string | null
+          rollover: Database["public"]["Enums"]["leaderboard_rollover"]
+          slug: string
+          starts_at: string
+          status: Database["public"]["Enums"]["leaderboard_season_status"]
+          subject_kind: Database["public"]["Enums"]["social_subject_kind"]
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          closed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          ends_at?: string | null
+          id?: string
+          metric?: Database["public"]["Enums"]["challenge_metric"]
+          metric_track_key?: string | null
+          next_season_id?: string | null
+          previous_season_id?: string | null
+          rollover?: Database["public"]["Enums"]["leaderboard_rollover"]
+          slug: string
+          starts_at: string
+          status?: Database["public"]["Enums"]["leaderboard_season_status"]
+          subject_kind?: Database["public"]["Enums"]["social_subject_kind"]
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          closed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          ends_at?: string | null
+          id?: string
+          metric?: Database["public"]["Enums"]["challenge_metric"]
+          metric_track_key?: string | null
+          next_season_id?: string | null
+          previous_season_id?: string | null
+          rollover?: Database["public"]["Enums"]["leaderboard_rollover"]
+          slug?: string
+          starts_at?: string
+          status?: Database["public"]["Enums"]["leaderboard_season_status"]
+          subject_kind?: Database["public"]["Enums"]["social_subject_kind"]
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "leaderboard_seasons_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leaderboard_seasons_metric_track_key_fkey"
+            columns: ["metric_track_key"]
+            isOneToOne: false
+            referencedRelation: "goal_categories"
+            referencedColumns: ["key"]
+          },
+          {
+            foreignKeyName: "leaderboard_seasons_next_season_id_fkey"
+            columns: ["next_season_id"]
+            isOneToOne: false
+            referencedRelation: "leaderboard_seasons"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leaderboard_seasons_previous_season_id_fkey"
+            columns: ["previous_season_id"]
+            isOneToOne: false
+            referencedRelation: "leaderboard_seasons"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      leaderboard_standings: {
+        Row: {
+          rank: number
+          refreshed_at: string
+          score: number
+          season_id: string
+          subject_id: string
+          subject_kind: Database["public"]["Enums"]["social_subject_kind"]
+          tie_break_at: string | null
+        }
+        Insert: {
+          rank: number
+          refreshed_at?: string
+          score?: number
+          season_id: string
+          subject_id: string
+          subject_kind: Database["public"]["Enums"]["social_subject_kind"]
+          tie_break_at?: string | null
+        }
+        Update: {
+          rank?: number
+          refreshed_at?: string
+          score?: number
+          season_id?: string
+          subject_id?: string
+          subject_kind?: Database["public"]["Enums"]["social_subject_kind"]
+          tie_break_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "leaderboard_standings_season_id_fkey"
+            columns: ["season_id"]
+            isOneToOne: false
+            referencedRelation: "leaderboard_seasons"
             referencedColumns: ["id"]
           },
         ]
@@ -1338,6 +1510,19 @@ export type Database = {
           viewer_progress: number
         }[]
       }
+      get_leaderboard_standings: {
+        Args: { p_limit?: number; p_offset?: number; p_season_id: string }
+        Returns: {
+          display_name: string
+          rank: number
+          score: number
+          season_id: string
+          subject_id: string
+          subject_kind: Database["public"]["Enums"]["social_subject_kind"]
+          tie_break_at: string
+          viewer_rank: number
+        }[]
+      }
       get_planner_schedule_digest: {
         Args: { p_owner?: string }
         Returns: string
@@ -1393,6 +1578,22 @@ export type Database = {
           xp_delta: number
         }[]
       }
+      get_social_leaderboards: {
+        Args: never
+        Returns: {
+          closed_at: string
+          ends_at: string
+          id: string
+          metric: Database["public"]["Enums"]["challenge_metric"]
+          metric_track_key: string
+          rollover: Database["public"]["Enums"]["leaderboard_rollover"]
+          slug: string
+          starts_at: string
+          status: Database["public"]["Enums"]["leaderboard_season_status"]
+          subject_kind: Database["public"]["Enums"]["social_subject_kind"]
+          title: string
+        }[]
+      }
       hide_feed_event_service: {
         Args: { p_event_id: string; p_hidden: boolean; p_reason?: string }
         Returns: boolean
@@ -1427,6 +1628,8 @@ export type Database = {
         Returns: number
       }
       refresh_challenge_progress_service: { Args: never; Returns: number }
+      refresh_leaderboard_standings_service: { Args: never; Returns: number }
+      rollover_leaderboard_seasons_service: { Args: never; Returns: number }
       save_planner_coach_conversation_service: {
         Args: {
           p_messages: Json
@@ -1492,6 +1695,8 @@ export type Database = {
       goal_feed_visibility: "private" | "title_public"
       goal_frequency_type: "fixed_milestones" | "recurring"
       goal_partner_visibility: "shared" | "excluded"
+      leaderboard_rollover: "none" | "weekly" | "monthly" | "quarterly"
+      leaderboard_season_status: "upcoming" | "open" | "closed"
       moderation_action:
         | "hide"
         | "unhide"
@@ -1655,6 +1860,8 @@ export const Constants = {
       goal_feed_visibility: ["private", "title_public"],
       goal_frequency_type: ["fixed_milestones", "recurring"],
       goal_partner_visibility: ["shared", "excluded"],
+      leaderboard_rollover: ["none", "weekly", "monthly", "quarterly"],
+      leaderboard_season_status: ["upcoming", "open", "closed"],
       moderation_action: [
         "hide",
         "unhide",

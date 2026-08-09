@@ -4,6 +4,7 @@ import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/ca
 import { ChallengeList } from "@/features/social/challenges/challenge-list";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FeedList } from "@/features/social/feed/feed-list";
+import { LeaderboardsPanel } from "@/features/social/leaderboards/leaderboards-panel";
 import type { SocialCapabilities } from "@/lib/social/capabilities";
 
 function Placeholder({
@@ -56,10 +57,14 @@ export function SocialSurface({ capabilities }: { capabilities: SocialCapabiliti
       </TabsContent>
 
       <TabsContent value="leaderboards">
-        <Placeholder
-          title="Leaderboards staged"
-          description="Leaderboard season surfaces are behind rollout flags until phase completion."
-        />
+        {!capabilities.socialLeaderboardsEnabled ? (
+          <Placeholder
+            title="Leaderboards disabled"
+            description="Enable SOCIAL_LEADERBOARDS_ENABLED to expose leaderboard seasons."
+          />
+        ) : (
+          <LeaderboardsPanel />
+        )}
       </TabsContent>
 
       <TabsContent value="duo">
