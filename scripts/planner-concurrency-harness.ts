@@ -12,6 +12,9 @@ const ownerId = "11111111-1111-4111-8111-111111111111";
 const quotaOwnerId = "22222222-2222-4222-8222-222222222222";
 const raceOwnerId = "44444444-4444-4444-8444-444444444444";
 const raceGoalId = "44000000-0000-4000-8000-000000000001";
+const xpRaceOwnerId = "55555555-5555-4555-8555-555555555555";
+const xpRaceGoalId = "55000000-0000-4000-8000-000000000001";
+const xpSocialSourceKey = "xp-concurrency-social-award";
 
 class NamedBarriers {
   private readonly barriers = new Map<
@@ -111,6 +114,7 @@ async function main() {
     "release-session-a",
   ]);
   const observedOrder: string[] = [];
+  const xpObservedOrder: string[] = [];
 
   await Promise.all([sessionA.connect(), sessionB.connect(), control.connect()]);
 
@@ -398,16 +402,188 @@ async function main() {
       raceOwnerId,
     ]);
 
+    await control.query("delete from public.goals where owner_id = $1", [xpRaceOwnerId]);
+    await control.query("delete from public.user_awards where user_id = $1", [
+      xpRaceOwnerId,
+    ]);
+    await control.query("delete from public.xp_ledger where user_id = $1", [
+      xpRaceOwnerId,
+    ]);
+    await control.query("delete from public.xp_profiles where user_id = $1", [
+      xpRaceOwnerId,
+    ]);
+    await control.query("delete from public.profiles where id = $1", [xpRaceOwnerId]);
+    await control.query(
+      `insert into public.profiles (id, username, timezone)
+       values ($1, 'planner_xp_race', 'America/New_York')
+       on conflict (id) do update
+       set timezone = excluded.timezone`,
+      [xpRaceOwnerId]
+    );
+    await control.query(
+      `insert into public.goals (
+         id, owner_id, title, category, frequency_type,
+         recurrence_interval, target_count, start_date, end_date, is_group
+       )
+       values (
+         $1,
+         $2,
+         'XP race goal',
+         'Health',
+         'recurring',
+         'weekly',
+         1,
+         current_date - 14,
+         current_date + 14,
+         false
+       )`,
+      [xpRaceGoalId, xpRaceOwnerId]
+    );
+    await control.query(
+      `insert into public.completions (goal_id, user_id, completed_on, source)
+       values ($1, $2, current_date, 'manual')`,
+      [xpRaceGoalId, xpRaceOwnerId]
+    );
+    await control.query("delete from public.user_awards where user_id = $1", [
+      xpRaceOwnerId,
+    ]);
+    await control.query("delete from public.xp_ledger where user_id = $1", [
+      xpRaceOwnerId,
+    ]);
+    await control.query("delete from public.xp_profiles where user_id = $1", [
+      xpRaceOwnerId,
+    ]);
+    await control.query(
+      `insert into public.xp_profiles (user_id, track_key, total_xp, current_level)
+       values ($1, 'global', 0, private.xp_level_for_total(0))
+       on conflict (user_id, track_key) do update
+       set total_xp = excluded.total_xp,
+           current_level = excluded.current_level`,
+      [xpRaceOwnerId]
+    );
+
+    const xpRaceBarriers = new NamedBarriers([
+      "xp-session-a-refresh-complete",
+      "xp-session-b-requested-social-award",
+      "xp-release-session-a",
+    ]);
+    let xpSocialSeq: number | null = null;
+    const xpSessionATask = (async () => {
+      await sessionA.query("begin");
+      await sessionA.query(
+        "select public.recompute_goal_xp_service($1::uuid, $2::uuid, false)",
+        [xpRaceOwnerId, xpRaceGoalId]
+      );
+      xpObservedOrder.push("xp-session-a-recompute");
+      xpRaceBarriers.signal("xp-session-a-refresh-complete");
+      await xpRaceBarriers.wait("xp-release-session-a");
+      await sessionA.query("commit");
+      xpObservedOrder.push("xp-session-a-committed");
+    })();
+    const xpSessionBTask = (async () => {
+      await xpRaceBarriers.wait("xp-session-a-refresh-complete");
+      await sessionB.query("begin");
+      const socialAwardQuery = sessionB.query<{ seq: number | null }>(
+        `select public.award_social_xp_service(
+           $1::uuid,
+           'challenge_award',
+           $2::text,
+           15
+         ) as seq`,
+        [xpRaceOwnerId, xpSocialSourceKey]
+      );
+      xpRaceBarriers.signal("xp-session-b-requested-social-award");
+      const socialAwardResult = await socialAwardQuery;
+      xpSocialSeq = socialAwardResult.rows[0]?.seq ?? null;
+      xpObservedOrder.push("xp-session-b-social-award");
+      await sessionB.query("commit");
+      xpObservedOrder.push("xp-session-b-committed");
+    })();
+
+    await xpRaceBarriers.wait("xp-session-b-requested-social-award");
+    await waitForAdvisoryBlock(control, sessionBPid);
+    xpObservedOrder.push("xp-session-b-observed-blocked");
+    xpRaceBarriers.signal("xp-release-session-a");
+    await Promise.all([xpSessionATask, xpSessionBTask]);
+
+    assert.ok(
+      xpSocialSeq !== null,
+      "Concurrent social award should insert a social ledger row."
+    );
+    assert.equal(new Set(xpObservedOrder).size, 5);
+    assert.equal(xpObservedOrder[0], "xp-session-a-recompute");
+    assert.equal(xpObservedOrder[1], "xp-session-b-observed-blocked");
+    assert.ok(
+      xpObservedOrder.indexOf("xp-session-b-social-award") >
+        xpObservedOrder.indexOf("xp-session-b-observed-blocked")
+    );
+
+    const xpTotals = await control.query<{
+      ledger_total: number;
+      profile_total: number;
+    }>(
+      `select
+         coalesce((
+           select sum(xp_delta)::integer
+           from public.xp_ledger
+           where user_id = $1
+         ), 0) as ledger_total,
+         coalesce((
+           select total_xp
+           from public.xp_profiles
+           where user_id = $1
+             and track_key = 'global'
+         ), 0) as profile_total`,
+      [xpRaceOwnerId]
+    );
+    const xpTotalsRow = xpTotals.rows[0];
+    assert.ok(xpTotalsRow, "XP totals row should exist.");
+    assert.equal(
+      xpTotalsRow.profile_total,
+      xpTotalsRow.ledger_total,
+      "XP profile total should always equal the global ledger sum after concurrent writes."
+    );
+    const xpSocialRows = await control.query<{ rows: number }>(
+      `select count(*)::integer as rows
+       from public.xp_ledger
+       where user_id = $1
+         and event_type = 'challenge_award'
+         and source_key = $2
+         and track_key = 'global'
+         and xp_delta = 15`,
+      [xpRaceOwnerId, xpSocialSourceKey]
+    );
+    assert.equal(
+      xpSocialRows.rows[0]?.rows,
+      1,
+      "Concurrent run should include exactly one social-award global ledger row."
+    );
+
+    await control.query("delete from public.goals where id = $1", [xpRaceGoalId]);
+    await control.query("delete from public.user_awards where user_id = $1", [
+      xpRaceOwnerId,
+    ]);
+    await control.query("delete from public.xp_ledger where user_id = $1", [
+      xpRaceOwnerId,
+    ]);
+    await control.query("delete from public.xp_profiles where user_id = $1", [
+      xpRaceOwnerId,
+    ]);
+    await control.query("delete from public.profiles where id = $1", [xpRaceOwnerId]);
+
     console.log(
       JSON.stringify({
         harness: "planner-two-session-advisory-lock",
         status: "passed",
         order: observedOrder,
+        xpOrder: xpObservedOrder,
         quotaAllowed: quotaAttempts.filter(
           (result) => result.rows[0]?.allowed
         ).length,
         staleScheduleErrorCode,
         staleScheduleErrorMessage,
+        xpProfileTotal: xpTotalsRow.profile_total,
+        xpLedgerTotal: xpTotalsRow.ledger_total,
       })
     );
   } finally {
@@ -426,6 +602,21 @@ async function main() {
       ]);
     } catch {
       // The setup may not have reached temporary-owner creation.
+    }
+    try {
+      await control.query("delete from public.goals where id = $1", [xpRaceGoalId]);
+      await control.query("delete from public.user_awards where user_id = $1", [
+        xpRaceOwnerId,
+      ]);
+      await control.query("delete from public.xp_ledger where user_id = $1", [
+        xpRaceOwnerId,
+      ]);
+      await control.query("delete from public.xp_profiles where user_id = $1", [
+        xpRaceOwnerId,
+      ]);
+      await control.query("delete from public.profiles where id = $1", [xpRaceOwnerId]);
+    } catch {
+      // The setup may not have reached XP race fixture creation.
     }
     await Promise.all([sessionA.end(), sessionB.end(), control.end()]);
   }
