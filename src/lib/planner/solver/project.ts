@@ -13,11 +13,13 @@ export function projectWorkUnitsToSolver({
   compiledPolicy,
   assessments,
   completionDatesByGoal = new Map(),
+  preserveExistingAssignments = false,
 }: {
   workUnits: PlannerWorkUnit[];
   compiledPolicy: CompiledPolicy;
   assessments: Map<string, GoalAssessment>;
   completionDatesByGoal?: Map<string, Set<string>>;
+  preserveExistingAssignments?: boolean;
 }): SolverUnit[] {
   const isProjectable = (unit: PlannerWorkUnit) =>
     (unit.classification === "open" ||
@@ -81,9 +83,11 @@ export function projectWorkUnitsToSolver({
         ordinal: entry.source.ordinal,
         candidateDates: entry.candidateDates,
         previousDate: entry.source.scheduledDate,
-        lockedDate: entry.source.locked
-          ? entry.source.scheduledDate
-          : null,
+        lockedDate:
+          entry.source.locked ||
+          (preserveExistingAssignments && entry.source.scheduledDate !== null)
+            ? entry.source.scheduledDate
+            : null,
         dateCosts: Object.fromEntries(
           entry.candidateDates.map((date) => [
             date,
