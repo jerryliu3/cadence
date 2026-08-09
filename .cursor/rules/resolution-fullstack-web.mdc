@@ -1,0 +1,35 @@
+---
+description: TypeScript, Next.js rendering, and full-stack contract defaults
+globs: src/**/*.{ts,tsx}
+alwaysApply: false
+---
+
+# Full-Stack Defaults
+
+- TypeScript-first with strict typing and shared contract types.
+- Define API request/response contracts before implementing handlers/components.
+- Use Zod validation at trust boundaries.
+- Enforce auth and authorization across DB, API middleware, and UI entrypoints.
+
+# Next.js and Rendering
+
+- This is not legacy Next.js; verify behavior against `node_modules/next/dist/docs/`.
+- Default to React Server Components; use client components only for required interactivity.
+- Choose route strategy intentionally (RSC/SSR/ISR/static) by freshness requirement.
+- Use Suspense-friendly streaming patterns for slow server reads.
+- For edge runtime paths, avoid Node-only APIs and document runtime assumptions.
+
+# API + Frontend Conventions
+
+- Prefer shared route helpers for auth/capability checks and error shaping.
+- Use stable machine-readable error codes over fragile string matching.
+- Keep optimistic concurrency and stale-data handling explicit in clients.
+- Avoid route proliferation; consolidate aliases and remove dead routes quickly.
+
+# Architecture and Ops Expectations
+
+- Treat real-time features as first-class architecture: define reconnect and conflict behavior.
+- Keep performance explicit: query efficiency, bundle impact, and cache strategy should be reviewed.
+- Keep security explicit: least-privilege auth, RBAC/RLS-aware flows, no secret leakage to clients.
+- For monorepo/package changes, keep shared types/contracts in one source of truth.
+- Keep delivery atomic: migrations + API + UI ship together with rollback clarity.

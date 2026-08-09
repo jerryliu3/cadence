@@ -1,0 +1,42 @@
+---
+description: Resolution core engineering behavior and delivery standards
+alwaysApply: true
+---
+
+# Resolution Core Principles
+
+- Think end-to-end across DB, API, client behavior, tests, and rollout.
+- Prefer behavior-preserving simplification over clever rewrites.
+- Ask for approval before intentional product or performance tradeoffs.
+- Keep changes reviewable as small, stacked PRs with clear verification.
+- Prefer deleting dead code over keeping compatibility shims with no callers.
+- Prioritize reuse: prefer existing components/hooks/services before new abstractions.
+- Maintain strict layer ownership:
+  - frontend -> presentation and interaction
+  - API/service -> validation/auth/orchestration/transactions
+  - DB -> canonical invariants and atomic writes
+- Choose the simplest architecture that satisfies current requirements.
+- Avoid speculative flexibility and over-generalized frameworks.
+- Surface assumptions early; confirm impactful assumptions before implementation.
+- Apply proportional hardening only; discuss advanced edge-case handling before adding complexity.
+
+# Delivery Workflow
+
+- Plan first: data model/indexes, API contract, render strategy, auth model.
+- Implement in synchronized layers: schema/functions, API, then client.
+- Keep migrations/API/frontend shippable together (atomic rollout posture).
+- Keep observability in place: stable machine codes, structured errors, traceability.
+
+# Verification and Safety
+
+- Run targeted tests for touched logic (unit/integration/component/e2e as needed).
+- Run SQL pgTAP coverage for write-boundary and function rewrites.
+- Run lint and typecheck for changed files.
+- For high-risk refactors: add or tighten tests first, then rewrite.
+- Explicitly validate CI/local divergence risks (migration order, replay/idempotency).
+
+# Documentation Hygiene
+
+- Update docs when route surface, contracts, or semantics change.
+- Keep planning docs additive and historically accurate.
+- Keep policy canonical in `AGENTS.md`; these rules are topic copies for activation.

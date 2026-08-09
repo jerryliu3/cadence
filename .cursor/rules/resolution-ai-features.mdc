@@ -1,0 +1,22 @@
+---
+description: AI feature implementation standards (schema validation, RAG, and cost controls)
+globs: src/**/*ai*
+alwaysApply: false
+---
+
+# AI Integration Standards
+
+- Keep provider calls behind a thin interface so models/providers are swappable.
+- Require schema-constrained outputs and validate responses before applying side effects.
+- Version prompts with code changes and keep revisions reviewable.
+
+# Retrieval and Quality
+
+- For RAG-style work: deterministic chunk/embed strategy, stable vector storage, clear retrieval contract.
+- Validate retrieval and generation behavior against a golden/eval set before shipping risky changes.
+
+# Operational Guardrails
+
+- Track quota/cost at request level.
+- Remove unused token/accounting surfaces rather than carrying dead telemetry.
+- Keep timeout/retry behavior explicit in both API and UI layers.

@@ -1,0 +1,25 @@
+---
+description: Planner-specific invariants and behavior constraints
+globs: src/**/*planner*
+alwaysApply: false
+---
+
+# Planner Invariants
+
+- Keep write-boundary concurrency safe (`expectedDigest`, stale handling, replay semantics).
+- Preserve `original_scheduled_date` semantics used by ghost-marker behavior.
+- Lock/pin is manual per item; do not introduce implicit auto-lock behavior.
+- Reset semantics default to unlock-in-place unless product explicitly approves otherwise.
+
+# Completion and Cascade Semantics
+
+- Preserve authorization behavior (`not authorized for goal %`) when refactoring.
+- Preserve completion source labeling:
+  - root action -> `manual`
+  - cascaded descendants -> `linked_cascade`
+- Keep idempotency behavior stable across retries and stale client state.
+
+# Surface and Naming Consistency
+
+- Keep planner API and UI naming aligned with current product language (`save`, `reset`, preview/draft conventions).
+- Avoid resurrecting legacy planner routes/surfaces unless explicitly required.
