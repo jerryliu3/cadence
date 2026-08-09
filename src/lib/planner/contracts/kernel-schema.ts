@@ -33,6 +33,7 @@ const requirementKindSchema = z.enum([
   "cadence",
   "deadline_total",
 ]);
+const solveIntentSchema = z.enum(["stable", "replan"]);
 const eligibilityModeSchema = z.enum(PLANNER_ELIGIBILITY_MODES);
 
 export const plannerGoalSchema = z
@@ -106,6 +107,7 @@ export const plannerKernelInputSchema = z
     ),
     assessments: z.array(goalAssessmentSchema).optional(),
     policy: plannerPolicySchema,
+    solveIntent: solveIntentSchema.default("stable"),
     basePlan: z
       .object({
         planId: z.string().min(1).max(100),
@@ -234,6 +236,7 @@ export const plannerKernelOutputSchema = z
   .object({
     schemaVersion: z.literal(PLANNER_CONTRACT_VERSION),
     eligibilityMode: eligibilityModeSchema,
+    solveIntent: solveIntentSchema,
     generationInputHash: z.string().regex(/^[a-f0-9]{64}$/),
     scopeState: z.enum(["historical", "current", "future"]),
     solver: solverResultSchema,

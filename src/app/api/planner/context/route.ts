@@ -30,6 +30,8 @@ import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 
+const solveIntentSchema = z.enum(["stable", "replan"]);
+
 const contextQuerySchema = z.object({
   scopeMonth: z
     .string()
@@ -66,6 +68,7 @@ const previewRequestSchema = z.object({
     .optional(),
   policy: z.unknown().optional(),
   source: z.enum(["manual", "ai", "update"]).default("manual"),
+  solveIntent: solveIntentSchema.default("stable"),
 });
 
 const upsertPreferencesSchema = z.object({
@@ -130,6 +133,7 @@ function resolvePlannerPreview({
   requireExplicitTimezone,
   includeKernel = true,
   preserveExistingAssignments = false,
+  solveIntent = "stable",
 }: {
   ownerId: string;
   scopeMonth: string;
@@ -141,6 +145,7 @@ function resolvePlannerPreview({
   requireExplicitTimezone: boolean;
   includeKernel?: boolean;
   preserveExistingAssignments?: boolean;
+  solveIntent?: "stable" | "replan";
 }) {
   const effectiveTimezone =
     requestedTimezone ??
@@ -200,6 +205,7 @@ function resolvePlannerPreview({
         policy: effectivePolicy,
         basePlan: snapshot.activePlan?.basePlan ?? null,
         preserveExistingAssignments,
+        solveIntent,
       })
     : null;
 
@@ -260,6 +266,7 @@ export async function GET(request: Request) {
         requireExplicitTimezone: false,
         includeKernel: routeContext.capabilities.calendarEnabled,
         preserveExistingAssignments: true,
+        solveIntent: "stable",
       });
     } catch (error) {
       if (error instanceof PlannerError) {
@@ -408,6 +415,7 @@ export async function POST(request: Request) {
         snapshot,
         requireExplicitTimezone: true,
         preserveExistingAssignments: false,
+        solveIntent: body.solveIntent,
       });
     } catch (error) {
       if (error instanceof PlannerError) {
@@ -420,6 +428,7 @@ export async function POST(request: Request) {
     const responseBody = {
       schemaVersion: "1",
       source: body.source,
+      solveIntent: body.solveIntent,
       scopeMonth: body.scopeMonth,
       asOfDate,
       timezone: effectiveTimezone,
