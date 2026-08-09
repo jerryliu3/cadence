@@ -9,6 +9,8 @@ import type {
 } from "@/features/planner/calendar-surface.types";
 import { MAX_HORIZON_MONTHS } from "@/lib/planner/contracts/bounds";
 
+const VISIBLE_MONTH_FETCH_DEBOUNCE_MS = 80;
+
 interface UsePlannerVisibleMonthContextsArgs {
   activeTab: CalendarTab;
   scopeMonth: string | null;
@@ -48,7 +50,9 @@ export function usePlannerVisibleMonthContexts({
           Object.keys(current).length === 0 ? current : {}
         );
       }, 0);
-      return () => window.clearTimeout(resetTimer);
+      return () => {
+        window.clearTimeout(resetTimer);
+      };
     }
     if (visibleMonths.length > MAX_HORIZON_MONTHS) {
       console.error("[planner-visible-contexts] visible month window exceeded", {
@@ -60,7 +64,9 @@ export function usePlannerVisibleMonthContexts({
           Object.keys(current).length === 0 ? current : {}
         );
       }, 0);
-      return () => window.clearTimeout(resetTimer);
+      return () => {
+        window.clearTimeout(resetTimer);
+      };
     }
     let cancelled = false;
     const abortController = new AbortController();
@@ -107,7 +113,7 @@ export function usePlannerVisibleMonthContexts({
           });
           setVisibleMonthContexts(Object.fromEntries(entries));
         });
-    }, 0);
+    }, VISIBLE_MONTH_FETCH_DEBOUNCE_MS);
     return () => {
       cancelled = true;
       abortController.abort();
