@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-  isGoalCompleted,
   isGoalDoneForCurrentPeriod,
   isGoalManuallyArchived,
 } from "@/lib/goals/schedule";
@@ -91,50 +90,6 @@ describe("goal schedule semantics", () => {
 
     expect(isGoalDoneForCurrentPeriod(goal, [completionYesterday], referenceDate)).toBe(false);
     expect(isGoalDoneForCurrentPeriod(goal, [completionToday], referenceDate)).toBe(true);
-  });
-
-  it("auto-completes milestone goals once target count is reached", () => {
-    const goal = buildGoal({
-      frequency_type: "fixed_milestones",
-      recurrence_interval: null,
-      target_count: 3,
-      end_date: "2026-12-31",
-    });
-
-    expect(isGoalCompleted(goal, new Date("2026-05-10"), 2)).toBe(false);
-    expect(isGoalCompleted(goal, new Date("2026-05-10"), 3)).toBe(true);
-    expect(isGoalCompleted(goal, new Date("2026-05-10"), 4)).toBe(true);
-  });
-
-  it("does not auto-complete recurring goals when target is reached before end date", () => {
-    const goal = buildGoal({
-      frequency_type: "recurring",
-      recurrence_interval: "weekly",
-      target_count: 3,
-      end_date: "2026-12-31",
-    });
-
-    expect(isGoalCompleted(goal, new Date("2026-05-10"), 3)).toBe(false);
-  });
-
-  it("does not auto-complete indefinite recurring goals", () => {
-    const goal = buildGoal({
-      frequency_type: "recurring",
-      recurrence_interval: "monthly",
-      end_date: null,
-    });
-
-    expect(isGoalCompleted(goal, new Date("2026-08-01"))).toBe(false);
-  });
-
-  it("completes any goal with an end date in the past", () => {
-    const goal = buildGoal({
-      frequency_type: "recurring",
-      recurrence_interval: "daily",
-      end_date: "2026-04-01",
-    });
-
-    expect(isGoalCompleted(goal, new Date("2026-05-01"))).toBe(true);
   });
 
   it("treats archived_at as manual archive only", () => {

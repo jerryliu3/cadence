@@ -1,28 +1,19 @@
 import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
-import { z } from "zod";
 import {
   getDateInTimezone,
-  isValidIanaTimezone,
 } from "@/lib/dates/timezone";
 import { getPlannerCapabilities } from "@/lib/planner/capabilities";
-import { classifyTelemetryResult, emitTelemetryEvent } from "@/lib/telemetry/runtime";
+import {
+  applyPlannerGoalDateFact,
+  applyPlannerItemDateFact,
+  targetedExactDateRequestSchema,
+} from "@/lib/planner/exact-date-dispatch";
 import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 
 const MAX_REQUEST_BYTES = 16 * 1024;
-const requestSchema = z.object({
-  goalId: z.uuid(),
-  date: z.iso.date(),
-  desiredFactState: z.enum(["present", "absent"]),
-  timezone: z
-    .string()
-    .trim()
-    .min(1)
-    .max(100)
-    .refine(isValidIanaTimezone, "Provide a valid IANA timezone."),
-});
 
 function errorResponse(
   status: number,
@@ -38,7 +29,6 @@ function errorResponse(
 
 export async function POST(request: Request) {
   const correlationId = randomUUID();
-  const startedAt = Date.now();
   const supabase = await createClient();
   const {
     data: { user },
@@ -66,28 +56,12 @@ export async function POST(request: Request) {
     );
   }
   if (!capabilities.targetedExactCompletion) {
-    const response = errorResponse(
+    return errorResponse(
       503,
       "targeted_exact_completion_disabled",
       "Exact-date completion updates are temporarily unavailable.",
       correlationId
     );
-    emitTelemetryEvent({
-      eventName: "targeted_completion.completed",
-      ownerId: user.id,
-      correlationId,
-      capabilities,
-      scope: null,
-      result: "disabled",
-      statusCode: 503,
-      errorCode: "targeted_exact_completion_disabled",
-      durationMs: Date.now() - startedAt,
-      data: {
-        route: "canonical_exact_date",
-        desiredFactState: "absent",
-      },
-    });
-    return response;
   }
 
   const contentLength = Number(request.headers.get("content-length") ?? "0");
@@ -122,7 +96,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const parsedRequest = requestSchema.safeParse(parsedBody);
+  const parsedRequest = targetedExactDateRequestSchema.safeParse(parsedBody);
   if (!parsedRequest.success) {
     return errorResponse(
       400,
@@ -132,7 +106,15 @@ export async function POST(request: Request) {
     );
   }
 
-  const { goalId, date, desiredFactState, timezone } = parsedRequest.data;
+  const {
+    goalId,
+    date,
+    desiredFactState,
+    timezone,
+    plannerItemExpectation,
+    plannerGoalExpectation,
+  } = parsedRequest.data;
+
   const { data: goal, error: goalError } = await supabase
     .from("goals")
     .select("id, start_date, end_date")
@@ -145,6 +127,71 @@ export async function POST(request: Request) {
       "targeted_goal_not_found",
       "The goal was not found.",
       correlationId
+    );
+  }
+
+  if (plannerItemExpectation) {
+    const result = await applyPlannerItemDateFact({
+      supabase,
+      ownerId: user.id,
+      goalId,
+      desiredFactState,
+      timezone,
+      goalLifetime: {
+        startDate: goal.start_date,
+        endDate: goal.end_date,
+      },
+      expectation: plannerItemExpectation,
+    });
+    if (!result.ok) {
+      return errorResponse(
+        result.status,
+        result.code,
+        result.message,
+        correlationId
+      );
+    }
+
+    return NextResponse.json(
+      {
+        schemaVersion: "1",
+        ...result.payload,
+        correlationId,
+      },
+      { headers: { "Cache-Control": "no-store" } }
+    );
+  }
+
+  if (plannerGoalExpectation) {
+    const result = await applyPlannerGoalDateFact({
+      supabase,
+      ownerId: user.id,
+      goalId,
+      date,
+      desiredFactState,
+      timezone,
+      goalLifetime: {
+        startDate: goal.start_date,
+        endDate: goal.end_date,
+      },
+      expectation: plannerGoalExpectation,
+    });
+    if (!result.ok) {
+      return errorResponse(
+        result.status,
+        result.code,
+        result.message,
+        correlationId
+      );
+    }
+
+    return NextResponse.json(
+      {
+        schemaVersion: "1",
+        ...result.payload,
+        correlationId,
+      },
+      { headers: { "Cache-Control": "no-store" } }
     );
   }
 
@@ -182,48 +229,13 @@ export async function POST(request: Request) {
   );
 
   if (mutationError) {
-    const response = errorResponse(
+    return errorResponse(
       409,
       "completion_update_failed",
       "The completion could not be updated.",
       correlationId
     );
-    emitTelemetryEvent({
-      eventName: "targeted_completion.completed",
-      ownerId: user.id,
-      correlationId,
-      capabilities,
-      scope: null,
-      result: classifyTelemetryResult({
-        statusCode: 409,
-        errorCode: "completion_update_failed",
-      }),
-      statusCode: 409,
-      errorCode: "completion_update_failed",
-      durationMs: Date.now() - startedAt,
-      data: {
-        route: "canonical_exact_date",
-        desiredFactState,
-      },
-    });
-    return response;
   }
-
-  emitTelemetryEvent({
-    eventName: "targeted_completion.completed",
-    ownerId: user.id,
-    correlationId,
-    capabilities,
-    scope: null,
-    result: "success",
-    statusCode: 200,
-    errorCode: null,
-    durationMs: Date.now() - startedAt,
-    data: {
-      route: "canonical_exact_date",
-      desiredFactState,
-    },
-  });
 
   return NextResponse.json(
     {

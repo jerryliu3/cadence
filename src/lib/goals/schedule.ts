@@ -1,5 +1,5 @@
 import { isAfter, isBefore, parseISO, startOfDay } from "date-fns";
-import { isPastDate, toLocalDateString } from "@/lib/dates/day";
+import { toLocalDateString } from "@/lib/dates/day";
 import { getAnchoredPeriod } from "@/lib/goals/periods";
 import type { CompletionDateFact, Goal } from "@/lib/goals/types";
 import { isTargetedRecurringGoal } from "@/lib/planner/requirements";
@@ -88,29 +88,6 @@ export function hasCompletionToday(
 ): boolean {
   const today = toLocalDateString(referenceDate);
   return completions.some((entry) => entry.completed_on === today);
-}
-
-/**
- * @deprecated Use lifecycle/outcome or progress snapshots for product logic.
- * This helper remains only for legacy compatibility tests.
- */
-export function isGoalCompleted(
-  goal: Goal,
-  referenceDate = new Date(),
-  completionCount = 0
-): boolean {
-  if (goal.end_date && isPastDate(goal.end_date, referenceDate)) {
-    return true;
-  }
-
-  if (goal.frequency_type === "fixed_milestones") {
-    const targetCount = goal.target_count ?? 0;
-    if (targetCount > 0 && completionCount >= targetCount) {
-      return true;
-    }
-  }
-
-  return false;
 }
 
 export function isGoalManuallyArchived(goal: Goal): boolean {

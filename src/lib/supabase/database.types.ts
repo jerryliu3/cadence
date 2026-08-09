@@ -965,6 +965,7 @@ export type Database = {
           goal_id: string
           id: string
           locked: boolean
+          original_scheduled_date: string | null
           owner_id: string
           scheduled_date: string
           scheduled_time: string | null
@@ -976,6 +977,7 @@ export type Database = {
           goal_id: string
           id?: string
           locked?: boolean
+          original_scheduled_date?: string | null
           owner_id: string
           scheduled_date: string
           scheduled_time?: string | null
@@ -987,6 +989,7 @@ export type Database = {
           goal_id?: string
           id?: string
           locked?: boolean
+          original_scheduled_date?: string | null
           owner_id?: string
           scheduled_date?: string
           scheduled_time?: string | null
@@ -1167,88 +1170,47 @@ export type Database = {
         Args: { p_date?: string; p_goal_id: string }
         Returns: undefined
       }
-      publish_execution_plan_service:
-        | {
-            Args: {
-              p_assessment_schema_version: string
-              p_capacity_status: string
-              p_change_summary: Json
-              p_confirmation_required: boolean
-              p_contract_version: string
-              p_days: Json
-              p_eligibility_mode: string
-              p_expected_base_plan_id: string
-              p_expected_base_plan_version: number
-              p_expected_canonical_revision: number
-              p_expected_execution_revision: number
-              p_generation_input_hash: string
-              p_generation_source: string
-              p_goals: Json
-              p_idempotency_key: string
-              p_issues: Json
-              p_items: Json
-              p_owner: string
-              p_placement_status: string
-              p_policy_compiler_version: string
-              p_policy_schema_version: string
-              p_policy_snapshot: Json
-              p_publishable: boolean
-              p_request_digest: string
-              p_requirement_schema_version: string
-              p_scheduler_version: string
-              p_scope_month: string
-              p_search_status: string
-              p_timezone: string
-            }
-            Returns: {
-              current_active_plan_id: string
-              execution_revision: number
-              is_currently_active: boolean
-              plan_id: string
-              replayed: boolean
-              version: number
-            }[]
-          }
-        | {
-            Args: {
-              p_assessment_schema_version: string
-              p_capacity_status: string
-              p_change_summary: Json
-              p_confirmation_required: boolean
-              p_contract_version: string
-              p_days: Json
-              p_expected_base_plan_id: string
-              p_expected_base_plan_version: number
-              p_expected_canonical_revision: number
-              p_expected_execution_revision: number
-              p_generation_input_hash: string
-              p_generation_source: string
-              p_goals: Json
-              p_idempotency_key: string
-              p_issues: Json
-              p_items: Json
-              p_owner: string
-              p_placement_status: string
-              p_policy_compiler_version: string
-              p_policy_schema_version: string
-              p_policy_snapshot: Json
-              p_publishable: boolean
-              p_request_digest: string
-              p_requirement_schema_version: string
-              p_scheduler_version: string
-              p_scope_month: string
-              p_search_status: string
-              p_timezone: string
-            }
-            Returns: {
-              current_active_plan_id: string
-              execution_revision: number
-              is_currently_active: boolean
-              plan_id: string
-              replayed: boolean
-              version: number
-            }[]
-          }
+      publish_execution_plan_service: {
+        Args: {
+          p_assessment_schema_version: string
+          p_capacity_status: string
+          p_change_summary: Json
+          p_confirmation_required: boolean
+          p_contract_version: string
+          p_days: Json
+          p_eligibility_mode: string
+          p_expected_base_plan_id: string
+          p_expected_base_plan_version: number
+          p_expected_canonical_revision: number
+          p_expected_execution_revision: number
+          p_generation_input_hash: string
+          p_generation_source: string
+          p_goals: Json
+          p_idempotency_key: string
+          p_issues: Json
+          p_items: Json
+          p_owner: string
+          p_placement_status: string
+          p_policy_compiler_version: string
+          p_policy_schema_version: string
+          p_policy_snapshot: Json
+          p_publishable: boolean
+          p_request_digest: string
+          p_requirement_schema_version: string
+          p_scheduler_version: string
+          p_scope_month: string
+          p_search_status: string
+          p_timezone: string
+        }
+        Returns: {
+          current_active_plan_id: string
+          execution_revision: number
+          is_currently_active: boolean
+          plan_id: string
+          replayed: boolean
+          version: number
+        }[]
+      }
       record_planner_ai_output_tokens: {
         Args: {
           p_feature: string
@@ -1277,42 +1239,6 @@ export type Database = {
           updated_at: string
         }[]
       }
-      set_execution_plan_goal_date_fact_service: {
-        Args: {
-          p_date: string
-          p_desired_fact_state: string
-          p_expected_canonical_revision: number
-          p_expected_execution_revision: number
-          p_owner: string
-          p_plan_goal_id: string
-        }
-        Returns: {
-          canonical_revision: number
-          date: string
-          execution_revision: number
-          fact_state: string
-          goal_id: string
-        }[]
-      }
-      set_execution_plan_item_date_fact_service: {
-        Args: {
-          p_desired_fact_state: string
-          p_expected_canonical_revision: number
-          p_expected_credited_unit: Json
-          p_expected_execution_revision: number
-          p_expected_item_revision: number
-          p_item_id: string
-          p_owner: string
-        }
-        Returns: {
-          canonical_revision: number
-          date: string
-          execution_revision: number
-          fact_state: string
-          goal_id: string
-          item_id: string
-        }[]
-      }
       set_execution_plan_item_lock_service: {
         Args: {
           p_expected_canonical_revision: number
@@ -1331,7 +1257,11 @@ export type Database = {
         }[]
       }
       set_planner_item_lock: {
-        Args: { p_item_id: string; p_locked: boolean }
+        Args: {
+          p_expected_digest: string
+          p_item_id: string
+          p_locked: boolean
+        }
         Returns: {
           item_id: string
           locked: boolean
@@ -1343,13 +1273,6 @@ export type Database = {
         Returns: {
           schedule_digest: string
           upserted_count: number
-        }[]
-      }
-      sync_planner_items_from_active_execution_plan_service: {
-        Args: { p_owner: string }
-        Returns: {
-          schedule_digest: string
-          synced_count: number
         }[]
       }
       unmark_goal_complete: {

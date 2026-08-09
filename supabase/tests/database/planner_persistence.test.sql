@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, private, extensions, pg_catalog;
-select plan(38);
+select plan(40);
 
 create temporary table planner_test_revisions (
   label text primary key,
@@ -149,6 +149,24 @@ select is(
   'profile-backed planner preference timezone is persisted'
 );
 
+select ok(
+  (
+    select canonical_revision
+    from private.planner_state
+    where owner_id = '11111111-1111-4111-8111-111111111111'
+  ) > (
+    select canonical_revision
+    from planner_test_revisions
+    where label = 'before-completion'
+  ),
+  'profile-backed planner preference writes advance canonical revision'
+);
+
+insert into planner_test_revisions
+select 'after-profile-timezone', canonical_revision, execution_revision
+from private.planner_state
+where owner_id = '11111111-1111-4111-8111-111111111111';
+
 update public.profiles
 set rest_weekdays = '{1,3}'::smallint[]
 where id = '11111111-1111-4111-8111-111111111111';
@@ -161,6 +179,19 @@ select is(
   ),
   '{1,3}'::smallint[],
   'profile-backed planner rest weekdays update persists'
+);
+
+select ok(
+  (
+    select canonical_revision
+    from private.planner_state
+    where owner_id = '11111111-1111-4111-8111-111111111111'
+  ) > (
+    select canonical_revision
+    from planner_test_revisions
+    where label = 'after-profile-timezone'
+  ),
+  'subsequent profile-backed planner preference writes keep advancing canonical revision'
 );
 
 insert into public.execution_plans (
@@ -570,7 +601,7 @@ select throws_ok(
   $$,
   '42501'::character(5),
   'permission denied for function dismiss_execution_plan_service',
-  'authenticated clients cannot execute planner mutation wrappers'
+  'authenticated clients cannot execute planner mutation services'
 );
 
 reset role;
@@ -619,7 +650,7 @@ select is(
     'public.move_execution_plan_item_service(uuid,uuid,date,bigint,bigint,bigint)'
   ),
   null::regprocedure,
-  'legacy move wrapper is removed after schedule teardown'
+  'legacy move service is removed after schedule teardown'
 );
 
 select is(
@@ -643,7 +674,7 @@ select is(
     )
   ),
   false,
-  'service role can unlock active planner items through wrapper functions'
+  'service role can unlock active planner items through service functions'
 );
 
 select is(
@@ -665,7 +696,7 @@ select is(
     )
   ),
   'dismissed',
-  'service role can dismiss active plans only through wrapper functions'
+  'service role can dismiss active plans only through service functions'
 );
 
 select ok(
@@ -717,7 +748,7 @@ select ok(
       '[]'::jsonb
     )
   ),
-  'service role can publish plans through wrapper functions'
+  'service role can publish plans through service function'
 );
 
 select throws_ok(
@@ -771,7 +802,7 @@ select throws_ok(
   $$,
   '23514'::character(5),
   'elapsed_scope_month_publish_forbidden',
-  'wrapper publish rejects elapsed scope month requests'
+  'publish service rejects elapsed scope month requests'
 );
 
 select is(
@@ -785,7 +816,7 @@ select is(
     limit 1
   ),
   'overlap_v1',
-  'service publish wrapper persists requested eligibility mode'
+  'publish service persists requested eligibility mode'
 );
 
 select is(
@@ -946,7 +977,7 @@ select ok(
       '[]'::jsonb
     )
   ),
-  'wrapper publish can hydrate per-item local time fields'
+  'publish service can hydrate per-item local time fields'
 );
 
 select results_eq(
@@ -971,7 +1002,7 @@ select results_eq(
   $$
     values ('23:55'::text, '23:55'::text)
   $$,
-  'wrapper publish stores timed item fields on first publish'
+  'publish service stores timed item fields on first publish'
 );
 
 select is(
