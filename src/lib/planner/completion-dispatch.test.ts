@@ -100,7 +100,7 @@ describe("completion dispatch executor", () => {
     });
     expect(calls).toEqual([
       {
-        route: "/api/completions/exact-date",
+        route: "/api/completions",
         body: {
           goalId: "12000000-0000-4000-8000-000000000001",
           date: "2026-08-05",
@@ -111,7 +111,19 @@ describe("completion dispatch executor", () => {
     ]);
   });
 
-  it("runs legacy period mutations through provided callbacks", async () => {
+  it("routes legacy period mutations through the completions API", async () => {
+    const calls: Array<{ route: string; body: Record<string, unknown> }> = [];
+    const fetcher = async (route: string, init?: RequestInit) => {
+      calls.push({
+        route,
+        body: JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>,
+      });
+      return new Response(
+        JSON.stringify({ message: "legacy mutation failed" }),
+        { status: 409 }
+      );
+    };
+
     const result = await executeCompletionDispatch({
       decision: {
         route: "legacy_period",
@@ -123,10 +135,7 @@ describe("completion dispatch executor", () => {
       goalId: "12000000-0000-4000-8000-000000000001",
       date: "2026-08-05",
       timezone: "UTC",
-      legacyExecutor: {
-        markPresent: async () => null,
-        markAbsent: async () => "legacy mutation failed",
-      },
+      fetcher: fetcher as typeof fetch,
     });
 
     expect(result).toEqual({
@@ -134,6 +143,17 @@ describe("completion dispatch executor", () => {
       route: "legacy_period",
       message: "legacy mutation failed",
     });
+    expect(calls).toEqual([
+      {
+        route: "/api/completions",
+        body: {
+          goalId: "12000000-0000-4000-8000-000000000001",
+          date: "2026-08-05",
+          desiredFactState: "absent",
+          timezone: "UTC",
+        },
+      },
+    ]);
   });
 
   it("executes planner item/date mutation with digest expectations", async () => {
@@ -174,7 +194,7 @@ describe("completion dispatch executor", () => {
     });
     expect(calls).toEqual([
       {
-        route: "/api/completions/exact-date",
+        route: "/api/completions",
         body: {
           goalId: "12000000-0000-4000-8000-000000000001",
           date: "2026-08-05",
@@ -227,7 +247,7 @@ describe("completion dispatch executor", () => {
     });
     expect(calls).toEqual([
       {
-        route: "/api/completions/exact-date",
+        route: "/api/completions",
         body: {
           goalId: "12000000-0000-4000-8000-000000000001",
           date: "2026-08-05",
@@ -275,7 +295,7 @@ describe("completion dispatch executor", () => {
     });
     expect(calls).toEqual([
       {
-        route: "/api/completions/exact-date",
+        route: "/api/completions",
         body: {
           goalId: "12000000-0000-4000-8000-000000000001",
           date: "2026-08-05",
@@ -319,7 +339,7 @@ describe("completion dispatch executor", () => {
     });
     expect(calls).toEqual([
       {
-        route: "/api/completions/exact-date",
+        route: "/api/completions",
         body: {
           goalId: "12000000-0000-4000-8000-000000000001",
           date: "2026-08-05",
@@ -375,7 +395,7 @@ describe("completion dispatch executor", () => {
     }
   });
 
-  it("returns timeout when legacy mutations stall", async () => {
+  it("returns timeout when legacy completion API requests stall", async () => {
     vi.useFakeTimers();
     try {
       const resultPromise = executeCompletionDispatch({
@@ -390,10 +410,22 @@ describe("completion dispatch executor", () => {
         date: "2026-08-05",
         timezone: "UTC",
         timeoutMs: 25,
-        legacyExecutor: {
-          markPresent: async () => new Promise<string | null>(() => undefined),
-          markAbsent: async () => null,
-        },
+        fetcher: ((_, init) => {
+          const signal = init?.signal as AbortSignal | undefined;
+          return new Promise<Response>((_, reject) => {
+            if (signal?.aborted) {
+              const abortError = new Error("Aborted");
+              abortError.name = "AbortError";
+              reject(abortError);
+              return;
+            }
+            signal?.addEventListener("abort", () => {
+              const abortError = new Error("Aborted");
+              abortError.name = "AbortError";
+              reject(abortError);
+            });
+          });
+        }) as typeof fetch,
       });
 
       await vi.advanceTimersByTimeAsync(30);
