@@ -369,6 +369,10 @@ export async function GET(request: Request) {
       headers: { "Cache-Control": "private, no-store" },
     });
   } catch (error) {
+    if (error instanceof PlannerError) {
+      const routeError = plannerKernelErrorToRouteError(error);
+      return plannerErrorResponse(routeError, correlationId);
+    }
     if (error instanceof PlannerRouteError) {
       return plannerErrorResponse(error, correlationId);
     }

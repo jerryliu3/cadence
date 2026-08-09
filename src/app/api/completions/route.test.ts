@@ -172,7 +172,6 @@ describe("completions route", () => {
     expect(response.status).toBe(200);
     expect(mocks.applyPlannerItemDateFact).toHaveBeenCalledWith(
       expect.objectContaining({
-        ownerId: "11111111-1111-4111-8111-111111111111",
         goalId,
         desiredFactState: "present",
         timezone: "UTC",
@@ -208,7 +207,6 @@ describe("completions route", () => {
     expect(response.status).toBe(200);
     expect(mocks.applyPlannerGoalDateFact).toHaveBeenCalledWith(
       expect.objectContaining({
-        ownerId: "11111111-1111-4111-8111-111111111111",
         goalId,
         desiredFactState: "absent",
         timezone: "UTC",

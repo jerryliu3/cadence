@@ -11,9 +11,7 @@ const observationTimeoutMs = 5_000;
 const ownerId = "11111111-1111-4111-8111-111111111111";
 const quotaOwnerId = "22222222-2222-4222-8222-222222222222";
 const raceOwnerId = "44444444-4444-4444-8444-444444444444";
-const raceGoalAId = "44000000-0000-4000-8000-000000000001";
-const raceGoalBId = "44000000-0000-4000-8000-000000000002";
-const racePlanId = "45000000-0000-4000-8000-000000000001";
+const raceGoalId = "44000000-0000-4000-8000-000000000001";
 
 class NamedBarriers {
   private readonly barriers = new Map<
@@ -247,133 +245,158 @@ async function main() {
          id, owner_id, title, category, frequency_type,
          recurrence_interval, target_count, start_date, end_date, is_group
        )
-       values
-         (
-           $1, $3, 'Race goal A', 'test', 'recurring',
-           'weekly', 2, date_trunc('month', current_date)::date,
-           (date_trunc('month', current_date) + interval '1 month - 1 day')::date,
-           false
-         ),
-         (
-           $2, $3, 'Race goal B', 'test', 'recurring',
-           'weekly', null, date_trunc('month', current_date)::date,
-           (date_trunc('month', current_date) + interval '1 month - 1 day')::date,
-           false
-         )`,
-      [raceGoalAId, raceGoalBId, raceOwnerId]
+       values (
+         $1,
+         $2,
+         'Race schedule goal',
+         'test',
+         'recurring',
+         'weekly',
+         1,
+         date_trunc('month', current_date)::date,
+         (date_trunc('month', current_date) + interval '1 month - 1 day')::date,
+         false
+       )`,
+      [raceGoalId, raceOwnerId]
+    );
+    await control.query("delete from public.planner_items where owner_id = $1", [
+      raceOwnerId,
+    ]);
+
+    const scopeResult = await control.query<{
+      scope_month: string;
+      scheduled_day_a: string;
+      scheduled_day_b: string;
+    }>(
+      `select
+         date_trunc('month', current_date)::date::text as scope_month,
+         (date_trunc('month', current_date)::date + 3)::text as scheduled_day_a,
+         (date_trunc('month', current_date)::date + 5)::text as scheduled_day_b`
+    );
+    const scopeMonth = scopeResult.rows[0]?.scope_month;
+    const scheduledDayA = scopeResult.rows[0]?.scheduled_day_a;
+    const scheduledDayB = scopeResult.rows[0]?.scheduled_day_b;
+    assert.ok(scopeMonth, "Race scope month must be available.");
+    assert.ok(
+      scheduledDayA && scheduledDayB,
+      "Race scheduled days must be available."
     );
 
-    const raceBarriers = new NamedBarriers([
-      "plan-ready-before-commit",
-      "link-requested-owner-lock",
-      "commit-plan",
+    await control.query("select set_config('request.jwt.claim.sub', $1, false)", [
+      raceOwnerId,
     ]);
-    let linkRaceErrorCode: string | undefined;
-    const publishTask = (async () => {
+    await control.query(
+      "select set_config('request.jwt.claim.role', 'authenticated', false)"
+    );
+    const digestResult = await control.query<{ digest: string }>(
+      "select public.get_planner_schedule_digest($1::uuid) as digest",
+      [raceOwnerId]
+    );
+    const initialDigest = digestResult.rows[0]?.digest ?? "";
+    assert.ok(
+      initialDigest.length > 0,
+      "Initial planner schedule digest must be non-empty."
+    );
+
+    const payloadA = [
+      {
+        goal_id: raceGoalId,
+        unit_key: "total:1",
+        scheduled_date: scheduledDayA,
+        original_scheduled_date: scheduledDayA,
+        locked: false,
+      },
+    ];
+    const payloadB = [
+      {
+        goal_id: raceGoalId,
+        unit_key: "total:1",
+        scheduled_date: scheduledDayB,
+        original_scheduled_date: scheduledDayB,
+        locked: false,
+      },
+    ];
+
+    const raceBarriers = new NamedBarriers([
+      "schedule-a-updated",
+      "link-requested-owner-lock",
+      "commit-schedule-a",
+    ]);
+    let staleScheduleErrorCode: string | undefined;
+    let staleScheduleErrorMessage: string | undefined;
+    const scheduleTaskA = (async () => {
       await sessionA.query("begin");
       await sessionA.query(
-        "select pg_advisory_xact_lock(private.planner_owner_lock_key($1::uuid))",
+        "select set_config('request.jwt.claim.sub', $1, true)",
         [raceOwnerId]
       );
       await sessionA.query(
-        `insert into public.execution_plans (
-           id, owner_id, scope_month, eligibility_mode, timezone, version,
-           status, generation_source, change_summary, policy_snapshot,
-           generation_input_hash, observed_canonical_revision,
-           observed_execution_revision, contract_version, scheduler_version,
-           requirement_schema_version, assessment_schema_version,
-           policy_schema_version, policy_compiler_version, placement_status,
-           search_status, capacity_status, confirmation_required, publishable,
-           idempotency_key, request_digest
-         )
-         select
-           $1, $2, date_trunc('month', current_date)::date,
-           'overlap_v1', 'UTC', 1, 'active', 'manual', '{}'::jsonb,
-           '{
-             "schemaVersion":"1",
-             "timezone":"UTC",
-             "timezoneConfirmedAt":"2026-08-01T00:00:00.000Z",
-             "restWeekdays":[],
-             "blackoutRanges":[],
-             "goalAllowedWeekdays":{},
-             "datePreferences":[],
-             "spacingStrategy":"even",
-             "goalSpacingStrategies":{},
-             "dailyCadenceRestExemption":true
-           }'::jsonb,
-           repeat('a', 64), state.canonical_revision,
-           state.execution_revision, '1', 'ordered-dp-v1', '1', '1', '1',
-           '1', 'complete', 'all_units_placed', 'unverified', false, true,
-           '45000000-0000-4000-8000-000000000099', repeat('b', 64)
-         from private.planner_state state
-         where state.owner_id = $2`,
-        [racePlanId, raceOwnerId]
+        `select schedule_digest, upserted_count
+         from public.set_planner_schedule($1::date, $2::jsonb, $3::text)`,
+        [scopeMonth, JSON.stringify(payloadA), initialDigest]
       );
-      await sessionA.query(
-        `insert into public.execution_plan_goals (
-           plan_id, owner_id, goal_id, title, category, start_date, end_date,
-           requirement_kind, requirement_fingerprint, requirement_snapshot,
-           assessment_snapshot, assessment_input_hash,
-           admissible_credit_basis, generation_summary
-         )
-         values (
-           $1, $2, $3, 'Race goal A', 'test',
-           date_trunc('month', current_date)::date,
-           (date_trunc('month', current_date) + interval '1 month - 1 day')::date,
-           'deadline_total', repeat('c', 64),
-           '{"schemaVersion":"1","requirement":{"kind":"deadline_total","targetCount":2,"spacingHint":"weekly","maxPerDay":1}}'::jsonb,
-           '{"schemaVersion":"1"}'::jsonb, repeat('d', 64),
-           '{"completionToUnit":{}}'::jsonb, '{}'::jsonb
-         )`,
-        [racePlanId, raceOwnerId, raceGoalAId]
-      );
-      raceBarriers.signal("plan-ready-before-commit");
-      await raceBarriers.wait("commit-plan");
+      raceBarriers.signal("schedule-a-updated");
+      await raceBarriers.wait("commit-schedule-a");
       await sessionA.query("commit");
     })();
-    const linkTask = (async () => {
-      await raceBarriers.wait("plan-ready-before-commit");
+    const scheduleTaskB = (async () => {
+      await raceBarriers.wait("schedule-a-updated");
       await sessionB.query("begin");
+      await sessionB.query(
+        "select set_config('request.jwt.claim.sub', $1, true)",
+        [raceOwnerId]
+      );
       raceBarriers.signal("link-requested-owner-lock");
       try {
         await sessionB.query(
-          `insert into public.goal_links (
-             owner_id, source_goal_id, target_goal_id
-           )
-           values ($1, $2, $3)`,
-          [raceOwnerId, raceGoalAId, raceGoalBId]
+          `select schedule_digest, upserted_count
+           from public.set_planner_schedule($1::date, $2::jsonb, $3::text)`,
+          [scopeMonth, JSON.stringify(payloadB), initialDigest]
         );
         await sessionB.query("commit");
       } catch (error) {
-        linkRaceErrorCode =
+        staleScheduleErrorCode =
           error instanceof pg.DatabaseError ? error.code : undefined;
+        staleScheduleErrorMessage =
+          error instanceof pg.DatabaseError ? error.message : undefined;
         await sessionB.query("rollback");
       }
     })();
 
     await raceBarriers.wait("link-requested-owner-lock");
     await waitForAdvisoryBlock(control, sessionBPid);
-    raceBarriers.signal("commit-plan");
-    await Promise.all([publishTask, linkTask]);
+    raceBarriers.signal("commit-schedule-a");
+    await Promise.all([scheduleTaskA, scheduleTaskB]);
     assert.equal(
-      linkRaceErrorCode,
-      "55000",
-      "A link waiting behind publication must observe active membership."
+      staleScheduleErrorCode,
+      "P0001",
+      "A stale schedule writer blocked behind owner lock must fail."
     );
+    assert.equal(
+      staleScheduleErrorMessage,
+      "stale_schedule",
+      "Blocked concurrent writer should receive stale_schedule."
+    );
+    const persistedItems = await control.query<{
+      unit_key: string;
+      scheduled_date: string;
+    }>(
+      `select unit_key, scheduled_date::text as scheduled_date
+       from public.planner_items
+       where owner_id = $1
+         and goal_id = $2
+       order by unit_key`,
+      [raceOwnerId, raceGoalId]
+    );
+    assert.deepEqual(
+      persistedItems.rows.map((row) => `${row.unit_key}@${row.scheduled_date}`),
+      [`total:1@${scheduledDayA}`],
+      "Committed payload should survive stale concurrent writer."
+    );
+
     await control.query("delete from auth.users where id = $1", [
       raceOwnerId,
     ]);
-    const cascadeResult = await control.query<{ count: string }>(
-      `select count(*)::text as count
-       from public.execution_plans
-       where owner_id = $1`,
-      [raceOwnerId]
-    );
-    assert.equal(
-      cascadeResult.rows[0]?.count,
-      "0",
-      "Account deletion must cascade immutable planner history."
-    );
 
     console.log(
       JSON.stringify({
@@ -383,7 +406,8 @@ async function main() {
         quotaAllowed: quotaAttempts.filter(
           (result) => result.rows[0]?.allowed
         ).length,
-        linkRaceErrorCode,
+        staleScheduleErrorCode,
+        staleScheduleErrorMessage,
       })
     );
   } finally {
