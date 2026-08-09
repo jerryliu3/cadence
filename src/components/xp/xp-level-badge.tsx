@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 
@@ -19,22 +19,25 @@ interface XpProfileResponse {
   }>;
 }
 
-const shownAwardIds = new Set<string>();
-
 export function XpLevelBadge() {
   const [profile, setProfile] = useState<XpProfileResponse["profile"] | null>(null);
+  const displayedAwardIdsRef = useRef(new Set<string>());
+  const acknowledgedAwardIdsRef = useRef(new Set<string>());
+  const inFlightAwardIdsRef = useRef(new Set<string>());
 
   const acknowledgeAward = useCallback(async (awardId: string) => {
     try {
-      await fetch("/api/xp/awards/acknowledge", {
+      const response = await fetch("/api/xp/awards/acknowledge", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({ awardId }),
       });
+      return response.ok;
     } catch {
       // Intentionally swallowed: XP UX should never block rendering flows.
+      return false;
     }
   }, []);
 
@@ -54,14 +57,27 @@ export function XpLevelBadge() {
       setProfile(payload.profile);
 
       for (const award of payload.pendingAwards ?? []) {
-        if (shownAwardIds.has(award.awardId)) {
+        if (
+          acknowledgedAwardIdsRef.current.has(award.awardId) ||
+          inFlightAwardIdsRef.current.has(award.awardId)
+        ) {
           continue;
         }
-        shownAwardIds.add(award.awardId);
-        toast.success(`${award.title}`, {
-          description: award.description,
-        });
-        void acknowledgeAward(award.awardId);
+
+        const hasBeenDisplayed = displayedAwardIdsRef.current.has(award.awardId);
+        if (!hasBeenDisplayed) {
+          displayedAwardIdsRef.current.add(award.awardId);
+          toast.success(`${award.title}`, {
+            description: award.description,
+          });
+        }
+
+        inFlightAwardIdsRef.current.add(award.awardId);
+        const acknowledged = await acknowledgeAward(award.awardId);
+        inFlightAwardIdsRef.current.delete(award.awardId);
+        if (acknowledged) {
+          acknowledgedAwardIdsRef.current.add(award.awardId);
+        }
       }
     } catch {
       // Intentionally swallowed: XP is supplementary chrome.

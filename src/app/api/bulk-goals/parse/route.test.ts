@@ -5,11 +5,22 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   getUser: vi.fn(),
   adminRpc: vi.fn(),
+  goalCategoriesQuery: vi.fn(),
 }));
 
 vi.mock("@/lib/supabase/server", () => ({
   createClient: async () => ({
     auth: { getUser: mocks.getUser },
+    from: (table: string) => {
+      if (table === "goal_categories") {
+        return {
+          select: () => ({
+            order: (...args: unknown[]) => mocks.goalCategoriesQuery(...args),
+          }),
+        };
+      }
+      throw new Error(`Unexpected table in bulk-goals parser test: ${table}`);
+    },
   }),
 }));
 vi.mock("@/lib/supabase/admin", () => ({
@@ -32,6 +43,25 @@ describe("bulk goal parser route", () => {
   beforeEach(() => {
     mocks.getUser.mockResolvedValue({
       data: { user: { id: "11111111-1111-4111-8111-111111111111" } },
+      error: null,
+    });
+    mocks.goalCategoriesQuery.mockResolvedValue({
+      data: [
+        {
+          key: "personal",
+          label: "Personal",
+          aliases: ["habits"],
+          color: "#6366f1",
+          sort_order: 10,
+        },
+        {
+          key: "other",
+          label: "Other",
+          aliases: ["general"],
+          color: "#64748b",
+          sort_order: 999,
+        },
+      ],
       error: null,
     });
     vi.stubEnv("GEMINI_API_KEY", "test-api-key");
@@ -194,5 +224,74 @@ describe("bulk goal parser route", () => {
     expect(response.status).toBe(502);
     expect(body).toMatchObject({ code: "ai_provider_error" });
     expect(JSON.stringify(body)).not.toContain("provider-secret");
+  });
+
+  it("uses DB-backed category keys in generated output validation", async () => {
+    mocks.goalCategoriesQuery.mockResolvedValue({
+      data: [
+        {
+          key: "personal",
+          label: "Personal",
+          aliases: ["habits"],
+          color: "#6366f1",
+          sort_order: 10,
+        },
+        {
+          key: "focus",
+          label: "Focus",
+          aliases: ["deep work"],
+          color: "#0ea5e9",
+          sort_order: 20,
+        },
+        {
+          key: "other",
+          label: "Other",
+          aliases: ["general"],
+          color: "#64748b",
+          sort_order: 999,
+        },
+      ],
+      error: null,
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            candidates: [
+              {
+                content: {
+                  parts: [
+                    {
+                      text: JSON.stringify({
+                        goals: [
+                          {
+                            title: "Deep work block",
+                            category_key: "focus",
+                          },
+                        ],
+                      }),
+                    },
+                  ],
+                },
+              },
+            ],
+          }),
+          { status: 200 }
+        )
+      )
+    );
+
+    const response = await POST(
+      request({
+        prompt: "Schedule deep work blocks",
+        timezone: "UTC",
+      })
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      goals: [{ category_key: "focus" }],
+    });
   });
 });
