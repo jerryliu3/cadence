@@ -1,5 +1,7 @@
-import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
+import { parseBoundedJsonBody } from "@/lib/api/body";
+import { createCorrelationId, requireAuthenticatedUser } from "@/lib/api/context";
+import { RouteError, routeErrorResponse } from "@/lib/api/errors";
 import {
   getDateInTimezone,
 } from "@/lib/dates/timezone";
@@ -28,18 +30,20 @@ function errorResponse(
 }
 
 export async function handleCompletionPost(request: Request) {
-  const correlationId = randomUUID();
+  const correlationId = createCorrelationId();
   const supabase = await createClient();
-  const {
-    data: { user },
-    error: userError,
-  } = await supabase.auth.getUser();
-
-  if (userError || !user) {
+  try {
+    await requireAuthenticatedUser(supabase, {
+      message: "Sign in to update goal completions.",
+    });
+  } catch (error) {
+    if (error instanceof RouteError) {
+      return routeErrorResponse(error, correlationId);
+    }
     return errorResponse(
-      401,
-      "authentication_required",
-      "Sign in to update goal completions.",
+      500,
+      "internal_error",
+      "Completion updates are temporarily unavailable.",
       correlationId
     );
   }
@@ -64,44 +68,21 @@ export async function handleCompletionPost(request: Request) {
     );
   }
 
-  const contentLength = Number(request.headers.get("content-length") ?? "0");
-  if (Number.isFinite(contentLength) && contentLength > MAX_REQUEST_BYTES) {
-    return errorResponse(
-      413,
-      "request_too_large",
-      "The request body is too large.",
-      correlationId
-    );
-  }
-
-  const rawBody = await request.text();
-  if (Buffer.byteLength(rawBody, "utf8") > MAX_REQUEST_BYTES) {
-    return errorResponse(
-      413,
-      "request_too_large",
-      "The request body is too large.",
-      correlationId
-    );
-  }
-
-  let parsedBody: unknown;
+  let parsedRequest;
   try {
-    parsedBody = JSON.parse(rawBody);
-  } catch {
-    return errorResponse(
-      400,
-      "invalid_json",
-      "Request body must be valid JSON.",
-      correlationId
+    parsedRequest = await parseBoundedJsonBody(
+      request,
+      MAX_REQUEST_BYTES,
+      targetedExactDateRequestSchema
     );
-  }
-
-  const parsedRequest = targetedExactDateRequestSchema.safeParse(parsedBody);
-  if (!parsedRequest.success) {
+  } catch (error) {
+    if (error instanceof RouteError) {
+      return routeErrorResponse(error, correlationId);
+    }
     return errorResponse(
-      400,
-      "validation_failed",
-      "Provide a goal, date, desired state, and valid timezone.",
+      500,
+      "internal_error",
+      "Completion updates are temporarily unavailable.",
       correlationId
     );
   }
@@ -113,7 +94,7 @@ export async function handleCompletionPost(request: Request) {
     timezone,
     plannerItemExpectation,
     plannerGoalExpectation,
-  } = parsedRequest.data;
+  } = parsedRequest;
 
   const { data: goal, error: goalError } = await supabase
     .from("goals")
