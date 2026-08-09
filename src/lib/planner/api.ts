@@ -1,6 +1,10 @@
-import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import {
+  createCorrelationId as createHttpCorrelationId,
+  HttpRouteError,
+  parseBoundedJsonBody as parseSharedBoundedJsonBody,
+} from "@/lib/api/http-route";
 import { getDateInTimezone } from "@/lib/dates/timezone";
 import { getPlannerCapabilities } from "@/lib/planner/capabilities";
 import type { PlannerCapabilities } from "@/lib/planner/capabilities";
@@ -29,7 +33,7 @@ export class PlannerRouteError extends Error {
 }
 
 export function createCorrelationId() {
-  return randomUUID();
+  return createHttpCorrelationId();
 }
 
 export function plannerErrorResponse(
@@ -99,45 +103,19 @@ export async function parseBoundedJsonBody<T>(
   maxBytes: number,
   schema: z.ZodType<T>
 ) {
-  const contentLength = Number(request.headers.get("content-length") ?? "0");
-  if (Number.isFinite(contentLength) && contentLength > maxBytes) {
-    throw new PlannerRouteError(
-      413,
-      "request_too_large",
-      "The request body is too large."
-    );
-  }
-
-  const rawBody = await request.text();
-  if (Buffer.byteLength(rawBody, "utf8") > maxBytes) {
-    throw new PlannerRouteError(
-      413,
-      "request_too_large",
-      "The request body is too large."
-    );
-  }
-
-  let parsedBody: unknown;
   try {
-    parsedBody = JSON.parse(rawBody);
-  } catch {
-    throw new PlannerRouteError(
-      400,
-      "invalid_json",
-      "Request body must be valid JSON."
-    );
+    return await parseSharedBoundedJsonBody(request, maxBytes, schema);
+  } catch (error) {
+    if (error instanceof HttpRouteError) {
+      throw new PlannerRouteError(
+        error.status,
+        error.code,
+        error.message,
+        error.details
+      );
+    }
+    throw error;
   }
-
-  const parsed = schema.safeParse(parsedBody);
-  if (!parsed.success) {
-    throw new PlannerRouteError(
-      400,
-      "validation_failed",
-      "Request payload failed validation.",
-      { issues: parsed.error.issues }
-    );
-  }
-  return parsed.data;
 }
 
 export interface AuthenticatedPlannerRouteContext {
