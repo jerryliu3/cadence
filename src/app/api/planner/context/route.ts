@@ -20,8 +20,7 @@ import {
   PLANNER_ELIGIBILITY_MODES,
   PLANNER_CONTRACT_VERSION,
 } from "@/lib/planner/contracts/bounds";
-import { PlannerError } from "@/lib/planner/errors";
-import { runPlannerKernel } from "@/lib/planner/kernel";
+import { PlannerError, runPlannerKernel } from "@/lib/planner/kernel";
 import { createDefaultPlannerPolicy, plannerPolicySchema } from "@/lib/planner/policy";
 import {
   parsePlannerProfilePreferencesRow,
