@@ -21,6 +21,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { getApiErrorMessage, isApiClientError } from "@/lib/api/client";
+import {
+  createNotificationSchedule,
+  deleteNotificationSchedule,
+  updateNotificationSchedule,
+} from "@/lib/api/notification-schedules-client";
 import {
   getPushRegistration,
   isPushSupported,
@@ -139,43 +145,44 @@ export function NotificationSettings() {
           schedule.message === DEFAULT_MESSAGE
       );
       const detectedTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
-      const defaultScheduleWrite = matchingSchedule
-        ? supabase
-            .from("notification_schedules")
-            .update({ is_default: true, updated_at: new Date().toISOString() })
-            .eq("id", matchingSchedule.id)
-            .eq("user_id", user.id)
-        : supabase.from("notification_schedules").insert({
-            user_id: user.id,
-            hour: DEFAULT_NOTIFICATION_HOUR,
-            timezone: detectedTimezone,
-            message: DEFAULT_MESSAGE,
-            enabled: true,
-            is_default: true,
-          });
-      const { data: defaultSchedule, error: defaultScheduleError } =
-        await defaultScheduleWrite.select("*").single();
+      try {
+        const defaultSchedule = matchingSchedule
+          ? await updateNotificationSchedule({
+              id: matchingSchedule.id,
+              isDefault: true,
+            })
+          : await createNotificationSchedule({
+              hour: DEFAULT_NOTIFICATION_HOUR,
+              timezone: detectedTimezone,
+              message: DEFAULT_MESSAGE,
+              enabled: true,
+              isDefault: true,
+            });
 
-      if (defaultScheduleError?.code === "23505") {
-        const { data: refreshedSchedules, error: refreshError } = await supabase
-          .from("notification_schedules")
-          .select("*")
-          .eq("user_id", user.id)
-          .order("hour");
-
-        if (refreshError) {
-          toast.error("Could not load the default 9:00 PM reminder.");
-        } else {
-          loadedSchedules = (refreshedSchedules ?? []) as NotificationSchedule[];
-        }
-      } else if (defaultScheduleError) {
-        console.error("Failed to create the default notification schedule:", defaultScheduleError);
-        toast.error("Could not create the default 9:00 PM reminder.");
-      } else {
         loadedSchedules = [
           ...loadedSchedules.filter((schedule) => schedule.id !== defaultSchedule.id),
           defaultSchedule as NotificationSchedule,
         ];
+      } catch (error) {
+        if (isApiClientError(error) && error.status === 409) {
+          const { data: refreshedSchedules, error: refreshError } = await supabase
+            .from("notification_schedules")
+            .select("*")
+            .eq("user_id", user.id)
+            .order("hour");
+
+          if (refreshError) {
+            toast.error("Could not load the default 9:00 PM reminder.");
+          } else {
+            loadedSchedules = (refreshedSchedules ?? []) as NotificationSchedule[];
+          }
+        } else {
+          console.error(
+            "Failed to create the default notification schedule:",
+            error
+          );
+          toast.error("Could not create the default 9:00 PM reminder.");
+        }
       }
     }
 
@@ -318,47 +325,37 @@ export function NotificationSettings() {
     }
 
     setSavingSchedule(true);
-
-    const { data, error } = await supabase
-      .from("notification_schedules")
-      .insert({
-        user_id: userId,
+    try {
+      const schedule = await createNotificationSchedule({
         hour: Number(hour),
         timezone,
         message: trimmedMessage,
-      })
-      .select("*")
-      .single();
-
-    if (error) {
-      console.error("Failed to create notification schedule:", error);
-      toast.error("Could not create the notification schedule.");
-    } else {
+      });
       setSchedules((current) =>
-        sortSchedules([...current, data as NotificationSchedule])
+        sortSchedules([...current, schedule as NotificationSchedule])
       );
       setMessage(DEFAULT_MESSAGE);
       toast.success(`Daily reminder added for ${formatHour(Number(hour))}.`);
+    } catch (error) {
+      console.error("Failed to create notification schedule:", error);
+      toast.error(getApiErrorMessage(error, "Could not create the notification schedule."));
     }
-
     setSavingSchedule(false);
   };
 
   const toggleSchedule = async (schedule: NotificationSchedule) => {
     setPendingScheduleId(schedule.id);
     const enabled = !schedule.enabled;
-    const { error } = await supabase
-      .from("notification_schedules")
-      .update({ enabled, updated_at: new Date().toISOString() })
-      .eq("id", schedule.id)
-      .eq("user_id", userId);
-
-    if (error) {
-      toast.error("Could not update the notification schedule.");
-    } else {
+    try {
+      await updateNotificationSchedule({
+        id: schedule.id,
+        enabled,
+      });
       setSchedules((current) =>
         current.map((item) => (item.id === schedule.id ? { ...item, enabled } : item))
       );
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, "Could not update the notification schedule."));
     }
 
     setPendingScheduleId(null);
@@ -370,17 +367,12 @@ export function NotificationSettings() {
     }
 
     setPendingScheduleId(schedule.id);
-    const { error } = await supabase
-      .from("notification_schedules")
-      .delete()
-      .eq("id", schedule.id)
-      .eq("user_id", userId);
-
-    if (error) {
-      toast.error("Could not delete the notification schedule.");
-    } else {
+    try {
+      await deleteNotificationSchedule(schedule.id);
       setSchedules((current) => current.filter((item) => item.id !== schedule.id));
       toast.success("Notification schedule deleted.");
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, "Could not delete the notification schedule."));
     }
 
     setPendingScheduleId(null);
