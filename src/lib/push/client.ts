@@ -1,3 +1,5 @@
+import { requestJson } from "@/lib/api/client";
+
 export function isPushSupported(): boolean {
   return "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
 }
@@ -17,33 +19,20 @@ export async function getPushRegistration(): Promise<ServiceWorkerRegistration> 
   });
 }
 
-async function parseApiError(response: Response): Promise<string> {
-  const body = (await response.json().catch(() => null)) as { error?: string } | null;
-  return body?.error ?? `Request failed with status ${response.status}.`;
-}
-
 export async function savePushSubscription(subscription: PushSubscription): Promise<void> {
-  const response = await fetch("/api/push/subscriptions", {
+  await requestJson<{ success: boolean }, Record<string, unknown>>({
+    path: "/api/push/subscriptions",
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(subscription.toJSON()),
+    body: subscription.toJSON() as Record<string, unknown>,
   });
-
-  if (!response.ok) {
-    throw new Error(await parseApiError(response));
-  }
 }
 
 export async function removePushSubscription(endpoint: string): Promise<void> {
-  const response = await fetch("/api/push/subscriptions", {
+  await requestJson<{ success: boolean }, { endpoint: string }>({
+    path: "/api/push/subscriptions",
     method: "DELETE",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ endpoint }),
+    body: { endpoint },
   });
-
-  if (!response.ok) {
-    throw new Error(await parseApiError(response));
-  }
 }
 
 export async function unsubscribeCurrentBrowser(): Promise<void> {
