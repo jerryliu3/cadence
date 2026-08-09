@@ -85,3 +85,18 @@ export interface LeaderboardStanding {
   tieBreakAt: string | null;
   viewerRank: number | null;
 }
+
+export type DuoStatus = "pending" | "active" | "declined" | "cancelled" | "dissolved";
+
+export interface DuoStateRow {
+  duoId: string;
+  status: DuoStatus;
+  partnerId: string;
+  partnerUsername: string | null;
+  partnerDisplayName: string | null;
+  partnerAvatarUrl: string | null;
+  inviteMessage: string | null;
+  invitedAt: string;
+  acceptedAt: string | null;
+  isIncoming: boolean;
+}

@@ -1,6 +1,7 @@
 import type {
   LeaderboardSeason,
   LeaderboardStanding,
+  DuoStateRow,
   SocialChallenge,
   SocialFeedEvent,
 } from "@/features/social/types";
@@ -31,6 +32,11 @@ interface SocialLeaderboardStandingsResponse {
   season: LeaderboardSeason;
   standings: LeaderboardStanding[];
   viewerRank: number | null;
+}
+
+interface SocialDuoStateResponse {
+  schemaVersion: "1";
+  items: DuoStateRow[];
 }
 
 async function parseApiError(response: Response, fallbackMessage: string) {
@@ -141,4 +147,69 @@ export async function fetchSocialLeaderboardStandings(
     await parseApiError(response, "Failed to load leaderboard standings.");
   }
   return (await response.json()) as SocialLeaderboardStandingsResponse;
+}
+
+export async function fetchSocialDuoState() {
+  const response = await fetch("/api/social/duo", {
+    cache: "no-store",
+    credentials: "include",
+  });
+  if (!response.ok) {
+    await parseApiError(response, "Failed to load duo state.");
+  }
+  return (await response.json()) as SocialDuoStateResponse;
+}
+
+export async function createSocialDuoInvite({
+  partnerId,
+  message,
+}: {
+  partnerId: string;
+  message?: string;
+}) {
+  const response = await fetch("/api/social/duo/invites", {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ partnerId, message }),
+  });
+  if (!response.ok) {
+    await parseApiError(response, "Failed to send duo invite.");
+  }
+  return (await response.json()) as { schemaVersion: "1"; duoId: string };
+}
+
+export async function acceptSocialDuoInvite(duoId: string) {
+  const response = await fetch(`/api/social/duo/invites/${duoId}/accept`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ visibilityAcknowledged: true }),
+  });
+  if (!response.ok) {
+    await parseApiError(response, "Failed to accept duo invite.");
+  }
+  return (await response.json()) as { schemaVersion: "1"; accepted: boolean };
+}
+
+export async function declineSocialDuoInvite(duoId: string) {
+  const response = await fetch(`/api/social/duo/invites/${duoId}/decline`, {
+    method: "POST",
+    credentials: "include",
+  });
+  if (!response.ok) {
+    await parseApiError(response, "Failed to decline duo invite.");
+  }
+  return (await response.json()) as { schemaVersion: "1"; declined: boolean };
+}
+
+export async function dissolveSocialDuo() {
+  const response = await fetch("/api/social/duo", {
+    method: "DELETE",
+    credentials: "include",
+  });
+  if (!response.ok) {
+    await parseApiError(response, "Failed to dissolve duo.");
+  }
+  return (await response.json()) as { schemaVersion: "1"; dissolved: boolean };
 }

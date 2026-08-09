@@ -5,6 +5,7 @@ import { ChallengeList } from "@/features/social/challenges/challenge-list";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FeedList } from "@/features/social/feed/feed-list";
 import { LeaderboardsPanel } from "@/features/social/leaderboards/leaderboards-panel";
+import { DuoPanel } from "@/features/social/duo/duo-panel";
 import type { SocialCapabilities } from "@/lib/social/capabilities";
 
 function Placeholder({
@@ -68,10 +69,14 @@ export function SocialSurface({ capabilities }: { capabilities: SocialCapabiliti
       </TabsContent>
 
       <TabsContent value="duo">
-        <Placeholder
-          title="Duo staged"
-          description="Duo partner workflows will appear after the duo core migration is enabled."
-        />
+        {!capabilities.socialDuoEnabled ? (
+          <Placeholder
+            title="Duo disabled"
+            description="Enable SOCIAL_DUO_ENABLED to expose duo invite and partner workflows."
+          />
+        ) : (
+          <DuoPanel />
+        )}
       </TabsContent>
     </Tabs>
   );
