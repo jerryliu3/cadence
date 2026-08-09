@@ -1456,6 +1456,16 @@ export function CalendarSurface({
       return;
     }
     const desiredFactState = dispatch.desiredFactState;
+    if (!dispatch.decision.allowed) {
+      const message =
+        dispatch.decision.reason === "future_creation"
+          ? "You can only mark completions for today or a past date."
+          : dispatch.decision.reason === "satisfied_elsewhere"
+            ? "This completion is already satisfied by another session."
+            : "This completion cannot be changed from here.";
+      toast.error(message);
+      return;
+    }
     const requiresPlannerExpectation =
       dispatch.decision.route === "item_date" ||
       dispatch.decision.route === "plan_goal_date";
