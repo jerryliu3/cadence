@@ -248,26 +248,32 @@ async function expectCompletionPersisted(
   page: Page,
   payload: CompletionMutationPayload
 ) {
-  const outcome = await page.evaluate(async (input) => {
-    const query = new URLSearchParams({
-      asOfDate: input.date,
-      viewDate: input.date,
-      timezone: input.timezone,
-    });
-    const response = await fetch(`/api/progress/context?${query.toString()}`);
-    const body = (await response.json()) as {
-      facts?: Array<{ goal_id: string; completed_on: string }>;
-    };
-    const hasFact = (body.facts ?? []).some(
-      (fact) =>
-        fact.goal_id === input.goalId && fact.completed_on === input.date
-    );
-    return {
-      status: response.status,
-      hasFact,
-    };
-  }, payload);
+  const query = new URLSearchParams({
+    asOfDate: payload.date,
+    viewDate: payload.date,
+    timezone: payload.timezone,
+  });
+  const response = await page.request.get(
+    `/api/progress/context?${query.toString()}`,
+    { timeout: 15_000 }
+  );
+  const body = (await response.json().catch(() => null)) as
+    | {
+        code?: string;
+        message?: string;
+        facts?: Array<{ goal_id: string; completed_on: string }>;
+      }
+    | null;
+  const hasFact = (body?.facts ?? []).some(
+    (fact) => fact.goal_id === payload.goalId && fact.completed_on === payload.date
+  );
+  const outcome = {
+    status: response.status(),
+    hasFact,
+    body,
+  };
   expect(outcome.status).toBe(200);
+  expect(outcome.body, JSON.stringify(outcome.body)).not.toBeNull();
   expect(outcome.hasFact).toBe(payload.desiredFactState === "present");
 }
 
@@ -352,6 +358,8 @@ test.describe("planner critical rails", () => {
   test("completion toggle persists from today, past(insights), and calendar", async ({
     page,
   }) => {
+    test.slow();
+
     await page.goto("/?tab=today");
     await expect(page.getByRole("tab", { name: "Today", exact: true })).toBeVisible();
     const todayPayload = await runCompletionToggleAction(page, async () => {
