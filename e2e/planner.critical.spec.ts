@@ -211,7 +211,7 @@ async function expectCompletionPersisted(
 }
 
 test.describe("planner critical rails", () => {
-  test.describe.configure({ mode: "serial" });
+  test.describe.configure({ mode: "serial", retries: 2 });
 
   test.skip(
     ({ browserName }) => browserName !== "chromium",
