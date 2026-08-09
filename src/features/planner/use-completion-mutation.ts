@@ -50,8 +50,12 @@ export function useCompletionMutation() {
       }
 
       try {
+        const executableDecision = decision as Extract<
+          CompletionDispatchDecision,
+          { allowed: true }
+        >;
         const result = await executeCompletionDispatch({
-          decision,
+          decision: executableDecision,
           desiredFactState,
           goalId,
           date,
