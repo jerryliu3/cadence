@@ -1,5 +1,6 @@
 import type { CoachPolicyPatch } from "@/lib/planner/coach";
 import type { PlannerEligibilityMode } from "@/lib/planner/contracts/bounds";
+import type { PlannerDraftCommand } from "@/lib/planner/draft-commands";
 import type { PlannerDraftVisualKind } from "@/lib/planner/diff";
 import type { PlannerPolicy } from "@/lib/planner/policy";
 
@@ -32,6 +33,7 @@ export interface PlannerContextPayload {
   } | null;
   preview: {
     eligibilityMode: PlannerEligibilityMode;
+    solveIntent: "stable" | "replan";
     generationInputHash: string;
     solver: {
       placementStatus: "complete" | "partial";
@@ -191,6 +193,7 @@ export interface DraftItemEdit {
 }
 
 export interface PlannerPreviewResponsePayload {
+  solveIntent?: "stable" | "replan";
   preview: PlannerContextPayload["preview"];
 }
 
@@ -236,7 +239,11 @@ export interface CoachMessageProposal {
   patchSignature: string;
   baselineSnapshotToken: string;
   baselinePolicy: PlannerPolicy | null;
+  baselineDraftSnapshotToken: string;
+  baselineDraftCommands: PlannerDraftCommand[];
+  expectedAppliedDraftSnapshotToken: string | null;
   policyPatches: CoachPolicyPatch[];
+  draftCommands: PlannerDraftCommand[];
   unresolvedQuestions: string[];
 }
 
@@ -277,6 +284,7 @@ export interface CoachResponsePayload {
   reply: string;
   proposal?: {
     policyPatches?: CoachPolicyPatch[];
+    draftCommands?: PlannerDraftCommand[];
     unresolvedQuestions?: string[];
   };
   warnings?: string[];

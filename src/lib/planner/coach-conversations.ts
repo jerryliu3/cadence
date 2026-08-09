@@ -4,6 +4,7 @@ import {
   MAX_COACH_MESSAGE_CHARS,
   MAX_COACH_MESSAGES,
 } from "@/lib/planner/coach";
+import { plannerDraftCommandSchema } from "@/lib/planner/draft-commands";
 import { plannerPolicySchema } from "@/lib/planner/policy";
 
 const scopeMonthPattern = /^\d{4}-(0[1-9]|1[0-2])$/;
@@ -22,8 +23,29 @@ export const coachConversationProposalSchema = z
     patchSignature: z.string().regex(hashPattern),
     baselineSnapshotToken: z.string().regex(snapshotTokenPattern),
     baselinePolicy: plannerPolicySchema.nullable(),
-    policyPatches: z.array(coachPolicyPatchSchema).min(1).max(50),
+    baselineDraftSnapshotToken: z
+      .string()
+      .regex(snapshotTokenPattern)
+      .optional()
+      .default("draft:missing_snapshot"),
+    baselineDraftCommands: z.array(plannerDraftCommandSchema).max(4000).default([]),
+    expectedAppliedDraftSnapshotToken: z
+      .string()
+      .regex(snapshotTokenPattern)
+      .nullable()
+      .optional()
+      .default(null),
+    policyPatches: z.array(coachPolicyPatchSchema).max(50).default([]),
+    draftCommands: z.array(plannerDraftCommandSchema).max(200).default([]),
     unresolvedQuestions: z.array(z.string().trim().min(1).max(500)).max(20),
+  })
+  .superRefine((proposal, context) => {
+    if (proposal.policyPatches.length === 0 && proposal.draftCommands.length === 0) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Coach proposals must include policy patches or draft commands.",
+      });
+    }
   })
   .strict();
 

@@ -122,6 +122,7 @@ function buildContext(
     activePlan: null,
     preview: {
       eligibilityMode: "overlap_v1",
+      solveIntent: "stable",
       generationInputHash: "hash",
       solver: {
         placementStatus: "complete",
@@ -167,9 +168,17 @@ function buildArgs(overrides: Partial<UsePlannerCoachArgs> = {}): UsePlannerCoac
     entriesByDate: new Map(),
     effectivePreview: null,
     effectiveDraftPolicy: null,
+    effectiveDraftCommands: [],
     hasDraftSession: false,
     refreshDraftPreview: vi.fn().mockResolvedValue(null),
     applyDraftPolicy: vi.fn(),
+    applyCoachDraftCommands: vi.fn().mockReturnValue({
+      appliedCount: 0,
+      rejectedCount: 0,
+      rejectionMessages: [],
+      nextDraftSnapshotToken: "draft:00000000000000000000000000000000",
+    }),
+    replaceDraftCommands: vi.fn(),
     getNonPublishablePreviewMessage: vi.fn().mockReturnValue("blocked"),
     ...overrides,
   };
@@ -453,11 +462,97 @@ describe("usePlannerCoach", () => {
     });
 
     expect(persistPlannerDefaultPolicyMock).not.toHaveBeenCalled();
-    expect(refreshDraftPreviewMock).toHaveBeenCalledWith(nextPolicy);
+    expect(refreshDraftPreviewMock).toHaveBeenCalledWith(nextPolicy, "replan");
     expect(applyDraftPolicyMock).toHaveBeenCalledWith("2026-08", nextPolicy);
     expect(result.current.state.coachMessages.at(-1)?.proposal?.applyStatus).toBe(
       "auto_applied"
     );
+  });
+
+  it("auto-applies mixed policy and item proposals", async () => {
+    const context = buildContext();
+    const nextPolicy = buildPolicy({ restWeekdays: [0, 6] });
+    applyCoachPolicyPatchesMock.mockReturnValue({
+      policy: nextPolicy,
+      appliedPatchCount: 1,
+      ignoredPatchCount: 0,
+      noOpPatchCount: 0,
+      outOfScopePatchCount: 0,
+      unsupportedPatchCount: 0,
+    });
+    requestPlannerCoachReplyMock.mockResolvedValue({
+      schemaVersion: "1",
+      phase: "ready",
+      reply: "Applying policy and one item rename.",
+      proposal: {
+        policyPatches: [
+          {
+            kind: "set_rest_weekdays",
+            restWeekdays: [0, 6],
+          },
+        ],
+        draftCommands: [
+          {
+            id: "11111111-1111-4111-8111-111111111111",
+            sequence: 1,
+            kind: "rename_item",
+            goalId: "goal-1",
+            unitKey: "unit-1",
+            label: "Tempo run",
+          },
+        ],
+        unresolvedQuestions: [],
+      },
+      recommendations: [],
+      warnings: [],
+    });
+    const refreshDraftPreviewMock = vi
+      .fn()
+      .mockResolvedValue({ ...context.preview, solveIntent: "replan" });
+    const applyDraftPolicyMock = vi.fn();
+    const applyCoachDraftCommandsMock = vi.fn().mockReturnValue({
+      appliedCount: 1,
+      rejectedCount: 0,
+      rejectionMessages: [],
+      nextDraftSnapshotToken: "draft:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    });
+    const { result } = renderHook(() =>
+      usePlannerCoach(
+        buildArgs({
+          activeTab: "calendar",
+          context,
+          entriesByDate: new Map([["2026-08-01", [buildEntry()]]]),
+          effectivePreview: context.preview,
+          refreshDraftPreview: refreshDraftPreviewMock,
+          applyDraftPolicy: applyDraftPolicyMock,
+          applyCoachDraftCommands: applyCoachDraftCommandsMock,
+        })
+      )
+    );
+
+    await waitFor(() => expect(loadCoachSessionMock).toHaveBeenCalled());
+    act(() => {
+      result.current.actions.setCoachInput("Apply both policy and item edits");
+    });
+    await act(async () => {
+      await result.current.actions.sendCoachMessage();
+    });
+
+    expect(applyCoachDraftCommandsMock).toHaveBeenCalledWith([
+      expect.objectContaining({
+        kind: "rename_item",
+        goalId: "goal-1",
+        unitKey: "unit-1",
+      }),
+    ]);
+    expect(refreshDraftPreviewMock).toHaveBeenCalledWith(nextPolicy, "replan");
+    const proposal = result.current.state.coachMessages.at(-1)?.proposal;
+    expect(proposal?.applyStatus).toBe("auto_applied");
+    expect(proposal?.draftCommands).toHaveLength(1);
+    expect(proposal?.expectedAppliedDraftSnapshotToken).toBe(
+      "draft:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    );
+    expect(proposal?.policyPatches).toHaveLength(1);
   });
 
   it("keeps the latest proposal available across later non-proposal replies", async () => {
@@ -610,7 +705,7 @@ describe("usePlannerCoach", () => {
       timezone: "UTC",
       defaultPolicy: nextPolicy,
     });
-    expect(refreshDraftPreviewMock).toHaveBeenCalledWith(nextPolicy);
+    expect(refreshDraftPreviewMock).toHaveBeenCalledWith(nextPolicy, "replan");
     expect(applyDraftPolicyMock).toHaveBeenCalledWith("2026-08", nextPolicy);
     expect(toastSuccessMock).toHaveBeenCalledWith(
       expect.stringContaining("session change")
@@ -634,7 +729,8 @@ describe("usePlannerCoach", () => {
       expect.objectContaining({
         restWeekdays: [],
         blackoutRanges: [],
-      })
+      }),
+      "replan"
     );
     expect(persistPlannerDefaultPolicyMock).toHaveBeenLastCalledWith({
       timezone: "UTC",
@@ -749,6 +845,89 @@ describe("usePlannerCoach", () => {
     );
   });
 
+  it("blocks undo when newer draft item changes exist", async () => {
+    const baselinePolicy = buildPolicy({ restWeekdays: [1] });
+    loadCoachSessionMock.mockReturnValue([
+      {
+        role: "assistant",
+        content: "Shift this single session later.",
+        createdAt: 123,
+        proposal: {
+          schemaVersion: "1",
+          applyStatus: "auto_applied",
+          patchSignature:
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          baselineSnapshotToken:
+            "policy:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          baselinePolicy,
+          baselineDraftSnapshotToken:
+            "draft:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          baselineDraftCommands: [],
+          expectedAppliedDraftSnapshotToken:
+            "draft:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+          policyPatches: [],
+          draftCommands: [
+            {
+              id: "11111111-1111-4111-8111-111111111111",
+              sequence: 1,
+              kind: "rename_item",
+              goalId: "goal-1",
+              unitKey: "unit-1",
+              label: "Tempo run",
+            },
+          ],
+          unresolvedQuestions: [],
+        },
+      },
+    ]);
+    const context = buildContext({
+      preferences: {
+        timezone: "UTC",
+        timezoneConfirmedAt: "2026-08-01T00:00:00.000Z",
+        policyRevision: 1,
+        defaultPolicy: baselinePolicy,
+      },
+    });
+    const replaceDraftCommandsMock = vi.fn();
+    const { result } = renderHook(() =>
+      usePlannerCoach(
+        buildArgs({
+          activeTab: "calendar",
+          context,
+          entriesByDate: new Map([["2026-08-01", [buildEntry()]]]),
+          effectivePreview: context.preview,
+          effectiveDraftCommands: [
+            {
+              id: "22222222-2222-4222-8222-222222222222",
+              sequence: 7,
+              kind: "rename_item",
+              goalId: "goal-1",
+              unitKey: "unit-1",
+              label: "Already changed",
+            },
+          ],
+          replaceDraftCommands: replaceDraftCommandsMock,
+        })
+      )
+    );
+
+    await waitFor(() => {
+      expect(result.current.state.coachMessages).toHaveLength(1);
+    });
+
+    await act(async () => {
+      await result.current.actions.undoCoachProposal(0);
+    });
+
+    expect(toastErrorMock).toHaveBeenCalledWith(
+      "Undo is blocked because newer draft item edits were applied after this proposal. Undo newer proposals first or discard draft edits."
+    );
+    expect(replaceDraftCommandsMock).not.toHaveBeenCalled();
+    expect(result.current.state.coachMessages[0]?.proposal?.applyStatus).toBe(
+      "auto_applied"
+    );
+  });
+
   it("validates undo preview before persisting manual default restoration", async () => {
     const baselinePolicy = buildPolicy({ restWeekdays: [1] });
     const appliedPolicy = buildPolicy({ restWeekdays: [2] });
@@ -838,7 +1017,8 @@ describe("usePlannerCoach", () => {
       expect.objectContaining({
         restWeekdays: baselinePolicy.restWeekdays,
         blackoutRanges: baselinePolicy.blackoutRanges,
-      })
+      }),
+      "replan"
     );
     expect(persistPlannerDefaultPolicyMock).not.toHaveBeenCalled();
     expect(applyDraftPolicyMock).not.toHaveBeenCalled();
@@ -942,14 +1122,16 @@ describe("usePlannerCoach", () => {
       expect.objectContaining({
         restWeekdays: baselinePolicy.restWeekdays,
         blackoutRanges: baselinePolicy.blackoutRanges,
-      })
+      }),
+      "replan"
     );
     expect(refreshDraftPreviewMock).toHaveBeenNthCalledWith(
       2,
       expect.objectContaining({
         restWeekdays: appliedPolicy.restWeekdays,
         blackoutRanges: appliedPolicy.blackoutRanges,
-      })
+      }),
+      "replan"
     );
     expect(persistPlannerDefaultPolicyMock).toHaveBeenCalledWith({
       timezone: "UTC",
@@ -1206,7 +1388,8 @@ describe("usePlannerCoach", () => {
       expect.objectContaining({
         restWeekdays: baselinePolicy.restWeekdays,
         blackoutRanges: baselinePolicy.blackoutRanges,
-      })
+      }),
+      "replan"
     );
     expect(applyDraftPolicyMock).toHaveBeenCalledWith(
       "2026-08",
@@ -1217,7 +1400,7 @@ describe("usePlannerCoach", () => {
     );
     expect(result.current.state.coachMessages[0]?.proposal?.applyStatus).toBe("undone");
     expect(toastSuccessMock).toHaveBeenCalledWith(
-      "Coach draft preview changes were undone."
+      "Coach draft policy changes were undone."
     );
   });
 

@@ -5,6 +5,7 @@ import type {
   PlannerContextPayload,
   PlannerDayDetailEntry,
 } from "@/features/planner/calendar-surface.types";
+import type { PlannerDraftCommand } from "@/lib/planner/draft-commands";
 import type { PlannerPolicy } from "@/lib/planner/policy";
 
 export interface UsePlannerCoachArgs {
@@ -13,11 +14,22 @@ export interface UsePlannerCoachArgs {
   entriesByDate: Map<string, PlannerDayDetailEntry[]>;
   effectivePreview: PlannerContextPayload["preview"] | null;
   effectiveDraftPolicy: PlannerPolicy | null;
+  effectiveDraftCommands: PlannerDraftCommand[];
   hasDraftSession: boolean;
   refreshDraftPreview: (
-    nextPolicy: PlannerPolicy
+    nextPolicy: PlannerPolicy,
+    solveIntent?: "stable" | "replan"
   ) => Promise<PlannerContextPayload["preview"]>;
   applyDraftPolicy: (scopeMonth: string, policy: PlannerPolicy) => void;
+  applyCoachDraftCommands: (
+    commands: PlannerDraftCommand[]
+  ) => {
+    appliedCount: number;
+    rejectedCount: number;
+    rejectionMessages: string[];
+    nextDraftSnapshotToken: string;
+  };
+  replaceDraftCommands: (commands: PlannerDraftCommand[]) => void;
   getNonPublishablePreviewMessage: (
     preview: NonNullable<PlannerContextPayload["preview"]>
   ) => string;

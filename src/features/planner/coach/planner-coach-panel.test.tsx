@@ -99,12 +99,17 @@ describe("planner coach panel", () => {
               restWeekdays: [],
               blackoutRanges: [],
             },
+            baselineDraftSnapshotToken:
+              "draft:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+            baselineDraftCommands: [],
+            expectedAppliedDraftSnapshotToken: null,
             policyPatches: [
               {
                 kind: "set_rest_weekdays",
                 restWeekdays: [2, 4],
               },
             ],
+            draftCommands: [],
             unresolvedQuestions: [],
           },
         },

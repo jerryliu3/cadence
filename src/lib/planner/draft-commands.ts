@@ -172,3 +172,7 @@ export function projectPlannerDraftCommands(
   }
   return projection;
 }
+
+export function buildPlannerDraftSnapshotToken(commands: PlannerDraftCommand[]) {
+  return `draft:${canonicalHash(sortPlannerDraftCommands(commands))}`;
+}
