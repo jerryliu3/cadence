@@ -20,7 +20,6 @@ import Image from "next/image";
 import {
   type ReactNode,
   type UIEventHandler,
-  type WheelEventHandler,
   useCallback,
   useEffect,
   useMemo,
@@ -99,12 +98,48 @@ const allCategoriesFilterValue = "__all_categories__";
 type RecurrenceFilter = "all" | "daily" | "weekly" | "monthly" | "fixed";
 type RecurrenceGroup = "daily" | "weekly" | "monthly" | "fixed";
 const VISIBLE_GOALS_PER_GROUP = 5;
+const TODAY_REQUEST_TIMEOUT_MS = 15_000;
 const INITIAL_GROUP_EXPANDED: Record<RecurrenceGroup, boolean> = {
   daily: false,
   weekly: false,
   monthly: false,
   fixed: false,
 };
+
+function isAbortError(error: unknown) {
+  if (error instanceof DOMException) {
+    return error.name === "AbortError";
+  }
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "name" in error &&
+    (error as { name?: unknown }).name === "AbortError"
+  ) {
+    return true;
+  }
+  return false;
+}
+
+function withAbortSignal<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
+  if (signal.aborted) {
+    throw new DOMException("The operation was aborted.", "AbortError");
+  }
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = () => reject(new DOMException("The operation was aborted.", "AbortError"));
+    signal.addEventListener("abort", onAbort, { once: true });
+    promise.then(
+      (value) => {
+        signal.removeEventListener("abort", onAbort);
+        resolve(value);
+      },
+      (error) => {
+        signal.removeEventListener("abort", onAbort);
+        reject(error);
+      }
+    );
+  });
+}
 
 function getRecurrenceGroup(goal: Goal): RecurrenceGroup {
   if (goal.frequency_type === "fixed_milestones") {
@@ -196,6 +231,7 @@ export function TodayTab({
   const [internalChecklistTab, setInternalChecklistTab] =
     useState<ChecklistTabValue>(activeTab ?? "today");
   const loadRequestIdRef = useRef(0);
+  const visibleLoadCountRef = useRef(0);
   const refreshTokenRef = useRef(refreshToken);
   const pendingRefreshRef = useRef(false);
   const effectiveChecklistTab = activeTab ?? internalChecklistTab;
@@ -218,76 +254,94 @@ export function TodayTab({
       const requestId = loadRequestIdRef.current + 1;
       loadRequestIdRef.current = requestId;
       if (showLoading) {
+        visibleLoadCountRef.current += 1;
         setLoading(true);
       }
-
-      const {
-        data: { user },
-        error: userError,
-      } = await supabase.auth.getUser();
-
-      if (userError || !user) {
-        if (showLoading) {
-          setLoading(false);
-        }
-        setData(emptyData);
-        return;
-      }
-
-      const [goalsResponse, participantsResponse, linksResponse, progress] =
-        await Promise.all([
-          supabase
-            .from("goals")
-            .select("*")
-            .eq("is_deleted", false)
-            .order("created_at", { ascending: false }),
-          supabase.from("goal_participants").select("*").eq("user_id", user.id),
-          supabase.from("goal_links").select("*").eq("owner_id", user.id),
-          fetchProgressContext({
-            asOfDate: todayLocalDate,
-            viewDate,
-            forceRefresh,
-          }),
-        ]);
-
-      const goals = (goalsResponse.data ?? []) as Goal[];
-      const completions = progress.facts;
-      const participants = (participantsResponse.data ?? []) as GoalParticipant[];
-      const links = (linksResponse.data ?? []) as GoalLink[];
-
-      const photoUrls: Record<string, string> = {};
-      await Promise.all(
-        goals
-          .filter((goal) => goal.photo_path)
-          .map(async (goal) => {
-            if (!goal.photo_path) {
-              return;
-            }
-            const { data: signedData } = await supabase.storage
-              .from("goal-photos")
-              .createSignedUrl(goal.photo_path, 60 * 60);
-            if (signedData?.signedUrl) {
-              photoUrls[goal.id] = signedData.signedUrl;
-            }
-          })
+      const controller = new AbortController();
+      const timeoutId = window.setTimeout(
+        () => controller.abort(),
+        TODAY_REQUEST_TIMEOUT_MS
       );
+      try {
+        const {
+          data: { user },
+          error: userError,
+        } = await withAbortSignal(supabase.auth.getUser(), controller.signal);
 
-      if (requestId !== loadRequestIdRef.current) {
-        return;
-      }
+        if (requestId !== loadRequestIdRef.current) {
+          return;
+        }
 
-      setData({
-        userId: user.id,
-        goals,
-        completions,
-        participants,
-        links,
-        photoUrls,
-        progress,
-      });
+        if (userError || !user) {
+          setData(emptyData);
+          return;
+        }
 
-      if (showLoading) {
-        setLoading(false);
+        const [goalsResponse, participantsResponse, linksResponse, progress] =
+          await withAbortSignal(
+            Promise.all([
+              supabase
+                .from("goals")
+                .select("*")
+                .eq("is_deleted", false)
+                .order("created_at", { ascending: false }),
+              supabase.from("goal_participants").select("*").eq("user_id", user.id),
+              supabase.from("goal_links").select("*").eq("owner_id", user.id),
+              fetchProgressContext({
+                asOfDate: todayLocalDate,
+                viewDate,
+                forceRefresh,
+              }),
+            ]),
+            controller.signal
+          );
+
+        const goals = (goalsResponse.data ?? []) as Goal[];
+        const completions = progress.facts;
+        const participants = (participantsResponse.data ?? []) as GoalParticipant[];
+        const links = (linksResponse.data ?? []) as GoalLink[];
+
+        const photoUrls: Record<string, string> = {};
+        await withAbortSignal(
+          Promise.all(
+            goals
+              .filter((goal) => goal.photo_path)
+              .map(async (goal) => {
+                if (!goal.photo_path) {
+                  return;
+                }
+                const { data: signedData } = await supabase.storage
+                  .from("goal-photos")
+                  .createSignedUrl(goal.photo_path, 60 * 60);
+                if (signedData?.signedUrl) {
+                  photoUrls[goal.id] = signedData.signedUrl;
+                }
+              })
+          ),
+          controller.signal
+        );
+
+        if (requestId !== loadRequestIdRef.current) {
+          return;
+        }
+
+        setData({
+          userId: user.id,
+          goals,
+          completions,
+          participants,
+          links,
+          photoUrls,
+          progress,
+        });
+      } finally {
+        window.clearTimeout(timeoutId);
+        if (showLoading) {
+          visibleLoadCountRef.current = Math.max(visibleLoadCountRef.current - 1, 0);
+          if (visibleLoadCountRef.current === 0) {
+            setLoading(false);
+          }
+        }
       }
     },
     [supabase, todayLocalDate, viewDate]
@@ -298,11 +352,12 @@ export function TodayTab({
       try {
         await loadData();
       } catch (error) {
-        setLoading(false);
         toast.error(
-          error instanceof Error
-            ? error.message
-            : "Goal progress could not be loaded."
+          isAbortError(error)
+            ? "Today goals request timed out. Please try again."
+            : error instanceof Error
+              ? error.message
+              : "Goal progress could not be loaded."
         );
       }
     };
@@ -321,9 +376,11 @@ export function TodayTab({
         void loadData({ showLoading: false, forceRefresh: true }).catch(
           (error: unknown) => {
             toast.error(
-              error instanceof Error
-                ? error.message
-                : "Goal progress could not be loaded."
+              isAbortError(error)
+                ? "Today goals request timed out. Please try again."
+                : error instanceof Error
+                  ? error.message
+                  : "Goal progress could not be loaded."
             );
           }
         );
@@ -344,9 +401,11 @@ export function TodayTab({
       void loadData({ showLoading: false, forceRefresh: true }).catch(
         (error: unknown) => {
           toast.error(
-            error instanceof Error
-              ? error.message
-              : "Goal progress could not be loaded."
+            isAbortError(error)
+              ? "Today goals request timed out. Please try again."
+              : error instanceof Error
+                ? error.message
+                : "Goal progress could not be loaded."
           );
         }
       );
@@ -621,11 +680,8 @@ export function TodayTab({
           window.scrollTo({ top: currentScrollY, behavior: "auto" });
         });
       } catch (error) {
-        const timeoutLike =
-          error instanceof Error &&
-          error.message.toLowerCase().includes("timed out");
         toast.error(
-          timeoutLike
+          isAbortError(error)
             ? "Completion updated, but calendar refresh timed out. Please refresh the page."
             : "Completion updated, but calendar refresh failed. Please refresh the page."
         );
@@ -1108,19 +1164,6 @@ function GoalLoopScroller({ goals, renderGoal }: GoalLoopScrollerProps) {
     [shouldLoop]
   );
 
-  const onWheel = useCallback<WheelEventHandler<HTMLDivElement>>(
-    (event) => {
-      if (!shouldLoop) {
-        return;
-      }
-
-      event.preventDefault();
-      const scroller = event.currentTarget;
-      scroller.scrollTop += event.deltaY;
-    },
-    [shouldLoop]
-  );
-
   const thumbHeightPercent = shouldLoop
     ? Math.max((VISIBLE_GOALS_PER_GROUP / goals.length) * 100, 14)
     : 100;
@@ -1134,7 +1177,6 @@ function GoalLoopScroller({ goals, renderGoal }: GoalLoopScrollerProps) {
         data-no-swipe="true"
         className="h-[430px] overflow-y-scroll overscroll-contain pr-4 [scrollbar-width:thin] [touch-action:pan-y]"
         onScroll={onScroll}
-        onWheel={onWheel}
       >
         <div className="space-y-3 pr-1">
           {repeatedGoals.map((goal, repeatIndex) => {
