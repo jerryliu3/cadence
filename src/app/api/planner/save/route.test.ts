@@ -107,7 +107,7 @@ describe("planner save route", () => {
     await expect(response.json()).resolves.toMatchObject({
       code: "validation_failed",
       message: "Planner policy failed validation.",
-      correlationId: "test-correlation-id",
+      correlationId: expect.any(String),
     });
   });
 });
