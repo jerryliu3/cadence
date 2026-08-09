@@ -60,7 +60,6 @@ import {
   getGoalRequirement,
   isTargetedRecurringGoal,
 } from "@/lib/planner/requirements";
-import { withPlannerRefreshTimeout } from "@/lib/planner/refresh-timeout";
 import { createClient } from "@/lib/supabase/client";
 
 interface InsightsData {
@@ -480,13 +479,21 @@ export function InsightsTab() {
         }
 
         toast.success(isSelected ? `Removed ${completionDate}.` : `Selected ${completionDate}.`);
-        await withPlannerRefreshTimeout({
-          operation: loadData({ showLoading: false, forceRefresh: true }),
-          timeoutMessage: "Insights refresh timed out. Please refresh to sync.",
-        });
-        requestAnimationFrame(() => {
-          window.scrollTo({ top: currentScrollY, behavior: "auto" });
-        });
+        try {
+          await loadData({ showLoading: false, forceRefresh: true });
+          requestAnimationFrame(() => {
+            window.scrollTo({ top: currentScrollY, behavior: "auto" });
+          });
+        } catch (error) {
+          const timeoutLike =
+            error instanceof Error &&
+            error.message.toLowerCase().includes("timed out");
+          toast.error(
+            timeoutLike
+              ? "Completion updated, but calendar refresh timed out. Please refresh the page."
+              : "Completion updated, but calendar refresh failed. Please refresh the page."
+          );
+        }
       } catch (error) {
         toast.error(
           error instanceof Error ? error.message : "Completion update failed."
@@ -553,13 +560,21 @@ export function InsightsTab() {
         }
 
         toast.success(hasCompletionOnDate ? `Removed ${completionDate}.` : `Selected ${completionDate}.`);
-        await withPlannerRefreshTimeout({
-          operation: loadData({ showLoading: false, forceRefresh: true }),
-          timeoutMessage: "Insights refresh timed out. Please refresh to sync.",
-        });
-        requestAnimationFrame(() => {
-          window.scrollTo({ top: currentScrollY, behavior: "auto" });
-        });
+        try {
+          await loadData({ showLoading: false, forceRefresh: true });
+          requestAnimationFrame(() => {
+            window.scrollTo({ top: currentScrollY, behavior: "auto" });
+          });
+        } catch (error) {
+          const timeoutLike =
+            error instanceof Error &&
+            error.message.toLowerCase().includes("timed out");
+          toast.error(
+            timeoutLike
+              ? "Completion updated, but calendar refresh timed out. Please refresh the page."
+              : "Completion updated, but calendar refresh failed. Please refresh the page."
+          );
+        }
       } catch (error) {
         toast.error(
           error instanceof Error ? error.message : "Completion update failed."
@@ -593,10 +608,7 @@ export function InsightsTab() {
         }
 
         toast.success("Milestone names updated.");
-        await withPlannerRefreshTimeout({
-          operation: loadData({ showLoading: false, forceRefresh: true }),
-          timeoutMessage: "Insights refresh timed out. Please refresh to sync.",
-        });
+        await loadData({ showLoading: false, forceRefresh: true });
         requestAnimationFrame(() => {
           window.scrollTo({ top: currentScrollY, behavior: "auto" });
         });
