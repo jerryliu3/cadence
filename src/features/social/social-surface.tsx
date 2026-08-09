@@ -1,6 +1,7 @@
 "use client";
 
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { ChallengeList } from "@/features/social/challenges/challenge-list";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FeedList } from "@/features/social/feed/feed-list";
 import type { SocialCapabilities } from "@/lib/social/capabilities";
@@ -44,10 +45,14 @@ export function SocialSurface({ capabilities }: { capabilities: SocialCapabiliti
       </TabsContent>
 
       <TabsContent value="challenges">
-        <Placeholder
-          title="Challenges staged"
-          description="Challenge surfaces will appear as social challenge phases are enabled."
-        />
+        {!capabilities.socialChallengesEnabled ? (
+          <Placeholder
+            title="Challenges disabled"
+            description="Enable SOCIAL_CHALLENGES_ENABLED to expose challenge surfaces."
+          />
+        ) : (
+          <ChallengeList />
+        )}
       </TabsContent>
 
       <TabsContent value="leaderboards">
