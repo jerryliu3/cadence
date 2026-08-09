@@ -2,11 +2,11 @@ import { describe, expect, it } from "vitest";
 import type { Completion, Goal } from "@/lib/goals/types";
 import {
   runPlannerKernel,
+  PlannerError,
   type PlannerKernelInput,
 } from "@/lib/planner/kernel";
 import { createDefaultPlannerPolicy } from "@/lib/planner/policy";
 import { computeRequirementFingerprint } from "@/lib/planner/requirements";
-import { PlannerError } from "@/lib/planner/errors";
 
 function goal(overrides: Partial<Goal> = {}): Goal {
   return {
