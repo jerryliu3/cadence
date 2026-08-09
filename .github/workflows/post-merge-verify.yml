@@ -69,7 +69,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Start local Supabase (lean profile)
-        run: pnpm supabase:start -- --exclude studio,mailpit,imgproxy,analytics,vector,edge-runtime,postgres-meta,logflare,supavisor
+        run: pnpm supabase:start -- --exclude studio,inbucket,imgproxy,analytics,vector,edge-runtime,functions
 
       - name: Reset and seed local database
         run: pnpm supabase:reset
