@@ -3,6 +3,7 @@
 import { format } from "date-fns";
 import { LogOut } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
+import { TAB_ORDER } from "@/components/navigation/tabs";
 import { type ReactNode, type TouchEventHandler, useMemo, useRef, useState } from "react";
 import { TabNav } from "@/components/navigation/tab-nav";
 import { Button } from "@/components/ui/button";
@@ -15,18 +16,11 @@ interface AppShellProps {
   userEmail: string;
 }
 
-const tabOrder = ["/insights", "/", "/settings"] as const;
-
-function getActiveTabPath(pathname: string): (typeof tabOrder)[number] {
-  if (pathname.startsWith("/insights")) {
-    return "/insights";
-  }
-
-  if (pathname.startsWith("/settings")) {
-    return "/settings";
-  }
-
-  return "/";
+function getActiveTabPath(pathname: string): string {
+  const matched = TAB_ORDER.filter(
+    (href) => href !== "/" && pathname.startsWith(href)
+  ).sort((left, right) => right.length - left.length)[0];
+  return matched ?? "/";
 }
 
 export function AppShell({ children, userEmail }: AppShellProps) {
@@ -91,18 +85,18 @@ export function AppShell({ children, userEmail }: AppShellProps) {
     }
 
     const currentTab = getActiveTabPath(pathname);
-    const currentIndex = tabOrder.indexOf(currentTab);
+    const currentIndex = TAB_ORDER.indexOf(currentTab);
 
     if (currentIndex === -1) {
       return;
     }
 
     const targetIndex = deltaX < 0 ? currentIndex + 1 : currentIndex - 1;
-    if (targetIndex < 0 || targetIndex >= tabOrder.length) {
+    if (targetIndex < 0 || targetIndex >= TAB_ORDER.length) {
       return;
     }
 
-    router.push(tabOrder[targetIndex]);
+    router.push(TAB_ORDER[targetIndex] ?? "/");
   };
 
   return (

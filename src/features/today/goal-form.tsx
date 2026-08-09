@@ -73,6 +73,8 @@ interface GoalFormState {
   end_date: string;
   default_local_time: string;
   is_group: boolean;
+  feed_visibility: "private" | "title_public";
+  partner_visibility: "shared" | "excluded";
 }
 
 const defaultState: GoalFormState = {
@@ -90,6 +92,8 @@ const defaultState: GoalFormState = {
   end_date: "",
   default_local_time: "",
   is_group: false,
+  feed_visibility: "private",
+  partner_visibility: "shared",
 };
 
 const localTimePattern = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -252,6 +256,8 @@ export function GoalForm({ goalId }: GoalFormProps) {
           end_date: goal.end_date ?? "",
           default_local_time: goal.default_local_time ?? "",
           is_group: goal.is_group,
+          feed_visibility: goal.feed_visibility ?? "private",
+          partner_visibility: goal.partner_visibility ?? "shared",
         });
 
         const existingLinks = (linksResponse.data ?? []) as GoalLink[];
@@ -472,6 +478,8 @@ export function GoalForm({ goalId }: GoalFormProps) {
       end_date: state.end_date || null,
       default_local_time: state.default_local_time.trim() || null,
       is_group: state.is_group,
+      feed_visibility: state.feed_visibility,
+      partner_visibility: state.partner_visibility,
     };
 
     const savedGoalId = goalId ?? crypto.randomUUID();
@@ -1047,6 +1055,43 @@ export function GoalForm({ goalId }: GoalFormProps) {
                         This is a collaborative group goal (participants track their own completions).
                       </span>
                     </label>
+                  </div>
+
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="goal-feed-visibility">Feed visibility</Label>
+                      <Select
+                        value={state.feed_visibility}
+                        onValueChange={(value: "private" | "title_public") =>
+                          setState((prev) => ({ ...prev, feed_visibility: value }))
+                        }
+                      >
+                        <SelectTrigger id="goal-feed-visibility">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="private">Private (no public title)</SelectItem>
+                          <SelectItem value="title_public">Public title in feed</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="goal-partner-visibility">Partner visibility</Label>
+                      <Select
+                        value={state.partner_visibility}
+                        onValueChange={(value: "shared" | "excluded") =>
+                          setState((prev) => ({ ...prev, partner_visibility: value }))
+                        }
+                      >
+                        <SelectTrigger id="goal-partner-visibility">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="shared">Shared with partner</SelectItem>
+                          <SelectItem value="excluded">Hidden from partner</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
 
                   {!state.is_group ? (

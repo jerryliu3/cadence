@@ -226,6 +226,10 @@ export function SocialTab() {
     username: "",
     display_name: "",
     avatar_url: "",
+    social_discoverable: true,
+    social_activity_visible: true,
+    social_leaderboard_eligible: true,
+    social_challenge_eligible: true,
   });
   const shareMenuAnchorRef = useRef<HTMLDivElement | null>(null);
   const shareMenuPanelRef = useRef<HTMLDivElement | null>(null);
@@ -303,6 +307,10 @@ export function SocialTab() {
       username: profile?.username ?? "",
       display_name: profile?.display_name ?? "",
       avatar_url: profile?.avatar_url ?? "",
+      social_discoverable: profile?.social_discoverable ?? true,
+      social_activity_visible: profile?.social_activity_visible ?? true,
+      social_leaderboard_eligible: profile?.social_leaderboard_eligible ?? true,
+      social_challenge_eligible: profile?.social_challenge_eligible ?? true,
     });
 
     const sharedGoalIds = sharedEntries.map((entry) => entry.goal_id);
@@ -545,6 +553,11 @@ export function SocialTab() {
       username: profileDraft.username.trim().toLowerCase(),
       display_name: profileDraft.display_name.trim() || null,
       avatar_url: profileDraft.avatar_url.trim() || null,
+      social_discoverable: profileDraft.social_discoverable,
+      social_activity_visible: profileDraft.social_activity_visible,
+      social_leaderboard_eligible: profileDraft.social_leaderboard_eligible,
+      social_challenge_eligible: profileDraft.social_challenge_eligible,
+      social_visibility_updated_at: new Date().toISOString(),
     };
 
     const { error } = await supabase.from("profiles").upsert(payload, { onConflict: "id" });
@@ -831,6 +844,61 @@ export function SocialTab() {
                 setProfileDraft((prev) => ({ ...prev, avatar_url: event.target.value }))
               }
             />
+          </div>
+          <div className="space-y-3 rounded-xl border bg-muted/20 p-3">
+            <p className="text-sm font-medium">Social privacy</p>
+            <label className="flex items-start gap-3 text-sm">
+              <input
+                type="checkbox"
+                checked={profileDraft.social_discoverable}
+                onChange={(event) =>
+                  setProfileDraft((prev) => ({
+                    ...prev,
+                    social_discoverable: event.target.checked,
+                  }))
+                }
+              />
+              <span>Allow other users to find me by username.</span>
+            </label>
+            <label className="flex items-start gap-3 text-sm">
+              <input
+                type="checkbox"
+                checked={profileDraft.social_activity_visible}
+                onChange={(event) =>
+                  setProfileDraft((prev) => ({
+                    ...prev,
+                    social_activity_visible: event.target.checked,
+                  }))
+                }
+              />
+              <span>Allow my social activity to appear in feed events.</span>
+            </label>
+            <label className="flex items-start gap-3 text-sm">
+              <input
+                type="checkbox"
+                checked={profileDraft.social_leaderboard_eligible}
+                onChange={(event) =>
+                  setProfileDraft((prev) => ({
+                    ...prev,
+                    social_leaderboard_eligible: event.target.checked,
+                  }))
+                }
+              />
+              <span>Allow my profile to appear in leaderboard standings.</span>
+            </label>
+            <label className="flex items-start gap-3 text-sm">
+              <input
+                type="checkbox"
+                checked={profileDraft.social_challenge_eligible}
+                onChange={(event) =>
+                  setProfileDraft((prev) => ({
+                    ...prev,
+                    social_challenge_eligible: event.target.checked,
+                  }))
+                }
+              />
+              <span>Allow enrollment in social challenges.</span>
+            </label>
           </div>
           <Button type="button" onClick={saveProfile} disabled={saving}>
             <WandSparkles className="size-4" />

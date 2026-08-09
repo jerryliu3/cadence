@@ -2,21 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BarChart3, ListChecks, Settings } from "lucide-react";
-import type { ComponentType } from "react";
+import { APP_TABS } from "@/components/navigation/tabs";
 import { cn } from "@/lib/utils";
 
-type TabLink = {
-  href: string;
-  label: string;
-  icon: ComponentType<{ className?: string }>;
+const GRID_BY_COUNT: Record<number, string> = {
+  3: "grid-cols-3",
+  4: "grid-cols-4",
+  5: "grid-cols-5",
 };
-
-const tabs: TabLink[] = [
-  { href: "/insights", label: "Insights", icon: BarChart3 },
-  { href: "/", label: "Checklist", icon: ListChecks },
-  { href: "/settings", label: "Settings", icon: Settings },
-];
 
 function isActive(pathname: string, href: string) {
   if (href === "/") {
@@ -31,6 +24,7 @@ interface TabNavProps {
 
 export function TabNav({ mobile = false }: TabNavProps) {
   const pathname = usePathname();
+  const gridClass = GRID_BY_COUNT[APP_TABS.length] ?? "grid-cols-4";
 
   return (
     <nav
@@ -42,8 +36,8 @@ export function TabNav({ mobile = false }: TabNavProps) {
       )}
       aria-label="Main navigation"
     >
-      <ul className={cn("grid w-full grid-cols-3 gap-1", !mobile && "max-w-xl")}>
-        {tabs.map((tab) => {
+      <ul className={cn("grid w-full gap-1", gridClass, !mobile && "max-w-xl")}>
+        {APP_TABS.map((tab) => {
           const active = isActive(pathname, tab.href);
           const Icon = tab.icon;
           return (
@@ -51,7 +45,8 @@ export function TabNav({ mobile = false }: TabNavProps) {
               <Link
                 href={tab.href}
                 className={cn(
-                  "flex w-full items-center justify-center gap-2 rounded-xl px-3 py-2 text-sm font-medium transition-colors",
+                  "flex w-full items-center justify-center rounded-xl px-3 py-2 font-medium transition-colors",
+                  mobile ? "flex-col gap-0.5 text-[11px]" : "gap-2 text-sm",
                   active
                     ? "bg-primary text-primary-foreground shadow-sm"
                     : "text-muted-foreground hover:bg-muted hover:text-foreground"
