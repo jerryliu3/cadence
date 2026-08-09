@@ -138,7 +138,7 @@
     },
     {
       "id": "linked_source_goal",
-      "description": "A goal that is the source of a current link is excluded.",
+      "description": "A goal that is the source of a current link remains eligible.",
       "scopeMonth": "2026-08",
       "goal": {
         "ownedByViewer": true,
@@ -151,8 +151,8 @@
         "endDate": "2026-08-31"
       },
       "expected": {
-        "eligible": false,
-        "reason": "linked"
+        "eligible": true,
+        "reason": "eligible"
       }
     },
     {

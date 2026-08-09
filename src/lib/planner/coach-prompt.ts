@@ -122,6 +122,8 @@ export function buildCoachPrompt({
     "- For action=apply, global can be null or include restWeekdays/addBlackoutRanges/removeBlackoutRanges.",
     "- restWeekdays entries are numeric weekdays where 0=Sunday through 6=Saturday.",
     "- blackout range entries use exact YYYY-MM-DD start/end values.",
+    "- Never claim that edits were already applied by you. The app applies patches after your response is validated.",
+    "- If action is needs_goal, none, or apply with no supported global edits, explicitly state that no calendar edits were applied.",
     "- If the user says not to ask more questions, make conservative assumptions; if no matching goal exists, use action=needs_goal, leave unresolvedQuestions empty, and explain in reply that calendar edits require a matching goal.",
     "The calendar compiler cannot create goals, invent sessions, or repurpose an unrelated goal. State this limitation honestly.",
     "Always include 2-5 concrete recommendations in recommendations[] when possible.",

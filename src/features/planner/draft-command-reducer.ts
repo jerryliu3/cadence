@@ -40,6 +40,10 @@ export type DraftCommandAction =
       goalId: string;
       unitKey: string;
     }
+  | {
+      type: "remove_entries";
+      entries: Array<{ goalId: string; unitKey: string }>;
+    }
   | { type: "clear" };
 
 export const initialDraftCommandState: DraftCommandState = {
@@ -77,6 +81,23 @@ export function draftCommandReducer(
             commandTargetsEntry(command, action.goalId, action.unitKey)
           )
       ),
+    };
+  }
+  if (action.type === "remove_entries") {
+    const keys = new Set(
+      action.entries.map((entry) => `${entry.goalId}:${entry.unitKey}`)
+    );
+    if (keys.size === 0) {
+      return state;
+    }
+    return {
+      ...state,
+      commands: state.commands.filter((command) => {
+        if (!("unitKey" in command)) {
+          return true;
+        }
+        return !keys.has(`${command.goalId}:${command.unitKey}`);
+      }),
     };
   }
 

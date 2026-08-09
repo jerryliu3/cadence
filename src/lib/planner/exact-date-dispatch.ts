@@ -257,34 +257,24 @@ export async function applyPlannerGoalDateFact({
     return digestFailure;
   }
 
-  const [sourceLinksResponse, targetLinksResponse] = await Promise.all([
-    supabase
-      .from("goal_links")
-      .select("id")
-      .eq("source_goal_id", goalId)
-      .limit(1),
-    supabase
-      .from("goal_links")
-      .select("id")
-      .eq("target_goal_id", goalId)
-      .limit(1),
-  ]);
+  const targetLinksResponse = await supabase
+    .from("goal_links")
+    .select("id")
+    .eq("target_goal_id", goalId)
+    .limit(1);
 
-  if (sourceLinksResponse.error || targetLinksResponse.error) {
+  if (targetLinksResponse.error) {
     return dispatchFailure(
       503,
       "planner_goal_lookup_failed",
       "Planner goal state could not be loaded."
     );
   }
-  if (
-    (sourceLinksResponse.data ?? []).length > 0 ||
-    (targetLinksResponse.data ?? []).length > 0
-  ) {
+  if ((targetLinksResponse.data ?? []).length > 0) {
     return dispatchFailure(
       422,
       "linked_goal_disallowed",
-      "Linked goals cannot be completed through plan-goal date facts."
+      "Linked target goals cannot be completed through plan-goal date facts."
     );
   }
 

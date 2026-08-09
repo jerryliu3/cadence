@@ -6,6 +6,12 @@ export const MAX_COACH_MESSAGES = 20;
 export const MAX_COACH_FOCUS_GOALS = 20;
 export const MAX_COACH_MESSAGE_CHARS = 12_000;
 export const MAX_COACH_REPLY_CHARS = 12_000;
+export const COACH_WARNING_NEEDS_GOAL =
+  "No calendar edits were generated because this plan does not map to an existing goal.";
+export const COACH_WARNING_NO_SCHEDULING_CHANGES =
+  "The calendar intent did not contain any scheduling changes.";
+const COACH_NO_EDITS_SUPPORTED_REPLY =
+  "No calendar edits were applied. Coach can currently apply only global rest weekdays and blackout ranges; direct per-goal session moves are not yet supported in this flow.";
 
 export const coachRequestSchema = z
   .object({
@@ -118,9 +124,7 @@ function compileCalendarIntent(
     return { policyPatches, warnings };
   }
   if (intent.action === "needs_goal") {
-    warnings.push(
-      "No calendar edits were generated because this plan does not map to an existing goal."
-    );
+    warnings.push(COACH_WARNING_NEEDS_GOAL);
     return { policyPatches, warnings };
   }
 
@@ -145,9 +149,28 @@ function compileCalendarIntent(
     }
   }
   if (policyPatches.length === 0) {
-    warnings.push("The calendar intent did not contain any scheduling changes.");
+    warnings.push(COACH_WARNING_NO_SCHEDULING_CHANGES);
   }
   return { policyPatches, warnings };
+}
+
+function resolveCoachReply({
+  reply,
+  warnings,
+  policyPatches,
+}: {
+  reply: string;
+  warnings: string[];
+  policyPatches: CoachPolicyPatch[];
+}) {
+  if (
+    policyPatches.length > 0 ||
+    (!warnings.includes(COACH_WARNING_NEEDS_GOAL) &&
+      !warnings.includes(COACH_WARNING_NO_SCHEDULING_CHANGES))
+  ) {
+    return reply;
+  }
+  return COACH_NO_EDITS_SUPPORTED_REPLY;
 }
 
 export type CoachPolicyPatch = z.infer<typeof coachPolicyPatchSchema>;
@@ -186,7 +209,11 @@ export function sanitizeCoachTurn({
   return {
     schemaVersion: "1",
     phase: envelope.phase,
-    reply: envelope.reply,
+    reply: resolveCoachReply({
+      reply: envelope.reply,
+      warnings: compiled.warnings,
+      policyPatches: compiled.policyPatches,
+    }),
     proposal: {
       assessments: [],
       policyPatches: compiled.policyPatches,

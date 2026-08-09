@@ -120,18 +120,7 @@ describe("exact-date dispatch helpers", () => {
     });
   });
 
-  it("rejects planner goal dispatch for linked goals", async () => {
-    const sourceGoalLinksQuery = {
-      select: vi.fn(),
-      eq: vi.fn(),
-      limit: vi.fn(),
-    };
-    sourceGoalLinksQuery.select.mockReturnValue(sourceGoalLinksQuery);
-    sourceGoalLinksQuery.eq.mockReturnValue(sourceGoalLinksQuery);
-    sourceGoalLinksQuery.limit.mockResolvedValue({
-      data: [{ id: "link-1" }],
-      error: null,
-    });
+  it("rejects planner goal dispatch for linked targets", async () => {
     const targetGoalLinksQuery = {
       select: vi.fn(),
       eq: vi.fn(),
@@ -140,11 +129,9 @@ describe("exact-date dispatch helpers", () => {
     targetGoalLinksQuery.select.mockReturnValue(targetGoalLinksQuery);
     targetGoalLinksQuery.eq.mockReturnValue(targetGoalLinksQuery);
     targetGoalLinksQuery.limit.mockResolvedValue({
-      data: [],
+      data: [{ id: "link-1" }],
       error: null,
     });
-
-    let goalLinksCall = 0;
     const supabase = {
       rpc: vi.fn().mockResolvedValue({
         data: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
@@ -154,8 +141,7 @@ describe("exact-date dispatch helpers", () => {
         if (table !== "goal_links") {
           throw new Error(`unexpected table: ${table}`);
         }
-        goalLinksCall += 1;
-        return goalLinksCall === 1 ? sourceGoalLinksQuery : targetGoalLinksQuery;
+        return targetGoalLinksQuery;
       }),
     } as unknown as Parameters<typeof applyPlannerGoalDateFact>[0]["supabase"];
 
@@ -176,7 +162,66 @@ describe("exact-date dispatch helpers", () => {
       ok: false,
       status: 422,
       code: "linked_goal_disallowed",
-      message: "Linked goals cannot be completed through plan-goal date facts.",
+      message: "Linked target goals cannot be completed through plan-goal date facts.",
+    });
+  });
+
+  it("allows planner goal dispatch for linked sources", async () => {
+    const targetGoalLinksQuery = {
+      select: vi.fn(),
+      eq: vi.fn(),
+      limit: vi.fn(),
+    };
+    targetGoalLinksQuery.select.mockReturnValue(targetGoalLinksQuery);
+    targetGoalLinksQuery.eq.mockReturnValue(targetGoalLinksQuery);
+    targetGoalLinksQuery.limit.mockResolvedValue({
+      data: [],
+      error: null,
+    });
+    const rpc = vi
+      .fn()
+      .mockResolvedValueOnce({
+        data: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        error: null,
+      })
+      .mockResolvedValueOnce({
+        data: null,
+        error: null,
+      });
+    const supabase = {
+      rpc,
+      from: vi.fn((table: string) => {
+        if (table !== "goal_links") {
+          throw new Error(`unexpected table: ${table}`);
+        }
+        return targetGoalLinksQuery;
+      }),
+    } as unknown as Parameters<typeof applyPlannerGoalDateFact>[0]["supabase"];
+
+    const result = await applyPlannerGoalDateFact({
+      supabase,
+      goalId,
+      date: "2026-08-05",
+      desiredFactState: "present",
+      timezone: "UTC",
+      goalLifetime: { startDate: "2026-08-01", endDate: "2026-08-31" },
+      expectation: {
+        expectedDigest:
+          "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      },
+    });
+
+    expect(result).toEqual({
+      ok: true,
+      payload: {
+        goalId,
+        date: "2026-08-05",
+        factState: "present",
+      },
+    });
+    expect(rpc).toHaveBeenLastCalledWith("mark_goal_complete", {
+      p_goal_id: goalId,
+      p_date: "2026-08-05",
     });
   });
 });

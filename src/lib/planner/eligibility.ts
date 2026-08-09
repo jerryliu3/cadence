@@ -46,7 +46,9 @@ function evaluateStaticEligibility(goal: EligibilityGoal): EligibilityDecision |
   if (goal.archivedAt !== null) {
     return { eligible: false, reason: "archived" };
   }
-  if (goal.currentLinkRole !== "none") {
+  // Linked targets are managed through their source relationship, while
+  // linked sources remain schedulable in Calendar.
+  if (goal.currentLinkRole === "target") {
     return { eligible: false, reason: "linked" };
   }
   if (goal.requiresDeadline !== false && goal.endDate === null) {

@@ -559,7 +559,7 @@ describe("pure planner kernel", () => {
     );
   });
 
-  it("excludes either side of a current goal link", () => {
+  it("keeps linked sources eligible for planning", () => {
     const output = runPlannerKernel(
       input({
         links: [{ sourceGoalId: "goal-a", targetGoalId: "goal-b" }],
@@ -567,10 +567,29 @@ describe("pure planner kernel", () => {
     );
 
     expect(output.eligibility[0]).toMatchObject({
+      goalId: "goal-a",
+      eligible: true,
+      reason: "eligible",
+    });
+    expect(output.workUnits).toHaveLength(3);
+  });
+
+  it("excludes linked targets from planning", () => {
+    const sourceGoal = goal({ id: "goal-a", target_count: 2 });
+    const targetGoal = goal({ id: "goal-b", target_count: 2 });
+    const output = runPlannerKernel(
+      input({
+        goals: [sourceGoal, targetGoal],
+        links: [{ sourceGoalId: "goal-a", targetGoalId: "goal-b" }],
+      })
+    );
+
+    expect(output.eligibility).toContainEqual({
+      goalId: "goal-b",
       eligible: false,
       reason: "linked",
     });
-    expect(output.workUnits).toEqual([]);
+    expect(output.workUnits.every((unit) => unit.originalGoalId !== "goal-b")).toBe(true);
   });
 
   it("holds replacement when ordered locks conflict", () => {

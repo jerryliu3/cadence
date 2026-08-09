@@ -82,6 +82,7 @@ describe("sanitizeCoachTurn", () => {
     expect(result.warnings).toContain(
       "No calendar edits were generated because this plan does not map to an existing goal."
     );
+    expect(result.reply).toContain("No calendar edits were applied.");
   });
 
   it("warns when apply action has no supported changes", () => {
@@ -111,5 +112,6 @@ describe("sanitizeCoachTurn", () => {
     expect(result.warnings).toContain(
       "The calendar intent did not contain any scheduling changes."
     );
+    expect(result.reply).toContain("No calendar edits were applied.");
   });
 });
