@@ -71,12 +71,6 @@ describe("planner coach conversations route", () => {
       },
       capabilities: {
         calendarEnabled: true,
-        plannerRead: true,
-        plannerGeneration: true,
-        plannerPlanWrites: true,
-        targetedExactCompletion: true,
-        coachAi: true,
-        overlap: false,
       },
     });
     mocks.listConversationsResponse.mockReturnValue({

@@ -19,12 +19,7 @@ export interface PlannerContextPayload {
     defaultPolicy: PlannerPolicy;
   } | null;
   capabilities: {
-    plannerRead: boolean;
-    plannerGeneration: boolean;
-    plannerPlanWrites: boolean;
-    targetedExactCompletion: boolean;
-    coachAi: boolean;
-    overlap: boolean;
+    calendarEnabled: boolean;
   };
   activePlan: {
     plan: {
