@@ -128,6 +128,7 @@ function resolvePlannerPreview({
   assessments,
   requireExplicitTimezone,
   includeKernel = true,
+  preserveExistingAssignments = false,
 }: {
   ownerId: string;
   scopeMonth: string;
@@ -138,6 +139,7 @@ function resolvePlannerPreview({
   assessments?: ReturnType<typeof goalAssessmentSchema.parse>[];
   requireExplicitTimezone: boolean;
   includeKernel?: boolean;
+  preserveExistingAssignments?: boolean;
 }) {
   const effectiveTimezone =
     requestedTimezone ??
@@ -196,6 +198,7 @@ function resolvePlannerPreview({
         assessments,
         policy: effectivePolicy,
         basePlan: snapshot.activePlan?.basePlan ?? null,
+        preserveExistingAssignments,
       })
     : null;
 
@@ -255,6 +258,7 @@ export async function GET(request: Request) {
           activeAssessments.length > 0 ? activeAssessments : undefined,
         requireExplicitTimezone: false,
         includeKernel: routeContext.capabilities.calendarEnabled,
+        preserveExistingAssignments: true,
       });
     } catch (error) {
       if (error instanceof PlannerError) {
@@ -402,6 +406,7 @@ export async function POST(request: Request) {
         requestedPolicy: body.policy,
         snapshot,
         requireExplicitTimezone: true,
+        preserveExistingAssignments: false,
       });
     } catch (error) {
       if (error instanceof PlannerError) {

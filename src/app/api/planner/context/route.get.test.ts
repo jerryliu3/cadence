@@ -96,5 +96,10 @@ describe("planner context GET route", () => {
       message: "Planner generation input exceeds unit limits.",
       correlationId: expect.any(String),
     });
+    expect(mocks.runPlannerKernel).toHaveBeenCalledWith(
+      expect.objectContaining({
+        preserveExistingAssignments: true,
+      })
+    );
   });
 });

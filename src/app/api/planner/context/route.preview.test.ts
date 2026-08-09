@@ -1,6 +1,7 @@
 // @vitest-environment node
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { createDefaultPlannerPolicy } from "@/lib/planner/policy";
 
 const mocks = vi.hoisted(() => ({
   parseBoundedJsonBody: vi.fn(),
@@ -103,5 +104,30 @@ describe("planner context preview route", () => {
       },
     });
     expect(mocks.runPlannerKernel).not.toHaveBeenCalled();
+  });
+
+  it("uses fresh recomputation for explicit preview generation", async () => {
+    mocks.parseBoundedJsonBody.mockResolvedValueOnce({
+      scopeMonth: "2026-08",
+      source: "manual",
+      timezone: "UTC",
+      policy: createDefaultPlannerPolicy("UTC", "2026-08-01T00:00:00.000Z"),
+    });
+    mocks.runPlannerKernel.mockImplementationOnce(() => {
+      throw new Error("forced");
+    });
+
+    const response = await POST(
+      new Request("http://localhost/api/planner/context", {
+        method: "POST",
+      })
+    );
+
+    expect(response.status).toBe(500);
+    expect(mocks.runPlannerKernel).toHaveBeenCalledWith(
+      expect.objectContaining({
+        preserveExistingAssignments: false,
+      })
+    );
   });
 });
