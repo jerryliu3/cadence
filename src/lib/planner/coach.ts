@@ -1,11 +1,25 @@
 import { z } from "zod";
 import type { Goal } from "@/lib/goals/types";
 import type { GoalAssessment } from "@/lib/planner/assessment";
+import {
+  plannerDraftCommandSchema,
+  type PlannerDraftCommand,
+} from "@/lib/planner/draft-commands";
 
 export const MAX_COACH_MESSAGES = 20;
 export const MAX_COACH_FOCUS_GOALS = 20;
 export const MAX_COACH_MESSAGE_CHARS = 12_000;
 export const MAX_COACH_REPLY_CHARS = 12_000;
+export const COACH_WARNING_NEEDS_GOAL =
+  "No calendar edits were generated because this plan does not map to an existing goal.";
+export const COACH_WARNING_NO_SCHEDULING_CHANGES =
+  "The calendar intent did not contain any scheduling changes.";
+export const COACH_WARNING_ITEM_EDIT_OUT_OF_SCOPE =
+  "Some proposed item edits were skipped because they do not map to goals in this planner scope.";
+export const COACH_WARNING_ITEM_EDIT_UNSUPPORTED =
+  "Some proposed item edits were skipped because they were not supported.";
+const COACH_NO_EDITS_SUPPORTED_REPLY =
+  "No calendar edits were applied because the proposal did not contain valid policy or item-level scheduling edits.";
 
 export const coachRequestSchema = z
   .object({
@@ -54,10 +68,31 @@ const calendarIntentGlobalSchema = z
     removeBlackoutRanges: z.array(dateRangeSchema).max(20),
   })
   .strict();
+const calendarIntentItemSchema = z
+  .object({
+    goalId: z.uuid(),
+    unitKey: z.string().trim().min(1).max(200),
+    scheduledDate: z.iso.date().nullable().optional(),
+    label: z.string().trim().min(1).max(200).nullable().optional(),
+    localTime: z
+      .string()
+      .regex(/^([01][0-9]|2[0-3]):[0-5][0-9]$/)
+      .nullable()
+      .optional(),
+  })
+  .strict()
+  .refine(
+    (value) =>
+      value.scheduledDate !== undefined ||
+      value.label !== undefined ||
+      value.localTime !== undefined,
+    "Calendar item edits must include at least one mutable field."
+  );
 const calendarIntentSchema = z
   .object({
     action: z.enum(["none", "needs_goal", "apply"]),
     global: calendarIntentGlobalSchema.nullable(),
+    items: z.array(calendarIntentItemSchema).max(100).default([]),
   })
   .strict();
 
@@ -107,21 +142,112 @@ function dedupeWeekdays(weekdays: number[]) {
   return Array.from(new Set(weekdays)).sort((left, right) => left - right);
 }
 
+function buildCoachDraftCommandId(sequence: number) {
+  if (typeof globalThis.crypto?.randomUUID === "function") {
+    return globalThis.crypto.randomUUID();
+  }
+  const suffix = sequence.toString(16).padStart(12, "0").slice(-12);
+  return `00000000-0000-4000-8000-${suffix}`;
+}
+
+function compileCalendarItemIntents({
+  items,
+  goalsById,
+}: {
+  items: z.infer<typeof calendarIntentItemSchema>[];
+  goalsById: Map<string, Goal>;
+}) {
+  const draftCommands: PlannerDraftCommand[] = [];
+  let sequence = 0;
+  let outOfScopeCount = 0;
+  let unsupportedCount = 0;
+
+  for (const item of items) {
+    if (!goalsById.has(item.goalId)) {
+      outOfScopeCount += 1;
+      continue;
+    }
+    let compiledForItem = 0;
+    if (item.scheduledDate !== undefined) {
+      if (item.scheduledDate === null) {
+        unsupportedCount += 1;
+      } else {
+        sequence += 1;
+        draftCommands.push(
+          plannerDraftCommandSchema.parse({
+            id: buildCoachDraftCommandId(sequence),
+            sequence,
+            kind: "move_item",
+            goalId: item.goalId,
+            unitKey: item.unitKey,
+            scheduledDate: item.scheduledDate,
+          })
+        );
+        compiledForItem += 1;
+      }
+    }
+    if (item.label !== undefined) {
+      sequence += 1;
+      draftCommands.push(
+        plannerDraftCommandSchema.parse({
+          id: buildCoachDraftCommandId(sequence),
+          sequence,
+          kind: "rename_item",
+          goalId: item.goalId,
+          unitKey: item.unitKey,
+          label: item.label,
+        })
+      );
+      compiledForItem += 1;
+    }
+    if (item.localTime !== undefined) {
+      sequence += 1;
+      draftCommands.push(
+        plannerDraftCommandSchema.parse(
+          item.localTime === null
+            ? {
+                id: buildCoachDraftCommandId(sequence),
+                sequence,
+                kind: "clear_item_time_override",
+                goalId: item.goalId,
+                unitKey: item.unitKey,
+              }
+            : {
+                id: buildCoachDraftCommandId(sequence),
+                sequence,
+                kind: "set_item_time_override",
+                goalId: item.goalId,
+                unitKey: item.unitKey,
+                localTime: item.localTime,
+              }
+        )
+      );
+      compiledForItem += 1;
+    }
+    if (compiledForItem === 0) {
+      unsupportedCount += 1;
+    }
+  }
+  return {
+    draftCommands,
+    outOfScopeCount,
+    unsupportedCount,
+  };
+}
+
 function compileCalendarIntent(
   intent: z.infer<typeof calendarIntentSchema>,
   goalsById: Map<string, Goal>
 ) {
-  void goalsById;
   const policyPatches: CoachPolicyPatch[] = [];
+  const draftCommands: PlannerDraftCommand[] = [];
   const warnings: string[] = [];
   if (intent.action === "none") {
-    return { policyPatches, warnings };
+    return { policyPatches, draftCommands, warnings };
   }
   if (intent.action === "needs_goal") {
-    warnings.push(
-      "No calendar edits were generated because this plan does not map to an existing goal."
-    );
-    return { policyPatches, warnings };
+    warnings.push(COACH_WARNING_NEEDS_GOAL);
+    return { policyPatches, draftCommands, warnings };
   }
 
   if (intent.global) {
@@ -144,10 +270,45 @@ function compileCalendarIntent(
       });
     }
   }
-  if (policyPatches.length === 0) {
-    warnings.push("The calendar intent did not contain any scheduling changes.");
+  if (intent.items.length > 0) {
+    const compiledItems = compileCalendarItemIntents({
+      items: intent.items,
+      goalsById,
+    });
+    draftCommands.push(...compiledItems.draftCommands);
+    if (compiledItems.outOfScopeCount > 0) {
+      warnings.push(COACH_WARNING_ITEM_EDIT_OUT_OF_SCOPE);
+    }
+    if (compiledItems.unsupportedCount > 0) {
+      warnings.push(COACH_WARNING_ITEM_EDIT_UNSUPPORTED);
+    }
   }
-  return { policyPatches, warnings };
+  if (policyPatches.length === 0 && draftCommands.length === 0) {
+    warnings.push(COACH_WARNING_NO_SCHEDULING_CHANGES);
+  }
+  return { policyPatches, draftCommands, warnings };
+}
+
+function resolveCoachReply({
+  reply,
+  warnings,
+  policyPatches,
+  draftCommands,
+}: {
+  reply: string;
+  warnings: string[];
+  policyPatches: CoachPolicyPatch[];
+  draftCommands: PlannerDraftCommand[];
+}) {
+  if (
+    policyPatches.length > 0 ||
+    draftCommands.length > 0 ||
+    (!warnings.includes(COACH_WARNING_NEEDS_GOAL) &&
+      !warnings.includes(COACH_WARNING_NO_SCHEDULING_CHANGES))
+  ) {
+    return reply;
+  }
+  return COACH_NO_EDITS_SUPPORTED_REPLY;
 }
 
 export type CoachPolicyPatch = z.infer<typeof coachPolicyPatchSchema>;
@@ -160,6 +321,7 @@ export interface SanitizedCoachTurn {
   proposal: {
     assessments: GoalAssessment[];
     policyPatches: CoachPolicyPatch[];
+    draftCommands: PlannerDraftCommand[];
     unresolvedQuestions: string[];
   };
   recommendations: CoachRecommendation[];
@@ -186,10 +348,16 @@ export function sanitizeCoachTurn({
   return {
     schemaVersion: "1",
     phase: envelope.phase,
-    reply: envelope.reply,
+    reply: resolveCoachReply({
+      reply: envelope.reply,
+      warnings: compiled.warnings,
+      policyPatches: compiled.policyPatches,
+      draftCommands: compiled.draftCommands,
+    }),
     proposal: {
       assessments: [],
       policyPatches: compiled.policyPatches,
+      draftCommands: compiled.draftCommands,
       unresolvedQuestions: envelope.proposal.unresolvedQuestions,
     },
     recommendations: envelope.recommendations,
@@ -253,8 +421,22 @@ export const coachResponseJsonSchema = {
                 "removeBlackoutRanges",
               ],
             },
+            items: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  goalId: { type: "string", format: "uuid" },
+                  unitKey: { type: "string" },
+                  scheduledDate: { type: "string", nullable: true },
+                  label: { type: "string", nullable: true },
+                  localTime: { type: "string", nullable: true },
+                },
+                required: ["goalId", "unitKey"],
+              },
+            },
           },
-          required: ["action", "global"],
+          required: ["action", "global", "items"],
         },
         unresolvedQuestions: {
           type: "array",

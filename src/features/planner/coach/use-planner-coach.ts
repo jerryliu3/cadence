@@ -28,6 +28,11 @@ import type {
 } from "@/features/planner/calendar-surface.types";
 import type { CoachPolicyPatch } from "@/lib/planner/coach";
 import { canonicalHash } from "@/lib/planner/canonical";
+import {
+  buildPlannerDraftSnapshotToken,
+  sortPlannerDraftCommands,
+  type PlannerDraftCommand,
+} from "@/lib/planner/draft-commands";
 import { plannerPolicySchema, type PlannerPolicy } from "@/lib/planner/policy";
 
 const MAX_COACH_MESSAGE_CHARACTERS = 12_000;
@@ -38,6 +43,11 @@ type CoachProposalApplyStatus =
   | "applied"
   | "already_applied"
   | "failed";
+
+interface CoachProposalApplyResult {
+  status: CoachProposalApplyStatus;
+  appliedDraftSnapshotToken: string | null;
+}
 
 function dedupeWeekdays(weekdays: number[]) {
   return Array.from(new Set(weekdays)).sort((left, right) => left - right);
@@ -61,6 +71,19 @@ function describePolicyPatch(patch: CoachPolicyPatch) {
   }
 }
 
+function describeDraftCommand(command: PlannerDraftCommand) {
+  switch (command.kind) {
+    case "move_item":
+      return `Move ${command.goalId}/${command.unitKey} to ${command.scheduledDate ?? "unscheduled"}.`;
+    case "rename_item":
+      return `Rename ${command.goalId}/${command.unitKey} to "${command.label ?? "Untitled"}".`;
+    case "set_item_time_override":
+      return `Set ${command.goalId}/${command.unitKey} time to ${command.localTime}.`;
+    case "clear_item_time_override":
+      return `Clear time override on ${command.goalId}/${command.unitKey}.`;
+  }
+}
+
 function clampAssistantMessage(content: string) {
   const trimmed = content.trim();
   if (trimmed.length <= MAX_COACH_MESSAGE_CHARACTERS) {
@@ -69,12 +92,25 @@ function clampAssistantMessage(content: string) {
   return `${trimmed.slice(0, MAX_COACH_MESSAGE_CHARACTERS - 1)}…`;
 }
 
-function buildProposalSignature(patches: CoachPolicyPatch[]) {
-  return canonicalHash({ policyPatches: patches });
-}
-
 function buildBaselineSnapshotToken(policy: PlannerPolicy) {
   return `policy:${canonicalHash(policy)}`;
+}
+
+function buildDraftSnapshotToken(commands: PlannerDraftCommand[]) {
+  return buildPlannerDraftSnapshotToken(commands);
+}
+
+function buildCombinedProposalSignature({
+  policyPatches,
+  draftCommands,
+}: {
+  policyPatches: CoachPolicyPatch[];
+  draftCommands: PlannerDraftCommand[];
+}) {
+  return canonicalHash({
+    policyPatches,
+    draftCommands: sortPlannerDraftCommands(draftCommands),
+  });
 }
 
 function buildDurableApplyToastDetail({
@@ -105,6 +141,7 @@ function buildAssistantMessage({
   warnings,
   unresolvedQuestions,
   policyPatches,
+  draftCommands,
   autoApplyStatus,
 }: {
   reply: string;
@@ -112,6 +149,7 @@ function buildAssistantMessage({
   warnings: string[];
   unresolvedQuestions: string[];
   policyPatches: CoachPolicyPatch[];
+  draftCommands: PlannerDraftCommand[];
   autoApplyStatus: CoachProposalApplyStatus;
 }) {
   const lines: string[] = [reply.trim()];
@@ -123,7 +161,7 @@ function buildAssistantMessage({
     }
   }
 
-  if (policyPatches.length > 0) {
+  if (policyPatches.length > 0 || draftCommands.length > 0) {
     if (autoApplyStatus === "applied") {
       lines.push("", "Draft updates auto-applied:");
     } else if (autoApplyStatus === "already_applied") {
@@ -135,6 +173,9 @@ function buildAssistantMessage({
     }
     for (const patch of policyPatches) {
       lines.push(`- ${describePolicyPatch(patch)}`);
+    }
+    for (const command of draftCommands) {
+      lines.push(`- ${describeDraftCommand(command)}`);
     }
   }
 
@@ -161,9 +202,12 @@ export function usePlannerCoach({
   entriesByDate,
   effectivePreview,
   effectiveDraftPolicy,
+  effectiveDraftCommands,
   hasDraftSession,
   refreshDraftPreview,
   applyDraftPolicy,
+  applyCoachDraftCommands,
+  replaceDraftCommands,
   getNonPublishablePreviewMessage,
 }: UsePlannerCoachArgs): PlannerCoachModel {
   const [coachLoading, setCoachLoading] = useState(false);
@@ -298,120 +342,194 @@ export function usePlannerCoach({
   const applyCoachPatchesToDraft = useCallback(
     async ({
       patches,
+      draftCommands,
       source,
     }: {
       patches: CoachPolicyPatch[];
+      draftCommands: PlannerDraftCommand[];
       source: "auto" | "manual";
-    }): Promise<CoachProposalApplyStatus> => {
-      if (!context?.preferences || patches.length === 0) {
-        return "not_attempted";
+    }): Promise<CoachProposalApplyResult> => {
+      if (!context?.preferences || (patches.length === 0 && draftCommands.length === 0)) {
+        return { status: "not_attempted", appliedDraftSnapshotToken: null };
       }
-      const allowedGoalIds = new Set<string>([
-        ...Object.keys(context.goalTitles ?? {}),
-        ...(context.activePlan?.goals ?? []).map((goal) => goal.original_goal_id),
-      ]);
+      const hasPolicyPatches = patches.length > 0;
+      const hasDraftCommands = draftCommands.length > 0;
+
       const priorPolicy = plannerPolicySchema.parse(
         effectiveDraftPolicy ?? context.preferences.defaultPolicy
       );
-      const result = applyCoachPolicyPatches({
-        policy: priorPolicy,
-        patches,
-        allowedGoalIds,
-      });
-      if (result.appliedPatchCount === 0) {
+
+      let policyResult: ReturnType<typeof applyCoachPolicyPatches> | null = null;
+      if (hasPolicyPatches) {
+        const allowedGoalIds = new Set<string>([
+          ...Object.keys(context.goalTitles ?? {}),
+          ...(context.activePlan?.goals ?? []).map((goal) => goal.original_goal_id),
+        ]);
+        policyResult = applyCoachPolicyPatches({
+          policy: priorPolicy,
+          patches,
+          allowedGoalIds,
+        });
+      }
+
+      const draftResult = hasDraftCommands
+        ? applyCoachDraftCommands(draftCommands)
+        : {
+            appliedCount: 0,
+            rejectedCount: 0,
+            rejectionMessages: [] as string[],
+            nextDraftSnapshotToken: buildDraftSnapshotToken(effectiveDraftCommands),
+          };
+
+      const policyAppliedCount = policyResult?.appliedPatchCount ?? 0;
+      const policyNoOpOnly =
+        policyResult !== null &&
+        policyAppliedCount === 0 &&
+        policyResult.noOpPatchCount > 0 &&
+        policyResult.outOfScopePatchCount === 0 &&
+        policyResult.unsupportedPatchCount === 0;
+      const policyHardRejected =
+        policyResult !== null &&
+        policyAppliedCount === 0 &&
+        !policyNoOpOnly &&
+        (policyResult.outOfScopePatchCount > 0 ||
+          policyResult.unsupportedPatchCount > 0);
+
+      const anyApplied = policyAppliedCount > 0 || draftResult.appliedCount > 0;
+      if (!anyApplied) {
         if (
-          result.noOpPatchCount > 0 &&
-          result.outOfScopePatchCount === 0 &&
-          result.unsupportedPatchCount === 0
+          policyNoOpOnly &&
+          draftResult.rejectedCount === 0 &&
+          draftResult.appliedCount === 0
         ) {
           appendCoachContextEvent("Coach proposal already matched current draft");
           toast.success(
             hasDraftSession
-              ? "Coach proposal already matches your draft policy. Your manual draft edits are still pending publish."
-              : "Coach proposal already matches your current policy."
+              ? "Coach proposal already matches your current draft edits."
+              : "Coach proposal already matches your current planner state."
           );
-          return "already_applied";
+          return {
+            status: "already_applied",
+            appliedDraftSnapshotToken: buildDraftSnapshotToken(effectiveDraftCommands),
+          };
         }
-        toast.error(
-          result.outOfScopePatchCount > 0
-            ? "Coach edits were received but none matched your current goal scope."
-            : "No applicable policy changes were available to apply."
-        );
-        return "failed";
+        if (policyHardRejected || draftResult.rejectedCount > 0) {
+          if (draftResult.rejectionMessages[0]) {
+            toast.error(draftResult.rejectionMessages[0]);
+          } else {
+            toast.error(
+              (policyResult?.outOfScopePatchCount ?? 0) > 0
+                ? "Coach edits were received but none matched your current goal scope."
+                : "No applicable policy changes were available to apply."
+            );
+          }
+          return { status: "failed", appliedDraftSnapshotToken: null };
+        }
+        return { status: "not_attempted", appliedDraftSnapshotToken: null };
       }
 
-      setCoachPolicyApplying(true);
+      const shouldRefreshPolicy = policyAppliedCount > 0 && policyResult !== null;
+      if (shouldRefreshPolicy) {
+        setCoachPolicyApplying(true);
+      }
       try {
-        const refreshedPreview = await refreshDraftPreview(result.policy);
-        if (!refreshedPreview) {
-          throw new Error("Preview refresh returned no planner data.");
-        }
-        if (source === "manual") {
-          await persistPlannerDefaultPolicy({
-            timezone: context.preferences.timezone,
-            defaultPolicy: result.policy,
-          });
-          appendCoachContextEvent("Persisted coach proposal to planner defaults");
-        }
-        const previousDatesByKey = new Map(
-          (effectivePreview?.workUnits ?? []).map((unit) => [
-            `${unit.originalGoalId}:${unit.unitKey}`,
-            unit.scheduledDate,
-          ])
-        );
-        const refreshedDatesByKey = new Map(
-          refreshedPreview.workUnits.map((unit) => [
-            `${unit.originalGoalId}:${unit.unitKey}`,
-            unit.scheduledDate,
-          ])
-        );
+        let refreshedPreview = effectivePreview;
         let assignmentChanges = 0;
-        for (const key of new Set([
-          ...previousDatesByKey.keys(),
-          ...refreshedDatesByKey.keys(),
-        ])) {
-          if (previousDatesByKey.get(key) !== refreshedDatesByKey.get(key)) {
-            assignmentChanges += 1;
+        if (shouldRefreshPolicy && policyResult !== null) {
+          refreshedPreview = await refreshDraftPreview(policyResult.policy, "replan");
+          if (!refreshedPreview) {
+            throw new Error("Preview refresh returned no planner data.");
+          }
+          if (source === "manual") {
+            await persistPlannerDefaultPolicy({
+              timezone: context.preferences.timezone,
+              defaultPolicy: policyResult.policy,
+            });
+            appendCoachContextEvent("Persisted coach proposal to planner defaults");
+          }
+          const previousDatesByKey = new Map(
+            (effectivePreview?.workUnits ?? []).map((unit) => [
+              `${unit.originalGoalId}:${unit.unitKey}`,
+              unit.scheduledDate,
+            ])
+          );
+          const refreshedDatesByKey = new Map(
+            refreshedPreview.workUnits.map((unit) => [
+              `${unit.originalGoalId}:${unit.unitKey}`,
+              unit.scheduledDate,
+            ])
+          );
+          for (const key of new Set([
+            ...previousDatesByKey.keys(),
+            ...refreshedDatesByKey.keys(),
+          ])) {
+            if (previousDatesByKey.get(key) !== refreshedDatesByKey.get(key)) {
+              assignmentChanges += 1;
+            }
+          }
+          if (context.scopeMonth) {
+            applyDraftPolicy(context.scopeMonth, policyResult.policy);
           }
         }
-        if (context.scopeMonth) {
-          applyDraftPolicy(context.scopeMonth, result.policy);
-        }
+
         appendCoachContextEvent(
           source === "auto"
-            ? `Auto-applied coach proposal to draft (${result.appliedPatchCount} patches)`
-            : `Applied coach proposal to draft (${result.appliedPatchCount} patches)`
+            ? `Auto-applied coach proposal (${policyAppliedCount} policy edits, ${draftResult.appliedCount} item edits)`
+            : `Applied coach proposal (${policyAppliedCount} policy edits, ${draftResult.appliedCount} item edits)`
         );
-        if (!refreshedPreview.solver.publishable) {
+
+        if (draftResult.rejectedCount > 0) {
+          toast.error(
+            draftResult.rejectionMessages[0] ??
+              `${draftResult.rejectedCount} coach item edit${
+                draftResult.rejectedCount === 1 ? " was" : "s were"
+              } skipped.`
+          );
+        }
+
+        if (refreshedPreview && !refreshedPreview.solver.publishable) {
           toast.error(
             `${source === "auto" ? "Coach updates auto-applied" : "Coach proposal applied"}, but this draft cannot publish yet. ${getNonPublishablePreviewMessage(
               refreshedPreview
             )}`
           );
-        } else if (assignmentChanges === 0) {
+        } else if (shouldRefreshPolicy && assignmentChanges === 0) {
           toast.success(
-            source === "auto"
-              ? "Coach updates auto-applied. Policy changed, but scheduled sessions stayed the same."
-              : "Coach proposal applied. Policy changed, but scheduled sessions stayed the same."
+            `${source === "auto" ? "Coach updates auto-applied" : "Coach proposal applied"}. Policy changed, but scheduled sessions stayed the same.`
           );
         } else {
+          const parts: string[] = [];
+          if (policyAppliedCount > 0) {
+            parts.push(
+              `${policyAppliedCount} policy edit${policyAppliedCount === 1 ? "" : "s"}`
+            );
+          }
+          if (draftResult.appliedCount > 0) {
+            parts.push(
+              `${draftResult.appliedCount} item edit${draftResult.appliedCount === 1 ? "" : "s"}`
+            );
+          }
+          const changeSummary =
+            shouldRefreshPolicy && assignmentChanges > 0
+              ? ` (${assignmentChanges} session change${assignmentChanges === 1 ? "" : "s"})`
+              : "";
           toast.success(
-            `${source === "auto" ? "Coach updates auto-applied" : "Coach proposal applied"} to draft preview (${assignmentChanges} session change${
-              assignmentChanges === 1 ? "" : "s"
-            }).`
+            `${source === "auto" ? "Coach updates auto-applied" : "Coach proposal applied"}${changeSummary}: ${parts.join(" + ")}.`
           );
         }
-        if (source === "manual" && context.scopeMonth) {
+
+        if (source === "manual" && context.scopeMonth && shouldRefreshPolicy) {
           toast.success(
             buildDurableApplyToastDetail({
               scopeMonth: context.scopeMonth,
-              includedDraftPolicyChanges:
-                hasDraftSession ||
-                effectiveDraftPolicy !== null,
+              includedDraftPolicyChanges: hasDraftSession || effectiveDraftPolicy !== null,
             })
           );
         }
-        return "applied";
+        return {
+          status: "applied",
+          appliedDraftSnapshotToken: draftResult.nextDraftSnapshotToken,
+        };
       } catch (error) {
         toast.error(
           error instanceof Error
@@ -420,15 +538,19 @@ export function usePlannerCoach({
               ? "Coach proposal auto-apply failed."
               : "Coach proposal apply failed."
         );
-        return "failed";
+        return { status: "failed", appliedDraftSnapshotToken: null };
       } finally {
-        setCoachPolicyApplying(false);
+        if (shouldRefreshPolicy) {
+          setCoachPolicyApplying(false);
+        }
       }
     },
     [
+      applyCoachDraftCommands,
       appendCoachContextEvent,
       applyDraftPolicy,
       context,
+      effectiveDraftCommands,
       effectiveDraftPolicy,
       effectivePreview,
       getNonPublishablePreviewMessage,
@@ -485,26 +607,40 @@ export function usePlannerCoach({
       const warnings = coachPayload.warnings ?? [];
       const unresolvedQuestions = coachPayload.proposal?.unresolvedQuestions ?? [];
       const policyPatches = coachPayload.proposal?.policyPatches ?? [];
-      let autoApplyStatus: CoachProposalApplyStatus = "not_attempted";
+      const draftCommands = coachPayload.proposal?.draftCommands ?? [];
+      let autoApplyResult: CoachProposalApplyResult = {
+        status: "not_attempted",
+        appliedDraftSnapshotToken: null,
+      };
       const baselinePolicy = context.preferences
         ? plannerPolicySchema.parse(effectiveDraftPolicy ?? context.preferences.defaultPolicy)
         : null;
+      const baselineDraftCommands = sortPlannerDraftCommands(effectiveDraftCommands);
       let proposal: CoachMessageProposal | null = null;
-      if (policyPatches.length > 0) {
-        autoApplyStatus = await applyCoachPatchesToDraft({
+      if (policyPatches.length > 0 || draftCommands.length > 0) {
+        autoApplyResult = await applyCoachPatchesToDraft({
           patches: policyPatches,
+          draftCommands,
           source: "auto",
         });
-        const patchSignature = buildProposalSignature(policyPatches);
+        const patchSignature = buildCombinedProposalSignature({
+          policyPatches,
+          draftCommands,
+        });
         proposal = {
           schemaVersion: "1",
-          applyStatus: mapAutoApplyStatusToProposalStatus(autoApplyStatus),
+          applyStatus: mapAutoApplyStatusToProposalStatus(autoApplyResult.status),
           patchSignature,
           baselineSnapshotToken: baselinePolicy
             ? buildBaselineSnapshotToken(baselinePolicy)
             : `missing:${patchSignature.slice(0, 32)}`,
           baselinePolicy,
+          baselineDraftSnapshotToken: buildDraftSnapshotToken(baselineDraftCommands),
+          baselineDraftCommands,
+          expectedAppliedDraftSnapshotToken:
+            autoApplyResult.appliedDraftSnapshotToken,
           policyPatches,
+          draftCommands,
           unresolvedQuestions,
         };
       }
@@ -516,7 +652,8 @@ export function usePlannerCoach({
           warnings,
           unresolvedQuestions,
           policyPatches,
-          autoApplyStatus,
+          draftCommands,
+          autoApplyStatus: autoApplyResult.status,
         }),
         createdAt: Date.now(),
         proposal,
@@ -542,6 +679,7 @@ export function usePlannerCoach({
     coachSummaryWorkUnits,
     context,
     applyCoachPatchesToDraft,
+    effectiveDraftCommands,
     effectiveDraftPolicy,
     effectivePreview?.horizonSummary,
     persistCoachMessages,
@@ -621,7 +759,11 @@ export function usePlannerCoach({
   }, [context, resetCoachUiState]);
 
   const updateCoachProposalStatus = useCallback(
-    (messageIndex: number, applyStatus: CoachMessageProposal["applyStatus"]) => {
+    (
+      messageIndex: number,
+      applyStatus: CoachMessageProposal["applyStatus"],
+      overrides: Partial<CoachMessageProposal> = {}
+    ) => {
       setCoachMessages((previous) => {
         const target = previous[messageIndex];
         if (!target || target.role !== "assistant" || !target.proposal) {
@@ -634,6 +776,7 @@ export function usePlannerCoach({
                 proposal: {
                   ...message.proposal!,
                   applyStatus,
+                  ...overrides,
                 },
               }
             : message
@@ -651,12 +794,15 @@ export function usePlannerCoach({
       if (!message || message.role !== "assistant" || !message.proposal) {
         return;
       }
-      const applyStatus = await applyCoachPatchesToDraft({
+      const applyResult = await applyCoachPatchesToDraft({
         patches: message.proposal.policyPatches,
+        draftCommands: message.proposal.draftCommands ?? [],
         source: "manual",
       });
-      if (applyStatus === "applied") {
-        updateCoachProposalStatus(messageIndex, "manually_applied");
+      if (applyResult.status === "applied") {
+        updateCoachProposalStatus(messageIndex, "manually_applied", {
+          expectedAppliedDraftSnapshotToken: applyResult.appliedDraftSnapshotToken,
+        });
       }
     },
     [applyCoachPatchesToDraft, coachMessages, updateCoachProposalStatus]
@@ -679,7 +825,7 @@ export function usePlannerCoach({
             .join(", ")}.`
         : "There are no focus goals in the current planner scope.";
     setCoachInput(
-      `Please convert your guidance into concrete calendar intent I can apply now. Make safe assumptions and keep them explicit. ${goalHint} Use action="apply" for concrete scheduling edits. Restrict edits to restWeekdays and blackout ranges; use action="needs_goal" when the request cannot be represented by those planner fields.`.trim()
+      `Please convert your guidance into concrete calendar intent I can apply now. Make safe assumptions and keep them explicit. ${goalHint} Use action="apply" for concrete scheduling edits. Include global policy edits when needed and per-item edits when you can map to an existing goalId + unitKey; use action="needs_goal" when the request cannot be represented by those planner fields.`.trim()
     );
   }, [coachFocusGoalIds, context]);
 
@@ -689,82 +835,136 @@ export function usePlannerCoach({
       if (!message || message.role !== "assistant" || !message.proposal) {
         return;
       }
-      if (!context?.preferences) {
-        toast.error("Undo is unavailable because planner policy is not loaded.");
+      const hasPolicyEdits = message.proposal.policyPatches.length > 0;
+      const proposalDraftCommands = message.proposal.draftCommands ?? [];
+      const hasDraftEdits = proposalDraftCommands.length > 0;
+      if (!hasPolicyEdits && !hasDraftEdits) {
+        toast.error("This coach proposal did not contain undoable edits.");
         return;
       }
-      if (!message.proposal.baselinePolicy) {
-        toast.error(
-          "Undo is unavailable because this proposal has no baseline snapshot."
+
+      if (hasDraftEdits) {
+        const expectedAppliedDraftSnapshotToken =
+          message.proposal.expectedAppliedDraftSnapshotToken;
+        if (!expectedAppliedDraftSnapshotToken) {
+          toast.error(
+            "Undo is unavailable because this proposal has no applied draft snapshot."
+          );
+          return;
+        }
+        if (
+          buildDraftSnapshotToken(effectiveDraftCommands) !==
+          expectedAppliedDraftSnapshotToken
+        ) {
+          toast.error(
+            "Undo is blocked because newer draft item edits were applied after this proposal. Undo newer proposals first or discard draft edits."
+          );
+          return;
+        }
+      }
+
+      let baselinePolicy: PlannerPolicy | null = null;
+      let currentDraftPolicy: PlannerPolicy | null = null;
+      if (hasPolicyEdits) {
+        if (!context?.preferences) {
+          toast.error("Undo is unavailable because planner policy is not loaded.");
+          return;
+        }
+        if (!message.proposal.baselinePolicy) {
+          toast.error(
+            "Undo is unavailable because this proposal has no baseline policy snapshot."
+          );
+          return;
+        }
+        baselinePolicy = plannerPolicySchema.parse(message.proposal.baselinePolicy);
+        const allowedGoalIds = new Set<string>([
+          ...Object.keys(context.goalTitles ?? {}),
+          ...(context.activePlan?.goals ?? []).map((goal) => goal.original_goal_id),
+        ]);
+        const expectedAppliedPolicy = applyCoachPolicyPatches({
+          policy: baselinePolicy,
+          patches: message.proposal.policyPatches,
+          allowedGoalIds,
+        }).policy;
+        currentDraftPolicy = plannerPolicySchema.parse(
+          effectiveDraftPolicy ?? context.preferences.defaultPolicy
         );
-        return;
+        if (
+          buildBaselineSnapshotToken(currentDraftPolicy) !==
+          buildBaselineSnapshotToken(expectedAppliedPolicy)
+        ) {
+          toast.error(
+            "Undo is blocked because newer draft policy changes were applied after this proposal. Undo newer proposals first or discard draft changes."
+          );
+          return;
+        }
       }
-      const baselinePolicy = plannerPolicySchema.parse(message.proposal.baselinePolicy);
-      const allowedGoalIds = new Set<string>([
-        ...Object.keys(context.goalTitles ?? {}),
-        ...(context.activePlan?.goals ?? []).map((goal) => goal.original_goal_id),
-      ]);
-      const expectedAppliedPolicy = applyCoachPolicyPatches({
-        policy: baselinePolicy,
-        patches: message.proposal.policyPatches,
-        allowedGoalIds,
-      }).policy;
-      const currentDraftPolicy = plannerPolicySchema.parse(
-        effectiveDraftPolicy ?? context.preferences.defaultPolicy
-      );
-      if (
-        buildBaselineSnapshotToken(currentDraftPolicy) !==
-        buildBaselineSnapshotToken(expectedAppliedPolicy)
-      ) {
-        toast.error(
-          "Undo is blocked because newer draft policy changes were applied after this proposal. Undo newer proposals first or discard draft changes."
-        );
-        return;
-      }
+
       const shouldPersistDurableUndo =
-        message.proposal.applyStatus === "manually_applied";
-      setCoachPolicyApplying(true);
+        hasPolicyEdits && message.proposal.applyStatus === "manually_applied";
+      if (hasPolicyEdits) {
+        setCoachPolicyApplying(true);
+      }
       try {
-        await refreshDraftPreview(baselinePolicy);
-        if (shouldPersistDurableUndo) {
-          try {
-            await persistPlannerDefaultPolicy({
-              timezone: context.preferences.timezone,
-              defaultPolicy: baselinePolicy,
-            });
-          } catch (error) {
+        if (hasPolicyEdits && baselinePolicy) {
+          await refreshDraftPreview(baselinePolicy, "replan");
+          if (shouldPersistDurableUndo && context?.preferences) {
             try {
-              await refreshDraftPreview(currentDraftPolicy);
-              if (context.scopeMonth) {
-                applyDraftPolicy(context.scopeMonth, currentDraftPolicy);
+              await persistPlannerDefaultPolicy({
+                timezone: context.preferences.timezone,
+                defaultPolicy: baselinePolicy,
+              });
+            } catch (error) {
+              try {
+                if (currentDraftPolicy) {
+                  await refreshDraftPreview(currentDraftPolicy, "replan");
+                  if (context.scopeMonth) {
+                    applyDraftPolicy(context.scopeMonth, currentDraftPolicy);
+                  }
+                }
+                appendCoachContextEvent(
+                  "Reverted undo preview after planner default restore failed"
+                );
+              } catch {
+                appendCoachContextEvent(
+                  "Undo failed after preview update; draft preview may need regeneration"
+                );
               }
-              appendCoachContextEvent(
-                "Reverted undo preview after planner default restore failed"
-              );
-            } catch {
-              appendCoachContextEvent(
-                "Undo failed after preview update; draft preview may need regeneration"
-              );
+              throw error;
             }
-            throw error;
+          }
+          if (context?.scopeMonth) {
+            applyDraftPolicy(context.scopeMonth, baselinePolicy);
           }
         }
-        if (context?.scopeMonth) {
-          applyDraftPolicy(context.scopeMonth, baselinePolicy);
+        if (hasDraftEdits) {
+          replaceDraftCommands(
+            sortPlannerDraftCommands(message.proposal.baselineDraftCommands ?? [])
+          );
         }
-        updateCoachProposalStatus(messageIndex, "undone");
+        updateCoachProposalStatus(messageIndex, "undone", {
+          expectedAppliedDraftSnapshotToken: buildDraftSnapshotToken(
+            sortPlannerDraftCommands(message.proposal.baselineDraftCommands ?? [])
+          ),
+        });
         appendCoachContextEvent("Undid coach draft proposal");
         toast.success(
           shouldPersistDurableUndo
-            ? context.scopeMonth
+            ? context?.scopeMonth
               ? `Coach proposal changes were undone. Planner defaults were restored from ${context.scopeMonth}.`
               : "Coach proposal changes were undone."
-            : "Coach draft preview changes were undone."
+            : hasPolicyEdits && hasDraftEdits
+              ? "Coach draft policy and item edits were undone."
+              : hasPolicyEdits
+                ? "Coach draft policy changes were undone."
+                : "Coach draft item edits were undone."
         );
       } catch (error) {
         toast.error(error instanceof Error ? error.message : "Undo failed.");
       } finally {
-        setCoachPolicyApplying(false);
+        if (hasPolicyEdits) {
+          setCoachPolicyApplying(false);
+        }
       }
     },
     [
@@ -772,7 +972,9 @@ export function usePlannerCoach({
       applyDraftPolicy,
       coachMessages,
       context,
+      effectiveDraftCommands,
       effectiveDraftPolicy,
+      replaceDraftCommands,
       refreshDraftPreview,
       updateCoachProposalStatus,
     ]
