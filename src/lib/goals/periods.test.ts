@@ -99,6 +99,30 @@ describe("anchored civil-date periods", () => {
     });
   });
 
+  it("normalizes non-week-aligned cutover dates to the next week boundary", () => {
+    expect(
+      getAnchoredPeriod("2026-08-06", "weekly", "2026-08-18", {
+        weekly: {
+          weekStartsOn: 1,
+          effectiveFrom: "2026-08-12",
+        },
+      })
+    ).toMatchObject({
+      index: 2,
+      start: "2026-08-17",
+      end: "2026-08-23",
+      periodKey: "2026-08-17",
+    });
+    expect(
+      getAnchoredPeriodStart("2026-08-20", "weekly", 0, {
+        weekly: {
+          weekStartsOn: 1,
+          effectiveFrom: "2026-08-13",
+        },
+      })
+    ).toBe("2026-08-17");
+  });
+
   it("keeps period indices monotonic across the cutover seam", () => {
     const before = getAnchoredPeriod("2026-08-06", "weekly", "2026-08-16", {
       weekly: {
@@ -132,7 +156,7 @@ describe("anchored civil-date periods", () => {
           effectiveFrom: "2026-08-11",
         },
       })
-    ).toBe("2026-08-11");
+    ).toBe("2026-08-17");
     expect(
       getAnchoredPeriod("2026-08-20", "weekly", "2026-08-20", {
         weekly: {
@@ -142,8 +166,8 @@ describe("anchored civil-date periods", () => {
       })
     ).toMatchObject({
       index: 0,
-      start: "2026-08-11",
-      nextStart: "2026-08-18",
+      start: "2026-08-17",
+      nextStart: "2026-08-24",
     });
   });
 

@@ -108,9 +108,11 @@ function parseWeeklyAnchorMeta(
   if (!weekly?.effectiveFrom) {
     return null;
   }
-  parseCivilDate(weekly.effectiveFrom);
   const weekStartsOn = normalizeWeekStartsOn(weekly.weekStartsOn);
-  const effectiveFrom = weekly.effectiveFrom;
+  const effectiveFrom = getNextWeekStartOnOrAfter(
+    weekly.effectiveFrom,
+    weekStartsOn
+  );
   const dayBeforeCutover = addDaysToDateString(effectiveFrom, -1);
   const lastLegacyIndex =
     compareDateStrings(dayBeforeCutover, anchorDate) < 0
