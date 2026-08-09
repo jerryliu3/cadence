@@ -2,7 +2,6 @@
 
 import { addDays, addMonths, format, isValid, parse } from "date-fns";
 import {
-  CalendarDays,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
@@ -22,7 +21,6 @@ import {
   useState,
 } from "react";
 import { toast } from "sonner";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -32,13 +30,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import {
   buildActiveGoalIndexes,
   buildCompletionFactMarkerDayByIdentity,
@@ -75,6 +66,8 @@ import {
 } from "@/features/planner/calendar-dnd";
 import { CalendarDayPreviewList } from "@/features/planner/calendar-day-preview-list";
 import { CalendarMonthDayCell } from "@/features/planner/calendar-month-day-cell";
+import { CalendarSurfaceHeader } from "@/features/planner/calendar-surface-header";
+import { PlannerSetupForm } from "@/features/planner/planner-setup-form";
 import { PlannerCoachPanel } from "@/features/planner/coach/planner-coach-panel";
 import { usePlannerCoach } from "@/features/planner/coach/use-planner-coach";
 import { useCompletionMutation } from "@/features/planner/use-completion-mutation";
@@ -1777,6 +1770,21 @@ export function CalendarSurface({
     context?.capabilities.plannerPlanWrites && effectivePreview
   );
   const saveButtonLabel = saveLoading ? "Saving..." : "Save plan";
+  const saveButtonTitle =
+    effectivePreview &&
+    context &&
+    (context.scopeMonth < context.asOfDate.slice(0, 7) ||
+      !effectivePreview.solver.publishable)
+      ? nonPublishablePreviewMessage(effectivePreview)
+      : undefined;
+  const saveButtonDisabled =
+    saveLoading ||
+    loading ||
+    !context ||
+    !effectivePreview ||
+    (hasDraftSession && draftSaveBlocked) ||
+    !effectivePreview?.solver.publishable;
+  const discardDraftDisabled = saveLoading || loading;
   const readOnlyMonthHint =
     "This session belongs to another month snapshot. Open that month to edit it.";
   const selectedEventCompletionDispatch = selectedEventEntry
@@ -1890,182 +1898,54 @@ export function CalendarSurface({
   };
 
   const setupForm = (
-    <div className="space-y-4">
-      <label className="block space-y-1 text-sm">
-        <span>Timezone (IANA)</span>
-        <Select value={setupTimezone} onValueChange={setSetupTimezone}>
-          <SelectTrigger>
-            <SelectValue placeholder="Select timezone" />
-          </SelectTrigger>
-          <SelectContent className="max-h-80">
-            {timezoneOptions.map((timezone) => (
-              <SelectItem key={timezone} value={timezone}>
-                {timezone}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </label>
-      <label className="block space-y-1 text-sm">
-        <span>First day of week</span>
-        <Select
-          value={`${setupWeekStartsOn}`}
-          onValueChange={(value) =>
-            setSetupWeekStartsOn(
-              normalizeWeekStartsOn(Number.parseInt(value, 10))
-            )
-          }
-        >
-          <SelectTrigger>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {restWeekdayOptions.map((option) => (
-              <SelectItem key={option.value} value={`${option.value}`}>
-                {option.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </label>
-      <div className="space-y-2 text-sm">
-        <p>Rest weekdays</p>
-        <div className="flex flex-wrap gap-2">
-          {restWeekdayOptions.map((option) => (
-            <label
-              key={option.label}
-              className="inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs"
-            >
-              <input
-                type="checkbox"
-                checked={setupRestWeekdays.includes(option.value)}
-                onChange={(event) =>
-                  setSetupRestWeekdays((previous) =>
-                    event.target.checked
-                      ? Array.from(new Set([...previous, option.value])).sort(
-                          (left, right) => left - right
-                        )
-                      : previous.filter((weekday) => weekday !== option.value)
-                  )
-                }
-              />
-              {option.label}
-            </label>
-          ))}
-        </div>
-      </div>
-      <Button type="button" onClick={submitSetup} disabled={setupLoading}>
-        {setupLoading ? "Saving setup..." : "Save setup"}
-      </Button>
-    </div>
+    <PlannerSetupForm
+      timezone={setupTimezone}
+      timezoneOptions={timezoneOptions}
+      weekStartsOn={setupWeekStartsOn}
+      restWeekdays={setupRestWeekdays}
+      weekDayOptions={restWeekdayOptions}
+      submitting={setupLoading}
+      onTimezoneChange={setSetupTimezone}
+      onWeekStartsOnChange={(nextWeekStart) =>
+        setSetupWeekStartsOn(normalizeWeekStartsOn(nextWeekStart))
+      }
+      onRestWeekdayToggle={(weekday, checked) =>
+        setSetupRestWeekdays((previous) =>
+          checked
+            ? Array.from(new Set([...previous, weekday])).sort(
+                (left, right) => left - right
+              )
+            : previous.filter((candidate) => candidate !== weekday)
+        )
+      }
+      onSubmit={submitSetup}
+    />
   );
 
   return (
     <div className="space-y-4">
-      <div className="rounded-xl border bg-card p-4 shadow-sm" data-no-swipe="true">
-        <div className="space-y-3">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="space-y-1">
-              <div className="flex items-center gap-2">
-                <CalendarDays className="size-4 text-primary" />
-                <h2 className="text-lg font-semibold">Calendar</h2>
-                {hasDraftSession ? (
-                  <Badge className="h-7 border-yellow-300 bg-yellow-100 px-3 text-sm font-semibold text-orange-900 dark:border-yellow-300 dark:bg-yellow-100 dark:text-orange-900">
-                    Planning Mode
-                  </Badge>
-                ) : null}
-              </div>
-              {horizonCounter ? (
-                <p className="text-xs text-muted-foreground">
-                  {horizonCounter.thisMonth} this month / {horizonCounter.total} total{" "}
-                  {horizonCounter.remaining > 0
-                    ? `· ${horizonCounter.remaining} remaining`
-                    : "· all credited"}
-                </p>
-              ) : null}
-              {eligibilityNotices.hardIneligible.length > 0 ? (
-                <div className="rounded-md border border-amber-300/70 bg-amber-50/80 px-3 py-2 text-xs text-amber-900 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-200">
-                  {eligibilityNotices.hardIneligible
-                    .slice(0, 4)
-                    .map((item) => `${item.goalTitle}: ${item.reasonCopy}`)
-                    .join(" · ")}
-                  {eligibilityNotices.hardIneligible.length > 4
-                    ? ` · +${eligibilityNotices.hardIneligible.length - 4} more`
-                    : ""}
-                </div>
-              ) : null}
-              {eligibilityNotices.scopeOnlyCount > 0 ? (
-                <p className="text-xs text-muted-foreground">
-                  {eligibilityNotices.scopeOnlyCount} goal
-                  {eligibilityNotices.scopeOnlyCount === 1 ? "" : "s"} outside this
-                  month&apos;s planning scope.
-                </p>
-              ) : null}
-            </div>
-            <div className="flex flex-wrap items-center justify-end gap-2">
-              {canResetPlan ? (
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="destructive"
-                  onClick={resetPlan}
-                  disabled={loading || resetLoading}
-                >
-                  {resetLoading ? "Resetting..." : "Reset plan"}
-                </Button>
-              ) : canShowSaveAction ? (
-                <Button
-                  type="button"
-                  size="sm"
-                  onClick={savePlan}
-                  title={
-                    effectivePreview &&
-                    context &&
-                    (context.scopeMonth < context.asOfDate.slice(0, 7) ||
-                      !effectivePreview.solver.publishable)
-                      ? nonPublishablePreviewMessage(effectivePreview)
-                      : undefined
-                  }
-                  disabled={
-                    saveLoading ||
-                    loading ||
-                    !context ||
-                    !effectivePreview ||
-                    (hasDraftSession && draftSaveBlocked) ||
-                    !effectivePreview.solver.publishable
-                  }
-                >
-                  {saveButtonLabel}
-                </Button>
-              ) : null}
-              {hasDraftSession ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={discardDraftChanges}
-                  disabled={saveLoading || loading}
-                >
-                  Undo changes
-                </Button>
-              ) : null}
-              {context?.preferences ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon-sm"
-                  aria-label="Settings"
-                  title="Settings"
-                  onClick={() => setSettingsOpen(true)}
-                  disabled={loading}
-                >
-                  <Settings className="size-4" />
-                </Button>
-              ) : null}
-            </div>
-          </div>
-        </div>
-      </div>
+      <CalendarSurfaceHeader
+        hasDraftSession={hasDraftSession}
+        horizonCounter={horizonCounter}
+        eligibilityNotices={eligibilityNotices}
+        canResetPlan={canResetPlan}
+        resetLoading={resetLoading}
+        loading={loading}
+        canShowSaveAction={canShowSaveAction}
+        saveButtonLabel={saveButtonLabel}
+        saveDisabled={saveButtonDisabled}
+        saveTitle={saveButtonTitle}
+        onResetPlan={() => {
+          void resetPlan();
+        }}
+        onSavePlan={() => {
+          void savePlan();
+        }}
+        onDiscardDraftChanges={discardDraftChanges}
+        onOpenSettings={() => setSettingsOpen(true)}
+        showSettingsButton={Boolean(context?.preferences)}
+        discardDisabled={discardDraftDisabled}
+      />
 
       {showBlockingLoading ? (
         <div className="rounded-xl border bg-card p-8 text-sm text-muted-foreground">
