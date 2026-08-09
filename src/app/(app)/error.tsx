@@ -6,10 +6,13 @@ import { Button } from "@/components/ui/button";
 
 interface AppRouteErrorProps {
   error: Error & { digest?: string };
-  reset: () => void;
+  unstable_retry: () => void;
 }
 
-export default function AppRouteError({ error, reset }: AppRouteErrorProps) {
+export default function AppRouteError({
+  error,
+  unstable_retry,
+}: AppRouteErrorProps) {
   useEffect(() => {
     console.error("App route failed to render:", error);
   }, [error]);
@@ -23,7 +26,7 @@ export default function AppRouteError({ error, reset }: AppRouteErrorProps) {
       <p className="text-sm text-muted-foreground">
         Something went wrong while loading your latest app state. You can retry now.
       </p>
-      <Button type="button" onClick={reset}>
+      <Button type="button" onClick={unstable_retry}>
         <RefreshCcw className="size-4" />
         Try again
       </Button>
