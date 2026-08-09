@@ -1199,13 +1199,13 @@ export function CalendarSurface({
     getNonPublishablePreviewMessage: nonPublishablePreviewMessage,
   });
 
-  const isValidIsoDate = (value: string) => {
+  function isValidIsoDate(value: string) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
       return false;
     }
     const parsed = parse(value, "yyyy-MM-dd", new Date());
     return isValid(parsed) && format(parsed, "yyyy-MM-dd") === value;
-  };
+  }
 
   const clearHoverPreviewTimer = () => {
     if (hoverPreviewTimerRef.current) {
