@@ -1,6 +1,10 @@
 import type { GoalProgressSnapshot } from "@/lib/goals/progress";
 import type { CompletionDateFact } from "@/lib/goals/types";
-import { getApiErrorMessage, getJson } from "@/lib/api/client";
+import {
+  getApiErrorMessage,
+  getJson,
+  isApiClientTransportError,
+} from "@/lib/api/client";
 
 export interface ProgressContextResponse {
   schemaVersion: "1";
@@ -86,7 +90,7 @@ export async function fetchProgressContext({
       timeoutMs: PROGRESS_CONTEXT_REQUEST_TIMEOUT_MS,
     });
   } catch (error) {
-    if (error instanceof Error && error.message.includes("timed out")) {
+    if (isApiClientTransportError(error) && error.reason === "timeout") {
       throw new Error(PROGRESS_CONTEXT_TIMEOUT_MESSAGE);
     }
     throw new Error(

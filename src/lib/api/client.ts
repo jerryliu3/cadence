@@ -30,6 +30,8 @@ export interface RequestJsonOptions<TBody = unknown> {
   fetcher?: typeof fetch;
 }
 
+export type ApiClientTransportErrorReason = "timeout" | "network";
+
 export class ApiClientError extends Error {
   readonly status: number;
   readonly code?: string;
@@ -55,6 +57,24 @@ export class ApiClientError extends Error {
       this.correlationId = payload.correlationId;
       this.details = payload.details;
     }
+  }
+}
+
+export class ApiClientTransportError extends Error {
+  readonly reason: ApiClientTransportErrorReason;
+
+  constructor(
+    reason: ApiClientTransportErrorReason,
+    cause: unknown
+  ) {
+    super(
+      reason === "timeout"
+        ? "Request transport timed out."
+        : "Request transport failed before reaching the server."
+    );
+    this.name = "ApiClientTransportError";
+    this.reason = reason;
+    (this as Error & { cause?: unknown }).cause = cause;
   }
 }
 
@@ -197,9 +217,8 @@ export async function requestJson<TResponse, TBody = unknown>({
     requestHeaders.set("Content-Type", "application/json");
   }
 
-  let response: Response;
   try {
-    response = await fetcher(requestPath, {
+    const response = await fetcher(requestPath, {
       method,
       headers: requestHeaders,
       cache,
@@ -207,33 +226,33 @@ export async function requestJson<TResponse, TBody = unknown>({
       body: hasBody ? JSON.stringify(body) : undefined,
       signal: timeout.signal,
     });
-  } catch (error) {
-    if (isAbortError(error)) {
-      if (timeout.timeoutState.hit) {
-        throw new Error(`Request timed out after ${timeoutMs}ms.`);
-      }
-      throw new Error("Request was canceled.");
+    const payload = await parseJsonPayload(response);
+    if (!response.ok) {
+      throw new ApiClientError({
+        status: response.status,
+        message: readApiErrorMessage(
+          payload,
+          `Request failed with status ${response.status}.`
+        ),
+        payload,
+      });
     }
-    throw new Error("Request failed before the server could respond.", {
-      cause: error,
-    });
+
+    return payload as TResponse;
+  } catch (error) {
+    if (isAbortError(error) && timeout.timeoutState.hit) {
+      throw new ApiClientTransportError("timeout", error);
+    }
+    if (isAbortError(error)) {
+      throw error;
+    }
+    if (error instanceof ApiClientError) {
+      throw error;
+    }
+    throw new ApiClientTransportError("network", error);
   } finally {
     timeout.cleanup();
   }
-
-  const payload = await parseJsonPayload(response);
-  if (!response.ok) {
-    throw new ApiClientError({
-      status: response.status,
-      message: readApiErrorMessage(
-        payload,
-        `Request failed with status ${response.status}.`
-      ),
-      payload,
-    });
-  }
-
-  return payload as TResponse;
 }
 
 type SharedRequestOptions = Omit<
@@ -282,6 +301,12 @@ export function isApiClientError(error: unknown): error is ApiClientError {
   return error instanceof ApiClientError;
 }
 
+export function isApiClientTransportError(
+  error: unknown
+): error is ApiClientTransportError {
+  return error instanceof ApiClientTransportError;
+}
+
 export function getApiErrorMessage(error: unknown, fallback: string) {
   if (isApiClientError(error)) {
     if (error.code === "validation_failed") {
@@ -291,6 +316,12 @@ export function getApiErrorMessage(error: unknown, fallback: string) {
       }
     }
     return error.message;
+  }
+  if (isApiClientTransportError(error)) {
+    return fallback;
+  }
+  if (error instanceof Error && error.name === "AbortError") {
+    return fallback;
   }
   if (error instanceof Error && error.message.trim().length > 0) {
     return error.message;
