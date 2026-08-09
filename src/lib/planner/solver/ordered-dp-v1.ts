@@ -392,7 +392,6 @@ export function solveOrderedDpV1({
     units,
     assignments,
     operationBudget: getSoftRefinementOperationBudget(units.length),
-    solveIntent,
   });
   assignments = refinement.assignments;
   if (refinement.exhausted) {
