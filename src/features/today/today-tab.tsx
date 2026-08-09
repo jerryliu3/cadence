@@ -1235,6 +1235,7 @@ function GoalCard({
   const completionSourceForSelectedDate = completions.find(
     (completion) => completion.completed_on === selectedDate
   )?.source;
+  const rewardText = goal.reward_text?.trim() ?? "";
 
   return (
     <Card className="shadow-sm">
@@ -1318,6 +1319,11 @@ function GoalCard({
             </div>
             {goal.description ? (
               <p className="line-clamp-2 text-xs text-muted-foreground">{goal.description}</p>
+            ) : null}
+            {progress?.outcome === "achieved" && rewardText.length > 0 ? (
+              <p className="line-clamp-2 text-xs text-emerald-700 dark:text-emerald-300">
+                Reward: {rewardText}
+              </p>
             ) : null}
             <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
               {linkedCount > 0 ? (

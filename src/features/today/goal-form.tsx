@@ -61,6 +61,7 @@ interface GoalFormProps {
 interface GoalFormState {
   title: string;
   description: string;
+  reward_text: string;
   category_selection: CategorySelection;
   custom_category: string;
   color: string;
@@ -77,6 +78,7 @@ interface GoalFormState {
 const defaultState: GoalFormState = {
   title: "",
   description: "",
+  reward_text: "",
   category_selection: "personal",
   custom_category: "",
   color: getCategorySwatchColor("personal"),
@@ -235,6 +237,7 @@ export function GoalForm({ goalId }: GoalFormProps) {
         setState({
           title: goal.title,
           description: goal.description ?? "",
+          reward_text: goal.reward_text ?? "",
           category_selection: categoryState.selection,
           custom_category: categoryState.customValue,
           color: getCategorySwatchColor(categoryState.selection, categoryCatalogData),
@@ -411,6 +414,10 @@ export function GoalForm({ goalId }: GoalFormProps) {
       return "Custom category name is required.";
     }
 
+    if (state.reward_text.trim().length > 500) {
+      return "Achievement reward text must be 500 characters or fewer.";
+    }
+
     const definitionErrors = validateGoalDefinition({
       frequencyType: state.frequency_type,
       targetCount: definitionTargetCount,
@@ -448,6 +455,7 @@ export function GoalForm({ goalId }: GoalFormProps) {
       owner_id: currentUserId,
       title: state.title.trim(),
       description: state.description.trim() || null,
+      reward_text: state.reward_text.trim() || null,
       category: categoryValue.category,
       category_key: categoryValue.categoryKey,
       color: state.color,
@@ -971,6 +979,22 @@ export function GoalForm({ goalId }: GoalFormProps) {
                       }
                       placeholder="Why this goal matters"
                     />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="goal-reward-text">Achievement reward text (optional)</Label>
+                    <Textarea
+                      id="goal-reward-text"
+                      value={state.reward_text}
+                      onChange={(event) =>
+                        setState((prev) => ({ ...prev, reward_text: event.target.value }))
+                      }
+                      placeholder="How you will celebrate when this goal is achieved"
+                      maxLength={500}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Shown only on your achieved goal cards. Not shared to social feeds.
+                    </p>
                   </div>
 
                   <div className="space-y-2">
