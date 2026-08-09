@@ -26,7 +26,7 @@ const clearScheduleSchema = z.object({
   expectedDigest: z.string().regex(/^[a-f0-9]{64}$/),
 });
 
-export async function DELETE(request: Request) {
+export async function handlePlannerReset(request: Request) {
   const correlationId = createCorrelationId();
   try {
     const supabase = await createClient();
@@ -100,4 +100,8 @@ export async function DELETE(request: Request) {
     }
     return unknownPlannerErrorResponse(correlationId);
   }
+}
+
+export async function DELETE(request: Request) {
+  return handlePlannerReset(request);
 }
