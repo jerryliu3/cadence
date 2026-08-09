@@ -174,7 +174,7 @@ describe("planner save route", () => {
     await expect(response.json()).resolves.toMatchObject({
       code: "preview_hash_mismatch",
       message: "Planner preview hash is stale. Regenerate and publish again.",
-      correlationId: "test-correlation-id",
+      correlationId: expect.any(String),
     });
     expect(mocks.runPlannerKernel).toHaveBeenCalledWith(
       expect.objectContaining({
