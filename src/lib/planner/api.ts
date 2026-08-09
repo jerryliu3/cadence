@@ -185,6 +185,7 @@ export async function withPlannerRoute(
       if (error instanceof PlannerRouteError) {
         return plannerErrorResponse(error, correlationId);
       }
+      console.error("planner route failed", correlationId, error);
       return unknownPlannerErrorResponse(correlationId);
     },
   });

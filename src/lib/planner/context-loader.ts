@@ -27,6 +27,35 @@ import type { createClient as createServerClient } from "@/lib/supabase/server";
 type ServerSupabaseClient = Awaited<ReturnType<typeof createServerClient>>;
 type PlannerItemRow = Database["public"]["Tables"]["planner_items"]["Row"];
 const PAGE_SIZE = 1_000;
+const PLANNER_GOAL_SELECT = [
+  "id",
+  "owner_id",
+  "title",
+  "description",
+  "category",
+  "color",
+  "frequency_type",
+  "recurrence_interval",
+  "target_count",
+  "milestone_names",
+  "start_date",
+  "end_date",
+  "default_local_time",
+  "photo_path",
+  "is_group",
+  "is_deleted",
+  "archived_at",
+  "created_at",
+  "updated_at",
+].join(",");
+const PLANNER_COMPLETION_SELECT = [
+  "id",
+  "goal_id",
+  "user_id",
+  "completed_on",
+  "source",
+  "created_at",
+].join(",");
 
 export interface PlannerRevisionTokens {
   canonicalRevision: number;
@@ -146,7 +175,7 @@ async function loadOwnerGoals(
   for (;;) {
     let query = supabase
       .from("goals")
-      .select("*")
+      .select(PLANNER_GOAL_SELECT)
       .eq("owner_id", ownerId)
       .eq("is_group", false)
       .eq("is_deleted", false)
@@ -189,7 +218,7 @@ async function loadOwnerCompletions(
   for (;;) {
     let query = supabase
       .from("completions")
-      .select("*")
+      .select(PLANNER_COMPLETION_SELECT)
       .eq("user_id", ownerId)
       .in("goal_id", goalIds)
       .order("id")
