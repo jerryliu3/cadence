@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions, pg_catalog;
-select plan(6);
+select plan(7);
 
 set local role service_role;
 
@@ -166,6 +166,21 @@ select is(
   ),
   (date_trunc('month', current_date) + interval '2 day')::date,
   'republish move keeps original_scheduled_date anchored to prior published date'
+);
+
+select set_config(
+  'request.jwt.claim.sub',
+  '22222222-2222-4222-8222-222222222222',
+  true
+);
+
+select throws_ok(
+  $$
+    select public.get_planner_schedule_digest('11111111-1111-4111-8111-111111111111');
+  $$,
+  '42501'::character(5),
+  'owner_mismatch',
+  'planner schedule digest rejects cross-owner lookups'
 );
 
 reset role;

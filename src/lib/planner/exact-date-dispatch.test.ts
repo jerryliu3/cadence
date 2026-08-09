@@ -5,7 +5,6 @@ import {
   targetedExactDateRequestSchema,
 } from "./exact-date-dispatch";
 
-const ownerId = "11111111-1111-4111-8111-111111111111";
 const goalId = "10000000-0000-4000-8000-000000000011";
 
 describe("exact-date dispatch schema", () => {
@@ -42,7 +41,6 @@ describe("exact-date dispatch helpers", () => {
 
     const result = await applyPlannerItemDateFact({
       supabase,
-      ownerId,
       goalId,
       desiredFactState: "present",
       timezone: "UTC",
@@ -62,8 +60,14 @@ describe("exact-date dispatch helpers", () => {
     });
   });
 
-  it("uses planner item scheduled date for completion writes", async () => {
-    const upsert = vi.fn().mockResolvedValue({ error: null });
+  it("uses planner item scheduled date for completion RPC writes", async () => {
+    const rpc = vi
+      .fn()
+      .mockResolvedValueOnce({
+        data: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        error: null,
+      })
+      .mockResolvedValueOnce({ data: null, error: null });
     const plannerItemQuery = {
       select: vi.fn(),
       eq: vi.fn(),
@@ -79,21 +83,11 @@ describe("exact-date dispatch helpers", () => {
       },
       error: null,
     });
-    const completionQuery = {
-      upsert,
-      delete: vi.fn(),
-    };
     const supabase = {
-      rpc: vi.fn().mockResolvedValue({
-        data: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-        error: null,
-      }),
+      rpc,
       from: vi.fn((table: string) => {
         if (table === "planner_items") {
           return plannerItemQuery;
-        }
-        if (table === "completions") {
-          return completionQuery;
         }
         throw new Error(`unexpected table: ${table}`);
       }),
@@ -101,7 +95,6 @@ describe("exact-date dispatch helpers", () => {
 
     const result = await applyPlannerItemDateFact({
       supabase,
-      ownerId,
       goalId,
       desiredFactState: "present",
       timezone: "UTC",
@@ -121,15 +114,10 @@ describe("exact-date dispatch helpers", () => {
         factState: "present",
       },
     });
-    expect(upsert).toHaveBeenCalledWith(
-      {
-        goal_id: goalId,
-        user_id: ownerId,
-        completed_on: "2026-08-03",
-        source: "manual",
-      },
-      { onConflict: "goal_id,user_id,completed_on", ignoreDuplicates: true }
-    );
+    expect(rpc).toHaveBeenLastCalledWith("mark_goal_complete", {
+      p_goal_id: goalId,
+      p_date: "2026-08-03",
+    });
   });
 
   it("rejects planner goal dispatch for linked goals", async () => {
@@ -173,7 +161,6 @@ describe("exact-date dispatch helpers", () => {
 
     const result = await applyPlannerGoalDateFact({
       supabase,
-      ownerId,
       goalId,
       date: "2026-08-05",
       desiredFactState: "present",

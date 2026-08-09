@@ -15,6 +15,7 @@ import {
   MAX_API_BODY_BYTES,
   PLANNER_ELIGIBILITY_MODES,
 } from "@/lib/planner/contracts/bounds";
+import { PlannerError } from "@/lib/planner/errors";
 import { runPlannerKernel } from "@/lib/planner/kernel";
 import {
   buildPlannerConfirmationHash,
@@ -47,6 +48,21 @@ const publishSchema = z.object({
   eligibilityMode: z.enum(PLANNER_ELIGIBILITY_MODES).optional(),
   draftCommands: z.array(plannerDraftCommandSchema).max(4000).default([]),
 });
+
+function plannerKernelErrorToRouteError(error: PlannerError) {
+  if (error.httpStatus === 413) {
+    return new PlannerRouteError(413, "plan_too_large", error.message, error.details);
+  }
+  if (error.httpStatus === 400) {
+    return new PlannerRouteError(400, "validation_failed", error.message, error.details);
+  }
+  return new PlannerRouteError(
+    error.httpStatus,
+    error.code,
+    error.message,
+    error.details
+  );
+}
 
 export async function handlePlannerSave(request: Request) {
   const correlationId = createCorrelationId();
@@ -319,6 +335,10 @@ export async function handlePlannerSave(request: Request) {
     );
 
   } catch (error) {
+    if (error instanceof PlannerError) {
+      const routeError = plannerKernelErrorToRouteError(error);
+      return plannerErrorResponse(routeError, correlationId);
+    }
     if (error instanceof PlannerRouteError) {
       return plannerErrorResponse(error, correlationId);
     }
