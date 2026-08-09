@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import {
+  ApiRouteError,
+  requireAuthenticatedRouteContext,
+  withRoute,
+} from "@/lib/api/route";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
@@ -15,33 +20,51 @@ const unsubscribeSchema = z.object({
   endpoint: z.string().url().max(4096),
 });
 
-async function getAuthenticatedUser() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+class PushSubscriptionsRouteError extends Error {
+  constructor(
+    readonly status: number,
+    message: string
+  ) {
+    super(message);
+    this.name = "PushSubscriptionsRouteError";
+  }
+}
 
-  return user;
+function pushErrorResponse(status: number, message: string) {
+  return NextResponse.json({ error: message }, { status });
+}
+
+function handlePushSubscriptionsRouteError(error: unknown) {
+  if (error instanceof ApiRouteError && error.code === "authentication_required") {
+    return pushErrorResponse(401, "Unauthorized.");
+  }
+  if (error instanceof PushSubscriptionsRouteError) {
+    return pushErrorResponse(error.status, error.message);
+  }
+  console.error("Push subscription configuration error:", error);
+  return pushErrorResponse(
+    503,
+    "Push notifications are not configured on the server."
+  );
 }
 
 export async function POST(request: Request) {
-  const user = await getAuthenticatedUser();
-
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
-  }
-
-  const parsed = subscriptionSchema.safeParse(await request.json().catch(() => null));
-
-  if (!parsed.success) {
-    return NextResponse.json({ error: "Invalid push subscription." }, { status: 400 });
-  }
-
-  try {
+  return withRoute(async () => {
+    const supabase = await createClient();
+    const { userId } = await requireAuthenticatedRouteContext({
+      supabase,
+      unauthorizedMessage: "Unauthorized.",
+    });
+    const parsed = subscriptionSchema.safeParse(
+      await request.json().catch(() => null)
+    );
+    if (!parsed.success) {
+      throw new PushSubscriptionsRouteError(400, "Invalid push subscription.");
+    }
     const admin = createAdminClient();
     const { error } = await admin.from("push_subscriptions").upsert(
       {
-        user_id: user.id,
+        user_id: userId,
         endpoint: parsed.data.endpoint,
         p256dh: parsed.data.keys.p256dh,
         auth: parsed.data.keys.auth,
@@ -53,51 +76,38 @@ export async function POST(request: Request) {
 
     if (error) {
       console.error("Failed to save push subscription:", error);
-      return NextResponse.json({ error: "Could not save this device." }, { status: 500 });
+      throw new PushSubscriptionsRouteError(500, "Could not save this device.");
     }
 
     return NextResponse.json({ success: true });
-  } catch (error) {
-    console.error("Push subscription configuration error:", error);
-    return NextResponse.json(
-      { error: "Push notifications are not configured on the server." },
-      { status: 503 }
-    );
-  }
+  }, { onError: handlePushSubscriptionsRouteError });
 }
 
 export async function DELETE(request: Request) {
-  const user = await getAuthenticatedUser();
-
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
-  }
-
-  const parsed = unsubscribeSchema.safeParse(await request.json().catch(() => null));
-
-  if (!parsed.success) {
-    return NextResponse.json({ error: "Invalid push subscription." }, { status: 400 });
-  }
-
-  try {
+  return withRoute(async () => {
+    const supabase = await createClient();
+    const { userId } = await requireAuthenticatedRouteContext({
+      supabase,
+      unauthorizedMessage: "Unauthorized.",
+    });
+    const parsed = unsubscribeSchema.safeParse(
+      await request.json().catch(() => null)
+    );
+    if (!parsed.success) {
+      throw new PushSubscriptionsRouteError(400, "Invalid push subscription.");
+    }
     const admin = createAdminClient();
     const { error } = await admin
       .from("push_subscriptions")
       .delete()
-      .eq("user_id", user.id)
+      .eq("user_id", userId)
       .eq("endpoint", parsed.data.endpoint);
 
     if (error) {
       console.error("Failed to delete push subscription:", error);
-      return NextResponse.json({ error: "Could not remove this device." }, { status: 500 });
+      throw new PushSubscriptionsRouteError(500, "Could not remove this device.");
     }
 
     return NextResponse.json({ success: true });
-  } catch (error) {
-    console.error("Push subscription configuration error:", error);
-    return NextResponse.json(
-      { error: "Push notifications are not configured on the server." },
-      { status: 503 }
-    );
-  }
+  }, { onError: handlePushSubscriptionsRouteError });
 }
