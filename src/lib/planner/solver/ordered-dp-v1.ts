@@ -1,5 +1,7 @@
 import { differenceInDateStrings } from "@/lib/goals/periods";
 import { compareCanonicalStrings } from "@/lib/planner/canonical";
+import { getSoftRefinementOperationBudget } from "@/lib/planner/contracts/bounds";
+import { refineDailyLoadVariance } from "@/lib/planner/solver/soft-refinement";
 import type {
   PlannerSolverResult,
   SolverAssignment,
@@ -322,7 +324,7 @@ export function solveOrderedDpV1({
     }
   }
 
-  const assignments = units.map((unit) => ({
+  let assignments = units.map((unit) => ({
     goalId: unit.goalId,
     unitKey: unit.unitKey,
     scheduledDate: assignmentsByKey.get(getSolverUnitId(unit)) ?? null,
@@ -357,6 +359,29 @@ export function solveOrderedDpV1({
   const complete = placedCount === units.length;
 
   if (simulateSoftBudgetExhaustion) {
+    return {
+      assignments,
+      placementStatus: complete ? "complete" : "partial",
+      searchStatus: "soft_optimization_exhausted",
+      capacityStatus: "unverified",
+      issueCodes: [
+        ...(complete ? [] : (["placement_shortfall"] as const)),
+        "soft_optimization_exhausted",
+      ],
+      invalidGoalIds: [],
+      publishable: true,
+      confirmationRequired: !complete,
+    };
+  }
+
+  const refinement = refineDailyLoadVariance({
+    dates,
+    units,
+    assignments,
+    operationBudget: getSoftRefinementOperationBudget(units.length),
+  });
+  assignments = refinement.assignments;
+  if (refinement.exhausted) {
     return {
       assignments,
       placementStatus: complete ? "complete" : "partial",
