@@ -392,6 +392,45 @@
         "publishable": true,
         "confirmationRequired": false
       }
+    },
+    {
+      "id": "replan_prefers_lower_policy_cost",
+      "description": "Replan intent prefers the lower policy-cost date even when it moves from the previous assignment.",
+      "dates": ["2026-08-05", "2026-08-06"],
+      "solveIntent": "replan",
+      "units": [
+        {
+          "unitKey": "total:1",
+          "goalId": "goal-a",
+          "kind": "deadline_total",
+          "ordinal": 1,
+          "candidateDates": ["2026-08-05", "2026-08-06"],
+          "previousDate": "2026-08-05",
+          "lockedDate": null,
+          "dateCosts": {
+            "2026-08-05": 10,
+            "2026-08-06": 0
+          },
+          "estimatedMinutes": 30
+        }
+      ],
+      "simulateSoftBudgetExhaustion": false,
+      "expected": {
+        "assignments": [
+          {
+            "goalId": "goal-a",
+            "unitKey": "total:1",
+            "scheduledDate": "2026-08-06"
+          }
+        ],
+        "placementStatus": "complete",
+        "searchStatus": "all_units_placed",
+        "capacityStatus": "unverified",
+        "issueCodes": [],
+        "invalidGoalIds": [],
+        "publishable": true,
+        "confirmationRequired": false
+      }
     }
   ]
 }

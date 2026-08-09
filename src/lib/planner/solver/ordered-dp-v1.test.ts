@@ -11,6 +11,7 @@ describe("ordered-dp-v1 solver", () => {
       solveOrderedDpV1({
         dates: fixtureCase.dates,
         units: fixtureCase.units,
+        solveIntent: fixtureCase.solveIntent ?? "stable",
         simulateSoftBudgetExhaustion:
           fixtureCase.simulateSoftBudgetExhaustion,
       })
@@ -152,5 +153,165 @@ describe("ordered-dp-v1 solver", () => {
     });
 
     expect(result.assignments[0].scheduledDate).toBe("2026-08-01");
+  });
+
+  it("keeps previous placement under stable intent when only policy cost improves", () => {
+    const result = solveOrderedDpV1({
+      dates: ["2026-08-05", "2026-08-06"],
+      solveIntent: "stable",
+      units: [
+        {
+          unitKey: "total:1",
+          goalId: "goal-a",
+          kind: "deadline_total",
+          ordinal: 1,
+          candidateDates: ["2026-08-05", "2026-08-06"],
+          previousDate: "2026-08-05",
+          lockedDate: null,
+          dateCosts: {
+            "2026-08-05": 10,
+            "2026-08-06": 0,
+          },
+          estimatedMinutes: 30,
+        },
+      ],
+    });
+
+    expect(result.assignments[0]?.scheduledDate).toBe("2026-08-05");
+  });
+
+  it("moves under replan intent when a lower policy-cost date exists", () => {
+    const result = solveOrderedDpV1({
+      dates: ["2026-08-05", "2026-08-06"],
+      solveIntent: "replan",
+      units: [
+        {
+          unitKey: "total:1",
+          goalId: "goal-a",
+          kind: "deadline_total",
+          ordinal: 1,
+          candidateDates: ["2026-08-05", "2026-08-06"],
+          previousDate: "2026-08-05",
+          lockedDate: null,
+          dateCosts: {
+            "2026-08-05": 10,
+            "2026-08-06": 0,
+          },
+          estimatedMinutes: 30,
+        },
+      ],
+    });
+
+    expect(result.assignments[0]?.scheduledDate).toBe("2026-08-06");
+  });
+
+  it("still breaks replan ties on moved count before displacement", () => {
+    const noMoveResult = solveOrderedDpV1({
+      dates: ["2026-08-05", "2026-08-06"],
+      solveIntent: "replan",
+      units: [
+        {
+          unitKey: "total:1",
+          goalId: "goal-a",
+          kind: "deadline_total",
+          ordinal: 1,
+          candidateDates: ["2026-08-05", "2026-08-06"],
+          previousDate: "2026-08-05",
+          lockedDate: null,
+          dateCosts: {
+            "2026-08-05": 0,
+            "2026-08-06": 0,
+          },
+        },
+      ],
+    });
+    expect(noMoveResult.assignments[0]?.scheduledDate).toBe("2026-08-05");
+
+    const displacementResult = solveOrderedDpV1({
+      dates: ["2026-08-05", "2026-08-06"],
+      solveIntent: "replan",
+      units: [
+        {
+          unitKey: "total:1",
+          goalId: "goal-a",
+          kind: "deadline_total",
+          ordinal: 1,
+          candidateDates: ["2026-08-05", "2026-08-06"],
+          previousDate: "2026-08-04",
+          lockedDate: null,
+          dateCosts: {
+            "2026-08-05": 0,
+            "2026-08-06": 0,
+          },
+        },
+      ],
+    });
+    expect(displacementResult.assignments[0]?.scheduledDate).toBe("2026-08-05");
+  });
+
+  it("keeps lock validation behavior identical under replan intent", () => {
+    const result = solveOrderedDpV1({
+      dates: ["2026-08-05"],
+      solveIntent: "replan",
+      units: [
+        {
+          unitKey: "total:1",
+          goalId: "goal-a",
+          kind: "deadline_total",
+          ordinal: 1,
+          candidateDates: [],
+          previousDate: null,
+          lockedDate: null,
+        },
+        {
+          unitKey: "total:2",
+          goalId: "goal-a",
+          kind: "deadline_total",
+          ordinal: 2,
+          candidateDates: ["2026-08-05"],
+          previousDate: "2026-08-05",
+          lockedDate: "2026-08-05",
+        },
+      ],
+    });
+
+    expect(result.issueCodes).toEqual(["invalid_lock"]);
+    expect(result.publishable).toBe(false);
+  });
+
+  it("keeps soft-refinement outcomes stable across intents when policy costs tie", () => {
+    const units = [
+      {
+        unitKey: "total:1",
+        goalId: "goal-a",
+        kind: "deadline_total" as const,
+        ordinal: 1,
+        candidateDates: ["2026-08-05", "2026-08-06"],
+        previousDate: null,
+        lockedDate: null,
+      },
+      {
+        unitKey: "total:2",
+        goalId: "goal-a",
+        kind: "deadline_total" as const,
+        ordinal: 2,
+        candidateDates: ["2026-08-05", "2026-08-06"],
+        previousDate: null,
+        lockedDate: null,
+      },
+    ];
+
+    const stable = solveOrderedDpV1({
+      dates: ["2026-08-05", "2026-08-06"],
+      solveIntent: "stable",
+      units,
+    });
+    const replan = solveOrderedDpV1({
+      dates: ["2026-08-05", "2026-08-06"],
+      solveIntent: "replan",
+      units,
+    });
+
+    expect(replan).toEqual(stable);
   });
 });
