@@ -31,6 +31,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { getApiErrorMessage } from "@/lib/api/client";
+import {
+  addGoalParticipant,
+  createGoal,
+  createGoalShares,
+  deleteGoalShare,
+  removeGoalParticipant,
+  updateGoal,
+  updateProfile,
+} from "@/lib/api/goals-social-client";
 import {
   CATEGORY_PRESETS,
   type CategorySelection,
@@ -539,19 +549,16 @@ export function SocialTab() {
       return;
     }
     setSaving(true);
-    const payload = {
-      id: state.userId,
-      username: profileDraft.username.trim().toLowerCase(),
-      display_name: profileDraft.display_name.trim() || null,
-      avatar_url: profileDraft.avatar_url.trim() || null,
-    };
-
-    const { error } = await supabase.from("profiles").upsert(payload, { onConflict: "id" });
-    if (error) {
-      toast.error(error.message);
-    } else {
+    try {
+      await updateProfile({
+        username: profileDraft.username.trim().toLowerCase(),
+        displayName: profileDraft.display_name.trim() || null,
+        avatarUrl: profileDraft.avatar_url.trim() || null,
+      });
       toast.success("Profile saved.");
       await loadData();
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, "Profile could not be saved."));
     }
     setSaving(false);
   };
@@ -574,46 +581,41 @@ export function SocialTab() {
       return;
     }
 
-    const { error } = await supabase
-      .from("goal_shares")
-      .insert(newGoalIds.map((goalId) => ({ goal_id: goalId, shared_with: targetUserId })));
-
-    if (error) {
-      toast.error(error.message);
-    } else {
+    try {
+      await createGoalShares({
+        goalIds: newGoalIds,
+        sharedWithUserId: targetUserId,
+      });
       toast.success(
         newGoalIds.length === 1 ? "Shared 1 goal." : `Shared ${newGoalIds.length} goals.`
       );
       setShareMenuOpen(false);
       await loadData();
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, "Goal sharing failed."));
     }
   };
 
   const revokeGoalShare = async (goalId: string, sharedWithUserId: string) => {
-    const { error } = await supabase
-      .from("goal_shares")
-      .delete()
-      .eq("goal_id", goalId)
-      .eq("shared_with", sharedWithUserId);
-    if (error) {
-      toast.error(error.message);
-    } else {
+    try {
+      await deleteGoalShare({ goalId, sharedWithUserId });
       toast.success("Removed access.");
       await loadData();
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, "Share removal failed."));
     }
   };
 
   const removeSharedGoalForMe = async (goalId: string) => {
-    const { error } = await supabase
-      .from("goal_shares")
-      .delete()
-      .eq("goal_id", goalId)
-      .eq("shared_with", state.userId);
-    if (error) {
-      toast.error(error.message);
-    } else {
+    try {
+      await deleteGoalShare({
+        goalId,
+        sharedWithUserId: state.userId,
+      });
       toast.success("Removed from shared goals.");
       await loadData();
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, "Share removal failed."));
     }
   };
 
@@ -623,17 +625,16 @@ export function SocialTab() {
       return;
     }
 
-    const { error } = await supabase.from("goal_participants").insert({
-      goal_id: selectedGroupGoalId,
-      user_id: targetUserId,
-      role: "participant",
-    });
-
-    if (error) {
-      toast.error(error.message);
-    } else {
+    try {
+      await addGoalParticipant({
+        goalId: selectedGroupGoalId,
+        userId: targetUserId,
+        role: "participant",
+      });
       toast.success("Participant invited.");
       await loadData();
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, "Participant invite failed."));
     }
   };
 
@@ -677,42 +678,43 @@ export function SocialTab() {
 
     setSaving(true);
     const newGroupGoalId = crypto.randomUUID();
-    const { error } = await supabase.from("goals").insert({
-      id: newGroupGoalId,
-      owner_id: state.userId,
-      title: groupDraft.title.trim(),
-      description: groupDraft.description.trim() || null,
-      category: getCategoryLabel(
-        groupDraft.categorySelection,
-        groupDraft.customCategory
-      ),
-      color: "#0ea5e9",
-      frequency_type: groupDraft.frequencyType,
-      recurrence_interval:
-        groupDraft.frequencyType === "recurring" ? groupDraft.recurrenceInterval : null,
-      target_count:
-        groupDraft.frequencyType === "fixed_milestones"
-          ? parsedGroupTargetCount
-          : groupDraft.frequencyType === "recurring" &&
-              groupDraft.targetCount.trim().length > 0
-            ? parsedGroupTargetCount
-          : null,
-      start_date: groupDraft.startDate,
-      end_date: groupDraft.endDate || null,
-      is_group: true,
-    });
-
-    if (error) {
-      toast.error(error.message ?? "Could not create group goal.");
+    try {
+      await createGoal({
+        addOwnerParticipant: true,
+        goal: {
+          id: newGroupGoalId,
+          title: groupDraft.title.trim(),
+          description: groupDraft.description.trim() || null,
+          category: getCategoryLabel(
+            groupDraft.categorySelection,
+            groupDraft.customCategory
+          ),
+          color: "#0ea5e9",
+          frequency_type: groupDraft.frequencyType,
+          recurrence_interval:
+            groupDraft.frequencyType === "recurring"
+              ? groupDraft.recurrenceInterval
+              : null,
+          target_count:
+            groupDraft.frequencyType === "fixed_milestones"
+              ? parsedGroupTargetCount
+              : groupDraft.frequencyType === "recurring" &&
+                  groupDraft.targetCount.trim().length > 0
+                ? parsedGroupTargetCount
+              : null,
+          start_date: groupDraft.startDate,
+          end_date: groupDraft.endDate || null,
+          default_local_time: null,
+          is_group: true,
+          is_deleted: false,
+          milestone_names: null,
+        },
+      });
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, "Could not create group goal."));
       setSaving(false);
       return;
     }
-
-    await supabase.from("goal_participants").insert({
-      goal_id: newGroupGoalId,
-      user_id: state.userId,
-      role: "owner",
-    });
 
     toast.success("Group goal created.");
     setGroupDraft({
@@ -724,44 +726,35 @@ export function SocialTab() {
   };
 
   const removeParticipant = async (goalId: string, participantUserId: string) => {
-    const { error } = await supabase
-      .from("goal_participants")
-      .delete()
-      .eq("goal_id", goalId)
-      .eq("user_id", participantUserId);
-    if (error) {
-      toast.error(error.message);
-    } else {
+    try {
+      await removeGoalParticipant({ goalId, userId: participantUserId });
       toast.success("Participant removed.");
       await loadData();
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, "Participant removal failed."));
     }
   };
 
   const leaveGroup = async (goalId: string) => {
-    const { error } = await supabase
-      .from("goal_participants")
-      .delete()
-      .eq("goal_id", goalId)
-      .eq("user_id", state.userId);
-    if (error) {
-      toast.error(error.message);
-    } else {
+    try {
+      await removeGoalParticipant({ goalId, userId: state.userId });
       toast.success("You left the group goal.");
       await loadData();
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, "Could not leave group goal."));
     }
   };
 
   const deleteGroupGoal = async (goalId: string) => {
-    const { error } = await supabase
-      .from("goals")
-      .update({ is_deleted: true })
-      .eq("id", goalId)
-      .eq("owner_id", state.userId);
-    if (error) {
-      toast.error(error.message);
-    } else {
+    try {
+      await updateGoal({
+        goalId,
+        updates: { is_deleted: true },
+      });
       toast.success("Group goal deleted.");
       await loadData();
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, "Group goal could not be deleted."));
     }
   };
 

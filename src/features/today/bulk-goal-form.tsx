@@ -31,6 +31,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { getApiErrorMessage } from "@/lib/api/client";
+import {
+  createGoalLinksBulk,
+  createGoalsBulk,
+  updateGoal,
+} from "@/lib/api/goals-social-client";
 import { toLocalDateString } from "@/lib/dates/day";
 import {
   CATEGORY_PRESETS,
@@ -670,7 +676,6 @@ export function BulkGoalForm() {
           goalId,
           row: {
             id: goalId,
-            owner_id: currentUserId,
             title: draft.title.trim(),
             description: draft.description.trim() || null,
             category: getCategoryLabel(draft.category_selection, draft.custom_category),
@@ -691,9 +696,10 @@ export function BulkGoalForm() {
         };
       });
 
-      const { error } = await supabase.from("goals").insert(preparedRows.map((entry) => entry.row));
-      if (error) {
-        toast.error(error.message ?? "Failed to create bulk goals.");
+      try {
+        await createGoalsBulk(preparedRows.map((entry) => entry.row));
+      } catch (error) {
+        toast.error(getApiErrorMessage(error, "Failed to create bulk goals."));
         return;
       }
 
@@ -702,15 +708,20 @@ export function BulkGoalForm() {
           ({ draft }) => !draft.is_group && draft.linked_target_goal_id && draft.linked_target_goal_id !== "none"
         )
         .map(({ draft, goalId }) => ({
-          owner_id: currentUserId,
-          source_goal_id: goalId,
-          target_goal_id: draft.linked_target_goal_id,
+          sourceGoalId: goalId,
+          targetGoalId: draft.linked_target_goal_id,
         }));
 
       if (linkRows.length > 0) {
-        const { error: linkError } = await supabase.from("goal_links").insert(linkRows);
-        if (linkError) {
-          toast.error(`Some linked goals were not saved: ${linkError.message}`);
+        try {
+          await createGoalLinksBulk(linkRows);
+        } catch (error) {
+          toast.error(
+            `Some linked goals were not saved: ${getApiErrorMessage(
+              error,
+              "Goal link write failed."
+            )}`
+          );
         }
       }
 
@@ -732,13 +743,12 @@ export function BulkGoalForm() {
           continue;
         }
 
-        const { error: updateError } = await supabase
-          .from("goals")
-          .update({ photo_path: objectPath })
-          .eq("id", goalId)
-          .eq("owner_id", currentUserId);
-
-        if (updateError) {
+        try {
+          await updateGoal({
+            goalId,
+            updates: { photo_path: objectPath },
+          });
+        } catch {
           failedPhotoUploads += 1;
         }
       }
