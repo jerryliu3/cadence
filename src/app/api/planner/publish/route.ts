@@ -48,7 +48,7 @@ const publishSchema = z.object({
   draftCommands: z.array(plannerDraftCommandSchema).max(4000).default([]),
 });
 
-export async function POST(request: Request) {
+export async function handlePlannerSave(request: Request) {
   const correlationId = createCorrelationId();
   try {
     const supabase = await createClient();
@@ -325,4 +325,8 @@ export async function POST(request: Request) {
     }
     return unknownPlannerErrorResponse(correlationId);
   }
+}
+
+export async function POST(request: Request) {
+  return handlePlannerSave(request);
 }
