@@ -132,7 +132,7 @@ describe("planner coach conversations route", () => {
     expect(response.status).toBe(503);
     await expect(response.json()).resolves.toMatchObject({
       code: "conversation_list_unavailable",
-      correlationId: "test-correlation-id",
+      correlationId: expect.any(String),
     });
   });
 

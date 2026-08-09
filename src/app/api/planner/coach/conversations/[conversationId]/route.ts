@@ -7,11 +7,9 @@ import {
   mapCoachConversationSummaryRow,
 } from "@/lib/planner/coach-conversations";
 import {
-  createCorrelationId,
-  plannerErrorResponse,
   PlannerRouteError,
   requirePlannerRouteContext,
-  unknownPlannerErrorResponse,
+  withPlannerRoute,
 } from "@/lib/planner/api";
 import { createClient } from "@/lib/supabase/server";
 
@@ -27,8 +25,7 @@ export async function GET(
   _request: Request,
   context: { params: Promise<{ conversationId: string }> | { conversationId: string } }
 ) {
-  const correlationId = createCorrelationId();
-  try {
+  return withPlannerRoute(async ({ correlationId }) => {
     const params = routeParamsSchema.parse(await context.params);
     const supabase = await createClient();
     const routeContext = await requirePlannerRouteContext({
@@ -53,7 +50,8 @@ export async function GET(
     ]);
 
     if (conversationResponse.error || messageResponse.error) {
-      const cause = conversationResponse.error?.message ?? messageResponse.error?.message;
+      const cause =
+        conversationResponse.error?.message ?? messageResponse.error?.message;
       throw new PlannerRouteError(
         503,
         "conversation_restore_unavailable",
@@ -93,10 +91,5 @@ export async function GET(
       },
       { headers: { "Cache-Control": "private, no-store" } }
     );
-  } catch (error) {
-    if (error instanceof PlannerRouteError) {
-      return plannerErrorResponse(error, correlationId);
-    }
-    return unknownPlannerErrorResponse(correlationId);
-  }
+  });
 }

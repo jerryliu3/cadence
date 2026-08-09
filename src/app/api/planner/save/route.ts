@@ -1,13 +1,11 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import {
-  createCorrelationId,
   parseBoundedJsonBody,
-  plannerErrorResponse,
   PlannerRouteError,
   requirePlannerRouteContext,
   resolveCanonicalAsOfDate,
-  unknownPlannerErrorResponse,
+  withPlannerRoute,
 } from "@/lib/planner/api";
 import { createDefaultAssessment, goalAssessmentSchema } from "@/lib/planner/assessment";
 import { loadPlannerCanonicalSnapshot } from "@/lib/planner/context-loader";
@@ -64,8 +62,7 @@ function plannerKernelErrorToRouteError(error: PlannerError) {
 }
 
 export async function handlePlannerSave(request: Request) {
-  const correlationId = createCorrelationId();
-  try {
+  return withPlannerRoute(async ({ correlationId }) => {
     const supabase = await createClient();
     const routeContext = await requirePlannerRouteContext({
       supabase,
@@ -131,20 +128,28 @@ export async function handlePlannerSave(request: Request) {
     const assessments = snapshot.goals.map((goal) =>
       assessmentByGoalId.get(goal.id) ?? createDefaultAssessment(goal)
     );
-    const kernel = runPlannerKernel({
-      schemaVersion: "1",
-      eligibilityMode: effectiveEligibilityMode,
-      ownerId: routeContext.userId,
-      scopeMonth: body.scopeMonth,
-      asOfDate,
-      timezone: snapshot.preferences.timezone,
-      goals: snapshot.goals,
-      completions: snapshot.completions,
-      links: snapshot.links,
-      assessments,
-      policy: effectivePolicy,
-      basePlan: snapshot.activePlan?.basePlan ?? null,
-    });
+    let kernel: ReturnType<typeof runPlannerKernel>;
+    try {
+      kernel = runPlannerKernel({
+        schemaVersion: "1",
+        eligibilityMode: effectiveEligibilityMode,
+        ownerId: routeContext.userId,
+        scopeMonth: body.scopeMonth,
+        asOfDate,
+        timezone: snapshot.preferences.timezone,
+        goals: snapshot.goals,
+        completions: snapshot.completions,
+        links: snapshot.links,
+        assessments,
+        policy: effectivePolicy,
+        basePlan: snapshot.activePlan?.basePlan ?? null,
+      });
+    } catch (error) {
+      if (error instanceof PlannerError) {
+        throw plannerKernelErrorToRouteError(error);
+      }
+      throw error;
+    }
 
     if (kernel.generationInputHash !== body.previewHash) {
       throw new PlannerRouteError(
@@ -331,17 +336,7 @@ export async function handlePlannerSave(request: Request) {
       },
       { headers: { "Cache-Control": "private, no-store" } }
     );
-
-  } catch (error) {
-    if (error instanceof PlannerError) {
-      const routeError = plannerKernelErrorToRouteError(error);
-      return plannerErrorResponse(routeError, correlationId);
-    }
-    if (error instanceof PlannerRouteError) {
-      return plannerErrorResponse(error, correlationId);
-    }
-    return unknownPlannerErrorResponse(correlationId);
-  }
+  });
 }
 
 export async function POST(request: Request) {

@@ -1,7 +1,12 @@
-import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { GeminiRequestError, generateGeminiJson } from "@/lib/ai/gemini";
+import {
+  ApiRouteError,
+  parseJsonBody,
+  requireAuthenticatedRouteContext,
+  withRoute,
+} from "@/lib/api/route";
 import { getDateInTimezone, isValidIanaTimezone } from "@/lib/dates/timezone";
 import { validateGoalDefinition } from "@/lib/goals/definition-validation";
 import {
@@ -174,216 +179,157 @@ function normalizeGeneratedPayload(
   return { goals, warnings };
 }
 
-function errorResponse(
-  status: number,
-  code: string,
-  message: string,
-  correlationId: string
-) {
-  return NextResponse.json(
-    { code, message, correlationId },
-    { status, headers: { "Cache-Control": "no-store" } }
-  );
-}
-
 export async function POST(request: Request) {
-  const correlationId = randomUUID();
-  const supabase = await createClient();
-  const {
-    data: { user },
-    error: userError,
-  } = await supabase.auth.getUser();
-  if (userError || !user) {
-    return errorResponse(
-      401,
-      "authentication_required",
-      "Sign in to generate goal drafts.",
-      correlationId
+  return withRoute(async ({ correlationId }) => {
+    const supabase = await createClient();
+    const { userId } = await requireAuthenticatedRouteContext({
+      supabase,
+      unauthorizedMessage: "Sign in to generate goal drafts.",
+    });
+
+    const parsedRequest = await parseJsonBody({
+      request,
+      maxBytes: MAX_REQUEST_BYTES,
+      schema: requestSchema,
+    }).catch((error) => {
+      if (error instanceof ApiRouteError && error.code === "validation_failed") {
+        throw new ApiRouteError(
+          400,
+          "validation_failed",
+          "Provide a non-empty prompt and valid IANA timezone.",
+          error.details
+        );
+      }
+      throw error;
+    });
+
+    let quotaLimit: number;
+    try {
+      quotaLimit = readBulkParserQuotaLimit();
+    } catch {
+      throw new ApiRouteError(
+        503,
+        "capability_configuration_invalid",
+        "Goal draft generation is temporarily unavailable."
+      );
+    }
+
+    const apiKey = process.env.GEMINI_API_KEY?.trim();
+    if (!apiKey) {
+      throw new ApiRouteError(
+        503,
+        "ai_unavailable",
+        "Goal draft generation is temporarily unavailable."
+      );
+    }
+
+    let admin: ReturnType<typeof createAdminClient>;
+    try {
+      admin = createAdminClient();
+    } catch {
+      throw new ApiRouteError(
+        503,
+        "admin_configuration_invalid",
+        "Goal draft generation is temporarily unavailable."
+      );
+    }
+
+    const today = getDateInTimezone(new Date(), parsedRequest.timezone);
+    const estimatedInputTokens = Math.max(
+      1,
+      Math.ceil(parsedRequest.prompt.length / 4)
     );
-  }
 
-  const contentLength = Number(request.headers.get("content-length") ?? "0");
-  if (Number.isFinite(contentLength) && contentLength > MAX_REQUEST_BYTES) {
-    return errorResponse(
-      413,
-      "request_too_large",
-      "The natural-language request is too large.",
-      correlationId
-    );
-  }
-
-  const rawBody = await request.text();
-  const inputBytes = Buffer.byteLength(rawBody, "utf8");
-  if (inputBytes > MAX_REQUEST_BYTES) {
-    return errorResponse(
-      413,
-      "request_too_large",
-      "The natural-language request is too large.",
-      correlationId
-    );
-  }
-
-  let requestBody: unknown;
-  try {
-    requestBody = JSON.parse(rawBody);
-  } catch {
-    return errorResponse(
-      400,
-      "invalid_json",
-      "Request body must be valid JSON.",
-      correlationId
-    );
-  }
-
-  const parsedRequest = requestSchema.safeParse(requestBody);
-  if (!parsedRequest.success) {
-    return errorResponse(
-      400,
-      "validation_failed",
-      "Provide a non-empty prompt and valid IANA timezone.",
-      correlationId
-    );
-  }
-
-  let quotaLimit: number;
-  try {
-    quotaLimit = readBulkParserQuotaLimit();
-  } catch {
-    return errorResponse(
-      503,
-      "capability_configuration_invalid",
-      "Goal draft generation is temporarily unavailable.",
-      correlationId
-    );
-  }
-
-  const apiKey = process.env.GEMINI_API_KEY?.trim();
-  if (!apiKey) {
-    return errorResponse(
-      503,
-      "ai_unavailable",
-      "Goal draft generation is temporarily unavailable.",
-      correlationId
-    );
-  }
-
-  let admin: ReturnType<typeof createAdminClient>;
-  try {
-    admin = createAdminClient();
-  } catch {
-    return errorResponse(
-      503,
-      "admin_configuration_invalid",
-      "Goal draft generation is temporarily unavailable.",
-      correlationId
-    );
-  }
-
-  const today = getDateInTimezone(new Date(), parsedRequest.data.timezone);
-  const estimatedInputTokens = Math.max(
-    1,
-    Math.ceil(parsedRequest.data.prompt.length / 4)
-  );
-
-  let quota;
-  try {
-    quota = await consumePlannerAiQuota({
+    const quota = await consumePlannerAiQuota({
       admin,
-      ownerId: user.id,
+      ownerId: userId,
       feature: "bulk_parser",
       limit: quotaLimit,
       estimatedInputTokens,
+    }).catch(() => {
+      throw new ApiRouteError(
+        503,
+        "quota_check_failed",
+        "Goal draft generation is temporarily unavailable."
+      );
     });
-  } catch {
-    return errorResponse(
-      503,
-      "quota_check_failed",
-      "Goal draft generation is temporarily unavailable.",
-      correlationId
-    );
-  }
 
-  if (!quota.allowed) {
-    return NextResponse.json(
-      {
-        code: "quota_exceeded",
-        message: "Daily goal draft generation limit reached.",
-        correlationId,
-      },
-      {
-        status: 429,
-        headers: {
-          "Cache-Control": "no-store",
-          "Retry-After": `${quota.retryAfterSeconds}`,
+    if (!quota.allowed) {
+      return NextResponse.json(
+        {
+          code: "quota_exceeded",
+          message: "Daily goal draft generation limit reached.",
+          correlationId,
         },
-      }
-    );
-  }
-
-  let candidateJson: unknown;
-  try {
-    const result = await generateGeminiJson({
-      apiKey,
-      prompt: buildPrompt(parsedRequest.data.prompt, today),
-      responseSchema: bulkGoalResponseSchema as unknown as Record<string, unknown>,
-      maxResponseBytes: MAX_PROVIDER_RESPONSE_BYTES,
-      totalTimeoutMs: PROVIDER_TIMEOUT_MS,
-      maxAttempts: MAX_PROVIDER_ATTEMPTS,
-      signal: request.signal,
-    });
-    candidateJson = result.candidateJson;
-  } catch (error) {
-    if (error instanceof GeminiRequestError) {
-      if (error.code === "timeout") {
-        return errorResponse(
-          504,
-          "ai_timeout",
-          "Goal draft generation timed out. Try again.",
-          correlationId
-        );
-      }
-      if (error.code === "response_too_large") {
-        return errorResponse(
-          502,
-          "ai_response_too_large",
-          "Goal draft generation returned too much data.",
-          correlationId
-        );
-      }
-      if (error.code === "invalid_response" || error.code === "empty_response") {
-        return errorResponse(
-          502,
-          "ai_invalid_output",
-          "Generated goal drafts could not be validated.",
-          correlationId
-        );
-      }
+        {
+          status: 429,
+          headers: {
+            "Cache-Control": "no-store",
+            "Retry-After": `${quota.retryAfterSeconds}`,
+          },
+        }
+      );
     }
-    return errorResponse(
-      502,
-      "ai_provider_error",
-      "Goal draft generation failed. Try again.",
-      correlationId
-    );
-  }
 
-  const validatedPayload = generatedPayloadSchema.safeParse(candidateJson);
-  if (!validatedPayload.success) {
-    return errorResponse(
-      502,
-      "ai_invalid_output",
-      "Generated goal drafts could not be validated.",
-      correlationId
-    );
-  }
+    let candidateJson: unknown;
+    try {
+      const result = await generateGeminiJson({
+        apiKey,
+        prompt: buildPrompt(parsedRequest.prompt, today),
+        responseSchema: bulkGoalResponseSchema as unknown as Record<string, unknown>,
+        maxResponseBytes: MAX_PROVIDER_RESPONSE_BYTES,
+        totalTimeoutMs: PROVIDER_TIMEOUT_MS,
+        maxAttempts: MAX_PROVIDER_ATTEMPTS,
+        signal: request.signal,
+      });
+      candidateJson = result.candidateJson;
+    } catch (error) {
+      if (error instanceof GeminiRequestError) {
+        if (error.code === "timeout") {
+          throw new ApiRouteError(
+            504,
+            "ai_timeout",
+            "Goal draft generation timed out. Try again."
+          );
+        }
+        if (error.code === "response_too_large") {
+          throw new ApiRouteError(
+            502,
+            "ai_response_too_large",
+            "Goal draft generation returned too much data."
+          );
+        }
+        if (error.code === "invalid_response" || error.code === "empty_response") {
+          throw new ApiRouteError(
+            502,
+            "ai_invalid_output",
+            "Generated goal drafts could not be validated."
+          );
+        }
+      }
+      throw new ApiRouteError(
+        502,
+        "ai_provider_error",
+        "Goal draft generation failed. Try again."
+      );
+    }
 
-  const responsePayload = {
-    ...normalizeGeneratedPayload(validatedPayload.data, today),
-    correlationId,
-  };
+    const validatedPayload = generatedPayloadSchema.safeParse(candidateJson);
+    if (!validatedPayload.success) {
+      throw new ApiRouteError(
+        502,
+        "ai_invalid_output",
+        "Generated goal drafts could not be validated."
+      );
+    }
 
-  return NextResponse.json(
-    responsePayload,
-    { headers: { "Cache-Control": "private, no-store" } }
-  );
+    const responsePayload = {
+      ...normalizeGeneratedPayload(validatedPayload.data, today),
+      correlationId,
+    };
+
+    return NextResponse.json(responsePayload, {
+      headers: { "Cache-Control": "private, no-store" },
+    });
+  });
 }

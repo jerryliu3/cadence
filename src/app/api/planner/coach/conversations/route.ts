@@ -7,12 +7,10 @@ import {
   mapCoachConversationSummaryRow,
 } from "@/lib/planner/coach-conversations";
 import {
-  createCorrelationId,
   parseBoundedJsonBody,
-  plannerErrorResponse,
   PlannerRouteError,
   requirePlannerRouteContext,
-  unknownPlannerErrorResponse,
+  withPlannerRoute,
 } from "@/lib/planner/api";
 import { MAX_API_BODY_BYTES } from "@/lib/planner/contracts/bounds";
 import { createClient } from "@/lib/supabase/server";
@@ -53,8 +51,7 @@ function deriveConversationPreview(
 }
 
 export async function GET(request: Request) {
-  const correlationId = createCorrelationId();
-  try {
+  return withPlannerRoute(async ({ correlationId }) => {
     const supabase = await createClient();
     const routeContext = await requirePlannerRouteContext({
       supabase,
@@ -103,17 +100,11 @@ export async function GET(request: Request) {
       },
       { headers: { "Cache-Control": "private, no-store" } }
     );
-  } catch (error) {
-    if (error instanceof PlannerRouteError) {
-      return plannerErrorResponse(error, correlationId);
-    }
-    return unknownPlannerErrorResponse(correlationId);
-  }
+  });
 }
 
 export async function POST(request: Request) {
-  const correlationId = createCorrelationId();
-  try {
+  return withPlannerRoute(async ({ correlationId }) => {
     const supabase = await createClient();
     const routeContext = await requirePlannerRouteContext({
       supabase,
@@ -171,10 +162,5 @@ export async function POST(request: Request) {
       },
       { headers: { "Cache-Control": "private, no-store" } }
     );
-  } catch (error) {
-    if (error instanceof PlannerRouteError) {
-      return plannerErrorResponse(error, correlationId);
-    }
-    return unknownPlannerErrorResponse(correlationId);
-  }
+  });
 }
