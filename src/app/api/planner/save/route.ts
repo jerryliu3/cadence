@@ -90,7 +90,7 @@ export async function handlePlannerSave(request: Request) {
         })()
       : null;
     const draftCommands = body.draftCommands;
-    const solveIntent = body.solveIntent;
+    const solveIntent = body.solveIntent ?? "stable";
     const effectiveEligibilityMode =
       body.eligibilityMode ?? PLANNER_ELIGIBILITY_MODES[0];
 
