@@ -160,18 +160,11 @@ export function requirePlannerAdminClient() {
 
 export async function requirePlannerRouteContext({
   supabase,
-  requiredCapability,
   disabledCode,
   disabledMessage,
   disabledStatus = 503,
 }: {
   supabase: ServerSupabaseClient;
-  requiredCapability:
-    | "plannerRead"
-    | "plannerGeneration"
-    | "plannerPlanWrites"
-    | "targetedExactCompletion"
-    | "coachAi";
   disabledCode: string;
   disabledMessage: string;
   disabledStatus?: number;
@@ -199,7 +192,7 @@ export async function requirePlannerRouteContext({
     );
   }
 
-  if (!capabilities[requiredCapability]) {
+  if (!capabilities.calendarEnabled) {
     throw new PlannerRouteError(disabledStatus, disabledCode, disabledMessage);
   }
 
