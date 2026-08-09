@@ -282,10 +282,6 @@ export async function POST(request: Request) {
   }
 
   const today = getDateInTimezone(new Date(), parsedRequest.data.timezone);
-  const estimatedInputTokens = Math.max(
-    1,
-    Math.ceil(parsedRequest.data.prompt.length / 4)
-  );
 
   let quota;
   try {
@@ -294,7 +290,6 @@ export async function POST(request: Request) {
       ownerId: user.id,
       feature: "bulk_parser",
       limit: quotaLimit,
-      estimatedInputTokens,
     });
   } catch {
     return errorResponse(

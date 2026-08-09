@@ -321,8 +321,6 @@ export type Database = {
         Row: {
           created_at: string
           feature: string
-          input_tokens: number
-          output_tokens: number
           owner_id: string
           request_count: number
           updated_at: string
@@ -331,8 +329,6 @@ export type Database = {
         Insert: {
           created_at?: string
           feature: string
-          input_tokens?: number
-          output_tokens?: number
           owner_id: string
           request_count?: number
           updated_at?: string
@@ -341,8 +337,6 @@ export type Database = {
         Update: {
           created_at?: string
           feature?: string
-          input_tokens?: number
-          output_tokens?: number
           owner_id?: string
           request_count?: number
           updated_at?: string
@@ -609,12 +603,7 @@ export type Database = {
         }[]
       }
       consume_planner_ai_quota: {
-        Args: {
-          p_feature: string
-          p_input_tokens?: number
-          p_limit?: number
-          p_owner: string
-        }
+        Args: { p_feature: string; p_limit?: number; p_owner: string }
         Returns: {
           allowed: boolean
           quota_usage_date: string
@@ -640,15 +629,6 @@ export type Database = {
       mark_goal_complete: {
         Args: { p_date?: string; p_goal_id: string }
         Returns: undefined
-      }
-      record_planner_ai_output_tokens: {
-        Args: {
-          p_feature: string
-          p_output_tokens: number
-          p_owner: string
-          p_usage_date: string
-        }
-        Returns: number
       }
       save_planner_coach_conversation_service: {
         Args: {

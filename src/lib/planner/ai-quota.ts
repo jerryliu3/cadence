@@ -81,13 +81,11 @@ export async function consumePlannerAiQuota({
   ownerId,
   feature,
   limit,
-  estimatedInputTokens,
 }: {
   admin: AdminClient;
   ownerId: string;
   feature: PlannerAiQuotaFeature;
   limit: number;
-  estimatedInputTokens: number;
 }): Promise<PlannerAiQuotaResult> {
   const quotaResponse = await callAdminRpc(
     admin,
@@ -96,7 +94,6 @@ export async function consumePlannerAiQuota({
       p_owner: ownerId,
       p_feature: feature,
       p_limit: limit,
-      p_input_tokens: estimatedInputTokens,
     }
   );
   if (quotaResponse.error) {

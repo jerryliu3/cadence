@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, private, extensions, pg_catalog;
-select plan(11);
+select plan(9);
 
 select results_eq(
   $$
@@ -9,8 +9,7 @@ select results_eq(
     from public.consume_planner_ai_quota(
       '11111111-1111-4111-8111-111111111111',
       'planner_coach',
-      2,
-      5
+      2
     )
   $$,
   $$ values (true, 1, 1) $$,
@@ -23,8 +22,7 @@ select results_eq(
     from public.consume_planner_ai_quota(
       '11111111-1111-4111-8111-111111111111',
       'planner_coach',
-      2,
-      7
+      2
     )
   $$,
   $$ values (true, 2, 0) $$,
@@ -37,8 +35,7 @@ select results_eq(
     from public.consume_planner_ai_quota(
       '11111111-1111-4111-8111-111111111111',
       'planner_coach',
-      2,
-      11
+      2
     )
   $$,
   $$ values (false, 2, 0) $$,
@@ -51,34 +48,10 @@ select ok(
     from public.consume_planner_ai_quota(
       '11111111-1111-4111-8111-111111111111',
       'planner_coach',
-      2,
-      0
+      2
     )
   ),
   'quota rejection includes a positive UTC-midnight retry delay'
-);
-
-select is(
-  (
-    select input_tokens
-    from public.planner_ai_usage_daily
-    where owner_id = '11111111-1111-4111-8111-111111111111'
-      and usage_date = (clock_timestamp() at time zone 'UTC')::date
-      and feature = 'planner_coach'
-  ),
-  12::bigint,
-  'rejected attempts do not add token telemetry'
-);
-
-select is(
-  public.record_planner_ai_output_tokens(
-    '11111111-1111-4111-8111-111111111111',
-    (clock_timestamp() at time zone 'UTC')::date,
-    'planner_coach',
-    9
-  ),
-  9::bigint,
-  'output token telemetry is recorded after a consumed attempt'
 );
 
 select results_eq(
@@ -87,8 +60,7 @@ select results_eq(
     from public.consume_planner_ai_quota(
       '11111111-1111-4111-8111-111111111111',
       'bulk_parser',
-      20,
-      0
+      20
     )
   $$,
   $$ values (true, 1) $$,
@@ -101,8 +73,7 @@ select throws_ok(
     from public.consume_planner_ai_quota(
       '11111111-1111-4111-8111-111111111111',
       'planner_coach',
-      101,
-      0
+      101
     )
   $$,
   '22023'::character(5),
@@ -131,8 +102,7 @@ select throws_ok(
     from public.consume_planner_ai_quota(
       '11111111-1111-4111-8111-111111111111',
       'bulk_parser',
-      20,
-      0
+      20
     )
   $$,
   '42501'::character(5),
@@ -148,8 +118,7 @@ select ok(
     from public.consume_planner_ai_quota(
       '11111111-1111-4111-8111-111111111111',
       'bulk_parser',
-      20,
-      0
+      20
     )
   ),
   'service_role can consume quota through the service function'

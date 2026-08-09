@@ -155,7 +155,6 @@ export async function POST(request: Request) {
       deterministicSummary: body.deterministicSummary,
       messages: body.messages,
     });
-    const estimatedInputTokens = Math.max(1, Math.ceil(prompt.length / 4));
     const bypassQuota = shouldBypassPlannerCoachQuota();
     let quota;
     if (bypassQuota) {
@@ -183,7 +182,6 @@ export async function POST(request: Request) {
         ownerId: routeContext.userId,
         feature: "planner_coach",
         limit: quotaLimit,
-        estimatedInputTokens,
       }).catch(() => {
         throw new PlannerRouteError(
           503,
