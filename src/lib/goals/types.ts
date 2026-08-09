@@ -67,5 +67,7 @@ export interface Profile {
   username: string;
   display_name: string | null;
   avatar_url: string | null;
+  week_starts_on?: number;
+  weekly_anchor_effective_on?: string;
   created_at: string;
 }

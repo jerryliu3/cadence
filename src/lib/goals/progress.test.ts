@@ -3,6 +3,7 @@ import {
   getGoalCompletionPercentage,
   getOverallCompletionPercentage,
   getRecurringStreaks,
+  getRecurringStreaksAtDate,
 } from "@/lib/goals/progress";
 import type { Completion, Goal } from "@/lib/goals/types";
 
@@ -147,5 +148,33 @@ describe("goal progress calculations", () => {
     const streaks = getRecurringStreaks(goal, completions, new Date(2026, 4, 5));
     expect(streaks.longest).toBe(3);
     expect(streaks.current).toBe(1);
+  });
+
+  it("re-buckets weekly streaks by cutover-aware period identity", () => {
+    const goal = buildGoal({
+      id: "weekly-streak-cutover",
+      recurrence_interval: "weekly",
+      start_date: "2026-08-06",
+    });
+    const completions = [
+      completion("weekly-streak-cutover", "2026-08-16"),
+      completion("weekly-streak-cutover", "2026-08-18"),
+    ];
+
+    expect(getRecurringStreaksAtDate(goal, completions, "2026-08-18")).toEqual({
+      current: 1,
+      longest: 1,
+    });
+    expect(
+      getRecurringStreaksAtDate(goal, completions, "2026-08-18", {
+        weeklyAnchor: {
+          weekStartsOn: 1,
+          effectiveFrom: "2026-08-17",
+        },
+      })
+    ).toEqual({
+      current: 2,
+      longest: 2,
+    });
   });
 });
