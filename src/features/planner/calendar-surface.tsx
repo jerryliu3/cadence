@@ -1282,6 +1282,7 @@ export function CalendarSurface({
     }
     return map;
   }, [entriesByDate]);
+  const scopeMonth = context?.scopeMonth ?? null;
 
   const queueDraftMoveCommand = useCallback(
     ({
@@ -1293,7 +1294,7 @@ export function CalendarSurface({
       nextDate: string;
       source: "date_input" | "drag_drop";
     }) => {
-      if (!context?.scopeMonth) {
+      if (!scopeMonth) {
         return false;
       }
       const moveValidation = validateDraftMove({
@@ -1370,7 +1371,7 @@ export function CalendarSurface({
       }
       const { baselineUnit, normalizedDate } = moveValidation;
       const originalDate = baselineUnit.scheduledDate;
-      setDraftScopeMonth(context.scopeMonth);
+      setDraftScopeMonth(scopeMonth);
       if (originalDate === normalizedDate) {
         dispatchDraftCommand({
           type: "remove_kind",
@@ -1394,7 +1395,7 @@ export function CalendarSurface({
       return true;
     },
     [
-      context?.scopeMonth,
+      scopeMonth,
       moveConflictByGoalDate,
       validateDraftMove,
     ]
