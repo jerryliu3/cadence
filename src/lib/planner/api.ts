@@ -1,6 +1,13 @@
-import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import {
+  ApiRouteError,
+  apiErrorResponse,
+  createCorrelationId as createSharedCorrelationId,
+  parseJsonBody,
+  requireAuthenticatedRouteContext,
+  withRoute as withSharedRoute,
+} from "@/lib/api/route";
 import { getDateInTimezone } from "@/lib/dates/timezone";
 import { getPlannerCapabilities } from "@/lib/planner/capabilities";
 import type { PlannerCapabilities } from "@/lib/planner/capabilities";
@@ -16,39 +23,28 @@ export interface PlannerApiErrorBody {
   details?: Record<string, unknown>;
 }
 
-export class PlannerRouteError extends Error {
+export class PlannerRouteError extends ApiRouteError {
   constructor(
     readonly status: number,
     readonly code: string,
     message: string,
-    readonly details?: Record<string, unknown>
+    readonly details?: Record<string, unknown>,
+    cause?: unknown
   ) {
-    super(message);
+    super(status, code, message, details, cause);
     this.name = "PlannerRouteError";
   }
 }
 
 export function createCorrelationId() {
-  return randomUUID();
+  return createSharedCorrelationId();
 }
 
 export function plannerErrorResponse(
   error: PlannerRouteError,
   correlationId: string
 ) {
-  const payload: PlannerApiErrorBody = {
-    code: error.code,
-    message: error.message,
-    correlationId,
-  };
-  if (error.details) {
-    payload.details = error.details;
-  }
-
-  return NextResponse.json(payload, {
-    status: error.status,
-    headers: { "Cache-Control": "no-store" },
-  });
+  return apiErrorResponse(error, correlationId);
 }
 
 export function unknownPlannerErrorResponse(correlationId: string) {
@@ -91,45 +87,24 @@ export async function parseBoundedJsonBody<T>(
   maxBytes: number,
   schema: z.ZodType<T>
 ) {
-  const contentLength = Number(request.headers.get("content-length") ?? "0");
-  if (Number.isFinite(contentLength) && contentLength > maxBytes) {
-    throw new PlannerRouteError(
-      413,
-      "request_too_large",
-      "The request body is too large."
-    );
-  }
-
-  const rawBody = await request.text();
-  if (Buffer.byteLength(rawBody, "utf8") > maxBytes) {
-    throw new PlannerRouteError(
-      413,
-      "request_too_large",
-      "The request body is too large."
-    );
-  }
-
-  let parsedBody: unknown;
   try {
-    parsedBody = JSON.parse(rawBody);
-  } catch {
-    throw new PlannerRouteError(
-      400,
-      "invalid_json",
-      "Request body must be valid JSON."
-    );
+    return await parseJsonBody({
+      request,
+      maxBytes,
+      schema,
+    });
+  } catch (error) {
+    if (error instanceof ApiRouteError) {
+      throw new PlannerRouteError(
+        error.status,
+        error.code,
+        error.message,
+        error.details,
+        (error as Error & { cause?: unknown }).cause
+      );
+    }
+    throw error;
   }
-
-  const parsed = schema.safeParse(parsedBody);
-  if (!parsed.success) {
-    throw new PlannerRouteError(
-      400,
-      "validation_failed",
-      "Request payload failed validation.",
-      { issues: parsed.error.issues }
-    );
-  }
-  return parsed.data;
 }
 
 export interface AuthenticatedPlannerRouteContext {
@@ -161,17 +136,10 @@ export async function requirePlannerRouteContext({
   disabledMessage: string;
   disabledStatus?: number;
 }): Promise<AuthenticatedPlannerRouteContext> {
-  const {
-    data: { user },
-    error: userError,
-  } = await supabase.auth.getUser();
-  if (userError || !user) {
-    throw new PlannerRouteError(
-      401,
-      "authentication_required",
-      "Sign in to access planner APIs."
-    );
-  }
+  const { userId } = await requireAuthenticatedRouteContext({
+    supabase,
+    unauthorizedMessage: "Sign in to access planner APIs.",
+  });
 
   let capabilities: PlannerCapabilities;
   try {
@@ -189,8 +157,21 @@ export async function requirePlannerRouteContext({
   }
 
   return {
-    userId: user.id,
+    userId,
     supabase,
     capabilities,
   };
+}
+
+export async function withPlannerRoute(
+  handler: (context: { correlationId: string }) => Promise<NextResponse>
+) {
+  return withSharedRoute(handler, {
+    onError: (error, correlationId) => {
+      if (error instanceof PlannerRouteError) {
+        return plannerErrorResponse(error, correlationId);
+      }
+      return unknownPlannerErrorResponse(correlationId);
+    },
+  });
 }
