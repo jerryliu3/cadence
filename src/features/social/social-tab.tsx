@@ -31,27 +31,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { getApiErrorMessage } from "@/lib/api/client";
 import {
-  addGoalParticipant,
-  createGoal,
-  createGoalShares,
-  deleteGoalShare,
-  removeGoalParticipant,
-  updateGoal,
-  updateProfile,
-} from "@/lib/api/goals-social-client";
+  createDefaultGroupDraft,
+  type GroupGoalDraft,
+  useSocialMutations,
+} from "@/features/social/use-social-mutations";
 import {
   CATEGORY_PRESETS,
   type CategorySelection,
-  getCategoryLabel,
   getCategorySwatchColor,
 } from "@/lib/goals/category";
-import {
-  isOrdinalGoalDefinition,
-  validateGoalDefinition,
-} from "@/lib/goals/definition-validation";
-import { toLocalDateString } from "@/lib/dates/day";
+import { isOrdinalGoalDefinition } from "@/lib/goals/definition-validation";
 import { GOAL_TYPE_OPTIONS, RECURRENCE_INTERVAL_OPTIONS } from "@/lib/goals/form-options";
 import { getGoalCompletionPercentage } from "@/lib/goals/progress";
 import { MonthHeatmap } from "@/features/insights/month-heatmap";
@@ -59,11 +49,9 @@ import { NotificationSettings } from "@/features/settings/notification-settings"
 import type {
   Completion,
   Goal,
-  GoalFrequencyType,
   GoalParticipant,
   GoalShare,
   Profile,
-  RecurrenceInterval,
 } from "@/lib/goals/types";
 import { createClient } from "@/lib/supabase/client";
 
@@ -189,30 +177,6 @@ function MilestoneSummaryPills({
   );
 }
 
-interface GroupGoalDraft {
-  title: string;
-  description: string;
-  categorySelection: CategorySelection;
-  customCategory: string;
-  frequencyType: GoalFrequencyType;
-  recurrenceInterval: RecurrenceInterval;
-  targetCount: string;
-  startDate: string;
-  endDate: string;
-}
-
-const defaultGroupDraft: GroupGoalDraft = {
-  title: "",
-  description: "",
-  categorySelection: "personal",
-  customCategory: "",
-  frequencyType: "recurring",
-  recurrenceInterval: "weekly",
-  targetCount: "",
-  startDate: toLocalDateString(),
-  endDate: "",
-};
-
 export function SocialTab() {
   const supabase = useMemo(() => createClient(), []);
   const [state, setState] = useState<SocialState>(initialState);
@@ -230,7 +194,8 @@ export function SocialTab() {
     top: 0,
   });
   const [sharedMonthCursor, setSharedMonthCursor] = useState(new Date());
-  const [groupDraft, setGroupDraft] = useState<GroupGoalDraft>(defaultGroupDraft);
+  const [groupDraft, setGroupDraft] =
+    useState<GroupGoalDraft>(createDefaultGroupDraft);
   const [profileDraft, setProfileDraft] = useState({
     username: "",
     display_name: "",
@@ -544,219 +509,34 @@ export function SocialTab() {
     }));
   };
 
-  const saveProfile = async () => {
-    if (!state.userId) {
-      return;
-    }
-    setSaving(true);
-    try {
-      await updateProfile({
-        username: profileDraft.username.trim().toLowerCase(),
-        displayName: profileDraft.display_name.trim() || null,
-        avatarUrl: profileDraft.avatar_url.trim() || null,
-      });
-      toast.success("Profile saved.");
-      await loadData();
-    } catch (error) {
-      toast.error(getApiErrorMessage(error, "Profile could not be saved."));
-    }
-    setSaving(false);
-  };
+  const resetGroupDraft = useCallback(() => {
+    setGroupDraft(createDefaultGroupDraft());
+  }, []);
 
-  const shareGoalWithUser = async (targetUserId: string) => {
-    if (activeSelectedShareGoalIds.length === 0) {
-      toast.error("Select at least one goal to share.");
-      return;
-    }
-
-    const existingGoalIds = new Set(
-      state.outgoingShares
-        .filter((entry) => entry.shared_with === targetUserId)
-        .map((entry) => entry.goal_id)
-    );
-    const newGoalIds = activeSelectedShareGoalIds.filter((goalId) => !existingGoalIds.has(goalId));
-
-    if (newGoalIds.length === 0) {
-      toast("All selected goals are already shared with this user.");
-      return;
-    }
-
-    try {
-      await createGoalShares({
-        goalIds: newGoalIds,
-        sharedWithUserId: targetUserId,
-      });
-      toast.success(
-        newGoalIds.length === 1 ? "Shared 1 goal." : `Shared ${newGoalIds.length} goals.`
-      );
-      setShareMenuOpen(false);
-      await loadData();
-    } catch (error) {
-      toast.error(getApiErrorMessage(error, "Goal sharing failed."));
-    }
-  };
-
-  const revokeGoalShare = async (goalId: string, sharedWithUserId: string) => {
-    try {
-      await deleteGoalShare({ goalId, sharedWithUserId });
-      toast.success("Removed access.");
-      await loadData();
-    } catch (error) {
-      toast.error(getApiErrorMessage(error, "Share removal failed."));
-    }
-  };
-
-  const removeSharedGoalForMe = async (goalId: string) => {
-    try {
-      await deleteGoalShare({
-        goalId,
-        sharedWithUserId: state.userId,
-      });
-      toast.success("Removed from shared goals.");
-      await loadData();
-    } catch (error) {
-      toast.error(getApiErrorMessage(error, "Share removal failed."));
-    }
-  };
-
-  const inviteToGroupGoal = async (targetUserId: string) => {
-    if (!selectedGroupGoalId) {
-      toast.error("Choose a group goal first.");
-      return;
-    }
-
-    try {
-      await addGoalParticipant({
-        goalId: selectedGroupGoalId,
-        userId: targetUserId,
-        role: "participant",
-      });
-      toast.success("Participant invited.");
-      await loadData();
-    } catch (error) {
-      toast.error(getApiErrorMessage(error, "Participant invite failed."));
-    }
-  };
-
-  const createGroupGoal = async () => {
-    if (!groupDraft.title.trim()) {
-      toast.error("Group goal title is required.");
-      return;
-    }
-
-    if (!groupDraft.startDate) {
-      toast.error("Start date is required.");
-      return;
-    }
-
-    if (
-      groupDraft.categorySelection === "custom" &&
-      groupDraft.customCategory.trim().length === 0
-    ) {
-      toast.error("Custom category name is required.");
-      return;
-    }
-
-    if (
-      groupDraft.frequencyType === "fixed_milestones" &&
-      parsedGroupTargetCount === null
-    ) {
-      toast.error("Milestone group goals need a positive target.");
-      return;
-    }
-
-    const definitionIssues = validateGoalDefinition({
-      frequencyType: groupDraft.frequencyType,
-      targetCount: groupDefinitionTargetCount,
-      startDate: groupDraft.startDate,
-      endDate: groupDraft.endDate || null,
-    });
-    if (definitionIssues.length > 0) {
-      toast.error(definitionIssues[0]!.message);
-      return;
-    }
-
-    setSaving(true);
-    const newGroupGoalId = crypto.randomUUID();
-    try {
-      await createGoal({
-        addOwnerParticipant: true,
-        goal: {
-          id: newGroupGoalId,
-          title: groupDraft.title.trim(),
-          description: groupDraft.description.trim() || null,
-          category: getCategoryLabel(
-            groupDraft.categorySelection,
-            groupDraft.customCategory
-          ),
-          color: "#0ea5e9",
-          frequency_type: groupDraft.frequencyType,
-          recurrence_interval:
-            groupDraft.frequencyType === "recurring"
-              ? groupDraft.recurrenceInterval
-              : null,
-          target_count:
-            groupDraft.frequencyType === "fixed_milestones"
-              ? parsedGroupTargetCount
-              : groupDraft.frequencyType === "recurring" &&
-                  groupDraft.targetCount.trim().length > 0
-                ? parsedGroupTargetCount
-              : null,
-          start_date: groupDraft.startDate,
-          end_date: groupDraft.endDate || null,
-          default_local_time: null,
-          is_group: true,
-          is_deleted: false,
-          milestone_names: null,
-        },
-      });
-    } catch (error) {
-      toast.error(getApiErrorMessage(error, "Could not create group goal."));
-      setSaving(false);
-      return;
-    }
-
-    toast.success("Group goal created.");
-    setGroupDraft({
-      ...defaultGroupDraft,
-      startDate: toLocalDateString(),
-    });
-    await loadData();
-    setSaving(false);
-  };
-
-  const removeParticipant = async (goalId: string, participantUserId: string) => {
-    try {
-      await removeGoalParticipant({ goalId, userId: participantUserId });
-      toast.success("Participant removed.");
-      await loadData();
-    } catch (error) {
-      toast.error(getApiErrorMessage(error, "Participant removal failed."));
-    }
-  };
-
-  const leaveGroup = async (goalId: string) => {
-    try {
-      await removeGoalParticipant({ goalId, userId: state.userId });
-      toast.success("You left the group goal.");
-      await loadData();
-    } catch (error) {
-      toast.error(getApiErrorMessage(error, "Could not leave group goal."));
-    }
-  };
-
-  const deleteGroupGoal = async (goalId: string) => {
-    try {
-      await updateGoal({
-        goalId,
-        updates: { is_deleted: true },
-      });
-      toast.success("Group goal deleted.");
-      await loadData();
-    } catch (error) {
-      toast.error(getApiErrorMessage(error, "Group goal could not be deleted."));
-    }
-  };
+  const {
+    saveProfile,
+    shareGoalWithUser,
+    revokeGoalShare,
+    removeSharedGoalForMe,
+    inviteToGroupGoal,
+    createGroupGoal,
+    removeParticipant,
+    leaveGroup,
+    deleteGroupGoal,
+  } = useSocialMutations({
+    userId: state.userId,
+    profileDraft,
+    outgoingShares: state.outgoingShares,
+    activeSelectedShareGoalIds,
+    selectedGroupGoalId,
+    groupDraft,
+    parsedGroupTargetCount,
+    groupDefinitionTargetCount,
+    loadData,
+    setSaving,
+    setShareMenuOpen,
+    resetGroupDraft,
+  });
 
   if (loading) {
     return (
