@@ -133,7 +133,6 @@ export async function handleCompletionPost(request: Request) {
   if (plannerItemExpectation) {
     const result = await applyPlannerItemDateFact({
       supabase,
-      ownerId: user.id,
       goalId,
       desiredFactState,
       timezone,
@@ -165,7 +164,6 @@ export async function handleCompletionPost(request: Request) {
   if (plannerGoalExpectation) {
     const result = await applyPlannerGoalDateFact({
       supabase,
-      ownerId: user.id,
       goalId,
       date,
       desiredFactState,

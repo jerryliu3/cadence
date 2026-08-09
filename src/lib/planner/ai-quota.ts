@@ -39,8 +39,14 @@ function readQuotaLimit({
     return defaultLimit;
   }
   const parsed = Number(raw);
-  if (!Number.isSafeInteger(parsed) || parsed < 1 || parsed > maxLimit) {
+  if (!Number.isSafeInteger(parsed) || parsed < 1) {
     throw new Error(`${envVar} must be an integer between 1 and ${maxLimit}.`);
+  }
+  if (parsed > maxLimit) {
+    console.warn(
+      `[planner-ai-quota] ${envVar} exceeds provider limit ${maxLimit}; clamping.`
+    );
+    return maxLimit;
   }
   return parsed;
 }
@@ -66,10 +72,7 @@ export function readPlannerCoachQuotaLimit() {
   return readQuotaLimit({
     envVar: "CALENDAR_COACH_DAILY_LIMIT",
     defaultLimit: 20,
-    maxLimit:
-      process.env.NODE_ENV === "production"
-        ? HARD_DAILY_PROVIDER_LIMIT
-        : DEV_UNLIMITED_COACH_LIMIT,
+    maxLimit: HARD_DAILY_PROVIDER_LIMIT,
   });
 }
 

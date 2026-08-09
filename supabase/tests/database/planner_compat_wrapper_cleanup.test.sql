@@ -45,10 +45,9 @@ select is(
   'coach conversation read wrapper remains dropped'
 );
 
-select is(
-  to_regprocedure('public.save_planner_coach_conversation_service(uuid,text,text,jsonb,text)'),
-  null::regprocedure,
-  'coach conversation save wrapper remains dropped'
+select ok(
+  to_regprocedure('public.save_planner_coach_conversation_service(text,text,text,text,jsonb)') is not null,
+  'coach conversation save wrapper remains available for authenticated clients'
 );
 
 select is(

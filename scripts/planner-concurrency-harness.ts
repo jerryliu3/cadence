@@ -282,6 +282,12 @@ async function main() {
       "Race scheduled days must be available."
     );
 
+    await control.query("select set_config('request.jwt.claim.sub', $1, false)", [
+      raceOwnerId,
+    ]);
+    await control.query(
+      "select set_config('request.jwt.claim.role', 'authenticated', false)"
+    );
     const digestResult = await control.query<{ digest: string }>(
       "select public.get_planner_schedule_digest($1::uuid) as digest",
       [raceOwnerId]

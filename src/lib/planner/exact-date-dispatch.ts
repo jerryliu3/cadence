@@ -123,42 +123,29 @@ async function ensureExpectedDigest({
 
 async function applyDirectCompletionFact({
   supabase,
-  ownerId,
   goalId,
   date,
   desiredFactState,
 }: {
   supabase: ExactDateClient;
-  ownerId: string;
   goalId: string;
   date: string;
   desiredFactState: "present" | "absent";
 }) {
-  if (desiredFactState === "present") {
-    const upsertResponse = await supabase.from("completions").upsert(
-      {
-        goal_id: goalId,
-        user_id: ownerId,
-        completed_on: date,
-        source: "manual",
-      },
-      { onConflict: "goal_id,user_id,completed_on", ignoreDuplicates: true }
-    );
-    return upsertResponse.error;
-  }
-
-  const deleteResponse = await supabase
-    .from("completions")
-    .delete()
-    .eq("goal_id", goalId)
-    .eq("user_id", ownerId)
-    .eq("completed_on", date);
-  return deleteResponse.error;
+  const mutationResponse = await supabase.rpc(
+    desiredFactState === "present"
+      ? "mark_goal_complete"
+      : "unmark_goal_complete",
+    {
+      p_goal_id: goalId,
+      p_date: date,
+    }
+  );
+  return mutationResponse.error;
 }
 
 export async function applyPlannerItemDateFact({
   supabase,
-  ownerId,
   goalId,
   desiredFactState,
   timezone,
@@ -166,7 +153,6 @@ export async function applyPlannerItemDateFact({
   expectation,
 }: {
   supabase: ExactDateClient;
-  ownerId: string;
   goalId: string;
   desiredFactState: "present" | "absent";
   timezone: string;
@@ -224,7 +210,6 @@ export async function applyPlannerItemDateFact({
 
   const mutationError = await applyDirectCompletionFact({
     supabase,
-    ownerId,
     goalId,
     date: itemDate,
     desiredFactState,
@@ -249,7 +234,6 @@ export async function applyPlannerItemDateFact({
 
 export async function applyPlannerGoalDateFact({
   supabase,
-  ownerId,
   goalId,
   date,
   desiredFactState,
@@ -258,7 +242,6 @@ export async function applyPlannerGoalDateFact({
   expectation,
 }: {
   supabase: ExactDateClient;
-  ownerId: string;
   goalId: string;
   date: string;
   desiredFactState: "present" | "absent";
@@ -325,7 +308,6 @@ export async function applyPlannerGoalDateFact({
 
   const mutationError = await applyDirectCompletionFact({
     supabase,
-    ownerId,
     goalId,
     date,
     desiredFactState,
