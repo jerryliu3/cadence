@@ -26,6 +26,10 @@ export type Database = {
         }
         Returns: number
       }
+      duo_in_cohort: {
+        Args: { p_cohort_id: string; p_duo_id: string }
+        Returns: boolean
+      }
       emit_feed_event: {
         Args: {
           p_actor_id: string
@@ -117,6 +121,10 @@ export type Database = {
       }
       planner_json_depth: { Args: { p_value: Json }; Returns: number }
       planner_owner_lock_key: { Args: { p_owner: string }; Returns: number }
+      planner_schedule_digest_for_owner: {
+        Args: { p_owner: string }
+        Returns: string
+      }
       refresh_challenge_participant: {
         Args: {
           p_challenge_id: string
@@ -154,6 +162,10 @@ export type Database = {
       validate_planner_proposal_operations: {
         Args: { p_operations: Json }
         Returns: undefined
+      }
+      viewer_in_cohort: {
+        Args: { p_cohort_id: string; p_uid: string }
+        Returns: boolean
       }
       xp_cascade_multiplier: { Args: never; Returns: number }
       xp_goal_achievement_points: { Args: never; Returns: number }
@@ -263,6 +275,8 @@ export type Database = {
       }
       challenges: {
         Row: {
+          audience_kind: Database["public"]["Enums"]["social_audience_kind"]
+          cohort_id: string | null
           created_at: string
           created_by: string | null
           description: string | null
@@ -282,6 +296,8 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          audience_kind?: Database["public"]["Enums"]["social_audience_kind"]
+          cohort_id?: string | null
           created_at?: string
           created_by?: string | null
           description?: string | null
@@ -301,6 +317,8 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          audience_kind?: Database["public"]["Enums"]["social_audience_kind"]
+          cohort_id?: string | null
           created_at?: string
           created_by?: string | null
           description?: string | null
@@ -321,6 +339,13 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "challenges_cohort_id_fkey"
+            columns: ["cohort_id"]
+            isOneToOne: false
+            referencedRelation: "cohorts"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "challenges_created_by_fkey"
             columns: ["created_by"]
             isOneToOne: false
@@ -333,6 +358,86 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "goal_categories"
             referencedColumns: ["key"]
+          },
+        ]
+      }
+      cohort_members: {
+        Row: {
+          cohort_id: string
+          joined_at: string
+          role: Database["public"]["Enums"]["cohort_member_role"]
+          user_id: string
+        }
+        Insert: {
+          cohort_id: string
+          joined_at?: string
+          role?: Database["public"]["Enums"]["cohort_member_role"]
+          user_id: string
+        }
+        Update: {
+          cohort_id?: string
+          joined_at?: string
+          role?: Database["public"]["Enums"]["cohort_member_role"]
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cohort_members_cohort_id_fkey"
+            columns: ["cohort_id"]
+            isOneToOne: false
+            referencedRelation: "cohorts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cohort_members_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cohorts: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          description: string | null
+          id: string
+          is_active: boolean
+          join_code: string
+          slug: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          join_code: string
+          slug: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          join_code?: string
+          slug?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cohorts_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -905,6 +1010,7 @@ export type Database = {
       leaderboard_seasons: {
         Row: {
           closed_at: string | null
+          cohort_id: string | null
           created_at: string
           created_by: string | null
           ends_at: string | null
@@ -914,6 +1020,7 @@ export type Database = {
           next_season_id: string | null
           previous_season_id: string | null
           rollover: Database["public"]["Enums"]["leaderboard_rollover"]
+          scope: Database["public"]["Enums"]["leaderboard_scope_kind"]
           slug: string
           starts_at: string
           status: Database["public"]["Enums"]["leaderboard_season_status"]
@@ -923,6 +1030,7 @@ export type Database = {
         }
         Insert: {
           closed_at?: string | null
+          cohort_id?: string | null
           created_at?: string
           created_by?: string | null
           ends_at?: string | null
@@ -932,6 +1040,7 @@ export type Database = {
           next_season_id?: string | null
           previous_season_id?: string | null
           rollover?: Database["public"]["Enums"]["leaderboard_rollover"]
+          scope?: Database["public"]["Enums"]["leaderboard_scope_kind"]
           slug: string
           starts_at: string
           status?: Database["public"]["Enums"]["leaderboard_season_status"]
@@ -941,6 +1050,7 @@ export type Database = {
         }
         Update: {
           closed_at?: string | null
+          cohort_id?: string | null
           created_at?: string
           created_by?: string | null
           ends_at?: string | null
@@ -950,6 +1060,7 @@ export type Database = {
           next_season_id?: string | null
           previous_season_id?: string | null
           rollover?: Database["public"]["Enums"]["leaderboard_rollover"]
+          scope?: Database["public"]["Enums"]["leaderboard_scope_kind"]
           slug?: string
           starts_at?: string
           status?: Database["public"]["Enums"]["leaderboard_season_status"]
@@ -958,6 +1069,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "leaderboard_seasons_cohort_id_fkey"
+            columns: ["cohort_id"]
+            isOneToOne: false
+            referencedRelation: "cohorts"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "leaderboard_seasons_created_by_fkey"
             columns: ["created_by"]
@@ -2106,6 +2224,10 @@ export type Database = {
         Args: { p_challenge_id: string }
         Returns: boolean
       }
+      join_cohort_with_code_service: {
+        Args: { p_join_code: string }
+        Returns: string
+      }
       leave_challenge_service: {
         Args: { p_challenge_id: string }
         Returns: boolean
@@ -2212,6 +2334,7 @@ export type Database = {
         | "distinct_active_days"
         | "max_streak_days"
       challenge_status: "draft" | "scheduled" | "active" | "closed" | "archived"
+      cohort_member_role: "member" | "manager"
       completion_source: "manual" | "linked_cascade"
       duo_status:
         | "pending"
@@ -2231,6 +2354,7 @@ export type Database = {
       goal_frequency_type: "fixed_milestones" | "recurring"
       goal_partner_visibility: "shared" | "excluded"
       leaderboard_rollover: "none" | "weekly" | "monthly" | "quarterly"
+      leaderboard_scope_kind: "global" | "cohort"
       leaderboard_season_status: "upcoming" | "open" | "closed"
       moderation_action:
         | "hide"
@@ -2265,6 +2389,7 @@ export type Database = {
         | "expired"
       reaction_kind: "cheer" | "fire" | "clap" | "strong"
       recurrence_interval: "daily" | "weekly" | "monthly"
+      social_audience_kind: "global" | "cohort"
       social_subject_kind: "user" | "duo"
     }
     CompositeTypes: {
@@ -2406,6 +2531,7 @@ export const Constants = {
         "max_streak_days",
       ],
       challenge_status: ["draft", "scheduled", "active", "closed", "archived"],
+      cohort_member_role: ["member", "manager"],
       completion_source: ["manual", "linked_cascade"],
       duo_status: [
         "pending",
@@ -2427,6 +2553,7 @@ export const Constants = {
       goal_frequency_type: ["fixed_milestones", "recurring"],
       goal_partner_visibility: ["shared", "excluded"],
       leaderboard_rollover: ["none", "weekly", "monthly", "quarterly"],
+      leaderboard_scope_kind: ["global", "cohort"],
       leaderboard_season_status: ["upcoming", "open", "closed"],
       moderation_action: [
         "hide",
@@ -2464,6 +2591,7 @@ export const Constants = {
       ],
       reaction_kind: ["cheer", "fire", "clap", "strong"],
       recurrence_interval: ["daily", "weekly", "monthly"],
+      social_audience_kind: ["global", "cohort"],
       social_subject_kind: ["user", "duo"],
     },
   },

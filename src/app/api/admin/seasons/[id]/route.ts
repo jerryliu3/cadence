@@ -17,6 +17,24 @@ const patchSchema = z
     endsAt: z.iso.datetime().nullable().optional(),
     status: z.enum(["upcoming", "open", "closed"]).optional(),
     rollover: z.enum(["none", "weekly", "monthly", "quarterly"]).optional(),
+    scope: z.enum(["global", "cohort"]).optional(),
+    cohortId: z.uuid().nullable().optional(),
+  })
+  .superRefine((value, context) => {
+    if (value.scope === "cohort" && value.cohortId === undefined) {
+      context.addIssue({
+        code: "custom",
+        message: "cohortId is required when scope is cohort.",
+        path: ["cohortId"],
+      });
+    }
+    if (value.scope === "global" && value.cohortId !== undefined && value.cohortId !== null) {
+      context.addIssue({
+        code: "custom",
+        message: "cohortId must be null when scope is global.",
+        path: ["cohortId"],
+      });
+    }
   })
   .refine((value) => Object.keys(value).length > 0, {
     message: "Provide at least one field to update.",
@@ -41,6 +59,8 @@ export async function PATCH(
     if (body.endsAt !== undefined) updates.ends_at = body.endsAt;
     if (body.status !== undefined) updates.status = body.status;
     if (body.rollover !== undefined) updates.rollover = body.rollover;
+    if (body.scope !== undefined) updates.scope = body.scope;
+    if (body.cohortId !== undefined) updates.cohort_id = body.cohortId;
 
     const admin = createAdminClient();
     const { data, error } = await admin

@@ -24,6 +24,9 @@ function mapJoinRpcError(message: string) {
   if (message === "duo_required") {
     return new RouteError(409, "duo_required", "An active duo is required for this challenge.");
   }
+  if (message === "cohort_membership_required") {
+    return new RouteError(403, "cohort_membership_required", "Cohort membership is required.");
+  }
   if (message === "challenge_subject_not_supported") {
     return new RouteError(409, "challenge_subject_not_supported", "Challenge subject is unsupported.");
   }

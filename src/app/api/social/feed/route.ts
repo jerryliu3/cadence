@@ -19,6 +19,7 @@ export async function GET(request: Request) {
     const url = new URL(request.url);
     const scope = url.searchParams.get("scope") ?? "global";
     const actorId = url.searchParams.get("actorId");
+    const scopeId = url.searchParams.get("scopeId");
     const cursor = url.searchParams.get("cursor");
     const limit = Number.parseInt(url.searchParams.get("limit") ?? "30", 10);
 
@@ -32,7 +33,7 @@ export async function GET(request: Request) {
 
     const { data, error } = await context.supabase.rpc("get_social_feed", {
       p_scope: scope,
-      p_scope_id: actorId ?? undefined,
+      p_scope_id: (scopeId ?? actorId) ?? undefined,
       p_before_at: beforeAt ?? undefined,
       p_before_id: beforeId ?? undefined,
       p_limit: Number.isFinite(limit) ? limit : 30,
