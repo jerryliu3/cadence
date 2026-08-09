@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { type ReactNode, type TouchEventHandler, useMemo, useRef, useState } from "react";
 import { TabNav } from "@/components/navigation/tab-nav";
 import { Button } from "@/components/ui/button";
+import { XpLevelBadge } from "@/components/xp/xp-level-badge";
 import { unsubscribeCurrentBrowser } from "@/lib/push/client";
 import { createClient } from "@/lib/supabase/client";
 
@@ -120,16 +121,19 @@ export function AppShell({ children, userEmail }: AppShellProps) {
               <h1 className="text-2xl font-semibold tracking-tight">Goalmaxxing</h1>
               <p className="text-xs text-muted-foreground">{userEmail}</p>
             </div>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={signOut}
-              disabled={isSigningOut}
-            >
-              <LogOut className="size-4" />
-              {isSigningOut ? "Signing out..." : "Sign out"}
-            </Button>
+            <div className="flex flex-col items-end gap-2">
+              <XpLevelBadge />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={signOut}
+                disabled={isSigningOut}
+              >
+                <LogOut className="size-4" />
+                {isSigningOut ? "Signing out..." : "Sign out"}
+              </Button>
+            </div>
           </div>
           <div className="mt-4 hidden md:block">
             <TabNav />
