@@ -4,6 +4,7 @@ export interface SocialCapabilities {
   socialChallengesEnabled: boolean;
   socialLeaderboardsEnabled: boolean;
   socialDuoEnabled: boolean;
+  socialAdminEnabled: boolean;
 }
 
 function parseBooleanFlag(
@@ -55,6 +56,11 @@ export function getSocialCapabilities(): SocialCapabilities {
     socialDuoEnabled: parseBooleanFlag(
       "SOCIAL_DUO_ENABLED",
       process.env.SOCIAL_DUO_ENABLED,
+      false
+    ),
+    socialAdminEnabled: parseBooleanFlag(
+      "SOCIAL_ADMIN_ENABLED",
+      process.env.SOCIAL_ADMIN_ENABLED,
       false
     ),
   };

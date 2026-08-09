@@ -14,6 +14,7 @@ describe("getSocialCapabilities", () => {
       socialChallengesEnabled: false,
       socialLeaderboardsEnabled: false,
       socialDuoEnabled: false,
+      socialAdminEnabled: false,
     });
   });
 
@@ -23,6 +24,7 @@ describe("getSocialCapabilities", () => {
     vi.stubEnv("SOCIAL_CHALLENGES_ENABLED", "true");
     vi.stubEnv("SOCIAL_LEADERBOARDS_ENABLED", "true");
     vi.stubEnv("SOCIAL_DUO_ENABLED", "false");
+    vi.stubEnv("SOCIAL_ADMIN_ENABLED", "true");
 
     const capabilities = getSocialCapabilities();
     expect(capabilities).toEqual({
@@ -31,6 +33,7 @@ describe("getSocialCapabilities", () => {
       socialChallengesEnabled: true,
       socialLeaderboardsEnabled: true,
       socialDuoEnabled: false,
+      socialAdminEnabled: true,
     });
   });
 });
