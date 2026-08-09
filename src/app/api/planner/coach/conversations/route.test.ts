@@ -117,7 +117,7 @@ describe("planner coach conversations route", () => {
     });
   });
 
-  it("falls back to an empty list when conversation table wiring is unavailable", async () => {
+  it("returns service unavailable when conversation table wiring is unavailable", async () => {
     mocks.listConversationsResponse.mockReturnValue({
       data: null,
       error: {
@@ -135,10 +135,9 @@ describe("planner coach conversations route", () => {
       )
     );
 
-    expect(response.status).toBe(200);
+    expect(response.status).toBe(503);
     await expect(response.json()).resolves.toMatchObject({
-      schemaVersion: "1",
-      conversations: [],
+      code: "conversation_list_unavailable",
       correlationId: "test-correlation-id",
     });
   });

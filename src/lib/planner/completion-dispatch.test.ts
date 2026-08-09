@@ -136,7 +136,7 @@ describe("completion dispatch executor", () => {
     });
   });
 
-  it("executes planner item/date mutation with revision expectations", async () => {
+  it("executes planner item/date mutation with digest expectations", async () => {
     const calls: Array<{ route: string; body: Record<string, unknown> }> = [];
     const fetcher = async (route: string, init?: RequestInit) => {
       calls.push({
@@ -161,10 +161,8 @@ describe("completion dispatch executor", () => {
       timezone: "UTC",
       plannerItemExpectation: {
         itemId: "22000000-0000-4000-8000-000000000001",
-        expectedItemRevision: 7,
-        expectedCanonicalRevision: 11,
-        expectedExecutionRevision: 13,
-        expectedCreditedUnit: null,
+        expectedDigest:
+          "0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f",
       },
       fetcher: fetcher as typeof fetch,
     });
@@ -176,14 +174,17 @@ describe("completion dispatch executor", () => {
     });
     expect(calls).toEqual([
       {
-        route: "/api/planner/items/date-fact",
+        route: "/api/completions/exact-date",
         body: {
-          itemId: "22000000-0000-4000-8000-000000000001",
+          goalId: "12000000-0000-4000-8000-000000000001",
+          date: "2026-08-05",
+          timezone: "UTC",
           desiredFactState: "present",
-          expectedCreditedUnit: null,
-          expectedItemRevision: 7,
-          expectedCanonicalRevision: 11,
-          expectedExecutionRevision: 13,
+          plannerItemExpectation: {
+            itemId: "22000000-0000-4000-8000-000000000001",
+            expectedDigest:
+              "0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f",
+          },
         },
       },
     ]);
@@ -213,9 +214,8 @@ describe("completion dispatch executor", () => {
       date: "2026-08-05",
       timezone: "UTC",
       plannerGoalExpectation: {
-        planGoalId: "33000000-0000-4000-8000-000000000001",
-        expectedCanonicalRevision: 5,
-        expectedExecutionRevision: 6,
+        expectedDigest:
+          "abababababababababababababababababababababababababababababababab",
       },
       fetcher: fetcher as typeof fetch,
     });
@@ -227,13 +227,104 @@ describe("completion dispatch executor", () => {
     });
     expect(calls).toEqual([
       {
-        route: "/api/planner/goals/date-fact",
+        route: "/api/completions/exact-date",
         body: {
-          planGoalId: "33000000-0000-4000-8000-000000000001",
+          goalId: "12000000-0000-4000-8000-000000000001",
+          date: "2026-08-05",
+          timezone: "UTC",
+          desiredFactState: "present",
+          plannerGoalExpectation: {
+            expectedDigest:
+              "abababababababababababababababababababababababababababababababab",
+          },
+        },
+      },
+    ]);
+  });
+
+  it("falls back to canonical payload for item-date route without expectations", async () => {
+    const calls: Array<{ route: string; body: Record<string, unknown> }> = [];
+    const fetcher = async (route: string, init?: RequestInit) => {
+      calls.push({
+        route,
+        body: JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>,
+      });
+      return new Response(JSON.stringify({ schemaVersion: "1" }), {
+        status: 200,
+      });
+    };
+
+    const result = await executeCompletionDispatch({
+      decision: {
+        route: "item_date",
+        exactDateOnly: true,
+        allowed: true,
+        reason: "allowed",
+      },
+      desiredFactState: "present",
+      goalId: "12000000-0000-4000-8000-000000000001",
+      date: "2026-08-05",
+      timezone: "UTC",
+      fetcher: fetcher as typeof fetch,
+    });
+
+    expect(result).toEqual({
+      ok: true,
+      route: "item_date",
+      message: null,
+    });
+    expect(calls).toEqual([
+      {
+        route: "/api/completions/exact-date",
+        body: {
+          goalId: "12000000-0000-4000-8000-000000000001",
           date: "2026-08-05",
           desiredFactState: "present",
-          expectedCanonicalRevision: 5,
-          expectedExecutionRevision: 6,
+          timezone: "UTC",
+        },
+      },
+    ]);
+  });
+
+  it("falls back to canonical payload for plan-goal route without expectations", async () => {
+    const calls: Array<{ route: string; body: Record<string, unknown> }> = [];
+    const fetcher = async (route: string, init?: RequestInit) => {
+      calls.push({
+        route,
+        body: JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>,
+      });
+      return new Response(JSON.stringify({ schemaVersion: "1" }), {
+        status: 200,
+      });
+    };
+
+    const result = await executeCompletionDispatch({
+      decision: {
+        route: "plan_goal_date",
+        exactDateOnly: true,
+        allowed: true,
+        reason: "allowed",
+      },
+      desiredFactState: "absent",
+      goalId: "12000000-0000-4000-8000-000000000001",
+      date: "2026-08-05",
+      timezone: "UTC",
+      fetcher: fetcher as typeof fetch,
+    });
+
+    expect(result).toEqual({
+      ok: true,
+      route: "plan_goal_date",
+      message: null,
+    });
+    expect(calls).toEqual([
+      {
+        route: "/api/completions/exact-date",
+        body: {
+          goalId: "12000000-0000-4000-8000-000000000001",
+          date: "2026-08-05",
+          desiredFactState: "absent",
+          timezone: "UTC",
         },
       },
     ]);

@@ -79,23 +79,6 @@ function deriveConversationPreview(
   return truncateText(fallbackTitle, 180);
 }
 
-function shouldFallbackToEmptyConversationList(error: {
-  code?: string | null;
-  message?: string | null;
-  details?: string | null;
-  hint?: string | null;
-}) {
-  const code = (error.code ?? "").toUpperCase();
-  return (
-    code === "PGRST202" ||
-    code === "PGRST204" ||
-    code === "PGRST205" ||
-    code === "42883" ||
-    code === "42703" ||
-    code === "42P01"
-  );
-}
-
 export async function GET(request: Request) {
   const correlationId = createCorrelationId();
   try {
@@ -129,25 +112,6 @@ export async function GET(request: Request) {
     }
     const listResponse = await query;
     if (listResponse.error) {
-      if (shouldFallbackToEmptyConversationList(listResponse.error)) {
-        console.warn(
-          "[planner:coach] conversations fallback fired",
-          {
-            correlationId,
-            userId: routeContext.userId,
-            errorCode: listResponse.error.code,
-            errorMessage: listResponse.error.message,
-          }
-        );
-        return NextResponse.json(
-          {
-            schemaVersion: "1",
-            conversations: [],
-            correlationId,
-          },
-          { headers: { "Cache-Control": "private, no-store" } }
-        );
-      }
       throw new PlannerRouteError(
         503,
         "conversation_list_unavailable",

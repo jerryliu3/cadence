@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions, pg_catalog;
-select plan(3);
+select plan(6);
 
 set local role service_role;
 
@@ -116,6 +116,56 @@ select is(
   ),
   date_trunc('month', current_date)::date,
   'cross-month move updates existing unit instead of counting as an extra allocation'
+);
+
+select is(
+  (
+    select original_scheduled_date
+    from public.planner_items
+    where goal_id = '91100000-0000-4000-8000-000000000001'
+      and unit_key = 'unit:move'
+  ),
+  (date_trunc('month', current_date) + interval '2 day')::date,
+  'cross-month move stores original_scheduled_date from payload values'
+);
+
+select lives_ok(
+  $tap$
+  do $$
+  declare
+    v_scope_month date := date_trunc('month', current_date)::date;
+    v_digest text;
+  begin
+    v_digest := public.get_planner_schedule_digest();
+    perform *
+    from public.set_planner_schedule(
+      v_scope_month,
+      jsonb_build_array(
+        jsonb_build_object(
+          'goal_id', '91100000-0000-4000-8000-000000000001',
+          'unit_key', 'unit:move',
+          'scheduled_date', (v_scope_month + 4)::text,
+          'original_scheduled_date', (v_scope_month + 2)::text,
+          'locked', false
+        )
+      ),
+      v_digest
+    );
+  end;
+  $$;
+  $tap$,
+  'republish move accepts caller-provided original_scheduled_date anchor'
+);
+
+select is(
+  (
+    select original_scheduled_date
+    from public.planner_items
+    where goal_id = '91100000-0000-4000-8000-000000000001'
+      and unit_key = 'unit:move'
+  ),
+  (date_trunc('month', current_date) + interval '2 day')::date,
+  'republish move keeps original_scheduled_date anchored to prior published date'
 );
 
 reset role;
