@@ -109,5 +109,42 @@ describe("planner save route", () => {
       message: "Planner policy failed validation.",
       correlationId: expect.any(String),
     });
+    expect(mocks.runPlannerKernel).toHaveBeenCalledWith(
+      expect.objectContaining({
+        preserveExistingAssignments: true,
+      })
+    );
+  });
+
+  it("recomputes assignments when save includes a policy override", async () => {
+    mocks.parseBoundedJsonBody.mockResolvedValueOnce({
+      scopeMonth: "2026-08",
+      previewHash:
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      expectedDigest:
+        "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      confirmationHash: null,
+      draftCommands: [],
+      policy: createDefaultPlannerPolicy("UTC", "2026-08-01T00:00:00.000Z"),
+    });
+    mocks.runPlannerKernel.mockImplementation(() => {
+      throw new PlannerError(
+        "validation_failed",
+        400,
+        "Planner policy failed validation."
+      );
+    });
+
+    await POST(
+      new Request("http://localhost/api/planner/save", {
+        method: "POST",
+      })
+    );
+
+    expect(mocks.runPlannerKernel).toHaveBeenCalledWith(
+      expect.objectContaining({
+        preserveExistingAssignments: false,
+      })
+    );
   });
 });
