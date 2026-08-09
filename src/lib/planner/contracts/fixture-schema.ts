@@ -1,8 +1,5 @@
 import { z } from "zod";
 import {
-  MAX_COMPLETION_FACTS,
-  MAX_ELIGIBLE_GOALS,
-  MAX_POLICY_RANGES,
   MAX_WORK_UNITS,
   PLANNER_CONTRACT_VERSION,
 } from "./bounds";
@@ -241,23 +238,4 @@ export const plannerContractFixtureSchema = z.discriminatedUnion("contract", [
   solverFixtureSchema,
 ]);
 
-export const worstCaseBenchmarkSpecSchema = z
-  .object({
-    schemaVersion: z.literal(PLANNER_CONTRACT_VERSION),
-    fixture: z.literal("planner_worst_case"),
-    generatorVersion: z.literal("1"),
-    seed: z.number().int().min(0),
-    scopeMonth: monthSchema,
-    counts: z
-      .object({
-        goals: z.literal(MAX_ELIGIBLE_GOALS),
-        workUnits: z.literal(MAX_WORK_UNITS),
-        completionFacts: z.literal(MAX_COMPLETION_FACTS),
-        policyRanges: z.literal(MAX_POLICY_RANGES),
-      })
-      .strict(),
-  })
-  .strict();
-
 export type PlannerContractFixture = z.infer<typeof plannerContractFixtureSchema>;
-export type WorstCaseBenchmarkSpec = z.infer<typeof worstCaseBenchmarkSpecSchema>;

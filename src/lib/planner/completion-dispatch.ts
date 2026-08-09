@@ -56,7 +56,6 @@ export interface ExecuteCompletionDispatchInput {
 
 export interface CompletionDispatchExecutionResult {
   ok: boolean;
-  route: CompletionDispatchDecision["route"];
   message: string | null;
 }
 
@@ -194,7 +193,6 @@ export async function executeCompletionDispatch({
           : "This completion cannot be changed from here.";
     return {
       ok: false,
-      route: decision.route,
       message,
     };
   }
@@ -214,7 +212,6 @@ export async function executeCompletionDispatch({
     });
     return {
       ok: result.ok,
-      route: decision.route,
       message: result.message,
     };
   }
@@ -234,7 +231,6 @@ export async function executeCompletionDispatch({
     });
     return {
       ok: result.ok,
-      route: decision.route,
       message: result.message,
     };
   }
@@ -261,7 +257,6 @@ export async function executeCompletionDispatch({
     });
     return {
       ok: result.ok,
-      route: decision.route,
       message: result.message,
     };
   }
@@ -287,14 +282,12 @@ export async function executeCompletionDispatch({
     });
     return {
       ok: result.ok,
-      route: decision.route,
       message: result.message,
     };
   }
 
   return {
     ok: false,
-    route: decision.route,
     message: "This completion route is not supported.",
   };
 }

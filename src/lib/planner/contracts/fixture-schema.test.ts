@@ -1,17 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
-  MAX_API_BODY_BYTES,
-  MAX_COMPLETION_FACTS,
-  MAX_ELIGIBLE_GOALS,
-  MAX_POLICY_RANGES,
   MAX_WORK_UNITS,
   getSoftRefinementOperationBudget,
 } from "./bounds";
-import {
-  plannerContractFixtureSchema,
-  worstCaseBenchmarkSpecSchema,
-} from "./fixture-schema";
-import benchmarkWorstCase from "../../../../test/fixtures/planner-contracts/benchmark-worst-case.v1.json";
+import { plannerContractFixtureSchema } from "./fixture-schema";
 import completionDispatch from "../../../../test/fixtures/planner-contracts/completion-dispatch.v1.json";
 import eligibility from "../../../../test/fixtures/planner-contracts/eligibility.v1.json";
 import lifecycleOutcome from "../../../../test/fixtures/planner-contracts/lifecycle-outcome.v1.json";
@@ -178,18 +170,6 @@ describe("planner contract fixtures", () => {
 });
 
 describe("planner bounds contract", () => {
-  it("loads the deterministic worst-case fixture at every published bound", () => {
-    const spec = worstCaseBenchmarkSpecSchema.parse(benchmarkWorstCase);
-
-    expect(spec.counts).toEqual({
-      goals: MAX_ELIGIBLE_GOALS,
-      workUnits: MAX_WORK_UNITS,
-      completionFacts: MAX_COMPLETION_FACTS,
-      policyRanges: MAX_POLICY_RANGES,
-    });
-    expect(MAX_API_BODY_BYTES).toBe(3_145_728);
-  });
-
   it("caps deterministic soft refinement operations", () => {
     expect(getSoftRefinementOperationBudget(0)).toBe(500);
     expect(getSoftRefinementOperationBudget(100)).toBe(2_500);
