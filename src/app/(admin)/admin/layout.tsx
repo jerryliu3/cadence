@@ -1,0 +1,24 @@
+import { notFound, redirect } from "next/navigation";
+import type { ReactNode } from "react";
+import { RouteError } from "@/lib/api/errors";
+import { requireAdminContext } from "@/lib/api/admin-context";
+
+export default async function AdminLayout({
+  children,
+}: {
+  children: ReactNode;
+}) {
+  try {
+    const context = await requireAdminContext("moderator");
+    if (!context) {
+      notFound();
+    }
+  } catch (error) {
+    if (error instanceof RouteError && error.status === 401) {
+      redirect("/login");
+    }
+    throw error;
+  }
+
+  return <div className="mx-auto w-full max-w-5xl p-4 sm:p-6">{children}</div>;
+}
