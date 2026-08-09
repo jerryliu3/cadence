@@ -479,10 +479,21 @@ export function InsightsTab() {
         }
 
         toast.success(isSelected ? `Removed ${completionDate}.` : `Selected ${completionDate}.`);
-        await loadData({ showLoading: false, forceRefresh: true });
-        requestAnimationFrame(() => {
-          window.scrollTo({ top: currentScrollY, behavior: "auto" });
-        });
+        try {
+          await loadData({ showLoading: false, forceRefresh: true });
+          requestAnimationFrame(() => {
+            window.scrollTo({ top: currentScrollY, behavior: "auto" });
+          });
+        } catch (error) {
+          const timeoutLike =
+            error instanceof Error &&
+            error.message.toLowerCase().includes("timed out");
+          toast.error(
+            timeoutLike
+              ? "Completion updated, but calendar refresh timed out. Please refresh the page."
+              : "Completion updated, but calendar refresh failed. Please refresh the page."
+          );
+        }
       } catch (error) {
         toast.error(
           error instanceof Error ? error.message : "Completion update failed."
@@ -549,10 +560,21 @@ export function InsightsTab() {
         }
 
         toast.success(hasCompletionOnDate ? `Removed ${completionDate}.` : `Selected ${completionDate}.`);
-        await loadData({ showLoading: false, forceRefresh: true });
-        requestAnimationFrame(() => {
-          window.scrollTo({ top: currentScrollY, behavior: "auto" });
-        });
+        try {
+          await loadData({ showLoading: false, forceRefresh: true });
+          requestAnimationFrame(() => {
+            window.scrollTo({ top: currentScrollY, behavior: "auto" });
+          });
+        } catch (error) {
+          const timeoutLike =
+            error instanceof Error &&
+            error.message.toLowerCase().includes("timed out");
+          toast.error(
+            timeoutLike
+              ? "Completion updated, but calendar refresh timed out. Please refresh the page."
+              : "Completion updated, but calendar refresh failed. Please refresh the page."
+          );
+        }
       } catch (error) {
         toast.error(
           error instanceof Error ? error.message : "Completion update failed."

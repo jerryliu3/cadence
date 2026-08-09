@@ -614,10 +614,22 @@ export function TodayTab({
             : viewDate;
         toast.success(`Marked as incomplete for ${removedDate}.`);
       }
-      await loadData({ showLoading: false, forceRefresh: true });
-      requestAnimationFrame(() => {
-        window.scrollTo({ top: currentScrollY, behavior: "auto" });
-      });
+
+      try {
+        await loadData({ showLoading: false, forceRefresh: true });
+        requestAnimationFrame(() => {
+          window.scrollTo({ top: currentScrollY, behavior: "auto" });
+        });
+      } catch (error) {
+        const timeoutLike =
+          error instanceof Error &&
+          error.message.toLowerCase().includes("timed out");
+        toast.error(
+          timeoutLike
+            ? "Completion updated, but calendar refresh timed out. Please refresh the page."
+            : "Completion updated, but calendar refresh failed. Please refresh the page."
+        );
+      }
     } catch (error) {
       toast.error(
         error instanceof Error
