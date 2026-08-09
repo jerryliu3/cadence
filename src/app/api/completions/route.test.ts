@@ -46,7 +46,7 @@ function request(
   timezone = "UTC",
   extra: Record<string, unknown> = {}
 ) {
-  return new Request("http://localhost/api/completions/exact-date", {
+  return new Request("http://localhost/api/completions", {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
@@ -59,7 +59,7 @@ function request(
   });
 }
 
-describe("exact-date completion route", () => {
+describe("completions route", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-08-05T13:00:00.000Z"));

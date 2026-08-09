@@ -472,22 +472,6 @@ export function InsightsTab() {
           goalId: goal.id,
           date: completionDate,
           timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-          legacyExecutor: {
-            markPresent: async () => {
-              const { error } = await supabase.rpc("mark_goal_complete", {
-                p_goal_id: goal.id,
-                p_date: completionDate,
-              });
-              return error?.message ?? null;
-            },
-            markAbsent: async () => {
-              const { error } = await supabase.rpc("unmark_goal_complete", {
-                p_goal_id: goal.id,
-                p_date: completionDate,
-              });
-              return error?.message ?? null;
-            },
-          },
         });
 
         if (!result.ok) {
@@ -561,22 +545,6 @@ export function InsightsTab() {
           goalId: goal.id,
           date: completionDate,
           timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-          legacyExecutor: {
-            markPresent: async () => {
-              const { error } = await supabase.rpc("mark_goal_complete", {
-                p_goal_id: goal.id,
-                p_date: completionDate,
-              });
-              return error?.message ?? null;
-            },
-            markAbsent: async () => {
-              const { error } = await supabase.rpc("unmark_goal_complete", {
-                p_goal_id: goal.id,
-                p_date: completionDate,
-              });
-              return error?.message ?? null;
-            },
-          },
         });
 
         if (!result.ok) {

@@ -27,7 +27,7 @@ function errorResponse(
   );
 }
 
-export async function POST(request: Request) {
+export async function handleCompletionPost(request: Request) {
   const correlationId = randomUUID();
   const supabase = await createClient();
   const {
@@ -247,4 +247,8 @@ export async function POST(request: Request) {
     },
     { headers: { "Cache-Control": "no-store" } }
   );
+}
+
+export async function POST(request: Request) {
+  return handleCompletionPost(request);
 }

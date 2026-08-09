@@ -42,11 +42,6 @@ export interface PlannerItemDateFactExpectation
 
 export type PlannerGoalDateFactExpectation = PlannerDigestExpectation;
 
-export interface CompletionLegacyMutationExecutor {
-  markPresent: () => Promise<string | null>;
-  markAbsent: () => Promise<string | null>;
-}
-
 export interface ExecuteCompletionDispatchInput {
   decision: CompletionDispatchDecision;
   desiredFactState: "present" | "absent";
@@ -55,7 +50,6 @@ export interface ExecuteCompletionDispatchInput {
   timezone: string;
   plannerItemExpectation?: PlannerItemDateFactExpectation;
   plannerGoalExpectation?: PlannerGoalDateFactExpectation;
-  legacyExecutor?: CompletionLegacyMutationExecutor;
   fetcher?: typeof fetch;
   timeoutMs?: number;
 }
@@ -188,7 +182,6 @@ export async function executeCompletionDispatch({
   timezone,
   plannerItemExpectation,
   plannerGoalExpectation,
-  legacyExecutor,
   fetcher = fetch,
   timeoutMs = DEFAULT_COMPLETION_DISPATCH_TIMEOUT_MS,
 }: ExecuteCompletionDispatchInput): Promise<CompletionDispatchExecutionResult> {
@@ -209,7 +202,7 @@ export async function executeCompletionDispatch({
   if (decision.route === "canonical_exact_date") {
     const result = await postJsonRoute({
       fetcher,
-      route: "/api/completions/exact-date",
+      route: "/api/completions",
       body: {
         goalId,
         date,
@@ -227,38 +220,22 @@ export async function executeCompletionDispatch({
   }
 
   if (decision.route === "legacy_period") {
-    if (!legacyExecutor) {
-      return {
-        ok: false,
-        route: decision.route,
-        message: "This completion route is unavailable for the current view.",
-      };
-    }
-    let timeoutId: ReturnType<typeof setTimeout> | null = null;
-    const timeoutPromise = new Promise<string | null>((resolve) => {
-      timeoutId = setTimeout(
-        () => resolve(COMPLETION_TIMEOUT_MESSAGE),
-        timeoutMs
-      );
+    const result = await postJsonRoute({
+      fetcher,
+      route: "/api/completions",
+      body: {
+        goalId,
+        date,
+        desiredFactState,
+        timezone,
+      },
+      fallbackError: "The completion could not be updated.",
+      timeoutMs,
     });
-    const operationPromise =
-      desiredFactState === "present"
-        ? legacyExecutor.markPresent()
-        : legacyExecutor.markAbsent();
-    const safeOperationPromise = operationPromise.catch(
-      () => "The completion could not be updated."
-    );
-    const errorMessage = await Promise.race([
-      safeOperationPromise,
-      timeoutPromise,
-    ]);
-    if (timeoutId) {
-      clearTimeout(timeoutId);
-    }
     return {
-      ok: !errorMessage,
+      ok: result.ok,
       route: decision.route,
-      message: errorMessage,
+      message: result.message,
     };
   }
 
@@ -277,7 +254,7 @@ export async function executeCompletionDispatch({
     }
     const result = await postJsonRoute({
       fetcher,
-      route: "/api/completions/exact-date",
+      route: "/api/completions",
       body,
       fallbackError: "Planner completion update failed.",
       timeoutMs,
@@ -303,7 +280,7 @@ export async function executeCompletionDispatch({
     }
     const result = await postJsonRoute({
       fetcher,
-      route: "/api/completions/exact-date",
+      route: "/api/completions",
       body,
       fallbackError: "Planner completion update failed.",
       timeoutMs,
