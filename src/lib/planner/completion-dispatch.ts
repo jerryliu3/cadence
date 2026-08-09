@@ -31,6 +31,8 @@ export interface CompletionDispatchDecision {
     | "legacy_period_semantics";
 }
 
+type CompletionDispatchRoute = CompletionDispatchDecision["route"];
+
 export interface PlannerDigestExpectation {
   expectedDigest: string;
 }
@@ -78,6 +80,57 @@ function parseErrorMessage(payload: unknown, fallback: string) {
 
 function isAbortError(error: unknown) {
   return error instanceof Error && error.name === "AbortError";
+}
+
+function fallbackErrorForRoute(route: CompletionDispatchRoute) {
+  switch (route) {
+    case "canonical_exact_date":
+      return "The exact-date completion could not be updated.";
+    case "legacy_period":
+      return "The completion could not be updated.";
+    case "item_date":
+    case "plan_goal_date":
+      return "Planner completion update failed.";
+    default:
+      return null;
+  }
+}
+
+function buildCompletionDispatchBody({
+  route,
+  goalId,
+  date,
+  desiredFactState,
+  timezone,
+  plannerItemExpectation,
+  plannerGoalExpectation,
+}: {
+  route: CompletionDispatchRoute;
+  goalId: string;
+  date: string;
+  desiredFactState: "present" | "absent";
+  timezone: string;
+  plannerItemExpectation?: PlannerItemDateFactExpectation;
+  plannerGoalExpectation?: PlannerGoalDateFactExpectation;
+}) {
+  const body: Record<string, unknown> = {
+    goalId,
+    date,
+    desiredFactState,
+    timezone,
+  };
+  if (route === "item_date" && plannerItemExpectation) {
+    body.plannerItemExpectation = {
+      itemId: plannerItemExpectation.itemId,
+      expectedDigest: plannerItemExpectation.expectedDigest,
+    };
+  }
+  if (route === "plan_goal_date" && plannerGoalExpectation) {
+    body.plannerGoalExpectation = {
+      expectedDigest: plannerGoalExpectation.expectedDigest,
+    };
+  }
+  return body;
 }
 
 async function postJsonRoute({
@@ -197,97 +250,31 @@ export async function executeCompletionDispatch({
     };
   }
 
-  if (decision.route === "canonical_exact_date") {
-    const result = await postJsonRoute({
-      fetcher,
-      route: "/api/completions",
-      body: {
-        goalId,
-        date,
-        desiredFactState,
-        timezone,
-      },
-      fallbackError: "The exact-date completion could not be updated.",
-      timeoutMs,
-    });
+  const fallbackError = fallbackErrorForRoute(decision.route);
+  if (fallbackError === null) {
     return {
-      ok: result.ok,
-      message: result.message,
+      ok: false,
+      message: "This completion route is not supported.",
     };
   }
 
-  if (decision.route === "legacy_period") {
-    const result = await postJsonRoute({
-      fetcher,
-      route: "/api/completions",
-      body: {
-        goalId,
-        date,
-        desiredFactState,
-        timezone,
-      },
-      fallbackError: "The completion could not be updated.",
-      timeoutMs,
-    });
-    return {
-      ok: result.ok,
-      message: result.message,
-    };
-  }
-
-  if (decision.route === "item_date") {
-    const body: Record<string, unknown> = {
+  const result = await postJsonRoute({
+    fetcher,
+    route: "/api/completions",
+    body: buildCompletionDispatchBody({
+      route: decision.route,
       goalId,
       date,
       desiredFactState,
       timezone,
-    };
-    if (plannerItemExpectation) {
-      body.plannerItemExpectation = {
-        itemId: plannerItemExpectation.itemId,
-        expectedDigest: plannerItemExpectation.expectedDigest,
-      };
-    }
-    const result = await postJsonRoute({
-      fetcher,
-      route: "/api/completions",
-      body,
-      fallbackError: "Planner completion update failed.",
-      timeoutMs,
-    });
-    return {
-      ok: result.ok,
-      message: result.message,
-    };
-  }
-
-  if (decision.route === "plan_goal_date") {
-    const body: Record<string, unknown> = {
-      goalId,
-      date,
-      desiredFactState,
-      timezone,
-    };
-    if (plannerGoalExpectation) {
-      body.plannerGoalExpectation = {
-        expectedDigest: plannerGoalExpectation.expectedDigest,
-      };
-    }
-    const result = await postJsonRoute({
-      fetcher,
-      route: "/api/completions",
-      body,
-      fallbackError: "Planner completion update failed.",
-      timeoutMs,
-    });
-    return {
-      ok: result.ok,
-      message: result.message,
-    };
-  }
-
+      plannerItemExpectation,
+      plannerGoalExpectation,
+    }),
+    fallbackError,
+    timeoutMs,
+  });
   return {
-    ok: false,
-    message: "This completion route is not supported.",
+    ok: result.ok,
+    message: result.message,
   };
 }

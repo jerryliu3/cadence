@@ -44,13 +44,17 @@ export function normalizePlannerLocalTime(value: string | null | undefined) {
 export function resolvePlannerEffectiveScheduledTime({
   scheduledDate,
   goalDefaultLocalTime,
+  normalizedGoalDefaultLocalTime,
   scheduledTimeOverride,
 }: {
   scheduledDate: string | null;
   goalDefaultLocalTime?: string | null | undefined;
+  normalizedGoalDefaultLocalTime?: string | null | undefined;
   scheduledTimeOverride: string | null | undefined;
 }) {
-  const normalizedGoalDefault = normalizePlannerLocalTime(goalDefaultLocalTime);
+  const normalizedGoalDefault =
+    normalizedGoalDefaultLocalTime ??
+    normalizePlannerLocalTime(goalDefaultLocalTime);
   const normalizedOverride = normalizePlannerLocalTime(scheduledTimeOverride);
   const effectiveScheduledLocalTime = normalizedOverride ?? normalizedGoalDefault;
   const effectiveScheduledAtLocal =

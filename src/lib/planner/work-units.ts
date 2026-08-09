@@ -12,7 +12,10 @@ import {
   type DateWindow,
 } from "@/lib/planner/dates";
 import type { NormalizedGoalRequirement } from "@/lib/planner/requirements";
-import { resolvePlannerEffectiveScheduledTime } from "@/lib/planner/schedule-time";
+import {
+  normalizePlannerLocalTime,
+  resolvePlannerEffectiveScheduledTime,
+} from "@/lib/planner/schedule-time";
 
 export type WorkUnitClassification =
   | "fulfilled"
@@ -94,6 +97,7 @@ function createUnitBase({
   classification,
   missPolicy,
   restEligible,
+  normalizedGoalDefaultLocalTime,
   baseAssignments,
 }: {
   goal: Goal;
@@ -109,6 +113,7 @@ function createUnitBase({
   classification: WorkUnitClassification;
   missPolicy: PlannerWorkUnit["missPolicy"];
   restEligible: boolean;
+  normalizedGoalDefaultLocalTime: string | null;
   baseAssignments: Map<string, PlannerBaseAssignment>;
 }): PlannerWorkUnit {
   const base = baseAssignments.get(
@@ -120,7 +125,7 @@ function createUnitBase({
   );
   const resolvedTime = resolvePlannerEffectiveScheduledTime({
     scheduledDate: base?.scheduledDate ?? null,
-    goalDefaultLocalTime: goal.default_local_time ?? null,
+    normalizedGoalDefaultLocalTime,
     scheduledTimeOverride: base?.scheduledTimeOverride ?? null,
   });
   const hasTimeData =
@@ -216,6 +221,9 @@ export function materializeWorkUnits({
       assignment,
     ])
   );
+  const normalizedGoalDefaultLocalTime = normalizePlannerLocalTime(
+    goal.default_local_time ?? null
+  );
 
   if (
     requirement.kind === "milestone_sequence" ||
@@ -269,6 +277,7 @@ export function materializeWorkUnits({
           classification,
           missPolicy: "roll_forward",
           restEligible: true,
+          normalizedGoalDefaultLocalTime,
           baseAssignments: baseAssignmentMap,
         });
       });
@@ -333,6 +342,7 @@ export function materializeWorkUnits({
         classification,
         missPolicy: "remain_missed",
         restEligible: interval !== "daily",
+        normalizedGoalDefaultLocalTime,
         baseAssignments: baseAssignmentMap,
       })
     );
