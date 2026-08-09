@@ -9,12 +9,6 @@ describe("planner capabilities", () => {
   it("defaults to one enabled calendar capability set", () => {
     expect(getPlannerCapabilities()).toEqual({
       calendarEnabled: true,
-      plannerRead: true,
-      plannerGeneration: true,
-      plannerPlanWrites: true,
-      targetedExactCompletion: true,
-      coachAi: true,
-      overlap: true,
     });
   });
 
@@ -27,12 +21,6 @@ describe("planner capabilities", () => {
     vi.stubEnv("CALENDAR_ENABLED", "false");
     expect(getPlannerCapabilities()).toEqual({
       calendarEnabled: false,
-      plannerRead: false,
-      plannerGeneration: false,
-      plannerPlanWrites: false,
-      targetedExactCompletion: false,
-      coachAi: false,
-      overlap: false,
     });
   });
 
@@ -53,10 +41,10 @@ describe("planner capabilities", () => {
     warnSpy.mockRestore();
   });
 
-  it("keeps overlap tied to global calendar enablement", () => {
-    expect(getPlannerCapabilities().overlap).toBe(true);
+  it("keeps the global planner gate tied to calendar enablement", () => {
+    expect(getPlannerCapabilities().calendarEnabled).toBe(true);
 
     vi.stubEnv("CALENDAR_ENABLED", "false");
-    expect(getPlannerCapabilities().overlap).toBe(false);
+    expect(getPlannerCapabilities().calendarEnabled).toBe(false);
   });
 });
