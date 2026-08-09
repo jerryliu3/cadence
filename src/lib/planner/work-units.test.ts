@@ -3,6 +3,7 @@ import type { Completion, Goal } from "@/lib/goals/types";
 import { reconcilePlannerCompletions } from "@/lib/planner/reconciliation";
 import { normalizeGoalRequirement } from "@/lib/planner/requirements";
 import {
+  isEndMonthCadenceUnit,
   materializeWorkUnits,
   type PlannerBaseAssignment,
 } from "@/lib/planner/work-units";
@@ -48,6 +49,19 @@ function allOrdinals(goal: Goal) {
   );
 }
 
+function windowSpanDays(window: { start: string; end: string } | null | undefined) {
+  if (!window) {
+    return 0;
+  }
+  return (
+    Math.floor(
+      (Date.parse(`${window.end}T00:00:00Z`) -
+        Date.parse(`${window.start}T00:00:00Z`)) /
+        86_400_000
+    ) + 1
+  );
+}
+
 describe("planner work units", () => {
   it("materializes open-ended cadence goals month-locally", () => {
     const goal = buildGoal({ end_date: null });
@@ -63,15 +77,14 @@ describe("planner work units", () => {
       "cadence:2026-08-10",
       "cadence:2026-08-17",
       "cadence:2026-08-24",
-      "cadence:2026-08-31",
     ]);
     expect(units.at(-1)?.creditWindow).toEqual({
-      start: "2026-08-31",
-      end: "2026-09-06",
+      start: "2026-08-24",
+      end: "2026-08-30",
     });
   });
 
-  it("assigns boundary cadence units to their start month only", () => {
+  it("assigns boundary cadence units to the majority-month owner", () => {
     const goal = buildGoal({ end_date: null });
     const august = materializeWorkUnits({
       goal,
@@ -92,11 +105,52 @@ describe("planner work units", () => {
       (unit) => unit.unitKey === "cadence:2026-08-31"
     );
 
-    expect(boundaryInAugust?.creditWindow).toEqual({
+    expect(boundaryInAugust).toBeUndefined();
+    expect(boundaryInSeptember?.creditWindow).toEqual({
       start: "2026-08-31",
       end: "2026-09-06",
     });
-    expect(boundaryInSeptember).toBeUndefined();
+  });
+
+  it("breaks ties toward the period start month", () => {
+    expect(
+      isEndMonthCadenceUnit("2026-01", {
+        start: "2026-01-31",
+        end: "2026-02-01",
+      })
+    ).toBe(true);
+    expect(
+      isEndMonthCadenceUnit("2026-02", {
+        start: "2026-01-31",
+        end: "2026-02-01",
+      })
+    ).toBe(false);
+  });
+
+  it("avoids month-end one-day weekly stubs under majority ownership", () => {
+    const goal = buildGoal({
+      start_date: "2026-01-01",
+      end_date: null,
+    });
+    for (const scopeMonth of [
+      "2026-12",
+      "2027-01",
+      "2027-02",
+      "2027-05",
+      "2027-10",
+      "2028-01",
+    ]) {
+      const units = materializeWorkUnits({
+        goal,
+        normalizedRequirement: normalizeGoalRequirement(goal),
+        scopeMonth,
+        asOfDate: `${scopeMonth}-01`,
+        weeklyAnchor: { weekStartsOn: 0 },
+      });
+      const last = units.at(-1);
+      expect(last).toBeTruthy();
+      expect(windowSpanDays(last?.placementWindow)).toBeGreaterThanOrEqual(4);
+    }
   });
 
   it("keeps cadence unit ownership and windows stable at month boundaries", () => {
@@ -113,7 +167,6 @@ describe("planner work units", () => {
       "cadence:2026-08-10",
       "cadence:2026-08-17",
       "cadence:2026-08-24",
-      "cadence:2026-08-31",
     ]);
     expect(units[0]).toMatchObject({
       creditWindow: { start: "2026-08-03", end: "2026-08-09" },
@@ -122,8 +175,8 @@ describe("planner work units", () => {
       missPolicy: "remain_missed",
     });
     expect(units.at(-1)?.creditWindow).toEqual({
-      start: "2026-08-31",
-      end: "2026-08-31",
+      start: "2026-08-24",
+      end: "2026-08-30",
     });
   });
 
@@ -243,17 +296,17 @@ describe("planner draft move windows", () => {
     const units = materializeWorkUnits({
       goal,
       normalizedRequirement: normalizeGoalRequirement(goal),
-      scopeMonth: "2026-08",
-      asOfDate: "2026-08-01",
+      scopeMonth: "2026-09",
+      asOfDate: "2026-09-01",
     });
 
     const boundaryUnit = units.find((unit) => unit.unitKey === "cadence:2026-08-31");
     expect(boundaryUnit?.placementWindow).toEqual({
-      start: "2026-08-31",
-      end: "2026-08-31",
+      start: "2026-09-01",
+      end: "2026-09-06",
     });
     expect(boundaryUnit?.draftMoveWindow).toEqual({
-      start: "2026-08-31",
+      start: "2026-09-01",
       end: "2026-09-06",
     });
   });
