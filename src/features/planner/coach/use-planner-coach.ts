@@ -265,11 +265,17 @@ export function usePlannerCoach({
     if (activeTab !== "calendar" || !context?.scopeMonth || !context?.timezone) {
       return;
     }
-    const timer = window.setTimeout(() => {
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (cancelled) {
+        return;
+      }
       const restored = loadCoachSession(context.scopeMonth, context.timezone);
       resetCoachUiState(restored);
-    }, 0);
-    return () => window.clearTimeout(timer);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [activeTab, context?.scopeMonth, context?.timezone, resetCoachUiState]);
 
   useEffect(() => {
@@ -278,16 +284,22 @@ export function usePlannerCoach({
       !context?.scopeMonth ||
       !context?.capabilities.calendarEnabled
     ) {
-      const timer = window.setTimeout(() => {
+      queueMicrotask(() => {
         setSavedCoachConversations([]);
         setSelectedSavedCoachConversationId("");
-      }, 0);
-      return () => window.clearTimeout(timer);
+      });
+      return;
     }
-    const timer = window.setTimeout(() => {
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (cancelled) {
+        return;
+      }
       void loadSavedCoachConversations(context.scopeMonth);
-    }, 0);
-    return () => window.clearTimeout(timer);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [
     activeTab,
     context?.capabilities.calendarEnabled,

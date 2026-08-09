@@ -318,7 +318,11 @@ export function TodayTab({
 
     refreshTokenRef.current = refreshToken;
     if (isActive) {
-      const timer = window.setTimeout(() => {
+      let cancelled = false;
+      queueMicrotask(() => {
+        if (cancelled) {
+          return;
+        }
         void loadData({ showLoading: false, forceRefresh: true }).catch(
           (error: unknown) => {
             toast.error(
@@ -328,9 +332,11 @@ export function TodayTab({
             );
           }
         );
-      }, 0);
+      });
       pendingRefreshRef.current = false;
-      return () => window.clearTimeout(timer);
+      return () => {
+        cancelled = true;
+      };
     }
 
     pendingRefreshRef.current = true;
@@ -341,7 +347,11 @@ export function TodayTab({
       return;
     }
     pendingRefreshRef.current = false;
-    const timer = window.setTimeout(() => {
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (cancelled) {
+        return;
+      }
       void loadData({ showLoading: false, forceRefresh: true }).catch(
         (error: unknown) => {
           toast.error(
@@ -351,8 +361,10 @@ export function TodayTab({
           );
         }
       );
-    }, 0);
-    return () => window.clearTimeout(timer);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [isActive, loadData]);
 
   const completionsByGoal = useMemo(

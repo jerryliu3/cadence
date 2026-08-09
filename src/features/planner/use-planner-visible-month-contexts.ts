@@ -43,75 +43,72 @@ export function usePlannerVisibleMonthContexts({
       !scopeMonth ||
       visibleMonths.length === 0
     ) {
-      const resetTimer = window.setTimeout(() => {
+      queueMicrotask(() => {
         setVisibleMonthContexts((current) =>
           Object.keys(current).length === 0 ? current : {}
         );
-      }, 0);
-      return () => window.clearTimeout(resetTimer);
+      });
+      return;
     }
     if (visibleMonths.length > MAX_HORIZON_MONTHS) {
       console.error("[planner-visible-contexts] visible month window exceeded", {
         scopeMonth,
         visibleMonthCount: visibleMonths.length,
       });
-      const resetTimer = window.setTimeout(() => {
+      queueMicrotask(() => {
         setVisibleMonthContexts((current) =>
           Object.keys(current).length === 0 ? current : {}
         );
-      }, 0);
-      return () => window.clearTimeout(resetTimer);
+      });
+      return;
     }
     let cancelled = false;
     const abortController = new AbortController();
-    const timer = window.setTimeout(() => {
-      void Promise.allSettled(
-        visibleMonths.map(async (visibleMonth) => {
-          const payload = await getJson<PlannerContextPayload>("/api/planner/context", {
-            query: { scopeMonth: visibleMonth },
-            signal: abortController.signal,
-          });
-          return [
-            visibleMonth,
-            {
-              scopeMonth: payload.scopeMonth,
-              goalTitles: payload.goalTitles,
-              activePlan: payload.activePlan,
-              preview: payload.preview,
-            } satisfies PlannerVisibleMonthContextPayload,
-          ] as const;
-        })
-      )
-        .then((results) => {
-          if (cancelled) {
+    void Promise.allSettled(
+      visibleMonths.map(async (visibleMonth) => {
+        const payload = await getJson<PlannerContextPayload>("/api/planner/context", {
+          query: { scopeMonth: visibleMonth },
+          signal: abortController.signal,
+        });
+        return [
+          visibleMonth,
+          {
+            scopeMonth: payload.scopeMonth,
+            goalTitles: payload.goalTitles,
+            activePlan: payload.activePlan,
+            preview: payload.preview,
+          } satisfies PlannerVisibleMonthContextPayload,
+        ] as const;
+      })
+    )
+      .then((results) => {
+        if (cancelled) {
+          return;
+        }
+        const entries: Array<
+          readonly [string, PlannerVisibleMonthContextPayload]
+        > = [];
+        results.forEach((result, index) => {
+          if (result.status === "fulfilled") {
+            entries.push(result.value);
             return;
           }
-          const entries: Array<
-            readonly [string, PlannerVisibleMonthContextPayload]
-          > = [];
-          results.forEach((result, index) => {
-            if (result.status === "fulfilled") {
-              entries.push(result.value);
-              return;
-            }
-            const visibleMonth = visibleMonths[index] ?? null;
-            const errorMessage =
-              result.reason instanceof Error
-                ? result.reason.message
-                : String(result.reason);
-            console.error("[planner-visible-contexts] failed to load month context", {
-              scopeMonth,
-              visibleMonth,
-              error: errorMessage,
-            });
+          const visibleMonth = visibleMonths[index] ?? null;
+          const errorMessage =
+            result.reason instanceof Error
+              ? result.reason.message
+              : String(result.reason);
+          console.error("[planner-visible-contexts] failed to load month context", {
+            scopeMonth,
+            visibleMonth,
+            error: errorMessage,
           });
-          setVisibleMonthContexts(Object.fromEntries(entries));
         });
-    }, 0);
+        setVisibleMonthContexts(Object.fromEntries(entries));
+      });
     return () => {
       cancelled = true;
       abortController.abort();
-      window.clearTimeout(timer);
     };
   }, [activeTab, scopeMonth, visibleMonths]);
 

@@ -284,10 +284,16 @@ export function CalendarSurface({
   }, [activeTab, month, onMonthChange, setupTimezone]);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => {
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (cancelled) {
+        return;
+      }
       void loadContext();
-    }, 0);
-    return () => window.clearTimeout(timer);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [loadContext]);
 
   const weekStartsOn = normalizeWeekStartsOn(
