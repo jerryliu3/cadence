@@ -38,7 +38,7 @@ export function useCompletionMutation() {
       blockedMessage,
       fallbackErrorMessage,
     }: RunCompletionMutationInput): Promise<RunCompletionMutationResult> => {
-      if (!decision.allowed || decision.route === "disabled") {
+      if (!decision.allowed) {
         return {
           ok: false,
           message:
@@ -50,12 +50,8 @@ export function useCompletionMutation() {
       }
 
       try {
-        const executableDecision = decision as Extract<
-          CompletionDispatchDecision,
-          { allowed: true }
-        >;
         const result = await executeCompletionDispatch({
-          decision: executableDecision,
+          decision,
           desiredFactState,
           goalId,
           date,

@@ -21,22 +21,6 @@ export interface CompletionDispatchInput {
   desiredFactState: "present" | "absent";
 }
 
-export interface CompletionDispatchDecision {
-  route:
-    | "item_date"
-    | "plan_goal_date"
-    | "canonical_exact_date"
-    | "legacy_period"
-    | "disabled";
-  exactDateOnly: boolean;
-  allowed: boolean;
-  reason:
-    | "allowed"
-    | "satisfied_elsewhere"
-    | "future_creation"
-    | "legacy_period_semantics";
-}
-
 export interface PlannerDigestExpectation {
   expectedDigest: string;
 }
@@ -65,18 +49,29 @@ export interface CompletionDispatchExecutionResult {
   message: string | null;
 }
 
-type ExecutableCompletionRoute = Exclude<
-  CompletionDispatchDecision["route"],
-  "disabled"
->;
+type ExecutableCompletionRoute =
+  | "item_date"
+  | "plan_goal_date"
+  | "canonical_exact_date"
+  | "legacy_period";
 
-type ExecutableCompletionDispatchDecision = Omit<
-  CompletionDispatchDecision,
-  "route" | "allowed"
-> & {
+export type ExecutableCompletionDispatchDecision = {
   route: ExecutableCompletionRoute;
+  exactDateOnly: boolean;
   allowed: true;
+  reason: "allowed" | "legacy_period_semantics";
 };
+
+type BlockedCompletionDispatchDecision = {
+  route: ExecutableCompletionRoute | "disabled";
+  exactDateOnly: boolean;
+  allowed: false;
+  reason: "satisfied_elsewhere" | "future_creation";
+};
+
+export type CompletionDispatchDecision =
+  | ExecutableCompletionDispatchDecision
+  | BlockedCompletionDispatchDecision;
 
 const DEFAULT_COMPLETION_DISPATCH_TIMEOUT_MS = 15_000;
 const COMPLETION_TIMEOUT_MESSAGE =
@@ -160,11 +155,20 @@ export function resolveCompletionDispatch({
     desiredFactState === "present" &&
     !existingExactFact;
 
+  if (isFutureCreation) {
+    return {
+      route,
+      exactDateOnly: true,
+      allowed: false,
+      reason: "future_creation",
+    };
+  }
+
   return {
     route,
     exactDateOnly: true,
-    allowed: !isFutureCreation,
-    reason: isFutureCreation ? "future_creation" : "allowed",
+    allowed: true,
+    reason: "allowed",
   };
 }
 
