@@ -15,26 +15,8 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      is_valid_planner_timezone: {
-        Args: { p_timezone: string }
-        Returns: boolean
-      }
-      local_today_for_timezone: {
-        Args: { p_timezone: string }
-        Returns: string
-      }
-      planner_json_depth: { Args: { p_value: Json }; Returns: number }
       planner_owner_lock_key: { Args: { p_owner: string }; Returns: number }
       sha256_hex_digest: { Args: { p_value: string }; Returns: string }
-      validate_planner_json: {
-        Args: {
-          p_expected_type: string
-          p_max_bytes?: number
-          p_max_depth?: number
-          p_value: Json
-        }
-        Returns: boolean
-      }
     }
     Enums: {
       [_ in never]: never
