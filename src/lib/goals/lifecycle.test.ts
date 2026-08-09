@@ -91,6 +91,7 @@ describe("goal lifecycle and outcome", () => {
       completion("2026-08-15"),
       completion("2026-08-22"),
       completion("2026-08-29"),
+      completion("2026-08-31"),
     ];
 
     expect(

@@ -91,7 +91,7 @@ describe("goal progress calculations", () => {
     expect(getGoalCompletionPercentage(goal, completions)).toBe(40);
   });
 
-  it("anchors monthly expected periods to start day-of-month", () => {
+  it("anchors monthly expected periods to calendar-month boundaries", () => {
     const goal = buildGoal({
       id: "monthly-anchored-id",
       frequency_type: "recurring",
@@ -104,7 +104,7 @@ describe("goal progress calculations", () => {
     ];
 
     const percent = getGoalCompletionPercentage(goal, completions, new Date("2026-03-30T12:00:00.000Z"));
-    expect(percent).toBe(100);
+    expect(percent).toBeCloseTo(66.6667, 3);
   });
 
   it("computes overall completion as average across goals", () => {
@@ -150,7 +150,7 @@ describe("goal progress calculations", () => {
     expect(streaks.current).toBe(1);
   });
 
-  it("re-buckets weekly streaks by cutover-aware period identity", () => {
+  it("re-buckets weekly streaks by profile week-start period identity", () => {
     const goal = buildGoal({
       id: "weekly-streak-cutover",
       recurrence_interval: "weekly",
@@ -162,19 +162,18 @@ describe("goal progress calculations", () => {
     ];
 
     expect(getRecurringStreaksAtDate(goal, completions, "2026-08-18")).toEqual({
-      current: 1,
-      longest: 1,
+      current: 2,
+      longest: 2,
     });
     expect(
       getRecurringStreaksAtDate(goal, completions, "2026-08-18", {
         weeklyAnchor: {
-          weekStartsOn: 1,
-          effectiveFrom: "2026-08-17",
+          weekStartsOn: 4,
         },
       })
     ).toEqual({
-      current: 2,
-      longest: 2,
+      current: 1,
+      longest: 1,
     });
   });
 });

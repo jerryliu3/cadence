@@ -320,7 +320,7 @@ async function loadPlannerPreferences(
   const profileResponse = await supabase
     .from("profiles")
     .select(
-      "timezone,timezone_confirmed_at,week_starts_on,weekly_anchor_effective_on,rest_weekdays,blackout_ranges"
+      "timezone,timezone_confirmed_at,week_starts_on,rest_weekdays,blackout_ranges"
     )
     .eq("id", ownerId)
     .maybeSingle();

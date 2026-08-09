@@ -70,7 +70,7 @@ export function isEndMonthCadenceUnit(
   scopeMonth: string,
   creditWindow: DateWindow
 ) {
-  return intersectDateWindows(getScopeDateRange(scopeMonth), creditWindow) !== null;
+  return creditWindow.start.slice(0, 7) === scopeMonth;
 }
 
 function baseAssignmentKey(

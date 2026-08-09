@@ -426,9 +426,8 @@ export function TodayTab({
   const weeklyAnchor = useMemo(
     () => ({
       weekStartsOn: normalizeWeekStartsOn(data.progress?.weekStartsOn),
-      effectiveFrom: data.progress?.weeklyAnchorEffectiveOn ?? null,
     }),
-    [data.progress?.weekStartsOn, data.progress?.weeklyAnchorEffectiveOn]
+    [data.progress?.weekStartsOn]
   );
   // Day browsing answers "where did this goal belong on that date?" while
   // progress/outcome badges continue to show the latest known result.
@@ -1228,7 +1227,6 @@ interface GoalCardProps {
   referenceDate: Date;
   weeklyAnchor: {
     weekStartsOn: number;
-    effectiveFrom: string | null;
   };
   disabled?: boolean;
   archived?: boolean;

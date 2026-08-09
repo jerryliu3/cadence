@@ -406,7 +406,6 @@ export function runPlannerKernel(
   const policy = compiledPolicy.policy;
   const weeklyAnchorContext = {
     weekStartsOn: normalizeWeekStartsOn(policy.weekStartsOn),
-    effectiveFrom: policy.weeklyAnchorEffectiveOn ?? null,
   };
   const scopeState = getScopeState(rawInput.scopeMonth, rawInput.asOfDate);
   if (policy.timezone !== rawInput.timezone) {
