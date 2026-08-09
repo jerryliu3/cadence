@@ -97,7 +97,7 @@ describe("planner context preview route", () => {
     await expect(response.json()).resolves.toMatchObject({
       code: "validation_failed",
       message: "Planner policy failed validation.",
-      correlationId: "test-correlation-id",
+      correlationId: expect.any(String),
       details: {
         stage: "request_policy",
       },

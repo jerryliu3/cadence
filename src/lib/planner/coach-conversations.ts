@@ -74,6 +74,71 @@ export const coachConversationSummarySchema = z
   })
   .strict();
 
+export const coachConversationSummaryTableRowSchema = z
+  .object({
+    id: z.uuid(),
+    scope_month: z.string(),
+    timezone: z.string(),
+    title: z.string(),
+    preview_text: z.string(),
+    message_count: z.number().int(),
+    created_at: z.string(),
+    updated_at: z.string(),
+  })
+  .strict();
+
+export const coachConversationMessageTableRowSchema = z
+  .object({
+    ordinal: z.number().int(),
+    role: z.enum(["user", "assistant"]),
+    content: z.string(),
+    created_at: z.string(),
+    proposal_meta: z.unknown().nullable().optional(),
+  })
+  .strict();
+
+function parseProposalMeta(raw: unknown) {
+  if (raw === null || raw === undefined) {
+    return null;
+  }
+  const parsed = coachConversationProposalSchema.safeParse(raw);
+  if (!parsed.success) {
+    return null;
+  }
+  return parsed.data;
+}
+
+export function mapCoachConversationSummaryRow(
+  row: z.infer<typeof coachConversationSummaryTableRowSchema>
+) {
+  return coachConversationSummarySchema.parse({
+    id: row.id,
+    scopeMonth: row.scope_month,
+    timezone: row.timezone,
+    title: row.title,
+    previewText: row.preview_text,
+    messageCount: row.message_count,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  });
+}
+
+export function mapCoachConversationMessageRow(
+  row: z.infer<typeof coachConversationMessageTableRowSchema>,
+  index: number
+) {
+  const parsedProposal =
+    row.role === "assistant" ? parseProposalMeta(row.proposal_meta) : null;
+  return coachConversationMessageSchema.parse({
+    role: row.role,
+    content: row.content,
+    createdAt: Number.isFinite(Date.parse(row.created_at))
+      ? Date.parse(row.created_at)
+      : Date.now() + index,
+    proposal: parsedProposal ?? undefined,
+  });
+}
+
 export type CoachConversationMessageInput = z.infer<
   typeof coachConversationMessageSchema
 >;

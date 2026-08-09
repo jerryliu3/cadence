@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import webpush from "web-push";
+import { withRoute } from "@/lib/api/route";
 import { getLocalScheduleSlot } from "@/lib/push/schedule";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -211,9 +212,9 @@ async function dispatchNotifications(request: Request) {
 }
 
 export async function GET(request: Request) {
-  return dispatchNotifications(request);
+  return withRoute(async () => dispatchNotifications(request));
 }
 
 export async function POST(request: Request) {
-  return dispatchNotifications(request);
+  return withRoute(async () => dispatchNotifications(request));
 }

@@ -2,14 +2,12 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getDateInTimezone, isValidIanaTimezone } from "@/lib/dates/timezone";
 import {
-  createCorrelationId,
   parseBoundedJsonBody,
-  plannerErrorResponse,
   PlannerRouteError,
   requirePlannerAdminClient,
   requirePlannerRouteContext,
   resolveCanonicalAsOfDate,
-  unknownPlannerErrorResponse,
+  withPlannerRoute,
 } from "@/lib/planner/api";
 import { createDefaultAssessment, goalAssessmentSchema } from "@/lib/planner/assessment";
 import { canonicalHash } from "@/lib/planner/canonical";
@@ -210,8 +208,7 @@ function resolvePlannerPreview({
 }
 
 export async function GET(request: Request) {
-  const correlationId = createCorrelationId();
-  try {
+  return withPlannerRoute(async ({ correlationId }) => {
     const supabase = await createClient();
     const routeContext = await requirePlannerRouteContext({
       supabase,
@@ -246,22 +243,27 @@ export async function GET(request: Request) {
     const activeAssessmentByGoalId = new Map(
       activeAssessments.map((assessment) => [assessment.goalId, assessment])
     );
-    const {
-      asOfDate,
-      effectiveTimezone,
-      effectivePolicy,
-      preview: kernel,
-    } = resolvePlannerPreview({
-      ownerId: routeContext.userId,
-      scopeMonth: parsedQuery.data.scopeMonth,
-      requestedAsOfDate: parsedQuery.data.asOfDate,
-      requestedTimezone: parsedQuery.data.timezone,
-      snapshot,
-      assessments:
-        activeAssessments.length > 0 ? activeAssessments : undefined,
-      requireExplicitTimezone: false,
-      includeKernel: routeContext.capabilities.calendarEnabled,
-    });
+    let resolvedPreview: ReturnType<typeof resolvePlannerPreview>;
+    try {
+      resolvedPreview = resolvePlannerPreview({
+        ownerId: routeContext.userId,
+        scopeMonth: parsedQuery.data.scopeMonth,
+        requestedAsOfDate: parsedQuery.data.asOfDate,
+        requestedTimezone: parsedQuery.data.timezone,
+        snapshot,
+        assessments:
+          activeAssessments.length > 0 ? activeAssessments : undefined,
+        requireExplicitTimezone: false,
+        includeKernel: routeContext.capabilities.calendarEnabled,
+      });
+    } catch (error) {
+      if (error instanceof PlannerError) {
+        throw plannerKernelErrorToRouteError(error);
+      }
+      throw error;
+    }
+    const { asOfDate, effectiveTimezone, effectivePolicy, preview: kernel } =
+      resolvedPreview;
 
     const currentGoals = Object.fromEntries(
       snapshot.goals.map((goal) => {
@@ -285,47 +287,48 @@ export async function GET(request: Request) {
       })
     );
 
-    const staleness = snapshot.activePlan && kernel
-      ? evaluateActivePlanStaleness({
-          snapshot: {
-            planId: snapshot.activePlan.plan.id,
-            status:
-              snapshot.activePlan.plan.status === "active"
-                ? "active"
-                : snapshot.activePlan.plan.status === "dismissed"
-                  ? "dismissed"
-                  : "superseded",
-            timezone: snapshot.activePlan.plan.timezone,
-            policyFingerprint: canonicalHash(snapshot.activePlan.policy),
-            goals: Object.fromEntries(
-              snapshot.activePlan.goals.map((goal) => [
-                goal.original_goal_id,
-                toPlannerGoalSemanticSnapshot(goal),
-              ])
-            ),
-          },
-          current: {
-            timezone: effectiveTimezone,
-            policyFingerprint: canonicalHash(effectivePolicy),
-            goals: currentGoals,
-            linkedGoalIds: Array.from(
-              new Set(
-                snapshot.links.flatMap((link) => [
-                  link.sourceGoalId,
-                  link.targetGoalId,
+    const staleness =
+      snapshot.activePlan && kernel
+        ? evaluateActivePlanStaleness({
+            snapshot: {
+              planId: snapshot.activePlan.plan.id,
+              status:
+                snapshot.activePlan.plan.status === "active"
+                  ? "active"
+                  : snapshot.activePlan.plan.status === "dismissed"
+                    ? "dismissed"
+                    : "superseded",
+              timezone: snapshot.activePlan.plan.timezone,
+              policyFingerprint: canonicalHash(snapshot.activePlan.policy),
+              goals: Object.fromEntries(
+                snapshot.activePlan.goals.map((goal) => [
+                  goal.original_goal_id,
+                  toPlannerGoalSemanticSnapshot(goal),
                 ])
-              )
-            ),
-            workUnits: kernel.workUnits,
-            driftFacts: kernel.driftFacts,
-            invalidGoalIds: kernel.solver.invalidGoalIds,
-            localToday: getDateInTimezone(
-              new Date(),
-              snapshot.activePlan.plan.timezone
-            ),
-          },
-        })
-      : { status: "not_applicable", stale: false, reasons: [] };
+              ),
+            },
+            current: {
+              timezone: effectiveTimezone,
+              policyFingerprint: canonicalHash(effectivePolicy),
+              goals: currentGoals,
+              linkedGoalIds: Array.from(
+                new Set(
+                  snapshot.links.flatMap((link) => [
+                    link.sourceGoalId,
+                    link.targetGoalId,
+                  ])
+                )
+              ),
+              workUnits: kernel.workUnits,
+              driftFacts: kernel.driftFacts,
+              invalidGoalIds: kernel.solver.invalidGoalIds,
+              localToday: getDateInTimezone(
+                new Date(),
+                snapshot.activePlan.plan.timezone
+              ),
+            },
+          })
+        : { status: "not_applicable", stale: false, reasons: [] };
 
     const responsePayload = {
       schemaVersion: "1",
@@ -365,21 +368,11 @@ export async function GET(request: Request) {
     return NextResponse.json(responsePayload, {
       headers: { "Cache-Control": "private, no-store" },
     });
-  } catch (error) {
-    if (error instanceof PlannerError) {
-      const routeError = plannerKernelErrorToRouteError(error);
-      return plannerErrorResponse(routeError, correlationId);
-    }
-    if (error instanceof PlannerRouteError) {
-      return plannerErrorResponse(error, correlationId);
-    }
-    return unknownPlannerErrorResponse(correlationId);
-  }
+  });
 }
 
 export async function POST(request: Request) {
-  const correlationId = createCorrelationId();
-  try {
+  return withPlannerRoute(async ({ correlationId }) => {
     const supabase = await createClient();
     const routeContext = await requirePlannerRouteContext({
       supabase,
@@ -399,15 +392,24 @@ export async function POST(request: Request) {
       scopeMonth: body.scopeMonth,
     });
 
-    const { asOfDate, effectiveTimezone, preview } = resolvePlannerPreview({
-      ownerId: routeContext.userId,
-      scopeMonth: body.scopeMonth,
-      requestedAsOfDate: body.asOfDate,
-      requestedTimezone: body.timezone,
-      requestedPolicy: body.policy,
-      snapshot,
-      requireExplicitTimezone: true,
-    });
+    let resolvedPreview: ReturnType<typeof resolvePlannerPreview>;
+    try {
+      resolvedPreview = resolvePlannerPreview({
+        ownerId: routeContext.userId,
+        scopeMonth: body.scopeMonth,
+        requestedAsOfDate: body.asOfDate,
+        requestedTimezone: body.timezone,
+        requestedPolicy: body.policy,
+        snapshot,
+        requireExplicitTimezone: true,
+      });
+    } catch (error) {
+      if (error instanceof PlannerError) {
+        throw plannerKernelErrorToRouteError(error);
+      }
+      throw error;
+    }
+    const { asOfDate, effectiveTimezone, preview } = resolvedPreview;
 
     const responseBody = {
       schemaVersion: "1",
@@ -440,21 +442,11 @@ export async function POST(request: Request) {
     return NextResponse.json(responseBody, {
       headers: { "Cache-Control": "private, no-store" },
     });
-  } catch (error) {
-    if (error instanceof PlannerError) {
-      const routeError = plannerKernelErrorToRouteError(error);
-      return plannerErrorResponse(routeError, correlationId);
-    }
-    if (error instanceof PlannerRouteError) {
-      return plannerErrorResponse(error, correlationId);
-    }
-    return unknownPlannerErrorResponse(correlationId);
-  }
+  });
 }
 
 export async function PUT(request: Request) {
-  const correlationId = createCorrelationId();
-  try {
+  return withPlannerRoute(async ({ correlationId }) => {
     const supabase = await createClient();
     const routeContext = await requirePlannerRouteContext({
       supabase,
@@ -559,10 +551,5 @@ export async function PUT(request: Request) {
       },
       { headers: { "Cache-Control": "private, no-store" } }
     );
-  } catch (error) {
-    if (error instanceof PlannerRouteError) {
-      return plannerErrorResponse(error, correlationId);
-    }
-    return unknownPlannerErrorResponse(correlationId);
-  }
+  });
 }

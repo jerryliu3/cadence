@@ -38,7 +38,7 @@ export function useCompletionMutation() {
       blockedMessage,
       fallbackErrorMessage,
     }: RunCompletionMutationInput): Promise<RunCompletionMutationResult> => {
-      if (!decision.allowed || decision.route === "disabled") {
+      if (!decision.allowed) {
         return {
           ok: false,
           message:
