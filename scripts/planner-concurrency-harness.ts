@@ -15,6 +15,11 @@ const raceGoalId = "44000000-0000-4000-8000-000000000001";
 const xpRaceOwnerId = "55555555-5555-4555-8555-555555555555";
 const xpRaceGoalId = "55000000-0000-4000-8000-000000000001";
 const xpSocialSourceKey = "xp-concurrency-social-award";
+const duoRacePrimaryId = "66666666-6666-4666-8666-666666666666";
+const duoRacePartnerBId = "77777777-7777-4777-8777-777777777777";
+const duoRacePartnerCId = "88888888-8888-4888-8888-888888888888";
+const duoRaceDuoOneId = "66000000-0000-4000-8000-000000000001";
+const duoRaceDuoTwoId = "66000000-0000-4000-8000-000000000002";
 
 class NamedBarriers {
   private readonly barriers = new Map<
@@ -115,6 +120,7 @@ async function main() {
   ]);
   const observedOrder: string[] = [];
   const xpObservedOrder: string[] = [];
+  const duoObservedOrder: string[] = [];
 
   await Promise.all([sessionA.connect(), sessionB.connect(), control.connect()]);
 
@@ -413,6 +419,23 @@ async function main() {
       xpRaceOwnerId,
     ]);
     await control.query("delete from public.profiles where id = $1", [xpRaceOwnerId]);
+    await control.query("delete from auth.users where id = $1", [xpRaceOwnerId]);
+    await control.query(
+      `insert into auth.users (
+         id, instance_id, aud, role, email, encrypted_password,
+         email_confirmed_at, confirmation_token, recovery_token,
+         email_change_token_new, email_change_token_current,
+         reauthentication_token, email_change, raw_app_meta_data,
+         raw_user_meta_data, created_at, updated_at
+       )
+       values (
+         $1, '00000000-0000-0000-0000-000000000000',
+         'authenticated', 'authenticated', 'planner-xp-race@example.test', '',
+         now(), '', '', '', '', '', '', '{"provider":"email"}',
+         '{"username":"planner_xp_race"}', now(), now()
+       )`,
+      [xpRaceOwnerId]
+    );
     await control.query(
       `insert into public.profiles (id, username, timezone)
        values ($1, 'planner_xp_race', 'America/New_York')
@@ -571,12 +594,162 @@ async function main() {
     ]);
     await control.query("delete from public.profiles where id = $1", [xpRaceOwnerId]);
 
+    await control.query(
+      "delete from public.duos where id in ($1::uuid, $2::uuid)",
+      [duoRaceDuoOneId, duoRaceDuoTwoId]
+    );
+    await control.query(
+      "delete from public.profiles where id = any($1::uuid[])",
+      [[duoRacePrimaryId, duoRacePartnerBId, duoRacePartnerCId]]
+    );
+    await control.query(
+      "delete from auth.users where id = any($1::uuid[])",
+      [[duoRacePrimaryId, duoRacePartnerBId, duoRacePartnerCId]]
+    );
+    await control.query(
+      `insert into auth.users (
+         id, instance_id, aud, role, email, encrypted_password,
+         email_confirmed_at, confirmation_token, recovery_token,
+         email_change_token_new, email_change_token_current,
+         reauthentication_token, email_change, raw_app_meta_data,
+         raw_user_meta_data, created_at, updated_at
+       )
+       values
+       ($1, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'duo-race-a@example.test', '', now(), '', '', '', '', '', '', '{"provider":"email"}', '{"username":"duo_race_a"}', now(), now()),
+       ($2, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'duo-race-b@example.test', '', now(), '', '', '', '', '', '', '{"provider":"email"}', '{"username":"duo_race_b"}', now(), now()),
+       ($3, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'duo-race-c@example.test', '', now(), '', '', '', '', '', '', '{"provider":"email"}', '{"username":"duo_race_c"}', now(), now())`,
+      [duoRacePrimaryId, duoRacePartnerBId, duoRacePartnerCId]
+    );
+    await control.query(
+      `insert into public.profiles (id, username, timezone)
+       values
+       ($1, 'duo_race_a', 'UTC'),
+       ($2, 'duo_race_b', 'UTC'),
+       ($3, 'duo_race_c', 'UTC')
+       on conflict (id) do update
+       set timezone = excluded.timezone`,
+      [duoRacePrimaryId, duoRacePartnerBId, duoRacePartnerCId]
+    );
+    await control.query(
+      `insert into public.duos (
+         id, user_a_id, user_b_id, initiator_id, status, invited_at
+       )
+       values
+       ($1, least($2::uuid, $3::uuid), greatest($2::uuid, $3::uuid), $3, 'pending', now() - interval '2 minutes'),
+       ($4, least($2::uuid, $5::uuid), greatest($2::uuid, $5::uuid), $5, 'pending', now() - interval '1 minute')`,
+      [
+        duoRaceDuoOneId,
+        duoRacePrimaryId,
+        duoRacePartnerBId,
+        duoRaceDuoTwoId,
+        duoRacePartnerCId,
+      ]
+    );
+
+    const duoBarriers = new NamedBarriers([
+      "duo-session-a-accepted",
+      "duo-session-b-requested-lock",
+      "duo-release-session-a",
+    ]);
+    let duoSecondAcceptErrorCode: string | undefined;
+    let duoSecondAcceptErrorMessage: string | undefined;
+    const duoSessionATask = (async () => {
+      await sessionA.query("begin");
+      await sessionA.query("select set_config('request.jwt.claim.sub', $1, true)", [
+        duoRacePrimaryId,
+      ]);
+      await sessionA.query(
+        "select set_config('request.jwt.claim.role', 'authenticated', true)"
+      );
+      await sessionA.query(
+        "select public.accept_duo_invite_service($1::uuid, true) as accepted",
+        [duoRaceDuoOneId]
+      );
+      duoObservedOrder.push("duo-session-a-accepted");
+      duoBarriers.signal("duo-session-a-accepted");
+      await duoBarriers.wait("duo-release-session-a");
+      await sessionA.query("commit");
+      duoObservedOrder.push("duo-session-a-committed");
+    })();
+    const duoSessionBTask = (async () => {
+      await duoBarriers.wait("duo-session-a-accepted");
+      await sessionB.query("begin");
+      await sessionB.query("select set_config('request.jwt.claim.sub', $1, true)", [
+        duoRacePrimaryId,
+      ]);
+      await sessionB.query(
+        "select set_config('request.jwt.claim.role', 'authenticated', true)"
+      );
+      const acceptPromise = sessionB.query(
+        "select public.accept_duo_invite_service($1::uuid, true) as accepted",
+        [duoRaceDuoTwoId]
+      );
+      duoBarriers.signal("duo-session-b-requested-lock");
+      try {
+        await acceptPromise;
+        await sessionB.query("commit");
+        duoObservedOrder.push("duo-session-b-committed");
+      } catch (error) {
+        duoSecondAcceptErrorCode =
+          error instanceof pg.DatabaseError ? error.code : undefined;
+        duoSecondAcceptErrorMessage =
+          error instanceof pg.DatabaseError ? error.message : undefined;
+        duoObservedOrder.push("duo-session-b-failed");
+        await sessionB.query("rollback");
+      }
+    })();
+
+    await duoBarriers.wait("duo-session-b-requested-lock");
+    await waitForAdvisoryBlock(control, sessionBPid);
+    duoObservedOrder.push("duo-session-b-observed-blocked");
+    duoBarriers.signal("duo-release-session-a");
+    await Promise.all([duoSessionATask, duoSessionBTask]);
+
+    assert.equal(
+      duoSecondAcceptErrorCode,
+      "23514",
+      "Second concurrent duo accept should fail with a single-active invariant error."
+    );
+    assert.equal(
+      duoSecondAcceptErrorMessage,
+      "duo_already_active",
+      "Second concurrent duo accept should fail with duo_already_active."
+    );
+    const activeDuoCount = await control.query<{ count: number }>(
+      `select count(*)::integer as count
+       from public.duos
+       where status = 'active'
+         and $1 in (user_a_id, user_b_id)`,
+      [duoRacePrimaryId]
+    );
+    assert.equal(
+      activeDuoCount.rows[0]?.count,
+      1,
+      "Exactly one active duo should exist for the shared user after concurrent accepts."
+    );
+
+    await control.query(
+      "delete from public.duos where id in ($1::uuid, $2::uuid)",
+      [duoRaceDuoOneId, duoRaceDuoTwoId]
+    );
+    await control.query(
+      "delete from public.profiles where id = any($1::uuid[])",
+      [[duoRacePrimaryId, duoRacePartnerBId, duoRacePartnerCId]]
+    );
+    await control.query(
+      "delete from auth.users where id = any($1::uuid[])",
+      [[duoRacePrimaryId, duoRacePartnerBId, duoRacePartnerCId]]
+    );
+
     console.log(
       JSON.stringify({
         harness: "planner-two-session-advisory-lock",
         status: "passed",
         order: observedOrder,
         xpOrder: xpObservedOrder,
+        duoOrder: duoObservedOrder,
+        duoSecondAcceptErrorCode,
+        duoSecondAcceptErrorMessage,
         quotaAllowed: quotaAttempts.filter(
           (result) => result.rows[0]?.allowed
         ).length,
@@ -615,8 +788,25 @@ async function main() {
         xpRaceOwnerId,
       ]);
       await control.query("delete from public.profiles where id = $1", [xpRaceOwnerId]);
+      await control.query("delete from auth.users where id = $1", [xpRaceOwnerId]);
     } catch {
       // The setup may not have reached XP race fixture creation.
+    }
+    try {
+      await control.query(
+        "delete from public.duos where id in ($1::uuid, $2::uuid)",
+        [duoRaceDuoOneId, duoRaceDuoTwoId]
+      );
+      await control.query(
+        "delete from public.profiles where id = any($1::uuid[])",
+        [[duoRacePrimaryId, duoRacePartnerBId, duoRacePartnerCId]]
+      );
+      await control.query(
+        "delete from auth.users where id = any($1::uuid[])",
+        [[duoRacePrimaryId, duoRacePartnerBId, duoRacePartnerCId]]
+      );
+    } catch {
+      // The setup may not have reached duo-race fixture creation.
     }
     await Promise.all([sessionA.end(), sessionB.end(), control.end()]);
   }

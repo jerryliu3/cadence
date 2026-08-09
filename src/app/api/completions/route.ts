@@ -77,6 +77,14 @@ export async function handleCompletionPost(request: Request) {
     );
   } catch (error) {
     if (error instanceof RouteError) {
+      if (error.code === "validation_failed") {
+        return errorResponse(
+          400,
+          "validation_failed",
+          "Provide a goal, date, desired state, and valid timezone.",
+          correlationId
+        );
+      }
       return routeErrorResponse(error, correlationId);
     }
     return errorResponse(

@@ -3,6 +3,22 @@ create extension if not exists pgtap with schema extensions;
 set local search_path = public, private, extensions, pg_catalog;
 select plan(11);
 
+insert into auth.users (id, email)
+values (
+  '11111111-1111-4111-8111-111111111111',
+  'planner-quota-owner@example.com'
+)
+on conflict (id) do nothing;
+
+insert into public.profiles (id, username, timezone)
+values (
+  '11111111-1111-4111-8111-111111111111',
+  'planner_quota_owner',
+  'UTC'
+)
+on conflict (id) do update
+set timezone = excluded.timezone;
+
 delete from public.planner_ai_usage_daily
 where owner_id = '11111111-1111-4111-8111-111111111111'
   and usage_date = (clock_timestamp() at time zone 'UTC')::date

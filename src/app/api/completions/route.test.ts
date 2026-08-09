@@ -130,6 +130,34 @@ describe("completions route", () => {
     });
   });
 
+  it("returns legacy validation message without raw zod issues", async () => {
+    const response = await POST(
+      new Request("http://localhost/api/completions", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          goalId,
+          desiredFactState: "present",
+          timezone: "UTC",
+        }),
+      })
+    );
+
+    expect(response.status).toBe(400);
+    const body = (await response.json()) as {
+      code: string;
+      message: string;
+      details?: unknown;
+    };
+    expect(body).toEqual(
+      expect.objectContaining({
+        code: "validation_failed",
+        message: "Provide a goal, date, desired state, and valid timezone.",
+      })
+    );
+    expect(body.details).toBeUndefined();
+  });
+
   it("supports exact-date completion for non-targeted goals", async () => {
     mocks.maybeSingle.mockResolvedValueOnce({
       data: {

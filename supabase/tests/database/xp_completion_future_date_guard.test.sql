@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions, pg_catalog;
-select plan(3);
+select plan(4);
 
 set local role service_role;
 
@@ -54,7 +54,7 @@ select throws_ok(
       'manual'
     );
   $tap$,
-  '22023',
+  '23514',
   'future_completion_not_allowed',
   'future dated completion inserts are rejected'
 );
@@ -72,6 +72,19 @@ select lives_ok(
   'today completion insert remains allowed'
 );
 
+select lives_ok(
+  $tap$
+    insert into public.completions (goal_id, user_id, completed_on, source)
+    values (
+      'b2400000-0000-4000-8000-000000000001',
+      '11111111-1111-4111-8111-111111111111',
+      current_date - 365,
+      'manual'
+    );
+  $tap$,
+  'past out-of-window completion remains allowed for reconciliation'
+);
+
 reset role;
 set local role service_role;
 
@@ -83,7 +96,7 @@ select throws_ok(
       and user_id = '11111111-1111-4111-8111-111111111111'
       and completed_on = current_date;
   $tap$,
-  '22023',
+  '23514',
   'future_completion_not_allowed',
   'future dated completion updates are rejected'
 );

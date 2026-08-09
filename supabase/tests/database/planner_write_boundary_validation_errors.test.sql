@@ -3,6 +3,19 @@ create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions, pg_catalog;
 select plan(8);
 
+insert into auth.users (id, email)
+values
+  ('11111111-1111-4111-8111-111111111111', 'planner-write-boundary-validation-owner@example.com'),
+  ('22222222-2222-4222-8222-222222222222', 'planner-write-boundary-validation-other@example.com')
+on conflict (id) do nothing;
+
+insert into public.profiles (id, username, timezone)
+values
+  ('11111111-1111-4111-8111-111111111111', 'planner_write_boundary_validation_owner', 'UTC'),
+  ('22222222-2222-4222-8222-222222222222', 'planner_write_boundary_validation_other', 'UTC')
+on conflict (id) do update
+set timezone = excluded.timezone;
+
 set local role service_role;
 
 insert into public.goals (

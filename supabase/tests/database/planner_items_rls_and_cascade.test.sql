@@ -3,6 +3,22 @@ create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions, pg_catalog;
 select plan(9);
 
+insert into auth.users (id, email)
+values (
+  '11111111-1111-4111-8111-111111111111',
+  'planner-items-rls-owner@example.com'
+)
+on conflict (id) do nothing;
+
+insert into public.profiles (id, username, timezone)
+values (
+  '11111111-1111-4111-8111-111111111111',
+  'planner_items_owner',
+  'UTC'
+)
+on conflict (id) do update
+set timezone = excluded.timezone;
+
 set local role service_role;
 
 insert into public.goals (
