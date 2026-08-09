@@ -16,16 +16,8 @@ const noRawFetchSelectors = [
   },
 ];
 
-const noDirectSupabaseWriteSelectors = [
-  {
-    // notification_schedules is intentionally excluded in this recut and
-    // remains owned by the XP/social write-API follow-up branch.
-    selector:
-      "CallExpression[callee.property.name=/^(insert|update|upsert|delete)$/][callee.object.callee.property.name='from'][callee.object.arguments.0.type='Literal'][callee.object.arguments.0.value=/^(goals|goal_links|goal_shares|goal_participants|profiles)$/]",
-    message:
-      "Move browser-side Supabase table writes behind API route handlers.",
-  },
-];
+// Browser-write lint bans move with the XP/social write-API program.
+const noDirectSupabaseWriteSelectors = [];
 
 const eslintConfig = defineConfig([
   ...nextVitals,
