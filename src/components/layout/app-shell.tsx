@@ -5,6 +5,7 @@ import Link from "next/link";
 import { type ReactNode } from "react";
 import { TabNav } from "@/components/navigation/tab-nav";
 import { Button } from "@/components/ui/button";
+import { XpLevelBadge } from "@/components/xp/xp-level-badge";
 
 interface AppShellProps {
   children: ReactNode;
@@ -19,7 +20,8 @@ export function AppShell({ children }: AppShellProps) {
             <div className="space-y-1">
               <h1 className="text-2xl font-semibold tracking-tight">Goalmaxxing</h1>
             </div>
-            <div className="flex items-center">
+            <div className="flex flex-col items-end gap-2">
+              <XpLevelBadge />
               <Button asChild size="sm" className="hidden md:inline-flex" title="New goal">
                 <Link href="/goals/new" aria-label="New goals">
                   <Plus className="size-4" />

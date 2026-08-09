@@ -15,7 +15,34 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      goal_category_label: { Args: { p_key: string }; Returns: string }
+      goal_anchored_period_start: {
+        Args: {
+          p_anchor: string
+          p_index: number
+          p_interval: Database["public"]["Enums"]["recurrence_interval"]
+        }
+        Returns: string
+      }
+      goal_period_key: {
+        Args: {
+          p_anchor: string
+          p_interval: Database["public"]["Enums"]["recurrence_interval"]
+          p_reference: string
+        }
+        Returns: string
+      }
+      goal_xp_credited_units: {
+        Args: { p_goal_id: string; p_user_id: string }
+        Returns: {
+          completion_id: string
+          completion_source: Database["public"]["Enums"]["completion_source"]
+          earned_on: string
+          event_type: string
+          source_key: string
+          track_key: string
+          xp_amount: number
+        }[]
+      }
       is_valid_planner_timezone: {
         Args: { p_timezone: string }
         Returns: boolean
@@ -24,7 +51,6 @@ export type Database = {
         Args: { p_timezone: string }
         Returns: string
       }
-      local_today_for_user: { Args: { p_user_id: string }; Returns: string }
       normalize_goal_category_key: {
         Args: { p_category: string }
         Returns: string
@@ -35,8 +61,8 @@ export type Database = {
         Args: { p_items: Json; p_month: string; p_owner_id: string }
         Returns: boolean
       }
-      raise_if_future_completion_date: {
-        Args: { p_date: string; p_user_id: string }
+      refresh_xp_profile: {
+        Args: { p_track_keys?: string[]; p_user_id: string }
         Returns: undefined
       }
       sha256_hex_digest: { Args: { p_value: string }; Returns: string }
@@ -49,8 +75,19 @@ export type Database = {
         }
         Returns: boolean
       }
+      xp_cascade_multiplier: { Args: never; Returns: number }
+      xp_goal_achievement_points: { Args: never; Returns: number }
       xp_level_for_total: { Args: { p_total_xp: number }; Returns: number }
       xp_lock_key: { Args: { p_scope: string }; Returns: number }
+      xp_manual_completion_points: { Args: never; Returns: number }
+      xp_points_for_completion_source: {
+        Args: { p_source: Database["public"]["Enums"]["completion_source"] }
+        Returns: number
+      }
+      xp_skip_for_profile_delete: {
+        Args: { p_user_id: string }
+        Returns: boolean
+      }
     }
     Enums: {
       [_ in never]: never
@@ -274,6 +311,7 @@ export type Database = {
           recurrence_interval:
             | Database["public"]["Enums"]["recurrence_interval"]
             | null
+          reward_text: string | null
           start_date: string
           target_count: number | null
           title: string
@@ -298,6 +336,7 @@ export type Database = {
           recurrence_interval?:
             | Database["public"]["Enums"]["recurrence_interval"]
             | null
+          reward_text?: string | null
           start_date?: string
           target_count?: number | null
           title: string
@@ -322,6 +361,7 @@ export type Database = {
           recurrence_interval?:
             | Database["public"]["Enums"]["recurrence_interval"]
             | null
+          reward_text?: string | null
           start_date?: string
           target_count?: number | null
           title?: string
@@ -658,42 +698,99 @@ export type Database = {
           },
         ]
       }
+      user_awards: {
+        Row: {
+          acknowledged_at: string | null
+          id: string
+          revoked_at: string | null
+          reward_id: string
+          unlocked_at: string
+          user_id: string
+        }
+        Insert: {
+          acknowledged_at?: string | null
+          id?: string
+          revoked_at?: string | null
+          reward_id: string
+          unlocked_at?: string
+          user_id: string
+        }
+        Update: {
+          acknowledged_at?: string | null
+          id?: string
+          revoked_at?: string | null
+          reward_id?: string
+          unlocked_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_awards_reward_id_fkey"
+            columns: ["reward_id"]
+            isOneToOne: false
+            referencedRelation: "xp_rewards"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_awards_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       xp_ledger: {
         Row: {
           completion_id: string | null
+          completion_source:
+            | Database["public"]["Enums"]["completion_source"]
+            | null
           created_at: string
           earned_on: string
           entry_kind: string
+          event_type: string
           goal_id: string | null
           id: string
           metadata: Json
-          source_event_id: string | null
+          seq: number
+          source_key: string
           track_key: string
           user_id: string
           xp_delta: number
         }
         Insert: {
           completion_id?: string | null
+          completion_source?:
+            | Database["public"]["Enums"]["completion_source"]
+            | null
           created_at?: string
           earned_on: string
           entry_kind: string
+          event_type: string
           goal_id?: string | null
           id?: string
           metadata?: Json
-          source_event_id?: string | null
+          seq?: never
+          source_key: string
           track_key: string
           user_id: string
           xp_delta: number
         }
         Update: {
           completion_id?: string | null
+          completion_source?:
+            | Database["public"]["Enums"]["completion_source"]
+            | null
           created_at?: string
           earned_on?: string
           entry_kind?: string
+          event_type?: string
           goal_id?: string | null
           id?: string
           metadata?: Json
-          source_event_id?: string | null
+          seq?: never
+          source_key?: string
           track_key?: string
           user_id?: string
           xp_delta?: number
@@ -722,41 +819,101 @@ export type Database = {
           },
         ]
       }
+      xp_levels: {
+        Row: {
+          created_at: string
+          level: number
+          min_total_xp: number
+          title: string
+        }
+        Insert: {
+          created_at?: string
+          level: number
+          min_total_xp: number
+          title: string
+        }
+        Update: {
+          created_at?: string
+          level?: number
+          min_total_xp?: number
+          title?: string
+        }
+        Relationships: []
+      }
       xp_profiles: {
         Row: {
           created_at: string
           current_level: number
-          last_refreshed_at: string
-          next_level_xp: number
           total_xp: number
+          track_key: string
           updated_at: string
           user_id: string
         }
         Insert: {
           created_at?: string
-          current_level?: number
-          last_refreshed_at?: string
-          next_level_xp?: number
+          current_level: number
           total_xp?: number
+          track_key: string
           updated_at?: string
           user_id: string
         }
         Update: {
           created_at?: string
           current_level?: number
-          last_refreshed_at?: string
-          next_level_xp?: number
           total_xp?: number
+          track_key?: string
           updated_at?: string
           user_id?: string
         }
         Relationships: [
           {
+            foreignKeyName: "xp_profiles_current_level_fkey"
+            columns: ["current_level"]
+            isOneToOne: false
+            referencedRelation: "xp_levels"
+            referencedColumns: ["level"]
+          },
+          {
             foreignKeyName: "xp_profiles_user_id_fkey"
             columns: ["user_id"]
-            isOneToOne: true
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      xp_rewards: {
+        Row: {
+          created_at: string
+          id: string
+          level: number
+          reward_code: string
+          reward_description: string
+          reward_title: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          level: number
+          reward_code: string
+          reward_description: string
+          reward_title: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          level?: number
+          reward_code?: string
+          reward_description?: string
+          reward_title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "xp_rewards_level_fkey"
+            columns: ["level"]
+            isOneToOne: true
+            referencedRelation: "xp_levels"
+            referencedColumns: ["level"]
           },
         ]
       }
@@ -765,21 +922,19 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      acknowledge_user_award_service: {
+        Args: { p_award_id: string; p_user_id: string }
+        Returns: boolean
+      }
+      assert_xp_ledger_consistency_service: { Args: never; Returns: number }
       award_social_xp_service: {
         Args: {
-          p_earned_on?: string
-          p_reason?: string
-          p_source_event_id?: string
-          p_track_key?: string
+          p_event_type: string
+          p_source_key: string
           p_user_id: string
-          p_xp_delta: number
+          p_xp: number
         }
-        Returns: {
-          applied: boolean
-          current_level: number
-          next_level_xp: number
-          total_xp: number
-        }[]
+        Returns: number
       }
       can_administer_goal: {
         Args: { p_goal_id: string; p_uid: string }
@@ -834,15 +989,8 @@ export type Database = {
         Returns: undefined
       }
       recompute_goal_xp_service: {
-        Args: { p_goal_id: string; p_user_id: string }
-        Returns: {
-          current_level: number
-          delta_applied: number
-          ledger_xp: number
-          next_level_xp: number
-          target_xp: number
-          total_xp: number
-        }[]
+        Args: { p_force_zero?: boolean; p_goal_id: string; p_user_id: string }
+        Returns: number
       }
       record_planner_ai_output_tokens: {
         Args: {
@@ -852,14 +1000,6 @@ export type Database = {
           p_usage_date: string
         }
         Returns: number
-      }
-      refresh_xp_profile: {
-        Args: { p_user_id: string }
-        Returns: {
-          current_level: number
-          next_level_xp: number
-          total_xp: number
-        }[]
       }
       save_planner_coach_conversation_service: {
         Args: {

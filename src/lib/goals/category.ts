@@ -1,111 +1,267 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "@/lib/supabase/database.types";
 import { cn } from "@/lib/utils";
 
-export type CategoryPresetId = "health" | "career" | "personal" | "relationships" | "other";
-export type CategorySelection = CategoryPresetId | "custom";
-
-export const CATEGORY_PRESETS: Array<{
-  id: CategoryPresetId;
+export interface GoalCategory {
+  key: string;
   label: string;
-}> = [
-  { id: "health", label: "Health" },
-  { id: "career", label: "Career" },
-  { id: "personal", label: "Personal" },
-  { id: "relationships", label: "Relationships" },
-  { id: "other", label: "Other" },
+  aliases: string[];
+  color: string;
+  sortOrder: number;
+}
+
+export type CategoryPresetId = "health" | "career" | "personal" | "relationships" | "other";
+export type CategorySelection = string;
+
+export const CATEGORY_CUSTOM_VALUE = "custom";
+
+const GENERIC_OTHER_LABELS = new Set([
+  "other",
+  "general",
+  "misc",
+  "uncategorized",
+  "custom",
+  "test",
+]);
+
+export const DEFAULT_GOAL_CATEGORIES: GoalCategory[] = [
+  {
+    key: "personal",
+    label: "Personal",
+    aliases: ["self", "habits", "mindfulness", "home", "productivity"],
+    color: "#6366f1",
+    sortOrder: 10,
+  },
+  {
+    key: "relationships",
+    label: "Relationships",
+    aliases: ["family", "friends", "social", "community", "partner"],
+    color: "#f43f5e",
+    sortOrder: 20,
+  },
+  {
+    key: "health",
+    label: "Health",
+    aliases: ["fitness", "wellness", "wellbeing", "exercise", "workout", "nutrition", "sleep"],
+    color: "#10b981",
+    sortOrder: 30,
+  },
+  {
+    key: "career",
+    label: "Career",
+    aliases: ["work", "professional", "business", "job"],
+    color: "#8b5cf6",
+    sortOrder: 40,
+  },
+  {
+    key: "learning",
+    label: "Learning",
+    aliases: ["education", "study", "skills", "reading", "languages"],
+    color: "#3b82f6",
+    sortOrder: 50,
+  },
+  {
+    key: "finance",
+    label: "Finance",
+    aliases: ["money", "budget", "savings", "investing"],
+    color: "#ec4899",
+    sortOrder: 60,
+  },
+  {
+    key: "community",
+    label: "Community",
+    aliases: ["volunteer"],
+    color: "#14b8a6",
+    sortOrder: 70,
+  },
+  {
+    key: "other",
+    label: "Other",
+    aliases: ["general", "uncategorized", "misc", "custom", "test"],
+    color: "#64748b",
+    sortOrder: 999,
+  },
 ];
 
-const categorySwatchBySelection: Record<CategorySelection, string> = {
-  health: "#10b981",
-  career: "#8b5cf6",
-  personal: "#6366f1",
-  relationships: "#f43f5e",
-  other: "#64748b",
-  custom: "#64748b",
+export const CATEGORY_PRESETS = DEFAULT_GOAL_CATEGORIES.filter(
+  (category) => category.key !== "other"
+).map((category) => ({
+  id: category.key,
+  label: category.label,
+}));
+
+function normalizeCategoryCatalog(categories: GoalCategory[]) {
+  if (categories.length === 0) {
+    return DEFAULT_GOAL_CATEGORIES;
+  }
+
+  return [...categories].sort((left, right) => {
+    if (left.sortOrder !== right.sortOrder) {
+      return left.sortOrder - right.sortOrder;
+    }
+    return left.key.localeCompare(right.key);
+  });
+}
+
+function buildLookup(categories: GoalCategory[]) {
+  return new Map(categories.map((category) => [category.key, category]));
+}
+
+export function getCategorySelectionFromValue(category: string): {
+  selection: CategorySelection;
+  customValue: string;
 };
+export function getCategorySelectionFromValue(
+  category: string,
+  categories: GoalCategory[],
+  categoryKey?: string | null
+): {
+  selection: CategorySelection;
+  customValue: string;
+};
+export function getCategorySelectionFromValue(
+  category: string,
+  categories: GoalCategory[] = DEFAULT_GOAL_CATEGORIES,
+  categoryKey?: string | null
+): {
+  selection: CategorySelection;
+  customValue: string;
+} {
+  const normalizedCatalog = normalizeCategoryCatalog(categories);
+  const categoryLookup = buildLookup(normalizedCatalog);
+  const normalized = category.trim().toLowerCase();
 
-const presetLookup = new Map(
-  CATEGORY_PRESETS.map((preset) => [preset.id, preset.label])
-);
+  if (categoryKey) {
+    const keyed = categoryLookup.get(categoryKey);
+    if (keyed && keyed.key !== "other") {
+      return { selection: keyed.key, customValue: keyed.label };
+    }
+    if (keyed && keyed.key === "other") {
+      const resolved = resolveCategoryKey(category, normalizedCatalog);
+      if (resolved === "other" && !GENERIC_OTHER_LABELS.has(normalized) && normalized.length > 0) {
+        return {
+          selection: CATEGORY_CUSTOM_VALUE,
+          customValue: category || "",
+        };
+      }
+      return {
+        selection: "other",
+        customValue: category || keyed.label,
+      };
+    }
+  }
 
-function toCategoryKey(raw: string | null | undefined): CategoryPresetId {
-  const normalized = raw?.trim().toLowerCase();
-  if (
-    normalized === "health" ||
-    normalized === "career" ||
-    normalized === "personal" ||
-    normalized === "relationships" ||
-    normalized === "other"
-  ) {
-    return normalized;
+  const resolved = resolveCategoryKey(category, normalizedCatalog);
+  if (resolved !== "other") {
+    const resolvedCategory = categoryLookup.get(resolved);
+    return {
+      selection: resolved,
+      customValue: resolvedCategory?.label ?? category,
+    };
+  }
+
+  if (normalized.length > 0 && !GENERIC_OTHER_LABELS.has(normalized)) {
+    return {
+      selection: CATEGORY_CUSTOM_VALUE,
+      customValue: category || "",
+    };
+  }
+
+  return {
+    selection: "other",
+    customValue: category || "",
+  };
+}
+
+export function getCategoryKeyForSelection(selection: CategorySelection): string {
+  if (!selection || selection === CATEGORY_CUSTOM_VALUE) {
+    return "other";
+  }
+  return selection;
+}
+
+export function getCategoryLabel(
+  selection: CategorySelection,
+  customValue?: string,
+  categories: GoalCategory[] = DEFAULT_GOAL_CATEGORIES
+): string {
+  const normalizedCatalog = normalizeCategoryCatalog(categories);
+  const categoryLookup = buildLookup(normalizedCatalog);
+
+  if (selection === CATEGORY_CUSTOM_VALUE) {
+    const custom = customValue?.trim();
+    return custom && custom.length > 0 ? custom : "Other";
+  }
+
+  return categoryLookup.get(selection)?.label ?? "Custom";
+}
+
+export function resolveCategoryKey(
+  labelOrKey: string,
+  categories: GoalCategory[] = DEFAULT_GOAL_CATEGORIES
+): string {
+  const normalizedCatalog = normalizeCategoryCatalog(categories);
+  const normalizedInput = labelOrKey.trim().toLowerCase();
+  if (normalizedInput.length === 0) {
+    return "other";
+  }
+
+  for (const category of normalizedCatalog) {
+    if (normalizedInput === category.key.toLowerCase()) {
+      return category.key;
+    }
+    if (normalizedInput === category.label.toLowerCase()) {
+      return category.key;
+    }
+    if (category.aliases.some((alias) => alias.toLowerCase() === normalizedInput)) {
+      return category.key;
+    }
   }
 
   return "other";
 }
 
-function isOtherLabel(category: string) {
-  const normalized = category.trim().toLowerCase();
-  return normalized === "" || normalized === "other";
-}
-
-export function getCategorySelectionFromValue(
-  category: string,
-  categoryKey?: string | null
-) {
-  const key = toCategoryKey(categoryKey ?? category);
-  if (key === "other" && !isOtherLabel(category)) {
+export function getCategoryValueForWrite(
+  selection: CategorySelection,
+  customValue?: string,
+  categories: GoalCategory[] = DEFAULT_GOAL_CATEGORIES
+): {
+  category: string;
+  categoryKey: string;
+} {
+  const categoryLabel = getCategoryLabel(selection, customValue, categories);
+  if (selection === CATEGORY_CUSTOM_VALUE) {
     return {
-      selection: "custom" as const,
-      customValue: category.trim(),
+      category: categoryLabel,
+      categoryKey: "other",
     };
   }
+
   return {
-    selection: key,
-    customValue: "",
+    category: categoryLabel,
+    categoryKey: selection || "other",
   };
-}
-
-export function getCategoryKeyForSelection(selection: CategorySelection): CategoryPresetId {
-  return selection === "custom" ? "other" : selection;
-}
-
-export function getCategoryLabel(
-  selection: CategorySelection,
-  customValue?: string
-): string {
-  if (selection === "custom") {
-    const custom = customValue?.trim();
-    return custom && custom.length > 0 ? custom : "Other";
-  }
-  return presetLookup.get(selection) ?? "Other";
 }
 
 export function getGoalCategoryLabel(
   category: string,
-  categoryKey?: string | null
+  categoryKey: string | null | undefined,
+  categories: GoalCategory[] = DEFAULT_GOAL_CATEGORIES
 ) {
-  const key = toCategoryKey(categoryKey ?? category);
-  if (key === "other" && !isOtherLabel(category)) {
-    return category.trim();
+  const normalizedCatalog = normalizeCategoryCatalog(categories);
+  const categoryLookup = buildLookup(normalizedCatalog);
+  const key = categoryKey?.trim();
+  if (key && key !== "other") {
+    const fromCatalog = categoryLookup.get(key);
+    if (fromCatalog) {
+      return fromCatalog.label;
+    }
   }
-  return getCategoryLabel(key);
+  return category;
 }
 
-export function getCategoryBadgeClass(category: string): string {
-  const normalized = toCategoryKey(category);
-
-  if (normalized === "health") {
-    return cn(
-      "border-emerald-200 bg-emerald-100 text-emerald-700",
-      "dark:border-emerald-700/40 dark:bg-emerald-900/30 dark:text-emerald-200"
-    );
-  }
-
-  if (normalized === "career") {
-    return cn(
-      "border-violet-200 bg-violet-100 text-violet-700",
-      "dark:border-violet-700/40 dark:bg-violet-900/30 dark:text-violet-200"
-    );
-  }
+export function getCategoryBadgeClass(categoryKey: string): string {
+  const normalized = categoryKey.trim().toLowerCase();
 
   if (normalized === "personal") {
     return cn(
@@ -121,12 +277,79 @@ export function getCategoryBadgeClass(category: string): string {
     );
   }
 
+  if (normalized === "health") {
+    return cn(
+      "border-emerald-200 bg-emerald-100 text-emerald-700",
+      "dark:border-emerald-700/40 dark:bg-emerald-900/30 dark:text-emerald-200"
+    );
+  }
+
+  if (normalized === "career") {
+    return cn(
+      "border-violet-200 bg-violet-100 text-violet-700",
+      "dark:border-violet-700/40 dark:bg-violet-900/30 dark:text-violet-200"
+    );
+  }
+
+  if (normalized === "learning") {
+    return cn(
+      "border-blue-200 bg-blue-100 text-blue-700",
+      "dark:border-blue-700/40 dark:bg-blue-900/30 dark:text-blue-200"
+    );
+  }
+
+  if (normalized === "finance") {
+    return cn(
+      "border-pink-200 bg-pink-100 text-pink-700",
+      "dark:border-pink-700/40 dark:bg-pink-900/30 dark:text-pink-200"
+    );
+  }
+
+  if (normalized === "community") {
+    return cn(
+      "border-cyan-200 bg-cyan-100 text-cyan-700",
+      "dark:border-cyan-700/40 dark:bg-cyan-900/30 dark:text-cyan-200"
+    );
+  }
+
   return cn(
     "border-slate-200 bg-slate-100 text-slate-700",
     "dark:border-slate-700/40 dark:bg-slate-800/70 dark:text-slate-200"
   );
 }
 
-export function getCategorySwatchColor(selection: CategorySelection): string {
-  return categorySwatchBySelection[selection];
+export function getCategorySwatchColor(
+  selection: CategorySelection,
+  categories: GoalCategory[] = DEFAULT_GOAL_CATEGORIES
+): string {
+  if (selection === CATEGORY_CUSTOM_VALUE) {
+    return "#64748b";
+  }
+
+  const normalizedCatalog = normalizeCategoryCatalog(categories);
+  const categoryLookup = buildLookup(normalizedCatalog);
+  return categoryLookup.get(selection)?.color ?? "#64748b";
+}
+
+export async function fetchGoalCategories(
+  supabase: Pick<SupabaseClient<Database>, "from">
+): Promise<GoalCategory[]> {
+  const { data, error } = await supabase
+    .from("goal_categories")
+    .select("key, label, aliases, color, sort_order")
+    .order("sort_order", { ascending: true });
+
+  if (error || !data || data.length === 0) {
+    return DEFAULT_GOAL_CATEGORIES;
+  }
+
+  return normalizeCategoryCatalog(
+    data.map((row) => ({
+      key: row.key,
+      label: row.label,
+      aliases: row.aliases ?? [],
+      color: row.color ?? "#64748b",
+      sortOrder: row.sort_order,
+    }))
+  );
 }
