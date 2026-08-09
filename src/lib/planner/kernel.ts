@@ -35,7 +35,6 @@ import {
   type EligibilityGoal,
   type EligibilityReason,
 } from "@/lib/planner/eligibility";
-import { PlannerError } from "@/lib/planner/errors";
 import {
   computeGenerationInputHash,
   type PlannerCanonicalLink,
@@ -70,6 +69,23 @@ import {
   type PlannerBaseAssignment,
   type PlannerWorkUnit,
 } from "@/lib/planner/work-units";
+
+export type PlannerErrorCode =
+  | "validation_failed"
+  | "plan_too_large"
+  | "invariant_failed";
+
+export class PlannerError extends Error {
+  constructor(
+    readonly code: PlannerErrorCode,
+    readonly httpStatus: number,
+    message: string,
+    readonly details?: Record<string, unknown>
+  ) {
+    super(message);
+    this.name = "PlannerError";
+  }
+}
 
 export interface PlannerKernelInput {
   schemaVersion: typeof PLANNER_CONTRACT_VERSION;
