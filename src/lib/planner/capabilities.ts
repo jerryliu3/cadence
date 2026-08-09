@@ -1,11 +1,5 @@
 export interface PlannerCapabilities {
   calendarEnabled: boolean;
-  plannerRead: boolean;
-  plannerGeneration: boolean;
-  plannerPlanWrites: boolean;
-  targetedExactCompletion: boolean;
-  coachAi: boolean;
-  overlap: boolean;
 }
 
 function parseBoolean(
@@ -38,14 +32,7 @@ function evaluateCapability(flagName: string, defaultValue = false) {
 
 export function getPlannerCapabilities(): PlannerCapabilities {
   const calendarEnabled = evaluateCapability("CALENDAR_ENABLED", true);
-  const overlap = calendarEnabled;
   return {
     calendarEnabled,
-    plannerRead: calendarEnabled,
-    plannerGeneration: calendarEnabled,
-    plannerPlanWrites: calendarEnabled,
-    targetedExactCompletion: calendarEnabled,
-    coachAi: calendarEnabled,
-    overlap,
   };
 }
