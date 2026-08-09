@@ -161,6 +161,17 @@ function compileCalendarItemIntents({
   let sequence = 0;
   let outOfScopeCount = 0;
   let unsupportedCount = 0;
+  const pushCommand = (command: Record<string, unknown>) => {
+    sequence += 1;
+    draftCommands.push(
+      plannerDraftCommandSchema.parse({
+        id: buildCoachDraftCommandId(sequence),
+        sequence,
+        ...command,
+      })
+    );
+    return 1;
+  };
 
   for (const rawItem of items) {
     const parsedItem = calendarIntentItemSchema.safeParse(rawItem);
@@ -179,57 +190,36 @@ function compileCalendarItemIntents({
       if (item.scheduledDate === null) {
         hadUnsupportedField = true;
       } else {
-        sequence += 1;
-        draftCommands.push(
-          plannerDraftCommandSchema.parse({
-            id: buildCoachDraftCommandId(sequence),
-            sequence,
-            kind: "move_item",
-            goalId: item.goalId,
-            unitKey: item.unitKey,
-            scheduledDate: item.scheduledDate,
-          })
-        );
-        compiledForItem += 1;
+        compiledForItem += pushCommand({
+          kind: "move_item",
+          goalId: item.goalId,
+          unitKey: item.unitKey,
+          scheduledDate: item.scheduledDate,
+        });
       }
     }
     if (item.label !== undefined) {
-      sequence += 1;
-      draftCommands.push(
-        plannerDraftCommandSchema.parse({
-          id: buildCoachDraftCommandId(sequence),
-          sequence,
-          kind: "rename_item",
-          goalId: item.goalId,
-          unitKey: item.unitKey,
-          label: item.label,
-        })
-      );
-      compiledForItem += 1;
+      compiledForItem += pushCommand({
+        kind: "rename_item",
+        goalId: item.goalId,
+        unitKey: item.unitKey,
+        label: item.label,
+      });
     }
     if (item.localTime !== undefined) {
-      sequence += 1;
-      draftCommands.push(
-        plannerDraftCommandSchema.parse(
-          item.localTime === null
-            ? {
-                id: buildCoachDraftCommandId(sequence),
-                sequence,
-                kind: "clear_item_time_override",
-                goalId: item.goalId,
-                unitKey: item.unitKey,
-              }
-            : {
-                id: buildCoachDraftCommandId(sequence),
-                sequence,
-                kind: "set_item_time_override",
-                goalId: item.goalId,
-                unitKey: item.unitKey,
-                localTime: item.localTime,
-              }
-        )
-      );
-      compiledForItem += 1;
+      compiledForItem +=
+        item.localTime === null
+          ? pushCommand({
+              kind: "clear_item_time_override",
+              goalId: item.goalId,
+              unitKey: item.unitKey,
+            })
+          : pushCommand({
+              kind: "set_item_time_override",
+              goalId: item.goalId,
+              unitKey: item.unitKey,
+              localTime: item.localTime,
+            });
     }
     if (compiledForItem === 0 || hadUnsupportedField) {
       unsupportedCount += 1;
