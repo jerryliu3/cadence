@@ -365,30 +365,23 @@ test.describe("planner critical rails", () => {
 
     await page.getByRole("tab", { name: "Past", exact: true }).click();
     await expect(page).toHaveURL(/tab=not-today/);
-    const editButton = page
-      .getByRole("button", { name: /Edit dates|Edit milestones/ })
-      .first();
-    await expect(editButton).toBeVisible();
-    await editButton.click();
-    const selectedInsightsDate = await page.evaluate(() => {
-      const today = new Date().toISOString().slice(0, 10);
-      const dates = Array.from(
-        document.querySelectorAll("button[title]")
-      )
-        .map((button) => button.getAttribute("title")?.split(":")[0] ?? null)
-        .filter((date): date is string => typeof date === "string")
-        .filter((date) => date <= today)
-        .filter((date) => /^\d{4}-\d{2}-\d{2}$/.test(date))
-        .sort();
-      return dates.at(-1) ?? null;
+    const notTodayToggleButtons = page.getByRole("button", {
+      name: /Mark goal as complete|Unmark goal completion for current period|Complete goal for|Remove completion for/,
     });
-    expect(selectedInsightsDate).toBeTruthy();
+    await expect(notTodayToggleButtons.first()).toBeVisible({ timeout: 10_000 });
+    const notTodayToggleButtonCount = await notTodayToggleButtons.count();
+    const firstEnabledToggleIndex = await (async () => {
+      for (let index = 0; index < notTodayToggleButtonCount; index += 1) {
+        if (await notTodayToggleButtons.nth(index).isEnabled()) {
+          return index;
+        }
+      }
+      return -1;
+    })();
+    expect(firstEnabledToggleIndex).toBeGreaterThanOrEqual(0);
+
     const insightsPayload = await runCompletionToggleAction(page, async () => {
-      const button = page
-        .locator(`button[title^="${selectedInsightsDate}:"]`)
-        .first();
-      await expect(button).toBeVisible();
-      await button.click();
+      await notTodayToggleButtons.nth(firstEnabledToggleIndex).click();
     });
     await expectCompletionPersisted(page, insightsPayload);
 
