@@ -1,5 +1,10 @@
 import type { GoalProgressSnapshot } from "@/lib/goals/progress";
 import type { CompletionDateFact } from "@/lib/goals/types";
+import {
+  getApiErrorMessage,
+  getJson,
+  isApiClientTransportError,
+} from "@/lib/api/client";
 
 export interface ProgressContextResponse {
   schemaVersion: "1";
@@ -22,13 +27,39 @@ export interface ProgressContextRequest {
 
 const PROGRESS_CONTEXT_CACHE_TTL_MS = 15_000;
 const PROGRESS_CONTEXT_REQUEST_TIMEOUT_MS = 15_000;
+const PROGRESS_CONTEXT_TIMEOUT_MESSAGE =
+  "Goal progress request timed out. Please try again.";
 const progressContextCache = new Map<
   string,
   { expiresAt: number; payload: ProgressContextResponse }
 >();
 
-function isAbortError(error: unknown) {
-  return error instanceof Error && error.name === "AbortError";
+function buildProgressContextQuery({
+  asOfDate,
+  timezone,
+  viewDate,
+  factsFrom,
+  factsTo,
+}: Pick<
+  ProgressContextRequest,
+  "asOfDate" | "timezone" | "viewDate" | "factsFrom" | "factsTo"
+>) {
+  const query = new URLSearchParams({ asOfDate, timezone: timezone ?? "UTC" });
+  if (viewDate) {
+    query.set("viewDate", viewDate);
+  }
+  if (factsFrom && factsTo) {
+    query.set("factsFrom", factsFrom);
+    query.set("factsTo", factsTo);
+  }
+  return query;
+}
+
+function isProgressContextResponse(payload: unknown): payload is ProgressContextResponse {
+  if (!payload || typeof payload !== "object") {
+    return false;
+  }
+  return "summaries" in payload && "facts" in payload;
 }
 
 export async function fetchProgressContext({
@@ -39,50 +70,35 @@ export async function fetchProgressContext({
   factsTo,
   forceRefresh = false,
 }: ProgressContextRequest): Promise<ProgressContextResponse> {
-  const search = new URLSearchParams({ asOfDate, timezone });
-  if (viewDate) {
-    search.set("viewDate", viewDate);
-  }
-  if (factsFrom && factsTo) {
-    search.set("factsFrom", factsFrom);
-    search.set("factsTo", factsTo);
-  }
-  const cacheKey = search.toString();
+  const query = buildProgressContextQuery({
+    asOfDate,
+    timezone,
+    viewDate,
+    factsFrom,
+    factsTo,
+  });
+  const cacheKey = query.toString();
   const cached = progressContextCache.get(cacheKey);
   if (!forceRefresh && cached && cached.expiresAt > Date.now()) {
     return cached.payload;
   }
 
-  const controller = new AbortController();
-  const timeoutId = setTimeout(
-    () => controller.abort(),
-    PROGRESS_CONTEXT_REQUEST_TIMEOUT_MS
-  );
-  let response: Response;
+  let payload: ProgressContextResponse;
   try {
-    response = await fetch(`/api/progress/context?${search.toString()}`, {
-      credentials: "same-origin",
-      cache: "no-store",
-      signal: controller.signal,
+    payload = await getJson<ProgressContextResponse>("/api/progress/context", {
+      query,
+      timeoutMs: PROGRESS_CONTEXT_REQUEST_TIMEOUT_MS,
     });
   } catch (error) {
-    if (isAbortError(error)) {
-      throw new Error("Goal progress request timed out. Please try again.");
+    if (isApiClientTransportError(error) && error.reason === "timeout") {
+      throw new Error(PROGRESS_CONTEXT_TIMEOUT_MESSAGE);
     }
-    throw new Error("Goal progress could not be loaded.");
-  } finally {
-    clearTimeout(timeoutId);
-  }
-  const payload = (await response.json()) as
-    | ProgressContextResponse
-    | { code?: string; message?: string; correlationId?: string };
-
-  if (!response.ok || !("summaries" in payload)) {
     throw new Error(
-      "message" in payload && payload.message
-        ? payload.message
-        : "Goal progress could not be loaded."
+      getApiErrorMessage(error, "Goal progress could not be loaded.")
     );
+  }
+  if (!isProgressContextResponse(payload)) {
+    throw new Error("Goal progress response was malformed.");
   }
   if (payload.truncated !== false) {
     throw new Error("Goal progress response was unexpectedly truncated.");

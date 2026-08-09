@@ -65,13 +65,13 @@ import type {
   GoalParticipant,
 } from "@/lib/goals/types";
 import {
-  executeCompletionDispatch,
   resolveCompletionDispatch,
 } from "@/lib/planner/completion-dispatch";
 import {
   getGoalRequirement,
   isTargetedRecurringGoal,
 } from "@/lib/planner/requirements";
+import { useCompletionMutation } from "@/features/planner/use-completion-mutation";
 import { createClient } from "@/lib/supabase/client";
 
 interface TodayData {
@@ -235,6 +235,7 @@ export function TodayTab({
   const refreshTokenRef = useRef(refreshToken);
   const pendingRefreshRef = useRef(false);
   const effectiveChecklistTab = activeTab ?? internalChecklistTab;
+  const runCompletionMutation = useCompletionMutation();
 
   const viewDateObj = useMemo(() => parseISO(viewDate), [viewDate]);
   const todayLocalDate = toLocalDateString();
@@ -626,15 +627,6 @@ export function TodayTab({
       desiredFactState,
     });
 
-    if (!decision.allowed) {
-      toast.error(
-        decision.reason === "future_creation"
-          ? "You can only complete goals for today or past dates."
-          : "This completion cannot be changed from this date."
-      );
-      return;
-    }
-
     setSavingGoalId(goal.id);
     const currentScrollY = window.scrollY;
     const routeDesiredFactState =
@@ -648,49 +640,48 @@ export function TodayTab({
         ? completionToUnmark?.completed_on ?? viewDate
         : viewDate;
 
+    const result = await runCompletionMutation({
+      decision,
+      desiredFactState: routeDesiredFactState,
+      goalId: goal.id,
+      date: dispatchDate,
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      blockedMessage:
+        decision.reason === "future_creation"
+          ? "You can only complete goals for today or past dates."
+          : "This completion cannot be changed from this date.",
+      fallbackErrorMessage: "The completion could not be updated.",
+    });
+
+    if (!result.ok) {
+      toast.error(result.message ?? "The completion could not be updated.");
+      setSavingGoalId(null);
+      return;
+    }
+
+    if (routeDesiredFactState === "present") {
+      toast.success(`Great work. Goal completed for ${viewDate}.`);
+    } else {
+      const removedDate =
+        decision.route === "legacy_period"
+          ? completionToUnmark?.completed_on ?? viewDate
+          : viewDate;
+      toast.success(`Marked as incomplete for ${removedDate}.`);
+    }
+
     try {
-      const result = await executeCompletionDispatch({
-        decision,
-        desiredFactState: routeDesiredFactState,
-        goalId: goal.id,
-        date: dispatchDate,
-        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      await loadData({ showLoading: false, forceRefresh: true });
+      requestAnimationFrame(() => {
+        window.scrollTo({ top: currentScrollY, behavior: "auto" });
       });
-
-      if (!result.ok) {
-        toast.error(
-          result.message ?? "The completion could not be updated."
-        );
-        return;
-      }
-
-      if (routeDesiredFactState === "present") {
-        toast.success(`Great work. Goal completed for ${viewDate}.`);
-      } else {
-        const removedDate =
-          decision.route === "legacy_period"
-            ? completionToUnmark?.completed_on ?? viewDate
-            : viewDate;
-        toast.success(`Marked as incomplete for ${removedDate}.`);
-      }
-
-      try {
-        await loadData({ showLoading: false, forceRefresh: true });
-        requestAnimationFrame(() => {
-          window.scrollTo({ top: currentScrollY, behavior: "auto" });
-        });
-      } catch (error) {
-        toast.error(
-          isAbortError(error)
-            ? "Completion updated, but calendar refresh timed out. Please refresh the page."
-            : "Completion updated, but calendar refresh failed. Please refresh the page."
-        );
-      }
     } catch (error) {
+      const timeoutLike =
+        error instanceof Error &&
+        error.message.toLowerCase().includes("timed out");
       toast.error(
-        error instanceof Error
-          ? error.message
-          : "The completion could not be updated."
+        timeoutLike
+          ? "Completion updated, but calendar refresh timed out. Please refresh the page."
+          : "Completion updated, but calendar refresh failed. Please refresh the page."
       );
     } finally {
       setSavingGoalId(null);

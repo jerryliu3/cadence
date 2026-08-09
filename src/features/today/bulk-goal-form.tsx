@@ -31,6 +31,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { getApiErrorMessage, postJson } from "@/lib/api/client";
 import { toLocalDateString } from "@/lib/dates/day";
 import {
   CATEGORY_PRESETS,
@@ -547,30 +548,19 @@ export function BulkGoalForm() {
 
     setParsing(true);
     try {
-      const response = await fetch("/api/bulk-goals/parse", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          prompt: trimmed,
-          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-        }),
-      });
-
-      const payload = (await response.json()) as {
+      const payload = await postJson<{
         goals?: LlmGoalDraftPayload[];
         warnings?: string[];
         code?: string;
         message?: string;
         correlationId?: string;
-      };
-
-      if (!response.ok) {
-        throw new Error(
-          payload.message ?? "Could not parse natural language input."
-        );
-      }
+      }>(
+        "/api/bulk-goals/parse",
+        {
+          prompt: trimmed,
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        }
+      );
 
       const goals = payload.goals ?? [];
       if (goals.length === 0) {
@@ -602,9 +592,7 @@ export function BulkGoalForm() {
         );
       }
     } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : "Could not parse natural language input."
-      );
+      toast.error(getApiErrorMessage(error, "Could not parse natural language input."));
     } finally {
       setParsing(false);
     }
