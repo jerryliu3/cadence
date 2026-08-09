@@ -187,6 +187,7 @@ begin
       row.goal_id,
       btrim(row.unit_key) as unit_key,
       row.scheduled_date,
+      coalesce(row.original_scheduled_date, row.scheduled_date) as original_scheduled_date,
       nullif(btrim(row.scheduled_time), '') as scheduled_time,
       coalesce(row.locked, false) as locked
     from jsonb_to_recordset(p_items) as row(
@@ -203,6 +204,7 @@ begin
       item.goal_id,
       item.unit_key,
       item.scheduled_date,
+      coalesce(item.original_scheduled_date, item.scheduled_date) as original_scheduled_date,
       item.scheduled_time,
       item.locked
     from public.planner_items item
