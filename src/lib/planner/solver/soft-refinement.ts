@@ -1,6 +1,7 @@
 import { differenceInDateStrings } from "@/lib/goals/periods";
 import { compareCanonicalStrings } from "@/lib/planner/canonical";
 import type {
+  SolverSolveIntent,
   SolverAssignment,
   SolverUnit,
 } from "@/lib/planner/solver/types";
@@ -127,11 +128,13 @@ export function refineDailyLoadVariance({
   units: rawUnits,
   assignments,
   operationBudget,
+  solveIntent: _solveIntent = "stable",
 }: {
   dates: string[];
   units: SolverUnit[];
   assignments: SolverAssignment[];
   operationBudget: number;
+  solveIntent?: SolverSolveIntent;
 }): SoftRefinementResult {
   const dates = Array.from(new Set(rawDates)).sort();
   const units = [...rawUnits].sort((left, right) => {

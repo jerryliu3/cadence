@@ -27,6 +27,7 @@ export interface PlannerCanonicalLink {
 
 export interface GenerationHashInput {
   eligibilityMode: PlannerEligibilityMode;
+  solveIntent: "stable" | "replan";
   scopeMonth: string;
   asOfDate: string;
   timezone: string;
@@ -48,6 +49,7 @@ export function computeGenerationInputHash(input: GenerationHashInput) {
     versions: {
       plannerContract: PLANNER_CONTRACT_VERSION,
       eligibilityMode: input.eligibilityMode,
+      solveIntent: input.solveIntent,
       scheduler: SCHEDULER_VERSION,
       requirementSchema: REQUIREMENT_SCHEMA_VERSION,
       assessmentSchema: ASSESSMENT_SCHEMA_VERSION,

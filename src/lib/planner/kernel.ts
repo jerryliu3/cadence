@@ -92,6 +92,7 @@ export interface PlannerKernelInput {
   schemaVersion: typeof PLANNER_CONTRACT_VERSION;
   eligibilityMode: PlannerEligibilityMode;
   preserveExistingAssignments?: boolean;
+  solveIntent?: "stable" | "replan";
   ownerId: string;
   scopeMonth: string;
   asOfDate: string;
@@ -113,6 +114,7 @@ export interface PlannerKernelInput {
 export interface PlannerKernelOutput {
   schemaVersion: typeof PLANNER_CONTRACT_VERSION;
   eligibilityMode: PlannerEligibilityMode;
+  solveIntent: "stable" | "replan";
   generationInputHash: string;
   scopeState: "historical" | "current" | "future";
   solver: PlannerSolverResult;
@@ -407,6 +409,7 @@ export function runPlannerKernel(
   const weeklyAnchorContext = {
     weekStartsOn: normalizeWeekStartsOn(policy.weekStartsOn),
   };
+  const solveIntent = rawInput.solveIntent ?? "stable";
   const scopeState = getScopeState(rawInput.scopeMonth, rawInput.asOfDate);
   if (policy.timezone !== rawInput.timezone) {
     throw new PlannerError(
@@ -681,11 +684,13 @@ export function runPlannerKernel(
     completionDatesByGoal,
     preserveExistingAssignments:
       rawInput.preserveExistingAssignments === true,
+    solveIntent,
   });
   const dates = enumerateDates(getScopeDateRange(rawInput.scopeMonth));
   const solver = solveOrderedDpV1({
     dates,
     units: solverUnits,
+    solveIntent,
   });
   const historicalIssueCodes: PlannerIssueCode[] = [];
   if (
@@ -793,6 +798,7 @@ export function runPlannerKernel(
   );
   const generationInputHash = computeGenerationInputHash({
     eligibilityMode: rawInput.eligibilityMode,
+    solveIntent,
     scopeMonth: rawInput.scopeMonth,
     asOfDate: rawInput.asOfDate,
     timezone: rawInput.timezone,
@@ -815,6 +821,7 @@ export function runPlannerKernel(
   const output: PlannerKernelOutput = {
     schemaVersion: PLANNER_CONTRACT_VERSION,
     eligibilityMode: rawInput.eligibilityMode,
+    solveIntent,
     generationInputHash,
     scopeState,
     solver,

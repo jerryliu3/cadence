@@ -2,6 +2,7 @@ export type SolverRequirementKind =
   | "milestone_sequence"
   | "cadence"
   | "deadline_total";
+export type SolverSolveIntent = "stable" | "replan";
 
 export interface SolverUnit {
   unitKey: string;

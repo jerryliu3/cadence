@@ -44,6 +44,7 @@ const publishSchema = z.object({
   policy: z.unknown().optional(),
   eligibilityMode: z.enum(PLANNER_ELIGIBILITY_MODES).optional(),
   draftCommands: z.array(plannerDraftCommandSchema).max(4000).default([]),
+  solveIntent: z.enum(["stable", "replan"]).default("stable"),
 });
 
 function plannerKernelErrorToRouteError(error: PlannerError) {
@@ -89,6 +90,7 @@ export async function handlePlannerSave(request: Request) {
         })()
       : null;
     const draftCommands = body.draftCommands;
+    const solveIntent = body.solveIntent;
     const effectiveEligibilityMode =
       body.eligibilityMode ?? PLANNER_ELIGIBILITY_MODES[0];
 
@@ -144,6 +146,7 @@ export async function handlePlannerSave(request: Request) {
         assessments,
         policy: effectivePolicy,
         basePlan: snapshot.activePlan?.basePlan ?? null,
+        solveIntent,
       });
     } catch (error) {
       if (error instanceof PlannerError) {
