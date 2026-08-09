@@ -306,12 +306,14 @@ export type Database = {
           default_local_time: string | null
           description: string | null
           end_date: string | null
+          feed_visibility: Database["public"]["Enums"]["goal_feed_visibility"]
           frequency_type: Database["public"]["Enums"]["goal_frequency_type"]
           id: string
           is_deleted: boolean
           is_group: boolean
           milestone_names: string[] | null
           owner_id: string
+          partner_visibility: Database["public"]["Enums"]["goal_partner_visibility"]
           photo_path: string | null
           recurrence_interval:
             | Database["public"]["Enums"]["recurrence_interval"]
@@ -331,12 +333,14 @@ export type Database = {
           default_local_time?: string | null
           description?: string | null
           end_date?: string | null
+          feed_visibility?: Database["public"]["Enums"]["goal_feed_visibility"]
           frequency_type: Database["public"]["Enums"]["goal_frequency_type"]
           id?: string
           is_deleted?: boolean
           is_group?: boolean
           milestone_names?: string[] | null
           owner_id: string
+          partner_visibility?: Database["public"]["Enums"]["goal_partner_visibility"]
           photo_path?: string | null
           recurrence_interval?:
             | Database["public"]["Enums"]["recurrence_interval"]
@@ -356,12 +360,14 @@ export type Database = {
           default_local_time?: string | null
           description?: string | null
           end_date?: string | null
+          feed_visibility?: Database["public"]["Enums"]["goal_feed_visibility"]
           frequency_type?: Database["public"]["Enums"]["goal_frequency_type"]
           id?: string
           is_deleted?: boolean
           is_group?: boolean
           milestone_names?: string[] | null
           owner_id?: string
+          partner_visibility?: Database["public"]["Enums"]["goal_partner_visibility"]
           photo_path?: string | null
           recurrence_interval?:
             | Database["public"]["Enums"]["recurrence_interval"]
@@ -630,7 +636,13 @@ export type Database = {
           created_at: string
           display_name: string | null
           id: string
+          leaderboard_banned_at: string | null
           rest_weekdays: number[]
+          social_activity_visible: boolean
+          social_challenge_eligible: boolean
+          social_discoverable: boolean
+          social_leaderboard_eligible: boolean
+          social_visibility_updated_at: string
           timezone: string
           timezone_confirmed_at: string | null
           username: string
@@ -642,7 +654,13 @@ export type Database = {
           created_at?: string
           display_name?: string | null
           id: string
+          leaderboard_banned_at?: string | null
           rest_weekdays?: number[]
+          social_activity_visible?: boolean
+          social_challenge_eligible?: boolean
+          social_discoverable?: boolean
+          social_leaderboard_eligible?: boolean
+          social_visibility_updated_at?: string
           timezone?: string
           timezone_confirmed_at?: string | null
           username: string
@@ -654,7 +672,13 @@ export type Database = {
           created_at?: string
           display_name?: string | null
           id?: string
+          leaderboard_banned_at?: string | null
           rest_weekdays?: number[]
+          social_activity_visible?: boolean
+          social_challenge_eligible?: boolean
+          social_discoverable?: boolean
+          social_leaderboard_eligible?: boolean
+          social_visibility_updated_at?: string
           timezone?: string
           timezone_confirmed_at?: string | null
           username?: string
@@ -1064,7 +1088,9 @@ export type Database = {
     }
     Enums: {
       completion_source: "manual" | "linked_cascade"
+      goal_feed_visibility: "private" | "title_public"
       goal_frequency_type: "fixed_milestones" | "recurring"
+      goal_partner_visibility: "shared" | "excluded"
       participant_role: "owner" | "participant"
       recurrence_interval: "daily" | "weekly" | "monthly"
     }
@@ -1198,7 +1224,9 @@ export const Constants = {
   public: {
     Enums: {
       completion_source: ["manual", "linked_cascade"],
+      goal_feed_visibility: ["private", "title_public"],
       goal_frequency_type: ["fixed_milestones", "recurring"],
+      goal_partner_visibility: ["shared", "excluded"],
       participant_role: ["owner", "participant"],
       recurrence_interval: ["daily", "weekly", "monthly"],
     },

@@ -10,6 +10,8 @@ export interface Goal {
   description: string | null;
   category: string;
   category_key?: string;
+  feed_visibility?: "private" | "title_public";
+  partner_visibility?: "shared" | "excluded";
   color: string | null;
   frequency_type: GoalFrequencyType;
   recurrence_interval: RecurrenceInterval | null;
@@ -70,5 +72,11 @@ export interface Profile {
   display_name: string | null;
   avatar_url: string | null;
   week_starts_on?: number;
+  social_discoverable?: boolean;
+  social_activity_visible?: boolean;
+  social_leaderboard_eligible?: boolean;
+  social_challenge_eligible?: boolean;
+  social_visibility_updated_at?: string;
+  leaderboard_banned_at?: string | null;
   created_at: string;
 }
