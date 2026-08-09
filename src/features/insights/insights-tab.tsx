@@ -53,13 +53,13 @@ import type {
   GoalParticipant,
 } from "@/lib/goals/types";
 import {
-  executeCompletionDispatch,
   resolveCompletionDispatch,
 } from "@/lib/planner/completion-dispatch";
 import {
   getGoalRequirement,
   isTargetedRecurringGoal,
 } from "@/lib/planner/requirements";
+import { useCompletionMutation } from "@/features/planner/use-completion-mutation";
 import { createClient } from "@/lib/supabase/client";
 
 interface InsightsData {
@@ -226,6 +226,7 @@ export function InsightsTab() {
   );
   const monthSwipeStartRef = useRef<{ x: number; y: number } | null>(null);
   const loadRequestIdRef = useRef(0);
+  const runCompletionMutation = useCompletionMutation();
 
   const loadData = useCallback(
     async (
@@ -438,71 +439,62 @@ export function InsightsTab() {
 
       setPendingRetroDate(completionDate);
       const currentScrollY = window.scrollY;
+      const desiredFactState = isSelected ? "absent" : "present";
+      const requirement = getGoalRequirement(goal);
+      const decision = resolveCompletionDispatch({
+        requirementKind: requirement.kind,
+        targetedRecurring: isTargetedRecurringGoal(goal),
+        activePlanMembership: false,
+        matchingItemState: "none",
+        selectedDateState:
+          completionDate < localToday
+            ? "past"
+            : completionDate > localToday
+              ? "future"
+              : "today",
+        existingExactFact: isSelected,
+        desiredFactState,
+      });
+
+      const result = await runCompletionMutation({
+        decision,
+        desiredFactState,
+        goalId: goal.id,
+        date: completionDate,
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        blockedMessage:
+          decision.reason === "future_creation"
+            ? "You can only select today or past dates."
+            : "This completion cannot be changed from this date.",
+        fallbackErrorMessage: "Completion update failed.",
+      });
+
+      if (!result.ok) {
+        toast.error(result.message ?? "Completion update failed.");
+        setPendingRetroDate(null);
+        return;
+      }
+
+      toast.success(isSelected ? `Removed ${completionDate}.` : `Selected ${completionDate}.`);
       try {
-        const desiredFactState = isSelected ? "absent" : "present";
-        const requirement = getGoalRequirement(goal);
-        const decision = resolveCompletionDispatch({
-          requirementKind: requirement.kind,
-          targetedRecurring: isTargetedRecurringGoal(goal),
-          activePlanMembership: false,
-          matchingItemState: "none",
-          selectedDateState:
-            completionDate < localToday
-              ? "past"
-              : completionDate > localToday
-                ? "future"
-                : "today",
-          existingExactFact: isSelected,
-          desiredFactState,
+        await loadData({ showLoading: false, forceRefresh: true });
+        requestAnimationFrame(() => {
+          window.scrollTo({ top: currentScrollY, behavior: "auto" });
         });
-
-        if (!decision.allowed) {
-          toast.error(
-            decision.reason === "future_creation"
-              ? "You can only select today or past dates."
-              : "This completion cannot be changed from this date."
-          );
-          return;
-        }
-
-        const result = await executeCompletionDispatch({
-          decision,
-          desiredFactState,
-          goalId: goal.id,
-          date: completionDate,
-          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-        });
-
-        if (!result.ok) {
-          toast.error(result.message ?? "Completion update failed.");
-          return;
-        }
-
-        toast.success(isSelected ? `Removed ${completionDate}.` : `Selected ${completionDate}.`);
-        try {
-          await loadData({ showLoading: false, forceRefresh: true });
-          requestAnimationFrame(() => {
-            window.scrollTo({ top: currentScrollY, behavior: "auto" });
-          });
-        } catch (error) {
-          const timeoutLike =
-            error instanceof Error &&
-            error.message.toLowerCase().includes("timed out");
-          toast.error(
-            timeoutLike
-              ? "Completion updated, but calendar refresh timed out. Please refresh the page."
-              : "Completion updated, but calendar refresh failed. Please refresh the page."
-          );
-        }
       } catch (error) {
+        const timeoutLike =
+          error instanceof Error &&
+          error.message.toLowerCase().includes("timed out");
         toast.error(
-          error instanceof Error ? error.message : "Completion update failed."
+          timeoutLike
+            ? "Completion updated, but calendar refresh timed out. Please refresh the page."
+            : "Completion updated, but calendar refresh failed. Please refresh the page."
         );
       } finally {
         setPendingRetroDate(null);
       }
     },
-    [loadData, pendingRetroDate, supabase]
+    [loadData, pendingRetroDate, runCompletionMutation]
   );
 
   const toggleRecurringDateSelection = useCallback(
@@ -519,71 +511,62 @@ export function InsightsTab() {
 
       setPendingRetroDate(completionDate);
       const currentScrollY = window.scrollY;
+      const desiredFactState = hasCompletionOnDate ? "absent" : "present";
+      const requirement = getGoalRequirement(goal);
+      const decision = resolveCompletionDispatch({
+        requirementKind: requirement.kind,
+        targetedRecurring: isTargetedRecurringGoal(goal),
+        activePlanMembership: false,
+        matchingItemState: "none",
+        selectedDateState:
+          completionDate < localToday
+            ? "past"
+            : completionDate > localToday
+              ? "future"
+              : "today",
+        existingExactFact: hasCompletionOnDate,
+        desiredFactState,
+      });
+
+      const result = await runCompletionMutation({
+        decision,
+        desiredFactState,
+        goalId: goal.id,
+        date: completionDate,
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        blockedMessage:
+          decision.reason === "future_creation"
+            ? "You can only select today or past dates."
+            : "This completion cannot be changed from this date.",
+        fallbackErrorMessage: "Completion update failed.",
+      });
+
+      if (!result.ok) {
+        toast.error(result.message ?? "Completion update failed.");
+        setPendingRetroDate(null);
+        return;
+      }
+
+      toast.success(hasCompletionOnDate ? `Removed ${completionDate}.` : `Selected ${completionDate}.`);
       try {
-        const desiredFactState = hasCompletionOnDate ? "absent" : "present";
-        const requirement = getGoalRequirement(goal);
-        const decision = resolveCompletionDispatch({
-          requirementKind: requirement.kind,
-          targetedRecurring: isTargetedRecurringGoal(goal),
-          activePlanMembership: false,
-          matchingItemState: "none",
-          selectedDateState:
-            completionDate < localToday
-              ? "past"
-              : completionDate > localToday
-                ? "future"
-                : "today",
-          existingExactFact: hasCompletionOnDate,
-          desiredFactState,
+        await loadData({ showLoading: false, forceRefresh: true });
+        requestAnimationFrame(() => {
+          window.scrollTo({ top: currentScrollY, behavior: "auto" });
         });
-
-        if (!decision.allowed) {
-          toast.error(
-            decision.reason === "future_creation"
-              ? "You can only select today or past dates."
-              : "This completion cannot be changed from this date."
-          );
-          return;
-        }
-
-        const result = await executeCompletionDispatch({
-          decision,
-          desiredFactState,
-          goalId: goal.id,
-          date: completionDate,
-          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-        });
-
-        if (!result.ok) {
-          toast.error(result.message ?? "Completion update failed.");
-          return;
-        }
-
-        toast.success(hasCompletionOnDate ? `Removed ${completionDate}.` : `Selected ${completionDate}.`);
-        try {
-          await loadData({ showLoading: false, forceRefresh: true });
-          requestAnimationFrame(() => {
-            window.scrollTo({ top: currentScrollY, behavior: "auto" });
-          });
-        } catch (error) {
-          const timeoutLike =
-            error instanceof Error &&
-            error.message.toLowerCase().includes("timed out");
-          toast.error(
-            timeoutLike
-              ? "Completion updated, but calendar refresh timed out. Please refresh the page."
-              : "Completion updated, but calendar refresh failed. Please refresh the page."
-          );
-        }
       } catch (error) {
+        const timeoutLike =
+          error instanceof Error &&
+          error.message.toLowerCase().includes("timed out");
         toast.error(
-          error instanceof Error ? error.message : "Completion update failed."
+          timeoutLike
+            ? "Completion updated, but calendar refresh timed out. Please refresh the page."
+            : "Completion updated, but calendar refresh failed. Please refresh the page."
         );
       } finally {
         setPendingRetroDate(null);
       }
     },
-    [loadData, pendingRetroDate, supabase]
+    [loadData, pendingRetroDate, runCompletionMutation]
   );
 
   const saveMilestoneNames = useCallback(

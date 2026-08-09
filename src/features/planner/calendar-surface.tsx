@@ -77,6 +77,7 @@ import { CalendarDayPreviewList } from "@/features/planner/calendar-day-preview-
 import { CalendarMonthDayCell } from "@/features/planner/calendar-month-day-cell";
 import { PlannerCoachPanel } from "@/features/planner/coach/planner-coach-panel";
 import { usePlannerCoach } from "@/features/planner/coach/use-planner-coach";
+import { useCompletionMutation } from "@/features/planner/use-completion-mutation";
 import {
   draftCommandReducer,
   initialDraftCommandState,
@@ -95,7 +96,6 @@ import {
 } from "@/lib/api/client";
 import {
   type CompletionDispatchDecision,
-  executeCompletionDispatch,
   resolveCompletionDispatch,
 } from "@/lib/planner/completion-dispatch";
 import {
@@ -743,6 +743,7 @@ export function CalendarSurface({
     }
     return "This preview is not savable yet. Regenerate and resolve planner issues before saving.";
   };
+  const runCompletionMutation = useCompletionMutation();
   const hasDraftSession =
     effectiveDraftPolicy !== null || Object.keys(effectiveDraftItemEdits).length > 0;
   const coach = usePlannerCoach({
@@ -1419,7 +1420,7 @@ export function CalendarSurface({
 
     setMutationLoadingKey(mutationKey);
     try {
-      const result = await executeCompletionDispatch({
+      const result = await runCompletionMutation({
         decision: dispatch.decision,
         desiredFactState,
         goalId: entry.originalGoalId,
@@ -1438,6 +1439,7 @@ export function CalendarSurface({
               expectedDigest,
             }
           : undefined,
+        fallbackErrorMessage: "Planner completion update failed.",
       });
 
       if (!result.ok) {
