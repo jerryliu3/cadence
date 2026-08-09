@@ -3,46 +3,20 @@ import {
   putJson,
   requestJson,
 } from "@/lib/api/client";
-import type { Database } from "@/lib/supabase/database.types";
-
-type GoalFrequencyType = Database["public"]["Enums"]["goal_frequency_type"];
-type ParticipantRole = Database["public"]["Enums"]["participant_role"];
-type RecurrenceInterval = Database["public"]["Enums"]["recurrence_interval"];
-
-export interface GoalMutationPayload {
-  id?: string;
-  title: string;
-  description: string | null;
-  category: string;
-  color: string | null;
-  frequency_type: GoalFrequencyType;
-  recurrence_interval: RecurrenceInterval | null;
-  target_count: number | null;
-  milestone_names: string[] | null;
-  start_date: string;
-  end_date: string | null;
-  default_local_time: string | null;
-  is_group: boolean;
-  is_deleted?: boolean;
-}
-
-export interface GoalPatchPayload {
-  title?: string;
-  description?: string | null;
-  category?: string;
-  color?: string | null;
-  frequency_type?: GoalFrequencyType;
-  recurrence_interval?: RecurrenceInterval | null;
-  target_count?: number | null;
-  milestone_names?: string[] | null;
-  start_date?: string;
-  end_date?: string | null;
-  default_local_time?: string | null;
-  is_group?: boolean;
-  is_deleted?: boolean;
-  archived_at?: string | null;
-  photo_path?: string | null;
-}
+import type {
+  AddGoalParticipantRequestBody,
+  CreateGoalLinksBulkRequestBody,
+  CreateGoalRequestBody,
+  CreateGoalsBulkRequestBody,
+  CreateGoalSharesRequestBody,
+  DeleteGoalShareRequestBody,
+  GoalMutationPayload,
+  GoalPatchPayload,
+  RemoveGoalParticipantRequestBody,
+  ReplaceGoalLinkRequestBody,
+  UpdateGoalRequestBody,
+  UpdateProfileRequestBody,
+} from "@/lib/api/goals-social-contract";
 
 export async function createGoal({
   goal,
@@ -51,10 +25,10 @@ export async function createGoal({
   goal: GoalMutationPayload;
   addOwnerParticipant?: boolean;
 }) {
-  return postJson<{ goalId: string }>(
-    "/api/goals",
-    { goal, addOwnerParticipant }
-  );
+  return postJson<{ goalId: string }, CreateGoalRequestBody>("/api/goals", {
+    goal,
+    addOwnerParticipant,
+  });
 }
 
 export async function updateGoal({
@@ -64,18 +38,18 @@ export async function updateGoal({
   goalId: string;
   updates: GoalPatchPayload;
 }) {
-  return requestJson<{ goalId: string }, { goalId: string; updates: GoalPatchPayload }>({
+  return requestJson<{ goalId: string }, UpdateGoalRequestBody>({
     path: "/api/goals",
     method: "PATCH",
-    body: {
-      goalId,
-      updates,
-    },
+    body: { goalId, updates },
   });
 }
 
 export async function createGoalsBulk(goals: GoalMutationPayload[]) {
-  return postJson<{ goalIds: string[] }>("/api/goals/bulk", { goals });
+  return postJson<{ goalIds: string[] }, CreateGoalsBulkRequestBody>(
+    "/api/goals/bulk",
+    { goals }
+  );
 }
 
 export async function replaceGoalLink({
@@ -85,19 +59,25 @@ export async function replaceGoalLink({
   sourceGoalId: string;
   targetGoalId: string | null;
 }) {
-  return putJson<{ success: boolean }>("/api/goal-links", {
+  return putJson<{ success: boolean }, ReplaceGoalLinkRequestBody>(
+    "/api/goal-links",
+    {
     sourceGoalId,
     targetGoalId,
-  });
+    }
+  );
 }
 
 export async function createGoalLinksBulk(
-  links: { sourceGoalId: string; targetGoalId: string }[]
+  links: CreateGoalLinksBulkRequestBody["links"]
 ) {
   if (links.length === 0) {
     return { success: true as const };
   }
-  return postJson<{ success: boolean }>("/api/goal-links", { links });
+  return postJson<{ success: boolean }, CreateGoalLinksBulkRequestBody>(
+    "/api/goal-links",
+    { links }
+  );
 }
 
 export async function updateProfile({
@@ -109,7 +89,7 @@ export async function updateProfile({
   displayName: string | null;
   avatarUrl: string | null;
 }) {
-  return putJson<{ success: boolean }>("/api/profiles", {
+  return putJson<{ success: boolean }, UpdateProfileRequestBody>("/api/profiles", {
     username,
     displayName,
     avatarUrl,
@@ -123,10 +103,13 @@ export async function createGoalShares({
   goalIds: string[];
   sharedWithUserId: string;
 }) {
-  return postJson<{ sharedCount: number }>("/api/goal-shares", {
-    goalIds,
-    sharedWithUserId,
-  });
+  return postJson<{ sharedCount: number }, CreateGoalSharesRequestBody>(
+    "/api/goal-shares",
+    {
+      goalIds,
+      sharedWithUserId,
+    }
+  );
 }
 
 export async function deleteGoalShare({
@@ -136,10 +119,7 @@ export async function deleteGoalShare({
   goalId: string;
   sharedWithUserId: string;
 }) {
-  return requestJson<
-    { success: boolean },
-    { goalId: string; sharedWithUserId: string }
-  >({
+  return requestJson<{ success: boolean }, DeleteGoalShareRequestBody>({
     path: "/api/goal-shares",
     method: "DELETE",
     body: {
@@ -156,13 +136,16 @@ export async function addGoalParticipant({
 }: {
   goalId: string;
   userId: string;
-  role?: ParticipantRole;
+  role?: AddGoalParticipantRequestBody["role"];
 }) {
-  return postJson<{ success: boolean }>("/api/goal-participants", {
+  return postJson<{ success: boolean }, AddGoalParticipantRequestBody>(
+    "/api/goal-participants",
+    {
     goalId,
     userId,
     role,
-  });
+    }
+  );
 }
 
 export async function removeGoalParticipant({
@@ -172,7 +155,7 @@ export async function removeGoalParticipant({
   goalId: string;
   userId: string;
 }) {
-  return requestJson<{ success: boolean }, { goalId: string; userId: string }>({
+  return requestJson<{ success: boolean }, RemoveGoalParticipantRequestBody>({
     path: "/api/goal-participants",
     method: "DELETE",
     body: { goalId, userId },

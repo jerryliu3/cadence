@@ -7,19 +7,24 @@ import {
   parseJsonBody,
   requireAuthenticatedRouteContext,
 } from "@/lib/api/route-helpers";
+import type {
+  AddGoalParticipantRequestBody,
+  RemoveGoalParticipantRequestBody,
+} from "@/lib/api/goals-social-contract";
 
 const participantRoleSchema = z.enum(["owner", "participant"]);
 
-const addParticipantRequestSchema = z.object({
+const addParticipantRequestSchema: z.ZodType<AddGoalParticipantRequestBody> = z.object({
   goalId: z.string().uuid(),
   userId: z.string().uuid(),
   role: participantRoleSchema.optional(),
 });
 
-const removeParticipantRequestSchema = z.object({
+const removeParticipantRequestSchema: z.ZodType<RemoveGoalParticipantRequestBody> =
+  z.object({
   goalId: z.string().uuid(),
   userId: z.string().uuid(),
-});
+  });
 
 export async function POST(request: Request) {
   const correlationId = createCorrelationId();

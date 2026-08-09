@@ -17,7 +17,6 @@ import {
   getCategoryLabel,
 } from "@/lib/goals/category";
 import {
-  isOrdinalGoalDefinition,
   validateGoalDefinition,
 } from "@/lib/goals/definition-validation";
 import type {

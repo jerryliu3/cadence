@@ -7,13 +7,17 @@ import {
   parseJsonBody,
   requireAuthenticatedRouteContext,
 } from "@/lib/api/route-helpers";
+import type {
+  CreateGoalSharesRequestBody,
+  DeleteGoalShareRequestBody,
+} from "@/lib/api/goals-social-contract";
 
-const createSharesRequestSchema = z.object({
+const createSharesRequestSchema: z.ZodType<CreateGoalSharesRequestBody> = z.object({
   goalIds: z.array(z.string().uuid()).min(1).max(200),
   sharedWithUserId: z.string().uuid(),
 });
 
-const deleteShareRequestSchema = z.object({
+const deleteShareRequestSchema: z.ZodType<DeleteGoalShareRequestBody> = z.object({
   goalId: z.string().uuid(),
   sharedWithUserId: z.string().uuid(),
 });

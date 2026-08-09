@@ -7,9 +7,10 @@ import {
   parseJsonBody,
   requireAuthenticatedRouteContext,
 } from "@/lib/api/route-helpers";
+import type { UpdateProfileRequestBody } from "@/lib/api/goals-social-contract";
 import type { Database } from "@/lib/supabase/database.types";
 
-const updateProfileRequestSchema = z.object({
+const updateProfileRequestSchema: z.ZodType<UpdateProfileRequestBody> = z.object({
   username: z.string().trim().min(1).max(64),
   displayName: z.string().max(120).nullable(),
   avatarUrl: z.string().max(2048).nullable(),

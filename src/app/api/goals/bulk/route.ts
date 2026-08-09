@@ -8,13 +8,17 @@ import {
   parseJsonBody,
   requireAuthenticatedRouteContext,
 } from "@/lib/api/route-helpers";
+import type {
+  CreateGoalsBulkRequestBody,
+  GoalMutationPayload,
+} from "@/lib/api/goals-social-contract";
 import type { Database } from "@/lib/supabase/database.types";
 
 const calendarDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const goalFrequencySchema = z.enum(["fixed_milestones", "recurring"]);
 const recurrenceIntervalSchema = z.enum(["daily", "weekly", "monthly"]);
 
-const bulkGoalSchema = z.object({
+const bulkGoalSchema: z.ZodType<GoalMutationPayload> = z.object({
   id: z.string().uuid().optional(),
   title: z.string().trim().min(1).max(200),
   description: z.string().max(4000).nullable(),
@@ -31,7 +35,7 @@ const bulkGoalSchema = z.object({
   is_deleted: z.boolean().optional(),
 });
 
-const bulkCreateRequestSchema = z.object({
+const bulkCreateRequestSchema: z.ZodType<CreateGoalsBulkRequestBody> = z.object({
   goals: z.array(bulkGoalSchema).min(1).max(200),
 });
 
@@ -51,22 +55,22 @@ export async function POST(request: Request) {
         const goalId = goal.id ?? randomUUID();
         goalIds.push(goalId);
         return {
-        id: goalId,
-        owner_id: userId,
-        title: goal.title,
-        description: goal.description,
-        category: goal.category,
-        color: goal.color,
-        frequency_type: goal.frequency_type,
-        recurrence_interval: goal.recurrence_interval,
-        target_count: goal.target_count,
-        milestone_names: goal.milestone_names,
-        start_date: goal.start_date,
-        end_date: goal.end_date,
-        default_local_time: goal.default_local_time,
-        is_group: goal.is_group,
-        is_deleted: goal.is_deleted ?? false,
-      };
+          id: goalId,
+          owner_id: userId,
+          title: goal.title,
+          description: goal.description,
+          category: goal.category,
+          color: goal.color,
+          frequency_type: goal.frequency_type,
+          recurrence_interval: goal.recurrence_interval,
+          target_count: goal.target_count,
+          milestone_names: goal.milestone_names,
+          start_date: goal.start_date,
+          end_date: goal.end_date,
+          default_local_time: goal.default_local_time,
+          is_group: goal.is_group,
+          is_deleted: goal.is_deleted ?? false,
+        };
       }
     );
 

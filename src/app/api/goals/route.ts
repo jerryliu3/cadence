@@ -8,6 +8,12 @@ import {
   parseJsonBody,
   requireAuthenticatedRouteContext,
 } from "@/lib/api/route-helpers";
+import type {
+  CreateGoalRequestBody,
+  GoalMutationPayload,
+  GoalPatchPayload,
+  UpdateGoalRequestBody,
+} from "@/lib/api/goals-social-contract";
 import type { Database } from "@/lib/supabase/database.types";
 
 const calendarDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
@@ -15,7 +21,7 @@ const dateTimeSchema = z.string().datetime({ offset: true });
 const goalFrequencySchema = z.enum(["fixed_milestones", "recurring"]);
 const recurrenceIntervalSchema = z.enum(["daily", "weekly", "monthly"]);
 
-const createGoalPayloadSchema = z.object({
+const createGoalPayloadSchema: z.ZodType<GoalMutationPayload> = z.object({
   id: z.string().uuid().optional(),
   title: z.string().trim().min(1).max(200),
   description: z.string().max(4000).nullable(),
@@ -32,12 +38,12 @@ const createGoalPayloadSchema = z.object({
   is_deleted: z.boolean().optional(),
 });
 
-const createGoalRequestSchema = z.object({
+const createGoalRequestSchema: z.ZodType<CreateGoalRequestBody> = z.object({
   goal: createGoalPayloadSchema,
   addOwnerParticipant: z.boolean().optional(),
 });
 
-const updateGoalPatchSchema = z
+const updateGoalPatchSchema: z.ZodType<GoalPatchPayload> = z
   .object({
     title: z.string().trim().min(1).max(200).optional(),
     description: z.string().max(4000).nullable().optional(),
@@ -59,7 +65,7 @@ const updateGoalPatchSchema = z
     message: "At least one goal update field is required.",
   });
 
-const updateGoalRequestSchema = z.object({
+const updateGoalRequestSchema: z.ZodType<UpdateGoalRequestBody> = z.object({
   goalId: z.string().uuid(),
   updates: updateGoalPatchSchema,
 });

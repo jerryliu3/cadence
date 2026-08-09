@@ -7,17 +7,21 @@ import {
   parseJsonBody,
   requireAuthenticatedRouteContext,
 } from "@/lib/api/route-helpers";
+import type {
+  CreateGoalLinksBulkRequestBody,
+  ReplaceGoalLinkRequestBody,
+} from "@/lib/api/goals-social-contract";
 
 const linkSchema = z.object({
   sourceGoalId: z.string().uuid(),
   targetGoalId: z.string().uuid(),
 });
 
-const bulkLinkRequestSchema = z.object({
+const bulkLinkRequestSchema: z.ZodType<CreateGoalLinksBulkRequestBody> = z.object({
   links: z.array(linkSchema).min(1).max(500),
 });
 
-const replaceLinkRequestSchema = z.object({
+const replaceLinkRequestSchema: z.ZodType<ReplaceGoalLinkRequestBody> = z.object({
   sourceGoalId: z.string().uuid(),
   targetGoalId: z.string().uuid().nullable(),
 });

@@ -35,6 +35,8 @@ import { Progress } from "@/components/ui/progress";
 import { GoalEndMonthBadge } from "@/features/goals/goal-end-month-badge";
 import { GoalListControls } from "@/features/goals/goal-list-controls";
 import { MonthHeatmap } from "@/features/insights/month-heatmap";
+import { getApiErrorMessage } from "@/lib/api/client";
+import { updateGoal } from "@/lib/api/goals-social-client";
 import { getCategoryBadgeClass } from "@/lib/goals/category";
 import {
   filterGoalsByEndMonth,
@@ -579,16 +581,10 @@ export function InsightsTab() {
       setSavingMilestoneNamesGoalId(goal.id);
       const currentScrollY = window.scrollY;
       try {
-        const { error } = await supabase
-          .from("goals")
-          .update({ milestone_names: names })
-          .eq("id", goal.id)
-          .eq("owner_id", state.userId);
-
-        if (error) {
-          toast.error(error.message);
-          return;
-        }
+        await updateGoal({
+          goalId: goal.id,
+          updates: { milestone_names: names },
+        });
 
         toast.success("Milestone names updated.");
         await loadData({ showLoading: false, forceRefresh: true });
@@ -597,13 +593,13 @@ export function InsightsTab() {
         });
       } catch (error) {
         toast.error(
-          error instanceof Error ? error.message : "Milestone names update failed."
+          getApiErrorMessage(error, "Milestone names update failed.")
         );
       } finally {
         setSavingMilestoneNamesGoalId(null);
       }
     },
-    [loadData, state.userId, supabase]
+    [loadData, state.userId]
   );
 
   const onMonthSectionTouchStart: TouchEventHandler<HTMLDivElement> = (event) => {
