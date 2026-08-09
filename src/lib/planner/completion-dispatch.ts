@@ -1,3 +1,9 @@
+import {
+  getApiErrorMessage,
+  isApiClientTransportError,
+  requestJson,
+} from "@/lib/api/client";
+
 export interface CompletionDispatchInput {
   requirementKind:
     | "milestone_sequence"
@@ -43,7 +49,7 @@ export interface PlannerItemDateFactExpectation
 export type PlannerGoalDateFactExpectation = PlannerDigestExpectation;
 
 export interface ExecuteCompletionDispatchInput {
-  decision: CompletionDispatchDecision;
+  decision: ExecutableCompletionDispatchDecision;
   desiredFactState: "present" | "absent";
   goalId: string;
   date: string;
@@ -59,66 +65,55 @@ export interface CompletionDispatchExecutionResult {
   message: string | null;
 }
 
+type ExecutableCompletionRoute = Exclude<
+  CompletionDispatchDecision["route"],
+  "disabled"
+>;
+
+type ExecutableCompletionDispatchDecision = Omit<
+  CompletionDispatchDecision,
+  "route" | "allowed"
+> & {
+  route: ExecutableCompletionRoute;
+  allowed: true;
+};
+
 const DEFAULT_COMPLETION_DISPATCH_TIMEOUT_MS = 15_000;
 const COMPLETION_TIMEOUT_MESSAGE =
   "The completion request timed out. Please try again.";
 
-function parseErrorMessage(payload: unknown, fallback: string) {
-  if (
-    payload &&
-    typeof payload === "object" &&
-    "message" in payload &&
-    typeof payload.message === "string" &&
-    payload.message.trim().length > 0
-  ) {
-    return payload.message;
-  }
-  return fallback;
-}
-
-function isAbortError(error: unknown) {
-  return error instanceof Error && error.name === "AbortError";
-}
-
-async function postJsonRoute({
+async function postCompletionRoute({
   fetcher,
-  route,
   body,
   fallbackError,
   timeoutMs,
 }: {
   fetcher: typeof fetch;
-  route: string;
   body: Record<string, unknown>;
   fallbackError: string;
   timeoutMs: number;
 }) {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-  let response: Response;
   try {
-    response = await fetcher(route, {
+    await requestJson<unknown, Record<string, unknown>>({
+      path: "/api/completions",
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-      signal: controller.signal,
+      body,
+      timeoutMs,
+      fetcher,
     });
+    return { ok: true as const, message: null };
   } catch (error) {
+    if (isApiClientTransportError(error) && error.reason === "timeout") {
+      return {
+        ok: false as const,
+        message: COMPLETION_TIMEOUT_MESSAGE,
+      };
+    }
     return {
       ok: false as const,
-      message: isAbortError(error) ? COMPLETION_TIMEOUT_MESSAGE : fallbackError,
+      message: getApiErrorMessage(error, fallbackError),
     };
-  } finally {
-    clearTimeout(timeoutId);
   }
-  if (response.ok) {
-    return { ok: true as const, message: null };
-  }
-  const payload = await response.json().catch(() => null);
-  return {
-    ok: false as const,
-    message: parseErrorMessage(payload, fallbackError),
-  };
 }
 
 export function resolveCompletionDispatch({
@@ -184,110 +179,33 @@ export async function executeCompletionDispatch({
   fetcher = fetch,
   timeoutMs = DEFAULT_COMPLETION_DISPATCH_TIMEOUT_MS,
 }: ExecuteCompletionDispatchInput): Promise<CompletionDispatchExecutionResult> {
-  if (!decision.allowed || decision.route === "disabled") {
-    const message =
-      decision.reason === "future_creation"
-        ? "You can only mark completions for today or a past date."
-        : decision.reason === "satisfied_elsewhere"
-          ? "This completion is already satisfied by another session."
-          : "This completion cannot be changed from here.";
-    return {
-      ok: false,
-      message,
-    };
-  }
-
-  if (decision.route === "canonical_exact_date") {
-    const result = await postJsonRoute({
-      fetcher,
-      route: "/api/completions",
-      body: {
-        goalId,
-        date,
-        desiredFactState,
-        timezone,
-      },
-      fallbackError: "The exact-date completion could not be updated.",
-      timeoutMs,
-    });
-    return {
-      ok: result.ok,
-      message: result.message,
-    };
-  }
-
-  if (decision.route === "legacy_period") {
-    const result = await postJsonRoute({
-      fetcher,
-      route: "/api/completions",
-      body: {
-        goalId,
-        date,
-        desiredFactState,
-        timezone,
-      },
-      fallbackError: "The completion could not be updated.",
-      timeoutMs,
-    });
-    return {
-      ok: result.ok,
-      message: result.message,
-    };
-  }
-
-  if (decision.route === "item_date") {
-    const body: Record<string, unknown> = {
-      goalId,
-      date,
-      desiredFactState,
-      timezone,
-    };
-    if (plannerItemExpectation) {
-      body.plannerItemExpectation = {
-        itemId: plannerItemExpectation.itemId,
-        expectedDigest: plannerItemExpectation.expectedDigest,
-      };
-    }
-    const result = await postJsonRoute({
-      fetcher,
-      route: "/api/completions",
-      body,
-      fallbackError: "Planner completion update failed.",
-      timeoutMs,
-    });
-    return {
-      ok: result.ok,
-      message: result.message,
-    };
-  }
-
-  if (decision.route === "plan_goal_date") {
-    const body: Record<string, unknown> = {
-      goalId,
-      date,
-      desiredFactState,
-      timezone,
-    };
-    if (plannerGoalExpectation) {
-      body.plannerGoalExpectation = {
-        expectedDigest: plannerGoalExpectation.expectedDigest,
-      };
-    }
-    const result = await postJsonRoute({
-      fetcher,
-      route: "/api/completions",
-      body,
-      fallbackError: "Planner completion update failed.",
-      timeoutMs,
-    });
-    return {
-      ok: result.ok,
-      message: result.message,
-    };
-  }
-
-  return {
-    ok: false,
-    message: "This completion route is not supported.",
+  const body: Record<string, unknown> = {
+    goalId,
+    date,
+    desiredFactState,
+    timezone,
   };
+  if (decision.route === "item_date" && plannerItemExpectation) {
+    body.plannerItemExpectation = {
+      itemId: plannerItemExpectation.itemId,
+      expectedDigest: plannerItemExpectation.expectedDigest,
+    };
+  }
+  if (decision.route === "plan_goal_date" && plannerGoalExpectation) {
+    body.plannerGoalExpectation = {
+      expectedDigest: plannerGoalExpectation.expectedDigest,
+    };
+  }
+  const fallbackError =
+    decision.route === "canonical_exact_date"
+      ? "The exact-date completion could not be updated."
+      : decision.route === "legacy_period"
+        ? "The completion could not be updated."
+        : "Planner completion update failed.";
+  return postCompletionRoute({
+    fetcher,
+    body,
+    fallbackError,
+    timeoutMs,
+  });
 }
