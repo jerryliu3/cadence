@@ -40,22 +40,35 @@ begin
     raise exception using errcode = 'P0001', message = 'stale_schedule';
   end if;
 
-  update public.execution_plan_items item
-  set
-    locked = false,
-    revision = item.revision + 1
-  from public.execution_plans plan
-  where item.owner_id = v_owner
-    and item.plan_id = plan.id
-    and plan.owner_id = v_owner
-    and plan.scope_month = p_month
-    and plan.status = 'active'
-    and item.locked;
+  if
+    pg_catalog.to_regclass('public.execution_plan_items') is not null
+    and pg_catalog.to_regclass('public.execution_plans') is not null
+  then
+    execute $sql$
+      update public.execution_plan_items item
+      set
+        locked = false,
+        revision = item.revision + 1
+      from public.execution_plans plan
+      where item.owner_id = $1
+        and item.plan_id = plan.id
+        and plan.owner_id = $1
+        and plan.scope_month = $2
+        and plan.status = 'active'
+        and item.locked
+    $sql$
+    using v_owner, p_month;
 
-  get diagnostics v_execution_unlocked_count = row_count;
+    get diagnostics v_execution_unlocked_count = row_count;
 
-  if v_execution_unlocked_count > 0 then
-    perform private.bump_planner_execution_revision(v_owner);
+    if
+      v_execution_unlocked_count > 0
+      and pg_catalog.to_regprocedure(
+        'private.bump_planner_execution_revision(uuid)'
+      ) is not null
+    then
+      perform private.bump_planner_execution_revision(v_owner);
+    end if;
   end if;
 
   update public.planner_items item
