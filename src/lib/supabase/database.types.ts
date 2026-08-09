@@ -15,17 +15,141 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      active_duo_for_user: { Args: { p_user_id: string }; Returns: string }
+      challenge_progress_value: {
+        Args: {
+          p_from: string
+          p_metric: Database["public"]["Enums"]["challenge_metric"]
+          p_to: string
+          p_track_key: string
+          p_user_ids: string[]
+        }
+        Returns: number
+      }
+      duo_in_cohort: {
+        Args: { p_cohort_id: string; p_duo_id: string }
+        Returns: boolean
+      }
+      emit_feed_event: {
+        Args: {
+          p_actor_id: string
+          p_bucket_date?: string
+          p_event_type: Database["public"]["Enums"]["feed_event_type"]
+          p_goal_id?: string
+          p_occurrence_delta?: number
+          p_payload?: Json
+          p_subject_key: string
+          p_track_key?: string
+          p_xp_delta?: number
+        }
+        Returns: string
+      }
+      enqueue_notification_outbox: {
+        Args: {
+          p_available_at?: string
+          p_body: string
+          p_dedupe_key?: string
+          p_kind: Database["public"]["Enums"]["notification_kind"]
+          p_title: string
+          p_url?: string
+          p_user_id: string
+        }
+        Returns: string
+      }
+      goal_anchored_period_start: {
+        Args: {
+          p_anchor: string
+          p_index: number
+          p_interval: Database["public"]["Enums"]["recurrence_interval"]
+        }
+        Returns: string
+      }
+      goal_period_key: {
+        Args: {
+          p_anchor: string
+          p_interval: Database["public"]["Enums"]["recurrence_interval"]
+          p_reference: string
+        }
+        Returns: string
+      }
+      goal_xp_credited_units: {
+        Args: { p_goal_id: string; p_user_id: string }
+        Returns: {
+          completion_id: string
+          completion_source: Database["public"]["Enums"]["completion_source"]
+          earned_on: string
+          event_type: string
+          source_key: string
+          track_key: string
+          xp_amount: number
+        }[]
+      }
+      is_active_duo_pair: {
+        Args: { p_user_a: string; p_user_b: string }
+        Returns: boolean
+      }
+      is_platform_admin_for: {
+        Args: {
+          p_min_role?: Database["public"]["Enums"]["admin_role"]
+          p_user_id: string
+        }
+        Returns: boolean
+      }
       is_valid_planner_timezone: {
         Args: { p_timezone: string }
         Returns: boolean
       }
+      local_today_for_profile: { Args: { p_user_id: string }; Returns: string }
       local_today_for_timezone: {
         Args: { p_timezone: string }
         Returns: string
       }
+      next_rollover_end: {
+        Args: {
+          p_rollover: Database["public"]["Enums"]["leaderboard_rollover"]
+          p_starts_at: string
+        }
+        Returns: string
+      }
+      normalize_goal_category_key: {
+        Args: { p_category: string }
+        Returns: string
+      }
+      partner_notifications_allowed: {
+        Args: { p_duo_id: string; p_user_id: string }
+        Returns: boolean
+      }
       planner_json_depth: { Args: { p_value: Json }; Returns: number }
       planner_owner_lock_key: { Args: { p_owner: string }; Returns: number }
+      planner_schedule_digest_for_owner: {
+        Args: { p_owner: string }
+        Returns: string
+      }
+      refresh_challenge_participant: {
+        Args: {
+          p_challenge_id: string
+          p_now?: string
+          p_subject_id: string
+          p_subject_kind: Database["public"]["Enums"]["social_subject_kind"]
+        }
+        Returns: boolean
+      }
+      refresh_user_challenge_participant: {
+        Args: { p_challenge_id: string; p_now?: string; p_user_id: string }
+        Returns: boolean
+      }
+      refresh_xp_profile: {
+        Args: { p_track_keys?: string[]; p_user_id: string }
+        Returns: undefined
+      }
       sha256_hex_digest: { Args: { p_value: string }; Returns: string }
+      subject_member_ids: {
+        Args: {
+          p_subject_id: string
+          p_subject_kind: Database["public"]["Enums"]["social_subject_kind"]
+        }
+        Returns: string[]
+      }
       validate_planner_json: {
         Args: {
           p_expected_type: string
@@ -33,6 +157,27 @@ export type Database = {
           p_max_depth?: number
           p_value: Json
         }
+        Returns: boolean
+      }
+      validate_planner_proposal_operations: {
+        Args: { p_operations: Json }
+        Returns: undefined
+      }
+      viewer_in_cohort: {
+        Args: { p_cohort_id: string; p_uid: string }
+        Returns: boolean
+      }
+      xp_cascade_multiplier: { Args: never; Returns: number }
+      xp_goal_achievement_points: { Args: never; Returns: number }
+      xp_level_for_total: { Args: { p_total_xp: number }; Returns: number }
+      xp_lock_key: { Args: { p_scope: string }; Returns: number }
+      xp_manual_completion_points: { Args: never; Returns: number }
+      xp_points_for_completion_source: {
+        Args: { p_source: Database["public"]["Enums"]["completion_source"] }
+        Returns: number
+      }
+      xp_skip_for_profile_delete: {
+        Args: { p_user_id: string }
         Returns: boolean
       }
     }
@@ -45,6 +190,257 @@ export type Database = {
   }
   public: {
     Tables: {
+      admin_users: {
+        Row: {
+          granted_at: string
+          granted_by: string | null
+          note: string | null
+          revoked_at: string | null
+          role: Database["public"]["Enums"]["admin_role"]
+          user_id: string
+        }
+        Insert: {
+          granted_at?: string
+          granted_by?: string | null
+          note?: string | null
+          revoked_at?: string | null
+          role?: Database["public"]["Enums"]["admin_role"]
+          user_id: string
+        }
+        Update: {
+          granted_at?: string
+          granted_by?: string | null
+          note?: string | null
+          revoked_at?: string | null
+          role?: Database["public"]["Enums"]["admin_role"]
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "admin_users_granted_by_fkey"
+            columns: ["granted_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "admin_users_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      challenge_participants: {
+        Row: {
+          awarded_at: string | null
+          challenge_id: string
+          completed_at: string | null
+          joined_at: string
+          progress_at: string | null
+          progress_value: number
+          subject_id: string
+          subject_kind: Database["public"]["Enums"]["social_subject_kind"]
+        }
+        Insert: {
+          awarded_at?: string | null
+          challenge_id: string
+          completed_at?: string | null
+          joined_at?: string
+          progress_at?: string | null
+          progress_value?: number
+          subject_id: string
+          subject_kind: Database["public"]["Enums"]["social_subject_kind"]
+        }
+        Update: {
+          awarded_at?: string | null
+          challenge_id?: string
+          completed_at?: string | null
+          joined_at?: string
+          progress_at?: string | null
+          progress_value?: number
+          subject_id?: string
+          subject_kind?: Database["public"]["Enums"]["social_subject_kind"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "challenge_participants_challenge_id_fkey"
+            columns: ["challenge_id"]
+            isOneToOne: false
+            referencedRelation: "challenges"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      challenges: {
+        Row: {
+          audience_kind: Database["public"]["Enums"]["social_audience_kind"]
+          cohort_id: string | null
+          created_at: string
+          created_by: string | null
+          description: string | null
+          ends_at: string
+          enrollment: Database["public"]["Enums"]["challenge_enrollment"]
+          id: string
+          max_participants: number | null
+          metric: Database["public"]["Enums"]["challenge_metric"]
+          metric_track_key: string | null
+          reward_xp: number
+          slug: string
+          starts_at: string
+          status: Database["public"]["Enums"]["challenge_status"]
+          subject_kind: Database["public"]["Enums"]["social_subject_kind"]
+          target_value: number
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          audience_kind?: Database["public"]["Enums"]["social_audience_kind"]
+          cohort_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          ends_at: string
+          enrollment?: Database["public"]["Enums"]["challenge_enrollment"]
+          id?: string
+          max_participants?: number | null
+          metric: Database["public"]["Enums"]["challenge_metric"]
+          metric_track_key?: string | null
+          reward_xp?: number
+          slug: string
+          starts_at: string
+          status?: Database["public"]["Enums"]["challenge_status"]
+          subject_kind?: Database["public"]["Enums"]["social_subject_kind"]
+          target_value: number
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          audience_kind?: Database["public"]["Enums"]["social_audience_kind"]
+          cohort_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          ends_at?: string
+          enrollment?: Database["public"]["Enums"]["challenge_enrollment"]
+          id?: string
+          max_participants?: number | null
+          metric?: Database["public"]["Enums"]["challenge_metric"]
+          metric_track_key?: string | null
+          reward_xp?: number
+          slug?: string
+          starts_at?: string
+          status?: Database["public"]["Enums"]["challenge_status"]
+          subject_kind?: Database["public"]["Enums"]["social_subject_kind"]
+          target_value?: number
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "challenges_cohort_id_fkey"
+            columns: ["cohort_id"]
+            isOneToOne: false
+            referencedRelation: "cohorts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "challenges_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "challenges_metric_track_key_fkey"
+            columns: ["metric_track_key"]
+            isOneToOne: false
+            referencedRelation: "goal_categories"
+            referencedColumns: ["key"]
+          },
+        ]
+      }
+      cohort_members: {
+        Row: {
+          cohort_id: string
+          joined_at: string
+          role: Database["public"]["Enums"]["cohort_member_role"]
+          user_id: string
+        }
+        Insert: {
+          cohort_id: string
+          joined_at?: string
+          role?: Database["public"]["Enums"]["cohort_member_role"]
+          user_id: string
+        }
+        Update: {
+          cohort_id?: string
+          joined_at?: string
+          role?: Database["public"]["Enums"]["cohort_member_role"]
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cohort_members_cohort_id_fkey"
+            columns: ["cohort_id"]
+            isOneToOne: false
+            referencedRelation: "cohorts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cohort_members_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cohorts: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          description: string | null
+          id: string
+          is_active: boolean
+          join_code: string
+          slug: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          join_code: string
+          slug: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          join_code?: string
+          slug?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cohorts_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       completions: {
         Row: {
           completed_on: string
@@ -86,6 +482,269 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      duo_preferences: {
+        Row: {
+          allow_nudges: boolean
+          allow_proposals: boolean
+          duo_id: string
+          notify_partner_activity: boolean
+          share_completions: boolean
+          share_planner: boolean
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          allow_nudges?: boolean
+          allow_proposals?: boolean
+          duo_id: string
+          notify_partner_activity?: boolean
+          share_completions?: boolean
+          share_planner?: boolean
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          allow_nudges?: boolean
+          allow_proposals?: boolean
+          duo_id?: string
+          notify_partner_activity?: boolean
+          share_completions?: boolean
+          share_planner?: boolean
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "duo_preferences_duo_id_fkey"
+            columns: ["duo_id"]
+            isOneToOne: false
+            referencedRelation: "duos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "duo_preferences_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      duos: {
+        Row: {
+          accepted_at: string | null
+          created_at: string
+          dissolved_at: string | null
+          id: string
+          initiator_id: string
+          invite_message: string | null
+          invited_at: string
+          responded_at: string | null
+          status: Database["public"]["Enums"]["duo_status"]
+          updated_at: string
+          user_a_id: string
+          user_b_id: string
+          visibility_acknowledged_at: string | null
+        }
+        Insert: {
+          accepted_at?: string | null
+          created_at?: string
+          dissolved_at?: string | null
+          id?: string
+          initiator_id: string
+          invite_message?: string | null
+          invited_at?: string
+          responded_at?: string | null
+          status?: Database["public"]["Enums"]["duo_status"]
+          updated_at?: string
+          user_a_id: string
+          user_b_id: string
+          visibility_acknowledged_at?: string | null
+        }
+        Update: {
+          accepted_at?: string | null
+          created_at?: string
+          dissolved_at?: string | null
+          id?: string
+          initiator_id?: string
+          invite_message?: string | null
+          invited_at?: string
+          responded_at?: string | null
+          status?: Database["public"]["Enums"]["duo_status"]
+          updated_at?: string
+          user_a_id?: string
+          user_b_id?: string
+          visibility_acknowledged_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "duos_initiator_id_fkey"
+            columns: ["initiator_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "duos_user_a_id_fkey"
+            columns: ["user_a_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "duos_user_b_id_fkey"
+            columns: ["user_b_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      feed_events: {
+        Row: {
+          actor_id: string
+          bucket_date: string
+          created_at: string
+          event_type: Database["public"]["Enums"]["feed_event_type"]
+          goal_id: string | null
+          hidden_at: string | null
+          hidden_by: string | null
+          hidden_reason: string | null
+          id: string
+          occurrence_count: number
+          payload: Json
+          reaction_count: number
+          subject_key: string
+          track_key: string | null
+          updated_at: string
+          xp_delta: number
+        }
+        Insert: {
+          actor_id: string
+          bucket_date: string
+          created_at?: string
+          event_type: Database["public"]["Enums"]["feed_event_type"]
+          goal_id?: string | null
+          hidden_at?: string | null
+          hidden_by?: string | null
+          hidden_reason?: string | null
+          id?: string
+          occurrence_count?: number
+          payload?: Json
+          reaction_count?: number
+          subject_key: string
+          track_key?: string | null
+          updated_at?: string
+          xp_delta?: number
+        }
+        Update: {
+          actor_id?: string
+          bucket_date?: string
+          created_at?: string
+          event_type?: Database["public"]["Enums"]["feed_event_type"]
+          goal_id?: string | null
+          hidden_at?: string | null
+          hidden_by?: string | null
+          hidden_reason?: string | null
+          id?: string
+          occurrence_count?: number
+          payload?: Json
+          reaction_count?: number
+          subject_key?: string
+          track_key?: string | null
+          updated_at?: string
+          xp_delta?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "feed_events_actor_id_fkey"
+            columns: ["actor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "feed_events_goal_id_fkey"
+            columns: ["goal_id"]
+            isOneToOne: false
+            referencedRelation: "goals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "feed_events_hidden_by_fkey"
+            columns: ["hidden_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      feed_reactions: {
+        Row: {
+          created_at: string
+          feed_event_id: string
+          reaction: Database["public"]["Enums"]["reaction_kind"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          feed_event_id: string
+          reaction: Database["public"]["Enums"]["reaction_kind"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          feed_event_id?: string
+          reaction?: Database["public"]["Enums"]["reaction_kind"]
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "feed_reactions_feed_event_id_fkey"
+            columns: ["feed_event_id"]
+            isOneToOne: false
+            referencedRelation: "feed_events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "feed_reactions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      goal_categories: {
+        Row: {
+          aliases: string[]
+          color: string
+          created_at: string
+          key: string
+          label: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          aliases?: string[]
+          color: string
+          created_at?: string
+          key: string
+          label: string
+          sort_order: number
+          updated_at?: string
+        }
+        Update: {
+          aliases?: string[]
+          color?: string
+          created_at?: string
+          key?: string
+          label?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
       }
       goal_links: {
         Row: {
@@ -212,21 +871,25 @@ export type Database = {
         Row: {
           archived_at: string | null
           category: string
+          category_key: string
           color: string | null
           created_at: string
           default_local_time: string | null
           description: string | null
           end_date: string | null
+          feed_visibility: Database["public"]["Enums"]["goal_feed_visibility"]
           frequency_type: Database["public"]["Enums"]["goal_frequency_type"]
           id: string
           is_deleted: boolean
           is_group: boolean
           milestone_names: string[] | null
           owner_id: string
+          partner_visibility: Database["public"]["Enums"]["goal_partner_visibility"]
           photo_path: string | null
           recurrence_interval:
             | Database["public"]["Enums"]["recurrence_interval"]
             | null
+          reward_text: string | null
           start_date: string
           target_count: number | null
           title: string
@@ -235,21 +898,25 @@ export type Database = {
         Insert: {
           archived_at?: string | null
           category?: string
+          category_key?: string
           color?: string | null
           created_at?: string
           default_local_time?: string | null
           description?: string | null
           end_date?: string | null
+          feed_visibility?: Database["public"]["Enums"]["goal_feed_visibility"]
           frequency_type: Database["public"]["Enums"]["goal_frequency_type"]
           id?: string
           is_deleted?: boolean
           is_group?: boolean
           milestone_names?: string[] | null
           owner_id: string
+          partner_visibility?: Database["public"]["Enums"]["goal_partner_visibility"]
           photo_path?: string | null
           recurrence_interval?:
             | Database["public"]["Enums"]["recurrence_interval"]
             | null
+          reward_text?: string | null
           start_date?: string
           target_count?: number | null
           title: string
@@ -258,21 +925,25 @@ export type Database = {
         Update: {
           archived_at?: string | null
           category?: string
+          category_key?: string
           color?: string | null
           created_at?: string
           default_local_time?: string | null
           description?: string | null
           end_date?: string | null
+          feed_visibility?: Database["public"]["Enums"]["goal_feed_visibility"]
           frequency_type?: Database["public"]["Enums"]["goal_frequency_type"]
           id?: string
           is_deleted?: boolean
           is_group?: boolean
           milestone_names?: string[] | null
           owner_id?: string
+          partner_visibility?: Database["public"]["Enums"]["goal_partner_visibility"]
           photo_path?: string | null
           recurrence_interval?:
             | Database["public"]["Enums"]["recurrence_interval"]
             | null
+          reward_text?: string | null
           start_date?: string
           target_count?: number | null
           title?: string
@@ -280,8 +951,293 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "goals_category_key_fkey"
+            columns: ["category_key"]
+            isOneToOne: false
+            referencedRelation: "goal_categories"
+            referencedColumns: ["key"]
+          },
+          {
             foreignKeyName: "goals_owner_id_fkey"
             columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      leaderboard_season_results: {
+        Row: {
+          display_name: string
+          frozen_at: string
+          rank: number
+          score: number
+          season_id: string
+          subject_id: string
+          subject_kind: Database["public"]["Enums"]["social_subject_kind"]
+          tie_break_at: string | null
+        }
+        Insert: {
+          display_name: string
+          frozen_at?: string
+          rank: number
+          score: number
+          season_id: string
+          subject_id: string
+          subject_kind: Database["public"]["Enums"]["social_subject_kind"]
+          tie_break_at?: string | null
+        }
+        Update: {
+          display_name?: string
+          frozen_at?: string
+          rank?: number
+          score?: number
+          season_id?: string
+          subject_id?: string
+          subject_kind?: Database["public"]["Enums"]["social_subject_kind"]
+          tie_break_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "leaderboard_season_results_season_id_fkey"
+            columns: ["season_id"]
+            isOneToOne: false
+            referencedRelation: "leaderboard_seasons"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      leaderboard_seasons: {
+        Row: {
+          closed_at: string | null
+          cohort_id: string | null
+          created_at: string
+          created_by: string | null
+          ends_at: string | null
+          id: string
+          metric: Database["public"]["Enums"]["challenge_metric"]
+          metric_track_key: string | null
+          next_season_id: string | null
+          previous_season_id: string | null
+          rollover: Database["public"]["Enums"]["leaderboard_rollover"]
+          scope: Database["public"]["Enums"]["leaderboard_scope_kind"]
+          slug: string
+          starts_at: string
+          status: Database["public"]["Enums"]["leaderboard_season_status"]
+          subject_kind: Database["public"]["Enums"]["social_subject_kind"]
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          closed_at?: string | null
+          cohort_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          ends_at?: string | null
+          id?: string
+          metric?: Database["public"]["Enums"]["challenge_metric"]
+          metric_track_key?: string | null
+          next_season_id?: string | null
+          previous_season_id?: string | null
+          rollover?: Database["public"]["Enums"]["leaderboard_rollover"]
+          scope?: Database["public"]["Enums"]["leaderboard_scope_kind"]
+          slug: string
+          starts_at: string
+          status?: Database["public"]["Enums"]["leaderboard_season_status"]
+          subject_kind?: Database["public"]["Enums"]["social_subject_kind"]
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          closed_at?: string | null
+          cohort_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          ends_at?: string | null
+          id?: string
+          metric?: Database["public"]["Enums"]["challenge_metric"]
+          metric_track_key?: string | null
+          next_season_id?: string | null
+          previous_season_id?: string | null
+          rollover?: Database["public"]["Enums"]["leaderboard_rollover"]
+          scope?: Database["public"]["Enums"]["leaderboard_scope_kind"]
+          slug?: string
+          starts_at?: string
+          status?: Database["public"]["Enums"]["leaderboard_season_status"]
+          subject_kind?: Database["public"]["Enums"]["social_subject_kind"]
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "leaderboard_seasons_cohort_id_fkey"
+            columns: ["cohort_id"]
+            isOneToOne: false
+            referencedRelation: "cohorts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leaderboard_seasons_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leaderboard_seasons_metric_track_key_fkey"
+            columns: ["metric_track_key"]
+            isOneToOne: false
+            referencedRelation: "goal_categories"
+            referencedColumns: ["key"]
+          },
+          {
+            foreignKeyName: "leaderboard_seasons_next_season_id_fkey"
+            columns: ["next_season_id"]
+            isOneToOne: false
+            referencedRelation: "leaderboard_seasons"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leaderboard_seasons_previous_season_id_fkey"
+            columns: ["previous_season_id"]
+            isOneToOne: false
+            referencedRelation: "leaderboard_seasons"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      leaderboard_standings: {
+        Row: {
+          rank: number
+          refreshed_at: string
+          score: number
+          season_id: string
+          subject_id: string
+          subject_kind: Database["public"]["Enums"]["social_subject_kind"]
+          tie_break_at: string | null
+        }
+        Insert: {
+          rank: number
+          refreshed_at?: string
+          score?: number
+          season_id: string
+          subject_id: string
+          subject_kind: Database["public"]["Enums"]["social_subject_kind"]
+          tie_break_at?: string | null
+        }
+        Update: {
+          rank?: number
+          refreshed_at?: string
+          score?: number
+          season_id?: string
+          subject_id?: string
+          subject_kind?: Database["public"]["Enums"]["social_subject_kind"]
+          tie_break_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "leaderboard_standings_season_id_fkey"
+            columns: ["season_id"]
+            isOneToOne: false
+            referencedRelation: "leaderboard_seasons"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      moderation_actions: {
+        Row: {
+          action: Database["public"]["Enums"]["moderation_action"]
+          admin_id: string | null
+          admin_username: string
+          created_at: string
+          id: string
+          reason: string | null
+          target_id: string
+          target_kind: Database["public"]["Enums"]["moderation_target"]
+        }
+        Insert: {
+          action: Database["public"]["Enums"]["moderation_action"]
+          admin_id?: string | null
+          admin_username: string
+          created_at?: string
+          id?: string
+          reason?: string | null
+          target_id: string
+          target_kind: Database["public"]["Enums"]["moderation_target"]
+        }
+        Update: {
+          action?: Database["public"]["Enums"]["moderation_action"]
+          admin_id?: string | null
+          admin_username?: string
+          created_at?: string
+          id?: string
+          reason?: string | null
+          target_id?: string
+          target_kind?: Database["public"]["Enums"]["moderation_target"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "moderation_actions_admin_id_fkey"
+            columns: ["admin_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notification_outbox: {
+        Row: {
+          attempts: number
+          available_at: string
+          body: string
+          channel: Database["public"]["Enums"]["notification_channel"]
+          created_at: string
+          dedupe_key: string | null
+          id: string
+          kind: Database["public"]["Enums"]["notification_kind"]
+          last_error: string | null
+          sent_at: string | null
+          state: Database["public"]["Enums"]["notification_state"]
+          title: string
+          url: string | null
+          user_id: string
+        }
+        Insert: {
+          attempts?: number
+          available_at?: string
+          body: string
+          channel?: Database["public"]["Enums"]["notification_channel"]
+          created_at?: string
+          dedupe_key?: string | null
+          id?: string
+          kind: Database["public"]["Enums"]["notification_kind"]
+          last_error?: string | null
+          sent_at?: string | null
+          state?: Database["public"]["Enums"]["notification_state"]
+          title: string
+          url?: string | null
+          user_id: string
+        }
+        Update: {
+          attempts?: number
+          available_at?: string
+          body?: string
+          channel?: Database["public"]["Enums"]["notification_channel"]
+          created_at?: string
+          dedupe_key?: string | null
+          id?: string
+          kind?: Database["public"]["Enums"]["notification_kind"]
+          last_error?: string | null
+          sent_at?: string | null
+          state?: Database["public"]["Enums"]["notification_state"]
+          title?: string
+          url?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_outbox_user_id_fkey"
+            columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -334,6 +1290,89 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      nudges: {
+        Row: {
+          created_at: string
+          duo_id: string
+          from_user_id: string
+          goal_id: string | null
+          id: string
+          kind: Database["public"]["Enums"]["nudge_kind"]
+          message: string | null
+          read_at: string | null
+          to_user_id: string
+        }
+        Insert: {
+          created_at?: string
+          duo_id: string
+          from_user_id: string
+          goal_id?: string | null
+          id?: string
+          kind?: Database["public"]["Enums"]["nudge_kind"]
+          message?: string | null
+          read_at?: string | null
+          to_user_id: string
+        }
+        Update: {
+          created_at?: string
+          duo_id?: string
+          from_user_id?: string
+          goal_id?: string | null
+          id?: string
+          kind?: Database["public"]["Enums"]["nudge_kind"]
+          message?: string | null
+          read_at?: string | null
+          to_user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "nudges_duo_id_fkey"
+            columns: ["duo_id"]
+            isOneToOne: false
+            referencedRelation: "duos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "nudges_from_user_id_fkey"
+            columns: ["from_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "nudges_goal_id_fkey"
+            columns: ["goal_id"]
+            isOneToOne: false
+            referencedRelation: "goals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "nudges_to_user_id_fkey"
+            columns: ["to_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      partner_profile_fields: {
+        Row: {
+          field: string
+          is_exposed: boolean
+          updated_at: string
+        }
+        Insert: {
+          field: string
+          is_exposed?: boolean
+          updated_at?: string
+        }
+        Update: {
+          field?: string
+          is_exposed?: boolean
+          updated_at?: string
+        }
+        Relationships: []
       }
       planner_ai_usage_daily: {
         Row: {
@@ -522,6 +1561,73 @@ export type Database = {
           },
         ]
       }
+      planner_proposals: {
+        Row: {
+          applied_digest: string | null
+          baseline_schedule_digest: string
+          created_at: string
+          decided_at: string | null
+          duo_id: string
+          id: string
+          note: string | null
+          operations: Json
+          proposer_id: string
+          scope_month: string
+          status: Database["public"]["Enums"]["planner_proposal_status"]
+          target_owner_id: string
+        }
+        Insert: {
+          applied_digest?: string | null
+          baseline_schedule_digest: string
+          created_at?: string
+          decided_at?: string | null
+          duo_id: string
+          id?: string
+          note?: string | null
+          operations: Json
+          proposer_id: string
+          scope_month: string
+          status?: Database["public"]["Enums"]["planner_proposal_status"]
+          target_owner_id: string
+        }
+        Update: {
+          applied_digest?: string | null
+          baseline_schedule_digest?: string
+          created_at?: string
+          decided_at?: string | null
+          duo_id?: string
+          id?: string
+          note?: string | null
+          operations?: Json
+          proposer_id?: string
+          scope_month?: string
+          status?: Database["public"]["Enums"]["planner_proposal_status"]
+          target_owner_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "planner_proposals_duo_id_fkey"
+            columns: ["duo_id"]
+            isOneToOne: false
+            referencedRelation: "duos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "planner_proposals_proposer_id_fkey"
+            columns: ["proposer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "planner_proposals_target_owner_id_fkey"
+            columns: ["target_owner_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -529,12 +1635,17 @@ export type Database = {
           created_at: string
           display_name: string | null
           id: string
+          leaderboard_banned_at: string | null
           rest_weekdays: number[]
+          social_activity_visible: boolean
+          social_challenge_eligible: boolean
+          social_discoverable: boolean
+          social_leaderboard_eligible: boolean
+          social_visibility_updated_at: string
           timezone: string
           timezone_confirmed_at: string | null
           username: string
           week_starts_on: number
-          weekly_anchor_effective_on: string
         }
         Insert: {
           avatar_url?: string | null
@@ -542,12 +1653,17 @@ export type Database = {
           created_at?: string
           display_name?: string | null
           id: string
+          leaderboard_banned_at?: string | null
           rest_weekdays?: number[]
+          social_activity_visible?: boolean
+          social_challenge_eligible?: boolean
+          social_discoverable?: boolean
+          social_leaderboard_eligible?: boolean
+          social_visibility_updated_at?: string
           timezone?: string
           timezone_confirmed_at?: string | null
           username: string
           week_starts_on?: number
-          weekly_anchor_effective_on?: string
         }
         Update: {
           avatar_url?: string | null
@@ -555,12 +1671,17 @@ export type Database = {
           created_at?: string
           display_name?: string | null
           id?: string
+          leaderboard_banned_at?: string | null
           rest_weekdays?: number[]
+          social_activity_visible?: boolean
+          social_challenge_eligible?: boolean
+          social_discoverable?: boolean
+          social_leaderboard_eligible?: boolean
+          social_visibility_updated_at?: string
           timezone?: string
           timezone_confirmed_at?: string | null
           username?: string
           week_starts_on?: number
-          weekly_anchor_effective_on?: string
         }
         Relationships: []
       }
@@ -605,11 +1726,255 @@ export type Database = {
           },
         ]
       }
+      user_awards: {
+        Row: {
+          acknowledged_at: string | null
+          id: string
+          revoked_at: string | null
+          reward_id: string
+          unlocked_at: string
+          user_id: string
+        }
+        Insert: {
+          acknowledged_at?: string | null
+          id?: string
+          revoked_at?: string | null
+          reward_id: string
+          unlocked_at?: string
+          user_id: string
+        }
+        Update: {
+          acknowledged_at?: string | null
+          id?: string
+          revoked_at?: string | null
+          reward_id?: string
+          unlocked_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_awards_reward_id_fkey"
+            columns: ["reward_id"]
+            isOneToOne: false
+            referencedRelation: "xp_rewards"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_awards_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      xp_ledger: {
+        Row: {
+          completion_id: string | null
+          completion_source:
+            | Database["public"]["Enums"]["completion_source"]
+            | null
+          created_at: string
+          earned_on: string
+          entry_kind: string
+          event_type: string
+          goal_id: string | null
+          id: string
+          metadata: Json
+          seq: number
+          source_key: string
+          track_key: string
+          user_id: string
+          xp_delta: number
+        }
+        Insert: {
+          completion_id?: string | null
+          completion_source?:
+            | Database["public"]["Enums"]["completion_source"]
+            | null
+          created_at?: string
+          earned_on: string
+          entry_kind: string
+          event_type: string
+          goal_id?: string | null
+          id?: string
+          metadata?: Json
+          seq?: never
+          source_key: string
+          track_key: string
+          user_id: string
+          xp_delta: number
+        }
+        Update: {
+          completion_id?: string | null
+          completion_source?:
+            | Database["public"]["Enums"]["completion_source"]
+            | null
+          created_at?: string
+          earned_on?: string
+          entry_kind?: string
+          event_type?: string
+          goal_id?: string | null
+          id?: string
+          metadata?: Json
+          seq?: never
+          source_key?: string
+          track_key?: string
+          user_id?: string
+          xp_delta?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "xp_ledger_completion_id_fkey"
+            columns: ["completion_id"]
+            isOneToOne: false
+            referencedRelation: "completions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "xp_ledger_goal_id_fkey"
+            columns: ["goal_id"]
+            isOneToOne: false
+            referencedRelation: "goals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "xp_ledger_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      xp_levels: {
+        Row: {
+          created_at: string
+          level: number
+          min_total_xp: number
+          title: string
+        }
+        Insert: {
+          created_at?: string
+          level: number
+          min_total_xp: number
+          title: string
+        }
+        Update: {
+          created_at?: string
+          level?: number
+          min_total_xp?: number
+          title?: string
+        }
+        Relationships: []
+      }
+      xp_profiles: {
+        Row: {
+          created_at: string
+          current_level: number
+          total_xp: number
+          track_key: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          current_level: number
+          total_xp?: number
+          track_key: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          current_level?: number
+          total_xp?: number
+          track_key?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "xp_profiles_current_level_fkey"
+            columns: ["current_level"]
+            isOneToOne: false
+            referencedRelation: "xp_levels"
+            referencedColumns: ["level"]
+          },
+          {
+            foreignKeyName: "xp_profiles_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      xp_rewards: {
+        Row: {
+          created_at: string
+          id: string
+          level: number
+          reward_code: string
+          reward_description: string
+          reward_title: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          level: number
+          reward_code: string
+          reward_description: string
+          reward_title: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          level?: number
+          reward_code?: string
+          reward_description?: string
+          reward_title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "xp_rewards_level_fkey"
+            columns: ["level"]
+            isOneToOne: true
+            referencedRelation: "xp_levels"
+            referencedColumns: ["level"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
+      accept_duo_invite_service: {
+        Args: { p_duo_id: string; p_visibility_acknowledged: boolean }
+        Returns: boolean
+      }
+      acknowledge_user_award_service: {
+        Args: { p_award_id: string; p_user_id: string }
+        Returns: boolean
+      }
+      add_feed_reaction_service: {
+        Args: {
+          p_feed_event_id: string
+          p_reaction: Database["public"]["Enums"]["reaction_kind"]
+        }
+        Returns: boolean
+      }
+      assert_xp_ledger_consistency_service: { Args: never; Returns: number }
+      award_social_xp_service: {
+        Args: {
+          p_event_type: string
+          p_source_key: string
+          p_user_id: string
+          p_xp: number
+        }
+        Returns: number
+      }
       can_administer_goal: {
         Args: { p_goal_id: string; p_uid: string }
         Returns: boolean
@@ -621,6 +1986,22 @@ export type Database = {
       can_view_goal: {
         Args: { p_goal_id: string; p_uid: string }
         Returns: boolean
+      }
+      can_view_goal_content: {
+        Args: { p_goal_id: string; p_uid: string }
+        Returns: boolean
+      }
+      claim_notification_outbox_service: {
+        Args: { p_limit?: number }
+        Returns: {
+          attempts: number
+          body: string
+          id: string
+          kind: Database["public"]["Enums"]["notification_kind"]
+          title: string
+          url: string
+          user_id: string
+        }[]
       }
       clear_planner_schedule: {
         Args: { p_expected_digest: string; p_month: string }
@@ -644,6 +2025,26 @@ export type Database = {
           retry_after_seconds: number
         }[]
       }
+      create_duo_invite_service: {
+        Args: { p_message?: string; p_partner_id: string }
+        Returns: string
+      }
+      create_planner_proposal_service: {
+        Args: {
+          p_note?: string
+          p_operations: Json
+          p_scope_month: string
+          p_target_owner_id: string
+        }
+        Returns: string
+      }
+      decline_duo_invite_service: {
+        Args: { p_duo_id: string }
+        Returns: boolean
+      }
+      dissolve_duo_service: { Args: never; Returns: boolean }
+      expire_pending_duo_invites_service: { Args: never; Returns: number }
+      expire_planner_proposals_service: { Args: never; Returns: number }
       find_profile_by_username: {
         Args: { p_limit?: number; p_query: string }
         Returns: {
@@ -654,13 +2055,190 @@ export type Database = {
           username: string
         }[]
       }
+      get_challenge_detail: {
+        Args: { p_challenge_id: string }
+        Returns: {
+          description: string
+          ends_at: string
+          enrollment: Database["public"]["Enums"]["challenge_enrollment"]
+          id: string
+          max_participants: number
+          metric: Database["public"]["Enums"]["challenge_metric"]
+          metric_track_key: string
+          participant_count: number
+          reward_xp: number
+          slug: string
+          starts_at: string
+          status: Database["public"]["Enums"]["challenge_status"]
+          subject_kind: Database["public"]["Enums"]["social_subject_kind"]
+          target_value: number
+          title: string
+          viewer_awarded_at: string
+          viewer_completed_at: string
+          viewer_joined: boolean
+          viewer_progress: number
+        }[]
+      }
+      get_duo_partner_plan_service: {
+        Args: { p_scope_month: string }
+        Returns: {
+          goal_id: string
+          goal_title: string
+          item_id: string
+          locked: boolean
+          owner_id: string
+          scheduled_date: string
+          scheduled_time: string
+          unit_key: string
+        }[]
+      }
+      get_duo_state: {
+        Args: never
+        Returns: {
+          accepted_at: string
+          duo_id: string
+          invite_message: string
+          invited_at: string
+          is_incoming: boolean
+          partner_avatar_url: string
+          partner_display_name: string
+          partner_id: string
+          partner_username: string
+          status: Database["public"]["Enums"]["duo_status"]
+        }[]
+      }
+      get_leaderboard_standings: {
+        Args: { p_limit?: number; p_offset?: number; p_season_id: string }
+        Returns: {
+          display_name: string
+          rank: number
+          score: number
+          season_id: string
+          subject_id: string
+          subject_kind: Database["public"]["Enums"]["social_subject_kind"]
+          tie_break_at: string
+          viewer_rank: number
+        }[]
+      }
+      get_partner_profile_service: {
+        Args: { p_owner_id: string }
+        Returns: Json
+      }
+      get_planner_proposals_service: {
+        Args: { p_scope_month?: string }
+        Returns: {
+          applied_digest: string
+          baseline_schedule_digest: string
+          created_at: string
+          decided_at: string
+          duo_id: string
+          id: string
+          note: string
+          operations: Json
+          proposer_id: string
+          scope_month: string
+          status: Database["public"]["Enums"]["planner_proposal_status"]
+          target_owner_id: string
+        }[]
+      }
       get_planner_schedule_digest: {
         Args: { p_owner?: string }
         Returns: string
       }
+      get_social_challenges: {
+        Args: never
+        Returns: {
+          description: string
+          ends_at: string
+          enrollment: Database["public"]["Enums"]["challenge_enrollment"]
+          id: string
+          max_participants: number
+          metric: Database["public"]["Enums"]["challenge_metric"]
+          metric_track_key: string
+          participant_count: number
+          reward_xp: number
+          slug: string
+          starts_at: string
+          status: Database["public"]["Enums"]["challenge_status"]
+          subject_kind: Database["public"]["Enums"]["social_subject_kind"]
+          target_value: number
+          title: string
+          viewer_awarded_at: string
+          viewer_completed_at: string
+          viewer_joined: boolean
+          viewer_progress: number
+        }[]
+      }
+      get_social_feed: {
+        Args: {
+          p_before_at?: string
+          p_before_id?: string
+          p_limit?: number
+          p_scope?: string
+          p_scope_id?: string
+        }
+        Returns: {
+          actor_avatar_url: string
+          actor_display_name: string
+          actor_id: string
+          actor_username: string
+          category_label: string
+          created_at: string
+          event_type: Database["public"]["Enums"]["feed_event_type"]
+          goal_title: string
+          hidden_at: string
+          id: string
+          occurrence_count: number
+          payload: Json
+          reaction_count: number
+          track_key: string
+          viewer_reacted: boolean
+          xp_delta: number
+        }[]
+      }
+      get_social_leaderboards: {
+        Args: never
+        Returns: {
+          closed_at: string
+          ends_at: string
+          id: string
+          metric: Database["public"]["Enums"]["challenge_metric"]
+          metric_track_key: string
+          rollover: Database["public"]["Enums"]["leaderboard_rollover"]
+          slug: string
+          starts_at: string
+          status: Database["public"]["Enums"]["leaderboard_season_status"]
+          subject_kind: Database["public"]["Enums"]["social_subject_kind"]
+          title: string
+        }[]
+      }
+      hide_feed_event_service: {
+        Args: { p_event_id: string; p_hidden: boolean; p_reason?: string }
+        Returns: boolean
+      }
+      is_platform_admin: {
+        Args: { p_min_role?: Database["public"]["Enums"]["admin_role"] }
+        Returns: boolean
+      }
+      join_challenge_service: {
+        Args: { p_challenge_id: string }
+        Returns: boolean
+      }
+      join_cohort_with_code_service: {
+        Args: { p_join_code: string }
+        Returns: string
+      }
+      leave_challenge_service: {
+        Args: { p_challenge_id: string }
+        Returns: boolean
+      }
       mark_goal_complete: {
         Args: { p_date?: string; p_goal_id: string }
         Returns: undefined
+      }
+      recompute_goal_xp_service: {
+        Args: { p_force_zero?: boolean; p_goal_id: string; p_user_id: string }
+        Returns: number
       }
       record_planner_ai_output_tokens: {
         Args: {
@@ -671,6 +2249,28 @@ export type Database = {
         }
         Returns: number
       }
+      refresh_challenge_progress_service: { Args: never; Returns: number }
+      refresh_leaderboard_standings_service: { Args: never; Returns: number }
+      remove_feed_reaction_service: {
+        Args: {
+          p_feed_event_id: string
+          p_reaction: Database["public"]["Enums"]["reaction_kind"]
+        }
+        Returns: boolean
+      }
+      resolve_notification_outbox_delivery_service: {
+        Args: { p_error?: string; p_outbox_id: string; p_sent: boolean }
+        Returns: boolean
+      }
+      resolve_planner_proposal_service: {
+        Args: {
+          p_applied_digest?: string
+          p_proposal_id: string
+          p_resolution: Database["public"]["Enums"]["planner_proposal_status"]
+        }
+        Returns: boolean
+      }
+      rollover_leaderboard_seasons_service: { Args: never; Returns: number }
       save_planner_coach_conversation_service: {
         Args: {
           p_messages: Json
@@ -689,6 +2289,15 @@ export type Database = {
           title: string
           updated_at: string
         }[]
+      }
+      send_nudge_service: {
+        Args: {
+          p_goal_id?: string
+          p_kind?: Database["public"]["Enums"]["nudge_kind"]
+          p_message?: string
+          p_to_user_id: string
+        }
+        Returns: string
       }
       set_planner_item_lock: {
         Args: {
@@ -716,10 +2325,72 @@ export type Database = {
       username_is_available: { Args: { p_username: string }; Returns: boolean }
     }
     Enums: {
+      admin_role: "admin" | "moderator"
+      challenge_enrollment: "auto" | "opt_in"
+      challenge_metric:
+        | "total_xp"
+        | "category_xp"
+        | "completions_count"
+        | "distinct_active_days"
+        | "max_streak_days"
+      challenge_status: "draft" | "scheduled" | "active" | "closed" | "archived"
+      cohort_member_role: "member" | "manager"
       completion_source: "manual" | "linked_cascade"
+      duo_status:
+        | "pending"
+        | "active"
+        | "declined"
+        | "cancelled"
+        | "dissolved"
+        | "expired"
+      feed_event_type:
+        | "xp_earned"
+        | "level_up"
+        | "goal_achieved"
+        | "challenge_completed"
+        | "season_result"
+        | "duo_formed"
+      goal_feed_visibility: "private" | "title_public"
       goal_frequency_type: "fixed_milestones" | "recurring"
+      goal_partner_visibility: "shared" | "excluded"
+      leaderboard_rollover: "none" | "weekly" | "monthly" | "quarterly"
+      leaderboard_scope_kind: "global" | "cohort"
+      leaderboard_season_status: "upcoming" | "open" | "closed"
+      moderation_action:
+        | "hide"
+        | "unhide"
+        | "ban_leaderboard"
+        | "unban_leaderboard"
+        | "remove_participant"
+        | "close_challenge"
+      moderation_target: "feed_event" | "user" | "challenge" | "duo"
+      notification_channel: "push"
+      notification_kind:
+        | "duo_invite"
+        | "duo_accepted"
+        | "duo_dissolved"
+        | "nudge"
+        | "reaction"
+        | "challenge_joined"
+        | "challenge_completed"
+        | "challenge_ending_soon"
+        | "season_closed"
+        | "planner_proposal"
+        | "planner_proposal_decided"
+      notification_state: "pending" | "sent" | "failed" | "skipped"
+      nudge_kind: "cheer" | "remind" | "custom"
       participant_role: "owner" | "participant"
+      planner_proposal_status:
+        | "pending"
+        | "accepted"
+        | "rejected"
+        | "withdrawn"
+        | "stale"
+        | "expired"
+      reaction_kind: "cheer" | "fire" | "clap" | "strong"
       recurrence_interval: "daily" | "weekly" | "monthly"
+      social_audience_kind: "global" | "cohort"
+      social_subject_kind: "user" | "duo"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -850,10 +2521,78 @@ export const Constants = {
   },
   public: {
     Enums: {
+      admin_role: ["admin", "moderator"],
+      challenge_enrollment: ["auto", "opt_in"],
+      challenge_metric: [
+        "total_xp",
+        "category_xp",
+        "completions_count",
+        "distinct_active_days",
+        "max_streak_days",
+      ],
+      challenge_status: ["draft", "scheduled", "active", "closed", "archived"],
+      cohort_member_role: ["member", "manager"],
       completion_source: ["manual", "linked_cascade"],
+      duo_status: [
+        "pending",
+        "active",
+        "declined",
+        "cancelled",
+        "dissolved",
+        "expired",
+      ],
+      feed_event_type: [
+        "xp_earned",
+        "level_up",
+        "goal_achieved",
+        "challenge_completed",
+        "season_result",
+        "duo_formed",
+      ],
+      goal_feed_visibility: ["private", "title_public"],
       goal_frequency_type: ["fixed_milestones", "recurring"],
+      goal_partner_visibility: ["shared", "excluded"],
+      leaderboard_rollover: ["none", "weekly", "monthly", "quarterly"],
+      leaderboard_scope_kind: ["global", "cohort"],
+      leaderboard_season_status: ["upcoming", "open", "closed"],
+      moderation_action: [
+        "hide",
+        "unhide",
+        "ban_leaderboard",
+        "unban_leaderboard",
+        "remove_participant",
+        "close_challenge",
+      ],
+      moderation_target: ["feed_event", "user", "challenge", "duo"],
+      notification_channel: ["push"],
+      notification_kind: [
+        "duo_invite",
+        "duo_accepted",
+        "duo_dissolved",
+        "nudge",
+        "reaction",
+        "challenge_joined",
+        "challenge_completed",
+        "challenge_ending_soon",
+        "season_closed",
+        "planner_proposal",
+        "planner_proposal_decided",
+      ],
+      notification_state: ["pending", "sent", "failed", "skipped"],
+      nudge_kind: ["cheer", "remind", "custom"],
       participant_role: ["owner", "participant"],
+      planner_proposal_status: [
+        "pending",
+        "accepted",
+        "rejected",
+        "withdrawn",
+        "stale",
+        "expired",
+      ],
+      reaction_kind: ["cheer", "fire", "clap", "strong"],
       recurrence_interval: ["daily", "weekly", "monthly"],
+      social_audience_kind: ["global", "cohort"],
+      social_subject_kind: ["user", "duo"],
     },
   },
 } as const
