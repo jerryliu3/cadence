@@ -151,7 +151,7 @@ select lives_ok(
   begin
     perform public.mark_goal_complete(
       '91600000-0000-4000-8000-000000000001',
-      current_date - 6
+      date_trunc('month', current_date)::date
     );
   end;
   $$;
@@ -164,7 +164,7 @@ select is(
     select count(*)
     from public.completions
     where user_id = '11111111-1111-4111-8111-111111111111'
-      and completed_on = current_date - 6
+      and completed_on = date_trunc('month', current_date)::date
       and goal_id in (
         '91600000-0000-4000-8000-000000000001',
         '91600000-0000-4000-8000-000000000002',
@@ -180,7 +180,7 @@ select is(
     select count(*)
     from public.completions
     where user_id = '11111111-1111-4111-8111-111111111111'
-      and completed_on = current_date - 6
+      and completed_on = date_trunc('month', current_date)::date
       and goal_id = '91600000-0000-4000-8000-000000000001'
       and source = 'manual'
   ),
@@ -193,7 +193,7 @@ select is(
     select count(*)
     from public.completions
     where user_id = '11111111-1111-4111-8111-111111111111'
-      and completed_on = current_date - 6
+      and completed_on = date_trunc('month', current_date)::date
       and goal_id in (
         '91600000-0000-4000-8000-000000000002',
         '91600000-0000-4000-8000-000000000003'
@@ -206,7 +206,7 @@ select is(
 
 select public.mark_goal_complete(
   '91600000-0000-4000-8000-000000000001',
-  current_date - 6
+  date_trunc('month', current_date)::date
 );
 
 select is(
@@ -214,7 +214,7 @@ select is(
     select count(*)
     from public.completions
     where user_id = '11111111-1111-4111-8111-111111111111'
-      and completed_on = current_date - 6
+      and completed_on = date_trunc('month', current_date)::date
       and goal_id in (
         '91600000-0000-4000-8000-000000000001',
         '91600000-0000-4000-8000-000000000002',
@@ -231,7 +231,7 @@ select lives_ok(
   begin
     perform public.unmark_goal_complete(
       '91600000-0000-4000-8000-000000000001',
-      current_date - 6
+      date_trunc('month', current_date)::date
     );
   end;
   $$;
@@ -244,7 +244,7 @@ select is(
     select count(*)
     from public.completions
     where user_id = '11111111-1111-4111-8111-111111111111'
-      and completed_on = current_date - 6
+      and completed_on = date_trunc('month', current_date)::date
       and goal_id in (
         '91600000-0000-4000-8000-000000000001',
         '91600000-0000-4000-8000-000000000002',
