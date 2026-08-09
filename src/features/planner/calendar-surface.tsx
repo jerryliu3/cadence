@@ -1533,7 +1533,7 @@ export function CalendarSurface({
       : null;
 
     setSaveLoading(true);
-    const response = await fetch("/api/planner/publish", {
+    const response = await fetch("/api/planner/save", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -1589,8 +1589,8 @@ export function CalendarSurface({
       return;
     }
     setResetLoading(true);
-    const response = await fetch("/api/planner/schedule", {
-      method: "DELETE",
+    const response = await fetch("/api/planner/reset", {
+      method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         scopeMonth: context.scopeMonth,
