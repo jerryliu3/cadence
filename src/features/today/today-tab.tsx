@@ -73,7 +73,6 @@ import {
   getGoalRequirement,
   isTargetedRecurringGoal,
 } from "@/lib/planner/requirements";
-import { withPlannerRefreshTimeout } from "@/lib/planner/refresh-timeout";
 import { createClient } from "@/lib/supabase/client";
 
 interface TodayData {
@@ -615,10 +614,7 @@ export function TodayTab({
             : viewDate;
         toast.success(`Marked as incomplete for ${removedDate}.`);
       }
-      await withPlannerRefreshTimeout({
-        operation: loadData({ showLoading: false, forceRefresh: true }),
-        timeoutMessage: "Goal progress refresh timed out. Please refresh to sync.",
-      });
+      await loadData({ showLoading: false, forceRefresh: true });
       requestAnimationFrame(() => {
         window.scrollTo({ top: currentScrollY, behavior: "auto" });
       });
