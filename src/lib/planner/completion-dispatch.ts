@@ -1,9 +1,3 @@
-import {
-  getApiErrorMessage,
-  isApiClientTransportError,
-  requestJson,
-} from "@/lib/api/client";
-
 export interface CompletionDispatchInput {
   requirementKind:
     | "milestone_sequence"
@@ -20,6 +14,13 @@ export interface CompletionDispatchInput {
   existingExactFact: boolean;
   desiredFactState: "present" | "absent";
 }
+
+type CompletionDispatchRoute =
+  | "item_date"
+  | "plan_goal_date"
+  | "canonical_exact_date"
+  | "legacy_period"
+  | "disabled";
 
 export interface PlannerDigestExpectation {
   expectedDigest: string;
@@ -49,11 +50,7 @@ export interface CompletionDispatchExecutionResult {
   message: string | null;
 }
 
-type ExecutableCompletionRoute =
-  | "item_date"
-  | "plan_goal_date"
-  | "canonical_exact_date"
-  | "legacy_period";
+type ExecutableCompletionRoute = Exclude<CompletionDispatchRoute, "disabled">;
 
 export type ExecutableCompletionDispatchDecision = {
   route: ExecutableCompletionRoute;
@@ -77,38 +74,62 @@ const DEFAULT_COMPLETION_DISPATCH_TIMEOUT_MS = 15_000;
 const COMPLETION_TIMEOUT_MESSAGE =
   "The completion request timed out. Please try again.";
 
-async function postCompletionRoute({
+function parseErrorMessage(payload: unknown, fallback: string) {
+  if (
+    payload &&
+    typeof payload === "object" &&
+    "message" in payload &&
+    typeof payload.message === "string" &&
+    payload.message.trim().length > 0
+  ) {
+    return payload.message;
+  }
+  return fallback;
+}
+
+function isAbortError(error: unknown) {
+  return error instanceof Error && error.name === "AbortError";
+}
+
+async function postJsonRoute({
   fetcher,
+  route,
   body,
   fallbackError,
   timeoutMs,
 }: {
   fetcher: typeof fetch;
+  route: string;
   body: Record<string, unknown>;
   fallbackError: string;
   timeoutMs: number;
 }) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  let response: Response;
   try {
-    await requestJson<unknown, Record<string, unknown>>({
-      path: "/api/completions",
+    response = await fetcher(route, {
       method: "POST",
-      body,
-      timeoutMs,
-      fetcher,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal: controller.signal,
     });
-    return { ok: true as const, message: null };
   } catch (error) {
-    if (isApiClientTransportError(error) && error.reason === "timeout") {
-      return {
-        ok: false as const,
-        message: COMPLETION_TIMEOUT_MESSAGE,
-      };
-    }
     return {
       ok: false as const,
-      message: getApiErrorMessage(error, fallbackError),
+      message: isAbortError(error) ? COMPLETION_TIMEOUT_MESSAGE : fallbackError,
     };
+  } finally {
+    clearTimeout(timeoutId);
   }
+  if (response.ok) {
+    return { ok: true as const, message: null };
+  }
+  const payload = await response.json().catch(() => null);
+  return {
+    ok: false as const,
+    message: parseErrorMessage(payload, fallbackError),
+  };
 }
 
 export function resolveCompletionDispatch({
@@ -206,8 +227,9 @@ export async function executeCompletionDispatch({
       : decision.route === "legacy_period"
         ? "The completion could not be updated."
         : "Planner completion update failed.";
-  return postCompletionRoute({
+  return postJsonRoute({
     fetcher,
+    route: "/api/completions",
     body,
     fallbackError,
     timeoutMs,
