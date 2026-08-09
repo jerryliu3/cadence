@@ -128,6 +128,96 @@ test("planner bridge APIs reject unauthenticated callers", async ({ page }) => {
   expect(exactCompletion.body.code).toBe("authentication_required");
 });
 
+test("planner reset rejects stale digest expectations", async ({ page }) => {
+  await page.goto("/");
+  const result = await page.evaluate(async () => {
+    const dateParts = Object.fromEntries(
+      new Intl.DateTimeFormat("en-US", {
+        year: "numeric",
+        month: "2-digit",
+      })
+        .formatToParts(new Date())
+        .filter((part) => part.type !== "literal")
+        .map((part) => [part.type, part.value])
+    );
+    const scopeMonth = `${dateParts.year}-${dateParts.month}`;
+    const contextResponse = await fetch(
+      `/api/planner/context?scopeMonth=${scopeMonth}`
+    );
+    const contextBody = (await contextResponse.json()) as {
+      revisions?: { scheduleDigest?: string | null };
+    };
+    const digest =
+      typeof contextBody.revisions?.scheduleDigest === "string"
+        ? contextBody.revisions.scheduleDigest
+        : "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+    const staleDigest = `${digest[0] === "a" ? "b" : "a"}${digest.slice(1)}`;
+    const resetResponse = await fetch("/api/planner/reset", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        scopeMonth,
+        expectedDigest: staleDigest,
+      }),
+    });
+    return {
+      contextStatus: contextResponse.status,
+      resetStatus: resetResponse.status,
+      resetBody: (await resetResponse.json()) as { code?: string },
+    };
+  });
+
+  expect(result.contextStatus).toBe(200);
+  expect(result.resetStatus).toBe(409);
+  expect(result.resetBody.code).toBe("stale_revision");
+});
+
+test("planner completion bridge routes item expectation conflicts", async ({
+  page,
+}) => {
+  await page.goto("/");
+  const result = await page.evaluate(async () => {
+    const now = new Date();
+    now.setDate(now.getDate() - 1);
+    const values = Object.fromEntries(
+      new Intl.DateTimeFormat("en-US", {
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      })
+        .formatToParts(now)
+        .filter((part) => part.type !== "literal")
+        .map((part) => [part.type, part.value])
+    );
+    const selectedDate = `${values.year}-${values.month}-${values.day}`;
+    const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const response = await fetch("/api/completions", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        goalId: "10000000-0000-4000-8000-000000000011",
+        date: selectedDate,
+        desiredFactState: "present",
+        timezone,
+        plannerItemExpectation: {
+          itemId: "ffffffff-ffff-4fff-8fff-ffffffffffff",
+          expectedDigest:
+            "abababababababababababababababababababababababababababababababab",
+        },
+      }),
+    });
+    return {
+      status: response.status,
+      body: (await response.json()) as { code?: string },
+    };
+  });
+
+  expect([404, 409]).toContain(result.status);
+  expect(["planner_item_not_found", "stale_revision"]).toContain(
+    result.body.code ?? ""
+  );
+});
+
 test("targeted recurring bridge mutates only the requested date", async ({
   page,
 }, testInfo) => {
