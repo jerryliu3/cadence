@@ -20,6 +20,30 @@ async function openCalendar(page: Page) {
   await expect(page.getByText("Loading planner month context...")).toHaveCount(0);
 }
 
+async function ensureMovableEntryAvailable(page: Page, maxMonthJumps = 6) {
+  const movableEntrySelector =
+    '[data-calendar-day-entry="true"][title*="Drag to another day"]';
+  for (let jump = 0; jump <= maxMonthJumps; jump += 1) {
+    const movableEntries = page.locator(movableEntrySelector);
+    if ((await movableEntries.count()) > 0) {
+      await expect(movableEntries.first()).toBeVisible();
+      return;
+    }
+    if (jump === maxMonthJumps) {
+      break;
+    }
+
+    const nextMonthButton = page.getByRole("button", { name: "Next month" });
+    await expect(nextMonthButton).toBeVisible();
+    await nextMonthButton.click();
+    await expect(page.getByText("Loading planner month context...")).toHaveCount(0);
+  }
+
+  throw new Error(
+    `No movable planner entry found after scanning ${maxMonthJumps + 1} month view(s).`
+  );
+}
+
 async function resolveCalendarScopeMonth(page: Page) {
   for (let attempt = 0; attempt < 30; attempt += 1) {
     const fromUrl = new URL(page.url()).searchParams.get("month");
@@ -220,6 +244,7 @@ test.describe("planner critical rails", () => {
 
   test("drag + save keeps only intended unit movement", async ({ page }) => {
     await openCalendar(page);
+    await ensureMovableEntryAvailable(page);
     const scopeMonth = await resolveCalendarScopeMonth(page);
     const before = await fetchPlannerContextSnapshot(page, scopeMonth);
 
