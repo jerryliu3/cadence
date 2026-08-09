@@ -133,6 +133,8 @@ export async function handlePlannerSave(request: Request) {
       kernel = runPlannerKernel({
         schemaVersion: "1",
         eligibilityMode: effectiveEligibilityMode,
+        // A supplied policy indicates an intentional coach/manual policy change,
+        // so we recompute placements instead of preserving prior assignments.
         preserveExistingAssignments: requestedPolicy === null,
         ownerId: routeContext.userId,
         scopeMonth: body.scopeMonth,

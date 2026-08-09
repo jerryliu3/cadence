@@ -51,6 +51,14 @@ export function projectWorkUnitsToSolver({
       const candidateDates = enumerateDates(unit.placementWindow!).filter(
         (date) => !reservedDatesByGoal.get(unit.originalGoalId)?.has(date)
       );
+      if (
+        preserveExistingAssignments &&
+        unit.scheduledDate !== null &&
+        !candidateDates.includes(unit.scheduledDate)
+      ) {
+        candidateDates.push(unit.scheduledDate);
+        candidateDates.sort(compareCanonicalStrings);
+      }
       return {
         source: unit,
         candidateDates,

@@ -751,8 +751,20 @@ export function runPlannerKernel(
     unit.effectiveScheduledLocalTime = resolvedTime.effectiveScheduledLocalTime;
     unit.effectiveScheduledAtLocal = resolvedTime.effectiveScheduledAtLocal;
   }
-  const mergedValidation =
-    validateMergedWorkUnitAssignments(orderedWorkUnits);
+  const preservedAssignmentsByIdentity =
+    rawInput.preserveExistingAssignments === true
+      ? new Map(
+          baseAssignments.map((assignment) => [
+            `${assignment.goalId}\u0000${assignment.requirementFingerprint}\u0000${assignment.unitKey}`,
+            assignment.scheduledDate,
+          ])
+        )
+      : undefined;
+  const mergedValidation = validateMergedWorkUnitAssignments(orderedWorkUnits, {
+    allowPreservedOutsidePlacementWindow:
+      rawInput.preserveExistingAssignments === true,
+    preservedAssignmentsByIdentity,
+  });
   validation = {
     valid: validation.valid && mergedValidation.valid,
     invariantViolations: Array.from(

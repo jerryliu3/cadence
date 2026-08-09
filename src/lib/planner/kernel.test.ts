@@ -602,6 +602,42 @@ describe("pure planner kernel", () => {
     );
   });
 
+  it("preserves an existing out-of-window assignment without invalid_lock", () => {
+    const currentGoal = goal({
+      target_count: 1,
+      start_date: "2026-08-01",
+      end_date: "2026-08-31",
+    });
+    const output = runPlannerKernel(
+      input({
+        scopeMonth: "2026-08",
+        asOfDate: "2026-08-20",
+        goals: [currentGoal],
+        preserveExistingAssignments: true,
+        basePlan: {
+          planId: "plan-a",
+          version: 1,
+          assignments: [
+            {
+              goalId: currentGoal.id,
+              requirementFingerprint:
+                computeRequirementFingerprint(currentGoal),
+              unitKey: "total:1",
+              scheduledDate: "2026-08-05",
+              locked: false,
+            },
+          ],
+        },
+      })
+    );
+
+    expect(output.solver.issueCodes).not.toContain("invalid_lock");
+    expect(output.validation.valid).toBe(true);
+    expect(output.workUnits.map((unit) => unit.scheduledDate)).toEqual([
+      "2026-08-05",
+    ]);
+  });
+
   it("emits a usable unaffected-goal diff beside an invalid lock", () => {
     const invalidGoal = goal({ target_count: 2 });
     const unaffectedGoal = goal({ id: "goal-b", target_count: 1 });
