@@ -12,10 +12,12 @@ export const goalAssessmentSchema = z
     schemaVersion: z.literal(ASSESSMENT_SCHEMA_VERSION),
     goalId: z.string().min(1).max(100),
     estimatedMinutesPerSession: z.number().int().min(5).max(480),
-    difficulty: z.number().int().min(1).max(5),
+    // Legacy field kept optional for backward-compatible snapshot parsing.
+    difficulty: z.number().int().min(1).max(5).optional(),
     priority: z.number().int().min(1).max(5),
-    confidence: z.enum(["low", "medium", "high"]),
-    rationale: z.string().max(1_000),
+    // Legacy fields kept optional for backward-compatible snapshot parsing.
+    confidence: z.enum(["low", "medium", "high"]).optional(),
+    rationale: z.string().max(1_000).optional(),
     assumptions: z.string().max(1_000),
     source: z.enum(["default", "ai", "user"]),
     assessmentInputHash: z.string().regex(/^[a-f0-9]{64}$/),
@@ -45,10 +47,7 @@ export function createDefaultAssessment(goal: Goal): GoalAssessment {
     schemaVersion: ASSESSMENT_SCHEMA_VERSION,
     goalId: goal.id,
     estimatedMinutesPerSession: 30,
-    difficulty: 3,
     priority: 3,
-    confidence: "low",
-    rationale: "",
     assumptions: "",
     source: "default",
     assessmentInputHash: computeAssessmentInputHash(

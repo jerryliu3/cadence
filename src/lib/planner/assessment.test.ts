@@ -35,9 +35,7 @@ describe("planner goal assessments", () => {
   it("provides bounded defaults that do not require AI", () => {
     expect(createDefaultAssessment(goal())).toMatchObject({
       estimatedMinutesPerSession: 30,
-      difficulty: 3,
       priority: 3,
-      confidence: "low",
       source: "default",
     });
   });
