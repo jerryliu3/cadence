@@ -585,33 +585,18 @@ export function TodayTab({
           ? "absent"
           : "present"
         : desiredFactState;
+    const dispatchDate =
+      decision.route === "legacy_period" && routeDesiredFactState === "absent"
+        ? completionToUnmark?.completed_on ?? viewDate
+        : viewDate;
 
     try {
       const result = await executeCompletionDispatch({
         decision,
         desiredFactState: routeDesiredFactState,
         goalId: goal.id,
-        date: viewDate,
+        date: dispatchDate,
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-        legacyExecutor: {
-          markPresent: async () => {
-            const { error } = await supabase.rpc("mark_goal_complete", {
-              p_goal_id: goal.id,
-              p_date: viewDate,
-            });
-            return error?.message ?? null;
-          },
-          markAbsent: async () => {
-            if (!completedForCurrentPeriod || !completionToUnmark) {
-              return "No completion was found to remove for this period.";
-            }
-            const { error } = await supabase.rpc("unmark_goal_complete", {
-              p_goal_id: goal.id,
-              p_date: completionToUnmark.completed_on,
-            });
-            return error?.message ?? null;
-          },
-        },
       });
 
       if (!result.ok) {
