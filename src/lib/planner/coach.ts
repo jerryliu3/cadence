@@ -20,6 +20,7 @@ export const COACH_WARNING_ITEM_EDIT_UNSUPPORTED =
   "Some proposed item edits were skipped because they were not supported.";
 const COACH_NO_EDITS_SUPPORTED_REPLY =
   "No calendar edits were applied because the proposal did not contain valid policy or item-level scheduling edits.";
+export const COACH_CLEAR_TIME_SENTINEL = "__clear_time__";
 
 export const coachRequestSchema = z
   .object({
@@ -77,13 +78,24 @@ const calendarIntentItemSchema = z
   .object({
     goalId: z.uuid(),
     unitKey: z.string().trim().min(1).max(200),
-    scheduledDate: z.iso.date().nullable().optional(),
-    label: z.string().trim().min(1).max(200).nullable().optional(),
-    localTime: z
-      .string()
-      .regex(/^([01][0-9]|2[0-3]):[0-5][0-9]$/)
-      .nullable()
-      .optional(),
+    scheduledDate: z.iso.date().optional(),
+    label: z.string().trim().min(1).max(200).optional(),
+    localTime: z.preprocess(
+      (value) => {
+        if (
+          typeof value === "string" &&
+          value.trim().toLowerCase() === COACH_CLEAR_TIME_SENTINEL
+        ) {
+          return null;
+        }
+        return value;
+      },
+      z
+        .string()
+        .regex(/^([01][0-9]|2[0-3]):[0-5][0-9]$/)
+        .nullable()
+        .optional()
+    ),
   })
   .strict()
   .refine(
@@ -194,18 +206,13 @@ function compileCalendarItemIntents({
       continue;
     }
     let compiledForItem = 0;
-    let hadUnsupportedField = false;
     if (item.scheduledDate !== undefined) {
-      if (item.scheduledDate === null) {
-        hadUnsupportedField = true;
-      } else {
-        compiledForItem += pushCommand({
-          kind: "move_item",
-          goalId: item.goalId,
-          unitKey: item.unitKey,
-          scheduledDate: item.scheduledDate,
-        });
-      }
+      compiledForItem += pushCommand({
+        kind: "move_item",
+        goalId: item.goalId,
+        unitKey: item.unitKey,
+        scheduledDate: item.scheduledDate,
+      });
     }
     if (item.label !== undefined) {
       compiledForItem += pushCommand({
@@ -230,7 +237,7 @@ function compileCalendarItemIntents({
               localTime: item.localTime,
             });
     }
-    if (compiledForItem === 0 || hadUnsupportedField) {
+    if (compiledForItem === 0) {
       unsupportedCount += 1;
     }
   }
@@ -436,7 +443,10 @@ export const coachResponseJsonSchema = {
                   unitKey: { type: "string" },
                   scheduledDate: { type: "string" },
                   label: { type: "string" },
-                  localTime: { type: "string" },
+                  localTime: {
+                    type: "string",
+                    description: `24-hour HH:MM, or ${COACH_CLEAR_TIME_SENTINEL} to clear an existing override.`,
+                  },
                 },
                 required: ["goalId", "unitKey"],
               },

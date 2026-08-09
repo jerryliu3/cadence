@@ -1,3 +1,5 @@
+import { COACH_CLEAR_TIME_SENTINEL } from "@/lib/planner/coach";
+
 export interface CoachPromptMessage {
   role: "user" | "assistant";
   content: string;
@@ -114,7 +116,7 @@ export function buildCoachPrompt({
     "",
     "OUTPUT CONTRACT (STRICT)",
     "Return only JSON. Never return markdown fences or extra prose.",
-    'Required envelope shape: {"schemaVersion":"1","phase":"discovery|review|ready|explain","reply":"...","proposal":{"calendarIntent":{"action":"none|needs_goal|apply","global":{"restWeekdays":[],"addBlackoutRanges":[{"start":"YYYY-MM-DD","end":"YYYY-MM-DD"}],"removeBlackoutRanges":[{"start":"YYYY-MM-DD","end":"YYYY-MM-DD"}]},"items":[{"goalId":"UUID","unitKey":"...","scheduledDate":"YYYY-MM-DD|null","label":"...|null","localTime":"HH:MM|null"}]},"unresolvedQuestions":[]},"recommendations":[{"text":"..."}]}',
+    `Required envelope shape: {"schemaVersion":"1","phase":"discovery|review|ready|explain","reply":"...","proposal":{"calendarIntent":{"action":"none|needs_goal|apply","global":{"restWeekdays":[],"addBlackoutRanges":[{"start":"YYYY-MM-DD","end":"YYYY-MM-DD"}],"removeBlackoutRanges":[{"start":"YYYY-MM-DD","end":"YYYY-MM-DD"}]},"items":[{"goalId":"UUID","unitKey":"...","scheduledDate":"YYYY-MM-DD","label":"...","localTime":"HH:MM|${COACH_CLEAR_TIME_SENTINEL}"}]},"unresolvedQuestions":[]},"recommendations":[{"text":"..."}]}`,
     "Calendar intent rules:",
     "- action=none when the user only wants advice.",
     "- action=needs_goal when the requested activity does not clearly map to current focus goals.",
@@ -124,7 +126,7 @@ export function buildCoachPrompt({
     "- Each item object may only include goalId, unitKey, scheduledDate, label, and localTime; do not include extra keys.",
     "- restWeekdays entries are numeric weekdays where 0=Sunday through 6=Saturday.",
     "- blackout range entries use exact YYYY-MM-DD start/end values.",
-    "- localTime values must be 24-hour HH:MM.",
+    `- localTime values must be 24-hour HH:MM, or ${COACH_CLEAR_TIME_SENTINEL} to clear an existing time override.`,
     "- Deterministic dayAssignments may include session handles like [goalId/unitKey]. Reuse those exact values; never invent unitKey identifiers.",
     "- Never claim that edits were already applied by you. The app applies patches after your response is validated.",
     "- If action is needs_goal, none, or apply with no supported global/item edits, explicitly state that no calendar edits were applied.",

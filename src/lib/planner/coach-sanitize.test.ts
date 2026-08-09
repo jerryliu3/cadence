@@ -174,6 +174,41 @@ describe("sanitizeCoachTurn", () => {
     expect(result.reply).toBe("I scheduled your existing sessions where possible.");
   });
 
+  it("supports explicit local-time clear sentinel in item edits", () => {
+    const goalA = goal();
+    const result = sanitizeCoachTurn({
+      goalsById: new Map([[goalA.id, goalA]]),
+      raw: {
+        schemaVersion: "1",
+        phase: "ready",
+        reply: "Cleared the time override for that session.",
+        proposal: {
+          calendarIntent: {
+            action: "apply",
+            items: [
+              {
+                goalId: goalA.id,
+                unitKey: "cadence:2026-08-11",
+                localTime: "__clear_time__",
+              },
+            ],
+          },
+          unresolvedQuestions: [],
+        },
+        recommendations: [{ text: "Leave one untimed session for flexibility." }],
+      },
+    });
+
+    expect(result.proposal.draftCommands).toEqual([
+      expect.objectContaining({
+        kind: "clear_item_time_override",
+        goalId: goalA.id,
+        unitKey: "cadence:2026-08-11",
+      }),
+    ]);
+    expect(result.warnings).toEqual([]);
+  });
+
   it("accepts missing global and normalizes string recommendations", () => {
     const goalA = goal();
     const result = sanitizeCoachTurn({

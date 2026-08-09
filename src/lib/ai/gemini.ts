@@ -343,20 +343,6 @@ function isRetryableHttpStatus(status: number) {
   return status === 408 || status === 429 || status >= 500;
 }
 
-function shouldRetryWithoutResponseSchema(status: number, errorBody: string) {
-  if (status !== 400) {
-    return false;
-  }
-  const normalized = errorBody.toLowerCase();
-  return (
-    normalized.includes("invalid_argument") ||
-    normalized.includes("unknown name") ||
-    normalized.includes("cannot find field") ||
-    normalized.includes("response_schema") ||
-    normalized.includes("responseschema")
-  );
-}
-
 async function executeGeminiAttempt({
   prompt,
   responseSchema,
@@ -421,22 +407,8 @@ async function executeGeminiAttempt({
     }
   };
 
-  let response = await sendRequest(Boolean(responseSchema));
-  let errorBody = "";
-  if (!response.ok) {
-    errorBody = await response.text().catch(() => "");
-    if (
-      responseSchema &&
-      shouldRetryWithoutResponseSchema(response.status, errorBody)
-    ) {
-      // Gemini occasionally rejects otherwise valid requests due strict schema
-      // keyword compatibility. Retry once without responseSchema.
-      response = await sendRequest(false);
-      if (!response.ok) {
-        errorBody = await response.text().catch(() => "");
-      }
-    }
-  }
+  const response = await sendRequest(Boolean(responseSchema));
+  const errorBody = response.ok ? "" : await response.text().catch(() => "");
 
   if (!response.ok) {
     const compactErrorBody = errorBody

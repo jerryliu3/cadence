@@ -66,6 +66,7 @@ describe("buildCoachPrompt", () => {
     expect(prompt).toContain("cannot create goals");
     expect(prompt).toContain("never invent unitKey identifiers");
     expect(prompt).toContain("may only include goalId, unitKey, scheduledDate, label, and localTime");
+    expect(prompt).toContain("__clear_time__");
     expect(prompt).toContain("Always include 2-5 concrete recommendations");
   });
 
