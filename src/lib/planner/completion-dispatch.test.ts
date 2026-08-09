@@ -95,7 +95,6 @@ describe("completion dispatch executor", () => {
 
     expect(result).toEqual({
       ok: true,
-      route: "canonical_exact_date",
       message: null,
     });
     expect(calls).toEqual([
@@ -140,7 +139,6 @@ describe("completion dispatch executor", () => {
 
     expect(result).toEqual({
       ok: false,
-      route: "legacy_period",
       message: "legacy mutation failed",
     });
     expect(calls).toEqual([
@@ -189,7 +187,6 @@ describe("completion dispatch executor", () => {
 
     expect(result).toEqual({
       ok: true,
-      route: "item_date",
       message: null,
     });
     expect(calls).toEqual([
@@ -242,7 +239,6 @@ describe("completion dispatch executor", () => {
 
     expect(result).toEqual({
       ok: true,
-      route: "plan_goal_date",
       message: null,
     });
     expect(calls).toEqual([
@@ -290,7 +286,6 @@ describe("completion dispatch executor", () => {
 
     expect(result).toEqual({
       ok: true,
-      route: "item_date",
       message: null,
     });
     expect(calls).toEqual([
@@ -334,7 +329,6 @@ describe("completion dispatch executor", () => {
 
     expect(result).toEqual({
       ok: true,
-      route: "plan_goal_date",
       message: null,
     });
     expect(calls).toEqual([
@@ -387,7 +381,6 @@ describe("completion dispatch executor", () => {
 
       await expect(resultPromise).resolves.toEqual({
         ok: false,
-        route: "canonical_exact_date",
         message: "The completion request timed out. Please try again.",
       });
     } finally {
@@ -432,7 +425,6 @@ describe("completion dispatch executor", () => {
 
       await expect(resultPromise).resolves.toEqual({
         ok: false,
-        route: "legacy_period",
         message: "The completion request timed out. Please try again.",
       });
     } finally {
