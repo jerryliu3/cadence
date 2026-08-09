@@ -91,7 +91,6 @@ export class PlannerError extends Error {
 export interface PlannerKernelInput {
   schemaVersion: typeof PLANNER_CONTRACT_VERSION;
   eligibilityMode: PlannerEligibilityMode;
-  preserveExistingAssignments?: boolean;
   solveIntent?: "stable" | "replan";
   ownerId: string;
   scopeMonth: string;
@@ -682,9 +681,6 @@ export function runPlannerKernel(
     compiledPolicy,
     assessments,
     completionDatesByGoal,
-    preserveExistingAssignments:
-      rawInput.preserveExistingAssignments === true,
-    solveIntent,
   });
   const dates = enumerateDates(getScopeDateRange(rawInput.scopeMonth));
   const solver = solveOrderedDpV1({

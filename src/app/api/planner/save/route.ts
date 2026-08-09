@@ -135,7 +135,6 @@ export async function handlePlannerSave(request: Request) {
       kernel = runPlannerKernel({
         schemaVersion: "1",
         eligibilityMode: effectiveEligibilityMode,
-        preserveExistingAssignments: requestedPolicy === null,
         ownerId: routeContext.userId,
         scopeMonth: body.scopeMonth,
         asOfDate,

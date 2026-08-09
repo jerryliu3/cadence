@@ -111,12 +111,16 @@ describe("planner save route", () => {
     });
     expect(mocks.runPlannerKernel).toHaveBeenCalledWith(
       expect.objectContaining({
-        preserveExistingAssignments: true,
+        solveIntent: "stable",
       })
     );
   });
 
-  it("recomputes assignments when save includes a policy override", async () => {
+  it("passes policy overrides through to kernel generation", async () => {
+    const overridePolicy = createDefaultPlannerPolicy(
+      "UTC",
+      "2026-08-01T00:00:00.000Z"
+    );
     mocks.parseBoundedJsonBody.mockResolvedValueOnce({
       scopeMonth: "2026-08",
       previewHash:
@@ -125,7 +129,7 @@ describe("planner save route", () => {
         "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
       confirmationHash: null,
       draftCommands: [],
-      policy: createDefaultPlannerPolicy("UTC", "2026-08-01T00:00:00.000Z"),
+      policy: overridePolicy,
     });
     mocks.runPlannerKernel.mockImplementation(() => {
       throw new PlannerError(
@@ -143,7 +147,7 @@ describe("planner save route", () => {
 
     expect(mocks.runPlannerKernel).toHaveBeenCalledWith(
       expect.objectContaining({
-        preserveExistingAssignments: false,
+        policy: overridePolicy,
       })
     );
   });
