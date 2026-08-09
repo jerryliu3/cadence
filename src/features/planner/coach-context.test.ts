@@ -10,6 +10,7 @@ describe("buildCoachDeterministicSummary", () => {
       workUnits: [
         {
           originalGoalId: "goal-1",
+          unitKey: "total:1",
           label: "Run intervals",
           scheduledDate: "2026-08-05",
           classification: "planned",
@@ -17,6 +18,7 @@ describe("buildCoachDeterministicSummary", () => {
         },
         {
           originalGoalId: "goal-1",
+          unitKey: "total:2",
           label: "Run recovery",
           scheduledDate: "2026-08-06",
           classification: "planned",
@@ -46,6 +48,7 @@ describe("buildCoachDeterministicSummary", () => {
     expect(summary).toContain("scheduledUnits=2");
     expect(summary).toContain("horizonSummary:");
     expect(summary).toContain("goal=Running|scope=4|total=12|credited=2|remaining=10");
+    expect(summary).toContain("[goal-1/total:1] Run intervals");
     expect(summary).toContain("recentCoachEvents");
     expect(summary).toContain("Applied coach proposal");
     expect(summary.length).toBeLessThanOrEqual(3500);

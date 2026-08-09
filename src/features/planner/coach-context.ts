@@ -1,5 +1,6 @@
 interface CoachSummaryWorkUnit {
   originalGoalId: string;
+  unitKey: string;
   label: string | null;
   scheduledDate: string | null;
   classification: string;
@@ -68,7 +69,10 @@ export function buildCoachDeterministicSummary({
     .map(([date, units]) => {
       const labels = units
         .slice(0, MAX_LABELS_PER_DAY)
-        .map((unit) => truncate(unit.label ?? unit.originalGoalId, 40));
+        .map((unit) => {
+          const label = truncate(unit.label ?? unit.originalGoalId, 28);
+          return `[${unit.originalGoalId}/${unit.unitKey}] ${label}`;
+        });
       const suffix =
         units.length > MAX_LABELS_PER_DAY
           ? ` (+${units.length - MAX_LABELS_PER_DAY} more)`

@@ -92,7 +92,7 @@ const calendarIntentSchema = z
   .object({
     action: z.enum(["none", "needs_goal", "apply"]),
     global: calendarIntentGlobalSchema.nullable(),
-    items: z.array(calendarIntentItemSchema).max(100).default([]),
+    items: z.array(z.unknown()).max(100).default([]),
   })
   .strict();
 
@@ -154,7 +154,7 @@ function compileCalendarItemIntents({
   items,
   goalsById,
 }: {
-  items: z.infer<typeof calendarIntentItemSchema>[];
+  items: unknown[];
   goalsById: Map<string, Goal>;
 }) {
   const draftCommands: PlannerDraftCommand[] = [];
@@ -162,15 +162,22 @@ function compileCalendarItemIntents({
   let outOfScopeCount = 0;
   let unsupportedCount = 0;
 
-  for (const item of items) {
+  for (const rawItem of items) {
+    const parsedItem = calendarIntentItemSchema.safeParse(rawItem);
+    if (!parsedItem.success) {
+      unsupportedCount += 1;
+      continue;
+    }
+    const item = parsedItem.data;
     if (!goalsById.has(item.goalId)) {
       outOfScopeCount += 1;
       continue;
     }
     let compiledForItem = 0;
+    let hadUnsupportedField = false;
     if (item.scheduledDate !== undefined) {
       if (item.scheduledDate === null) {
-        unsupportedCount += 1;
+        hadUnsupportedField = true;
       } else {
         sequence += 1;
         draftCommands.push(
@@ -224,7 +231,7 @@ function compileCalendarItemIntents({
       );
       compiledForItem += 1;
     }
-    if (compiledForItem === 0) {
+    if (compiledForItem === 0 || hadUnsupportedField) {
       unsupportedCount += 1;
     }
   }
@@ -423,14 +430,24 @@ export const coachResponseJsonSchema = {
             },
             items: {
               type: "array",
+              maxItems: 100,
               items: {
                 type: "object",
+                additionalProperties: false,
                 properties: {
                   goalId: { type: "string", format: "uuid" },
                   unitKey: { type: "string" },
-                  scheduledDate: { type: "string", nullable: true },
-                  label: { type: "string", nullable: true },
-                  localTime: { type: "string", nullable: true },
+                  scheduledDate: {
+                    type: "string",
+                    format: "date",
+                    nullable: true,
+                  },
+                  label: { type: "string", maxLength: 200, nullable: true },
+                  localTime: {
+                    type: "string",
+                    pattern: "^([01][0-9]|2[0-3]):[0-5][0-9]$",
+                    nullable: true,
+                  },
                 },
                 required: ["goalId", "unitKey"],
               },

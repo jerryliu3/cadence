@@ -118,4 +118,59 @@ describe("sanitizeCoachTurn", () => {
       "No calendar edits were applied because the proposal did not contain valid policy or item-level scheduling edits."
     );
   });
+
+  it("keeps valid item edits when sibling items are malformed", () => {
+    const goalA = goal();
+    const result = sanitizeCoachTurn({
+      goalsById: new Map([[goalA.id, goalA]]),
+      raw: {
+        schemaVersion: "1",
+        phase: "ready",
+        reply: "I scheduled your existing sessions where possible.",
+        proposal: {
+          calendarIntent: {
+            action: "apply",
+            global: {
+              restWeekdays: [],
+              addBlackoutRanges: [],
+              removeBlackoutRanges: [],
+            },
+            items: [
+              {
+                goalId: goalA.id,
+                unitKey: "cadence:2026-08-11",
+                scheduledDate: "2026-08-12",
+              },
+              {
+                goalId: goalA.id,
+                unitKey: "cadence:2026-08-18",
+                scheduledDate: "2026-08-19",
+                reason: "Shifted to reduce load spikes",
+              },
+              {
+                goalId: goalA.id,
+                unitKey: "cadence:2026-08-25",
+                scheduledDate: "next Tuesday",
+              },
+            ],
+          },
+          unresolvedQuestions: [],
+        },
+        recommendations: [{ text: "Keep recovery easy after harder days." }],
+      },
+    });
+
+    expect(result.proposal.draftCommands).toEqual([
+      expect.objectContaining({
+        kind: "move_item",
+        goalId: goalA.id,
+        unitKey: "cadence:2026-08-11",
+        scheduledDate: "2026-08-12",
+      }),
+    ]);
+    expect(result.warnings).toContain(
+      "Some proposed item edits were skipped because they were not supported."
+    );
+    expect(result.reply).toBe("I scheduled your existing sessions where possible.");
+  });
 });

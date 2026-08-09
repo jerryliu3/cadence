@@ -64,6 +64,8 @@ describe("buildCoachPrompt", () => {
     expect(prompt).toContain("proposal.calendarIntent");
     expect(prompt).toContain("does not clearly map to current focus goals");
     expect(prompt).toContain("cannot create goals");
+    expect(prompt).toContain("never invent unitKey identifiers");
+    expect(prompt).toContain("may only include goalId, unitKey, scheduledDate, label, and localTime");
     expect(prompt).toContain("Always include 2-5 concrete recommendations");
   });
 

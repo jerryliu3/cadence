@@ -730,7 +730,7 @@ describe("usePlannerCoach", () => {
         restWeekdays: [],
         blackoutRanges: [],
       }),
-      "replan"
+      "stable"
     );
     expect(persistPlannerDefaultPolicyMock).toHaveBeenLastCalledWith({
       timezone: "UTC",
@@ -1018,7 +1018,7 @@ describe("usePlannerCoach", () => {
         restWeekdays: baselinePolicy.restWeekdays,
         blackoutRanges: baselinePolicy.blackoutRanges,
       }),
-      "replan"
+      "stable"
     );
     expect(persistPlannerDefaultPolicyMock).not.toHaveBeenCalled();
     expect(applyDraftPolicyMock).not.toHaveBeenCalled();
@@ -1123,7 +1123,7 @@ describe("usePlannerCoach", () => {
         restWeekdays: baselinePolicy.restWeekdays,
         blackoutRanges: baselinePolicy.blackoutRanges,
       }),
-      "replan"
+      "stable"
     );
     expect(refreshDraftPreviewMock).toHaveBeenNthCalledWith(
       2,
@@ -1131,7 +1131,7 @@ describe("usePlannerCoach", () => {
         restWeekdays: appliedPolicy.restWeekdays,
         blackoutRanges: appliedPolicy.blackoutRanges,
       }),
-      "replan"
+      "stable"
     );
     expect(persistPlannerDefaultPolicyMock).toHaveBeenCalledWith({
       timezone: "UTC",
@@ -1389,7 +1389,7 @@ describe("usePlannerCoach", () => {
         restWeekdays: baselinePolicy.restWeekdays,
         blackoutRanges: baselinePolicy.blackoutRanges,
       }),
-      "replan"
+      "stable"
     );
     expect(applyDraftPolicyMock).toHaveBeenCalledWith(
       "2026-08",
