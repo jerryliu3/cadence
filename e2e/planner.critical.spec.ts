@@ -231,7 +231,10 @@ async function runCompletionToggleAction(
 
   const [request, response] = await Promise.all([requestPromise, responsePromise]);
   const payload = request.postDataJSON() as CompletionMutationPayload;
-  expect(response.status()).toBe(200);
+  const responseBody = (await response.json().catch(() => null)) as
+    | { code?: string; message?: string }
+    | null;
+  expect(response.status(), JSON.stringify(responseBody)).toBe(200);
   expect(payload.goalId).toBeTruthy();
   expect(payload.date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
   expect(payload.desiredFactState === "present" || payload.desiredFactState === "absent").toBe(
@@ -363,25 +366,43 @@ test.describe("planner critical rails", () => {
     });
     await expectCompletionPersisted(page, todayPayload);
 
-    await page.getByRole("tab", { name: "Past", exact: true }).click();
-    await expect(page).toHaveURL(/tab=not-today/);
-    const notTodayToggleButtons = page.getByRole("button", {
-      name: /Mark goal as complete|Unmark goal completion for current period|Complete goal for|Remove completion for/,
+    await page.goto("/insights");
+    const editButton = page
+      .getByRole("button", { name: /Edit dates|Edit milestones/ })
+      .first();
+    await expect(editButton).toBeVisible({ timeout: 10_000 });
+    await editButton.click();
+    const selectedInsightsDate = await page.evaluate(() => {
+      const today = new Date().toISOString().slice(0, 10);
+      const datedButtons = Array.from(document.querySelectorAll("button[title]"))
+        .map((button) => button.getAttribute("title") ?? "")
+        .map((title) => {
+          const match = title.match(/^(\d{4}-\d{2}-\d{2}):\s+(\d+)\s+completion/);
+          if (!match) {
+            return null;
+          }
+          return {
+            date: match[1],
+            count: Number.parseInt(match[2], 10),
+          };
+        })
+        .filter(
+          (entry): entry is { date: string; count: number } =>
+            entry !== null &&
+            entry.date <= today &&
+            Number.isFinite(entry.count) &&
+            entry.count > 0
+        )
+        .sort((left, right) => left.date.localeCompare(right.date));
+      return datedButtons.at(-1)?.date ?? null;
     });
-    await expect(notTodayToggleButtons.first()).toBeVisible({ timeout: 10_000 });
-    const notTodayToggleButtonCount = await notTodayToggleButtons.count();
-    const firstEnabledToggleIndex = await (async () => {
-      for (let index = 0; index < notTodayToggleButtonCount; index += 1) {
-        if (await notTodayToggleButtons.nth(index).isEnabled()) {
-          return index;
-        }
-      }
-      return -1;
-    })();
-    expect(firstEnabledToggleIndex).toBeGreaterThanOrEqual(0);
-
+    expect(selectedInsightsDate).toBeTruthy();
     const insightsPayload = await runCompletionToggleAction(page, async () => {
-      await notTodayToggleButtons.nth(firstEnabledToggleIndex).click();
+      const button = page
+        .locator(`button[title^="${selectedInsightsDate}:"]`)
+        .first();
+      await expect(button).toBeVisible({ timeout: 10_000 });
+      await button.click();
     });
     await expectCompletionPersisted(page, insightsPayload);
 
