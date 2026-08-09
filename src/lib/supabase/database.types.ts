@@ -43,6 +43,13 @@ export type Database = {
           xp_amount: number
         }[]
       }
+      is_platform_admin_for: {
+        Args: {
+          p_min_role?: Database["public"]["Enums"]["admin_role"]
+          p_user_id: string
+        }
+        Returns: boolean
+      }
       is_valid_planner_timezone: {
         Args: { p_timezone: string }
         Returns: boolean
@@ -94,6 +101,48 @@ export type Database = {
   }
   public: {
     Tables: {
+      admin_users: {
+        Row: {
+          granted_at: string
+          granted_by: string | null
+          note: string | null
+          revoked_at: string | null
+          role: Database["public"]["Enums"]["admin_role"]
+          user_id: string
+        }
+        Insert: {
+          granted_at?: string
+          granted_by?: string | null
+          note?: string | null
+          revoked_at?: string | null
+          role?: Database["public"]["Enums"]["admin_role"]
+          user_id: string
+        }
+        Update: {
+          granted_at?: string
+          granted_by?: string | null
+          note?: string | null
+          revoked_at?: string | null
+          role?: Database["public"]["Enums"]["admin_role"]
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "admin_users_granted_by_fkey"
+            columns: ["granted_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "admin_users_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       completions: {
         Row: {
           completed_on: string
@@ -380,6 +429,47 @@ export type Database = {
           {
             foreignKeyName: "goals_owner_id_fkey"
             columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      moderation_actions: {
+        Row: {
+          action: Database["public"]["Enums"]["moderation_action"]
+          admin_id: string | null
+          admin_username: string
+          created_at: string
+          id: string
+          reason: string | null
+          target_id: string
+          target_kind: Database["public"]["Enums"]["moderation_target"]
+        }
+        Insert: {
+          action: Database["public"]["Enums"]["moderation_action"]
+          admin_id?: string | null
+          admin_username: string
+          created_at?: string
+          id?: string
+          reason?: string | null
+          target_id: string
+          target_kind: Database["public"]["Enums"]["moderation_target"]
+        }
+        Update: {
+          action?: Database["public"]["Enums"]["moderation_action"]
+          admin_id?: string | null
+          admin_username?: string
+          created_at?: string
+          id?: string
+          reason?: string | null
+          target_id?: string
+          target_kind?: Database["public"]["Enums"]["moderation_target"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "moderation_actions_admin_id_fkey"
+            columns: ["admin_id"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -1004,6 +1094,10 @@ export type Database = {
         Args: { p_owner?: string }
         Returns: string
       }
+      is_platform_admin: {
+        Args: { p_min_role?: Database["public"]["Enums"]["admin_role"] }
+        Returns: boolean
+      }
       mark_goal_complete: {
         Args: { p_date?: string; p_goal_id: string }
         Returns: undefined
@@ -1066,10 +1160,19 @@ export type Database = {
       username_is_available: { Args: { p_username: string }; Returns: boolean }
     }
     Enums: {
+      admin_role: "admin" | "moderator"
       completion_source: "manual" | "linked_cascade"
       goal_feed_visibility: "private" | "title_public"
       goal_frequency_type: "fixed_milestones" | "recurring"
       goal_partner_visibility: "shared" | "excluded"
+      moderation_action:
+        | "hide"
+        | "unhide"
+        | "ban_leaderboard"
+        | "unban_leaderboard"
+        | "remove_participant"
+        | "close_challenge"
+      moderation_target: "feed_event" | "user" | "challenge" | "duo"
       participant_role: "owner" | "participant"
       recurrence_interval: "daily" | "weekly" | "monthly"
     }
@@ -1202,10 +1305,20 @@ export const Constants = {
   },
   public: {
     Enums: {
+      admin_role: ["admin", "moderator"],
       completion_source: ["manual", "linked_cascade"],
       goal_feed_visibility: ["private", "title_public"],
       goal_frequency_type: ["fixed_milestones", "recurring"],
       goal_partner_visibility: ["shared", "excluded"],
+      moderation_action: [
+        "hide",
+        "unhide",
+        "ban_leaderboard",
+        "unban_leaderboard",
+        "remove_participant",
+        "close_challenge",
+      ],
+      moderation_target: ["feed_event", "user", "challenge", "duo"],
       participant_role: ["owner", "participant"],
       recurrence_interval: ["daily", "weekly", "monthly"],
     },
