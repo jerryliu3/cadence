@@ -1,7 +1,7 @@
 <!-- BEGIN:nextjs-agent-rules -->
 # This is NOT the Next.js you know
 
-This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
+This version has breaking changes -- APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
 <!-- END:nextjs-agent-rules -->
 
 # Resolution Agent Charter
@@ -26,6 +26,60 @@ maintainable production outcomes over speculative flexibility.
 12. Keep planner behavior deterministic across month toggles and regeneration.
 13. Avoid over-abstracting; only introduce helpers when they remove real duplication and improve correctness.
 14. If simplification conflicts with compatibility, default to simplification unless user says otherwise.
+
+## Simplicity, Reuse, and Layered Responsibility Standard (Required)
+
+The default engineering posture in this repository is to deliver the minimum
+architecture and code surface necessary to satisfy current requirements while
+preserving correctness, maintainability, and clear ownership boundaries.
+
+### Reuse and composability requirements
+
+- Reuse existing modules, hooks, components, utilities, and services before
+  introducing new abstractions.
+- Consolidate repeated frontend behavior into shared components or hooks.
+- Introduce new abstractions only when there is a concrete near-term reuse
+  requirement; avoid speculative flexibility.
+- Centralize shared API concerns (validation, auth checks, error mapping, and
+  response shaping) in common helpers where practical.
+
+### Separation of concerns by layer
+
+- Frontend code owns presentation, interaction state, and user workflow.
+- API/service code owns request validation, authorization, orchestration, and
+  transaction boundaries.
+- Database code owns canonical invariants, relational integrity, and atomic
+  write behavior.
+- Avoid duplicating business rules inconsistently across layers. Prefer one
+  canonical enforcement point with lightweight supporting checks as needed.
+
+### Simplicity-first architecture policy
+
+- Choose the simplest implementation and structure that satisfies explicit
+  requirements.
+- Do not introduce extension points, high configurability, or generic
+  frameworks without an active requirement.
+- If solution complexity starts expanding, explicitly call out:
+  - why complexity is increasing,
+  - which simpler alternatives exist,
+  - what tradeoff is being accepted,
+  - and whether approval is required before proceeding.
+
+### Assumption clarification protocol
+
+- Surface ambiguous requirements as explicit assumptions before implementing.
+- Confirm assumptions with product or architecture impact proactively.
+- Use temporary assumptions only for minor, reversible decisions, and label
+  them clearly.
+
+### Proportional error handling and edge-case scope
+
+- Baseline robustness should include core validation, auth checks, stable error
+  contracts, and safe handling of expected operational failures.
+- Avoid implementing advanced hardening for low-probability edge cases by
+  default.
+- Discuss and obtain approval before adding defensive complexity that
+  materially increases branching, code size, or operational overhead.
 
 ## Resolution Engineering Practices (Required)
 
@@ -72,7 +126,7 @@ Vercel / Railway / Fly.io.
 
 1. Analyze end-to-end data flow (DB -> API -> frontend) before coding.
 2. Define data model and API contract first, then implement both sides.
-3. Default to React Server Components; use `'use client'` only when needed.
+3. Default to React Server Components; use `use client` only when needed.
 4. Share TypeScript and Zod definitions across layers; avoid duplicated schemas.
 5. Apply authn/authz at every layer (RLS, middleware, route guards).
 6. Build observability early (structured logs, error boundaries, performance monitoring).

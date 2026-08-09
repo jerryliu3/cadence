@@ -1,0 +1,28 @@
+---
+description: Supabase SQL migration and write-boundary safety rules
+globs: supabase/**/*.sql
+alwaysApply: false
+---
+
+# Migration Discipline
+
+- Use additive-only migrations; never rewrite or delete migration history.
+- Create migrations with Supabase CLI, not hand-invented filenames.
+- Keep function rewrites behavior-equivalent unless behavior change is explicitly approved.
+- Preserve ownership/auth checks on every write-boundary function.
+
+# SQL Safety and Contracts
+
+- Prefer SQLSTATE and stable error codes over prose-dependent matching.
+- Use `SECURITY DEFINER` only when needed, with `set search_path = ''`.
+- Schema-qualify object references in privileged SQL.
+- Keep replay/digest/idempotency semantics intact when touching planner write boundaries.
+
+# Verification
+
+- After SQL changes run:
+  - `pnpm supabase:reset`
+  - `pnpm exec supabase db lint --local`
+  - `pnpm test:sql` (or relevant pgTAP subset)
+- Regenerate DB types when signatures/columns change:
+  - `pnpm types:supabase`
