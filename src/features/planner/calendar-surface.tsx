@@ -80,6 +80,7 @@ import { usePlannerCoach } from "@/features/planner/coach/use-planner-coach";
 import {
   draftCommandReducer,
   initialDraftCommandState,
+  selectDraftCommandsForScope,
 } from "@/features/planner/draft-command-reducer";
 import { planDraftTimeOverrideUpdate } from "@/features/planner/draft-time-override";
 import { buildMonthCells } from "@/features/planner/month-cells";
@@ -412,6 +413,10 @@ export function CalendarSurface({
   const effectiveDraftPolicy = draftMatchesCurrentScope ? draftPolicy : null;
   const effectiveDraftPreview = draftMatchesCurrentScope ? draftPreview : null;
   const effectivePreview = effectiveDraftPreview ?? context?.preview ?? null;
+  const scopeDraftCommands = useMemo(
+    () => selectDraftCommandsForScope(draftCommandState, currentScopeMonth),
+    [currentScopeMonth, draftCommandState]
+  );
   const effectivePreviewEntryKeys = useMemo(
     () =>
       new Set(
@@ -426,12 +431,12 @@ export function CalendarSurface({
   );
   const effectiveDraftCommands = useMemo(
     () => {
-      const sorted = sortPlannerDraftCommands(draftCommandState.commands);
+      const sorted = sortPlannerDraftCommands(scopeDraftCommands);
       return sorted.filter((command) =>
         effectivePreviewEntryKeys.has(draftCommandEntryKey(command))
       );
     },
-    [draftCommandState.commands, effectivePreviewEntryKeys]
+    [effectivePreviewEntryKeys, scopeDraftCommands]
   );
   const effectiveDraftItemEdits = useMemo(
     () =>
@@ -856,11 +861,13 @@ export function CalendarSurface({
     buildPlannerDraftSnapshotToken(commands);
 
   const replaceDraftCommands = (commands: PlannerDraftCommand[]) => {
-    if (context?.scopeMonth) {
-      setDraftScopeMonth(context.scopeMonth);
+    if (!context?.scopeMonth) {
+      return;
     }
+    setDraftScopeMonth(context.scopeMonth);
     dispatchDraftCommand({
       type: "replace_all",
+      scopeMonth: context.scopeMonth,
       commands: sortPlannerDraftCommands(commands),
     });
   };
@@ -969,6 +976,7 @@ export function CalendarSurface({
     let simulatedState = draftCommandState;
     let appliedCount = 0;
     let rejectedCount = 0;
+    const scopeMonth = context?.scopeMonth ?? null;
     const rejectionMessages: string[] = [];
     const occupancyByGoalDate = new Map<string, Set<string>>();
     for (const [day, entries] of entriesByDate.entries()) {
@@ -1013,7 +1021,7 @@ export function CalendarSurface({
           );
           continue;
         }
-        if (!context?.scopeMonth) {
+        if (!scopeMonth) {
           recordRejection(
             `Skipped move for ${command.goalId}/${command.unitKey} because no planner scope month is active.`
           );
@@ -1033,10 +1041,11 @@ export function CalendarSurface({
           occupancyKey,
           normalizedDate,
         } = moveValidation;
-        setDraftScopeMonth(context.scopeMonth);
+        setDraftScopeMonth(scopeMonth);
         if (baselineUnit.scheduledDate === normalizedDate) {
           const action = {
             type: "remove_kind",
+            scopeMonth,
             kind: "move_item",
             goalId: entry.originalGoalId,
             unitKey: entry.unitKey,
@@ -1046,6 +1055,7 @@ export function CalendarSurface({
         } else {
           const action = {
             type: "upsert_move",
+            scopeMonth,
             goalId: entry.originalGoalId,
             unitKey: entry.unitKey,
             scheduledDate: normalizedDate,
@@ -1072,15 +1082,20 @@ export function CalendarSurface({
       }
 
       if (command.kind === "rename_item") {
+        if (!scopeMonth) {
+          recordRejection(
+            `Skipped rename for ${command.goalId}/${command.unitKey} because no planner scope month is active.`
+          );
+          continue;
+        }
         const baselineTitle =
           entry.activeGoal?.title ?? context?.goalTitles?.[entry.originalGoalId] ?? null;
         const normalizedLabel = command.label?.trim() ?? "";
-        if (context?.scopeMonth) {
-          setDraftScopeMonth(context.scopeMonth);
-        }
+        setDraftScopeMonth(scopeMonth);
         if (!normalizedLabel || normalizedLabel === baselineTitle) {
           const action = {
             type: "remove_kind" as const,
+            scopeMonth,
             kind: "rename_item" as const,
             goalId: entry.originalGoalId,
             unitKey: entry.unitKey,
@@ -1090,6 +1105,7 @@ export function CalendarSurface({
         } else {
           const action = {
             type: "upsert_rename" as const,
+            scopeMonth,
             goalId: entry.originalGoalId,
             unitKey: entry.unitKey,
             label: normalizedLabel,
@@ -1105,7 +1121,14 @@ export function CalendarSurface({
         previewUnitByEntryKey.get(entry.key)?.scheduledTimeOverride ??
         entry.activeItem?.scheduled_time_override ??
         null;
+      if (!scopeMonth) {
+        recordRejection(
+          `Skipped time update for ${command.goalId}/${command.unitKey} because no planner scope month is active.`
+        );
+        continue;
+      }
       const nextPlan = planDraftTimeOverrideUpdate({
+        scopeMonth,
         entry,
         localTimeInput:
           command.kind === "set_item_time_override" ? command.localTime : "",
@@ -1119,9 +1142,7 @@ export function CalendarSurface({
         );
         continue;
       }
-      if (context?.scopeMonth) {
-        setDraftScopeMonth(context.scopeMonth);
-      }
+      setDraftScopeMonth(scopeMonth);
       for (const action of nextPlan.actions) {
         dispatchDraftCommand(action);
         simulatedState = draftCommandReducer(simulatedState, action);
@@ -1133,7 +1154,9 @@ export function CalendarSurface({
       appliedCount,
       rejectedCount,
       rejectionMessages,
-      nextDraftSnapshotToken: buildDraftSnapshotToken(simulatedState.commands),
+      nextDraftSnapshotToken: buildDraftSnapshotToken(
+        selectDraftCommandsForScope(simulatedState, scopeMonth)
+      ),
     };
   };
 
@@ -1375,6 +1398,7 @@ export function CalendarSurface({
       if (originalDate === normalizedDate) {
         dispatchDraftCommand({
           type: "remove_kind",
+          scopeMonth,
           kind: "move_item",
           goalId: entry.originalGoalId,
           unitKey: entry.unitKey,
@@ -1382,6 +1406,7 @@ export function CalendarSurface({
       } else {
         dispatchDraftCommand({
           type: "upsert_move",
+          scopeMonth,
           goalId: entry.originalGoalId,
           unitKey: entry.unitKey,
           scheduledDate: normalizedDate,
@@ -1405,14 +1430,17 @@ export function CalendarSurface({
     if (entry.draftGhost) {
       return;
     }
+    if (!context?.scopeMonth) {
+      return;
+    }
+    const scopeMonth = context.scopeMonth;
     const baselineTitle =
       entry.activeGoal?.title ?? context?.goalTitles?.[entry.originalGoalId] ?? null;
-    if (context?.scopeMonth) {
-      setDraftScopeMonth(context.scopeMonth);
-    }
+    setDraftScopeMonth(scopeMonth);
     if (!label || label === baselineTitle) {
       dispatchDraftCommand({
         type: "remove_kind",
+        scopeMonth,
         kind: "rename_item",
         goalId: entry.originalGoalId,
         unitKey: entry.unitKey,
@@ -1421,6 +1449,7 @@ export function CalendarSurface({
     }
     dispatchDraftCommand({
       type: "upsert_rename",
+      scopeMonth,
       goalId: entry.originalGoalId,
       unitKey: entry.unitKey,
       label,
@@ -1431,11 +1460,16 @@ export function CalendarSurface({
     entry: PlannerDayDetailEntry,
     localTime: string
   ) => {
+    if (!context?.scopeMonth) {
+      return;
+    }
+    const scopeMonth = context.scopeMonth;
     const baselineOverride =
       previewUnitByEntryKey.get(entry.key)?.scheduledTimeOverride ??
       entry.activeItem?.scheduled_time_override ??
       null;
     const nextPlan = planDraftTimeOverrideUpdate({
+      scopeMonth,
       entry,
       localTimeInput: localTime,
       baselineOverride,
@@ -1450,9 +1484,7 @@ export function CalendarSurface({
       }
       return;
     }
-    if (context?.scopeMonth) {
-      setDraftScopeMonth(context.scopeMonth);
-    }
+    setDraftScopeMonth(scopeMonth);
     for (const action of nextPlan.actions) {
       dispatchDraftCommand(action);
     }
@@ -1805,6 +1837,10 @@ export function CalendarSurface({
       return;
     }
     const desiredFactState = dispatch.desiredFactState;
+    if (!dispatch.decision.allowed) {
+      toast.error(completionDisabledReasonCopy(dispatch.decision.reason));
+      return;
+    }
     const requiresPlannerExpectation =
       dispatch.decision.route === "item_date" ||
       dispatch.decision.route === "plan_goal_date";
@@ -1957,9 +1993,10 @@ export function CalendarSurface({
       setDraftPolicy(null);
       setDraftPreview(null);
     }
-    if (currentScopeDraftEntries.length > 0) {
+    if (currentScopeDraftEntries.length > 0 && currentScopeMonth) {
       dispatchDraftCommand({
         type: "remove_entries",
+        scopeMonth: currentScopeMonth,
         entries: currentScopeDraftEntries,
       });
     }
@@ -2009,9 +2046,10 @@ export function CalendarSurface({
       setDraftPolicy(null);
       setDraftPreview(null);
     }
-    if (currentScopeDraftEntries.length > 0) {
+    if (currentScopeDraftEntries.length > 0 && currentScopeMonth) {
       dispatchDraftCommand({
         type: "remove_entries",
+        scopeMonth: currentScopeMonth,
         entries: currentScopeDraftEntries,
       });
     }
