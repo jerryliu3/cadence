@@ -53,12 +53,6 @@ describe("planner context GET route", () => {
       supabase: {},
       capabilities: {
         calendarEnabled: true,
-        plannerRead: true,
-        plannerGeneration: true,
-        plannerPlanWrites: true,
-        targetedExactCompletion: true,
-        coachAi: true,
-        overlap: true,
       },
     });
     mocks.resolveCanonicalAsOfDate.mockReturnValue("2026-08-05");

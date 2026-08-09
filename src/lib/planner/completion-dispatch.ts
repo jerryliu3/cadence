@@ -1,3 +1,5 @@
+import { getApiErrorMessage, requestJson } from "@/lib/api/client";
+
 export interface CompletionDispatchInput {
   requirementKind:
     | "milestone_sequence"
@@ -63,62 +65,38 @@ const DEFAULT_COMPLETION_DISPATCH_TIMEOUT_MS = 15_000;
 const COMPLETION_TIMEOUT_MESSAGE =
   "The completion request timed out. Please try again.";
 
-function parseErrorMessage(payload: unknown, fallback: string) {
-  if (
-    payload &&
-    typeof payload === "object" &&
-    "message" in payload &&
-    typeof payload.message === "string" &&
-    payload.message.trim().length > 0
-  ) {
-    return payload.message;
-  }
-  return fallback;
-}
-
-function isAbortError(error: unknown) {
-  return error instanceof Error && error.name === "AbortError";
-}
-
-async function postJsonRoute({
+async function postCompletionRoute({
   fetcher,
-  route,
   body,
   fallbackError,
   timeoutMs,
 }: {
   fetcher: typeof fetch;
-  route: string;
   body: Record<string, unknown>;
   fallbackError: string;
   timeoutMs: number;
 }) {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-  let response: Response;
   try {
-    response = await fetcher(route, {
+    await requestJson<unknown, Record<string, unknown>>({
+      path: "/api/completions",
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-      signal: controller.signal,
+      body,
+      timeoutMs,
+      fetcher,
     });
+    return { ok: true as const, message: null };
   } catch (error) {
+    if (error instanceof Error && error.message.toLowerCase().includes("timed out")) {
+      return {
+        ok: false as const,
+        message: COMPLETION_TIMEOUT_MESSAGE,
+      };
+    }
     return {
       ok: false as const,
-      message: isAbortError(error) ? COMPLETION_TIMEOUT_MESSAGE : fallbackError,
+      message: getApiErrorMessage(error, fallbackError),
     };
-  } finally {
-    clearTimeout(timeoutId);
   }
-  if (response.ok) {
-    return { ok: true as const, message: null };
-  }
-  const payload = await response.json().catch(() => null);
-  return {
-    ok: false as const,
-    message: parseErrorMessage(payload, fallbackError),
-  };
 }
 
 export function resolveCompletionDispatch({
@@ -198,9 +176,8 @@ export async function executeCompletionDispatch({
   }
 
   if (decision.route === "canonical_exact_date") {
-    const result = await postJsonRoute({
+    const result = await postCompletionRoute({
       fetcher,
-      route: "/api/completions",
       body: {
         goalId,
         date,
@@ -217,9 +194,8 @@ export async function executeCompletionDispatch({
   }
 
   if (decision.route === "legacy_period") {
-    const result = await postJsonRoute({
+    const result = await postCompletionRoute({
       fetcher,
-      route: "/api/completions",
       body: {
         goalId,
         date,
@@ -248,9 +224,8 @@ export async function executeCompletionDispatch({
         expectedDigest: plannerItemExpectation.expectedDigest,
       };
     }
-    const result = await postJsonRoute({
+    const result = await postCompletionRoute({
       fetcher,
-      route: "/api/completions",
       body,
       fallbackError: "Planner completion update failed.",
       timeoutMs,
@@ -273,9 +248,8 @@ export async function executeCompletionDispatch({
         expectedDigest: plannerGoalExpectation.expectedDigest,
       };
     }
-    const result = await postJsonRoute({
+    const result = await postCompletionRoute({
       fetcher,
-      route: "/api/completions",
       body,
       fallbackError: "Planner completion update failed.",
       timeoutMs,

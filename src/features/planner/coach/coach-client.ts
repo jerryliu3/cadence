@@ -5,20 +5,15 @@ import type {
   CoachResponsePayload,
   PlannerErrorPayload,
 } from "@/features/planner/calendar-surface.types";
+import {
+  getApiErrorMessage,
+  getJson,
+  postJson,
+  putJson,
+} from "@/lib/api/client";
 import type { PlannerPolicy } from "@/lib/planner/policy";
 
-function readPlannerErrorMessage(payload: unknown, fallback: string) {
-  if (
-    payload &&
-    typeof payload === "object" &&
-    "message" in payload &&
-    typeof payload.message === "string" &&
-    payload.message.trim().length > 0
-  ) {
-    return payload.message;
-  }
-  return fallback;
-}
+const PLANNER_COACH_REQUEST_TIMEOUT_MS = 65_000;
 
 export async function requestPlannerCoachReply({
   scopeMonth,
@@ -31,10 +26,8 @@ export async function requestPlannerCoachReply({
   focusGoalIds: string[];
   deterministicSummary: string;
 }): Promise<CoachResponsePayload> {
-  const response = await fetch("/api/planner/coach", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
+  try {
+    return await postJson<CoachResponsePayload>("/api/planner/coach", {
       scopeMonth,
       messages: messages.map((message) => ({
         role: message.role,
@@ -42,15 +35,12 @@ export async function requestPlannerCoachReply({
       })),
       focusGoalIds,
       deterministicSummary,
-    }),
-  });
-  const payload = (await response.json()) as
-    | (CoachResponsePayload & PlannerErrorPayload)
-    | PlannerErrorPayload;
-  if (!response.ok) {
-    throw new Error(readPlannerErrorMessage(payload, "Coach response failed."));
+    }, {
+      timeoutMs: PLANNER_COACH_REQUEST_TIMEOUT_MS,
+    });
+  } catch (error) {
+    throw new Error(getApiErrorMessage(error, "Coach response failed."));
   }
-  return payload as CoachResponsePayload;
 }
 
 export async function listPlannerCoachConversations({
@@ -60,23 +50,19 @@ export async function listPlannerCoachConversations({
   scopeMonth: string;
   limit?: number;
 }): Promise<CoachConversationListPayload["conversations"]> {
-  const query = new URLSearchParams({
-    scopeMonth,
-    limit: `${limit}`,
-  });
-  const response = await fetch(`/api/planner/coach/conversations?${query.toString()}`, {
-    cache: "no-store",
-    credentials: "same-origin",
-  });
-  const payload = (await response.json()) as
-    | CoachConversationListPayload
-    | PlannerErrorPayload;
-  if (!response.ok) {
+  try {
+    const payload = await getJson<CoachConversationListPayload>(
+      "/api/planner/coach/conversations",
+      {
+        query: { scopeMonth, limit },
+      }
+    );
+    return payload.conversations ?? [];
+  } catch (error) {
     throw new Error(
-      readPlannerErrorMessage(payload, "Saved conversations could not be loaded.")
+      getApiErrorMessage(error, "Saved conversations could not be loaded.")
     );
   }
-  return (payload as CoachConversationListPayload).conversations ?? [];
 }
 
 export async function savePlannerCoachConversation({
@@ -88,55 +74,38 @@ export async function savePlannerCoachConversation({
   timezone: string;
   messages: CoachMessage[];
 }) {
-  const response = await fetch("/api/planner/coach/conversations", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      scopeMonth,
-      timezone,
-      messages: messages.map((message) => ({
-        role: message.role,
-        content: message.content,
-        createdAt: message.createdAt,
-        proposal: message.proposal ?? null,
-      })),
-    }),
-  });
-  const payload = (await response.json()) as
-    | {
-        conversation?: CoachConversationListPayload["conversations"][number];
-      }
-    | PlannerErrorPayload;
-  if (
-    !response.ok ||
-    !(payload as { conversation?: CoachConversationListPayload["conversations"][number] })
-      .conversation
-  ) {
+  const payload = await postJson<{
+    conversation?: CoachConversationListPayload["conversations"][number];
+  }>("/api/planner/coach/conversations", {
+    scopeMonth,
+    timezone,
+    messages: messages.map((message) => ({
+      role: message.role,
+      content: message.content,
+      createdAt: message.createdAt,
+      proposal: message.proposal ?? null,
+    })),
+  }).catch((error: unknown) => {
     throw new Error(
-      readPlannerErrorMessage(payload, "Coach conversation could not be saved.")
+      getApiErrorMessage(error, "Coach conversation could not be saved.")
     );
+  });
+  if (!payload.conversation) {
+    throw new Error("Coach conversation could not be saved.");
   }
-  return (
-    payload as {
-      conversation: CoachConversationListPayload["conversations"][number];
-    }
-  ).conversation;
+  return payload.conversation;
 }
 
 export async function restorePlannerCoachConversation(conversationId: string) {
-  const response = await fetch(`/api/planner/coach/conversations/${conversationId}`, {
-    cache: "no-store",
-    credentials: "same-origin",
-  });
-  const payload = (await response.json()) as
-    | CoachConversationDetailPayload
-    | PlannerErrorPayload;
-  if (!response.ok) {
+  try {
+    return await getJson<CoachConversationDetailPayload>(
+      `/api/planner/coach/conversations/${conversationId}`
+    );
+  } catch (error) {
     throw new Error(
-      readPlannerErrorMessage(payload, "Saved conversation could not be restored.")
+      getApiErrorMessage(error, "Saved conversation could not be restored.")
     );
   }
-  return payload as CoachConversationDetailPayload;
 }
 
 export async function persistPlannerDefaultPolicy({
@@ -146,26 +115,22 @@ export async function persistPlannerDefaultPolicy({
   timezone: string;
   defaultPolicy: PlannerPolicy;
 }) {
-  const response = await fetch("/api/planner/context", {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      timezone,
-      defaultPolicy,
-    }),
-  });
-  const payload = (await response.json()) as PlannerErrorPayload & {
-    preferences?: {
-      timezone: string;
-      policyRevision: number;
-      timezoneConfirmedAt: string;
-      defaultPolicy: PlannerPolicy;
-    };
-  };
-  if (!response.ok) {
+  const payload = await putJson<
+    PlannerErrorPayload & {
+      preferences?: {
+        timezone: string;
+        policyRevision: number;
+        timezoneConfirmedAt: string;
+        defaultPolicy: PlannerPolicy;
+      };
+    }
+  >("/api/planner/context", {
+    timezone,
+    defaultPolicy,
+  }).catch((error: unknown) => {
     throw new Error(
-      readPlannerErrorMessage(payload, "Planner preferences could not be updated.")
+      getApiErrorMessage(error, "Planner preferences could not be updated.")
     );
-  }
+  });
   return payload.preferences ?? null;
 }
