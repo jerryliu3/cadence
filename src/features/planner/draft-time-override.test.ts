@@ -26,6 +26,7 @@ function buildEntry(
 describe("planDraftTimeOverrideUpdate", () => {
   it("blocks draft retiming for credited sessions", () => {
     const plan = planDraftTimeOverrideUpdate({
+      scopeMonth: "2026-08",
       entry: buildEntry({ creditState: "completed_as_scheduled" }),
       localTimeInput: "09:30",
       baselineOverride: null,
@@ -38,6 +39,7 @@ describe("planDraftTimeOverrideUpdate", () => {
 
   it("blocks draft retiming for historical sessions", () => {
     const plan = planDraftTimeOverrideUpdate({
+      scopeMonth: "2026-08",
       entry: buildEntry({ classification: "historical_shortfall" }),
       localTimeInput: "09:30",
       baselineOverride: null,
@@ -50,6 +52,7 @@ describe("planDraftTimeOverrideUpdate", () => {
 
   it("rejects malformed local time input without mutating commands", () => {
     const plan = planDraftTimeOverrideUpdate({
+      scopeMonth: "2026-08",
       entry: buildEntry(),
       localTimeInput: "2:30 PM",
       baselineOverride: null,
@@ -62,6 +65,7 @@ describe("planDraftTimeOverrideUpdate", () => {
 
   it("clears stale set/clear commands when baseline has no override", () => {
     const plan = planDraftTimeOverrideUpdate({
+      scopeMonth: "2026-08",
       entry: buildEntry(),
       localTimeInput: "",
       baselineOverride: null,
@@ -71,12 +75,14 @@ describe("planDraftTimeOverrideUpdate", () => {
       actions: [
         {
           type: "remove_kind",
+          scopeMonth: "2026-08",
           kind: "set_item_time_override",
           goalId: "goal-a",
           unitKey: "total:1",
         },
         {
           type: "remove_kind",
+          scopeMonth: "2026-08",
           kind: "clear_item_time_override",
           goalId: "goal-a",
           unitKey: "total:1",
@@ -87,6 +93,7 @@ describe("planDraftTimeOverrideUpdate", () => {
 
   it("creates a clear override command when baseline has one", () => {
     const plan = planDraftTimeOverrideUpdate({
+      scopeMonth: "2026-08",
       entry: buildEntry(),
       localTimeInput: "",
       baselineOverride: "08:00",
@@ -96,6 +103,7 @@ describe("planDraftTimeOverrideUpdate", () => {
       actions: [
         {
           type: "clear_time_override",
+          scopeMonth: "2026-08",
           goalId: "goal-a",
           unitKey: "total:1",
         },
@@ -105,6 +113,7 @@ describe("planDraftTimeOverrideUpdate", () => {
 
   it("creates set override command when time differs from baseline", () => {
     const plan = planDraftTimeOverrideUpdate({
+      scopeMonth: "2026-08",
       entry: buildEntry(),
       localTimeInput: "09:15",
       baselineOverride: "08:00",
@@ -114,6 +123,7 @@ describe("planDraftTimeOverrideUpdate", () => {
       actions: [
         {
           type: "upsert_time_override",
+          scopeMonth: "2026-08",
           goalId: "goal-a",
           unitKey: "total:1",
           localTime: "09:15",

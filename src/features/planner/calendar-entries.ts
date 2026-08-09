@@ -461,7 +461,8 @@ export function buildCompletionFactMarkersByDate({
 }
 
 export function buildVisibleMonthCalendarDataByMonth(
-  contextsByMonth: Record<string, PlannerVisibleMonthContextPayload>
+  contextsByMonth: Record<string, PlannerVisibleMonthContextPayload>,
+  draftItemEditsByMonth: Record<string, Record<string, DraftItemEdit>> = {}
 ) {
   const monthDataByMonth = new Map<
     string,
@@ -481,7 +482,7 @@ export function buildVisibleMonthCalendarDataByMonth(
       activeGoalsByPlanGoalId: visibleMonthGoalIndexes.byPlanGoalId,
       activeGoalsByOriginalGoalId: visibleMonthGoalIndexes.byOriginalGoalId,
       goalTitles: visibleMonthContext.goalTitles,
-      draftItemEdits: {},
+      draftItemEdits: draftItemEditsByMonth[visibleMonth] ?? {},
     });
     const completionFactMarkersByDate = buildCompletionFactMarkersByDate({
       workUnits: visibleMonthContext.preview?.workUnits,
