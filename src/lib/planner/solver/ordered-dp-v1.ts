@@ -322,7 +322,7 @@ export function solveOrderedDpV1({
     }
   }
 
-  let assignments = units.map((unit) => ({
+  const assignments = units.map((unit) => ({
     goalId: unit.goalId,
     unitKey: unit.unitKey,
     scheduledDate: assignmentsByKey.get(getSolverUnitId(unit)) ?? null,
