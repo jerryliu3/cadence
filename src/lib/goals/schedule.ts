@@ -38,17 +38,6 @@ export function getGoalPeriodEndDate(goal: Goal, referenceDate = new Date()): Da
   return startOfDay(parseISO(period.end));
 }
 
-export function getPeriodKeyForGoal(goal: Goal, completedOn: string): string {
-  if (goal.frequency_type !== "recurring") {
-    return completedOn;
-  }
-  return getAnchoredPeriod(
-    goal.start_date,
-    goal.recurrence_interval ?? "daily",
-    completedOn
-  ).periodKey;
-}
-
 export function getCompletionsForCurrentPeriod(
   goal: Goal,
   completions: CompletionDateFact[],

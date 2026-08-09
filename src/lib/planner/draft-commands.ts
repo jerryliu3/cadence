@@ -114,41 +114,49 @@ export function draftCommandEntryKey(command: {
 }
 
 export function sortPlannerDraftCommands(commands: PlannerDraftCommand[]) {
-  return [...commands].sort((left, right) => {
-    if (left.sequence !== right.sequence) {
-      return left.sequence - right.sequence;
+  const prepared = commands.map((command) => ({
+    command,
+    unitKey: readCommandUnitKey(command),
+    payloadHash: commandPayloadTiebreak(command),
+  }));
+  prepared.sort((left, right) => {
+    if (left.command.sequence !== right.command.sequence) {
+      return left.command.sequence - right.command.sequence;
     }
-    const byGoal = compareCanonicalStrings(left.goalId, right.goalId);
+    const byGoal = compareCanonicalStrings(
+      left.command.goalId,
+      right.command.goalId
+    );
     if (byGoal !== 0) {
       return byGoal;
     }
-    const byKind = commandKindOrder[left.kind] - commandKindOrder[right.kind];
+    const byKind =
+      commandKindOrder[left.command.kind] - commandKindOrder[right.command.kind];
     if (byKind !== 0) {
       return byKind;
     }
-    const byUnit = compareCanonicalStrings(
-      readCommandUnitKey(left),
-      readCommandUnitKey(right)
-    );
+    const byUnit = compareCanonicalStrings(left.unitKey, right.unitKey);
     if (byUnit !== 0) {
       return byUnit;
     }
-    const byPayload = compareCanonicalStrings(
-      commandPayloadTiebreak(left),
-      commandPayloadTiebreak(right)
-    );
+    const byPayload = compareCanonicalStrings(left.payloadHash, right.payloadHash);
     if (byPayload !== 0) {
       return byPayload;
     }
-    return compareCanonicalStrings(left.id, right.id);
+    return compareCanonicalStrings(left.command.id, right.command.id);
   });
+  return prepared.map((entry) => entry.command);
 }
 
 export function projectPlannerDraftCommands(
-  commands: PlannerDraftCommand[]
+  commands: PlannerDraftCommand[],
+  options: { sorted?: boolean } = {}
 ): Record<string, PlannerDraftItemProjection> {
   const projection: Record<string, PlannerDraftItemProjection> = {};
-  for (const command of sortPlannerDraftCommands(commands)) {
+  const orderedCommands = options.sorted
+    ? commands
+    : sortPlannerDraftCommands(commands);
+  for (const command of orderedCommands) {
     const key = draftCommandEntryKey(command);
     const next = projection[key] ?? {};
     if (command.kind === "move_item") {
