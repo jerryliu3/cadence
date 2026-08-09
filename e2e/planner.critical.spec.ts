@@ -55,26 +55,29 @@ async function openCalendar(page: Page, scopeMonth?: string) {
   }
 }
 
-async function ensureMovableEntryAvailable(page: Page, maxMonthJumps = 6) {
+async function ensureMovableEntryAvailable(page: Page, maxMonthJumps = 12) {
   const movableEntrySelector =
-    '[data-calendar-day-entry="true"][title*="Drag to another day"]';
-  let scopeMonth = await resolveCalendarScopeMonth(page);
-  const startScopeMonth = scopeMonth;
-  for (let jump = 0; jump <= maxMonthJumps; jump += 1) {
-    const movableEntries = page.locator(`${movableEntrySelector}:visible`);
+    '[data-calendar-day-entry="true"]:not([title*="can\'t be moved"]):visible';
+  const startScopeMonth = await resolveCalendarScopeMonth(page);
+  const scanOrder: number[] = [0];
+  for (let jump = 1; jump <= maxMonthJumps; jump += 1) {
+    scanOrder.push(jump, -jump);
+  }
+
+  for (const delta of scanOrder) {
+    const scopeMonth =
+      delta === 0 ? startScopeMonth : shiftScopeMonth(startScopeMonth, delta);
+    if (delta !== 0) {
+      await openCalendar(page, scopeMonth);
+    }
+    const movableEntries = page.locator(movableEntrySelector);
     if ((await movableEntries.count()) > 0) {
       return;
     }
-    if (jump === maxMonthJumps) {
-      break;
-    }
-
-    scopeMonth = shiftScopeMonth(scopeMonth, 1);
-    await openCalendar(page, scopeMonth);
   }
 
   throw new Error(
-    `No movable planner entry found after scanning ${maxMonthJumps + 1} month(s) starting at ${startScopeMonth}.`
+    `No movable planner entry found after scanning ${scanOrder.length} month(s) around ${startScopeMonth}.`
   );
 }
 
@@ -158,7 +161,9 @@ async function fetchPlannerContextSnapshot(
 
 async function moveFirstMovableEntry(page: Page) {
   const sourceEntry = page
-    .locator('[data-calendar-day-entry="true"][title*="Drag to another day"]')
+    .locator(
+      '[data-calendar-day-entry="true"]:not([title*="can\'t be moved"]):visible'
+    )
     .first();
   await expect(sourceEntry).toBeVisible();
 
@@ -248,33 +253,65 @@ async function expectCompletionPersisted(
   page: Page,
   payload: CompletionMutationPayload
 ) {
-  const query = new URLSearchParams({
-    asOfDate: payload.date,
-    viewDate: payload.date,
-    timezone: payload.timezone,
-  });
-  const response = await page.request.get(
-    `/api/progress/context?${query.toString()}`,
-    { timeout: 15_000 }
-  );
-  const body = (await response.json().catch(() => null)) as
-    | {
-        code?: string;
-        message?: string;
-        facts?: Array<{ goal_id: string; completed_on: string }>;
+  const maxAttempts = 3;
+  let lastError: string | null = null;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    const outcome = await page.evaluate(async (input) => {
+      const query = new URLSearchParams({
+        asOfDate: input.date,
+        viewDate: input.date,
+        timezone: input.timezone,
+      });
+      const controller = new AbortController();
+      const timeoutId = window.setTimeout(() => controller.abort(), 12_000);
+      try {
+        const response = await fetch(`/api/progress/context?${query.toString()}`, {
+          signal: controller.signal,
+        });
+        const body = (await response.json().catch(() => null)) as
+          | {
+              code?: string;
+              message?: string;
+              facts?: Array<{ goal_id: string; completed_on: string }>;
+            }
+          | null;
+        const hasFact = (body?.facts ?? []).some(
+          (fact) =>
+            fact.goal_id === input.goalId && fact.completed_on === input.date
+        );
+        return {
+          ok: true as const,
+          status: response.status,
+          hasFact,
+          body,
+        };
+      } catch (error) {
+        return {
+          ok: false as const,
+          error: error instanceof Error ? error.message : String(error),
+        };
+      } finally {
+        window.clearTimeout(timeoutId);
       }
-    | null;
-  const hasFact = (body?.facts ?? []).some(
-    (fact) => fact.goal_id === payload.goalId && fact.completed_on === payload.date
+    }, payload);
+
+    if (outcome.ok) {
+      expect(outcome.status).toBe(200);
+      expect(outcome.body, JSON.stringify(outcome.body)).not.toBeNull();
+      expect(outcome.hasFact).toBe(payload.desiredFactState === "present");
+      return;
+    }
+
+    lastError = outcome.error;
+    if (attempt < maxAttempts) {
+      await page.waitForTimeout(250 * attempt);
+    }
+  }
+
+  throw new Error(
+    `Progress context request failed after ${maxAttempts} attempts (${lastError ?? "unknown error"}).`
   );
-  const outcome = {
-    status: response.status(),
-    hasFact,
-    body,
-  };
-  expect(outcome.status).toBe(200);
-  expect(outcome.body, JSON.stringify(outcome.body)).not.toBeNull();
-  expect(outcome.hasFact).toBe(payload.desiredFactState === "present");
 }
 
 test.describe("planner critical rails", () => {
