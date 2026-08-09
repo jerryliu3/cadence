@@ -6,7 +6,6 @@ import {
 import {
   consumePlannerAiQuota,
   readPlannerCoachQuotaLimit,
-  recordPlannerAiOutputTokens,
   shouldBypassPlannerCoachQuota,
 } from "@/lib/planner/ai-quota";
 import {
@@ -326,16 +325,6 @@ export async function POST(request: Request) {
             }
           : undefined
       );
-    }
-
-    if (!bypassQuota) {
-      await recordPlannerAiOutputTokens({
-        admin,
-        ownerId: routeContext.userId,
-        usageDate: quota.usageDate,
-        feature: "planner_coach",
-        outputTokens: response.outputTokens,
-      }).catch(() => undefined);
     }
 
     const responsePayload = {

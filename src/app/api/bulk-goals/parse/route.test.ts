@@ -50,9 +50,6 @@ describe("bulk goal parser route", () => {
           error: null,
         });
       }
-      if (functionName === "record_planner_ai_output_tokens") {
-        return Promise.resolve({ data: 10, error: null });
-      }
       return Promise.resolve({ data: null, error: null });
     });
     vi.useFakeTimers();

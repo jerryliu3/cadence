@@ -7,7 +7,6 @@ import {
   buildPlannerPublishPersistencePayload,
 } from "@/lib/planner/publish-payload";
 import { createDefaultPlannerPolicy } from "@/lib/planner/policy";
-import { createDefaultAssessment } from "@/lib/planner/assessment";
 
 const GOAL_ID = "12000000-0000-4000-8000-000000000001";
 
@@ -94,7 +93,6 @@ describe("buildPlannerPublishPersistencePayload draft edit validation", () => {
       policy,
       kernel,
       snapshot,
-      assessments: [createDefaultAssessment(baseGoal)],
       draftCommands: [
         {
           id: "30000000-0000-4000-8000-000000000001",
@@ -136,7 +134,6 @@ describe("buildPlannerPublishPersistencePayload draft edit validation", () => {
         policy,
         kernel,
         snapshot,
-        assessments: [createDefaultAssessment(baseGoal)],
         draftCommands: [
           {
             id: "30000000-0000-4000-8000-000000000002",
@@ -160,7 +157,6 @@ describe("buildPlannerPublishPersistencePayload draft edit validation", () => {
       policy,
       kernel,
       snapshot,
-      assessments: [createDefaultAssessment(baseGoal)],
       draftCommands: [
         {
           id: "30000000-0000-4000-8000-000000000010",
@@ -205,7 +201,6 @@ describe("buildPlannerPublishPersistencePayload draft edit validation", () => {
       policy,
       kernel,
       snapshot,
-      assessments: [createDefaultAssessment(baseGoal)],
       draftCommands: [
         {
           id: "30000000-0000-4000-8000-000000000012",
@@ -221,10 +216,8 @@ describe("buildPlannerPublishPersistencePayload draft edit validation", () => {
     const moved = payload.items.find((item) => item.unit_key === "total:1");
     expect(moved).toMatchObject({
       scheduled_date: "2026-09-03",
-      placement_window_start: "2026-08-01",
-      placement_window_end: "2026-09-15",
+      original_scheduled_date: "2026-08-28",
     });
-    expect(payload.days.some((day) => day.date === "2026-09-03")).toBe(true);
   });
 
   it("allows draft moves that conflict with advisory policy preferences", () => {
@@ -239,7 +232,6 @@ describe("buildPlannerPublishPersistencePayload draft edit validation", () => {
       policy,
       kernel,
       snapshot,
-      assessments: [createDefaultAssessment(baseGoal)],
       draftCommands: [
         {
           id: "30000000-0000-4000-8000-000000000013",
@@ -267,7 +259,6 @@ describe("buildPlannerPublishPersistencePayload draft edit validation", () => {
       policy,
       kernel,
       snapshot,
-      assessments: [createDefaultAssessment(baseGoal)],
       draftCommands: [
         {
           id: "30000000-0000-4000-8000-000000000014",
@@ -298,7 +289,6 @@ describe("buildPlannerPublishPersistencePayload draft edit validation", () => {
       policy,
       kernel,
       snapshot,
-      assessments: [createDefaultAssessment(baseGoal)],
       draftCommands: [],
     });
 
@@ -328,7 +318,6 @@ describe("buildPlannerPublishPersistencePayload draft edit validation", () => {
         policy,
         kernel,
         snapshot,
-        assessments: [createDefaultAssessment(baseGoal)],
         draftCommands: [
           {
             id: "30000000-0000-4000-8000-000000000015",

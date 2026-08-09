@@ -6,7 +6,6 @@ const mocks = vi.hoisted(() => ({
   getUser: vi.fn(),
   loadSnapshot: vi.fn(),
   consumeQuota: vi.fn(),
-  recordTokens: vi.fn(),
   generateGeminiJson: vi.fn(),
 }));
 
@@ -29,7 +28,6 @@ vi.mock("@/lib/planner/ai-quota", () => ({
   shouldBypassPlannerCoachQuota: () =>
     process.env.CALENDAR_COACH_DISABLE_QUOTA?.trim().toLowerCase() === "true",
   consumePlannerAiQuota: mocks.consumeQuota,
-  recordPlannerAiOutputTokens: mocks.recordTokens,
 }));
 
 vi.mock("@/lib/ai/gemini", () => ({
@@ -115,7 +113,6 @@ describe("planner coach route", () => {
       remaining: 19,
       retryAfterSeconds: 321,
     });
-    mocks.recordTokens.mockResolvedValue(undefined);
     mocks.generateGeminiJson.mockResolvedValue({
       candidateJson: {
         schemaVersion: "1",
@@ -217,7 +214,6 @@ describe("planner coach route", () => {
   it("bypasses quota RPC when local quota disable flag is enabled", async () => {
     vi.stubEnv("CALENDAR_COACH_DISABLE_QUOTA", "true");
     mocks.consumeQuota.mockClear();
-    mocks.recordTokens.mockClear();
 
     const response = await POST(
       request({
@@ -229,7 +225,6 @@ describe("planner coach route", () => {
 
     expect(response.status).toBe(200);
     expect(mocks.consumeQuota).not.toHaveBeenCalled();
-    expect(mocks.recordTokens).not.toHaveBeenCalled();
     await expect(response.json()).resolves.toMatchObject({
       quota: {
         usageDate: expect.any(String),
