@@ -115,6 +115,42 @@ const aggregateWeekdayLabels: [string, string, string, string, string, string, s
   "S",
 ];
 const MAX_VISIBLE_MILESTONES = 5;
+const INSIGHTS_REQUEST_TIMEOUT_MS = 15_000;
+
+function isAbortError(error: unknown) {
+  if (error instanceof DOMException) {
+    return error.name === "AbortError";
+  }
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "name" in error &&
+    (error as { name?: unknown }).name === "AbortError"
+  ) {
+    return true;
+  }
+  return false;
+}
+
+function withAbortSignal<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
+  if (signal.aborted) {
+    throw new DOMException("The operation was aborted.", "AbortError");
+  }
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = () => reject(new DOMException("The operation was aborted.", "AbortError"));
+    signal.addEventListener("abort", onAbort, { once: true });
+    promise.then(
+      (value) => {
+        signal.removeEventListener("abort", onAbort);
+        resolve(value);
+      },
+      (error) => {
+        signal.removeEventListener("abort", onAbort);
+        reject(error);
+      }
+    );
+  });
+}
 
 function defaultMilestoneName(index: number): string {
   return `Milestone ${index + 1}`;
@@ -226,6 +262,7 @@ export function InsightsTab() {
   );
   const monthSwipeStartRef = useRef<{ x: number; y: number } | null>(null);
   const loadRequestIdRef = useRef(0);
+  const visibleLoadCountRef = useRef(0);
 
   const loadData = useCallback(
     async (
@@ -237,50 +274,66 @@ export function InsightsTab() {
       const requestId = loadRequestIdRef.current + 1;
       loadRequestIdRef.current = requestId;
       if (showLoading) {
+        visibleLoadCountRef.current += 1;
         setLoading(true);
       }
+      const controller = new AbortController();
+      const timeoutId = window.setTimeout(
+        () => controller.abort(),
+        INSIGHTS_REQUEST_TIMEOUT_MS
+      );
+      try {
+        const {
+          data: { user },
+        } = await withAbortSignal(supabase.auth.getUser(), controller.signal);
 
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (!user) {
-        setState(emptyInsights);
-        if (showLoading) {
-          setLoading(false);
+        if (requestId !== loadRequestIdRef.current) {
+          return;
         }
-        return;
-      }
 
-      const yearStart = format(startOfYear(monthCursor), "yyyy-MM-dd");
-      const yearEnd = format(endOfYear(monthCursor), "yyyy-MM-dd");
-      // Heatmap facts are intentionally year-bounded. A per-year client cache
-      // is optional later if measured navigation latency warrants it.
-      const [goalsResponse, participantsResponse, progress] = await Promise.all([
-        supabase.from("goals").select("*").eq("is_deleted", false).order("title"),
-        supabase.from("goal_participants").select("*").eq("user_id", user.id),
-        fetchProgressContext({
-          asOfDate: format(new Date(), "yyyy-MM-dd"),
-          factsFrom: yearStart,
-          factsTo: yearEnd,
-          forceRefresh,
-        }),
-      ]);
+        if (!user) {
+          setState(emptyInsights);
+          return;
+        }
 
-      if (requestId !== loadRequestIdRef.current) {
-        return;
-      }
+        const yearStart = format(startOfYear(monthCursor), "yyyy-MM-dd");
+        const yearEnd = format(endOfYear(monthCursor), "yyyy-MM-dd");
+        // Heatmap facts are intentionally year-bounded. A per-year client cache
+        // is optional later if measured navigation latency warrants it.
+        const [goalsResponse, participantsResponse, progress] =
+          await withAbortSignal(
+            Promise.all([
+              supabase.from("goals").select("*").eq("is_deleted", false).order("title"),
+              supabase.from("goal_participants").select("*").eq("user_id", user.id),
+              fetchProgressContext({
+                asOfDate: format(new Date(), "yyyy-MM-dd"),
+                factsFrom: yearStart,
+                factsTo: yearEnd,
+                forceRefresh,
+              }),
+            ]),
+            controller.signal
+          );
 
-      setState({
-        userId: user.id,
-        goals: (goalsResponse.data ?? []) as Goal[],
-        completions: progress.facts,
-        participants: (participantsResponse.data ?? []) as GoalParticipant[],
-        progress,
-      });
+        if (requestId !== loadRequestIdRef.current) {
+          return;
+        }
 
-      if (showLoading) {
-        setLoading(false);
+        setState({
+          userId: user.id,
+          goals: (goalsResponse.data ?? []) as Goal[],
+          completions: progress.facts,
+          participants: (participantsResponse.data ?? []) as GoalParticipant[],
+          progress,
+        });
+      } finally {
+        window.clearTimeout(timeoutId);
+        if (showLoading) {
+          visibleLoadCountRef.current = Math.max(visibleLoadCountRef.current - 1, 0);
+          if (visibleLoadCountRef.current === 0) {
+            setLoading(false);
+          }
+        }
       }
     },
     [monthCursor, supabase]
@@ -291,11 +344,12 @@ export function InsightsTab() {
       try {
         await loadData();
       } catch (error) {
-        setLoading(false);
         toast.error(
-          error instanceof Error
-            ? error.message
-            : "Insights progress could not be loaded."
+          isAbortError(error)
+            ? "Insights request timed out. Please try again."
+            : error instanceof Error
+              ? error.message
+              : "Insights progress could not be loaded."
         );
       }
     };
@@ -485,11 +539,8 @@ export function InsightsTab() {
             window.scrollTo({ top: currentScrollY, behavior: "auto" });
           });
         } catch (error) {
-          const timeoutLike =
-            error instanceof Error &&
-            error.message.toLowerCase().includes("timed out");
           toast.error(
-            timeoutLike
+            isAbortError(error)
               ? "Completion updated, but calendar refresh timed out. Please refresh the page."
               : "Completion updated, but calendar refresh failed. Please refresh the page."
           );
@@ -566,11 +617,8 @@ export function InsightsTab() {
             window.scrollTo({ top: currentScrollY, behavior: "auto" });
           });
         } catch (error) {
-          const timeoutLike =
-            error instanceof Error &&
-            error.message.toLowerCase().includes("timed out");
           toast.error(
-            timeoutLike
+            isAbortError(error)
               ? "Completion updated, but calendar refresh timed out. Please refresh the page."
               : "Completion updated, but calendar refresh failed. Please refresh the page."
           );
@@ -614,7 +662,11 @@ export function InsightsTab() {
         });
       } catch (error) {
         toast.error(
-          error instanceof Error ? error.message : "Milestone names update failed."
+          isAbortError(error)
+            ? "Milestone names updated, but insights refresh timed out. Please refresh the page."
+            : error instanceof Error
+              ? error.message
+              : "Milestone names update failed."
         );
       } finally {
         setSavingMilestoneNamesGoalId(null);

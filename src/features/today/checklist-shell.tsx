@@ -93,7 +93,11 @@ export function ChecklistShell({ calendarEnabled }: ChecklistShellProps) {
       : defaultCalendarViewMode;
     let tab: PlannerShellTab =
       hasExplicitTab ? rawTab : "today";
-    let changed = rawTab !== tab;
+    let changed = false;
+    if (rawTab && !hasExplicitTab) {
+      nextParams.set("tab", "today");
+      changed = true;
+    }
     if (!calendarEnabled && tab === "calendar") {
       tab = "today";
       nextParams.set("tab", "today");
@@ -234,6 +238,11 @@ export function ChecklistShell({ calendarEnabled }: ChecklistShellProps) {
       update(params);
       const query = params.toString();
       const nextUrl = query ? `${pathname}?${query}` : pathname;
+      const currentQuery = searchParams.toString();
+      const currentUrl = currentQuery ? `${pathname}?${currentQuery}` : pathname;
+      if (nextUrl === currentUrl) {
+        return;
+      }
       if (mode === "push") {
         window.history.pushState(state, "", nextUrl);
       } else {
