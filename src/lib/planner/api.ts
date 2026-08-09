@@ -62,14 +62,6 @@ export function unknownPlannerErrorResponse(correlationId: string) {
   );
 }
 
-export function plannerWritesNotReleasedError() {
-  return new PlannerRouteError(
-    503,
-    "planner_writes_not_released",
-    "Planner write APIs will be enabled after the read/preview-only soak."
-  );
-}
-
 export function resolveCanonicalAsOfDate({
   timezone,
   requestedAsOfDate,

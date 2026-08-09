@@ -1,13 +1,5 @@
 import { canonicalHash } from "@/lib/planner/canonical";
 import type { PlannerCanonicalSnapshot } from "@/lib/planner/context-loader";
-import {
-  ASSESSMENT_SCHEMA_VERSION,
-  PLANNER_CONTRACT_VERSION,
-  POLICY_COMPILER_VERSION,
-  POLICY_SCHEMA_VERSION,
-  REQUIREMENT_SCHEMA_VERSION,
-  SCHEDULER_VERSION,
-} from "@/lib/planner/contracts/bounds";
 import { getScopeDateRange } from "@/lib/planner/dates";
 import type { PlannerKernelOutput } from "@/lib/planner/kernel";
 import {
@@ -69,7 +61,9 @@ function buildDraftEditKey(goalId: string, unitKey: string) {
 
 function buildDraftItemEditsFromCommands(commands: PlannerDraftCommand[]) {
   const sortedCommands = sortPlannerDraftCommands(commands);
-  const projectedItems = projectPlannerDraftCommands(sortedCommands);
+  const projectedItems = projectPlannerDraftCommands(sortedCommands, {
+    sorted: true,
+  });
   const draftItemEdits = Object.entries(projectedItems)
     .map(([entryKey, edit]) => {
       const separatorIndex = entryKey.indexOf(":");
@@ -402,30 +396,5 @@ export function buildPlannerPublishPersistencePayload({
       publishable: kernel.solver.publishable,
     },
     items,
-  };
-}
-
-export function plannerPlanMetadataFromKernel({
-  timezone,
-  kernel,
-}: {
-  timezone: string;
-  kernel: PlannerKernelOutput;
-}) {
-  return {
-    eligibilityMode: kernel.eligibilityMode,
-    timezone,
-    contractVersion: PLANNER_CONTRACT_VERSION,
-    schedulerVersion: SCHEDULER_VERSION,
-    requirementSchemaVersion: REQUIREMENT_SCHEMA_VERSION,
-    assessmentSchemaVersion: ASSESSMENT_SCHEMA_VERSION,
-    policySchemaVersion: POLICY_SCHEMA_VERSION,
-    policyCompilerVersion: POLICY_COMPILER_VERSION,
-    placementStatus: kernel.solver.placementStatus,
-    searchStatus: kernel.solver.searchStatus,
-    capacityStatus: kernel.solver.capacityStatus,
-    confirmationRequired: kernel.solver.confirmationRequired,
-    publishable: kernel.solver.publishable,
-    generationInputHash: kernel.generationInputHash,
   };
 }
