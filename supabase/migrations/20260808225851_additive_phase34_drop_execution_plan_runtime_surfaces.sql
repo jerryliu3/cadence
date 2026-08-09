@@ -57,18 +57,6 @@ begin
       message = 'group goals cannot participate in personal goal links';
   end if;
 
-  if exists (
-    select 1
-    from public.planner_items item
-    where item.owner_id = new.owner_id
-      and item.locked
-      and item.goal_id in (new.source_goal_id, new.target_goal_id)
-  ) then
-    raise exception using
-      errcode = '55000',
-      message = 'goals with published planner items cannot be linked';
-  end if;
-
   return new;
 end;
 $$;
