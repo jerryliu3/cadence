@@ -7,7 +7,6 @@ import { validateGoalDefinition } from "@/lib/goals/definition-validation";
 import {
   consumePlannerAiQuota,
   readBulkParserQuotaLimit,
-  recordPlannerAiOutputTokens,
 } from "@/lib/planner/ai-quota";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
@@ -322,7 +321,6 @@ export async function POST(request: Request) {
   }
 
   let candidateJson: unknown;
-  let outputTokens = 0;
   try {
     const result = await generateGeminiJson({
       apiKey,
@@ -334,7 +332,6 @@ export async function POST(request: Request) {
       signal: request.signal,
     });
     candidateJson = result.candidateJson;
-    outputTokens = result.outputTokens;
   } catch (error) {
     if (error instanceof GeminiRequestError) {
       if (error.code === "timeout") {
@@ -378,18 +375,6 @@ export async function POST(request: Request) {
       "Generated goal drafts could not be validated.",
       correlationId
     );
-  }
-
-  try {
-    await recordPlannerAiOutputTokens({
-      admin,
-      ownerId: user.id,
-      usageDate: quota.usageDate,
-      feature: "bulk_parser",
-      outputTokens,
-    });
-  } catch {
-    // Best-effort quota accounting should not block successful responses.
   }
 
   const responsePayload = {

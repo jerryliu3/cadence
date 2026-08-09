@@ -196,7 +196,6 @@ export async function handlePlannerSave(request: Request) {
         policy: effectivePolicy,
         kernel,
         snapshot,
-        assessments,
         draftCommands,
       });
     } catch (error) {

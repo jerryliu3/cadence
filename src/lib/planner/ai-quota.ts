@@ -120,26 +120,3 @@ export async function consumePlannerAiQuota({
   };
 }
 
-export async function recordPlannerAiOutputTokens({
-  admin,
-  ownerId,
-  usageDate,
-  feature,
-  outputTokens,
-}: {
-  admin: AdminClient;
-  ownerId: string;
-  usageDate: string;
-  feature: PlannerAiQuotaFeature;
-  outputTokens: number;
-}) {
-  if (outputTokens <= 0) {
-    return;
-  }
-  await callAdminRpc(admin, "record_planner_ai_output_tokens", {
-    p_owner: ownerId,
-    p_usage_date: usageDate,
-    p_feature: feature,
-    p_output_tokens: outputTokens,
-  });
-}
