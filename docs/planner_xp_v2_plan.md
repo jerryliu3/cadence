@@ -27,6 +27,23 @@ This V2 plan incorporates lessons from deeper implementation and review, includi
 5. Goal-level custom reward text is supported.
 6. Keep schema complexity low: prefer logic and test fixes inside existing tables/functions before introducing new persistence surfaces.
 
+## Requirement Model Note (folded from schema simplification memo)
+
+Planner internals still use three requirement kinds:
+
+- `milestone_sequence`
+- `cadence`
+- `deadline_total`
+
+For now, this remains intentional. The follow-up simplification decision is:
+
+- keep the backend model stable while cleanup lands,
+- defer any 3-kind → 2-kind consolidation until the dedicated requirement-semantics pass,
+- preserve these no-regression invariants when that pass happens:
+  - cadence off-schedule credits remain period-based,
+  - deadline totals keep scheduled-date-first then chronological fallback,
+  - milestone sequencing remains strict and ordered.
+
 ## Updated Priorities (Worth Acting Now vs Follow-Ups)
 
 ### Must Act Now (before merge)

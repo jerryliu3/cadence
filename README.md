@@ -120,9 +120,9 @@ Calendar UI exposure and planner API access are controlled by
 `CALENDAR_ENABLED` (default `true`). Set `CALENDAR_ENABLED=false` to hide the
 Calendar surface and disable planner endpoints.
 
-Planner persistence is additive and blocks direct client writes. Immutable plan
-snapshots are stored in public planning tables, while revisions, owner-lock
-helpers, and AI quota counters remain in the unexposed `private` schema.
+Planner schedule persistence blocks direct client writes. Calendar saves/locks/resets
+flow through the planner write-boundary RPCs on public tables (`set_planner_schedule`,
+`set_planner_item_lock`, and `clear_planner_schedule`).
 
 ## Pointing to Hosted Supabase
 
