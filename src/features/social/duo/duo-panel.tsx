@@ -13,6 +13,7 @@ import {
 } from "@/features/social/data";
 import type { DuoStateRow } from "@/features/social/types";
 import { NudgeButton } from "@/features/social/duo/nudge-button";
+import { PartnerPlan } from "@/features/social/duo/partner-plan";
 
 export function DuoPanel() {
   const [rows, setRows] = useState<DuoStateRow[]>([]);
@@ -118,6 +119,8 @@ export function DuoPanel() {
           {error ? <p className="text-xs text-destructive md:col-span-3">{error}</p> : null}
         </CardContent>
       </Card>
+
+      {activeDuo ? <PartnerPlan partnerId={activeDuo.partnerId} /> : null}
 
       <Card className="shadow-sm">
         <CardHeader>

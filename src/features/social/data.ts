@@ -2,6 +2,8 @@ import type {
   LeaderboardSeason,
   LeaderboardStanding,
   DuoStateRow,
+  DuoPartnerPlanItem,
+  DuoPlannerProposal,
   SocialChallenge,
   SocialFeedEvent,
 } from "@/features/social/types";
@@ -37,6 +39,17 @@ interface SocialLeaderboardStandingsResponse {
 interface SocialDuoStateResponse {
   schemaVersion: "1";
   items: DuoStateRow[];
+}
+
+interface SocialDuoPartnerPlanResponse {
+  schemaVersion: "1";
+  scopeMonth: string;
+  items: DuoPartnerPlanItem[];
+}
+
+interface SocialDuoPlannerProposalsResponse {
+  schemaVersion: "1";
+  items: DuoPlannerProposal[];
 }
 
 export type FeedReactionKind = "cheer" | "fire" | "clap" | "strong";
@@ -282,4 +295,88 @@ export async function sendDuoNudge({
     await parseApiError(response, "Failed to send nudge.");
   }
   return (await response.json()) as { schemaVersion: "1"; nudgeId: string };
+}
+
+export async function fetchDuoPartnerPlan(scopeMonth: string) {
+  const params = new URLSearchParams();
+  params.set("scopeMonth", scopeMonth);
+  const response = await fetch(`/api/social/duo/plan?${params.toString()}`, {
+    cache: "no-store",
+    credentials: "include",
+  });
+  if (!response.ok) {
+    await parseApiError(response, "Failed to load partner plan.");
+  }
+  return (await response.json()) as SocialDuoPartnerPlanResponse;
+}
+
+export async function fetchDuoPlannerProposals(scopeMonth?: string) {
+  const params = new URLSearchParams();
+  if (scopeMonth) {
+    params.set("scopeMonth", scopeMonth);
+  }
+  const response = await fetch(`/api/social/duo/planner-proposals?${params.toString()}`, {
+    cache: "no-store",
+    credentials: "include",
+  });
+  if (!response.ok) {
+    await parseApiError(response, "Failed to load planner proposals.");
+  }
+  return (await response.json()) as SocialDuoPlannerProposalsResponse;
+}
+
+export async function createDuoPlannerProposal(payload: {
+  targetOwnerId: string;
+  scopeMonth: string;
+  operations: Array<Record<string, unknown>>;
+  note?: string;
+}) {
+  const response = await fetch("/api/social/duo/planner-proposals", {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) {
+    await parseApiError(response, "Failed to create planner proposal.");
+  }
+  return (await response.json()) as { schemaVersion: "1"; proposalId: string };
+}
+
+export async function acceptDuoPlannerProposal(proposalId: string) {
+  const response = await fetch(`/api/social/duo/planner-proposals/${proposalId}/accept`, {
+    method: "POST",
+    credentials: "include",
+  });
+  if (!response.ok) {
+    await parseApiError(response, "Failed to accept planner proposal.");
+  }
+  return (await response.json()) as {
+    schemaVersion: "1";
+    proposalId: string;
+    accepted: boolean;
+    scheduleDigest: string | null;
+  };
+}
+
+export async function rejectDuoPlannerProposal(proposalId: string) {
+  const response = await fetch(`/api/social/duo/planner-proposals/${proposalId}/reject`, {
+    method: "POST",
+    credentials: "include",
+  });
+  if (!response.ok) {
+    await parseApiError(response, "Failed to reject planner proposal.");
+  }
+  return (await response.json()) as { schemaVersion: "1"; proposalId: string; rejected: boolean };
+}
+
+export async function withdrawDuoPlannerProposal(proposalId: string) {
+  const response = await fetch(`/api/social/duo/planner-proposals/${proposalId}`, {
+    method: "DELETE",
+    credentials: "include",
+  });
+  if (!response.ok) {
+    await parseApiError(response, "Failed to withdraw planner proposal.");
+  }
+  return (await response.json()) as { schemaVersion: "1"; proposalId: string; withdrawn: boolean };
 }

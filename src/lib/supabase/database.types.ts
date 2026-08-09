@@ -151,6 +151,10 @@ export type Database = {
         }
         Returns: boolean
       }
+      validate_planner_proposal_operations: {
+        Args: { p_operations: Json }
+        Returns: undefined
+      }
       xp_cascade_multiplier: { Args: never; Returns: number }
       xp_goal_achievement_points: { Args: never; Returns: number }
       xp_level_for_total: { Args: { p_total_xp: number }; Returns: number }
@@ -377,25 +381,31 @@ export type Database = {
       duo_preferences: {
         Row: {
           allow_nudges: boolean
+          allow_proposals: boolean
           duo_id: string
           notify_partner_activity: boolean
           share_completions: boolean
+          share_planner: boolean
           updated_at: string
           user_id: string
         }
         Insert: {
           allow_nudges?: boolean
+          allow_proposals?: boolean
           duo_id: string
           notify_partner_activity?: boolean
           share_completions?: boolean
+          share_planner?: boolean
           updated_at?: string
           user_id: string
         }
         Update: {
           allow_nudges?: boolean
+          allow_proposals?: boolean
           duo_id?: string
           notify_partner_activity?: boolean
           share_completions?: boolean
+          share_planner?: boolean
           updated_at?: string
           user_id?: string
         }
@@ -1433,6 +1443,73 @@ export type Database = {
           },
         ]
       }
+      planner_proposals: {
+        Row: {
+          applied_digest: string | null
+          baseline_schedule_digest: string
+          created_at: string
+          decided_at: string | null
+          duo_id: string
+          id: string
+          note: string | null
+          operations: Json
+          proposer_id: string
+          scope_month: string
+          status: Database["public"]["Enums"]["planner_proposal_status"]
+          target_owner_id: string
+        }
+        Insert: {
+          applied_digest?: string | null
+          baseline_schedule_digest: string
+          created_at?: string
+          decided_at?: string | null
+          duo_id: string
+          id?: string
+          note?: string | null
+          operations: Json
+          proposer_id: string
+          scope_month: string
+          status?: Database["public"]["Enums"]["planner_proposal_status"]
+          target_owner_id: string
+        }
+        Update: {
+          applied_digest?: string | null
+          baseline_schedule_digest?: string
+          created_at?: string
+          decided_at?: string | null
+          duo_id?: string
+          id?: string
+          note?: string | null
+          operations?: Json
+          proposer_id?: string
+          scope_month?: string
+          status?: Database["public"]["Enums"]["planner_proposal_status"]
+          target_owner_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "planner_proposals_duo_id_fkey"
+            columns: ["duo_id"]
+            isOneToOne: false
+            referencedRelation: "duos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "planner_proposals_proposer_id_fkey"
+            columns: ["proposer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "planner_proposals_target_owner_id_fkey"
+            columns: ["target_owner_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -1834,12 +1911,22 @@ export type Database = {
         Args: { p_message?: string; p_partner_id: string }
         Returns: string
       }
+      create_planner_proposal_service: {
+        Args: {
+          p_note?: string
+          p_operations: Json
+          p_scope_month: string
+          p_target_owner_id: string
+        }
+        Returns: string
+      }
       decline_duo_invite_service: {
         Args: { p_duo_id: string }
         Returns: boolean
       }
       dissolve_duo_service: { Args: never; Returns: boolean }
       expire_pending_duo_invites_service: { Args: never; Returns: number }
+      expire_planner_proposals_service: { Args: never; Returns: number }
       find_profile_by_username: {
         Args: { p_limit?: number; p_query: string }
         Returns: {
@@ -1874,6 +1961,19 @@ export type Database = {
           viewer_progress: number
         }[]
       }
+      get_duo_partner_plan_service: {
+        Args: { p_scope_month: string }
+        Returns: {
+          goal_id: string
+          goal_title: string
+          item_id: string
+          locked: boolean
+          owner_id: string
+          scheduled_date: string
+          scheduled_time: string
+          unit_key: string
+        }[]
+      }
       get_duo_state: {
         Args: never
         Returns: {
@@ -1905,6 +2005,23 @@ export type Database = {
       get_partner_profile_service: {
         Args: { p_owner_id: string }
         Returns: Json
+      }
+      get_planner_proposals_service: {
+        Args: { p_scope_month?: string }
+        Returns: {
+          applied_digest: string
+          baseline_schedule_digest: string
+          created_at: string
+          decided_at: string
+          duo_id: string
+          id: string
+          note: string
+          operations: Json
+          proposer_id: string
+          scope_month: string
+          status: Database["public"]["Enums"]["planner_proposal_status"]
+          target_owner_id: string
+        }[]
       }
       get_planner_schedule_digest: {
         Args: { p_owner?: string }
@@ -2023,6 +2140,14 @@ export type Database = {
         Args: { p_error?: string; p_outbox_id: string; p_sent: boolean }
         Returns: boolean
       }
+      resolve_planner_proposal_service: {
+        Args: {
+          p_applied_digest?: string
+          p_proposal_id: string
+          p_resolution: Database["public"]["Enums"]["planner_proposal_status"]
+        }
+        Returns: boolean
+      }
       rollover_leaderboard_seasons_service: { Args: never; Returns: number }
       save_planner_coach_conversation_service: {
         Args: {
@@ -2131,6 +2256,13 @@ export type Database = {
       notification_state: "pending" | "sent" | "failed" | "skipped"
       nudge_kind: "cheer" | "remind" | "custom"
       participant_role: "owner" | "participant"
+      planner_proposal_status:
+        | "pending"
+        | "accepted"
+        | "rejected"
+        | "withdrawn"
+        | "stale"
+        | "expired"
       reaction_kind: "cheer" | "fire" | "clap" | "strong"
       recurrence_interval: "daily" | "weekly" | "monthly"
       social_subject_kind: "user" | "duo"
@@ -2322,6 +2454,14 @@ export const Constants = {
       notification_state: ["pending", "sent", "failed", "skipped"],
       nudge_kind: ["cheer", "remind", "custom"],
       participant_role: ["owner", "participant"],
+      planner_proposal_status: [
+        "pending",
+        "accepted",
+        "rejected",
+        "withdrawn",
+        "stale",
+        "expired",
+      ],
       reaction_kind: ["cheer", "fire", "clap", "strong"],
       recurrence_interval: ["daily", "weekly", "monthly"],
       social_subject_kind: ["user", "duo"],

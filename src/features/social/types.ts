@@ -106,3 +106,37 @@ export interface DuoStateRow {
   acceptedAt: string | null;
   isIncoming: boolean;
 }
+
+export type PlannerProposalStatus =
+  | "pending"
+  | "accepted"
+  | "rejected"
+  | "withdrawn"
+  | "stale"
+  | "expired";
+
+export interface DuoPartnerPlanItem {
+  itemId: string;
+  ownerId: string;
+  goalId: string;
+  goalTitle: string;
+  unitKey: string;
+  scheduledDate: string;
+  scheduledTime: string | null;
+  locked: boolean;
+}
+
+export interface DuoPlannerProposal {
+  id: string;
+  duoId: string;
+  proposerId: string;
+  targetOwnerId: string;
+  scopeMonth: string;
+  status: PlannerProposalStatus;
+  baselineScheduleDigest: string;
+  operations: Array<Record<string, unknown>>;
+  note: string | null;
+  createdAt: string;
+  decidedAt: string | null;
+  appliedDigest: string | null;
+}
