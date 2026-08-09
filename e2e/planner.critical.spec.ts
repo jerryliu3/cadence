@@ -12,8 +12,22 @@ interface CompletionMutationPayload {
   timezone: string;
 }
 
-async function openCalendar(page: Page) {
-  await page.goto("/?tab=calendar");
+function shiftScopeMonth(scopeMonth: string, delta: number) {
+  const [rawYear, rawMonth] = scopeMonth.split("-");
+  const year = Number.parseInt(rawYear ?? "", 10);
+  const month = Number.parseInt(rawMonth ?? "", 10);
+  if (!Number.isFinite(year) || !Number.isFinite(month)) {
+    throw new Error(`Invalid scope month: ${scopeMonth}`);
+  }
+  const shifted = new Date(Date.UTC(year, month - 1 + delta, 1));
+  const nextYear = shifted.getUTCFullYear();
+  const nextMonth = String(shifted.getUTCMonth() + 1).padStart(2, "0");
+  return `${nextYear}-${nextMonth}`;
+}
+
+async function openCalendar(page: Page, scopeMonth?: string) {
+  const query = scopeMonth ? `/?tab=calendar&month=${scopeMonth}` : "/?tab=calendar";
+  await page.goto(query);
   await expect(
     page.getByRole("tab", { name: "Calendar", exact: true })
   ).toBeVisible();
@@ -24,7 +38,7 @@ async function openCalendar(page: Page) {
     name: "Save setup",
     exact: true,
   });
-  if ((await saveSetupButton.count()) > 0) {
+  if (await saveSetupButton.isVisible()) {
     await expect(saveSetupButton).toBeEnabled();
     await saveSetupButton.click();
     await expect(page.getByText("Loading planner month context...")).toHaveCount(0);
@@ -34,28 +48,23 @@ async function openCalendar(page: Page) {
 async function ensureMovableEntryAvailable(page: Page, maxMonthJumps = 6) {
   const movableEntrySelector =
     '[data-calendar-day-entry="true"][title*="Drag to another day"]';
+  let scopeMonth = await resolveCalendarScopeMonth(page);
+  const startScopeMonth = scopeMonth;
   for (let jump = 0; jump <= maxMonthJumps; jump += 1) {
-    const movableEntries = page.locator(movableEntrySelector);
+    const movableEntries = page.locator(`${movableEntrySelector}:visible`);
     if ((await movableEntries.count()) > 0) {
-      await expect(movableEntries.first()).toBeVisible();
       return;
     }
     if (jump === maxMonthJumps) {
       break;
     }
 
-    const nextWindowButton = page.locator('button[aria-label^="Next "]').first();
-    if ((await nextWindowButton.count()) === 0) {
-      throw new Error("Planner navigation control was not found while scanning for movable entries.");
-    }
-    await expect(nextWindowButton).toBeVisible();
-    await expect(nextWindowButton).toBeEnabled();
-    await nextWindowButton.click();
-    await expect(page.getByText("Loading planner month context...")).toHaveCount(0);
+    scopeMonth = shiftScopeMonth(scopeMonth, 1);
+    await openCalendar(page, scopeMonth);
   }
 
   throw new Error(
-    `No movable planner entry found after scanning ${maxMonthJumps + 1} month view(s).`
+    `No movable planner entry found after scanning ${maxMonthJumps + 1} month(s) starting at ${startScopeMonth}.`
   );
 }
 
