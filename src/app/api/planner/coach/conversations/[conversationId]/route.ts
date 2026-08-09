@@ -66,7 +66,6 @@ export async function GET(
     const supabase = await createClient();
     const routeContext = await requirePlannerRouteContext({
       supabase,
-      requiredCapability: "coachAi",
       disabledCode: "planner_coach_disabled",
       disabledMessage: "Planner coach is not enabled.",
     });

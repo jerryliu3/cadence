@@ -218,7 +218,6 @@ export async function GET(request: Request) {
     const supabase = await createClient();
     const routeContext = await requirePlannerRouteContext({
       supabase,
-      requiredCapability: "plannerRead",
       disabledStatus: 404,
       disabledCode: "planner_read_disabled",
       disabledMessage: "Planner read APIs are not enabled for this owner.",
@@ -383,7 +382,6 @@ export async function POST(request: Request) {
     const supabase = await createClient();
     const routeContext = await requirePlannerRouteContext({
       supabase,
-      requiredCapability: "plannerGeneration",
       disabledCode: "planner_generation_disabled",
       disabledMessage:
         "Planner generation APIs are not enabled for this owner.",
@@ -460,7 +458,6 @@ export async function PUT(request: Request) {
     const supabase = await createClient();
     const routeContext = await requirePlannerRouteContext({
       supabase,
-      requiredCapability: "plannerGeneration",
       disabledCode: "planner_generation_disabled",
       disabledMessage:
         "Planner generation APIs are not enabled for this owner.",
