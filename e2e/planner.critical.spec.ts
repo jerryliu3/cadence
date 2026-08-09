@@ -293,7 +293,8 @@ test.describe("planner critical rails", () => {
         document.querySelectorAll("button[title]")
       )
         .map((button) => button.getAttribute("title")?.split(":")[0] ?? null)
-        .filter((date): date is string => Boolean(date) && date <= today)
+        .filter((date): date is string => typeof date === "string")
+        .filter((date) => date <= today)
         .filter((date) => /^\d{4}-\d{2}-\d{2}$/.test(date))
         .sort();
       return dates.at(-1) ?? null;
