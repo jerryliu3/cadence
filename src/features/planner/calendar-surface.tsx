@@ -376,69 +376,6 @@ export function CalendarSurface({
     ? draftPreviewByScope[currentScopeMonth] ?? null
     : null;
   const effectivePreview = effectiveDraftPreview ?? context?.preview ?? null;
-  const scopeDraftCommands = useMemo(
-    () => selectDraftCommandsForScope(draftCommandState, currentScopeMonth),
-    [currentScopeMonth, draftCommandState]
-  );
-  const effectivePreviewEntryKeys = useMemo(
-    () =>
-      new Set(
-        (effectivePreview?.workUnits ?? []).map((unit) =>
-          draftCommandEntryKey({
-            goalId: unit.originalGoalId,
-            unitKey: unit.unitKey,
-          })
-        )
-      ),
-    [effectivePreview?.workUnits]
-  );
-  const effectiveDraftCommands = useMemo(
-    () => {
-      const sorted = sortPlannerDraftCommands(scopeDraftCommands);
-      return sorted.filter((command) =>
-        effectivePreviewEntryKeys.has(draftCommandEntryKey(command))
-      );
-    },
-    [effectivePreviewEntryKeys, scopeDraftCommands]
-  );
-  const effectiveDraftItemEdits = useMemo(
-    () =>
-      projectPlannerDraftCommands(
-        effectiveDraftCommands
-      ) as Record<string, DraftItemEdit>,
-    [effectiveDraftCommands]
-  );
-  const visibleDraftItemEditsByMonth = useMemo(() => {
-    const itemEditsByMonth: Record<string, Record<string, DraftItemEdit>> = {};
-    for (const [visibleMonth, visibleMonthContext] of Object.entries(
-      visibleMonthContexts
-    )) {
-      const visibleMonthCommands = sortPlannerDraftCommands(
-        selectDraftCommandsForScope(draftCommandState, visibleMonth)
-      );
-      if (visibleMonthCommands.length === 0) {
-        continue;
-      }
-      const visiblePreviewEntryKeys = new Set(
-        (visibleMonthContext.preview?.workUnits ?? []).map((unit) =>
-          draftCommandEntryKey({
-            goalId: unit.originalGoalId,
-            unitKey: unit.unitKey,
-          })
-        )
-      );
-      const scopedCommands = visibleMonthCommands.filter((command) =>
-        visiblePreviewEntryKeys.has(draftCommandEntryKey(command))
-      );
-      if (scopedCommands.length === 0) {
-        continue;
-      }
-      itemEditsByMonth[visibleMonth] = projectPlannerDraftCommands(
-        scopedCommands
-      ) as Record<string, DraftItemEdit>;
-    }
-    return itemEditsByMonth;
-  }, [draftCommandState, visibleMonthContexts]);
   const dirtyScopeMonths = useMemo(() => {
     const scopeSet = new Set<string>();
     for (const [scopeMonth, draftPolicy] of Object.entries(draftPolicyByScope)) {
@@ -2161,10 +2098,6 @@ export function CalendarSurface({
   const draftSaveBlockedMessage = blockedSaveScope
     ? `${blockedSaveScope.scopeMonth}: ${blockedSaveScope.message}`
     : null;
-  const canMutatePlanItems = Boolean(
-    context?.capabilities.calendarEnabled &&
-      context?.activePlan?.plan.status === "active"
-  );
   const hasLockedPlanItems = Boolean(
     context?.activePlan?.items.some((item) => item.locked)
   );
