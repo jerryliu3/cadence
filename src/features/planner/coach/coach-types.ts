@@ -17,6 +17,10 @@ export interface UsePlannerCoachArgs {
   refreshDraftPreview: (
     nextPolicy: PlannerPolicy
   ) => Promise<PlannerContextPayload["preview"]>;
+  applyPolicyReplanMoves: (
+    nextPolicy: PlannerPolicy
+  ) => Promise<{ moveCount: number; movedEntryKeys: string[] }>;
+  clearDraftMoveCommands: (entryKeys: string[]) => void;
   applyDraftPolicy: (scopeMonth: string, policy: PlannerPolicy) => void;
   getNonPublishablePreviewMessage: (
     preview: NonNullable<PlannerContextPayload["preview"]>
