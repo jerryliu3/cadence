@@ -52,14 +52,17 @@ function movedUnits(
   before: ReturnType<typeof runPlannerKernel>,
   after: ReturnType<typeof runPlannerKernel>
 ) {
+  // Keyed by goal as well: unit keys repeat across goals.
+  const entryKey = (unit: { originalGoalId: string; unitKey: string }) =>
+    `${unit.originalGoalId}:${unit.unitKey}`;
   const beforeByKey = new Map(
-    before.workUnits.map((unit) => [unit.unitKey, unit.scheduledDate])
+    before.workUnits.map((unit) => [entryKey(unit), unit.scheduledDate])
   );
   return after.workUnits
-    .filter((unit) => beforeByKey.get(unit.unitKey) !== unit.scheduledDate)
+    .filter((unit) => beforeByKey.get(entryKey(unit)) !== unit.scheduledDate)
     .map((unit) => ({
       unitKey: unit.unitKey,
-      from: beforeByKey.get(unit.unitKey) ?? null,
+      from: beforeByKey.get(entryKey(unit)) ?? null,
       to: unit.scheduledDate,
     }));
 }
@@ -173,5 +176,65 @@ describe("locks and pins coexist", () => {
     expect(movedUnits(before, after)).toEqual([
       { unitKey: "total:1", from: "2026-08-05", to: "2026-08-19" },
     ]);
+  });
+});
+
+describe("pins across goals and completions", () => {
+  it("pinning one goal does not disturb another", () => {
+    const goalA = makeGoal({ target_count: 4 });
+    const goalB = makeGoal({
+      id: "goal-b",
+      title: "Read",
+      target_count: 4,
+    });
+    const input = (pins: Record<string, string> = {}) => ({
+      ...makeInput(goalA, pins),
+      goals: [goalA, goalB],
+    });
+    const before = runPlannerKernel(input());
+    const after = runPlannerKernel(input({ "goal-a:total:2": "2026-08-20" }));
+
+    expect(movedUnits(before, after)).toEqual([
+      { unitKey: "total:2", from: "2026-08-02", to: "2026-08-20" },
+    ]);
+    const goalBDates = (result: ReturnType<typeof runPlannerKernel>) =>
+      result.workUnits
+        .filter((unit) => unit.originalGoalId === "goal-b")
+        .map((unit) => unit.scheduledDate);
+    expect(goalBDates(after)).toEqual(goalBDates(before));
+  });
+
+  it("a completion on a pinned session does not invalidate the draft", () => {
+    // The trap this guards: a pin whose unit becomes credited can never be
+    // honored, and reporting it as a violation would strand the draft behind an
+    // error only a full discard could clear.
+    const goal = makeGoal({ target_count: 4 });
+    const pins = { "goal-a:total:1": "2026-08-20" };
+    const pinned = runPlannerKernel(makeInput(goal, pins));
+    const pinnedDate = pinned.workUnits.find(
+      (unit) => unit.unitKey === "total:1"
+    )?.scheduledDate;
+    expect(pinnedDate).toBe("2026-08-20");
+
+    const afterCompletion = runPlannerKernel({
+      ...makeInput(goal, pins),
+      asOfDate: "2026-08-21",
+      completions: [
+        {
+          id: "completion-a",
+          goal_id: "goal-a",
+          user_id: "owner-a",
+          completed_on: "2026-08-20",
+          source: "manual",
+          created_at: "2026-08-20T12:00:00Z",
+        },
+      ],
+    });
+
+    const credited = afterCompletion.workUnits.find(
+      (unit) => unit.scheduledDate === "2026-08-20"
+    );
+    expect(credited?.creditState).not.toBe("uncredited");
+    expect(afterCompletion.solver.publishable).toBe(true);
   });
 });

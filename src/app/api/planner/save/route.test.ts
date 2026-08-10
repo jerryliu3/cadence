@@ -58,6 +58,7 @@ describe("planner save route", () => {
       },
     });
     mocks.parseBoundedJsonBody.mockResolvedValue({
+      preserveExistingAssignments: true,
       scopeMonth: "2026-08",
       previewHash:
         "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -116,8 +117,11 @@ describe("planner save route", () => {
     );
   });
 
-  it("recomputes assignments when save includes a policy override", async () => {
+  it("uses the caller's preserve mode rather than inferring it from the policy", async () => {
+    // Inferring this from whether a policy was sent is what made an ordinary
+    // drag-then-save produce a hash the preview could never match.
     mocks.parseBoundedJsonBody.mockResolvedValueOnce({
+      preserveExistingAssignments: false,
       scopeMonth: "2026-08",
       previewHash:
         "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
