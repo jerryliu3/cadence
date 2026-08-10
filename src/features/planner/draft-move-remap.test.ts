@@ -71,3 +71,37 @@ describe("remapGoalDatesForDraftMove", () => {
     ).toEqual({ "total:9": "2026-08-19" });
   });
 });
+
+describe("milestone sequences keep ordinal identity", () => {
+  const milestones = [
+    { unitKey: "milestone:1", ordinal: 1, scheduledDate: "2026-08-01" },
+    { unitKey: "milestone:2", ordinal: 2, scheduledDate: "2026-08-02" },
+    { unitKey: "milestone:3", ordinal: 3, scheduledDate: "2026-08-03" },
+  ];
+
+  it("pins only the dragged milestone so its label travels with it", () => {
+    expect(
+      remapGoalDatesForDraftMove({
+        units: milestones,
+        movedUnitKey: "milestone:1",
+        nextDate: "2026-08-25",
+        kind: "milestone_sequence",
+      })
+    ).toEqual({ "milestone:1": "2026-08-25" });
+  });
+
+  it("still remaps interchangeable sessions", () => {
+    expect(
+      remapGoalDatesForDraftMove({
+        units: milestones,
+        movedUnitKey: "milestone:1",
+        nextDate: "2026-08-25",
+        kind: "deadline_total",
+      })
+    ).toEqual({
+      "milestone:1": "2026-08-02",
+      "milestone:2": "2026-08-03",
+      "milestone:3": "2026-08-25",
+    });
+  });
+});
