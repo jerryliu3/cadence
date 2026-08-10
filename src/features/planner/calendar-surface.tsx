@@ -105,6 +105,7 @@ import {
   sortPlannerDraftCommands,
   type PlannerDraftCommand,
 } from "@/lib/planner/draft-commands";
+import { buildReplanMoves } from "@/features/planner/replan-diff";
 import { buildPlannerConfirmationHash } from "@/lib/planner/publish-payload";
 import {
   createDefaultPlannerPolicy,
@@ -914,37 +915,22 @@ export function CalendarSurface({
     if (!proposal) {
       return { moveCount: 0, movedEntryKeys: [] as string[] };
     }
-    const baselineDateByEntryKey = new Map(
-      effectivePreview.workUnits.map((unit) => [
-        draftCommandEntryKey({
-          goalId: unit.originalGoalId,
-          unitKey: unit.unitKey,
-        }),
-        unit.scheduledDate,
-      ])
-    );
-
     let nextState = draftCommandState;
     const movedEntryKeys: string[] = [];
-    for (const unit of proposal.workUnits) {
-      const entryKey = draftCommandEntryKey({
-        goalId: unit.originalGoalId,
-        unitKey: unit.unitKey,
-      });
-      const nextDate = unit.scheduledDate;
-      if (nextDate === null || baselineDateByEntryKey.get(entryKey) === nextDate) {
-        continue;
-      }
+    for (const move of buildReplanMoves({
+      baselineWorkUnits: effectivePreview.workUnits,
+      proposalWorkUnits: proposal.workUnits,
+    })) {
       const action = {
         type: "upsert_move",
         scopeMonth,
-        goalId: unit.originalGoalId,
-        unitKey: unit.unitKey,
-        scheduledDate: nextDate,
+        goalId: move.goalId,
+        unitKey: move.unitKey,
+        scheduledDate: move.scheduledDate,
       } as const;
       dispatchDraftCommand(action);
       nextState = draftCommandReducer(nextState, action);
-      movedEntryKeys.push(entryKey);
+      movedEntryKeys.push(move.entryKey);
     }
 
     // Keep the ref ahead of the reducer so the stable refresh that follows

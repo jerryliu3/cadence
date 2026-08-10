@@ -46,7 +46,7 @@ const publishSchema = z.object({
   policy: z.unknown().optional(),
   eligibilityMode: z.enum(PLANNER_ELIGIBILITY_MODES).optional(),
   draftCommands: z.array(plannerDraftCommandSchema).max(4000).default([]),
-  preserveExistingAssignments: z.boolean().optional(),
+  preserveExistingAssignments: z.boolean(),
 });
 
 function plannerKernelErrorToRouteError(error: PlannerError) {
@@ -140,8 +140,7 @@ export async function handlePlannerSave(request: Request) {
         // Publish always solves `stable`. `replan` exists only to generate move
         // proposals, which reach this route as pinned `move_item` commands.
         solveIntent: "stable",
-        preserveExistingAssignments:
-          body.preserveExistingAssignments ?? requestedPolicy === null,
+        preserveExistingAssignments: body.preserveExistingAssignments,
         draftPinnedDates,
         ownerId: routeContext.userId,
         scopeMonth: body.scopeMonth,
