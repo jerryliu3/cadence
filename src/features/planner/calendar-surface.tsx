@@ -48,18 +48,13 @@ import {
   getMonthInTimezone,
   isEntryCredited,
   isEntryImmovableForDraft,
-  isValidIsoDate,
   monthToLabel,
-  moveItemInArray,
   normalizeWeekStartsOn,
   parseMonth,
   resolveNonPublishablePreviewMessage,
   restWeekdayOptions,
 } from "@/features/planner/calendar-format";
-import {
-  type PlannerDragTarget,
-  PlannerDndProvider,
-} from "@/features/planner/calendar-dnd";
+import { PlannerDndProvider } from "@/features/planner/calendar-dnd";
 import { CalendarDayPreviewList } from "@/features/planner/calendar-day-preview-list";
 import { CalendarMonthDayCell } from "@/features/planner/calendar-month-day-cell";
 import { PlannerCoachPanel } from "@/features/planner/coach/planner-coach-panel";
@@ -78,6 +73,7 @@ import { usePlannerCompletionActions } from "@/features/planner/use-planner-comp
 import { usePlannerDraftLifecycleActions } from "@/features/planner/use-planner-draft-lifecycle-actions";
 import { usePlannerContextSetup } from "@/features/planner/use-planner-context-setup";
 import { usePlannerDraftPreviewSession } from "@/features/planner/use-planner-draft-preview-session";
+import { usePlannerEntryDnd } from "@/features/planner/use-planner-entry-dnd";
 import {
   readPlannerCalendarDayProjection,
   selectPlannerCalendarDayProjectionsByDay,
@@ -152,7 +148,6 @@ export function CalendarSurface({
     draftCommandReducer,
     initialDraftCommandState
   );
-  const [draggingEntryKey, setDraggingEntryKey] = useState<string | null>(null);
   const [expandedMonthRows, setExpandedMonthRows] = useState(false);
   const [previewEntryOrderByDay, setPreviewEntryOrderByDay] = useState<
     Record<string, string[]>
@@ -496,10 +491,6 @@ export function CalendarSurface({
     },
     [entryDayByKey, isDayInCurrentScopeMonth]
   );
-  const getEntriesForDay = useCallback(
-    (day: string | null) => getCalendarDayProjection(day).entries,
-    [getCalendarDayProjection]
-  );
   const getCompletionFactMarkersForDay = useCallback(
     (day: string | null) => getCalendarDayProjection(day).completionFactMarkers,
     [getCalendarDayProjection]
@@ -617,166 +608,24 @@ export function CalendarSurface({
     scheduleDraftMovePreviewRefresh,
   });
 
-  const clearDragState = useCallback(() => {
-    releaseHoverSuppression();
-    setDraggingEntryKey(null);
-  }, [releaseHoverSuppression]);
-
-  const getDragEntryLabel = useCallback(
-    (entryKey: string) => {
-      const entry = entryByKey.get(entryKey);
-      return entry ? getEntryDisplayTitleWithTime(entry) : "planner session";
-    },
-    [entryByKey, getEntryDisplayTitleWithTime]
-  );
-
-  const getDragDayLabel = useCallback((day: string) => {
-    if (!isValidIsoDate(day)) {
-      return day;
-    }
-    return format(parse(day, "yyyy-MM-dd", new Date()), "EEEE, MMMM d");
-  }, []);
-
-  const renderEntryDragOverlay = useCallback(
-    (entryKey: string) => {
-      const entry = entryByKey.get(entryKey);
-      if (!entry) {
-        return null;
-      }
-      const visual = getGoalVisual({
-        goalId: entry.originalGoalId,
-        color: entry.activeGoal?.color ?? null,
-      });
-      const Icon = visual.Icon;
-      const title = getEntryDisplayTitleWithTime(entry);
-      const credited = isEntryCredited(entry);
-      return (
-        <div
-          className={`flex max-w-64 items-center gap-2 rounded-lg border px-2 py-1 text-xs ${
-            credited
-              ? "border-emerald-300 bg-emerald-100 text-emerald-950"
-              : "border-primary/40 bg-card text-foreground"
-          }`}
-        >
-          <span
-            className="inline-flex size-4 items-center justify-center rounded-full"
-            style={{ backgroundColor: visual.color }}
-          >
-            <Icon className="size-2.5 text-white" />
-          </span>
-          <span className="truncate font-medium">{title}</span>
-        </div>
-      );
-    },
-    [entryByKey, getEntryDisplayTitleWithTime]
-  );
-
-  const handleDndEntryDragStart = useCallback(
-    (entryKey: string) => {
-      suppressHoverForDrag();
-      setDraggingEntryKey(entryKey);
-    },
-    [suppressHoverForDrag]
-  );
-
-  const reorderPreviewEntriesForDay = useCallback(
-    (day: string, activeEntryKey: string, overEntryKey: string) => {
-      const entriesForDay = getEntriesForDay(day);
-      const incompleteKeys = entriesForDay
-        .filter((entry) => !isEntryCredited(entry))
-        .map((entry) => entry.key);
-      const completedKeys = entriesForDay
-        .filter((entry) => isEntryCredited(entry))
-        .map((entry) => entry.key);
-      const movingCompleted = completedKeys.includes(activeEntryKey);
-      const targetGroupKeys = movingCompleted ? completedKeys : incompleteKeys;
-      if (
-        !targetGroupKeys.includes(activeEntryKey) ||
-        !targetGroupKeys.includes(overEntryKey)
-      ) {
-        return;
-      }
-      setPreviewEntryOrderByDay((previous) => {
-        const fallbackOrder = [...incompleteKeys, ...completedKeys];
-        const existing = previous[day] ?? fallbackOrder;
-        const normalized = [
-          ...existing.filter((entryKey) => fallbackOrder.includes(entryKey)),
-          ...fallbackOrder.filter((entryKey) => !existing.includes(entryKey)),
-        ];
-        const groupOrder = normalized.filter((entryKey) =>
-          targetGroupKeys.includes(entryKey)
-        );
-        const fromIndex = groupOrder.indexOf(activeEntryKey);
-        const toIndex = groupOrder.indexOf(overEntryKey);
-        if (fromIndex < 0 || toIndex < 0 || fromIndex === toIndex) {
-          return previous;
-        }
-        const nextGroupOrder = moveItemInArray(groupOrder, fromIndex, toIndex);
-        const stableIncomplete = movingCompleted
-          ? normalized.filter((entryKey) => incompleteKeys.includes(entryKey))
-          : nextGroupOrder;
-        const stableCompleted = movingCompleted
-          ? nextGroupOrder
-          : normalized.filter((entryKey) => completedKeys.includes(entryKey));
-        const next = [...stableIncomplete, ...stableCompleted];
-        return {
-          ...previous,
-          [day]: next,
-        };
-      });
-    },
-    [getEntriesForDay]
-  );
-
-  const handleDndEntryDragEnd = useCallback(
-    (entryKey: string, target: PlannerDragTarget) => {
-      if (!target) {
-        clearDragState();
-        return;
-      }
-      const entry = entryByKey.get(entryKey);
-      if (!entry) {
-        clearDragState();
-        return;
-      }
-      if (target.type === "preview_entry") {
-        const sourceDay = entryDayByKey.get(entryKey) ?? null;
-        if (sourceDay === target.day) {
-          reorderPreviewEntriesForDay(target.day, entryKey, target.entryKey);
-          clearDragState();
-          return;
-        }
-        void queueDraftMoveCommand({
-          entry,
-          nextDate: target.day,
-          source: "drag_drop",
-        });
-        clearDragState();
-        return;
-      }
-      void queueDraftMoveCommand({
-        entry,
-        nextDate: target.day,
-        source: "drag_drop",
-      });
-      clearDragState();
-    },
-    [
-      clearDragState,
-      entryByKey,
-      entryDayByKey,
-      queueDraftMoveCommand,
-      reorderPreviewEntriesForDay,
-    ]
-  );
-
-  const handleDndEntryDragCancel = useCallback(
-    (entryKey: string | null) => {
-      void entryKey;
-      clearDragState();
-    },
-    [clearDragState]
-  );
+  const {
+    draggingEntryKey,
+    getDragEntryLabel,
+    getDragDayLabel,
+    renderEntryDragOverlay,
+    handleDndEntryDragStart,
+    handleDndEntryDragEnd,
+    handleDndEntryDragCancel,
+  } = usePlannerEntryDnd({
+    entryByKey,
+    entryDayByKey,
+    entriesByDate,
+    getEntryDisplayTitle: getEntryDisplayTitleWithTime,
+    queueDraftMoveCommand,
+    suppressHoverForDrag,
+    releaseHoverSuppression,
+    setPreviewEntryOrderByDay,
+  });
   const {
     mutationLoadingKey,
     canMutatePlanItems,
