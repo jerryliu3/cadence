@@ -1,10 +1,6 @@
 import { canonicalHash } from "@/lib/planner/canonical";
 import type { PlannerCanonicalSnapshot } from "@/lib/planner/context-loader";
-import { getScopeDateRange } from "@/lib/planner/dates";
 import type { PlannerKernelOutput } from "@/lib/planner/kernel";
-import {
-  type PlannerPolicy,
-} from "@/lib/planner/policy";
 import {
   projectPlannerDraftCommands,
   sortPlannerDraftCommands,
@@ -26,9 +22,7 @@ export class PlannerDraftEditValidationError extends Error {
       | "draft_item_duplicate"
       | "draft_item_unknown"
       | "draft_item_unmovable"
-      | "draft_item_out_of_window"
-      | "draft_item_completion_exists"
-      | "draft_item_collision",
+      | "draft_item_move_unsupported",
     message: string,
     readonly details: Record<string, unknown>
   ) {
@@ -93,19 +87,14 @@ function isDraftItemImmovable(unit: PlannerKernelOutput["workUnits"][number]) {
 }
 
 function applyValidatedDraftItemEdits({
-  scopeMonth,
   kernelWorkUnits,
   goalDefaultLocalTimeByGoalId,
   draftItemEdits,
-  completions,
 }: {
-  scopeMonth: string;
   kernelWorkUnits: PlannerKernelOutput["workUnits"];
   goalDefaultLocalTimeByGoalId: Map<string, string | null>;
   draftItemEdits: PlannerDraftItemEdit[];
-  completions: PlannerCanonicalSnapshot["completions"];
 }) {
-  const scopeWindow = getScopeDateRange(scopeMonth);
   const workUnits = kernelWorkUnits.map((unit) => ({ ...unit }));
   const priorEffectiveTimeByKey = new Map(
     workUnits.map((unit) => [
@@ -117,20 +106,6 @@ function applyValidatedDraftItemEdits({
     workUnits.map((unit) => [buildDraftEditKey(unit.originalGoalId, unit.unitKey), unit])
   );
   const seenDraftEditKeys = new Set<string>();
-  const nextScheduledByKey = new Map<string, string | null>();
-  for (const unit of workUnits) {
-    nextScheduledByKey.set(
-      buildDraftEditKey(unit.originalGoalId, unit.unitKey),
-      unit.scheduledDate
-    );
-  }
-
-  const completionDatesByGoal = new Map<string, Set<string>>();
-  for (const completion of completions) {
-    const existing = completionDatesByGoal.get(completion.goal_id) ?? new Set<string>();
-    existing.add(completion.completed_on);
-    completionDatesByGoal.set(completion.goal_id, existing);
-  }
 
   for (const edit of draftItemEdits) {
     const key = buildDraftEditKey(edit.goalId, edit.unitKey);
@@ -170,48 +145,14 @@ function applyValidatedDraftItemEdits({
       );
     }
 
-    if (nextScheduledDate === null || nextScheduledDate === unit.scheduledDate) {
-      continue;
-    }
-
-    if (isDraftItemImmovable(unit)) {
+    if (nextScheduledDate !== null && nextScheduledDate !== unit.scheduledDate) {
+      // Positional intent is resolved by the kernel via `draftPinnedDates`, and
+      // preview/save both assert the solver honored it. A move reaching this
+      // far means it bypassed that path, so refuse rather than re-apply it here
+      // and reintroduce a second scheduling authority.
       throw new PlannerDraftEditValidationError(
-        "draft_item_unmovable",
-        "Completed or historical planner items cannot be moved in draft.",
-        {
-          goalId: edit.goalId,
-          unitKey: edit.unitKey,
-          classification: unit.classification,
-          creditState: unit.creditState,
-        }
-      );
-    }
-
-    const moveWindow = unit.draftMoveWindow ?? unit.placementWindow;
-    if (
-      !moveWindow ||
-      nextScheduledDate < moveWindow.start ||
-      nextScheduledDate > moveWindow.end
-    ) {
-      throw new PlannerDraftEditValidationError(
-        "draft_item_out_of_window",
-        "Draft move date is outside the allowed planner window.",
-        {
-          goalId: edit.goalId,
-          unitKey: edit.unitKey,
-          scheduledDate: nextScheduledDate,
-          placementWindow: unit.placementWindow,
-          draftMoveWindow: unit.draftMoveWindow,
-          moveWindow,
-          scopeWindow,
-        }
-      );
-    }
-
-    if (completionDatesByGoal.get(edit.goalId)?.has(nextScheduledDate)) {
-      throw new PlannerDraftEditValidationError(
-        "draft_item_completion_exists",
-        "Draft move date already has a completion fact for this goal.",
+        "draft_item_move_unsupported",
+        "Positional draft moves must be resolved by the planner kernel before publish.",
         {
           goalId: edit.goalId,
           unitKey: edit.unitKey,
@@ -219,35 +160,8 @@ function applyValidatedDraftItemEdits({
         }
       );
     }
-
-    nextScheduledByKey.set(key, nextScheduledDate);
   }
 
-  const scheduledDateOwnerByGoal = new Map<string, string>();
-  for (const unit of workUnits) {
-    const key = buildDraftEditKey(unit.originalGoalId, unit.unitKey);
-    const finalDate = nextScheduledByKey.get(key) ?? null;
-    if (!finalDate) {
-      continue;
-    }
-    const goalDateKey = buildDraftEditKey(unit.originalGoalId, finalDate);
-    const existingOwner = scheduledDateOwnerByGoal.get(goalDateKey);
-    if (existingOwner && existingOwner !== key) {
-      throw new PlannerDraftEditValidationError(
-        "draft_item_collision",
-        "Draft move would schedule two units for the same goal on the same date.",
-        {
-          goalId: unit.originalGoalId,
-          scheduledDate: finalDate,
-          unitKey: unit.unitKey,
-          conflictingUnitKey: existingOwner.slice(existingOwner.indexOf(":") + 1),
-        }
-      );
-    }
-    scheduledDateOwnerByGoal.set(goalDateKey, key);
-  }
-
-  let draftMovedCount = 0;
   let draftRelabeledCount = 0;
 
   for (const edit of draftItemEdits) {
@@ -255,11 +169,6 @@ function applyValidatedDraftItemEdits({
     const unit = unitByKey.get(key);
     if (!unit) {
       continue;
-    }
-    const nextScheduledDate = nextScheduledByKey.get(key) ?? unit.scheduledDate;
-    if (nextScheduledDate !== unit.scheduledDate) {
-      unit.scheduledDate = nextScheduledDate;
-      draftMovedCount += 1;
     }
     if (edit.label !== null && edit.label !== unit.label) {
       unit.label = edit.label;
@@ -310,7 +219,7 @@ function applyValidatedDraftItemEdits({
     }
   }
 
-  return { workUnits, draftMovedCount, draftRelabeledCount, draftRetimedCount };
+  return { workUnits, draftRelabeledCount, draftRetimedCount };
 }
 
 export function buildPlannerConfirmationHash({
@@ -327,14 +236,10 @@ export function buildPlannerConfirmationHash({
 }
 
 export function buildPlannerPublishPersistencePayload({
-  scopeMonth,
-  policy: _policy,
   kernel,
   snapshot,
   draftCommands = [],
 }: {
-  scopeMonth: string;
-  policy: PlannerPolicy;
   kernel: PlannerKernelOutput;
   snapshot: PlannerCanonicalSnapshot;
   draftCommands?: PlannerDraftCommand[];
@@ -350,18 +255,12 @@ export function buildPlannerPublishPersistencePayload({
       unit.scheduledDate,
     ])
   );
-  const {
-    workUnits,
-    draftMovedCount,
-    draftRelabeledCount,
-    draftRetimedCount,
-  } = applyValidatedDraftItemEdits({
-    scopeMonth,
-    kernelWorkUnits: kernel.workUnits,
-    goalDefaultLocalTimeByGoalId,
-    draftItemEdits,
-    completions: snapshot.completions,
-  });
+  const { workUnits, draftRelabeledCount, draftRetimedCount } =
+    applyValidatedDraftItemEdits({
+      kernelWorkUnits: kernel.workUnits,
+      goalDefaultLocalTimeByGoalId,
+      draftItemEdits,
+    });
 
   const items = workUnits.map((unit) => {
     const itemKey = buildDraftEditKey(unit.originalGoalId, unit.unitKey);
@@ -389,7 +288,6 @@ export function buildPlannerPublishPersistencePayload({
       moved,
       lockChanged,
       draftCommands: draftCommands.length,
-      draftMoved: draftMovedCount,
       draftRelabeled: draftRelabeledCount,
       draftRetimed: draftRetimedCount,
       confirmationRequired: kernel.solver.confirmationRequired,

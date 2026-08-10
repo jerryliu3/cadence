@@ -217,8 +217,6 @@ export async function handlePlannerSave(request: Request) {
     let persistence: ReturnType<typeof buildPlannerPublishPersistencePayload>;
     try {
       persistence = buildPlannerPublishPersistencePayload({
-        scopeMonth: body.scopeMonth,
-        policy: effectivePolicy,
         kernel,
         snapshot,
         draftCommands,
