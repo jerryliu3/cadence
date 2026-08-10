@@ -12,10 +12,8 @@ import {
 } from "@/features/planner/coach/coach-client";
 import {
   buildAssistantMessage,
-  buildBaselineSnapshotToken,
+  buildCoachMessageProposal,
   buildDurableApplyToastDetail,
-  buildProposalSignature,
-  mapAutoApplyStatusToProposalStatus,
   type CoachProposalAutoApplyStatus,
 } from "@/features/planner/coach/coach-message-utils";
 import {
@@ -27,9 +25,11 @@ import {
 } from "@/features/planner/coach/coach-state-utils";
 import {
   markAppliedProposalsUndone,
+  readAssistantMessageWithProposal,
   updateAssistantProposalStatus,
   upsertConversationSummary,
 } from "@/features/planner/coach/coach-message-state";
+import { validateUndoProposal } from "@/features/planner/coach/coach-proposal-utils";
 import type {
   PlannerCoachModel,
   UsePlannerCoachArgs,
@@ -351,7 +351,6 @@ export function usePlannerCoach({
       const baselinePolicy = context.preferences
         ? plannerPolicySchema.parse(effectiveDraftPolicy ?? context.preferences.defaultPolicy)
         : null;
-      let proposal: CoachMessageProposal | null = null;
       if (policyPatches.length > 0) {
         const autoApply = await applyCoachPatchesToDraft({
           patches: policyPatches,
@@ -359,20 +358,14 @@ export function usePlannerCoach({
         });
         autoApplyStatus = autoApply.status;
         autoAppliedEntryKeys = autoApply.movedEntryKeys;
-        const patchSignature = buildProposalSignature(policyPatches);
-        proposal = {
-          schemaVersion: "1",
-          applyStatus: mapAutoApplyStatusToProposalStatus(autoApplyStatus),
-          patchSignature,
-          baselineSnapshotToken: baselinePolicy
-            ? buildBaselineSnapshotToken(baselinePolicy)
-            : `missing:${patchSignature.slice(0, 32)}`,
-          baselinePolicy,
-          policyPatches,
-          appliedMoveEntryKeys: autoAppliedEntryKeys,
-          unresolvedQuestions,
-        };
       }
+      const proposal = buildCoachMessageProposal({
+        policyPatches,
+        unresolvedQuestions,
+        baselinePolicy,
+        autoApplyStatus,
+        autoAppliedEntryKeys,
+      });
       const assistantMessage: CoachMessage = {
         role: "assistant",
         content: buildAssistantMessage({
@@ -509,8 +502,11 @@ export function usePlannerCoach({
 
   const applyCoachProposal = useCallback(
     async (messageIndex: number) => {
-      const message = coachMessages[messageIndex];
-      if (!message || message.role !== "assistant" || !message.proposal) {
+      const message = readAssistantMessageWithProposal({
+        messages: coachMessages,
+        messageIndex,
+      });
+      if (!message) {
         return;
       }
       const { status, movedEntryKeys } = await applyCoachPatchesToDraft({
@@ -542,39 +538,45 @@ export function usePlannerCoach({
 
   const undoCoachProposal = useCallback(
     async (messageIndex: number) => {
-      const message = coachMessages[messageIndex];
-      if (!message || message.role !== "assistant" || !message.proposal) {
+      const message = readAssistantMessageWithProposal({
+        messages: coachMessages,
+        messageIndex,
+      });
+      if (!message) {
         return;
       }
-      if (!context?.preferences) {
+
+      const validation = validateUndoProposal({
+        proposal: message.proposal,
+        preferences: context?.preferences,
+        effectiveDraftPolicy,
+      });
+      if (!validation.ok) {
+        if (validation.reason === "missing_preferences") {
+          toast.error("Undo is unavailable because planner policy is not loaded.");
+          return;
+        }
+        if (validation.reason === "missing_baseline") {
+          toast.error(
+            "Undo is unavailable because this proposal has no baseline snapshot."
+          );
+          return;
+        }
+        if (validation.reason === "stale_draft_policy") {
+          toast.error(
+            "Undo is blocked because newer draft policy changes were applied after this proposal. Undo newer proposals first or discard draft changes."
+          );
+          return;
+        }
+        return;
+      }
+      const { baselinePolicy, currentDraftPolicy, shouldPersistDurableUndo } = validation;
+      const preferences = context?.preferences;
+      if (!preferences) {
         toast.error("Undo is unavailable because planner policy is not loaded.");
         return;
       }
-      if (!message.proposal.baselinePolicy) {
-        toast.error(
-          "Undo is unavailable because this proposal has no baseline snapshot."
-        );
-        return;
-      }
-      const baselinePolicy = plannerPolicySchema.parse(message.proposal.baselinePolicy);
-      const expectedAppliedPolicy = applyCoachPolicyPatches({
-        policy: baselinePolicy,
-        patches: message.proposal.policyPatches,
-      }).policy;
-      const currentDraftPolicy = plannerPolicySchema.parse(
-        effectiveDraftPolicy ?? context.preferences.defaultPolicy
-      );
-      if (
-        buildBaselineSnapshotToken(currentDraftPolicy) !==
-        buildBaselineSnapshotToken(expectedAppliedPolicy)
-      ) {
-        toast.error(
-          "Undo is blocked because newer draft policy changes were applied after this proposal. Undo newer proposals first or discard draft changes."
-        );
-        return;
-      }
-      const shouldPersistDurableUndo =
-        message.proposal.applyStatus === "manually_applied";
+      const scopeMonth = context?.scopeMonth ?? null;
       setCoachPolicyApplying(true);
       try {
         // Reverting the policy is not enough: the apply also pinned the moves
@@ -585,14 +587,14 @@ export function usePlannerCoach({
         if (shouldPersistDurableUndo) {
           try {
             await persistPlannerDefaultPolicy({
-              timezone: context.preferences.timezone,
+              timezone: preferences.timezone,
               defaultPolicy: baselinePolicy,
             });
           } catch (error) {
             try {
               await refreshDraftPreview(currentDraftPolicy);
-              if (context.scopeMonth) {
-                applyDraftPolicy(context.scopeMonth, currentDraftPolicy);
+              if (scopeMonth) {
+                applyDraftPolicy(scopeMonth, currentDraftPolicy);
               }
               appendCoachContextEvent(
                 "Reverted undo preview after planner default restore failed"
@@ -605,15 +607,15 @@ export function usePlannerCoach({
             throw error;
           }
         }
-        if (context?.scopeMonth) {
-          applyDraftPolicy(context.scopeMonth, baselinePolicy);
+        if (scopeMonth) {
+          applyDraftPolicy(scopeMonth, baselinePolicy);
         }
         updateCoachProposalStatus(messageIndex, "undone");
         appendCoachContextEvent("Undid coach draft proposal");
         toast.success(
           shouldPersistDurableUndo
-            ? context.scopeMonth
-              ? `Coach proposal changes were undone. Planner defaults were restored from ${context.scopeMonth}.`
+            ? scopeMonth
+              ? `Coach proposal changes were undone. Planner defaults were restored from ${scopeMonth}.`
               : "Coach proposal changes were undone."
             : "Coach draft preview changes were undone."
         );

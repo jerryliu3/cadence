@@ -72,6 +72,38 @@ export function mapAutoApplyStatusToProposalStatus(
   return "not_applied";
 }
 
+export function buildCoachMessageProposal({
+  policyPatches,
+  unresolvedQuestions,
+  baselinePolicy,
+  autoApplyStatus,
+  autoAppliedEntryKeys,
+}: {
+  policyPatches: CoachPolicyPatch[];
+  unresolvedQuestions: string[];
+  baselinePolicy: PlannerPolicy | null;
+  autoApplyStatus: CoachProposalAutoApplyStatus;
+  autoAppliedEntryKeys: string[];
+}): CoachMessageProposal | null {
+  if (policyPatches.length === 0) {
+    return null;
+  }
+
+  const patchSignature = buildProposalSignature(policyPatches);
+  return {
+    schemaVersion: "1",
+    applyStatus: mapAutoApplyStatusToProposalStatus(autoApplyStatus),
+    patchSignature,
+    baselineSnapshotToken: baselinePolicy
+      ? buildBaselineSnapshotToken(baselinePolicy)
+      : `missing:${patchSignature.slice(0, 32)}`,
+    baselinePolicy,
+    policyPatches,
+    appliedMoveEntryKeys: autoAppliedEntryKeys,
+    unresolvedQuestions,
+  };
+}
+
 export function buildAssistantMessage({
   reply,
   recommendations,
