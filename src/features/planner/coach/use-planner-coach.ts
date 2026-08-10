@@ -480,6 +480,18 @@ export function usePlannerCoach({
       const baselinePolicy = context.preferences
         ? plannerPolicySchema.parse(effectiveDraftPolicy ?? context.preferences.defaultPolicy)
         : null;
+      const allowedGoalIds = new Set<string>([
+        ...Object.keys(context.goalTitles ?? {}),
+        ...(context.activePlan?.goals ?? []).map((goal) => goal.original_goal_id),
+      ]);
+      const patchPreview =
+        baselinePolicy && policyPatches.length > 0
+          ? applyCoachPolicyPatches({
+              policy: baselinePolicy,
+              patches: policyPatches,
+              allowedGoalIds,
+            })
+          : null;
       let proposal: CoachMessageProposal | null = null;
       if (policyPatches.length > 0) {
         appendCoachContextEvent("Coach proposal ready for manual apply");
@@ -493,6 +505,15 @@ export function usePlannerCoach({
             : `missing:${patchSignature.slice(0, 32)}`,
           baselinePolicy,
           policyPatches,
+          patchSummary: patchPreview
+            ? {
+                applicablePatchCount: patchPreview.appliedPatchCount,
+                skippedPatchCount: patchPreview.ignoredPatchCount,
+                noOpPatchCount: patchPreview.noOpPatchCount,
+                outOfScopePatchCount: patchPreview.outOfScopePatchCount,
+                unsupportedPatchCount: patchPreview.unsupportedPatchCount,
+              }
+            : undefined,
           unresolvedQuestions,
         };
       }

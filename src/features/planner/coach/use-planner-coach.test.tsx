@@ -326,10 +326,17 @@ describe("usePlannerCoach", () => {
           restWeekdays: [2, 4],
         },
       ],
+      patchSummary: {
+        applicablePatchCount: 0,
+        skippedPatchCount: 0,
+        noOpPatchCount: 1,
+        outOfScopePatchCount: 0,
+        unsupportedPatchCount: 0,
+      },
     });
     expect(proposal?.patchSignature).toHaveLength(64);
     expect(proposal?.baselineSnapshotToken.startsWith("policy:")).toBe(true);
-    expect(applyCoachPolicyPatchesMock).not.toHaveBeenCalled();
+    expect(applyCoachPolicyPatchesMock).toHaveBeenCalledTimes(1);
     expect(persistPlannerDefaultPolicyMock).not.toHaveBeenCalled();
     expect(saveCoachSessionMock).toHaveBeenCalled();
   });
