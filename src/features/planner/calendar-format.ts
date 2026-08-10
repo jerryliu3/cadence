@@ -148,6 +148,20 @@ export function isEntryImmovableForDraft(entry: PlannerDayDetailEntry) {
   );
 }
 
+/**
+ * The month cell shows this as a tooltip and the day list as visible copy, so
+ * both used to carry their own near-identical string. The wording had already
+ * drifted between them; keep one source so it cannot drift again.
+ */
+export function getCompletionFactMarkerHint(
+  marker: { scheduledDate: string | null },
+  day: string
+) {
+  return marker.scheduledDate && marker.scheduledDate !== day
+    ? `Marked done here; credited from the ${marker.scheduledDate} scheduled session.`
+    : "Marked done on this date.";
+}
+
 export function getEntryDraftDiffSummary(entry: {
   draftDiffKind: PlannerDraftVisualKind | null;
   draftDiffFromDate: string | null;
