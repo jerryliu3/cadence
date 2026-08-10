@@ -47,6 +47,7 @@ import {
   GoalDefaultTimeField,
 } from "@/features/goals/goal-schedule-fields";
 import { BulkGoalInputCard } from "@/features/today/bulk-goal-input-card";
+import { type BulkGoalDraft, type BulkInputMode } from "@/features/today/bulk-goal-types";
 import { getApiErrorMessage, postJson } from "@/lib/api/client";
 import { buildLoginHref } from "@/lib/auth/login-redirect";
 import { invalidatePlannerRelatedTabCaches } from "@/lib/cache/planner-tab-cache";
@@ -92,31 +93,6 @@ const columnAliases = {
   end_date: ["end_date", "end", "enddate", "due_date", "due"],
   default_local_time: ["default_local_time", "default_time", "time_of_day", "local_time"],
 } as const;
-
-interface BulkGoalDraft {
-  id: string;
-  sourceRowLabel: string;
-  include: boolean;
-  title: string;
-  description: string;
-  category_selection: CategorySelection;
-  custom_category: string;
-  color: string;
-  frequency_type: GoalFrequencyType;
-  recurrence_interval: RecurrenceInterval;
-  target_count: string;
-  milestone_names: string[];
-  start_date: string;
-  end_date: string;
-  default_local_time: string;
-  linked_target_goal_id: string;
-  link_target_search: string;
-  link_target_open: boolean;
-  advanced_open: boolean;
-  photo_file: File | null;
-  errors: string[];
-}
-
 interface LlmGoalDraftPayload {
   title?: string;
   description?: string | null;
@@ -128,8 +104,6 @@ interface LlmGoalDraftPayload {
   end_date?: string | null;
   default_local_time?: string | null;
 }
-
-type BulkInputMode = "natural_language" | "csv";
 
 interface BulkGoalFormProps {
   showBackButton?: boolean;
