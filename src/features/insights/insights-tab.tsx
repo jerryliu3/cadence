@@ -36,13 +36,16 @@ import { GoalEndMonthBadge } from "@/features/goals/goal-end-month-badge";
 import { GoalListControls } from "@/features/goals/goal-list-controls";
 import { MonthHeatmap } from "@/features/insights/month-heatmap";
 import { getApiErrorMessage } from "@/lib/api/client";
+import { isAbortError, withAbortSignal } from "@/lib/async/abort";
 import { getCategoryBadgeClass } from "@/lib/goals/category";
+import { groupCompletionsByGoalId } from "@/lib/goals/completion-grouping";
 import {
   filterGoalsByEndMonth,
   partitionGoalsByVisibleStart,
   sortGoalsByDate,
   type GoalDateSort,
 } from "@/lib/goals/list-view";
+import { buildMilestoneNames, defaultMilestoneName } from "@/lib/goals/milestones";
 import {
   fetchProgressContext,
   progressSummaryMap,
@@ -82,16 +85,6 @@ const emptyInsights: InsightsData = {
 
 type HeatmapViewMode = "month" | "year";
 
-function groupCompletionsByGoal(completions: CompletionDateFact[]) {
-  const map = new Map<string, CompletionDateFact[]>();
-  completions.forEach((completion) => {
-    const existing = map.get(completion.goal_id) ?? [];
-    existing.push(completion);
-    map.set(completion.goal_id, existing);
-  });
-  return map;
-}
-
 function goalCompletionCountsByDate(completions: CompletionDateFact[]) {
   return completions.reduce<Record<string, number>>((accumulator, completion) => {
     accumulator[completion.completed_on] = (accumulator[completion.completed_on] ?? 0) + 1;
@@ -118,53 +111,6 @@ const aggregateWeekdayLabels: [string, string, string, string, string, string, s
 ];
 const MAX_VISIBLE_MILESTONES = 5;
 const INSIGHTS_REQUEST_TIMEOUT_MS = 15_000;
-
-function isAbortError(error: unknown) {
-  if (error instanceof DOMException) {
-    return error.name === "AbortError";
-  }
-  if (
-    typeof error === "object" &&
-    error !== null &&
-    "name" in error &&
-    (error as { name?: unknown }).name === "AbortError"
-  ) {
-    return true;
-  }
-  return false;
-}
-
-function withAbortSignal<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
-  if (signal.aborted) {
-    throw new DOMException("The operation was aborted.", "AbortError");
-  }
-  return new Promise<T>((resolve, reject) => {
-    const onAbort = () => reject(new DOMException("The operation was aborted.", "AbortError"));
-    signal.addEventListener("abort", onAbort, { once: true });
-    promise.then(
-      (value) => {
-        signal.removeEventListener("abort", onAbort);
-        resolve(value);
-      },
-      (error) => {
-        signal.removeEventListener("abort", onAbort);
-        reject(error);
-      }
-    );
-  });
-}
-
-function defaultMilestoneName(index: number): string {
-  return `Milestone ${index + 1}`;
-}
-
-function buildMilestoneNames(targetCount: number, names: string[] | null | undefined): string[] {
-  const safeTarget = Math.max(targetCount, 1);
-  return Array.from({ length: safeTarget }, (_, index) => {
-    const value = names?.[index]?.trim();
-    return value && value.length > 0 ? value : defaultMilestoneName(index);
-  });
-}
 
 function areMilestoneNamesEqual(left: string[], right: string[]): boolean {
   if (left.length !== right.length) {
@@ -389,7 +335,7 @@ export function InsightsTab() {
   );
 
   const completionsByGoal = useMemo(
-    () => groupCompletionsByGoal(personalCompletions),
+    () => groupCompletionsByGoalId(personalCompletions),
     [personalCompletions]
   );
   const progressByGoal = useMemo(
