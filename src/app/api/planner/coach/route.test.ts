@@ -56,7 +56,6 @@ function request(body: unknown) {
 
 describe("planner coach route", () => {
   beforeEach(() => {
-    vi.stubEnv("CALENDAR_ENABLED", "true");
     vi.stubEnv("SUPABASE_SECRET_KEY", "test-secret");
     resetEnvCacheForTests();
     mocks.getUser.mockResolvedValue({

@@ -1455,8 +1455,7 @@ export function CalendarSurface({
     [clearDragState]
   );
   const canMutatePlanItems = Boolean(
-    context?.capabilities.calendarEnabled &&
-      context?.activePlan?.plan.status === "active"
+    context?.activePlan?.plan.status === "active"
   );
 
   const getDateFactDispatchForEntry = (
@@ -1537,9 +1536,7 @@ export function CalendarSurface({
       return "unsupported";
     }
     if (dispatch.decision.route === "canonical_exact_date") {
-      return context?.capabilities.calendarEnabled
-        ? null
-        : "out_of_scope_route";
+      return null;
     }
     if (dispatch.decision.route === "item_date") {
       if (!canMutatePlanItems || !entry.activeItem) {
@@ -1742,7 +1739,7 @@ export function CalendarSurface({
   };
 
   const savePlan = async () => {
-    if (!context?.capabilities.calendarEnabled) {
+    if (!context) {
       return;
     }
     const expectedDigest = context.revisions.scheduleDigest;
@@ -1909,7 +1906,7 @@ export function CalendarSurface({
   };
 
   const resetPlan = async () => {
-    if (!context?.scopeMonth || !context.capabilities.calendarEnabled) {
+    if (!context?.scopeMonth) {
       return;
     }
     const expectedDigest = context.revisions.scheduleDigest;
@@ -2071,7 +2068,7 @@ export function CalendarSurface({
         ? [context.scopeMonth]
         : [];
   const blockedSaveScope = (() => {
-    if (!context?.capabilities.calendarEnabled) {
+    if (!context) {
       return null;
     }
     for (const scopeMonth of scopeMonthsForSaveAction) {
@@ -2102,13 +2099,9 @@ export function CalendarSurface({
     context?.activePlan?.items.some((item) => item.locked)
   );
   const canResetPlan = Boolean(
-    context?.capabilities.calendarEnabled &&
-      !hasDraftSession &&
-      hasLockedPlanItems
+    !hasDraftSession && hasLockedPlanItems
   );
-  const canShowSaveAction = Boolean(
-    context?.capabilities.calendarEnabled && effectivePreview
-  );
+  const canShowSaveAction = Boolean(effectivePreview);
   const saveButtonLabel = saveLoading ? "Saving..." : "Save plan";
   const readOnlyMonthHint =
     "This session belongs to another month snapshot. Open that month to edit it.";

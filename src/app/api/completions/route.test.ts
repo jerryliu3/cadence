@@ -64,7 +64,6 @@ describe("completions route", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-08-05T13:00:00.000Z"));
-    vi.stubEnv("CALENDAR_ENABLED", "true");
     resetEnvCacheForTests();
     mocks.getUser.mockResolvedValue({
       data: { user: { id: "11111111-1111-4111-8111-111111111111" } },

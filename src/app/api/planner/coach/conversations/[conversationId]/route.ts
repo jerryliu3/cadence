@@ -30,8 +30,6 @@ export async function GET(
     const supabase = await createClient();
     const routeContext = await requirePlannerRouteContext({
       supabase,
-      disabledCode: "planner_coach_disabled",
-      disabledMessage: "Planner coach is not enabled.",
     });
 
     const [conversationResponse, messageResponse] = await Promise.all([

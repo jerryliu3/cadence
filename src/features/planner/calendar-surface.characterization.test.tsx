@@ -87,7 +87,6 @@ function buildContext(workUnits: PlannerWorkUnit[]): PlannerContextPayload {
       defaultPolicy: buildPolicy(),
     },
     capabilities: {
-      calendarEnabled: true,
       crossMonthMovesEnabled: false,
     },
     activePlan: null,

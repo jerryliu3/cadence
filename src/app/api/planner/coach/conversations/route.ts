@@ -55,8 +55,6 @@ export async function GET(request: Request) {
     const supabase = await createClient();
     const routeContext = await requirePlannerRouteContext({
       supabase,
-      disabledCode: "planner_coach_disabled",
-      disabledMessage: "Planner coach is not enabled.",
     });
     const parsedQuery = coachConversationListQuerySchema.safeParse(
       Object.fromEntries(new URL(request.url).searchParams.entries())
@@ -108,8 +106,6 @@ export async function POST(request: Request) {
     const supabase = await createClient();
     const routeContext = await requirePlannerRouteContext({
       supabase,
-      disabledCode: "planner_coach_disabled",
-      disabledMessage: "Planner coach is not enabled.",
     });
     const body = await parseBoundedJsonBody(
       request,

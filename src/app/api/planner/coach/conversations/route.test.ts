@@ -70,7 +70,6 @@ describe("planner coach conversations route", () => {
         rpc: mocks.saveConversationRpc,
       },
       capabilities: {
-        calendarEnabled: true,
         crossMonthMovesEnabled: false,
       },
     });

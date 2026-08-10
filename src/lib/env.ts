@@ -89,7 +89,6 @@ const serverEnvSchema = publicEnvSchema.extend({
   SENTRY_ORG: optionalNonEmptyString,
   SENTRY_PROJECT: optionalNonEmptyString,
   SENTRY_AUTH_TOKEN: optionalNonEmptyString,
-  CALENDAR_ENABLED: booleanFromEnv(true),
   FEATURE_CROSS_MONTH_MOVES: booleanFromEnv(false),
   CALENDAR_COACH_DISABLE_QUOTA: booleanFromEnv(false),
   CALENDAR_COACH_TIMEOUT_MS: optionalPositiveInt({
@@ -146,7 +145,6 @@ function readServerEnvInput() {
     SENTRY_ORG: process.env.SENTRY_ORG,
     SENTRY_PROJECT: process.env.SENTRY_PROJECT,
     SENTRY_AUTH_TOKEN: process.env.SENTRY_AUTH_TOKEN,
-    CALENDAR_ENABLED: process.env.CALENDAR_ENABLED,
     FEATURE_CROSS_MONTH_MOVES: process.env.FEATURE_CROSS_MONTH_MOVES,
     CALENDAR_COACH_DISABLE_QUOTA: process.env.CALENDAR_COACH_DISABLE_QUOTA,
     CALENDAR_COACH_TIMEOUT_MS: process.env.CALENDAR_COACH_TIMEOUT_MS,

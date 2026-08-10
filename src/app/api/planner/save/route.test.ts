@@ -78,7 +78,6 @@ describe("planner save route", () => {
         rpc: mocks.routeRpc,
       },
       capabilities: {
-        calendarEnabled: true,
         crossMonthMovesEnabled: false,
       },
     });
