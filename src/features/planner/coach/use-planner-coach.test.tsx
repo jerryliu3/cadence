@@ -122,6 +122,7 @@ function buildContext(
     activePlan: null,
     preview: {
       eligibilityMode: "overlap_v1",
+      preserveExistingAssignments: false,
       generationInputHash: "hash",
       solver: {
         placementStatus: "complete",

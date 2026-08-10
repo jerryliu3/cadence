@@ -10,6 +10,8 @@ function workUnit(
     originalGoalId: "goal-a",
     unitKey,
     scheduledDate,
+    creditState: "uncredited",
+    classification: "open",
   } as PlannerKernelOutput["workUnits"][number];
 }
 
@@ -19,7 +21,7 @@ describe("findUnhonoredDraftPins", () => {
       findUnhonoredDraftPins({
         workUnits: [workUnit("total:1", "2026-08-05")],
         draftPinnedDates: {},
-      })
+      }).violations
     ).toEqual([]);
   });
 
@@ -34,7 +36,7 @@ describe("findUnhonoredDraftPins", () => {
           "goal-a:total:1": "2026-08-20",
           "goal-a:total:2": "2026-08-21",
         },
-      })
+      }).violations
     ).toEqual([]);
   });
 
@@ -43,7 +45,7 @@ describe("findUnhonoredDraftPins", () => {
       findUnhonoredDraftPins({
         workUnits: [workUnit("total:1", "2026-08-06")],
         draftPinnedDates: { "goal-a:total:1": "2026-08-20" },
-      })
+      }).violations
     ).toEqual([
       {
         goalId: "goal-a",
@@ -59,7 +61,7 @@ describe("findUnhonoredDraftPins", () => {
       findUnhonoredDraftPins({
         workUnits: [workUnit("total:1", null)],
         draftPinnedDates: { "goal-a:total:1": "2026-08-20" },
-      })
+      }).violations
     ).toEqual([
       {
         goalId: "goal-a",
@@ -70,18 +72,57 @@ describe("findUnhonoredDraftPins", () => {
     ]);
   });
 
-  it("reports a pin whose unit is absent from the preview", () => {
-    expect(
-      findUnhonoredDraftPins({
-        workUnits: [workUnit("total:1", "2026-08-05")],
-        draftPinnedDates: { "goal-a:total:9": "2026-08-20" },
-      })
-    ).toEqual([
+});
+
+describe("stale pins are not treated as conflicts", () => {
+  function movableUnit(unitKey: string, scheduledDate: string | null) {
+    return {
+      originalGoalId: "goal-a",
+      unitKey,
+      scheduledDate,
+      creditState: "uncredited",
+      classification: "open",
+    } as PlannerKernelOutput["workUnits"][number];
+  }
+
+  it("treats a pin on a completed unit as stale, not a violation", () => {
+    const result = findUnhonoredDraftPins({
+      workUnits: [
+        {
+          ...movableUnit("total:1", "2026-08-06"),
+          creditState: "completed_as_scheduled",
+        } as PlannerKernelOutput["workUnits"][number],
+      ],
+      draftPinnedDates: { "goal-a:total:1": "2026-08-20" },
+    });
+
+    expect(result.violations).toEqual([]);
+    expect(result.stalePins).toEqual(["goal-a:total:1"]);
+  });
+
+  it("treats a pin on a vanished unit as stale", () => {
+    const result = findUnhonoredDraftPins({
+      workUnits: [movableUnit("total:1", "2026-08-06")],
+      draftPinnedDates: { "goal-a:total:9": "2026-08-20" },
+    });
+
+    expect(result.violations).toEqual([]);
+    expect(result.stalePins).toEqual(["goal-a:total:9"]);
+  });
+
+  it("still reports a movable unit the solver placed elsewhere", () => {
+    const result = findUnhonoredDraftPins({
+      workUnits: [movableUnit("total:1", "2026-08-06")],
+      draftPinnedDates: { "goal-a:total:1": "2026-08-20" },
+    });
+
+    expect(result.stalePins).toEqual([]);
+    expect(result.violations).toEqual([
       {
         goalId: "goal-a",
-        unitKey: "total:9",
+        unitKey: "total:1",
         expectedDate: "2026-08-20",
-        actualDate: null,
+        actualDate: "2026-08-06",
       },
     ]);
   });

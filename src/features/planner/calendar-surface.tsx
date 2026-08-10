@@ -1836,6 +1836,8 @@ export function CalendarSurface({
             expectedDigest,
             confirmationHash,
             policy: effectiveDraftPolicy ?? undefined,
+            preserveExistingAssignments:
+              effectivePreview.preserveExistingAssignments,
             draftCommands: draftSaveCommands,
           }
         );
