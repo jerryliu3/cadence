@@ -562,7 +562,7 @@ test.describe("planner critical rails", () => {
 
     await expect(page.getByText("Planning Mode")).toBeVisible();
     await expect(
-      page.getByRole("button", { name: "Undo changes", exact: true })
+      page.getByRole("button", { name: "Undo this month", exact: true })
     ).toBeVisible();
   });
 });
