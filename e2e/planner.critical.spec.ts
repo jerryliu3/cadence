@@ -257,15 +257,22 @@ async function clearStuckDrag(page: Page) {
 }
 
 async function isPlannerDraftReady(page: Page): Promise<boolean> {
-  const inDraftMode = await page
+  // Save can be enabled for a no-draft publishable preview. Only the draft
+  // badge proves a move actually staged preview edits.
+  return page
     .getByTestId(DRAFT_MODE_BADGE_TEST_ID)
     .isVisible()
     .catch(() => false);
-  if (inDraftMode) {
-    return true;
+}
+
+async function dismissPlannerMoveErrorToast(page: Page) {
+  const toast = page.getByText(
+    /credit window end|allowed planner window|already has a planner session|Pick a valid move date|cannot move in preview mode/i
+  );
+  if (await toast.isVisible().catch(() => false)) {
+    await page.keyboard.press("Escape").catch(() => undefined);
+    await toast.waitFor({ state: "hidden", timeout: 3_000 }).catch(() => undefined);
   }
-  const saveButton = page.getByRole("button", { name: "Save plan", exact: true });
-  return saveButton.isEnabled().catch(() => false);
 }
 
 async function moveFirstMovableEntry(
@@ -283,8 +290,12 @@ async function moveFirstMovableEntry(
     throw new Error("Could not resolve source day for draggable planner entry.");
   }
 
+  // Weekly fixture sessions only accept drops inside a short credit window.
+  // Prefer nearby same-month days first so we don't "succeed" a rejected far drop.
   const candidateTargetDays = await page.evaluate(({ currentDay, goalId }) => {
     const scopeMonth = currentDay.slice(0, 7);
+    const sourceMs = Date.parse(`${currentDay}T00:00:00Z`);
+    const dayMs = (value: string) => Date.parse(`${value}T00:00:00Z`);
     const candidates = Array.from(
       document.querySelectorAll<HTMLElement>('[data-day-cell="true"][data-day]')
     )
@@ -307,17 +318,24 @@ async function moveFirstMovableEntry(
         }
         return value;
       })
-      .filter((value): value is string => typeof value === "string")
-      .sort();
-    const forwardCandidates = candidates.filter((candidate) => candidate > currentDay);
-    return [...forwardCandidates, ...candidates.filter((candidate) => candidate <= currentDay)];
+      .filter((value): value is string => typeof value === "string");
+
+    const byDistance = (left: string, right: string) =>
+      Math.abs(dayMs(left) - sourceMs) - Math.abs(dayMs(right) - sourceMs);
+    const near = candidates
+      .filter((candidate) => Math.abs(dayMs(candidate) - sourceMs) <= 3 * 86_400_000)
+      .sort(byDistance);
+    const far = candidates
+      .filter((candidate) => Math.abs(dayMs(candidate) - sourceMs) > 3 * 86_400_000)
+      .sort(byDistance);
+    return [...near, ...far];
   }, { currentDay: sourceDay, goalId: targetGoalId });
   if (candidateTargetDays.length === 0) {
     throw new Error("Could not find a valid planner day-cell drop target.");
   }
 
   const tryCandidates = async (): Promise<boolean> => {
-    for (const targetDay of candidateTargetDays.slice(0, 8)) {
+    for (const targetDay of candidateTargetDays.slice(0, 12)) {
       const currentSourceEntry = page.locator(sourceEntrySelector).first();
       await expect(currentSourceEntry).toBeVisible();
       const targetCell = page
@@ -348,11 +366,12 @@ async function moveFirstMovableEntry(
       await page.mouse.move(targetX, targetY, { steps: 24 });
       await page.waitForTimeout(50);
       await page.mouse.up();
-      await page.waitForTimeout(150);
+      await page.waitForTimeout(200);
 
       if (await isPlannerDraftReady(page)) {
         return true;
       }
+      await dismissPlannerMoveErrorToast(page);
       // Clear any stuck drag before trying the next drop target.
       await clearStuckDrag(page);
     }
@@ -460,6 +479,7 @@ test.describe("planner critical rails", () => {
         DRAG_FIXTURE_GOAL_ID
       );
       expect(movedIntoDraft).toBe(true);
+      await expect(page.getByTestId(DRAFT_MODE_BADGE_TEST_ID)).toBeVisible();
       const saveButton = page.getByRole("button", { name: "Save plan", exact: true });
       await expect(saveButton).toBeEnabled();
 
@@ -598,9 +618,11 @@ test.describe("planner critical rails", () => {
       if (movedIntoDraft && (await isPlannerDraftReady(page))) {
         break;
       }
+      await dismissPlannerMoveErrorToast(page);
       await clearStuckDrag(page);
     }
     expect(movedIntoDraft).toBe(true);
+    await expect(page.getByTestId(DRAFT_MODE_BADGE_TEST_ID)).toBeVisible();
     await expect(page.getByRole("button", { name: "Save plan", exact: true })).toBeEnabled();
 
     await page.route("**/api/planner/save", async (route) => {
