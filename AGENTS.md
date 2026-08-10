@@ -91,6 +91,36 @@ preserving correctness, maintainability, and clear ownership boundaries.
 - Prefer small, reviewable commits that preserve a linear history and isolate behavior changes.
 - When cleaning up, verify there is no hidden dependency left in scripts, tests, or workflows.
 
+## Frontend Refactor and Reuse Standards (Required)
+
+When changing frontend code, prefer behavior-preserving decomposition over net-new
+surfaces. The default is to simplify and reuse what already exists.
+
+- Reuse-first: before adding a new hook/component/helper, check whether an
+  existing one can be extended or composed.
+- Prefer canonical homes for shared domain logic (`src/lib/planner/*`,
+  `src/lib/goals/*`, existing planner calendar utilities) instead of creating
+  parallel helper layers.
+- Use pure-move-first refactors for large surfaces: extract existing behavior
+  into modules first, then make functional changes in follow-up diffs.
+- Keep projection/derivation logic out of JSX-heavy files: compute derived
+  models in selectors/hooks, and keep render components as pure consumers.
+- Target thin composition shells for large feature tabs/surfaces: orchestration
+  at the top, domain shaping in hooks/modules, presentation in leaf components.
+- If a file becomes a mixed-concern monolith (state shaping + side effects +
+  rendering + mutation wiring), split it into focused hooks and presentational
+  components.
+- Keep component/module size reasonable: avoid growing giant files when a split
+  can improve readability/testability without changing behavior.
+- Remove duplicated frontend domain helpers during refactors; do not leave
+  copy-pasted variants across today/insights/social/forms/planner surfaces.
+- Keep PRs small and reviewable: extraction PRs, wiring PRs, and behavior
+  changes should be separated whenever practical.
+- Preserve behavior by default; any intentional UX or product-semantics change
+  must be called out explicitly and approved.
+- Maintain verification gates for refactors: targeted unit/component coverage
+  for moved logic plus `pnpm typecheck` and `pnpm lint` before handoff.
+
 ## Fullstack Developer Guidance (Copied from `fullstack-developer.md`)
 
 Use this guidance when building complete features spanning database, API, and
