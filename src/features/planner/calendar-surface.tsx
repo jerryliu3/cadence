@@ -63,6 +63,7 @@ import {
   getMonthInTimezone,
   isEntryCredited,
   isEntryImmovableForDraft,
+  createClientUuid,
   monthToLabel,
   moveItemInArray,
   normalizeWeekStartsOn,
@@ -103,6 +104,7 @@ import {
   draftCommandEntryKey,
   projectPlannerDraftCommands,
   sortPlannerDraftCommands,
+  type PlannerDraftCommand,
 } from "@/lib/planner/draft-commands";
 import { buildPlannerConfirmationHash } from "@/lib/planner/publish-payload";
 import {
@@ -128,6 +130,7 @@ const DAY_PREVIEW_LONG_PRESS_DELAY_MS = 500;
 const MAX_MONTH_HEADING_SAMPLE = "September 2026";
 const MAX_WEEK_HEADING_SAMPLE = "Sep 30 - Sep 30, 2026";
 const MAX_DAY_HEADING_SAMPLE = "Wed Aug 30";
+const DRAFT_MOVE_PREVIEW_REFRESH_DELAY_MS = 180;
 const SCOPE_ONLY_ELIGIBILITY_REASONS = new Set([
   "end_outside_scope",
   "starts_after_scope",
@@ -144,6 +147,21 @@ const ELIGIBILITY_REASON_LABELS: Record<string, string> = {
   horizon_too_long:
     "This goal deadline exceeds the 24-month planning horizon limit.",
 };
+
+interface PlannerReplanMoveProposal {
+  goalId: string;
+  unitKey: string;
+  fromDate: string | null;
+  toDate: string | null;
+}
+
+interface PlannerReplanResponsePayload {
+  schemaVersion: "1";
+  proposal: {
+    moveCount: number;
+    moves: PlannerReplanMoveProposal[];
+  };
+}
 
 function getEligibilityReasonLabel(reason: string) {
   return ELIGIBILITY_REASON_LABELS[reason] ?? "This goal is currently ineligible.";
@@ -205,6 +223,8 @@ export function CalendarSurface({
   const pointerPressActiveRef = useRef(false);
   const pointerInsideDayPreviewRef = useRef(false);
   const dayPreviewRef = useRef<HTMLDivElement | null>(null);
+  const draftMovePreviewRefreshTimerRef = useRef<number | null>(null);
+  const draftSaveCommandsRef = useRef<PlannerDraftCommand[]>([]);
 
   const timezoneOptions = useMemo(() => {
     const intlWithSupportedValues = Intl as typeof Intl & {
@@ -808,6 +828,22 @@ export function CalendarSurface({
     () => effectiveDraftCommands,
     [effectiveDraftCommands]
   );
+  useEffect(() => {
+    draftSaveCommandsRef.current = draftSaveCommands;
+  }, [draftSaveCommands]);
+
+  const clearDraftMovePreviewRefreshTimer = useCallback(() => {
+    if (draftMovePreviewRefreshTimerRef.current) {
+      window.clearTimeout(draftMovePreviewRefreshTimerRef.current);
+      draftMovePreviewRefreshTimerRef.current = null;
+    }
+  }, []);
+  useEffect(
+    () => () => {
+      clearDraftMovePreviewRefreshTimer();
+    },
+    [clearDraftMovePreviewRefreshTimer]
+  );
 
   const refreshDraftPreview = async (nextPolicy: PlannerPolicy) => {
     if (!context?.scopeMonth || !context?.timezone) {
@@ -821,7 +857,7 @@ export function CalendarSurface({
           timezone: context.timezone,
           policy: nextPolicy,
           source: context.activePlan ? "update" : "manual",
-          draftCommands: draftSaveCommands,
+          draftCommands: draftSaveCommandsRef.current,
         }
       );
       setDraftPreviewForScope(context.scopeMonth, previewPayload.preview);
@@ -830,6 +866,119 @@ export function CalendarSurface({
       throw new Error(getApiErrorMessage(error, "Preview refresh failed."));
     }
   };
+
+  const scheduleDraftMovePreviewRefresh = useCallback((policy?: PlannerPolicy) => {
+    if (!context?.scopeMonth) {
+      return;
+    }
+    const refreshPolicy =
+      policy ?? effectiveDraftPolicy ?? context.preferences?.defaultPolicy ?? null;
+    if (!refreshPolicy) {
+      return;
+    }
+    clearDraftMovePreviewRefreshTimer();
+    draftMovePreviewRefreshTimerRef.current = window.setTimeout(() => {
+      void refreshDraftPreview(refreshPolicy).catch(() => {
+        toast(
+          "Moved sessions were saved to draft commands, but preview regeneration failed. Regenerate preview to sync cascaded changes."
+        );
+      });
+    }, DRAFT_MOVE_PREVIEW_REFRESH_DELAY_MS);
+  }, [
+    clearDraftMovePreviewRefreshTimer,
+    context,
+    effectiveDraftPolicy,
+    refreshDraftPreview,
+  ]);
+
+  const runPolicyReplanProposal = useCallback(
+    async (nextPolicy: PlannerPolicy) => {
+      if (!context?.scopeMonth || !context.timezone || !effectivePreview) {
+        return { moveCount: 0 };
+      }
+      let replanPayload: PlannerReplanResponsePayload;
+      try {
+        replanPayload = await postJson<PlannerReplanResponsePayload>(
+          "/api/planner/replan",
+          {
+            scopeMonth: context.scopeMonth,
+            timezone: context.timezone,
+            policy: nextPolicy,
+            previewHash: effectivePreview.generationInputHash,
+            preserveExistingAssignments: false,
+            draftCommands: draftSaveCommandsRef.current,
+          }
+        );
+      } catch (error) {
+        throw new Error(getApiErrorMessage(error, "Replan proposal failed."));
+      }
+
+      const existingMoveByKey = new Map(
+        draftSaveCommandsRef.current
+          .filter((command) => command.kind === "move_item")
+          .map((command) => [draftCommandEntryKey(command), command])
+      );
+      const nonMoveCommands = draftSaveCommandsRef.current.filter(
+        (command) => command.kind !== "move_item"
+      );
+      let nextSequence = draftSaveCommandsRef.current.reduce(
+        (maximum, command) => Math.max(maximum, command.sequence),
+        0
+      );
+      const nextMoveByKey = new Map(existingMoveByKey);
+      for (const move of replanPayload.proposal.moves) {
+        const entryKey = draftCommandEntryKey({
+          goalId: move.goalId,
+          unitKey: move.unitKey,
+        });
+        if (typeof move.toDate !== "string") {
+          nextMoveByKey.delete(entryKey);
+          dispatchDraftCommand({
+            type: "remove_kind",
+            scopeMonth: context.scopeMonth,
+            kind: "move_item",
+            goalId: move.goalId,
+            unitKey: move.unitKey,
+          });
+          continue;
+        }
+        const existing = existingMoveByKey.get(entryKey);
+        nextMoveByKey.set(
+          entryKey,
+          existing
+            ? {
+                ...existing,
+                scheduledDate: move.toDate,
+              }
+            : {
+                id: createClientUuid(),
+                sequence: ++nextSequence,
+                kind: "move_item",
+                goalId: move.goalId,
+                unitKey: move.unitKey,
+                scheduledDate: move.toDate,
+              }
+        );
+        dispatchDraftCommand({
+          type: "upsert_move",
+          scopeMonth: context.scopeMonth,
+          goalId: move.goalId,
+          unitKey: move.unitKey,
+          scheduledDate: move.toDate,
+        });
+      }
+      const nextDraftCommands = sortPlannerDraftCommands([
+        ...nonMoveCommands,
+        ...Array.from(nextMoveByKey.values()),
+      ]);
+      draftSaveCommandsRef.current = nextDraftCommands;
+      if (replanPayload.proposal.moves.length > 0) {
+        scheduleDraftMovePreviewRefresh(nextPolicy);
+      }
+      return { moveCount: replanPayload.proposal.moveCount };
+    },
+    [context, effectivePreview, scheduleDraftMovePreviewRefresh]
+  );
 
   const nonPublishablePreviewMessage = (
     preview: NonNullable<PlannerContextPayload["preview"]>
@@ -845,7 +994,7 @@ export function CalendarSurface({
         affectedGoals.length > 0
           ? `Affected goals: ${affectedGoals.join(", ")}. `
           : "";
-      return `${affectedLabel}Locked sessions currently conflict with this regenerated preview. Unlock affected sessions, regenerate, then save.`;
+      return `${affectedLabel}One or more moved sessions no longer fit current planner constraints. Adjust moved dates, regenerate preview, then save.`;
     }
     if (preview.solver.issueCodes.length > 0) {
       return `Resolve planner issues before saving: ${preview.solver.issueCodes.join(
@@ -865,6 +1014,7 @@ export function CalendarSurface({
     effectiveDraftPolicy,
     hasDraftSession,
     refreshDraftPreview,
+    runPolicyReplanProposal,
     applyDraftPolicy: (scopeMonth, policy) => {
       setDraftPolicyForScope(scopeMonth, policy);
     },
@@ -1104,6 +1254,7 @@ export function CalendarSurface({
           scheduledDate: normalized,
         });
       }
+      scheduleDraftMovePreviewRefresh();
       if (source === "drag_drop") {
         toast.success(
           `Moved ${getEntryDisplayTitle(entry)} in preview mode to ${normalized}.`
@@ -1116,6 +1267,7 @@ export function CalendarSurface({
       context?.scopeMonth,
       moveConflictByGoalDate,
       previewUnitByEntryKey,
+      scheduleDraftMovePreviewRefresh,
     ]
   );
 

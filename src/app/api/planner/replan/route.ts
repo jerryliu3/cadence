@@ -36,6 +36,8 @@ const requestSchema = z.object({
     .max(100)
     .optional(),
   policy: z.unknown().optional(),
+  previewHash: z.string().regex(/^[a-f0-9]{64}$/),
+  preserveExistingAssignments: z.boolean().default(false),
   draftCommands: z.array(plannerDraftCommandSchema).max(4000).default([]),
 });
 
@@ -190,11 +192,13 @@ export async function POST(request: Request) {
       stableKernel = runPlannerKernel({
         ...baseKernelInput,
         solveIntent: "stable",
+        preserveExistingAssignments: body.preserveExistingAssignments,
         draftPinnedDates,
       });
       replanKernel = runPlannerKernel({
         ...baseKernelInput,
         solveIntent: "replan",
+        preserveExistingAssignments: body.preserveExistingAssignments,
       });
     } catch (error) {
       if (error instanceof PlannerError) {
@@ -207,6 +211,13 @@ export async function POST(request: Request) {
       stableWorkUnits: stableKernel.workUnits,
       replanWorkUnits: replanKernel.workUnits,
     });
+    if (stableKernel.generationInputHash !== body.previewHash) {
+      throw new PlannerRouteError(
+        409,
+        "preview_hash_mismatch",
+        "Planner preview hash is stale. Regenerate and request replan again."
+      );
+    }
 
     return NextResponse.json(
       {

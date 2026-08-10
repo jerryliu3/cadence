@@ -16,13 +16,11 @@ describe("applyCoachPolicyPatches", () => {
     const result = applyCoachPolicyPatches({
       policy: basePolicy(),
       patches,
-      allowedGoalIds: new Set(["12000000-0000-4000-8000-000000000001"]),
     });
 
     expect(result.appliedPatchCount).toBe(2);
     expect(result.ignoredPatchCount).toBe(0);
     expect(result.unsupportedPatchCount).toBe(0);
-    expect(result.outOfScopePatchCount).toBe(0);
     expect(result.policy.restWeekdays).toEqual([1, 3]);
     expect(result.policy.blackoutRanges).toEqual([
       { start: "2026-08-12", end: "2026-08-15" },
@@ -41,7 +39,6 @@ describe("applyCoachPolicyPatches", () => {
           end: "2026-08-11",
         },
       ],
-      allowedGoalIds: new Set(["12000000-0000-4000-8000-000000000001"]),
     });
 
     expect(result.appliedPatchCount).toBe(1);
@@ -60,7 +57,6 @@ describe("applyCoachPolicyPatches", () => {
         { kind: "set_rest_weekdays", restWeekdays: [0, 1] },
         { kind: "add_blackout_range", start: "2026-08-10", end: "2026-08-11" },
       ],
-      allowedGoalIds: new Set(["12000000-0000-4000-8000-000000000001"]),
     });
 
     expect(result.appliedPatchCount).toBe(0);

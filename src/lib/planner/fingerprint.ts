@@ -13,6 +13,7 @@ import {
   REQUIREMENT_SCHEMA_VERSION,
   SCHEDULER_VERSION,
 } from "@/lib/planner/contracts/bounds";
+import type { SolverSolveIntent } from "@/lib/planner/solver/types";
 import {
   compilePlannerPolicy,
   type PlannerPolicy,
@@ -27,6 +28,9 @@ export interface PlannerCanonicalLink {
 
 export interface GenerationHashInput {
   eligibilityMode: PlannerEligibilityMode;
+  solveIntent: SolverSolveIntent;
+  preserveExistingAssignments: boolean;
+  draftPinnedDates: Record<string, string>;
   scopeMonth: string;
   asOfDate: string;
   timezone: string;
@@ -48,12 +52,19 @@ export function computeGenerationInputHash(input: GenerationHashInput) {
     versions: {
       plannerContract: PLANNER_CONTRACT_VERSION,
       eligibilityMode: input.eligibilityMode,
+      solveIntent: input.solveIntent,
       scheduler: SCHEDULER_VERSION,
       requirementSchema: REQUIREMENT_SCHEMA_VERSION,
       assessmentSchema: ASSESSMENT_SCHEMA_VERSION,
       policySchema: POLICY_SCHEMA_VERSION,
       policyCompiler: POLICY_COMPILER_VERSION,
     },
+    preserveExistingAssignments: input.preserveExistingAssignments,
+    draftPinnedDates: Object.fromEntries(
+      Object.entries(input.draftPinnedDates).sort(([left], [right]) =>
+        compareCanonicalStrings(left, right)
+      )
+    ),
     scopeMonth: input.scopeMonth,
     asOfDate: input.asOfDate,
     timezone: input.timezone,

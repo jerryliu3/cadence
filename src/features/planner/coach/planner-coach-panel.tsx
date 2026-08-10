@@ -120,7 +120,7 @@ export function PlannerCoachPanel({ coach }: PlannerCoachPanelProps) {
                   </p>
                   <p className="text-xs text-muted-foreground">
                     {message.proposal.patchSummary
-                      ? `${message.proposal.patchSummary.applicablePatchCount} applicable, ${message.proposal.patchSummary.skippedPatchCount} skipped patch${
+                      ? `${message.proposal.patchSummary.applicablePatchCount} applicable, ${message.proposal.patchSummary.noOpPatchCount} already-matching, ${message.proposal.patchSummary.skippedPatchCount} skipped patch${
                           message.proposal.patchSummary.skippedPatchCount === 1
                             ? ""
                             : "es"

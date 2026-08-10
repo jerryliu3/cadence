@@ -798,6 +798,10 @@ export function runPlannerKernel(
   );
   const generationInputHash = computeGenerationInputHash({
     eligibilityMode: rawInput.eligibilityMode,
+    solveIntent: rawInput.solveIntent ?? "stable",
+    preserveExistingAssignments:
+      rawInput.preserveExistingAssignments === true,
+    draftPinnedDates: rawInput.draftPinnedDates ?? {},
     scopeMonth: rawInput.scopeMonth,
     asOfDate: rawInput.asOfDate,
     timezone: rawInput.timezone,

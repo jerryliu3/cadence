@@ -19,6 +19,7 @@ import {
   PLANNER_CONTRACT_VERSION,
 } from "@/lib/planner/contracts/bounds";
 import { PlannerError, runPlannerKernel } from "@/lib/planner/kernel";
+import { findUnhonoredDraftPins } from "@/lib/planner/draft-pins";
 import { createDefaultPlannerPolicy, plannerPolicySchema } from "@/lib/planner/policy";
 import {
   buildDraftPinnedDatesFromCommands,
@@ -211,6 +212,24 @@ function resolvePlannerPreview({
         draftPinnedDates,
       })
     : null;
+  if (preview && Object.keys(draftPinnedDates).length > 0) {
+    const draftPinViolations = findUnhonoredDraftPins({
+      workUnits: preview.workUnits,
+      draftPinnedDates,
+    });
+    if (draftPinViolations.length > 0) {
+      throw new PlannerRouteError(
+        422,
+        "validation_failed",
+        "One or more moved sessions no longer fit the current planner constraints. Adjust moved dates and regenerate preview.",
+        {
+          stage: "draft_pins",
+          code: "draft_pin_unhonored",
+          violations: draftPinViolations,
+        }
+      );
+    }
+  }
 
   return {
     asOfDate,

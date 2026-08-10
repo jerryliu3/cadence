@@ -241,7 +241,6 @@ export interface CoachMessageProposal {
     applicablePatchCount: number;
     skippedPatchCount: number;
     noOpPatchCount: number;
-    outOfScopePatchCount: number;
     unsupportedPatchCount: number;
   };
   unresolvedQuestions: string[];

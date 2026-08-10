@@ -19,6 +19,7 @@ import {
   PlannerDraftEditValidationError,
   buildPlannerPublishPersistencePayload,
 } from "@/lib/planner/publish-payload";
+import { findUnhonoredDraftPins } from "@/lib/planner/draft-pins";
 import { postgresErrorMatches } from "@/lib/planner/postgres-errors";
 import {
   buildDraftPinnedDatesFromCommands,
@@ -94,7 +95,6 @@ export async function handlePlannerSave(request: Request) {
       (command) => command.kind !== "move_item"
     );
     const draftPinnedDates = buildDraftPinnedDatesFromCommands(draftCommands);
-    const hasDraftPinnedDates = Object.keys(draftPinnedDates).length > 0;
     const effectiveEligibilityMode =
       body.eligibilityMode ?? PLANNER_ELIGIBILITY_MODES[0];
 
@@ -139,6 +139,7 @@ export async function handlePlannerSave(request: Request) {
       eligibilityMode: effectiveEligibilityMode,
       solveIntent: "stable" as const,
       preserveExistingAssignments: requestedPolicy === null,
+      draftPinnedDates,
       ownerId: routeContext.userId,
       scopeMonth: body.scopeMonth,
       asOfDate,
@@ -168,19 +169,21 @@ export async function handlePlannerSave(request: Request) {
       );
     }
 
-    let kernelForPersistence = kernel;
-    if (hasDraftPinnedDates) {
-      try {
-        kernelForPersistence = runPlannerKernel({
-          ...kernelInput,
-          draftPinnedDates,
-        });
-      } catch (error) {
-        if (error instanceof PlannerError) {
-          throw plannerKernelErrorToRouteError(error);
+    const draftPinViolations = findUnhonoredDraftPins({
+      workUnits: kernel.workUnits,
+      draftPinnedDates,
+    });
+    if (draftPinViolations.length > 0) {
+      throw new PlannerRouteError(
+        422,
+        "validation_failed",
+        "One or more moved sessions no longer fit the current planner constraints. Adjust moved dates and regenerate preview.",
+        {
+          stage: "draft_pins",
+          code: "draft_pin_unhonored",
+          violations: draftPinViolations,
         }
-        throw error;
-      }
+      );
     }
 
     if (kernel.solver.confirmationRequired) {
@@ -200,20 +203,19 @@ export async function handlePlannerSave(request: Request) {
         );
       }
     }
-    if (!kernelForPersistence.solver.publishable) {
-      const blockedByInvalidLock =
-        kernelForPersistence.solver.issueCodes.includes("invalid_lock");
+    if (!kernel.solver.publishable) {
+      const blockedByInvalidLock = kernel.solver.issueCodes.includes("invalid_lock");
       throw new PlannerRouteError(
         422,
         "planner_not_publishable",
         blockedByInvalidLock
-          ? "Publish is blocked because one or more locked planner items conflict with this preview. Unlock the affected sessions and regenerate."
+          ? "Publish is blocked because one or more moved sessions no longer fit the current planner constraints. Adjust moved dates and regenerate."
           : "Publish is blocked because this preview is not currently publishable.",
         {
-          issueCodes: kernelForPersistence.solver.issueCodes,
-          searchStatus: kernelForPersistence.solver.searchStatus,
-          invalidGoalIds: kernelForPersistence.solver.invalidGoalIds,
-          confirmationRequired: kernelForPersistence.solver.confirmationRequired,
+          issueCodes: kernel.solver.issueCodes,
+          searchStatus: kernel.solver.searchStatus,
+          invalidGoalIds: kernel.solver.invalidGoalIds,
+          confirmationRequired: kernel.solver.confirmationRequired,
         }
       );
     }
@@ -223,7 +225,7 @@ export async function handlePlannerSave(request: Request) {
       persistence = buildPlannerPublishPersistencePayload({
         scopeMonth: body.scopeMonth,
         policy: effectivePolicy,
-        kernel: kernelForPersistence,
+        kernel,
         snapshot,
         draftCommands: nonPositionalDraftCommands,
       });

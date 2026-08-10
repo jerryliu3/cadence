@@ -40,6 +40,9 @@ const completion: Completion = {
 function input(): GenerationHashInput {
   return {
     eligibilityMode: "overlap_v1",
+    solveIntent: "stable",
+    preserveExistingAssignments: false,
+    draftPinnedDates: {},
     scopeMonth: "2026-08",
     asOfDate: "2026-08-10",
     timezone: "UTC",
@@ -94,6 +97,26 @@ describe("strict generation input fingerprint", () => {
 
     expect(computeGenerationInputHash(first)).toBe(
       computeGenerationInputHash(second)
+    );
+  });
+
+  it("changes when solve intent, preservation mode, or pin set changes", () => {
+    const base = input();
+    const replan = { ...base, solveIntent: "replan" as const };
+    const preserved = { ...base, preserveExistingAssignments: true };
+    const pinned = {
+      ...base,
+      draftPinnedDates: { "goal-a:total:1": "2026-08-20" },
+    };
+
+    expect(computeGenerationInputHash(replan)).not.toBe(
+      computeGenerationInputHash(base)
+    );
+    expect(computeGenerationInputHash(preserved)).not.toBe(
+      computeGenerationInputHash(base)
+    );
+    expect(computeGenerationInputHash(pinned)).not.toBe(
+      computeGenerationInputHash(base)
     );
   });
 });

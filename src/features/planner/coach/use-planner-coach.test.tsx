@@ -169,6 +169,7 @@ function buildArgs(overrides: Partial<UsePlannerCoachArgs> = {}): UsePlannerCoac
     effectiveDraftPolicy: null,
     hasDraftSession: false,
     refreshDraftPreview: vi.fn().mockResolvedValue(null),
+    runPolicyReplanProposal: vi.fn().mockResolvedValue({ moveCount: 0 }),
     applyDraftPolicy: vi.fn(),
     getNonPublishablePreviewMessage: vi.fn().mockReturnValue("blocked"),
     ...overrides,
@@ -330,7 +331,6 @@ describe("usePlannerCoach", () => {
         applicablePatchCount: 0,
         skippedPatchCount: 0,
         noOpPatchCount: 1,
-        outOfScopePatchCount: 0,
         unsupportedPatchCount: 0,
       },
     });
@@ -563,6 +563,9 @@ describe("usePlannerCoach", () => {
         }),
       ],
     });
+    const runPolicyReplanProposalMock = vi
+      .fn()
+      .mockResolvedValue({ moveCount: 2 });
     const applyDraftPolicyMock = vi.fn();
     const hookArgs: UsePlannerCoachArgs = buildArgs({
       activeTab: "calendar",
@@ -570,6 +573,7 @@ describe("usePlannerCoach", () => {
       entriesByDate: new Map([["2026-08-01", [buildEntry()]]]),
       effectivePreview: context.preview,
       refreshDraftPreview: refreshDraftPreviewMock,
+      runPolicyReplanProposal: runPolicyReplanProposalMock,
       applyDraftPolicy: applyDraftPolicyMock,
     });
     const { result, rerender } = renderHook(() => usePlannerCoach(hookArgs));
@@ -597,6 +601,7 @@ describe("usePlannerCoach", () => {
     });
 
     expect(applyCoachPolicyPatchesMock).toHaveBeenCalled();
+    expect(runPolicyReplanProposalMock).toHaveBeenCalledWith(nextPolicy);
     expect(persistPlannerDefaultPolicyMock).toHaveBeenCalledWith({
       timezone: "UTC",
       defaultPolicy: nextPolicy,

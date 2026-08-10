@@ -169,4 +169,41 @@ describe("planner context preview route", () => {
       })
     );
   });
+
+  it("returns validation_failed when pinned moves are not honored by preview solve", async () => {
+    mocks.parseBoundedJsonBody.mockResolvedValueOnce({
+      scopeMonth: "2026-08",
+      source: "update",
+      timezone: "UTC",
+      policy: createDefaultPlannerPolicy("UTC", "2026-08-01T00:00:00.000Z"),
+      draftCommands: [
+        {
+          id: "30000000-0000-4000-8000-000000000001",
+          sequence: 1,
+          kind: "move_item",
+          goalId: "12000000-0000-4000-8000-000000000001",
+          unitKey: "total:1",
+          scheduledDate: "2026-08-10",
+        },
+      ],
+    });
+    mocks.runPlannerKernel.mockReturnValueOnce({
+      workUnits: [],
+    });
+
+    const response = await POST(
+      new Request("http://localhost/api/planner/context", {
+        method: "POST",
+      })
+    );
+
+    expect(response.status).toBe(422);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "validation_failed",
+      details: {
+        stage: "draft_pins",
+        code: "draft_pin_unhonored",
+      },
+    });
+  });
 });

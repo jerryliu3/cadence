@@ -59,6 +59,9 @@ describe("planner replan proposal route", () => {
     });
     mocks.parseBoundedJsonBody.mockResolvedValue({
       scopeMonth: "2026-08",
+      previewHash:
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      preserveExistingAssignments: false,
       draftCommands: [
         {
           id: "30000000-0000-4000-8000-000000000001",
@@ -129,7 +132,7 @@ describe("planner replan proposal route", () => {
       })
       .mockReturnValueOnce({
         generationInputHash:
-          "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
         workUnits: [
           {
             originalGoalId: "12000000-0000-4000-8000-000000000001",
@@ -172,6 +175,7 @@ describe("planner replan proposal route", () => {
       1,
       expect.objectContaining({
         solveIntent: "stable",
+        preserveExistingAssignments: false,
         draftPinnedDates: {
           "12000000-0000-4000-8000-000000000001:total:1": "2026-08-12",
         },
@@ -181,6 +185,7 @@ describe("planner replan proposal route", () => {
       2,
       expect.objectContaining({
         solveIntent: "replan",
+        preserveExistingAssignments: false,
       })
     );
     expect(mocks.runPlannerKernel).toHaveBeenNthCalledWith(
@@ -211,6 +216,40 @@ describe("planner replan proposal route", () => {
       code: "validation_failed",
       message: "Planner policy failed validation.",
       correlationId: expect.any(String),
+    });
+  });
+
+  it("returns 409 when preview hash does not match stable baseline", async () => {
+    mocks.parseBoundedJsonBody.mockResolvedValueOnce({
+      scopeMonth: "2026-08",
+      previewHash:
+        "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      preserveExistingAssignments: false,
+      draftCommands: [],
+    });
+    mocks.runPlannerKernel
+      .mockReturnValueOnce({
+        generationInputHash:
+          "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        workUnits: [],
+        solver: { issueCodes: [], publishable: true },
+      })
+      .mockReturnValueOnce({
+        generationInputHash:
+          "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        workUnits: [],
+        solver: { issueCodes: [], publishable: true },
+      });
+
+    const response = await POST(
+      new Request("http://localhost/api/planner/replan", {
+        method: "POST",
+      })
+    );
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "preview_hash_mismatch",
     });
   });
 });
