@@ -2,16 +2,13 @@
 
 import {
   ChevronDown,
-  Crown,
   Search,
   Share2,
-  Trash2,
   UserMinus,
   UserPlus,
   Users,
   WandSparkles,
 } from "lucide-react";
-import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -21,7 +18,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { LoadingCard } from "@/components/ui/loading-card";
-import { StateCard } from "@/components/ui/state-card";
 import {
   Select,
   SelectContent,
@@ -30,10 +26,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  GroupGoalCreatorCard,
   type GroupGoalDraft,
   createDefaultGroupGoalDraft,
 } from "@/features/social/group-goal-creator-card";
+import { GroupGoalsCard } from "@/features/social/group-goals-card";
 import { SharedGoalsCard } from "@/features/social/shared-goals-card";
 import {
   getCategoryLabel,
@@ -46,7 +42,6 @@ import {
   isOrdinalGoalDefinition,
   validateGoalDefinition,
 } from "@/lib/goals/definition-validation";
-import { getGoalCompletionPercentage } from "@/lib/goals/progress";
 import { NotificationSettings } from "@/features/settings/notification-settings";
 import type {
   Completion,
@@ -987,129 +982,22 @@ export function SocialTab() {
         onRemoveSharedGoal={removeSharedGoalForMe}
       />
 
-      <Card className="shadow-sm">
-        <CardHeader>
-          <CardTitle>Group goals</CardTitle>
-          <CardDescription>Create collaborative goals and compare progress side-by-side.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <GroupGoalCreatorCard
-            draft={groupDraft}
-            saving={saving}
-            requiresEndDate={groupRequiresEndDate}
-            onDraftChange={setGroupDraft}
-            onFrequencyTypeChange={updateGroupFrequencyType}
-            onCreateGoal={createGroupGoal}
-          />
-
-          {state.groupGoals.length === 0 ? (
-            <StateCard
-              title="No group goals available yet."
-              compact
-              dashed
-              className="bg-background/60"
-            />
-          ) : (
-            state.groupGoals.map((goal) => {
-              const goalParticipants = state.participants.filter(
-                (participant) => participant.goal_id === goal.id
-              );
-              const completionRows = completionsByGoal.get(goal.id) ?? [];
-              const isOwner = goal.owner_id === state.userId;
-              return (
-                <Card key={goal.id} className="border shadow-none">
-                  <CardContent className="space-y-3 py-4">
-                    <div className="flex flex-wrap items-start justify-between gap-2">
-                      <div>
-                        <p className="text-sm font-semibold">{goal.title}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {goal.description || "No description"}
-                        </p>
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        <Button asChild variant="outline" size="sm">
-                          <Link href={`/goals/${goal.id}`}>Edit</Link>
-                        </Button>
-                        {isOwner ? (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            type="button"
-                            onClick={() => deleteGroupGoal(goal.id)}
-                          >
-                            <Trash2 className="size-3.5" />
-                            Delete
-                          </Button>
-                        ) : (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            type="button"
-                            onClick={() => leaveGroup(goal.id)}
-                          >
-                            <UserMinus className="size-3.5" />
-                            Leave
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="space-y-2 rounded-lg border bg-muted/20 p-3">
-                      <p className="text-xs font-medium text-muted-foreground">
-                        Participant progress
-                      </p>
-                      {goalParticipants.length === 0 ? (
-                        <p className="text-xs text-muted-foreground">No participants yet.</p>
-                      ) : (
-                        goalParticipants.map((participant) => {
-                          const profile = state.profileDirectory[participant.user_id];
-                          const personalCompletions = completionRows.filter(
-                            (entry) => entry.user_id === participant.user_id
-                          );
-                          const percent = getGoalCompletionPercentage(goal, personalCompletions);
-                          const roleLabel = participant.role === "owner" ? "Owner" : "Participant";
-                          return (
-                            <div
-                              key={participant.id}
-                              className="flex items-center justify-between gap-3 rounded-lg border bg-card p-2"
-                            >
-                              <div className="min-w-0">
-                                <p className="truncate text-sm font-medium">
-                                  @{profile?.username ?? "unknown"}
-                                </p>
-                                <p className="text-xs text-muted-foreground">
-                                  {roleLabel} · {Math.round(percent)}%
-                                </p>
-                              </div>
-                              {isOwner && participant.user_id !== state.userId ? (
-                                <Button
-                                  variant="ghost"
-                                  size="icon-sm"
-                                  type="button"
-                                  onClick={() =>
-                                    removeParticipant(goal.id, participant.user_id)
-                                  }
-                                >
-                                  <UserMinus className="size-3.5" />
-                                </Button>
-                              ) : participant.role === "owner" ? (
-                                <Badge variant="secondary" className="inline-flex items-center gap-1">
-                                  <Crown className="size-3" />
-                                  Owner
-                                </Badge>
-                              ) : null}
-                            </div>
-                          );
-                        })
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })
-          )}
-        </CardContent>
-      </Card>
+      <GroupGoalsCard
+        draft={groupDraft}
+        saving={saving}
+        requiresEndDate={groupRequiresEndDate}
+        onDraftChange={setGroupDraft}
+        onFrequencyTypeChange={updateGroupFrequencyType}
+        onCreateGoal={createGroupGoal}
+        groupGoals={state.groupGoals}
+        participants={state.participants}
+        completionsByGoal={completionsByGoal}
+        profileDirectory={state.profileDirectory}
+        currentUserId={state.userId}
+        onDeleteGroupGoal={deleteGroupGoal}
+        onLeaveGroup={leaveGroup}
+        onRemoveParticipant={removeParticipant}
+      />
 
       <div className="rounded-xl border bg-muted/30 p-3 text-xs text-muted-foreground">
         <p className="inline-flex items-center gap-1">
