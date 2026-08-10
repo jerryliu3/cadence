@@ -90,7 +90,26 @@ jobs:
         run: pnpm exec supabase stop --all || true
 
       - name: Start local Supabase (lean profile)
-        run: pnpm supabase:start -- --exclude studio,mailpit,imgproxy,analytics,vector,edge-runtime,postgres-meta,logflare,supavisor
+        shell: bash
+        run: |
+          set -euo pipefail
+          EXCLUDE="studio,mailpit,imgproxy,analytics,vector,edge-runtime,postgres-meta,logflare,supavisor"
+          MAX_ATTEMPTS=4
+          BACKOFFS=(5 15 30)
+          for attempt in $(seq 1 "$MAX_ATTEMPTS"); do
+            echo "Starting Supabase (attempt ${attempt}/${MAX_ATTEMPTS})..."
+            if pnpm supabase:start -- --exclude "$EXCLUDE"; then
+              echo "Supabase started successfully on attempt ${attempt}."
+              exit 0
+            fi
+            if [[ "$attempt" -eq "$MAX_ATTEMPTS" ]]; then
+              echo "Supabase failed to start after ${MAX_ATTEMPTS} attempts."
+              exit 1
+            fi
+            echo "Supabase start failed; stopping containers before retry..."
+            pnpm exec supabase stop --all || true
+            sleep "${BACKOFFS[$((attempt - 1))]}"
+          done
 
       - name: Reset and seed local database
         run: pnpm supabase:reset

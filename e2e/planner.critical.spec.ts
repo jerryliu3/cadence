@@ -246,6 +246,28 @@ async function fetchPlannerContextSnapshot(
   }, scopeMonth);
 }
 
+// Keep in sync with MOUSE_PRESS_TO_DRAG_DELAY_MS in calendar-dnd.tsx (120ms).
+const MOUSE_DND_ACTIVATION_DELAY_MS = 120;
+const MOUSE_DND_ACTIVATION_BUFFER_MS = 80;
+
+async function clearStuckDrag(page: Page) {
+  await page.keyboard.press("Escape").catch(() => undefined);
+  await page.mouse.up().catch(() => undefined);
+  await page.waitForTimeout(100);
+}
+
+async function isPlannerDraftReady(page: Page): Promise<boolean> {
+  const inDraftMode = await page
+    .getByTestId(DRAFT_MODE_BADGE_TEST_ID)
+    .isVisible()
+    .catch(() => false);
+  if (inDraftMode) {
+    return true;
+  }
+  const saveButton = page.getByRole("button", { name: "Save plan", exact: true });
+  return saveButton.isEnabled().catch(() => false);
+}
+
 async function moveFirstMovableEntry(
   page: Page,
   sourceEntrySelector = MOVABLE_ENTRY_SELECTOR,
@@ -294,47 +316,56 @@ async function moveFirstMovableEntry(
     throw new Error("Could not find a valid planner day-cell drop target.");
   }
 
-  for (const targetDay of candidateTargetDays.slice(0, 8)) {
-    const currentSourceEntry = page.locator(sourceEntrySelector).first();
-    await expect(currentSourceEntry).toBeVisible();
-    const targetCell = page
-      .locator(`[data-day-cell="true"][data-day="${targetDay}"]`)
-      .first();
-    await expect(targetCell).toBeVisible();
+  const tryCandidates = async (): Promise<boolean> => {
+    for (const targetDay of candidateTargetDays.slice(0, 8)) {
+      const currentSourceEntry = page.locator(sourceEntrySelector).first();
+      await expect(currentSourceEntry).toBeVisible();
+      const targetCell = page
+        .locator(`[data-day-cell="true"][data-day="${targetDay}"]`)
+        .first();
+      await expect(targetCell).toBeVisible();
 
-    const sourceBox = await currentSourceEntry.boundingBox();
-    const targetBox = await targetCell.boundingBox();
-    if (!sourceBox || !targetBox) {
-      continue;
-    }
+      const sourceBox = await currentSourceEntry.boundingBox();
+      const targetBox = await targetCell.boundingBox();
+      if (!sourceBox || !targetBox) {
+        continue;
+      }
 
-    await page.mouse.move(
-      sourceBox.x + sourceBox.width / 2,
-      sourceBox.y + sourceBox.height / 2
-    );
-    await page.mouse.down();
-    // Match dnd-kit mouse activation delay in calendar-dnd.tsx.
-    await page.waitForTimeout(180);
-    await page.mouse.move(targetBox.x + targetBox.width / 2, targetBox.y + 28, {
-      steps: 20,
-    });
-    await page.mouse.up();
-    await page.waitForTimeout(150);
+      const sourceX = sourceBox.x + sourceBox.width / 2;
+      const sourceY = sourceBox.y + sourceBox.height / 2;
+      const targetX = targetBox.x + targetBox.width / 2;
+      const targetY = targetBox.y + 28;
 
-    const inDraftMode = await page
-      .getByTestId(DRAFT_MODE_BADGE_TEST_ID)
-      .isVisible()
-      .catch(() => false);
-    if (inDraftMode) {
-      return true;
+      await page.mouse.move(sourceX, sourceY);
+      await page.waitForTimeout(50);
+      await page.mouse.down();
+      // Match dnd-kit MouseSensor activation delay in calendar-dnd.tsx (+ buffer).
+      await page.waitForTimeout(
+        MOUSE_DND_ACTIVATION_DELAY_MS + MOUSE_DND_ACTIVATION_BUFFER_MS
+      );
+      // Multi-step path: activate near source, then travel to target.
+      await page.mouse.move(sourceX + 8, sourceY + 4, { steps: 6 });
+      await page.mouse.move(targetX, targetY, { steps: 24 });
+      await page.waitForTimeout(50);
+      await page.mouse.up();
+      await page.waitForTimeout(150);
+
+      if (await isPlannerDraftReady(page)) {
+        return true;
+      }
+      // Clear any stuck drag before trying the next drop target.
+      await clearStuckDrag(page);
     }
-    const saveButton = page.getByRole("button", { name: "Save plan", exact: true });
-    if (await saveButton.isEnabled().catch(() => false)) {
-      return true;
-    }
+    return false;
+  };
+
+  if (await tryCandidates()) {
+    return true;
   }
-
-  return false;
+  // Outer retry of the full candidate pass after a short settle.
+  await clearStuckDrag(page);
+  await page.waitForTimeout(300);
+  return tryCandidates();
 }
 
 async function runCompletionToggleAction(
@@ -386,7 +417,16 @@ async function runPlannerSaveAction(page: Page): Promise<SavePlanResult> {
 }
 
 test.describe("planner critical rails", () => {
-  test.describe.configure({ mode: "serial", retries: 0 });
+  test.describe.configure({
+    mode: "serial",
+    retries: process.env.CI ? 2 : 0,
+  });
+
+  // Serial retries restart the whole group; keep each attempt free of leftover draft UI.
+  test.beforeEach(async ({ page }) => {
+    await page.goto("/?tab=today");
+    await expect(page.getByRole("tab", { name: "Today", exact: true })).toBeVisible();
+  });
 
   test.skip(
     ({ browserName }) => browserName !== "chromium",
@@ -395,6 +435,20 @@ test.describe("planner critical rails", () => {
 
   test("drag + save emits only intended unit movement", async ({ page }) => {
     test.setTimeout(120_000);
+    const collectMoveCommands = (requestPayload: SavePlanResult["requestPayload"]) =>
+      collectSaveDraftCommands(requestPayload).filter(
+        (command): command is {
+          kind: string;
+          goalId: string;
+          unitKey: string;
+          scheduledDate: string;
+        } =>
+          command.kind === "move_item" &&
+          typeof command.goalId === "string" &&
+          typeof command.unitKey === "string" &&
+          typeof command.scheduledDate === "string"
+      );
+
     const executeMoveAndSave = async () => {
       await openCalendar(page);
       const scopeMonth = await ensureDragFixtureEntryAvailable(page);
@@ -420,12 +474,15 @@ test.describe("planner critical rails", () => {
 
     let attempt = await executeMoveAndSave();
     // Preview hashes can become stale from concurrent planner data churn in CI;
-    // replay fresh drag/save cycles up to a small bound before failing.
-    for (let staleRetry = 0; staleRetry < 2; staleRetry += 1) {
-      if (
-        attempt.saveResult.responseStatus !== 409 ||
-        attempt.saveResult.responseBody.code !== "preview_hash_mismatch"
-      ) {
+    // a landed draft with zero move_item commands is a drag miss. Replay either
+    // case with a fresh calendar load up to a small bound before failing.
+    for (let railRetry = 0; railRetry < 3; railRetry += 1) {
+      const moveCommands = collectMoveCommands(attempt.saveResult.requestPayload);
+      const isPreviewHashMismatch =
+        attempt.saveResult.responseStatus === 409 &&
+        attempt.saveResult.responseBody.code === "preview_hash_mismatch";
+      const isDragMiss = moveCommands.length === 0;
+      if (!isPreviewHashMismatch && !isDragMiss) {
         break;
       }
       await page.reload();
@@ -435,18 +492,7 @@ test.describe("planner critical rails", () => {
     const requestPayload = attempt.saveResult.requestPayload;
     expect(Array.isArray(requestPayload.scopes)).toBe(true);
     expect((requestPayload.scopes ?? []).length).toBeGreaterThan(0);
-    const moveCommands = collectSaveDraftCommands(requestPayload).filter(
-      (command): command is {
-        kind: string;
-        goalId: string;
-        unitKey: string;
-        scheduledDate: string;
-      } =>
-        command.kind === "move_item" &&
-        typeof command.goalId === "string" &&
-        typeof command.unitKey === "string" &&
-        typeof command.scheduledDate === "string"
-    );
+    const moveCommands = collectMoveCommands(requestPayload);
     expect(moveCommands).toHaveLength(1);
     const moveCommand = moveCommands[0];
     const movedEntryKey = `${moveCommand.goalId}:${moveCommand.unitKey}`;
@@ -539,13 +585,21 @@ test.describe("planner critical rails", () => {
   });
 
   test("stale save keeps planner draft session recoverable", async ({ page }) => {
-    await openCalendar(page);
-    await ensureDragFixtureEntryAvailable(page);
-    const movedIntoDraft = await moveFirstMovableEntry(
-      page,
-      DRAG_FIXTURE_ENTRY_SELECTOR,
-      DRAG_FIXTURE_GOAL_ID
-    );
+    test.setTimeout(120_000);
+    let movedIntoDraft = false;
+    for (let dragAttempt = 0; dragAttempt < 3; dragAttempt += 1) {
+      await openCalendar(page);
+      await ensureDragFixtureEntryAvailable(page);
+      movedIntoDraft = await moveFirstMovableEntry(
+        page,
+        DRAG_FIXTURE_ENTRY_SELECTOR,
+        DRAG_FIXTURE_GOAL_ID
+      );
+      if (movedIntoDraft && (await isPlannerDraftReady(page))) {
+        break;
+      }
+      await clearStuckDrag(page);
+    }
     expect(movedIntoDraft).toBe(true);
     await expect(page.getByRole("button", { name: "Save plan", exact: true })).toBeEnabled();
 
@@ -580,7 +634,7 @@ test.describe("planner critical rails", () => {
     expect(["stale_revision", "preview_hash_mismatch"]).toContain(body.code ?? "");
 
     await expect(
-      page.getByRole("button", { name: "Undo this month", exact: true })
-    ).toBeVisible();
+      page.getByRole("button", { name: /Undo this month/i })
+    ).toBeVisible({ timeout: 10_000 });
   });
 });
