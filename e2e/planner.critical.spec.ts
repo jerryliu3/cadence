@@ -392,11 +392,8 @@ test.describe("planner critical rails", () => {
     expect(after.placementsByEntryKey[movedEntryKey]).toBe(moveCommand!.scheduledDate);
   });
 
-  test("completion toggle persists from today, past(insights), and calendar", async ({
-    page,
-  }) => {
-    test.slow();
-
+  test("completion toggle persists from today surface", async ({ page }) => {
+    test.setTimeout(120_000);
     await page.goto("/?tab=today");
     await expect(page.getByRole("tab", { name: "Today", exact: true })).toBeVisible();
     const todayPayload = await runCompletionToggleAction(page, async () => {
@@ -410,7 +407,12 @@ test.describe("planner critical rails", () => {
       await button.click();
     });
     await expectCompletionPersisted(page, todayPayload);
+  });
 
+  test("completion toggle persists from past (insights) surface", async ({
+    page,
+  }) => {
+    test.setTimeout(120_000);
     await page.goto("/insights");
     const editButton = page
       .getByRole("button", { name: /Edit dates|Edit milestones/ })
@@ -450,7 +452,10 @@ test.describe("planner critical rails", () => {
       await button.click();
     });
     await expectCompletionPersisted(page, insightsPayload);
+  });
 
+  test("completion toggle persists from calendar surface", async ({ page }) => {
+    test.setTimeout(120_000);
     await openCalendar(page);
     const dayCellWithEntry = page
       .locator('[data-day-cell="true"]')
