@@ -25,6 +25,10 @@ export type Database = {
       }
       planner_json_depth: { Args: { p_value: Json }; Returns: number }
       planner_owner_lock_key: { Args: { p_owner: string }; Returns: number }
+      planner_scope_is_replay: {
+        Args: { p_items: Json; p_month: string; p_owner_id: string }
+        Returns: boolean
+      }
       sha256_hex_digest: { Args: { p_value: string }; Returns: string }
       validate_planner_json: {
         Args: {
@@ -703,6 +707,14 @@ export type Database = {
         Args: { p_expected_digest: string; p_items: Json; p_month: string }
         Returns: {
           schedule_digest: string
+          upserted_count: number
+        }[]
+      }
+      set_planner_schedule_batch: {
+        Args: { p_batches: Json; p_expected_digest: string }
+        Returns: {
+          schedule_digest: string
+          scope_count: number
           upserted_count: number
         }[]
       }
