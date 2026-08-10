@@ -196,6 +196,7 @@ function resolvePlannerPreview({
     ? runPlannerKernel({
         schemaVersion: PLANNER_CONTRACT_VERSION,
         eligibilityMode: PLANNER_ELIGIBILITY_MODES[0],
+        solveIntent: "stable",
         ownerId,
         scopeMonth,
         asOfDate,
