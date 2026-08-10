@@ -34,7 +34,6 @@ import {
 } from "@/features/planner/calendar-format";
 import {
   selectPlannerCalendarHeaderModel,
-  selectPlannerCalendarSaveStateModel,
   selectPlannerCalendarViewModel,
 } from "@/features/planner/calendar-selectors";
 import { PlannerCalendarViewPanel } from "@/features/planner/planner-calendar-view-panel";
@@ -275,41 +274,6 @@ export function CalendarSurface({
     }
     return Array.from(scopeSet).sort((left, right) => left.localeCompare(right));
   }, [draftCommandState.commands, draftPolicyByScope]);
-  const draftCommandsForSaveByScope = useMemo(() => {
-    const commandsByScope: Record<string, PlannerDraftCommand[]> = {};
-    for (const scopeMonth of dirtyScopeMonths) {
-      const scopedCommands = sortPlannerDraftCommands(
-        selectDraftCommandsForScope(draftCommandState, scopeMonth)
-      );
-      const previewForScope =
-        scopeMonth === currentScopeMonth
-          ? effectivePreview
-          : draftPreviewByScope[scopeMonth] ?? visibleMonthContexts[scopeMonth]?.preview;
-      if (!previewForScope) {
-        commandsByScope[scopeMonth] = scopedCommands;
-        continue;
-      }
-      const previewEntryKeys = new Set(
-        (previewForScope.workUnits ?? []).map((unit) =>
-          draftCommandEntryKey({
-            goalId: unit.originalGoalId,
-            unitKey: unit.unitKey,
-          })
-        )
-      );
-      commandsByScope[scopeMonth] = scopedCommands.filter((command) =>
-        previewEntryKeys.has(draftCommandEntryKey(command))
-      );
-    }
-    return commandsByScope;
-  }, [
-    currentScopeMonth,
-    dirtyScopeMonths,
-    draftCommandState,
-    draftPreviewByScope,
-    effectivePreview,
-    visibleMonthContexts,
-  ]);
   const currentScopeHasDraftSession = currentScopeMonth
     ? dirtyScopeMonths.includes(currentScopeMonth)
     : false;
