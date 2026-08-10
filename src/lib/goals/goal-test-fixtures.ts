@@ -1,3 +1,4 @@
+import type { GoalProgressSnapshot } from "@/lib/goals/progress";
 import type { Goal } from "@/lib/goals/types";
 
 export function buildGoal(overrides: Partial<Goal> = {}): Goal {
@@ -21,6 +22,25 @@ export function buildGoal(overrides: Partial<Goal> = {}): Goal {
     archived_at: null,
     created_at: "2026-08-01T00:00:00.000Z",
     updated_at: "2026-08-01T00:00:00.000Z",
+    ...overrides,
+  };
+}
+
+export function buildProgressSnapshot(
+  overrides: Partial<GoalProgressSnapshot> = {}
+): GoalProgressSnapshot {
+  return {
+    goalId: "goal-1",
+    admissibleCompletionCount: 0,
+    creditedUnitCount: 0,
+    expectedUnitCount: 0,
+    percent: 0,
+    lifecycle: "active",
+    outcome: "in_progress",
+    placementTerminal: false,
+    currentStreak: 0,
+    longestStreak: 0,
+    milestoneDates: [],
     ...overrides,
   };
 }
