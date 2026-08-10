@@ -33,7 +33,6 @@ import {
 } from "@/components/ui/select";
 import { CategorySelect, GoalTypeToggle, RecurrenceIntervalToggle, TargetCountField } from "@/features/goals/goal-field-kit";
 import { MilestonePills } from "@/features/goals/milestone-pills";
-import { GoalDateRangeFields } from "@/features/goals/goal-schedule-fields";
 import {
   type CategorySelection,
   getCategoryLabel,
@@ -1167,19 +1166,31 @@ export function SocialTab() {
                   />
                 </div>
               ) : null}
-              <GoalDateRangeFields
-                startDate={groupDraft.startDate}
-                endDate={groupDraft.endDate}
-                onStartDateChange={(value) =>
-                  setGroupDraft((previous) => ({ ...previous, startDate: value }))
-                }
-                onEndDateChange={(value) =>
-                  setGroupDraft((previous) => ({ ...previous, endDate: value }))
-                }
-                requiresEndDate={groupRequiresEndDate}
-                startDateId="group-start-date"
-                endDateId="group-end-date"
-              />
+              <div className="space-y-2">
+                <Label htmlFor="group-start-date">Start date</Label>
+                <Input
+                  id="group-start-date"
+                  type="date"
+                  value={groupDraft.startDate}
+                  onChange={(event) =>
+                    setGroupDraft((prev) => ({ ...prev, startDate: event.target.value }))
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="group-end-date">
+                  {groupRequiresEndDate ? "End date" : "End date (optional)"}
+                </Label>
+                <Input
+                  id="group-end-date"
+                  type="date"
+                  value={groupDraft.endDate}
+                  onChange={(event) =>
+                    setGroupDraft((prev) => ({ ...prev, endDate: event.target.value }))
+                  }
+                  required={groupRequiresEndDate}
+                />
+              </div>
             </div>
             <Input
               className="mt-3"
