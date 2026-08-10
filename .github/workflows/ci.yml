@@ -241,22 +241,39 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-  verify:
-    name: verify
+  # Keep this exact job name for GitHub required-check compatibility.
+  verify-pr-smoke:
+    name: verify-pr-smoke
     if: always()
     needs:
-      - verify-static
       - verify-pr-db
       - verify-pr-e2e
     runs-on: ubuntu-latest
     timeout-minutes: 5
 
     steps:
-      - name: Assert all verify jobs passed
+      - name: Assert PR smoke jobs passed
         run: |
-          if [[ "${{ needs.verify-static.result }}" != "success" || "${{ needs.verify-pr-db.result }}" != "success" || "${{ needs.verify-pr-e2e.result }}" != "success" ]]; then
-            echo "verify-static result: ${{ needs.verify-static.result }}"
+          if [[ "${{ needs.verify-pr-db.result }}" != "success" || "${{ needs.verify-pr-e2e.result }}" != "success" ]]; then
             echo "verify-pr-db result: ${{ needs.verify-pr-db.result }}"
             echo "verify-pr-e2e result: ${{ needs.verify-pr-e2e.result }}"
+            exit 1
+          fi
+
+  verify:
+    name: verify
+    if: always()
+    needs:
+      - verify-static
+      - verify-pr-smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Assert all verify jobs passed
+        run: |
+          if [[ "${{ needs.verify-static.result }}" != "success" || "${{ needs.verify-pr-smoke.result }}" != "success" ]]; then
+            echo "verify-static result: ${{ needs.verify-static.result }}"
+            echo "verify-pr-smoke result: ${{ needs.verify-pr-smoke.result }}"
             exit 1
           fi
