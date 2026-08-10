@@ -236,9 +236,11 @@ export function TodayTab({
                 .order("created_at", { ascending: false }),
               supabase.from("goal_participants").select("*").eq("user_id", user.id),
               supabase.from("goal_links").select("*").eq("owner_id", user.id),
+              // Keep date navigation local to avoid full-section reloads when
+              // browsing previous/next days from the header date control.
               fetchProgressContext({
                 asOfDate: todayLocalDate,
-                viewDate,
+                viewDate: todayLocalDate,
                 forceRefresh,
               }),
             ]),
@@ -293,7 +295,7 @@ export function TodayTab({
         }
       }
     },
-    [redirectToLogin, supabase, todayLocalDate, viewDate]
+    [redirectToLogin, supabase, todayLocalDate]
   );
 
   useEffect(() => {
