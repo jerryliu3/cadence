@@ -60,3 +60,35 @@ export function remapGoalDatesForDraftMove({
   });
   return pinnedDates;
 }
+
+/**
+ * The pins a drag should write.
+ *
+ * Every unit in the mapping is pinned, including ones whose date does not
+ * change. Dropping a pin because its date matches the current preview is
+ * wrong: the preview shows that date *because* the pin is holding it. Removing
+ * it hands the unit back to the solver, which re-minimises against the
+ * published plan and slides it somewhere else -- so a second drag would
+ * silently undo the first.
+ */
+export function buildDraftMoveCommands({
+  units,
+  movedUnitKey,
+  nextDate,
+  kind,
+}: {
+  units: RemappableUnit[];
+  movedUnitKey: string;
+  nextDate: string;
+  kind?: "milestone_sequence" | "cadence" | "deadline_total";
+}): Array<{ unitKey: string; scheduledDate: string }> {
+  const remapped = remapGoalDatesForDraftMove({
+    units,
+    movedUnitKey,
+    nextDate,
+    kind,
+  });
+  return Object.entries(remapped)
+    .map(([unitKey, scheduledDate]) => ({ unitKey, scheduledDate }))
+    .sort((left, right) => left.unitKey.localeCompare(right.unitKey));
+}
