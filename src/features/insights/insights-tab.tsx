@@ -654,7 +654,7 @@ export function InsightsTab() {
         <CardHeader>
           <div className="flex items-center gap-2">
             <Layers3 className="size-4 text-primary" />
-            <CardTitle>Aggregate consistency</CardTitle>
+            <CardTitle>Progress tracking</CardTitle>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">

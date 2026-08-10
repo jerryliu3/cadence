@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   buildGoalMonthOptions,
   filterGoalsByEndMonth,
-  getMonthEndDate,
   partitionGoalsByVisibleStart,
   resolveEffectiveEndMonth,
   sortGoalsByDate,
@@ -46,16 +45,11 @@ const goals = [
 ];
 
 describe("goal list view helpers", () => {
-  it("uses the selected month's final calendar day as the cutoff", () => {
-    expect(getMonthEndDate("2024-02")).toBe("2024-02-29");
-    expect(getMonthEndDate("2026-02")).toBe("2026-02-28");
-  });
-
   it("keeps every goal for a blank cutoff", () => {
     expect(filterGoalsByEndMonth(goals, null)).toEqual(goals);
   });
 
-  it("includes goals ending on the month end and excludes later or undated goals", () => {
+  it("keeps only goals ending inside the selected month", () => {
     const cutoffGoals = [
       buildGoal("before", "2026-01-01", "2026-07-01"),
       buildGoal("on-cutoff", "2026-01-01", "2026-07-31"),
@@ -63,10 +57,9 @@ describe("goal list view helpers", () => {
       buildGoal("ongoing", "2026-01-01", null),
     ];
 
-    expect(filterGoalsByEndMonth(cutoffGoals, "2026-07").map((goal) => goal.id)).toEqual([
-      "before",
-      "on-cutoff",
-    ]);
+    expect(filterGoalsByEndMonth(cutoffGoals, "2026-07").map((goal) => goal.id)).toEqual(
+      ["before", "on-cutoff"]
+    );
   });
 
   it.each<{ sort: GoalDateSort; expected: string[] }>([
