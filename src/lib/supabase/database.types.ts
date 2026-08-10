@@ -706,6 +706,14 @@ export type Database = {
           upserted_count: number
         }[]
       }
+      set_planner_schedule_batch: {
+        Args: { p_batches: Json; p_expected_digest: string }
+        Returns: {
+          schedule_digest: string
+          scope_count: number
+          upserted_count: number
+        }[]
+      }
       unmark_goal_complete: {
         Args: { p_date?: string; p_goal_id: string }
         Returns: undefined
