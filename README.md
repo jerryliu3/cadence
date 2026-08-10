@@ -46,7 +46,7 @@ Set:
 
 - `NEXT_PUBLIC_SUPABASE_URL` (usually `http://127.0.0.1:54321`)
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY` (use the **Publishable** key shown by `supabase status`)
-- `NEXT_PUBLIC_APP_URL` (optional; used for auth redirect links such as password reset)
+- `NEXT_PUBLIC_APP_URL` (optional; used for auth redirect links such as signup confirmation and password reset)
 - `GEMINI_API_KEY` (optional, only needed for AI natural-language bulk parsing)
 
 Push notifications also require:
@@ -131,9 +131,12 @@ helpers, and AI quota counters remain in the unexposed `private` schema.
 3. Set `NEXT_PUBLIC_APP_URL` to your deployed app URL (for example, your Vercel domain).
 4. In Supabase Dashboard -> Authentication -> URL Configuration:
    - Set **Site URL** to your deployed app URL.
+   - Add `${NEXT_PUBLIC_APP_URL}/login` to **Redirect URLs**.
    - Add `${NEXT_PUBLIC_APP_URL}/reset-password` to **Redirect URLs**.
-5. Apply migrations through your normal deployment workflow (`supabase db push` / CI).
-6. Optionally adapt seed loading if you want demo data hosted.
+5. Optional: in Supabase Dashboard -> Authentication -> Providers -> Email, disable **Confirm email**
+   if you want immediate app access after signup. (Tradeoff: mailbox ownership is not enforced at signup.)
+6. Apply migrations through your normal deployment workflow (`supabase db push` / CI).
+7. Optionally adapt seed loading if you want demo data hosted.
 
 ## Scheduled Push Notifications
 
