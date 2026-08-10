@@ -1,3 +1,5 @@
+import { isAbortError } from "@/lib/async/abort";
+
 const DEFAULT_API_TIMEOUT_MS = 15_000;
 
 type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
@@ -76,10 +78,6 @@ export class ApiClientTransportError extends Error {
     this.reason = reason;
     (this as Error & { cause?: unknown }).cause = cause;
   }
-}
-
-function isAbortError(error: unknown) {
-  return error instanceof Error && error.name === "AbortError";
 }
 
 function isApiErrorPayload(payload: unknown): payload is ApiErrorPayload {
@@ -320,7 +318,7 @@ export function getApiErrorMessage(error: unknown, fallback: string) {
   if (isApiClientTransportError(error)) {
     return fallback;
   }
-  if (error instanceof Error && error.name === "AbortError") {
+  if (isAbortError(error)) {
     return fallback;
   }
   if (error instanceof Error && error.message.trim().length > 0) {
