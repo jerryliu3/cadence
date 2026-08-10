@@ -169,6 +169,10 @@ function buildArgs(overrides: Partial<UsePlannerCoachArgs> = {}): UsePlannerCoac
     effectiveDraftPolicy: null,
     hasDraftSession: false,
     refreshDraftPreview: vi.fn().mockResolvedValue(null),
+    applyPolicyReplanMoves: vi
+      .fn()
+      .mockResolvedValue({ moveCount: 0, movedEntryKeys: [] }),
+    clearDraftMoveCommands: vi.fn(),
     applyDraftPolicy: vi.fn(),
     getNonPublishablePreviewMessage: vi.fn().mockReturnValue("blocked"),
     ...overrides,
@@ -253,7 +257,6 @@ describe("usePlannerCoach", () => {
       appliedPatchCount: 0,
       ignoredPatchCount: 0,
       noOpPatchCount: 1,
-      outOfScopePatchCount: 0,
       unsupportedPatchCount: 0,
     });
     requestPlannerCoachReplyMock.mockResolvedValue({
@@ -340,7 +343,6 @@ describe("usePlannerCoach", () => {
       appliedPatchCount: 0,
       ignoredPatchCount: 0,
       noOpPatchCount: 1,
-      outOfScopePatchCount: 0,
       unsupportedPatchCount: 0,
     });
     requestPlannerCoachReplyMock.mockResolvedValue({
@@ -403,7 +405,6 @@ describe("usePlannerCoach", () => {
       appliedPatchCount: 1,
       ignoredPatchCount: 0,
       noOpPatchCount: 0,
-      outOfScopePatchCount: 0,
       unsupportedPatchCount: 0,
     });
     requestPlannerCoachReplyMock.mockResolvedValue({
@@ -466,7 +467,6 @@ describe("usePlannerCoach", () => {
       appliedPatchCount: 0,
       ignoredPatchCount: 0,
       noOpPatchCount: 1,
-      outOfScopePatchCount: 0,
       unsupportedPatchCount: 0,
     });
     requestPlannerCoachReplyMock
@@ -561,7 +561,6 @@ describe("usePlannerCoach", () => {
       appliedPatchCount: 1,
       ignoredPatchCount: 0,
       noOpPatchCount: 0,
-      outOfScopePatchCount: 0,
       unsupportedPatchCount: 0,
     });
     const refreshDraftPreviewMock = vi.fn().mockResolvedValue({
@@ -613,7 +612,7 @@ describe("usePlannerCoach", () => {
     expect(refreshDraftPreviewMock).toHaveBeenCalledWith(nextPolicy);
     expect(applyDraftPolicyMock).toHaveBeenCalledWith("2026-08", nextPolicy);
     expect(toastSuccessMock).toHaveBeenCalledWith(
-      expect.stringContaining("session change")
+      expect.stringContaining("1 session moved")
     );
     expect(toastSuccessMock).toHaveBeenCalledWith(
       expect.stringContaining("Saved as your default planner policy")
@@ -699,7 +698,6 @@ describe("usePlannerCoach", () => {
           appliedPatchCount: 1,
           ignoredPatchCount: 0,
           noOpPatchCount: 0,
-          outOfScopePatchCount: 0,
           unsupportedPatchCount: 0,
         };
       }
@@ -794,7 +792,6 @@ describe("usePlannerCoach", () => {
           appliedPatchCount: 1,
           ignoredPatchCount: 0,
           noOpPatchCount: 0,
-          outOfScopePatchCount: 0,
           unsupportedPatchCount: 0,
         };
       }
@@ -893,7 +890,6 @@ describe("usePlannerCoach", () => {
           appliedPatchCount: 1,
           ignoredPatchCount: 0,
           noOpPatchCount: 0,
-          outOfScopePatchCount: 0,
           unsupportedPatchCount: 0,
         };
       }
@@ -997,7 +993,6 @@ describe("usePlannerCoach", () => {
       appliedPatchCount: 1,
       ignoredPatchCount: 0,
       noOpPatchCount: 0,
-      outOfScopePatchCount: 0,
       unsupportedPatchCount: 0,
     });
     persistPlannerDefaultPolicyMock.mockRejectedValue(
@@ -1072,7 +1067,6 @@ describe("usePlannerCoach", () => {
       appliedPatchCount: 1,
       ignoredPatchCount: 0,
       noOpPatchCount: 0,
-      outOfScopePatchCount: 0,
       unsupportedPatchCount: 0,
     });
     const refreshDraftPreviewMock = vi
@@ -1163,7 +1157,6 @@ describe("usePlannerCoach", () => {
           appliedPatchCount: 1,
           ignoredPatchCount: 0,
           noOpPatchCount: 0,
-          outOfScopePatchCount: 0,
           unsupportedPatchCount: 0,
         };
       }
@@ -1316,5 +1309,146 @@ describe("usePlannerCoach", () => {
         expect.objectContaining({ role: "assistant", content: "Restored assistant reply" }),
       ])
     );
+  });
+});
+
+describe("usePlannerCoach replan pinning", () => {
+  beforeEach(() => {
+    listPlannerCoachConversationsMock.mockReset().mockResolvedValue([]);
+    restorePlannerCoachConversationMock.mockReset();
+    savePlannerCoachConversationMock.mockReset();
+    persistPlannerDefaultPolicyMock.mockReset().mockResolvedValue(null);
+    loadCoachSessionMock.mockReset().mockReturnValue([]);
+    saveCoachSessionMock.mockReset();
+    applyCoachPolicyPatchesMock.mockReset();
+    requestPlannerCoachReplyMock.mockReset();
+    toastSuccessMock.mockReset();
+    toastErrorMock.mockReset();
+  });
+
+  function arrangeProposal() {
+    const context = buildContext();
+    const nextPolicy = buildPolicy({ restWeekdays: [0, 6] });
+    applyCoachPolicyPatchesMock.mockReturnValue({
+      policy: nextPolicy,
+      appliedPatchCount: 1,
+      ignoredPatchCount: 0,
+      noOpPatchCount: 0,
+      unsupportedPatchCount: 0,
+    });
+    requestPlannerCoachReplyMock.mockResolvedValue({
+      schemaVersion: "1",
+      phase: "ready",
+      reply: "Keeping weekends clear.",
+      proposal: {
+        policyPatches: [{ kind: "set_rest_weekdays", restWeekdays: [0, 6] }],
+        unresolvedQuestions: [],
+      },
+      recommendations: [],
+      warnings: [],
+    });
+    return { context, nextPolicy };
+  }
+
+  it("pins the replan moves before refreshing the draft preview", async () => {
+    const { context, nextPolicy } = arrangeProposal();
+    const callOrder: string[] = [];
+    const applyPolicyReplanMoves = vi.fn(async () => {
+      callOrder.push("replan");
+      return { moveCount: 2, movedEntryKeys: ["goal-a:total:1"] };
+    });
+    const refreshDraftPreview = vi.fn(async () => {
+      callOrder.push("refresh");
+      return context.preview!;
+    });
+
+    const { result } = renderHook(() =>
+      usePlannerCoach(
+        buildArgs({
+          activeTab: "calendar",
+          context,
+          entriesByDate: new Map([["2026-08-01", [buildEntry()]]]),
+          effectivePreview: context.preview,
+          applyPolicyReplanMoves,
+          refreshDraftPreview,
+        })
+      )
+    );
+
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    await act(async () => {
+      result.current.actions.setCoachInput("Keep my weekends free");
+    });
+    await act(async () => {
+      await result.current.actions.sendCoachMessage();
+    });
+
+    expect(applyPolicyReplanMoves).toHaveBeenCalledWith(nextPolicy);
+    // Pins must exist before the stable solve, or the refresh reverts them.
+    expect(callOrder).toEqual(["replan", "refresh"]);
+
+    const proposalIndex = result.current.state.coachMessages.findIndex(
+      (message) => message.role === "assistant" && Boolean(message.proposal)
+    );
+    const proposal = result.current.state.coachMessages[proposalIndex]?.proposal;
+    expect(proposal?.applyStatus).toBe("auto_applied");
+    expect(proposal?.appliedMoveEntryKeys).toEqual(["goal-a:total:1"]);
+  });
+
+  it("clears the pins it created when the proposal is undone", async () => {
+    const { context, nextPolicy } = arrangeProposal();
+    const clearDraftMoveCommands = vi.fn();
+    const refreshDraftPreview = vi.fn().mockResolvedValue(context.preview!);
+
+    const { result } = renderHook(() =>
+      usePlannerCoach(
+        buildArgs({
+          activeTab: "calendar",
+          context,
+          entriesByDate: new Map([["2026-08-01", [buildEntry()]]]),
+          effectivePreview: context.preview,
+          effectiveDraftPolicy: nextPolicy,
+          applyPolicyReplanMoves: vi
+            .fn()
+            .mockResolvedValue({ moveCount: 1, movedEntryKeys: ["goal-a:total:1"] }),
+          refreshDraftPreview,
+          clearDraftMoveCommands,
+        })
+      )
+    );
+
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    await act(async () => {
+      result.current.actions.setCoachInput("Keep my weekends free");
+    });
+    await act(async () => {
+      await result.current.actions.sendCoachMessage();
+    });
+    await waitFor(() => {
+      expect(
+        result.current.state.coachMessages.some((message) => message.proposal)
+      ).toBe(true);
+    });
+    const proposalIndex = result.current.state.coachMessages.findIndex(
+      (message) => message.role === "assistant" && Boolean(message.proposal)
+    );
+
+    await act(async () => {
+      await result.current.actions.undoCoachProposal(proposalIndex);
+    });
+
+    // Reverting the policy alone would leave the coach's moves pinned, so the
+    // schedule would keep the change the user just undid.
+    expect(clearDraftMoveCommands).toHaveBeenCalledWith(["goal-a:total:1"]);
+    expect(
+      result.current.state.coachMessages[proposalIndex]?.proposal?.applyStatus
+    ).toBe("undone");
   });
 });
