@@ -31,7 +31,6 @@ import {
 import { buildActiveGoalIndexes } from "@/features/planner/calendar-entries";
 import {
   buildWeekdayLabels,
-  getDayStatus,
   getEntryDisplayTitle,
   getEntrySubtitle,
   getMonthInTimezone,
@@ -46,6 +45,10 @@ import {
 import { PlannerCalendarViewPanel } from "@/features/planner/planner-calendar-view-panel";
 import { CalendarMonthDayCell } from "@/features/planner/calendar-month-day-cell";
 import { PlannerDayDetailDialogs } from "@/features/planner/planner-day-detail-dialogs";
+import {
+  selectPlannerCalendarDayCellRenderModel,
+  type PlannerCalendarDayCellRenderModel,
+} from "@/features/planner/calendar-view-model-selectors";
 import { PlannerCoachPanel } from "@/features/planner/coach/planner-coach-panel";
 import { usePlannerCoach } from "@/features/planner/coach/use-planner-coach";
 import { useCompletionMutation } from "@/features/planner/use-completion-mutation";
@@ -795,49 +798,46 @@ export function CalendarSurface({
     }
     discardDraftChanges();
   };
-  const renderCalendarDayCell = (cell: { date: string; inMonth: boolean }) => {
-    const dayProjection = getCalendarDayProjection(cell.date);
-    const entriesForDay = dayProjection.orderedEntries;
-    const completionFactMarkersForDay = dayProjection.completionFactMarkers;
-    const status =
-      entriesForDay.length > 0
-        ? getDayStatus(entriesForDay, "No items")
-        : completionFactMarkersForDay.length > 0
-          ? "Completed elsewhere"
-          : "No items";
-    const isToday = cell.date === calendarToday;
-    const isPastInMonth = cell.inMonth && cell.date < calendarToday;
-    const ariaLabel = `${format(
-      parse(cell.date, "yyyy-MM-dd", new Date()),
-      "EEEE, MMMM d, yyyy"
-    )}. ${entriesForDay.length} planned item${
-      entriesForDay.length === 1 ? "" : "s"
-    }. ${completionFactMarkersForDay.length} completion fact${
-      completionFactMarkersForDay.length === 1 ? "" : "s"
-    }. ${status}.`;
-
+  const maxVisibleItemsPerDayCell =
+    viewMode === "week"
+      ? Number.MAX_SAFE_INTEGER
+      : expandedMonthRows
+        ? Number.MAX_SAFE_INTEGER
+        : 2;
+  const calendarGridDayCellModels = useMemo(
+    () =>
+      (viewMode === "week" ? focusedWeekCells : cells).map((cell) =>
+        selectPlannerCalendarDayCellRenderModel({
+          cell,
+          dayProjection: getCalendarDayProjection(cell.date),
+          calendarToday,
+        })
+      ),
+    [
+      calendarToday,
+      cells,
+      focusedWeekCells,
+      getCalendarDayProjection,
+      viewMode,
+    ]
+  );
+  const renderCalendarDayCell = (cellModel: PlannerCalendarDayCellRenderModel) => {
     return (
       <CalendarMonthDayCell
-        key={`${viewMode}-${cell.date}`}
-        day={cell.date}
-        inMonth={cell.inMonth}
-        isToday={isToday}
-        isPastInMonth={isPastInMonth}
-        ariaLabel={ariaLabel}
-        entriesForDay={entriesForDay}
-        completionFactMarkersForDay={completionFactMarkersForDay}
-        maxVisibleItems={
-          viewMode === "week"
-            ? Number.MAX_SAFE_INTEGER
-            : expandedMonthRows
-              ? Number.MAX_SAFE_INTEGER
-              : 2
-        }
+        key={`${viewMode}-${cellModel.day}`}
+        day={cellModel.day}
+        inMonth={cellModel.inMonth}
+        isToday={cellModel.isToday}
+        isPastInMonth={cellModel.isPastInMonth}
+        ariaLabel={cellModel.ariaLabel}
+        entriesForDay={cellModel.entriesForDay}
+        completionFactMarkersForDay={cellModel.completionFactMarkersForDay}
+        maxVisibleItems={maxVisibleItemsPerDayCell}
         isAnyEntryDragging={Boolean(draggingEntryKey)}
         getEntryDisplayTitle={getEntryDisplayTitleWithTime}
         isEntryCredited={isEntryCredited}
         isEntryImmovableForDraft={(entry) =>
-          !canMutateEntryOnDay(entry, cell.date) || isEntryImmovableForDraft(entry)
+          !canMutateEntryOnDay(entry, cellModel.day) || isEntryImmovableForDraft(entry)
         }
         onEntryClick={(day, entry) => {
           if (!canMutateEntryOnDay(entry, day)) {
@@ -849,16 +849,16 @@ export function CalendarSurface({
           if (draggingEntryKey) {
             return;
           }
-          handleDayCellClick(cell.date, target);
+          handleDayCellClick(cellModel.day, target);
         }}
         onCellMouseEnter={(target) => {
-          handleDayCellMouseEnter(cell.date, target);
+          handleDayCellMouseEnter(cellModel.day, target);
         }}
         onCellMouseLeave={() => {
-          handleDayCellMouseLeave(cell.date);
+          handleDayCellMouseLeave(cellModel.day);
         }}
         onCellPointerDown={(pointerType, target) => {
-          handleDayCellPointerDown(pointerType, cell.date, target);
+          handleDayCellPointerDown(pointerType, cellModel.day, target);
         }}
         onCellPointerUp={handleDayCellPointerEnd}
         onCellPointerCancel={handleDayCellPointerEnd}
@@ -1123,7 +1123,7 @@ export function CalendarSurface({
             suppressHoverForDrag={suppressHoverForDrag}
             releaseHoverSuppression={releaseHoverSuppression}
             weekdayLabels={weekdayLabels}
-            calendarGridCells={viewMode === "week" ? focusedWeekCells : cells}
+            calendarGridDayCellModels={calendarGridDayCellModels}
             renderCalendarDayCell={renderCalendarDayCell}
             draftSaveBlockedMessage={draftSaveBlockedMessage}
             dayPreview={dayPreview}
