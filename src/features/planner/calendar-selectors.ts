@@ -292,7 +292,6 @@ export function selectPlannerCalendarSaveStateModel({
     draftSaveBlockedMessage: blockedSaveScope
       ? `${blockedSaveScope.scopeMonth}: ${blockedSaveScope.message}`
       : null,
-    hasLockedPlanItems,
     canResetPlan: Boolean(
       context?.capabilities.calendarEnabled &&
         !hasDraftSession &&

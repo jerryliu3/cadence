@@ -306,6 +306,42 @@ describe("calendar selectors", () => {
     expect(model.draftSaveBlockedMessage).toBeNull();
     expect(model.canShowSaveAction).toBe(true);
   });
+
+  it("reports a future scope's own issue while the viewed month is elapsed", () => {
+    // Regression guard. The elapsed-month rule used to be evaluated twice: once
+    // against the scope being examined, then again against `context.scopeMonth`
+    // inside the message helper. Viewing an elapsed month with a draft on a
+    // future month therefore reported "elapsed month" for the *future* month,
+    // which the user cannot act on. The rule now tests only the examined scope.
+    const siblingPreview = buildPreview({
+      solver: {
+        placementStatus: "complete",
+        searchStatus: "all_units_placed",
+        capacityStatus: "unverified",
+        issueCodes: ["capacity_shortfall"],
+        invalidGoalIds: [],
+        publishable: false,
+        confirmationRequired: false,
+      },
+    });
+
+    const model = selectPlannerCalendarSaveStateModel({
+      // Viewing July; today is in August, so July is elapsed.
+      context: buildContext({ scopeMonth: "2026-07", asOfDate: "2026-08-10" }),
+      effectivePreview: null,
+      hasDraftSession: true,
+      saveLoading: false,
+      // Only September is dirty, so the loop never examines elapsed July.
+      dirtyScopeMonths: ["2026-09"],
+      draftPreviewByScope: { "2026-09": siblingPreview },
+      visibleMonthContexts: {},
+    });
+
+    expect(model.draftSaveBlocked).toBe(true);
+    expect(model.draftSaveBlockedMessage).toBe(
+      "2026-09: Resolve planner issues before saving: capacity_shortfall."
+    );
+  });
 });
 
 
