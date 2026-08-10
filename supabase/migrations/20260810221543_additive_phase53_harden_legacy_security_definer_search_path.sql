@@ -175,6 +175,17 @@ as $$
   );
 $$;
 
+revoke execute on function public.can_view_goal(uuid, uuid) from public;
+revoke execute on function public.can_view_goal(uuid, uuid) from anon;
+revoke execute on function public.can_complete_goal(uuid, uuid) from public;
+revoke execute on function public.can_complete_goal(uuid, uuid) from anon;
+revoke execute on function public.mark_goal_complete(uuid, date) from public;
+revoke execute on function public.mark_goal_complete(uuid, date) from anon;
+revoke execute on function public.unmark_goal_complete(uuid, date) from public;
+revoke execute on function public.unmark_goal_complete(uuid, date) from anon;
+revoke execute on function public.can_administer_goal(uuid, uuid) from public;
+revoke execute on function public.can_administer_goal(uuid, uuid) from anon;
+
 grant execute on function public.can_view_goal(uuid, uuid) to authenticated;
 grant execute on function public.can_complete_goal(uuid, uuid) to authenticated;
 grant execute on function public.mark_goal_complete(uuid, date) to authenticated;
