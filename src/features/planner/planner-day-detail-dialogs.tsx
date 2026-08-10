@@ -14,9 +14,7 @@ import { Input } from "@/components/ui/input";
 import {
   completionDisabledReasonCopy,
   getEntryDraftDiffSummary,
-  getEntryDraftPillClasses,
   getEntrySubtitle,
-  isEntryCredited,
 } from "@/features/planner/calendar-format";
 import type {
   CompletionControlDisabledReason,
@@ -25,7 +23,10 @@ import type {
   PlannerWorkUnit,
 } from "@/features/planner/calendar-surface.types";
 import type { PlannerEntryDateFactDispatch } from "@/features/planner/calendar-completion-selectors";
-import { getGoalVisual } from "@/features/planner/goal-visuals";
+import {
+  buildPlannerEntryRowState,
+  PlannerEntryRow,
+} from "@/features/planner/planner-entry-row";
 
 interface PlannerDayDetailDialogsProps {
   dayDetailDay: string | null;
@@ -117,19 +118,9 @@ export function PlannerDayDetailDialogs({
             ) : (
               <ul className="space-y-2">
                 {selectedDayEntries.map((entry) => {
-                  const visual = getGoalVisual({
-                    goalId: entry.originalGoalId,
-                    color: entry.activeGoal?.color ?? null,
-                  });
-                  const Icon = visual.Icon;
                   const displayTitle = getEntryDisplayTitleWithTime(entry);
                   const subtitle = getEntrySubtitle(entry);
-                  const credited = isEntryCredited(entry);
-                  const draftDiffSummary = getEntryDraftDiffSummary(entry);
-                  const pillToneClasses = getEntryDraftPillClasses({
-                    draftDiffKind: entry.draftDiffKind,
-                    credited,
-                  });
+                  const rowState = buildPlannerEntryRowState(entry);
                   const completionDispatch = getDateFactDispatchForEntry(entry);
                   const completionDisabledReason = completionControlDisabledReasonForEntry(
                     entry,
@@ -138,7 +129,7 @@ export function PlannerDayDetailDialogs({
                   return (
                     <li
                       key={entry.key}
-                      className={`rounded-xl border p-2 ${pillToneClasses} ${
+                      className={`rounded-xl border p-2 ${rowState.pillToneClasses} ${
                         entry.draftGhost ? "opacity-75" : ""
                       }`}
                     >
@@ -152,28 +143,18 @@ export function PlannerDayDetailDialogs({
                             }
                           }}
                         >
-                          <div className="flex items-center gap-2">
-                            <span
-                              className="inline-flex size-5 items-center justify-center rounded-full"
-                              style={{ backgroundColor: visual.color }}
-                            >
-                              <Icon className="size-3 text-white" />
-                            </span>
-                            <p className="font-medium">{displayTitle}</p>
-                          </div>
-                          {subtitle ? (
-                            <p className="mt-1 text-xs text-muted-foreground">{subtitle}</p>
-                          ) : null}
-                          {draftDiffSummary ? (
-                            <p className="mt-1 text-xs text-muted-foreground">
-                              {draftDiffSummary}
-                            </p>
-                          ) : null}
-                          <p className="mt-1 text-xs text-primary">
-                            {entry.draftGhost
-                              ? "Original date marker"
-                              : "View event details"}
-                          </p>
+                          <PlannerEntryRow
+                            entry={entry}
+                            rowState={rowState}
+                            displayTitle={displayTitle}
+                            subtitle={subtitle}
+                            variant="detail"
+                            detailHintText={
+                              entry.draftGhost
+                                ? "Original date marker"
+                                : "View event details"
+                            }
+                          />
                         </button>
                         {!entry.draftGhost ? (
                           <button
