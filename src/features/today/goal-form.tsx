@@ -39,6 +39,10 @@ import {
   TargetCountField,
 } from "@/features/goals/goal-field-kit";
 import { MilestoneNameFields } from "@/features/goals/milestone-name-fields";
+import {
+  GoalDateRangeFields,
+  GoalDefaultTimeField,
+} from "@/features/goals/goal-schedule-fields";
 import { toLocalDateString } from "@/lib/dates/day";
 import {
   type CategorySelection,
@@ -687,97 +691,67 @@ export function GoalForm({ goalId }: GoalFormProps) {
             </Collapsible>
           ) : null}
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <div className="flex items-center justify-between gap-2">
-                <Label htmlFor="start-date">Start date</Label>
-                <div className="flex items-center gap-2 text-xs">
-                  <button
-                    type="button"
-                    className="text-primary hover:underline"
-                    onClick={applyThisMonthStartDate}
-                  >
-                    this month
-                  </button>
-                  <button
-                    type="button"
-                    className="text-primary hover:underline"
-                    onClick={applyThisYearStartDate}
-                  >
-                    this year
-                  </button>
-                </div>
-              </div>
-              <Input
-                id="start-date"
-                type="date"
-                value={state.start_date}
-                onChange={(event) => setState((prev) => ({ ...prev, start_date: event.target.value }))}
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <div className="flex items-center justify-between gap-2">
-                <Label htmlFor="end-date">
-                  {requiresEndDate ? "End date" : "End date (optional)"}
-                </Label>
-                <div className="flex items-center gap-2 text-xs">
-                  <button
-                    type="button"
-                    className="text-primary hover:underline"
-                    onClick={applyThisMonthEndDate}
-                  >
-                    this month
-                  </button>
-                  <button
-                    type="button"
-                    className="text-primary hover:underline"
-                    onClick={applyThisYearEndDate}
-                  >
-                    this year
-                  </button>
-                </div>
-              </div>
-              <Input
-                id="end-date"
-                type="date"
-                value={state.end_date}
-                onChange={(event) => setState((prev) => ({ ...prev, end_date: event.target.value }))}
-                  required={requiresEndDate}
-              />
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <div className="flex items-center justify-between gap-2">
-              <Label htmlFor="default-local-time">Default time of day (optional)</Label>
-              {state.default_local_time ? (
+          <GoalDateRangeFields
+            startDate={state.start_date}
+            endDate={state.end_date}
+            onStartDateChange={(value) =>
+              setState((previous) => ({ ...previous, start_date: value }))
+            }
+            onEndDateChange={(value) =>
+              setState((previous) => ({ ...previous, end_date: value }))
+            }
+            requiresEndDate={requiresEndDate}
+            startDateId="start-date"
+            endDateId="end-date"
+            startDateActions={
+              <div className="flex items-center gap-2 text-xs">
                 <button
                   type="button"
-                  className="text-xs text-primary hover:underline"
-                  onClick={() =>
-                    setState((previous) => ({ ...previous, default_local_time: "" }))
-                  }
+                  className="text-primary hover:underline"
+                  onClick={applyThisMonthStartDate}
                 >
-                  clear
+                  this month
                 </button>
-              ) : null}
-            </div>
-            <Input
-              id="default-local-time"
-              type="time"
-              value={state.default_local_time}
-              onChange={(event) =>
-                setState((previous) => ({
-                  ...previous,
-                  default_local_time: event.target.value,
-                }))
-              }
-            />
-            <p className="text-xs text-muted-foreground">
-              Used as the default planner time when an item-level override is not set.
-            </p>
-          </div>
+                <button
+                  type="button"
+                  className="text-primary hover:underline"
+                  onClick={applyThisYearStartDate}
+                >
+                  this year
+                </button>
+              </div>
+            }
+            endDateActions={
+              <div className="flex items-center gap-2 text-xs">
+                <button
+                  type="button"
+                  className="text-primary hover:underline"
+                  onClick={applyThisMonthEndDate}
+                >
+                  this month
+                </button>
+                <button
+                  type="button"
+                  className="text-primary hover:underline"
+                  onClick={applyThisYearEndDate}
+                >
+                  this year
+                </button>
+              </div>
+            }
+          />
+
+          <GoalDefaultTimeField
+            id="default-local-time"
+            value={state.default_local_time}
+            onValueChange={(value) =>
+              setState((previous) => ({
+                ...previous,
+                default_local_time: value,
+              }))
+            }
+            onClear={() => setState((previous) => ({ ...previous, default_local_time: "" }))}
+          />
 
           {validationError ? (
             <p className="text-sm text-destructive">{validationError}</p>
