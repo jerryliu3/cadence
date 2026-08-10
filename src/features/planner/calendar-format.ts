@@ -1,4 +1,4 @@
-import { format, parse } from "date-fns";
+import { format, isValid, parse } from "date-fns";
 import type { PlannerDraftVisualKind } from "@/lib/planner/diff";
 import { getDateInTimezone } from "@/lib/dates/timezone";
 import { normalizeWeekStartsOn } from "@/lib/dates/week-start";
@@ -30,6 +30,14 @@ export const restWeekdayOptions: Array<{ value: number; label: string }> = [
 
 export function parseMonth(month: string) {
   return parse(`${month}-01`, "yyyy-MM-dd", new Date());
+}
+
+export function isValidIsoDate(value: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return false;
+  }
+  const parsed = parse(value, "yyyy-MM-dd", new Date());
+  return isValid(parsed) && format(parsed, "yyyy-MM-dd") === value;
 }
 
 export function getMonthInTimezone(timezone: string) {
