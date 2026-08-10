@@ -4,8 +4,6 @@ import { addDays, addMonths, format, isValid, parse } from "date-fns";
 import {
   CalendarDays,
   CheckCircle2,
-  ChevronLeft,
-  ChevronRight,
   Circle,
   Loader2,
   Maximize2,
@@ -32,6 +30,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { PeriodStepper } from "@/components/ui/period-stepper";
 import {
   Select,
   SelectContent,
@@ -2436,29 +2435,20 @@ export function CalendarSurface({
                   }`}
                   style={{ width: viewHeadingControlWidth }}
                 >
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon-sm"
-                    disabled={loading}
-                    aria-label={previousWindowAriaLabel}
-                    onClick={() => moveViewWindow(-1)}
-                  >
-                    <ChevronLeft className="size-4" />
-                  </Button>
-                  <h3 className="truncate text-center text-base font-semibold">
-                    {viewHeading}
-                  </h3>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon-sm"
-                    disabled={loading}
-                    aria-label={nextWindowAriaLabel}
-                    onClick={() => moveViewWindow(1)}
-                  >
-                    <ChevronRight className="size-4" />
-                  </Button>
+                  <PeriodStepper
+                    className="contents"
+                    onPrevious={() => moveViewWindow(-1)}
+                    onNext={() => moveViewWindow(1)}
+                    previousDisabled={loading}
+                    nextDisabled={loading}
+                    previousAriaLabel={previousWindowAriaLabel}
+                    nextAriaLabel={nextWindowAriaLabel}
+                    center={
+                      <h3 className="truncate text-center text-base font-semibold">
+                        {viewHeading}
+                      </h3>
+                    }
+                  />
                   <Button
                     type="button"
                     variant="outline"
