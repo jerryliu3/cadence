@@ -352,4 +352,38 @@ describe("planner save route", () => {
       correlationId: expect.any(String),
     });
   });
+
+  it("maps cross-scope duplicate unit validation to typed 400 responses", async () => {
+    mocks.runPlannerKernel.mockReturnValue({
+      generationInputHash:
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      solver: {
+        publishable: true,
+        confirmationRequired: false,
+        issueCodes: [],
+      },
+      workUnits: [],
+      diff: [],
+    });
+    mocks.routeRpc.mockResolvedValueOnce({
+      data: null,
+      error: {
+        code: "22023",
+        message: "duplicate_goal_unit_across_scopes",
+      },
+    });
+
+    const response = await POST(
+      new Request("http://localhost/api/planner/save", {
+        method: "POST",
+      })
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "validation_failed",
+      message: "Planner publish payload failed validation.",
+      correlationId: expect.any(String),
+    });
+  });
 });

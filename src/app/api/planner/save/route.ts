@@ -516,6 +516,11 @@ export async function handlePlannerSave(request: Request) {
           "22023",
           "scheduled_date_outside_scope_month"
         ) ||
+        postgresErrorMatches(
+          publishResponse.error,
+          "22023",
+          "duplicate_goal_unit_across_scopes"
+        ) ||
         postgresErrorMatches(publishResponse.error, "22023", "duplicate_goal_unit") ||
         postgresErrorMatches(publishResponse.error, "22023", "duplicate_goal_date") ||
         postgresErrorMatches(publishResponse.error, "22023", "unknown_goal")
