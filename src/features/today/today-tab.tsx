@@ -5,11 +5,7 @@ import {
   Archive,
   CalendarClock,
   CheckCircle2,
-  ListPlus,
-  Plus,
-  Sparkles,
 } from "lucide-react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   useCallback,
@@ -28,6 +24,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { GoalListControls } from "@/features/goals/goal-list-controls";
 import { GoalsSurfaceLoadingCard } from "@/features/goals/goals-surface-loading-card";
 import { CollapsibleGoalSection } from "@/features/today/collapsible-goal-section";
+import { TodayHeaderCard, type RecurrenceFilter } from "@/features/today/today-header-card";
 import { GoalCard } from "@/features/today/goal-card";
 import { GoalLoopScroller } from "@/features/today/goal-loop-scroller";
 import { isAbortError, withAbortSignal } from "@/lib/async/abort";
@@ -97,7 +94,6 @@ const emptyData: TodayData = {
 };
 
 const allCategoriesFilterValue = "__all_categories__";
-type RecurrenceFilter = "all" | "daily" | "weekly" | "monthly" | "fixed";
 type RecurrenceGroup = "daily" | "weekly" | "monthly" | "fixed";
 const VISIBLE_GOALS_PER_GROUP = 5;
 const TODAY_REQUEST_TIMEOUT_MS = 15_000;
@@ -714,104 +710,28 @@ export function TodayTab({
         )}
 
         <TabsContent value="today" className="space-y-5">
-          <Card className="shadow-sm">
-        <CardHeader className="pb-3">
-          <div className="min-w-0">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <Sparkles className="size-4 text-primary" />
-                  <CardTitle className="text-xl">Today</CardTitle>
-                </div>
-                <CardDescription>{format(viewDateObj, "EEEE, MMMM d")}</CardDescription>
-              </div>
-              <div className="flex shrink-0 flex-col gap-2 sm:mr-2 sm:flex-row">
-                <Button variant="outline" asChild>
-                  <Link href="/goals/bulk">
-                    <ListPlus className="size-4" />
-                    New bulk goal
-                  </Link>
-                </Button>
-                <Button asChild>
-                  <Link href="/goals/new">
-                    <Plus className="size-4" />
-                    New goal
-                  </Link>
-                </Button>
-              </div>
-            </div>
-            <div className="mt-2 flex items-center gap-2 overflow-x-auto pb-1">
-              <div className="flex shrink-0 items-center gap-2">
-                <PeriodStepper
-                  onPrevious={goToPreviousDate}
-                  onNext={goToNextDate}
-                  center={
-                    <Input
-                      type="date"
-                      value={viewDate}
-                      onChange={(event) => setViewDate(event.target.value || todayLocalDate)}
-                      className="h-8 w-[170px]"
-                    />
-                  }
-                  previousAriaLabel="Previous day"
-                  nextAriaLabel="Next day"
-                />
-                {!viewingToday ? (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setViewDate(todayLocalDate)}
-                  >
-                    Today
-                  </Button>
-                ) : null}
-              </div>
-
-              <div className="flex shrink-0 items-center gap-2">
-                <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-                  <SelectTrigger className="h-8 w-[170px] rounded-full bg-background/90 text-xs">
-                    <SelectValue placeholder="Category" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={allCategoriesFilterValue}>All Categories</SelectItem>
-                    {availableCategories.map((category) => (
-                      <SelectItem key={category} value={category}>
-                        {category}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-
-                <Select
-                  value={recurrenceFilter}
-                  onValueChange={(value: RecurrenceFilter) => setRecurrenceFilter(value)}
-                >
-                  <SelectTrigger className="h-8 w-[190px] rounded-full bg-background/90 text-xs">
-                    <SelectValue placeholder="Recurrence" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Recurrences</SelectItem>
-                    <SelectItem value="daily">Daily Recurrences</SelectItem>
-                    <SelectItem value="weekly">Weekly Recurrences</SelectItem>
-                    <SelectItem value="monthly">Monthly Recurrences</SelectItem>
-                    <SelectItem value="fixed">Milestone Goals</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <GoalListControls
-              goals={completableGoals}
-              referenceMonth={checklistFilterStartMonth}
-              endMonth={effectiveTodayEndMonth}
-              onEndMonthChange={setTodayEndMonth}
-              sort={todaySort}
-              onSortChange={setTodaySort}
-              className="mt-2"
-            />
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-3 pt-0">
+          <TodayHeaderCard
+            viewDateObj={viewDateObj}
+            viewDate={viewDate}
+            todayLocalDate={todayLocalDate}
+            viewingToday={viewingToday}
+            onViewDateChange={setViewDate}
+            onGoToPreviousDate={goToPreviousDate}
+            onGoToNextDate={goToNextDate}
+            onResetToToday={() => setViewDate(todayLocalDate)}
+            categoryFilter={categoryFilter}
+            onCategoryFilterChange={setCategoryFilter}
+            recurrenceFilter={recurrenceFilter}
+            onRecurrenceFilterChange={setRecurrenceFilter}
+            availableCategories={availableCategories}
+            allCategoriesFilterValue={allCategoriesFilterValue}
+            goals={completableGoals}
+            referenceMonth={checklistFilterStartMonth}
+            endMonth={effectiveTodayEndMonth}
+            onEndMonthChange={setTodayEndMonth}
+            sort={todaySort}
+            onSortChange={setTodaySort}
+          >
           <Input
             value={todayGoalSearchQuery}
             onChange={(event) => setTodayGoalSearchQuery(event.target.value)}
@@ -878,8 +798,7 @@ export function TodayTab({
               {todayGoalsSorted.map((goal) => renderGoalCard(goal, { key: goal.id }))}
             </div>
           )}
-        </CardContent>
-          </Card>
+          </TodayHeaderCard>
         </TabsContent>
 
         <TabsContent value="not-today" className="space-y-4">
