@@ -56,6 +56,7 @@ import {
   moveItemInArray,
   normalizeWeekStartsOn,
   parseMonth,
+  resolveNonPublishablePreviewMessage,
   restWeekdayOptions,
 } from "@/features/planner/calendar-format";
 import {
@@ -884,31 +885,9 @@ export function CalendarSurface({
     }, DRAFT_MOVE_PREVIEW_REFRESH_DELAY_MS);
   }, []);
 
-  const nonPublishablePreviewMessage = useCallback(
-    (
-      preview: NonNullable<PlannerContextPayload["preview"]>,
-      scopeMonth: string | null = context?.scopeMonth ?? null
-    ) => {
-      if (context && scopeMonth && scopeMonth < context.asOfDate.slice(0, 7)) {
-        return "Publishing an elapsed month is not supported. Publish the current or a future month.";
-      }
-      if (preview.solver.issueCodes.includes("invalid_lock")) {
-        const affectedGoals = preview.solver.invalidGoalIds
-          .slice(0, 3)
-          .map((goalId) => context?.goalTitles?.[goalId] ?? goalId);
-        const affectedLabel =
-          affectedGoals.length > 0
-            ? `Affected goals: ${affectedGoals.join(", ")}. `
-            : "";
-        return `${affectedLabel}Locked sessions currently conflict with this regenerated preview. Unlock affected sessions, regenerate, then save.`;
-      }
-      if (preview.solver.issueCodes.length > 0) {
-        return `Resolve planner issues before saving: ${preview.solver.issueCodes.join(
-          ", "
-        )}.`;
-      }
-      return "This preview is not savable yet. Regenerate and resolve planner issues before saving.";
-    },
+  const getNonPublishablePreviewMessage = useCallback(
+    (preview: NonNullable<PlannerContextPayload["preview"]>) =>
+      resolveNonPublishablePreviewMessage(context, preview),
     [context]
   );
   const runCompletionMutation = useCompletionMutation();
@@ -925,7 +904,7 @@ export function CalendarSurface({
     applyDraftPolicy: (scopeMonth, policy) => {
       setDraftPolicyForScope(scopeMonth, policy);
     },
-    getNonPublishablePreviewMessage: nonPublishablePreviewMessage,
+    getNonPublishablePreviewMessage,
   });
 
   const {
@@ -1132,7 +1111,6 @@ export function CalendarSurface({
       onPlannerMutation,
       onPlannerStateReset: coach.actions?.resetForPlannerStateReset ?? (() => {}),
       onDraftDiscarded: coach.actions?.onDraftDiscarded ?? (() => {}),
-      getNonPublishablePreviewMessage: nonPublishablePreviewMessage,
     });
 
   const canShowSetup = !context?.preferences;
