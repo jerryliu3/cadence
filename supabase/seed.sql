@@ -510,6 +510,21 @@ values
     (date_trunc('month', current_date) + interval '1 month - 1 day')::date,
     false,
     null
+  ),
+  (
+    '10000000-0000-4000-8000-000000000022',
+    '11111111-1111-4111-8111-111111111111',
+    'E2E drag fixture session',
+    'Dedicated movable planner fixture goal for deterministic drag-and-save rails.',
+    'testing',
+    '#22c55e',
+    'recurring',
+    'daily',
+    null,
+    current_date - 1,
+    current_date + 180,
+    false,
+    null
   )
 on conflict (id) do update
 set

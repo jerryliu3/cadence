@@ -2436,7 +2436,10 @@ export function CalendarSurface({
                 <CalendarDays className="size-4 text-primary" />
                 <h2 className="text-lg font-semibold">Calendar</h2>
                 {hasDraftSession ? (
-                  <Badge className="h-7 border-yellow-300 bg-yellow-100 px-3 text-sm font-semibold text-orange-900 dark:border-yellow-300 dark:bg-yellow-100 dark:text-orange-900">
+                  <Badge
+                    data-testid="planner-preview-mode-badge"
+                    className="h-7 border-yellow-300 bg-yellow-100 px-3 text-sm font-semibold text-orange-900 dark:border-yellow-300 dark:bg-yellow-100 dark:text-orange-900"
+                  >
                     Planning Mode
                   </Badge>
                 ) : null}
