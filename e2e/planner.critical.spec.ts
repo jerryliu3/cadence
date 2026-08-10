@@ -352,50 +352,19 @@ test.describe("planner critical rails", () => {
     expect(todayPayload.goalId).toBeTruthy();
   });
 
-  test("completion toggle dispatches from past (insights) surface", async ({
-    page,
-  }) => {
+  test("completion toggle dispatches from past tab surface", async ({ page }) => {
     test.setTimeout(120_000);
-    await page.goto("/insights");
-    const editButton = page
-      .getByRole("button", { name: /Edit dates|Edit milestones/ })
-      .first();
-    await expect(editButton).toBeVisible({ timeout: 10_000 });
-    await editButton.click();
-    const selectedInsightsDate = await page.evaluate(() => {
-      const today = new Date().toISOString().slice(0, 10);
-      const datedButtons = Array.from(document.querySelectorAll("button[title]"))
-        .map((button) => button.getAttribute("title") ?? "")
-        .map((title) => {
-          const match = title.match(/^(\d{4}-\d{2}-\d{2}):\s+(\d+)\s+completion/);
-          if (!match) {
-            return null;
-          }
-          return {
-            date: match[1],
-            count: Number.parseInt(match[2], 10),
-          };
-        })
-        .filter(
-          (entry): entry is { date: string; count: number } =>
-            entry !== null &&
-            entry.date <= today &&
-            Number.isFinite(entry.count) &&
-            entry.count > 0
-        )
-        .sort((left, right) => left.date.localeCompare(right.date));
-      return datedButtons.at(-1)?.date ?? null;
+    await page.goto("/?tab=past");
+    await expect(page.getByRole("tab", { name: "Past", exact: true })).toBeVisible();
+    const pastToggle = page.locator(COMPLETION_TOGGLE_SELECTOR).first();
+    await expect(pastToggle).toBeVisible({ timeout: 10_000 });
+    await expect(pastToggle).toBeEnabled();
+    const pastPayload = await runCompletionToggleAction(page, async () => {
+      await pastToggle.click();
     });
-    expect(selectedInsightsDate).toBeTruthy();
-    const insightsPayload = await runCompletionToggleAction(page, async () => {
-      const button = page
-        .locator(`button[title^="${selectedInsightsDate}:"]`)
-        .first();
-      await expect(button).toBeVisible({ timeout: 10_000 });
-      await expect(button).toBeEnabled();
-      await button.click();
-    });
-    expect(insightsPayload.goalId).toBeTruthy();
+    expect(pastPayload.goalId).toBeTruthy();
+    const today = await page.evaluate(() => new Date().toISOString().slice(0, 10));
+    expect(pastPayload.date <= today).toBe(true);
   });
 
   test("completion toggle dispatches from calendar surface", async ({ page }) => {
