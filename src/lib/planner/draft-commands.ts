@@ -172,3 +172,16 @@ export function projectPlannerDraftCommands(
   }
   return projection;
 }
+
+export function buildDraftPinnedDatesFromCommands(
+  commands: PlannerDraftCommand[]
+): Record<string, string> {
+  const projected = projectPlannerDraftCommands(sortPlannerDraftCommands(commands), {
+    sorted: true,
+  });
+  return Object.fromEntries(
+    Object.entries(projected)
+      .filter(([, edit]) => typeof edit.scheduledDate === "string")
+      .map(([entryKey, edit]) => [entryKey, edit.scheduledDate as string])
+  );
+}

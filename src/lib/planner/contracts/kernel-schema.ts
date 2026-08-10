@@ -90,6 +90,7 @@ export const plannerKernelInputSchema = z
     schemaVersion: z.literal(PLANNER_CONTRACT_VERSION),
     eligibilityMode: eligibilityModeSchema,
     preserveExistingAssignments: z.boolean().optional(),
+    draftPinnedDates: z.record(z.string(), dateSchema).optional(),
     ownerId: z.string().min(1).max(100),
     scopeMonth: monthSchema,
     asOfDate: dateSchema,

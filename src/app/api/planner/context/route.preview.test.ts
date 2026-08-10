@@ -130,4 +130,41 @@ describe("planner context preview route", () => {
       })
     );
   });
+
+  it("forwards draft move commands as solver pin map during preview generation", async () => {
+    mocks.parseBoundedJsonBody.mockResolvedValueOnce({
+      scopeMonth: "2026-08",
+      source: "update",
+      timezone: "UTC",
+      policy: createDefaultPlannerPolicy("UTC", "2026-08-01T00:00:00.000Z"),
+      draftCommands: [
+        {
+          id: "30000000-0000-4000-8000-000000000001",
+          sequence: 1,
+          kind: "move_item",
+          goalId: "12000000-0000-4000-8000-000000000001",
+          unitKey: "total:1",
+          scheduledDate: "2026-08-10",
+        },
+      ],
+    });
+    mocks.runPlannerKernel.mockImplementationOnce(() => {
+      throw new Error("forced");
+    });
+
+    const response = await POST(
+      new Request("http://localhost/api/planner/context", {
+        method: "POST",
+      })
+    );
+
+    expect(response.status).toBe(500);
+    expect(mocks.runPlannerKernel).toHaveBeenCalledWith(
+      expect.objectContaining({
+        draftPinnedDates: {
+          "12000000-0000-4000-8000-000000000001:total:1": "2026-08-10",
+        },
+      })
+    );
+  });
 });

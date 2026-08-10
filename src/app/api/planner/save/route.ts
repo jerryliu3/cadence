@@ -21,7 +21,9 @@ import {
 } from "@/lib/planner/publish-payload";
 import { postgresErrorMatches } from "@/lib/planner/postgres-errors";
 import {
+  buildDraftPinnedDatesFromCommands,
   plannerDraftCommandSchema,
+  type PlannerDraftCommand,
 } from "@/lib/planner/draft-commands";
 import { toScopeMonthDate } from "@/lib/planner/scope-month";
 import { plannerPolicySchema } from "@/lib/planner/policy";
@@ -88,7 +90,9 @@ export async function handlePlannerSave(request: Request) {
           return parsed.data;
         })()
       : null;
-    const draftCommands = body.draftCommands;
+    const draftCommands = body.draftCommands ?? [];
+    const draftPinnedDates = buildDraftPinnedDatesFromCommands(draftCommands);
+    const hasDraftPinnedDates = Object.keys(draftPinnedDates).length > 0;
     const effectiveEligibilityMode =
       body.eligibilityMode ?? PLANNER_ELIGIBILITY_MODES[0];
 
@@ -128,23 +132,24 @@ export async function handlePlannerSave(request: Request) {
     const assessments = snapshot.goals.map((goal) =>
       assessmentByGoalId.get(goal.id) ?? createDefaultAssessment(goal)
     );
+    const kernelInput = {
+      schemaVersion: "1" as const,
+      eligibilityMode: effectiveEligibilityMode,
+      preserveExistingAssignments: requestedPolicy === null,
+      ownerId: routeContext.userId,
+      scopeMonth: body.scopeMonth,
+      asOfDate,
+      timezone: snapshot.preferences.timezone,
+      goals: snapshot.goals,
+      completions: snapshot.completions,
+      links: snapshot.links,
+      assessments,
+      policy: effectivePolicy,
+      basePlan: snapshot.activePlan?.basePlan ?? null,
+    };
     let kernel: ReturnType<typeof runPlannerKernel>;
     try {
-      kernel = runPlannerKernel({
-        schemaVersion: "1",
-        eligibilityMode: effectiveEligibilityMode,
-        preserveExistingAssignments: requestedPolicy === null,
-        ownerId: routeContext.userId,
-        scopeMonth: body.scopeMonth,
-        asOfDate,
-        timezone: snapshot.preferences.timezone,
-        goals: snapshot.goals,
-        completions: snapshot.completions,
-        links: snapshot.links,
-        assessments,
-        policy: effectivePolicy,
-        basePlan: snapshot.activePlan?.basePlan ?? null,
-      });
+      kernel = runPlannerKernel(kernelInput);
     } catch (error) {
       if (error instanceof PlannerError) {
         throw plannerKernelErrorToRouteError(error);
@@ -158,6 +163,21 @@ export async function handlePlannerSave(request: Request) {
         "preview_hash_mismatch",
         "Planner preview hash is stale. Regenerate and publish again."
       );
+    }
+
+    let kernelForPersistence = kernel;
+    if (hasDraftPinnedDates) {
+      try {
+        kernelForPersistence = runPlannerKernel({
+          ...kernelInput,
+          draftPinnedDates,
+        });
+      } catch (error) {
+        if (error instanceof PlannerError) {
+          throw plannerKernelErrorToRouteError(error);
+        }
+        throw error;
+      }
     }
 
     if (kernel.solver.confirmationRequired) {
@@ -177,8 +197,9 @@ export async function handlePlannerSave(request: Request) {
         );
       }
     }
-    if (!kernel.solver.publishable) {
-      const blockedByInvalidLock = kernel.solver.issueCodes.includes("invalid_lock");
+    if (!kernelForPersistence.solver.publishable) {
+      const blockedByInvalidLock =
+        kernelForPersistence.solver.issueCodes.includes("invalid_lock");
       throw new PlannerRouteError(
         422,
         "planner_not_publishable",
@@ -186,10 +207,10 @@ export async function handlePlannerSave(request: Request) {
           ? "Publish is blocked because one or more locked planner items conflict with this preview. Unlock the affected sessions and regenerate."
           : "Publish is blocked because this preview is not currently publishable.",
         {
-          issueCodes: kernel.solver.issueCodes,
-          searchStatus: kernel.solver.searchStatus,
-          invalidGoalIds: kernel.solver.invalidGoalIds,
-          confirmationRequired: kernel.solver.confirmationRequired,
+          issueCodes: kernelForPersistence.solver.issueCodes,
+          searchStatus: kernelForPersistence.solver.searchStatus,
+          invalidGoalIds: kernelForPersistence.solver.invalidGoalIds,
+          confirmationRequired: kernelForPersistence.solver.confirmationRequired,
         }
       );
     }
@@ -199,9 +220,11 @@ export async function handlePlannerSave(request: Request) {
       persistence = buildPlannerPublishPersistencePayload({
         scopeMonth: body.scopeMonth,
         policy: effectivePolicy,
-        kernel,
+        kernel: kernelForPersistence,
         snapshot,
-        draftCommands,
+        draftCommands: hasDraftPinnedDates
+          ? draftCommands.filter((command) => command.kind !== "move_item")
+          : draftCommands,
       });
     } catch (error) {
       if (error instanceof PlannerDraftEditValidationError) {

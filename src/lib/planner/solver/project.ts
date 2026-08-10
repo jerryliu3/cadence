@@ -14,13 +14,17 @@ export function projectWorkUnitsToSolver({
   assessments,
   completionDatesByGoal = new Map(),
   preserveExistingAssignments = false,
+  draftPinnedDates = {},
 }: {
   workUnits: PlannerWorkUnit[];
   compiledPolicy: CompiledPolicy;
   assessments: Map<string, GoalAssessment>;
   completionDatesByGoal?: Map<string, Set<string>>;
   preserveExistingAssignments?: boolean;
+  draftPinnedDates?: Record<string, string>;
 }): SolverUnit[] {
+  const draftEntryKey = (goalId: string, unitKey: string) =>
+    `${goalId}:${unitKey}`;
   const isProjectable = (unit: PlannerWorkUnit) =>
     (unit.classification === "open" ||
       unit.classification === "future") &&
@@ -76,6 +80,8 @@ export function projectWorkUnitsToSolver({
       );
     });
     entries.forEach((entry) => {
+      const pinnedDate =
+        draftPinnedDates[draftEntryKey(goalId, entry.source.unitKey)] ?? null;
       solverUnits.push({
         unitKey: entry.source.unitKey,
         goalId,
@@ -83,11 +89,12 @@ export function projectWorkUnitsToSolver({
         ordinal: entry.source.ordinal,
         candidateDates: entry.candidateDates,
         previousDate: entry.source.scheduledDate,
-        lockedDate:
-          entry.source.locked ||
-          (preserveExistingAssignments && entry.source.scheduledDate !== null)
-            ? entry.source.scheduledDate
-            : null,
+        lockedDate: entry.source.locked
+          ? entry.source.scheduledDate
+          : pinnedDate ??
+            (preserveExistingAssignments && entry.source.scheduledDate !== null
+              ? entry.source.scheduledDate
+              : null),
         dateCosts: Object.fromEntries(
           entry.candidateDates.map((date) => [
             date,

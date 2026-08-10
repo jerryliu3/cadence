@@ -92,6 +92,7 @@ export interface PlannerKernelInput {
   schemaVersion: typeof PLANNER_CONTRACT_VERSION;
   eligibilityMode: PlannerEligibilityMode;
   preserveExistingAssignments?: boolean;
+  draftPinnedDates?: Record<string, string>;
   ownerId: string;
   scopeMonth: string;
   asOfDate: string;
@@ -681,6 +682,7 @@ export function runPlannerKernel(
     completionDatesByGoal,
     preserveExistingAssignments:
       rawInput.preserveExistingAssignments === true,
+    draftPinnedDates: rawInput.draftPinnedDates,
   });
   const dates = enumerateDates(getScopeDateRange(rawInput.scopeMonth));
   const solver = solveOrderedDpV1({
