@@ -31,6 +31,7 @@ import {
 } from "@/features/goals/goal-field-kit";
 import { GoalLinkTargetSelect } from "@/features/goals/goal-link-target-select";
 import { MilestoneNameFields } from "@/features/goals/milestone-name-fields";
+import { buildLoginHref } from "@/lib/auth/login-redirect";
 import {
   GoalDateRangeFields,
   GoalDefaultTimeField,
@@ -135,7 +136,8 @@ export function GoalForm({ goalId }: GoalFormProps) {
       } = await supabase.auth.getUser();
 
       if (!user) {
-        router.replace("/login");
+        const nextPath = `${window.location.pathname}${window.location.search}`;
+        router.replace(buildLoginHref(nextPath));
         return;
       }
 

@@ -6,7 +6,6 @@ import {
   ChevronDown,
   ChevronUp,
   FileSpreadsheet,
-  Link2,
   LoaderCircle,
   ListChecks,
   Sparkles,
@@ -24,13 +23,6 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { LoadingCard } from "@/components/ui/loading-card";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import {
   CategorySelect,
@@ -45,6 +37,7 @@ import {
   GoalDefaultTimeField,
 } from "@/features/goals/goal-schedule-fields";
 import { getApiErrorMessage, postJson } from "@/lib/api/client";
+import { buildLoginHref } from "@/lib/auth/login-redirect";
 import { toLocalDateString } from "@/lib/dates/day";
 import { resolveUserTimezone } from "@/lib/dates/timezone";
 import {
@@ -418,7 +411,8 @@ export function BulkGoalForm() {
       } = await supabase.auth.getUser();
 
       if (!user) {
-        router.replace("/login");
+        const nextPath = `${window.location.pathname}${window.location.search}`;
+        router.replace(buildLoginHref(nextPath));
         return;
       }
 
