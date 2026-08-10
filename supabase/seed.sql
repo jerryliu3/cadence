@@ -519,7 +519,7 @@ values
     'testing',
     '#22c55e',
     'recurring',
-    'daily',
+    'weekly',
     null,
     current_date - 1,
     current_date + 180,
