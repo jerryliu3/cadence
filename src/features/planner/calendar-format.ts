@@ -4,6 +4,7 @@ import { getDateInTimezone } from "@/lib/dates/timezone";
 import { normalizeWeekStartsOn } from "@/lib/dates/week-start";
 import type {
   CompletionControlDisabledReason,
+  PlannerContextPayload,
   PlannerDayDetailEntry,
 } from "@/features/planner/calendar-surface.types";
 
@@ -46,6 +47,29 @@ export function getMonthInTimezone(timezone: string) {
 
 export function monthToLabel(month: string) {
   return format(parseMonth(month), "MMMM yyyy");
+}
+
+export function resolveNonPublishablePreviewMessage(
+  context: PlannerContextPayload | null,
+  preview: NonNullable<PlannerContextPayload["preview"]>
+) {
+  if (context && context.scopeMonth < context.asOfDate.slice(0, 7)) {
+    return "Publishing an elapsed month is not supported. Publish the current or a future month.";
+  }
+  if (preview.solver.issueCodes.includes("invalid_lock")) {
+    const affectedGoals = preview.solver.invalidGoalIds
+      .slice(0, 3)
+      .map((goalId) => context?.goalTitles?.[goalId] ?? goalId);
+    const affectedLabel =
+      affectedGoals.length > 0 ? `Affected goals: ${affectedGoals.join(", ")}. ` : "";
+    return `${affectedLabel}Locked sessions currently conflict with this regenerated preview. Unlock affected sessions, regenerate, then save.`;
+  }
+  if (preview.solver.issueCodes.length > 0) {
+    return `Resolve planner issues before saving: ${preview.solver.issueCodes.join(
+      ", "
+    )}.`;
+  }
+  return "This preview is not savable yet. Regenerate and resolve planner issues before saving.";
 }
 
 export function isDerivedCounterLabel(value: string | null) {
