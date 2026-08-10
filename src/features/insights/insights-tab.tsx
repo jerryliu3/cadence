@@ -900,7 +900,7 @@ export function InsightsTab() {
                           targetCount={milestoneTargetCount}
                           completionDates={mappedMilestoneDates}
                           milestoneNames={draftMilestoneNames}
-                          maxVisible={MAX_VISIBLE_MILESTONES}
+                          maxVisible={5}
                         />
                         {editingHistory ? (
                           <p className="text-xs text-muted-foreground">
