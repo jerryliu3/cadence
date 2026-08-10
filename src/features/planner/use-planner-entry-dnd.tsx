@@ -7,7 +7,7 @@ import {
   moveItemInArray,
 } from "@/features/planner/calendar-format";
 import type { PlannerDayDetailEntry } from "@/features/planner/calendar-surface.types";
-import { getGoalVisual } from "@/features/planner/goal-visuals";
+import { buildPlannerEntryRowState } from "@/features/planner/planner-entry-row";
 import type { QueueDraftMoveCommandInput } from "@/features/planner/use-planner-draft-entry-actions";
 
 interface UsePlannerEntryDndOptions {
@@ -59,13 +59,10 @@ export function usePlannerEntryDnd({
       if (!entry) {
         return null;
       }
-      const visual = getGoalVisual({
-        goalId: entry.originalGoalId,
-        color: entry.activeGoal?.color ?? null,
-      });
-      const Icon = visual.Icon;
+      const rowState = buildPlannerEntryRowState(entry);
+      const Icon = rowState.visual.Icon;
       const title = getEntryDisplayTitle(entry);
-      const credited = isEntryCredited(entry);
+      const credited = rowState.credited;
       return (
         <div
           className={`flex max-w-64 items-center gap-2 rounded-lg border px-2 py-1 text-xs ${
@@ -76,7 +73,7 @@ export function usePlannerEntryDnd({
         >
           <span
             className="inline-flex size-4 items-center justify-center rounded-full"
-            style={{ backgroundColor: visual.color }}
+            style={{ backgroundColor: rowState.visual.color }}
           >
             <Icon className="size-2.5 text-white" />
           </span>
