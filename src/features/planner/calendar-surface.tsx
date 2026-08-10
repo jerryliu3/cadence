@@ -1267,6 +1267,7 @@ export function CalendarSurface({
         units: goalUnits,
         movedUnitKey: entry.unitKey,
         nextDate: normalized,
+        kind: baselineUnit.kind,
       });
       const baselineDateByUnitKey = new Map(
         goalUnits.map((unit) => [unit.unitKey, unit.scheduledDate])
