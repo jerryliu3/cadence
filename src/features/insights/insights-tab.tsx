@@ -16,13 +16,12 @@ import {
 } from "date-fns";
 import {
   CalendarRange,
-  ChevronLeft,
-  ChevronRight,
   Flame,
   Layers3,
   PencilLine,
   TrendingUp,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { type TouchEventHandler, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import CalendarHeatmap from "react-calendar-heatmap";
 import "react-calendar-heatmap/dist/styles.css";
@@ -31,14 +30,16 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { PeriodStepper } from "@/components/ui/period-stepper";
 import { Progress } from "@/components/ui/progress";
 import { GoalEndMonthBadge } from "@/features/goals/goal-end-month-badge";
+import { MilestonePills } from "@/features/goals/milestone-pills";
 import { GoalListControls } from "@/features/goals/goal-list-controls";
 import { GoalsSurfaceLoadingCard } from "@/features/goals/goals-surface-loading-card";
-import { MilestonePills } from "@/features/goals/milestone-pills";
 import { MonthHeatmap } from "@/features/insights/month-heatmap";
 import { getApiErrorMessage } from "@/lib/api/client";
 import { isAbortError, withAbortSignal } from "@/lib/async/abort";
+import { resolveUserTimezone } from "@/lib/dates/timezone";
 import { getCategoryBadgeClass } from "@/lib/goals/category";
 import {
   countCompletionsByDate,
@@ -112,9 +113,7 @@ const aggregateWeekdayLabels: [string, string, string, string, string, string, s
   "F",
   "S",
 ];
-const MAX_VISIBLE_MILESTONES = 5;
 const INSIGHTS_REQUEST_TIMEOUT_MS = 15_000;
-
 function getCompletionCountLabel(goal: Goal, completionCount: number): string {
   if (typeof goal.target_count === "number" && goal.target_count > 0) {
     return `${completionCount}/${goal.target_count} completions`;
@@ -125,6 +124,7 @@ function getCompletionCountLabel(goal: Goal, completionCount: number): string {
 
 export function InsightsTab() {
   const supabase = useMemo(() => createClient(), []);
+  const router = useRouter();
   const [state, setState] = useState<InsightsData>(emptyInsights);
   const [loading, setLoading] = useState(true);
   const [monthCursor, setMonthCursor] = useState(new Date());
@@ -144,6 +144,7 @@ export function InsightsTab() {
   const loadRequestIdRef = useRef(0);
   const visibleLoadCountRef = useRef(0);
   const runCompletionMutation = useCompletionMutation();
+  const selectedYear = useMemo(() => format(monthCursor, "yyyy"), [monthCursor]);
 
   const loadData = useCallback(
     async (
@@ -166,19 +167,21 @@ export function InsightsTab() {
       try {
         const {
           data: { user },
+          error: userError,
         } = await withAbortSignal(supabase.auth.getUser(), controller.signal);
 
         if (requestId !== loadRequestIdRef.current) {
           return;
         }
 
-        if (!user) {
+        if (userError || !user) {
           setState(emptyInsights);
+          router.replace("/login");
           return;
         }
 
-        const yearStart = format(startOfYear(monthCursor), "yyyy-MM-dd");
-        const yearEnd = format(endOfYear(monthCursor), "yyyy-MM-dd");
+        const yearStart = `${selectedYear}-01-01`;
+        const yearEnd = `${selectedYear}-12-31`;
         // Heatmap facts are intentionally year-bounded. A per-year client cache
         // is optional later if measured navigation latency warrants it.
         const [goalsResponse, participantsResponse, progress] =
@@ -217,7 +220,7 @@ export function InsightsTab() {
         }
       }
     },
-    [monthCursor, supabase]
+    [router, selectedYear, supabase]
   );
 
   useEffect(() => {
@@ -385,7 +388,7 @@ export function InsightsTab() {
         desiredFactState,
         goalId: goal.id,
         date: completionDate,
-        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        timezone: resolveUserTimezone(),
         blockedMessage:
           decision.reason === "future_creation"
             ? "You can only select today or past dates."
@@ -452,7 +455,7 @@ export function InsightsTab() {
         desiredFactState,
         goalId: goal.id,
         date: completionDate,
-        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        timezone: resolveUserTimezone(),
         blockedMessage:
           decision.reason === "future_creation"
             ? "You can only select today or past dates."
@@ -696,27 +699,19 @@ export function InsightsTab() {
                 Year View
               </Button>
             </div>
-            <div className="flex items-center gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="icon-sm"
-                onClick={() => shiftGlobalMonthCursor(-1)}
-              >
-                <ChevronLeft className="size-4" />
-              </Button>
-              <span className="min-w-[120px] text-center text-sm font-medium text-muted-foreground">
-                {perGoalViewMode === "month" ? format(monthCursor, "MMMM yyyy") : format(monthCursor, "yyyy")}
-              </span>
-              <Button
-                type="button"
-                variant="outline"
-                size="icon-sm"
-                onClick={() => shiftGlobalMonthCursor(1)}
-              >
-                <ChevronRight className="size-4" />
-              </Button>
-            </div>
+            <PeriodStepper
+              onPrevious={() => shiftGlobalMonthCursor(-1)}
+              onNext={() => shiftGlobalMonthCursor(1)}
+              center={
+                <span className="min-w-[120px] text-center text-sm font-medium text-muted-foreground">
+                  {perGoalViewMode === "month"
+                    ? format(monthCursor, "MMMM yyyy")
+                    : format(monthCursor, "yyyy")}
+                </span>
+              }
+              previousAriaLabel="Previous period"
+              nextAriaLabel="Next period"
+            />
           </div>
           <div className="flex flex-wrap items-end gap-3">
             <GoalListControls
@@ -905,7 +900,7 @@ export function InsightsTab() {
                           targetCount={milestoneTargetCount}
                           completionDates={mappedMilestoneDates}
                           milestoneNames={draftMilestoneNames}
-                          maxVisible={MAX_VISIBLE_MILESTONES}
+                          maxVisible={5}
                         />
                         {editingHistory ? (
                           <p className="text-xs text-muted-foreground">

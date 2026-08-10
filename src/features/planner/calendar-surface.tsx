@@ -4,8 +4,6 @@ import { addDays, addMonths, format, isValid, parse } from "date-fns";
 import {
   CalendarDays,
   CheckCircle2,
-  ChevronLeft,
-  ChevronRight,
   Circle,
   Loader2,
   Maximize2,
@@ -32,6 +30,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { PeriodStepper } from "@/components/ui/period-stepper";
 import {
   Select,
   SelectContent,
@@ -80,7 +79,11 @@ import {
   selectPlannerCalendarStoreProjection,
 } from "@/features/planner/calendar-store-selectors";
 import { selectCalendarViewWindowProjection } from "@/features/planner/calendar-view-projection";
-import { getDateInTimezone, isValidIanaTimezone } from "@/lib/dates/timezone";
+import {
+  getDateInTimezone,
+  isValidIanaTimezone,
+  resolveUserTimezone,
+} from "@/lib/dates/timezone";
 import {
   getApiErrorMessage,
   isApiClientError,
@@ -186,9 +189,7 @@ export function CalendarSurface({
   >({});
   const [mutationLoadingKey, setMutationLoadingKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [setupTimezone, setSetupTimezone] = useState(
-    Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"
-  );
+  const [setupTimezone, setSetupTimezone] = useState(resolveUserTimezone());
   const [setupWeekStartsOn, setSetupWeekStartsOn] = useState(1);
   const [setupRestWeekdays, setSetupRestWeekdays] = useState<number[]>([]);
   const hoverPreviewTimerRef = useRef<number | null>(null);
@@ -207,8 +208,7 @@ export function CalendarSurface({
       typeof intlWithSupportedValues.supportedValuesOf === "function"
         ? intlWithSupportedValues.supportedValuesOf("timeZone")
         : [];
-    const detectedTimezone =
-      Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+    const detectedTimezone = resolveUserTimezone();
     return Array.from(
       new Set(
         [setupTimezone, detectedTimezone, "UTC", ...supportedTimezones].filter(
@@ -2435,29 +2435,20 @@ export function CalendarSurface({
                   }`}
                   style={{ width: viewHeadingControlWidth }}
                 >
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon-sm"
-                    disabled={loading}
-                    aria-label={previousWindowAriaLabel}
-                    onClick={() => moveViewWindow(-1)}
-                  >
-                    <ChevronLeft className="size-4" />
-                  </Button>
-                  <h3 className="truncate text-center text-base font-semibold">
-                    {viewHeading}
-                  </h3>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon-sm"
-                    disabled={loading}
-                    aria-label={nextWindowAriaLabel}
-                    onClick={() => moveViewWindow(1)}
-                  >
-                    <ChevronRight className="size-4" />
-                  </Button>
+                  <PeriodStepper
+                    className="contents"
+                    onPrevious={() => moveViewWindow(-1)}
+                    onNext={() => moveViewWindow(1)}
+                    previousDisabled={loading}
+                    nextDisabled={loading}
+                    previousAriaLabel={previousWindowAriaLabel}
+                    nextAriaLabel={nextWindowAriaLabel}
+                    center={
+                      <h3 className="truncate text-center text-base font-semibold">
+                        {viewHeading}
+                      </h3>
+                    }
+                  />
                   <Button
                     type="button"
                     variant="outline"

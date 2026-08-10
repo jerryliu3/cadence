@@ -1,9 +1,8 @@
 "use client";
 
 import { eachDayOfInterval, endOfMonth, format, getISODay, startOfMonth } from "date-fns";
-import { ChevronLeft, ChevronRight } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { getHeatmapScaleClass } from "@/lib/goals/heatmap";
+import { PeriodStepper } from "@/components/ui/period-stepper";
 import { cn } from "@/lib/utils";
 
 interface MonthHeatmapProps {
@@ -35,27 +34,17 @@ export function MonthHeatmap({
   return (
     <div className="space-y-2">
       {onPreviousMonth || onNextMonth ? (
-        <div className="flex items-center gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            size="icon-sm"
-            onClick={() => onPreviousMonth?.()}
-            disabled={!onPreviousMonth}
-          >
-            <ChevronLeft className="size-4" />
-          </Button>
-          <p className="min-w-[120px] text-center text-sm font-medium">{format(month, "MMMM yyyy")}</p>
-          <Button
-            type="button"
-            variant="outline"
-            size="icon-sm"
-            onClick={() => onNextMonth?.()}
-            disabled={!onNextMonth}
-          >
-            <ChevronRight className="size-4" />
-          </Button>
-        </div>
+        <PeriodStepper
+          onPrevious={onPreviousMonth}
+          onNext={onNextMonth}
+          center={
+            <p className="min-w-[120px] text-center text-sm font-medium">
+              {format(month, "MMMM yyyy")}
+            </p>
+          }
+          previousAriaLabel="Previous month"
+          nextAriaLabel="Next month"
+        />
       ) : (
         <p className="text-sm font-medium">{format(month, "MMMM yyyy")}</p>
       )}
