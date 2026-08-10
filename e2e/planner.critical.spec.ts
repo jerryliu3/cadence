@@ -12,13 +12,19 @@ interface CompletionMutationPayload {
   timezone: string;
 }
 
+interface SavePlanDraftCommand {
+  kind: string;
+  goalId?: string;
+  unitKey?: string;
+  scheduledDate?: string | null;
+}
+
 interface SavePlanResult {
   requestPayload: {
-    draftCommands?: Array<{
-      kind: string;
-      goalId?: string;
-      unitKey?: string;
-      scheduledDate?: string | null;
+    expectedDigest?: string;
+    scopes?: Array<{
+      scopeMonth?: string;
+      draftCommands?: SavePlanDraftCommand[];
     }>;
   };
   responseStatus: number;
@@ -26,6 +32,14 @@ interface SavePlanResult {
     code?: string;
     message?: string;
   };
+}
+
+function collectSaveDraftCommands(
+  requestPayload: SavePlanResult["requestPayload"]
+): SavePlanDraftCommand[] {
+  return (requestPayload.scopes ?? []).flatMap(
+    (scope) => scope.draftCommands ?? []
+  );
 }
 
 const COMPLETION_TOGGLE_SELECTOR = [
@@ -396,7 +410,9 @@ test.describe("planner critical rails", () => {
     }
 
     const requestPayload = attempt.saveResult.requestPayload;
-    const moveCommands = (requestPayload.draftCommands ?? []).filter(
+    expect(Array.isArray(requestPayload.scopes)).toBe(true);
+    expect((requestPayload.scopes ?? []).length).toBeGreaterThan(0);
+    const moveCommands = collectSaveDraftCommands(requestPayload).filter(
       (command): command is {
         kind: string;
         goalId: string;
@@ -546,7 +562,7 @@ test.describe("planner critical rails", () => {
 
     await expect(page.getByText("Planning Mode")).toBeVisible();
     await expect(
-      page.getByRole("button", { name: "Undo changes", exact: true })
+      page.getByRole("button", { name: "Undo this month", exact: true })
     ).toBeVisible();
   });
 });
