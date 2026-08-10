@@ -117,7 +117,6 @@ describe("usePlannerDraftLifecycleActions", () => {
         onPlannerMutation: vi.fn(),
         onPlannerStateReset: vi.fn(),
         onDraftDiscarded: vi.fn(),
-        getNonPublishablePreviewMessage: vi.fn(() => "Preview blocked."),
       })
     );
 
@@ -153,7 +152,6 @@ describe("usePlannerDraftLifecycleActions", () => {
         onPlannerMutation,
         onPlannerStateReset,
         onDraftDiscarded: vi.fn(),
-        getNonPublishablePreviewMessage: vi.fn(() => "Preview blocked."),
       })
     );
 
@@ -201,7 +199,6 @@ describe("usePlannerDraftLifecycleActions", () => {
         onPlannerMutation,
         onPlannerStateReset,
         onDraftDiscarded: vi.fn(),
-        getNonPublishablePreviewMessage: vi.fn(() => "Preview blocked."),
       })
     );
 
@@ -238,7 +235,6 @@ describe("usePlannerDraftLifecycleActions", () => {
         onPlannerMutation: vi.fn(),
         onPlannerStateReset: vi.fn(),
         onDraftDiscarded,
-        getNonPublishablePreviewMessage: vi.fn(() => "Preview blocked."),
       })
     );
 
