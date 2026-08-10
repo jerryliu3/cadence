@@ -6,7 +6,9 @@
     {
       "id": "empty_scope",
       "description": "A scope with no open work is a complete unverified-capacity plan.",
-      "dates": ["2026-08-01"],
+      "dates": [
+        "2026-08-01"
+      ],
       "units": [],
       "simulateSoftBudgetExhaustion": false,
       "expected": {
@@ -23,14 +25,22 @@
     {
       "id": "milestones_keep_order",
       "description": "Milestone ordinals map to strictly increasing dates.",
-      "dates": ["2026-08-05", "2026-08-06", "2026-08-07"],
+      "dates": [
+        "2026-08-05",
+        "2026-08-06",
+        "2026-08-07"
+      ],
       "units": [
         {
           "unitKey": "milestone:1",
           "goalId": "goal-a",
           "kind": "milestone_sequence",
           "ordinal": 1,
-          "candidateDates": ["2026-08-05", "2026-08-06", "2026-08-07"],
+          "candidateDates": [
+            "2026-08-05",
+            "2026-08-06",
+            "2026-08-07"
+          ],
           "previousDate": null,
           "lockedDate": null,
           "idealDate": "2026-08-05"
@@ -40,7 +50,11 @@
           "goalId": "goal-a",
           "kind": "milestone_sequence",
           "ordinal": 2,
-          "candidateDates": ["2026-08-05", "2026-08-06", "2026-08-07"],
+          "candidateDates": [
+            "2026-08-05",
+            "2026-08-06",
+            "2026-08-07"
+          ],
           "previousDate": null,
           "lockedDate": null,
           "idealDate": "2026-08-06"
@@ -72,14 +86,20 @@
     {
       "id": "maximum_cardinality_partial",
       "description": "Three ordered units with only two dates prove an exact maximum partial.",
-      "dates": ["2026-08-05", "2026-08-06"],
+      "dates": [
+        "2026-08-05",
+        "2026-08-06"
+      ],
       "units": [
         {
           "unitKey": "total:1",
           "goalId": "goal-a",
           "kind": "deadline_total",
           "ordinal": 1,
-          "candidateDates": ["2026-08-05", "2026-08-06"],
+          "candidateDates": [
+            "2026-08-05",
+            "2026-08-06"
+          ],
           "previousDate": null,
           "lockedDate": null,
           "idealDate": "2026-08-05"
@@ -89,7 +109,10 @@
           "goalId": "goal-a",
           "kind": "deadline_total",
           "ordinal": 2,
-          "candidateDates": ["2026-08-05", "2026-08-06"],
+          "candidateDates": [
+            "2026-08-05",
+            "2026-08-06"
+          ],
           "previousDate": null,
           "lockedDate": null,
           "idealDate": "2026-08-06"
@@ -99,7 +122,10 @@
           "goalId": "goal-a",
           "kind": "deadline_total",
           "ordinal": 3,
-          "candidateDates": ["2026-08-05", "2026-08-06"],
+          "candidateDates": [
+            "2026-08-05",
+            "2026-08-06"
+          ],
           "previousDate": null,
           "lockedDate": null,
           "idealDate": "2026-08-06"
@@ -127,7 +153,9 @@
         "placementStatus": "partial",
         "searchStatus": "maximum_partial",
         "capacityStatus": "unverified",
-        "issueCodes": ["placement_shortfall"],
+        "issueCodes": [
+          "placement_shortfall"
+        ],
         "invalidGoalIds": [],
         "publishable": true,
         "confirmationRequired": true
@@ -136,14 +164,19 @@
     {
       "id": "earlier_open_unit_cannot_be_skipped",
       "description": "A later ordinal cannot take an earlier date by skipping an open predecessor.",
-      "dates": ["2026-08-05", "2026-08-06"],
+      "dates": [
+        "2026-08-05",
+        "2026-08-06"
+      ],
       "units": [
         {
           "unitKey": "milestone:1",
           "goalId": "goal-a",
           "kind": "milestone_sequence",
           "ordinal": 1,
-          "candidateDates": ["2026-08-06"],
+          "candidateDates": [
+            "2026-08-06"
+          ],
           "previousDate": null,
           "lockedDate": null,
           "idealDate": "2026-08-06"
@@ -153,7 +186,9 @@
           "goalId": "goal-a",
           "kind": "milestone_sequence",
           "ordinal": 2,
-          "candidateDates": ["2026-08-05"],
+          "candidateDates": [
+            "2026-08-05"
+          ],
           "previousDate": null,
           "lockedDate": null,
           "idealDate": "2026-08-05"
@@ -176,7 +211,9 @@
         "placementStatus": "partial",
         "searchStatus": "maximum_partial",
         "capacityStatus": "unverified",
-        "issueCodes": ["placement_shortfall"],
+        "issueCodes": [
+          "placement_shortfall"
+        ],
         "invalidGoalIds": [],
         "publishable": true,
         "confirmationRequired": true
@@ -185,14 +222,22 @@
     {
       "id": "cadence_uses_own_windows",
       "description": "Cadence units stay ordered and only use dates in their clipped placement windows.",
-      "dates": ["2026-08-01", "2026-08-02", "2026-08-08", "2026-08-09"],
+      "dates": [
+        "2026-08-01",
+        "2026-08-02",
+        "2026-08-08",
+        "2026-08-09"
+      ],
       "units": [
         {
           "unitKey": "cadence:2026-08-01",
           "goalId": "goal-c",
           "kind": "cadence",
           "ordinal": 1,
-          "candidateDates": ["2026-08-01", "2026-08-02"],
+          "candidateDates": [
+            "2026-08-01",
+            "2026-08-02"
+          ],
           "previousDate": null,
           "lockedDate": null,
           "idealDate": "2026-08-02"
@@ -202,7 +247,10 @@
           "goalId": "goal-c",
           "kind": "cadence",
           "ordinal": 2,
-          "candidateDates": ["2026-08-08", "2026-08-09"],
+          "candidateDates": [
+            "2026-08-08",
+            "2026-08-09"
+          ],
           "previousDate": null,
           "lockedDate": null,
           "idealDate": "2026-08-08"
@@ -234,14 +282,22 @@
     {
       "id": "valid_lock_splits_ordered_problem",
       "description": "A valid middle lock is fixed while surrounding units remain ordered.",
-      "dates": ["2026-08-05", "2026-08-06", "2026-08-07"],
+      "dates": [
+        "2026-08-05",
+        "2026-08-06",
+        "2026-08-07"
+      ],
       "units": [
         {
           "unitKey": "total:1",
           "goalId": "goal-a",
           "kind": "deadline_total",
           "ordinal": 1,
-          "candidateDates": ["2026-08-05", "2026-08-06", "2026-08-07"],
+          "candidateDates": [
+            "2026-08-05",
+            "2026-08-06",
+            "2026-08-07"
+          ],
           "previousDate": "2026-08-05",
           "lockedDate": null,
           "idealDate": "2026-08-05"
@@ -251,7 +307,11 @@
           "goalId": "goal-a",
           "kind": "deadline_total",
           "ordinal": 2,
-          "candidateDates": ["2026-08-05", "2026-08-06", "2026-08-07"],
+          "candidateDates": [
+            "2026-08-05",
+            "2026-08-06",
+            "2026-08-07"
+          ],
           "previousDate": "2026-08-06",
           "lockedDate": "2026-08-06",
           "idealDate": "2026-08-06"
@@ -261,7 +321,11 @@
           "goalId": "goal-a",
           "kind": "deadline_total",
           "ordinal": 3,
-          "candidateDates": ["2026-08-05", "2026-08-06", "2026-08-07"],
+          "candidateDates": [
+            "2026-08-05",
+            "2026-08-06",
+            "2026-08-07"
+          ],
           "previousDate": "2026-08-07",
           "lockedDate": null,
           "idealDate": "2026-08-07"
@@ -296,16 +360,22 @@
       }
     },
     {
-      "id": "order_invalid_lock_blocks_replacement",
-      "description": "Conflicting ordered locks produce invalid_lock and no publishable replacement.",
-      "dates": ["2026-08-05", "2026-08-10"],
+      "id": "swapped_locks_are_honored",
+      "description": "Locks that invert ordinal order are honored: ordinal is identity, not a scheduling constraint.",
+      "dates": [
+        "2026-08-05",
+        "2026-08-10"
+      ],
       "units": [
         {
           "unitKey": "milestone:1",
           "goalId": "goal-a",
           "kind": "milestone_sequence",
           "ordinal": 1,
-          "candidateDates": ["2026-08-05", "2026-08-10"],
+          "candidateDates": [
+            "2026-08-05",
+            "2026-08-10"
+          ],
           "previousDate": "2026-08-10",
           "lockedDate": "2026-08-10",
           "idealDate": "2026-08-05"
@@ -315,7 +385,10 @@
           "goalId": "goal-a",
           "kind": "milestone_sequence",
           "ordinal": 2,
-          "candidateDates": ["2026-08-05", "2026-08-10"],
+          "candidateDates": [
+            "2026-08-05",
+            "2026-08-10"
+          ],
           "previousDate": "2026-08-05",
           "lockedDate": "2026-08-05",
           "idealDate": "2026-08-10"
@@ -327,34 +400,40 @@
           {
             "goalId": "goal-a",
             "unitKey": "milestone:1",
-            "scheduledDate": null
+            "scheduledDate": "2026-08-10"
           },
           {
             "goalId": "goal-a",
             "unitKey": "milestone:2",
-            "scheduledDate": null
+            "scheduledDate": "2026-08-05"
           }
         ],
-        "placementStatus": "partial",
-        "searchStatus": "blocked_invalid_lock",
+        "placementStatus": "complete",
+        "searchStatus": "all_units_placed",
         "capacityStatus": "unverified",
-        "issueCodes": ["invalid_lock"],
-        "invalidGoalIds": ["goal-a"],
-        "publishable": false,
+        "issueCodes": [],
+        "invalidGoalIds": [],
+        "publishable": true,
         "confirmationRequired": false
       }
     },
     {
       "id": "soft_budget_exhaustion_preserves_cardinality",
       "description": "Soft refinement exhaustion keeps the hard-complete assignment and reports quality separately.",
-      "dates": ["2026-08-05", "2026-08-06"],
+      "dates": [
+        "2026-08-05",
+        "2026-08-06"
+      ],
       "units": [
         {
           "unitKey": "total:1",
           "goalId": "goal-a",
           "kind": "deadline_total",
           "ordinal": 1,
-          "candidateDates": ["2026-08-05", "2026-08-06"],
+          "candidateDates": [
+            "2026-08-05",
+            "2026-08-06"
+          ],
           "previousDate": null,
           "lockedDate": null,
           "idealDate": "2026-08-05"
@@ -364,7 +443,10 @@
           "goalId": "goal-a",
           "kind": "deadline_total",
           "ordinal": 2,
-          "candidateDates": ["2026-08-05", "2026-08-06"],
+          "candidateDates": [
+            "2026-08-05",
+            "2026-08-06"
+          ],
           "previousDate": null,
           "lockedDate": null,
           "idealDate": "2026-08-06"
@@ -387,7 +469,9 @@
         "placementStatus": "complete",
         "searchStatus": "soft_optimization_exhausted",
         "capacityStatus": "unverified",
-        "issueCodes": ["soft_optimization_exhausted"],
+        "issueCodes": [
+          "soft_optimization_exhausted"
+        ],
         "invalidGoalIds": [],
         "publishable": true,
         "confirmationRequired": false
