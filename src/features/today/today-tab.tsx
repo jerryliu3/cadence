@@ -36,14 +36,23 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { GoalEndMonthBadge } from "@/features/goals/goal-end-month-badge";
 import { GoalListControls } from "@/features/goals/goal-list-controls";
+import { GoalsSurfaceLoadingCard } from "@/features/goals/goals-surface-loading-card";
 import { isAbortError, withAbortSignal } from "@/lib/async/abort";
-import { toLocalDateString } from "@/lib/dates/day";
+import {
+  resolveSelectedDateState,
+  toLocalDateString,
+} from "@/lib/dates/day";
 import { normalizeWeekStartsOn } from "@/lib/dates/week-start";
 import { getCategoryBadgeClass } from "@/lib/goals/category";
+import {
+  buildCompletableGoalIds,
+  selectCompletableGoals,
+} from "@/lib/goals/completable-goals";
 import { groupCompletionsByGoalId } from "@/lib/goals/completion-grouping";
 import { getGoalLifecycle } from "@/lib/goals/lifecycle";
 import {
   filterGoalsByEndMonth,
+  resolveEffectiveEndMonth,
   sortGoalsByDate,
   type GoalDateSort,
 } from "@/lib/goals/list-view";
@@ -382,19 +391,18 @@ export function TodayTab({
     [data.goals, viewDate]
   );
 
-  const completableGoalIds = useMemo(() => {
-    const ids = new Set<string>();
-    data.goals.forEach((goal) => {
-      if (goal.owner_id === data.userId) {
-        ids.add(goal.id);
-      }
-    });
-    data.participants.forEach((membership) => ids.add(membership.goal_id));
-    return ids;
-  }, [data.goals, data.participants, data.userId]);
+  const completableGoalIds = useMemo(
+    () =>
+      buildCompletableGoalIds({
+        goals: data.goals,
+        participants: data.participants,
+        userId: data.userId,
+      }),
+    [data.goals, data.participants, data.userId]
+  );
 
   const completableGoals = useMemo(
-    () => data.goals.filter((goal) => completableGoalIds.has(goal.id)),
+    () => selectCompletableGoals(data.goals, completableGoalIds),
     [completableGoalIds, data.goals]
   );
 
@@ -423,14 +431,14 @@ export function TodayTab({
 
   const todayDate = viewDate;
   const checklistFilterStartMonth = viewDate.slice(0, 7);
-  const effectiveTodayEndMonth =
-    todayEndMonth !== null && todayEndMonth >= checklistFilterStartMonth
-      ? todayEndMonth
-      : null;
-  const effectiveNotTodayEndMonth =
-    notTodayEndMonth !== null && notTodayEndMonth >= checklistFilterStartMonth
-      ? notTodayEndMonth
-      : null;
+  const effectiveTodayEndMonth = resolveEffectiveEndMonth(
+    todayEndMonth,
+    checklistFilterStartMonth
+  );
+  const effectiveNotTodayEndMonth = resolveEffectiveEndMonth(
+    notTodayEndMonth,
+    checklistFilterStartMonth
+  );
   const matchesTodayFacetFilters = useCallback(
     (goal: Goal) => {
       if (categoryFilter !== allCategoriesFilterValue && goal.category !== categoryFilter) {
@@ -569,12 +577,7 @@ export function TodayTab({
       targetedRecurring,
       activePlanMembership: false,
       matchingItemState: "none",
-      selectedDateState:
-        viewDate < todayLocalDate
-          ? "past"
-          : viewDate === todayLocalDate
-            ? "today"
-            : "future",
+        selectedDateState: resolveSelectedDateState(viewDate, todayLocalDate),
       existingExactFact: completedOnViewDate,
       desiredFactState,
     });
@@ -650,12 +653,10 @@ export function TodayTab({
 
   if (loading) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Loading your goals...</CardTitle>
-          <CardDescription>Pulling your latest progress from Supabase.</CardDescription>
-        </CardHeader>
-      </Card>
+      <GoalsSurfaceLoadingCard
+        title="Loading your goals..."
+        description="Pulling your latest progress from Supabase."
+      />
     );
   }
 

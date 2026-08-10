@@ -4,6 +4,7 @@ import {
   filterGoalsByEndMonth,
   getMonthEndDate,
   partitionGoalsByVisibleStart,
+  resolveEffectiveEndMonth,
   sortGoalsByDate,
   type GoalDateSort,
 } from "@/lib/goals/list-view";
@@ -121,5 +122,12 @@ describe("goal list view helpers", () => {
       { label: "August 2026", value: "2026-08" },
       { label: "September 2026", value: "2026-09" },
     ]);
+  });
+
+  it("keeps only end-month filters inside or after the visible window", () => {
+    expect(resolveEffectiveEndMonth("2026-09", "2026-08")).toBe("2026-09");
+    expect(resolveEffectiveEndMonth("2026-08", "2026-08")).toBe("2026-08");
+    expect(resolveEffectiveEndMonth("2026-07", "2026-08")).toBeNull();
+    expect(resolveEffectiveEndMonth(null, "2026-08")).toBeNull();
   });
 });

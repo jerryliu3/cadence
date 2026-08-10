@@ -4,6 +4,13 @@ export function defaultMilestoneName(index: number): string {
   return `Milestone ${index + 1}`;
 }
 
+export function areMilestoneNamesEqual(left: string[], right: string[]): boolean {
+  if (left.length !== right.length) {
+    return false;
+  }
+  return left.every((name, index) => name === right[index]);
+}
+
 export function buildMilestoneNameDrafts(count: number, existing: string[] = []): string[] {
   if (!Number.isFinite(count) || count <= 0) {
     return [];
@@ -29,14 +36,6 @@ export function buildMilestoneNames(
     const value = names?.[index]?.trim();
     return value && value.length > 0 ? value : defaultMilestoneName(index);
   });
-}
-
-export function areMilestoneNamesEqual(left: string[], right: string[]): boolean {
-  if (left.length !== right.length) {
-    return false;
-  }
-
-  return left.every((name, index) => name === right[index]);
 }
 
 export function getNextMilestoneName(

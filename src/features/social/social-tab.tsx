@@ -37,7 +37,10 @@ import {
   getCategoryLabel,
   getCategorySwatchColor,
 } from "@/lib/goals/category";
-import { groupCompletionsByGoalId } from "@/lib/goals/completion-grouping";
+import {
+  getSortedCompletionDates,
+  groupCompletionsByGoalId,
+} from "@/lib/goals/completion-grouping";
 import {
   isOrdinalGoalDefinition,
   validateGoalDefinition,
@@ -108,12 +111,6 @@ function parsePositiveTargetCount(value: string): number | null {
     return null;
   }
   return parsed;
-}
-
-function getSortedCompletionDates(completions: Completion[]): string[] {
-  return Array.from(new Set(completions.map((completion) => completion.completed_on))).sort((a, b) =>
-    a.localeCompare(b)
-  );
 }
 
 interface MilestoneSummaryPillsProps {
