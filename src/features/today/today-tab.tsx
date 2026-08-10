@@ -46,6 +46,7 @@ import {
 } from "@/lib/goals/list-view";
 import {
   fetchProgressContext,
+  isProgressContextAuthenticationError,
   progressSummaryMap,
   type ProgressContextResponse,
 } from "@/lib/goals/progress-context";
@@ -89,18 +90,6 @@ const emptyData: TodayData = {
   photoUrls: {},
   progress: null,
 };
-
-function isAuthenticationLikeError(error: unknown) {
-  if (!(error instanceof Error)) {
-    return false;
-  }
-  const normalized = error.message.toLowerCase();
-  return (
-    normalized.includes("authentication") ||
-    normalized.includes("unauthorized") ||
-    normalized.includes("sign in")
-  );
-}
 
 const allCategoriesFilterValue = "__all_categories__";
 type RecurrenceGroup = "daily" | "weekly" | "monthly" | "fixed";
@@ -312,7 +301,7 @@ export function TodayTab({
       try {
         await loadData();
       } catch (error) {
-        if (isAuthenticationLikeError(error)) {
+        if (isProgressContextAuthenticationError(error)) {
           redirectToLogin();
           return;
         }
@@ -339,7 +328,7 @@ export function TodayTab({
       const timer = window.setTimeout(() => {
         void loadData({ showLoading: false, forceRefresh: true }).catch(
           (error: unknown) => {
-            if (isAuthenticationLikeError(error)) {
+            if (isProgressContextAuthenticationError(error)) {
               redirectToLogin();
               return;
             }
@@ -368,7 +357,7 @@ export function TodayTab({
     const timer = window.setTimeout(() => {
       void loadData({ showLoading: false, forceRefresh: true }).catch(
         (error: unknown) => {
-          if (isAuthenticationLikeError(error)) {
+          if (isProgressContextAuthenticationError(error)) {
             redirectToLogin();
             return;
           }
@@ -658,7 +647,7 @@ export function TodayTab({
         window.scrollTo({ top: currentScrollY, behavior: "auto" });
       });
     } catch (error) {
-      if (isAuthenticationLikeError(error)) {
+      if (isProgressContextAuthenticationError(error)) {
         redirectToLogin();
         return;
       }

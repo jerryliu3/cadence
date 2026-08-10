@@ -1,5 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { fetchProgressContext } from "./progress-context";
+import {
+  fetchProgressContext,
+  isProgressContextAuthenticationError,
+} from "./progress-context";
 
 function buildProgressPayload(correlationId: string) {
   return {
@@ -75,5 +78,38 @@ describe("fetchProgressContext", () => {
     expect(first.correlationId).toBe("before-refresh");
     expect(refreshed.correlationId).toBe("after-refresh");
     expect(fetchSpy).toHaveBeenCalledTimes(2);
+  });
+
+  it("raises a typed authentication error for auth-required API responses", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            code: "authentication_required",
+            message: "Sign in to continue.",
+            correlationId: "auth-corr-id",
+          }),
+          { status: 401 }
+        )
+      )
+    );
+
+    await expect(
+      fetchProgressContext({
+        asOfDate: "2026-08-07",
+        timezone: "UTC",
+        viewDate: "2026-08-07",
+      })
+    ).rejects.toSatisfy((error: unknown) => {
+      expect(isProgressContextAuthenticationError(error)).toBe(true);
+      expect(
+        error instanceof Error ? error.message : ""
+      ).toContain("Sign in to continue");
+      if (isProgressContextAuthenticationError(error)) {
+        expect(error.correlationId).toBe("auth-corr-id");
+      }
+      return true;
+    });
   });
 });

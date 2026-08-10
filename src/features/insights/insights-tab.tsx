@@ -68,6 +68,7 @@ import {
 import { getHeatmapScaleClass } from "@/lib/goals/heatmap";
 import {
   fetchProgressContext,
+  isProgressContextAuthenticationError,
   progressSummaryMap,
   type ProgressContextResponse,
 } from "@/lib/goals/progress-context";
@@ -116,18 +117,6 @@ const aggregateWeekdayLabels: [string, string, string, string, string, string, s
 ];
 const INSIGHTS_REQUEST_TIMEOUT_MS = 15_000;
 const MAX_VISIBLE_MILESTONES = 5;
-
-function isAuthenticationLikeError(error: unknown) {
-  if (!(error instanceof Error)) {
-    return false;
-  }
-  const normalized = error.message.toLowerCase();
-  return (
-    normalized.includes("authentication") ||
-    normalized.includes("unauthorized") ||
-    normalized.includes("sign in")
-  );
-}
 
 function getCompletionCountLabel(goal: Goal, completionCount: number): string {
   if (typeof goal.target_count === "number" && goal.target_count > 0) {
@@ -256,7 +245,7 @@ export function InsightsTab() {
       try {
         await loadData();
       } catch (error) {
-        if (isAuthenticationLikeError(error)) {
+        if (isProgressContextAuthenticationError(error)) {
           redirectToLogin();
           return;
         }
@@ -441,7 +430,7 @@ export function InsightsTab() {
           window.scrollTo({ top: currentScrollY, behavior: "auto" });
         });
       } catch (error) {
-        if (isAuthenticationLikeError(error)) {
+        if (isProgressContextAuthenticationError(error)) {
           redirectToLogin();
           return;
         }
@@ -512,7 +501,7 @@ export function InsightsTab() {
           window.scrollTo({ top: currentScrollY, behavior: "auto" });
         });
       } catch (error) {
-        if (isAuthenticationLikeError(error)) {
+        if (isProgressContextAuthenticationError(error)) {
           redirectToLogin();
           return;
         }
@@ -560,7 +549,7 @@ export function InsightsTab() {
           window.scrollTo({ top: currentScrollY, behavior: "auto" });
         });
       } catch (error) {
-        if (isAuthenticationLikeError(error)) {
+        if (isProgressContextAuthenticationError(error)) {
           redirectToLogin();
           return;
         }
