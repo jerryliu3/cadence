@@ -63,7 +63,7 @@ describe("ordered-dp-v1 solver", () => {
     expect(result.placementStatus).toBe("partial");
   });
 
-  it("treats a locked successor behind an impossible prefix as invalid", () => {
+  it("places what it can when another unit has no candidate dates", () => {
     const result = solveOrderedDpV1({
       dates: ["2026-08-05"],
       units: [
@@ -88,11 +88,16 @@ describe("ordered-dp-v1 solver", () => {
       ],
     });
 
-    expect(result.issueCodes).toEqual(["invalid_lock"]);
-    expect(result.publishable).toBe(false);
+    // An unplaceable unit no longer blocks the rest: ordinal is identity, so
+    // there is no prefix for it to terminate.
+    expect(result.issueCodes).toEqual(["placement_shortfall"]);
+    expect(result.publishable).toBe(true);
+    expect(
+      result.assignments.find((a) => a.unitKey === "total:2")?.scheduledDate
+    ).toBe("2026-08-05");
   });
 
-  it("keeps unaffected goal assignments when another goal has invalid locks", () => {
+  it("keeps unaffected goal assignments when another goal has colliding locks", () => {
     const result = solveOrderedDpV1({
       dates: ["2026-08-05", "2026-08-10"],
       units: [
@@ -112,7 +117,8 @@ describe("ordered-dp-v1 solver", () => {
           ordinal: 2,
           candidateDates: ["2026-08-05", "2026-08-10"],
           previousDate: "2026-08-05",
-          lockedDate: "2026-08-05",
+          // Two units of one goal cannot hold the same date -- still invalid.
+          lockedDate: "2026-08-10",
         },
         {
           unitKey: "total:1",
