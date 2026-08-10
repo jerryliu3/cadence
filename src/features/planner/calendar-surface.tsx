@@ -890,6 +890,18 @@ export function CalendarSurface({
       resolveNonPublishablePreviewMessage(context, preview),
     [context]
   );
+  const nonPublishablePreviewMessage = useCallback(
+    (
+      preview: NonNullable<PlannerContextPayload["preview"]>,
+      scopeMonth: string | null = context?.scopeMonth ?? null
+    ) => {
+      if (context && scopeMonth && scopeMonth < context.asOfDate.slice(0, 7)) {
+        return "Publishing an elapsed month is not supported. Publish the current or a future month.";
+      }
+      return resolveNonPublishablePreviewMessage(context, preview);
+    },
+    [context]
+  );
   const runCompletionMutation = useCompletionMutation();
   const coach = usePlannerCoach({
     activeTab,
@@ -1258,6 +1270,19 @@ export function CalendarSurface({
     prepareForDayDetailOpen();
     setDayDetailDay(day);
   };
+  const discardDraftChangesForMode = (mode: "current" | "all") => {
+    if (mode === "all") {
+      if (dirtyScopeMonths.length === 0) {
+        return;
+      }
+      for (const scopeMonth of dirtyScopeMonths) {
+        clearDraftScopeSession(scopeMonth);
+      }
+      coach.actions?.onDraftDiscarded?.();
+      return;
+    }
+    discardDraftChanges();
+  };
   const renderCalendarDayCell = (cell: { date: string; inMonth: boolean }) => {
     const dayProjection = getCalendarDayProjection(cell.date);
     const entriesForDay = dayProjection.orderedEntries;
@@ -1485,7 +1510,7 @@ export function CalendarSurface({
                   type="button"
                   variant="outline"
                   size="sm"
-                  onClick={() => discardDraftChanges("current")}
+                  onClick={() => discardDraftChangesForMode("current")}
                   disabled={saveLoading || loading}
                 >
                   Undo this month
@@ -1496,7 +1521,7 @@ export function CalendarSurface({
                   type="button"
                   variant="outline"
                   size="sm"
-                  onClick={() => discardDraftChanges("all")}
+                  onClick={() => discardDraftChangesForMode("all")}
                   disabled={saveLoading || loading}
                 >
                   Undo all months
