@@ -16,7 +16,11 @@ async function postInvalidPushSubscription(page: Page) {
 
     return {
       status: response.status,
-      body: (await response.json()) as { error?: string },
+      body: (await response.json()) as {
+        code?: string;
+        message?: string;
+        correlationId?: string;
+      },
     };
   });
 }
@@ -48,10 +52,9 @@ test("API integration preserves authenticated validation order", async ({
   await page.goto("/");
   const response = await postInvalidPushSubscription(page);
 
-  expect(response).toEqual({
-    status: 400,
-    body: { error: "Invalid push subscription." },
-  });
+  expect(response.status).toBe(400);
+  expect(response.body.code).toBe("validation_failed");
+  expect(response.body.correlationId).toEqual(expect.any(String));
 });
 
 test("API integration rejects an unauthenticated mutation", async ({ page }) => {
@@ -61,10 +64,9 @@ test("API integration rejects an unauthenticated mutation", async ({ page }) => 
 
   const response = await postInvalidPushSubscription(page);
 
-  expect(response).toEqual({
-    status: 401,
-    body: { error: "Unauthorized." },
-  });
+  expect(response.status).toBe(401);
+  expect(response.body.code).toBe("authentication_required");
+  expect(response.body.correlationId).toEqual(expect.any(String));
 });
 
 test("planner bridge APIs authenticate before validation", async ({ page }) => {

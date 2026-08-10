@@ -1,7 +1,7 @@
-import { NextResponse } from "next/server";
 import { z } from "zod";
 import {
   ApiRouteError,
+  apiSuccessResponse,
   requireAuthenticatedRouteContext,
   withRoute,
 } from "@/lib/api/route";
@@ -20,36 +20,22 @@ const unsubscribeSchema = z.object({
   endpoint: z.string().url().max(4096),
 });
 
-class PushSubscriptionsRouteError extends Error {
-  constructor(
-    readonly status: number,
-    message: string
-  ) {
-    super(message);
-    this.name = "PushSubscriptionsRouteError";
+function requirePushAdminClient() {
+  try {
+    return createAdminClient();
+  } catch (error) {
+    throw new ApiRouteError(
+      503,
+      "push_configuration_invalid",
+      "Push notifications are not configured on the server.",
+      undefined,
+      error
+    );
   }
-}
-
-function pushErrorResponse(status: number, message: string) {
-  return NextResponse.json({ error: message }, { status });
-}
-
-function handlePushSubscriptionsRouteError(error: unknown) {
-  if (error instanceof ApiRouteError && error.code === "authentication_required") {
-    return pushErrorResponse(401, "Unauthorized.");
-  }
-  if (error instanceof PushSubscriptionsRouteError) {
-    return pushErrorResponse(error.status, error.message);
-  }
-  console.error("Push subscription configuration error:", error);
-  return pushErrorResponse(
-    503,
-    "Push notifications are not configured on the server."
-  );
 }
 
 export async function POST(request: Request) {
-  return withRoute(async () => {
+  return withRoute(async ({ correlationId }) => {
     const supabase = await createClient();
     const { userId } = await requireAuthenticatedRouteContext({
       supabase,
@@ -59,9 +45,13 @@ export async function POST(request: Request) {
       await request.json().catch(() => null)
     );
     if (!parsed.success) {
-      throw new PushSubscriptionsRouteError(400, "Invalid push subscription.");
+      throw new ApiRouteError(
+        400,
+        "validation_failed",
+        "Invalid push subscription."
+      );
     }
-    const admin = createAdminClient();
+    const admin = requirePushAdminClient();
     const { error } = await admin.from("push_subscriptions").upsert(
       {
         user_id: userId,
@@ -76,15 +66,21 @@ export async function POST(request: Request) {
 
     if (error) {
       console.error("Failed to save push subscription:", error);
-      throw new PushSubscriptionsRouteError(500, "Could not save this device.");
+      throw new ApiRouteError(
+        500,
+        "push_subscription_upsert_failed",
+        "Could not save this device.",
+        undefined,
+        error
+      );
     }
 
-    return NextResponse.json({ success: true });
-  }, { onError: handlePushSubscriptionsRouteError });
+    return apiSuccessResponse({ success: true }, correlationId);
+  });
 }
 
 export async function DELETE(request: Request) {
-  return withRoute(async () => {
+  return withRoute(async ({ correlationId }) => {
     const supabase = await createClient();
     const { userId } = await requireAuthenticatedRouteContext({
       supabase,
@@ -94,9 +90,13 @@ export async function DELETE(request: Request) {
       await request.json().catch(() => null)
     );
     if (!parsed.success) {
-      throw new PushSubscriptionsRouteError(400, "Invalid push subscription.");
+      throw new ApiRouteError(
+        400,
+        "validation_failed",
+        "Invalid push subscription."
+      );
     }
-    const admin = createAdminClient();
+    const admin = requirePushAdminClient();
     const { error } = await admin
       .from("push_subscriptions")
       .delete()
@@ -105,9 +105,15 @@ export async function DELETE(request: Request) {
 
     if (error) {
       console.error("Failed to delete push subscription:", error);
-      throw new PushSubscriptionsRouteError(500, "Could not remove this device.");
+      throw new ApiRouteError(
+        500,
+        "push_subscription_delete_failed",
+        "Could not remove this device.",
+        undefined,
+        error
+      );
     }
 
-    return NextResponse.json({ success: true });
-  }, { onError: handlePushSubscriptionsRouteError });
+    return apiSuccessResponse({ success: true }, correlationId);
+  });
 }
