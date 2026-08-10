@@ -236,6 +236,7 @@ export const plannerKernelOutputSchema = z
   .object({
     schemaVersion: z.literal(PLANNER_CONTRACT_VERSION),
     eligibilityMode: eligibilityModeSchema,
+    preserveExistingAssignments: z.boolean(),
     generationInputHash: z.string().regex(/^[a-f0-9]{64}$/),
     scopeState: z.enum(["historical", "current", "future"]),
     solver: solverResultSchema,

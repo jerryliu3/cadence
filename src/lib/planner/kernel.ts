@@ -116,6 +116,12 @@ export interface PlannerKernelInput {
 export interface PlannerKernelOutput {
   schemaVersion: typeof PLANNER_CONTRACT_VERSION;
   eligibilityMode: PlannerEligibilityMode;
+  /**
+   * Echoed because it changes placement and is therefore part of the
+   * generation hash. Save must reproduce the preview's value exactly, and the
+   * three call sites had drifted apart.
+   */
+  preserveExistingAssignments: boolean;
   generationInputHash: string;
   scopeState: "historical" | "current" | "future";
   solver: PlannerSolverResult;
@@ -824,6 +830,8 @@ export function runPlannerKernel(
   const output: PlannerKernelOutput = {
     schemaVersion: PLANNER_CONTRACT_VERSION,
     eligibilityMode: rawInput.eligibilityMode,
+    preserveExistingAssignments:
+      rawInput.preserveExistingAssignments === true,
     generationInputHash,
     scopeState,
     solver,
