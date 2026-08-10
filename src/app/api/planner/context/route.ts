@@ -19,6 +19,11 @@ import {
   PLANNER_CONTRACT_VERSION,
 } from "@/lib/planner/contracts/bounds";
 import { PlannerError, runPlannerKernel } from "@/lib/planner/kernel";
+import { findUnhonoredDraftPins } from "@/lib/planner/draft-pins";
+import {
+  buildDraftPinnedDatesFromCommands,
+  plannerDraftCommandSchema,
+} from "@/lib/planner/draft-commands";
 import { createDefaultPlannerPolicy, plannerPolicySchema } from "@/lib/planner/policy";
 import {
   parsePlannerProfilePreferencesRow,
@@ -66,6 +71,15 @@ const previewRequestSchema = z.object({
     .optional(),
   policy: z.unknown().optional(),
   source: z.enum(["manual", "ai", "update"]).default("manual"),
+  /**
+   * `replan` is a proposal-generation mode: the caller diffs the result against
+   * the current preview, turns the differences into `move_item` draft commands,
+   * then re-requests a `stable` preview pinned to those commands. A `replan`
+   * preview must never be stored as the draft or sent to save; the save route
+   * always solves `stable`, so its hash would not match.
+   */
+  solveIntent: z.enum(["stable", "replan"]).default("stable"),
+  draftCommands: z.array(plannerDraftCommandSchema).max(4000).default([]),
 });
 
 const upsertPreferencesSchema = z.object({
@@ -130,6 +144,8 @@ function resolvePlannerPreview({
   requireExplicitTimezone,
   includeKernel = true,
   preserveExistingAssignments = false,
+  solveIntent = "stable",
+  draftPinnedDates = {},
 }: {
   ownerId: string;
   scopeMonth: string;
@@ -141,6 +157,8 @@ function resolvePlannerPreview({
   requireExplicitTimezone: boolean;
   includeKernel?: boolean;
   preserveExistingAssignments?: boolean;
+  solveIntent?: "stable" | "replan";
+  draftPinnedDates?: Record<string, string>;
 }) {
   const effectiveTimezone =
     requestedTimezone ??
@@ -200,8 +218,25 @@ function resolvePlannerPreview({
         policy: effectivePolicy,
         basePlan: snapshot.activePlan?.basePlan ?? null,
         preserveExistingAssignments,
+        solveIntent,
+        draftPinnedDates,
       })
     : null;
+
+  if (preview) {
+    const draftPinViolations = findUnhonoredDraftPins({
+      workUnits: preview.workUnits,
+      draftPinnedDates,
+    });
+    if (draftPinViolations.length > 0) {
+      throw new PlannerRouteError(
+        422,
+        "draft_pin_unhonored",
+        "One or more moved sessions no longer fit the current planner constraints. Undo those moves or pick different dates, then regenerate.",
+        { violations: draftPinViolations }
+      );
+    }
+  }
 
   return {
     asOfDate,
@@ -408,6 +443,10 @@ export async function POST(request: Request) {
         snapshot,
         requireExplicitTimezone: true,
         preserveExistingAssignments: false,
+        solveIntent: body.solveIntent ?? "stable",
+        draftPinnedDates: buildDraftPinnedDatesFromCommands(
+          body.draftCommands ?? []
+        ),
       });
     } catch (error) {
       if (error instanceof PlannerError) {

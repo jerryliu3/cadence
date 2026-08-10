@@ -40,6 +40,9 @@ const completion: Completion = {
 function input(): GenerationHashInput {
   return {
     eligibilityMode: "overlap_v1",
+    solveIntent: "stable",
+    preserveExistingAssignments: false,
+    draftPinnedDates: {},
     scopeMonth: "2026-08",
     asOfDate: "2026-08-10",
     timezone: "UTC",
@@ -95,5 +98,46 @@ describe("strict generation input fingerprint", () => {
     expect(computeGenerationInputHash(first)).toBe(
       computeGenerationInputHash(second)
     );
+  });
+});
+
+describe("solver-input coverage", () => {
+  it("changes when solve intent, preserve mode, or draft pins change", () => {
+    const base = computeGenerationInputHash(input());
+
+    expect(
+      computeGenerationInputHash({ ...input(), solveIntent: "replan" })
+    ).not.toBe(base);
+    expect(
+      computeGenerationInputHash({
+        ...input(),
+        preserveExistingAssignments: true,
+      })
+    ).not.toBe(base);
+    expect(
+      computeGenerationInputHash({
+        ...input(),
+        draftPinnedDates: { "goal-a:total:1": "2026-08-20" },
+      })
+    ).not.toBe(base);
+  });
+
+  it("is insensitive to draft pin key ordering", () => {
+    const forward = computeGenerationInputHash({
+      ...input(),
+      draftPinnedDates: {
+        "goal-a:total:1": "2026-08-20",
+        "goal-a:total:2": "2026-08-21",
+      },
+    });
+    const reversed = computeGenerationInputHash({
+      ...input(),
+      draftPinnedDates: {
+        "goal-a:total:2": "2026-08-21",
+        "goal-a:total:1": "2026-08-20",
+      },
+    });
+
+    expect(forward).toBe(reversed);
   });
 });

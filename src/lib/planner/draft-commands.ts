@@ -172,3 +172,16 @@ export function projectPlannerDraftCommands(
   }
   return projection;
 }
+
+export function buildDraftPinnedDatesFromCommands(
+  commands: PlannerDraftCommand[]
+): Record<string, string> {
+  const projected = projectPlannerDraftCommands(commands);
+  const pinnedDates: Record<string, string> = {};
+  for (const [entryKey, edit] of Object.entries(projected)) {
+    if (typeof edit.scheduledDate === "string") {
+      pinnedDates[entryKey] = edit.scheduledDate;
+    }
+  }
+  return pinnedDates;
+}

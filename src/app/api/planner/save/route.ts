@@ -14,6 +14,7 @@ import {
   PLANNER_ELIGIBILITY_MODES,
 } from "@/lib/planner/contracts/bounds";
 import { PlannerError, runPlannerKernel } from "@/lib/planner/kernel";
+import { findUnhonoredDraftPins } from "@/lib/planner/draft-pins";
 import {
   buildPlannerConfirmationHash,
   PlannerDraftEditValidationError,
@@ -21,6 +22,7 @@ import {
 } from "@/lib/planner/publish-payload";
 import { postgresErrorMatches } from "@/lib/planner/postgres-errors";
 import {
+  buildDraftPinnedDatesFromCommands,
   plannerDraftCommandSchema,
 } from "@/lib/planner/draft-commands";
 import { toScopeMonthDate } from "@/lib/planner/scope-month";
@@ -88,7 +90,8 @@ export async function handlePlannerSave(request: Request) {
           return parsed.data;
         })()
       : null;
-    const draftCommands = body.draftCommands;
+    const draftCommands = body.draftCommands ?? [];
+    const draftPinnedDates = buildDraftPinnedDatesFromCommands(draftCommands);
     const effectiveEligibilityMode =
       body.eligibilityMode ?? PLANNER_ELIGIBILITY_MODES[0];
 
@@ -133,7 +136,11 @@ export async function handlePlannerSave(request: Request) {
       kernel = runPlannerKernel({
         schemaVersion: "1",
         eligibilityMode: effectiveEligibilityMode,
+        // Publish always solves `stable`. `replan` exists only to generate move
+        // proposals, which reach this route as pinned `move_item` commands.
+        solveIntent: "stable",
         preserveExistingAssignments: requestedPolicy === null,
+        draftPinnedDates,
         ownerId: routeContext.userId,
         scopeMonth: body.scopeMonth,
         asOfDate,
@@ -157,6 +164,19 @@ export async function handlePlannerSave(request: Request) {
         409,
         "preview_hash_mismatch",
         "Planner preview hash is stale. Regenerate and publish again."
+      );
+    }
+
+    const draftPinViolations = findUnhonoredDraftPins({
+      workUnits: kernel.workUnits,
+      draftPinnedDates,
+    });
+    if (draftPinViolations.length > 0) {
+      throw new PlannerRouteError(
+        422,
+        "draft_pin_unhonored",
+        "One or more moved sessions no longer fit the current planner constraints. Undo those moves or pick different dates, then regenerate.",
+        { violations: draftPinViolations }
       );
     }
 

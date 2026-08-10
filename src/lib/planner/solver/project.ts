@@ -14,13 +14,25 @@ export function projectWorkUnitsToSolver({
   assessments,
   completionDatesByGoal = new Map(),
   preserveExistingAssignments = false,
+  draftPinnedDates = {},
 }: {
   workUnits: PlannerWorkUnit[];
   compiledPolicy: CompiledPolicy;
   assessments: Map<string, GoalAssessment>;
   completionDatesByGoal?: Map<string, Set<string>>;
   preserveExistingAssignments?: boolean;
+  draftPinnedDates?: Record<string, string>;
 }): SolverUnit[] {
+  const resolveLockedDate = (unit: PlannerWorkUnit) => {
+    if (unit.locked) {
+      return unit.scheduledDate;
+    }
+    const pinnedDate = draftPinnedDates[`${unit.originalGoalId}:${unit.unitKey}`];
+    if (pinnedDate !== undefined) {
+      return pinnedDate;
+    }
+    return preserveExistingAssignments ? unit.scheduledDate : null;
+  };
   const isProjectable = (unit: PlannerWorkUnit) =>
     (unit.classification === "open" ||
       unit.classification === "future") &&
@@ -83,11 +95,7 @@ export function projectWorkUnitsToSolver({
         ordinal: entry.source.ordinal,
         candidateDates: entry.candidateDates,
         previousDate: entry.source.scheduledDate,
-        lockedDate:
-          entry.source.locked ||
-          (preserveExistingAssignments && entry.source.scheduledDate !== null)
-            ? entry.source.scheduledDate
-            : null,
+        lockedDate: resolveLockedDate(entry.source),
         dateCosts: Object.fromEntries(
           entry.candidateDates.map((date) => [
             date,
