@@ -16,6 +16,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import Image from "next/image";
 import {
   type ReactNode,
@@ -162,6 +163,7 @@ export function TodayTab({
   refreshToken = 0,
 }: TodayTabProps = {}) {
   const supabase = useMemo(() => createClient(), []);
+  const router = useRouter();
   const [data, setData] = useState<TodayData>(emptyData);
   const [loading, setLoading] = useState(true);
   const [savingGoalId, setSavingGoalId] = useState<string | null>(null);
@@ -225,6 +227,7 @@ export function TodayTab({
 
         if (userError || !user) {
           setData(emptyData);
+          router.replace("/login");
           return;
         }
 
@@ -295,7 +298,7 @@ export function TodayTab({
         }
       }
     },
-    [supabase, todayLocalDate, viewDate]
+    [router, supabase, todayLocalDate, viewDate]
   );
 
   useEffect(() => {
