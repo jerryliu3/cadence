@@ -251,7 +251,8 @@ async function moveFirstMovableEntry(page: Page) {
           value !== currentDay
       )
       .sort();
-    return candidates[0] ?? null;
+    const forwardCandidate = candidates.find((candidate) => candidate > currentDay);
+    return forwardCandidate ?? candidates[0] ?? null;
   }, sourceDay);
   if (!targetDay) {
     throw new Error("Could not find a valid planner day-cell drop target.");
