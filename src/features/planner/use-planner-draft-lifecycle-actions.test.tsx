@@ -162,8 +162,13 @@ describe("usePlannerDraftLifecycleActions", () => {
     expect(postJsonMock).toHaveBeenCalledWith(
       "/api/planner/save",
       expect.objectContaining({
-        scopeMonth: "2026-08",
-        previewHash: "preview-hash-1",
+        expectedDigest: "digest-1",
+        scopes: [
+          expect.objectContaining({
+            scopeMonth: "2026-08",
+            previewHash: "preview-hash-1",
+          }),
+        ],
       })
     );
     expect(clearDraftScopeSession).toHaveBeenCalledWith("2026-08");

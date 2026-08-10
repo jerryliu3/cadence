@@ -73,18 +73,20 @@ export function usePlannerDraftLifecycleActions({
     let payload: PlannerErrorPayload & { replayed?: boolean };
     try {
       try {
+        const scopePayload = {
+          scopeMonth: context.scopeMonth,
+          previewHash: effectivePreview.generationInputHash,
+          eligibilityMode: effectivePreview.eligibilityMode,
+          confirmationHash,
+          policy: effectiveDraftPolicy ?? undefined,
+          preserveExistingAssignments: effectivePreview.preserveExistingAssignments,
+          draftCommands: draftSaveCommands,
+        };
         payload = await postJson<PlannerErrorPayload & { replayed?: boolean }>(
           "/api/planner/save",
           {
-            scopeMonth: context.scopeMonth,
-            previewHash: effectivePreview.generationInputHash,
-            eligibilityMode: effectivePreview.eligibilityMode,
             expectedDigest,
-            confirmationHash,
-            policy: effectiveDraftPolicy ?? undefined,
-            preserveExistingAssignments:
-              effectivePreview.preserveExistingAssignments,
-            draftCommands: draftSaveCommands,
+            scopes: [scopePayload],
           }
         );
       } catch (error) {
