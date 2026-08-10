@@ -153,16 +153,32 @@ set
   last_sign_in_at = excluded.last_sign_in_at,
   updated_at = excluded.updated_at;
 
-insert into public.profiles (id, username, display_name, avatar_url)
+-- `timezone_confirmed_at` gates the planner preferences snapshot: while it is
+-- null, `resolvePlannerPreferencesSnapshot` returns null, so planner publish
+-- routes reject with `timezone_confirmation_required` and the context route
+-- falls back to synthesizing a policy from `new Date()` on every request --
+-- which makes `generationInputHash` unstable between two identical reads.
+-- Seed a fixed confirmation timestamp so seeded accounts are publish-ready and
+-- previews are deterministic across resets.
+insert into public.profiles (
+  id,
+  username,
+  display_name,
+  avatar_url,
+  timezone,
+  timezone_confirmed_at
+)
 values
-  ('11111111-1111-4111-8111-111111111111', 'alice', 'Alice Park', null),
-  ('22222222-2222-4222-8222-222222222222', 'bob', 'Bob Chen', null),
-  ('33333333-3333-4333-8333-333333333333', 'carla', 'Carla Diaz', null)
+  ('11111111-1111-4111-8111-111111111111', 'alice', 'Alice Park', null, 'UTC', '2026-01-01T00:00:00Z'),
+  ('22222222-2222-4222-8222-222222222222', 'bob', 'Bob Chen', null, 'UTC', '2026-01-01T00:00:00Z'),
+  ('33333333-3333-4333-8333-333333333333', 'carla', 'Carla Diaz', null, 'UTC', '2026-01-01T00:00:00Z')
 on conflict (id) do update
 set
   username = excluded.username,
   display_name = excluded.display_name,
-  avatar_url = excluded.avatar_url;
+  avatar_url = excluded.avatar_url,
+  timezone = excluded.timezone,
+  timezone_confirmed_at = excluded.timezone_confirmed_at;
 
 insert into public.goals (
   id,

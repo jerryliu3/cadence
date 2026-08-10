@@ -1,5 +1,11 @@
 import { expect, test, type Page } from "@playwright/test";
 
+// Publishing a plan moves the owner-wide schedule digest, and one test below
+// ("reports missing planner item with matching digest") needs the digest it
+// read to still be current when it posts. Run this file serially so a publish
+// cannot land inside that window.
+test.describe.configure({ mode: "serial" });
+
 async function postInvalidPushSubscription(page: Page) {
   return page.evaluate(async () => {
     const response = await fetch("/api/push/subscriptions", {
@@ -365,4 +371,130 @@ test("targeted recurring bridge mutates only the requested date", async ({
     exactFactCount: 1,
     deleteStatus: 200,
   });
+});
+
+test("planner save publishes multiple scope months in one request", async ({
+  page,
+}) => {
+  await page.goto("/");
+  const result = await page.evaluate(async () => {
+    type Ctx = {
+      asOfDate: string;
+      revisions: { scheduleDigest: string };
+      preview: {
+        generationInputHash: string;
+        eligibilityMode: string;
+        preserveExistingAssignments: boolean;
+        solver: { publishable: boolean; confirmationRequired: boolean };
+      } | null;
+    };
+    const loadContext = async (scopeMonth: string) => {
+      const response = await fetch(
+        `/api/planner/context?scopeMonth=${scopeMonth}`
+      );
+      return { status: response.status, body: (await response.json()) as Ctx };
+    };
+    const addMonth = (month: string) => {
+      const year = Number(month.slice(0, 4));
+      const index = Number(month.slice(5, 7));
+      const rolled = index === 12;
+      return `${rolled ? year + 1 : year}-${String(rolled ? 1 : index + 1).padStart(2, "0")}`;
+    };
+
+    // Anchor both scopes on the server's as-of date so the month pair matches
+    // the planner timezone rather than the runner's local zone.
+    const localMonth = new Date().toISOString().slice(0, 7);
+    const anchor = await loadContext(localMonth);
+    const scopeMonthA = anchor.body.asOfDate.slice(0, 7);
+    const scopeMonthB = addMonth(scopeMonthA);
+
+    // A stable preview hash across two identical reads is what makes publish
+    // possible at all: the save route rejects a mismatched hash. It is only
+    // stable because the seeded profile has `timezone_confirmed_at` set --
+    // without it the planner policy is synthesized from the current clock on
+    // every request.
+    const firstA = await loadContext(scopeMonthA);
+    const secondA = await loadContext(scopeMonthA);
+    const hashStable =
+      firstA.body.preview?.generationInputHash ===
+      secondA.body.preview?.generationInputHash;
+
+    const contextB = await loadContext(scopeMonthB);
+    const toScope = (scopeMonth: string, context: Ctx) => ({
+      scopeMonth,
+      previewHash: context.preview!.generationInputHash,
+      confirmationHash: null,
+      eligibilityMode: context.preview!.eligibilityMode,
+      preserveExistingAssignments: context.preview!.preserveExistingAssignments,
+      draftCommands: [],
+    });
+
+    type SaveBody = {
+      publishedScopes?: string[];
+      upsertedCount?: number;
+      replayed?: boolean;
+    };
+    const publish = async (a: Ctx, b: Ctx) => {
+      const response = await fetch("/api/planner/save", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          expectedDigest: a.revisions.scheduleDigest,
+          scopes: [toScope(scopeMonthA, a), toScope(scopeMonthB, b)],
+        }),
+      });
+      return { status: response.status, body: (await response.json()) as SaveBody };
+    };
+
+    const firstSave = await publish(secondA.body, contextB.body);
+    const digestAfterFirst = (await loadContext(scopeMonthA)).body.revisions
+      .scheduleDigest;
+
+    // Re-derive both scopes from the freshly published state and publish again.
+    // The payload now matches stored rows exactly, so the batch must take its
+    // all-replay short-circuit: upsert nothing, leave the digest alone, and
+    // still succeed rather than raising `stale_schedule`.
+    const republishA = await loadContext(scopeMonthA);
+    const republishB = await loadContext(scopeMonthB);
+    const secondSave = await publish(republishA.body, republishB.body);
+    const digestAfterSecond = (await loadContext(scopeMonthA)).body.revisions
+      .scheduleDigest;
+
+    return {
+      scopeMonthA,
+      scopeMonthB,
+      hashStable,
+      publishable:
+        secondA.body.preview?.solver.publishable === true &&
+        contextB.body.preview?.solver.publishable === true,
+      firstSave,
+      secondSave,
+      // A batch that writes moves the owner-wide digest; a batch that replays
+      // must not. Whether the first publish writes depends on what was already
+      // stored, so assert the coupling rather than a fixed count.
+      firstSaveMovedDigest:
+        digestAfterFirst !== secondA.body.revisions.scheduleDigest,
+      secondSaveMovedDigest: digestAfterSecond !== digestAfterFirst,
+    };
+  });
+
+  expect(result.hashStable).toBe(true);
+  expect(result.publishable).toBe(true);
+
+  expect(result.firstSave.status).toBe(200);
+  expect(result.firstSave.body.publishedScopes).toEqual([
+    result.scopeMonthA,
+    result.scopeMonthB,
+  ]);
+  expect((result.firstSave.body.upsertedCount ?? 0) > 0).toBe(
+    result.firstSaveMovedDigest
+  );
+
+  expect(result.secondSave.status).toBe(200);
+  expect(result.secondSave.body.publishedScopes).toEqual([
+    result.scopeMonthA,
+    result.scopeMonthB,
+  ]);
+  expect(result.secondSave.body.upsertedCount).toBe(0);
+  expect(result.secondSaveMovedDigest).toBe(false);
 });
