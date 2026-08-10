@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { Goal } from "@/lib/goals/types";
 import { runPlannerKernel, type PlannerKernelInput } from "@/lib/planner/kernel";
 import { createDefaultPlannerPolicy } from "@/lib/planner/policy";
+import { computeRequirementFingerprint } from "@/lib/planner/requirements";
 
 function makeGoal(overrides: Partial<Goal> = {}): Goal {
   return {
@@ -127,5 +128,50 @@ describe("ordinal is identity, not sequence", () => {
       first.workUnits.map((unit) => unit.scheduledDate)
     );
     expect(second.generationInputHash).toBe(first.generationInputHash);
+  });
+});
+
+describe("locks and pins coexist", () => {
+  it("keeps a hard-locked unit on its lock while another unit is pinned", () => {
+    const goal = makeGoal({ target_count: 3 });
+    const basePlan = {
+      planId: "plan-a",
+      version: 1,
+      assignments: [
+        {
+          goalId: "goal-a",
+          requirementFingerprint: computeRequirementFingerprint(goal),
+          unitKey: "total:1",
+          scheduledDate: "2026-08-05",
+          locked: false,
+        },
+        {
+          goalId: "goal-a",
+          requirementFingerprint: computeRequirementFingerprint(goal),
+          unitKey: "total:2",
+          scheduledDate: "2026-08-25",
+          locked: true,
+        },
+        {
+          goalId: "goal-a",
+          requirementFingerprint: computeRequirementFingerprint(goal),
+          unitKey: "total:3",
+          scheduledDate: "2026-08-07",
+          locked: false,
+        },
+      ],
+    };
+    const before = runPlannerKernel({ ...makeInput(goal), basePlan });
+    const after = runPlannerKernel({
+      ...makeInput(goal, { "goal-a:total:1": "2026-08-19" }),
+      basePlan,
+    });
+
+    expect(
+      after.workUnits.find((unit) => unit.unitKey === "total:2")?.scheduledDate
+    ).toBe("2026-08-25");
+    expect(movedUnits(before, after)).toEqual([
+      { unitKey: "total:1", from: "2026-08-05", to: "2026-08-19" },
+    ]);
   });
 });
