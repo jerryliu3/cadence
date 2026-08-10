@@ -1,33 +1,20 @@
 import { describe, expect, it } from "vitest";
-import type { PlannerDayDetailEntry } from "@/features/planner/calendar-surface.types";
 import { planDraftTimeOverrideUpdate } from "@/features/planner/draft-time-override";
-
-function buildEntry(
-  overrides: Partial<PlannerDayDetailEntry> = {}
-): PlannerDayDetailEntry {
-  return {
-    key: "goal-a:total:1",
-    originalGoalId: "goal-a",
-    goalTitle: "Goal A",
-    unitKey: "total:1",
-    label: null,
-    classification: "open",
-    creditState: "uncredited",
-    activeGoal: null,
-    activeItem: null,
-    draftDiffKind: null,
-    draftDiffFromDate: null,
-    draftDiffToDate: null,
-    draftGhost: false,
-    ...overrides,
-  };
-}
+import { buildPlannerDayEntry } from "@/features/planner/test-fixtures";
 
 describe("planDraftTimeOverrideUpdate", () => {
   it("blocks draft retiming for credited sessions", () => {
     const plan = planDraftTimeOverrideUpdate({
       scopeMonth: "2026-08",
-      entry: buildEntry({ creditState: "completed_as_scheduled" }),
+      entry: buildPlannerDayEntry({
+        key: "goal-a:total:1",
+        originalGoalId: "goal-a",
+        goalTitle: "Goal A",
+        unitKey: "total:1",
+        label: null,
+        classification: "open",
+        creditState: "completed_as_scheduled",
+      }),
       localTimeInput: "09:30",
       baselineOverride: null,
     });
@@ -40,7 +27,14 @@ describe("planDraftTimeOverrideUpdate", () => {
   it("blocks draft retiming for historical sessions", () => {
     const plan = planDraftTimeOverrideUpdate({
       scopeMonth: "2026-08",
-      entry: buildEntry({ classification: "historical_shortfall" }),
+      entry: buildPlannerDayEntry({
+        key: "goal-a:total:1",
+        originalGoalId: "goal-a",
+        goalTitle: "Goal A",
+        unitKey: "total:1",
+        label: null,
+        classification: "historical_shortfall",
+      }),
       localTimeInput: "09:30",
       baselineOverride: null,
     });
@@ -53,7 +47,14 @@ describe("planDraftTimeOverrideUpdate", () => {
   it("rejects malformed local time input without mutating commands", () => {
     const plan = planDraftTimeOverrideUpdate({
       scopeMonth: "2026-08",
-      entry: buildEntry(),
+      entry: buildPlannerDayEntry({
+        key: "goal-a:total:1",
+        originalGoalId: "goal-a",
+        goalTitle: "Goal A",
+        unitKey: "total:1",
+        label: null,
+        classification: "open",
+      }),
       localTimeInput: "2:30 PM",
       baselineOverride: null,
     });
@@ -66,7 +67,14 @@ describe("planDraftTimeOverrideUpdate", () => {
   it("clears stale set/clear commands when baseline has no override", () => {
     const plan = planDraftTimeOverrideUpdate({
       scopeMonth: "2026-08",
-      entry: buildEntry(),
+      entry: buildPlannerDayEntry({
+        key: "goal-a:total:1",
+        originalGoalId: "goal-a",
+        goalTitle: "Goal A",
+        unitKey: "total:1",
+        label: null,
+        classification: "open",
+      }),
       localTimeInput: "",
       baselineOverride: null,
     });
@@ -94,7 +102,14 @@ describe("planDraftTimeOverrideUpdate", () => {
   it("creates a clear override command when baseline has one", () => {
     const plan = planDraftTimeOverrideUpdate({
       scopeMonth: "2026-08",
-      entry: buildEntry(),
+      entry: buildPlannerDayEntry({
+        key: "goal-a:total:1",
+        originalGoalId: "goal-a",
+        goalTitle: "Goal A",
+        unitKey: "total:1",
+        label: null,
+        classification: "open",
+      }),
       localTimeInput: "",
       baselineOverride: "08:00",
     });
@@ -114,7 +129,14 @@ describe("planDraftTimeOverrideUpdate", () => {
   it("creates set override command when time differs from baseline", () => {
     const plan = planDraftTimeOverrideUpdate({
       scopeMonth: "2026-08",
-      entry: buildEntry(),
+      entry: buildPlannerDayEntry({
+        key: "goal-a:total:1",
+        originalGoalId: "goal-a",
+        goalTitle: "Goal A",
+        unitKey: "total:1",
+        label: null,
+        classification: "open",
+      }),
       localTimeInput: "09:15",
       baselineOverride: "08:00",
     });
