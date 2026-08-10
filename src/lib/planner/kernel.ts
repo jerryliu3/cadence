@@ -59,6 +59,7 @@ import { projectWorkUnitsToSolver } from "@/lib/planner/solver/project";
 import type {
   PlannerIssueCode,
   PlannerSolverResult,
+  SolverSolveIntent,
 } from "@/lib/planner/solver/types";
 import { getSolverUnitId } from "@/lib/planner/solver/types";
 import {
@@ -91,6 +92,7 @@ export class PlannerError extends Error {
 export interface PlannerKernelInput {
   schemaVersion: typeof PLANNER_CONTRACT_VERSION;
   eligibilityMode: PlannerEligibilityMode;
+  solveIntent?: SolverSolveIntent;
   preserveExistingAssignments?: boolean;
   draftPinnedDates?: Record<string, string>;
   ownerId: string;
@@ -688,6 +690,7 @@ export function runPlannerKernel(
   const solver = solveOrderedDpV1({
     dates,
     units: solverUnits,
+    solveIntent: rawInput.solveIntent ?? "stable",
   });
   const historicalIssueCodes: PlannerIssueCode[] = [];
   if (

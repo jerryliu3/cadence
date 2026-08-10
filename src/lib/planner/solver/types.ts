@@ -50,6 +50,8 @@ export interface SolverObjective {
   policyCost: number;
 }
 
+export type SolverSolveIntent = "stable" | "replan";
+
 export function getSolverUnitId(
   value: Pick<SolverAssignment, "goalId" | "unitKey">
 ) {
