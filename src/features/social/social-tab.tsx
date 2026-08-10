@@ -11,7 +11,6 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -34,10 +33,7 @@ import { SharedGoalsCard } from "@/features/social/shared-goals-card";
 import {
   getCategoryLabel,
 } from "@/lib/goals/category";
-import {
-  getSortedCompletionDates,
-  groupCompletionsByGoalId,
-} from "@/lib/goals/completion-grouping";
+import { groupCompletionsByGoalId } from "@/lib/goals/completion-grouping";
 import {
   isOrdinalGoalDefinition,
   validateGoalDefinition,
