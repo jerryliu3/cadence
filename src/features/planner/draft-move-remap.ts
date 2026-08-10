@@ -24,11 +24,21 @@ export function remapGoalDatesForDraftMove({
   units,
   movedUnitKey,
   nextDate,
+  kind,
 }: {
   units: RemappableUnit[];
   movedUnitKey: string;
   nextDate: string;
+  kind?: "milestone_sequence" | "cadence" | "deadline_total";
 }): Record<string, string> {
+  // Milestone labels are bound to the ordinal (`labels[ordinal - 1]`), so
+  // relabelling would move the wrong item: drag "Outline" late and "Final"
+  // lands on the new date. The ordering is also real here -- a later milestone
+  // genuinely follows an earlier one -- so pin the dragged unit and let the
+  // sequence shift with it.
+  if (kind === "milestone_sequence") {
+    return { [movedUnitKey]: nextDate };
+  }
   const ordered = [...units].sort((left, right) =>
     left.ordinal !== right.ordinal
       ? left.ordinal - right.ordinal
