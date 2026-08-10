@@ -68,8 +68,29 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Disable Mailpit in CI Supabase config
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          config_path = Path("supabase/config.toml")
+          config = config_path.read_text()
+          if "[inbucket]\nenabled = true" in config:
+              config = config.replace(
+                  "[inbucket]\nenabled = true",
+                  "[inbucket]\nenabled = false",
+                  1,
+              )
+          elif "[inbucket]\nenabled = false" not in config:
+              raise SystemExit("Could not locate [inbucket] enabled setting in supabase/config.toml")
+          config_path.write_text(config)
+          PY
+
+      - name: Stop stale Supabase containers
+        run: pnpm exec supabase stop --all || true
+
       - name: Start local Supabase (lean profile)
-        run: pnpm supabase:start -- --exclude studio,inbucket,imgproxy,analytics,vector,edge-runtime,functions
+        run: pnpm supabase:start -- --exclude studio,mailpit,imgproxy,analytics,vector,edge-runtime,postgres-meta,logflare,supavisor
 
       - name: Reset and seed local database
         run: pnpm supabase:reset
