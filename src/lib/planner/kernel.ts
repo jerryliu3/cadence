@@ -693,10 +693,43 @@ export function runPlannerKernel(
     draftPinnedDates: rawInput.draftPinnedDates ?? {},
   });
   const dates = enumerateDates(getScopeDateRange(rawInput.scopeMonth));
+  // Solve-order anchors come from an unpinned pass: a pinned unit should slot in
+  // where its date puts it, and the rest should stay where they already were.
+  // Without this a draft on an unpublished month has no anchors at all, so a
+  // single pin would push every other unit after it.
+  const solveIntentForRun = rawInput.solveIntent ?? "stable";
+  const anchoredSolverUnits =
+    Object.keys(rawInput.draftPinnedDates ?? {}).length > 0
+      ? (() => {
+          const unpinned = solveOrderedDpV1({
+            dates,
+            units: solverUnits.map((unit) => ({ ...unit, lockedDate: null })),
+            solveIntent: solveIntentForRun,
+          });
+          const anchorByUnitId = new Map(
+            unpinned.assignments.map((assignment) => [
+              getSolverUnitId(assignment),
+              assignment.scheduledDate,
+            ])
+          );
+          return solverUnits.map((unit) => {
+            const anchor =
+              anchorByUnitId.get(getSolverUnitId(unit)) ?? unit.previousDate;
+            return {
+              ...unit,
+              solveOrderAnchor: anchor,
+              // Measure stability against the layout the user is looking at,
+              // not against the published plan. Otherwise an unpublished month
+              // has no stability signal and every unit is free to compact.
+              previousDate: anchor,
+            };
+          });
+        })()
+      : solverUnits;
   const solver = solveOrderedDpV1({
     dates,
-    units: solverUnits,
-    solveIntent: rawInput.solveIntent ?? "stable",
+    units: anchoredSolverUnits,
+    solveIntent: solveIntentForRun,
   });
   const historicalIssueCodes: PlannerIssueCode[] = [];
   if (
