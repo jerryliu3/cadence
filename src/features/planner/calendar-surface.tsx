@@ -580,6 +580,7 @@ export function CalendarSurface({
     completionFactUnitsByGoalDate,
   } = calendarStoreProjection;
   const effectiveSelectedDay = localSelectedDay;
+  const dayPreviewDay = dayPreview?.day ?? null;
   const projectionDays = useMemo(() => {
     const days = new Set<string>();
     for (const day of visibleDays) {
@@ -591,11 +592,11 @@ export function CalendarSurface({
     if (focusedDay) {
       days.add(focusedDay);
     }
-    if (dayPreview?.day) {
-      days.add(dayPreview.day);
+    if (dayPreviewDay) {
+      days.add(dayPreviewDay);
     }
     return Array.from(days);
-  }, [dayPreview, effectiveSelectedDay, focusedDay, visibleDays]);
+  }, [dayPreviewDay, effectiveSelectedDay, focusedDay, visibleDays]);
   const dayProjectionByDay = useMemo(
     () =>
       selectPlannerCalendarDayProjectionsByDay({
@@ -1515,6 +1516,10 @@ export function CalendarSurface({
       clearDragState();
     },
     [clearDragState]
+  );
+  const canMutatePlanItems = Boolean(
+    context?.capabilities.calendarEnabled &&
+      context?.activePlan?.plan.status === "active"
   );
 
   const getDateFactDispatchForEntry = (

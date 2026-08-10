@@ -30,7 +30,13 @@ export function buildActiveGoalIndexes(
   };
 }
 
-export function buildEntriesByDate({
+export interface PlannerEntriesByDateProjection {
+  entriesByDate: Map<string, PlannerDayDetailEntry[]>;
+  entryByKey: Map<string, PlannerDayDetailEntry>;
+  entryDayByKey: Map<string, string>;
+}
+
+export function buildEntriesByDateProjection({
   baselineWorkUnits,
   workUnits,
   activeItems,
@@ -344,12 +350,31 @@ export function buildEntriesByDate({
     byDate.set(diffEntry.date, dayEntries);
   }
 
-  return new Map(
+  const entriesByDate = new Map(
     Array.from(byDate.entries()).map(([day, dayEntries]) => [
       day,
       Array.from(dayEntries.values()),
     ])
   );
+  const syncedEntryByKey = new Map<string, PlannerDayDetailEntry>();
+  const syncedEntryDayByKey = new Map<string, string>();
+  for (const [day, entries] of entriesByDate.entries()) {
+    for (const entry of entries) {
+      syncedEntryByKey.set(entry.key, entry);
+      syncedEntryDayByKey.set(entry.key, day);
+    }
+  }
+  return {
+    entriesByDate,
+    entryByKey: syncedEntryByKey,
+    entryDayByKey: syncedEntryDayByKey,
+  };
+}
+
+export function buildEntriesByDate(
+  args: Parameters<typeof buildEntriesByDateProjection>[0]
+) {
+  return buildEntriesByDateProjection(args).entriesByDate;
 }
 
 export function buildEntryByKey(entriesByDate: Map<string, PlannerDayDetailEntry[]>) {
@@ -368,6 +393,20 @@ export function buildEntryDayByKey(entriesByDate: Map<string, PlannerDayDetailEn
     for (const entry of entries) {
       map.set(entry.key, day);
     }
+  }
+  return map;
+}
+
+export function buildCanonicalEntryDayByKey(workUnits: PlannerWorkUnit[] | undefined) {
+  const map = new Map<string, string | null>();
+  for (const unit of workUnits ?? []) {
+    map.set(
+      draftCommandEntryKey({
+        goalId: unit.originalGoalId,
+        unitKey: unit.unitKey,
+      }),
+      unit.scheduledDate ?? null
+    );
   }
   return map;
 }
@@ -500,16 +539,14 @@ export function buildVisibleMonthCalendarDataByMonth(
 export function resolveCalendarDayData({
   day,
   entriesByDate,
-  entryDayByKey,
-  previewUnitByEntryKey,
+  canonicalEntryDayByKey,
   completionFactMarkersByDate,
   completionFactMarkerDayByIdentity,
   visibleMonthCalendarDataByMonth,
 }: {
   day: string | null;
   entriesByDate: Map<string, PlannerDayDetailEntry[]>;
-  entryDayByKey?: Map<string, string>;
-  previewUnitByEntryKey?: Map<string, PlannerWorkUnit>;
+  canonicalEntryDayByKey: Map<string, string | null>;
   completionFactMarkersByDate: Map<string, PlannerCompletionFactMarker[]>;
   completionFactMarkerDayByIdentity?: Map<string, string>;
   visibleMonthCalendarDataByMonth: Map<
@@ -528,11 +565,6 @@ export function resolveCalendarDayData({
   }
   const currentEntries = entriesByDate.get(day) ?? [];
   const currentCompletionFactMarkers = completionFactMarkersByDate.get(day) ?? [];
-  const canonicalEntryDayByKey = entryDayByKey ?? buildEntryDayByKey(entriesByDate);
-  const hasCanonicalEntry =
-    previewUnitByEntryKey !== undefined
-      ? (entryKey: string) => previewUnitByEntryKey.has(entryKey)
-      : (entryKey: string) => canonicalEntryDayByKey.has(entryKey);
   const canonicalCompletionFactMarkerDayByIdentity =
     completionFactMarkerDayByIdentity ??
     buildCompletionFactMarkerDayByIdentity(completionFactMarkersByDate);
@@ -545,7 +577,7 @@ export function resolveCalendarDayData({
   );
   for (const entry of supplementalEntries) {
     const canonicalDay = canonicalEntryDayByKey.get(entry.key) ?? null;
-    if (hasCanonicalEntry(entry.key) && canonicalDay !== day) {
+    if (canonicalEntryDayByKey.has(entry.key) && canonicalDay !== day) {
       continue;
     }
     if (!mergedEntriesByKey.has(entry.key)) {
@@ -559,7 +591,10 @@ export function resolveCalendarDayData({
     const markerIdentityKey = completionFactIdentityKey(marker);
     const canonicalMarkerDay =
       canonicalCompletionFactMarkerDayByIdentity.get(markerIdentityKey) ?? null;
-    if (hasCanonicalEntry(markerIdentityKey) && canonicalMarkerDay !== day) {
+    if (
+      canonicalEntryDayByKey.has(markerIdentityKey) &&
+      canonicalMarkerDay !== day
+    ) {
       continue;
     }
     if (!mergedCompletionFactMarkersByKey.has(marker.key)) {

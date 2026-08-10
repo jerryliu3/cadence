@@ -1,10 +1,9 @@
 import {
+  buildCanonicalEntryDayByKey,
   buildCompletionFactMarkerDayByIdentity,
   buildCompletionFactMarkersByDate,
   buildCompletionFactUnitsByGoalDate,
-  buildEntriesByDate,
-  buildEntryByKey,
-  buildEntryDayByKey,
+  buildEntriesByDateProjection,
   buildPreviewUnitByEntryKey,
   buildVisibleMonthCalendarDataByMonth,
   orderEntriesForDay,
@@ -42,6 +41,7 @@ export interface PlannerCalendarStoreProjection {
   entriesByDate: Map<string, PlannerDayDetailEntry[]>;
   entryByKey: Map<string, PlannerDayDetailEntry>;
   entryDayByKey: Map<string, string>;
+  canonicalEntryDayByKey: Map<string, string | null>;
   previewUnitByEntryKey: Map<string, PlannerWorkUnit>;
   completionFactUnitsByGoalDate: Map<string, PlannerWorkUnit[]>;
   completionFactMarkersByDate: Map<string, PlannerCompletionFactMarker[]>;
@@ -56,6 +56,7 @@ export interface PlannerCalendarDayProjection {
 
 const EMPTY_DAY_ENTRIES: PlannerDayDetailEntry[] = [];
 const EMPTY_COMPLETION_FACT_MARKERS: PlannerCompletionFactMarker[] = [];
+const warnedMissingDayProjectionByDay = new Set<string>();
 
 export const EMPTY_PLANNER_CALENDAR_DAY_PROJECTION: PlannerCalendarDayProjection = {
   entries: EMPTY_DAY_ENTRIES,
@@ -164,7 +165,11 @@ export function selectPlannerCalendarStoreProjection({
     visibleMonthContexts,
     visibleDraftItemEditsByMonth
   );
-  const entriesByDate = buildEntriesByDate({
+  const {
+    entriesByDate,
+    entryByKey,
+    entryDayByKey,
+  } = buildEntriesByDateProjection({
     baselineWorkUnits: context?.preview?.workUnits,
     workUnits: effectivePreview?.workUnits,
     activeItems: context?.activePlan?.items,
@@ -173,8 +178,9 @@ export function selectPlannerCalendarStoreProjection({
     goalTitles: context?.goalTitles,
     draftItemEdits: effectiveDraftItemEdits,
   });
-  const entryByKey = buildEntryByKey(entriesByDate);
-  const entryDayByKey = buildEntryDayByKey(entriesByDate);
+  const canonicalEntryDayByKey = buildCanonicalEntryDayByKey(
+    effectivePreview?.workUnits
+  );
   const previewUnitByEntryKey = buildPreviewUnitByEntryKey(effectivePreview?.workUnits);
   const completionFactUnitsByGoalDate = buildCompletionFactUnitsByGoalDate(
     effectivePreview?.workUnits
@@ -195,6 +201,7 @@ export function selectPlannerCalendarStoreProjection({
     entriesByDate,
     entryByKey,
     entryDayByKey,
+    canonicalEntryDayByKey,
     previewUnitByEntryKey,
     completionFactUnitsByGoalDate,
     completionFactMarkersByDate,
@@ -219,8 +226,7 @@ export function selectPlannerCalendarDayProjectionsByDay({
     const dayData = resolveCalendarDayData({
       day,
       entriesByDate: storeProjection.entriesByDate,
-      entryDayByKey: storeProjection.entryDayByKey,
-      previewUnitByEntryKey: storeProjection.previewUnitByEntryKey,
+      canonicalEntryDayByKey: storeProjection.canonicalEntryDayByKey,
       completionFactMarkersByDate: storeProjection.completionFactMarkersByDate,
       completionFactMarkerDayByIdentity:
         storeProjection.completionFactMarkerDayByIdentity,
@@ -245,6 +251,16 @@ export function readPlannerCalendarDayProjection(
 ) {
   if (!day) {
     return EMPTY_PLANNER_CALENDAR_DAY_PROJECTION;
+  }
+  if (
+    process.env.NODE_ENV !== "production" &&
+    !dayProjectionByDay.has(day) &&
+    !warnedMissingDayProjectionByDay.has(day)
+  ) {
+    warnedMissingDayProjectionByDay.add(day);
+    console.warn(
+      `[planner] Missing day projection for ${day}. Verify projectionDays includes every rendered/accessed day.`
+    );
   }
   return (
     dayProjectionByDay.get(day) ?? EMPTY_PLANNER_CALENDAR_DAY_PROJECTION
