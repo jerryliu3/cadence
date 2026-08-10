@@ -478,6 +478,57 @@ export function CalendarSurface({
     }
     return itemEditsByMonth;
   }, [draftCommandState, visibleMonthContexts]);
+  const dirtyScopeMonths = useMemo(() => {
+    const scopeSet = new Set<string>();
+    for (const [scopeMonth, draftPolicy] of Object.entries(draftPolicyByScope)) {
+      if (draftPolicy) {
+        scopeSet.add(scopeMonth);
+      }
+    }
+    for (const scopedCommand of draftCommandState.commands) {
+      scopeSet.add(scopedCommand.scopeMonth);
+    }
+    return Array.from(scopeSet).sort((left, right) => left.localeCompare(right));
+  }, [draftCommandState.commands, draftPolicyByScope]);
+  const draftCommandsForSaveByScope = useMemo(() => {
+    const commandsByScope: Record<string, PlannerDraftCommand[]> = {};
+    for (const scopeMonth of dirtyScopeMonths) {
+      const scopedCommands = sortPlannerDraftCommands(
+        selectDraftCommandsForScope(draftCommandState, scopeMonth)
+      );
+      const previewForScope =
+        scopeMonth === currentScopeMonth
+          ? effectivePreview
+          : draftPreviewByScope[scopeMonth] ?? visibleMonthContexts[scopeMonth]?.preview;
+      if (!previewForScope) {
+        commandsByScope[scopeMonth] = scopedCommands;
+        continue;
+      }
+      const previewEntryKeys = new Set(
+        (previewForScope.workUnits ?? []).map((unit) =>
+          draftCommandEntryKey({
+            goalId: unit.originalGoalId,
+            unitKey: unit.unitKey,
+          })
+        )
+      );
+      commandsByScope[scopeMonth] = scopedCommands.filter((command) =>
+        previewEntryKeys.has(draftCommandEntryKey(command))
+      );
+    }
+    return commandsByScope;
+  }, [
+    currentScopeMonth,
+    dirtyScopeMonths,
+    draftCommandState,
+    draftPreviewByScope,
+    effectivePreview,
+    visibleMonthContexts,
+  ]);
+  const currentScopeHasDraftSession = currentScopeMonth
+    ? dirtyScopeMonths.includes(currentScopeMonth)
+    : false;
+  const hasDraftSession = dirtyScopeMonths.length > 0;
   const horizonCounter = useMemo(() => {
     const summary = effectivePreview?.horizonSummary ?? [];
     if (summary.length === 0) {
@@ -812,30 +863,55 @@ export function CalendarSurface({
     [effectiveDraftCommands]
   );
 
+  const requestPreviewForScope = useCallback(
+    async ({
+      scopeMonth,
+      nextPolicy,
+      solveIntent,
+      draftCommands,
+    }: {
+      scopeMonth: string;
+      nextPolicy: PlannerPolicy;
+      solveIntent: "stable" | "replan";
+      draftCommands: PlannerDraftCommand[];
+    }) => {
+      if (!context?.timezone) {
+        throw new Error("Planner context is unavailable.");
+      }
+      try {
+        const previewPayload = await postJson<PlannerPreviewResponsePayload>(
+          "/api/planner/context",
+          {
+            scopeMonth,
+            timezone: context.timezone,
+            policy: nextPolicy,
+            source: context.activePlan ? "update" : "manual",
+            solveIntent,
+            draftCommands,
+          }
+        );
+        return previewPayload.preview;
+      } catch (error) {
+        throw new Error(getApiErrorMessage(error, "Preview refresh failed."));
+      }
+    },
+    [context]
+  );
+
   const requestPreview = async (
     nextPolicy: PlannerPolicy,
     solveIntent: "stable" | "replan",
     draftCommands: PlannerDraftCommand[]
   ) => {
-    if (!context?.scopeMonth || !context?.timezone) {
+    if (!context?.scopeMonth) {
       throw new Error("Planner context is unavailable.");
     }
-    try {
-      const previewPayload = await postJson<PlannerPreviewResponsePayload>(
-        "/api/planner/context",
-        {
-          scopeMonth: context.scopeMonth,
-          timezone: context.timezone,
-          policy: nextPolicy,
-          source: context.activePlan ? "update" : "manual",
-          solveIntent,
-          draftCommands,
-        }
-      );
-      return previewPayload.preview;
-    } catch (error) {
-      throw new Error(getApiErrorMessage(error, "Preview refresh failed."));
-    }
+    return requestPreviewForScope({
+      scopeMonth: context.scopeMonth,
+      nextPolicy,
+      solveIntent,
+      draftCommands,
+    });
   };
 
   /**
@@ -988,32 +1064,34 @@ export function CalendarSurface({
     }, DRAFT_MOVE_PREVIEW_REFRESH_DELAY_MS);
   }, []);
 
-  const nonPublishablePreviewMessage = (
-    preview: NonNullable<PlannerContextPayload["preview"]>
-  ) => {
-    if (context && context.scopeMonth < context.asOfDate.slice(0, 7)) {
-      return "Publishing an elapsed month is not supported. Publish the current or a future month.";
-    }
-    if (preview.solver.issueCodes.includes("invalid_lock")) {
-      const affectedGoals = preview.solver.invalidGoalIds
-        .slice(0, 3)
-        .map((goalId) => context?.goalTitles?.[goalId] ?? goalId);
-      const affectedLabel =
-        affectedGoals.length > 0
-          ? `Affected goals: ${affectedGoals.join(", ")}. `
-          : "";
-      return `${affectedLabel}Locked sessions currently conflict with this regenerated preview. Unlock affected sessions, regenerate, then save.`;
-    }
-    if (preview.solver.issueCodes.length > 0) {
-      return `Resolve planner issues before saving: ${preview.solver.issueCodes.join(
-        ", "
-      )}.`;
-    }
-    return "This preview is not savable yet. Regenerate and resolve planner issues before saving.";
-  };
+  const nonPublishablePreviewMessage = useCallback(
+    (
+      preview: NonNullable<PlannerContextPayload["preview"]>,
+      scopeMonth: string | null = context?.scopeMonth ?? null
+    ) => {
+      if (context && scopeMonth && scopeMonth < context.asOfDate.slice(0, 7)) {
+        return "Publishing an elapsed month is not supported. Publish the current or a future month.";
+      }
+      if (preview.solver.issueCodes.includes("invalid_lock")) {
+        const affectedGoals = preview.solver.invalidGoalIds
+          .slice(0, 3)
+          .map((goalId) => context?.goalTitles?.[goalId] ?? goalId);
+        const affectedLabel =
+          affectedGoals.length > 0
+            ? `Affected goals: ${affectedGoals.join(", ")}. `
+            : "";
+        return `${affectedLabel}Locked sessions currently conflict with this regenerated preview. Unlock affected sessions, regenerate, then save.`;
+      }
+      if (preview.solver.issueCodes.length > 0) {
+        return `Resolve planner issues before saving: ${preview.solver.issueCodes.join(
+          ", "
+        )}.`;
+      }
+      return "This preview is not savable yet. Regenerate and resolve planner issues before saving.";
+    },
+    [context]
+  );
   const runCompletionMutation = useCompletionMutation();
-  const hasDraftSession =
-    effectiveDraftPolicy !== null || Object.keys(effectiveDraftItemEdits).length > 0;
   const coach = usePlannerCoach({
     activeTab,
     context,
@@ -1793,7 +1871,7 @@ export function CalendarSurface({
   };
 
   const savePlan = async () => {
-    if (!effectivePreview || !context?.capabilities.calendarEnabled) {
+    if (!context?.capabilities.calendarEnabled) {
       return;
     }
     const expectedDigest = context.revisions.scheduleDigest;
@@ -1801,35 +1879,97 @@ export function CalendarSurface({
       toast.error("Planner state is stale. Refresh and regenerate the preview.");
       return;
     }
-    const publishBlockedByElapsedMonth =
-      context.scopeMonth < context.asOfDate.slice(0, 7);
-    if (publishBlockedByElapsedMonth || !effectivePreview.solver.publishable) {
-      toast.error(nonPublishablePreviewMessage(effectivePreview));
+    const scopeMonthsToPublish = hasDraftSession
+      ? dirtyScopeMonths
+      : context.scopeMonth
+        ? [context.scopeMonth]
+        : [];
+    if (scopeMonthsToPublish.length === 0) {
       return;
     }
-    const confirmationHash = effectivePreview.solver.confirmationRequired
-      ? buildPlannerConfirmationHash({
-          previewHash: effectivePreview.generationInputHash,
-          issueCodes: effectivePreview.solver.issueCodes,
-        })
-      : null;
 
     setSaveLoading(true);
-    let payload: PlannerErrorPayload & { replayed?: boolean };
+    let payload: PlannerErrorPayload & {
+      replayed?: boolean;
+      publishedScopes?: string[];
+    };
     try {
+      const scopePayloads: Array<{
+        scopeMonth: string;
+        previewHash: string;
+        confirmationHash: string | null;
+        policy?: PlannerPolicy;
+        eligibilityMode: string;
+        draftCommands: PlannerDraftCommand[];
+        preserveExistingAssignments: boolean;
+      }> = [];
+      for (const scopeMonth of scopeMonthsToPublish) {
+        const scopeDraftCommands = draftCommandsForSaveByScope[scopeMonth] ?? [];
+        const scopeDraftPolicy = draftPolicyByScope[scopeMonth] ?? null;
+        let scopePreview =
+          scopeMonth === context.scopeMonth
+            ? effectivePreview
+            : draftPreviewByScope[scopeMonth] ??
+              visibleMonthContexts[scopeMonth]?.preview ??
+              null;
+        if (!scopePreview) {
+          const refreshPolicy =
+            scopeDraftPolicy ?? context.preferences?.defaultPolicy ?? null;
+          if (!refreshPolicy) {
+            toast.error(
+              `Preview for ${scopeMonth} is unavailable. Open that month and regenerate before saving.`
+            );
+            return;
+          }
+          scopePreview = await requestPreviewForScope({
+            scopeMonth,
+            nextPolicy: refreshPolicy,
+            solveIntent: "stable",
+            draftCommands: scopeDraftCommands,
+          });
+          setDraftPreviewForScope(scopeMonth, scopePreview);
+        }
+        if (!scopePreview) {
+          toast.error(
+            `Preview for ${scopeMonth} is unavailable. Open that month and regenerate before saving.`
+          );
+          return;
+        }
+        const publishBlockedByElapsedMonth =
+          scopeMonth < context.asOfDate.slice(0, 7);
+        if (publishBlockedByElapsedMonth || !scopePreview.solver.publishable) {
+          toast.error(
+            `${scopeMonth}: ${nonPublishablePreviewMessage(scopePreview, scopeMonth)}`
+          );
+          return;
+        }
+        const confirmationHash = scopePreview.solver.confirmationRequired
+          ? buildPlannerConfirmationHash({
+              previewHash: scopePreview.generationInputHash,
+              issueCodes: scopePreview.solver.issueCodes,
+            })
+          : null;
+        scopePayloads.push({
+          scopeMonth,
+          previewHash: scopePreview.generationInputHash,
+          eligibilityMode: scopePreview.eligibilityMode,
+          confirmationHash,
+          policy: scopeDraftPolicy ?? undefined,
+          preserveExistingAssignments: scopePreview.preserveExistingAssignments,
+          draftCommands: scopeDraftCommands,
+        });
+      }
       try {
-        payload = await postJson<PlannerErrorPayload & { replayed?: boolean }>(
+        payload = await postJson<
+          PlannerErrorPayload & {
+            replayed?: boolean;
+            publishedScopes?: string[];
+          }
+        >(
           "/api/planner/save",
           {
-            scopeMonth: context.scopeMonth,
-            previewHash: effectivePreview.generationInputHash,
-            eligibilityMode: effectivePreview.eligibilityMode,
             expectedDigest,
-            confirmationHash,
-            policy: effectiveDraftPolicy ?? undefined,
-            preserveExistingAssignments:
-              effectivePreview.preserveExistingAssignments,
-            draftCommands: draftSaveCommands,
+            scopes: scopePayloads,
           }
         );
       } catch (error) {
@@ -1841,8 +1981,14 @@ export function CalendarSurface({
             : [];
           const detailSuffix =
             issueCodes.length > 0 ? ` (${issueCodes.join(", ")})` : "";
+          const scopedPrefix =
+            typeof error.details?.scopeMonth === "string"
+              ? `${error.details.scopeMonth}: `
+              : "";
           toast.error(
-            `${error.message ?? "Planner save is currently blocked."}${detailSuffix}`
+            `${scopedPrefix}${
+              error.message ?? "Planner save is currently blocked."
+            }${detailSuffix}`
           );
           return;
         }
@@ -1850,8 +1996,9 @@ export function CalendarSurface({
         return;
       }
       try {
-        clearDraftScopeSession(context.scopeMonth);
-        dispatchDraftCommand({ type: "clear" });
+        for (const scopeMonth of scopeMonthsToPublish) {
+          clearDraftScopeSession(scopeMonth);
+        }
         onPlannerMutation();
         const refreshed = await withPlannerRefreshTimeout({
           operation: loadContext({
@@ -1868,7 +2015,16 @@ export function CalendarSurface({
           return;
         }
         coach.actions.resetForPlannerStateReset();
-        toast.success(payload.replayed ? "Save replayed." : "Plan saved.");
+        const publishedScopeCount = scopeMonthsToPublish.length;
+        if (publishedScopeCount > 1) {
+          toast.success(
+            payload.replayed
+              ? `Save replayed across ${publishedScopeCount} months.`
+              : `Saved ${publishedScopeCount} months.`
+          );
+        } else {
+          toast.success(payload.replayed ? "Save replayed." : "Plan saved.");
+        }
       } catch (error) {
         toast.error(
           error instanceof Error
@@ -1903,7 +2059,6 @@ export function CalendarSurface({
       }
       try {
         clearDraftScopeSession(context.scopeMonth);
-        dispatchDraftCommand({ type: "clear" });
         onPlannerMutation();
         const refreshed = await withPlannerRefreshTimeout({
           operation: loadContext({
@@ -1933,12 +2088,25 @@ export function CalendarSurface({
     }
   };
 
-  const discardDraftChanges = () => {
-    if (context?.scopeMonth) {
-      clearDraftScopeSession(context.scopeMonth);
+  const discardDraftChanges = (mode: "current" | "all" = "current") => {
+    const scopesToClear =
+      mode === "all"
+        ? dirtyScopeMonths
+        : context?.scopeMonth
+          ? [context.scopeMonth]
+          : [];
+    if (scopesToClear.length === 0) {
+      return;
+    }
+    for (const scopeMonth of scopesToClear) {
+      clearDraftScopeSession(scopeMonth);
     }
     coach.actions.onDraftDiscarded();
-    toast.success("Preview changes reverted to the saved baseline.");
+    toast.success(
+      scopesToClear.length > 1
+        ? `Reverted preview changes for ${scopesToClear.length} months.`
+        : "Preview changes reverted to the saved baseline."
+    );
   };
 
   const canShowSetup = !context?.preferences;
@@ -2025,17 +2193,40 @@ export function CalendarSurface({
     setDayPreview(null);
     onViewModeChange(nextViewMode, "push");
   };
-  const draftSaveBlocked = Boolean(
-    hasDraftSession &&
-      effectivePreview &&
-      context?.capabilities.calendarEnabled &&
-      (context.scopeMonth < context.asOfDate.slice(0, 7) ||
-        !effectivePreview.solver.publishable)
-  );
-  const draftSaveBlockedMessage =
-    draftSaveBlocked && effectivePreview
-      ? nonPublishablePreviewMessage(effectivePreview)
-      : null;
+  const scopeMonthsForSaveAction =
+    hasDraftSession && dirtyScopeMonths.length > 0
+      ? dirtyScopeMonths
+      : context?.scopeMonth
+        ? [context.scopeMonth]
+        : [];
+  const blockedSaveScope = (() => {
+    if (!context?.capabilities.calendarEnabled) {
+      return null;
+    }
+    for (const scopeMonth of scopeMonthsForSaveAction) {
+      const previewForScope =
+        scopeMonth === context.scopeMonth
+          ? effectivePreview
+          : draftPreviewByScope[scopeMonth] ?? visibleMonthContexts[scopeMonth]?.preview;
+      if (!previewForScope) {
+        continue;
+      }
+      if (
+        scopeMonth < context.asOfDate.slice(0, 7) ||
+        !previewForScope.solver.publishable
+      ) {
+        return {
+          scopeMonth,
+          message: nonPublishablePreviewMessage(previewForScope, scopeMonth),
+        };
+      }
+    }
+    return null;
+  })();
+  const draftSaveBlocked = blockedSaveScope !== null;
+  const draftSaveBlockedMessage = blockedSaveScope
+    ? `${blockedSaveScope.scopeMonth}: ${blockedSaveScope.message}`
+    : null;
   const canMutatePlanItems = Boolean(
     context?.capabilities.calendarEnabled &&
       context?.activePlan?.plan.status === "active"
@@ -2293,35 +2484,39 @@ export function CalendarSurface({
                   type="button"
                   size="sm"
                   onClick={savePlan}
-                  title={
-                    effectivePreview &&
-                    context &&
-                    (context.scopeMonth < context.asOfDate.slice(0, 7) ||
-                      !effectivePreview.solver.publishable)
-                      ? nonPublishablePreviewMessage(effectivePreview)
-                      : undefined
-                  }
+                  title={draftSaveBlockedMessage ?? undefined}
                   disabled={
                     saveLoading ||
                     loading ||
                     !context ||
-                    !effectivePreview ||
-                    (hasDraftSession && draftSaveBlocked) ||
-                    !effectivePreview.solver.publishable
+                    scopeMonthsForSaveAction.length === 0 ||
+                    (!hasDraftSession && !effectivePreview) ||
+                    draftSaveBlocked
                   }
                 >
                   {saveButtonLabel}
                 </Button>
               ) : null}
-              {hasDraftSession ? (
+              {currentScopeHasDraftSession ? (
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
-                  onClick={discardDraftChanges}
+                  onClick={() => discardDraftChanges("current")}
                   disabled={saveLoading || loading}
                 >
-                  Undo changes
+                  Undo this month
+                </Button>
+              ) : null}
+              {hasDraftSession && dirtyScopeMonths.length > 1 ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => discardDraftChanges("all")}
+                  disabled={saveLoading || loading}
+                >
+                  Undo all months
                 </Button>
               ) : null}
               {context?.preferences ? (
@@ -2721,110 +2916,110 @@ export function CalendarSurface({
                 ) : (
                   <ul className="space-y-2">
                     {selectedDayEntries.map((entry) => {
-                      const visual = getGoalVisual({
-                        goalId: entry.originalGoalId,
-                        color: entry.activeGoal?.color ?? null,
-                      });
-                      const Icon = visual.Icon;
-                      const displayTitle = getEntryDisplayTitleWithTime(entry);
-                      const subtitle = getEntrySubtitle(entry);
-                      const credited = isEntryCredited(entry);
-                      const draftDiffSummary = getEntryDraftDiffSummary(entry);
-                      const pillToneClasses = getEntryDraftPillClasses({
-                        draftDiffKind: entry.draftDiffKind,
-                        credited,
-                      });
-                      const completionDispatch = getDateFactDispatchForEntry(entry);
-                      const completionDisabledReason =
-                        completionControlDisabledReasonForEntry(
-                          entry,
-                          completionDispatch
-                        );
-                      return (
-                        <li
-                          key={entry.key}
-                          className={`rounded-xl border p-2 ${pillToneClasses} ${
-                            entry.draftGhost ? "opacity-75" : ""
-                          }`}
-                        >
-                          <div className="flex items-start gap-2">
-                            <button
-                              type="button"
-                              className="flex-1 text-left text-sm transition-colors hover:text-primary"
-                              onClick={() => {
-                                if (!entry.draftGhost) {
-                                  setSelectedEventEntryKey(entry.key);
-                                }
-                              }}
-                            >
-                              <div className="flex items-center gap-2">
-                                <span
-                                  className="inline-flex size-5 items-center justify-center rounded-full"
-                                  style={{ backgroundColor: visual.color }}
-                                >
-                                  <Icon className="size-3 text-white" />
-                                </span>
-                                <p className="font-medium">{displayTitle}</p>
-                              </div>
-                              {subtitle ? (
-                                <p className="mt-1 text-xs text-muted-foreground">
-                                  {subtitle}
-                                </p>
-                              ) : null}
-                              {draftDiffSummary ? (
-                                <p className="mt-1 text-xs text-muted-foreground">
-                                  {draftDiffSummary}
-                                </p>
-                              ) : null}
-                              <p className="mt-1 text-xs text-primary">
-                                {entry.draftGhost
-                                  ? "Original date marker"
-                                  : "View event details"}
-                              </p>
-                            </button>
-                            {!entry.draftGhost ? (
+                        const visual = getGoalVisual({
+                          goalId: entry.originalGoalId,
+                          color: entry.activeGoal?.color ?? null,
+                        });
+                        const Icon = visual.Icon;
+                        const displayTitle = getEntryDisplayTitleWithTime(entry);
+                        const subtitle = getEntrySubtitle(entry);
+                        const credited = isEntryCredited(entry);
+                        const draftDiffSummary = getEntryDraftDiffSummary(entry);
+                        const pillToneClasses = getEntryDraftPillClasses({
+                          draftDiffKind: entry.draftDiffKind,
+                          credited,
+                        });
+                        const completionDispatch = getDateFactDispatchForEntry(entry);
+                        const completionDisabledReason =
+                          completionControlDisabledReasonForEntry(
+                            entry,
+                            completionDispatch
+                          );
+                        return (
+                          <li
+                            key={entry.key}
+                            className={`rounded-xl border p-2 ${pillToneClasses} ${
+                              entry.draftGhost ? "opacity-75" : ""
+                            }`}
+                          >
+                            <div className="flex items-start gap-2">
                               <button
                                 type="button"
-                                className="group flex size-8 shrink-0 items-center justify-center rounded-full border border-border bg-background transition-all hover:border-primary hover:bg-primary/5 disabled:cursor-not-allowed disabled:opacity-60"
-                                onClick={(event) => {
-                                  event.stopPropagation();
-                                  void toggleDateFact(entry);
+                                className="flex-1 text-left text-sm transition-colors hover:text-primary"
+                                onClick={() => {
+                                  if (!entry.draftGhost) {
+                                    setSelectedEventEntryKey(entry.key);
+                                  }
                                 }}
-                                disabled={
-                                  Boolean(mutationLoadingKey) ||
-                                  completionDisabledReason !== null
-                                }
-                                aria-label={
-                                  completionDispatch?.currentlyCredited
-                                    ? "Mark session not done"
-                                    : "Mark session done"
-                                }
-                                title={
-                                  completionDisabledReason
-                                    ? completionDisabledReasonCopy(
-                                        completionDisabledReason
-                                      )
-                                    : "Toggle completion for this session"
-                                }
                               >
-                                {completionDispatch?.currentlyCredited ? (
-                                  <CheckCircle2 className="size-4 text-primary transition-transform group-hover:scale-110" />
-                                ) : (
-                                  <Circle className="size-4 text-muted-foreground transition-transform group-hover:scale-110" />
-                                )}
+                                <div className="flex items-center gap-2">
+                                  <span
+                                    className="inline-flex size-5 items-center justify-center rounded-full"
+                                    style={{ backgroundColor: visual.color }}
+                                  >
+                                    <Icon className="size-3 text-white" />
+                                  </span>
+                                  <p className="font-medium">{displayTitle}</p>
+                                </div>
+                                {subtitle ? (
+                                  <p className="mt-1 text-xs text-muted-foreground">
+                                    {subtitle}
+                                  </p>
+                                ) : null}
+                                {draftDiffSummary ? (
+                                  <p className="mt-1 text-xs text-muted-foreground">
+                                    {draftDiffSummary}
+                                  </p>
+                                ) : null}
+                                <p className="mt-1 text-xs text-primary">
+                                  {entry.draftGhost
+                                    ? "Original date marker"
+                                    : "View event details"}
+                                </p>
                               </button>
+                              {!entry.draftGhost ? (
+                                <button
+                                  type="button"
+                                  className="group flex size-8 shrink-0 items-center justify-center rounded-full border border-border bg-background transition-all hover:border-primary hover:bg-primary/5 disabled:cursor-not-allowed disabled:opacity-60"
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    void toggleDateFact(entry);
+                                  }}
+                                  disabled={
+                                    Boolean(mutationLoadingKey) ||
+                                    completionDisabledReason !== null
+                                  }
+                                  aria-label={
+                                    completionDispatch?.currentlyCredited
+                                      ? "Mark session not done"
+                                      : "Mark session done"
+                                  }
+                                  title={
+                                    completionDisabledReason
+                                      ? completionDisabledReasonCopy(
+                                          completionDisabledReason
+                                        )
+                                      : "Toggle completion for this session"
+                                  }
+                                >
+                                  {completionDispatch?.currentlyCredited ? (
+                                    <CheckCircle2 className="size-4 text-primary transition-transform group-hover:scale-110" />
+                                  ) : (
+                                    <Circle className="size-4 text-muted-foreground transition-transform group-hover:scale-110" />
+                                  )}
+                                </button>
+                              ) : null}
+                            </div>
+                            {completionDisabledReason ? (
+                              <p className="mt-2 text-[11px] text-muted-foreground">
+                                {completionDisabledReasonCopy(
+                                  completionDisabledReason
+                                )}
+                              </p>
                             ) : null}
-                          </div>
-                          {completionDisabledReason ? (
-                            <p className="mt-2 text-[11px] text-muted-foreground">
-                              {completionDisabledReasonCopy(
-                                completionDisabledReason
-                              )}
-                            </p>
-                          ) : null}
-                        </li>
-                      );
-                    })}
+                          </li>
+                        );
+                      })}
                   </ul>
                 )}
               </div>
