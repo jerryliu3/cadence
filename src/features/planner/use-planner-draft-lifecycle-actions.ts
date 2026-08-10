@@ -1,5 +1,6 @@
 import { useCallback, useState, type Dispatch } from "react";
 import { toast } from "sonner";
+import { resolveNonPublishablePreviewMessage } from "@/features/planner/calendar-format";
 import type { DraftCommandAction } from "@/features/planner/draft-command-reducer";
 import type {
   PlannerContextPayload,
@@ -29,9 +30,6 @@ interface UsePlannerDraftLifecycleActionsOptions {
   onPlannerMutation: () => void;
   onPlannerStateReset: () => void;
   onDraftDiscarded: () => void;
-  getNonPublishablePreviewMessage: (
-    preview: NonNullable<PlannerContextPayload["preview"]>
-  ) => string;
 }
 
 export function usePlannerDraftLifecycleActions({
@@ -45,7 +43,6 @@ export function usePlannerDraftLifecycleActions({
   onPlannerMutation,
   onPlannerStateReset,
   onDraftDiscarded,
-  getNonPublishablePreviewMessage,
 }: UsePlannerDraftLifecycleActionsOptions) {
   const [saveLoading, setSaveLoading] = useState(false);
   const [resetLoading, setResetLoading] = useState(false);
@@ -62,7 +59,7 @@ export function usePlannerDraftLifecycleActions({
     const publishBlockedByElapsedMonth =
       context.scopeMonth < context.asOfDate.slice(0, 7);
     if (publishBlockedByElapsedMonth || !effectivePreview.solver.publishable) {
-      toast.error(getNonPublishablePreviewMessage(effectivePreview));
+      toast.error(resolveNonPublishablePreviewMessage(context, effectivePreview));
       return;
     }
     const confirmationHash = effectivePreview.solver.confirmationRequired
@@ -144,7 +141,6 @@ export function usePlannerDraftLifecycleActions({
     draftSaveCommands,
     effectiveDraftPolicy,
     effectivePreview,
-    getNonPublishablePreviewMessage,
     loadContext,
     onPlannerMutation,
     onPlannerStateReset,
