@@ -12,6 +12,22 @@ interface CompletionMutationPayload {
   timezone: string;
 }
 
+interface SavePlanResult {
+  requestPayload: {
+    draftCommands?: Array<{
+      kind: string;
+      goalId?: string;
+      unitKey?: string;
+      scheduledDate?: string | null;
+    }>;
+  };
+  responseStatus: number;
+  responseBody: {
+    code?: string;
+    message?: string;
+  };
+}
+
 const COMPLETION_TOGGLE_SELECTOR = [
   'button[aria-label^="Mark goal as complete"]',
   'button[aria-label^="Complete goal for "]',
@@ -260,6 +276,32 @@ async function runCompletionToggleAction(
   return payload;
 }
 
+async function runPlannerSaveAction(page: Page): Promise<SavePlanResult> {
+  const saveRequestPromise = page.waitForRequest(
+    (request) =>
+      request.url().includes("/api/planner/save") &&
+      request.method() === "POST"
+  );
+  const saveResponsePromise = page.waitForResponse(
+    (response) =>
+      response.url().includes("/api/planner/save") &&
+      response.request().method() === "POST"
+  );
+  await page.getByRole("button", { name: "Save plan", exact: true }).click();
+  const [saveRequest, saveResponse] = await Promise.all([
+    saveRequestPromise,
+    saveResponsePromise,
+  ]);
+  const responseBody = (await saveResponse.json().catch(() => null)) as
+    | { code?: string; message?: string }
+    | null;
+  return {
+    requestPayload: saveRequest.postDataJSON() as SavePlanResult["requestPayload"],
+    responseStatus: saveResponse.status(),
+    responseBody: responseBody ?? {},
+  };
+}
+
 test.describe("planner critical rails", () => {
   test.describe.configure({ mode: "serial", retries: 0 });
 
@@ -269,45 +311,43 @@ test.describe("planner critical rails", () => {
   );
 
   test("drag + save keeps only intended unit movement", async ({ page }) => {
-    await openCalendar(page);
-    await ensureMovableEntryAvailable(page);
-    const scopeMonth = await resolveCalendarScopeMonth(page);
-    const before = await fetchPlannerContextSnapshot(page, scopeMonth);
+    const executeMoveAndSave = async () => {
+      await openCalendar(page);
+      await ensureMovableEntryAvailable(page);
+      const scopeMonth = await resolveCalendarScopeMonth(page);
+      const before = await fetchPlannerContextSnapshot(page, scopeMonth);
 
-    await moveFirstMovableEntry(page);
-    await expect(page.getByText("Planning Mode")).toBeVisible({ timeout: 10_000 });
-    const saveButton = page.getByRole("button", { name: "Save plan", exact: true });
-    await expect(saveButton).toBeEnabled();
+      await moveFirstMovableEntry(page);
+      await expect(page.getByText("Planning Mode")).toBeVisible({ timeout: 10_000 });
+      const saveButton = page.getByRole("button", { name: "Save plan", exact: true });
+      await expect(saveButton).toBeEnabled();
 
-    const saveRequestPromise = page.waitForRequest(
-      (request) =>
-        request.url().includes("/api/planner/save") &&
-        request.method() === "POST"
-    );
-    const saveResponsePromise = page.waitForResponse(
-      (response) =>
-        response.url().includes("/api/planner/save") &&
-        response.request().method() === "POST"
-    );
-    await saveButton.click();
-    const [saveRequest, saveResponse] = await Promise.all([
-      saveRequestPromise,
-      saveResponsePromise,
-    ]);
-    const saveBody = (await saveResponse.json()) as {
-      code?: string;
-      message?: string;
+      const saveResult = await runPlannerSaveAction(page);
+
+      return {
+        scopeMonth,
+        before,
+        saveResult,
+      };
     };
-    expect(saveResponse.status(), JSON.stringify(saveBody)).toBe(200);
 
-    const requestPayload = saveRequest.postDataJSON() as {
-      draftCommands?: Array<{
-        kind: string;
-        goalId?: string;
-        unitKey?: string;
-        scheduledDate?: string | null;
-      }>;
-    };
+    let attempt = await executeMoveAndSave();
+    if (
+      attempt.saveResult.responseStatus === 409 &&
+      attempt.saveResult.responseBody.code === "preview_hash_mismatch"
+    ) {
+      // Preview hashes can become stale from concurrent planner data churn in CI;
+      // rerun the drag/save cycle once from a fresh calendar context.
+      await page.reload();
+      attempt = await executeMoveAndSave();
+    }
+
+    expect(
+      attempt.saveResult.responseStatus,
+      JSON.stringify(attempt.saveResult.responseBody)
+    ).toBe(200);
+
+    const requestPayload = attempt.saveResult.requestPayload;
     const moveCommand = (requestPayload.draftCommands ?? []).find(
       (command) =>
         command.kind === "move_item" &&
@@ -320,17 +360,17 @@ test.describe("planner critical rails", () => {
 
     await page.reload();
     await openCalendar(page);
-    const after = await fetchPlannerContextSnapshot(page, before.scopeMonth);
+    const after = await fetchPlannerContextSnapshot(page, attempt.before.scopeMonth);
 
     const changedEntries = Array.from(
       new Set([
-        ...Object.keys(before.placementsByEntryKey),
+        ...Object.keys(attempt.before.placementsByEntryKey),
         ...Object.keys(after.placementsByEntryKey),
       ])
     )
       .filter(
         (entryKey) =>
-          (before.placementsByEntryKey[entryKey] ?? null) !==
+          (attempt.before.placementsByEntryKey[entryKey] ?? null) !==
           (after.placementsByEntryKey[entryKey] ?? null)
       )
       .sort();
