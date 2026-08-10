@@ -190,20 +190,19 @@ export function resetEnvCacheForTests() {
   cachedServerEnv = null;
 }
 
-function isProductionRuntime(env: Pick<ServerEnv, "NODE_ENV">) {
-  return (
-    env.NODE_ENV === "production" ||
-    process.env.VERCEL_ENV === "production"
-  );
+function isHostedProductionRuntime() {
+  // `next start` (including Playwright CI) sets NODE_ENV=production without being
+  // a hosted production deploy. Gate boot-time required secrets on Vercel prod only.
+  return process.env.VERCEL_ENV === "production";
 }
 
 /**
- * Fail fast in production when core secrets/config are missing or mistyped.
- * Local/test keep optional fields optional so unit tests and `next dev` stay usable.
+ * Fail fast in hosted production when core secrets/config are missing or mistyped.
+ * Local/dev/CI keep optional fields optional so `next start` smoke stays usable.
  */
 export function assertEnvAtBoot() {
   const env = getServerEnv();
-  if (!isProductionRuntime(env)) {
+  if (!isHostedProductionRuntime()) {
     return env;
   }
 

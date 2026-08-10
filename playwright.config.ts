@@ -63,6 +63,8 @@ export default defineConfig({
     timeout: 120_000,
     env: {
       NEXT_PUBLIC_APP_URL: baseURL,
+      // Present for push-dispatch routes; not required for boot outside Vercel prod.
+      CRON_SECRET: process.env.CRON_SECRET ?? "playwright-cron-secret",
     },
   },
 });
