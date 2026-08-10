@@ -32,6 +32,7 @@ export interface PlannerContextPayload {
   } | null;
   preview: {
     eligibilityMode: PlannerEligibilityMode;
+    preserveExistingAssignments: boolean;
     generationInputHash: string;
     solver: {
       placementStatus: "complete" | "partial";

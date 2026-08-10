@@ -190,6 +190,8 @@ describe("planner context preview route", () => {
           originalGoalId: "22222222-2222-4222-8222-222222222222",
           unitKey: "total:1",
           scheduledDate: "2026-08-06",
+          creditState: "uncredited",
+          classification: "open",
         },
       ],
     });

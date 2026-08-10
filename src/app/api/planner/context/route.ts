@@ -224,7 +224,7 @@ function resolvePlannerPreview({
     : null;
 
   if (preview) {
-    const draftPinViolations = findUnhonoredDraftPins({
+    const { violations: draftPinViolations } = findUnhonoredDraftPins({
       workUnits: preview.workUnits,
       draftPinnedDates,
     });
