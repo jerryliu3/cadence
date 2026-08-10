@@ -32,12 +32,16 @@ export const coachRequestSchema = z
   })
   .strict();
 
-const coachRecommendationSchema = z
+const coachRecommendationPayloadSchema = z
   .object({
     text: z.string().trim().min(1).max(1000),
     tags: z.array(z.string().trim().min(1).max(50)).max(10).optional(),
   })
   .passthrough();
+const coachRecommendationSchema = z.preprocess(
+  (value) => (typeof value === "string" ? { text: value } : value),
+  coachRecommendationPayloadSchema
+);
 
 const weekdayArraySchema = z.array(z.number().int().min(0).max(6)).max(7);
 const dateRangeSchema = z
@@ -49,15 +53,19 @@ const dateRangeSchema = z
   .refine((range) => range.start <= range.end);
 const calendarIntentGlobalSchema = z
   .object({
-    restWeekdays: weekdayArraySchema,
-    addBlackoutRanges: z.array(dateRangeSchema).max(20),
-    removeBlackoutRanges: z.array(dateRangeSchema).max(20),
+    restWeekdays: weekdayArraySchema.optional().default([]),
+    addBlackoutRanges: z.array(dateRangeSchema).max(20).optional().default([]),
+    removeBlackoutRanges: z
+      .array(dateRangeSchema)
+      .max(20)
+      .optional()
+      .default([]),
   })
   .strict();
 const calendarIntentSchema = z
   .object({
     action: z.enum(["none", "needs_goal", "apply"]),
-    global: calendarIntentGlobalSchema.nullable(),
+    global: calendarIntentGlobalSchema.nullable().optional().default(null),
   })
   .strict();
 
@@ -71,10 +79,14 @@ export const coachTurnResponseSchema = z
     proposal: z
       .object({
         calendarIntent: calendarIntentSchema,
-        unresolvedQuestions: z.array(z.string().trim().min(1).max(500)).max(20),
+        unresolvedQuestions: z
+          .array(z.string().trim().min(1).max(500))
+          .max(20)
+          .optional()
+          .default([]),
       })
       .passthrough(),
-    recommendations: z.array(coachRecommendationSchema).max(20),
+    recommendations: z.array(coachRecommendationSchema).max(20).optional().default([]),
   })
   .passthrough();
 
@@ -218,11 +230,10 @@ export const coachResponseJsonSchema = {
             },
             global: {
               type: "object",
-              nullable: true,
               properties: {
                 restWeekdays: {
                   type: "array",
-                  items: { type: "integer", minimum: 0, maximum: 6 },
+                  items: { type: "integer" },
                 },
                 addBlackoutRanges: {
                   type: "array",
@@ -247,21 +258,16 @@ export const coachResponseJsonSchema = {
                   },
                 },
               },
-              required: [
-                "restWeekdays",
-                "addBlackoutRanges",
-                "removeBlackoutRanges",
-              ],
             },
           },
-          required: ["action", "global"],
+          required: ["action"],
         },
         unresolvedQuestions: {
           type: "array",
           items: { type: "string" },
         },
       },
-      required: ["calendarIntent", "unresolvedQuestions"],
+      required: ["calendarIntent"],
     },
     recommendations: {
       type: "array",
@@ -278,5 +284,5 @@ export const coachResponseJsonSchema = {
       },
     },
   },
-  required: ["schemaVersion", "phase", "reply", "proposal", "recommendations"],
+  required: ["schemaVersion", "phase", "reply", "proposal"],
 } as const;

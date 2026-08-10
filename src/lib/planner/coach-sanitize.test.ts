@@ -112,4 +112,50 @@ describe("sanitizeCoachTurn", () => {
       "The calendar intent did not contain any scheduling changes."
     );
   });
+
+  it("accepts partial global payloads with defaulted blackout arrays", () => {
+    const goalA = goal();
+    const result = sanitizeCoachTurn({
+      goalsById: new Map([[goalA.id, goalA]]),
+      raw: {
+        schemaVersion: "1",
+        phase: "ready",
+        reply: "Applied weekend rest days.",
+        proposal: {
+          calendarIntent: {
+            action: "apply",
+            global: {
+              restWeekdays: [0, 6],
+            },
+          },
+        },
+      },
+    });
+
+    expect(result.proposal.policyPatches).toEqual([
+      { kind: "set_rest_weekdays", restWeekdays: [0, 6] },
+    ]);
+    expect(result.proposal.unresolvedQuestions).toEqual([]);
+  });
+
+  it("normalizes string recommendations into recommendation objects", () => {
+    const goalA = goal();
+    const result = sanitizeCoachTurn({
+      goalsById: new Map([[goalA.id, goalA]]),
+      raw: {
+        schemaVersion: "1",
+        phase: "review",
+        reply: "Try spacing effort across weekdays.",
+        proposal: {
+          calendarIntent: {
+            action: "none",
+            global: null,
+          },
+        },
+        recommendations: ["Keep Tuesday light."],
+      },
+    });
+
+    expect(result.recommendations).toEqual([{ text: "Keep Tuesday light." }]);
+  });
 });
