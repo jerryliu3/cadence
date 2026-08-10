@@ -4,7 +4,6 @@ import {
   ChevronDown,
   Search,
   Share2,
-  UserMinus,
   UserPlus,
   Users,
   WandSparkles,
@@ -30,6 +29,7 @@ import {
   createDefaultGroupGoalDraft,
 } from "@/features/social/group-goal-creator-card";
 import { GroupGoalsCard } from "@/features/social/group-goals-card";
+import { SharedByMeCard } from "@/features/social/shared-by-me-card";
 import { SharedGoalsCard } from "@/features/social/shared-goals-card";
 import {
   getCategoryLabel,
@@ -908,70 +908,12 @@ export function SocialTab() {
         </CardContent>
       </Card>
 
-      <Card className="shadow-sm">
-        <CardHeader>
-          <CardTitle>Shared by me</CardTitle>
-          <CardDescription>
-            Manage who can see each read-only goal you have shared.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {sharedByMeGoals.length === 0 ? (
-            <p className="text-sm text-muted-foreground">You have not shared any goals yet.</p>
-          ) : (
-            sharedByMeGoals.map((goal) => {
-              const shares = outgoingSharesByGoal.get(goal.id) ?? [];
-              return (
-                <Card key={`shared-by-me-${goal.id}`} className="border shadow-none">
-                  <CardContent className="space-y-2 py-4">
-                    <div className="flex items-center justify-between gap-2">
-                      <div>
-                        <p className="text-sm font-semibold">{goal.title}</p>
-                        <p className="text-xs text-muted-foreground">
-                          Shared with {shares.length} {shares.length === 1 ? "person" : "people"}
-                        </p>
-                      </div>
-                      <Badge variant="outline">{shares.length}</Badge>
-                    </div>
-                    {shares.length === 0 ? (
-                      <p className="text-xs text-muted-foreground">No active recipients.</p>
-                    ) : (
-                      <div className="space-y-2">
-                        {shares.map((entry) => {
-                          const recipient = state.profileDirectory[entry.shared_with];
-                          return (
-                            <div
-                              key={entry.id}
-                              className="flex items-center justify-between gap-2 rounded-lg border bg-muted/20 p-2"
-                            >
-                              <div className="min-w-0">
-                                <p className="truncate text-sm font-medium">
-                                  @{recipient?.username ?? "unknown"}
-                                </p>
-                                <p className="text-xs text-muted-foreground">
-                                  {recipient?.display_name || "No display name"}
-                                </p>
-                              </div>
-                              <Button
-                                variant="ghost"
-                                size="icon-sm"
-                                type="button"
-                                onClick={() => revokeGoalShare(goal.id, entry.shared_with)}
-                              >
-                                <UserMinus className="size-3.5" />
-                              </Button>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              );
-            })
-          )}
-        </CardContent>
-      </Card>
+      <SharedByMeCard
+        sharedByMeGoals={sharedByMeGoals}
+        outgoingSharesByGoal={outgoingSharesByGoal}
+        profileDirectory={state.profileDirectory}
+        onRevokeGoalShare={revokeGoalShare}
+      />
 
       <SharedGoalsCard
         sharedGoals={state.sharedGoals}
