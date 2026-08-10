@@ -869,9 +869,11 @@ export function CalendarSurface({
   };
 
   /**
-   * A pin is a solver input, so moving one item can legitimately cascade into
-   * others (ordinals must stay in date order). Re-solve so the ghosts show the
-   * whole cascade rather than just the item the user dragged.
+   * Draft pins are part of `generationInputHash`, so the preview on screen goes
+   * stale the moment a move is dispatched and save would reject it. Re-solve to
+   * refresh the hash, and to surface a move the solver cannot honor (outside the
+   * placement window, colliding with a lock) while the user is still looking at
+   * the calendar rather than at publish time.
    */
   const draftMoveRefreshRunnerRef = useRef<() => void>(() => {});
   useEffect(() => {
