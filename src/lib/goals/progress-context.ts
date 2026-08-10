@@ -3,6 +3,7 @@ import type { CompletionDateFact } from "@/lib/goals/types";
 import {
   getApiErrorMessage,
   getJson,
+  isApiClientError,
   isApiClientTransportError,
 } from "@/lib/api/client";
 import { resolveUserTimezone } from "@/lib/dates/timezone";
@@ -35,6 +36,23 @@ const progressContextCache = new Map<
   string,
   { expiresAt: number; payload: ProgressContextResponse }
 >();
+
+export class ProgressContextAuthenticationError extends Error {
+  readonly code = "authentication_required";
+  readonly correlationId?: string;
+
+  constructor(message: string, correlationId?: string) {
+    super(message);
+    this.name = "ProgressContextAuthenticationError";
+    this.correlationId = correlationId;
+  }
+}
+
+export function isProgressContextAuthenticationError(
+  error: unknown
+): error is ProgressContextAuthenticationError {
+  return error instanceof ProgressContextAuthenticationError;
+}
 
 function buildProgressContextQuery({
   asOfDate,
@@ -94,6 +112,12 @@ export async function fetchProgressContext({
   } catch (error) {
     if (isApiClientTransportError(error) && error.reason === "timeout") {
       throw new Error(PROGRESS_CONTEXT_TIMEOUT_MESSAGE);
+    }
+    if (isApiClientError(error) && error.code === "authentication_required") {
+      throw new ProgressContextAuthenticationError(
+        error.message,
+        error.correlationId
+      );
     }
     throw new Error(
       getApiErrorMessage(error, "Goal progress could not be loaded.")

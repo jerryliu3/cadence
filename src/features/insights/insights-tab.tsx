@@ -30,12 +30,13 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { LoadingCard } from "@/components/ui/loading-card";
 import { PeriodStepper } from "@/components/ui/period-stepper";
 import { Progress } from "@/components/ui/progress";
+import { buildLoginHref } from "@/lib/auth/login-redirect";
 import { GoalEndMonthBadge } from "@/features/goals/goal-end-month-badge";
 import { MilestonePills } from "@/features/goals/milestone-pills";
 import { GoalListControls } from "@/features/goals/goal-list-controls";
-import { GoalsSurfaceLoadingCard } from "@/features/goals/goals-surface-loading-card";
 import { MonthHeatmap } from "@/features/insights/month-heatmap";
 import { getApiErrorMessage } from "@/lib/api/client";
 import { isAbortError, withAbortSignal } from "@/lib/async/abort";
@@ -67,6 +68,7 @@ import {
 import { getHeatmapScaleClass } from "@/lib/goals/heatmap";
 import {
   fetchProgressContext,
+  isProgressContextAuthenticationError,
   progressSummaryMap,
   type ProgressContextResponse,
 } from "@/lib/goals/progress-context";
@@ -114,6 +116,7 @@ const aggregateWeekdayLabels: [string, string, string, string, string, string, s
   "S",
 ];
 const INSIGHTS_REQUEST_TIMEOUT_MS = 15_000;
+const MAX_VISIBLE_MILESTONES = 5;
 function getCompletionCountLabel(goal: Goal, completionCount: number): string {
   if (typeof goal.target_count === "number" && goal.target_count > 0) {
     return `${completionCount}/${goal.target_count} completions`;
@@ -143,8 +146,21 @@ export function InsightsTab() {
   const monthSwipeStartRef = useRef<{ x: number; y: number } | null>(null);
   const loadRequestIdRef = useRef(0);
   const visibleLoadCountRef = useRef(0);
+  const authRedirectStartedRef = useRef(false);
   const runCompletionMutation = useCompletionMutation();
   const selectedYear = useMemo(() => format(monthCursor, "yyyy"), [monthCursor]);
+
+  const redirectToLogin = useCallback(() => {
+    if (authRedirectStartedRef.current) {
+      return;
+    }
+    authRedirectStartedRef.current = true;
+    const nextPath =
+      typeof window === "undefined"
+        ? "/"
+        : `${window.location.pathname}${window.location.search}`;
+    router.replace(buildLoginHref(nextPath));
+  }, [router]);
 
   const loadData = useCallback(
     async (
@@ -176,7 +192,7 @@ export function InsightsTab() {
 
         if (userError || !user) {
           setState(emptyInsights);
-          router.replace("/login");
+          redirectToLogin();
           return;
         }
 
@@ -220,7 +236,7 @@ export function InsightsTab() {
         }
       }
     },
-    [router, selectedYear, supabase]
+    [redirectToLogin, selectedYear, supabase]
   );
 
   useEffect(() => {
@@ -228,6 +244,10 @@ export function InsightsTab() {
       try {
         await loadData();
       } catch (error) {
+        if (isProgressContextAuthenticationError(error)) {
+          redirectToLogin();
+          return;
+        }
         toast.error(
           isAbortError(error)
             ? "Insights request timed out. Please try again."
@@ -239,7 +259,7 @@ export function InsightsTab() {
     };
 
     void run();
-  }, [loadData]);
+  }, [loadData, redirectToLogin]);
 
   const completableGoalIds = useMemo(
     () =>
@@ -409,6 +429,10 @@ export function InsightsTab() {
           window.scrollTo({ top: currentScrollY, behavior: "auto" });
         });
       } catch (error) {
+        if (isProgressContextAuthenticationError(error)) {
+          redirectToLogin();
+          return;
+        }
         const timeoutLike =
           error instanceof Error &&
           error.message.toLowerCase().includes("timed out");
@@ -421,7 +445,7 @@ export function InsightsTab() {
         setPendingRetroDate(null);
       }
     },
-    [loadData, pendingRetroDate, runCompletionMutation]
+    [loadData, pendingRetroDate, redirectToLogin, runCompletionMutation]
   );
 
   const toggleRecurringDateSelection = useCallback(
@@ -476,6 +500,10 @@ export function InsightsTab() {
           window.scrollTo({ top: currentScrollY, behavior: "auto" });
         });
       } catch (error) {
+        if (isProgressContextAuthenticationError(error)) {
+          redirectToLogin();
+          return;
+        }
         const timeoutLike =
           error instanceof Error &&
           error.message.toLowerCase().includes("timed out");
@@ -488,7 +516,7 @@ export function InsightsTab() {
         setPendingRetroDate(null);
       }
     },
-    [loadData, pendingRetroDate, runCompletionMutation]
+    [loadData, pendingRetroDate, redirectToLogin, runCompletionMutation]
   );
 
   const saveMilestoneNames = useCallback(
@@ -520,6 +548,10 @@ export function InsightsTab() {
           window.scrollTo({ top: currentScrollY, behavior: "auto" });
         });
       } catch (error) {
+        if (isProgressContextAuthenticationError(error)) {
+          redirectToLogin();
+          return;
+        }
         toast.error(
           getApiErrorMessage(error, "Milestone names update failed.")
         );
@@ -527,7 +559,7 @@ export function InsightsTab() {
         setSavingMilestoneNamesGoalId(null);
       }
     },
-    [loadData, state.userId, supabase]
+    [loadData, redirectToLogin, state.userId, supabase]
   );
 
   const onMonthSectionTouchStart: TouchEventHandler<HTMLDivElement> = (event) => {
@@ -609,7 +641,7 @@ export function InsightsTab() {
 
   if (loading) {
     return (
-      <GoalsSurfaceLoadingCard
+      <LoadingCard
         title="Loading insights..."
         description="Crunching your completion history."
       />
@@ -900,7 +932,7 @@ export function InsightsTab() {
                           targetCount={milestoneTargetCount}
                           completionDates={mappedMilestoneDates}
                           milestoneNames={draftMilestoneNames}
-                          maxVisible={5}
+                          maxVisible={MAX_VISIBLE_MILESTONES}
                         />
                         {editingHistory ? (
                           <p className="text-xs text-muted-foreground">

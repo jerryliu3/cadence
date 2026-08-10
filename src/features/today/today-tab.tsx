@@ -5,13 +5,7 @@ import {
   Archive,
   CalendarClock,
   CheckCircle2,
-  ChevronDown,
-  ChevronUp,
-  ListPlus,
-  Plus,
-  Sparkles,
 } from "lucide-react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   useCallback,
@@ -21,16 +15,14 @@ import {
   useState,
 } from "react";
 import { toast } from "sonner";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Input } from "@/components/ui/input";
-import { PeriodStepper } from "@/components/ui/period-stepper";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { LoadingCard } from "@/components/ui/loading-card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { buildLoginHref } from "@/lib/auth/login-redirect";
 import { GoalListControls } from "@/features/goals/goal-list-controls";
-import { GoalsSurfaceLoadingCard } from "@/features/goals/goals-surface-loading-card";
+import { CollapsibleGoalSection } from "@/features/today/collapsible-goal-section";
+import { TodayHeaderCard, type RecurrenceFilter } from "@/features/today/today-header-card";
 import { GoalCard } from "@/features/today/goal-card";
 import { GoalLoopScroller } from "@/features/today/goal-loop-scroller";
 import { isAbortError, withAbortSignal } from "@/lib/async/abort";
@@ -40,7 +32,6 @@ import {
 } from "@/lib/dates/day";
 import { resolveUserTimezone } from "@/lib/dates/timezone";
 import { normalizeWeekStartsOn } from "@/lib/dates/week-start";
-import { getCategoryBadgeClass } from "@/lib/goals/category";
 import {
   buildCompletableGoalIds,
   selectCompletableGoals,
@@ -55,6 +46,7 @@ import {
 } from "@/lib/goals/list-view";
 import {
   fetchProgressContext,
+  isProgressContextAuthenticationError,
   progressSummaryMap,
   type ProgressContextResponse,
 } from "@/lib/goals/progress-context";
@@ -100,7 +92,6 @@ const emptyData: TodayData = {
 };
 
 const allCategoriesFilterValue = "__all_categories__";
-type RecurrenceFilter = "all" | "daily" | "weekly" | "monthly" | "fixed";
 type RecurrenceGroup = "daily" | "weekly" | "monthly" | "fixed";
 const VISIBLE_GOALS_PER_GROUP = 5;
 const TODAY_REQUEST_TIMEOUT_MS = 15_000;
@@ -177,6 +168,7 @@ export function TodayTab({
   const visibleLoadCountRef = useRef(0);
   const refreshTokenRef = useRef(refreshToken);
   const pendingRefreshRef = useRef(false);
+  const authRedirectStartedRef = useRef(false);
   const effectiveChecklistTab = activeTab ?? internalChecklistTab;
   const runCompletionMutation = useCompletionMutation();
 
@@ -187,6 +179,18 @@ export function TodayTab({
     () => todayGoalSearchQuery.trim().toLowerCase(),
     [todayGoalSearchQuery]
   );
+
+  const redirectToLogin = useCallback(() => {
+    if (authRedirectStartedRef.current) {
+      return;
+    }
+    authRedirectStartedRef.current = true;
+    const nextPath =
+      typeof window === "undefined"
+        ? "/"
+        : `${window.location.pathname}${window.location.search}`;
+    router.replace(buildLoginHref(nextPath));
+  }, [router]);
 
   const loadData = useCallback(
     async (
@@ -218,7 +222,7 @@ export function TodayTab({
 
         if (userError || !user) {
           setData(emptyData);
-          router.replace("/login");
+          redirectToLogin();
           return;
         }
 
@@ -289,7 +293,7 @@ export function TodayTab({
         }
       }
     },
-    [router, supabase, todayLocalDate, viewDate]
+    [redirectToLogin, supabase, todayLocalDate, viewDate]
   );
 
   useEffect(() => {
@@ -297,6 +301,10 @@ export function TodayTab({
       try {
         await loadData();
       } catch (error) {
+        if (isProgressContextAuthenticationError(error)) {
+          redirectToLogin();
+          return;
+        }
         toast.error(
           isAbortError(error)
             ? "Today goals request timed out. Please try again."
@@ -308,7 +316,7 @@ export function TodayTab({
     };
 
     void run();
-  }, [loadData]);
+  }, [loadData, redirectToLogin]);
 
   useEffect(() => {
     if (refreshToken === refreshTokenRef.current) {
@@ -320,6 +328,10 @@ export function TodayTab({
       const timer = window.setTimeout(() => {
         void loadData({ showLoading: false, forceRefresh: true }).catch(
           (error: unknown) => {
+            if (isProgressContextAuthenticationError(error)) {
+              redirectToLogin();
+              return;
+            }
             toast.error(
               isAbortError(error)
                 ? "Today goals request timed out. Please try again."
@@ -335,7 +347,7 @@ export function TodayTab({
     }
 
     pendingRefreshRef.current = true;
-  }, [isActive, loadData, refreshToken]);
+  }, [isActive, loadData, redirectToLogin, refreshToken]);
 
   useEffect(() => {
     if (!isActive || !pendingRefreshRef.current) {
@@ -345,6 +357,10 @@ export function TodayTab({
     const timer = window.setTimeout(() => {
       void loadData({ showLoading: false, forceRefresh: true }).catch(
         (error: unknown) => {
+          if (isProgressContextAuthenticationError(error)) {
+            redirectToLogin();
+            return;
+          }
           toast.error(
             isAbortError(error)
               ? "Today goals request timed out. Please try again."
@@ -356,7 +372,7 @@ export function TodayTab({
       );
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [isActive, loadData]);
+  }, [isActive, loadData, redirectToLogin]);
 
   const completionsByGoal = useMemo(
     () => groupCompletionsByGoalId(data.completions),
@@ -399,6 +415,13 @@ export function TodayTab({
     () => selectCompletableGoals(data.goals, completableGoalIds),
     [completableGoalIds, data.goals]
   );
+  const linkedCountByGoalId = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const link of data.links) {
+      counts.set(link.source_goal_id, (counts.get(link.source_goal_id) ?? 0) + 1);
+    }
+    return counts;
+  }, [data.links]);
 
   const activeGoals = useMemo(() => {
     return completableGoals.filter((goal) => {
@@ -547,7 +570,7 @@ export function TodayTab({
     [archivedGoalsRaw, prepareNotTodayGoals]
   );
 
-  const toggleCompletion = async (goal: Goal) => {
+  const toggleCompletion = useCallback(async (goal: Goal) => {
     const completions = completionsByGoal.get(goal.id) ?? [];
     const completedOnViewDate = hasCompletionToday(completions, viewDateObj);
     const completionsInCurrentPeriod = getCompletionsForCurrentPeriod(
@@ -571,7 +594,7 @@ export function TodayTab({
       targetedRecurring,
       activePlanMembership: false,
       matchingItemState: "none",
-        selectedDateState: resolveSelectedDateState(viewDate, todayLocalDate),
+      selectedDateState: resolveSelectedDateState(viewDate, todayLocalDate),
       existingExactFact: completedOnViewDate,
       desiredFactState,
     });
@@ -624,6 +647,10 @@ export function TodayTab({
         window.scrollTo({ top: currentScrollY, behavior: "auto" });
       });
     } catch (error) {
+      if (isProgressContextAuthenticationError(error)) {
+        redirectToLogin();
+        return;
+      }
       const timeoutLike =
         error instanceof Error &&
         error.message.toLowerCase().includes("timed out");
@@ -635,7 +662,48 @@ export function TodayTab({
     } finally {
       setSavingGoalId(null);
     }
-  };
+  }, [
+    completionsByGoal,
+    loadData,
+    redirectToLogin,
+    runCompletionMutation,
+    todayLocalDate,
+    viewDate,
+    viewDateObj,
+    weeklyAnchor,
+  ]);
+  const renderGoalCard = useCallback(
+    (goal: Goal, options?: { archived?: boolean; key?: string }) => {
+      const archived = options?.archived ?? false;
+      return (
+        <GoalCard
+          key={options?.key ?? goal.id}
+          goal={goal}
+          completions={completionsByGoal.get(goal.id) ?? []}
+          progress={progressByGoal.get(goal.id)}
+          linkedCount={linkedCountByGoalId.get(goal.id) ?? 0}
+          imageUrl={data.photoUrls[goal.id]}
+          disabled={archived || savingGoalId === goal.id}
+          archived={archived}
+          selectedDate={viewDate}
+          referenceDate={viewDateObj}
+          weeklyAnchor={weeklyAnchor}
+          onToggle={archived ? () => undefined : () => toggleCompletion(goal)}
+        />
+      );
+    },
+    [
+      completionsByGoal,
+      data.photoUrls,
+      linkedCountByGoalId,
+      progressByGoal,
+      savingGoalId,
+      toggleCompletion,
+      viewDate,
+      viewDateObj,
+      weeklyAnchor,
+    ]
+  );
 
   const goToPreviousDate = () => {
     setViewDate((previous) => format(subDays(parseISO(previous), 1), "yyyy-MM-dd"));
@@ -647,7 +715,7 @@ export function TodayTab({
 
   if (loading) {
     return (
-      <GoalsSurfaceLoadingCard
+      <LoadingCard
         title="Loading your goals..."
         description="Pulling your latest progress from Supabase."
       />
@@ -678,104 +746,28 @@ export function TodayTab({
         )}
 
         <TabsContent value="today" className="space-y-5">
-          <Card className="shadow-sm">
-        <CardHeader className="pb-3">
-          <div className="min-w-0">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <Sparkles className="size-4 text-primary" />
-                  <CardTitle className="text-xl">Today</CardTitle>
-                </div>
-                <CardDescription>{format(viewDateObj, "EEEE, MMMM d")}</CardDescription>
-              </div>
-              <div className="flex shrink-0 flex-col gap-2 sm:mr-2 sm:flex-row">
-                <Button variant="outline" asChild>
-                  <Link href="/goals/bulk">
-                    <ListPlus className="size-4" />
-                    New bulk goal
-                  </Link>
-                </Button>
-                <Button asChild>
-                  <Link href="/goals/new">
-                    <Plus className="size-4" />
-                    New goal
-                  </Link>
-                </Button>
-              </div>
-            </div>
-            <div className="mt-2 flex items-center gap-2 overflow-x-auto pb-1">
-              <div className="flex shrink-0 items-center gap-2">
-                <PeriodStepper
-                  onPrevious={goToPreviousDate}
-                  onNext={goToNextDate}
-                  center={
-                    <Input
-                      type="date"
-                      value={viewDate}
-                      onChange={(event) => setViewDate(event.target.value || todayLocalDate)}
-                      className="h-8 w-[170px]"
-                    />
-                  }
-                  previousAriaLabel="Previous day"
-                  nextAriaLabel="Next day"
-                />
-                {!viewingToday ? (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setViewDate(todayLocalDate)}
-                  >
-                    Today
-                  </Button>
-                ) : null}
-              </div>
-
-              <div className="flex shrink-0 items-center gap-2">
-                <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-                  <SelectTrigger className="h-8 w-[170px] rounded-full bg-background/90 text-xs">
-                    <SelectValue placeholder="Category" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={allCategoriesFilterValue}>All Categories</SelectItem>
-                    {availableCategories.map((category) => (
-                      <SelectItem key={category} value={category}>
-                        {category}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-
-                <Select
-                  value={recurrenceFilter}
-                  onValueChange={(value: RecurrenceFilter) => setRecurrenceFilter(value)}
-                >
-                  <SelectTrigger className="h-8 w-[190px] rounded-full bg-background/90 text-xs">
-                    <SelectValue placeholder="Recurrence" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Recurrences</SelectItem>
-                    <SelectItem value="daily">Daily Recurrences</SelectItem>
-                    <SelectItem value="weekly">Weekly Recurrences</SelectItem>
-                    <SelectItem value="monthly">Monthly Recurrences</SelectItem>
-                    <SelectItem value="fixed">Milestone Goals</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <GoalListControls
-              goals={completableGoals}
-              referenceMonth={checklistFilterStartMonth}
-              endMonth={effectiveTodayEndMonth}
-              onEndMonthChange={setTodayEndMonth}
-              sort={todaySort}
-              onSortChange={setTodaySort}
-              className="mt-2"
-            />
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-3 pt-0">
+          <TodayHeaderCard
+            viewDateObj={viewDateObj}
+            viewDate={viewDate}
+            todayLocalDate={todayLocalDate}
+            viewingToday={viewingToday}
+            onViewDateChange={setViewDate}
+            onGoToPreviousDate={goToPreviousDate}
+            onGoToNextDate={goToNextDate}
+            onResetToToday={() => setViewDate(todayLocalDate)}
+            categoryFilter={categoryFilter}
+            onCategoryFilterChange={setCategoryFilter}
+            recurrenceFilter={recurrenceFilter}
+            onRecurrenceFilterChange={setRecurrenceFilter}
+            availableCategories={availableCategories}
+            allCategoriesFilterValue={allCategoriesFilterValue}
+            goals={completableGoals}
+            referenceMonth={checklistFilterStartMonth}
+            endMonth={effectiveTodayEndMonth}
+            onEndMonthChange={setTodayEndMonth}
+            sort={todaySort}
+            onSortChange={setTodaySort}
+          >
           <Input
             value={todayGoalSearchQuery}
             onChange={(event) => setTodayGoalSearchQuery(event.target.value)}
@@ -825,41 +817,12 @@ export function TodayTab({
                       <div className="rounded-xl border bg-muted/15 p-2">
                         <GoalLoopScroller
                           goals={group.goals}
-                          renderGoal={(goal) => (
-                            <GoalCard
-                              goal={goal}
-                              completions={completionsByGoal.get(goal.id) ?? []}
-                              progress={progressByGoal.get(goal.id)}
-                              linkedCount={
-                                data.links.filter((link) => link.source_goal_id === goal.id).length
-                              }
-                              imageUrl={data.photoUrls[goal.id]}
-                              disabled={savingGoalId === goal.id}
-                              selectedDate={viewDate}
-                              referenceDate={viewDateObj}
-                              weeklyAnchor={weeklyAnchor}
-                              onToggle={() => toggleCompletion(goal)}
-                            />
-                          )}
+                          renderGoal={(goal) => renderGoalCard(goal)}
                         />
                       </div>
                     ) : (
                       <div className="space-y-3">
-                        {group.goals.map((goal) => (
-                          <GoalCard
-                            key={goal.id}
-                            goal={goal}
-                            completions={completionsByGoal.get(goal.id) ?? []}
-                            progress={progressByGoal.get(goal.id)}
-                            linkedCount={data.links.filter((link) => link.source_goal_id === goal.id).length}
-                            imageUrl={data.photoUrls[goal.id]}
-                            disabled={savingGoalId === goal.id}
-                            selectedDate={viewDate}
-                            referenceDate={viewDateObj}
-                            weeklyAnchor={weeklyAnchor}
-                            onToggle={() => toggleCompletion(goal)}
-                          />
-                        ))}
+                        {group.goals.map((goal) => renderGoalCard(goal, { key: goal.id }))}
                       </div>
                     )}
                   </div>
@@ -868,25 +831,10 @@ export function TodayTab({
             </div>
           ) : (
             <div className="space-y-3">
-              {todayGoalsSorted.map((goal) => (
-                <GoalCard
-                  key={goal.id}
-                  goal={goal}
-                  completions={completionsByGoal.get(goal.id) ?? []}
-                  progress={progressByGoal.get(goal.id)}
-                  linkedCount={data.links.filter((link) => link.source_goal_id === goal.id).length}
-                  imageUrl={data.photoUrls[goal.id]}
-                  disabled={savingGoalId === goal.id}
-                  selectedDate={viewDate}
-                  referenceDate={viewDateObj}
-                  weeklyAnchor={weeklyAnchor}
-                  onToggle={() => toggleCompletion(goal)}
-                />
-              ))}
+              {todayGoalsSorted.map((goal) => renderGoalCard(goal, { key: goal.id }))}
             </div>
           )}
-        </CardContent>
-          </Card>
+          </TodayHeaderCard>
         </TabsContent>
 
         <TabsContent value="not-today" className="space-y-4">
@@ -907,136 +855,43 @@ export function TodayTab({
             </CardContent>
           </Card>
 
-          <Collapsible open={upcomingOpen} onOpenChange={setUpcomingOpen}>
-        <Card className="shadow-sm">
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <CalendarClock className="size-4 text-muted-foreground" />
-                <CardTitle className="text-base">Upcoming</CardTitle>
-                <Badge variant="secondary">{upcoming.length}</Badge>
-              </div>
-              <CollapsibleTrigger asChild>
-                <Button variant="ghost" size="icon-sm">
-                  {upcomingOpen ? (
-                    <ChevronUp className="size-4" />
-                  ) : (
-                    <ChevronDown className="size-4" />
-                  )}
-                </Button>
-              </CollapsibleTrigger>
-            </div>
-          </CardHeader>
-          <CollapsibleContent>
-            <CardContent className="space-y-3">
-              {upcoming.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No future goals yet.</p>
-              ) : (
-                upcoming.map((goal) => (
-                  <GoalCard
-                    key={goal.id}
-                    goal={goal}
-                    completions={completionsByGoal.get(goal.id) ?? []}
-                    progress={progressByGoal.get(goal.id)}
-                    linkedCount={data.links.filter((link) => link.source_goal_id === goal.id).length}
-                    imageUrl={data.photoUrls[goal.id]}
-                    disabled={savingGoalId === goal.id}
-                    selectedDate={viewDate}
-                    referenceDate={viewDateObj}
-                    weeklyAnchor={weeklyAnchor}
-                    onToggle={() => toggleCompletion(goal)}
-                  />
-                ))
-              )}
-            </CardContent>
-          </CollapsibleContent>
-        </Card>
-          </Collapsible>
+          <CollapsibleGoalSection
+            open={upcomingOpen}
+            onOpenChange={setUpcomingOpen}
+            title="Upcoming"
+            count={upcoming.length}
+            icon={<CalendarClock className="size-4 text-muted-foreground" />}
+            emptyMessage="No future goals yet."
+          >
+            {upcoming.map((goal) => renderGoalCard(goal, { key: goal.id }))}
+          </CollapsibleGoalSection>
 
-          <Collapsible open={completedOpen} onOpenChange={setCompletedOpen}>
-        <Card className="shadow-sm">
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <CheckCircle2 className="size-4 text-muted-foreground" />
-                <CardTitle className="text-base">Ended</CardTitle>
-                <Badge variant="secondary">{completedGoals.length}</Badge>
-              </div>
-              <CollapsibleTrigger asChild>
-                <Button variant="ghost" size="icon-sm">
-                  {completedOpen ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
-                </Button>
-              </CollapsibleTrigger>
-            </div>
-          </CardHeader>
-          <CollapsibleContent>
-            <CardContent className="space-y-3">
-              {completedGoals.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No ended goals yet.</p>
-              ) : (
-                completedGoals.map((goal) => (
-                  <GoalCard
-                    key={goal.id}
-                    goal={goal}
-                    completions={completionsByGoal.get(goal.id) ?? []}
-                    progress={progressByGoal.get(goal.id)}
-                    linkedCount={data.links.filter((link) => link.source_goal_id === goal.id).length}
-                    imageUrl={data.photoUrls[goal.id]}
-                    disabled={savingGoalId === goal.id}
-                    selectedDate={viewDate}
-                    referenceDate={viewDateObj}
-                    weeklyAnchor={weeklyAnchor}
-                    onToggle={() => toggleCompletion(goal)}
-                  />
-                ))
-              )}
-            </CardContent>
-          </CollapsibleContent>
-        </Card>
-          </Collapsible>
+          <CollapsibleGoalSection
+            open={completedOpen}
+            onOpenChange={setCompletedOpen}
+            title="Ended"
+            count={completedGoals.length}
+            icon={<CheckCircle2 className="size-4 text-muted-foreground" />}
+            emptyMessage="No ended goals yet."
+          >
+            {completedGoals.map((goal) => renderGoalCard(goal, { key: goal.id }))}
+          </CollapsibleGoalSection>
 
-          <Collapsible open={archiveOpen} onOpenChange={setArchiveOpen}>
-        <Card className="shadow-sm">
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Archive className="size-4 text-muted-foreground" />
-                <CardTitle className="text-base">Archived</CardTitle>
-                <Badge variant="secondary">{archivedGoals.length}</Badge>
-              </div>
-              <CollapsibleTrigger asChild>
-                <Button variant="ghost" size="icon-sm">
-                  {archiveOpen ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
-                </Button>
-              </CollapsibleTrigger>
-            </div>
-          </CardHeader>
-          <CollapsibleContent>
-            <CardContent className="space-y-3">
-              {archivedGoals.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No archived goals yet.</p>
-              ) : (
-                archivedGoals.map((goal) => (
-                  <GoalCard
-                    key={goal.id}
-                    goal={goal}
-                    completions={completionsByGoal.get(goal.id) ?? []}
-                    progress={progressByGoal.get(goal.id)}
-                    linkedCount={data.links.filter((link) => link.source_goal_id === goal.id).length}
-                    imageUrl={data.photoUrls[goal.id]}
-                    disabled
-                    archived
-                    selectedDate={viewDate}
-                    referenceDate={viewDateObj}
-                    weeklyAnchor={weeklyAnchor}
-                    onToggle={() => undefined}
-                  />
-                ))
-              )}
-            </CardContent>
-          </CollapsibleContent>
-        </Card>
-          </Collapsible>
+          <CollapsibleGoalSection
+            open={archiveOpen}
+            onOpenChange={setArchiveOpen}
+            title="Archived"
+            count={archivedGoals.length}
+            icon={<Archive className="size-4 text-muted-foreground" />}
+            emptyMessage="No archived goals yet."
+          >
+            {archivedGoals.map((goal) =>
+              renderGoalCard(goal, {
+                key: goal.id,
+                archived: true,
+              })
+            )}
+          </CollapsibleGoalSection>
         </TabsContent>
       </Tabs>
     </div>

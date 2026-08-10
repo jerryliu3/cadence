@@ -5,7 +5,6 @@ import {
   Archive,
   ChevronDown,
   ChevronUp,
-  Link2,
   LoaderCircle,
   Save,
   Trash2,
@@ -17,20 +16,12 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { type FormEvent, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { LoadingCard } from "@/components/ui/loading-card";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import {
   CategorySelect,
@@ -38,6 +29,13 @@ import {
   RecurrenceIntervalToggle,
   TargetCountField,
 } from "@/features/goals/goal-field-kit";
+import { GoalLinkTargetSelect } from "@/features/goals/goal-link-target-select";
+import { MilestoneNameFields } from "@/features/goals/milestone-name-fields";
+import { buildLoginHref } from "@/lib/auth/login-redirect";
+import {
+  GoalDateRangeFields,
+  GoalDefaultTimeField,
+} from "@/features/goals/goal-schedule-fields";
 import { toLocalDateString } from "@/lib/dates/day";
 import {
   type CategorySelection,
@@ -55,7 +53,6 @@ import {
 } from "@/lib/goals/linked-goal-labels";
 import {
   buildMilestoneNameDrafts,
-  defaultMilestoneName,
   normalizeMilestoneNamesForSave,
 } from "@/lib/goals/milestones";
 import type { Goal, GoalFrequencyType, GoalLink, RecurrenceInterval } from "@/lib/goals/types";
@@ -139,7 +136,8 @@ export function GoalForm({ goalId }: GoalFormProps) {
       } = await supabase.auth.getUser();
 
       if (!user) {
-        router.replace("/login");
+        const nextPath = `${window.location.pathname}${window.location.search}`;
+        router.replace(buildLoginHref(nextPath));
         return;
       }
 
@@ -665,125 +663,89 @@ export function GoalForm({ goalId }: GoalFormProps) {
                 </CollapsibleTrigger>
                 <CollapsibleContent>
                   <div className="space-y-3 border-t px-3 py-3">
-                    <div className="grid gap-2 sm:grid-cols-2">
-                      {Array.from({ length: fixedMilestoneCount }).map((_, index) => (
-                        <Input
-                          key={`milestone-name-${index + 1}`}
-                          value={state.milestone_names[index] ?? ""}
-                          onChange={(event) =>
-                            setState((previous) => {
-                              const nextMilestoneNames = [...previous.milestone_names];
-                              nextMilestoneNames[index] = event.target.value;
-                              return {
-                                ...previous,
-                                milestone_names: nextMilestoneNames,
-                              };
-                            })
-                          }
-                          placeholder={defaultMilestoneName(index)}
-                        />
-                      ))}
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      Leave any field blank to use the default name.
-                    </p>
+                    <MilestoneNameFields
+                      count={fixedMilestoneCount}
+                      values={state.milestone_names}
+                      onValueChange={(index, value) =>
+                        setState((previous) => {
+                          const nextMilestoneNames = [...previous.milestone_names];
+                          nextMilestoneNames[index] = value;
+                          return {
+                            ...previous,
+                            milestone_names: nextMilestoneNames,
+                          };
+                        })
+                      }
+                      showLabel={false}
+                      keyPrefix="milestone-name"
+                    />
                   </div>
                 </CollapsibleContent>
               </div>
             </Collapsible>
           ) : null}
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <div className="flex items-center justify-between gap-2">
-                <Label htmlFor="start-date">Start date</Label>
-                <div className="flex items-center gap-2 text-xs">
-                  <button
-                    type="button"
-                    className="text-primary hover:underline"
-                    onClick={applyThisMonthStartDate}
-                  >
-                    this month
-                  </button>
-                  <button
-                    type="button"
-                    className="text-primary hover:underline"
-                    onClick={applyThisYearStartDate}
-                  >
-                    this year
-                  </button>
-                </div>
-              </div>
-              <Input
-                id="start-date"
-                type="date"
-                value={state.start_date}
-                onChange={(event) => setState((prev) => ({ ...prev, start_date: event.target.value }))}
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <div className="flex items-center justify-between gap-2">
-                <Label htmlFor="end-date">
-                  {requiresEndDate ? "End date" : "End date (optional)"}
-                </Label>
-                <div className="flex items-center gap-2 text-xs">
-                  <button
-                    type="button"
-                    className="text-primary hover:underline"
-                    onClick={applyThisMonthEndDate}
-                  >
-                    this month
-                  </button>
-                  <button
-                    type="button"
-                    className="text-primary hover:underline"
-                    onClick={applyThisYearEndDate}
-                  >
-                    this year
-                  </button>
-                </div>
-              </div>
-              <Input
-                id="end-date"
-                type="date"
-                value={state.end_date}
-                onChange={(event) => setState((prev) => ({ ...prev, end_date: event.target.value }))}
-                  required={requiresEndDate}
-              />
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <div className="flex items-center justify-between gap-2">
-              <Label htmlFor="default-local-time">Default time of day (optional)</Label>
-              {state.default_local_time ? (
+          <GoalDateRangeFields
+            startDate={state.start_date}
+            endDate={state.end_date}
+            onStartDateChange={(value) =>
+              setState((previous) => ({ ...previous, start_date: value }))
+            }
+            onEndDateChange={(value) =>
+              setState((previous) => ({ ...previous, end_date: value }))
+            }
+            requiresEndDate={requiresEndDate}
+            startDateId="start-date"
+            endDateId="end-date"
+            startDateActions={
+              <div className="flex items-center gap-2 text-xs">
                 <button
                   type="button"
-                  className="text-xs text-primary hover:underline"
-                  onClick={() =>
-                    setState((previous) => ({ ...previous, default_local_time: "" }))
-                  }
+                  className="text-primary hover:underline"
+                  onClick={applyThisMonthStartDate}
                 >
-                  clear
+                  this month
                 </button>
-              ) : null}
-            </div>
-            <Input
-              id="default-local-time"
-              type="time"
-              value={state.default_local_time}
-              onChange={(event) =>
-                setState((previous) => ({
-                  ...previous,
-                  default_local_time: event.target.value,
-                }))
-              }
-            />
-            <p className="text-xs text-muted-foreground">
-              Used as the default planner time when an item-level override is not set.
-            </p>
-          </div>
+                <button
+                  type="button"
+                  className="text-primary hover:underline"
+                  onClick={applyThisYearStartDate}
+                >
+                  this year
+                </button>
+              </div>
+            }
+            endDateActions={
+              <div className="flex items-center gap-2 text-xs">
+                <button
+                  type="button"
+                  className="text-primary hover:underline"
+                  onClick={applyThisMonthEndDate}
+                >
+                  this month
+                </button>
+                <button
+                  type="button"
+                  className="text-primary hover:underline"
+                  onClick={applyThisYearEndDate}
+                >
+                  this year
+                </button>
+              </div>
+            }
+          />
+
+          <GoalDefaultTimeField
+            id="default-local-time"
+            value={state.default_local_time}
+            onValueChange={(value) =>
+              setState((previous) => ({
+                ...previous,
+                default_local_time: value,
+              }))
+            }
+            onClear={() => setState((previous) => ({ ...previous, default_local_time: "" }))}
+          />
 
           {validationError ? (
             <p className="text-sm text-destructive">{validationError}</p>
@@ -912,56 +874,20 @@ export function GoalForm({ goalId }: GoalFormProps) {
                   </div>
 
                   {!state.is_group ? (
-                    <div className="space-y-2">
-                      <Label className="inline-flex items-center gap-2">
-                        <Link2 className="size-4 text-muted-foreground" />
-                        Link this goal to another goal (optional)
-                      </Label>
-                      <Select
-                        value={selectedLinkTarget}
-                        onValueChange={setSelectedLinkTarget}
-                        open={linkTargetOpen}
-                        onOpenChange={(open) => {
-                          setLinkTargetOpen(open);
-                          if (!open) {
-                            setLinkTargetSearch("");
-                          }
-                        }}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="No linked target" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <div className="sticky top-0 z-10 border-b bg-popover p-1.5">
-                            <Input
-                              value={linkTargetSearch}
-                              onChange={(event) => setLinkTargetSearch(event.target.value)}
-                              placeholder="Search link targets..."
-                              className="h-8"
-                              onKeyDown={(event) => event.stopPropagation()}
-                            />
-                          </div>
-                          <SelectItem value="none">No linked target</SelectItem>
-                          {filteredLinkTargets.map((goal) => (
-                            <SelectItem key={goal.id} value={goal.id}>
-                              <span className="flex items-center gap-2">
-                                <span className="max-w-[170px] truncate">{goal.title}</span>
-                                <Badge variant="secondary">{getLinkedGoalRecurrenceLabel(goal)}</Badge>
-                                <Badge variant="outline">{getLinkedGoalDeadlineLabel(goal)}</Badge>
-                              </span>
-                            </SelectItem>
-                          ))}
-                          {filteredLinkTargets.length === 0 ? (
-                            <p className="px-2 py-1.5 text-xs text-muted-foreground">
-                              No goals match your search.
-                            </p>
-                          ) : null}
-                        </SelectContent>
-                      </Select>
-                      <p className="text-xs text-muted-foreground">
-                        Marking this goal complete will auto-complete linked goals for the same day.
-                      </p>
-                    </div>
+                    <GoalLinkTargetSelect
+                      value={selectedLinkTarget}
+                      onValueChange={setSelectedLinkTarget}
+                      open={linkTargetOpen}
+                      onOpenChange={(open) => {
+                        setLinkTargetOpen(open);
+                        if (!open) {
+                          setLinkTargetSearch("");
+                        }
+                      }}
+                      searchQuery={linkTargetSearch}
+                      onSearchQueryChange={setLinkTargetSearch}
+                      filteredLinkTargets={filteredLinkTargets}
+                    />
                   ) : null}
                 </div>
               </CollapsibleContent>
