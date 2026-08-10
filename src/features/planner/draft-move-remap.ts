@@ -7,11 +7,10 @@ export interface RemappableUnit {
 /**
  * Work out what a drag should pin.
  *
- * The solver assigns a goal's units in strict ordinal order, so pinning one
- * ordinal to a later date drags every later ordinal after it. That ordering is
- * real for `milestone_sequence` -- step 2 must follow step 1 -- but for
- * interchangeable sessions it is bookkeeping, and honouring it literally means
- * moving one session visibly shifts every session after it.
+ * For interchangeable sessions, the user's intent is "this goal now occupies a
+ * different set of dates", not "this exact ordinal must own this date forever."
+ * So a drag remaps the goal's whole ordinal-to-date mapping to preserve the
+ * date set the user sees in preview.
  *
  * What the user actually changed is the set of dates the goal occupies: one
  * date is released, another is taken. So recompute the whole ordinal-to-date
@@ -33,9 +32,8 @@ export function remapGoalDatesForDraftMove({
 }): Record<string, string> {
   // Milestone labels are bound to the ordinal (`labels[ordinal - 1]`), so
   // relabelling would move the wrong item: drag "Outline" late and "Final"
-  // lands on the new date. The ordering is also real here -- a later milestone
-  // genuinely follows an earlier one -- so pin the dragged unit and let the
-  // sequence shift with it.
+  // lands on the new date. Pin only the dragged milestone so label identity
+  // stays intact.
   if (kind === "milestone_sequence") {
     return { [movedUnitKey]: nextDate };
   }

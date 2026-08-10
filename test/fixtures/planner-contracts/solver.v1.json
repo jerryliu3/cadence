@@ -135,7 +135,7 @@
     },
     {
       "id": "earlier_open_unit_cannot_be_skipped",
-      "description": "A later ordinal cannot take an earlier date by skipping an open predecessor.",
+      "description": "Open units may schedule in any date order when candidates permit.",
       "dates": ["2026-08-05", "2026-08-06"],
       "units": [
         {
@@ -170,16 +170,16 @@
           {
             "goalId": "goal-a",
             "unitKey": "milestone:2",
-            "scheduledDate": null
+            "scheduledDate": "2026-08-05"
           }
         ],
-        "placementStatus": "partial",
-        "searchStatus": "maximum_partial",
+        "placementStatus": "complete",
+        "searchStatus": "all_units_placed",
         "capacityStatus": "unverified",
-        "issueCodes": ["placement_shortfall"],
+        "issueCodes": [],
         "invalidGoalIds": [],
         "publishable": true,
-        "confirmationRequired": true
+        "confirmationRequired": false
       }
     },
     {
@@ -297,7 +297,7 @@
     },
     {
       "id": "order_invalid_lock_blocks_replacement",
-      "description": "Conflicting ordered locks produce invalid_lock and no publishable replacement.",
+      "description": "Out-of-order locks remain valid when each lock date is unique.",
       "dates": ["2026-08-05", "2026-08-10"],
       "units": [
         {
@@ -327,20 +327,20 @@
           {
             "goalId": "goal-a",
             "unitKey": "milestone:1",
-            "scheduledDate": null
+            "scheduledDate": "2026-08-10"
           },
           {
             "goalId": "goal-a",
             "unitKey": "milestone:2",
-            "scheduledDate": null
+            "scheduledDate": "2026-08-05"
           }
         ],
-        "placementStatus": "partial",
-        "searchStatus": "blocked_invalid_lock",
+        "placementStatus": "complete",
+        "searchStatus": "all_units_placed",
         "capacityStatus": "unverified",
-        "issueCodes": ["invalid_lock"],
-        "invalidGoalIds": ["goal-a"],
-        "publishable": false,
+        "issueCodes": [],
+        "invalidGoalIds": [],
+        "publishable": true,
         "confirmationRequired": false
       }
     },

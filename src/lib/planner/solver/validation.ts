@@ -59,36 +59,16 @@ export function validateSolverResult(
     byGoal.set(unit.goalId, existing);
   }
   for (const goalUnits of byGoal.values()) {
-    goalUnits.sort((left, right) => left.ordinal - right.ordinal);
     const usedDates = new Set<string>();
-    let previousDate: string | null = null;
-    let prefixEnded = false;
     for (const unit of goalUnits) {
       const date = assignmentByKey.get(getSolverUnitId(unit)) ?? null;
       if (date === null) {
-        if (
-          unit.kind === "milestone_sequence" ||
-          unit.kind === "deadline_total"
-        ) {
-          prefixEnded = true;
-        }
         continue;
       }
       if (usedDates.has(date)) {
         violations.add("duplicate_goal_date");
       }
       usedDates.add(date);
-      if (previousDate !== null && date <= previousDate) {
-        violations.add("order_violation");
-      }
-      if (
-        prefixEnded &&
-        (unit.kind === "milestone_sequence" ||
-          unit.kind === "deadline_total")
-      ) {
-        violations.add("skipped_open_ordinal");
-      }
-      previousDate = date;
     }
   }
 

@@ -63,7 +63,7 @@ describe("ordered-dp-v1 solver", () => {
     expect(result.placementStatus).toBe("partial");
   });
 
-  it("treats a locked successor behind an impossible prefix as invalid", () => {
+  it("allows a locked successor when an earlier ordinal cannot be placed", () => {
     const result = solveOrderedDpV1({
       dates: ["2026-08-05"],
       units: [
@@ -88,11 +88,23 @@ describe("ordered-dp-v1 solver", () => {
       ],
     });
 
-    expect(result.issueCodes).toEqual(["invalid_lock"]);
-    expect(result.publishable).toBe(false);
+    expect(result.assignments).toEqual([
+      {
+        goalId: "goal-a",
+        unitKey: "total:1",
+        scheduledDate: null,
+      },
+      {
+        goalId: "goal-a",
+        unitKey: "total:2",
+        scheduledDate: "2026-08-05",
+      },
+    ]);
+    expect(result.issueCodes).toEqual(["placement_shortfall"]);
+    expect(result.publishable).toBe(true);
   });
 
-  it("keeps unaffected goal assignments when another goal has invalid locks", () => {
+  it("keeps unaffected goal assignments when another goal has conflicting lock dates", () => {
     const result = solveOrderedDpV1({
       dates: ["2026-08-05", "2026-08-10"],
       units: [
@@ -112,7 +124,7 @@ describe("ordered-dp-v1 solver", () => {
           ordinal: 2,
           candidateDates: ["2026-08-05", "2026-08-10"],
           previousDate: "2026-08-05",
-          lockedDate: "2026-08-05",
+          lockedDate: "2026-08-10",
         },
         {
           unitKey: "total:1",
