@@ -84,4 +84,24 @@ describe("projectWorkUnitsToSolver", () => {
     }
     expect(solverUnit.dateCosts["2026-08-02"]).toBe(0);
   });
+
+  it("pins targeted units to draft move dates before preserve-existing fallback", () => {
+    const policy = createDefaultPlannerPolicy("UTC", "2026-08-01T00:00:00Z");
+    const compiledPolicy = compilePlannerPolicy(policy);
+    const workUnit = createWorkUnit();
+    workUnit.scheduledDate = "2026-08-02";
+
+    const result = projectWorkUnitsToSolver({
+      workUnits: [workUnit],
+      compiledPolicy,
+      assessments: new Map<string, GoalAssessment>(),
+      preserveExistingAssignments: true,
+      draftPinnedDates: {
+        "goal-a:total:1": "2026-08-03",
+      },
+    });
+
+    expect(result).toHaveLength(1);
+    expect(result[0]?.lockedDate).toBe("2026-08-03");
+  });
 });

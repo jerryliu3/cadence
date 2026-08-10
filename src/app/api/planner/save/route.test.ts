@@ -147,4 +147,66 @@ describe("planner save route", () => {
       })
     );
   });
+
+  it("re-runs kernel with draft pinned dates for move commands", async () => {
+    mocks.parseBoundedJsonBody.mockResolvedValueOnce({
+      scopeMonth: "2026-08",
+      previewHash:
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      expectedDigest:
+        "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      confirmationHash: null,
+      draftCommands: [
+        {
+          id: "30000000-0000-4000-8000-000000000001",
+          sequence: 1,
+          kind: "move_item",
+          goalId: "12000000-0000-4000-8000-000000000001",
+          unitKey: "cadence:2026-08-10",
+          scheduledDate: "2026-08-12",
+        },
+      ],
+    });
+    mocks.runPlannerKernel
+      .mockReturnValueOnce({
+        generationInputHash:
+          "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        solver: { confirmationRequired: false },
+      })
+      .mockImplementationOnce(() => {
+        throw new PlannerError(
+          "validation_failed",
+          400,
+          "Pinned move was outside the placement window."
+        );
+      });
+
+    const response = await POST(
+      new Request("http://localhost/api/planner/save", {
+        method: "POST",
+      })
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "validation_failed",
+      message: "Pinned move was outside the placement window.",
+    });
+    expect(mocks.runPlannerKernel).toHaveBeenCalledTimes(2);
+    expect(mocks.runPlannerKernel).toHaveBeenNthCalledWith(
+      1,
+      expect.not.objectContaining({
+        draftPinnedDates: expect.anything(),
+      })
+    );
+    expect(mocks.runPlannerKernel).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        draftPinnedDates: {
+          "12000000-0000-4000-8000-000000000001:cadence:2026-08-10":
+            "2026-08-12",
+        },
+      })
+    );
+  });
 });

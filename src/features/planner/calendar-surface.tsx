@@ -821,6 +821,7 @@ export function CalendarSurface({
           timezone: context.timezone,
           policy: nextPolicy,
           source: context.activePlan ? "update" : "manual",
+          draftCommands: draftSaveCommands,
         }
       );
       setDraftPreviewForScope(context.scopeMonth, previewPayload.preview);

@@ -21,6 +21,10 @@ import {
 import { PlannerError, runPlannerKernel } from "@/lib/planner/kernel";
 import { createDefaultPlannerPolicy, plannerPolicySchema } from "@/lib/planner/policy";
 import {
+  buildDraftPinnedDatesFromCommands,
+  plannerDraftCommandSchema,
+} from "@/lib/planner/draft-commands";
+import {
   parsePlannerProfilePreferencesRow,
   resolvePlannerPreferencesSnapshot,
 } from "@/lib/planner/preferences-snapshot";
@@ -66,6 +70,7 @@ const previewRequestSchema = z.object({
     .optional(),
   policy: z.unknown().optional(),
   source: z.enum(["manual", "ai", "update"]).default("manual"),
+  draftCommands: z.array(plannerDraftCommandSchema).max(4000).default([]),
 });
 
 const upsertPreferencesSchema = z.object({
@@ -130,6 +135,7 @@ function resolvePlannerPreview({
   requireExplicitTimezone,
   includeKernel = true,
   preserveExistingAssignments = false,
+  draftPinnedDates = {},
 }: {
   ownerId: string;
   scopeMonth: string;
@@ -141,6 +147,7 @@ function resolvePlannerPreview({
   requireExplicitTimezone: boolean;
   includeKernel?: boolean;
   preserveExistingAssignments?: boolean;
+  draftPinnedDates?: Record<string, string>;
 }) {
   const effectiveTimezone =
     requestedTimezone ??
@@ -200,6 +207,7 @@ function resolvePlannerPreview({
         policy: effectivePolicy,
         basePlan: snapshot.activePlan?.basePlan ?? null,
         preserveExistingAssignments,
+        draftPinnedDates,
       })
     : null;
 
@@ -397,6 +405,9 @@ export async function POST(request: Request) {
       scopeMonth: body.scopeMonth,
     });
 
+    const draftPinnedDates = buildDraftPinnedDatesFromCommands(
+      body.draftCommands ?? []
+    );
     let resolvedPreview: ReturnType<typeof resolvePlannerPreview>;
     try {
       resolvedPreview = resolvePlannerPreview({
@@ -408,6 +419,7 @@ export async function POST(request: Request) {
         snapshot,
         requireExplicitTimezone: true,
         preserveExistingAssignments: false,
+        draftPinnedDates,
       });
     } catch (error) {
       if (error instanceof PlannerError) {
