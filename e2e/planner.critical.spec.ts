@@ -12,6 +12,8 @@ interface CompletionMutationPayload {
   timezone: string;
 }
 
+const TODAY_EXACT_DATE_GOAL_ID = "10000000-0000-4000-8000-000000000011";
+
 function shiftScopeMonth(scopeMonth: string, delta: number) {
   const [rawYear, rawMonth] = scopeMonth.split("-");
   const year = Number.parseInt(rawYear ?? "", 10);
@@ -343,32 +345,28 @@ test.describe("planner critical rails", () => {
     test.setTimeout(120_000);
     await page.goto("/?tab=today");
     await expect(page.getByRole("tab", { name: "Today", exact: true })).toBeVisible();
-    const initialButton = page
-      .getByRole("button", {
-        name: /Mark goal as complete|Unmark goal completion for current period|Complete goal for|Remove completion for/,
-      })
+    const initialGoalLink = page
+      .locator(`a[href="/goals/${TODAY_EXACT_DATE_GOAL_ID}"]`)
       .first();
+    await expect(initialGoalLink).toBeVisible({ timeout: 10_000 });
+    const initialButton = initialGoalLink.locator(
+      "xpath=preceding-sibling::button[1]"
+    );
     await expect(initialButton).toBeVisible();
     await expect(initialButton).toBeEnabled();
-    const selectedGoalTitle = (await initialButton
-      .locator("xpath=following-sibling::a//h3")
-      .first()
-      .textContent())?.trim();
-    expect(selectedGoalTitle).toBeTruthy();
 
     const todayPayload = await runCompletionToggleAction(page, async () => {
       await initialButton.click();
     });
+    expect(todayPayload.goalId).toBe(TODAY_EXACT_DATE_GOAL_ID);
     await page.goto("/?tab=today");
     await expect(page.getByRole("tab", { name: "Today", exact: true })).toBeVisible();
+    const secondGoalLink = page
+      .locator(`a[href="/goals/${TODAY_EXACT_DATE_GOAL_ID}"]`)
+      .first();
+    await expect(secondGoalLink).toBeVisible({ timeout: 10_000 });
     const secondTodayPayload = await runCompletionToggleAction(page, async () => {
-      const goalHeading = page
-        .getByRole("heading", { name: selectedGoalTitle!, exact: true })
-        .first();
-      await expect(goalHeading).toBeVisible({ timeout: 10_000 });
-      const button = goalHeading.locator(
-        "xpath=ancestor::a/preceding-sibling::button[1]"
-      );
+      const button = secondGoalLink.locator("xpath=preceding-sibling::button[1]");
       await expect(button).toBeVisible();
       await expect(button).toBeEnabled();
       await button.click();
