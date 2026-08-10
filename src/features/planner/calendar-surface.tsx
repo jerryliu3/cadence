@@ -76,10 +76,7 @@ import { getGoalVisual } from "@/features/planner/goal-visuals";
 import { useCalendarDayPreview } from "@/features/planner/use-calendar-day-preview";
 import { usePlannerDayDetailSelectionState } from "@/features/planner/use-planner-day-detail-selection-state";
 import { usePlannerDraftEntryActions } from "@/features/planner/use-planner-draft-entry-actions";
-import {
-  resolveCompletionControlDisabledReasonForEntry,
-  resolveDateFactDispatchForEntry,
-} from "@/features/planner/calendar-completion-selectors";
+import { usePlannerCompletionActions } from "@/features/planner/use-planner-completion-actions";
 import {
   readPlannerCalendarDayProjection,
   selectPlannerCalendarDayProjectionsByDay,
@@ -107,7 +104,6 @@ import {
 import { withPlannerRefreshTimeout } from "@/lib/planner/refresh-timeout";
 import type {
   CalendarSurfaceProps,
-  CompletionControlDisabledReason,
   PlannerContextPayload,
   PlannerDayDetailEntry,
   PlannerErrorPayload,
@@ -180,7 +176,6 @@ export function CalendarSurface({
   const [previewEntryOrderByDay, setPreviewEntryOrderByDay] = useState<
     Record<string, string[]>
   >({});
-  const [mutationLoadingKey, setMutationLoadingKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [setupTimezone, setSetupTimezone] = useState(
     Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"
@@ -1112,216 +1107,24 @@ export function CalendarSurface({
     },
     [clearDragState]
   );
-  const canMutatePlanItems = Boolean(
-    context?.capabilities.calendarEnabled &&
-      context?.activePlan?.plan.status === "active"
-  );
-
-  const getDateFactDispatchForEntry = (
-    entry: PlannerDayDetailEntry,
-    selectedDate: string | null = dayDetailDay
-  ) =>
-    resolveDateFactDispatchForEntry({
-      entry,
-      context,
-      selectedDate,
-    });
-
-  const completionControlDisabledReasonForEntry = (
-    entry: PlannerDayDetailEntry,
-    dispatch: ReturnType<typeof getDateFactDispatchForEntry>
-  ): CompletionControlDisabledReason | null =>
-    resolveCompletionControlDisabledReasonForEntry({
-      entry,
-      dispatch,
-      canMutatePlanItems,
-      calendarEnabled: Boolean(context?.capabilities.calendarEnabled),
-    });
-
-  const toggleItemLock = async (entry: PlannerDayDetailEntry) => {
-    if (!context || !entry.activeItem) {
-      return;
-    }
-    const expectedDigest = context.revisions.scheduleDigest;
-    if (!expectedDigest) {
-      toast.error("Planner state is stale. Refresh and try again.");
-      return;
-    }
-
-    const nextLocked = !entry.activeItem.locked;
-    const mutationKey = `lock:${entry.activeItem.id}`;
-    setMutationLoadingKey(mutationKey);
-    let lockUpdated = false;
-    try {
-      try {
-        await postJson("/api/planner/items/lock", {
-          itemId: entry.activeItem.id,
-          locked: nextLocked,
-          expectedDigest,
-        });
-        lockUpdated = true;
-      } catch (error) {
-        toast.error(getApiErrorMessage(error, "Planner lock update failed."));
-        return;
-      }
-      try {
-        onPlannerMutation();
-        const refreshed = await withPlannerRefreshTimeout({
-          operation: loadContext({
-            showLoading: false,
-            toastOnError: false,
-          }),
-          timeoutMessage:
-            "Lock updated, but calendar refresh timed out. Please refresh the page.",
-        });
-        if (!refreshed) {
-          toast.error(
-            "Lock updated, but calendar refresh failed. Please refresh the page."
-          );
-          return;
-        }
-        toast.success(nextLocked ? "Planner item locked." : "Planner item unlocked.");
-      } catch (error) {
-        if (lockUpdated) {
-          toast.error(
-            error instanceof Error
-              ? error.message
-              : "Lock updated, but calendar refresh failed. Please refresh the page."
-          );
-          return;
-        }
-        toast.error(
-          getApiErrorMessage(error, "Planner lock update failed.")
-        );
-      }
-    } finally {
-      setMutationLoadingKey(null);
-    }
-  };
-
-  const toggleDateFact = async (
-    entry: PlannerDayDetailEntry,
-    selectedDateOverride?: string
-  ) => {
-    const selectedDate = selectedDateOverride ?? dayDetailDay;
-    if (!context || !selectedDate) {
-      return;
-    }
-    const dispatch = getDateFactDispatchForEntry(entry, selectedDate);
-    const disabledReason = completionControlDisabledReasonForEntry(
-      entry,
-      dispatch
-    );
-    if (disabledReason) {
-      toast.error(completionDisabledReasonCopy(disabledReason));
-      return;
-    }
-    if (!dispatch) {
-      toast.error("This planner item cannot be updated from the current snapshot.");
-      return;
-    }
-    const desiredFactState = dispatch.desiredFactState;
-    if (!dispatch.decision.allowed) {
-      const message =
-        dispatch.decision.reason === "future_creation"
-          ? "You can only mark completions for today or a past date."
-          : dispatch.decision.reason === "satisfied_elsewhere"
-            ? "This completion is already satisfied by another session."
-            : "This completion cannot be changed from here.";
-      toast.error(message);
-      return;
-    }
-    const requiresPlannerExpectation =
-      dispatch.decision.route === "item_date" ||
-      dispatch.decision.route === "plan_goal_date";
-    const expectedDigest = context.revisions.scheduleDigest;
-    if (requiresPlannerExpectation && !expectedDigest) {
-      toast.error("Planner state is stale. Refresh and try again.");
-      return;
-    }
-    const mutationKey = `fact:${entry.key}`;
-    const draftDateOverlayActive = Boolean(
-      hasDraftSession &&
-        !entry.draftGhost &&
-        (entry.draftDiffKind === "moved_to" ||
-          entry.draftDiffKind === "new" ||
-          effectiveDraftItemEdits[entry.key]?.scheduledDate !== undefined)
-    );
-
-    setMutationLoadingKey(mutationKey);
-    try {
-      const result = await runCompletionMutation({
-        decision: dispatch.decision,
-        desiredFactState,
-        goalId: entry.originalGoalId,
-        date: selectedDate,
-        timezone: context.timezone,
-        plannerItemExpectation:
-          requiresPlannerExpectation && entry.activeItem && expectedDigest
-          ? {
-              itemId: entry.activeItem.id,
-              expectedDigest,
-            }
-          : undefined,
-        plannerGoalExpectation:
-          requiresPlannerExpectation && entry.activeGoal && expectedDigest
-          ? {
-              expectedDigest,
-            }
-          : undefined,
-        fallbackErrorMessage: "Planner completion update failed.",
-      });
-
-      if (!result.ok) {
-        toast.error(result.message ?? "Planner completion update failed.");
-        return;
-      }
-
-      let draftPreviewRefreshFailed = false;
-      if (hasDraftSession) {
-        const draftPolicyForRefresh =
-          effectiveDraftPolicy ?? context.preferences?.defaultPolicy ?? null;
-        if (draftPolicyForRefresh) {
-          try {
-            await refreshDraftPreview(draftPolicyForRefresh);
-          } catch {
-            draftPreviewRefreshFailed = true;
-            toast(
-              "Completion saved, but your preview overlay could not refresh automatically. Regenerate preview to sync."
-            );
-          }
-        }
-      }
-
-      onPlannerMutation();
-      const refreshed = await withPlannerRefreshTimeout({
-        operation: loadContext({
-          showLoading: false,
-          toastOnError: false,
-        }),
-        timeoutMessage:
-          "Completion updated, but calendar refresh timed out. Please refresh the page.",
-      });
-      if (!refreshed) {
-        toast.error(
-          "Completion updated, but calendar refresh failed. Please refresh the page."
-        );
-        return;
-      }
-      toast.success(desiredFactState === "present" ? "Marked done." : "Marked not done.");
-      if (draftDateOverlayActive || draftPreviewRefreshFailed) {
-        toast(
-          "This entry is still shown with preview overlays. Save or discard preview edits to view canonical placement only."
-        );
-      }
-    } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : "Planner completion update failed."
-      );
-    } finally {
-      setMutationLoadingKey(null);
-    }
-  };
+  const {
+    mutationLoadingKey,
+    canMutatePlanItems,
+    getDateFactDispatchForEntry,
+    completionControlDisabledReasonForEntry,
+    toggleItemLock,
+    toggleDateFact,
+  } = usePlannerCompletionActions({
+    context,
+    dayDetailDay,
+    hasDraftSession,
+    effectiveDraftItemEdits,
+    effectiveDraftPolicy,
+    refreshDraftPreview,
+    loadContext,
+    onPlannerMutation,
+    runCompletionMutation,
+  });
 
   const savePlan = async () => {
     if (!context?.capabilities.calendarEnabled) {
