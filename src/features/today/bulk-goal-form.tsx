@@ -23,6 +23,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { LoadingCard } from "@/components/ui/loading-card";
 import {
   Select,
   SelectContent,
@@ -31,10 +32,16 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  CategorySelect,
+  GoalTypeToggle,
+  RecurrenceIntervalToggle,
+  TargetCountField,
+} from "@/features/goals/goal-field-kit";
 import { getApiErrorMessage, postJson } from "@/lib/api/client";
 import { toLocalDateString } from "@/lib/dates/day";
+import { resolveUserTimezone } from "@/lib/dates/timezone";
 import {
-  CATEGORY_PRESETS,
   type CategorySelection,
   getCategoryLabel,
   getCategorySelectionFromValue,
@@ -60,17 +67,6 @@ import {
 } from "@/lib/goals/definition-validation";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
-
-const frequencyOptions: Array<{ value: GoalFrequencyType; label: string }> = [
-  { value: "recurring", label: "Repeat" },
-  { value: "fixed_milestones", label: "Milestone" },
-];
-
-const recurrenceOptions: Array<{ value: RecurrenceInterval; label: string }> = [
-  { value: "daily", label: "Daily" },
-  { value: "weekly", label: "Weekly" },
-  { value: "monthly", label: "Monthly" },
-];
 
 const columnAliases = {
   title: ["title", "goal", "goal_title", "name"],
@@ -532,7 +528,7 @@ export function BulkGoalForm() {
         "/api/bulk-goals/parse",
         {
           prompt: trimmed,
-          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          timezone: resolveUserTimezone(),
         }
       );
 
@@ -723,12 +719,10 @@ export function BulkGoalForm() {
 
   if (initializing) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Loading bulk goal creator...</CardTitle>
-          <CardDescription>Preparing your workspace.</CardDescription>
-        </CardHeader>
-      </Card>
+      <LoadingCard
+        title="Loading bulk goal creator..."
+        description="Preparing your workspace."
+      />
     );
   }
 
@@ -1013,7 +1007,7 @@ export function BulkGoalForm() {
 
                       <div className="space-y-2">
                         <Label>Category</Label>
-                        <Select
+                        <CategorySelect
                           value={draft.category_selection}
                           onValueChange={(value: CategorySelection) =>
                             updateDraft(draft.id, (previous) => ({
@@ -1022,33 +1016,7 @@ export function BulkGoalForm() {
                               color: getCategorySwatchColor(value),
                             }))
                           }
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select category" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {CATEGORY_PRESETS.map((preset) => (
-                              <SelectItem key={preset.id} value={preset.id}>
-                                <span className="inline-flex items-center gap-2">
-                                  <span
-                                    className="size-2 rounded-full"
-                                    style={{ backgroundColor: getCategorySwatchColor(preset.id) }}
-                                  />
-                                  {preset.label}
-                                </span>
-                              </SelectItem>
-                            ))}
-                            <SelectItem value="custom">
-                              <span className="inline-flex items-center gap-2">
-                                <span
-                                  className="size-2 rounded-full"
-                                  style={{ backgroundColor: getCategorySwatchColor("custom") }}
-                                />
-                                Custom
-                              </span>
-                            </SelectItem>
-                          </SelectContent>
-                        </Select>
+                        />
                       </div>
 
                       {draft.category_selection === "custom" ? (
@@ -1070,69 +1038,43 @@ export function BulkGoalForm() {
                     <div className="grid gap-3 sm:grid-cols-2">
                       <div className="space-y-2">
                         <Label>Goal type</Label>
-                        <div className="flex flex-wrap gap-2">
-                          {frequencyOptions.map((option) => (
-                            <Button
-                              key={option.value}
-                              type="button"
-                              size="sm"
-                              variant={
-                                draft.frequency_type === option.value ? "secondary" : "outline"
-                              }
-                              className="rounded-full"
-                              onClick={() =>
-                                updateDraft(draft.id, (previous) => {
-                                  const nextTargetCount =
-                                    option.value === "fixed_milestones" &&
-                                    previous.target_count.trim().length === 0
-                                      ? "3"
-                                      : previous.target_count;
-                                  return {
-                                    ...previous,
-                                    frequency_type: option.value,
-                                    target_count: nextTargetCount,
-                                    milestone_names:
-                                      option.value === "fixed_milestones"
-                                        ? buildMilestoneNameDrafts(
-                                            parseTargetCount(nextTargetCount) ?? 0,
-                                            previous.milestone_names
-                                          )
-                                        : previous.milestone_names,
-                                  };
-                                })
-                              }
-                            >
-                              {option.label}
-                            </Button>
-                          ))}
-                        </div>
+                        <GoalTypeToggle
+                          value={draft.frequency_type}
+                          onValueChange={(value) =>
+                            updateDraft(draft.id, (previous) => {
+                              const nextTargetCount =
+                                value === "fixed_milestones" &&
+                                previous.target_count.trim().length === 0
+                                  ? "3"
+                                  : previous.target_count;
+                              return {
+                                ...previous,
+                                frequency_type: value,
+                                target_count: nextTargetCount,
+                                milestone_names:
+                                  value === "fixed_milestones"
+                                    ? buildMilestoneNameDrafts(
+                                        parseTargetCount(nextTargetCount) ?? 0,
+                                        previous.milestone_names
+                                      )
+                                    : previous.milestone_names,
+                              };
+                            })
+                          }
+                        />
                       </div>
                       {draft.frequency_type === "recurring" ? (
                         <div className="space-y-2">
                           <Label>Recurrence interval</Label>
-                          <div className="flex flex-wrap gap-2">
-                            {recurrenceOptions.map((option) => (
-                              <Button
-                                key={option.value}
-                                type="button"
-                                size="sm"
-                                variant={
-                                  draft.recurrence_interval === option.value
-                                    ? "secondary"
-                                    : "outline"
-                                }
-                                className="rounded-full"
-                                onClick={() =>
-                                  updateDraft(draft.id, (previous) => ({
-                                    ...previous,
-                                    recurrence_interval: option.value,
-                                  }))
-                                }
-                              >
-                                {option.label}
-                              </Button>
-                            ))}
-                          </div>
+                          <RecurrenceIntervalToggle
+                            value={draft.recurrence_interval}
+                            onValueChange={(value) =>
+                              updateDraft(draft.id, (previous) => ({
+                                ...previous,
+                                recurrence_interval: value,
+                              }))
+                            }
+                          />
                         </div>
                       ) : null}
 
@@ -1142,31 +1084,23 @@ export function BulkGoalForm() {
                             ? "Target count"
                             : "Target completions (optional)"}
                         </Label>
-                        <Input
-                          type="number"
-                          min={draft.frequency_type === "fixed_milestones" ? 1 : 0}
+                        <TargetCountField
+                          frequencyType={draft.frequency_type}
                           value={draft.target_count}
-                          onChange={(event) =>
+                          onValueChange={(value) =>
                             updateDraft(draft.id, (previous) => ({
                               ...previous,
-                              target_count: event.target.value,
+                              target_count: value,
                               milestone_names:
                                 previous.frequency_type === "fixed_milestones"
                                   ? buildMilestoneNameDrafts(
-                                      parseTargetCount(event.target.value) ?? 0,
+                                      parseTargetCount(value) ?? 0,
                                       previous.milestone_names
                                     )
                                   : previous.milestone_names,
                             }))
                           }
                         />
-                        {draft.frequency_type === "recurring" ? (
-                          <p className="text-xs text-muted-foreground">
-                            Optional: set a total due by the end date. Each date
-                            is checked independently; target-total goals do not
-                            use current-period or streak semantics.
-                          </p>
-                        ) : null}
                       </div>
 
                       <div className="space-y-2">

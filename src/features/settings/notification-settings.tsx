@@ -28,6 +28,7 @@ import {
   savePushSubscription,
   urlBase64ToUint8Array,
 } from "@/lib/push/client";
+import { resolveUserTimezone } from "@/lib/dates/timezone";
 import { createClient } from "@/lib/supabase/client";
 
 const DEFAULT_MESSAGE = "Complete your checklist for today";
@@ -138,7 +139,7 @@ export function NotificationSettings() {
           schedule.hour === DEFAULT_NOTIFICATION_HOUR &&
           schedule.message === DEFAULT_MESSAGE
       );
-      const detectedTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+      const detectedTimezone = resolveUserTimezone();
       const defaultScheduleWrite = matchingSchedule
         ? supabase
             .from("notification_schedules")
@@ -187,13 +188,13 @@ export function NotificationSettings() {
     const initializePush = async () => {
       await Promise.resolve();
 
-      const detectedTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      const detectedTimezone = resolveUserTimezone();
       const ios = /iPad|iPhone|iPod/.test(navigator.userAgent);
       const standalone =
         window.matchMedia("(display-mode: standalone)").matches ||
         (navigator as Navigator & { standalone?: boolean }).standalone === true;
 
-      setTimezone(detectedTimezone || "UTC");
+      setTimezone(detectedTimezone);
       setIsIOS(ios);
       setIsStandalone(standalone);
 

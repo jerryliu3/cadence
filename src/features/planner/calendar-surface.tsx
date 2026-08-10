@@ -80,7 +80,11 @@ import {
   selectPlannerCalendarStoreProjection,
 } from "@/features/planner/calendar-store-selectors";
 import { selectCalendarViewWindowProjection } from "@/features/planner/calendar-view-projection";
-import { getDateInTimezone, isValidIanaTimezone } from "@/lib/dates/timezone";
+import {
+  getDateInTimezone,
+  isValidIanaTimezone,
+  resolveUserTimezone,
+} from "@/lib/dates/timezone";
 import {
   getApiErrorMessage,
   isApiClientError,
@@ -186,9 +190,7 @@ export function CalendarSurface({
   >({});
   const [mutationLoadingKey, setMutationLoadingKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [setupTimezone, setSetupTimezone] = useState(
-    Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"
-  );
+  const [setupTimezone, setSetupTimezone] = useState(resolveUserTimezone());
   const [setupWeekStartsOn, setSetupWeekStartsOn] = useState(1);
   const [setupRestWeekdays, setSetupRestWeekdays] = useState<number[]>([]);
   const hoverPreviewTimerRef = useRef<number | null>(null);
@@ -207,8 +209,7 @@ export function CalendarSurface({
       typeof intlWithSupportedValues.supportedValuesOf === "function"
         ? intlWithSupportedValues.supportedValuesOf("timeZone")
         : [];
-    const detectedTimezone =
-      Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+    const detectedTimezone = resolveUserTimezone();
     return Array.from(
       new Set(
         [setupTimezone, detectedTimezone, "UTC", ...supportedTimezones].filter(

@@ -9,17 +9,13 @@ import {
   ChevronLeft,
   ChevronRight,
   ChevronUp,
-  Circle,
-  Link2,
   ListPlus,
   Plus,
   Sparkles,
 } from "lucide-react";
 import Link from "next/link";
-import Image from "next/image";
+import { useRouter } from "next/navigation";
 import {
-  type ReactNode,
-  type UIEventHandler,
   useCallback,
   useEffect,
   useMemo,
@@ -34,14 +30,16 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { GoalEndMonthBadge } from "@/features/goals/goal-end-month-badge";
 import { GoalListControls } from "@/features/goals/goal-list-controls";
 import { GoalsSurfaceLoadingCard } from "@/features/goals/goals-surface-loading-card";
+import { GoalCard } from "@/features/today/goal-card";
+import { GoalLoopScroller } from "@/features/today/goal-loop-scroller";
 import { isAbortError, withAbortSignal } from "@/lib/async/abort";
 import {
   resolveSelectedDateState,
   toLocalDateString,
 } from "@/lib/dates/day";
+import { resolveUserTimezone } from "@/lib/dates/timezone";
 import { normalizeWeekStartsOn } from "@/lib/dates/week-start";
 import { getCategoryBadgeClass } from "@/lib/goals/category";
 import {
@@ -56,19 +54,14 @@ import {
   sortGoalsByDate,
   type GoalDateSort,
 } from "@/lib/goals/list-view";
-import { getNextMilestoneName } from "@/lib/goals/milestones";
 import {
   fetchProgressContext,
   progressSummaryMap,
   type ProgressContextResponse,
 } from "@/lib/goals/progress-context";
-import type { GoalProgressSnapshot } from "@/lib/goals/progress";
 import {
   getCompletionsForCurrentPeriod,
-  getFrequencySummary,
-  getGoalPeriodEndDate,
   hasCompletionToday,
-  isGoalDoneForCurrentPeriod,
   isGoalManuallyArchived,
 } from "@/lib/goals/schedule";
 import type {
@@ -162,6 +155,7 @@ export function TodayTab({
   refreshToken = 0,
 }: TodayTabProps = {}) {
   const supabase = useMemo(() => createClient(), []);
+  const router = useRouter();
   const [data, setData] = useState<TodayData>(emptyData);
   const [loading, setLoading] = useState(true);
   const [savingGoalId, setSavingGoalId] = useState<string | null>(null);
@@ -225,6 +219,7 @@ export function TodayTab({
 
         if (userError || !user) {
           setData(emptyData);
+          router.replace("/login");
           return;
         }
 
@@ -295,7 +290,7 @@ export function TodayTab({
         }
       }
     },
-    [supabase, todayLocalDate, viewDate]
+    [router, supabase, todayLocalDate, viewDate]
   );
 
   useEffect(() => {
@@ -600,7 +595,7 @@ export function TodayTab({
       desiredFactState: routeDesiredFactState,
       goalId: goal.id,
       date: dispatchDate,
-      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      timezone: resolveUserTimezone(),
       blockedMessage:
         decision.reason === "future_creation"
           ? "You can only complete goals for today or past dates."
@@ -1044,274 +1039,5 @@ export function TodayTab({
         </TabsContent>
       </Tabs>
     </div>
-  );
-}
-
-interface GoalLoopScrollerProps {
-  goals: Goal[];
-  renderGoal: (goal: Goal, repeatIndex: number) => ReactNode;
-}
-
-function GoalLoopScroller({ goals, renderGoal }: GoalLoopScrollerProps) {
-  const scrollerRef = useRef<HTMLDivElement | null>(null);
-  const shouldLoop = goals.length > VISIBLE_GOALS_PER_GROUP;
-  const repeatedGoals = useMemo(() => {
-    if (!shouldLoop) {
-      return goals;
-    }
-
-    return [...goals, ...goals, ...goals];
-  }, [goals, shouldLoop]);
-  const [cycleProgress, setCycleProgress] = useState(0);
-
-  useEffect(() => {
-    const scroller = scrollerRef.current;
-    if (!scroller) {
-      return;
-    }
-
-    if (!shouldLoop) {
-      scroller.scrollTop = 0;
-      return;
-    }
-
-    const frameId = requestAnimationFrame(() => {
-      const oneCycleHeight = scroller.scrollHeight / 3;
-      if (oneCycleHeight > 0) {
-        scroller.scrollTop = oneCycleHeight;
-      }
-      setCycleProgress(0);
-    });
-
-    return () => cancelAnimationFrame(frameId);
-  }, [goals, shouldLoop]);
-
-  const onScroll = useCallback<UIEventHandler<HTMLDivElement>>(
-    (event) => {
-      if (!shouldLoop) {
-        return;
-      }
-
-      const scroller = event.currentTarget;
-      const oneCycleHeight = scroller.scrollHeight / 3;
-      if (oneCycleHeight <= 0) {
-        return;
-      }
-
-      let nextScrollTop = scroller.scrollTop;
-      if (nextScrollTop <= oneCycleHeight * 0.5) {
-        nextScrollTop += oneCycleHeight;
-        scroller.scrollTop = nextScrollTop;
-      } else if (nextScrollTop >= oneCycleHeight * 2.5) {
-        nextScrollTop -= oneCycleHeight;
-        scroller.scrollTop = nextScrollTop;
-      }
-
-      const normalized =
-        ((nextScrollTop - oneCycleHeight) % oneCycleHeight + oneCycleHeight) % oneCycleHeight;
-      setCycleProgress(normalized / oneCycleHeight);
-    },
-    [shouldLoop]
-  );
-
-  const thumbHeightPercent = shouldLoop
-    ? Math.max((VISIBLE_GOALS_PER_GROUP / goals.length) * 100, 14)
-    : 100;
-  const thumbTopPercent = shouldLoop ? (100 - thumbHeightPercent) * cycleProgress : 0;
-  const loopingSoon = shouldLoop && (cycleProgress <= 0.08 || cycleProgress >= 0.92);
-
-  return (
-    <div className="relative">
-      <div
-        ref={scrollerRef}
-        data-no-swipe="true"
-        className="h-[430px] overflow-y-scroll overscroll-contain pr-4 [scrollbar-width:thin] [touch-action:pan-y]"
-        onScroll={onScroll}
-      >
-        <div className="space-y-3 pr-1">
-          {repeatedGoals.map((goal, repeatIndex) => {
-            const goalCount = Math.max(goals.length, 1);
-            const cycleIndex = Math.floor(repeatIndex / goalCount);
-            const inCycleIndex = repeatIndex % goalCount;
-            return (
-              <div key={`${goal.id}-${cycleIndex}-${inCycleIndex}`}>{renderGoal(goal, repeatIndex)}</div>
-            );
-          })}
-        </div>
-      </div>
-
-      <div className="pointer-events-none absolute bottom-2 right-0 top-2 w-2.5">
-        <div className="relative h-full rounded-full bg-border/60">
-          <div
-            className="absolute left-0 right-0 rounded-full bg-primary/70 transition-[top] duration-150"
-            style={{ height: `${thumbHeightPercent}%`, top: `${thumbTopPercent}%` }}
-          />
-        </div>
-      </div>
-
-      {shouldLoop ? (
-        <div className="pointer-events-none absolute bottom-0 right-4 text-[10px] text-muted-foreground">
-          {loopingSoon ? "Looping around" : "Scroll inside list"}
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-interface GoalCardProps {
-  goal: Goal;
-  completions: CompletionDateFact[];
-  progress?: GoalProgressSnapshot;
-  linkedCount: number;
-  imageUrl?: string;
-  selectedDate: string;
-  referenceDate: Date;
-  weeklyAnchor: {
-    weekStartsOn: number;
-  };
-  disabled?: boolean;
-  archived?: boolean;
-  onToggle: () => void;
-}
-
-function GoalCard({
-  goal,
-  completions,
-  progress,
-  linkedCount,
-  imageUrl,
-  selectedDate,
-  referenceDate,
-  weeklyAnchor,
-  disabled = false,
-  archived = false,
-  onToggle,
-}: GoalCardProps) {
-  const totalCompletionCount =
-    progress?.admissibleCompletionCount ?? completions.length;
-  const displayCompletionCount = totalCompletionCount;
-  const targetedRecurring = isTargetedRecurringGoal(goal);
-  const doneForCurrentPeriod = isGoalDoneForCurrentPeriod(
-    goal,
-    completions,
-    referenceDate,
-    { weeklyAnchor }
-  );
-  const doneOnSelectedDate = hasCompletionToday(completions, referenceDate);
-  const currentMilestoneName = getNextMilestoneName(goal, totalCompletionCount);
-  const nextRecurringStartDate =
-    goal.frequency_type === "recurring" &&
-    !targetedRecurring &&
-    doneForCurrentPeriod
-      ? format(
-          addDays(
-            getGoalPeriodEndDate(goal, referenceDate, { weeklyAnchor }),
-            1
-          ),
-          "yyyy-MM-dd"
-        )
-      : null;
-  const completionSourceForSelectedDate = completions.find(
-    (completion) => completion.completed_on === selectedDate
-  )?.source;
-
-  return (
-    <Card className="shadow-sm">
-      <CardContent className="flex items-center gap-2 px-2 py-0.5">
-        <button
-          type="button"
-          onClick={onToggle}
-          disabled={disabled || archived}
-          className="group flex size-10 shrink-0 items-center justify-center rounded-full border border-border bg-background transition-all hover:border-primary hover:bg-primary/5 disabled:cursor-not-allowed disabled:opacity-60"
-          aria-label={
-            doneForCurrentPeriod
-              ? targetedRecurring
-                ? `Remove completion for ${selectedDate}`
-                : "Unmark goal completion for current period"
-              : targetedRecurring
-                ? `Complete goal for ${selectedDate}`
-                : "Mark goal as complete"
-          }
-        >
-          {doneForCurrentPeriod ? (
-            <CheckCircle2 className="size-5 text-primary transition-transform group-hover:scale-110" />
-          ) : (
-            <Circle className="size-5 text-muted-foreground transition-transform group-hover:scale-110" />
-          )}
-        </button>
-
-        <Link
-          href={`/goals/${goal.id}`}
-          className="flex min-w-0 flex-1 items-center gap-2 rounded-lg px-0.5 py-0.5 transition-colors hover:bg-muted/40"
-        >
-          {imageUrl ? (
-            <Image
-              src={imageUrl}
-              alt={goal.title}
-              width={48}
-              height={48}
-              unoptimized
-              className="size-12 rounded-lg object-cover ring-1 ring-border"
-            />
-          ) : null}
-
-          <div className="min-w-0 flex-1 space-y-0.5">
-            <div className="flex items-center gap-2">
-              <span
-                className="size-2 rounded-full"
-                style={{ backgroundColor: goal.color ?? "var(--muted-foreground)" }}
-              />
-              <h3 className="truncate text-sm font-semibold">{goal.title}</h3>
-              <GoalEndMonthBadge endDate={goal.end_date} />
-              <Badge variant="outline" className={getCategoryBadgeClass(goal.category)}>
-                {goal.category}
-              </Badge>
-              {progress?.outcome === "achieved" ? (
-                <Badge variant="secondary">Achieved</Badge>
-              ) : progress?.outcome === "ended_with_shortfall" ? (
-                <Badge variant="outline">Shortfall</Badge>
-              ) : null}
-            </div>
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <div className="flex min-w-0 items-center gap-2">
-                {currentMilestoneName ? (
-                  <>
-                    <span className="max-w-[180px] truncate">
-                      Current milestone: {currentMilestoneName}
-                    </span>
-                    <span className="shrink-0">·</span>
-                  </>
-                ) : null}
-                <p className="truncate">{getFrequencySummary(goal, displayCompletionCount)}</p>
-                {nextRecurringStartDate ? <span className="shrink-0">·</span> : null}
-              </div>
-              {nextRecurringStartDate ? (
-                <span className="shrink-0">Next Start Date: {nextRecurringStartDate}</span>
-              ) : null}
-              <span className="ml-auto shrink-0 text-[11px]">
-                Deadline: {goal.end_date ?? "None"}
-              </span>
-            </div>
-            {goal.description ? (
-              <p className="line-clamp-2 text-xs text-muted-foreground">{goal.description}</p>
-            ) : null}
-            <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-              {linkedCount > 0 ? (
-                <span className="inline-flex items-center gap-1">
-                  <Link2 className="size-3" />
-                  {linkedCount} linked
-                </span>
-              ) : null}
-              {completionSourceForSelectedDate === "linked_cascade" ? (
-                <Badge variant="outline">Auto-completed via link</Badge>
-              ) : null}
-              {!targetedRecurring && doneForCurrentPeriod && !doneOnSelectedDate ? (
-                <span>Current period done</span>
-              ) : null}
-            </div>
-          </div>
-        </Link>
-      </CardContent>
-    </Card>
   );
 }

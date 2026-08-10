@@ -23,6 +23,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { LoadingCard } from "@/components/ui/loading-card";
 import {
   Select,
   SelectContent,
@@ -31,15 +32,19 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  CategorySelect,
+  GoalTypeToggle,
+  RecurrenceIntervalToggle,
+  TargetCountField,
+} from "@/features/goals/goal-field-kit";
 import { toLocalDateString } from "@/lib/dates/day";
 import {
-  CATEGORY_PRESETS,
   type CategorySelection,
   getCategoryLabel,
   getCategorySelectionFromValue,
   getCategorySwatchColor,
 } from "@/lib/goals/category";
-import { GOAL_TYPE_OPTIONS, RECURRENCE_INTERVAL_OPTIONS } from "@/lib/goals/form-options";
 import {
   fetchProgressContext,
   progressSummaryMap,
@@ -530,12 +535,10 @@ export function GoalForm({ goalId }: GoalFormProps) {
 
   if (loading) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Loading goal form...</CardTitle>
-          <CardDescription>Preparing your editing workspace.</CardDescription>
-        </CardHeader>
-      </Card>
+      <LoadingCard
+        title="Loading goal form..."
+        description="Preparing your editing workspace."
+      />
     );
   }
 
@@ -572,7 +575,7 @@ export function GoalForm({ goalId }: GoalFormProps) {
 
           <div className="space-y-2">
             <Label>Category</Label>
-            <Select
+            <CategorySelect
               value={state.category_selection}
               onValueChange={(value: CategorySelection) =>
                 setState((prev) => ({
@@ -581,33 +584,7 @@ export function GoalForm({ goalId }: GoalFormProps) {
                   color: getCategorySwatchColor(value),
                 }))
               }
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select category" />
-              </SelectTrigger>
-              <SelectContent>
-                {CATEGORY_PRESETS.map((preset) => (
-                  <SelectItem key={preset.id} value={preset.id}>
-                    <span className="inline-flex items-center gap-2">
-                      <span
-                        className="size-2 rounded-full"
-                        style={{ backgroundColor: getCategorySwatchColor(preset.id) }}
-                      />
-                      {preset.label}
-                    </span>
-                  </SelectItem>
-                ))}
-                <SelectItem value="custom">
-                  <span className="inline-flex items-center gap-2">
-                    <span
-                      className="size-2 rounded-full"
-                      style={{ backgroundColor: getCategorySwatchColor("custom") }}
-                    />
-                    Custom
-                  </span>
-                </SelectItem>
-              </SelectContent>
-            </Select>
+            />
           </div>
 
           {state.category_selection === "custom" ? (
@@ -628,44 +605,24 @@ export function GoalForm({ goalId }: GoalFormProps) {
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label>Goal type</Label>
-              <div className="flex flex-wrap gap-2">
-                {GOAL_TYPE_OPTIONS.map((option) => (
-                  <Button
-                    key={option.value}
-                    type="button"
-                    size="sm"
-                    variant={state.frequency_type === option.value ? "secondary" : "outline"}
-                    className="rounded-full"
-                    onClick={() => updateFrequencyType(option.value)}
-                  >
-                    {option.label}
-                  </Button>
-                ))}
-              </div>
+              <GoalTypeToggle
+                value={state.frequency_type}
+                onValueChange={updateFrequencyType}
+              />
             </div>
 
             {canShowRecurrenceFields ? (
               <div className="space-y-2">
                 <Label>Recurrence interval</Label>
-                <div className="flex flex-wrap gap-2">
-                  {RECURRENCE_INTERVAL_OPTIONS.map((option) => (
-                    <Button
-                      key={option.value}
-                      type="button"
-                      size="sm"
-                      variant={state.recurrence_interval === option.value ? "secondary" : "outline"}
-                      className="rounded-full"
-                      onClick={() =>
-                        setState((prev) => ({
-                          ...prev,
-                          recurrence_interval: option.value,
-                        }))
-                      }
-                    >
-                      {option.label}
-                    </Button>
-                  ))}
-                </div>
+                <RecurrenceIntervalToggle
+                  value={state.recurrence_interval}
+                  onValueChange={(value) =>
+                    setState((prev) => ({
+                      ...prev,
+                      recurrence_interval: value,
+                    }))
+                  }
+                />
               </div>
             ) : null}
 
@@ -676,21 +633,12 @@ export function GoalForm({ goalId }: GoalFormProps) {
                     ? "Target count"
                     : "Target completions (optional)"}
                 </Label>
-                <Input
+                <TargetCountField
                   id="target-count"
-                  type="number"
-                  min={state.frequency_type === "fixed_milestones" ? 1 : 0}
+                  frequencyType={state.frequency_type}
                   value={state.target_count}
-                  onChange={(event) => updateTargetCount(event.target.value)}
-                  required={state.frequency_type === "fixed_milestones"}
+                  onValueChange={updateTargetCount}
                 />
-                {state.frequency_type === "recurring" ? (
-                  <p className="text-xs text-muted-foreground">
-                    Optional: set a total due by the end date. Each date is
-                    checked independently; target-total goals do not use
-                    current-period or streak semantics.
-                  </p>
-                ) : null}
               </div>
             ) : null}
           </div>
