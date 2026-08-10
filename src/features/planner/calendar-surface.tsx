@@ -51,6 +51,7 @@ import {
   getMonthInTimezone,
   isEntryCredited,
   isEntryImmovableForDraft,
+  isValidIsoDate,
   monthToLabel,
   moveItemInArray,
   normalizeWeekStartsOn,
@@ -937,14 +938,6 @@ export function CalendarSurface({
     getNonPublishablePreviewMessage: nonPublishablePreviewMessage,
   });
 
-  const isValidIsoDate = (value: string) => {
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-      return false;
-    }
-    const parsed = parse(value, "yyyy-MM-dd", new Date());
-    return isValid(parsed) && format(parsed, "yyyy-MM-dd") === value;
-  };
-
   const {
     queueDraftMoveCommand,
     updateDraftLabel,
@@ -957,7 +950,6 @@ export function CalendarSurface({
     completionFactUnitsByGoalDate,
     dispatchDraftCommand,
     scheduleDraftMovePreviewRefresh,
-    isValidIsoDate,
   });
 
   const clearDragState = useCallback(() => {

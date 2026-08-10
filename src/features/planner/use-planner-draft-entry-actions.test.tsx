@@ -110,7 +110,6 @@ describe("usePlannerDraftEntryActions", () => {
         completionFactUnitsByGoalDate,
         dispatchDraftCommand,
         scheduleDraftMovePreviewRefresh,
-        isValidIsoDate: () => true,
       })
     );
 
@@ -148,7 +147,6 @@ describe("usePlannerDraftEntryActions", () => {
         completionFactUnitsByGoalDate: new Map(),
         dispatchDraftCommand,
         scheduleDraftMovePreviewRefresh,
-        isValidIsoDate: () => false,
       })
     );
 
@@ -179,7 +177,6 @@ describe("usePlannerDraftEntryActions", () => {
         completionFactUnitsByGoalDate: new Map(),
         dispatchDraftCommand,
         scheduleDraftMovePreviewRefresh: vi.fn(),
-        isValidIsoDate: () => true,
       })
     );
 

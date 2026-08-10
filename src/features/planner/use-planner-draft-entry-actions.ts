@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import {
   getEntryDisplayTitle,
   isEntryImmovableForDraft,
+  isValidIsoDate,
 } from "@/features/planner/calendar-format";
 import type { DraftCommandAction } from "@/features/planner/draft-command-reducer";
 import { planDraftTimeOverrideUpdate } from "@/features/planner/draft-time-override";
@@ -25,7 +26,6 @@ interface UsePlannerDraftEntryActionsOptions {
   completionFactUnitsByGoalDate: Map<string, PlannerWorkUnit[]>;
   dispatchDraftCommand: Dispatch<DraftCommandAction>;
   scheduleDraftMovePreviewRefresh: () => void;
-  isValidIsoDate: (value: string) => boolean;
 }
 
 export function usePlannerDraftEntryActions({
@@ -35,7 +35,6 @@ export function usePlannerDraftEntryActions({
   completionFactUnitsByGoalDate,
   dispatchDraftCommand,
   scheduleDraftMovePreviewRefresh,
-  isValidIsoDate,
 }: UsePlannerDraftEntryActionsOptions) {
   const scopeMonth = context?.scopeMonth ?? null;
   const goalTitles = context?.goalTitles ?? null;
@@ -147,7 +146,6 @@ export function usePlannerDraftEntryActions({
     [
       completionFactUnitsByGoalDate,
       dispatchDraftCommand,
-      isValidIsoDate,
       moveConflictByGoalDate,
       previewUnitByEntryKey,
       scheduleDraftMovePreviewRefresh,
