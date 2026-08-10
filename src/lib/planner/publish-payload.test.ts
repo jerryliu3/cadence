@@ -121,7 +121,9 @@ describe("buildPlannerPublishPersistencePayload draft edit validation", () => {
           },
         ],
       })
-    ).toThrowError(/draft_item_move_unsupported/i);
+    ).toThrowError(
+      /must be resolved in planner preview before publish persistence/i
+    );
   });
 
   it("applies item-level time override draft commands", () => {
