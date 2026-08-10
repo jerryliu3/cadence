@@ -59,6 +59,7 @@ import { projectWorkUnitsToSolver } from "@/lib/planner/solver/project";
 import type {
   PlannerIssueCode,
   PlannerSolverResult,
+  SolverSolveIntent,
 } from "@/lib/planner/solver/types";
 import { getSolverUnitId } from "@/lib/planner/solver/types";
 import {
@@ -91,7 +92,9 @@ export class PlannerError extends Error {
 export interface PlannerKernelInput {
   schemaVersion: typeof PLANNER_CONTRACT_VERSION;
   eligibilityMode: PlannerEligibilityMode;
+  solveIntent?: SolverSolveIntent;
   preserveExistingAssignments?: boolean;
+  draftPinnedDates?: Record<string, string>;
   ownerId: string;
   scopeMonth: string;
   asOfDate: string;
@@ -681,11 +684,13 @@ export function runPlannerKernel(
     completionDatesByGoal,
     preserveExistingAssignments:
       rawInput.preserveExistingAssignments === true,
+    draftPinnedDates: rawInput.draftPinnedDates ?? {},
   });
   const dates = enumerateDates(getScopeDateRange(rawInput.scopeMonth));
   const solver = solveOrderedDpV1({
     dates,
     units: solverUnits,
+    solveIntent: rawInput.solveIntent ?? "stable",
   });
   const historicalIssueCodes: PlannerIssueCode[] = [];
   if (
@@ -793,6 +798,10 @@ export function runPlannerKernel(
   );
   const generationInputHash = computeGenerationInputHash({
     eligibilityMode: rawInput.eligibilityMode,
+    solveIntent: rawInput.solveIntent ?? "stable",
+    preserveExistingAssignments:
+      rawInput.preserveExistingAssignments === true,
+    draftPinnedDates: rawInput.draftPinnedDates ?? {},
     scopeMonth: rawInput.scopeMonth,
     asOfDate: rawInput.asOfDate,
     timezone: rawInput.timezone,
