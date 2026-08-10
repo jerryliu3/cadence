@@ -1,6 +1,5 @@
 "use client";
 
-import { format } from "date-fns";
 import {
   ArrowLeft,
   ChevronDown,
@@ -31,15 +30,35 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { GoalsSurfaceLoadingCard } from "@/features/goals/goals-surface-loading-card";
 import { getApiErrorMessage, postJson } from "@/lib/api/client";
 import { toLocalDateString } from "@/lib/dates/day";
 import {
   CATEGORY_PRESETS,
   type CategorySelection,
-  getCategoryLabel,
   getCategorySelectionFromValue,
   getCategorySwatchColor,
 } from "@/lib/goals/category";
+import {
+  deriveDefinitionTargetCount,
+  getFixedMilestoneCount,
+  requiresGoalEndDate,
+} from "@/lib/goals/form-derivations";
+import { GOAL_TYPE_OPTIONS, RECURRENCE_INTERVAL_OPTIONS } from "@/lib/goals/form-options";
+import { buildGoalRowPayload } from "@/lib/goals/form-payload";
+import {
+  isValidHexColor,
+  normalizeGoalDateValue,
+  normalizeLocalTimeValue,
+  parseBooleanCellValue,
+  parseGoalTargetCount,
+} from "@/lib/goals/form-parsing";
+import {
+  applyFrequencyTypeChange,
+  applyMilestoneNameChange,
+  applyTargetCountChange,
+} from "@/lib/goals/form-state-transitions";
+import { validateGoalFormInput } from "@/lib/goals/form-validation";
 import {
   fetchProgressContext,
   progressSummaryMap,
@@ -49,28 +68,16 @@ import {
   getLinkedGoalRecurrenceLabel,
 } from "@/lib/goals/linked-goal-labels";
 import {
+  filterGoalsByLinkSearch,
+  filterLinkableGoals,
+} from "@/lib/goals/linkable-goals";
+import {
   buildMilestoneNameDrafts,
   defaultMilestoneName,
-  normalizeMilestoneNamesForSave,
 } from "@/lib/goals/milestones";
 import type { Goal, GoalFrequencyType, RecurrenceInterval } from "@/lib/goals/types";
-import {
-  isOrdinalGoalDefinition,
-  validateGoalDefinition,
-} from "@/lib/goals/definition-validation";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
-
-const frequencyOptions: Array<{ value: GoalFrequencyType; label: string }> = [
-  { value: "recurring", label: "Repeat" },
-  { value: "fixed_milestones", label: "Milestone" },
-];
-
-const recurrenceOptions: Array<{ value: RecurrenceInterval; label: string }> = [
-  { value: "daily", label: "Daily" },
-  { value: "weekly", label: "Weekly" },
-  { value: "monthly", label: "Monthly" },
-];
 
 const columnAliases = {
   title: ["title", "goal", "goal_title", "name"],
@@ -173,56 +180,15 @@ function parseRecurrenceInterval(raw: string): RecurrenceInterval {
 }
 
 function normalizeDateValue(raw: unknown): string {
-  if (raw instanceof Date && !Number.isNaN(raw.getTime())) {
-    return format(raw, "yyyy-MM-dd");
-  }
-
-  const text = String(raw ?? "").trim();
-  if (!text) {
-    return "";
-  }
-
-  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) {
-    return text;
-  }
-
-  const parsed = new Date(text);
-  if (Number.isNaN(parsed.getTime())) {
-    return "";
-  }
-
-  return format(parsed, "yyyy-MM-dd");
+  return normalizeGoalDateValue(raw);
 }
 
 function parseTargetCount(raw: string): number | null {
-  const trimmed = raw.trim();
-  if (!trimmed) {
-    return null;
-  }
-
-  const parsed = Number.parseInt(trimmed, 10);
-  return Number.isNaN(parsed) ? null : parsed;
+  return parseGoalTargetCount(raw);
 }
 
 function parseBooleanValue(raw: string): boolean {
-  const normalized = raw.trim().toLowerCase();
-  return normalized === "true" || normalized === "1" || normalized === "yes" || normalized === "y";
-}
-
-function isValidHexColor(raw: string): boolean {
-  return /^#[0-9a-f]{6}$/i.test(raw.trim());
-}
-
-function isValidLocalTime(raw: string): boolean {
-  return /^([01]\d|2[0-3]):[0-5]\d$/.test(raw.trim());
-}
-
-function normalizeLocalTimeValue(raw: string): string {
-  const trimmed = raw.trim();
-  if (!trimmed) {
-    return "";
-  }
-  return isValidLocalTime(trimmed) ? trimmed : "";
+  return parseBooleanCellValue(raw);
 }
 
 function parseMilestoneNames(raw: string): string[] {
@@ -238,62 +204,11 @@ function parseMilestoneNames(raw: string): string[] {
 }
 
 function validateDraft(draft: BulkGoalDraft): string[] {
-  const errors: string[] = [];
-  const parsedTarget = parseTargetCount(draft.target_count);
-
-  if (!draft.title.trim()) {
-    errors.push("Title is required.");
-  }
-
-  if (draft.category_selection === "custom" && !draft.custom_category.trim()) {
-    errors.push("Custom category name is required.");
-  }
-
-  if (!isValidHexColor(draft.color)) {
-    errors.push("Color accent must be a valid hex color.");
-  }
-
-  if (
-    draft.default_local_time.trim().length > 0 &&
-    !isValidLocalTime(draft.default_local_time)
-  ) {
-    errors.push("Default time must be a valid 24-hour HH:MM value.");
-  }
-
-  if (draft.frequency_type === "fixed_milestones") {
-    if (parsedTarget === null || parsedTarget <= 0) {
-      errors.push("Milestone goals require a positive target count.");
-    }
-
-    if (parsedTarget !== null && draft.milestone_names.length !== parsedTarget) {
-      errors.push("Milestone names must align with target count.");
-    }
-  }
-
-  if (!draft.start_date) {
-    errors.push("Start date is required.");
-  }
-
-  const definitionTargetCount =
-    draft.frequency_type === "fixed_milestones"
-      ? parsedTarget
-      : draft.target_count.trim().length > 0
-        ? parsedTarget
-        : null;
-  for (const issue of validateGoalDefinition({
-    frequencyType: draft.frequency_type,
-    targetCount: definitionTargetCount,
-    startDate: draft.start_date,
-    endDate: draft.end_date || null,
-  })) {
-    errors.push(issue.message);
-  }
-
-  if (draft.is_group && draft.linked_target_goal_id !== "none") {
-    errors.push("Group goals cannot be linked to another goal.");
-  }
-
-  return errors;
+  return validateGoalFormInput(draft, {
+    validateHexColor: true,
+    validateMilestoneNameAlignment: true,
+    validateGroupLinkExclusion: true,
+  });
 }
 
 function withValidatedDraft(draft: Omit<BulkGoalDraft, "errors">): BulkGoalDraft {
@@ -439,13 +354,7 @@ export function BulkGoalForm() {
         const progressByGoal = progressSummaryMap(progress);
         // Achievement stops planner placement, but active goals remain
         // linkable so users can intentionally continue beyond a target.
-        setAvailableGoals(
-          goals.filter(
-            (goal) =>
-              !goal.is_group &&
-              progressByGoal.get(goal.id)?.lifecycle === "active"
-          )
-        );
+        setAvailableGoals(filterLinkableGoals(goals, progressByGoal));
       }
 
       setInitializing(false);
@@ -614,42 +523,17 @@ export function BulkGoalForm() {
     setSaving(true);
     try {
       const preparedRows = selectedDrafts.map((draft) => {
-        const parsedTargetCount = parseTargetCount(draft.target_count);
-        const normalizedTargetCount =
-          draft.frequency_type === "fixed_milestones"
-            ? parsedTargetCount
-            : parsedTargetCount !== null && parsedTargetCount > 0
-              ? parsedTargetCount
-              : null;
         const goalId = crypto.randomUUID();
-        const milestoneNames =
-          draft.frequency_type === "fixed_milestones" && parsedTargetCount
-            ? normalizeMilestoneNamesForSave(parsedTargetCount, draft.milestone_names)
-            : null;
 
         return {
           draft,
           goalId,
-          row: {
-            id: goalId,
-            owner_id: currentUserId,
-            title: draft.title.trim(),
-            description: draft.description.trim() || null,
-            category: getCategoryLabel(draft.category_selection, draft.custom_category),
-            color: isValidHexColor(draft.color)
-              ? draft.color.trim()
-              : getCategorySwatchColor(draft.category_selection),
-            frequency_type: draft.frequency_type,
-            recurrence_interval:
-              draft.frequency_type === "recurring" ? draft.recurrence_interval : null,
-            target_count: normalizedTargetCount,
-            milestone_names: milestoneNames,
-            start_date: draft.start_date,
-            end_date: draft.end_date || null,
-            default_local_time: draft.default_local_time.trim() || null,
-            is_group: draft.is_group,
-            is_deleted: false,
-          },
+          row: buildGoalRowPayload(draft, {
+            ownerId: currentUserId,
+            goalId,
+            includeDeletedFlag: true,
+            fallbackInvalidHexColor: true,
+          }),
         };
       });
 
@@ -723,12 +607,10 @@ export function BulkGoalForm() {
 
   if (initializing) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Loading bulk goal creator...</CardTitle>
-          <CardDescription>Preparing your workspace.</CardDescription>
-        </CardHeader>
-      </Card>
+      <GoalsSurfaceLoadingCard
+        title="Loading bulk goal creator..."
+        description="Preparing your workspace."
+      />
     );
   }
 
@@ -923,34 +805,23 @@ export function BulkGoalForm() {
           ) : (
             drafts.map((draft) => {
               const parsedTargetCount = parseTargetCount(draft.target_count);
-              const fixedMilestoneCount =
-                draft.frequency_type === "fixed_milestones"
-                  ? parsedTargetCount ?? 0
-                  : 0;
-              const definitionTargetCount =
-                draft.frequency_type === "fixed_milestones"
-                  ? parsedTargetCount
-                  : draft.target_count.trim().length > 0
-                    ? parsedTargetCount
-                    : null;
-              const requiresEndDate = isOrdinalGoalDefinition({
+              const fixedMilestoneCount = getFixedMilestoneCount(
+                draft.frequency_type,
+                parsedTargetCount
+              );
+              const definitionTargetCount = deriveDefinitionTargetCount({
                 frequencyType: draft.frequency_type,
-                targetCount: definitionTargetCount,
+                targetCountRaw: draft.target_count,
+                parsedTargetCount,
               });
-              const linkQuery = draft.link_target_search.trim().toLowerCase();
-              const filteredLinkTargets = availableGoals.filter((goal) => {
-                if (linkQuery.length === 0) {
-                  return true;
-                }
-
-                const recurrenceLabel = getLinkedGoalRecurrenceLabel(goal).toLowerCase();
-                const deadlineLabel = getLinkedGoalDeadlineLabel(goal).toLowerCase();
-                return (
-                  goal.title.toLowerCase().includes(linkQuery) ||
-                  recurrenceLabel.includes(linkQuery) ||
-                  deadlineLabel.includes(linkQuery)
-                );
-              });
+              const requiresEndDate = requiresGoalEndDate(
+                draft.frequency_type,
+                definitionTargetCount
+              );
+              const filteredLinkTargets = filterGoalsByLinkSearch(
+                availableGoals,
+                draft.link_target_search
+              );
 
               return (
                 <Card
@@ -1071,7 +942,7 @@ export function BulkGoalForm() {
                       <div className="space-y-2">
                         <Label>Goal type</Label>
                         <div className="flex flex-wrap gap-2">
-                          {frequencyOptions.map((option) => (
+                          {GOAL_TYPE_OPTIONS.map((option) => (
                             <Button
                               key={option.value}
                               type="button"
@@ -1081,25 +952,9 @@ export function BulkGoalForm() {
                               }
                               className="rounded-full"
                               onClick={() =>
-                                updateDraft(draft.id, (previous) => {
-                                  const nextTargetCount =
-                                    option.value === "fixed_milestones" &&
-                                    previous.target_count.trim().length === 0
-                                      ? "3"
-                                      : previous.target_count;
-                                  return {
-                                    ...previous,
-                                    frequency_type: option.value,
-                                    target_count: nextTargetCount,
-                                    milestone_names:
-                                      option.value === "fixed_milestones"
-                                        ? buildMilestoneNameDrafts(
-                                            parseTargetCount(nextTargetCount) ?? 0,
-                                            previous.milestone_names
-                                          )
-                                        : previous.milestone_names,
-                                  };
-                                })
+                                updateDraft(draft.id, (previous) =>
+                                  applyFrequencyTypeChange(previous, option.value)
+                                )
                               }
                             >
                               {option.label}
@@ -1111,7 +966,7 @@ export function BulkGoalForm() {
                         <div className="space-y-2">
                           <Label>Recurrence interval</Label>
                           <div className="flex flex-wrap gap-2">
-                            {recurrenceOptions.map((option) => (
+                            {RECURRENCE_INTERVAL_OPTIONS.map((option) => (
                               <Button
                                 key={option.value}
                                 type="button"
@@ -1147,17 +1002,9 @@ export function BulkGoalForm() {
                           min={draft.frequency_type === "fixed_milestones" ? 1 : 0}
                           value={draft.target_count}
                           onChange={(event) =>
-                            updateDraft(draft.id, (previous) => ({
-                              ...previous,
-                              target_count: event.target.value,
-                              milestone_names:
-                                previous.frequency_type === "fixed_milestones"
-                                  ? buildMilestoneNameDrafts(
-                                      parseTargetCount(event.target.value) ?? 0,
-                                      previous.milestone_names
-                                    )
-                                  : previous.milestone_names,
-                            }))
+                            updateDraft(draft.id, (previous) =>
+                              applyTargetCountChange(previous, event.target.value)
+                            )
                           }
                         />
                         {draft.frequency_type === "recurring" ? (
@@ -1227,14 +1074,13 @@ export function BulkGoalForm() {
                               key={`${draft.id}-milestone-${index + 1}`}
                               value={draft.milestone_names[index] ?? ""}
                               onChange={(event) =>
-                                updateDraft(draft.id, (previous) => {
-                                  const nextMilestones = [...previous.milestone_names];
-                                  nextMilestones[index] = event.target.value;
-                                  return {
-                                    ...previous,
-                                    milestone_names: nextMilestones,
-                                  };
-                                })
+                                updateDraft(draft.id, (previous) =>
+                                  applyMilestoneNameChange(
+                                    previous,
+                                    index,
+                                    event.target.value
+                                  )
+                                )
                               }
                               placeholder={defaultMilestoneName(index)}
                             />

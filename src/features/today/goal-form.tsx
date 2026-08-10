@@ -11,7 +11,6 @@ import {
   Trash2,
   Undo2,
 } from "lucide-react";
-import { endOfMonth, endOfYear, format, startOfMonth, startOfYear } from "date-fns";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
@@ -32,32 +31,53 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { toLocalDateString } from "@/lib/dates/day";
+import { GoalsSurfaceLoadingCard } from "@/features/goals/goals-surface-loading-card";
 import {
   CATEGORY_PRESETS,
   type CategorySelection,
-  getCategoryLabel,
   getCategorySelectionFromValue,
   getCategorySwatchColor,
 } from "@/lib/goals/category";
+import {
+  canShowRecurrenceFields as canShowRecurrenceFieldsForGoal,
+  canShowTargetCount as canShowTargetCountForGoal,
+  deriveDefinitionTargetCount,
+  getFixedMilestoneCount,
+  requiresGoalEndDate,
+} from "@/lib/goals/form-derivations";
+import {
+  getThisMonthEndDate,
+  getThisMonthStartDate,
+  getThisYearEndDate,
+  getThisYearStartDate,
+} from "@/lib/goals/form-dates";
 import { GOAL_TYPE_OPTIONS, RECURRENCE_INTERVAL_OPTIONS } from "@/lib/goals/form-options";
+import { buildGoalRowPayload } from "@/lib/goals/form-payload";
+import {
+  parseGoalTargetCount,
+} from "@/lib/goals/form-parsing";
+import {
+  applyFrequencyTypeChange,
+  applyMilestoneNameChange,
+  applyTargetCountChange,
+} from "@/lib/goals/form-state-transitions";
+import {
+  getFirstGoalFormValidationError,
+} from "@/lib/goals/form-validation";
 import {
   fetchProgressContext,
   progressSummaryMap,
 } from "@/lib/goals/progress-context";
+import { getLinkedGoalDeadlineLabel, getLinkedGoalRecurrenceLabel } from "@/lib/goals/linked-goal-labels";
 import {
-  getLinkedGoalDeadlineLabel,
-  getLinkedGoalRecurrenceLabel,
-} from "@/lib/goals/linked-goal-labels";
+  filterGoalsByLinkSearch,
+  filterLinkableGoals,
+} from "@/lib/goals/linkable-goals";
 import {
   buildMilestoneNameDrafts,
   defaultMilestoneName,
-  normalizeMilestoneNamesForSave,
 } from "@/lib/goals/milestones";
 import type { Goal, GoalFrequencyType, GoalLink, RecurrenceInterval } from "@/lib/goals/types";
-import {
-  isOrdinalGoalDefinition,
-  validateGoalDefinition,
-} from "@/lib/goals/definition-validation";
 import { createClient } from "@/lib/supabase/client";
 
 interface GoalFormProps {
@@ -95,16 +115,6 @@ const defaultState: GoalFormState = {
   default_local_time: "",
   is_group: false,
 };
-
-const localTimePattern = /^([01]\d|2[0-3]):[0-5]\d$/;
-
-function parsePositiveTargetCount(value: string): number | null {
-  const parsed = Number.parseInt(value, 10);
-  if (!Number.isFinite(parsed) || parsed <= 0) {
-    return null;
-  }
-  return parsed;
-}
 
 export function GoalForm({ goalId }: GoalFormProps) {
   const supabase = useMemo(() => createClient(), []);
@@ -170,12 +180,9 @@ export function GoalForm({ goalId }: GoalFormProps) {
       const progressByGoal = progressSummaryMap(progress);
       // Achievement stops planner placement, but active goals remain linkable
       // so users can intentionally continue beyond a target.
-      const linkableGoals = goals.filter(
-        (goal) =>
-          goal.id !== goalId &&
-          !goal.is_group &&
-          progressByGoal.get(goal.id)?.lifecycle === "active"
-      );
+      const linkableGoals = filterLinkableGoals(goals, progressByGoal, {
+        excludeGoalId: goalId,
+      });
       const linkableGoalIdSet = new Set(linkableGoals.map((goal) => goal.id));
       setAvailableGoals(linkableGoals);
 
@@ -232,148 +239,76 @@ export function GoalForm({ goalId }: GoalFormProps) {
     });
   }, [goalId, router, supabase]);
 
-  const canShowRecurrenceFields = state.frequency_type === "recurring";
-  const canShowTargetCount =
-    state.frequency_type === "fixed_milestones" || state.frequency_type === "recurring";
-  const parsedTargetCount = parsePositiveTargetCount(state.target_count);
-  const definitionTargetCount =
-    state.frequency_type === "fixed_milestones"
-      ? parsedTargetCount
-      : state.target_count.trim().length > 0
-        ? parsedTargetCount
-        : null;
-  const requiresEndDate = isOrdinalGoalDefinition({
-    frequencyType: state.frequency_type,
-    targetCount: definitionTargetCount,
+  const canShowRecurrenceFields = canShowRecurrenceFieldsForGoal(state.frequency_type);
+  const canShowTargetCount = canShowTargetCountForGoal(state.frequency_type);
+  const parsedTargetCount = parseGoalTargetCount(state.target_count, {
+    requirePositive: true,
   });
-  const fixedMilestoneCount =
-    state.frequency_type === "fixed_milestones"
-      ? parsedTargetCount ?? 0
-      : 0;
+  const definitionTargetCount = deriveDefinitionTargetCount({
+    frequencyType: state.frequency_type,
+    targetCountRaw: state.target_count,
+    parsedTargetCount,
+  });
+  const requiresEndDate = requiresGoalEndDate(
+    state.frequency_type,
+    definitionTargetCount
+  );
+  const fixedMilestoneCount = getFixedMilestoneCount(
+    state.frequency_type,
+    parsedTargetCount
+  );
   const filteredLinkTargets = useMemo(() => {
-    const query = linkTargetSearch.trim().toLowerCase();
-    if (query.length === 0) {
-      return availableGoals;
-    }
-
-    return availableGoals.filter((goal) => {
-      const recurrenceLabel = getLinkedGoalRecurrenceLabel(goal).toLowerCase();
-      const deadlineLabel = getLinkedGoalDeadlineLabel(goal).toLowerCase();
-      return (
-        goal.title.toLowerCase().includes(query) ||
-        recurrenceLabel.includes(query) ||
-        deadlineLabel.includes(query)
-      );
-    });
+    return filterGoalsByLinkSearch(availableGoals, linkTargetSearch);
   }, [availableGoals, linkTargetSearch]);
 
   const updateFrequencyType = (nextFrequency: GoalFrequencyType) => {
     setMilestoneNamesOpen(false);
-    setState((previous) => ({
-      ...previous,
-      frequency_type: nextFrequency,
-      target_count:
-        nextFrequency === "fixed_milestones" && previous.target_count.trim().length === 0
-          ? "3"
-          : previous.target_count,
-      milestone_names:
-        nextFrequency === "fixed_milestones"
-          ? buildMilestoneNameDrafts(
-              parsePositiveTargetCount(
-                nextFrequency === "fixed_milestones" && previous.target_count.trim().length === 0
-                  ? "3"
-                  : previous.target_count
-              ) ?? 0,
-              previous.milestone_names
-            )
-          : previous.milestone_names,
-    }));
+    setState((previous) => applyFrequencyTypeChange(previous, nextFrequency));
   };
 
   const updateTargetCount = (nextTargetCount: string) => {
-    setState((previous) => ({
-      ...previous,
-      target_count: nextTargetCount,
-      milestone_names:
-        previous.frequency_type === "fixed_milestones"
-          ? buildMilestoneNameDrafts(
-              parsePositiveTargetCount(nextTargetCount) ?? 0,
-              previous.milestone_names
-            )
-          : previous.milestone_names,
-    }));
+    setState((previous) => applyTargetCountChange(previous, nextTargetCount));
   };
 
   const applyThisMonthEndDate = () => {
     setState((previous) => ({
       ...previous,
-      end_date: format(endOfMonth(new Date()), "yyyy-MM-dd"),
+      end_date: getThisMonthEndDate(),
     }));
   };
 
   const applyThisMonthStartDate = () => {
     setState((previous) => ({
       ...previous,
-      start_date: format(startOfMonth(new Date()), "yyyy-MM-dd"),
+      start_date: getThisMonthStartDate(),
     }));
   };
 
   const applyThisYearStartDate = () => {
     setState((previous) => ({
       ...previous,
-      start_date: format(startOfYear(new Date()), "yyyy-MM-dd"),
+      start_date: getThisYearStartDate(),
     }));
   };
 
   const applyThisYearEndDate = () => {
     setState((previous) => ({
       ...previous,
-      end_date: format(endOfYear(new Date()), "yyyy-MM-dd"),
+      end_date: getThisYearEndDate(),
     }));
   };
 
-  const validationError = useMemo(() => {
-    if (!state.title.trim()) {
-      return "Title is required.";
-    }
-
-    if (state.frequency_type === "recurring" && !state.recurrence_interval) {
-      return "Repeat goals require a recurrence interval.";
-    }
-
-    if (
-      state.frequency_type === "fixed_milestones" &&
-      parsedTargetCount === null
-    ) {
-      return "Milestone goals require a positive target count.";
-    }
-
-    if (
-      state.default_local_time.trim().length > 0 &&
-      !localTimePattern.test(state.default_local_time.trim())
-    ) {
-      return "Default time must be a valid 24-hour HH:MM value.";
-    }
-
-    if (
-      state.category_selection === "custom" &&
-      state.custom_category.trim().length === 0
-    ) {
-      return "Custom category name is required.";
-    }
-
-    const definitionErrors = validateGoalDefinition({
-      frequencyType: state.frequency_type,
-      targetCount: definitionTargetCount,
-      startDate: state.start_date,
-      endDate: state.end_date || null,
-    });
-    if (definitionErrors.length > 0) {
-      return definitionErrors[0]!.message;
-    }
-
-    return null;
-  }, [state, parsedTargetCount, definitionTargetCount]);
+  const validationError = useMemo(
+    () =>
+      getFirstGoalFormValidationError(
+        {
+          ...state,
+          linked_target_goal_id: selectedLinkTarget,
+        },
+        { requireRecurrenceInterval: true }
+      ),
+    [selectedLinkTarget, state]
+  );
 
   const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -384,32 +319,9 @@ export function GoalForm({ goalId }: GoalFormProps) {
     }
 
     setSaving(true);
-    const parsedTargetCountForSave = parsePositiveTargetCount(state.target_count);
-    const milestoneNames =
-      state.frequency_type === "fixed_milestones" && parsedTargetCountForSave !== null
-        ? normalizeMilestoneNamesForSave(parsedTargetCountForSave, state.milestone_names)
-        : null;
-
-    const payload = {
-      owner_id: currentUserId,
-      title: state.title.trim(),
-      description: state.description.trim() || null,
-      category: getCategoryLabel(state.category_selection, state.custom_category),
-      color: state.color,
-      frequency_type: state.frequency_type,
-      recurrence_interval: state.frequency_type === "recurring" ? state.recurrence_interval : null,
-      target_count:
-        state.frequency_type === "fixed_milestones"
-          ? parsedTargetCountForSave
-          : state.frequency_type === "recurring" && state.target_count.trim().length > 0
-            ? parsedTargetCountForSave
-          : null,
-      milestone_names: milestoneNames,
-      start_date: state.start_date,
-      end_date: state.end_date || null,
-      default_local_time: state.default_local_time.trim() || null,
-      is_group: state.is_group,
-    };
+    const payload = buildGoalRowPayload(state, {
+      ownerId: currentUserId,
+    });
 
     const savedGoalId = goalId ?? crypto.randomUUID();
 
@@ -530,12 +442,10 @@ export function GoalForm({ goalId }: GoalFormProps) {
 
   if (loading) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Loading goal form...</CardTitle>
-          <CardDescription>Preparing your editing workspace.</CardDescription>
-        </CardHeader>
-      </Card>
+      <GoalsSurfaceLoadingCard
+        title="Loading goal form..."
+        description="Preparing your editing workspace."
+      />
     );
   }
 
@@ -723,14 +633,13 @@ export function GoalForm({ goalId }: GoalFormProps) {
                           key={`milestone-name-${index + 1}`}
                           value={state.milestone_names[index] ?? ""}
                           onChange={(event) =>
-                            setState((previous) => {
-                              const nextMilestoneNames = [...previous.milestone_names];
-                              nextMilestoneNames[index] = event.target.value;
-                              return {
-                                ...previous,
-                                milestone_names: nextMilestoneNames,
-                              };
-                            })
+                            setState((previous) =>
+                              applyMilestoneNameChange(
+                                previous,
+                                index,
+                                event.target.value
+                              )
+                            )
                           }
                           placeholder={defaultMilestoneName(index)}
                         />
