@@ -1,14 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { buildCoachSummaryWorkUnits } from "@/features/planner/calendar-entries";
 import {
-  listPlannerCoachConversations,
   persistPlannerDefaultPolicy,
   requestPlannerCoachReply,
-  restorePlannerCoachConversation,
-  savePlannerCoachConversation,
 } from "@/features/planner/coach/coach-client";
 import {
   buildAssistantMessage,
@@ -19,20 +16,17 @@ import {
 import {
   buildCoachCalendarEditsPrompt,
   buildCoachFocusGoalIds,
-  clearPersistedCoachSession,
   computeHasCoachConversationState,
   buildCoachGoalHint,
   countAssignmentChanges,
-  isTemporarilyUnavailableSavedConversationError,
-  resolveSavedConversationSelection,
 } from "@/features/planner/coach/coach-state-utils";
 import {
   markAppliedProposalsUndone,
   readAssistantMessageWithProposal,
   updateAssistantProposalStatus,
-  upsertConversationSummary,
 } from "@/features/planner/coach/coach-message-state";
 import { validateUndoProposal } from "@/features/planner/coach/coach-proposal-utils";
+import { useCoachConversationPersistence } from "@/features/planner/coach/use-coach-conversation-persistence";
 import type {
   PlannerCoachModel,
   UsePlannerCoachArgs,
@@ -41,7 +35,6 @@ import { buildCoachDeterministicSummary } from "@/features/planner/coach-context
 import { applyCoachPolicyPatches } from "@/features/planner/coach-policy";
 import {
   COACH_SESSION_MAX_MESSAGES,
-  loadCoachSession,
   saveCoachSession,
 } from "@/features/planner/coach-session";
 import type {
@@ -75,14 +68,6 @@ export function usePlannerCoach({
   const [coachLoading, setCoachLoading] = useState(false);
   const [coachInput, setCoachInput] = useState("");
   const [coachMessages, setCoachMessages] = useState<CoachMessage[]>([]);
-  const [savedCoachConversations, setSavedCoachConversations] = useState<
-    PlannerCoachModel["state"]["savedCoachConversations"]
-  >([]);
-  const [selectedSavedCoachConversationId, setSelectedSavedCoachConversationId] =
-    useState("");
-  const [coachConversationsLoading, setCoachConversationsLoading] = useState(false);
-  const [coachConversationSaving, setCoachConversationSaving] = useState(false);
-  const [coachConversationRestoring, setCoachConversationRestoring] = useState(false);
   const [coachWarnings, setCoachWarnings] = useState<string[]>([]);
   const [coachRecommendations, setCoachRecommendations] = useState<string[]>([]);
   const [coachUnresolvedQuestions, setCoachUnresolvedQuestions] = useState<string[]>(
@@ -113,6 +98,31 @@ export function usePlannerCoach({
     [context]
   );
 
+  const {
+    state: {
+      savedCoachConversations,
+      selectedSavedCoachConversationId,
+      coachConversationsLoading,
+      coachConversationSaving,
+      coachConversationRestoring,
+    },
+    actions: {
+      setSelectedSavedCoachConversationId,
+      saveCoachConversation,
+      restoreSavedCoachConversation,
+      startNewCoachConversation,
+      resetForPlannerStateReset,
+    },
+  } = useCoachConversationPersistence({
+    activeTab,
+    scopeMonth: context?.scopeMonth,
+    timezone: context?.timezone,
+    coachMessages,
+    resetCoachUiState,
+    setCoachInput,
+    persistCoachMessages,
+  });
+
   const coachSummaryWorkUnits = useMemo(
     () => buildCoachSummaryWorkUnits(entriesByDate),
     [entriesByDate]
@@ -124,67 +134,6 @@ export function usePlannerCoach({
       goalTitles: context?.goalTitles,
     });
   }, [context, effectivePreview]);
-
-  const loadSavedCoachConversations = useCallback(
-    async (scopeMonth: string) => {
-      setCoachConversationsLoading(true);
-      try {
-        const conversations = await listPlannerCoachConversations({ scopeMonth, limit: 20 });
-        setSavedCoachConversations(conversations);
-        setSelectedSavedCoachConversationId((current) => {
-          return resolveSavedConversationSelection({
-            currentId: current,
-            conversations,
-          });
-        });
-      } catch (error) {
-        setSavedCoachConversations([]);
-        setSelectedSavedCoachConversationId("");
-        const message =
-          error instanceof Error
-            ? error.message
-            : "Saved conversations could not be loaded.";
-        if (isTemporarilyUnavailableSavedConversationError(message)) {
-          return;
-        }
-        toast.error(
-          message
-        );
-      } finally {
-        setCoachConversationsLoading(false);
-      }
-    },
-    []
-  );
-
-  useEffect(() => {
-    if (activeTab !== "calendar" || !context?.scopeMonth || !context?.timezone) {
-      return;
-    }
-    const timer = window.setTimeout(() => {
-      const restored = loadCoachSession(context.scopeMonth, context.timezone);
-      resetCoachUiState(restored);
-    }, 0);
-    return () => window.clearTimeout(timer);
-  }, [activeTab, context?.scopeMonth, context?.timezone, resetCoachUiState]);
-
-  useEffect(() => {
-    if (activeTab !== "calendar" || !context?.scopeMonth) {
-      const timer = window.setTimeout(() => {
-        setSavedCoachConversations([]);
-        setSelectedSavedCoachConversationId("");
-      }, 0);
-      return () => window.clearTimeout(timer);
-    }
-    const timer = window.setTimeout(() => {
-      void loadSavedCoachConversations(context.scopeMonth);
-    }, 0);
-    return () => window.clearTimeout(timer);
-  }, [
-    activeTab,
-    context?.scopeMonth,
-    loadSavedCoachConversations,
-  ]);
 
   const applyCoachPatchesToDraft = useCallback(
     async ({
@@ -407,79 +356,6 @@ export function usePlannerCoach({
     persistCoachMessages,
   ]);
 
-  const saveCoachConversation = useCallback(async () => {
-    if (!context?.scopeMonth || !context?.timezone || coachMessages.length === 0) {
-      return;
-    }
-    setCoachConversationSaving(true);
-    try {
-      const conversation = await savePlannerCoachConversation({
-        scopeMonth: context.scopeMonth,
-        timezone: context.timezone,
-        messages: coachMessages,
-      });
-      setSavedCoachConversations((previous) =>
-        upsertConversationSummary({ previous, conversation })
-      );
-      setSelectedSavedCoachConversationId(conversation.id);
-      toast.success("Coach conversation saved.");
-    } catch (error) {
-      toast.error(
-        error instanceof Error
-          ? error.message
-          : "Coach conversation could not be saved."
-      );
-    } finally {
-      setCoachConversationSaving(false);
-    }
-  }, [coachMessages, context]);
-
-  const restoreSavedCoachConversation = useCallback(
-    async (conversationId: string) => {
-      if (!context?.scopeMonth || !context?.timezone || !conversationId) {
-        return;
-      }
-      setCoachConversationRestoring(true);
-      try {
-        const restorePayload = await restorePlannerCoachConversation(conversationId);
-        const restoredMessages = restorePayload.messages.slice(
-          -COACH_SESSION_MAX_MESSAGES
-        );
-        resetCoachUiState(restoredMessages);
-        setCoachInput("");
-        persistCoachMessages(restoredMessages);
-        setSelectedSavedCoachConversationId(restorePayload.conversation.id);
-        setSavedCoachConversations((previous) =>
-          upsertConversationSummary({
-            previous,
-            conversation: restorePayload.conversation,
-          })
-        );
-        toast.success("Saved coach conversation restored.");
-      } catch (error) {
-        toast.error(
-          error instanceof Error
-            ? error.message
-            : "Saved conversation could not be restored."
-        );
-      } finally {
-        setCoachConversationRestoring(false);
-      }
-    },
-    [context, persistCoachMessages, resetCoachUiState]
-  );
-
-  const startNewCoachConversation = useCallback(() => {
-    clearPersistedCoachSession({
-      scopeMonth: context?.scopeMonth,
-      timezone: context?.timezone,
-    });
-    resetCoachUiState([]);
-    setCoachInput("");
-    setSelectedSavedCoachConversationId("");
-    toast.success("Started a new coach conversation.");
-  }, [context?.scopeMonth, context?.timezone, resetCoachUiState]);
-
   const updateCoachProposalStatus = useCallback(
     (
       messageIndex: number,
@@ -637,16 +513,6 @@ export function usePlannerCoach({
       updateCoachProposalStatus,
     ]
   );
-
-  const resetForPlannerStateReset = useCallback(() => {
-    clearPersistedCoachSession({
-      scopeMonth: context?.scopeMonth,
-      timezone: context?.timezone,
-    });
-    resetCoachUiState([]);
-    setCoachInput("");
-    setSelectedSavedCoachConversationId("");
-  }, [context?.scopeMonth, context?.timezone, resetCoachUiState]);
 
   const onDraftDiscarded = useCallback(() => {
     setCoachMessages((previous) => {
