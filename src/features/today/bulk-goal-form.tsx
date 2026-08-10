@@ -38,12 +38,6 @@ import {
   RecurrenceIntervalToggle,
   TargetCountField,
 } from "@/features/goals/goal-field-kit";
-import { GoalLinkTargetSelect } from "@/features/goals/goal-link-target-select";
-import { MilestoneNameFields } from "@/features/goals/milestone-name-fields";
-import {
-  GoalDateRangeFields,
-  GoalDefaultTimeField,
-} from "@/features/goals/goal-schedule-fields";
 import { getApiErrorMessage, postJson } from "@/lib/api/client";
 import { toLocalDateString } from "@/lib/dates/day";
 import { resolveUserTimezone } from "@/lib/dates/timezone";
@@ -63,6 +57,7 @@ import {
 } from "@/lib/goals/linked-goal-labels";
 import {
   buildMilestoneNameDrafts,
+  defaultMilestoneName,
   normalizeMilestoneNamesForSave,
 } from "@/lib/goals/milestones";
 import type { Goal, GoalFrequencyType, RecurrenceInterval } from "@/lib/goals/types";
@@ -1108,53 +1103,81 @@ export function BulkGoalForm() {
                         />
                       </div>
 
-                      <GoalDateRangeFields
-                        startDate={draft.start_date}
-                        endDate={draft.end_date}
-                        onStartDateChange={(value) =>
-                          updateDraft(draft.id, (previous) => ({
-                            ...previous,
-                            start_date: value,
-                          }))
-                        }
-                        onEndDateChange={(value) =>
-                          updateDraft(draft.id, (previous) => ({
-                            ...previous,
-                            end_date: value,
-                          }))
-                        }
-                        requiresEndDate={requiresEndDate}
-                      />
+                      <div className="space-y-2">
+                        <Label>Start date</Label>
+                        <Input
+                          type="date"
+                          value={draft.start_date}
+                          onChange={(event) =>
+                            updateDraft(draft.id, (previous) => ({
+                              ...previous,
+                              start_date: event.target.value,
+                            }))
+                          }
+                        />
+                      </div>
 
-                      <GoalDefaultTimeField
-                        value={draft.default_local_time}
-                        onValueChange={(value) =>
-                          updateDraft(draft.id, (previous) => ({
-                            ...previous,
-                            default_local_time: normalizeLocalTimeValue(value),
-                          }))
-                        }
-                        label="Default time of day"
-                        helperText="Optional fallback planner time when no item override is set."
-                      />
+                      <div className="space-y-2">
+                        <Label>{requiresEndDate ? "End date" : "End date (optional)"}</Label>
+                        <Input
+                          type="date"
+                          value={draft.end_date}
+                          onChange={(event) =>
+                            updateDraft(draft.id, (previous) => ({
+                              ...previous,
+                              end_date: event.target.value,
+                            }))
+                          }
+                          required={requiresEndDate}
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label>Default time of day</Label>
+                        <Input
+                          type="time"
+                          value={draft.default_local_time}
+                          onChange={(event) =>
+                            updateDraft(draft.id, (previous) => ({
+                              ...previous,
+                              default_local_time: normalizeLocalTimeValue(
+                                event.target.value
+                              ),
+                            }))
+                          }
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Optional fallback planner time when no item override is set.
+                        </p>
+                      </div>
                     </div>
 
                     {fixedMilestoneCount > 0 ? (
-                      <MilestoneNameFields
-                        count={fixedMilestoneCount}
-                        values={draft.milestone_names}
-                        onValueChange={(index, value) =>
-                          updateDraft(draft.id, (previous) => {
-                            const nextMilestones = [...previous.milestone_names];
-                            nextMilestones[index] = value;
-                            return {
-                              ...previous,
-                              milestone_names: nextMilestones,
-                            };
-                          })
-                        }
-                        keyPrefix={`${draft.id}-milestone`}
-                      />
+                      <div className="space-y-2">
+                        <Label>Milestone names (optional)</Label>
+                        <div className="grid gap-2 sm:grid-cols-2">
+                          {Array.from({ length: fixedMilestoneCount }).map((_, index) => (
+                            <Input
+                              key={`${draft.id}-milestone-${index + 1}`}
+                              value={draft.milestone_names[index] ?? ""}
+                              onChange={(event) =>
+                                updateDraft(draft.id, (previous) => {
+                                  const nextMilestones = [...previous.milestone_names];
+                                  nextMilestones[index] = event.target.value;
+                                  return {
+                                    ...previous,
+                                    milestone_names: nextMilestones,
+                                  };
+                                })
+                              }
+                              placeholder={defaultMilestoneName(index)}
+                            />
+                          ))}
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          Leave any field blank to use the default name.
+                        </p>
+                      </div>
                     ) : null}
 
                     <Collapsible
@@ -1256,32 +1279,72 @@ export function BulkGoalForm() {
                             </div>
 
                             {!draft.is_group ? (
-                              <GoalLinkTargetSelect
-                                value={draft.linked_target_goal_id}
-                                onValueChange={(value) =>
-                                  updateDraft(draft.id, (previous) => ({
-                                    ...previous,
-                                    linked_target_goal_id: value,
-                                  }))
-                                }
-                                open={draft.link_target_open}
-                                onOpenChange={(open) =>
-                                  updateDraft(draft.id, (previous) => ({
-                                    ...previous,
-                                    link_target_open: open,
-                                    link_target_search: open ? previous.link_target_search : "",
-                                  }))
-                                }
-                                searchQuery={draft.link_target_search}
-                                onSearchQueryChange={(value) =>
-                                  updateDraft(draft.id, (previous) => ({
-                                    ...previous,
-                                    link_target_search: value,
-                                  }))
-                                }
-                                filteredLinkTargets={filteredLinkTargets}
-                                keyPrefix={draft.id}
-                              />
+                              <div className="space-y-2">
+                                <Label className="inline-flex items-center gap-2">
+                                  <Link2 className="size-4 text-muted-foreground" />
+                                  Link this goal to another goal (optional)
+                                </Label>
+                                <Select
+                                  value={draft.linked_target_goal_id}
+                                  onValueChange={(value) =>
+                                    updateDraft(draft.id, (previous) => ({
+                                      ...previous,
+                                      linked_target_goal_id: value,
+                                    }))
+                                  }
+                                  open={draft.link_target_open}
+                                  onOpenChange={(open) =>
+                                    updateDraft(draft.id, (previous) => ({
+                                      ...previous,
+                                      link_target_open: open,
+                                      link_target_search: open ? previous.link_target_search : "",
+                                    }))
+                                  }
+                                >
+                                  <SelectTrigger>
+                                    <SelectValue placeholder="No linked target" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <div className="sticky top-0 z-10 border-b bg-popover p-1.5">
+                                      <Input
+                                        value={draft.link_target_search}
+                                        onChange={(event) =>
+                                          updateDraft(draft.id, (previous) => ({
+                                            ...previous,
+                                            link_target_search: event.target.value,
+                                          }))
+                                        }
+                                        placeholder="Search link targets..."
+                                        className="h-8"
+                                        onKeyDown={(event) => event.stopPropagation()}
+                                      />
+                                    </div>
+                                    <SelectItem value="none">No linked target</SelectItem>
+                                    {filteredLinkTargets.map((goal) => (
+                                      <SelectItem key={`${draft.id}-${goal.id}`} value={goal.id}>
+                                        <span className="flex items-center gap-2">
+                                          <span className="max-w-[170px] truncate">{goal.title}</span>
+                                          <Badge variant="secondary">
+                                            {getLinkedGoalRecurrenceLabel(goal)}
+                                          </Badge>
+                                          <Badge variant="outline">
+                                            {getLinkedGoalDeadlineLabel(goal)}
+                                          </Badge>
+                                        </span>
+                                      </SelectItem>
+                                    ))}
+                                    {filteredLinkTargets.length === 0 ? (
+                                      <p className="px-2 py-1.5 text-xs text-muted-foreground">
+                                        No goals match your search.
+                                      </p>
+                                    ) : null}
+                                  </SelectContent>
+                                </Select>
+                                <p className="text-xs text-muted-foreground">
+                                  Marking this goal complete will auto-complete linked goals for the
+                                  same day.
+                                </p>
+                              </div>
                             ) : null}
                           </div>
                         </CollapsibleContent>

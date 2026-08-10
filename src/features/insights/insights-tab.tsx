@@ -114,7 +114,6 @@ const aggregateWeekdayLabels: [string, string, string, string, string, string, s
   "S",
 ];
 const INSIGHTS_REQUEST_TIMEOUT_MS = 15_000;
-const MAX_VISIBLE_MILESTONES = 5;
 function getCompletionCountLabel(goal: Goal, completionCount: number): string {
   if (typeof goal.target_count === "number" && goal.target_count > 0) {
     return `${completionCount}/${goal.target_count} completions`;
@@ -901,7 +900,7 @@ export function InsightsTab() {
                           targetCount={milestoneTargetCount}
                           completionDates={mappedMilestoneDates}
                           milestoneNames={draftMilestoneNames}
-                          maxVisible={MAX_VISIBLE_MILESTONES}
+                          maxVisible={5}
                         />
                         {editingHistory ? (
                           <p className="text-xs text-muted-foreground">
