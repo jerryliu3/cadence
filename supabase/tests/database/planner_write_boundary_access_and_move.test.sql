@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions, pg_catalog;
-select plan(7);
+select plan(9);
 
 set local role service_role;
 
@@ -34,6 +34,35 @@ values (
   false
 );
 
+insert into public.goals (
+  id,
+  owner_id,
+  title,
+  description,
+  category,
+  color,
+  frequency_type,
+  recurrence_interval,
+  target_count,
+  start_date,
+  end_date,
+  is_group
+)
+values (
+  '91100000-0000-4000-8000-000000000002',
+  '11111111-1111-4111-8111-111111111111',
+  'Planner write boundary batch move goal',
+  null,
+  'test',
+  null,
+  'recurring',
+  'weekly',
+  12,
+  date_trunc('month', current_date)::date,
+  (date_trunc('month', current_date) + interval '1 month - 1 day')::date,
+  false
+);
+
 insert into public.planner_items (
   owner_id,
   goal_id,
@@ -49,6 +78,23 @@ values (
   false
 );
 
+insert into public.planner_items (
+  owner_id,
+  goal_id,
+  unit_key,
+  scheduled_date,
+  original_scheduled_date,
+  locked
+)
+select
+  '11111111-1111-4111-8111-111111111111',
+  '91100000-0000-4000-8000-000000000002',
+  'total:' || series.n::text,
+  (date_trunc('month', current_date)::date + (series.n - 1)),
+  (date_trunc('month', current_date)::date + (series.n - 1)),
+  false
+from generate_series(1, 12) as series(n);
+
 reset role;
 set local role authenticated;
 select set_config(
@@ -57,6 +103,55 @@ select set_config(
   true
 );
 select set_config('request.jwt.claim.role', 'authenticated', true);
+
+select lives_ok(
+  $tap$
+  do $$
+  declare
+    v_scope_month date := date_trunc('month', current_date)::date;
+    v_digest text;
+    v_payload jsonb;
+  begin
+    v_payload := (
+      select jsonb_agg(
+        jsonb_build_object(
+          'goal_id', item.goal_id,
+          'unit_key', item.unit_key,
+          'scheduled_date', (item.scheduled_date + interval '7 day')::date::text,
+          'original_scheduled_date', item.scheduled_date::text,
+          'locked', item.locked
+        )
+        order by item.unit_key
+      )
+      from public.planner_items item
+      where item.owner_id = '11111111-1111-4111-8111-111111111111'
+        and item.goal_id = '91100000-0000-4000-8000-000000000002'
+    );
+
+    v_digest := public.get_planner_schedule_digest();
+    perform *
+    from public.set_planner_schedule(
+      v_scope_month,
+      v_payload,
+      v_digest
+    );
+  end;
+  $$;
+  $tap$,
+  'batch move rewrite does not raise false schedule_conflict'
+);
+
+select is(
+  (
+    select count(*)
+    from public.planner_items
+    where goal_id = '91100000-0000-4000-8000-000000000002'
+      and scheduled_date >= (date_trunc('month', current_date)::date + 7)
+      and scheduled_date <= (date_trunc('month', current_date)::date + 18)
+  ),
+  12::bigint,
+  'batch move rewrite persists all shifted rows for targeted recurring goal'
+);
 
 select throws_ok(
   $$
