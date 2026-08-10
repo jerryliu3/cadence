@@ -99,7 +99,6 @@ describe.skipIf(!RUN_LIVE_TESTS)("live Gemini coach integration", () => {
           "2026-08-01T00:00:00.000Z"
         ),
         patches: sanitized.proposal.policyPatches,
-        allowedGoalIds: new Set([GOAL_ID]),
       });
 
       expect(applied.unsupportedPatchCount).toBe(0);
