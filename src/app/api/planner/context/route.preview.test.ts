@@ -127,6 +127,7 @@ describe("planner context preview route", () => {
     expect(mocks.runPlannerKernel).toHaveBeenCalledWith(
       expect.objectContaining({
         preserveExistingAssignments: false,
+        solveIntent: "stable",
       })
     );
   });
@@ -161,6 +162,7 @@ describe("planner context preview route", () => {
     expect(response.status).toBe(500);
     expect(mocks.runPlannerKernel).toHaveBeenCalledWith(
       expect.objectContaining({
+        solveIntent: "stable",
         draftPinnedDates: {
           "12000000-0000-4000-8000-000000000001:total:1": "2026-08-10",
         },

@@ -137,6 +137,7 @@ export async function handlePlannerSave(request: Request) {
     const kernelInput = {
       schemaVersion: "1" as const,
       eligibilityMode: effectiveEligibilityMode,
+      solveIntent: "stable" as const,
       preserveExistingAssignments: requestedPolicy === null,
       ownerId: routeContext.userId,
       scopeMonth: body.scopeMonth,

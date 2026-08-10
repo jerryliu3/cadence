@@ -112,6 +112,7 @@ describe("planner save route", () => {
     expect(mocks.runPlannerKernel).toHaveBeenCalledWith(
       expect.objectContaining({
         preserveExistingAssignments: true,
+        solveIntent: "stable",
       })
     );
   });
@@ -144,6 +145,7 @@ describe("planner save route", () => {
     expect(mocks.runPlannerKernel).toHaveBeenCalledWith(
       expect.objectContaining({
         preserveExistingAssignments: false,
+        solveIntent: "stable",
       })
     );
   });
@@ -195,6 +197,12 @@ describe("planner save route", () => {
     expect(mocks.runPlannerKernel).toHaveBeenCalledTimes(2);
     expect(mocks.runPlannerKernel).toHaveBeenNthCalledWith(
       1,
+      expect.objectContaining({
+        solveIntent: "stable",
+      })
+    );
+    expect(mocks.runPlannerKernel).toHaveBeenNthCalledWith(
+      1,
       expect.not.objectContaining({
         draftPinnedDates: expect.anything(),
       })
@@ -202,6 +210,7 @@ describe("planner save route", () => {
     expect(mocks.runPlannerKernel).toHaveBeenNthCalledWith(
       2,
       expect.objectContaining({
+        solveIntent: "stable",
         draftPinnedDates: {
           "12000000-0000-4000-8000-000000000001:cadence:2026-08-10":
             "2026-08-12",
