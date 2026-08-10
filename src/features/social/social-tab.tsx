@@ -3,8 +3,6 @@
 import { addMonths, format, subMonths } from "date-fns";
 import {
   ChevronDown,
-  ChevronLeft,
-  ChevronRight,
   Crown,
   Plus,
   Search,
@@ -25,6 +23,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { LoadingCard } from "@/components/ui/loading-card";
+import { PeriodStepper } from "@/components/ui/period-stepper";
 import {
   Select,
   SelectContent,
@@ -1017,26 +1016,18 @@ export function SocialTab() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
-          <div className="flex items-center justify-end gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="icon-sm"
-              onClick={() => setSharedMonthCursor((previous) => subMonths(previous, 1))}
-            >
-              <ChevronLeft className="size-4" />
-            </Button>
-            <span className="min-w-[120px] text-center text-sm font-medium text-muted-foreground">
-              {format(sharedMonthCursor, "MMMM yyyy")}
-            </span>
-            <Button
-              type="button"
-              variant="outline"
-              size="icon-sm"
-              onClick={() => setSharedMonthCursor((previous) => addMonths(previous, 1))}
-            >
-              <ChevronRight className="size-4" />
-            </Button>
+          <div className="flex justify-end">
+            <PeriodStepper
+              onPrevious={() => setSharedMonthCursor((previous) => subMonths(previous, 1))}
+              onNext={() => setSharedMonthCursor((previous) => addMonths(previous, 1))}
+              center={
+                <span className="min-w-[120px] text-center text-sm font-medium text-muted-foreground">
+                  {format(sharedMonthCursor, "MMMM yyyy")}
+                </span>
+              }
+              previousAriaLabel="Previous month"
+              nextAriaLabel="Next month"
+            />
           </div>
           {state.sharedGoals.length === 0 ? (
             <p className="text-sm text-muted-foreground">No goals have been shared with you yet.</p>

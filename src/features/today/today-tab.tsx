@@ -6,8 +6,6 @@ import {
   CalendarClock,
   CheckCircle2,
   ChevronDown,
-  ChevronLeft,
-  ChevronRight,
   ChevronUp,
   ListPlus,
   Plus,
@@ -28,6 +26,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Input } from "@/components/ui/input";
+import { PeriodStepper } from "@/components/ui/period-stepper";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { GoalListControls } from "@/features/goals/goal-list-controls";
@@ -707,18 +706,20 @@ export function TodayTab({
             </div>
             <div className="mt-2 flex items-center gap-2 overflow-x-auto pb-1">
               <div className="flex shrink-0 items-center gap-2">
-                <Button type="button" variant="outline" size="icon-sm" onClick={goToPreviousDate}>
-                  <ChevronLeft className="size-4" />
-                </Button>
-                <Input
-                  type="date"
-                  value={viewDate}
-                  onChange={(event) => setViewDate(event.target.value || todayLocalDate)}
-                  className="h-8 w-[170px]"
+                <PeriodStepper
+                  onPrevious={goToPreviousDate}
+                  onNext={goToNextDate}
+                  center={
+                    <Input
+                      type="date"
+                      value={viewDate}
+                      onChange={(event) => setViewDate(event.target.value || todayLocalDate)}
+                      className="h-8 w-[170px]"
+                    />
+                  }
+                  previousAriaLabel="Previous day"
+                  nextAriaLabel="Next day"
                 />
-                <Button type="button" variant="outline" size="icon-sm" onClick={goToNextDate}>
-                  <ChevronRight className="size-4" />
-                </Button>
                 {!viewingToday ? (
                   <Button
                     type="button"

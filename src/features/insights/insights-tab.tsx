@@ -16,8 +16,6 @@ import {
 } from "date-fns";
 import {
   CalendarRange,
-  ChevronLeft,
-  ChevronRight,
   Flame,
   Layers3,
   PencilLine,
@@ -32,6 +30,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { PeriodStepper } from "@/components/ui/period-stepper";
 import { Progress } from "@/components/ui/progress";
 import { GoalEndMonthBadge } from "@/features/goals/goal-end-month-badge";
 import { MilestonePills } from "@/features/goals/milestone-pills";
@@ -700,27 +699,19 @@ export function InsightsTab() {
                 Year View
               </Button>
             </div>
-            <div className="flex items-center gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="icon-sm"
-                onClick={() => shiftGlobalMonthCursor(-1)}
-              >
-                <ChevronLeft className="size-4" />
-              </Button>
-              <span className="min-w-[120px] text-center text-sm font-medium text-muted-foreground">
-                {perGoalViewMode === "month" ? format(monthCursor, "MMMM yyyy") : format(monthCursor, "yyyy")}
-              </span>
-              <Button
-                type="button"
-                variant="outline"
-                size="icon-sm"
-                onClick={() => shiftGlobalMonthCursor(1)}
-              >
-                <ChevronRight className="size-4" />
-              </Button>
-            </div>
+            <PeriodStepper
+              onPrevious={() => shiftGlobalMonthCursor(-1)}
+              onNext={() => shiftGlobalMonthCursor(1)}
+              center={
+                <span className="min-w-[120px] text-center text-sm font-medium text-muted-foreground">
+                  {perGoalViewMode === "month"
+                    ? format(monthCursor, "MMMM yyyy")
+                    : format(monthCursor, "yyyy")}
+                </span>
+              }
+              previousAriaLabel="Previous period"
+              nextAriaLabel="Next period"
+            />
           </div>
           <div className="flex flex-wrap items-end gap-3">
             <GoalListControls
