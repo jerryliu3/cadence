@@ -119,8 +119,15 @@ export function PlannerCoachPanel({ coach }: PlannerCoachPanelProps) {
                     {formatProposalApplyStatus(message.proposal.applyStatus)}
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    {message.proposal.policyPatches.length} draft change
-                    {message.proposal.policyPatches.length === 1 ? "" : "s"} available.
+                    {message.proposal.patchSummary
+                      ? `${message.proposal.patchSummary.applicablePatchCount} applicable, ${message.proposal.patchSummary.skippedPatchCount} skipped patch${
+                          message.proposal.patchSummary.skippedPatchCount === 1
+                            ? ""
+                            : "es"
+                        }.`
+                      : `${message.proposal.policyPatches.length} draft change${
+                          message.proposal.policyPatches.length === 1 ? "" : "s"
+                        } available.`}
                   </p>
                   <div className="mt-2 flex flex-wrap gap-2">
                     <Button

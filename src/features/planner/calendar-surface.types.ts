@@ -237,6 +237,13 @@ export interface CoachMessageProposal {
   baselineSnapshotToken: string;
   baselinePolicy: PlannerPolicy | null;
   policyPatches: CoachPolicyPatch[];
+  patchSummary?: {
+    applicablePatchCount: number;
+    skippedPatchCount: number;
+    noOpPatchCount: number;
+    outOfScopePatchCount: number;
+    unsupportedPatchCount: number;
+  };
   unresolvedQuestions: string[];
 }
 
