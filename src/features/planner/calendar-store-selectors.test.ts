@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type {
   DraftCommandState,
   ScopedPlannerDraftCommand,
@@ -14,6 +14,7 @@ import {
   selectPlannerCalendarDayProjectionsByDay,
   selectPlannerCalendarStoreProjection,
   selectVisibleDraftItemEditsByMonth,
+  type PlannerCalendarDayProjection,
   type PlannerCalendarStoreProjection,
 } from "./calendar-store-selectors";
 
@@ -277,6 +278,10 @@ describe("calendar store selectors", () => {
         [entryA.key, day],
         [entryB.key, day],
       ]),
+      canonicalEntryDayByKey: new Map([
+        [entryA.key, day],
+        [entryB.key, day],
+      ]),
       previewUnitByEntryKey: new Map([
         [
           entryA.key,
@@ -306,5 +311,17 @@ describe("calendar store selectors", () => {
       entryA.key,
     ]);
     expect(readPlannerCalendarDayProjection(projectionByDay, null).entries).toEqual([]);
+  });
+
+  it("warns in non-production when reading an unprojected day", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const projectionByDay = new Map<string, PlannerCalendarDayProjection>();
+    const missingDay = "2099-12-31";
+    const dayProjection = readPlannerCalendarDayProjection(projectionByDay, missingDay);
+    expect(dayProjection.entries).toEqual([]);
+    expect(warnSpy).toHaveBeenCalledWith(
+      `[planner] Missing day projection for ${missingDay}. Verify projectionDays includes every rendered/accessed day.`
+    );
+    warnSpy.mockRestore();
   });
 });
