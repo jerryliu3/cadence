@@ -4,6 +4,7 @@ import { CheckCircle2, Circle } from "lucide-react";
 import {
   PlannerDraggablePreviewEntry,
 } from "@/features/planner/calendar-dnd";
+import { getCompletionFactMarkerHint } from "@/features/planner/calendar-format";
 import {
   type CalendarCompletionFactMarkerBase,
   type CalendarMonthCellEntryBase,
@@ -178,9 +179,7 @@ export function CalendarDayPreviewList<
             >
               <p className="truncate font-medium">{marker.goalTitle}</p>
               <p className="truncate text-[11px]">
-                {marker.scheduledDate && marker.scheduledDate !== day
-                  ? `Marked done here; credited from the ${marker.scheduledDate} scheduled session.`
-                  : "Marked done on this date."}
+                {getCompletionFactMarkerHint(marker, day)}
               </p>
             </div>
           ))}

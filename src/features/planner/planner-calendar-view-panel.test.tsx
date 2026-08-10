@@ -7,7 +7,7 @@ import type {
   PlannerCompletionFactMarker,
   PlannerDayDetailEntry,
 } from "@/features/planner/calendar-surface.types";
-import type { PlannerCalendarDayCellRenderModel } from "@/features/planner/calendar-view-model-selectors";
+import type { PlannerCalendarDayCellRenderModel } from "@/features/planner/calendar-selectors";
 import { PlannerCalendarViewPanel } from "./planner-calendar-view-panel";
 
 vi.mock("@/features/planner/calendar-dnd", () => ({

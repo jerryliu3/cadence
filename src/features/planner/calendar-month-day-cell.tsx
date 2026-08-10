@@ -6,6 +6,7 @@ import {
   PlannerDraggableEntry,
   PlannerDroppableDay,
 } from "@/features/planner/calendar-dnd";
+import { getCompletionFactMarkerHint } from "@/features/planner/calendar-format";
 import {
   buildPlannerEntryRowState,
   PlannerEntryRow,
@@ -221,11 +222,7 @@ export function CalendarMonthDayCell<
                 <div
                   key={`completion-fact-${marker.key}`}
                   className="flex items-center gap-1 rounded-lg border border-emerald-300 bg-emerald-100 px-1 py-0.5 text-[10px] text-emerald-950 dark:border-emerald-300 dark:bg-emerald-100 dark:text-emerald-950"
-                  title={
-                    marker.scheduledDate && marker.scheduledDate !== day
-                      ? `Marked done here, currently credited from the ${marker.scheduledDate} scheduled session.`
-                      : "Marked done on this date."
-                  }
+                  title={getCompletionFactMarkerHint(marker, day)}
                 >
                   <CheckCircle2 className="size-2.5 shrink-0" />
                   <span className="truncate">{marker.goalTitle}</span>

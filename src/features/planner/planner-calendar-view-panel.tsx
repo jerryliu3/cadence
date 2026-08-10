@@ -24,7 +24,7 @@ import type {
 import {
   selectPlannerEntryCompletionToggleViewModel,
   type PlannerCalendarDayCellRenderModel,
-} from "@/features/planner/calendar-view-model-selectors";
+} from "@/features/planner/calendar-selectors";
 
 interface PlannerCalendarViewPanelProps {
   viewMode: PlannerCalendarViewMode;

@@ -33,18 +33,16 @@ import {
   resolveNonPublishablePreviewMessage,
 } from "@/features/planner/calendar-format";
 import {
+  selectPlannerCalendarDayCellRenderModel,
   selectPlannerCalendarHeaderModel,
   selectPlannerCalendarSaveStateModel,
   selectPlannerCalendarViewModel,
+  type PlannerCalendarDayCellRenderModel,
 } from "@/features/planner/calendar-selectors";
 import { PlannerCalendarViewPanel } from "@/features/planner/planner-calendar-view-panel";
 import { CalendarMonthDayCell } from "@/features/planner/calendar-month-day-cell";
 import { PlannerDayDetailDialogs } from "@/features/planner/planner-day-detail-dialogs";
 import { PlannerPreferencesForm } from "@/features/planner/planner-preferences-form";
-import {
-  selectPlannerCalendarDayCellRenderModel,
-  type PlannerCalendarDayCellRenderModel,
-} from "@/features/planner/calendar-view-model-selectors";
 import { PlannerCoachPanel } from "@/features/planner/coach/planner-coach-panel";
 import { usePlannerCoach } from "@/features/planner/coach/use-planner-coach";
 import { useCompletionMutation } from "@/features/planner/use-completion-mutation";
