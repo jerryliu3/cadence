@@ -60,6 +60,7 @@ describe("planner coach conversation restore route", () => {
       },
       capabilities: {
         calendarEnabled: true,
+        crossMonthMovesEnabled: false,
       },
     });
     mocks.conversationMaybeSingle.mockResolvedValue({

@@ -69,6 +69,7 @@ function buildContext(workUnits: PlannerWorkUnit[]): PlannerContextPayload {
     preferences: null,
     capabilities: {
       calendarEnabled: true,
+      crossMonthMovesEnabled: false,
     },
     activePlan: null,
     preview: buildPreview(workUnits),

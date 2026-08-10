@@ -1,6 +1,7 @@
 // @vitest-environment node
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { resetEnvCacheForTests } from "@/lib/env";
 
 const mocks = vi.hoisted(() => ({
   getUser: vi.fn(),
@@ -67,6 +68,7 @@ const defaultPolicy = {
 describe("planner context preferences route", () => {
   beforeEach(() => {
     vi.stubEnv("CALENDAR_ENABLED", "true");
+    resetEnvCacheForTests();
     mocks.getUser.mockResolvedValue({
       data: { user: { id: "11111111-1111-4111-8111-111111111111" } },
       error: null,
@@ -102,6 +104,7 @@ describe("planner context preferences route", () => {
 
   afterEach(() => {
     vi.unstubAllEnvs();
+    resetEnvCacheForTests();
     vi.restoreAllMocks();
   });
 

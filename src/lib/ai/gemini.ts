@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { getServerEnv } from "@/lib/env";
 
 const defaultModel = "gemini-3.5-flash";
 const defaultFallbackModels = ["gemini-3.5-flash-lite"];
@@ -481,7 +482,8 @@ async function executeGeminiAttempt({
 export async function generateGeminiJson(
   options: GeminiRequestOptions
 ): Promise<GeminiRequestResult> {
-  const apiKey = options.apiKey ?? process.env.GEMINI_API_KEY?.trim();
+  const env = getServerEnv();
+  const apiKey = options.apiKey ?? env.GEMINI_API_KEY;
   if (!apiKey) {
     throw new GeminiRequestError(
       "provider_error",
@@ -493,8 +495,8 @@ export async function generateGeminiJson(
   const totalTimeoutMs = options.totalTimeoutMs ?? 12_000;
   const maxAttempts = Math.max(1, Math.min(options.maxAttempts ?? 2, 2));
   const primaryModel =
-    options.model?.trim() || process.env.GEMINI_MODEL?.trim() || defaultModel;
-  const envFallbackModels = parseModelList(process.env.GEMINI_FALLBACK_MODELS);
+    options.model?.trim() || env.GEMINI_MODEL || defaultModel;
+  const envFallbackModels = parseModelList(env.GEMINI_FALLBACK_MODELS);
   const fallbackModels =
     options.modelFallbacks ??
     (envFallbackModels.length > 0 ? envFallbackModels : defaultFallbackModels);

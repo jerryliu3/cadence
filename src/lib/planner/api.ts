@@ -9,6 +9,7 @@ import {
   withRoute as withSharedRoute,
 } from "@/lib/api/route";
 import { getDateInTimezone } from "@/lib/dates/timezone";
+import { reportError } from "@/lib/observability/report-error";
 import { getPlannerCapabilities } from "@/lib/planner/capabilities";
 import type { PlannerCapabilities } from "@/lib/planner/capabilities";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -183,8 +184,21 @@ export async function withPlannerRoute(
   return withSharedRoute(handler, {
     onError: (error, correlationId) => {
       if (error instanceof PlannerRouteError) {
+        if (error.status >= 500) {
+          reportError(error, {
+            correlationId,
+            code: error.code,
+            status: error.status,
+            message: error.message,
+          });
+        }
         return plannerErrorResponse(error, correlationId);
       }
+      reportError(error, {
+        correlationId,
+        code: "internal_error",
+        status: 500,
+      });
       console.error("planner route failed", correlationId, error);
       return unknownPlannerErrorResponse(correlationId);
     },

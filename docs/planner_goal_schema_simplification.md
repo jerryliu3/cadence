@@ -4,6 +4,8 @@ Status: Recommended
 Last updated: 2026-08-06  
 Owners: Planner platform
 
+> **Currency note (2026-08-10):** Decision record — verify requirement-kind names against the current planner schema before acting on migration proposals.
+
 ## Why this exists
 
 The planner currently uses three requirement kinds:

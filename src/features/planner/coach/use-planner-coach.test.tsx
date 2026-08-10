@@ -118,6 +118,7 @@ function buildContext(
     },
     capabilities: {
       calendarEnabled: true,
+      crossMonthMovesEnabled: false,
     },
     activePlan: null,
     preview: {

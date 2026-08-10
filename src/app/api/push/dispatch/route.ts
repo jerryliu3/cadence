@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import webpush from "web-push";
 import { withRoute } from "@/lib/api/route";
+import { getServerEnv } from "@/lib/env";
+import { reportError } from "@/lib/observability/report-error";
 import { getLocalScheduleSlot } from "@/lib/push/schedule";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -34,9 +36,10 @@ function isExpiredSubscriptionError(error: unknown): boolean {
 }
 
 function configureWebPush() {
-  const subject = process.env.VAPID_SUBJECT?.trim();
-  const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY?.trim();
-  const privateKey = process.env.VAPID_PRIVATE_KEY?.trim();
+  const env = getServerEnv();
+  const subject = env.VAPID_SUBJECT;
+  const publicKey = env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+  const privateKey = env.VAPID_PRIVATE_KEY;
 
   if (!subject || !publicKey || !privateKey) {
     throw new Error(
@@ -48,7 +51,7 @@ function configureWebPush() {
 }
 
 async function dispatchNotifications(request: Request) {
-  const cronSecret = process.env.CRON_SECRET?.trim();
+  const cronSecret = getServerEnv().CRON_SECRET;
 
   if (!cronSecret) {
     return NextResponse.json({ error: "Cron is not configured." }, { status: 503 });
@@ -196,6 +199,10 @@ async function dispatchNotifications(request: Request) {
         .in("id", Array.from(expiredSubscriptionIds));
 
       if (deleteError) {
+        reportError(deleteError, {
+          code: "push_subscription_cleanup_failed",
+          status: 500,
+        });
         console.error("Failed to remove expired push subscriptions:", deleteError);
       }
     }
@@ -206,6 +213,10 @@ async function dispatchNotifications(request: Request) {
       removedSubscriptions: expiredSubscriptionIds.size,
     });
   } catch (error) {
+    reportError(error, {
+      code: "push_dispatch_failed",
+      status: 500,
+    });
     console.error("Push notification dispatch failed:", error);
     return NextResponse.json({ error: "Push notification dispatch failed." }, { status: 500 });
   }

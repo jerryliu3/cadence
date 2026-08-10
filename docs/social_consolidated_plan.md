@@ -1,5 +1,7 @@
 # Global Social + Duo — Consolidated Plan
 
+> **Currency note (2026-08-10):** Planning doc — social UI decomposition has progressed on main; verify file paths and schema claims against the current tree before treating sections as actionable.
+
 > **Provenance.** This consolidates two independent drafts: a product/process-led plan (`social_global_duo_plan.md`) and an architecture-led plan (`social_duo_plan.md`). The architecture draft is the baseline — it carries the verified schema analysis, the DDL, the `can_view_goal` blast-radius work, and the phasing. From the product draft it absorbs the **four-way privacy granularity** (§3, the most substantive change — the baseline collapsed feed, leaderboard, and challenge participation into one flag), the **staged exposure strategy** (§14), the **pre-XP fallback metric** (§5.6) that decouples launch from the XP long pole, **duo integration into Checklist and Insights** (§8.8) rather than only Social, `duo_preferences` (§8.3a), event-production rate limits (§4.6), and the migration-default open question (§15).
 
 ## 1. Context

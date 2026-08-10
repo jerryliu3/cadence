@@ -5,6 +5,7 @@ import {
   HttpRouteError,
   parseBoundedJsonBody,
 } from "@/lib/api/http-route";
+import { reportError } from "@/lib/observability/report-error";
 import { createClient } from "@/lib/supabase/server";
 
 const DEFAULT_MAX_BODY_BYTES = 64 * 1024;
@@ -66,7 +67,7 @@ export function apiSuccessResponse<T extends Record<string, unknown>>(
 function logApiRouteError(error: unknown, correlationId: string) {
   if (error instanceof ApiRouteError) {
     if (error.status >= 500) {
-      console.error("API route failed", {
+      reportError(error, {
         correlationId,
         code: error.code,
         status: error.status,
@@ -74,9 +75,20 @@ function logApiRouteError(error: unknown, correlationId: string) {
         details: error.details,
         cause: (error as Error & { cause?: unknown }).cause,
       });
+      console.error("API route failed", {
+        correlationId,
+        code: error.code,
+        status: error.status,
+        message: error.message,
+      });
     }
     return;
   }
+  reportError(error, {
+    correlationId,
+    code: "internal_error",
+    status: 500,
+  });
   console.error("API route failed unexpectedly", {
     correlationId,
     error,

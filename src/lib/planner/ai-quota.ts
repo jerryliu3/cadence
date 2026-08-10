@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { getServerEnv } from "@/lib/env";
 import { callAdminRpc } from "@/lib/supabase/admin-rpc";
 import type { createAdminClient } from "@/lib/supabase/admin";
 
@@ -25,55 +26,36 @@ export interface PlannerAiQuotaResult {
   retryAfterSeconds: number;
 }
 
-function readQuotaLimit({
-  envVar,
-  defaultLimit,
-  maxLimit = HARD_DAILY_PROVIDER_LIMIT,
-}: {
-  envVar: string;
-  defaultLimit: number;
-  maxLimit?: number;
-}) {
-  const raw = process.env[envVar]?.trim();
-  if (!raw) {
+function clampQuotaLimit(limit: number | undefined, defaultLimit: number) {
+  if (limit === undefined) {
     return defaultLimit;
   }
-  const parsed = Number(raw);
-  if (!Number.isSafeInteger(parsed) || parsed < 1) {
-    throw new Error(`${envVar} must be an integer between 1 and ${maxLimit}.`);
-  }
-  if (parsed > maxLimit) {
+  if (limit > HARD_DAILY_PROVIDER_LIMIT) {
     console.warn(
-      `[planner-ai-quota] ${envVar} exceeds provider limit ${maxLimit}; clamping.`
+      `[planner-ai-quota] configured limit ${limit} exceeds provider limit ${HARD_DAILY_PROVIDER_LIMIT}; clamping.`
     );
-    return maxLimit;
+    return HARD_DAILY_PROVIDER_LIMIT;
   }
-  return parsed;
+  return limit;
 }
 
 export function readBulkParserQuotaLimit() {
-  return readQuotaLimit({
-    envVar: "CALENDAR_BULK_PARSER_DAILY_LIMIT",
-    defaultLimit: 20,
-  });
+  return clampQuotaLimit(
+    getServerEnv().CALENDAR_BULK_PARSER_DAILY_LIMIT,
+    20
+  );
 }
 
 export function shouldBypassPlannerCoachQuota() {
-  return (
-    process.env.NODE_ENV !== "production" &&
-    process.env.CALENDAR_COACH_DISABLE_QUOTA?.trim().toLowerCase() === "true"
-  );
+  const env = getServerEnv();
+  return env.NODE_ENV !== "production" && env.CALENDAR_COACH_DISABLE_QUOTA;
 }
 
 export function readPlannerCoachQuotaLimit() {
   if (shouldBypassPlannerCoachQuota()) {
     return DEV_UNLIMITED_COACH_LIMIT;
   }
-  return readQuotaLimit({
-    envVar: "CALENDAR_COACH_DAILY_LIMIT",
-    defaultLimit: 20,
-    maxLimit: HARD_DAILY_PROVIDER_LIMIT,
-  });
+  return clampQuotaLimit(getServerEnv().CALENDAR_COACH_DAILY_LIMIT, 20);
 }
 
 export async function consumePlannerAiQuota({

@@ -64,6 +64,7 @@ describe("planner context preview route", () => {
       supabase: {},
       capabilities: {
         calendarEnabled: true,
+        crossMonthMovesEnabled: false,
       },
     });
     mocks.resolveCanonicalAsOfDate.mockReturnValue("2026-08-05");

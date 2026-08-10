@@ -1,5 +1,7 @@
 # Planner Cross-Month Correctness + XP/Rewards (V2)
 
+> **Currency note (2026-08-10):** Planning doc — parts may lag the main tree. Prefer migrations, `AGENTS.md`, and current API routes as source of truth before implementing from this plan.
+
 ## Context
 
 Two independent workstreams:

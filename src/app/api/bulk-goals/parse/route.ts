@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { GeminiRequestError, generateGeminiJson } from "@/lib/ai/gemini";
+import { checkRateLimit } from "@/lib/api/rate-limit";
 import {
   ApiRouteError,
   parseJsonBody,
@@ -8,6 +9,7 @@ import {
   withRoute,
 } from "@/lib/api/route";
 import { getDateInTimezone, isValidIanaTimezone } from "@/lib/dates/timezone";
+import { getServerEnv } from "@/lib/env";
 import { validateGoalDefinition } from "@/lib/goals/definition-validation";
 import {
   consumePlannerAiQuota,
@@ -23,6 +25,7 @@ const MAX_REQUEST_BYTES = 32 * 1024;
 const MAX_PROVIDER_RESPONSE_BYTES = 256 * 1024;
 const PROVIDER_TIMEOUT_MS = 12_000;
 const MAX_PROVIDER_ATTEMPTS = 2;
+const BULK_PARSER_RATE_LIMIT_PER_MINUTE = 20;
 const localTimePattern = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 const requestSchema = z.object({
@@ -187,6 +190,28 @@ export async function POST(request: Request) {
       unauthorizedMessage: "Sign in to generate goal drafts.",
     });
 
+    const rate = checkRateLimit({
+      key: `bulk-goals-parse:${userId}`,
+      limit: BULK_PARSER_RATE_LIMIT_PER_MINUTE,
+      windowMs: 60_000,
+    });
+    if (!rate.allowed) {
+      return NextResponse.json(
+        {
+          code: "rate_limited",
+          message: "Too many draft generation requests. Try again shortly.",
+          correlationId,
+        },
+        {
+          status: 429,
+          headers: {
+            "Cache-Control": "no-store",
+            "Retry-After": `${Math.ceil(rate.retryAfterMs / 1000)}`,
+          },
+        }
+      );
+    }
+
     const parsedRequest = await parseJsonBody({
       request,
       maxBytes: MAX_REQUEST_BYTES,
@@ -214,7 +239,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const apiKey = process.env.GEMINI_API_KEY?.trim();
+    const apiKey = getServerEnv().GEMINI_API_KEY;
     if (!apiKey) {
       throw new ApiRouteError(
         503,
