@@ -75,6 +75,10 @@ import { planDraftTimeOverrideUpdate } from "@/features/planner/draft-time-overr
 import { computeDayPreviewPosition } from "@/features/planner/day-preview-popup";
 import { getGoalVisual } from "@/features/planner/goal-visuals";
 import {
+  resolveCompletionControlDisabledReasonForEntry,
+  resolveDateFactDispatchForEntry,
+} from "@/features/planner/calendar-completion-selectors";
+import {
   readPlannerCalendarDayProjection,
   selectPlannerCalendarDayProjectionsByDay,
   selectPlannerCalendarStoreProjection,
@@ -88,10 +92,6 @@ import {
   postJson,
   putJson,
 } from "@/lib/api/client";
-import {
-  type CompletionDispatchDecision,
-  resolveCompletionDispatch,
-} from "@/lib/planner/completion-dispatch";
 import {
   draftCommandEntryKey,
   sortPlannerDraftCommands,
@@ -1462,99 +1462,23 @@ export function CalendarSurface({
   const getDateFactDispatchForEntry = (
     entry: PlannerDayDetailEntry,
     selectedDate: string | null = effectiveSelectedDay
-  ): {
-    currentlyCredited: boolean;
-    desiredFactState: "present" | "absent";
-    decision: CompletionDispatchDecision;
-  } | null => {
-    if (!context || !selectedDate) {
-      return null;
-    }
-
-    const requirementKind =
-      entry.activeItem?.requirement_kind ??
-      (entry.unitKey.startsWith("milestone:")
-        ? "milestone_sequence"
-        : entry.unitKey.startsWith("cadence:")
-          ? "cadence"
-          : "deadline_total");
-    // When a session is not part of an active published plan yet, we still
-    // prefer exact-date completion behavior from the calendar surface.
-    const targetedRecurring =
-      requirementKind === "deadline_total" || !entry.activeGoal;
-    const currentlyCredited =
-      entry.creditState !== "uncredited" || Boolean(entry.activeItem?.credited_completion_id);
-    const desiredFactState = currentlyCredited ? "absent" : "present";
-    const matchingItemState =
-      entry.classification === "satisfied_elsewhere"
-        ? "satisfied_elsewhere"
-        : entry.classification.startsWith("historical")
-          ? "historical"
-          : entry.activeItem
-            ? "actionable"
-            : "none";
-    const selectedDateState =
-      selectedDate < context.asOfDate
-        ? "past"
-        : selectedDate > context.asOfDate
-          ? "future"
-          : "today";
-
-    const decision = resolveCompletionDispatch({
-      requirementKind,
-      targetedRecurring,
-      activePlanMembership: Boolean(entry.activeGoal),
-      matchingItemState,
-      selectedDateState,
-      existingExactFact: currentlyCredited,
-      desiredFactState,
+  ) =>
+    resolveDateFactDispatchForEntry({
+      entry,
+      context,
+      selectedDate,
     });
-
-    return {
-      currentlyCredited,
-      desiredFactState,
-      decision,
-    };
-  };
 
   const completionControlDisabledReasonForEntry = (
     entry: PlannerDayDetailEntry,
     dispatch: ReturnType<typeof getDateFactDispatchForEntry>
-  ): CompletionControlDisabledReason | null => {
-    if (entry.draftGhost) {
-      return "unsupported";
-    }
-    if (!dispatch) {
-      return "unsupported";
-    }
-    if (!dispatch.decision.allowed) {
-      if (dispatch.decision.reason === "future_creation") {
-        return "future_creation";
-      }
-      if (dispatch.decision.reason === "satisfied_elsewhere") {
-        return "satisfied_elsewhere";
-      }
-      return "unsupported";
-    }
-    if (dispatch.decision.route === "canonical_exact_date") {
-      return context?.capabilities.calendarEnabled
-        ? null
-        : "out_of_scope_route";
-    }
-    if (dispatch.decision.route === "item_date") {
-      if (!canMutatePlanItems || !entry.activeItem) {
-        return "out_of_scope_route";
-      }
-      return null;
-    }
-    if (dispatch.decision.route === "plan_goal_date") {
-      if (!canMutatePlanItems || !entry.activeGoal) {
-        return "out_of_scope_route";
-      }
-      return null;
-    }
-    return "out_of_scope_route";
-  };
+  ): CompletionControlDisabledReason | null =>
+    resolveCompletionControlDisabledReasonForEntry({
+      entry,
+      dispatch,
+      canMutatePlanItems,
+      calendarEnabled: Boolean(context?.capabilities.calendarEnabled),
+    });
 
   const toggleItemLock = async (entry: PlannerDayDetailEntry) => {
     if (!context || !entry.activeItem) {
