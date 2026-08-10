@@ -4,7 +4,6 @@ import { addMonths, format, subMonths } from "date-fns";
 import {
   ChevronDown,
   Crown,
-  Plus,
   Search,
   Share2,
   Trash2,
@@ -31,11 +30,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { CategorySelect, GoalTypeToggle, RecurrenceIntervalToggle, TargetCountField } from "@/features/goals/goal-field-kit";
-import { MilestonePills } from "@/features/goals/milestone-pills";
-import { GoalDateRangeFields } from "@/features/goals/goal-schedule-fields";
 import {
-  type CategorySelection,
+  GroupGoalCreatorCard,
+  type GroupGoalDraft,
+  createDefaultGroupGoalDraft,
+} from "@/features/social/group-goal-creator-card";
+import { MilestonePills } from "@/features/goals/milestone-pills";
+import {
   getCategoryLabel,
 } from "@/lib/goals/category";
 import {
@@ -46,7 +47,6 @@ import {
   isOrdinalGoalDefinition,
   validateGoalDefinition,
 } from "@/lib/goals/definition-validation";
-import { toLocalDateString } from "@/lib/dates/day";
 import { buildMilestoneNames } from "@/lib/goals/milestones";
 import { getGoalCompletionPercentage } from "@/lib/goals/progress";
 import { MonthHeatmap } from "@/features/insights/month-heatmap";
@@ -54,11 +54,9 @@ import { NotificationSettings } from "@/features/settings/notification-settings"
 import type {
   Completion,
   Goal,
-  GoalFrequencyType,
   GoalParticipant,
   GoalShare,
   Profile,
-  RecurrenceInterval,
 } from "@/lib/goals/types";
 import { createClient } from "@/lib/supabase/client";
 
@@ -112,31 +110,6 @@ function parsePositiveTargetCount(value: string): number | null {
   }
   return parsed;
 }
-
-interface GroupGoalDraft {
-  title: string;
-  description: string;
-  categorySelection: CategorySelection;
-  customCategory: string;
-  frequencyType: GoalFrequencyType;
-  recurrenceInterval: RecurrenceInterval;
-  targetCount: string;
-  startDate: string;
-  endDate: string;
-}
-
-const defaultGroupDraft: GroupGoalDraft = {
-  title: "",
-  description: "",
-  categorySelection: "personal",
-  customCategory: "",
-  frequencyType: "recurring",
-  recurrenceInterval: "weekly",
-  targetCount: "",
-  startDate: toLocalDateString(),
-  endDate: "",
-};
-
 export function SocialTab() {
   const supabase = useMemo(() => createClient(), []);
   const [state, setState] = useState<SocialState>(initialState);
@@ -154,7 +127,9 @@ export function SocialTab() {
     top: 0,
   });
   const [sharedMonthCursor, setSharedMonthCursor] = useState(new Date());
-  const [groupDraft, setGroupDraft] = useState<GroupGoalDraft>(defaultGroupDraft);
+  const [groupDraft, setGroupDraft] = useState<GroupGoalDraft>(() =>
+    createDefaultGroupGoalDraft()
+  );
   const [profileDraft, setProfileDraft] = useState({
     username: "",
     display_name: "",
@@ -649,10 +624,7 @@ export function SocialTab() {
     });
 
     toast.success("Group goal created.");
-    setGroupDraft({
-      ...defaultGroupDraft,
-      startDate: toLocalDateString(),
-    });
+    setGroupDraft(createDefaultGroupGoalDraft());
     await loadData();
     setSaving(false);
   };
@@ -1104,109 +1076,14 @@ export function SocialTab() {
           <CardDescription>Create collaborative goals and compare progress side-by-side.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="rounded-xl border bg-muted/20 p-3">
-            <p className="mb-3 text-sm font-medium">Create group goal</p>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="group-goal-title">Title</Label>
-                <Input
-                  id="group-goal-title"
-                  placeholder="Title"
-                  value={groupDraft.title}
-                  onChange={(event) =>
-                    setGroupDraft((prev) => ({ ...prev, title: event.target.value }))
-                  }
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Category</Label>
-                <CategorySelect
-                  value={groupDraft.categorySelection}
-                  onValueChange={(value) =>
-                    setGroupDraft((prev) => ({ ...prev, categorySelection: value }))
-                  }
-                  placeholder="Category"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Goal type</Label>
-                <GoalTypeToggle
-                  value={groupDraft.frequencyType}
-                  onValueChange={updateGroupFrequencyType}
-                />
-              </div>
-              {groupDraft.frequencyType === "recurring" ? (
-                <div className="space-y-2">
-                  <Label>Recurrence interval</Label>
-                  <RecurrenceIntervalToggle
-                    value={groupDraft.recurrenceInterval}
-                    onValueChange={(value) =>
-                      setGroupDraft((prev) => ({
-                        ...prev,
-                        recurrenceInterval: value,
-                      }))
-                    }
-                  />
-                </div>
-              ) : null}
-              {groupDraft.frequencyType === "fixed_milestones" ||
-              groupDraft.frequencyType === "recurring" ? (
-                <div className="space-y-2">
-                  <Label htmlFor="group-target-count">
-                    {groupDraft.frequencyType === "fixed_milestones"
-                      ? "Target count"
-                      : "Target completions (optional)"}
-                  </Label>
-                  <TargetCountField
-                    id="group-target-count"
-                    frequencyType={groupDraft.frequencyType}
-                    value={groupDraft.targetCount}
-                    onValueChange={(value) =>
-                      setGroupDraft((prev) => ({ ...prev, targetCount: value }))
-                    }
-                  />
-                </div>
-              ) : null}
-              <GoalDateRangeFields
-                startDate={groupDraft.startDate}
-                endDate={groupDraft.endDate}
-                onStartDateChange={(value) =>
-                  setGroupDraft((previous) => ({ ...previous, startDate: value }))
-                }
-                onEndDateChange={(value) =>
-                  setGroupDraft((previous) => ({ ...previous, endDate: value }))
-                }
-                requiresEndDate={groupRequiresEndDate}
-                startDateId="group-start-date"
-                endDateId="group-end-date"
-              />
-            </div>
-            <Input
-              className="mt-3"
-              placeholder="Description"
-              value={groupDraft.description}
-              onChange={(event) =>
-                setGroupDraft((prev) => ({ ...prev, description: event.target.value }))
-              }
-            />
-            {groupDraft.categorySelection === "custom" ? (
-              <Input
-                className="mt-3"
-                placeholder="Custom category label"
-                value={groupDraft.customCategory}
-                onChange={(event) =>
-                  setGroupDraft((prev) => ({
-                    ...prev,
-                    customCategory: event.target.value,
-                  }))
-                }
-              />
-            ) : null}
-            <Button className="mt-3" type="button" onClick={createGroupGoal} disabled={saving}>
-              <Plus className="size-4" />
-              Create group goal
-            </Button>
-          </div>
+          <GroupGoalCreatorCard
+            draft={groupDraft}
+            saving={saving}
+            requiresEndDate={groupRequiresEndDate}
+            onDraftChange={setGroupDraft}
+            onFrequencyTypeChange={updateGroupFrequencyType}
+            onCreateGoal={createGroupGoal}
+          />
 
           {state.groupGoals.length === 0 ? (
             <p className="text-sm text-muted-foreground">No group goals available yet.</p>
