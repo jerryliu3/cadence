@@ -107,8 +107,6 @@ export function usePlannerDraftLifecycleActions({
         return;
       }
       try {
-        clearDraftScopeSession(context.scopeMonth);
-        dispatchDraftCommand({ type: "clear" });
         onPlannerMutation();
         const refreshed = await withPlannerRefreshTimeout({
           operation: loadContext({
@@ -124,6 +122,12 @@ export function usePlannerDraftLifecycleActions({
           );
           return;
         }
+        // Drop the draft only once the saved schedule has replaced it. Clearing
+        // first leaves `effectivePreview` on the pre-save snapshot for a whole
+        // round trip, which renders every moved session back at its old date
+        // until the reload lands.
+        clearDraftScopeSession(context.scopeMonth);
+        dispatchDraftCommand({ type: "clear" });
         onPlannerStateReset();
         toast.success(payload.replayed ? "Save replayed." : "Plan saved.");
       } catch (error) {
@@ -169,8 +173,6 @@ export function usePlannerDraftLifecycleActions({
         return;
       }
       try {
-        clearDraftScopeSession(context.scopeMonth);
-        dispatchDraftCommand({ type: "clear" });
         onPlannerMutation();
         const refreshed = await withPlannerRefreshTimeout({
           operation: loadContext({
@@ -186,6 +188,10 @@ export function usePlannerDraftLifecycleActions({
           );
           return;
         }
+        // Same ordering rule as save: the local draft is the only thing showing
+        // current intent until the reload lands, so it outlives the request.
+        clearDraftScopeSession(context.scopeMonth);
+        dispatchDraftCommand({ type: "clear" });
         onPlannerStateReset();
         toast.success("Plan reset.");
       } catch (error) {

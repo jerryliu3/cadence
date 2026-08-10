@@ -184,6 +184,84 @@ describe("usePlannerDraftLifecycleActions", () => {
     expect(result.current.saveLoading).toBe(false);
   });
 
+  it("keeps the draft until the saved schedule has loaded", async () => {
+    postJsonMock.mockResolvedValueOnce({ replayed: false } as never);
+    const order: string[] = [];
+    const clearDraftScopeSession = vi.fn(() => {
+      order.push("clearDraftScopeSession");
+    });
+    const dispatchDraftCommand = vi.fn<(action: DraftCommandAction) => void>(() => {
+      order.push("dispatchDraftCommand");
+    });
+    const loadContext = vi.fn(async () => {
+      order.push("loadContext");
+      return true;
+    });
+
+    const { result } = renderHook(() =>
+      usePlannerDraftLifecycleActions({
+        context: buildContext(),
+        effectivePreview: buildPreview(),
+        effectiveDraftPolicy: null,
+        draftSaveCommands: [],
+        clearDraftScopeSession,
+        dispatchDraftCommand,
+        loadContext,
+        onPlannerMutation: vi.fn(),
+        onPlannerStateReset: vi.fn(),
+        onDraftDiscarded: vi.fn(),
+      })
+    );
+
+    await act(async () => {
+      await result.current.savePlan();
+    });
+
+    // Clearing the draft before the reload resolves would leave the surface on
+    // the pre-save preview for a whole round trip, flashing every moved session
+    // back at its original date.
+    expect(order).toEqual([
+      "loadContext",
+      "clearDraftScopeSession",
+      "dispatchDraftCommand",
+    ]);
+  });
+
+  it("retains the draft when the post-save reload fails", async () => {
+    postJsonMock.mockResolvedValueOnce({ replayed: false } as never);
+    const clearDraftScopeSession = vi.fn();
+    const dispatchDraftCommand = vi.fn<(action: DraftCommandAction) => void>();
+    const onPlannerStateReset = vi.fn();
+
+    const { result } = renderHook(() =>
+      usePlannerDraftLifecycleActions({
+        context: buildContext(),
+        effectivePreview: buildPreview(),
+        effectiveDraftPolicy: null,
+        draftSaveCommands: [],
+        clearDraftScopeSession,
+        dispatchDraftCommand,
+        loadContext: vi.fn(async () => false),
+        onPlannerMutation: vi.fn(),
+        onPlannerStateReset,
+        onDraftDiscarded: vi.fn(),
+      })
+    );
+
+    await act(async () => {
+      await result.current.savePlan();
+    });
+
+    // The save succeeded but the calendar is stale, so the draft is the only
+    // thing still describing the intended schedule. Keep it for the retry.
+    expect(clearDraftScopeSession).not.toHaveBeenCalled();
+    expect(dispatchDraftCommand).not.toHaveBeenCalled();
+    expect(onPlannerStateReset).not.toHaveBeenCalled();
+    expect(toastMock.error).toHaveBeenCalledWith(
+      "Plan saved, but calendar refresh failed. Please refresh the page."
+    );
+  });
+
   it("resets planner month and clears draft session", async () => {
     postJsonMock.mockResolvedValueOnce({} as never);
     const clearDraftScopeSession = vi.fn();
