@@ -61,7 +61,11 @@ async function dispatchNotifications(request: Request, correlationId: string) {
   }
 
   if (request.headers.get("authorization") !== `Bearer ${cronSecret}`) {
-    throw new ApiRouteError(401, "authentication_required", "Unauthorized.");
+    throw new ApiRouteError(
+      401,
+      "cron_auth_invalid",
+      "Unauthorized cron request."
+    );
   }
 
   try {

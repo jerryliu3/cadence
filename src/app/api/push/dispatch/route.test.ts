@@ -62,14 +62,14 @@ describe("push dispatch route", () => {
     });
   });
 
-  it("returns authentication_required for missing auth headers", async () => {
+  it("returns cron_auth_invalid for missing auth headers", async () => {
     const response = await GET(
       new Request("http://localhost/api/push/dispatch", { method: "GET" })
     );
 
     expect(response.status).toBe(401);
     await expect(response.json()).resolves.toMatchObject({
-      code: "authentication_required",
+      code: "cron_auth_invalid",
       correlationId: expect.any(String),
     });
   });
