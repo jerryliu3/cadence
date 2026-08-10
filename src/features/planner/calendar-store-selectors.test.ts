@@ -278,10 +278,7 @@ describe("calendar store selectors", () => {
         [entryA.key, day],
         [entryB.key, day],
       ]),
-      canonicalEntryDayByKey: new Map([
-        [entryA.key, day],
-        [entryB.key, day],
-      ]),
+      scopeOwnedEntryKeys: new Set([entryA.key, entryB.key]),
       previewUnitByEntryKey: new Map([
         [
           entryA.key,
