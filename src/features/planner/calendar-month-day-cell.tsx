@@ -7,26 +7,12 @@ import {
   PlannerDroppableDay,
 } from "@/features/planner/calendar-dnd";
 import {
-  getEntryDraftDiffSummary,
-  getEntryDraftPillClasses,
-} from "@/features/planner/calendar-format";
-import { getGoalVisual } from "@/features/planner/goal-visuals";
+  buildPlannerEntryRowState,
+  PlannerEntryRow,
+  type PlannerEntryRowBaseEntry,
+} from "@/features/planner/planner-entry-row";
 
-export interface CalendarMonthCellEntryBase {
-  key: string;
-  originalGoalId: string;
-  goalTitle: string | null;
-  unitKey: string;
-  label: string | null;
-  classification: string;
-  creditState: string;
-  activeGoal: { color: string | null } | null;
-  activeItem: { credited_completion_id: string | null } | null;
-  draftDiffKind: "moved_from" | "moved_to" | "new" | null;
-  draftDiffFromDate: string | null;
-  draftDiffToDate: string | null;
-  draftGhost: boolean;
-}
+export type CalendarMonthCellEntryBase = PlannerEntryRowBaseEntry;
 
 export interface CalendarCompletionFactMarkerBase {
   key: string;
@@ -115,19 +101,13 @@ export function CalendarMonthDayCell<
     visibleCompletionFactMarkers.length;
 
   const renderEntry = (entry: TEntry): ReactNode => {
-    const visual = getGoalVisual({
-      goalId: entry.originalGoalId,
-      color: entry.activeGoal?.color ?? null,
-    });
-    const Icon = visual.Icon;
-    const compactTitle = getEntryDisplayTitle(entry);
     const credited = isEntryCredited(entry);
-    const immovable = isEntryImmovableForDraft(entry);
-    const draftDiffSummary = getEntryDraftDiffSummary(entry);
-    const pillToneClasses = getEntryDraftPillClasses({
-      draftDiffKind: entry.draftDiffKind,
-      credited,
+    const rowState = buildPlannerEntryRowState(entry, {
+      creditedOverride: credited,
     });
+    const compactTitle = getEntryDisplayTitle(entry);
+    const immovable = isEntryImmovableForDraft(entry);
+    const draftDiffSummary = rowState.draftDiffSummary;
     return (
       <PlannerDraggableEntry
         key={`cell-entry-${entry.key}`}
@@ -154,7 +134,7 @@ export function CalendarMonthDayCell<
             onPointerCancelCapture={() => {
               onEntryPointerEnd();
             }}
-            className={`flex items-center gap-1 rounded-lg border px-1 py-0.5 text-[10px] ${pillToneClasses} ${
+            className={`flex items-center gap-1 rounded-lg border px-1 py-0.5 text-[10px] ${rowState.pillToneClasses} ${
               entry.draftGhost ? "opacity-70 line-through" : ""
             } ${
               immovable
@@ -175,14 +155,12 @@ export function CalendarMonthDayCell<
             {...attributes}
             {...listeners}
           >
-            <span
-              className="inline-flex size-3 items-center justify-center rounded-full"
-              style={{ backgroundColor: visual.color }}
-            >
-              <Icon className="size-2 text-white" />
-            </span>
-            <span className="truncate">{compactTitle}</span>
-            {credited ? <CheckCircle2 className="size-2.5 shrink-0" /> : null}
+            <PlannerEntryRow
+              entry={entry}
+              rowState={rowState}
+              displayTitle={compactTitle}
+              variant="compact"
+            />
           </div>
         )}
       </PlannerDraggableEntry>
