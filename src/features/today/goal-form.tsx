@@ -38,6 +38,7 @@ import {
   RecurrenceIntervalToggle,
   TargetCountField,
 } from "@/features/goals/goal-field-kit";
+import { MilestoneNameFields } from "@/features/goals/milestone-name-fields";
 import { toLocalDateString } from "@/lib/dates/day";
 import {
   type CategorySelection,
@@ -55,7 +56,6 @@ import {
 } from "@/lib/goals/linked-goal-labels";
 import {
   buildMilestoneNameDrafts,
-  defaultMilestoneName,
   normalizeMilestoneNamesForSave,
 } from "@/lib/goals/milestones";
 import type { Goal, GoalFrequencyType, GoalLink, RecurrenceInterval } from "@/lib/goals/types";
@@ -665,28 +665,22 @@ export function GoalForm({ goalId }: GoalFormProps) {
                 </CollapsibleTrigger>
                 <CollapsibleContent>
                   <div className="space-y-3 border-t px-3 py-3">
-                    <div className="grid gap-2 sm:grid-cols-2">
-                      {Array.from({ length: fixedMilestoneCount }).map((_, index) => (
-                        <Input
-                          key={`milestone-name-${index + 1}`}
-                          value={state.milestone_names[index] ?? ""}
-                          onChange={(event) =>
-                            setState((previous) => {
-                              const nextMilestoneNames = [...previous.milestone_names];
-                              nextMilestoneNames[index] = event.target.value;
-                              return {
-                                ...previous,
-                                milestone_names: nextMilestoneNames,
-                              };
-                            })
-                          }
-                          placeholder={defaultMilestoneName(index)}
-                        />
-                      ))}
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      Leave any field blank to use the default name.
-                    </p>
+                    <MilestoneNameFields
+                      count={fixedMilestoneCount}
+                      values={state.milestone_names}
+                      onValueChange={(index, value) =>
+                        setState((previous) => {
+                          const nextMilestoneNames = [...previous.milestone_names];
+                          nextMilestoneNames[index] = value;
+                          return {
+                            ...previous,
+                            milestone_names: nextMilestoneNames,
+                          };
+                        })
+                      }
+                      showLabel={false}
+                      keyPrefix="milestone-name"
+                    />
                   </div>
                 </CollapsibleContent>
               </div>
