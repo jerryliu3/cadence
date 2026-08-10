@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import solverFixtureJson from "../../../../test/fixtures/planner-contracts/solver.v1.json";
 import { solverFixtureSchema } from "@/lib/planner/contracts/fixture-schema";
+import type { SolverUnit } from "@/lib/planner/solver/types";
 import { solveOrderedDpV1 } from "./ordered-dp-v1";
 
 describe("ordered-dp-v1 solver", () => {
@@ -152,5 +153,74 @@ describe("ordered-dp-v1 solver", () => {
     });
 
     expect(result.assignments[0].scheduledDate).toBe("2026-08-01");
+  });
+
+  it("replan intent prioritizes policy cost before movement", () => {
+    const units: SolverUnit[] = [
+      {
+        unitKey: "total:1",
+        goalId: "goal-a",
+        kind: "deadline_total" as const,
+        ordinal: 1,
+        candidateDates: ["2026-08-01", "2026-08-02"],
+        previousDate: "2026-08-01",
+        lockedDate: null,
+        dateCosts: {
+          "2026-08-01": 10,
+          "2026-08-02": 0,
+          "2026-08-03": 0,
+        },
+      },
+      {
+        unitKey: "total:2",
+        goalId: "goal-a",
+        kind: "deadline_total" as const,
+        ordinal: 2,
+        candidateDates: ["2026-08-02", "2026-08-03"],
+        previousDate: "2026-08-02",
+        lockedDate: null,
+        dateCosts: {
+          "2026-08-01": 0,
+          "2026-08-02": 0,
+          "2026-08-03": 0,
+        },
+      },
+    ];
+
+    const stable = solveOrderedDpV1({
+      dates: ["2026-08-01", "2026-08-02", "2026-08-03"],
+      units,
+      solveIntent: "stable",
+    });
+    const replan = solveOrderedDpV1({
+      dates: ["2026-08-01", "2026-08-02", "2026-08-03"],
+      units,
+      solveIntent: "replan",
+    });
+
+    expect(stable.assignments).toEqual([
+      {
+        goalId: "goal-a",
+        unitKey: "total:1",
+        scheduledDate: "2026-08-01",
+      },
+      {
+        goalId: "goal-a",
+        unitKey: "total:2",
+        scheduledDate: "2026-08-02",
+      },
+    ]);
+    expect(replan.assignments).toEqual([
+      {
+        goalId: "goal-a",
+        unitKey: "total:1",
+        scheduledDate: "2026-08-02",
+      },
+      {
+        goalId: "goal-a",
+        unitKey: "total:2",
+        scheduledDate: "2026-08-03",
+      },
+    ]);
   });
 });

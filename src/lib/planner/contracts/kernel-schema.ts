@@ -34,6 +34,7 @@ const requirementKindSchema = z.enum([
   "deadline_total",
 ]);
 const eligibilityModeSchema = z.enum(PLANNER_ELIGIBILITY_MODES);
+const solveIntentSchema = z.enum(["stable", "replan"]);
 
 export const plannerGoalSchema = z
   .object({
@@ -89,6 +90,7 @@ export const plannerKernelInputSchema = z
   .object({
     schemaVersion: z.literal(PLANNER_CONTRACT_VERSION),
     eligibilityMode: eligibilityModeSchema,
+    solveIntent: solveIntentSchema.optional(),
     preserveExistingAssignments: z.boolean().optional(),
     draftPinnedDates: z.record(z.string(), dateSchema).optional(),
     ownerId: z.string().min(1).max(100),
