@@ -25,6 +25,10 @@ export type Database = {
       }
       planner_json_depth: { Args: { p_value: Json }; Returns: number }
       planner_owner_lock_key: { Args: { p_owner: string }; Returns: number }
+      planner_scope_is_replay: {
+        Args: { p_items: Json; p_month: string; p_owner_id: string }
+        Returns: boolean
+      }
       sha256_hex_digest: { Args: { p_value: string }; Returns: string }
       validate_planner_json: {
         Args: {
