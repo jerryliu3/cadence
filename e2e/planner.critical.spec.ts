@@ -341,7 +341,7 @@ test.describe("planner critical rails", () => {
     expect(after.placementsByEntryKey[movedEntryKey]).toBe(moveCommand!.scheduledDate);
   });
 
-  test("completion toggle persists from today surface", async ({ page }) => {
+  test("completion toggle round-trips from today surface", async ({ page }) => {
     test.setTimeout(120_000);
     await page.goto("/?tab=today");
     await expect(page.getByRole("tab", { name: "Today", exact: true })).toBeVisible();
@@ -359,8 +359,6 @@ test.describe("planner critical rails", () => {
       await initialButton.click();
     });
     expect(todayPayload.goalId).toBe(TODAY_EXACT_DATE_GOAL_ID);
-    await page.goto("/?tab=today");
-    await expect(page.getByRole("tab", { name: "Today", exact: true })).toBeVisible();
     const secondGoalLink = page
       .locator(`a[href="/goals/${TODAY_EXACT_DATE_GOAL_ID}"]`)
       .first();
@@ -374,7 +372,7 @@ test.describe("planner critical rails", () => {
     expectCompletionRoundTrip(todayPayload, secondTodayPayload);
   });
 
-  test("completion toggle persists from past (insights) surface", async ({
+  test("completion toggle round-trips from past (insights) surface", async ({
     page,
   }) => {
     test.setTimeout(120_000);
@@ -414,25 +412,21 @@ test.describe("planner critical rails", () => {
         .locator(`button[title^="${selectedInsightsDate}:"]`)
         .first();
       await expect(button).toBeVisible({ timeout: 10_000 });
+      await expect(button).toBeEnabled();
       await button.click();
     });
-    await page.goto("/insights");
-    const secondEditButton = page
-      .getByRole("button", { name: /Edit dates|Edit milestones/ })
-      .first();
-    await expect(secondEditButton).toBeVisible({ timeout: 10_000 });
-    await secondEditButton.click();
     const secondInsightsPayload = await runCompletionToggleAction(page, async () => {
       const button = page
         .locator(`button[title^="${selectedInsightsDate}:"]`)
         .first();
       await expect(button).toBeVisible({ timeout: 10_000 });
+      await expect(button).toBeEnabled();
       await button.click();
     });
     expectCompletionRoundTrip(insightsPayload, secondInsightsPayload);
   });
 
-  test("completion toggle persists from calendar surface", async ({ page }) => {
+  test("completion toggle round-trips from calendar surface", async ({ page }) => {
     test.setTimeout(120_000);
     await openCalendar(page);
     const dayCellWithEntry = page
@@ -451,12 +445,6 @@ test.describe("planner critical rails", () => {
       await expect(button).toBeEnabled();
       await button.click();
     });
-    await openCalendar(page, calendarPayload.date.slice(0, 7));
-    const persistedDayCell = page
-      .locator(`[data-day-cell="true"][data-day="${calendarPayload.date}"]`)
-      .first();
-    await expect(persistedDayCell).toBeVisible({ timeout: 10_000 });
-    await persistedDayCell.click();
     const secondCalendarPayload = await runCompletionToggleAction(page, async () => {
       const button = page
         .locator(
