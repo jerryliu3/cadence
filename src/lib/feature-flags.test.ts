@@ -8,20 +8,17 @@ describe("feature flags", () => {
     resetEnvCacheForTests();
   });
 
-  it("exposes conservative defaults for uncertain launches", () => {
+  it("defaults cross-month moves off", () => {
     expect(getFeatureFlags()).toEqual({
-      calendarEnabled: true,
       crossMonthMovesEnabled: false,
     });
     expect(isFeatureEnabled("crossMonthMovesEnabled")).toBe(false);
   });
 
-  it("reads kill switches from env", () => {
-    vi.stubEnv("CALENDAR_ENABLED", "false");
+  it("reads the cross-month moves kill switch from env", () => {
     vi.stubEnv("FEATURE_CROSS_MONTH_MOVES", "true");
     resetEnvCacheForTests();
     expect(getFeatureFlags()).toEqual({
-      calendarEnabled: false,
       crossMonthMovesEnabled: true,
     });
   });

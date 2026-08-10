@@ -60,9 +60,9 @@ Do not down-migrate planner history tables.
 
 If planner incidents occur:
 
-1. Set `CALENDAR_ENABLED=false` to disable planner reads/writes and Calendar UI.
-2. Redeploy the last known bridge-compatible app build.
-3. Keep execution history tables intact for forensic analysis.
+1. Redeploy the last known good app build (calendar/planner has no env kill switch).
+2. Keep execution history tables intact for forensic analysis.
+3. Use Sentry/`correlationId` to triage route failures while the rollback ships.
 
 ## 5) Dashboard/query checklist
 
@@ -97,7 +97,7 @@ Start with these minimum alerts:
 
 ## 7) Controlled enablement order
 
-1. Enable manual planner cohort first (`CALENDAR_ENABLED=true` for internal users).
+1. Ship planner changes behind a dedicated feature flag when uncertain (for example `FEATURE_CROSS_MONTH_MOVES`); calendar itself is permanently on.
 2. Observe telemetry and query panels through soak window.
-3. Expand broader cohorts only after manual planner stability is established.
-4. Treat overlap as default-on baseline; use `PLANNER_OVERLAP_ENABLED=false` only as a rollback kill switch. Note that cross-month draft persistence remains intentionally guarded by month-scope lineage checks until the dedicated persistence expansion lands.
+3. Expand broader cohorts only after stability is established.
+4. Treat overlap as default-on baseline. Note that cross-month draft persistence remains intentionally guarded by month-scope lineage checks until the dedicated persistence expansion lands.

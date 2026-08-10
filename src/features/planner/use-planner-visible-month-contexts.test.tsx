@@ -32,7 +32,6 @@ describe("usePlannerVisibleMonthContexts", () => {
           goalTitles: { "goal-july": "July Goal" },
           preferences: null,
           capabilities: {
-            calendarEnabled: true,
             crossMonthMovesEnabled: false,
           },
           activePlan: null,
@@ -56,7 +55,6 @@ describe("usePlannerVisibleMonthContexts", () => {
           goalTitles: { "goal-sept": "September Goal" },
           preferences: null,
           capabilities: {
-            calendarEnabled: true,
             crossMonthMovesEnabled: false,
           },
           activePlan: null,
@@ -104,7 +102,6 @@ describe("usePlannerVisibleMonthContexts", () => {
           goalTitles: { "goal-july": "July Goal" },
           preferences: null,
           capabilities: {
-            calendarEnabled: true,
             crossMonthMovesEnabled: false,
           },
           activePlan: null,

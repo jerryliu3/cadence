@@ -117,7 +117,6 @@ function buildContext(
       defaultPolicy: buildPolicy(),
     },
     capabilities: {
-      calendarEnabled: true,
       crossMonthMovesEnabled: false,
     },
     activePlan: null,

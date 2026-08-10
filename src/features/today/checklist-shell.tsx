@@ -42,11 +42,7 @@ function getSurfaceKey(tab: PlannerShellTab): SurfaceKey {
   return tab === "calendar" ? "calendar" : "checklist";
 }
 
-interface ChecklistShellProps {
-  calendarEnabled: boolean;
-}
-
-export function ChecklistShell({ calendarEnabled }: ChecklistShellProps) {
+export function ChecklistShell() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const scrollBySurfaceRef = useRef<Record<SurfaceKey, number>>({
@@ -98,11 +94,6 @@ export function ChecklistShell({ calendarEnabled }: ChecklistShellProps) {
       nextParams.set("tab", "today");
       changed = true;
     }
-    if (!calendarEnabled && tab === "calendar") {
-      tab = "today";
-      nextParams.set("tab", "today");
-      changed = true;
-    }
 
     if (rawDay && !dayValid) {
       nextParams.delete("day");
@@ -117,7 +108,7 @@ export function ChecklistShell({ calendarEnabled }: ChecklistShellProps) {
       changed = true;
     }
 
-    if (dayValid && calendarEnabled) {
+    if (dayValid) {
       if (!hasExplicitTab || tab === "calendar") {
         const dayMonth = rawDay!.slice(0, 7);
         if (nextParams.get("month") !== dayMonth) {
@@ -135,26 +126,9 @@ export function ChecklistShell({ calendarEnabled }: ChecklistShellProps) {
           changed = true;
         }
       }
-    } else if (nextParams.has("day")) {
-      nextParams.delete("day");
-      changed = true;
-    }
-    if (!calendarEnabled) {
-      if (nextParams.has("month")) {
-        nextParams.delete("month");
-        changed = true;
-      }
-      if (nextParams.has("day")) {
-        nextParams.delete("day");
-        changed = true;
-      }
-      if (nextParams.has("view")) {
-        nextParams.delete("view");
-        changed = true;
-      }
     }
 
-    if (tab === "calendar" && calendarEnabled) {
+    if (tab === "calendar") {
       if (nextParams.get("view") !== viewMode) {
         nextParams.set("view", viewMode);
         changed = true;
@@ -208,7 +182,6 @@ export function ChecklistShell({ calendarEnabled }: ChecklistShellProps) {
       nextParams,
     };
   }, [
-    calendarEnabled,
     defaultCalendarViewMode,
     rawDay,
     rawMonth,
@@ -310,21 +283,17 @@ export function ChecklistShell({ calendarEnabled }: ChecklistShellProps) {
 
   const updateTab = useCallback(
     (tab: PlannerShellTab, mode: "push" | "replace") => {
-      const effectiveTab: PlannerShellTab =
-        tab === "calendar" && !calendarEnabled ? "today" : tab;
-      if (effectiveTab === "calendar" && calendarEnabled) {
+      if (tab === "calendar") {
         setCalendarMounted(true);
       } else {
         setChecklistMounted(true);
-        setChecklistTab(
-          effectiveTab === "not-today" ? "not-today" : "today"
-        );
+        setChecklistTab(tab === "not-today" ? "not-today" : "today");
       }
       captureScroll(getSurfaceKey(normalized.tab));
       applySearchParams(
         (params) => {
-          params.set("tab", effectiveTab);
-          if (effectiveTab === "calendar") {
+          params.set("tab", tab);
+          if (tab === "calendar") {
             params.set("view", normalized.viewMode);
             if (normalized.viewMode === "month") {
               params.delete("day");
@@ -346,7 +315,6 @@ export function ChecklistShell({ calendarEnabled }: ChecklistShellProps) {
     },
     [
       applySearchParams,
-      calendarEnabled,
       captureScroll,
       normalized.day,
       normalized.month,
@@ -437,16 +405,10 @@ export function ChecklistShell({ calendarEnabled }: ChecklistShellProps) {
         onValueChange={(value) => updateTab((value as PlannerShellTab) ?? "today", "push")}
       >
         <Card className="gap-0 p-1.5 shadow-sm">
-          <TabsList
-            className={`grid h-8 w-full ${
-              calendarEnabled ? "grid-cols-3" : "grid-cols-2"
-            }`}
-          >
+          <TabsList className="grid h-8 w-full grid-cols-3">
             <TabsTrigger value="today">Today</TabsTrigger>
             <TabsTrigger value="not-today">Past</TabsTrigger>
-            {calendarEnabled ? (
-              <TabsTrigger value="calendar">Calendar</TabsTrigger>
-            ) : null}
+            <TabsTrigger value="calendar">Calendar</TabsTrigger>
           </TabsList>
         </Card>
       </Tabs>
@@ -470,26 +432,24 @@ export function ChecklistShell({ calendarEnabled }: ChecklistShellProps) {
         ) : null}
       </div>
 
-      {calendarEnabled ? (
-        <div
-          ref={calendarContainerRef}
-          hidden={normalized.tab !== "calendar"}
-          aria-hidden={normalized.tab !== "calendar"}
-        >
-          {calendarMounted ? (
-            <CalendarSurface
-              activeTab={normalized.tab}
-              month={normalized.month}
-              selectedDay={normalized.day}
-              viewMode={normalized.viewMode}
-              onMonthChange={updateMonth}
-              onViewModeChange={updateViewMode}
-              onSelectedDayChange={updateSelectedDay}
-              onPlannerMutation={onChecklistMutation}
-            />
-          ) : null}
-        </div>
-      ) : null}
+      <div
+        ref={calendarContainerRef}
+        hidden={normalized.tab !== "calendar"}
+        aria-hidden={normalized.tab !== "calendar"}
+      >
+        {calendarMounted ? (
+          <CalendarSurface
+            activeTab={normalized.tab}
+            month={normalized.month}
+            selectedDay={normalized.day}
+            viewMode={normalized.viewMode}
+            onMonthChange={updateMonth}
+            onViewModeChange={updateViewMode}
+            onSelectedDayChange={updateSelectedDay}
+            onPlannerMutation={onChecklistMutation}
+          />
+        ) : null}
+      </div>
     </div>
   );
 }

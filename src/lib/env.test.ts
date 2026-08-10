@@ -36,7 +36,6 @@ describe("env schema", () => {
   it("defaults feature flags conservatively", () => {
     resetEnvCacheForTests();
     const env = getServerEnv();
-    expect(env.CALENDAR_ENABLED).toBe(true);
     expect(env.FEATURE_CROSS_MONTH_MOVES).toBe(false);
   });
 

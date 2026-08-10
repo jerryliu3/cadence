@@ -251,9 +251,6 @@ export async function GET(request: Request) {
     const supabase = await createClient();
     const routeContext = await requirePlannerRouteContext({
       supabase,
-      disabledStatus: 404,
-      disabledCode: "planner_read_disabled",
-      disabledMessage: "Planner read APIs are not enabled for this owner.",
     });
 
     const url = new URL(request.url);
@@ -293,7 +290,7 @@ export async function GET(request: Request) {
         assessments:
           activeAssessments.length > 0 ? activeAssessments : undefined,
         requireExplicitTimezone: false,
-        includeKernel: routeContext.capabilities.calendarEnabled,
+        includeKernel: true,
         preserveExistingAssignments: true,
       });
     } catch (error) {
@@ -416,9 +413,6 @@ export async function POST(request: Request) {
     const supabase = await createClient();
     const routeContext = await requirePlannerRouteContext({
       supabase,
-      disabledCode: "planner_generation_disabled",
-      disabledMessage:
-        "Planner generation APIs are not enabled for this owner.",
     });
 
     const body = await parseBoundedJsonBody(
@@ -495,9 +489,6 @@ export async function PUT(request: Request) {
     const supabase = await createClient();
     const routeContext = await requirePlannerRouteContext({
       supabase,
-      disabledCode: "planner_generation_disabled",
-      disabledMessage:
-        "Planner generation APIs are not enabled for this owner.",
     });
 
     const body = await parseBoundedJsonBody(
