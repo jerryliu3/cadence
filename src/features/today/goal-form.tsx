@@ -5,7 +5,6 @@ import {
   Archive,
   ChevronDown,
   ChevronUp,
-  Link2,
   LoaderCircle,
   Save,
   Trash2,
@@ -17,20 +16,12 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { type FormEvent, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { LoadingCard } from "@/components/ui/loading-card";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import {
   CategorySelect,
@@ -38,6 +29,7 @@ import {
   RecurrenceIntervalToggle,
   TargetCountField,
 } from "@/features/goals/goal-field-kit";
+import { GoalLinkTargetSelect } from "@/features/goals/goal-link-target-select";
 import { MilestoneNameFields } from "@/features/goals/milestone-name-fields";
 import {
   GoalDateRangeFields,
@@ -880,56 +872,20 @@ export function GoalForm({ goalId }: GoalFormProps) {
                   </div>
 
                   {!state.is_group ? (
-                    <div className="space-y-2">
-                      <Label className="inline-flex items-center gap-2">
-                        <Link2 className="size-4 text-muted-foreground" />
-                        Link this goal to another goal (optional)
-                      </Label>
-                      <Select
-                        value={selectedLinkTarget}
-                        onValueChange={setSelectedLinkTarget}
-                        open={linkTargetOpen}
-                        onOpenChange={(open) => {
-                          setLinkTargetOpen(open);
-                          if (!open) {
-                            setLinkTargetSearch("");
-                          }
-                        }}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="No linked target" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <div className="sticky top-0 z-10 border-b bg-popover p-1.5">
-                            <Input
-                              value={linkTargetSearch}
-                              onChange={(event) => setLinkTargetSearch(event.target.value)}
-                              placeholder="Search link targets..."
-                              className="h-8"
-                              onKeyDown={(event) => event.stopPropagation()}
-                            />
-                          </div>
-                          <SelectItem value="none">No linked target</SelectItem>
-                          {filteredLinkTargets.map((goal) => (
-                            <SelectItem key={goal.id} value={goal.id}>
-                              <span className="flex items-center gap-2">
-                                <span className="max-w-[170px] truncate">{goal.title}</span>
-                                <Badge variant="secondary">{getLinkedGoalRecurrenceLabel(goal)}</Badge>
-                                <Badge variant="outline">{getLinkedGoalDeadlineLabel(goal)}</Badge>
-                              </span>
-                            </SelectItem>
-                          ))}
-                          {filteredLinkTargets.length === 0 ? (
-                            <p className="px-2 py-1.5 text-xs text-muted-foreground">
-                              No goals match your search.
-                            </p>
-                          ) : null}
-                        </SelectContent>
-                      </Select>
-                      <p className="text-xs text-muted-foreground">
-                        Marking this goal complete will auto-complete linked goals for the same day.
-                      </p>
-                    </div>
+                    <GoalLinkTargetSelect
+                      value={selectedLinkTarget}
+                      onValueChange={setSelectedLinkTarget}
+                      open={linkTargetOpen}
+                      onOpenChange={(open) => {
+                        setLinkTargetOpen(open);
+                        if (!open) {
+                          setLinkTargetSearch("");
+                        }
+                      }}
+                      searchQuery={linkTargetSearch}
+                      onSearchQueryChange={setLinkTargetSearch}
+                      filteredLinkTargets={filteredLinkTargets}
+                    />
                   ) : null}
                 </div>
               </CollapsibleContent>

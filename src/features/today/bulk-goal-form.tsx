@@ -38,6 +38,7 @@ import {
   RecurrenceIntervalToggle,
   TargetCountField,
 } from "@/features/goals/goal-field-kit";
+import { GoalLinkTargetSelect } from "@/features/goals/goal-link-target-select";
 import { MilestoneNameFields } from "@/features/goals/milestone-name-fields";
 import {
   GoalDateRangeFields,
@@ -1255,72 +1256,32 @@ export function BulkGoalForm() {
                             </div>
 
                             {!draft.is_group ? (
-                              <div className="space-y-2">
-                                <Label className="inline-flex items-center gap-2">
-                                  <Link2 className="size-4 text-muted-foreground" />
-                                  Link this goal to another goal (optional)
-                                </Label>
-                                <Select
-                                  value={draft.linked_target_goal_id}
-                                  onValueChange={(value) =>
-                                    updateDraft(draft.id, (previous) => ({
-                                      ...previous,
-                                      linked_target_goal_id: value,
-                                    }))
-                                  }
-                                  open={draft.link_target_open}
-                                  onOpenChange={(open) =>
-                                    updateDraft(draft.id, (previous) => ({
-                                      ...previous,
-                                      link_target_open: open,
-                                      link_target_search: open ? previous.link_target_search : "",
-                                    }))
-                                  }
-                                >
-                                  <SelectTrigger>
-                                    <SelectValue placeholder="No linked target" />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <div className="sticky top-0 z-10 border-b bg-popover p-1.5">
-                                      <Input
-                                        value={draft.link_target_search}
-                                        onChange={(event) =>
-                                          updateDraft(draft.id, (previous) => ({
-                                            ...previous,
-                                            link_target_search: event.target.value,
-                                          }))
-                                        }
-                                        placeholder="Search link targets..."
-                                        className="h-8"
-                                        onKeyDown={(event) => event.stopPropagation()}
-                                      />
-                                    </div>
-                                    <SelectItem value="none">No linked target</SelectItem>
-                                    {filteredLinkTargets.map((goal) => (
-                                      <SelectItem key={`${draft.id}-${goal.id}`} value={goal.id}>
-                                        <span className="flex items-center gap-2">
-                                          <span className="max-w-[170px] truncate">{goal.title}</span>
-                                          <Badge variant="secondary">
-                                            {getLinkedGoalRecurrenceLabel(goal)}
-                                          </Badge>
-                                          <Badge variant="outline">
-                                            {getLinkedGoalDeadlineLabel(goal)}
-                                          </Badge>
-                                        </span>
-                                      </SelectItem>
-                                    ))}
-                                    {filteredLinkTargets.length === 0 ? (
-                                      <p className="px-2 py-1.5 text-xs text-muted-foreground">
-                                        No goals match your search.
-                                      </p>
-                                    ) : null}
-                                  </SelectContent>
-                                </Select>
-                                <p className="text-xs text-muted-foreground">
-                                  Marking this goal complete will auto-complete linked goals for the
-                                  same day.
-                                </p>
-                              </div>
+                              <GoalLinkTargetSelect
+                                value={draft.linked_target_goal_id}
+                                onValueChange={(value) =>
+                                  updateDraft(draft.id, (previous) => ({
+                                    ...previous,
+                                    linked_target_goal_id: value,
+                                  }))
+                                }
+                                open={draft.link_target_open}
+                                onOpenChange={(open) =>
+                                  updateDraft(draft.id, (previous) => ({
+                                    ...previous,
+                                    link_target_open: open,
+                                    link_target_search: open ? previous.link_target_search : "",
+                                  }))
+                                }
+                                searchQuery={draft.link_target_search}
+                                onSearchQueryChange={(value) =>
+                                  updateDraft(draft.id, (previous) => ({
+                                    ...previous,
+                                    link_target_search: value,
+                                  }))
+                                }
+                                filteredLinkTargets={filteredLinkTargets}
+                                keyPrefix={draft.id}
+                              />
                             ) : null}
                           </div>
                         </CollapsibleContent>
