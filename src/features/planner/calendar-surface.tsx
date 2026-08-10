@@ -72,8 +72,8 @@ import {
   selectDraftCommandsForScope,
 } from "@/features/planner/draft-command-reducer";
 import { planDraftTimeOverrideUpdate } from "@/features/planner/draft-time-override";
-import { computeDayPreviewPosition } from "@/features/planner/day-preview-popup";
 import { getGoalVisual } from "@/features/planner/goal-visuals";
+import { useCalendarDayPreview } from "@/features/planner/use-calendar-day-preview";
 import {
   resolveCompletionControlDisabledReasonForEntry,
   resolveDateFactDispatchForEntry,
@@ -106,7 +106,6 @@ import { withPlannerRefreshTimeout } from "@/lib/planner/refresh-timeout";
 import type {
   CalendarSurfaceProps,
   CompletionControlDisabledReason,
-  DayPreviewState,
   PlannerContextPayload,
   PlannerDayDetailEntry,
   PlannerErrorPayload,
@@ -177,7 +176,6 @@ export function CalendarSurface({
   const [selectedEventEntryKey, setSelectedEventEntryKey] = useState<string | null>(
     null
   );
-  const [dayPreview, setDayPreview] = useState<DayPreviewState | null>(null);
   const [draggingEntryKey, setDraggingEntryKey] = useState<string | null>(null);
   const [localSelectedDay, setLocalSelectedDay] = useState<string | null>(null);
   const [expandedMonthRows, setExpandedMonthRows] = useState(false);
@@ -191,13 +189,26 @@ export function CalendarSurface({
   );
   const [setupWeekStartsOn, setSetupWeekStartsOn] = useState(1);
   const [setupRestWeekdays, setSetupRestWeekdays] = useState<number[]>([]);
-  const hoverPreviewTimerRef = useRef<number | null>(null);
-  const hoverPreviewCloseTimerRef = useRef<number | null>(null);
-  const longPressTimerRef = useRef<number | null>(null);
-  const longPressTriggeredRef = useRef(false);
-  const pointerPressActiveRef = useRef(false);
-  const pointerInsideDayPreviewRef = useRef(false);
-  const dayPreviewRef = useRef<HTMLDivElement | null>(null);
+  const {
+    dayPreview,
+    dayPreviewRef,
+    clearDayPreview,
+    pinDayPreview,
+    clearHoverPreviewTimer,
+    clearHoverPreviewCloseTimer,
+    clearLongPressTimer,
+    scheduleHoverPreview,
+    scheduleHoverPreviewClose,
+    handleDayCellClick,
+    startLongPressPreview,
+    setPointerPressActive,
+    handleDayPreviewMouseEnter,
+    handleDayPreviewMouseLeave,
+  } = useCalendarDayPreview({
+    hoverDelayMs: DAY_PREVIEW_HOVER_DELAY_MS,
+    closeDelayMs: DAY_PREVIEW_CLOSE_DELAY_MS,
+    longPressDelayMs: DAY_PREVIEW_LONG_PRESS_DELAY_MS,
+  });
 
   const timezoneOptions = useMemo(() => {
     const intlWithSupportedValues = Intl as typeof Intl & {
@@ -625,60 +636,6 @@ export function CalendarSurface({
     [dayPreview?.day, getCompletionFactMarkersForDay]
   );
 
-  useEffect(
-    () => () => {
-      if (hoverPreviewTimerRef.current) {
-        window.clearTimeout(hoverPreviewTimerRef.current);
-      }
-      if (hoverPreviewCloseTimerRef.current) {
-        window.clearTimeout(hoverPreviewCloseTimerRef.current);
-      }
-      if (longPressTimerRef.current) {
-        window.clearTimeout(longPressTimerRef.current);
-      }
-    },
-    []
-  );
-
-  useEffect(() => {
-    const clearPointerPress = () => {
-      pointerPressActiveRef.current = false;
-    };
-    window.addEventListener("pointerup", clearPointerPress);
-    window.addEventListener("pointercancel", clearPointerPress);
-    window.addEventListener("blur", clearPointerPress);
-    return () => {
-      window.removeEventListener("pointerup", clearPointerPress);
-      window.removeEventListener("pointercancel", clearPointerPress);
-      window.removeEventListener("blur", clearPointerPress);
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!dayPreview?.pinned) {
-      return;
-    }
-    const closeOnOutsidePointer = (event: PointerEvent) => {
-      const target = event.target;
-      if (!(target instanceof Node)) {
-        return;
-      }
-      if (dayPreviewRef.current?.contains(target)) {
-        return;
-      }
-      if (
-        target instanceof Element &&
-        target.closest('[data-day-cell="true"]')
-      ) {
-        return;
-      }
-      setDayPreview(null);
-    };
-    window.addEventListener("pointerdown", closeOnOutsidePointer);
-    return () =>
-      window.removeEventListener("pointerdown", closeOnOutsidePointer);
-  }, [dayPreview?.pinned]);
-
   const submitSetup = async () => {
     if (!isValidIanaTimezone(setupTimezone)) {
       toast.error("Provide a valid IANA timezone.");
@@ -983,110 +940,6 @@ export function CalendarSurface({
     return isValid(parsed) && format(parsed, "yyyy-MM-dd") === value;
   };
 
-  const clearHoverPreviewTimer = () => {
-    if (hoverPreviewTimerRef.current) {
-      window.clearTimeout(hoverPreviewTimerRef.current);
-      hoverPreviewTimerRef.current = null;
-    }
-  };
-
-  const clearHoverPreviewCloseTimer = () => {
-    if (hoverPreviewCloseTimerRef.current) {
-      window.clearTimeout(hoverPreviewCloseTimerRef.current);
-      hoverPreviewCloseTimerRef.current = null;
-    }
-  };
-
-  const scheduleHoverPreviewClose = (day: string) => {
-    clearHoverPreviewCloseTimer();
-    hoverPreviewCloseTimerRef.current = window.setTimeout(() => {
-      setDayPreview((current) => {
-        if (!current || current.pinned || current.day !== day) {
-          return current;
-        }
-        if (pointerInsideDayPreviewRef.current) {
-          return current;
-        }
-        return null;
-      });
-    }, DAY_PREVIEW_CLOSE_DELAY_MS);
-  };
-
-  const clearLongPressTimer = () => {
-    if (longPressTimerRef.current) {
-      window.clearTimeout(longPressTimerRef.current);
-      longPressTimerRef.current = null;
-    }
-  };
-
-  const openDayPreview = ({
-    day,
-    pinned,
-    target,
-  }: {
-    day: string;
-    pinned: boolean;
-    target: EventTarget & HTMLElement;
-  }) => {
-    const rect = target.getBoundingClientRect();
-    const position = computeDayPreviewPosition({
-      rect: {
-        top: rect.top,
-        left: rect.left,
-        width: rect.width,
-        height: rect.height,
-      },
-      viewportWidth: window.innerWidth,
-      viewportHeight: window.innerHeight,
-    });
-    setDayPreview({ day, position, pinned });
-  };
-
-  const scheduleHoverPreview = (
-    day: string,
-    target: EventTarget & HTMLElement
-  ) => {
-    if (dayPreview?.pinned || pointerPressActiveRef.current) {
-      return;
-    }
-    clearHoverPreviewCloseTimer();
-    clearHoverPreviewTimer();
-    hoverPreviewTimerRef.current = window.setTimeout(() => {
-      if (pointerPressActiveRef.current) {
-        return;
-      }
-      openDayPreview({ day, pinned: false, target });
-    }, DAY_PREVIEW_HOVER_DELAY_MS);
-  };
-
-  const handleDayCellClick = (
-    day: string,
-    target: EventTarget & HTMLElement
-  ) => {
-    if (longPressTriggeredRef.current) {
-      longPressTriggeredRef.current = false;
-      return;
-    }
-    if (dayPreview?.pinned && dayPreview.day === day) {
-      setDayPreview(null);
-      return;
-    }
-    clearHoverPreviewTimer();
-    openDayPreview({ day, pinned: true, target });
-  };
-
-  const startLongPressPreview = (
-    day: string,
-    target: EventTarget & HTMLElement
-  ) => {
-    clearLongPressTimer();
-    longPressTriggeredRef.current = false;
-    longPressTimerRef.current = window.setTimeout(() => {
-      longPressTriggeredRef.current = true;
-      openDayPreview({ day, pinned: true, target });
-    }, DAY_PREVIEW_LONG_PRESS_DELAY_MS);
-  };
-
   const moveConflictByGoalDate = useMemo(() => {
     const map = new Map<string, Set<string>>();
     for (const [day, entries] of entriesByDate.entries()) {
@@ -1294,9 +1147,9 @@ export function CalendarSurface({
   };
 
   const clearDragState = useCallback(() => {
-    pointerPressActiveRef.current = false;
+    setPointerPressActive(false);
     setDraggingEntryKey(null);
-  }, []);
+  }, [setPointerPressActive]);
 
   const getDragEntryLabel = useCallback(
     (entryKey: string) => {
@@ -1349,11 +1202,11 @@ export function CalendarSurface({
 
   const handleDndEntryDragStart = useCallback(
     (entryKey: string) => {
-      pointerPressActiveRef.current = true;
+      setPointerPressActive(true);
       clearHoverPreviewTimer();
       setDraggingEntryKey(entryKey);
     },
-    []
+    [clearHoverPreviewTimer, setPointerPressActive]
   );
 
   const reorderPreviewEntriesForDay = useCallback(
@@ -1985,7 +1838,7 @@ export function CalendarSurface({
     if (nextViewMode === viewMode) {
       return;
     }
-    setDayPreview(null);
+    clearDayPreview();
     onViewModeChange(nextViewMode, "push");
   };
   const scopeMonthsForSaveAction =
@@ -2048,7 +1901,7 @@ export function CalendarSurface({
   const openDayDetails = (day: string) => {
     clearHoverPreviewTimer();
     clearHoverPreviewCloseTimer();
-    setDayPreview(null);
+    clearDayPreview();
     setLocalSelectedDay(day);
     setSelectedEventEntryKey(null);
   };
@@ -2116,18 +1969,18 @@ export function CalendarSurface({
           scheduleHoverPreviewClose(cell.date);
         }}
         onCellPointerDown={(pointerType, target) => {
-          pointerPressActiveRef.current = true;
+          setPointerPressActive(true);
           clearHoverPreviewTimer();
           if (pointerType === "touch") {
             startLongPressPreview(cell.date, target);
           }
         }}
         onCellPointerUp={() => {
-          pointerPressActiveRef.current = false;
+          setPointerPressActive(false);
           clearLongPressTimer();
         }}
         onCellPointerCancel={() => {
-          pointerPressActiveRef.current = false;
+          setPointerPressActive(false);
           clearLongPressTimer();
         }}
         onCellPointerLeave={() => {
@@ -2135,12 +1988,12 @@ export function CalendarSurface({
         }}
         onEntryPointerStart={(immovable) => {
           void immovable;
-          pointerPressActiveRef.current = true;
+          setPointerPressActive(true);
           clearHoverPreviewTimer();
-          setDayPreview(null);
+          clearDayPreview();
         }}
         onEntryPointerEnd={() => {
-          pointerPressActiveRef.current = false;
+          setPointerPressActive(false);
         }}
       />
     );
@@ -2516,10 +2369,10 @@ export function CalendarSurface({
                         }}
                         onEntryPointerStart={(immovable) => {
                           void immovable;
-                          pointerPressActiveRef.current = true;
+                          setPointerPressActive(true);
                         }}
                         onEntryPointerEnd={() => {
-                          pointerPressActiveRef.current = false;
+                          setPointerPressActive(false);
                         }}
                       />
                     </div>
@@ -2561,20 +2414,13 @@ export function CalendarSurface({
                           : undefined,
                     }}
                     onPointerDownCapture={() => {
-                      setDayPreview((current) =>
-                        current && !current.pinned
-                          ? { ...current, pinned: true }
-                          : current
-                      );
+                      pinDayPreview();
                     }}
                     onMouseEnter={() => {
-                      pointerInsideDayPreviewRef.current = true;
-                      clearHoverPreviewTimer();
-                      clearHoverPreviewCloseTimer();
+                      handleDayPreviewMouseEnter();
                     }}
                     onMouseLeave={() => {
-                      pointerInsideDayPreviewRef.current = false;
-                      scheduleHoverPreviewClose(dayPreview.day);
+                      handleDayPreviewMouseLeave(dayPreview.day);
                     }}
                   >
                     <div className="mb-2 flex items-center justify-between gap-2">
@@ -2591,7 +2437,7 @@ export function CalendarSurface({
                           size="sm"
                           className="h-6 px-2 text-xs"
                           onClick={() => {
-                            setDayPreview(null);
+                            clearDayPreview();
                             onSelectedDayChange(dayPreview.day, "push", "day");
                           }}
                         >
@@ -2603,7 +2449,7 @@ export function CalendarSurface({
                             variant="ghost"
                             size="sm"
                             className="h-6 px-2 text-xs"
-                            onClick={() => setDayPreview(null)}
+                            onClick={clearDayPreview}
                           >
                             X
                           </Button>
@@ -2664,10 +2510,10 @@ export function CalendarSurface({
                     }}
                     onEntryPointerStart={(immovable) => {
                       void immovable;
-                      pointerPressActiveRef.current = true;
+                      setPointerPressActive(true);
                     }}
                     onEntryPointerEnd={() => {
-                      pointerPressActiveRef.current = false;
+                      setPointerPressActive(false);
                     }}
                   />
                   </div>
