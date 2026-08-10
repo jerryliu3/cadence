@@ -3,12 +3,7 @@
 import { addDays, addMonths, format, isValid, parse } from "date-fns";
 import {
   CalendarDays,
-  ChevronLeft,
-  ChevronRight,
   Loader2,
-  Maximize2,
-  Minimize2,
-  RotateCcw,
   Settings,
 } from "lucide-react";
 import {
@@ -36,7 +31,6 @@ import {
 import { buildActiveGoalIndexes } from "@/features/planner/calendar-entries";
 import {
   buildWeekdayLabels,
-  completionDisabledReasonCopy,
   getDayStatus,
   getEntryDisplayTitle,
   getEntrySubtitle,
@@ -49,8 +43,7 @@ import {
   resolveNonPublishablePreviewMessage,
   restWeekdayOptions,
 } from "@/features/planner/calendar-format";
-import { PlannerDndProvider } from "@/features/planner/calendar-dnd";
-import { CalendarDayPreviewList } from "@/features/planner/calendar-day-preview-list";
+import { PlannerCalendarViewPanel } from "@/features/planner/planner-calendar-view-panel";
 import { CalendarMonthDayCell } from "@/features/planner/calendar-month-day-cell";
 import { PlannerDayDetailDialogs } from "@/features/planner/planner-day-detail-dialogs";
 import { PlannerCoachPanel } from "@/features/planner/coach/planner-coach-panel";
@@ -1088,315 +1081,59 @@ export function CalendarSurface({
         </div>
       ) : month ? (
         <>
-          <div className="rounded-xl border bg-card p-4 shadow-sm">
-            <div className="mb-3 space-y-3">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div
-                  className={`grid max-w-full items-center gap-2 ${
-                    viewMode === "month"
-                      ? "grid-cols-[2rem_minmax(0,1fr)_2rem_2rem_2rem]"
-                      : "grid-cols-[2rem_minmax(0,1fr)_2rem_2rem]"
-                  }`}
-                  style={{ width: viewHeadingControlWidth }}
-                >
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon-sm"
-                    disabled={loading}
-                    aria-label={previousWindowAriaLabel}
-                    onClick={() => moveViewWindow(-1)}
-                  >
-                    <ChevronLeft className="size-4" />
-                  </Button>
-                  <h3 className="truncate text-center text-base font-semibold">
-                    {viewHeading}
-                  </h3>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon-sm"
-                    disabled={loading}
-                    aria-label={nextWindowAriaLabel}
-                    onClick={() => moveViewWindow(1)}
-                  >
-                    <ChevronRight className="size-4" />
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon-sm"
-                    disabled={loading || !canResetViewWindow}
-                    aria-label="Go to today"
-                    title="Go to today"
-                    onClick={resetViewWindow}
-                  >
-                    <RotateCcw className="size-4" />
-                  </Button>
-                  {viewMode === "month" ? (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="icon-sm"
-                      disabled={loading}
-                      aria-label={expandedMonthRows ? "Compact rows" : "Expand rows"}
-                      title={expandedMonthRows ? "Compact rows" : "Expand rows"}
-                      onClick={() => setExpandedMonthRows((current) => !current)}
-                    >
-                      {expandedMonthRows ? (
-                        <Minimize2 className="size-4" />
-                      ) : (
-                        <Maximize2 className="size-4" />
-                      )}
-                    </Button>
-                  ) : null}
-                </div>
-                <div className="flex items-center gap-1 rounded-md border p-1">
-                  {PLANNER_VIEW_MODES.map((modeOption) => (
-                    <Button
-                      key={modeOption.value}
-                      type="button"
-                      size="sm"
-                      variant={viewMode === modeOption.value ? "default" : "ghost"}
-                      className="h-7 px-2 text-xs"
-                      disabled={loading}
-                      onClick={() => setCalendarViewMode(modeOption.value)}
-                    >
-                      {modeOption.label}
-                    </Button>
-                  ))}
-                </div>
-              </div>
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                  <p>{viewDescription}</p>
-                  {loading ? (
-                    <span className="inline-flex items-center gap-1">
-                      <Loader2 className="size-3 animate-spin" />
-                      Updating...
-                    </span>
-                  ) : null}
-                </div>
-              </div>
-            </div>
-            <PlannerDndProvider
-              getEntryLabel={getDragEntryLabel}
-              getDayLabel={getDragDayLabel}
-              renderDragOverlay={renderEntryDragOverlay}
-              onEntryDragStart={handleDndEntryDragStart}
-              onEntryDragEnd={handleDndEntryDragEnd}
-              onEntryDragCancel={handleDndEntryDragCancel}
-            >
-              <div
-                className={`transition-opacity duration-150 motion-reduce:transition-none ${
-                  loading ? "opacity-70" : "opacity-100"
-                }`}
-              >
-                {viewMode === "day" ? (
-                  <div className="space-y-2" data-no-swipe="true">
-                    <div className="rounded-lg border p-3">
-                      <p className="mb-2 text-sm font-medium">
-                        {format(parse(focusedDay, "yyyy-MM-dd", new Date()), "EEE MMM d")}
-                      </p>
-                      <CalendarDayPreviewList
-                        day={focusedDay}
-                        entries={focusedDayEntries}
-                        completionFactMarkers={focusedDayCompletionFactMarkers}
-                        mutationLoading={Boolean(mutationLoadingKey)}
-                        getEntryDisplayTitle={getEntryDisplayTitleWithTime}
-                        getEntrySubtitle={getEntrySubtitle}
-                        isEntryCredited={isEntryCredited}
-                        isEntryImmovableForDraft={(entry) =>
-                          !canMutateEntryOnDay(entry, focusedDay) ||
-                          isEntryImmovableForDraft(entry)
-                        }
-                        getCompletionToggleState={(entry, day) => {
-                          if (!canMutateEntryOnDay(entry, day)) {
-                            return {
-                              currentlyCredited: isEntryCredited(entry),
-                              disabledReasonCopy: readOnlyMonthHint,
-                            };
-                          }
-                          const dayCompletionDispatch = getDateFactDispatchForEntry(entry, day);
-                          const dayCompletionDisabledReason =
-                            completionControlDisabledReasonForEntry(
-                              entry,
-                              dayCompletionDispatch
-                            );
-                          return {
-                            currentlyCredited: Boolean(
-                              dayCompletionDispatch?.currentlyCredited
-                            ),
-                            disabledReasonCopy: dayCompletionDisabledReason
-                              ? completionDisabledReasonCopy(dayCompletionDisabledReason)
-                              : null,
-                          };
-                        }}
-                        onEntryOpen={(entryKey) => {
-                          const entry = focusedDayEntries.find(
-                            (candidate) => candidate.key === entryKey
-                          );
-                          if (!entry || !canMutateEntryOnDay(entry, focusedDay)) {
-                            return;
-                          }
-                          openDayDetails(focusedDay);
-                        }}
-                        onToggleCompletion={(entry, day) => {
-                          if (!canMutateEntryOnDay(entry, day)) {
-                            return;
-                          }
-                          void toggleDateFact(entry, day);
-                        }}
-                        onEntryPointerStart={(immovable) => {
-                          void immovable;
-                          suppressHoverForDrag();
-                        }}
-                        onEntryPointerEnd={releaseHoverSuppression}
-                      />
-                    </div>
-                  </div>
-                ) : (
-                  <>
-                    <div className="grid grid-cols-7 gap-2 text-center text-xs text-muted-foreground">
-                      {weekdayLabels.map((weekday) => (
-                        <span key={weekday}>{weekday}</span>
-                      ))}
-                    </div>
-                    <div className="mt-2 grid grid-cols-7 gap-2" data-no-swipe="true">
-                      {(viewMode === "week" ? focusedWeekCells : cells).map(
-                        renderCalendarDayCell
-                      )}
-                    </div>
-                  </>
-                )}
-                {draftSaveBlockedMessage ? (
-                  <div className="mt-3 rounded-md border border-amber-400/40 bg-amber-500/10 p-2 text-xs">
-                    <p className="font-medium">Preview save is currently blocked.</p>
-                    <p className="mt-1 text-muted-foreground">
-                      {draftSaveBlockedMessage}
-                    </p>
-                  </div>
-                ) : null}
-
-                {viewMode !== "day" && dayPreview ? (
-                  <div
-                    ref={dayPreviewRef}
-                    className="fixed z-40 rounded-lg border bg-card p-3 shadow-lg"
-                    style={{
-                      top: dayPreview.position.top,
-                      left: dayPreview.position.left,
-                      width: dayPreview.position.width,
-                      transform:
-                        dayPreview.position.placement === "above"
-                          ? "translateY(-100%)"
-                          : undefined,
-                    }}
-                    onPointerDownCapture={() => {
-                      pinDayPreview();
-                    }}
-                    onMouseEnter={() => {
-                      handleDayPreviewMouseEnter();
-                    }}
-                    onMouseLeave={() => {
-                      handleDayPreviewMouseLeave(dayPreview.day);
-                    }}
-                  >
-                    <div className="mb-2 flex items-center justify-between gap-2">
-                      <p className="text-sm font-medium">
-                        {format(
-                          parse(dayPreview.day, "yyyy-MM-dd", new Date()),
-                          "EEEE, MMM d"
-                        )}
-                      </p>
-                      <div className="flex items-center gap-1">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          className="h-6 px-2 text-xs"
-                          onClick={() => {
-                            clearDayPreview();
-                            onSelectedDayChange(dayPreview.day, "push", "day");
-                          }}
-                        >
-                          Day view
-                        </Button>
-                        {dayPreview.pinned ? (
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            className="h-6 px-2 text-xs"
-                            onClick={clearDayPreview}
-                          >
-                            X
-                          </Button>
-                        ) : null}
-                      </div>
-                    </div>
-                  <CalendarDayPreviewList
-                    day={dayPreview.day}
-                    entries={previewDayEntries}
-                    completionFactMarkers={previewDayCompletionFactMarkers}
-                    mutationLoading={Boolean(mutationLoadingKey)}
-                    getEntryDisplayTitle={getEntryDisplayTitleWithTime}
-                    getEntrySubtitle={getEntrySubtitle}
-                    isEntryCredited={isEntryCredited}
-                    isEntryImmovableForDraft={(entry) =>
-                      !canMutateEntryOnDay(entry, dayPreview.day) ||
-                      isEntryImmovableForDraft(entry)
-                    }
-                    getCompletionToggleState={(entry, day) => {
-                      if (!canMutateEntryOnDay(entry, day)) {
-                        return {
-                          currentlyCredited: isEntryCredited(entry),
-                          disabledReasonCopy: readOnlyMonthHint,
-                        };
-                      }
-                      const previewCompletionDispatch = getDateFactDispatchForEntry(
-                        entry,
-                        day
-                      );
-                      const previewCompletionDisabledReason =
-                        completionControlDisabledReasonForEntry(
-                          entry,
-                          previewCompletionDispatch
-                        );
-                      return {
-                        currentlyCredited: Boolean(
-                          previewCompletionDispatch?.currentlyCredited
-                        ),
-                        disabledReasonCopy: previewCompletionDisabledReason
-                          ? completionDisabledReasonCopy(previewCompletionDisabledReason)
-                          : null,
-                      };
-                    }}
-                    onEntryOpen={(entryKey) => {
-                      const entry = previewDayEntries.find(
-                        (candidate) => candidate.key === entryKey
-                      );
-                      if (!entry || !canMutateEntryOnDay(entry, dayPreview.day)) {
-                        return;
-                      }
-                      openDayDetails(dayPreview.day);
-                    }}
-                    onToggleCompletion={(entry, day) => {
-                      if (!canMutateEntryOnDay(entry, day)) {
-                        return;
-                      }
-                      void toggleDateFact(entry, day);
-                    }}
-                    onEntryPointerStart={(immovable) => {
-                      void immovable;
-                      suppressHoverForDrag();
-                    }}
-                    onEntryPointerEnd={releaseHoverSuppression}
-                  />
-                  </div>
-                ) : null}
-              </div>
-            </PlannerDndProvider>
-          </div>
+          <PlannerCalendarViewPanel
+            viewMode={viewMode}
+            plannerViewModes={PLANNER_VIEW_MODES}
+            loading={loading}
+            viewHeading={viewHeading}
+            viewHeadingControlWidth={viewHeadingControlWidth}
+            previousWindowAriaLabel={previousWindowAriaLabel}
+            nextWindowAriaLabel={nextWindowAriaLabel}
+            moveViewWindow={moveViewWindow}
+            canResetViewWindow={canResetViewWindow}
+            resetViewWindow={resetViewWindow}
+            expandedMonthRows={expandedMonthRows}
+            setExpandedMonthRows={setExpandedMonthRows}
+            setCalendarViewMode={setCalendarViewMode}
+            viewDescription={viewDescription}
+            getDragEntryLabel={getDragEntryLabel}
+            getDragDayLabel={getDragDayLabel}
+            renderEntryDragOverlay={renderEntryDragOverlay}
+            handleDndEntryDragStart={handleDndEntryDragStart}
+            handleDndEntryDragEnd={handleDndEntryDragEnd}
+            handleDndEntryDragCancel={handleDndEntryDragCancel}
+            focusedDay={focusedDay}
+            focusedDayEntries={focusedDayEntries}
+            focusedDayCompletionFactMarkers={focusedDayCompletionFactMarkers}
+            previewDayEntries={previewDayEntries}
+            previewDayCompletionFactMarkers={previewDayCompletionFactMarkers}
+            mutationLoading={Boolean(mutationLoadingKey)}
+            getEntryDisplayTitleWithTime={getEntryDisplayTitleWithTime}
+            getEntrySubtitle={getEntrySubtitle}
+            isEntryCredited={isEntryCredited}
+            canMutateEntryOnDay={canMutateEntryOnDay}
+            isEntryImmovableForDraft={isEntryImmovableForDraft}
+            readOnlyMonthHint={readOnlyMonthHint}
+            getDateFactDispatchForEntry={getDateFactDispatchForEntry}
+            completionControlDisabledReasonForEntry={
+              completionControlDisabledReasonForEntry
+            }
+            openDayDetails={openDayDetails}
+            toggleDateFact={toggleDateFact}
+            suppressHoverForDrag={suppressHoverForDrag}
+            releaseHoverSuppression={releaseHoverSuppression}
+            weekdayLabels={weekdayLabels}
+            calendarGridCells={viewMode === "week" ? focusedWeekCells : cells}
+            renderCalendarDayCell={renderCalendarDayCell}
+            draftSaveBlockedMessage={draftSaveBlockedMessage}
+            dayPreview={dayPreview}
+            dayPreviewRef={dayPreviewRef}
+            pinDayPreview={pinDayPreview}
+            handleDayPreviewMouseEnter={handleDayPreviewMouseEnter}
+            handleDayPreviewMouseLeave={handleDayPreviewMouseLeave}
+            clearDayPreview={clearDayPreview}
+            onSelectedDayChange={onSelectedDayChange}
+          />
 
           <PlannerCoachPanel coach={coach} />
 
