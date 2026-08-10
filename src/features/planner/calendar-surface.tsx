@@ -68,6 +68,7 @@ import { useCompletionMutation } from "@/features/planner/use-completion-mutatio
 import {
   draftCommandReducer,
   initialDraftCommandState,
+  selectDraftCommandsForScope,
 } from "@/features/planner/draft-command-reducer";
 import { getGoalVisual } from "@/features/planner/goal-visuals";
 import { useCalendarDayPreview } from "@/features/planner/use-calendar-day-preview";
@@ -84,6 +85,11 @@ import {
 } from "@/features/planner/calendar-store-selectors";
 import { selectCalendarViewWindowProjection } from "@/features/planner/calendar-view-projection";
 import { getDateInTimezone } from "@/lib/dates/timezone";
+import {
+  draftCommandEntryKey,
+  sortPlannerDraftCommands,
+  type PlannerDraftCommand,
+} from "@/lib/planner/draft-commands";
 import { type PlannerPolicy } from "@/lib/planner/policy";
 import type {
   CalendarSurfaceProps,
