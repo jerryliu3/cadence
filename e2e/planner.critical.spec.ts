@@ -248,7 +248,8 @@ async function fetchPlannerContextSnapshot(
 
 async function moveFirstMovableEntry(
   page: Page,
-  sourceEntrySelector = MOVABLE_ENTRY_SELECTOR
+  sourceEntrySelector = MOVABLE_ENTRY_SELECTOR,
+  targetGoalId?: string
 ) {
   const sourceEntry = page.locator(sourceEntrySelector).first();
   await expect(sourceEntry).toBeVisible();
@@ -260,22 +261,35 @@ async function moveFirstMovableEntry(
     throw new Error("Could not resolve source day for draggable planner entry.");
   }
 
-  const targetDay = await page.evaluate((currentDay) => {
+  const targetDay = await page.evaluate(({ currentDay, goalId }) => {
     const scopeMonth = currentDay.slice(0, 7);
     const candidates = Array.from(
-      document.querySelectorAll('[data-day-cell="true"][data-day]')
+      document.querySelectorAll<HTMLElement>('[data-day-cell="true"][data-day]')
     )
-      .map((element) => element.getAttribute("data-day"))
-      .filter(
-        (value): value is string =>
-          typeof value === "string" &&
-          value.startsWith(scopeMonth) &&
-          value !== currentDay
-      )
+      .map((cell) => {
+        const value = cell.getAttribute("data-day");
+        if (
+          typeof value !== "string" ||
+          !value.startsWith(scopeMonth) ||
+          value === currentDay
+        ) {
+          return null;
+        }
+        if (typeof goalId === "string" && goalId.length > 0) {
+          const hasSameGoalEntry = cell.querySelector(
+            `[data-calendar-day-entry="true"][data-planner-goal-id="${goalId}"]`
+          );
+          if (hasSameGoalEntry) {
+            return null;
+          }
+        }
+        return value;
+      })
+      .filter((value): value is string => typeof value === "string")
       .sort();
     const forwardCandidate = candidates.find((candidate) => candidate > currentDay);
     return forwardCandidate ?? candidates[0] ?? null;
-  }, sourceDay);
+  }, { currentDay: sourceDay, goalId: targetGoalId });
   if (!targetDay) {
     throw new Error("Could not find a valid planner day-cell drop target.");
   }
@@ -368,7 +382,11 @@ test.describe("planner critical rails", () => {
       const scopeMonth = await ensureDragFixtureEntryAvailable(page);
       const before = await fetchPlannerContextSnapshot(page, scopeMonth);
 
-      await moveFirstMovableEntry(page, DRAG_FIXTURE_ENTRY_SELECTOR);
+      await moveFirstMovableEntry(
+        page,
+        DRAG_FIXTURE_ENTRY_SELECTOR,
+        DRAG_FIXTURE_GOAL_ID
+      );
       await expect(page.getByTestId(DRAFT_MODE_BADGE_TEST_ID)).toBeVisible({
         timeout: 10_000,
       });
@@ -508,7 +526,11 @@ test.describe("planner critical rails", () => {
   test("stale save keeps planner draft session recoverable", async ({ page }) => {
     await openCalendar(page);
     await ensureDragFixtureEntryAvailable(page);
-    await moveFirstMovableEntry(page, DRAG_FIXTURE_ENTRY_SELECTOR);
+    await moveFirstMovableEntry(
+      page,
+      DRAG_FIXTURE_ENTRY_SELECTOR,
+      DRAG_FIXTURE_GOAL_ID
+    );
     await expect(page.getByTestId(DRAFT_MODE_BADGE_TEST_ID)).toBeVisible({
       timeout: 10_000,
     });
