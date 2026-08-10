@@ -32,6 +32,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { PeriodStepper } from "@/components/ui/period-stepper";
 import { Progress } from "@/components/ui/progress";
+import { StateCard } from "@/components/ui/state-card";
 import { GoalEndMonthBadge } from "@/features/goals/goal-end-month-badge";
 import { MilestonePills } from "@/features/goals/milestone-pills";
 import { GoalListControls } from "@/features/goals/goal-list-controls";
@@ -767,7 +768,12 @@ export function InsightsTab() {
           onTouchEnd={perGoalViewMode === "month" ? onMonthSectionTouchEnd : undefined}
         >
           {visiblePerGoalHeatmaps.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No goals match these controls.</p>
+            <StateCard
+              title="No goals match these controls."
+              compact
+              dashed
+              className="bg-background/60"
+            />
           ) : (
             visiblePerGoalHeatmaps.map((goal) => {
               const goalMonthCursor = goalMonthOverrides[goal.id] ?? monthCursor;
