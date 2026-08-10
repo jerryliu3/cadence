@@ -377,35 +377,14 @@ export function buildEntriesByDate(
   return buildEntriesByDateProjection(args).entriesByDate;
 }
 
-export function buildEntryByKey(entriesByDate: Map<string, PlannerDayDetailEntry[]>) {
-  const map = new Map<string, PlannerDayDetailEntry>();
-  for (const entries of entriesByDate.values()) {
-    for (const entry of entries) {
-      map.set(entry.key, entry);
-    }
-  }
-  return map;
-}
-
-export function buildEntryDayByKey(entriesByDate: Map<string, PlannerDayDetailEntry[]>) {
-  const map = new Map<string, string>();
-  for (const [day, entries] of entriesByDate.entries()) {
-    for (const entry of entries) {
-      map.set(entry.key, day);
-    }
-  }
-  return map;
-}
-
-export function buildCanonicalEntryDayByKey(workUnits: PlannerWorkUnit[] | undefined) {
-  const map = new Map<string, string | null>();
+export function buildScopeOwnedEntryKeys(workUnits: PlannerWorkUnit[] | undefined) {
+  const map = new Set<string>();
   for (const unit of workUnits ?? []) {
-    map.set(
+    map.add(
       draftCommandEntryKey({
         goalId: unit.originalGoalId,
         unitKey: unit.unitKey,
-      }),
-      unit.scheduledDate ?? null
+      })
     );
   }
   return map;
@@ -539,14 +518,16 @@ export function buildVisibleMonthCalendarDataByMonth(
 export function resolveCalendarDayData({
   day,
   entriesByDate,
-  canonicalEntryDayByKey,
+  scopeOwnedEntryKeys,
+  entryDayByKey,
   completionFactMarkersByDate,
   completionFactMarkerDayByIdentity,
   visibleMonthCalendarDataByMonth,
 }: {
   day: string | null;
   entriesByDate: Map<string, PlannerDayDetailEntry[]>;
-  canonicalEntryDayByKey: Map<string, string | null>;
+  scopeOwnedEntryKeys: ReadonlySet<string>;
+  entryDayByKey: Map<string, string>;
   completionFactMarkersByDate: Map<string, PlannerCompletionFactMarker[]>;
   completionFactMarkerDayByIdentity?: Map<string, string>;
   visibleMonthCalendarDataByMonth: Map<
@@ -576,8 +557,8 @@ export function resolveCalendarDayData({
     currentEntries.map((entry) => [entry.key, entry])
   );
   for (const entry of supplementalEntries) {
-    const canonicalDay = canonicalEntryDayByKey.get(entry.key) ?? null;
-    if (canonicalEntryDayByKey.has(entry.key) && canonicalDay !== day) {
+    const canonicalDay = entryDayByKey.get(entry.key) ?? null;
+    if (scopeOwnedEntryKeys.has(entry.key) && canonicalDay !== day) {
       continue;
     }
     if (!mergedEntriesByKey.has(entry.key)) {
@@ -591,10 +572,7 @@ export function resolveCalendarDayData({
     const markerIdentityKey = completionFactIdentityKey(marker);
     const canonicalMarkerDay =
       canonicalCompletionFactMarkerDayByIdentity.get(markerIdentityKey) ?? null;
-    if (
-      canonicalEntryDayByKey.has(markerIdentityKey) &&
-      canonicalMarkerDay !== day
-    ) {
+    if (scopeOwnedEntryKeys.has(markerIdentityKey) && canonicalMarkerDay !== day) {
       continue;
     }
     if (!mergedCompletionFactMarkersByKey.has(marker.key)) {

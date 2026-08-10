@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
-  buildCanonicalEntryDayByKey,
   buildCompletionFactMarkerDayByIdentity,
   buildCompletionFactMarkersByDate,
   buildEntriesByDate,
+  buildEntriesByDateProjection,
+  buildScopeOwnedEntryKeys,
   resolveCalendarDayData,
 } from "./calendar-entries";
 import type {
@@ -105,7 +106,7 @@ describe("resolveCalendarDayData", () => {
         scheduledDate: "2026-08-31",
       }),
     ];
-    const currentEntriesByDate = buildEntriesByDate({
+    const currentProjection = buildEntriesByDateProjection({
       baselineWorkUnits: currentWorkUnits,
       workUnits: currentWorkUnits,
       activeItems: [],
@@ -139,8 +140,9 @@ describe("resolveCalendarDayData", () => {
 
     const result = resolveCalendarDayData({
       day: "2026-09-01",
-      entriesByDate: currentEntriesByDate,
-      canonicalEntryDayByKey: buildCanonicalEntryDayByKey(currentWorkUnits),
+      entriesByDate: currentProjection.entriesByDate,
+      scopeOwnedEntryKeys: buildScopeOwnedEntryKeys(currentWorkUnits),
+      entryDayByKey: currentProjection.entryDayByKey,
       completionFactMarkersByDate: new Map<string, PlannerCompletionFactMarker[]>(),
       completionFactMarkerDayByIdentity: new Map(),
       visibleMonthCalendarDataByMonth: new Map([
@@ -185,7 +187,8 @@ describe("resolveCalendarDayData", () => {
     const result = resolveCalendarDayData({
       day: "2026-09-01",
       entriesByDate: new Map(),
-      canonicalEntryDayByKey: buildCanonicalEntryDayByKey(currentWorkUnits),
+      scopeOwnedEntryKeys: buildScopeOwnedEntryKeys(currentWorkUnits),
+      entryDayByKey: new Map(),
       completionFactMarkersByDate: new Map(),
       completionFactMarkerDayByIdentity: new Map(),
       visibleMonthCalendarDataByMonth: new Map([
@@ -200,6 +203,97 @@ describe("resolveCalendarDayData", () => {
     });
 
     expect(result.entries).toEqual([]);
+  });
+
+  it("suppresses stale spillover entries during pending draft moves", () => {
+    const sourceDay = "2026-09-05";
+    const destinationDay = "2026-09-10";
+    const currentWorkUnits = [
+      unit({
+        goalId: "goal-a",
+        unitKey: "total:1",
+        scheduledDate: sourceDay,
+      }),
+    ];
+    const currentProjection = buildEntriesByDateProjection({
+      baselineWorkUnits: currentWorkUnits,
+      workUnits: currentWorkUnits,
+      activeItems: [],
+      activeGoalsByPlanGoalId: new Map(),
+      activeGoalsByOriginalGoalId: new Map(),
+      goalTitles: { "goal-a": "Goal A" },
+      draftItemEdits: {
+        "goal-a:total:1": {
+          scheduledDate: destinationDay,
+        },
+      },
+    });
+    const supplementalWorkUnits = [
+      unit({
+        goalId: "goal-a",
+        unitKey: "total:1",
+        scheduledDate: sourceDay,
+      }),
+      unit({
+        goalId: "goal-b",
+        unitKey: "total:1",
+        scheduledDate: sourceDay,
+      }),
+    ];
+    const supplementalEntriesByDate = buildEntriesByDate({
+      baselineWorkUnits: supplementalWorkUnits,
+      workUnits: supplementalWorkUnits,
+      activeItems: [],
+      activeGoalsByPlanGoalId: new Map(),
+      activeGoalsByOriginalGoalId: new Map(),
+      goalTitles: { "goal-a": "Goal A", "goal-b": "Goal B" },
+      draftItemEdits: {},
+    });
+
+    const sourceDayResult = resolveCalendarDayData({
+      day: sourceDay,
+      entriesByDate: currentProjection.entriesByDate,
+      scopeOwnedEntryKeys: buildScopeOwnedEntryKeys(currentWorkUnits),
+      entryDayByKey: currentProjection.entryDayByKey,
+      completionFactMarkersByDate: new Map(),
+      completionFactMarkerDayByIdentity: new Map(),
+      visibleMonthCalendarDataByMonth: new Map([
+        [
+          "2026-09",
+          {
+            entriesByDate: supplementalEntriesByDate,
+            completionFactMarkersByDate: new Map(),
+          },
+        ],
+      ]),
+    });
+
+    expect(sourceDayResult.entries.map((entry) => entry.key)).toEqual([
+      `goal-a:total:1:ghost:${sourceDay}`,
+      "goal-b:total:1",
+    ]);
+
+    const destinationDayResult = resolveCalendarDayData({
+      day: destinationDay,
+      entriesByDate: currentProjection.entriesByDate,
+      scopeOwnedEntryKeys: buildScopeOwnedEntryKeys(currentWorkUnits),
+      entryDayByKey: currentProjection.entryDayByKey,
+      completionFactMarkersByDate: new Map(),
+      completionFactMarkerDayByIdentity: new Map(),
+      visibleMonthCalendarDataByMonth: new Map([
+        [
+          "2026-09",
+          {
+            entriesByDate: supplementalEntriesByDate,
+            completionFactMarkersByDate: new Map(),
+          },
+        ],
+      ]),
+    });
+
+    expect(destinationDayResult.entries.map((entry) => entry.key)).toEqual([
+      "goal-a:total:1",
+    ]);
   });
 
   it("suppresses supplemental completion markers for canonical units", () => {
@@ -255,7 +349,8 @@ describe("resolveCalendarDayData", () => {
     const result = resolveCalendarDayData({
       day: "2026-09-01",
       entriesByDate: new Map(),
-      canonicalEntryDayByKey: buildCanonicalEntryDayByKey(currentWorkUnits),
+      scopeOwnedEntryKeys: buildScopeOwnedEntryKeys(currentWorkUnits),
+      entryDayByKey: new Map(),
       completionFactMarkersByDate: currentCompletionFactMarkersByDate,
       completionFactMarkerDayByIdentity: buildCompletionFactMarkerDayByIdentity(
         currentCompletionFactMarkersByDate
