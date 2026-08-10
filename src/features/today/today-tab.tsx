@@ -15,14 +15,12 @@ import {
   useState,
 } from "react";
 import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { PeriodStepper } from "@/components/ui/period-stepper";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { LoadingCard } from "@/components/ui/loading-card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { buildLoginHref } from "@/lib/auth/login-redirect";
 import { GoalListControls } from "@/features/goals/goal-list-controls";
-import { GoalsSurfaceLoadingCard } from "@/features/goals/goals-surface-loading-card";
 import { CollapsibleGoalSection } from "@/features/today/collapsible-goal-section";
 import { TodayHeaderCard, type RecurrenceFilter } from "@/features/today/today-header-card";
 import { GoalCard } from "@/features/today/goal-card";
@@ -34,7 +32,6 @@ import {
 } from "@/lib/dates/day";
 import { resolveUserTimezone } from "@/lib/dates/timezone";
 import { normalizeWeekStartsOn } from "@/lib/dates/week-start";
-import { getCategoryBadgeClass } from "@/lib/goals/category";
 import {
   buildCompletableGoalIds,
   selectCompletableGoals,
@@ -92,6 +89,18 @@ const emptyData: TodayData = {
   photoUrls: {},
   progress: null,
 };
+
+function isAuthenticationLikeError(error: unknown) {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+  const normalized = error.message.toLowerCase();
+  return (
+    normalized.includes("authentication") ||
+    normalized.includes("unauthorized") ||
+    normalized.includes("sign in")
+  );
+}
 
 const allCategoriesFilterValue = "__all_categories__";
 type RecurrenceGroup = "daily" | "weekly" | "monthly" | "fixed";
@@ -170,6 +179,7 @@ export function TodayTab({
   const visibleLoadCountRef = useRef(0);
   const refreshTokenRef = useRef(refreshToken);
   const pendingRefreshRef = useRef(false);
+  const authRedirectStartedRef = useRef(false);
   const effectiveChecklistTab = activeTab ?? internalChecklistTab;
   const runCompletionMutation = useCompletionMutation();
 
@@ -180,6 +190,18 @@ export function TodayTab({
     () => todayGoalSearchQuery.trim().toLowerCase(),
     [todayGoalSearchQuery]
   );
+
+  const redirectToLogin = useCallback(() => {
+    if (authRedirectStartedRef.current) {
+      return;
+    }
+    authRedirectStartedRef.current = true;
+    const nextPath =
+      typeof window === "undefined"
+        ? "/"
+        : `${window.location.pathname}${window.location.search}`;
+    router.replace(buildLoginHref(nextPath));
+  }, [router]);
 
   const loadData = useCallback(
     async (
@@ -211,7 +233,7 @@ export function TodayTab({
 
         if (userError || !user) {
           setData(emptyData);
-          router.replace("/login");
+          redirectToLogin();
           return;
         }
 
@@ -282,7 +304,7 @@ export function TodayTab({
         }
       }
     },
-    [router, supabase, todayLocalDate, viewDate]
+    [redirectToLogin, supabase, todayLocalDate, viewDate]
   );
 
   useEffect(() => {
@@ -290,6 +312,10 @@ export function TodayTab({
       try {
         await loadData();
       } catch (error) {
+        if (isAuthenticationLikeError(error)) {
+          redirectToLogin();
+          return;
+        }
         toast.error(
           isAbortError(error)
             ? "Today goals request timed out. Please try again."
@@ -301,7 +327,7 @@ export function TodayTab({
     };
 
     void run();
-  }, [loadData]);
+  }, [loadData, redirectToLogin]);
 
   useEffect(() => {
     if (refreshToken === refreshTokenRef.current) {
@@ -313,6 +339,10 @@ export function TodayTab({
       const timer = window.setTimeout(() => {
         void loadData({ showLoading: false, forceRefresh: true }).catch(
           (error: unknown) => {
+            if (isAuthenticationLikeError(error)) {
+              redirectToLogin();
+              return;
+            }
             toast.error(
               isAbortError(error)
                 ? "Today goals request timed out. Please try again."
@@ -328,7 +358,7 @@ export function TodayTab({
     }
 
     pendingRefreshRef.current = true;
-  }, [isActive, loadData, refreshToken]);
+  }, [isActive, loadData, redirectToLogin, refreshToken]);
 
   useEffect(() => {
     if (!isActive || !pendingRefreshRef.current) {
@@ -338,6 +368,10 @@ export function TodayTab({
     const timer = window.setTimeout(() => {
       void loadData({ showLoading: false, forceRefresh: true }).catch(
         (error: unknown) => {
+          if (isAuthenticationLikeError(error)) {
+            redirectToLogin();
+            return;
+          }
           toast.error(
             isAbortError(error)
               ? "Today goals request timed out. Please try again."
@@ -349,7 +383,7 @@ export function TodayTab({
       );
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [isActive, loadData]);
+  }, [isActive, loadData, redirectToLogin]);
 
   const completionsByGoal = useMemo(
     () => groupCompletionsByGoalId(data.completions),
@@ -547,7 +581,7 @@ export function TodayTab({
     [archivedGoalsRaw, prepareNotTodayGoals]
   );
 
-  const toggleCompletion = async (goal: Goal) => {
+  const toggleCompletion = useCallback(async (goal: Goal) => {
     const completions = completionsByGoal.get(goal.id) ?? [];
     const completedOnViewDate = hasCompletionToday(completions, viewDateObj);
     const completionsInCurrentPeriod = getCompletionsForCurrentPeriod(
@@ -571,7 +605,7 @@ export function TodayTab({
       targetedRecurring,
       activePlanMembership: false,
       matchingItemState: "none",
-        selectedDateState: resolveSelectedDateState(viewDate, todayLocalDate),
+      selectedDateState: resolveSelectedDateState(viewDate, todayLocalDate),
       existingExactFact: completedOnViewDate,
       desiredFactState,
     });
@@ -624,6 +658,10 @@ export function TodayTab({
         window.scrollTo({ top: currentScrollY, behavior: "auto" });
       });
     } catch (error) {
+      if (isAuthenticationLikeError(error)) {
+        redirectToLogin();
+        return;
+      }
       const timeoutLike =
         error instanceof Error &&
         error.message.toLowerCase().includes("timed out");
@@ -635,7 +673,16 @@ export function TodayTab({
     } finally {
       setSavingGoalId(null);
     }
-  };
+  }, [
+    completionsByGoal,
+    loadData,
+    redirectToLogin,
+    runCompletionMutation,
+    todayLocalDate,
+    viewDate,
+    viewDateObj,
+    weeklyAnchor,
+  ]);
   const renderGoalCard = useCallback(
     (goal: Goal, options?: { archived?: boolean; key?: string }) => {
       const archived = options?.archived ?? false;
@@ -679,7 +726,7 @@ export function TodayTab({
 
   if (loading) {
     return (
-      <GoalsSurfaceLoadingCard
+      <LoadingCard
         title="Loading your goals..."
         description="Pulling your latest progress from Supabase."
       />

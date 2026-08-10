@@ -1,17 +1,19 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { type FormEvent, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { resolveSafePostLoginPath } from "@/lib/auth/login-redirect";
 import { createClient } from "@/lib/supabase/client";
 
 export function LoginForm() {
   const supabase = useMemo(() => createClient(), []);
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -30,7 +32,7 @@ export function LoginForm() {
     }
 
     toast.success("Welcome back.");
-    router.replace("/");
+    router.replace(resolveSafePostLoginPath(searchParams.get("next")));
     router.refresh();
     setIsSubmitting(false);
   };
