@@ -36,6 +36,10 @@ const COMPLETION_TOGGLE_SELECTOR = [
   'button[aria-label="Mark session done"]',
   'button[aria-label="Mark session not done"]',
 ].join(", ");
+const MOVABLE_ENTRY_SELECTOR = [
+  '[data-calendar-day-entry="true"][class*="cursor-grab"]:visible',
+  '[data-calendar-day-entry="true"]:not([class*="cursor-not-allowed"]):visible',
+].join(", ");
 
 function shiftScopeMonth(scopeMonth: string, delta: number) {
   const [rawYear, rawMonth] = scopeMonth.split("-");
@@ -57,6 +61,7 @@ async function openCalendar(page: Page, scopeMonth?: string) {
     page.getByRole("tab", { name: "Calendar", exact: true })
   ).toBeVisible();
   await expect(page.getByText("Loading planner month context...")).toHaveCount(0);
+  await ensureMonthCalendarDensity(page);
 
   // CI may land on first-run setup instead of the planner grid.
   const setupHeading = page.getByRole("heading", { name: "Plan setup" });
@@ -88,12 +93,26 @@ async function openCalendar(page: Page, scopeMonth?: string) {
       page.getByRole("tab", { name: "Calendar", exact: true })
     ).toBeVisible();
     await expect(page.getByText("Loading planner month context...")).toHaveCount(0);
+    await ensureMonthCalendarDensity(page);
+  }
+}
+
+async function ensureMonthCalendarDensity(page: Page) {
+  const monthViewButton = page.getByRole("button", { name: "Month", exact: true });
+  if (await monthViewButton.isVisible().catch(() => false)) {
+    await monthViewButton.click();
+  }
+
+  const expandRowsButton = page.getByRole("button", { name: "Expand rows", exact: true });
+  if (await expandRowsButton.isVisible().catch(() => false)) {
+    await expandRowsButton.click();
+    await expect(
+      page.getByRole("button", { name: "Compact rows", exact: true })
+    ).toBeVisible();
   }
 }
 
 async function ensureMovableEntryAvailable(page: Page, maxMonthJumps = 12) {
-  const movableEntrySelector =
-    '[data-calendar-day-entry="true"]:not([title*="can\'t be moved"]):visible';
   const startScopeMonth = await resolveCalendarScopeMonth(page);
   const scanOrder: number[] = [0];
   for (let jump = 1; jump <= maxMonthJumps; jump += 1) {
@@ -106,7 +125,7 @@ async function ensureMovableEntryAvailable(page: Page, maxMonthJumps = 12) {
     if (delta !== 0) {
       await openCalendar(page, scopeMonth);
     }
-    const movableEntries = page.locator(movableEntrySelector);
+    const movableEntries = page.locator(MOVABLE_ENTRY_SELECTOR);
     if ((await movableEntries.count()) > 0) {
       return;
     }
@@ -196,11 +215,7 @@ async function fetchPlannerContextSnapshot(
 }
 
 async function moveFirstMovableEntry(page: Page) {
-  const sourceEntry = page
-    .locator(
-      '[data-calendar-day-entry="true"]:not([title*="can\'t be moved"]):visible'
-    )
-    .first();
+  const sourceEntry = page.locator(MOVABLE_ENTRY_SELECTOR).first();
   await expect(sourceEntry).toBeVisible();
 
   const sourceDay = await sourceEntry.evaluate((element) =>
