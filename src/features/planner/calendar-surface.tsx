@@ -105,7 +105,7 @@ import {
   sortPlannerDraftCommands,
   type PlannerDraftCommand,
 } from "@/lib/planner/draft-commands";
-import { remapGoalDatesForDraftMove } from "@/features/planner/draft-move-remap";
+import { buildDraftMoveCommands } from "@/features/planner/draft-move-remap";
 import { buildPlannerConfirmationHash } from "@/lib/planner/publish-payload";
 import {
   createDefaultPlannerPolicy,
@@ -1263,32 +1263,18 @@ export function CalendarSurface({
           ordinal: unit.ordinal ?? index,
           scheduledDate: unit.scheduledDate as string,
         }));
-      const remappedDates = remapGoalDatesForDraftMove({
+      for (const command of buildDraftMoveCommands({
         units: goalUnits,
         movedUnitKey: entry.unitKey,
         nextDate: normalized,
         kind: baselineUnit.kind,
-      });
-      const baselineDateByUnitKey = new Map(
-        goalUnits.map((unit) => [unit.unitKey, unit.scheduledDate])
-      );
-      for (const [unitKey, pinnedDate] of Object.entries(remappedDates)) {
-        if (baselineDateByUnitKey.get(unitKey) === pinnedDate) {
-          dispatchDraftCommand({
-            type: "remove_kind",
-            scopeMonth,
-            kind: "move_item",
-            goalId: entry.originalGoalId,
-            unitKey,
-          });
-          continue;
-        }
+      })) {
         dispatchDraftCommand({
           type: "upsert_move",
           scopeMonth,
           goalId: entry.originalGoalId,
-          unitKey,
-          scheduledDate: pinnedDate,
+          unitKey: command.unitKey,
+          scheduledDate: command.scheduledDate,
         });
       }
       scheduleDraftMovePreviewRefresh();
