@@ -105,6 +105,7 @@ import {
   sortPlannerDraftCommands,
   type PlannerDraftCommand,
 } from "@/lib/planner/draft-commands";
+import { remapGoalDatesForDraftMove } from "@/features/planner/draft-move-remap";
 import { buildPlannerConfirmationHash } from "@/lib/planner/publish-payload";
 import {
   createDefaultPlannerPolicy,
@@ -1242,23 +1243,51 @@ export function CalendarSurface({
         return false;
       }
 
-      const originalDate = baselineUnit.scheduledDate;
       const scopeMonth = context.scopeMonth;
-      if (originalDate === normalized) {
-        dispatchDraftCommand({
-          type: "remove_kind",
-          scopeMonth,
-          kind: "move_item",
-          goalId: entry.originalGoalId,
-          unitKey: entry.unitKey,
-        });
-      } else {
+      // Pin the goal's whole ordinal-to-date mapping, not just this unit. The
+      // solver orders a goal's units by ordinal, so pinning one ordinal to a
+      // later date would push every later ordinal after it -- moving one
+      // session would visibly shift all the rest.
+      const goalUnits = (effectivePreview?.workUnits ?? [])
+        .filter(
+          (unit) =>
+            unit.originalGoalId === entry.originalGoalId &&
+            unit.scheduledDate !== null &&
+            unit.creditState === "uncredited" &&
+            (unit.classification === "open" || unit.classification === "future")
+        )
+        // Preview work units already arrive in ordinal order per goal, so the
+        // index is a safe fallback when the payload omits `ordinal`.
+        .map((unit, index) => ({
+          unitKey: unit.unitKey,
+          ordinal: unit.ordinal ?? index,
+          scheduledDate: unit.scheduledDate as string,
+        }));
+      const remappedDates = remapGoalDatesForDraftMove({
+        units: goalUnits,
+        movedUnitKey: entry.unitKey,
+        nextDate: normalized,
+      });
+      const baselineDateByUnitKey = new Map(
+        goalUnits.map((unit) => [unit.unitKey, unit.scheduledDate])
+      );
+      for (const [unitKey, pinnedDate] of Object.entries(remappedDates)) {
+        if (baselineDateByUnitKey.get(unitKey) === pinnedDate) {
+          dispatchDraftCommand({
+            type: "remove_kind",
+            scopeMonth,
+            kind: "move_item",
+            goalId: entry.originalGoalId,
+            unitKey,
+          });
+          continue;
+        }
         dispatchDraftCommand({
           type: "upsert_move",
           scopeMonth,
           goalId: entry.originalGoalId,
-          unitKey: entry.unitKey,
-          scheduledDate: normalized,
+          unitKey,
+          scheduledDate: pinnedDate,
         });
       }
       scheduleDraftMovePreviewRefresh();
@@ -1271,6 +1300,7 @@ export function CalendarSurface({
     },
     [
       scheduleDraftMovePreviewRefresh,
+      effectivePreview?.workUnits,
       completionFactUnitsByGoalDate,
       context?.scopeMonth,
       moveConflictByGoalDate,
