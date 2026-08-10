@@ -1,6 +1,5 @@
 "use client";
 
-import { addMonths, format, subMonths } from "date-fns";
 import {
   ChevronDown,
   Crown,
@@ -22,7 +21,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { LoadingCard } from "@/components/ui/loading-card";
-import { PeriodStepper } from "@/components/ui/period-stepper";
 import { StateCard } from "@/components/ui/state-card";
 import {
   Select,
@@ -36,7 +34,7 @@ import {
   type GroupGoalDraft,
   createDefaultGroupGoalDraft,
 } from "@/features/social/group-goal-creator-card";
-import { MilestonePills } from "@/features/goals/milestone-pills";
+import { SharedGoalsCard } from "@/features/social/shared-goals-card";
 import {
   getCategoryLabel,
 } from "@/lib/goals/category";
@@ -48,9 +46,7 @@ import {
   isOrdinalGoalDefinition,
   validateGoalDefinition,
 } from "@/lib/goals/definition-validation";
-import { buildMilestoneNames } from "@/lib/goals/milestones";
 import { getGoalCompletionPercentage } from "@/lib/goals/progress";
-import { MonthHeatmap } from "@/features/insights/month-heatmap";
 import { NotificationSettings } from "@/features/settings/notification-settings";
 import type {
   Completion,
@@ -982,99 +978,14 @@ export function SocialTab() {
         </CardContent>
       </Card>
 
-      <Card className="shadow-sm">
-        <CardHeader>
-          <CardTitle>Shared with me</CardTitle>
-          <CardDescription>
-            Read-only goals from other users with Insights-style visual summaries.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="flex justify-end">
-            <PeriodStepper
-              onPrevious={() => setSharedMonthCursor((previous) => subMonths(previous, 1))}
-              onNext={() => setSharedMonthCursor((previous) => addMonths(previous, 1))}
-              center={
-                <span className="min-w-[120px] text-center text-sm font-medium text-muted-foreground">
-                  {format(sharedMonthCursor, "MMMM yyyy")}
-                </span>
-              }
-              previousAriaLabel="Previous month"
-              nextAriaLabel="Next month"
-            />
-          </div>
-          {state.sharedGoals.length === 0 ? (
-            <StateCard
-              title="No goals have been shared with you yet."
-              compact
-              dashed
-              className="bg-background/60"
-            />
-          ) : (
-            state.sharedGoals.map((goal) => {
-              const owner = state.sharedOwners[goal.id];
-              const ownerCompletions = (completionsByGoal.get(goal.id) ?? []).filter(
-                (entry) => entry.user_id === goal.owner_id
-              );
-              const countsByDate = ownerCompletions.reduce<Record<string, number>>(
-                (accumulator, completion) => {
-                  accumulator[completion.completed_on] =
-                    (accumulator[completion.completed_on] ?? 0) + 1;
-                  return accumulator;
-                },
-                {}
-              );
-              const percent = getGoalCompletionPercentage(goal, ownerCompletions);
-              const milestoneTargetCount = Math.max(goal.target_count ?? ownerCompletions.length, 1);
-              const milestoneCompletionDates = getSortedCompletionDates(ownerCompletions).slice(
-                0,
-                milestoneTargetCount
-              );
-              const milestoneNames = buildMilestoneNames(milestoneTargetCount, goal.milestone_names);
-              return (
-                <Card key={goal.id} className="border shadow-none">
-                  <CardContent className="space-y-3 py-4">
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="min-w-0">
-                        <p className="text-sm font-semibold">{goal.title}</p>
-                        <p className="text-xs text-muted-foreground">
-                          shared by @{owner?.username ?? "unknown"}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {owner?.display_name || "No display name"}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Badge variant="outline">{Math.round(percent)}%</Badge>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => removeSharedGoalForMe(goal.id)}
-                        >
-                          <UserMinus className="size-3.5" />
-                          Remove
-                        </Button>
-                      </div>
-                    </div>
-                    {goal.frequency_type === "fixed_milestones" ? (
-                      <MilestonePills
-                        targetCount={milestoneTargetCount}
-                        completionDates={milestoneCompletionDates}
-                        milestoneNames={milestoneNames}
-                      />
-                    ) : null}
-                    <p className="text-xs text-muted-foreground">
-                      Read-only. You can view progress and insights but cannot mark completions.
-                    </p>
-                    <MonthHeatmap month={sharedMonthCursor} countsByDate={countsByDate} />
-                  </CardContent>
-                </Card>
-              );
-            })
-          )}
-        </CardContent>
-      </Card>
+      <SharedGoalsCard
+        sharedGoals={state.sharedGoals}
+        sharedOwners={state.sharedOwners}
+        completionsByGoal={completionsByGoal}
+        sharedMonthCursor={sharedMonthCursor}
+        onSharedMonthCursorChange={setSharedMonthCursor}
+        onRemoveSharedGoal={removeSharedGoalForMe}
+      />
 
       <Card className="shadow-sm">
         <CardHeader>
