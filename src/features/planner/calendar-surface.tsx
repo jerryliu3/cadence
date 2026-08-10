@@ -103,6 +103,7 @@ import {
   draftCommandEntryKey,
   projectPlannerDraftCommands,
   sortPlannerDraftCommands,
+  type PlannerDraftCommand,
 } from "@/lib/planner/draft-commands";
 import { buildPlannerConfirmationHash } from "@/lib/planner/publish-payload";
 import {
@@ -128,6 +129,7 @@ const DAY_PREVIEW_LONG_PRESS_DELAY_MS = 500;
 const MAX_MONTH_HEADING_SAMPLE = "September 2026";
 const MAX_WEEK_HEADING_SAMPLE = "Sep 30 - Sep 30, 2026";
 const MAX_DAY_HEADING_SAMPLE = "Wed Aug 30";
+const DRAFT_MOVE_PREVIEW_REFRESH_DELAY_MS = 200;
 const SCOPE_ONLY_ELIGIBILITY_REASONS = new Set([
   "end_outside_scope",
   "starts_after_scope",
@@ -804,12 +806,17 @@ export function CalendarSurface({
     toast.success("Planner setup saved.");
   };
 
+  const draftMoveRefreshTimerRef = useRef<number | null>(null);
   const draftSaveCommands = useMemo(
     () => effectiveDraftCommands,
     [effectiveDraftCommands]
   );
 
-  const refreshDraftPreview = async (nextPolicy: PlannerPolicy) => {
+  const requestPreview = async (
+    nextPolicy: PlannerPolicy,
+    solveIntent: "stable" | "replan",
+    draftCommands: PlannerDraftCommand[]
+  ) => {
     if (!context?.scopeMonth || !context?.timezone) {
       throw new Error("Planner context is unavailable.");
     }
@@ -821,14 +828,78 @@ export function CalendarSurface({
           timezone: context.timezone,
           policy: nextPolicy,
           source: context.activePlan ? "update" : "manual",
+          solveIntent,
+          draftCommands,
         }
       );
-      setDraftPreviewForScope(context.scopeMonth, previewPayload.preview);
       return previewPayload.preview;
     } catch (error) {
       throw new Error(getApiErrorMessage(error, "Preview refresh failed."));
     }
   };
+
+  /**
+   * The only way a preview becomes the draft. `replan` results deliberately do
+   * not come through here: they are proposals, and the save route always solves
+   * `stable`, so storing one would hand the user a draft that cannot publish.
+   */
+  const draftSaveCommandsRef = useRef(draftSaveCommands);
+  useEffect(() => {
+    draftSaveCommandsRef.current = draftSaveCommands;
+  }, [draftSaveCommands]);
+  useEffect(
+    () => () => {
+      if (draftMoveRefreshTimerRef.current !== null) {
+        window.clearTimeout(draftMoveRefreshTimerRef.current);
+      }
+    },
+    []
+  );
+
+  const refreshDraftPreview = async (nextPolicy: PlannerPolicy) => {
+    const preview = await requestPreview(
+      nextPolicy,
+      "stable",
+      draftSaveCommandsRef.current
+    );
+    if (context?.scopeMonth) {
+      setDraftPreviewForScope(context.scopeMonth, preview);
+    }
+    return preview;
+  };
+
+  /**
+   * A pin is a solver input, so moving one item can legitimately cascade into
+   * others (ordinals must stay in date order). Re-solve so the ghosts show the
+   * whole cascade rather than just the item the user dragged.
+   */
+  const draftMoveRefreshRunnerRef = useRef<() => void>(() => {});
+  useEffect(() => {
+    draftMoveRefreshRunnerRef.current = () => {
+      const refreshPolicy =
+        effectiveDraftPolicy ?? context?.preferences?.defaultPolicy ?? null;
+      if (!context?.scopeMonth || !refreshPolicy) {
+        return;
+      }
+      void refreshDraftPreview(refreshPolicy).catch((error: unknown) => {
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : "Preview could not be regenerated for that move."
+        );
+      });
+    };
+  });
+
+  const scheduleDraftMovePreviewRefresh = useCallback(() => {
+    if (draftMoveRefreshTimerRef.current !== null) {
+      window.clearTimeout(draftMoveRefreshTimerRef.current);
+    }
+    draftMoveRefreshTimerRef.current = window.setTimeout(() => {
+      draftMoveRefreshTimerRef.current = null;
+      draftMoveRefreshRunnerRef.current();
+    }, DRAFT_MOVE_PREVIEW_REFRESH_DELAY_MS);
+  }, []);
 
   const nonPublishablePreviewMessage = (
     preview: NonNullable<PlannerContextPayload["preview"]>
@@ -1103,6 +1174,7 @@ export function CalendarSurface({
           scheduledDate: normalized,
         });
       }
+      scheduleDraftMovePreviewRefresh();
       if (source === "drag_drop") {
         toast.success(
           `Moved ${getEntryDisplayTitle(entry)} in preview mode to ${normalized}.`
@@ -1111,6 +1183,7 @@ export function CalendarSurface({
       return true;
     },
     [
+      scheduleDraftMovePreviewRefresh,
       completionFactUnitsByGoalDate,
       context?.scopeMonth,
       moveConflictByGoalDate,
