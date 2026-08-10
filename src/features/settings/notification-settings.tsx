@@ -2,24 +2,9 @@
 
 import {
   Bell,
-  BellOff,
-  Clock3,
-  LoaderCircle,
-  Plus,
-  Trash2,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import {
   getPushRegistration,
   isPushSupported,
@@ -32,53 +17,17 @@ import {
   NotificationPushSection,
   type PushStatus,
 } from "@/features/settings/notification-push-section";
+import { NotificationScheduleSection } from "@/features/settings/notification-schedule-section";
+import {
+  formatHour,
+  sortSchedules,
+  type NotificationSchedule,
+} from "@/features/settings/notification-schedule-utils";
 import { createClient } from "@/lib/supabase/client";
 
 const DEFAULT_MESSAGE = "Complete your checklist for today";
 const DEFAULT_NOTIFICATION_HOUR = 21;
 const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY?.trim() ?? "";
-
-interface NotificationSchedule {
-  id: string;
-  user_id: string;
-  hour: number;
-  timezone: string;
-  message: string;
-  enabled: boolean;
-  is_default: boolean;
-  last_sent_local_date: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-function formatHour(hour: number): string {
-  return new Intl.DateTimeFormat(undefined, {
-    hour: "numeric",
-    minute: "2-digit",
-  }).format(new Date(2020, 0, 1, hour));
-}
-
-function sortSchedules(schedules: NotificationSchedule[]): NotificationSchedule[] {
-  return [...schedules].sort((left, right) => {
-    if (left.hour !== right.hour) {
-      return left.hour - right.hour;
-    }
-
-    if (left.is_default !== right.is_default) {
-      return left.is_default ? -1 : 1;
-    }
-
-    return left.created_at.localeCompare(right.created_at);
-  });
-}
-
-function getScheduleToggleLabel(schedule: NotificationSchedule): string {
-  if (schedule.is_default) {
-    return schedule.enabled ? "Disable" : "Enable";
-  }
-
-  return schedule.enabled ? "Pause" : "Resume";
-}
 
 export function NotificationSettings() {
   const supabase = useMemo(() => createClient(), []);
@@ -393,122 +342,23 @@ export function NotificationSettings() {
         onDisablePush={disablePush}
       />
 
-      <section className="space-y-5 border-t pt-5">
-        <div>
-          <h3 className="flex items-center gap-2 text-base font-medium">
-            <Clock3 className="size-5" />
-            Daily reminders
-          </h3>
-          <p className="mt-1 text-sm text-muted-foreground">
-            A {formatHour(DEFAULT_NOTIFICATION_HOUR)} reminder is enabled by default in your local
-            timezone. Disable it below or add more reminders. New reminders use {timezone}.
-          </p>
-        </div>
-        <div className="grid gap-3 rounded-xl border p-3 sm:grid-cols-[160px_1fr_auto] sm:items-end">
-          <div className="space-y-1.5">
-            <Label htmlFor="notification-hour">Time</Label>
-            <Select value={hour} onValueChange={setHour}>
-              <SelectTrigger id="notification-hour" className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {Array.from({ length: 24 }, (_, value) => (
-                  <SelectItem key={value} value={String(value)}>
-                    {formatHour(value)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-1.5">
-            <Label htmlFor="notification-message">Message</Label>
-            <Input
-              id="notification-message"
-              value={message}
-              onChange={(event) => setMessage(event.target.value)}
-              maxLength={180}
-              placeholder={DEFAULT_MESSAGE}
-            />
-          </div>
-
-          <Button
-            type="button"
-            onClick={addSchedule}
-            disabled={savingSchedule || !message.trim() || !userId}
-          >
-            {savingSchedule ? <LoaderCircle className="animate-spin" /> : <Plus />}
-            Add
-          </Button>
-        </div>
-
-        {loadingSchedules ? (
-          <div className="flex items-center justify-center py-8 text-muted-foreground">
-            <LoaderCircle className="mr-2 animate-spin" />
-            Loading reminders…
-          </div>
-        ) : schedules.length === 0 ? (
-          <div className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">
-            No daily reminders yet.
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {schedules.map((schedule) => {
-              const pending = pendingScheduleId === schedule.id;
-
-              return (
-                <div
-                  key={schedule.id}
-                  className="flex flex-col gap-3 rounded-xl border p-3 sm:flex-row sm:items-center"
-                >
-                  <div className="min-w-28">
-                    <div className="flex items-center gap-2">
-                      <p className="font-semibold">{formatHour(schedule.hour)}</p>
-                      {schedule.is_default ? (
-                        <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary">
-                          Default
-                        </span>
-                      ) : null}
-                    </div>
-                    <p className="text-xs text-muted-foreground">{schedule.timezone}</p>
-                  </div>
-                  <p
-                    className={`flex-1 text-sm ${
-                      schedule.enabled ? "" : "text-muted-foreground line-through"
-                    }`}
-                  >
-                    {schedule.message}
-                  </p>
-                  <div className="flex gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => toggleSchedule(schedule)}
-                      disabled={pending}
-                    >
-                      {schedule.enabled ? <BellOff /> : <Bell />}
-                      {getScheduleToggleLabel(schedule)}
-                    </Button>
-                    {!schedule.is_default ? (
-                      <Button
-                        type="button"
-                        variant="destructive"
-                        size="icon-sm"
-                        aria-label={`Delete ${formatHour(schedule.hour)} reminder`}
-                        onClick={() => deleteSchedule(schedule)}
-                        disabled={pending}
-                      >
-                        <Trash2 />
-                      </Button>
-                    ) : null}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </section>
+      <NotificationScheduleSection
+        timezone={timezone}
+        hour={hour}
+        onHourChange={setHour}
+        message={message}
+        onMessageChange={setMessage}
+        canAddSchedule={!savingSchedule && Boolean(message.trim()) && Boolean(userId)}
+        savingSchedule={savingSchedule}
+        onAddSchedule={addSchedule}
+        loadingSchedules={loadingSchedules}
+        schedules={schedules}
+        pendingScheduleId={pendingScheduleId}
+        onToggleSchedule={toggleSchedule}
+        onDeleteSchedule={deleteSchedule}
+        defaultNotificationHour={DEFAULT_NOTIFICATION_HOUR}
+        defaultMessage={DEFAULT_MESSAGE}
+      />
     </div>
   );
 }
