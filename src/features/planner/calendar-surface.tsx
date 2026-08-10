@@ -895,7 +895,7 @@ export function CalendarSurface({
         throw new Error(getApiErrorMessage(error, "Preview refresh failed."));
       }
     },
-    [context?.activePlan, context?.timezone]
+    [context]
   );
 
   const requestPreview = async (
@@ -1064,30 +1064,33 @@ export function CalendarSurface({
     }, DRAFT_MOVE_PREVIEW_REFRESH_DELAY_MS);
   }, []);
 
-  const nonPublishablePreviewMessage = (
-    preview: NonNullable<PlannerContextPayload["preview"]>,
-    scopeMonth: string | null = context?.scopeMonth ?? null
-  ) => {
-    if (context && scopeMonth && scopeMonth < context.asOfDate.slice(0, 7)) {
-      return "Publishing an elapsed month is not supported. Publish the current or a future month.";
-    }
-    if (preview.solver.issueCodes.includes("invalid_lock")) {
-      const affectedGoals = preview.solver.invalidGoalIds
-        .slice(0, 3)
-        .map((goalId) => context?.goalTitles?.[goalId] ?? goalId);
-      const affectedLabel =
-        affectedGoals.length > 0
-          ? `Affected goals: ${affectedGoals.join(", ")}. `
-          : "";
-      return `${affectedLabel}Locked sessions currently conflict with this regenerated preview. Unlock affected sessions, regenerate, then save.`;
-    }
-    if (preview.solver.issueCodes.length > 0) {
-      return `Resolve planner issues before saving: ${preview.solver.issueCodes.join(
-        ", "
-      )}.`;
-    }
-    return "This preview is not savable yet. Regenerate and resolve planner issues before saving.";
-  };
+  const nonPublishablePreviewMessage = useCallback(
+    (
+      preview: NonNullable<PlannerContextPayload["preview"]>,
+      scopeMonth: string | null = context?.scopeMonth ?? null
+    ) => {
+      if (context && scopeMonth && scopeMonth < context.asOfDate.slice(0, 7)) {
+        return "Publishing an elapsed month is not supported. Publish the current or a future month.";
+      }
+      if (preview.solver.issueCodes.includes("invalid_lock")) {
+        const affectedGoals = preview.solver.invalidGoalIds
+          .slice(0, 3)
+          .map((goalId) => context?.goalTitles?.[goalId] ?? goalId);
+        const affectedLabel =
+          affectedGoals.length > 0
+            ? `Affected goals: ${affectedGoals.join(", ")}. `
+            : "";
+        return `${affectedLabel}Locked sessions currently conflict with this regenerated preview. Unlock affected sessions, regenerate, then save.`;
+      }
+      if (preview.solver.issueCodes.length > 0) {
+        return `Resolve planner issues before saving: ${preview.solver.issueCodes.join(
+          ", "
+        )}.`;
+      }
+      return "This preview is not savable yet. Regenerate and resolve planner issues before saving.";
+    },
+    [context]
+  );
   const runCompletionMutation = useCompletionMutation();
   const coach = usePlannerCoach({
     activeTab,
@@ -2196,7 +2199,7 @@ export function CalendarSurface({
       : context?.scopeMonth
         ? [context.scopeMonth]
         : [];
-  const blockedSaveScope = useMemo(() => {
+  const blockedSaveScope = (() => {
     if (!context?.capabilities.calendarEnabled) {
       return null;
     }
@@ -2219,15 +2222,7 @@ export function CalendarSurface({
       }
     }
     return null;
-  }, [
-    context?.asOfDate,
-    context?.capabilities.calendarEnabled,
-    context?.scopeMonth,
-    draftPreviewByScope,
-    effectivePreview,
-    scopeMonthsForSaveAction,
-    visibleMonthContexts,
-  ]);
+  })();
   const draftSaveBlocked = blockedSaveScope !== null;
   const draftSaveBlockedMessage = blockedSaveScope
     ? `${blockedSaveScope.scopeMonth}: ${blockedSaveScope.message}`
