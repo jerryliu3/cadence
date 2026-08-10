@@ -314,6 +314,49 @@ describe("planner coach route", () => {
     });
   });
 
+  it("accepts apply payloads when global omits blackout arrays", async () => {
+    mocks.generateGeminiJson.mockResolvedValue({
+      candidateJson: {
+        schemaVersion: "1",
+        phase: "ready",
+        reply: "I set weekend rest days.",
+        proposal: {
+          calendarIntent: {
+            action: "apply",
+            global: {
+              restWeekdays: [0, 6],
+            },
+          },
+        },
+        recommendations: ["Keep weekdays realistic."],
+      },
+      outputTokens: 28,
+      attempts: 1,
+    });
+
+    const response = await POST(
+      request({
+        scopeMonth: "2026-01",
+        focusGoalIds: ["12000000-0000-4000-8000-000000000001"],
+        messages: [{ role: "user", content: "Make weekends rest days." }],
+      })
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      proposal: {
+        policyPatches: [
+          {
+            kind: "set_rest_weekdays",
+            restWeekdays: [0, 6],
+          },
+        ],
+      },
+      recommendations: [{ text: "Keep weekdays realistic." }],
+      warnings: [],
+    });
+  });
+
   it("refuses to compile edits when the activity needs a matching goal", async () => {
     mocks.generateGeminiJson.mockResolvedValue({
       candidateJson: {

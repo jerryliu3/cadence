@@ -24,6 +24,37 @@ function assertNoArrayValuedType(value: unknown) {
   }
 }
 
+function assertNoDisallowedGeminiKeywords(value: unknown) {
+  const disallowed = new Set([
+    "nullable",
+    "format",
+    "pattern",
+    "minimum",
+    "maximum",
+  ]);
+  const visit = (node: unknown) => {
+    if (!node || typeof node !== "object") {
+      return;
+    }
+    if (Array.isArray(node)) {
+      for (const entry of node) {
+        visit(entry);
+      }
+      return;
+    }
+    const record = node as Record<string, unknown>;
+    for (const key of Object.keys(record)) {
+      if (disallowed.has(key)) {
+        throw new Error(`Disallowed Gemini keyword found: ${key}`);
+      }
+    }
+    for (const nested of Object.values(record)) {
+      visit(nested);
+    }
+  };
+  visit(value);
+}
+
 describe("coachResponseJsonSchema", () => {
   it("declares explicit calendar intent fields for Gemini structured output", () => {
     const proposalSchema = coachResponseJsonSchema.properties.proposal;
@@ -41,17 +72,19 @@ describe("coachResponseJsonSchema", () => {
         },
         global: {
           type: "object",
-          nullable: true,
         },
       },
     });
-    expect(proposalSchema.required).toEqual([
-      "calendarIntent",
-      "unresolvedQuestions",
-    ]);
+    expect(proposalSchema.required).toEqual(["calendarIntent"]);
   });
 
   it("avoids array-valued `type` fields incompatible with Gemini schema validation", () => {
     expect(() => assertNoArrayValuedType(coachResponseJsonSchema)).not.toThrow();
+  });
+
+  it("avoids Gemini-incompatible schema keywords", () => {
+    expect(() =>
+      assertNoDisallowedGeminiKeywords(coachResponseJsonSchema)
+    ).not.toThrow();
   });
 });
