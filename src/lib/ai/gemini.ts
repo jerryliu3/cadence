@@ -365,6 +365,17 @@ async function executeGeminiAttempt({
   signal?: AbortSignal;
 }) {
   const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+  const requestSignal = signal
+    ? AbortSignal.any([signal, AbortSignal.timeout(timeoutMs)])
+    : AbortSignal.timeout(timeoutMs);
+  const generationConfig: Record<string, unknown> = {
+    temperature,
+    responseMimeType: "application/json",
+    maxOutputTokens,
+  };
+  if (responseSchema) {
+    generationConfig.responseSchema = responseSchema;
+  }
   let response: Response;
   try {
     response = await fetch(endpoint, {
@@ -379,17 +390,10 @@ async function executeGeminiAttempt({
             parts: [{ text: prompt }],
           },
         ],
-        generationConfig: {
-          temperature,
-          responseMimeType: "application/json",
-          responseSchema,
-          maxOutputTokens,
-        },
+        generationConfig,
       }),
       cache: "no-store",
-      signal: signal
-        ? AbortSignal.any([signal, AbortSignal.timeout(timeoutMs)])
-        : AbortSignal.timeout(timeoutMs),
+      signal: requestSignal,
     });
   } catch (error) {
     const aborted =
@@ -402,8 +406,8 @@ async function executeGeminiAttempt({
     );
   }
 
+  const errorBody = response.ok ? "" : await response.text().catch(() => "");
   if (!response.ok) {
-    const errorBody = await response.text().catch(() => "");
     const compactErrorBody = errorBody
       .replace(/\s+/g, " ")
       .trim()
