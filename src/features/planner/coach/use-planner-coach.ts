@@ -1,15 +1,32 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { buildCoachSummaryWorkUnits } from "@/features/planner/calendar-entries";
 import {
-  listPlannerCoachConversations,
   persistPlannerDefaultPolicy,
   requestPlannerCoachReply,
-  restorePlannerCoachConversation,
-  savePlannerCoachConversation,
 } from "@/features/planner/coach/coach-client";
+import {
+  buildAssistantMessage,
+  buildCoachMessageProposal,
+  buildDurableApplyToastDetail,
+  type CoachProposalAutoApplyStatus,
+} from "@/features/planner/coach/coach-message-utils";
+import {
+  buildCoachCalendarEditsPrompt,
+  buildCoachFocusGoalIds,
+  computeHasCoachConversationState,
+  buildCoachGoalHint,
+  countAssignmentChanges,
+} from "@/features/planner/coach/coach-state-utils";
+import {
+  markAppliedProposalsUndone,
+  readAssistantMessageWithProposal,
+  updateAssistantProposalStatus,
+} from "@/features/planner/coach/coach-message-state";
+import { validateUndoProposal } from "@/features/planner/coach/coach-proposal-utils";
+import { useCoachConversationPersistence } from "@/features/planner/coach/use-coach-conversation-persistence";
 import type {
   PlannerCoachModel,
   UsePlannerCoachArgs,
@@ -17,9 +34,7 @@ import type {
 import { buildCoachDeterministicSummary } from "@/features/planner/coach-context";
 import { applyCoachPolicyPatches } from "@/features/planner/coach-policy";
 import {
-  buildCoachSessionKey,
   COACH_SESSION_MAX_MESSAGES,
-  loadCoachSession,
   saveCoachSession,
 } from "@/features/planner/coach-session";
 import type {
@@ -27,11 +42,7 @@ import type {
   CoachMessageProposal,
 } from "@/features/planner/calendar-surface.types";
 import type { CoachPolicyPatch } from "@/lib/planner/coach";
-import { canonicalHash } from "@/lib/planner/canonical";
 import { plannerPolicySchema, type PlannerPolicy } from "@/lib/planner/policy";
-
-const MAX_COACH_MESSAGE_CHARACTERS = 12_000;
-const WEEKDAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
 
 interface CoachProposalApplyResult {
   status: CoachProposalApplyStatus;
@@ -39,127 +50,7 @@ interface CoachProposalApplyResult {
   movedEntryKeys: string[];
 }
 
-type CoachProposalApplyStatus =
-  | "not_attempted"
-  | "applied"
-  | "already_applied"
-  | "failed";
-
-function dedupeWeekdays(weekdays: number[]) {
-  return Array.from(new Set(weekdays)).sort((left, right) => left - right);
-}
-
-function formatWeekdayList(weekdays: number[]) {
-  const labels = dedupeWeekdays(weekdays)
-    .map((weekday) => WEEKDAY_NAMES[weekday] ?? null)
-    .filter((weekday): weekday is (typeof WEEKDAY_NAMES)[number] => weekday !== null);
-  return labels.length > 0 ? labels.join(", ") : "none";
-}
-
-function describePolicyPatch(patch: CoachPolicyPatch) {
-  switch (patch.kind) {
-    case "set_rest_weekdays":
-      return `Set rest weekdays to ${formatWeekdayList(patch.restWeekdays)}.`;
-    case "add_blackout_range":
-      return `Avoid scheduling between ${patch.start} and ${patch.end}.`;
-    case "remove_blackout_range":
-      return `Remove blackout dates from ${patch.start} to ${patch.end}.`;
-  }
-}
-
-function clampAssistantMessage(content: string) {
-  const trimmed = content.trim();
-  if (trimmed.length <= MAX_COACH_MESSAGE_CHARACTERS) {
-    return trimmed;
-  }
-  return `${trimmed.slice(0, MAX_COACH_MESSAGE_CHARACTERS - 1)}…`;
-}
-
-function buildProposalSignature(patches: CoachPolicyPatch[]) {
-  return canonicalHash({ policyPatches: patches });
-}
-
-function buildBaselineSnapshotToken(policy: PlannerPolicy) {
-  return `policy:${canonicalHash(policy)}`;
-}
-
-function buildDurableApplyToastDetail({
-  scopeMonth,
-  includedDraftPolicyChanges,
-}: {
-  scopeMonth: string;
-  includedDraftPolicyChanges: boolean;
-}) {
-  const draftNote = includedDraftPolicyChanges
-    ? " This save also includes your current draft policy edits."
-    : "";
-  return `Saved as your default planner policy from ${scopeMonth}.${draftNote} Unpublished months will regenerate as you navigate; already-published months require republish to persist the new rhythm.`;
-}
-
-function mapAutoApplyStatusToProposalStatus(
-  status: CoachProposalApplyStatus
-): CoachMessageProposal["applyStatus"] {
-  if (status === "applied" || status === "already_applied") {
-    return "auto_applied";
-  }
-  return "not_applied";
-}
-
-function buildAssistantMessage({
-  reply,
-  recommendations,
-  warnings,
-  unresolvedQuestions,
-  policyPatches,
-  autoApplyStatus,
-}: {
-  reply: string;
-  recommendations: string[];
-  warnings: string[];
-  unresolvedQuestions: string[];
-  policyPatches: CoachPolicyPatch[];
-  autoApplyStatus: CoachProposalApplyStatus;
-}) {
-  const lines: string[] = [reply.trim()];
-
-  if (recommendations.length > 0) {
-    lines.push("", "Recommended next actions:");
-    for (const recommendation of recommendations) {
-      lines.push(`- ${recommendation}`);
-    }
-  }
-
-  if (policyPatches.length > 0) {
-    if (autoApplyStatus === "applied") {
-      lines.push("", "Draft updates auto-applied:");
-    } else if (autoApplyStatus === "already_applied") {
-      lines.push("", "Draft updates already match your current policy:");
-    } else if (autoApplyStatus === "failed") {
-      lines.push("", "Draft updates proposed (auto-apply did not complete):");
-    } else {
-      lines.push("", "Draft updates proposed:");
-    }
-    for (const patch of policyPatches) {
-      lines.push(`- ${describePolicyPatch(patch)}`);
-    }
-  }
-
-  if (unresolvedQuestions.length > 0) {
-    lines.push("", "Questions to confirm:");
-    for (const question of unresolvedQuestions) {
-      lines.push(`- ${question}`);
-    }
-  }
-
-  if (warnings.length > 0) {
-    lines.push("", "Notes:");
-    for (const warning of warnings) {
-      lines.push(`- ${warning}`);
-    }
-  }
-
-  return clampAssistantMessage(lines.join("\n"));
-}
+type CoachProposalApplyStatus = CoachProposalAutoApplyStatus;
 
 export function usePlannerCoach({
   activeTab,
@@ -177,14 +68,6 @@ export function usePlannerCoach({
   const [coachLoading, setCoachLoading] = useState(false);
   const [coachInput, setCoachInput] = useState("");
   const [coachMessages, setCoachMessages] = useState<CoachMessage[]>([]);
-  const [savedCoachConversations, setSavedCoachConversations] = useState<
-    PlannerCoachModel["state"]["savedCoachConversations"]
-  >([]);
-  const [selectedSavedCoachConversationId, setSelectedSavedCoachConversationId] =
-    useState("");
-  const [coachConversationsLoading, setCoachConversationsLoading] = useState(false);
-  const [coachConversationSaving, setCoachConversationSaving] = useState(false);
-  const [coachConversationRestoring, setCoachConversationRestoring] = useState(false);
   const [coachWarnings, setCoachWarnings] = useState<string[]>([]);
   const [coachRecommendations, setCoachRecommendations] = useState<string[]>([]);
   const [coachUnresolvedQuestions, setCoachUnresolvedQuestions] = useState<string[]>(
@@ -215,88 +98,42 @@ export function usePlannerCoach({
     [context]
   );
 
+  const {
+    state: {
+      savedCoachConversations,
+      selectedSavedCoachConversationId,
+      coachConversationsLoading,
+      coachConversationSaving,
+      coachConversationRestoring,
+    },
+    actions: {
+      setSelectedSavedCoachConversationId,
+      saveCoachConversation,
+      restoreSavedCoachConversation,
+      startNewCoachConversation,
+      resetForPlannerStateReset,
+    },
+  } = useCoachConversationPersistence({
+    activeTab,
+    scopeMonth: context?.scopeMonth,
+    timezone: context?.timezone,
+    coachMessages,
+    resetCoachUiState,
+    setCoachInput,
+    persistCoachMessages,
+  });
+
   const coachSummaryWorkUnits = useMemo(
     () => buildCoachSummaryWorkUnits(entriesByDate),
     [entriesByDate]
   );
 
   const coachFocusGoalIds = useMemo(() => {
-    const ids = new Set<string>();
-    for (const unit of effectivePreview?.workUnits ?? []) {
-      ids.add(unit.originalGoalId);
-    }
-    if (ids.size === 0) {
-      for (const goalId of Object.keys(context?.goalTitles ?? {})) {
-        ids.add(goalId);
-      }
-    }
-    return Array.from(ids).slice(0, 20);
+    return buildCoachFocusGoalIds({
+      workUnits: effectivePreview?.workUnits,
+      goalTitles: context?.goalTitles,
+    });
   }, [context, effectivePreview]);
-
-  const loadSavedCoachConversations = useCallback(
-    async (scopeMonth: string) => {
-      setCoachConversationsLoading(true);
-      try {
-        const conversations = await listPlannerCoachConversations({ scopeMonth, limit: 20 });
-        setSavedCoachConversations(conversations);
-        setSelectedSavedCoachConversationId((current) => {
-          if (current && conversations.some((conversation) => conversation.id === current)) {
-            return current;
-          }
-          return conversations[0]?.id ?? "";
-        });
-      } catch (error) {
-        setSavedCoachConversations([]);
-        setSelectedSavedCoachConversationId("");
-        const message =
-          error instanceof Error
-            ? error.message
-            : "Saved conversations could not be loaded.";
-        if (
-          message
-            .toLowerCase()
-            .includes("saved coach conversations are temporarily unavailable")
-        ) {
-          return;
-        }
-        toast.error(
-          message
-        );
-      } finally {
-        setCoachConversationsLoading(false);
-      }
-    },
-    []
-  );
-
-  useEffect(() => {
-    if (activeTab !== "calendar" || !context?.scopeMonth || !context?.timezone) {
-      return;
-    }
-    const timer = window.setTimeout(() => {
-      const restored = loadCoachSession(context.scopeMonth, context.timezone);
-      resetCoachUiState(restored);
-    }, 0);
-    return () => window.clearTimeout(timer);
-  }, [activeTab, context?.scopeMonth, context?.timezone, resetCoachUiState]);
-
-  useEffect(() => {
-    if (activeTab !== "calendar" || !context?.scopeMonth) {
-      const timer = window.setTimeout(() => {
-        setSavedCoachConversations([]);
-        setSelectedSavedCoachConversationId("");
-      }, 0);
-      return () => window.clearTimeout(timer);
-    }
-    const timer = window.setTimeout(() => {
-      void loadSavedCoachConversations(context.scopeMonth);
-    }, 0);
-    return () => window.clearTimeout(timer);
-  }, [
-    activeTab,
-    context?.scopeMonth,
-    loadSavedCoachConversations,
-  ]);
 
   const applyCoachPatchesToDraft = useCallback(
     async ({
@@ -346,27 +183,10 @@ export function usePlannerCoach({
           });
           appendCoachContextEvent("Persisted coach proposal to planner defaults");
         }
-        const previousDatesByKey = new Map(
-          (effectivePreview?.workUnits ?? []).map((unit) => [
-            `${unit.originalGoalId}:${unit.unitKey}`,
-            unit.scheduledDate,
-          ])
-        );
-        const refreshedDatesByKey = new Map(
-          refreshedPreview.workUnits.map((unit) => [
-            `${unit.originalGoalId}:${unit.unitKey}`,
-            unit.scheduledDate,
-          ])
-        );
-        let assignmentChanges = 0;
-        for (const key of new Set([
-          ...previousDatesByKey.keys(),
-          ...refreshedDatesByKey.keys(),
-        ])) {
-          if (previousDatesByKey.get(key) !== refreshedDatesByKey.get(key)) {
-            assignmentChanges += 1;
-          }
-        }
+        const assignmentChanges = countAssignmentChanges({
+          previousWorkUnits: effectivePreview?.workUnits,
+          refreshedWorkUnits: refreshedPreview.workUnits,
+        });
         if (context.scopeMonth) {
           applyDraftPolicy(context.scopeMonth, result.policy);
         }
@@ -482,7 +302,6 @@ export function usePlannerCoach({
       const baselinePolicy = context.preferences
         ? plannerPolicySchema.parse(effectiveDraftPolicy ?? context.preferences.defaultPolicy)
         : null;
-      let proposal: CoachMessageProposal | null = null;
       if (policyPatches.length > 0) {
         const autoApply = await applyCoachPatchesToDraft({
           patches: policyPatches,
@@ -490,20 +309,14 @@ export function usePlannerCoach({
         });
         autoApplyStatus = autoApply.status;
         autoAppliedEntryKeys = autoApply.movedEntryKeys;
-        const patchSignature = buildProposalSignature(policyPatches);
-        proposal = {
-          schemaVersion: "1",
-          applyStatus: mapAutoApplyStatusToProposalStatus(autoApplyStatus),
-          patchSignature,
-          baselineSnapshotToken: baselinePolicy
-            ? buildBaselineSnapshotToken(baselinePolicy)
-            : `missing:${patchSignature.slice(0, 32)}`,
-          baselinePolicy,
-          policyPatches,
-          appliedMoveEntryKeys: autoAppliedEntryKeys,
-          unresolvedQuestions,
-        };
       }
+      const proposal = buildCoachMessageProposal({
+        policyPatches,
+        unresolvedQuestions,
+        baselinePolicy,
+        autoApplyStatus,
+        autoAppliedEntryKeys,
+      });
       const assistantMessage: CoachMessage = {
         role: "assistant",
         content: buildAssistantMessage({
@@ -543,79 +356,6 @@ export function usePlannerCoach({
     persistCoachMessages,
   ]);
 
-  const saveCoachConversation = useCallback(async () => {
-    if (!context?.scopeMonth || !context?.timezone || coachMessages.length === 0) {
-      return;
-    }
-    setCoachConversationSaving(true);
-    try {
-      const conversation = await savePlannerCoachConversation({
-        scopeMonth: context.scopeMonth,
-        timezone: context.timezone,
-        messages: coachMessages,
-      });
-      setSavedCoachConversations((previous) => {
-        const remaining = previous.filter((item) => item.id !== conversation.id);
-        return [conversation, ...remaining];
-      });
-      setSelectedSavedCoachConversationId(conversation.id);
-      toast.success("Coach conversation saved.");
-    } catch (error) {
-      toast.error(
-        error instanceof Error
-          ? error.message
-          : "Coach conversation could not be saved."
-      );
-    } finally {
-      setCoachConversationSaving(false);
-    }
-  }, [coachMessages, context]);
-
-  const restoreSavedCoachConversation = useCallback(
-    async (conversationId: string) => {
-      if (!context?.scopeMonth || !context?.timezone || !conversationId) {
-        return;
-      }
-      setCoachConversationRestoring(true);
-      try {
-        const restorePayload = await restorePlannerCoachConversation(conversationId);
-        const restoredMessages = restorePayload.messages.slice(
-          -COACH_SESSION_MAX_MESSAGES
-        );
-        resetCoachUiState(restoredMessages);
-        setCoachInput("");
-        persistCoachMessages(restoredMessages);
-        setSelectedSavedCoachConversationId(restorePayload.conversation.id);
-        setSavedCoachConversations((previous) => {
-          const remaining = previous.filter(
-            (conversation) => conversation.id !== restorePayload.conversation.id
-          );
-          return [restorePayload.conversation, ...remaining];
-        });
-        toast.success("Saved coach conversation restored.");
-      } catch (error) {
-        toast.error(
-          error instanceof Error
-            ? error.message
-            : "Saved conversation could not be restored."
-        );
-      } finally {
-        setCoachConversationRestoring(false);
-      }
-    },
-    [context, persistCoachMessages, resetCoachUiState]
-  );
-
-  const startNewCoachConversation = useCallback(() => {
-    if (context?.scopeMonth && context?.timezone) {
-      sessionStorage.removeItem(buildCoachSessionKey(context.scopeMonth, context.timezone));
-    }
-    resetCoachUiState([]);
-    setCoachInput("");
-    setSelectedSavedCoachConversationId("");
-    toast.success("Started a new coach conversation.");
-  }, [context, resetCoachUiState]);
-
   const updateCoachProposalStatus = useCallback(
     (
       messageIndex: number,
@@ -623,24 +363,15 @@ export function usePlannerCoach({
       appliedMoveEntryKeys?: string[]
     ) => {
       setCoachMessages((previous) => {
-        const target = previous[messageIndex];
-        if (!target || target.role !== "assistant" || !target.proposal) {
+        const { changed, nextMessages } = updateAssistantProposalStatus({
+          messages: previous,
+          messageIndex,
+          applyStatus,
+          appliedMoveEntryKeys,
+        });
+        if (!changed) {
           return previous;
         }
-        const nextMessages = previous.map((message, index) =>
-          index === messageIndex
-            ? {
-                ...message,
-                proposal: {
-                  ...message.proposal!,
-                  applyStatus,
-                  ...(appliedMoveEntryKeys
-                    ? { appliedMoveEntryKeys }
-                    : {}),
-                },
-              }
-            : message
-        );
         persistCoachMessages(nextMessages);
         return nextMessages;
       });
@@ -650,8 +381,11 @@ export function usePlannerCoach({
 
   const applyCoachProposal = useCallback(
     async (messageIndex: number) => {
-      const message = coachMessages[messageIndex];
-      if (!message || message.role !== "assistant" || !message.proposal) {
+      const message = readAssistantMessageWithProposal({
+        messages: coachMessages,
+        messageIndex,
+      });
+      if (!message) {
         return;
       }
       const { status, movedEntryKeys } = await applyCoachPatchesToDraft({
@@ -672,55 +406,54 @@ export function usePlannerCoach({
   }, [appendCoachContextEvent]);
 
   const requestCalendarEditsFromCoach = useCallback(() => {
-    const goalHint =
-      coachFocusGoalIds.length > 0
-        ? `Current focus goals: ${coachFocusGoalIds
-            .map(
-              (goalId) =>
-                `${goalId} (${context?.goalTitles?.[goalId] ?? "Untitled goal"})`
-            )
-            .join(", ")}.`
-        : "There are no focus goals in the current planner scope.";
-    setCoachInput(
-      `Please convert your guidance into concrete calendar intent I can apply now. Make safe assumptions and keep them explicit. ${goalHint} Use action="apply" for concrete scheduling edits. Restrict edits to restWeekdays and blackout ranges; use action="needs_goal" when the request cannot be represented by those planner fields.`.trim()
-    );
+    const goalHint = buildCoachGoalHint({
+      focusGoalIds: coachFocusGoalIds,
+      goalTitles: context?.goalTitles,
+    });
+    setCoachInput(buildCoachCalendarEditsPrompt(goalHint).trim());
   }, [coachFocusGoalIds, context]);
 
   const undoCoachProposal = useCallback(
     async (messageIndex: number) => {
-      const message = coachMessages[messageIndex];
-      if (!message || message.role !== "assistant" || !message.proposal) {
+      const message = readAssistantMessageWithProposal({
+        messages: coachMessages,
+        messageIndex,
+      });
+      if (!message) {
         return;
       }
-      if (!context?.preferences) {
+
+      const validation = validateUndoProposal({
+        proposal: message.proposal,
+        preferences: context?.preferences,
+        effectiveDraftPolicy,
+      });
+      if (!validation.ok) {
+        if (validation.reason === "missing_preferences") {
+          toast.error("Undo is unavailable because planner policy is not loaded.");
+          return;
+        }
+        if (validation.reason === "missing_baseline") {
+          toast.error(
+            "Undo is unavailable because this proposal has no baseline snapshot."
+          );
+          return;
+        }
+        if (validation.reason === "stale_draft_policy") {
+          toast.error(
+            "Undo is blocked because newer draft policy changes were applied after this proposal. Undo newer proposals first or discard draft changes."
+          );
+          return;
+        }
+        return;
+      }
+      const { baselinePolicy, currentDraftPolicy, shouldPersistDurableUndo } = validation;
+      const preferences = context?.preferences;
+      if (!preferences) {
         toast.error("Undo is unavailable because planner policy is not loaded.");
         return;
       }
-      if (!message.proposal.baselinePolicy) {
-        toast.error(
-          "Undo is unavailable because this proposal has no baseline snapshot."
-        );
-        return;
-      }
-      const baselinePolicy = plannerPolicySchema.parse(message.proposal.baselinePolicy);
-      const expectedAppliedPolicy = applyCoachPolicyPatches({
-        policy: baselinePolicy,
-        patches: message.proposal.policyPatches,
-      }).policy;
-      const currentDraftPolicy = plannerPolicySchema.parse(
-        effectiveDraftPolicy ?? context.preferences.defaultPolicy
-      );
-      if (
-        buildBaselineSnapshotToken(currentDraftPolicy) !==
-        buildBaselineSnapshotToken(expectedAppliedPolicy)
-      ) {
-        toast.error(
-          "Undo is blocked because newer draft policy changes were applied after this proposal. Undo newer proposals first or discard draft changes."
-        );
-        return;
-      }
-      const shouldPersistDurableUndo =
-        message.proposal.applyStatus === "manually_applied";
+      const scopeMonth = context?.scopeMonth ?? null;
       setCoachPolicyApplying(true);
       try {
         // Reverting the policy is not enough: the apply also pinned the moves
@@ -731,14 +464,14 @@ export function usePlannerCoach({
         if (shouldPersistDurableUndo) {
           try {
             await persistPlannerDefaultPolicy({
-              timezone: context.preferences.timezone,
+              timezone: preferences.timezone,
               defaultPolicy: baselinePolicy,
             });
           } catch (error) {
             try {
               await refreshDraftPreview(currentDraftPolicy);
-              if (context.scopeMonth) {
-                applyDraftPolicy(context.scopeMonth, currentDraftPolicy);
+              if (scopeMonth) {
+                applyDraftPolicy(scopeMonth, currentDraftPolicy);
               }
               appendCoachContextEvent(
                 "Reverted undo preview after planner default restore failed"
@@ -751,15 +484,15 @@ export function usePlannerCoach({
             throw error;
           }
         }
-        if (context?.scopeMonth) {
-          applyDraftPolicy(context.scopeMonth, baselinePolicy);
+        if (scopeMonth) {
+          applyDraftPolicy(scopeMonth, baselinePolicy);
         }
         updateCoachProposalStatus(messageIndex, "undone");
         appendCoachContextEvent("Undid coach draft proposal");
         toast.success(
           shouldPersistDurableUndo
-            ? context.scopeMonth
-              ? `Coach proposal changes were undone. Planner defaults were restored from ${context.scopeMonth}.`
+            ? scopeMonth
+              ? `Coach proposal changes were undone. Planner defaults were restored from ${scopeMonth}.`
               : "Coach proposal changes were undone."
             : "Coach draft preview changes were undone."
         );
@@ -781,52 +514,26 @@ export function usePlannerCoach({
     ]
   );
 
-  const resetForPlannerStateReset = useCallback(() => {
-    if (context?.scopeMonth && context?.timezone) {
-      sessionStorage.removeItem(buildCoachSessionKey(context.scopeMonth, context.timezone));
-    }
-    resetCoachUiState([]);
-    setCoachInput("");
-    setSelectedSavedCoachConversationId("");
-  }, [context, resetCoachUiState]);
-
   const onDraftDiscarded = useCallback(() => {
     setCoachMessages((previous) => {
-      let changed = false;
-      const nextMessages = previous.map((message) => {
-        if (
-          message.proposal &&
-          (message.proposal.applyStatus === "auto_applied" ||
-            message.proposal.applyStatus === "manually_applied")
-        ) {
-          changed = true;
-          const nextProposal: CoachMessageProposal = {
-            ...message.proposal,
-            applyStatus: "undone",
-          };
-          return {
-            ...message,
-            proposal: nextProposal,
-          };
-        }
-        return message;
-      });
+      const { changed, nextMessages } = markAppliedProposalsUndone(previous);
       if (changed) {
         persistCoachMessages(nextMessages);
       }
-      return changed ? nextMessages : previous;
+      return nextMessages;
     });
     appendCoachContextEvent("Discarded draft changes");
   }, [appendCoachContextEvent, persistCoachMessages]);
 
   const canUseCoach = Boolean(context?.scopeMonth);
-  const hasCoachConversationState =
-    coachMessages.length > 0 ||
-    coachWarnings.length > 0 ||
-    coachRecommendations.length > 0 ||
-    coachUnresolvedQuestions.length > 0 ||
-    coachContextEvents.length > 0 ||
-    coachInput.trim().length > 0;
+  const hasCoachConversationState = computeHasCoachConversationState({
+    coachMessages,
+    coachWarnings,
+    coachRecommendations,
+    coachUnresolvedQuestions,
+    coachContextEvents,
+    coachInput,
+  });
 
   return {
     state: {

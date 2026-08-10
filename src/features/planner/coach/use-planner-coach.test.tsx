@@ -7,6 +7,12 @@ import type {
   PlannerDayDetailEntry,
   PlannerWorkUnit,
 } from "@/features/planner/calendar-surface.types";
+import {
+  buildPlannerContext,
+  buildPlannerDayEntry,
+  buildPlannerPolicy,
+  buildPlannerWorkUnit,
+} from "@/features/planner/test-fixtures";
 import type { PlannerPolicy } from "@/lib/planner/policy";
 
 const listPlannerCoachConversationsMock = vi.fn();
@@ -57,108 +63,22 @@ vi.mock("sonner", () => ({
   },
 }));
 
-function buildPolicy(overrides: Partial<PlannerPolicy> = {}): PlannerPolicy {
-  return {
-    schemaVersion: "1",
-    timezone: "UTC",
-    timezoneConfirmedAt: "2026-08-01T00:00:00.000Z",
-    restWeekdays: [],
-    blackoutRanges: [],
-    ...overrides,
-  };
-}
-
 function buildWorkUnit(overrides: Partial<PlannerWorkUnit> = {}): PlannerWorkUnit {
-  return {
-    originalGoalId: "goal-1",
-    unitKey: "unit-1",
-    label: "Easy run",
-    scheduledDate: "2026-08-01",
-    classification: "planned",
-    creditState: "uncredited",
-    ...overrides,
-  };
+  return buildPlannerWorkUnit(overrides);
 }
 
 function buildEntry(overrides: Partial<PlannerDayDetailEntry> = {}): PlannerDayDetailEntry {
-  return {
-    key: "goal-1:unit-1",
-    originalGoalId: "goal-1",
-    goalTitle: "Running",
-    unitKey: "unit-1",
-    label: "Easy run",
-    classification: "planned",
-    creditState: "uncredited",
-    activeGoal: null,
-    activeItem: null,
-    draftDiffKind: null,
-    draftDiffFromDate: null,
-    draftDiffToDate: null,
-    draftGhost: false,
-    ...overrides,
-  };
+  return buildPlannerDayEntry(overrides);
 }
 
 function buildContext(
   overrides: Partial<PlannerContextPayload> = {}
 ): PlannerContextPayload {
-  const base: PlannerContextPayload = {
-    schemaVersion: "1",
-    scopeMonth: "2026-08",
-    asOfDate: "2026-08-06",
-    timezone: "UTC",
-    goalTitles: {
-      "goal-1": "Running",
-    },
-    preferences: {
-      timezone: "UTC",
-      timezoneConfirmedAt: "2026-08-01T00:00:00.000Z",
-      policyRevision: 1,
-      defaultPolicy: buildPolicy(),
-    },
-    capabilities: {
-      crossMonthMovesEnabled: false,
-    },
-    activePlan: null,
-    preview: {
-      eligibilityMode: "overlap_v1",
-      preserveExistingAssignments: false,
-      generationInputHash: "hash",
-      solver: {
-        placementStatus: "complete",
-        searchStatus: "all_units_placed",
-        capacityStatus: "unverified",
-        issueCodes: [],
-        invalidGoalIds: [],
-        publishable: true,
-        confirmationRequired: false,
-      },
-      workUnits: [buildWorkUnit()],
-    },
-    revisions: {
-      canonicalRevision: 1,
-      executionRevision: 1,
-    },
-    staleness: {
-      stale: false,
-      reasons: [],
-    },
-  };
-  return {
-    ...base,
-    ...overrides,
-    capabilities: {
-      ...base.capabilities,
-      ...(overrides.capabilities ?? {}),
-    },
-    preferences: overrides.preferences === undefined ? base.preferences : overrides.preferences,
-    preview: overrides.preview === undefined ? base.preview : overrides.preview,
-    revisions: {
-      ...base.revisions,
-      ...(overrides.revisions ?? {}),
-    },
-    staleness: overrides.staleness ?? base.staleness,
-  };
+  return buildPlannerContext({ overrides });
+}
+
+function buildPolicy(overrides: Partial<PlannerPolicy> = {}): PlannerPolicy {
+  return buildPlannerPolicy(overrides);
 }
 
 function buildArgs(overrides: Partial<UsePlannerCoachArgs> = {}): UsePlannerCoachArgs {

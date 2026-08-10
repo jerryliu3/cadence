@@ -9,6 +9,12 @@ import type {
   PlannerWorkUnit,
 } from "@/features/planner/calendar-surface.types";
 import {
+  buildPlannerContext,
+  buildPlannerDayEntry,
+  buildPlannerPreview,
+  buildPlannerWorkUnit,
+} from "@/features/planner/test-fixtures";
+import {
   readPlannerCalendarDayProjection,
   selectEffectiveDraftCommands,
   selectPlannerCalendarDayProjectionsByDay,
@@ -27,61 +33,41 @@ function unit({
   unitKey: string;
   scheduledDate: string | null;
 }): PlannerWorkUnit {
-  return {
+  return buildPlannerWorkUnit({
     originalGoalId: goalId,
     unitKey,
     label: null,
     scheduledDate,
     classification: "open",
     creditState: "uncredited",
-  };
+  });
 }
 
 function buildPreview(workUnits: PlannerWorkUnit[]): NonNullable<PlannerContextPayload["preview"]> {
-  return {
-    eligibilityMode: "overlap_v1",
+  return buildPlannerPreview(workUnits, {
     preserveExistingAssignments: true,
-    generationInputHash: "hash",
-    solver: {
-      placementStatus: "complete",
-      searchStatus: "all_units_placed",
-      capacityStatus: "unverified",
-      issueCodes: [],
-      invalidGoalIds: [],
-      publishable: true,
-      confirmationRequired: false,
-    },
-    workUnits,
-  };
+  });
 }
 
 function buildContext(workUnits: PlannerWorkUnit[]): PlannerContextPayload {
-  return {
-    schemaVersion: "1",
-    scopeMonth: "2026-08",
-    asOfDate: "2026-08-15",
-    timezone: "UTC",
-    goalTitles: {
-      "goal-a": "Goal A",
-      "goal-b": "Goal B",
-      "goal-c": "Goal C",
+  return buildPlannerContext({
+    workUnits,
+    overrides: {
+      asOfDate: "2026-08-15",
+      goalTitles: {
+        "goal-a": "Goal A",
+        "goal-b": "Goal B",
+        "goal-c": "Goal C",
+      },
+      preferences: null,
+      preview: buildPreview(workUnits),
+      revisions: {
+        canonicalRevision: 1,
+        executionRevision: 1,
+        scheduleDigest: "digest",
+      },
     },
-    preferences: null,
-    capabilities: {
-      crossMonthMovesEnabled: false,
-    },
-    activePlan: null,
-    preview: buildPreview(workUnits),
-    revisions: {
-      canonicalRevision: 1,
-      executionRevision: 1,
-      scheduleDigest: "digest",
-    },
-    staleness: {
-      stale: false,
-      reasons: [],
-    },
-  };
+  });
 }
 
 function commandState(commands: ScopedPlannerDraftCommand[]): DraftCommandState {
@@ -233,7 +219,7 @@ describe("calendar store selectors", () => {
 
   it("builds and reads day projections with pinned ordering", () => {
     const day = "2026-08-07";
-    const entryA: PlannerDayDetailEntry = {
+    const entryA: PlannerDayDetailEntry = buildPlannerDayEntry({
       key: "goal-a:total:1",
       originalGoalId: "goal-a",
       goalTitle: "Goal A",
@@ -241,14 +227,8 @@ describe("calendar store selectors", () => {
       label: "A",
       classification: "planned",
       creditState: "uncredited",
-      activeGoal: null,
-      activeItem: null,
-      draftDiffKind: null,
-      draftDiffFromDate: null,
-      draftDiffToDate: null,
-      draftGhost: false,
-    };
-    const entryB: PlannerDayDetailEntry = {
+    });
+    const entryB: PlannerDayDetailEntry = buildPlannerDayEntry({
       key: "goal-b:total:1",
       originalGoalId: "goal-b",
       goalTitle: "Goal B",
@@ -256,13 +236,7 @@ describe("calendar store selectors", () => {
       label: "B",
       classification: "planned",
       creditState: "uncredited",
-      activeGoal: null,
-      activeItem: null,
-      draftDiffKind: null,
-      draftDiffFromDate: null,
-      draftDiffToDate: null,
-      draftGhost: false,
-    };
+    });
 
     const storeProjection: PlannerCalendarStoreProjection = {
       effectiveDraftCommands: [],

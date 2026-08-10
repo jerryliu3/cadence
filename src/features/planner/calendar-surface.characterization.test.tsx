@@ -6,7 +6,13 @@ import type {
   PlannerVisibleMonthContextPayload,
   PlannerWorkUnit,
 } from "./calendar-surface.types";
-import type { PlannerPolicy } from "@/lib/planner/policy";
+import {
+  buildPlannerContext,
+  buildPlannerPolicy,
+  buildPlannerPreview,
+  buildPlannerVisibleMonthContext,
+  buildPlannerWorkUnit,
+} from "@/features/planner/test-fixtures";
 
 const getJsonMock = vi.fn();
 const postJsonMock = vi.fn();
@@ -47,19 +53,8 @@ vi.mock("@/features/planner/use-planner-visible-month-contexts", () => ({
     usePlannerVisibleMonthContextsMock(...args),
 }));
 
-function buildPolicy(): PlannerPolicy {
-  return {
-    schemaVersion: "1",
-    timezone: "UTC",
-    timezoneConfirmedAt: "2026-08-01T00:00:00.000Z",
-    weekStartsOn: 1,
-    restWeekdays: [],
-    blackoutRanges: [],
-  };
-}
-
 function unit(overrides: Partial<PlannerWorkUnit>): PlannerWorkUnit {
-  return {
+  return buildPlannerWorkUnit({
     originalGoalId: "goal-a",
     unitKey: "total:1",
     label: "Baseline",
@@ -67,82 +62,53 @@ function unit(overrides: Partial<PlannerWorkUnit>): PlannerWorkUnit {
     classification: "planned",
     creditState: "uncredited",
     ...overrides,
-  };
+  });
 }
 
 function buildContext(workUnits: PlannerWorkUnit[]): PlannerContextPayload {
-  return {
-    schemaVersion: "1",
-    scopeMonth: "2026-08",
-    asOfDate: "2026-08-15",
-    timezone: "UTC",
-    goalTitles: {
-      "goal-a": "Goal A",
-      "goal-b": "Goal B",
-    },
-    preferences: {
-      timezone: "UTC",
-      timezoneConfirmedAt: "2026-08-01T00:00:00.000Z",
-      policyRevision: 1,
-      defaultPolicy: buildPolicy(),
-    },
-    capabilities: {
-      crossMonthMovesEnabled: false,
-    },
-    activePlan: null,
-    preview: {
-      eligibilityMode: "overlap_v1",
-      preserveExistingAssignments: true,
-      generationInputHash: "hash",
-      solver: {
-        placementStatus: "complete",
-        searchStatus: "all_units_placed",
-        capacityStatus: "unverified",
-        issueCodes: [],
-        invalidGoalIds: [],
-        publishable: true,
-        confirmationRequired: false,
+  return buildPlannerContext({
+    workUnits,
+    overrides: {
+      asOfDate: "2026-08-15",
+      goalTitles: {
+        "goal-a": "Goal A",
+        "goal-b": "Goal B",
       },
-      workUnits,
+      preferences: {
+        timezone: "UTC",
+        timezoneConfirmedAt: "2026-08-01T00:00:00.000Z",
+        policyRevision: 1,
+        defaultPolicy: buildPlannerPolicy({ weekStartsOn: 1 }),
+      },
+      preview: buildPlannerPreview(workUnits, {
+        preserveExistingAssignments: true,
+      }),
+      revisions: {
+        canonicalRevision: 1,
+        executionRevision: 1,
+        scheduleDigest: "digest",
+      },
     },
-    revisions: {
-      canonicalRevision: 1,
-      executionRevision: 1,
-      scheduleDigest: "digest",
-    },
-    staleness: {
-      stale: false,
-      reasons: [],
-    },
-  };
+  });
 }
 
 function buildVisibleMonthContext(
   workUnits: PlannerWorkUnit[]
 ): PlannerVisibleMonthContextPayload {
-  return {
-    scopeMonth: "2026-09",
-    goalTitles: {
-      "goal-a": "Goal A",
-      "goal-b": "Goal B",
-    },
-    activePlan: null,
-    preview: {
-      eligibilityMode: "overlap_v1",
-      preserveExistingAssignments: true,
-      generationInputHash: "visible-hash",
-      solver: {
-        placementStatus: "complete",
-        searchStatus: "all_units_placed",
-        capacityStatus: "unverified",
-        issueCodes: [],
-        invalidGoalIds: [],
-        publishable: true,
-        confirmationRequired: false,
+  return buildPlannerVisibleMonthContext({
+    workUnits,
+    overrides: {
+      scopeMonth: "2026-09",
+      goalTitles: {
+        "goal-a": "Goal A",
+        "goal-b": "Goal B",
       },
-      workUnits,
+      preview: buildPlannerPreview(workUnits, {
+        preserveExistingAssignments: true,
+        generationInputHash: "visible-hash",
+      }),
     },
-  };
+  });
 }
 
 describe("CalendarSurface characterization", () => {
