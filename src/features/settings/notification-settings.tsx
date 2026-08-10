@@ -3,7 +3,7 @@
 import {
   Bell,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
   getPushRegistration,
@@ -18,11 +18,7 @@ import {
   type PushStatus,
 } from "@/features/settings/notification-push-section";
 import { NotificationScheduleSection } from "@/features/settings/notification-schedule-section";
-import {
-  formatHour,
-  sortSchedules,
-  type NotificationSchedule,
-} from "@/features/settings/notification-schedule-utils";
+import { useNotificationSchedules } from "@/features/settings/use-notification-schedules";
 import { createClient } from "@/lib/supabase/client";
 
 const DEFAULT_MESSAGE = "Complete your checklist for today";
@@ -31,101 +27,32 @@ const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY?.trim() ?? "";
 
 export function NotificationSettings() {
   const supabase = useMemo(() => createClient(), []);
-  const [userId, setUserId] = useState("");
-  const [schedules, setSchedules] = useState<NotificationSchedule[]>([]);
-  const [loadingSchedules, setLoadingSchedules] = useState(true);
-  const [savingSchedule, setSavingSchedule] = useState(false);
-  const [pendingScheduleId, setPendingScheduleId] = useState<string | null>(null);
-  const [hour, setHour] = useState("18");
-  const [message, setMessage] = useState(DEFAULT_MESSAGE);
-  const [timezone, setTimezone] = useState("UTC");
   const [pushStatus, setPushStatus] = useState<PushStatus>("checking");
   const [pushSubscription, setPushSubscription] = useState<PushSubscription | null>(null);
   const [changingPushStatus, setChangingPushStatus] = useState(false);
   const [isIOS, setIsIOS] = useState(false);
   const [isStandalone, setIsStandalone] = useState(false);
-
-  const loadSchedules = useCallback(async () => {
-    setLoadingSchedules(true);
-
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      setUserId("");
-      setSchedules([]);
-      setLoadingSchedules(false);
-      return;
-    }
-
-    setUserId(user.id);
-
-    const { data, error } = await supabase
-      .from("notification_schedules")
-      .select("*")
-      .eq("user_id", user.id)
-      .order("hour");
-
-    if (error) {
-      toast.error("Could not load notification schedules.");
-      setSchedules([]);
-      setLoadingSchedules(false);
-      return;
-    }
-
-    let loadedSchedules = (data ?? []) as NotificationSchedule[];
-
-    if (!loadedSchedules.some((schedule) => schedule.is_default)) {
-      const matchingSchedule = loadedSchedules.find(
-        (schedule) =>
-          schedule.hour === DEFAULT_NOTIFICATION_HOUR &&
-          schedule.message === DEFAULT_MESSAGE
-      );
-      const detectedTimezone = resolveUserTimezone();
-      const defaultScheduleWrite = matchingSchedule
-        ? supabase
-            .from("notification_schedules")
-            .update({ is_default: true, updated_at: new Date().toISOString() })
-            .eq("id", matchingSchedule.id)
-            .eq("user_id", user.id)
-        : supabase.from("notification_schedules").insert({
-            user_id: user.id,
-            hour: DEFAULT_NOTIFICATION_HOUR,
-            timezone: detectedTimezone,
-            message: DEFAULT_MESSAGE,
-            enabled: true,
-            is_default: true,
-          });
-      const { data: defaultSchedule, error: defaultScheduleError } =
-        await defaultScheduleWrite.select("*").single();
-
-      if (defaultScheduleError?.code === "23505") {
-        const { data: refreshedSchedules, error: refreshError } = await supabase
-          .from("notification_schedules")
-          .select("*")
-          .eq("user_id", user.id)
-          .order("hour");
-
-        if (refreshError) {
-          toast.error("Could not load the default 9:00 PM reminder.");
-        } else {
-          loadedSchedules = (refreshedSchedules ?? []) as NotificationSchedule[];
-        }
-      } else if (defaultScheduleError) {
-        console.error("Failed to create the default notification schedule:", defaultScheduleError);
-        toast.error("Could not create the default 9:00 PM reminder.");
-      } else {
-        loadedSchedules = [
-          ...loadedSchedules.filter((schedule) => schedule.id !== defaultSchedule.id),
-          defaultSchedule as NotificationSchedule,
-        ];
-      }
-    }
-
-    setSchedules(sortSchedules(loadedSchedules));
-    setLoadingSchedules(false);
-  }, [supabase]);
+  const {
+    userId,
+    schedules,
+    loadingSchedules,
+    savingSchedule,
+    pendingScheduleId,
+    hour,
+    setHour,
+    message,
+    setMessage,
+    timezone,
+    setTimezone,
+    loadSchedules,
+    addSchedule,
+    toggleSchedule,
+    deleteSchedule,
+  } = useNotificationSchedules({
+    supabase,
+    defaultNotificationHour: DEFAULT_NOTIFICATION_HOUR,
+    defaultMessage: DEFAULT_MESSAGE,
+  });
 
   useEffect(() => {
     const initializePush = async () => {
@@ -252,82 +179,6 @@ export function NotificationSettings() {
     } finally {
       setChangingPushStatus(false);
     }
-  };
-
-  const addSchedule = async () => {
-    const trimmedMessage = message.trim();
-
-    if (!userId || !trimmedMessage) {
-      return;
-    }
-
-    setSavingSchedule(true);
-
-    const { data, error } = await supabase
-      .from("notification_schedules")
-      .insert({
-        user_id: userId,
-        hour: Number(hour),
-        timezone,
-        message: trimmedMessage,
-      })
-      .select("*")
-      .single();
-
-    if (error) {
-      console.error("Failed to create notification schedule:", error);
-      toast.error("Could not create the notification schedule.");
-    } else {
-      setSchedules((current) =>
-        sortSchedules([...current, data as NotificationSchedule])
-      );
-      setMessage(DEFAULT_MESSAGE);
-      toast.success(`Daily reminder added for ${formatHour(Number(hour))}.`);
-    }
-
-    setSavingSchedule(false);
-  };
-
-  const toggleSchedule = async (schedule: NotificationSchedule) => {
-    setPendingScheduleId(schedule.id);
-    const enabled = !schedule.enabled;
-    const { error } = await supabase
-      .from("notification_schedules")
-      .update({ enabled, updated_at: new Date().toISOString() })
-      .eq("id", schedule.id)
-      .eq("user_id", userId);
-
-    if (error) {
-      toast.error("Could not update the notification schedule.");
-    } else {
-      setSchedules((current) =>
-        current.map((item) => (item.id === schedule.id ? { ...item, enabled } : item))
-      );
-    }
-
-    setPendingScheduleId(null);
-  };
-
-  const deleteSchedule = async (schedule: NotificationSchedule) => {
-    if (schedule.is_default) {
-      return;
-    }
-
-    setPendingScheduleId(schedule.id);
-    const { error } = await supabase
-      .from("notification_schedules")
-      .delete()
-      .eq("id", schedule.id)
-      .eq("user_id", userId);
-
-    if (error) {
-      toast.error("Could not delete the notification schedule.");
-    } else {
-      setSchedules((current) => current.filter((item) => item.id !== schedule.id));
-      toast.success("Notification schedule deleted.");
-    }
-
-    setPendingScheduleId(null);
   };
 
   return (

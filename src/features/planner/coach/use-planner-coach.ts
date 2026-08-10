@@ -25,6 +25,11 @@ import {
   isTemporarilyUnavailableSavedConversationError,
   resolveSavedConversationSelection,
 } from "@/features/planner/coach/coach-state-utils";
+import {
+  markAppliedProposalsUndone,
+  updateAssistantProposalStatus,
+  upsertConversationSummary,
+} from "@/features/planner/coach/coach-message-state";
 import type {
   PlannerCoachModel,
   UsePlannerCoachArgs,
@@ -418,10 +423,9 @@ export function usePlannerCoach({
         timezone: context.timezone,
         messages: coachMessages,
       });
-      setSavedCoachConversations((previous) => {
-        const remaining = previous.filter((item) => item.id !== conversation.id);
-        return [conversation, ...remaining];
-      });
+      setSavedCoachConversations((previous) =>
+        upsertConversationSummary({ previous, conversation })
+      );
       setSelectedSavedCoachConversationId(conversation.id);
       toast.success("Coach conversation saved.");
     } catch (error) {
@@ -450,12 +454,12 @@ export function usePlannerCoach({
         setCoachInput("");
         persistCoachMessages(restoredMessages);
         setSelectedSavedCoachConversationId(restorePayload.conversation.id);
-        setSavedCoachConversations((previous) => {
-          const remaining = previous.filter(
-            (conversation) => conversation.id !== restorePayload.conversation.id
-          );
-          return [restorePayload.conversation, ...remaining];
-        });
+        setSavedCoachConversations((previous) =>
+          upsertConversationSummary({
+            previous,
+            conversation: restorePayload.conversation,
+          })
+        );
         toast.success("Saved coach conversation restored.");
       } catch (error) {
         toast.error(
@@ -487,24 +491,15 @@ export function usePlannerCoach({
       appliedMoveEntryKeys?: string[]
     ) => {
       setCoachMessages((previous) => {
-        const target = previous[messageIndex];
-        if (!target || target.role !== "assistant" || !target.proposal) {
+        const { changed, nextMessages } = updateAssistantProposalStatus({
+          messages: previous,
+          messageIndex,
+          applyStatus,
+          appliedMoveEntryKeys,
+        });
+        if (!changed) {
           return previous;
         }
-        const nextMessages = previous.map((message, index) =>
-          index === messageIndex
-            ? {
-                ...message,
-                proposal: {
-                  ...message.proposal!,
-                  applyStatus,
-                  ...(appliedMoveEntryKeys
-                    ? { appliedMoveEntryKeys }
-                    : {}),
-                },
-              }
-            : message
-        );
         persistCoachMessages(nextMessages);
         return nextMessages;
       });
@@ -651,29 +646,11 @@ export function usePlannerCoach({
 
   const onDraftDiscarded = useCallback(() => {
     setCoachMessages((previous) => {
-      let changed = false;
-      const nextMessages = previous.map((message) => {
-        if (
-          message.proposal &&
-          (message.proposal.applyStatus === "auto_applied" ||
-            message.proposal.applyStatus === "manually_applied")
-        ) {
-          changed = true;
-          const nextProposal: CoachMessageProposal = {
-            ...message.proposal,
-            applyStatus: "undone",
-          };
-          return {
-            ...message,
-            proposal: nextProposal,
-          };
-        }
-        return message;
-      });
+      const { changed, nextMessages } = markAppliedProposalsUndone(previous);
       if (changed) {
         persistCoachMessages(nextMessages);
       }
-      return changed ? nextMessages : previous;
+      return nextMessages;
     });
     appendCoachContextEvent("Discarded draft changes");
   }, [appendCoachContextEvent, persistCoachMessages]);
