@@ -34,6 +34,7 @@ import {
 } from "@/features/planner/calendar-format";
 import {
   selectPlannerCalendarHeaderModel,
+  selectPlannerCalendarSaveStateModel,
   selectPlannerCalendarViewModel,
 } from "@/features/planner/calendar-selectors";
 import { PlannerCalendarViewPanel } from "@/features/planner/planner-calendar-view-panel";
@@ -50,7 +51,6 @@ import { useCompletionMutation } from "@/features/planner/use-completion-mutatio
 import {
   draftCommandReducer,
   initialDraftCommandState,
-  selectDraftCommandsForScope,
 } from "@/features/planner/draft-command-reducer";
 import { useCalendarDayPreview } from "@/features/planner/use-calendar-day-preview";
 import { usePlannerDayDetailSelectionState } from "@/features/planner/use-planner-day-detail-selection-state";
@@ -67,11 +67,6 @@ import {
 } from "@/features/planner/calendar-store-selectors";
 import { selectCalendarViewWindowProjection } from "@/features/planner/calendar-view-projection";
 import { getDateInTimezone } from "@/lib/dates/timezone";
-import {
-  draftCommandEntryKey,
-  sortPlannerDraftCommands,
-  type PlannerDraftCommand,
-} from "@/lib/planner/draft-commands";
 import { type PlannerPolicy } from "@/lib/planner/policy";
 import type {
   CalendarSurfaceProps,
@@ -448,18 +443,6 @@ export function CalendarSurface({
       resolveNonPublishablePreviewMessage(context, preview),
     [context]
   );
-  const nonPublishablePreviewMessage = useCallback(
-    (
-      preview: NonNullable<PlannerContextPayload["preview"]>,
-      scopeMonth: string | null = context?.scopeMonth ?? null
-    ) => {
-      if (context && scopeMonth && scopeMonth < context.asOfDate.slice(0, 7)) {
-        return "Publishing an elapsed month is not supported. Publish the current or a future month.";
-      }
-      return resolveNonPublishablePreviewMessage(context, preview);
-    },
-    [context]
-  );
   const runCompletionMutation = useCompletionMutation();
   const coach = usePlannerCoach({
     activeTab,
@@ -603,54 +586,23 @@ export function CalendarSurface({
     clearDayPreview();
     onViewModeChange(nextViewMode, "push");
   };
-  const scopeMonthsForSaveAction =
-    hasDraftSession && dirtyScopeMonths.length > 0
-      ? dirtyScopeMonths
-      : context?.scopeMonth
-        ? [context.scopeMonth]
-        : [];
-  const blockedSaveScope = (() => {
-    if (!context?.capabilities.calendarEnabled) {
-      return null;
-    }
-    for (const scopeMonth of scopeMonthsForSaveAction) {
-      const previewForScope =
-        scopeMonth === context.scopeMonth
-          ? effectivePreview
-          : draftPreviewByScope[scopeMonth] ?? visibleMonthContexts[scopeMonth]?.preview;
-      if (!previewForScope) {
-        continue;
-      }
-      if (
-        scopeMonth < context.asOfDate.slice(0, 7) ||
-        !previewForScope.solver.publishable
-      ) {
-        return {
-          scopeMonth,
-          message: nonPublishablePreviewMessage(previewForScope, scopeMonth),
-        };
-      }
-    }
-    return null;
-  })();
-  const draftSaveBlocked = blockedSaveScope !== null;
-  const draftSaveBlockedMessage = blockedSaveScope
-    ? `${blockedSaveScope.scopeMonth}: ${blockedSaveScope.message}`
-    : null;
-  const hasLockedPlanItems = Boolean(
-    context?.activePlan?.items.some((item) => item.locked)
-  );
-  const canResetPlan = Boolean(
-    context?.capabilities.calendarEnabled &&
-      !hasDraftSession &&
-      hasLockedPlanItems
-  );
-  const canShowSaveAction = Boolean(
-    context?.capabilities.calendarEnabled && effectivePreview
-  );
-  const saveButtonLabel = saveLoading ? "Saving..." : "Save plan";
-  const readOnlyMonthHint =
-    "This session belongs to another month snapshot. Open that month to edit it.";
+  const {
+    scopeMonthsForSaveAction,
+    draftSaveBlocked,
+    draftSaveBlockedMessage,
+    canResetPlan,
+    canShowSaveAction,
+    saveButtonLabel,
+    readOnlyMonthHint,
+  } = selectPlannerCalendarSaveStateModel({
+    context,
+    effectivePreview,
+    hasDraftSession,
+    saveLoading,
+    dirtyScopeMonths,
+    draftPreviewByScope,
+    visibleMonthContexts,
+  });
   const openDayDetails = (day: string) => {
     prepareForDayDetailOpen();
     setDayDetailDay(day);

@@ -197,6 +197,42 @@ export function PlannerCalendarViewPanel({
     }
     void toggleDateFact(entry, day);
   };
+  /**
+   * Day view and the hover popup render the same list with the same wiring; only
+   * the day, its contents, and the open handler differ.
+   */
+  const renderDayEntryList = ({
+    day,
+    entries,
+    completionFactMarkers,
+    onEntryOpen,
+  }: {
+    day: string;
+    entries: PlannerDayDetailEntry[];
+    completionFactMarkers: PlannerCompletionFactMarker[];
+    onEntryOpen: (entryKey: string) => void;
+  }) => (
+    <CalendarDayPreviewList
+      day={day}
+      entries={entries}
+      completionFactMarkers={completionFactMarkers}
+      mutationLoading={mutationLoading}
+      getEntryDisplayTitle={getEntryDisplayTitleWithTime}
+      getEntrySubtitle={getEntrySubtitle}
+      isEntryCredited={isEntryCredited}
+      isEntryImmovableForDraft={(entry) =>
+        !canMutateEntryOnDay(entry, day) || isEntryImmovableForDraft(entry)
+      }
+      getCompletionToggleState={getCompletionToggleState}
+      onEntryOpen={onEntryOpen}
+      onToggleCompletion={toggleCompletionIfMutable}
+      onEntryPointerStart={(immovable) => {
+        void immovable;
+        suppressHoverForDrag();
+      }}
+      onEntryPointerEnd={releaseHoverSuppression}
+    />
+  );
 
   return (
     <div className="rounded-xl border bg-card p-4 shadow-sm">
@@ -305,27 +341,12 @@ export function PlannerCalendarViewPanel({
             <div className="space-y-2" data-no-swipe="true">
               <div className="rounded-lg border p-3">
                 <p className="mb-2 text-sm font-medium">{focusedDayLabel}</p>
-                <CalendarDayPreviewList
-                  day={focusedDay}
-                  entries={focusedDayEntries}
-                  completionFactMarkers={focusedDayCompletionFactMarkers}
-                  mutationLoading={mutationLoading}
-                  getEntryDisplayTitle={getEntryDisplayTitleWithTime}
-                  getEntrySubtitle={getEntrySubtitle}
-                  isEntryCredited={isEntryCredited}
-                  isEntryImmovableForDraft={(entry) =>
-                    !canMutateEntryOnDay(entry, focusedDay) ||
-                    isEntryImmovableForDraft(entry)
-                  }
-                  getCompletionToggleState={getCompletionToggleState}
-                  onEntryOpen={openFocusedDayEntry}
-                  onToggleCompletion={toggleCompletionIfMutable}
-                  onEntryPointerStart={(immovable) => {
-                    void immovable;
-                    suppressHoverForDrag();
-                  }}
-                  onEntryPointerEnd={releaseHoverSuppression}
-                />
+                {renderDayEntryList({
+                  day: focusedDay,
+                  entries: focusedDayEntries,
+                  completionFactMarkers: focusedDayCompletionFactMarkers,
+                  onEntryOpen: openFocusedDayEntry,
+                })}
               </div>
             </div>
           ) : (
@@ -398,27 +419,12 @@ export function PlannerCalendarViewPanel({
                   ) : null}
                 </div>
               </div>
-              <CalendarDayPreviewList
-                day={dayPreview.day}
-                entries={previewDayEntries}
-                completionFactMarkers={previewDayCompletionFactMarkers}
-                mutationLoading={mutationLoading}
-                getEntryDisplayTitle={getEntryDisplayTitleWithTime}
-                getEntrySubtitle={getEntrySubtitle}
-                isEntryCredited={isEntryCredited}
-                isEntryImmovableForDraft={(entry) =>
-                  !canMutateEntryOnDay(entry, dayPreview.day) ||
-                  isEntryImmovableForDraft(entry)
-                }
-                getCompletionToggleState={getCompletionToggleState}
-                onEntryOpen={openPreviewDayEntry}
-                onToggleCompletion={toggleCompletionIfMutable}
-                onEntryPointerStart={(immovable) => {
-                  void immovable;
-                  suppressHoverForDrag();
-                }}
-                onEntryPointerEnd={releaseHoverSuppression}
-              />
+              {renderDayEntryList({
+                day: dayPreview.day,
+                entries: previewDayEntries,
+                completionFactMarkers: previewDayCompletionFactMarkers,
+                onEntryOpen: openPreviewDayEntry,
+              })}
             </div>
           ) : null}
         </div>
