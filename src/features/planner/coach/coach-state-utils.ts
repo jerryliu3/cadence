@@ -1,7 +1,9 @@
 import type {
   CoachConversationSummary,
+  CoachMessage,
   PlannerWorkUnit,
 } from "@/features/planner/calendar-surface.types";
+import { buildCoachSessionKey } from "@/features/planner/coach-session";
 
 export function buildCoachFocusGoalIds({
   workUnits,
@@ -83,4 +85,46 @@ export function buildCoachGoalHint({
   return `Current focus goals: ${focusGoalIds
     .map((goalId) => `${goalId} (${goalTitles?.[goalId] ?? "Untitled goal"})`)
     .join(", ")}.`;
+}
+
+export function buildCoachCalendarEditsPrompt(goalHint: string) {
+  return `Please convert your guidance into concrete calendar intent I can apply now. Make safe assumptions and keep them explicit. ${goalHint} Use action="apply" for concrete scheduling edits. Restrict edits to restWeekdays and blackout ranges; use action="needs_goal" when the request cannot be represented by those planner fields.`;
+}
+
+export function clearPersistedCoachSession({
+  scopeMonth,
+  timezone,
+}: {
+  scopeMonth?: string;
+  timezone?: string;
+}) {
+  if (!scopeMonth || !timezone) {
+    return;
+  }
+  sessionStorage.removeItem(buildCoachSessionKey(scopeMonth, timezone));
+}
+
+export function computeHasCoachConversationState({
+  coachMessages,
+  coachWarnings,
+  coachRecommendations,
+  coachUnresolvedQuestions,
+  coachContextEvents,
+  coachInput,
+}: {
+  coachMessages: CoachMessage[];
+  coachWarnings: string[];
+  coachRecommendations: string[];
+  coachUnresolvedQuestions: string[];
+  coachContextEvents: string[];
+  coachInput: string;
+}) {
+  return (
+    coachMessages.length > 0 ||
+    coachWarnings.length > 0 ||
+    coachRecommendations.length > 0 ||
+    coachUnresolvedQuestions.length > 0 ||
+    coachContextEvents.length > 0 ||
+    coachInput.trim().length > 0
+  );
 }

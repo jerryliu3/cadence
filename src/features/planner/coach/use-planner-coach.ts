@@ -17,7 +17,10 @@ import {
   type CoachProposalAutoApplyStatus,
 } from "@/features/planner/coach/coach-message-utils";
 import {
+  buildCoachCalendarEditsPrompt,
   buildCoachFocusGoalIds,
+  clearPersistedCoachSession,
+  computeHasCoachConversationState,
   buildCoachGoalHint,
   countAssignmentChanges,
   isTemporarilyUnavailableSavedConversationError,
@@ -37,7 +40,6 @@ import type {
 import { buildCoachDeterministicSummary } from "@/features/planner/coach-context";
 import { applyCoachPolicyPatches } from "@/features/planner/coach-policy";
 import {
-  buildCoachSessionKey,
   COACH_SESSION_MAX_MESSAGES,
   loadCoachSession,
   saveCoachSession,
@@ -468,14 +470,15 @@ export function usePlannerCoach({
   );
 
   const startNewCoachConversation = useCallback(() => {
-    if (context?.scopeMonth && context?.timezone) {
-      sessionStorage.removeItem(buildCoachSessionKey(context.scopeMonth, context.timezone));
-    }
+    clearPersistedCoachSession({
+      scopeMonth: context?.scopeMonth,
+      timezone: context?.timezone,
+    });
     resetCoachUiState([]);
     setCoachInput("");
     setSelectedSavedCoachConversationId("");
     toast.success("Started a new coach conversation.");
-  }, [context, resetCoachUiState]);
+  }, [context?.scopeMonth, context?.timezone, resetCoachUiState]);
 
   const updateCoachProposalStatus = useCallback(
     (
@@ -531,9 +534,7 @@ export function usePlannerCoach({
       focusGoalIds: coachFocusGoalIds,
       goalTitles: context?.goalTitles,
     });
-    setCoachInput(
-      `Please convert your guidance into concrete calendar intent I can apply now. Make safe assumptions and keep them explicit. ${goalHint} Use action="apply" for concrete scheduling edits. Restrict edits to restWeekdays and blackout ranges; use action="needs_goal" when the request cannot be represented by those planner fields.`.trim()
-    );
+    setCoachInput(buildCoachCalendarEditsPrompt(goalHint).trim());
   }, [coachFocusGoalIds, context]);
 
   const undoCoachProposal = useCallback(
@@ -638,13 +639,14 @@ export function usePlannerCoach({
   );
 
   const resetForPlannerStateReset = useCallback(() => {
-    if (context?.scopeMonth && context?.timezone) {
-      sessionStorage.removeItem(buildCoachSessionKey(context.scopeMonth, context.timezone));
-    }
+    clearPersistedCoachSession({
+      scopeMonth: context?.scopeMonth,
+      timezone: context?.timezone,
+    });
     resetCoachUiState([]);
     setCoachInput("");
     setSelectedSavedCoachConversationId("");
-  }, [context, resetCoachUiState]);
+  }, [context?.scopeMonth, context?.timezone, resetCoachUiState]);
 
   const onDraftDiscarded = useCallback(() => {
     setCoachMessages((previous) => {
@@ -658,13 +660,14 @@ export function usePlannerCoach({
   }, [appendCoachContextEvent, persistCoachMessages]);
 
   const canUseCoach = Boolean(context?.scopeMonth);
-  const hasCoachConversationState =
-    coachMessages.length > 0 ||
-    coachWarnings.length > 0 ||
-    coachRecommendations.length > 0 ||
-    coachUnresolvedQuestions.length > 0 ||
-    coachContextEvents.length > 0 ||
-    coachInput.trim().length > 0;
+  const hasCoachConversationState = computeHasCoachConversationState({
+    coachMessages,
+    coachWarnings,
+    coachRecommendations,
+    coachUnresolvedQuestions,
+    coachContextEvents,
+    coachInput,
+  });
 
   return {
     state: {
