@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   getUser: vi.fn(),
+  createAdminClient: vi.fn(),
   upsert: vi.fn(),
   deleteRows: vi.fn(),
   deleteEqUser: vi.fn(),
@@ -20,9 +21,7 @@ vi.mock("@/lib/supabase/server", () => ({
 }));
 
 vi.mock("@/lib/supabase/admin", () => ({
-  createAdminClient: () => ({
-    from: mocks.from,
-  }),
+  createAdminClient: mocks.createAdminClient,
 }));
 
 import { DELETE, POST } from "./route";
@@ -48,7 +47,7 @@ describe("push subscriptions route", () => {
 
     mocks.upsert.mockResolvedValue({ error: null });
     mocks.deleteRows.mockResolvedValue({ error: null });
-    mocks.deleteEqEndpoint.mockReturnValue(mocks.deleteRows);
+    mocks.deleteEqEndpoint.mockImplementation(() => mocks.deleteRows());
     mocks.deleteEqUser.mockReturnValue({
       eq: mocks.deleteEqEndpoint,
     });
@@ -63,6 +62,9 @@ describe("push subscriptions route", () => {
           eq: mocks.deleteEqUser,
         }),
       };
+    });
+    mocks.createAdminClient.mockReturnValue({
+      from: mocks.from,
     });
   });
 
@@ -129,6 +131,50 @@ describe("push subscriptions route", () => {
     );
   });
 
+  it("returns push_configuration_invalid when admin client is unavailable", async () => {
+    mocks.createAdminClient.mockImplementation(() => {
+      throw new Error("missing service role key");
+    });
+
+    const response = await POST(
+      new Request("http://localhost/api/push/subscriptions", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify(validSubscriptionPayload),
+      })
+    );
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "push_configuration_invalid",
+      correlationId: expect.any(String),
+    });
+  });
+
+  it("returns push_subscription_upsert_failed when upsert fails", async () => {
+    mocks.upsert.mockResolvedValue({
+      error: { message: "upsert failed" },
+    });
+
+    const response = await POST(
+      new Request("http://localhost/api/push/subscriptions", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify(validSubscriptionPayload),
+      })
+    );
+
+    expect(response.status).toBe(500);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "push_subscription_upsert_failed",
+      correlationId: expect.any(String),
+    });
+  });
+
   it("deletes subscriptions and returns a correlation id", async () => {
     const response = await DELETE(
       new Request("http://localhost/api/push/subscriptions", {
@@ -151,5 +197,25 @@ describe("push subscriptions route", () => {
       "endpoint",
       "https://example.test/subscription"
     );
+  });
+
+  it("returns push_subscription_delete_failed when delete fails", async () => {
+    mocks.deleteRows.mockResolvedValue({
+      error: { message: "delete failed" },
+    });
+
+    const response = await DELETE(
+      new Request("http://localhost/api/push/subscriptions", {
+        method: "DELETE",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ endpoint: "https://example.test/subscription" }),
+      })
+    );
+
+    expect(response.status).toBe(500);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "push_subscription_delete_failed",
+      correlationId: expect.any(String),
+    });
   });
 });

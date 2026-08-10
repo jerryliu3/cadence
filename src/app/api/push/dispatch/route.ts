@@ -41,8 +41,10 @@ function configureWebPush() {
   const privateKey = env.VAPID_PRIVATE_KEY;
 
   if (!subject || !publicKey || !privateKey) {
-    throw new Error(
-      "VAPID_SUBJECT, NEXT_PUBLIC_VAPID_PUBLIC_KEY, and VAPID_PRIVATE_KEY are required."
+    throw new ApiRouteError(
+      503,
+      "push_configuration_invalid",
+      "Push notifications are not configured on the server."
     );
   }
 
@@ -226,11 +228,6 @@ async function dispatchNotifications(request: Request, correlationId: string) {
     if (error instanceof ApiRouteError) {
       throw error;
     }
-    reportError(error, {
-      code: "push_dispatch_failed",
-      status: 500,
-      correlationId,
-    });
     console.error("Push notification dispatch failed:", error);
     throw new ApiRouteError(
       500,
