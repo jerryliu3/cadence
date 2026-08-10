@@ -1,6 +1,6 @@
 "use client";
 
-import { addDays, addMonths, format, isValid, parse } from "date-fns";
+import { addDays, addMonths, format } from "date-fns";
 import {
   CalendarDays,
   Loader2,
@@ -21,30 +21,26 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { buildActiveGoalIndexes } from "@/features/planner/calendar-entries";
 import {
   buildWeekdayLabels,
   getEntryDisplayTitle,
   getEntrySubtitle,
-  getMonthInTimezone,
   isEntryCredited,
   isEntryImmovableForDraft,
-  monthToLabel,
   normalizeWeekStartsOn,
   parseMonth,
   resolveNonPublishablePreviewMessage,
-  restWeekdayOptions,
 } from "@/features/planner/calendar-format";
+import {
+  selectPlannerCalendarHeaderModel,
+  selectPlannerCalendarSaveStateModel,
+  selectPlannerCalendarViewModel,
+} from "@/features/planner/calendar-selectors";
 import { PlannerCalendarViewPanel } from "@/features/planner/planner-calendar-view-panel";
 import { CalendarMonthDayCell } from "@/features/planner/calendar-month-day-cell";
 import { PlannerDayDetailDialogs } from "@/features/planner/planner-day-detail-dialogs";
+import { PlannerPreferencesForm } from "@/features/planner/planner-preferences-form";
 import {
   selectPlannerCalendarDayCellRenderModel,
   type PlannerCalendarDayCellRenderModel,
@@ -87,30 +83,7 @@ import { usePlannerVisibleMonthContexts } from "@/features/planner/use-planner-v
 const DAY_PREVIEW_HOVER_DELAY_MS = 500;
 const DAY_PREVIEW_CLOSE_DELAY_MS = 180;
 const DAY_PREVIEW_LONG_PRESS_DELAY_MS = 500;
-const MAX_MONTH_HEADING_SAMPLE = "September 2026";
-const MAX_WEEK_HEADING_SAMPLE = "Sep 30 - Sep 30, 2026";
-const MAX_DAY_HEADING_SAMPLE = "Wed Aug 30";
 const DRAFT_MOVE_PREVIEW_REFRESH_DELAY_MS = 200;
-const SCOPE_ONLY_ELIGIBILITY_REASONS = new Set([
-  "end_outside_scope",
-  "starts_after_scope",
-]);
-const ELIGIBILITY_REASON_LABELS: Record<string, string> = {
-  not_owner: "Only goals you own can be planned here.",
-  group_goal: "Group goals are excluded from personal planner scheduling.",
-  deleted: "Deleted goals are excluded from planning.",
-  archived: "Archived goals are excluded from planning.",
-  linked: "Linked goals are managed by their source relationship.",
-  missing_end_date:
-    "This goal needs a deadline before it can be planned in Calendar.",
-  invalid_date_range: "The goal dates are invalid (start is after end).",
-  horizon_too_long:
-    "This goal deadline exceeds the 24-month planning horizon limit.",
-};
-
-function getEligibilityReasonLabel(reason: string) {
-  return ELIGIBILITY_REASON_LABELS[reason] ?? "This goal is currently ineligible.";
-}
 
 const PLANNER_VIEW_MODES = [
   { value: "month", label: "Month" },
@@ -341,59 +314,14 @@ export function CalendarSurface({
     ? dirtyScopeMonths.includes(currentScopeMonth)
     : false;
   const hasDraftSession = dirtyScopeMonths.length > 0;
-  const horizonCounter = useMemo(() => {
-    const summary = effectivePreview?.horizonSummary ?? [];
-    if (summary.length === 0) {
-      return null;
-    }
-    const total = summary.reduce((count, goal) => count + goal.totalCount, 0);
-    if (total <= 0) {
-      return null;
-    }
-    const thisMonth = summary.reduce(
-      (count, goal) => count + goal.scopeMonthPlannedCount,
-      0
-    );
-    const remaining = summary.reduce(
-      (count, goal) => count + goal.remainingCount,
-      0
-    );
-    return { thisMonth, total, remaining };
-  }, [effectivePreview?.horizonSummary]);
-  const eligibilityNotices = useMemo(() => {
-    const eligibilityEntries = effectivePreview?.eligibility ?? [];
-    if (eligibilityEntries.length === 0) {
-      return { hardIneligible: [] as Array<{ goalId: string; goalTitle: string; reasonCopy: string }>, scopeOnlyCount: 0 };
-    }
-
-    const hardIneligible: Array<{
-      goalId: string;
-      goalTitle: string;
-      reasonCopy: string;
-    }> = [];
-    let scopeOnlyCount = 0;
-
-    for (const eligibilityEntry of eligibilityEntries) {
-      if (eligibilityEntry.eligible) {
-        continue;
-      }
-      if (SCOPE_ONLY_ELIGIBILITY_REASONS.has(eligibilityEntry.reason)) {
-        scopeOnlyCount += 1;
-        continue;
-      }
-      hardIneligible.push({
-        goalId: eligibilityEntry.goalId,
-        goalTitle:
-          context?.goalTitles?.[eligibilityEntry.goalId] ?? eligibilityEntry.goalId,
-        reasonCopy: getEligibilityReasonLabel(eligibilityEntry.reason),
-      });
-    }
-
-    hardIneligible.sort((left, right) =>
-      left.goalTitle.localeCompare(right.goalTitle)
-    );
-    return { hardIneligible, scopeOnlyCount };
-  }, [context?.goalTitles, effectivePreview?.eligibility]);
+  const { horizonCounter, eligibilityNotices } = useMemo(
+    () =>
+      selectPlannerCalendarHeaderModel({
+        preview: effectivePreview,
+        goalTitles: context?.goalTitles,
+      }),
+    [context?.goalTitles, effectivePreview]
+  );
   const activeGoalIndexes = useMemo(
     () => buildActiveGoalIndexes(context?.activePlan?.goals),
     [context?.activePlan?.goals]
@@ -651,59 +579,37 @@ export function CalendarSurface({
 
   const canShowSetup = !context?.preferences;
   const showBlockingLoading = loading && context === null;
-  const monthLabel = month ? monthToLabel(month) : "Calendar";
-  const todayMonth = context?.timezone
-    ? getMonthInTimezone(context.timezone)
-    : getMonthInTimezone(setupTimezone);
-  const parsedFocusedDay = parse(focusedDay, "yyyy-MM-dd", new Date());
-  const safeFocusedDay = isValid(parsedFocusedDay)
-    ? parsedFocusedDay
-    : parse(calendarToday, "yyyy-MM-dd", new Date());
-  const focusedWeekStartDate = parse(
-    focusedWeekDays[0] ?? focusedDay,
-    "yyyy-MM-dd",
-    new Date()
+  const {
+    todayMonth,
+    safeFocusedDay,
+    viewHeading,
+    viewHeadingControlWidth,
+    viewDescription,
+    previousWindowAriaLabel,
+    nextWindowAriaLabel,
+    canResetViewWindow,
+  } = useMemo(
+    () =>
+      selectPlannerCalendarViewModel({
+        month,
+        viewMode,
+        focusedDay,
+        focusedWeekDays,
+        calendarToday,
+        weekStartsOn,
+        timezone: context?.timezone ?? setupTimezone,
+      }),
+    [
+      calendarToday,
+      context?.timezone,
+      focusedDay,
+      focusedWeekDays,
+      month,
+      setupTimezone,
+      viewMode,
+      weekStartsOn,
+    ]
   );
-  const focusedWeekEndDate = parse(
-    focusedWeekDays[6] ?? focusedDay,
-    "yyyy-MM-dd",
-    new Date()
-  );
-  const viewHeading =
-    viewMode === "month"
-      ? monthLabel
-      : viewMode === "week"
-        ? `${format(focusedWeekStartDate, "MMM d")} - ${format(
-            focusedWeekEndDate,
-            "MMM d, yyyy"
-          )}`
-        : format(safeFocusedDay, "EEE MMM d");
-  const viewHeadingControlWidth = `min(100%, calc(${Math.max(
-    monthLabel.length,
-    MAX_MONTH_HEADING_SAMPLE.length,
-    MAX_WEEK_HEADING_SAMPLE.length,
-    MAX_DAY_HEADING_SAMPLE.length
-  )}ch + ${viewMode === "month" ? "11rem" : "8rem"}))`;
-  const viewDescription =
-    viewMode === "month"
-      ? `${restWeekdayOptions.find((option) => option.value === weekStartsOn)?.label ?? "Mon"}-first month view. Drag session pills to stage preview edits.`
-      : viewMode === "week"
-        ? "Expanded 7-day planner view with drag-and-drop editing."
-        : "Day agenda view with completion and detail controls.";
-  const previousWindowAriaLabel =
-    viewMode === "month"
-      ? "Previous month"
-      : viewMode === "week"
-        ? "Previous week"
-        : "Previous day";
-  const nextWindowAriaLabel =
-    viewMode === "month"
-      ? "Next month"
-      : viewMode === "week"
-        ? "Next week"
-        : "Next day";
-  const canResetViewWindow =
-    viewMode === "month" ? month !== todayMonth : focusedDay !== calendarToday;
   const moveViewWindow = (direction: -1 | 1) => {
     if (viewMode === "month") {
       if (!month) {
@@ -872,77 +778,6 @@ export function CalendarSurface({
     );
   };
 
-  const setupForm = (
-    <div className="space-y-4">
-      <label className="block space-y-1 text-sm">
-        <span>Timezone (IANA)</span>
-        <Select value={setupTimezone} onValueChange={setSetupTimezone}>
-          <SelectTrigger>
-            <SelectValue placeholder="Select timezone" />
-          </SelectTrigger>
-          <SelectContent className="max-h-80">
-            {timezoneOptions.map((timezone) => (
-              <SelectItem key={timezone} value={timezone}>
-                {timezone}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </label>
-      <label className="block space-y-1 text-sm">
-        <span>First day of week</span>
-        <Select
-          value={`${setupWeekStartsOn}`}
-          onValueChange={(value) =>
-            setSetupWeekStartsOn(
-              normalizeWeekStartsOn(Number.parseInt(value, 10))
-            )
-          }
-        >
-          <SelectTrigger>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {restWeekdayOptions.map((option) => (
-              <SelectItem key={option.value} value={`${option.value}`}>
-                {option.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </label>
-      <div className="space-y-2 text-sm">
-        <p>Rest weekdays</p>
-        <div className="flex flex-wrap gap-2">
-          {restWeekdayOptions.map((option) => (
-            <label
-              key={option.label}
-              className="inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs"
-            >
-              <input
-                type="checkbox"
-                checked={setupRestWeekdays.includes(option.value)}
-                onChange={(event) =>
-                  setSetupRestWeekdays((previous) =>
-                    event.target.checked
-                      ? Array.from(new Set([...previous, option.value])).sort(
-                          (left, right) => left - right
-                        )
-                      : previous.filter((weekday) => weekday !== option.value)
-                  )
-                }
-              />
-              {option.label}
-            </label>
-          ))}
-        </div>
-      </div>
-      <Button type="button" onClick={submitSetup} disabled={setupLoading}>
-        {setupLoading ? "Saving setup..." : "Save setup"}
-      </Button>
-    </div>
-  );
-
   return (
     <div className="space-y-4">
       <div className="rounded-xl border bg-card p-4 shadow-sm" data-no-swipe="true">
@@ -1077,7 +912,17 @@ export function CalendarSurface({
           <p className="mb-4 text-sm text-muted-foreground">
             Confirm timezone and manual defaults before generating planner previews.
           </p>
-          {setupForm}
+          <PlannerPreferencesForm
+            setupTimezone={setupTimezone}
+            setSetupTimezone={setSetupTimezone}
+            setupWeekStartsOn={setupWeekStartsOn}
+            setSetupWeekStartsOn={setSetupWeekStartsOn}
+            setupRestWeekdays={setupRestWeekdays}
+            setSetupRestWeekdays={setSetupRestWeekdays}
+            timezoneOptions={timezoneOptions}
+            setupLoading={setupLoading}
+            submitSetup={submitSetup}
+          />
         </div>
       ) : month ? (
         <>
@@ -1170,7 +1015,17 @@ export function CalendarSurface({
               Update timezone and default planning policy for future previews.
             </DialogDescription>
           </DialogHeader>
-          {setupForm}
+          <PlannerPreferencesForm
+            setupTimezone={setupTimezone}
+            setSetupTimezone={setSetupTimezone}
+            setupWeekStartsOn={setupWeekStartsOn}
+            setSetupWeekStartsOn={setSetupWeekStartsOn}
+            setupRestWeekdays={setupRestWeekdays}
+            setSetupRestWeekdays={setSetupRestWeekdays}
+            timezoneOptions={timezoneOptions}
+            setupLoading={setupLoading}
+            submitSetup={submitSetup}
+          />
         </DialogContent>
       </Dialog>
     </div>
