@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import type { PlannerContextPayload } from "@/features/planner/calendar-surface.types";
 import {
   selectPlannerCalendarHeaderModel,
@@ -155,7 +155,6 @@ describe("calendar selectors", () => {
         confirmationRequired: false,
       },
     });
-    const getNonPublishablePreviewMessage = vi.fn(() => "Preview is not publishable.");
     const blockedModel = selectPlannerCalendarSaveStateModel({
       context: buildContext({
         scopeMonth: "2026-07",
@@ -165,12 +164,17 @@ describe("calendar selectors", () => {
       effectivePreview: preview,
       hasDraftSession: true,
       saveLoading: false,
-      getNonPublishablePreviewMessage,
+      dirtyScopeMonths: ["2026-07"],
+      draftPreviewByScope: {},
+      visibleMonthContexts: {},
     });
 
     expect(blockedModel.draftSaveBlocked).toBe(true);
-    expect(blockedModel.draftSaveBlockedMessage).toBe("Preview is not publishable.");
-    expect(blockedModel.saveActionTitle).toBe("Preview is not publishable.");
+    // The elapsed-month rule wins over the unpublishable-solver rule, and the
+    // message is prefixed with the scope month that is actually blocking.
+    expect(blockedModel.draftSaveBlockedMessage).toBe(
+      "2026-07: Publishing an elapsed month is not supported. Publish the current or a future month."
+    );
     expect(blockedModel.canResetPlan).toBe(false);
     expect(blockedModel.saveButtonLabel).toBe("Save plan");
 
@@ -203,11 +207,94 @@ describe("calendar selectors", () => {
       effectivePreview: preview,
       hasDraftSession: false,
       saveLoading: true,
-      getNonPublishablePreviewMessage,
+      dirtyScopeMonths: [],
+      draftPreviewByScope: {},
+      visibleMonthContexts: {},
     });
 
     expect(resetModel.canResetPlan).toBe(true);
     expect(resetModel.saveButtonLabel).toBe("Saving...");
     expect(resetModel.readOnlyMonthHint).toContain("another month snapshot");
+  });
+
+  it("blocks save on a dirty sibling month resolved from its own preview", () => {
+    const publishablePreview = buildPreview({
+      solver: {
+        placementStatus: "complete",
+        searchStatus: "all_units_placed",
+        capacityStatus: "unverified",
+        issueCodes: [],
+        invalidGoalIds: [],
+        publishable: true,
+        confirmationRequired: false,
+      },
+    });
+    const siblingPreview = buildPreview({
+      solver: {
+        placementStatus: "complete",
+        searchStatus: "all_units_placed",
+        capacityStatus: "unverified",
+        issueCodes: ["capacity_shortfall"],
+        invalidGoalIds: [],
+        publishable: false,
+        confirmationRequired: false,
+      },
+    });
+    const context = buildContext({
+      scopeMonth: "2026-08",
+      asOfDate: "2026-08-10",
+      preview: publishablePreview,
+    });
+
+    // The viewed month is fine; only the sibling month the draft also dirtied
+    // is unpublishable, and its preview lives in the draft preview cache.
+    const model = selectPlannerCalendarSaveStateModel({
+      context,
+      effectivePreview: publishablePreview,
+      hasDraftSession: true,
+      saveLoading: false,
+      dirtyScopeMonths: ["2026-08", "2026-09"],
+      draftPreviewByScope: { "2026-09": siblingPreview },
+      visibleMonthContexts: {},
+    });
+
+    expect(model.scopeMonthsForSaveAction).toEqual(["2026-08", "2026-09"]);
+    expect(model.draftSaveBlocked).toBe(true);
+    expect(model.draftSaveBlockedMessage).toBe(
+      "2026-09: Resolve planner issues before saving: capacity_shortfall."
+    );
+  });
+
+  it("falls back to the visible-month preview and stays unblocked when every scope is publishable", () => {
+    const publishablePreview = buildPreview({
+      solver: {
+        placementStatus: "complete",
+        searchStatus: "all_units_placed",
+        capacityStatus: "unverified",
+        issueCodes: [],
+        invalidGoalIds: [],
+        publishable: true,
+        confirmationRequired: false,
+      },
+    });
+    const context = buildContext({
+      scopeMonth: "2026-08",
+      asOfDate: "2026-08-10",
+      preview: publishablePreview,
+    });
+
+    const model = selectPlannerCalendarSaveStateModel({
+      context,
+      effectivePreview: publishablePreview,
+      hasDraftSession: true,
+      saveLoading: false,
+      dirtyScopeMonths: ["2026-08", "2026-09"],
+      draftPreviewByScope: {},
+      visibleMonthContexts: { "2026-09": { preview: publishablePreview } },
+    });
+
+    expect(model.draftSaveBlocked).toBe(false);
+    expect(model.draftSaveBlockedMessage).toBeNull();
+    expect(model.canShowSaveAction).toBe(true);
   });
 });

@@ -6,7 +6,6 @@ import {
   getEntryDraftPillClasses,
   isEntryCredited,
 } from "@/features/planner/calendar-format";
-import type { PlannerDayDetailEntry } from "@/features/planner/calendar-surface.types";
 import { getGoalVisual, type GoalVisual } from "@/features/planner/goal-visuals";
 
 export interface PlannerEntryRowBaseEntry {
@@ -38,16 +37,15 @@ export function buildPlannerEntryRowState<TEntry extends PlannerEntryRowBaseEntr
     creditedOverride?: boolean;
   } = {}
 ): PlannerEntryRowState {
-  const plannerEntry = entry as unknown as PlannerDayDetailEntry;
   const visual = getGoalVisual({
     goalId: entry.originalGoalId,
     color: entry.activeGoal?.color ?? null,
   });
-  const credited = options.creditedOverride ?? isEntryCredited(plannerEntry);
+  const credited = options.creditedOverride ?? isEntryCredited(entry);
   return {
     visual,
     credited,
-    draftDiffSummary: getEntryDraftDiffSummary(plannerEntry),
+    draftDiffSummary: getEntryDraftDiffSummary(entry),
     pillToneClasses: getEntryDraftPillClasses({
       draftDiffKind: entry.draftDiffKind,
       credited,

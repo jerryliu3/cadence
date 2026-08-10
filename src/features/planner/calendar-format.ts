@@ -51,9 +51,18 @@ export function monthToLabel(month: string) {
 
 export function resolveNonPublishablePreviewMessage(
   context: PlannerContextPayload | null,
-  preview: NonNullable<PlannerContextPayload["preview"]>
+  preview: NonNullable<PlannerContextPayload["preview"]>,
+  scopeMonth: string | null = null
 ) {
-  if (context && context.scopeMonth < context.asOfDate.slice(0, 7)) {
+  // Multi-scope save checks each dirty month against its own preview, so the
+  // elapsed-month rule has to test the scope being examined rather than the
+  // month the calendar happens to be showing.
+  const effectiveScopeMonth = scopeMonth ?? context?.scopeMonth ?? null;
+  if (
+    context &&
+    effectiveScopeMonth &&
+    effectiveScopeMonth < context.asOfDate.slice(0, 7)
+  ) {
     return "Publishing an elapsed month is not supported. Publish the current or a future month.";
   }
   if (preview.solver.issueCodes.includes("invalid_lock")) {
@@ -119,7 +128,10 @@ export function getDayStatus(
   return "Planned";
 }
 
-export function isEntryCredited(entry: PlannerDayDetailEntry) {
+export function isEntryCredited(entry: {
+  creditState: string;
+  activeItem: { credited_completion_id: string | null } | null;
+}) {
   return (
     entry.creditState !== "uncredited" ||
     Boolean(entry.activeItem?.credited_completion_id)

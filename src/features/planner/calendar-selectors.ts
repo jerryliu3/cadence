@@ -2,6 +2,7 @@ import { format, isValid, parse } from "date-fns";
 import {
   getMonthInTimezone,
   monthToLabel,
+  resolveNonPublishablePreviewMessage,
   restWeekdayOptions,
 } from "@/features/planner/calendar-format";
 import type {
@@ -206,59 +207,90 @@ export function selectPlannerCalendarViewModel({
   };
 }
 
+/**
+ * Save blocking is per scope month, not per calendar view. A draft can dirty
+ * several months at once, and each one is validated against its own preview --
+ * the current month's from `effectivePreview`, siblings from the draft preview
+ * cache or the visible-month context. The first blocking scope wins so the
+ * message can name the month the user has to fix.
+ */
 export function selectPlannerCalendarSaveStateModel({
   context,
   effectivePreview,
   hasDraftSession,
   saveLoading,
-  getNonPublishablePreviewMessage,
+  dirtyScopeMonths,
+  draftPreviewByScope,
+  visibleMonthContexts,
 }: {
   context: PlannerContextPayload | null;
   effectivePreview: PlannerContextPayload["preview"];
   hasDraftSession: boolean;
   saveLoading: boolean;
-  getNonPublishablePreviewMessage: (
-    preview: NonNullable<PlannerContextPayload["preview"]>
-  ) => string;
+  dirtyScopeMonths: string[];
+  draftPreviewByScope: Record<string, NonNullable<PlannerContextPayload["preview"]>>;
+  visibleMonthContexts: Record<
+    string,
+    { preview?: PlannerContextPayload["preview"] }
+  >;
 }) {
-  const draftSaveBlocked = Boolean(
-    hasDraftSession &&
-      effectivePreview &&
-      context?.capabilities.calendarEnabled &&
-      (context.scopeMonth < context.asOfDate.slice(0, 7) ||
-        !effectivePreview.solver.publishable)
-  );
-  const draftSaveBlockedMessage =
-    draftSaveBlocked && effectivePreview
-      ? getNonPublishablePreviewMessage(effectivePreview)
-      : null;
+  const scopeMonthsForSaveAction =
+    hasDraftSession && dirtyScopeMonths.length > 0
+      ? dirtyScopeMonths
+      : context?.scopeMonth
+        ? [context.scopeMonth]
+        : [];
+
+  const blockedSaveScope = (() => {
+    if (!context?.capabilities.calendarEnabled) {
+      return null;
+    }
+    for (const scopeMonth of scopeMonthsForSaveAction) {
+      const previewForScope =
+        scopeMonth === context.scopeMonth
+          ? effectivePreview
+          : draftPreviewByScope[scopeMonth] ??
+            visibleMonthContexts[scopeMonth]?.preview;
+      if (!previewForScope) {
+        continue;
+      }
+      if (
+        scopeMonth < context.asOfDate.slice(0, 7) ||
+        !previewForScope.solver.publishable
+      ) {
+        return {
+          scopeMonth,
+          message: resolveNonPublishablePreviewMessage(
+            context,
+            previewForScope,
+            scopeMonth
+          ),
+        };
+      }
+    }
+    return null;
+  })();
+
   const hasLockedPlanItems = Boolean(
     context?.activePlan?.items.some((item) => item.locked)
   );
-  const canResetPlan = Boolean(
-    context?.capabilities.calendarEnabled &&
-      !hasDraftSession &&
-      hasLockedPlanItems
-  );
-  const canShowSaveAction = Boolean(
-    context?.capabilities.calendarEnabled && effectivePreview
-  );
-  const saveActionTitle =
-    context &&
-    effectivePreview &&
-    (context.scopeMonth < context.asOfDate.slice(0, 7) ||
-      !effectivePreview.solver.publishable)
-      ? getNonPublishablePreviewMessage(effectivePreview)
-      : undefined;
-  const saveButtonLabel = saveLoading ? "Saving..." : "Save plan";
 
   return {
-    draftSaveBlocked,
-    draftSaveBlockedMessage,
-    canResetPlan,
-    canShowSaveAction,
-    saveActionTitle,
-    saveButtonLabel,
+    scopeMonthsForSaveAction,
+    draftSaveBlocked: blockedSaveScope !== null,
+    draftSaveBlockedMessage: blockedSaveScope
+      ? `${blockedSaveScope.scopeMonth}: ${blockedSaveScope.message}`
+      : null,
+    hasLockedPlanItems,
+    canResetPlan: Boolean(
+      context?.capabilities.calendarEnabled &&
+        !hasDraftSession &&
+        hasLockedPlanItems
+    ),
+    canShowSaveAction: Boolean(
+      context?.capabilities.calendarEnabled && effectivePreview
+    ),
+    saveButtonLabel: saveLoading ? "Saving..." : "Save plan",
     readOnlyMonthHint: READ_ONLY_MONTH_HINT,
   };
 }
