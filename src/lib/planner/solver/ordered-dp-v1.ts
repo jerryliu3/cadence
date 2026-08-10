@@ -14,7 +14,6 @@ import { getSolverUnitId } from "@/lib/planner/solver/types";
 interface DpCell {
   objective: SolverObjective;
   choice: string | null;
-  terminatesPrefix: boolean;
 }
 
 function addObjective(
@@ -85,29 +84,26 @@ function canonicalGoalUnits(units: SolverUnit[], dates: Set<string>) {
     .sort(compareSolveOrder);
 }
 
-function isOrderedKind(unit: SolverUnit) {
-  return false;
-}
-
 /**
- * Ordered kinds solve by ordinal because their sequence is the semantics.
- * Everything else solves in the order its anchors imply -- a pinned date first,
- * otherwise where it currently sits -- so pinning one unit no longer forces the
- * units that happen to carry a higher ordinal.
+ * Units solve in the order their dates imply -- a pinned date first, otherwise
+ * where the unit already sits -- rather than by ordinal.
  *
- * Ordinal remains the tie-break: with no anchors at all (a fresh plan) it is the
- * only stable ordering, and falling back to `unitKey` would sort `total:10`
- * before `total:2`.
+ * Ordinal is no longer a scheduling constraint, only identity and cross-month
+ * accounting. It stays as the tie-break because with no anchors at all (a fresh
+ * plan) it is the only stable ordering, and falling back to `unitKey` would sort
+ * `total:10` before `total:2`.
  */
 function compareSolveOrder(left: SolverUnit, right: SolverUnit) {
-  if (!isOrderedKind(left) && !isOrderedKind(right)) {
-    const leftAnchor =
-      left.lockedDate ?? left.solveOrderAnchor ?? left.previousDate ?? null;
-    const rightAnchor =
-      right.lockedDate ?? right.solveOrderAnchor ?? right.previousDate ?? null;
-    if (leftAnchor !== null && rightAnchor !== null && leftAnchor !== rightAnchor) {
-      return leftAnchor < rightAnchor ? -1 : 1;
-    }
+  const leftAnchor =
+    left.lockedDate ?? left.solveOrderAnchor ?? left.previousDate ?? null;
+  const rightAnchor =
+    right.lockedDate ?? right.solveOrderAnchor ?? right.previousDate ?? null;
+  if (
+    leftAnchor !== null &&
+    rightAnchor !== null &&
+    leftAnchor !== rightAnchor
+  ) {
+    return leftAnchor < rightAnchor ? -1 : 1;
   }
   if (left.ordinal !== right.ordinal) {
     return left.ordinal - right.ordinal;
@@ -116,7 +112,6 @@ function compareSolveOrder(left: SolverUnit, right: SolverUnit) {
 }
 
 function locksAreStructurallyValid(units: SolverUnit[]) {
-  let previousLockedDate: string | null = null;
   const usedDates = new Set<string>();
 
   for (const unit of units) {
@@ -125,14 +120,10 @@ function locksAreStructurallyValid(units: SolverUnit[]) {
     }
     if (
       !unit.candidateDates.includes(unit.lockedDate) ||
-      usedDates.has(unit.lockedDate) ||
-      (isOrderedKind(unit) &&
-        previousLockedDate !== null &&
-        unit.lockedDate <= previousLockedDate)
+      usedDates.has(unit.lockedDate)
     ) {
       return false;
     }
-    previousLockedDate = unit.lockedDate;
     usedDates.add(unit.lockedDate);
   }
   return true;
@@ -150,16 +141,6 @@ function solveGoal(
   }
 
   const dateIndices = new Map(dates.map((date, index) => [date, index]));
-  const allNullSuffix: SolverObjective[] = Array.from(
-    { length: units.length + 1 },
-    () => ({ placed: 0, moved: 0, displacement: 0, policyCost: 0 })
-  );
-  for (let index = units.length - 1; index >= 0; index -= 1) {
-    allNullSuffix[index] = addObjective(
-      nullObjective(units[index]),
-      allNullSuffix[index + 1]
-    );
-  }
   const scheduledObjectives = units.map(
     (unit) =>
       new Map(
@@ -169,19 +150,10 @@ function solveGoal(
         ])
       )
   );
-  const suffixHasLock = Array.from(
-    { length: units.length + 1 },
-    () => false
-  );
-  for (let index = units.length - 1; index >= 0; index -= 1) {
-    suffixHasLock[index] =
-      units[index].lockedDate !== null || suffixHasLock[index + 1];
-  }
 
   const terminalCell: DpCell = {
     objective: { placed: 0, moved: 0, displacement: 0, policyCost: 0 },
     choice: null,
-    terminatesPrefix: false,
   };
   const cells: Array<Array<DpCell | null>> = Array.from(
     { length: units.length + 1 },
@@ -215,7 +187,6 @@ function solveGoal(
             child.objective
           ),
           choice: date,
-          terminatesPrefix: false,
         };
         if (
           !best ||
@@ -226,27 +197,13 @@ function solveGoal(
       }
 
       if (!unit.lockedDate) {
-        const prefixKind = isOrderedKind(unit);
-        const child = prefixKind
-          ? null
-          : cells[unitIndex + 1][minimumDateIndex];
-        const candidate: DpCell | null =
-          prefixKind && !suffixHasLock[unitIndex + 1]
+        const child = cells[unitIndex + 1][minimumDateIndex];
+        const candidate: DpCell | null = child
           ? {
-              objective: allNullSuffix[unitIndex],
+              objective: addObjective(nullObjective(unit), child.objective),
               choice: null,
-              terminatesPrefix: true,
             }
-          : !prefixKind && child
-            ? {
-                objective: addObjective(
-                  nullObjective(unit),
-                  child.objective
-                ),
-                choice: null,
-                terminatesPrefix: false,
-              }
-            : null;
+          : null;
         if (
           candidate &&
           (!best ||
@@ -280,16 +237,6 @@ function solveGoal(
       minimumDateIndex = (dateIndices.get(cell.choice) ?? -1) + 1;
     }
     unitIndex += 1;
-    if (cell.terminatesPrefix) {
-      while (unitIndex < units.length) {
-        assignments.push({
-          goalId: units[unitIndex].goalId,
-          unitKey: units[unitIndex].unitKey,
-          scheduledDate: null,
-        });
-        unitIndex += 1;
-      }
-    }
   }
   return assignments;
 }
