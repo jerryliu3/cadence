@@ -47,8 +47,8 @@ import { getFirstGoalFormValidationError } from "@/lib/goals/form-validation";
 import { buildMilestoneNames } from "@/lib/goals/milestones";
 import { getGoalCompletionPercentage } from "@/lib/goals/progress";
 import { GoalsSurfaceLoadingCard } from "@/features/goals/goals-surface-loading-card";
+import { MilestonePills } from "@/features/goals/milestone-pills";
 import { MonthHeatmap } from "@/features/insights/month-heatmap";
-import { MilestoneSummaryPills } from "@/features/social/milestone-summary-pills";
 import { SocialGroupGoalComposer } from "@/features/social/social-group-goal-composer";
 import {
   createDefaultGroupGoalDraft,
@@ -988,7 +988,7 @@ export function SocialTab() {
                       </div>
                     </div>
                     {goal.frequency_type === "fixed_milestones" ? (
-                      <MilestoneSummaryPills
+                      <MilestonePills
                         targetCount={milestoneTargetCount}
                         completionDates={milestoneCompletionDates}
                         milestoneNames={milestoneNames}
