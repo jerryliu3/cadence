@@ -1,6 +1,5 @@
-import { NextResponse } from "next/server";
 import webpush from "web-push";
-import { withRoute } from "@/lib/api/route";
+import { ApiRouteError, apiSuccessResponse, withRoute } from "@/lib/api/route";
 import { getServerEnv } from "@/lib/env";
 import { reportError } from "@/lib/observability/report-error";
 import { getLocalScheduleSlot } from "@/lib/push/schedule";
@@ -50,15 +49,19 @@ function configureWebPush() {
   webpush.setVapidDetails(subject, publicKey, privateKey);
 }
 
-async function dispatchNotifications(request: Request) {
+async function dispatchNotifications(request: Request, correlationId: string) {
   const cronSecret = getServerEnv().CRON_SECRET;
 
   if (!cronSecret) {
-    return NextResponse.json({ error: "Cron is not configured." }, { status: 503 });
+    throw new ApiRouteError(
+      503,
+      "push_dispatch_unavailable",
+      "Cron is not configured."
+    );
   }
 
   if (request.headers.get("authorization") !== `Bearer ${cronSecret}`) {
-    return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
+    throw new ApiRouteError(401, "authentication_required", "Unauthorized.");
   }
 
   try {
@@ -93,7 +96,7 @@ async function dispatchNotifications(request: Request) {
     });
 
     if (dueCandidates.length === 0) {
-      return NextResponse.json({ due: 0, sent: 0, removedSubscriptions: 0 });
+      return apiSuccessResponse({ due: 0, sent: 0, removedSubscriptions: 0 }, correlationId);
     }
 
     const claimedSchedules = await Promise.all(
@@ -122,7 +125,7 @@ async function dispatchNotifications(request: Request) {
     );
 
     if (dueSchedules.length === 0) {
-      return NextResponse.json({ due: 0, sent: 0, removedSubscriptions: 0 });
+      return apiSuccessResponse({ due: 0, sent: 0, removedSubscriptions: 0 }, correlationId);
     }
 
     const dueUserIds = Array.from(
@@ -207,25 +210,42 @@ async function dispatchNotifications(request: Request) {
       }
     }
 
-    return NextResponse.json({
-      due: dueSchedules.length,
-      sent,
-      removedSubscriptions: expiredSubscriptionIds.size,
-    });
+    return apiSuccessResponse(
+      {
+        due: dueSchedules.length,
+        sent,
+        removedSubscriptions: expiredSubscriptionIds.size,
+      },
+      correlationId
+    );
   } catch (error) {
+    if (error instanceof ApiRouteError) {
+      throw error;
+    }
     reportError(error, {
       code: "push_dispatch_failed",
       status: 500,
+      correlationId,
     });
     console.error("Push notification dispatch failed:", error);
-    return NextResponse.json({ error: "Push notification dispatch failed." }, { status: 500 });
+    throw new ApiRouteError(
+      500,
+      "push_dispatch_failed",
+      "Push notification dispatch failed.",
+      undefined,
+      error
+    );
   }
 }
 
 export async function GET(request: Request) {
-  return withRoute(async () => dispatchNotifications(request));
+  return withRoute(async ({ correlationId }) =>
+    dispatchNotifications(request, correlationId)
+  );
 }
 
 export async function POST(request: Request) {
-  return withRoute(async () => dispatchNotifications(request));
+  return withRoute(async ({ correlationId }) =>
+    dispatchNotifications(request, correlationId)
+  );
 }
