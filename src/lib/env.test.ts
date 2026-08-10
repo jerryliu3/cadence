@@ -39,8 +39,9 @@ describe("env schema", () => {
     expect(env.FEATURE_CROSS_MONTH_MOVES).toBe(false);
   });
 
-  it("requires core secrets in production", () => {
+  it("requires core secrets in hosted production", () => {
     vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("VERCEL_ENV", "production");
     vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "");
     vi.stubEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY", "");
     vi.stubEnv("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", "");
@@ -51,8 +52,20 @@ describe("env schema", () => {
     expect(() => assertEnvAtBoot()).toThrow(/Missing required production/);
   });
 
-  it("passes production boot when core vars are present", () => {
+  it("does not require cron secret for local next start production builds", () => {
     vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("VERCEL_ENV", "");
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://example.supabase.co");
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY", "anon");
+    vi.stubEnv("SUPABASE_SECRET_KEY", "secret");
+    vi.stubEnv("CRON_SECRET", "");
+    resetEnvCacheForTests();
+    expect(() => assertEnvAtBoot()).not.toThrow();
+  });
+
+  it("passes hosted production boot when core vars are present", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("VERCEL_ENV", "production");
     vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://example.supabase.co");
     vi.stubEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY", "anon");
     vi.stubEnv("SUPABASE_SECRET_KEY", "secret");
