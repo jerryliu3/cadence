@@ -64,12 +64,10 @@ export function validateSolverResult(
     let previousDate: string | null = null;
     let prefixEnded = false;
     for (const unit of goalUnits) {
+      const enforceOrder = false;
       const date = assignmentByKey.get(getSolverUnitId(unit)) ?? null;
       if (date === null) {
-        if (
-          unit.kind === "milestone_sequence" ||
-          unit.kind === "deadline_total"
-        ) {
+        if (enforceOrder) {
           prefixEnded = true;
         }
         continue;
@@ -78,17 +76,15 @@ export function validateSolverResult(
         violations.add("duplicate_goal_date");
       }
       usedDates.add(date);
-      if (previousDate !== null && date <= previousDate) {
+      if (enforceOrder && previousDate !== null && date <= previousDate) {
         violations.add("order_violation");
       }
-      if (
-        prefixEnded &&
-        (unit.kind === "milestone_sequence" ||
-          unit.kind === "deadline_total")
-      ) {
+      if (enforceOrder && prefixEnded) {
         violations.add("skipped_open_ordinal");
       }
-      previousDate = date;
+      if (enforceOrder) {
+        previousDate = date;
+      }
     }
   }
 

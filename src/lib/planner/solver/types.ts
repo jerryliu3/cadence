@@ -11,6 +11,8 @@ export interface SolverUnit {
   candidateDates: string[];
   previousDate: string | null;
   lockedDate: string | null;
+  /** Solve-order anchor; falls back to previousDate. Not part of the objective. */
+  solveOrderAnchor?: string | null;
   dateCosts?: Record<string, number>;
   estimatedMinutes?: number;
 }
