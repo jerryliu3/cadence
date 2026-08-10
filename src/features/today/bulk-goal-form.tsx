@@ -34,6 +34,7 @@ import {
   TargetCountField,
 } from "@/features/goals/goal-field-kit";
 import { BulkGoalInputCard } from "@/features/today/bulk-goal-input-card";
+import { type BulkGoalDraft, type BulkInputMode } from "@/features/today/bulk-goal-types";
 import { GoalLinkTargetSelect } from "@/features/goals/goal-link-target-select";
 import { MilestoneNameFields } from "@/features/goals/milestone-name-fields";
 import {
@@ -84,31 +85,6 @@ const columnAliases = {
   default_local_time: ["default_local_time", "default_time", "time_of_day", "local_time"],
 } as const;
 
-interface BulkGoalDraft {
-  id: string;
-  sourceRowLabel: string;
-  include: boolean;
-  title: string;
-  description: string;
-  category_selection: CategorySelection;
-  custom_category: string;
-  color: string;
-  is_group: boolean;
-  frequency_type: GoalFrequencyType;
-  recurrence_interval: RecurrenceInterval;
-  target_count: string;
-  milestone_names: string[];
-  start_date: string;
-  end_date: string;
-  default_local_time: string;
-  linked_target_goal_id: string;
-  link_target_search: string;
-  link_target_open: boolean;
-  advanced_open: boolean;
-  photo_file: File | null;
-  errors: string[];
-}
-
 interface LlmGoalDraftPayload {
   title?: string;
   description?: string | null;
@@ -120,8 +96,6 @@ interface LlmGoalDraftPayload {
   end_date?: string | null;
   default_local_time?: string | null;
 }
-
-type BulkInputMode = "natural_language" | "csv";
 
 const csvExample = `title,description,category,color,is_group,frequency_type,recurrence_interval,target_count,milestone_names,start_date,end_date,default_local_time
 Morning run,Train for a half marathon,Health,#16a34a,false,recurring,daily,20,,2026-06-01,2026-12-31,06:45
