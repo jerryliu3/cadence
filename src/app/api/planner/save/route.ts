@@ -23,7 +23,6 @@ import { postgresErrorMatches } from "@/lib/planner/postgres-errors";
 import {
   buildDraftPinnedDatesFromCommands,
   plannerDraftCommandSchema,
-  type PlannerDraftCommand,
 } from "@/lib/planner/draft-commands";
 import { toScopeMonthDate } from "@/lib/planner/scope-month";
 import { plannerPolicySchema } from "@/lib/planner/policy";
@@ -91,6 +90,9 @@ export async function handlePlannerSave(request: Request) {
         })()
       : null;
     const draftCommands = body.draftCommands ?? [];
+    const nonPositionalDraftCommands = draftCommands.filter(
+      (command) => command.kind !== "move_item"
+    );
     const draftPinnedDates = buildDraftPinnedDatesFromCommands(draftCommands);
     const hasDraftPinnedDates = Object.keys(draftPinnedDates).length > 0;
     const effectiveEligibilityMode =
@@ -222,9 +224,7 @@ export async function handlePlannerSave(request: Request) {
         policy: effectivePolicy,
         kernel: kernelForPersistence,
         snapshot,
-        draftCommands: hasDraftPinnedDates
-          ? draftCommands.filter((command) => command.kind !== "move_item")
-          : draftCommands,
+        draftCommands: nonPositionalDraftCommands,
       });
     } catch (error) {
       if (error instanceof PlannerDraftEditValidationError) {
