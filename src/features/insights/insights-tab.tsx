@@ -45,7 +45,7 @@ import {
   sortGoalsByDate,
   type GoalDateSort,
 } from "@/lib/goals/list-view";
-import { buildMilestoneNames, defaultMilestoneName } from "@/lib/goals/milestones";
+import { buildMilestoneNames, defaultMilestoneName, areMilestoneNamesEqual } from "@/lib/goals/milestones";
 import {
   fetchProgressContext,
   progressSummaryMap,
@@ -111,14 +111,6 @@ const aggregateWeekdayLabels: [string, string, string, string, string, string, s
 ];
 const MAX_VISIBLE_MILESTONES = 5;
 const INSIGHTS_REQUEST_TIMEOUT_MS = 15_000;
-
-function areMilestoneNamesEqual(left: string[], right: string[]): boolean {
-  if (left.length !== right.length) {
-    return false;
-  }
-
-  return left.every((name, index) => name === right[index]);
-}
 
 interface MilestoneStepsProps {
   targetCount: number;
