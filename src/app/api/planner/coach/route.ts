@@ -3,6 +3,9 @@ import {
   GeminiRequestError,
   generateGeminiJson,
 } from "@/lib/ai/gemini";
+import { checkRateLimit } from "@/lib/api/rate-limit";
+import { getServerEnv } from "@/lib/env";
+import { reportError } from "@/lib/observability/report-error";
 import {
   consumePlannerAiQuota,
   readPlannerCoachQuotaLimit,
@@ -30,11 +33,10 @@ export const runtime = "nodejs";
 
 const MAX_RESPONSE_BYTES = 256 * 1024;
 const DEFAULT_COACH_TIMEOUT_MS = 30_000;
-const MIN_COACH_TIMEOUT_MS = 10_000;
-const MAX_COACH_TIMEOUT_MS = 60_000;
 const COACH_MAX_OUTPUT_TOKENS = 4_096;
 const MAX_DEBUG_TEXT_LENGTH = 500;
 const LOCAL_BYPASS_QUOTA_REMAINING = 999_999;
+const COACH_RATE_LIMIT_PER_MINUTE = 30;
 
 function includeCoachDebugDetails() {
   return process.env.NODE_ENV !== "production";
@@ -77,6 +79,13 @@ function logCoachError(
   correlationId: string,
   payload: Record<string, unknown>
 ) {
+  reportError(new Error(`planner-coach:${stage}`), {
+    correlationId,
+    code: "planner_coach_error",
+    status: 500,
+    stage,
+    ...payload,
+  });
   console.error("[planner-coach]", {
     stage,
     correlationId,
@@ -85,19 +94,7 @@ function logCoachError(
 }
 
 function readCoachTimeoutMs() {
-  const raw = process.env.CALENDAR_COACH_TIMEOUT_MS?.trim();
-  if (!raw) {
-    return DEFAULT_COACH_TIMEOUT_MS;
-  }
-  const parsed = Number(raw);
-  if (
-    !Number.isSafeInteger(parsed) ||
-    parsed < MIN_COACH_TIMEOUT_MS ||
-    parsed > MAX_COACH_TIMEOUT_MS
-  ) {
-    return DEFAULT_COACH_TIMEOUT_MS;
-  }
-  return parsed;
+  return getServerEnv().CALENDAR_COACH_TIMEOUT_MS ?? DEFAULT_COACH_TIMEOUT_MS;
 }
 
 export async function POST(request: Request) {
@@ -110,6 +107,28 @@ export async function POST(request: Request) {
         disabledCode: "planner_coach_disabled",
         disabledMessage: "Planner coach is not enabled.",
       });
+
+      const rate = checkRateLimit({
+        key: `planner-coach:${routeContext.userId}`,
+        limit: COACH_RATE_LIMIT_PER_MINUTE,
+        windowMs: 60_000,
+      });
+      if (!rate.allowed) {
+        return NextResponse.json(
+          {
+            code: "rate_limited",
+            message: "Too many coach requests. Try again shortly.",
+            correlationId,
+          },
+          {
+            status: 429,
+            headers: {
+              "Cache-Control": "no-store",
+              "Retry-After": `${Math.ceil(rate.retryAfterMs / 1000)}`,
+            },
+          }
+        );
+      }
 
       const body = await parseBoundedJsonBody(
         request,

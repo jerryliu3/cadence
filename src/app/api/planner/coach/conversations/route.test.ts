@@ -71,6 +71,7 @@ describe("planner coach conversations route", () => {
       },
       capabilities: {
         calendarEnabled: true,
+        crossMonthMovesEnabled: false,
       },
     });
     mocks.listConversationsResponse.mockReturnValue({

@@ -74,3 +74,35 @@ test("login surface has no detectable WCAG A/AA violations", async ({
 
   expect(results.violations).toEqual([]);
 });
+
+test("authenticated today surface has no critical WCAG A/AA violations", async ({
+  page,
+}) => {
+  await page.goto("/?tab=today");
+  await expect(page.getByRole("tab", { name: "Today", exact: true })).toBeVisible();
+  await expect(page.getByText("Loading your goals...")).toHaveCount(0);
+
+  const results = await new AxeBuilder({ page })
+    .withTags(["wcag2a", "wcag2aa"])
+    .disableRules(["color-contrast"])
+    .analyze();
+
+  expect(results.violations).toEqual([]);
+});
+
+test("authenticated calendar surface has no critical WCAG A/AA violations", async ({
+  page,
+}) => {
+  await page.goto("/?tab=calendar");
+  await expect(
+    page.getByRole("tab", { name: "Calendar", exact: true })
+  ).toBeVisible();
+  await expect(page.getByText("Loading planner month context...")).toHaveCount(0);
+
+  const results = await new AxeBuilder({ page })
+    .withTags(["wcag2a", "wcag2aa"])
+    .disableRules(["color-contrast"])
+    .analyze();
+
+  expect(results.violations).toEqual([]);
+});

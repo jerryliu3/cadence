@@ -20,6 +20,7 @@ export interface PlannerContextPayload {
   } | null;
   capabilities: {
     calendarEnabled: boolean;
+    crossMonthMovesEnabled: boolean;
   };
   activePlan: {
     plan: {

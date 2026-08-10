@@ -79,6 +79,7 @@ describe("planner save route", () => {
       },
       capabilities: {
         calendarEnabled: true,
+        crossMonthMovesEnabled: false,
       },
     });
     mocks.parseBoundedJsonBody.mockResolvedValue({

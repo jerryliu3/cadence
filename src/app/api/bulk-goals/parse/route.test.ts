@@ -1,6 +1,7 @@
 // @vitest-environment node
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { resetEnvCacheForTests } from "@/lib/env";
 
 const mocks = vi.hoisted(() => ({
   getUser: vi.fn(),
@@ -35,6 +36,7 @@ describe("bulk goal parser route", () => {
       error: null,
     });
     vi.stubEnv("GEMINI_API_KEY", "test-api-key");
+    resetEnvCacheForTests();
     mocks.adminRpc.mockImplementation((functionName: string) => {
       if (functionName === "consume_planner_ai_quota") {
         return Promise.resolve({
@@ -59,6 +61,7 @@ describe("bulk goal parser route", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
     vi.unstubAllEnvs();
+    resetEnvCacheForTests();
     vi.useRealTimers();
   });
 

@@ -1,5 +1,7 @@
 # XP, Levels, and Rewards — Consolidated Plan
 
+> **Currency note (2026-08-10):** Planning doc — confirm against current migrations before implementation; XP may still be unshipped on main.
+
 > **Provenance.** This consolidates two independent drafts: a product/process-led plan (`planner_xp_standalone_plan.md`) and an architecture-led plan (`xp_rewards_plan.md`). The architecture draft is the baseline — it carries the credited-progress design, the concrete DDL, and the schema verification. From the product draft it absorbs the contract-freeze gate (§3), reward unlock lifecycle as in-scope rather than deferred (§6.10, §7.5), the feature-flag and rollback posture (§2.6), operational telemetry (§10), per-phase exit criteria, and the ownership boundary (§13). Where the two disagreed on architecture, the baseline wins; where they disagreed on product scope, the product draft wins.
 
 ## Context

@@ -1,5 +1,7 @@
 # Planner Slice 9 Rollout Guide
 
+> **Currency note (2026-08-10):** Operational guide from an earlier rollout slice. Prefer current env schema (`src/lib/env.ts`), feature flags (`src/lib/feature-flags.ts`), and Sentry wiring over older telemetry-only instructions where they diverge.
+
 This document covers the operational gates introduced for Slice 9:
 
 - telemetry emission for planner and AI routes,
