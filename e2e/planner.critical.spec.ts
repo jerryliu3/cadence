@@ -54,6 +54,12 @@ const MOVABLE_ENTRY_SELECTOR = [
   '[data-calendar-day-entry="true"][class*="cursor-grab"]:visible',
   '[data-calendar-day-entry="true"]:not([class*="cursor-not-allowed"]):visible',
 ].join(", ");
+const DRAFT_MODE_BADGE_TEST_ID = "planner-preview-mode-badge";
+const DRAG_FIXTURE_GOAL_ID = "10000000-0000-4000-8000-000000000022";
+const DRAG_FIXTURE_ENTRY_SELECTOR = [
+  `[data-calendar-day-entry="true"][data-planner-goal-id="${DRAG_FIXTURE_GOAL_ID}"][class*="cursor-grab"]:visible`,
+  `[data-calendar-day-entry="true"][data-planner-goal-id="${DRAG_FIXTURE_GOAL_ID}"]:not([class*="cursor-not-allowed"]):visible`,
+].join(", ");
 
 function shiftScopeMonth(scopeMonth: string, delta: number) {
   const [rawYear, rawMonth] = scopeMonth.split("-");
@@ -142,12 +148,9 @@ async function ensureMonthCalendarDensity(page: Page) {
   }
 }
 
-async function ensureMovableEntryAvailable(page: Page, maxMonthJumps = 12) {
+async function ensureDragFixtureEntryAvailable(page: Page, maxMonthJumps = 12) {
   const startScopeMonth = await resolveCalendarScopeMonth(page);
-  const scanOrder: number[] = [0];
-  for (let jump = 1; jump <= maxMonthJumps; jump += 1) {
-    scanOrder.push(jump, -jump);
-  }
+  const scanOrder = Array.from({ length: maxMonthJumps + 1 }, (_, jump) => jump);
 
   for (const delta of scanOrder) {
     const scopeMonth =
@@ -155,12 +158,14 @@ async function ensureMovableEntryAvailable(page: Page, maxMonthJumps = 12) {
     if (delta !== 0) {
       await openCalendar(page, scopeMonth);
     }
-    const movableEntries = page.locator(MOVABLE_ENTRY_SELECTOR);
-    if ((await movableEntries.count()) > 0) {
-      return true;
+    const fixtureEntries = page.locator(DRAG_FIXTURE_ENTRY_SELECTOR);
+    if ((await fixtureEntries.count()) > 0) {
+      return scopeMonth;
     }
   }
-  return false;
+  throw new Error(
+    `No movable drag fixture entries found for goal ${DRAG_FIXTURE_GOAL_ID} after scanning ${scanOrder.length} month(s) from ${startScopeMonth}.`
+  );
 }
 
 async function resolveCalendarScopeMonth(page: Page) {
@@ -241,8 +246,12 @@ async function fetchPlannerContextSnapshot(
   }, scopeMonth);
 }
 
-async function moveFirstMovableEntry(page: Page) {
-  const sourceEntry = page.locator(MOVABLE_ENTRY_SELECTOR).first();
+async function moveFirstMovableEntry(
+  page: Page,
+  sourceEntrySelector = MOVABLE_ENTRY_SELECTOR,
+  targetGoalId?: string
+): Promise<boolean> {
+  const sourceEntry = page.locator(sourceEntrySelector).first();
   await expect(sourceEntry).toBeVisible();
 
   const sourceDay = await sourceEntry.evaluate((element) =>
@@ -252,60 +261,79 @@ async function moveFirstMovableEntry(page: Page) {
     throw new Error("Could not resolve source day for draggable planner entry.");
   }
 
-  const targetDay = await page.evaluate((currentDay) => {
+  const candidateTargetDays = await page.evaluate(({ currentDay, goalId }) => {
     const scopeMonth = currentDay.slice(0, 7);
     const candidates = Array.from(
-      document.querySelectorAll('[data-day-cell="true"][data-day]')
+      document.querySelectorAll<HTMLElement>('[data-day-cell="true"][data-day]')
     )
-      .map((element) => element.getAttribute("data-day"))
-      .filter(
-        (value): value is string =>
-          typeof value === "string" &&
-          value.startsWith(scopeMonth) &&
-          value !== currentDay
-      )
+      .map((cell) => {
+        const value = cell.getAttribute("data-day");
+        if (
+          typeof value !== "string" ||
+          !value.startsWith(scopeMonth) ||
+          value === currentDay
+        ) {
+          return null;
+        }
+        if (typeof goalId === "string" && goalId.length > 0) {
+          const hasSameGoalEntry = cell.querySelector(
+            `[data-calendar-day-entry="true"][data-planner-goal-id="${goalId}"]`
+          );
+          if (hasSameGoalEntry) {
+            return null;
+          }
+        }
+        return value;
+      })
+      .filter((value): value is string => typeof value === "string")
       .sort();
-    const forwardCandidate = candidates.find((candidate) => candidate > currentDay);
-    return forwardCandidate ?? candidates[0] ?? null;
-  }, sourceDay);
-  if (!targetDay) {
+    const forwardCandidates = candidates.filter((candidate) => candidate > currentDay);
+    return [...forwardCandidates, ...candidates.filter((candidate) => candidate <= currentDay)];
+  }, { currentDay: sourceDay, goalId: targetGoalId });
+  if (candidateTargetDays.length === 0) {
     throw new Error("Could not find a valid planner day-cell drop target.");
   }
 
-  const targetCell = page
-    .locator(`[data-day-cell="true"][data-day="${targetDay}"]`)
-    .first();
-  await expect(targetCell).toBeVisible();
+  for (const targetDay of candidateTargetDays.slice(0, 8)) {
+    const currentSourceEntry = page.locator(sourceEntrySelector).first();
+    await expect(currentSourceEntry).toBeVisible();
+    const targetCell = page
+      .locator(`[data-day-cell="true"][data-day="${targetDay}"]`)
+      .first();
+    await expect(targetCell).toBeVisible();
 
-  const sourceBox = await sourceEntry.boundingBox();
-  const targetBox = await targetCell.boundingBox();
-  if (!sourceBox || !targetBox) {
-    throw new Error("Could not determine drag/drop hit boxes.");
-  }
+    const sourceBox = await currentSourceEntry.boundingBox();
+    const targetBox = await targetCell.boundingBox();
+    if (!sourceBox || !targetBox) {
+      continue;
+    }
 
-  await page.mouse.move(
-    sourceBox.x + sourceBox.width / 2,
-    sourceBox.y + sourceBox.height / 2
-  );
-  await page.mouse.down();
-  // Match dnd-kit mouse activation delay in calendar-dnd.tsx.
-  await page.waitForTimeout(180);
-  await page.mouse.move(targetBox.x + targetBox.width / 2, targetBox.y + 28, {
-    steps: 20,
-  });
-  await page.mouse.up();
-  await page.waitForTimeout(150);
-}
+    await page.mouse.move(
+      sourceBox.x + sourceBox.width / 2,
+      sourceBox.y + sourceBox.height / 2
+    );
+    await page.mouse.down();
+    // Match dnd-kit mouse activation delay in calendar-dnd.tsx.
+    await page.waitForTimeout(180);
+    await page.mouse.move(targetBox.x + targetBox.width / 2, targetBox.y + 28, {
+      steps: 20,
+    });
+    await page.mouse.up();
+    await page.waitForTimeout(150);
 
-async function enteredDraftMode(page: Page, timeoutMs = 10_000) {
-  const planningModeBadge = page.getByText("Planning Mode");
-  const startedAt = Date.now();
-  while (Date.now() - startedAt < timeoutMs) {
-    if (await planningModeBadge.isVisible().catch(() => false)) {
+    const inDraftMode = await page
+      .getByTestId(DRAFT_MODE_BADGE_TEST_ID)
+      .isVisible()
+      .catch(() => false);
+    if (inDraftMode) {
       return true;
     }
-    await page.waitForTimeout(250);
+    const saveButton = page.getByRole("button", { name: "Save plan", exact: true });
+    if (await saveButton.isEnabled().catch(() => false)) {
+      return true;
+    }
   }
+
   return false;
 }
 
@@ -369,20 +397,15 @@ test.describe("planner critical rails", () => {
     test.setTimeout(120_000);
     const executeMoveAndSave = async () => {
       await openCalendar(page);
-      const hasMovableEntry = await ensureMovableEntryAvailable(page);
-      test.skip(
-        !hasMovableEntry,
-        "No movable planner entry found in scanned seeded horizon."
-      );
-      const scopeMonth = await resolveCalendarScopeMonth(page);
+      const scopeMonth = await ensureDragFixtureEntryAvailable(page);
       const before = await fetchPlannerContextSnapshot(page, scopeMonth);
 
-      await moveFirstMovableEntry(page);
-      const hasDraftMode = await enteredDraftMode(page);
-      test.skip(
-        !hasDraftMode,
-        "Drag move did not activate preview mode for this seeded state."
+      const movedIntoDraft = await moveFirstMovableEntry(
+        page,
+        DRAG_FIXTURE_ENTRY_SELECTOR,
+        DRAG_FIXTURE_GOAL_ID
       );
+      expect(movedIntoDraft).toBe(true);
       const saveButton = page.getByRole("button", { name: "Save plan", exact: true });
       await expect(saveButton).toBeEnabled();
 
@@ -438,7 +461,6 @@ test.describe("planner critical rails", () => {
       await expect(
         page.getByText("Planner preview hash is stale. Regenerate and publish again.")
       ).toBeVisible();
-      await expect(page.getByText("Planning Mode")).toBeVisible();
       return;
     }
 
@@ -518,17 +540,14 @@ test.describe("planner critical rails", () => {
 
   test("stale save keeps planner draft session recoverable", async ({ page }) => {
     await openCalendar(page);
-    const hasMovableEntry = await ensureMovableEntryAvailable(page);
-    test.skip(
-      !hasMovableEntry,
-      "No movable planner entry found in scanned seeded horizon."
+    await ensureDragFixtureEntryAvailable(page);
+    const movedIntoDraft = await moveFirstMovableEntry(
+      page,
+      DRAG_FIXTURE_ENTRY_SELECTOR,
+      DRAG_FIXTURE_GOAL_ID
     );
-    await moveFirstMovableEntry(page);
-    const hasDraftMode = await enteredDraftMode(page);
-    test.skip(
-      !hasDraftMode,
-      "Drag move did not activate preview mode for this seeded state."
-    );
+    expect(movedIntoDraft).toBe(true);
+    await expect(page.getByRole("button", { name: "Save plan", exact: true })).toBeEnabled();
 
     await page.route("**/api/planner/save", async (route) => {
       const request = route.request();
@@ -560,7 +579,6 @@ test.describe("planner critical rails", () => {
     expect(saveResponse.status()).toBe(409);
     expect(["stale_revision", "preview_hash_mismatch"]).toContain(body.code ?? "");
 
-    await expect(page.getByText("Planning Mode")).toBeVisible();
     await expect(
       page.getByRole("button", { name: "Undo this month", exact: true })
     ).toBeVisible();

@@ -169,6 +169,9 @@ export function CalendarMonthDayCell<
               }`
             }
             data-calendar-day-entry="true"
+            data-planner-entry-key={entry.key}
+            data-planner-goal-id={entry.originalGoalId}
+            data-planner-unit-key={entry.unitKey}
             {...attributes}
             {...listeners}
           >
