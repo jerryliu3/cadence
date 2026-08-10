@@ -90,15 +90,6 @@ function buildDurableApplyToastDetail({
   return `Saved as your default planner policy from ${scopeMonth}.${draftNote} Unpublished months will regenerate as you navigate; already-published months require republish to persist the new rhythm.`;
 }
 
-function mapAutoApplyStatusToProposalStatus(
-  status: CoachProposalApplyStatus
-): CoachMessageProposal["applyStatus"] {
-  if (status === "applied" || status === "already_applied") {
-    return "auto_applied";
-  }
-  return "not_applied";
-}
-
 function buildAssistantMessage({
   reply,
   recommendations,
@@ -491,14 +482,11 @@ export function usePlannerCoach({
         : null;
       let proposal: CoachMessageProposal | null = null;
       if (policyPatches.length > 0) {
-        autoApplyStatus = await applyCoachPatchesToDraft({
-          patches: policyPatches,
-          source: "auto",
-        });
+        appendCoachContextEvent("Coach proposal ready for manual apply");
         const patchSignature = buildProposalSignature(policyPatches);
         proposal = {
           schemaVersion: "1",
-          applyStatus: mapAutoApplyStatusToProposalStatus(autoApplyStatus),
+          applyStatus: "not_applied",
           patchSignature,
           baselineSnapshotToken: baselinePolicy
             ? buildBaselineSnapshotToken(baselinePolicy)
@@ -541,7 +529,6 @@ export function usePlannerCoach({
     coachMessages,
     coachSummaryWorkUnits,
     context,
-    applyCoachPatchesToDraft,
     effectiveDraftPolicy,
     effectivePreview?.horizonSummary,
     persistCoachMessages,
@@ -655,7 +642,7 @@ export function usePlannerCoach({
         patches: message.proposal.policyPatches,
         source: "manual",
       });
-      if (applyStatus === "applied") {
+      if (applyStatus === "applied" || applyStatus === "already_applied") {
         updateCoachProposalStatus(messageIndex, "manually_applied");
       }
     },

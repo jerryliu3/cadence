@@ -310,7 +310,7 @@ describe("usePlannerCoach", () => {
       "Recommended next actions:"
     );
     expect(result.current.state.coachMessages.at(-1)?.content).toContain(
-      "Draft updates already match your current policy:"
+      "Draft updates proposed:"
     );
     expect(result.current.state.coachWarnings).toEqual(["Watch cumulative fatigue."]);
     expect(result.current.state.coachRecommendations).toEqual([
@@ -319,7 +319,7 @@ describe("usePlannerCoach", () => {
     const proposal = result.current.state.coachMessages.at(-1)?.proposal;
     expect(proposal).toMatchObject({
       schemaVersion: "1",
-      applyStatus: "auto_applied",
+      applyStatus: "not_applied",
       policyPatches: [
         {
           kind: "set_rest_weekdays",
@@ -329,12 +329,12 @@ describe("usePlannerCoach", () => {
     });
     expect(proposal?.patchSignature).toHaveLength(64);
     expect(proposal?.baselineSnapshotToken.startsWith("policy:")).toBe(true);
-    expect(applyCoachPolicyPatchesMock).toHaveBeenCalled();
+    expect(applyCoachPolicyPatchesMock).not.toHaveBeenCalled();
     expect(persistPlannerDefaultPolicyMock).not.toHaveBeenCalled();
     expect(saveCoachSessionMock).toHaveBeenCalled();
   });
 
-  it("keeps proposal auto-applied when manual apply is a no-op", async () => {
+  it("marks proposal manually applied when manual apply is a no-op", async () => {
     applyCoachPolicyPatchesMock.mockReturnValue({
       policy: buildPolicy(),
       appliedPatchCount: 0,
@@ -392,20 +392,11 @@ describe("usePlannerCoach", () => {
     expect(persistPlannerDefaultPolicyMock).not.toHaveBeenCalled();
     expect(
       result.current.state.coachMessages[proposalIndex]?.proposal?.applyStatus
-    ).toBe("auto_applied");
+    ).toBe("manually_applied");
   });
 
-  it("does not persist defaults during successful auto-apply", async () => {
+  it("keeps proposal pending manual apply after coach response", async () => {
     const context = buildContext();
-    const nextPolicy = buildPolicy({ restWeekdays: [0, 6] });
-    applyCoachPolicyPatchesMock.mockReturnValue({
-      policy: nextPolicy,
-      appliedPatchCount: 1,
-      ignoredPatchCount: 0,
-      noOpPatchCount: 0,
-      outOfScopePatchCount: 0,
-      unsupportedPatchCount: 0,
-    });
     requestPlannerCoachReplyMock.mockResolvedValue({
       schemaVersion: "1",
       phase: "ready",
@@ -422,14 +413,7 @@ describe("usePlannerCoach", () => {
       recommendations: [],
       warnings: [],
     });
-    const refreshDraftPreviewMock = vi.fn().mockResolvedValue({
-      ...context.preview!,
-      workUnits: [
-        buildWorkUnit({
-          scheduledDate: "2026-08-03",
-        }),
-      ],
-    });
+    const refreshDraftPreviewMock = vi.fn();
     const applyDraftPolicyMock = vi.fn();
     const { result } = renderHook(() =>
       usePlannerCoach(
@@ -453,10 +437,10 @@ describe("usePlannerCoach", () => {
     });
 
     expect(persistPlannerDefaultPolicyMock).not.toHaveBeenCalled();
-    expect(refreshDraftPreviewMock).toHaveBeenCalledWith(nextPolicy);
-    expect(applyDraftPolicyMock).toHaveBeenCalledWith("2026-08", nextPolicy);
+    expect(refreshDraftPreviewMock).not.toHaveBeenCalled();
+    expect(applyDraftPolicyMock).not.toHaveBeenCalled();
     expect(result.current.state.coachMessages.at(-1)?.proposal?.applyStatus).toBe(
-      "auto_applied"
+      "not_applied"
     );
   });
 
@@ -534,7 +518,7 @@ describe("usePlannerCoach", () => {
       (message) => message.role === "assistant" && Boolean(message.proposal)
     );
     expect(proposalMessages).toHaveLength(1);
-    expect(proposalMessages[0]?.proposal?.applyStatus).toBe("auto_applied");
+    expect(proposalMessages[0]?.proposal?.applyStatus).toBe("not_applied");
   });
 
   it("applies coach proposal and computes assignment change summary", async () => {
@@ -1038,14 +1022,14 @@ describe("usePlannerCoach", () => {
       timezone: "UTC",
       defaultPolicy: nextPolicy,
     });
-    expect(refreshDraftPreviewMock).toHaveBeenCalledTimes(2); // auto + manual attempt
-    expect(applyDraftPolicyMock).toHaveBeenCalledTimes(1); // auto-apply only
+    expect(refreshDraftPreviewMock).toHaveBeenCalledTimes(1);
+    expect(applyDraftPolicyMock).not.toHaveBeenCalled();
     expect(toastErrorMock).toHaveBeenCalledWith(
       "Planner preferences could not be updated."
     );
     expect(
       result.current.state.coachMessages[proposalIndex]?.proposal?.applyStatus
-    ).toBe("auto_applied");
+    ).toBe("not_applied");
   });
 
   it("does not persist defaults when manual apply preview refresh fails", async () => {
@@ -1077,8 +1061,7 @@ describe("usePlannerCoach", () => {
     });
     const refreshDraftPreviewMock = vi
       .fn()
-      .mockResolvedValueOnce(context.preview)
-      .mockRejectedValueOnce(new Error("Preview refresh failed."));
+      .mockRejectedValue(new Error("Preview refresh failed."));
     const applyDraftPolicyMock = vi.fn();
     const { result } = renderHook(() =>
       usePlannerCoach(
@@ -1110,12 +1093,12 @@ describe("usePlannerCoach", () => {
     });
 
     expect(persistPlannerDefaultPolicyMock).not.toHaveBeenCalled();
-    expect(refreshDraftPreviewMock).toHaveBeenCalledTimes(2);
-    expect(applyDraftPolicyMock).toHaveBeenCalledTimes(1); // auto-apply only
+    expect(refreshDraftPreviewMock).toHaveBeenCalledTimes(1);
+    expect(applyDraftPolicyMock).not.toHaveBeenCalled();
     expect(toastErrorMock).toHaveBeenCalledWith("Preview refresh failed.");
     expect(
       result.current.state.coachMessages[proposalIndex]?.proposal?.applyStatus
-    ).toBe("auto_applied");
+    ).toBe("not_applied");
   });
 
   it("undoes auto-applied proposal without writing planner defaults", async () => {
