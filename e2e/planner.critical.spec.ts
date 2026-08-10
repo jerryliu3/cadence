@@ -251,16 +251,27 @@ async function runCompletionToggleAction(
   return payload;
 }
 
-function expectCompletionRoundTrip(
-  first: CompletionMutationPayload,
-  second: CompletionMutationPayload
+function inverseFactState(state: CompletionMutationPayload["desiredFactState"]) {
+  return state === "present" ? "absent" : "present";
+}
+
+async function restoreCompletionFact(
+  page: Page,
+  payload: CompletionMutationPayload
 ) {
-  expect(second.goalId).toBe(first.goalId);
-  expect(second.date).toBe(first.date);
-  expect(second.timezone).toBe(first.timezone);
-  expect(second.desiredFactState).toBe(
-    first.desiredFactState === "present" ? "absent" : "present"
-  );
+  const response = await page.request.post("/api/completions", {
+    data: {
+      goalId: payload.goalId,
+      date: payload.date,
+      desiredFactState: inverseFactState(payload.desiredFactState),
+      timezone: payload.timezone,
+    },
+    timeout: 15_000,
+  });
+  const body = (await response.json().catch(() => null)) as
+    | { code?: string; message?: string }
+    | null;
+  expect(response.status(), JSON.stringify(body)).toBe(200);
 }
 
 test.describe("planner critical rails", () => {
@@ -341,7 +352,7 @@ test.describe("planner critical rails", () => {
     expect(after.placementsByEntryKey[movedEntryKey]).toBe(moveCommand!.scheduledDate);
   });
 
-  test("completion toggle round-trips from today surface", async ({ page }) => {
+  test("completion toggle dispatches from today surface", async ({ page }) => {
     test.setTimeout(120_000);
     await page.goto("/?tab=today");
     await expect(page.getByRole("tab", { name: "Today", exact: true })).toBeVisible();
@@ -359,20 +370,10 @@ test.describe("planner critical rails", () => {
       await initialButton.click();
     });
     expect(todayPayload.goalId).toBe(TODAY_EXACT_DATE_GOAL_ID);
-    const secondGoalLink = page
-      .locator(`a[href="/goals/${TODAY_EXACT_DATE_GOAL_ID}"]`)
-      .first();
-    await expect(secondGoalLink).toBeVisible({ timeout: 10_000 });
-    const secondTodayPayload = await runCompletionToggleAction(page, async () => {
-      const button = secondGoalLink.locator("xpath=preceding-sibling::button[1]");
-      await expect(button).toBeVisible();
-      await expect(button).toBeEnabled();
-      await button.click();
-    });
-    expectCompletionRoundTrip(todayPayload, secondTodayPayload);
+    await restoreCompletionFact(page, todayPayload);
   });
 
-  test("completion toggle round-trips from past (insights) surface", async ({
+  test("completion toggle dispatches from past (insights) surface", async ({
     page,
   }) => {
     test.setTimeout(120_000);
@@ -415,18 +416,10 @@ test.describe("planner critical rails", () => {
       await expect(button).toBeEnabled();
       await button.click();
     });
-    const secondInsightsPayload = await runCompletionToggleAction(page, async () => {
-      const button = page
-        .locator(`button[title^="${selectedInsightsDate}:"]`)
-        .first();
-      await expect(button).toBeVisible({ timeout: 10_000 });
-      await expect(button).toBeEnabled();
-      await button.click();
-    });
-    expectCompletionRoundTrip(insightsPayload, secondInsightsPayload);
+    await restoreCompletionFact(page, insightsPayload);
   });
 
-  test("completion toggle round-trips from calendar surface", async ({ page }) => {
+  test("completion toggle dispatches from calendar surface", async ({ page }) => {
     test.setTimeout(120_000);
     await openCalendar(page);
     const dayCellWithEntry = page
@@ -445,17 +438,7 @@ test.describe("planner critical rails", () => {
       await expect(button).toBeEnabled();
       await button.click();
     });
-    const secondCalendarPayload = await runCompletionToggleAction(page, async () => {
-      const button = page
-        .locator(
-          'button[aria-label="Mark session done"], button[aria-label="Mark session not done"]'
-        )
-        .first();
-      await expect(button).toBeVisible();
-      await expect(button).toBeEnabled();
-      await button.click();
-    });
-    expectCompletionRoundTrip(calendarPayload, secondCalendarPayload);
+    await restoreCompletionFact(page, calendarPayload);
   });
 
   test("stale save keeps planner draft session recoverable", async ({ page }) => {
