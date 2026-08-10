@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { remapGoalDatesForDraftMove } from "@/features/planner/draft-move-remap";
+import {
+  buildDraftMoveCommands,
+  remapGoalDatesForDraftMove,
+} from "@/features/planner/draft-move-remap";
 
 const units = [
   { unitKey: "total:1", ordinal: 1, scheduledDate: "2026-08-01" },
@@ -103,5 +106,45 @@ describe("milestone sequences keep ordinal identity", () => {
       "milestone:2": "2026-08-03",
       "milestone:3": "2026-08-25",
     });
+  });
+});
+
+describe("buildDraftMoveCommands keeps earlier drags pinned", () => {
+  // Regression: dragging the last milestone later, then the second-to-last to
+  // two days before it, used to drop the first drag's pin -- its remapped date
+  // matched the preview, which only showed that date because of the pin. The
+  // solver then slid it back to one day after the newly pinned neighbour.
+  it("pins every unit in the mapping, including unchanged dates", () => {
+    const commands = buildDraftMoveCommands({
+      units: [
+        { unitKey: "milestone:1", ordinal: 1, scheduledDate: "2026-08-01" },
+        { unitKey: "milestone:2", ordinal: 2, scheduledDate: "2026-08-02" },
+        { unitKey: "milestone:3", ordinal: 3, scheduledDate: "2026-08-25" },
+      ],
+      movedUnitKey: "milestone:2",
+      nextDate: "2026-08-23",
+      kind: "deadline_total",
+    });
+
+    expect(commands).toEqual([
+      { unitKey: "milestone:1", scheduledDate: "2026-08-01" },
+      { unitKey: "milestone:2", scheduledDate: "2026-08-23" },
+      // Still pinned, so the earlier drag to Aug 25 survives.
+      { unitKey: "milestone:3", scheduledDate: "2026-08-25" },
+    ]);
+  });
+
+  it("pins only the dragged milestone for an ordered sequence", () => {
+    expect(
+      buildDraftMoveCommands({
+        units: [
+          { unitKey: "milestone:1", ordinal: 1, scheduledDate: "2026-08-01" },
+          { unitKey: "milestone:2", ordinal: 2, scheduledDate: "2026-08-02" },
+        ],
+        movedUnitKey: "milestone:1",
+        nextDate: "2026-08-25",
+        kind: "milestone_sequence",
+      })
+    ).toEqual([{ unitKey: "milestone:1", scheduledDate: "2026-08-25" }]);
   });
 });
