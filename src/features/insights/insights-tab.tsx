@@ -23,6 +23,7 @@ import {
   PencilLine,
   TrendingUp,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { type TouchEventHandler, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import CalendarHeatmap from "react-calendar-heatmap";
 import "react-calendar-heatmap/dist/styles.css";
@@ -125,6 +126,7 @@ function getCompletionCountLabel(goal: Goal, completionCount: number): string {
 
 export function InsightsTab() {
   const supabase = useMemo(() => createClient(), []);
+  const router = useRouter();
   const [state, setState] = useState<InsightsData>(emptyInsights);
   const [loading, setLoading] = useState(true);
   const [monthCursor, setMonthCursor] = useState(new Date());
@@ -144,6 +146,7 @@ export function InsightsTab() {
   const loadRequestIdRef = useRef(0);
   const visibleLoadCountRef = useRef(0);
   const runCompletionMutation = useCompletionMutation();
+  const selectedYear = useMemo(() => format(monthCursor, "yyyy"), [monthCursor]);
 
   const loadData = useCallback(
     async (
@@ -166,19 +169,21 @@ export function InsightsTab() {
       try {
         const {
           data: { user },
+          error: userError,
         } = await withAbortSignal(supabase.auth.getUser(), controller.signal);
 
         if (requestId !== loadRequestIdRef.current) {
           return;
         }
 
-        if (!user) {
+        if (userError || !user) {
           setState(emptyInsights);
+          router.replace("/login");
           return;
         }
 
-        const yearStart = format(startOfYear(monthCursor), "yyyy-MM-dd");
-        const yearEnd = format(endOfYear(monthCursor), "yyyy-MM-dd");
+        const yearStart = `${selectedYear}-01-01`;
+        const yearEnd = `${selectedYear}-12-31`;
         // Heatmap facts are intentionally year-bounded. A per-year client cache
         // is optional later if measured navigation latency warrants it.
         const [goalsResponse, participantsResponse, progress] =
@@ -217,7 +222,7 @@ export function InsightsTab() {
         }
       }
     },
-    [monthCursor, supabase]
+    [router, selectedYear, supabase]
   );
 
   useEffect(() => {

@@ -6,7 +6,6 @@ import {
   ChevronLeft,
   ChevronRight,
   Crown,
-  Plus,
   Search,
   Share2,
   Trash2,
@@ -32,157 +31,47 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  CATEGORY_PRESETS,
-  type CategorySelection,
   getCategoryLabel,
-  getCategorySwatchColor,
 } from "@/lib/goals/category";
 import {
   getSortedCompletionDates,
+  countCompletionsByDate,
   groupCompletionsByGoalId,
 } from "@/lib/goals/completion-grouping";
 import {
-  isOrdinalGoalDefinition,
-  validateGoalDefinition,
-} from "@/lib/goals/definition-validation";
-import { toLocalDateString } from "@/lib/dates/day";
-import { GOAL_TYPE_OPTIONS, RECURRENCE_INTERVAL_OPTIONS } from "@/lib/goals/form-options";
-import { buildMilestoneNames, defaultMilestoneName } from "@/lib/goals/milestones";
+  deriveDefinitionTargetCount,
+  requiresGoalEndDate,
+} from "@/lib/goals/form-derivations";
+import { parseGoalTargetCount } from "@/lib/goals/form-parsing";
+import { getFirstGoalFormValidationError } from "@/lib/goals/form-validation";
+import { buildMilestoneNames } from "@/lib/goals/milestones";
 import { getGoalCompletionPercentage } from "@/lib/goals/progress";
+import { GoalsSurfaceLoadingCard } from "@/features/goals/goals-surface-loading-card";
+import { MilestonePills } from "@/features/goals/milestone-pills";
 import { MonthHeatmap } from "@/features/insights/month-heatmap";
+import { SocialGroupGoalComposer } from "@/features/social/social-group-goal-composer";
+import {
+  createDefaultGroupGoalDraft,
+  getProfileInitials,
+  initialSocialState,
+  type GroupGoalDraft,
+  type ShareMenuPosition,
+  type SocialState,
+} from "@/features/social/social-models";
+import { buildShareMenuPosition } from "@/features/social/social-share-menu-position";
 import { NotificationSettings } from "@/features/settings/notification-settings";
 import type {
   Completion,
   Goal,
-  GoalFrequencyType,
   GoalParticipant,
   GoalShare,
   Profile,
-  RecurrenceInterval,
 } from "@/lib/goals/types";
 import { createClient } from "@/lib/supabase/client";
 
-interface SocialState {
-  userId: string;
-  profile: Profile | null;
-  ownGoals: Goal[];
-  sharedGoals: Goal[];
-  sharedEntries: GoalShare[];
-  outgoingShares: GoalShare[];
-  sharedOwners: Record<string, Profile>;
-  groupGoals: Goal[];
-  participants: GoalParticipant[];
-  completions: Completion[];
-  profileDirectory: Record<string, Profile>;
-}
-
-interface ShareMenuPosition {
-  left: number;
-  width: number;
-  maxHeight: number;
-  top?: number;
-  bottom?: number;
-}
-
-const initialState: SocialState = {
-  userId: "",
-  profile: null,
-  ownGoals: [],
-  sharedGoals: [],
-  sharedEntries: [],
-  outgoingShares: [],
-  sharedOwners: {},
-  groupGoals: [],
-  participants: [],
-  completions: [],
-  profileDirectory: {},
-};
-
-function getInitials(profile: Profile | null) {
-  if (!profile) {
-    return "??";
-  }
-  return (profile.display_name ?? profile.username).slice(0, 2).toUpperCase();
-}
-
-function parsePositiveTargetCount(value: string): number | null {
-  const parsed = Number.parseInt(value, 10);
-  if (!Number.isFinite(parsed) || parsed <= 0) {
-    return null;
-  }
-  return parsed;
-}
-
-interface MilestoneSummaryPillsProps {
-  targetCount: number;
-  completionDates: string[];
-  milestoneNames: string[];
-}
-
-function MilestoneSummaryPills({
-  targetCount,
-  completionDates,
-  milestoneNames,
-}: MilestoneSummaryPillsProps) {
-  const safeTarget = Math.max(targetCount, 1);
-
-  return (
-    <div className="space-y-1.5">
-      <p className="text-xs text-muted-foreground">Milestones</p>
-      <div className="flex flex-wrap gap-1.5">
-        {Array.from({ length: safeTarget }).map((_, index) => {
-          const completionDate = completionDates[index];
-          const complete = Boolean(completionDate);
-          const milestoneName = milestoneNames[index] ?? defaultMilestoneName(index);
-
-          return (
-            <div
-              key={`${index + 1}-shared-milestone`}
-              className={`min-w-[110px] rounded-full border px-2.5 py-1 text-[11px] leading-tight ${
-                complete
-                  ? "border-primary/40 bg-primary/10 text-foreground"
-                  : "border-border bg-muted/30 text-muted-foreground"
-              }`}
-            >
-              <p className="truncate font-medium">{milestoneName}</p>
-              <p className={complete ? "text-foreground/75" : "text-muted-foreground"}>
-                {complete ? completionDate : "Pending"}
-              </p>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-interface GroupGoalDraft {
-  title: string;
-  description: string;
-  categorySelection: CategorySelection;
-  customCategory: string;
-  frequencyType: GoalFrequencyType;
-  recurrenceInterval: RecurrenceInterval;
-  targetCount: string;
-  startDate: string;
-  endDate: string;
-}
-
-const defaultGroupDraft: GroupGoalDraft = {
-  title: "",
-  description: "",
-  categorySelection: "personal",
-  customCategory: "",
-  frequencyType: "recurring",
-  recurrenceInterval: "weekly",
-  targetCount: "",
-  startDate: toLocalDateString(),
-  endDate: "",
-};
-
 export function SocialTab() {
   const supabase = useMemo(() => createClient(), []);
-  const [state, setState] = useState<SocialState>(initialState);
+  const [state, setState] = useState<SocialState>(initialSocialState);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -197,7 +86,9 @@ export function SocialTab() {
     top: 0,
   });
   const [sharedMonthCursor, setSharedMonthCursor] = useState(new Date());
-  const [groupDraft, setGroupDraft] = useState<GroupGoalDraft>(defaultGroupDraft);
+  const [groupDraft, setGroupDraft] = useState<GroupGoalDraft>(
+    createDefaultGroupGoalDraft
+  );
   const [profileDraft, setProfileDraft] = useState({
     username: "",
     display_name: "",
@@ -211,38 +102,13 @@ export function SocialTab() {
     if (!anchor) {
       return;
     }
-
-    const rect = anchor.getBoundingClientRect();
-    const viewportPadding = 12;
-    const gap = 8;
-    const availableBelow = window.innerHeight - rect.bottom - gap - viewportPadding;
-    const availableAbove = rect.top - gap - viewportPadding;
-    const shouldOpenAbove = availableBelow < 220 && availableAbove > availableBelow;
-    const width = Math.min(rect.width, window.innerWidth - viewportPadding * 2);
-    const left = Math.min(
-      Math.max(rect.left, viewportPadding),
-      window.innerWidth - width - viewportPadding
+    setShareMenuPosition(
+      buildShareMenuPosition({
+        anchorRect: anchor.getBoundingClientRect(),
+        viewportWidth: window.innerWidth,
+        viewportHeight: window.innerHeight,
+      })
     );
-    const maxHeight = Math.max(160, shouldOpenAbove ? availableAbove : availableBelow);
-
-    if (shouldOpenAbove) {
-      setShareMenuPosition({
-        left,
-        width,
-        maxHeight,
-        top: undefined,
-        bottom: window.innerHeight - rect.top + gap,
-      });
-      return;
-    }
-
-    setShareMenuPosition({
-      left,
-      width,
-      maxHeight,
-      top: rect.bottom + gap,
-      bottom: undefined,
-    });
   }, []);
 
   const loadData = useCallback(async () => {
@@ -253,7 +119,7 @@ export function SocialTab() {
     } = await supabase.auth.getUser();
 
     if (!user) {
-      setState(initialState);
+      setState(initialSocialState);
       setLoading(false);
       return;
     }
@@ -488,17 +354,18 @@ export function SocialTab() {
     () => groupCompletionsByGoalId(state.completions),
     [state.completions]
   );
-  const parsedGroupTargetCount = parsePositiveTargetCount(groupDraft.targetCount);
-  const groupDefinitionTargetCount =
-    groupDraft.frequencyType === "fixed_milestones"
-      ? parsedGroupTargetCount
-      : groupDraft.targetCount.trim().length > 0
-        ? parsedGroupTargetCount
-        : null;
-  const groupRequiresEndDate = isOrdinalGoalDefinition({
-    frequencyType: groupDraft.frequencyType,
-    targetCount: groupDefinitionTargetCount,
+  const parsedGroupTargetCount = parseGoalTargetCount(groupDraft.targetCount, {
+    requirePositive: true,
   });
+  const groupDefinitionTargetCount = deriveDefinitionTargetCount({
+    frequencyType: groupDraft.frequencyType,
+    targetCountRaw: groupDraft.targetCount,
+    parsedTargetCount: parsedGroupTargetCount,
+  });
+  const groupRequiresEndDate = requiresGoalEndDate(
+    groupDraft.frequencyType,
+    groupDefinitionTargetCount
+  );
 
   const updateGroupFrequencyType = (nextFrequency: GroupGoalDraft["frequencyType"]) => {
     setGroupDraft((previous) => ({
@@ -615,40 +482,40 @@ export function SocialTab() {
   };
 
   const createGroupGoal = async () => {
-    if (!groupDraft.title.trim()) {
-      toast.error("Group goal title is required.");
-      return;
-    }
-
     if (!groupDraft.startDate) {
       toast.error("Start date is required.");
       return;
     }
 
-    if (
-      groupDraft.categorySelection === "custom" &&
-      groupDraft.customCategory.trim().length === 0
-    ) {
-      toast.error("Custom category name is required.");
-      return;
-    }
+    const groupValidationError = getFirstGoalFormValidationError(
+      {
+        title: groupDraft.title,
+        category_selection: groupDraft.categorySelection,
+        custom_category: groupDraft.customCategory,
+        color: "#0ea5e9",
+        frequency_type: groupDraft.frequencyType,
+        recurrence_interval: groupDraft.recurrenceInterval,
+        target_count: groupDraft.targetCount,
+        milestone_names: [],
+        start_date: groupDraft.startDate,
+        end_date: groupDraft.endDate,
+        default_local_time: "",
+        is_group: true,
+        linked_target_goal_id: "none",
+      },
+      { requireRecurrenceInterval: true }
+    );
 
-    if (
-      groupDraft.frequencyType === "fixed_milestones" &&
-      parsedGroupTargetCount === null
-    ) {
-      toast.error("Milestone group goals need a positive target.");
-      return;
-    }
-
-    const definitionIssues = validateGoalDefinition({
-      frequencyType: groupDraft.frequencyType,
-      targetCount: groupDefinitionTargetCount,
-      startDate: groupDraft.startDate,
-      endDate: groupDraft.endDate || null,
-    });
-    if (definitionIssues.length > 0) {
-      toast.error(definitionIssues[0]!.message);
+    if (groupValidationError) {
+      if (groupValidationError === "Title is required.") {
+        toast.error("Group goal title is required.");
+      } else if (
+        groupValidationError === "Milestone goals require a positive target count."
+      ) {
+        toast.error("Milestone group goals need a positive target.");
+      } else {
+        toast.error(groupValidationError);
+      }
       return;
     }
 
@@ -692,10 +559,7 @@ export function SocialTab() {
     });
 
     toast.success("Group goal created.");
-    setGroupDraft({
-      ...defaultGroupDraft,
-      startDate: toLocalDateString(),
-    });
+    setGroupDraft(createDefaultGroupGoalDraft());
     await loadData();
     setSaving(false);
   };
@@ -744,14 +608,10 @@ export function SocialTab() {
 
   if (loading) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Loading settings...</CardTitle>
-          <CardDescription>
-            Syncing your profile, notifications, and collaboration settings.
-          </CardDescription>
-        </CardHeader>
-      </Card>
+      <GoalsSurfaceLoadingCard
+        title="Loading settings..."
+        description="Syncing your profile, notifications, and collaboration settings."
+      />
     );
   }
 
@@ -765,7 +625,7 @@ export function SocialTab() {
         <CardContent className="space-y-4">
           <div className="flex items-center gap-3">
             <Avatar>
-              <AvatarFallback>{getInitials(state.profile)}</AvatarFallback>
+              <AvatarFallback>{getProfileInitials(state.profile)}</AvatarFallback>
             </Avatar>
             <div className="text-sm text-muted-foreground">
               Keep this profile updated so collaborators can find you quickly.
@@ -1093,14 +953,7 @@ export function SocialTab() {
               const ownerCompletions = (completionsByGoal.get(goal.id) ?? []).filter(
                 (entry) => entry.user_id === goal.owner_id
               );
-              const countsByDate = ownerCompletions.reduce<Record<string, number>>(
-                (accumulator, completion) => {
-                  accumulator[completion.completed_on] =
-                    (accumulator[completion.completed_on] ?? 0) + 1;
-                  return accumulator;
-                },
-                {}
-              );
+              const countsByDate = countCompletionsByDate(ownerCompletions);
               const percent = getGoalCompletionPercentage(goal, ownerCompletions);
               const milestoneTargetCount = Math.max(goal.target_count ?? ownerCompletions.length, 1);
               const milestoneCompletionDates = getSortedCompletionDates(ownerCompletions).slice(
@@ -1135,7 +988,7 @@ export function SocialTab() {
                       </div>
                     </div>
                     {goal.frequency_type === "fixed_milestones" ? (
-                      <MilestoneSummaryPills
+                      <MilestonePills
                         targetCount={milestoneTargetCount}
                         completionDates={milestoneCompletionDates}
                         milestoneNames={milestoneNames}
@@ -1159,171 +1012,14 @@ export function SocialTab() {
           <CardDescription>Create collaborative goals and compare progress side-by-side.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="rounded-xl border bg-muted/20 p-3">
-            <p className="mb-3 text-sm font-medium">Create group goal</p>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="group-goal-title">Title</Label>
-                <Input
-                  id="group-goal-title"
-                  placeholder="Title"
-                  value={groupDraft.title}
-                  onChange={(event) =>
-                    setGroupDraft((prev) => ({ ...prev, title: event.target.value }))
-                  }
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Category</Label>
-                <Select
-                  value={groupDraft.categorySelection}
-                  onValueChange={(value: CategorySelection) =>
-                    setGroupDraft((prev) => ({ ...prev, categorySelection: value }))
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Category" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {CATEGORY_PRESETS.map((preset) => (
-                      <SelectItem key={preset.id} value={preset.id}>
-                        <span className="inline-flex items-center gap-2">
-                          <span
-                            className="size-2 rounded-full"
-                            style={{ backgroundColor: getCategorySwatchColor(preset.id) }}
-                          />
-                          {preset.label}
-                        </span>
-                      </SelectItem>
-                    ))}
-                    <SelectItem value="custom">
-                      <span className="inline-flex items-center gap-2">
-                        <span
-                          className="size-2 rounded-full"
-                          style={{ backgroundColor: getCategorySwatchColor("custom") }}
-                        />
-                        Custom
-                      </span>
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Goal type</Label>
-                <div className="flex flex-wrap gap-2">
-                  {GOAL_TYPE_OPTIONS.map((option) => (
-                    <Button
-                      key={option.value}
-                      type="button"
-                      size="sm"
-                      variant={groupDraft.frequencyType === option.value ? "secondary" : "outline"}
-                      className="rounded-full"
-                      onClick={() => updateGroupFrequencyType(option.value)}
-                    >
-                      {option.label}
-                    </Button>
-                  ))}
-                </div>
-              </div>
-              {groupDraft.frequencyType === "recurring" ? (
-                <div className="space-y-2">
-                  <Label>Recurrence interval</Label>
-                  <div className="flex flex-wrap gap-2">
-                    {RECURRENCE_INTERVAL_OPTIONS.map((option) => (
-                      <Button
-                        key={option.value}
-                        type="button"
-                        size="sm"
-                        variant={
-                          groupDraft.recurrenceInterval === option.value
-                            ? "secondary"
-                            : "outline"
-                        }
-                        className="rounded-full"
-                        onClick={() =>
-                          setGroupDraft((prev) => ({
-                            ...prev,
-                            recurrenceInterval: option.value,
-                          }))
-                        }
-                      >
-                        {option.label}
-                      </Button>
-                    ))}
-                  </div>
-                </div>
-              ) : null}
-              {groupDraft.frequencyType === "fixed_milestones" ||
-              groupDraft.frequencyType === "recurring" ? (
-                <div className="space-y-2">
-                  <Label htmlFor="group-target-count">
-                    {groupDraft.frequencyType === "fixed_milestones"
-                      ? "Target count"
-                      : "Target completions (optional)"}
-                  </Label>
-                  <Input
-                    id="group-target-count"
-                    type="number"
-                    min={groupDraft.frequencyType === "fixed_milestones" ? 1 : 0}
-                    value={groupDraft.targetCount}
-                    onChange={(event) =>
-                      setGroupDraft((prev) => ({ ...prev, targetCount: event.target.value }))
-                    }
-                  />
-                </div>
-              ) : null}
-              <div className="space-y-2">
-                <Label htmlFor="group-start-date">Start date</Label>
-                <Input
-                  id="group-start-date"
-                  type="date"
-                  value={groupDraft.startDate}
-                  onChange={(event) =>
-                    setGroupDraft((prev) => ({ ...prev, startDate: event.target.value }))
-                  }
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="group-end-date">
-                  {groupRequiresEndDate ? "End date" : "End date (optional)"}
-                </Label>
-                <Input
-                  id="group-end-date"
-                  type="date"
-                  value={groupDraft.endDate}
-                  onChange={(event) =>
-                    setGroupDraft((prev) => ({ ...prev, endDate: event.target.value }))
-                  }
-                  required={groupRequiresEndDate}
-                />
-              </div>
-            </div>
-            <Input
-              className="mt-3"
-              placeholder="Description"
-              value={groupDraft.description}
-              onChange={(event) =>
-                setGroupDraft((prev) => ({ ...prev, description: event.target.value }))
-              }
-            />
-            {groupDraft.categorySelection === "custom" ? (
-              <Input
-                className="mt-3"
-                placeholder="Custom category label"
-                value={groupDraft.customCategory}
-                onChange={(event) =>
-                  setGroupDraft((prev) => ({
-                    ...prev,
-                    customCategory: event.target.value,
-                  }))
-                }
-              />
-            ) : null}
-            <Button className="mt-3" type="button" onClick={createGroupGoal} disabled={saving}>
-              <Plus className="size-4" />
-              Create group goal
-            </Button>
-          </div>
+          <SocialGroupGoalComposer
+            groupDraft={groupDraft}
+            groupRequiresEndDate={groupRequiresEndDate}
+            saving={saving}
+            onDraftChange={(updater) => setGroupDraft((previous) => updater(previous))}
+            onFrequencyTypeChange={updateGroupFrequencyType}
+            onCreateGroupGoal={createGroupGoal}
+          />
 
           {state.groupGoals.length === 0 ? (
             <p className="text-sm text-muted-foreground">No group goals available yet.</p>
