@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions, pg_catalog;
-select plan(9);
+select plan(18);
 
 set local role service_role;
 
@@ -367,6 +367,247 @@ select throws_ok(
   '22023'::character(5),
   'duplicate_goal_unit_across_scopes',
   'batch publish rejects duplicate goal+unit pairs across scopes'
+);
+
+-- Moving a session across a month boundary is the primary reason multi-scope
+-- publish exists: the source scope drops the unit and the destination scope
+-- claims it, in one atomic call. This works in either scope order only because
+-- the re-insert upserts on (goal_id, unit_key), which is month-agnostic -- so
+-- the destination claims the row wherever it currently lives. Lock both orders
+-- down; a month-scoped conflict target would silently break one of them.
+select lives_ok(
+  $tap$
+  do $$
+  declare
+    v_scope_a date := date_trunc('month', current_date)::date;
+    v_scope_b date := (date_trunc('month', current_date) + interval '1 month')::date;
+    v_digest text;
+  begin
+    v_digest := public.get_planner_schedule_digest();
+    perform *
+    from public.set_planner_schedule_batch(
+      jsonb_build_array(
+        jsonb_build_object(
+          'scope_month', v_scope_a::text,
+          'items', jsonb_build_array()
+        ),
+        jsonb_build_object(
+          'scope_month', v_scope_b::text,
+          'items', jsonb_build_array(
+            jsonb_build_object(
+              'goal_id', '91600000-0000-4000-8000-000000000002',
+              'unit_key', 'unit:scope-b',
+              'scheduled_date', (v_scope_b + 3)::text,
+              'original_scheduled_date', (v_scope_b + 3)::text,
+              'locked', false
+            ),
+            jsonb_build_object(
+              'goal_id', '91600000-0000-4000-8000-000000000001',
+              'unit_key', 'unit:scope-a',
+              'scheduled_date', (v_scope_b + 15)::text,
+              'original_scheduled_date', (v_scope_a + 2)::text,
+              'locked', false
+            )
+          )
+        )
+      ),
+      v_digest
+    );
+  end;
+  $$;
+  $tap$,
+  'batch publish moves a unit across a month boundary, source scope first'
+);
+
+select is(
+  (
+    select scheduled_date
+    from public.planner_items
+    where goal_id = '91600000-0000-4000-8000-000000000001'
+      and unit_key = 'unit:scope-a'
+  ),
+  (date_trunc('month', current_date) + interval '1 month + 15 day')::date,
+  'cross-month move lands the unit in the destination scope'
+);
+
+select is(
+  (
+    select count(*)::int
+    from public.planner_items
+    where owner_id = '11111111-1111-4111-8111-111111111111'
+      and date_trunc('month', scheduled_date)::date
+        = date_trunc('month', current_date)::date
+  ),
+  0,
+  'cross-month move leaves no stranded row in the source scope'
+);
+
+select lives_ok(
+  $tap$
+  do $$
+  declare
+    v_scope_a date := date_trunc('month', current_date)::date;
+    v_scope_b date := (date_trunc('month', current_date) + interval '1 month')::date;
+    v_digest text;
+  begin
+    v_digest := public.get_planner_schedule_digest();
+    perform *
+    from public.set_planner_schedule_batch(
+      jsonb_build_array(
+        jsonb_build_object(
+          'scope_month', v_scope_a::text,
+          'items', jsonb_build_array(
+            jsonb_build_object(
+              'goal_id', '91600000-0000-4000-8000-000000000001',
+              'unit_key', 'unit:scope-a',
+              'scheduled_date', (v_scope_a + 9)::text,
+              'original_scheduled_date', (v_scope_a + 2)::text,
+              'locked', false
+            )
+          )
+        ),
+        jsonb_build_object(
+          'scope_month', v_scope_b::text,
+          'items', jsonb_build_array(
+            jsonb_build_object(
+              'goal_id', '91600000-0000-4000-8000-000000000002',
+              'unit_key', 'unit:scope-b',
+              'scheduled_date', (v_scope_b + 3)::text,
+              'original_scheduled_date', (v_scope_b + 3)::text,
+              'locked', false
+            )
+          )
+        )
+      ),
+      v_digest
+    );
+  end;
+  $$;
+  $tap$,
+  'batch publish moves a unit back across the boundary, destination scope first'
+);
+
+select is(
+  (
+    select scheduled_date
+    from public.planner_items
+    where goal_id = '91600000-0000-4000-8000-000000000001'
+      and unit_key = 'unit:scope-a'
+  ),
+  (date_trunc('month', current_date) + interval '9 day')::date,
+  'cross-month move is order independent across scope payloads'
+);
+
+-- Retrying a batch that already landed must stay idempotent even though the
+-- digest has moved on since the client captured it. This is the exact case the
+-- all-replay short-circuit exists for: hoisting the digest check above it would
+-- turn every publish retry into a spurious `stale_schedule`. The API cannot
+-- reach this path (its preview-hash check rejects first), so this is the only
+-- guard on it.
+do $$
+declare
+  v_scope_a date := date_trunc('month', current_date)::date;
+  v_scope_b date := (date_trunc('month', current_date) + interval '1 month')::date;
+  v_digest text;
+begin
+  v_digest := public.get_planner_schedule_digest();
+  perform set_config('pgtap.batch_retry_digest', v_digest, true);
+  perform *
+  from public.set_planner_schedule_batch(
+    jsonb_build_array(
+      jsonb_build_object(
+        'scope_month', v_scope_a::text,
+        'items', jsonb_build_array(
+          jsonb_build_object(
+            'goal_id', '91600000-0000-4000-8000-000000000001',
+            'unit_key', 'unit:scope-a',
+            'scheduled_date', (v_scope_a + 11)::text,
+            'original_scheduled_date', (v_scope_a + 2)::text,
+            'locked', false
+          )
+        )
+      ),
+      jsonb_build_object(
+        'scope_month', v_scope_b::text,
+        'items', jsonb_build_array(
+          jsonb_build_object(
+            'goal_id', '91600000-0000-4000-8000-000000000002',
+            'unit_key', 'unit:scope-b',
+            'scheduled_date', (v_scope_b + 4)::text,
+            'original_scheduled_date', (v_scope_b + 3)::text,
+            'locked', false
+          )
+        )
+      )
+    ),
+    v_digest
+  );
+end;
+$$;
+
+select isnt(
+  current_setting('pgtap.batch_retry_digest', true),
+  public.get_planner_schedule_digest(),
+  'the captured digest is stale once the first batch lands'
+);
+
+select is(
+  (
+    select scoped.upserted_count
+    from public.set_planner_schedule_batch(
+      jsonb_build_array(
+        jsonb_build_object(
+          'scope_month', date_trunc('month', current_date)::date::text,
+          'items', jsonb_build_array(
+            jsonb_build_object(
+              'goal_id', '91600000-0000-4000-8000-000000000001',
+              'unit_key', 'unit:scope-a',
+              'scheduled_date', (date_trunc('month', current_date) + interval '11 day')::date::text,
+              'original_scheduled_date', (date_trunc('month', current_date) + interval '2 day')::date::text,
+              'locked', false
+            )
+          )
+        ),
+        jsonb_build_object(
+          'scope_month', (date_trunc('month', current_date) + interval '1 month')::date::text,
+          'items', jsonb_build_array(
+            jsonb_build_object(
+              'goal_id', '91600000-0000-4000-8000-000000000002',
+              'unit_key', 'unit:scope-b',
+              'scheduled_date', (date_trunc('month', current_date) + interval '1 month + 4 day')::date::text,
+              'original_scheduled_date', (date_trunc('month', current_date) + interval '1 month + 3 day')::date::text,
+              'locked', false
+            )
+          )
+        )
+      ),
+      current_setting('pgtap.batch_retry_digest', true)
+    ) as scoped
+  ),
+  0,
+  'retrying a landed batch with a stale digest replays instead of raising'
+);
+
+select is(
+  (
+    select scheduled_date
+    from public.planner_items
+    where goal_id = '91600000-0000-4000-8000-000000000001'
+      and unit_key = 'unit:scope-a'
+  ),
+  (date_trunc('month', current_date) + interval '11 day')::date,
+  'replayed retry leaves the landed schedule untouched'
+);
+
+select is(
+  (
+    select scheduled_date
+    from public.planner_items
+    where goal_id = '91600000-0000-4000-8000-000000000003'
+      and unit_key = 'unit:scope-c'
+  ),
+  (date_trunc('month', current_date) + interval '2 month + 5 day')::date,
+  'scope C is never touched by any batch in this file'
 );
 
 reset role;
