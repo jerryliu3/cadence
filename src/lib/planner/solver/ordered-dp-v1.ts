@@ -6,6 +6,7 @@ import type {
   PlannerSolverResult,
   SolverAssignment,
   SolverObjective,
+  SolverSolveIntent,
   SolverUnit,
 } from "@/lib/planner/solver/types";
 import { getSolverUnitId } from "@/lib/planner/solver/types";
@@ -28,9 +29,16 @@ function addObjective(
   };
 }
 
-function compareObjective(left: SolverObjective, right: SolverObjective) {
+function compareObjective(
+  left: SolverObjective,
+  right: SolverObjective,
+  solveIntent: SolverSolveIntent
+) {
   if (left.placed !== right.placed) {
     return left.placed > right.placed ? -1 : 1;
+  }
+  if (solveIntent === "replan" && left.policyCost !== right.policyCost) {
+    return left.policyCost < right.policyCost ? -1 : 1;
   }
   if (left.moved !== right.moved) {
     return left.moved < right.moved ? -1 : 1;
@@ -38,7 +46,7 @@ function compareObjective(left: SolverObjective, right: SolverObjective) {
   if (left.displacement !== right.displacement) {
     return left.displacement < right.displacement ? -1 : 1;
   }
-  if (left.policyCost !== right.policyCost) {
+  if (solveIntent === "stable" && left.policyCost !== right.policyCost) {
     return left.policyCost < right.policyCost ? -1 : 1;
   }
   return 0;
@@ -105,7 +113,8 @@ function locksAreStructurallyValid(units: SolverUnit[]) {
 
 function solveGoal(
   rawUnits: SolverUnit[],
-  dates: string[]
+  dates: string[],
+  solveIntent: SolverSolveIntent
 ): SolverAssignment[] | null {
   const dateSet = new Set(dates);
   const units = canonicalGoalUnits(rawUnits, dateSet);
@@ -183,7 +192,7 @@ function solveGoal(
         };
         if (
           !best ||
-          compareObjective(candidate.objective, best.objective) < 0
+          compareObjective(candidate.objective, best.objective, solveIntent) < 0
         ) {
           best = candidate;
         }
@@ -216,7 +225,7 @@ function solveGoal(
         if (
           candidate &&
           (!best ||
-            compareObjective(candidate.objective, best.objective) < 0)
+            compareObjective(candidate.objective, best.objective, solveIntent) < 0)
         ) {
           best = candidate;
         }
@@ -263,10 +272,12 @@ function solveGoal(
 export function solveOrderedDpV1({
   dates: rawDates,
   units: rawUnits,
+  solveIntent = "stable",
   simulateSoftBudgetExhaustion = false,
 }: {
   dates: string[];
   units: SolverUnit[];
+  solveIntent?: SolverSolveIntent;
   simulateSoftBudgetExhaustion?: boolean;
 }): PlannerSolverResult {
   const dates = Array.from(new Set(rawDates)).sort();
@@ -308,7 +319,7 @@ export function solveOrderedDpV1({
   const invalidGoalIds: string[] = [];
   for (const goalId of Array.from(byGoal.keys()).sort()) {
     const goalUnits = byGoal.get(goalId) ?? [];
-    const goalAssignments = solveGoal(goalUnits, dates);
+    const goalAssignments = solveGoal(goalUnits, dates, solveIntent);
     if (!goalAssignments) {
       invalidGoalIds.push(goalId);
       for (const unit of goalUnits) {

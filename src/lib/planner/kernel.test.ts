@@ -1062,3 +1062,45 @@ describe("pure planner kernel", () => {
     });
   });
 });
+
+describe("solve intent and draft pins", () => {
+  it("keeps stable solves anchored to existing placement", () => {
+    const stable = runPlannerKernel(input());
+
+    expect(stable.solver.placementStatus).toBe("complete");
+    expect(stable.workUnits.map((unit) => unit.scheduledDate)).toEqual([
+      "2026-08-05",
+      "2026-08-06",
+      "2026-08-07",
+    ]);
+  });
+
+  it("pins a unit to its draft move date and cascades the rest", () => {
+    const pinned = runPlannerKernel(
+      input({ draftPinnedDates: { "goal-a:total:1": "2026-08-20" } })
+    );
+
+    expect(pinned.solver.placementStatus).toBe("complete");
+    expect(pinned.workUnits[0].scheduledDate).toBe("2026-08-20");
+    expect(
+      pinned.workUnits.every((unit) => (unit.scheduledDate ?? "") >= "2026-08-20")
+    ).toBe(true);
+  });
+
+  it("hashes pins, intent, and preserve mode as solver inputs", () => {
+    const base = runPlannerKernel(input()).generationInputHash;
+
+    expect(
+      runPlannerKernel(input({ solveIntent: "replan" })).generationInputHash
+    ).not.toBe(base);
+    expect(
+      runPlannerKernel(input({ preserveExistingAssignments: true }))
+        .generationInputHash
+    ).not.toBe(base);
+    expect(
+      runPlannerKernel(
+        input({ draftPinnedDates: { "goal-a:total:1": "2026-08-20" } })
+      ).generationInputHash
+    ).not.toBe(base);
+  });
+});
