@@ -3,10 +3,15 @@ import type { CoachPolicyPatch } from "@/lib/planner/coach";
 
 export interface ApplyCoachPolicyPatchesResult {
   policy: PlannerPolicy;
+  /**
+   * Disjoint buckets, so a caller can explain a proposal without double
+   * counting: applied + noOp + ignored + unsupported === patches.length.
+   */
   appliedPatchCount: number;
-  ignoredPatchCount: number;
+  /** Understood, but the policy already said this. */
   noOpPatchCount: number;
-  outOfScopePatchCount: number;
+  /** Understood, but changed nothing (e.g. removing a range not present). */
+  ignoredPatchCount: number;
   unsupportedPatchCount: number;
 }
 
@@ -24,18 +29,14 @@ function sameNumberArray(left: number[] | undefined, right: number[]) {
 export function applyCoachPolicyPatches({
   policy,
   patches,
-  allowedGoalIds,
 }: {
   policy: PlannerPolicy;
   patches: CoachPolicyPatch[];
-  allowedGoalIds: Set<string>;
 }): ApplyCoachPolicyPatchesResult {
-  void allowedGoalIds;
   const nextPolicy = structuredClone(policy);
   let appliedPatchCount = 0;
   let ignoredPatchCount = 0;
   let noOpPatchCount = 0;
-  const outOfScopePatchCount = 0;
   let unsupportedPatchCount = 0;
 
   for (const patch of patches) {
@@ -43,7 +44,6 @@ export function applyCoachPolicyPatches({
       case "set_rest_weekdays": {
         const normalized = dedupeWeekdays(patch.restWeekdays);
         if (sameNumberArray(nextPolicy.restWeekdays, normalized)) {
-          ignoredPatchCount += 1;
           noOpPatchCount += 1;
           break;
         }
@@ -56,7 +56,6 @@ export function applyCoachPolicyPatches({
           (range) => range.start === patch.start && range.end === patch.end
         );
         if (exists) {
-          ignoredPatchCount += 1;
           noOpPatchCount += 1;
           break;
         }
@@ -92,7 +91,6 @@ export function applyCoachPolicyPatches({
     appliedPatchCount,
     ignoredPatchCount,
     noOpPatchCount,
-    outOfScopePatchCount,
     unsupportedPatchCount,
   };
 }

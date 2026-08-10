@@ -23,6 +23,10 @@ export const coachConversationProposalSchema = z
     baselineSnapshotToken: z.string().regex(snapshotTokenPattern),
     baselinePolicy: plannerPolicySchema.nullable(),
     policyPatches: z.array(coachPolicyPatchSchema).min(1).max(50),
+    appliedMoveEntryKeys: z
+      .array(z.string().trim().min(1).max(400))
+      .max(4000)
+      .optional(),
     unresolvedQuestions: z.array(z.string().trim().min(1).max(500)).max(20),
   })
   .strict();

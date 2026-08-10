@@ -237,6 +237,11 @@ export interface CoachMessageProposal {
   baselineSnapshotToken: string;
   baselinePolicy: PlannerPolicy | null;
   policyPatches: CoachPolicyPatch[];
+  /**
+   * Draft `move_item` pins this proposal created. Undo removes exactly these,
+   * so reverting a coach change also reverts the schedule it caused.
+   */
+  appliedMoveEntryKeys?: string[];
   unresolvedQuestions: string[];
 }
 

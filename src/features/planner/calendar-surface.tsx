@@ -891,6 +891,91 @@ export function CalendarSurface({
     };
   });
 
+  /**
+   * Ask the solver where things would go under `nextPolicy` when policy cost
+   * outranks stability, then record the differences as `move_item` commands.
+   *
+   * The proposal is scratch: it is never stored as the draft. Only the pins it
+   * produces persist, which is what makes a coach change survive the next
+   * recompute instead of evaporating on the following stable solve.
+   *
+   * Existing pins are kept, not released, so a policy change reshuffles what
+   * the user has not placed by hand and leaves deliberate placements alone.
+   */
+  const applyPolicyReplanMoves = async (nextPolicy: PlannerPolicy) => {
+    if (!context?.scopeMonth || !effectivePreview) {
+      return { moveCount: 0, movedEntryKeys: [] as string[] };
+    }
+    const scopeMonth = context.scopeMonth;
+    const priorCommands = draftSaveCommandsRef.current;
+    const proposal = await requestPreview(nextPolicy, "replan", priorCommands);
+    if (!proposal) {
+      return { moveCount: 0, movedEntryKeys: [] as string[] };
+    }
+    const baselineDateByEntryKey = new Map(
+      effectivePreview.workUnits.map((unit) => [
+        draftCommandEntryKey({
+          goalId: unit.originalGoalId,
+          unitKey: unit.unitKey,
+        }),
+        unit.scheduledDate,
+      ])
+    );
+
+    let nextState = draftCommandState;
+    const movedEntryKeys: string[] = [];
+    for (const unit of proposal.workUnits) {
+      const entryKey = draftCommandEntryKey({
+        goalId: unit.originalGoalId,
+        unitKey: unit.unitKey,
+      });
+      const nextDate = unit.scheduledDate;
+      if (nextDate === null || baselineDateByEntryKey.get(entryKey) === nextDate) {
+        continue;
+      }
+      const action = {
+        type: "upsert_move",
+        scopeMonth,
+        goalId: unit.originalGoalId,
+        unitKey: unit.unitKey,
+        scheduledDate: nextDate,
+      } as const;
+      dispatchDraftCommand(action);
+      nextState = draftCommandReducer(nextState, action);
+      movedEntryKeys.push(entryKey);
+    }
+
+    // Keep the ref ahead of the reducer so the stable refresh that follows
+    // sends the pins we just created rather than the previous render's list.
+    draftSaveCommandsRef.current = sortPlannerDraftCommands(
+      selectDraftCommandsForScope(nextState, scopeMonth)
+    );
+    return { moveCount: movedEntryKeys.length, movedEntryKeys };
+  };
+
+  const clearDraftMoveCommands = (entryKeys: string[]) => {
+    if (!context?.scopeMonth || entryKeys.length === 0) {
+      return;
+    }
+    const scopeMonth = context.scopeMonth;
+    let nextState = draftCommandState;
+    for (const entryKey of entryKeys) {
+      const separatorIndex = entryKey.indexOf(":");
+      const action = {
+        type: "remove_kind",
+        scopeMonth,
+        kind: "move_item",
+        goalId: entryKey.slice(0, separatorIndex),
+        unitKey: entryKey.slice(separatorIndex + 1),
+      } as const;
+      dispatchDraftCommand(action);
+      nextState = draftCommandReducer(nextState, action);
+    }
+    draftSaveCommandsRef.current = sortPlannerDraftCommands(
+      selectDraftCommandsForScope(nextState, scopeMonth)
+    );
+  };
+
   const scheduleDraftMovePreviewRefresh = useCallback(() => {
     if (draftMoveRefreshTimerRef.current !== null) {
       window.clearTimeout(draftMoveRefreshTimerRef.current);
@@ -935,6 +1020,8 @@ export function CalendarSurface({
     effectiveDraftPolicy,
     hasDraftSession,
     refreshDraftPreview,
+    applyPolicyReplanMoves,
+    clearDraftMoveCommands,
     applyDraftPolicy: (scopeMonth, policy) => {
       setDraftPolicyForScope(scopeMonth, policy);
     },
