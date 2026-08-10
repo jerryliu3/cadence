@@ -184,40 +184,7 @@ begin
     raise exception using errcode = 'P0001', message = 'exceeds_target_count';
   end if;
 
-  with schedule_input as (
-    select
-      row.goal_id,
-      btrim(row.unit_key) as unit_key,
-      row.scheduled_date,
-      coalesce(row.original_scheduled_date, row.scheduled_date) as original_scheduled_date,
-      nullif(btrim(row.scheduled_time), '') as scheduled_time,
-      coalesce(row.locked, false) as locked
-    from jsonb_to_recordset(p_items) as row(
-      goal_id uuid,
-      unit_key text,
-      scheduled_date date,
-      original_scheduled_date date,
-      scheduled_time text,
-      locked boolean
-    )
-  ),
-  existing_scope as (
-    select
-      item.goal_id,
-      item.unit_key,
-      item.scheduled_date,
-      coalesce(item.original_scheduled_date, item.scheduled_date) as original_scheduled_date,
-      item.scheduled_time,
-      item.locked
-    from public.planner_items item
-    where item.owner_id = v_owner
-      and date_trunc('month', item.scheduled_date)::date = p_month
-  )
-  select not exists (
-    (table schedule_input except table existing_scope)
-    union all
-    (table existing_scope except table schedule_input)
-  )
+  select private.planner_scope_is_replay(v_owner, p_month, p_items)
   into v_is_replay;
 
   if v_is_replay then
