@@ -50,7 +50,11 @@ interface CalendarMonthDayCellProps<
   getEntryDisplayTitle: (entry: TEntry) => string;
   isEntryCredited: (entry: TEntry) => boolean;
   isEntryImmovableForDraft: (entry: TEntry) => boolean;
-  onEntryClick: (day: string, entry: TEntry) => void;
+  onEntryClick: (
+    day: string,
+    entry: TEntry,
+    target: EventTarget & HTMLElement
+  ) => void;
   onCellClick: (target: EventTarget & HTMLElement) => void;
   onCellMouseEnter: (target: EventTarget & HTMLElement) => void;
   onCellMouseLeave: () => void;
@@ -143,7 +147,7 @@ export function CalendarMonthDayCell<
               if (isDragging) {
                 return;
               }
-              onEntryClick(day, entry);
+              onEntryClick(day, entry, event.currentTarget);
             }}
             onPointerDownCapture={() => {
               onEntryPointerStart(immovable);
@@ -154,7 +158,7 @@ export function CalendarMonthDayCell<
             onPointerCancelCapture={() => {
               onEntryPointerEnd();
             }}
-            className={`flex items-center gap-1 rounded-lg border px-1 py-0.5 text-[10px] ${pillToneClasses} ${
+            className={`flex items-center gap-1 rounded-md border px-1 py-0.5 text-[10px] ${pillToneClasses} ${
               entry.draftGhost ? "opacity-70 line-through" : ""
             } ${
               immovable
@@ -215,7 +219,7 @@ export function CalendarMonthDayCell<
           onPointerUp={onCellPointerUp}
           onPointerCancel={onCellPointerCancel}
           onPointerLeave={onCellPointerLeave}
-          className={`relative min-h-24 rounded-lg border p-2 text-left transition-colors ${
+          className={`relative min-h-24 rounded-md border p-2 text-left transition-colors ${
             inMonth
               ? isToday
                 ? "bg-primary/10 ring-1 ring-primary/50 hover:border-primary"
@@ -242,7 +246,7 @@ export function CalendarMonthDayCell<
               {visibleCompletionFactMarkers.map((marker) => (
                 <div
                   key={`completion-fact-${marker.key}`}
-                  className="flex items-center gap-1 rounded-lg border border-emerald-300 bg-emerald-100 px-1 py-0.5 text-[10px] text-emerald-950 dark:border-emerald-300 dark:bg-emerald-100 dark:text-emerald-950"
+                  className="flex items-center gap-1 rounded-md border border-emerald-300 bg-emerald-100 px-1 py-0.5 text-[10px] text-emerald-950 dark:border-emerald-300 dark:bg-emerald-100 dark:text-emerald-950"
                   title={
                     marker.scheduledDate && marker.scheduledDate !== day
                       ? `Marked done here, currently credited from the ${marker.scheduledDate} scheduled session.`

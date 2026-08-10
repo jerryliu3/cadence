@@ -117,8 +117,8 @@ import type {
   PlannerPreviewResponsePayload,
 } from "@/features/planner/calendar-surface.types";
 import { usePlannerVisibleMonthContexts } from "@/features/planner/use-planner-visible-month-contexts";
-const DAY_PREVIEW_HOVER_DELAY_MS = 500;
-const DAY_PREVIEW_CLOSE_DELAY_MS = 180;
+const DAY_PREVIEW_HOVER_DELAY_MS = 1000;
+const DAY_PREVIEW_CLOSE_DELAY_MS = 140;
 const DAY_PREVIEW_LONG_PRESS_DELAY_MS = 500;
 const MAX_MONTH_HEADING_SAMPLE = "September 2026";
 const MAX_WEEK_HEADING_SAMPLE = "Sep 30 - Sep 30, 2026";
@@ -181,6 +181,7 @@ export function CalendarSurface({
     null
   );
   const [dayPreview, setDayPreview] = useState<DayPreviewState | null>(null);
+  const [dayPreviewExpanded, setDayPreviewExpanded] = useState(false);
   const [draggingEntryKey, setDraggingEntryKey] = useState<string | null>(null);
   const [localSelectedDay, setLocalSelectedDay] = useState<string | null>(null);
   const [expandedMonthRows, setExpandedMonthRows] = useState(false);
@@ -582,9 +583,6 @@ export function CalendarSurface({
     [getCalendarDayProjection]
   );
 
-  const selectedDayEntries = useMemo(() => {
-    return getOrderedEntriesForDay(effectiveSelectedDay);
-  }, [effectiveSelectedDay, getOrderedEntriesForDay]);
   const focusedDayEntries = useMemo(
     () => getOrderedEntriesForDay(focusedDay),
     [focusedDay, getOrderedEntriesForDay]
@@ -678,6 +676,12 @@ export function CalendarSurface({
     return () =>
       window.removeEventListener("pointerdown", closeOnOutsidePointer);
   }, [dayPreview?.pinned]);
+
+  useEffect(() => {
+    if (!dayPreview) {
+      setDayPreviewExpanded(false);
+    }
+  }, [dayPreview]);
 
   const submitSetup = async () => {
     if (!isValidIanaTimezone(setupTimezone)) {
@@ -1023,10 +1027,12 @@ export function CalendarSurface({
     day,
     pinned,
     target,
+    expanded = false,
   }: {
     day: string;
     pinned: boolean;
     target: EventTarget & HTMLElement;
+    expanded?: boolean;
   }) => {
     const rect = target.getBoundingClientRect();
     const position = computeDayPreviewPosition({
@@ -1040,6 +1046,7 @@ export function CalendarSurface({
       viewportHeight: window.innerHeight,
     });
     setDayPreview({ day, position, pinned });
+    setDayPreviewExpanded(expanded);
   };
 
   const scheduleHoverPreview = (
@@ -2114,13 +2121,6 @@ export function CalendarSurface({
         selectedEventCompletionDispatch
       )
     : null;
-  const openDayDetails = (day: string) => {
-    clearHoverPreviewTimer();
-    clearHoverPreviewCloseTimer();
-    setDayPreview(null);
-    setLocalSelectedDay(day);
-    setSelectedEventEntryKey(null);
-  };
   const renderCalendarDayCell = (cell: { date: string; inMonth: boolean }) => {
     const dayProjection = getCalendarDayProjection(cell.date);
     const entriesForDay = dayProjection.orderedEntries;
@@ -2165,11 +2165,14 @@ export function CalendarSurface({
         isEntryImmovableForDraft={(entry) =>
           !canMutateEntryOnDay(entry, cell.date) || isEntryImmovableForDraft(entry)
         }
-        onEntryClick={(day, entry) => {
+        onEntryClick={(day, entry, target) => {
           if (!canMutateEntryOnDay(entry, day)) {
             return;
           }
-          openDayDetails(day);
+          clearHoverPreviewTimer();
+          clearHoverPreviewCloseTimer();
+          setSelectedEventEntryKey(null);
+          openDayPreview({ day, pinned: true, target, expanded: true });
         }}
         onCellClick={(target) => {
           if (draggingEntryKey) {
@@ -2521,7 +2524,7 @@ export function CalendarSurface({
               >
                 {viewMode === "day" ? (
                   <div className="space-y-2" data-no-swipe="true">
-                    <div className="rounded-lg border p-3">
+                    <div className="rounded-md border p-3">
                       <p className="mb-2 text-sm font-medium">
                         {format(parse(focusedDay, "yyyy-MM-dd", new Date()), "EEE MMM d")}
                       </p>
@@ -2566,7 +2569,8 @@ export function CalendarSurface({
                           if (!entry || !canMutateEntryOnDay(entry, focusedDay)) {
                             return;
                           }
-                          openDayDetails(focusedDay);
+                          setLocalSelectedDay(focusedDay);
+                          setSelectedEventEntryKey(entry.key);
                         }}
                         onToggleCompletion={(entry, day) => {
                           if (!canMutateEntryOnDay(entry, day)) {
@@ -2581,6 +2585,7 @@ export function CalendarSurface({
                         onEntryPointerEnd={() => {
                           pointerPressActiveRef.current = false;
                         }}
+                        density="expanded"
                       />
                     </div>
                   </div>
@@ -2610,7 +2615,7 @@ export function CalendarSurface({
                 {viewMode !== "day" && dayPreview ? (
                   <div
                     ref={dayPreviewRef}
-                    className="fixed z-40 rounded-lg border bg-card p-3 shadow-lg"
+                    className="fixed z-40 rounded-md border bg-card p-3 shadow-lg"
                     style={{
                       top: dayPreview.position.top,
                       left: dayPreview.position.left,
@@ -2647,15 +2652,24 @@ export function CalendarSurface({
                       <div className="flex items-center gap-1">
                         <Button
                           type="button"
-                          variant="outline"
+                          variant={dayPreviewExpanded ? "default" : "outline"}
                           size="sm"
                           className="h-6 px-2 text-xs"
                           onClick={() => {
-                            setDayPreview(null);
-                            onSelectedDayChange(dayPreview.day, "push", "day");
+                            setDayPreviewExpanded((current) => !current);
                           }}
                         >
-                          Day view
+                          {dayPreviewExpanded ? (
+                            <>
+                              <Minimize2 className="mr-1 size-3" />
+                              Compact
+                            </>
+                          ) : (
+                            <>
+                              <Maximize2 className="mr-1 size-3" />
+                              Expand
+                            </>
+                          )}
                         </Button>
                         {dayPreview.pinned ? (
                           <Button
@@ -2714,7 +2728,8 @@ export function CalendarSurface({
                       if (!entry || !canMutateEntryOnDay(entry, dayPreview.day)) {
                         return;
                       }
-                      openDayDetails(dayPreview.day);
+                      setLocalSelectedDay(dayPreview.day);
+                      setSelectedEventEntryKey(entry.key);
                     }}
                     onToggleCompletion={(entry, day) => {
                       if (!canMutateEntryOnDay(entry, day)) {
@@ -2729,6 +2744,7 @@ export function CalendarSurface({
                     onEntryPointerEnd={() => {
                       pointerPressActiveRef.current = false;
                     }}
+                    density={dayPreviewExpanded ? "expanded" : "compact"}
                   />
                   </div>
                 ) : null}
@@ -2739,152 +2755,11 @@ export function CalendarSurface({
           <PlannerCoachPanel coach={coach} />
 
           <Dialog
-            open={Boolean(effectiveSelectedDay)}
-            onOpenChange={(open) => {
-              if (!open) {
-                setSelectedEventEntryKey(null);
-                setLocalSelectedDay(null);
-              }
-            }}
-          >
-            <DialogContent
-              className="top-auto bottom-0 left-1/2 max-w-[calc(100%-1rem)] -translate-x-1/2 translate-y-0 rounded-b-none rounded-t-xl pb-[calc(env(safe-area-inset-bottom)+1rem)] sm:top-1/2 sm:bottom-auto sm:max-w-lg sm:-translate-y-1/2 sm:rounded-b-xl"
-              aria-describedby="planner-day-detail-description"
-            >
-              <DialogHeader>
-                <DialogTitle>
-                  {effectiveSelectedDay
-                    ? format(
-                        parse(effectiveSelectedDay, "yyyy-MM-dd", new Date()),
-                        "EEEE, MMMM d"
-                      )
-                    : "Day detail"}
-                </DialogTitle>
-                <DialogDescription id="planner-day-detail-description">
-                  Review and update planned sessions for this date.
-                </DialogDescription>
-              </DialogHeader>
-              <div className="max-h-[60vh] overflow-y-auto pr-1" data-no-swipe="true">
-                {selectedDayEntries.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No planned sessions for this date.</p>
-                ) : (
-                  <ul className="space-y-2">
-                    {selectedDayEntries.map((entry) => {
-                        const visual = getGoalVisual({
-                          goalId: entry.originalGoalId,
-                          color: entry.activeGoal?.color ?? null,
-                        });
-                        const Icon = visual.Icon;
-                        const displayTitle = getEntryDisplayTitleWithTime(entry);
-                        const subtitle = getEntrySubtitle(entry);
-                        const credited = isEntryCredited(entry);
-                        const draftDiffSummary = getEntryDraftDiffSummary(entry);
-                        const pillToneClasses = getEntryDraftPillClasses({
-                          draftDiffKind: entry.draftDiffKind,
-                          credited,
-                        });
-                        const completionDispatch = getDateFactDispatchForEntry(entry);
-                        const completionDisabledReason =
-                          completionControlDisabledReasonForEntry(
-                            entry,
-                            completionDispatch
-                          );
-                        return (
-                          <li
-                            key={entry.key}
-                            className={`rounded-xl border p-2 ${pillToneClasses} ${
-                              entry.draftGhost ? "opacity-75" : ""
-                            }`}
-                          >
-                            <div className="flex items-start gap-2">
-                              <button
-                                type="button"
-                                className="flex-1 text-left text-sm transition-colors hover:text-primary"
-                                onClick={() => {
-                                  if (!entry.draftGhost) {
-                                    setSelectedEventEntryKey(entry.key);
-                                  }
-                                }}
-                              >
-                                <div className="flex items-center gap-2">
-                                  <span
-                                    className="inline-flex size-5 items-center justify-center rounded-full"
-                                    style={{ backgroundColor: visual.color }}
-                                  >
-                                    <Icon className="size-3 text-white" />
-                                  </span>
-                                  <p className="font-medium">{displayTitle}</p>
-                                </div>
-                                {subtitle ? (
-                                  <p className="mt-1 text-xs text-muted-foreground">
-                                    {subtitle}
-                                  </p>
-                                ) : null}
-                                {draftDiffSummary ? (
-                                  <p className="mt-1 text-xs text-muted-foreground">
-                                    {draftDiffSummary}
-                                  </p>
-                                ) : null}
-                                <p className="mt-1 text-xs text-primary">
-                                  {entry.draftGhost
-                                    ? "Original date marker"
-                                    : "View event details"}
-                                </p>
-                              </button>
-                              {!entry.draftGhost ? (
-                                <button
-                                  type="button"
-                                  className="group flex size-8 shrink-0 items-center justify-center rounded-full border border-border bg-background transition-all hover:border-primary hover:bg-primary/5 disabled:cursor-not-allowed disabled:opacity-60"
-                                  onClick={(event) => {
-                                    event.stopPropagation();
-                                    void toggleDateFact(entry);
-                                  }}
-                                  disabled={
-                                    Boolean(mutationLoadingKey) ||
-                                    completionDisabledReason !== null
-                                  }
-                                  aria-label={
-                                    completionDispatch?.currentlyCredited
-                                      ? "Mark session not done"
-                                      : "Mark session done"
-                                  }
-                                  title={
-                                    completionDisabledReason
-                                      ? completionDisabledReasonCopy(
-                                          completionDisabledReason
-                                        )
-                                      : "Toggle completion for this session"
-                                  }
-                                >
-                                  {completionDispatch?.currentlyCredited ? (
-                                    <CheckCircle2 className="size-4 text-primary transition-transform group-hover:scale-110" />
-                                  ) : (
-                                    <Circle className="size-4 text-muted-foreground transition-transform group-hover:scale-110" />
-                                  )}
-                                </button>
-                              ) : null}
-                            </div>
-                            {completionDisabledReason ? (
-                              <p className="mt-2 text-[11px] text-muted-foreground">
-                                {completionDisabledReasonCopy(
-                                  completionDisabledReason
-                                )}
-                              </p>
-                            ) : null}
-                          </li>
-                        );
-                      })}
-                  </ul>
-                )}
-              </div>
-            </DialogContent>
-          </Dialog>
-
-          <Dialog
             open={Boolean(selectedEventEntry)}
             onOpenChange={(open) => {
               if (!open) {
                 setSelectedEventEntryKey(null);
+                setLocalSelectedDay(null);
               }
             }}
           >

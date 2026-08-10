@@ -36,6 +36,7 @@ interface CalendarDayPreviewListProps<
   onToggleCompletion: (entry: TEntry, day: string) => void;
   onEntryPointerStart: (immovable: boolean) => void;
   onEntryPointerEnd: () => void;
+  density?: "compact" | "expanded";
 }
 
 export function CalendarDayPreviewList<
@@ -55,9 +56,15 @@ export function CalendarDayPreviewList<
   onToggleCompletion,
   onEntryPointerStart,
   onEntryPointerEnd,
+  density = "compact",
 }: CalendarDayPreviewListProps<TEntry, TCompletionFactMarker>) {
+  const expanded = density === "expanded";
   return (
-    <div className="max-h-44 space-y-1 overflow-y-auto overflow-x-hidden text-xs [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+    <div
+      className={`space-y-1 overflow-y-auto overflow-x-hidden text-xs [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden ${
+        expanded ? "max-h-72" : "max-h-44"
+      }`}
+    >
       {entries.length === 0 && completionFactMarkers.length === 0 ? (
         <p className="text-muted-foreground">No planned sessions.</p>
       ) : (
@@ -96,7 +103,9 @@ export function CalendarDayPreviewList<
                   <div
                     ref={setNodeRef}
                     style={style}
-                    className={`flex items-start gap-2 rounded-lg border p-1.5 transition-colors ${pillToneClasses} ${
+                    className={`flex items-start gap-2 rounded-md border transition-colors ${pillToneClasses} ${
+                      expanded ? "p-2" : "p-1.5"
+                    } ${
                       entry.draftGhost ? "opacity-75" : ""
                     } ${
                       isOver
@@ -140,14 +149,22 @@ export function CalendarDayPreviewList<
                         <Icon className="size-2.5 text-white" />
                       </span>
                       <div className="min-w-0">
-                        <p className="truncate font-medium">{displayTitle}</p>
+                        <p className={`${expanded ? "" : "truncate"} font-medium`}>
+                          {displayTitle}
+                        </p>
                         {draftDiffSummary ? (
-                          <p className="truncate text-muted-foreground">
+                          <p
+                            className={`${expanded ? "" : "truncate"} text-muted-foreground`}
+                          >
                             {draftDiffSummary}
                           </p>
                         ) : null}
                         {subtitle ? (
-                          <p className="truncate text-muted-foreground">{subtitle}</p>
+                          <p
+                            className={`${expanded ? "" : "truncate"} text-muted-foreground`}
+                          >
+                            {subtitle}
+                          </p>
                         ) : null}
                       </div>
                     </button>
@@ -191,7 +208,9 @@ export function CalendarDayPreviewList<
           {completionFactMarkers.map((marker) => (
             <div
               key={`preview-completion-fact-${marker.key}`}
-              className="rounded-lg border border-emerald-300 bg-emerald-100 p-1.5 text-emerald-950 dark:border-emerald-300 dark:bg-emerald-100 dark:text-emerald-950"
+              className={`rounded-md border border-emerald-300 bg-emerald-100 text-emerald-950 dark:border-emerald-300 dark:bg-emerald-100 dark:text-emerald-950 ${
+                expanded ? "p-2" : "p-1.5"
+              }`}
             >
               <p className="truncate font-medium">{marker.goalTitle}</p>
               <p className="truncate text-[11px]">
