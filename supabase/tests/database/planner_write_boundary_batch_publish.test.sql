@@ -1,0 +1,214 @@
+begin;
+create extension if not exists pgtap with schema extensions;
+set local search_path = public, extensions, pg_catalog;
+select plan(5);
+
+set local role service_role;
+
+insert into public.goals (
+  id,
+  owner_id,
+  title,
+  description,
+  category,
+  color,
+  frequency_type,
+  recurrence_interval,
+  target_count,
+  start_date,
+  end_date,
+  is_group
+)
+values
+  (
+    '91600000-0000-4000-8000-000000000001',
+    '11111111-1111-4111-8111-111111111111',
+    'Planner write boundary batch scope A',
+    null,
+    'test',
+    null,
+    'recurring',
+    'weekly',
+    6,
+    date_trunc('month', current_date)::date,
+    (date_trunc('month', current_date) + interval '2 month - 1 day')::date,
+    false
+  ),
+  (
+    '91600000-0000-4000-8000-000000000002',
+    '11111111-1111-4111-8111-111111111111',
+    'Planner write boundary batch scope B',
+    null,
+    'test',
+    null,
+    'recurring',
+    'weekly',
+    6,
+    date_trunc('month', current_date)::date,
+    (date_trunc('month', current_date) + interval '2 month - 1 day')::date,
+    false
+  );
+
+insert into public.planner_items (
+  owner_id,
+  goal_id,
+  unit_key,
+  scheduled_date,
+  original_scheduled_date,
+  locked
+)
+values
+  (
+    '11111111-1111-4111-8111-111111111111',
+    '91600000-0000-4000-8000-000000000001',
+    'unit:scope-a',
+    (date_trunc('month', current_date) + interval '2 day')::date,
+    (date_trunc('month', current_date) + interval '2 day')::date,
+    false
+  ),
+  (
+    '11111111-1111-4111-8111-111111111111',
+    '91600000-0000-4000-8000-000000000002',
+    'unit:scope-b',
+    (date_trunc('month', current_date) + interval '1 month + 3 day')::date,
+    (date_trunc('month', current_date) + interval '1 month + 3 day')::date,
+    false
+  );
+
+reset role;
+set local role authenticated;
+select set_config(
+  'request.jwt.claim.sub',
+  '11111111-1111-4111-8111-111111111111',
+  true
+);
+select set_config('request.jwt.claim.role', 'authenticated', true);
+
+select lives_ok(
+  $tap$
+  do $$
+  declare
+    v_scope_a date := date_trunc('month', current_date)::date;
+    v_scope_b date := (date_trunc('month', current_date) + interval '1 month')::date;
+    v_digest text;
+  begin
+    v_digest := public.get_planner_schedule_digest();
+    perform *
+    from public.set_planner_schedule_batch(
+      jsonb_build_array(
+        jsonb_build_object(
+          'scope_month', v_scope_a::text,
+          'items', jsonb_build_array(
+            jsonb_build_object(
+              'goal_id', '91600000-0000-4000-8000-000000000001',
+              'unit_key', 'unit:scope-a',
+              'scheduled_date', (v_scope_a + 5)::text,
+              'original_scheduled_date', (v_scope_a + 2)::text,
+              'locked', false
+            )
+          )
+        ),
+        jsonb_build_object(
+          'scope_month', v_scope_b::text,
+          'items', jsonb_build_array(
+            jsonb_build_object(
+              'goal_id', '91600000-0000-4000-8000-000000000002',
+              'unit_key', 'unit:scope-b',
+              'scheduled_date', (v_scope_b + 7)::text,
+              'original_scheduled_date', (v_scope_b + 3)::text,
+              'locked', false
+            )
+          )
+        )
+      ),
+      v_digest
+    );
+  end;
+  $$;
+  $tap$,
+  'set_planner_schedule_batch publishes two scope months in one call'
+);
+
+select is(
+  (
+    select scheduled_date
+    from public.planner_items
+    where goal_id = '91600000-0000-4000-8000-000000000001'
+      and unit_key = 'unit:scope-a'
+  ),
+  (date_trunc('month', current_date) + interval '5 day')::date,
+  'batch publish updates scope A rows'
+);
+
+select is(
+  (
+    select scheduled_date
+    from public.planner_items
+    where goal_id = '91600000-0000-4000-8000-000000000002'
+      and unit_key = 'unit:scope-b'
+  ),
+  (date_trunc('month', current_date) + interval '1 month + 7 day')::date,
+  'batch publish updates scope B rows'
+);
+
+select throws_ok(
+  $tap$
+  do $$
+  declare
+    v_scope_a date := date_trunc('month', current_date)::date;
+    v_scope_b date := (date_trunc('month', current_date) + interval '1 month')::date;
+    v_digest text;
+  begin
+    v_digest := public.get_planner_schedule_digest();
+    perform *
+    from public.set_planner_schedule_batch(
+      jsonb_build_array(
+        jsonb_build_object(
+          'scope_month', v_scope_a::text,
+          'items', jsonb_build_array(
+            jsonb_build_object(
+              'goal_id', '91600000-0000-4000-8000-000000000001',
+              'unit_key', 'unit:scope-a',
+              'scheduled_date', (v_scope_a + 8)::text,
+              'original_scheduled_date', (v_scope_a + 5)::text,
+              'locked', false
+            )
+          )
+        ),
+        jsonb_build_object(
+          'scope_month', v_scope_b::text,
+          'items', jsonb_build_array(
+            jsonb_build_object(
+              'goal_id', '91600000-0000-4000-8000-000000000002',
+              'unit_key', 'unit:scope-b',
+              'scheduled_date', ((v_scope_b + interval '1 month')::date)::text,
+              'original_scheduled_date', (v_scope_b + 7)::text,
+              'locked', false
+            )
+          )
+        )
+      ),
+      v_digest
+    );
+  end;
+  $$;
+  $tap$,
+  '22023'::character(5),
+  'scheduled_date_outside_scope_month',
+  'batch publish fails when any scope payload is invalid'
+);
+
+select is(
+  (
+    select scheduled_date
+    from public.planner_items
+    where goal_id = '91600000-0000-4000-8000-000000000001'
+      and unit_key = 'unit:scope-a'
+  ),
+  (date_trunc('month', current_date) + interval '5 day')::date,
+  'batch publish failure rolls back prior scope writes'
+);
+
+reset role;
+select * from finish();
+rollback;
