@@ -35,6 +35,7 @@ import { Progress } from "@/components/ui/progress";
 import { GoalEndMonthBadge } from "@/features/goals/goal-end-month-badge";
 import { GoalListControls } from "@/features/goals/goal-list-controls";
 import { GoalsSurfaceLoadingCard } from "@/features/goals/goals-surface-loading-card";
+import { MilestonePills } from "@/features/goals/milestone-pills";
 import { MonthHeatmap } from "@/features/insights/month-heatmap";
 import { getApiErrorMessage } from "@/lib/api/client";
 import { isAbortError, withAbortSignal } from "@/lib/async/abort";
@@ -113,63 +114,6 @@ const aggregateWeekdayLabels: [string, string, string, string, string, string, s
 ];
 const MAX_VISIBLE_MILESTONES = 5;
 const INSIGHTS_REQUEST_TIMEOUT_MS = 15_000;
-
-interface MilestoneStepsProps {
-  targetCount: number;
-  completionDates: string[];
-  milestoneNames?: string[];
-}
-
-function MilestoneSteps({ targetCount, completionDates, milestoneNames = [] }: MilestoneStepsProps) {
-  const safeTarget = Math.max(targetCount, 1);
-  const [expanded, setExpanded] = useState(false);
-  const visibleMilestoneCount = expanded
-    ? safeTarget
-    : Math.min(safeTarget, MAX_VISIBLE_MILESTONES);
-  const hiddenMilestoneCount = safeTarget - visibleMilestoneCount;
-
-  return (
-    <div className="space-y-1.5">
-      <p className="text-xs text-muted-foreground">Milestones</p>
-      <div className="flex flex-wrap gap-1.5">
-        {Array.from({ length: visibleMilestoneCount }).map((_, index) => {
-          const completionDate = completionDates[index];
-          const complete = Boolean(completionDate);
-          const milestoneName = milestoneNames[index] ?? defaultMilestoneName(index);
-
-          return (
-            <div
-              key={`${index + 1}-step`}
-              className={`min-w-[110px] rounded-full border px-2.5 py-1 text-[11px] leading-tight ${
-                complete
-                  ? "border-primary/40 bg-primary/10 text-foreground"
-                  : "border-border bg-muted/30 text-muted-foreground"
-              }`}
-            >
-              <p className="truncate font-medium">{milestoneName}</p>
-              <p className={complete ? "text-foreground/75" : "text-muted-foreground"}>
-                {complete ? completionDate : "Pending"}
-              </p>
-            </div>
-          );
-        })}
-      </div>
-      {safeTarget > MAX_VISIBLE_MILESTONES ? (
-        <button
-          type="button"
-          className="text-xs font-medium text-primary transition-colors hover:text-primary/80"
-          onClick={() => setExpanded((previous) => !previous)}
-        >
-          {expanded
-            ? "Show fewer milestones"
-            : `Show ${hiddenMilestoneCount} more milestone${
-                hiddenMilestoneCount === 1 ? "" : "s"
-              }`}
-        </button>
-      ) : null}
-    </div>
-  );
-}
 
 function getCompletionCountLabel(goal: Goal, completionCount: number): string {
   if (typeof goal.target_count === "number" && goal.target_count > 0) {
@@ -957,10 +901,11 @@ export function InsightsTab() {
 
                     {isMilestone ? (
                       <>
-                        <MilestoneSteps
+                        <MilestonePills
                           targetCount={milestoneTargetCount}
                           completionDates={mappedMilestoneDates}
                           milestoneNames={draftMilestoneNames}
+                          maxVisible={MAX_VISIBLE_MILESTONES}
                         />
                         {editingHistory ? (
                           <p className="text-xs text-muted-foreground">
