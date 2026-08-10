@@ -77,6 +77,7 @@ import { useCalendarDayPreview } from "@/features/planner/use-calendar-day-previ
 import { usePlannerDayDetailSelectionState } from "@/features/planner/use-planner-day-detail-selection-state";
 import { usePlannerDraftEntryActions } from "@/features/planner/use-planner-draft-entry-actions";
 import { usePlannerCompletionActions } from "@/features/planner/use-planner-completion-actions";
+import { usePlannerDraftLifecycleActions } from "@/features/planner/use-planner-draft-lifecycle-actions";
 import {
   readPlannerCalendarDayProjection,
   selectPlannerCalendarDayProjectionsByDay,
@@ -86,7 +87,6 @@ import { selectCalendarViewWindowProjection } from "@/features/planner/calendar-
 import { getDateInTimezone, isValidIanaTimezone } from "@/lib/dates/timezone";
 import {
   getApiErrorMessage,
-  isApiClientError,
   getJson,
   postJson,
   putJson,
@@ -96,17 +96,14 @@ import {
   sortPlannerDraftCommands,
   type PlannerDraftCommand,
 } from "@/lib/planner/draft-commands";
-import { buildPlannerConfirmationHash } from "@/lib/planner/publish-payload";
 import {
   createDefaultPlannerPolicy,
   type PlannerPolicy,
 } from "@/lib/planner/policy";
-import { withPlannerRefreshTimeout } from "@/lib/planner/refresh-timeout";
 import type {
   CalendarSurfaceProps,
   PlannerContextPayload,
   PlannerDayDetailEntry,
-  PlannerErrorPayload,
   PlannerPreferencesPayload,
   PlannerPreviewResponsePayload,
 } from "@/features/planner/calendar-surface.types";
@@ -158,8 +155,6 @@ export function CalendarSurface({
   const [context, setContext] = useState<PlannerContextPayload | null>(null);
   const [loading, setLoading] = useState(false);
   const [setupLoading, setSetupLoading] = useState(false);
-  const [saveLoading, setSaveLoading] = useState(false);
-  const [resetLoading, setResetLoading] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [draftPolicyByScope, setDraftPolicyByScope] = useState<
     Record<string, PlannerPolicy>
@@ -1125,245 +1120,20 @@ export function CalendarSurface({
     onPlannerMutation,
     runCompletionMutation,
   });
-
-  const savePlan = async () => {
-    if (!context?.capabilities.calendarEnabled) {
-      return;
-    }
-    const expectedDigest = context.revisions.scheduleDigest;
-    if (!expectedDigest) {
-      toast.error("Planner state is stale. Refresh and regenerate the preview.");
-      return;
-    }
-    const scopeMonthsToPublish = hasDraftSession
-      ? dirtyScopeMonths
-      : context.scopeMonth
-        ? [context.scopeMonth]
-        : [];
-    if (scopeMonthsToPublish.length === 0) {
-      return;
-    }
-
-    setSaveLoading(true);
-    let payload: PlannerErrorPayload & {
-      replayed?: boolean;
-      publishedScopes?: string[];
-    };
-    try {
-      const scopePayloads: Array<{
-        scopeMonth: string;
-        previewHash: string;
-        confirmationHash: string | null;
-        policy?: PlannerPolicy;
-        eligibilityMode: string;
-        draftCommands: PlannerDraftCommand[];
-        preserveExistingAssignments: boolean;
-      }> = [];
-      for (const scopeMonth of scopeMonthsToPublish) {
-        const scopeDraftCommands = draftCommandsForSaveByScope[scopeMonth] ?? [];
-        const scopeDraftPolicy = draftPolicyByScope[scopeMonth] ?? null;
-        let scopePreview =
-          scopeMonth === context.scopeMonth
-            ? effectivePreview
-            : draftPreviewByScope[scopeMonth] ??
-              visibleMonthContexts[scopeMonth]?.preview ??
-              null;
-        if (!scopePreview) {
-          const refreshPolicy =
-            scopeDraftPolicy ?? context.preferences?.defaultPolicy ?? null;
-          if (!refreshPolicy) {
-            toast.error(
-              `Preview for ${scopeMonth} is unavailable. Open that month and regenerate before saving.`
-            );
-            return;
-          }
-          scopePreview = await requestPreviewForScope({
-            scopeMonth,
-            nextPolicy: refreshPolicy,
-            solveIntent: "stable",
-            draftCommands: scopeDraftCommands,
-          });
-          setDraftPreviewForScope(scopeMonth, scopePreview);
-        }
-        if (!scopePreview) {
-          toast.error(
-            `Preview for ${scopeMonth} is unavailable. Open that month and regenerate before saving.`
-          );
-          return;
-        }
-        const publishBlockedByElapsedMonth =
-          scopeMonth < context.asOfDate.slice(0, 7);
-        if (publishBlockedByElapsedMonth || !scopePreview.solver.publishable) {
-          toast.error(
-            `${scopeMonth}: ${nonPublishablePreviewMessage(scopePreview, scopeMonth)}`
-          );
-          return;
-        }
-        const confirmationHash = scopePreview.solver.confirmationRequired
-          ? buildPlannerConfirmationHash({
-              previewHash: scopePreview.generationInputHash,
-              issueCodes: scopePreview.solver.issueCodes,
-            })
-          : null;
-        scopePayloads.push({
-          scopeMonth,
-          previewHash: scopePreview.generationInputHash,
-          eligibilityMode: scopePreview.eligibilityMode,
-          confirmationHash,
-          policy: scopeDraftPolicy ?? undefined,
-          preserveExistingAssignments: scopePreview.preserveExistingAssignments,
-          draftCommands: scopeDraftCommands,
-        });
-      }
-      try {
-        payload = await postJson<
-          PlannerErrorPayload & {
-            replayed?: boolean;
-            publishedScopes?: string[];
-          }
-        >(
-          "/api/planner/save",
-          {
-            expectedDigest,
-            scopes: scopePayloads,
-          }
-        );
-      } catch (error) {
-        if (isApiClientError(error) && error.code === "planner_not_publishable") {
-          const issueCodes = Array.isArray(error.details?.issueCodes)
-            ? error.details.issueCodes.filter(
-                (value): value is string => typeof value === "string"
-              )
-            : [];
-          const detailSuffix =
-            issueCodes.length > 0 ? ` (${issueCodes.join(", ")})` : "";
-          const scopedPrefix =
-            typeof error.details?.scopeMonth === "string"
-              ? `${error.details.scopeMonth}: `
-              : "";
-          toast.error(
-            `${scopedPrefix}${
-              error.message ?? "Planner save is currently blocked."
-            }${detailSuffix}`
-          );
-          return;
-        }
-        toast.error(getApiErrorMessage(error, "Planner save failed."));
-        return;
-      }
-      try {
-        for (const scopeMonth of scopeMonthsToPublish) {
-          clearDraftScopeSession(scopeMonth);
-        }
-        onPlannerMutation();
-        const refreshed = await withPlannerRefreshTimeout({
-          operation: loadContext({
-            showLoading: false,
-            toastOnError: false,
-          }),
-          timeoutMessage:
-            "Plan saved, but calendar refresh timed out. Please refresh the page.",
-        });
-        if (!refreshed) {
-          toast.error(
-            "Plan saved, but calendar refresh failed. Please refresh the page."
-          );
-          return;
-        }
-        coach.actions.resetForPlannerStateReset();
-        const publishedScopeCount = scopeMonthsToPublish.length;
-        if (publishedScopeCount > 1) {
-          toast.success(
-            payload.replayed
-              ? `Save replayed across ${publishedScopeCount} months.`
-              : `Saved ${publishedScopeCount} months.`
-          );
-        } else {
-          toast.success(payload.replayed ? "Save replayed." : "Plan saved.");
-        }
-      } catch (error) {
-        toast.error(
-          error instanceof Error
-            ? error.message
-            : "Plan saved, but calendar refresh failed. Please refresh the page."
-        );
-      }
-    } finally {
-      setSaveLoading(false);
-    }
-  };
-
-  const resetPlan = async () => {
-    if (!context?.scopeMonth || !context.capabilities.calendarEnabled) {
-      return;
-    }
-    const expectedDigest = context.revisions.scheduleDigest;
-    if (!expectedDigest) {
-      toast.error("Planner state is stale. Refresh and try again.");
-      return;
-    }
-    setResetLoading(true);
-    try {
-      try {
-        await postJson("/api/planner/reset", {
-          scopeMonth: context.scopeMonth,
-          expectedDigest,
-        });
-      } catch (error) {
-        toast.error(getApiErrorMessage(error, "Planner month could not be reset."));
-        return;
-      }
-      try {
-        clearDraftScopeSession(context.scopeMonth);
-        onPlannerMutation();
-        const refreshed = await withPlannerRefreshTimeout({
-          operation: loadContext({
-            showLoading: false,
-            toastOnError: false,
-          }),
-          timeoutMessage:
-            "Plan reset, but calendar refresh timed out. Please refresh the page.",
-        });
-        if (!refreshed) {
-          toast.error(
-            "Plan reset, but calendar refresh failed. Please refresh the page."
-          );
-          return;
-        }
-        coach.actions.resetForPlannerStateReset();
-        toast.success("Plan reset.");
-      } catch (error) {
-        toast.error(
-          error instanceof Error
-            ? error.message
-            : "Plan reset, but calendar refresh failed. Please refresh the page."
-        );
-      }
-    } finally {
-      setResetLoading(false);
-    }
-  };
-
-  const discardDraftChanges = (mode: "current" | "all" = "current") => {
-    const scopesToClear =
-      mode === "all"
-        ? dirtyScopeMonths
-        : context?.scopeMonth
-          ? [context.scopeMonth]
-          : [];
-    if (scopesToClear.length === 0) {
-      return;
-    }
-    for (const scopeMonth of scopesToClear) {
-      clearDraftScopeSession(scopeMonth);
-    }
-    coach.actions.onDraftDiscarded();
-    toast.success(
-      scopesToClear.length > 1
-        ? `Reverted preview changes for ${scopesToClear.length} months.`
-        : "Preview changes reverted to the saved baseline."
-    );
-  };
+  const { saveLoading, resetLoading, savePlan, resetPlan, discardDraftChanges } =
+    usePlannerDraftLifecycleActions({
+      context,
+      effectivePreview,
+      effectiveDraftPolicy,
+      draftSaveCommands,
+      clearDraftScopeSession,
+      dispatchDraftCommand,
+      loadContext,
+      onPlannerMutation,
+      onPlannerStateReset: coach.actions?.resetForPlannerStateReset ?? (() => {}),
+      onDraftDiscarded: coach.actions?.onDraftDiscarded ?? (() => {}),
+      getNonPublishablePreviewMessage: nonPublishablePreviewMessage,
+    });
 
   const canShowSetup = !context?.preferences;
   const showBlockingLoading = loading && context === null;
