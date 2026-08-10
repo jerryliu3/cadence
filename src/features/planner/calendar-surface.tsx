@@ -193,15 +193,16 @@ export function CalendarSurface({
     dayPreview,
     dayPreviewRef,
     clearDayPreview,
+    prepareForDayDetailOpen,
     pinDayPreview,
-    clearHoverPreviewTimer,
-    clearHoverPreviewCloseTimer,
-    clearLongPressTimer,
-    scheduleHoverPreview,
-    scheduleHoverPreviewClose,
+    suppressHoverForDrag,
+    releaseHoverSuppression,
     handleDayCellClick,
-    startLongPressPreview,
-    setPointerPressActive,
+    handleDayCellMouseEnter,
+    handleDayCellMouseLeave,
+    handleDayCellPointerDown,
+    handleDayCellPointerEnd,
+    handleDayCellPointerLeave,
     handleDayPreviewMouseEnter,
     handleDayPreviewMouseLeave,
   } = useCalendarDayPreview({
@@ -1147,9 +1148,9 @@ export function CalendarSurface({
   };
 
   const clearDragState = useCallback(() => {
-    setPointerPressActive(false);
+    releaseHoverSuppression();
     setDraggingEntryKey(null);
-  }, [setPointerPressActive]);
+  }, [releaseHoverSuppression]);
 
   const getDragEntryLabel = useCallback(
     (entryKey: string) => {
@@ -1202,11 +1203,10 @@ export function CalendarSurface({
 
   const handleDndEntryDragStart = useCallback(
     (entryKey: string) => {
-      setPointerPressActive(true);
-      clearHoverPreviewTimer();
+      suppressHoverForDrag();
       setDraggingEntryKey(entryKey);
     },
-    [clearHoverPreviewTimer, setPointerPressActive]
+    [suppressHoverForDrag]
   );
 
   const reorderPreviewEntriesForDay = useCallback(
@@ -1899,9 +1899,7 @@ export function CalendarSurface({
       )
     : null;
   const openDayDetails = (day: string) => {
-    clearHoverPreviewTimer();
-    clearHoverPreviewCloseTimer();
-    clearDayPreview();
+    prepareForDayDetailOpen();
     setLocalSelectedDay(day);
     setSelectedEventEntryKey(null);
   };
@@ -1962,39 +1960,22 @@ export function CalendarSurface({
           handleDayCellClick(cell.date, target);
         }}
         onCellMouseEnter={(target) => {
-          scheduleHoverPreview(cell.date, target);
+          handleDayCellMouseEnter(cell.date, target);
         }}
         onCellMouseLeave={() => {
-          clearHoverPreviewTimer();
-          scheduleHoverPreviewClose(cell.date);
+          handleDayCellMouseLeave(cell.date);
         }}
         onCellPointerDown={(pointerType, target) => {
-          setPointerPressActive(true);
-          clearHoverPreviewTimer();
-          if (pointerType === "touch") {
-            startLongPressPreview(cell.date, target);
-          }
+          handleDayCellPointerDown(pointerType, cell.date, target);
         }}
-        onCellPointerUp={() => {
-          setPointerPressActive(false);
-          clearLongPressTimer();
-        }}
-        onCellPointerCancel={() => {
-          setPointerPressActive(false);
-          clearLongPressTimer();
-        }}
-        onCellPointerLeave={() => {
-          clearLongPressTimer();
-        }}
+        onCellPointerUp={handleDayCellPointerEnd}
+        onCellPointerCancel={handleDayCellPointerEnd}
+        onCellPointerLeave={handleDayCellPointerLeave}
         onEntryPointerStart={(immovable) => {
           void immovable;
-          setPointerPressActive(true);
-          clearHoverPreviewTimer();
-          clearDayPreview();
+          suppressHoverForDrag({ clearPreview: true });
         }}
-        onEntryPointerEnd={() => {
-          setPointerPressActive(false);
-        }}
+        onEntryPointerEnd={releaseHoverSuppression}
       />
     );
   };
@@ -2369,11 +2350,9 @@ export function CalendarSurface({
                         }}
                         onEntryPointerStart={(immovable) => {
                           void immovable;
-                          setPointerPressActive(true);
+                          suppressHoverForDrag();
                         }}
-                        onEntryPointerEnd={() => {
-                          setPointerPressActive(false);
-                        }}
+                        onEntryPointerEnd={releaseHoverSuppression}
                       />
                     </div>
                   </div>
@@ -2510,11 +2489,9 @@ export function CalendarSurface({
                     }}
                     onEntryPointerStart={(immovable) => {
                       void immovable;
-                      setPointerPressActive(true);
+                      suppressHoverForDrag();
                     }}
-                    onEntryPointerEnd={() => {
-                      setPointerPressActive(false);
-                    }}
+                    onEntryPointerEnd={releaseHoverSuppression}
                   />
                   </div>
                 ) : null}

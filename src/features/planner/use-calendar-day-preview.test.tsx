@@ -20,6 +20,10 @@ function buildCellTarget() {
   return element as EventTarget & HTMLElement;
 }
 
+function dispatchPointerDown(element: HTMLElement) {
+  element.dispatchEvent(new Event("pointerdown", { bubbles: true }));
+}
+
 describe("useCalendarDayPreview", () => {
   const day = "2026-08-18";
   const hoverDelayMs = 40;
@@ -45,7 +49,7 @@ describe("useCalendarDayPreview", () => {
     );
 
     act(() => {
-      result.current.scheduleHoverPreview(day, target);
+      result.current.handleDayCellMouseEnter(day, target);
       vi.advanceTimersByTime(hoverDelayMs - 1);
     });
     expect(result.current.dayPreview).toBeNull();
@@ -90,7 +94,7 @@ describe("useCalendarDayPreview", () => {
     );
 
     act(() => {
-      result.current.startLongPressPreview(day, target);
+      result.current.handleDayCellPointerDown("touch", day, target);
       vi.advanceTimersByTime(longPressDelayMs);
     });
     expect(result.current.dayPreview?.pinned).toBe(true);
@@ -119,22 +123,128 @@ describe("useCalendarDayPreview", () => {
     );
 
     act(() => {
-      result.current.scheduleHoverPreview(day, target);
+      result.current.handleDayCellMouseEnter(day, target);
       vi.advanceTimersByTime(hoverDelayMs);
     });
     expect(result.current.dayPreview?.pinned).toBe(false);
 
     act(() => {
-      result.current.scheduleHoverPreviewClose(day);
+      result.current.handleDayCellMouseLeave(day);
       vi.advanceTimersByTime(closeDelayMs);
     });
     expect(result.current.dayPreview).toBeNull();
 
     act(() => {
       result.current.handleDayCellClick(day, target);
-      result.current.scheduleHoverPreviewClose(day);
+      result.current.handleDayCellMouseLeave(day);
       vi.advanceTimersByTime(closeDelayMs);
     });
     expect(result.current.dayPreview?.pinned).toBe(true);
+  });
+
+  it("suppresses hover while pointer is pressed and while drag suppression is active", () => {
+    const target = buildCellTarget();
+    const { result } = renderHook(() =>
+      useCalendarDayPreview({
+        hoverDelayMs,
+        closeDelayMs,
+        longPressDelayMs,
+      })
+    );
+
+    act(() => {
+      result.current.handleDayCellPointerDown("mouse", day, target);
+      result.current.handleDayCellMouseEnter(day, target);
+      vi.advanceTimersByTime(hoverDelayMs + 5);
+    });
+    expect(result.current.dayPreview).toBeNull();
+
+    act(() => {
+      result.current.handleDayCellPointerEnd();
+      result.current.handleDayCellMouseEnter(day, target);
+      vi.advanceTimersByTime(hoverDelayMs - 1);
+      result.current.suppressHoverForDrag();
+      vi.advanceTimersByTime(1);
+    });
+    expect(result.current.dayPreview).toBeNull();
+
+    act(() => {
+      result.current.releaseHoverSuppression();
+      result.current.handleDayCellMouseEnter(day, target);
+      vi.advanceTimersByTime(hoverDelayMs);
+    });
+    expect(result.current.dayPreview?.day).toBe(day);
+  });
+
+  it("closes pinned previews on outside pointerdown but ignores preview and day-cell clicks", () => {
+    const target = buildCellTarget();
+    const { result } = renderHook(() =>
+      useCalendarDayPreview({
+        hoverDelayMs,
+        closeDelayMs,
+        longPressDelayMs,
+      })
+    );
+
+    act(() => {
+      result.current.handleDayCellClick(day, target);
+    });
+    expect(result.current.dayPreview?.pinned).toBe(true);
+
+    const previewElement = document.createElement("div");
+    const previewChild = document.createElement("button");
+    previewElement.append(previewChild);
+    const dayCellElement = document.createElement("button");
+    dayCellElement.setAttribute("data-day-cell", "true");
+    const outsideElement = document.createElement("div");
+    document.body.append(previewElement, dayCellElement, outsideElement);
+    act(() => {
+      result.current.dayPreviewRef.current = previewElement;
+    });
+
+    act(() => {
+      dispatchPointerDown(previewChild);
+      dispatchPointerDown(dayCellElement);
+    });
+    expect(result.current.dayPreview?.pinned).toBe(true);
+
+    act(() => {
+      dispatchPointerDown(outsideElement);
+    });
+    expect(result.current.dayPreview).toBeNull();
+
+    previewElement.remove();
+    dayCellElement.remove();
+    outsideElement.remove();
+  });
+
+  it("keeps unpinned preview open while pointer is inside popup", () => {
+    const target = buildCellTarget();
+    const { result } = renderHook(() =>
+      useCalendarDayPreview({
+        hoverDelayMs,
+        closeDelayMs,
+        longPressDelayMs,
+      })
+    );
+
+    act(() => {
+      result.current.handleDayCellMouseEnter(day, target);
+      vi.advanceTimersByTime(hoverDelayMs);
+    });
+    expect(result.current.dayPreview?.pinned).toBe(false);
+
+    act(() => {
+      result.current.handleDayCellMouseLeave(day);
+      result.current.handleDayPreviewMouseEnter();
+      vi.advanceTimersByTime(closeDelayMs + 1);
+    });
+    expect(result.current.dayPreview?.day).toBe(day);
+
+    act(() => {
+      result.current.handleDayPreviewMouseLeave(day);
+      vi.advanceTimersByTime(closeDelayMs + 1);
+    });
+    expect(result.current.dayPreview).toBeNull();
   });
 });

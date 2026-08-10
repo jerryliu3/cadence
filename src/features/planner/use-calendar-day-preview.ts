@@ -14,6 +14,10 @@ interface UseCalendarDayPreviewArgs {
   longPressDelayMs: number;
 }
 
+interface SuppressHoverForDragOptions {
+  clearPreview?: boolean;
+}
+
 export function useCalendarDayPreview({
   hoverDelayMs,
   closeDelayMs,
@@ -49,13 +53,34 @@ export function useCalendarDayPreview({
     }
   }, []);
 
+  const cancelHoverPreview = useCallback(() => {
+    clearHoverPreviewTimer();
+    clearHoverPreviewCloseTimer();
+  }, [clearHoverPreviewCloseTimer, clearHoverPreviewTimer]);
+
   const clearDayPreview = useCallback(() => {
     setDayPreview(null);
   }, []);
 
-  const setPointerPressActive = useCallback((active: boolean) => {
-    pointerPressActiveRef.current = active;
+  const suppressHoverForDrag = useCallback(
+    ({ clearPreview = false }: SuppressHoverForDragOptions = {}) => {
+      pointerPressActiveRef.current = true;
+      cancelHoverPreview();
+      if (clearPreview) {
+        setDayPreview(null);
+      }
+    },
+    [cancelHoverPreview]
+  );
+
+  const releaseHoverSuppression = useCallback(() => {
+    pointerPressActiveRef.current = false;
   }, []);
+
+  const prepareForDayDetailOpen = useCallback(() => {
+    cancelHoverPreview();
+    setDayPreview(null);
+  }, [cancelHoverPreview]);
 
   const openDayPreview = useCallback(({ day, pinned, target }: OpenDayPreviewInput) => {
     const rect = target.getBoundingClientRect();
@@ -90,13 +115,12 @@ export function useCalendarDayPreview({
     [clearHoverPreviewCloseTimer, closeDelayMs]
   );
 
-  const scheduleHoverPreview = useCallback(
+  const handleDayCellMouseEnter = useCallback(
     (day: string, target: EventTarget & HTMLElement) => {
       if (dayPreview?.pinned || pointerPressActiveRef.current) {
         return;
       }
-      clearHoverPreviewCloseTimer();
-      clearHoverPreviewTimer();
+      cancelHoverPreview();
       hoverPreviewTimerRef.current = window.setTimeout(() => {
         if (pointerPressActiveRef.current) {
           return;
@@ -104,13 +128,15 @@ export function useCalendarDayPreview({
         openDayPreview({ day, pinned: false, target });
       }, hoverDelayMs);
     },
-    [
-      clearHoverPreviewCloseTimer,
-      clearHoverPreviewTimer,
-      dayPreview?.pinned,
-      hoverDelayMs,
-      openDayPreview,
-    ]
+    [cancelHoverPreview, dayPreview?.pinned, hoverDelayMs, openDayPreview]
+  );
+
+  const handleDayCellMouseLeave = useCallback(
+    (day: string) => {
+      clearHoverPreviewTimer();
+      scheduleHoverPreviewClose(day);
+    },
+    [clearHoverPreviewTimer, scheduleHoverPreviewClose]
   );
 
   const handleDayCellClick = useCallback(
@@ -141,6 +167,30 @@ export function useCalendarDayPreview({
     [clearLongPressTimer, longPressDelayMs, openDayPreview]
   );
 
+  const handleDayCellPointerDown = useCallback(
+    (
+      pointerType: string,
+      day: string,
+      target: EventTarget & HTMLElement
+    ) => {
+      pointerPressActiveRef.current = true;
+      clearHoverPreviewTimer();
+      if (pointerType === "touch") {
+        startLongPressPreview(day, target);
+      }
+    },
+    [clearHoverPreviewTimer, startLongPressPreview]
+  );
+
+  const handleDayCellPointerEnd = useCallback(() => {
+    pointerPressActiveRef.current = false;
+    clearLongPressTimer();
+  }, [clearLongPressTimer]);
+
+  const handleDayCellPointerLeave = useCallback(() => {
+    clearLongPressTimer();
+  }, [clearLongPressTimer]);
+
   const pinDayPreview = useCallback(() => {
     setDayPreview((current) =>
       current && !current.pinned ? { ...current, pinned: true } : current
@@ -149,9 +199,8 @@ export function useCalendarDayPreview({
 
   const handleDayPreviewMouseEnter = useCallback(() => {
     pointerInsideDayPreviewRef.current = true;
-    clearHoverPreviewTimer();
-    clearHoverPreviewCloseTimer();
-  }, [clearHoverPreviewCloseTimer, clearHoverPreviewTimer]);
+    cancelHoverPreview();
+  }, [cancelHoverPreview]);
 
   const handleDayPreviewMouseLeave = useCallback(
     (day: string) => {
@@ -218,15 +267,16 @@ export function useCalendarDayPreview({
     dayPreview,
     dayPreviewRef,
     clearDayPreview,
+    prepareForDayDetailOpen,
     pinDayPreview,
-    clearHoverPreviewTimer,
-    clearHoverPreviewCloseTimer,
-    clearLongPressTimer,
-    scheduleHoverPreview,
-    scheduleHoverPreviewClose,
+    suppressHoverForDrag,
+    releaseHoverSuppression,
     handleDayCellClick,
-    startLongPressPreview,
-    setPointerPressActive,
+    handleDayCellMouseEnter,
+    handleDayCellMouseLeave,
+    handleDayCellPointerDown,
+    handleDayCellPointerEnd,
+    handleDayCellPointerLeave,
     handleDayPreviewMouseEnter,
     handleDayPreviewMouseLeave,
   };
