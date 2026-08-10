@@ -1,8 +1,5 @@
 "use client";
 
-import {
-  Bell,
-} from "lucide-react";
 import { useEffect, useMemo } from "react";
 import {
   NotificationPushSection,
