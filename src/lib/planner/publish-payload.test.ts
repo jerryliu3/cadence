@@ -6,7 +6,6 @@ import {
   PlannerDraftEditValidationError,
   buildPlannerPublishPersistencePayload,
 } from "@/lib/planner/publish-payload";
-import { createDefaultPlannerPolicy } from "@/lib/planner/policy";
 
 const GOAL_ID = "12000000-0000-4000-8000-000000000001";
 
@@ -84,179 +83,11 @@ function createKernel(scheduledDate: string): PlannerKernelOutput {
 }
 
 describe("buildPlannerPublishPersistencePayload draft edit validation", () => {
-  it("keeps moved preview items unlocked unless explicitly locked", () => {
-    const snapshot = createSnapshot([]);
-    const kernel = createKernel("2026-08-05");
-    const policy = createDefaultPlannerPolicy("UTC", "2026-08-01T00:00:00.000Z");
-    const payload = buildPlannerPublishPersistencePayload({
-      scopeMonth: "2026-08",
-      policy,
-      kernel,
-      snapshot,
-      draftCommands: [
-        {
-          id: "30000000-0000-4000-8000-000000000001",
-          sequence: 1,
-          kind: "move_item",
-          goalId: GOAL_ID,
-          unitKey: "total:1",
-          scheduledDate: "2026-08-06",
-        },
-      ],
-    });
-
-    expect(payload.changeSummary.draftMoved).toBe(1);
-    const moved = payload.items.find((item) => item.unit_key === "total:1");
-    expect(moved).toMatchObject({
-      scheduled_date: "2026-08-06",
-      original_scheduled_date: "2026-08-05",
-      locked: false,
-    });
-  });
-
-  it("rejects moves when the target date already has a completion fact", () => {
-    const snapshot = createSnapshot([
-      {
-        id: "50000000-0000-4000-8000-000000000001",
-        goal_id: GOAL_ID,
-        user_id: "11111111-1111-4111-8111-111111111111",
-        completed_on: "2026-08-06",
-        source: "manual",
-        created_at: "2026-08-06T00:00:00.000Z",
-      },
-    ]);
-    const kernel = createKernel("2026-08-05");
-    const policy = createDefaultPlannerPolicy("UTC", "2026-08-01T00:00:00.000Z");
-
-    expect(() =>
-      buildPlannerPublishPersistencePayload({
-        scopeMonth: "2026-08",
-        policy,
-        kernel,
-        snapshot,
-        draftCommands: [
-          {
-            id: "30000000-0000-4000-8000-000000000002",
-            sequence: 1,
-            kind: "move_item",
-            goalId: GOAL_ID,
-            unitKey: "total:1",
-            scheduledDate: "2026-08-06",
-          },
-        ],
-      })
-    ).toThrowError(PlannerDraftEditValidationError);
-  });
-
-  it("applies move commands by deterministic sequence order", () => {
-    const snapshot = createSnapshot([]);
-    const kernel = createKernel("2026-08-05");
-    const policy = createDefaultPlannerPolicy("UTC", "2026-08-01T00:00:00.000Z");
-    const payload = buildPlannerPublishPersistencePayload({
-      scopeMonth: "2026-08",
-      policy,
-      kernel,
-      snapshot,
-      draftCommands: [
-        {
-          id: "30000000-0000-4000-8000-000000000010",
-          sequence: 2,
-          kind: "move_item",
-          goalId: GOAL_ID,
-          unitKey: "total:1",
-          scheduledDate: "2026-08-08",
-        },
-        {
-          id: "30000000-0000-4000-8000-000000000011",
-          sequence: 1,
-          kind: "move_item",
-          goalId: GOAL_ID,
-          unitKey: "total:1",
-          scheduledDate: "2026-08-06",
-        },
-      ],
-    });
-
-    const moved = payload.items.find((item) => item.unit_key === "total:1");
-    expect(moved?.scheduled_date).toBe("2026-08-08");
-  });
-
-  it("persists overlap draft moves outside the scope month", () => {
-    const snapshot = createSnapshot([]);
-    const kernel = {
-      ...createKernel("2026-08-28"),
-      eligibilityMode: "overlap_v1" as const,
-      workUnits: [
-        {
-          ...createKernel("2026-08-28").workUnits[0],
-          draftMoveWindow: { start: "2026-08-01", end: "2026-09-15" },
-          creditWindow: { start: "2026-08-01", end: "2026-09-15" },
-        },
-      ],
-    } as PlannerKernelOutput;
-    const policy = createDefaultPlannerPolicy("UTC", "2026-08-01T00:00:00.000Z");
-
-    const payload = buildPlannerPublishPersistencePayload({
-      scopeMonth: "2026-08",
-      policy,
-      kernel,
-      snapshot,
-      draftCommands: [
-        {
-          id: "30000000-0000-4000-8000-000000000012",
-          sequence: 1,
-          kind: "move_item",
-          goalId: GOAL_ID,
-          unitKey: "total:1",
-          scheduledDate: "2026-09-03",
-        },
-      ],
-    });
-
-    const moved = payload.items.find((item) => item.unit_key === "total:1");
-    expect(moved).toMatchObject({
-      scheduled_date: "2026-09-03",
-      original_scheduled_date: "2026-08-28",
-    });
-  });
-
-  it("allows draft moves that conflict with advisory policy preferences", () => {
-    const snapshot = createSnapshot([]);
-    const kernel = createKernel("2026-08-05");
-    const policy = createDefaultPlannerPolicy("UTC", "2026-08-01T00:00:00.000Z");
-    policy.restWeekdays = [4];
-    policy.blackoutRanges = [{ start: "2026-08-08", end: "2026-08-08" }];
-
-    const payload = buildPlannerPublishPersistencePayload({
-      scopeMonth: "2026-08",
-      policy,
-      kernel,
-      snapshot,
-      draftCommands: [
-        {
-          id: "30000000-0000-4000-8000-000000000013",
-          sequence: 1,
-          kind: "move_item",
-          goalId: GOAL_ID,
-          unitKey: "total:1",
-          scheduledDate: "2026-08-08",
-        },
-      ],
-    });
-
-    const moved = payload.items.find((item) => item.unit_key === "total:1");
-    expect(moved?.scheduled_date).toBe("2026-08-08");
-    expect(payload.changeSummary.draftMoved).toBe(1);
-  });
-
   it("applies item-level time override draft commands", () => {
     const snapshot = createSnapshot([]);
     const kernel = createKernel("2026-08-10");
-    const policy = createDefaultPlannerPolicy("UTC", "2026-08-01T00:00:00.000Z");
 
     const payload = buildPlannerPublishPersistencePayload({
-      scopeMonth: "2026-08",
-      policy,
       kernel,
       snapshot,
       draftCommands: [
@@ -282,11 +113,8 @@ describe("buildPlannerPublishPersistencePayload draft edit validation", () => {
   it("uses goal default time when no item override exists", () => {
     const snapshot = createSnapshot([], { default_local_time: "07:15" });
     const kernel = createKernel("2026-08-10");
-    const policy = createDefaultPlannerPolicy("UTC", "2026-08-01T00:00:00.000Z");
 
     const payload = buildPlannerPublishPersistencePayload({
-      scopeMonth: "2026-08",
-      policy,
       kernel,
       snapshot,
       draftCommands: [],
@@ -310,12 +138,9 @@ describe("buildPlannerPublishPersistencePayload draft edit validation", () => {
         },
       ],
     } as PlannerKernelOutput;
-    const policy = createDefaultPlannerPolicy("UTC", "2026-08-01T00:00:00.000Z");
 
     expect(() =>
       buildPlannerPublishPersistencePayload({
-        scopeMonth: "2026-08",
-        policy,
         kernel,
         snapshot,
         draftCommands: [
@@ -330,5 +155,53 @@ describe("buildPlannerPublishPersistencePayload draft edit validation", () => {
         ],
       })
     ).toThrowError(PlannerDraftEditValidationError);
+  });
+});
+
+describe("positional draft moves are kernel-owned", () => {
+  it("refuses a move command that reached publish unresolved", () => {
+    const kernel = createKernel("2026-08-05");
+    const snapshot = createSnapshot([]);
+
+    expect(() =>
+      buildPlannerPublishPersistencePayload({
+        kernel,
+        snapshot,
+        draftCommands: [
+          {
+            id: "11111111-1111-4111-8111-111111111111",
+            sequence: 1,
+            kind: "move_item",
+            goalId: GOAL_ID,
+            unitKey: "total:1",
+            scheduledDate: "2026-08-20",
+          },
+        ],
+      })
+    ).toThrowError(
+      expect.objectContaining({ code: "draft_item_move_unsupported" })
+    );
+  });
+
+  it("accepts a move command the kernel already resolved", () => {
+    const kernel = createKernel("2026-08-20");
+    const snapshot = createSnapshot([]);
+
+    const payload = buildPlannerPublishPersistencePayload({
+      kernel,
+      snapshot,
+      draftCommands: [
+        {
+          id: "11111111-1111-4111-8111-111111111111",
+          sequence: 1,
+          kind: "move_item",
+          goalId: GOAL_ID,
+          unitKey: "total:1",
+          scheduledDate: "2026-08-20",
+        },
+      ],
+    });
+
+    expect(payload.items[0].scheduled_date).toBe("2026-08-20");
   });
 });
