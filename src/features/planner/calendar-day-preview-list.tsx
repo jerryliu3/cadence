@@ -5,14 +5,13 @@ import {
   PlannerDraggablePreviewEntry,
 } from "@/features/planner/calendar-dnd";
 import {
-  getEntryDraftDiffSummary,
-  getEntryDraftPillClasses,
-} from "@/features/planner/calendar-format";
-import {
   type CalendarCompletionFactMarkerBase,
   type CalendarMonthCellEntryBase,
 } from "@/features/planner/calendar-month-day-cell";
-import { getGoalVisual } from "@/features/planner/goal-visuals";
+import {
+  buildPlannerEntryRowState,
+  PlannerEntryRow,
+} from "@/features/planner/planner-entry-row";
 
 interface PreviewCompletionToggleState {
   currentlyCredited: boolean;
@@ -63,20 +62,14 @@ export function CalendarDayPreviewList<
       ) : (
         <>
           {entries.map((entry) => {
-            const visual = getGoalVisual({
-              goalId: entry.originalGoalId,
-              color: entry.activeGoal?.color ?? null,
+            const credited = isEntryCredited(entry);
+            const rowState = buildPlannerEntryRowState(entry, {
+              creditedOverride: credited,
             });
-            const Icon = visual.Icon;
             const displayTitle = getEntryDisplayTitle(entry);
             const subtitle = getEntrySubtitle(entry);
-            const credited = isEntryCredited(entry);
             const immovable = isEntryImmovableForDraft(entry);
-            const draftDiffSummary = getEntryDraftDiffSummary(entry);
-            const pillToneClasses = getEntryDraftPillClasses({
-              draftDiffKind: entry.draftDiffKind,
-              credited,
-            });
+            const draftDiffSummary = rowState.draftDiffSummary;
             const completionToggleState = getCompletionToggleState(entry, day);
             return (
               <PlannerDraggablePreviewEntry
@@ -96,7 +89,7 @@ export function CalendarDayPreviewList<
                   <div
                     ref={setNodeRef}
                     style={style}
-                    className={`flex items-start gap-2 rounded-lg border p-1.5 transition-colors ${pillToneClasses} ${
+                    className={`flex items-start gap-2 rounded-lg border p-1.5 transition-colors ${rowState.pillToneClasses} ${
                       entry.draftGhost ? "opacity-75" : ""
                     } ${
                       isOver
@@ -133,23 +126,13 @@ export function CalendarDayPreviewList<
                         onEntryOpen(entry.key);
                       }}
                     >
-                      <span
-                        className="mt-0.5 inline-flex size-4 items-center justify-center rounded-full"
-                        style={{ backgroundColor: visual.color }}
-                      >
-                        <Icon className="size-2.5 text-white" />
-                      </span>
-                      <div className="min-w-0">
-                        <p className="truncate font-medium">{displayTitle}</p>
-                        {draftDiffSummary ? (
-                          <p className="truncate text-muted-foreground">
-                            {draftDiffSummary}
-                          </p>
-                        ) : null}
-                        {subtitle ? (
-                          <p className="truncate text-muted-foreground">{subtitle}</p>
-                        ) : null}
-                      </div>
+                      <PlannerEntryRow
+                        entry={entry}
+                        rowState={rowState}
+                        displayTitle={displayTitle}
+                        subtitle={subtitle}
+                        variant="preview"
+                      />
                     </button>
                     {!entry.draftGhost ? (
                       <button
