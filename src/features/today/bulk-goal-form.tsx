@@ -208,6 +208,7 @@ function validateDraft(draft: BulkGoalDraft): string[] {
     validateHexColor: true,
     validateMilestoneNameAlignment: true,
     validateGroupLinkExclusion: true,
+    requireStartDate: true,
   });
 }
 

@@ -38,6 +38,7 @@ export interface GoalFormValidationOptions {
   validateHexColor?: boolean;
   validateMilestoneNameAlignment?: boolean;
   validateGroupLinkExclusion?: boolean;
+  requireStartDate?: boolean;
 }
 
 export function validateGoalFormInput(
@@ -57,6 +58,10 @@ export function validateGoalFormInput(
     !input.recurrence_interval
   ) {
     errors.push("Repeat goals require a recurrence interval.");
+  }
+
+  if (options.requireStartDate && input.start_date.trim().length === 0) {
+    errors.push("Start date is required.");
   }
 
   if (

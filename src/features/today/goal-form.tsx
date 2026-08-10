@@ -305,7 +305,7 @@ export function GoalForm({ goalId }: GoalFormProps) {
           ...state,
           linked_target_goal_id: selectedLinkTarget,
         },
-        { requireRecurrenceInterval: true }
+        { requireRecurrenceInterval: true, requireStartDate: true }
       ),
     [selectedLinkTarget, state]
   );

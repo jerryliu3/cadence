@@ -86,6 +86,18 @@ describe("validateGoalFormInput", () => {
     ).toContain("Color accent must be a valid hex color.");
   });
 
+  it("requires a start date when explicitly requested", () => {
+    expect(
+      validateGoalFormInput(
+        {
+          ...baseInput,
+          start_date: "",
+        },
+        { requireStartDate: true }
+      )
+    ).toContain("Start date is required.");
+  });
+
   it("enforces recurrence selection and group-link exclusion when requested", () => {
     expect(
       validateGoalFormInput(
