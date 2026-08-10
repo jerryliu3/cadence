@@ -33,6 +33,12 @@ import { plannerPolicySchema, type PlannerPolicy } from "@/lib/planner/policy";
 const MAX_COACH_MESSAGE_CHARACTERS = 12_000;
 const WEEKDAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
 
+interface CoachProposalApplyResult {
+  status: CoachProposalApplyStatus;
+  /** Draft pins this apply created, so undo can remove exactly those. */
+  movedEntryKeys: string[];
+}
+
 type CoachProposalApplyStatus =
   | "not_attempted"
   | "applied"
@@ -163,6 +169,8 @@ export function usePlannerCoach({
   effectiveDraftPolicy,
   hasDraftSession,
   refreshDraftPreview,
+  applyPolicyReplanMoves,
+  clearDraftMoveCommands,
   applyDraftPolicy,
   getNonPublishablePreviewMessage,
 }: UsePlannerCoachArgs): PlannerCoachModel {
@@ -302,46 +310,36 @@ export function usePlannerCoach({
     }: {
       patches: CoachPolicyPatch[];
       source: "auto" | "manual";
-    }): Promise<CoachProposalApplyStatus> => {
+    }): Promise<CoachProposalApplyResult> => {
       if (!context?.preferences || patches.length === 0) {
-        return "not_attempted";
+        return { status: "not_attempted", movedEntryKeys: [] };
       }
-      const allowedGoalIds = new Set<string>([
-        ...Object.keys(context.goalTitles ?? {}),
-        ...(context.activePlan?.goals ?? []).map((goal) => goal.original_goal_id),
-      ]);
       const priorPolicy = plannerPolicySchema.parse(
         effectiveDraftPolicy ?? context.preferences.defaultPolicy
       );
       const result = applyCoachPolicyPatches({
         policy: priorPolicy,
         patches,
-        allowedGoalIds,
       });
       if (result.appliedPatchCount === 0) {
-        if (
-          result.noOpPatchCount > 0 &&
-          result.outOfScopePatchCount === 0 &&
-          result.unsupportedPatchCount === 0
-        ) {
+        if (result.noOpPatchCount > 0 && result.unsupportedPatchCount === 0) {
           appendCoachContextEvent("Coach proposal already matched current draft");
           toast.success(
             hasDraftSession
               ? "Coach proposal already matches your draft policy. Your manual draft edits are still pending publish."
               : "Coach proposal already matches your current policy."
           );
-          return "already_applied";
+          return { status: "already_applied", movedEntryKeys: [] };
         }
-        toast.error(
-          result.outOfScopePatchCount > 0
-            ? "Coach edits were received but none matched your current goal scope."
-            : "No applicable policy changes were available to apply."
-        );
-        return "failed";
+        toast.error("No applicable policy changes were available to apply.");
+        return { status: "failed", movedEntryKeys: [] };
       }
 
       setCoachPolicyApplying(true);
       try {
+        const { moveCount, movedEntryKeys } = await applyPolicyReplanMoves(
+          result.policy
+        );
         const refreshedPreview = await refreshDraftPreview(result.policy);
         if (!refreshedPreview) {
           throw new Error("Preview refresh returned no planner data.");
@@ -378,27 +376,29 @@ export function usePlannerCoach({
           applyDraftPolicy(context.scopeMonth, result.policy);
         }
         appendCoachContextEvent(
-          source === "auto"
-            ? `Auto-applied coach proposal to draft (${result.appliedPatchCount} patches)`
-            : `Applied coach proposal to draft (${result.appliedPatchCount} patches)`
+          `Reflected coach proposal in draft (${result.appliedPatchCount} patches, ${moveCount} session moves)`
         );
+        const lead =
+          source === "auto"
+            ? "Coach updates are in your draft"
+            : "Coach proposal applied";
         if (!refreshedPreview.solver.publishable) {
           toast.error(
-            `${source === "auto" ? "Coach updates auto-applied" : "Coach proposal applied"}, but this draft cannot publish yet. ${getNonPublishablePreviewMessage(
+            `${lead}, but this draft cannot publish yet. ${getNonPublishablePreviewMessage(
               refreshedPreview
             )}`
           );
         } else if (assignmentChanges === 0) {
+          // Auto-reflect means an unchanged calendar is the only signal the
+          // user gets, so say plainly that nothing needed to move.
           toast.success(
-            source === "auto"
-              ? "Coach updates auto-applied. Policy changed, but scheduled sessions stayed the same."
-              : "Coach proposal applied. Policy changed, but scheduled sessions stayed the same."
+            `${lead}. Your preferences changed, but no session needed to move.`
           );
         } else {
           toast.success(
-            `${source === "auto" ? "Coach updates auto-applied" : "Coach proposal applied"} to draft preview (${assignmentChanges} session change${
+            `${lead}: ${assignmentChanges} session${
               assignmentChanges === 1 ? "" : "s"
-            }).`
+            } moved. Review the highlighted changes and save when ready.`
           );
         }
         if (source === "manual" && context.scopeMonth) {
@@ -411,7 +411,7 @@ export function usePlannerCoach({
             })
           );
         }
-        return "applied";
+        return { status: "applied", movedEntryKeys };
       } catch (error) {
         toast.error(
           error instanceof Error
@@ -420,7 +420,7 @@ export function usePlannerCoach({
               ? "Coach proposal auto-apply failed."
               : "Coach proposal apply failed."
         );
-        return "failed";
+        return { status: "failed", movedEntryKeys: [] };
       } finally {
         setCoachPolicyApplying(false);
       }
@@ -428,6 +428,7 @@ export function usePlannerCoach({
     [
       appendCoachContextEvent,
       applyDraftPolicy,
+      applyPolicyReplanMoves,
       context,
       effectiveDraftPolicy,
       effectivePreview,
@@ -486,15 +487,18 @@ export function usePlannerCoach({
       const unresolvedQuestions = coachPayload.proposal?.unresolvedQuestions ?? [];
       const policyPatches = coachPayload.proposal?.policyPatches ?? [];
       let autoApplyStatus: CoachProposalApplyStatus = "not_attempted";
+      let autoAppliedEntryKeys: string[] = [];
       const baselinePolicy = context.preferences
         ? plannerPolicySchema.parse(effectiveDraftPolicy ?? context.preferences.defaultPolicy)
         : null;
       let proposal: CoachMessageProposal | null = null;
       if (policyPatches.length > 0) {
-        autoApplyStatus = await applyCoachPatchesToDraft({
+        const autoApply = await applyCoachPatchesToDraft({
           patches: policyPatches,
           source: "auto",
         });
+        autoApplyStatus = autoApply.status;
+        autoAppliedEntryKeys = autoApply.movedEntryKeys;
         const patchSignature = buildProposalSignature(policyPatches);
         proposal = {
           schemaVersion: "1",
@@ -505,6 +509,7 @@ export function usePlannerCoach({
             : `missing:${patchSignature.slice(0, 32)}`,
           baselinePolicy,
           policyPatches,
+          appliedMoveEntryKeys: autoAppliedEntryKeys,
           unresolvedQuestions,
         };
       }
@@ -621,7 +626,11 @@ export function usePlannerCoach({
   }, [context, resetCoachUiState]);
 
   const updateCoachProposalStatus = useCallback(
-    (messageIndex: number, applyStatus: CoachMessageProposal["applyStatus"]) => {
+    (
+      messageIndex: number,
+      applyStatus: CoachMessageProposal["applyStatus"],
+      appliedMoveEntryKeys?: string[]
+    ) => {
       setCoachMessages((previous) => {
         const target = previous[messageIndex];
         if (!target || target.role !== "assistant" || !target.proposal) {
@@ -634,6 +643,9 @@ export function usePlannerCoach({
                 proposal: {
                   ...message.proposal!,
                   applyStatus,
+                  ...(appliedMoveEntryKeys
+                    ? { appliedMoveEntryKeys }
+                    : {}),
                 },
               }
             : message
@@ -651,12 +663,12 @@ export function usePlannerCoach({
       if (!message || message.role !== "assistant" || !message.proposal) {
         return;
       }
-      const applyStatus = await applyCoachPatchesToDraft({
+      const { status, movedEntryKeys } = await applyCoachPatchesToDraft({
         patches: message.proposal.policyPatches,
         source: "manual",
       });
-      if (applyStatus === "applied") {
-        updateCoachProposalStatus(messageIndex, "manually_applied");
+      if (status === "applied") {
+        updateCoachProposalStatus(messageIndex, "manually_applied", movedEntryKeys);
       }
     },
     [applyCoachPatchesToDraft, coachMessages, updateCoachProposalStatus]
@@ -700,14 +712,9 @@ export function usePlannerCoach({
         return;
       }
       const baselinePolicy = plannerPolicySchema.parse(message.proposal.baselinePolicy);
-      const allowedGoalIds = new Set<string>([
-        ...Object.keys(context.goalTitles ?? {}),
-        ...(context.activePlan?.goals ?? []).map((goal) => goal.original_goal_id),
-      ]);
       const expectedAppliedPolicy = applyCoachPolicyPatches({
         policy: baselinePolicy,
         patches: message.proposal.policyPatches,
-        allowedGoalIds,
       }).policy;
       const currentDraftPolicy = plannerPolicySchema.parse(
         effectiveDraftPolicy ?? context.preferences.defaultPolicy
@@ -725,6 +732,10 @@ export function usePlannerCoach({
         message.proposal.applyStatus === "manually_applied";
       setCoachPolicyApplying(true);
       try {
+        // Reverting the policy is not enough: the apply also pinned the moves
+        // the policy implied. Clear those first so the baseline solve is not
+        // still constrained by them.
+        clearDraftMoveCommands(message.proposal.appliedMoveEntryKeys ?? []);
         await refreshDraftPreview(baselinePolicy);
         if (shouldPersistDurableUndo) {
           try {
@@ -770,6 +781,7 @@ export function usePlannerCoach({
     [
       appendCoachContextEvent,
       applyDraftPolicy,
+      clearDraftMoveCommands,
       coachMessages,
       context,
       effectiveDraftPolicy,
