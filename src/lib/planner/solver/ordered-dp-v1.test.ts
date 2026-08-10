@@ -154,3 +154,54 @@ describe("ordered-dp-v1 solver", () => {
     expect(result.assignments[0].scheduledDate).toBe("2026-08-01");
   });
 });
+
+describe("solve intent objective ordering", () => {
+  const dates = ["2026-08-05", "2026-08-06"];
+  // Sitting on its previous date costs policy; moving one day is compliant.
+  const unit = {
+    unitKey: "total:1",
+    goalId: "goal-a",
+    kind: "deadline_total" as const,
+    ordinal: 1,
+    candidateDates: dates,
+    previousDate: "2026-08-05",
+    lockedDate: null,
+    dateCosts: { "2026-08-05": 10, "2026-08-06": 0 },
+  };
+
+  it("keeps the existing date under stable intent", () => {
+    const result = solveOrderedDpV1({ dates, units: [unit] });
+
+    expect(result.assignments[0].scheduledDate).toBe("2026-08-05");
+  });
+
+  it("pays a move to lower policy cost under replan intent", () => {
+    const result = solveOrderedDpV1({
+      dates,
+      units: [unit],
+      solveIntent: "replan",
+    });
+
+    expect(result.assignments[0].scheduledDate).toBe("2026-08-06");
+  });
+
+  it("still breaks policy-equal ties by fewest moves under replan intent", () => {
+    const result = solveOrderedDpV1({
+      dates,
+      units: [{ ...unit, dateCosts: { "2026-08-05": 0, "2026-08-06": 0 } }],
+      solveIntent: "replan",
+    });
+
+    expect(result.assignments[0].scheduledDate).toBe("2026-08-05");
+  });
+
+  it("never breaks a hard lock to satisfy policy under replan intent", () => {
+    const result = solveOrderedDpV1({
+      dates,
+      units: [{ ...unit, lockedDate: "2026-08-05" }],
+      solveIntent: "replan",
+    });
+
+    expect(result.assignments[0].scheduledDate).toBe("2026-08-05");
+  });
+});

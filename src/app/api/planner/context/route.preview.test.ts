@@ -130,4 +130,87 @@ describe("planner context preview route", () => {
       })
     );
   });
+
+  it("threads solve intent and draft pins into the kernel", async () => {
+    mocks.parseBoundedJsonBody.mockResolvedValueOnce({
+      scopeMonth: "2026-08",
+      source: "manual",
+      timezone: "UTC",
+      solveIntent: "replan",
+      policy: createDefaultPlannerPolicy("UTC", "2026-08-01T00:00:00.000Z"),
+      draftCommands: [
+        {
+          id: "11111111-1111-4111-8111-111111111111",
+          sequence: 1,
+          kind: "move_item",
+          goalId: "22222222-2222-4222-8222-222222222222",
+          unitKey: "total:1",
+          scheduledDate: "2026-08-20",
+        },
+      ],
+    });
+    mocks.runPlannerKernel.mockImplementationOnce(() => {
+      throw new Error("forced");
+    });
+
+    await POST(
+      new Request("http://localhost/api/planner/context", { method: "POST" })
+    );
+
+    expect(mocks.runPlannerKernel).toHaveBeenCalledWith(
+      expect.objectContaining({
+        solveIntent: "replan",
+        draftPinnedDates: {
+          "22222222-2222-4222-8222-222222222222:total:1": "2026-08-20",
+        },
+      })
+    );
+  });
+
+  it("rejects a preview that did not honor a draft pin", async () => {
+    mocks.parseBoundedJsonBody.mockResolvedValueOnce({
+      scopeMonth: "2026-08",
+      source: "manual",
+      timezone: "UTC",
+      policy: createDefaultPlannerPolicy("UTC", "2026-08-01T00:00:00.000Z"),
+      draftCommands: [
+        {
+          id: "11111111-1111-4111-8111-111111111111",
+          sequence: 1,
+          kind: "move_item",
+          goalId: "22222222-2222-4222-8222-222222222222",
+          unitKey: "total:1",
+          scheduledDate: "2026-08-20",
+        },
+      ],
+    });
+    mocks.runPlannerKernel.mockReturnValueOnce({
+      workUnits: [
+        {
+          originalGoalId: "22222222-2222-4222-8222-222222222222",
+          unitKey: "total:1",
+          scheduledDate: "2026-08-06",
+        },
+      ],
+    });
+
+    const response = await POST(
+      new Request("http://localhost/api/planner/context", { method: "POST" })
+    );
+
+    expect(response.status).toBe(422);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "draft_pin_unhonored",
+      details: {
+        violations: [
+          {
+            goalId: "22222222-2222-4222-8222-222222222222",
+            unitKey: "total:1",
+            expectedDate: "2026-08-20",
+            actualDate: "2026-08-06",
+          },
+        ],
+      },
+    });
+  });
 });

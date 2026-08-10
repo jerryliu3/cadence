@@ -43,6 +43,8 @@ export interface PlannerSolverResult {
   confirmationRequired: boolean;
 }
 
+export type SolverSolveIntent = "stable" | "replan";
+
 export interface SolverObjective {
   placed: number;
   moved: number;
