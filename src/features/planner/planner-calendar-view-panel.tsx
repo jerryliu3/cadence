@@ -13,7 +13,6 @@ import type { Dispatch, ReactNode, RefObject, SetStateAction } from "react";
 import { Button } from "@/components/ui/button";
 import { PlannerDndProvider, type PlannerDragTarget } from "@/features/planner/calendar-dnd";
 import { CalendarDayPreviewList } from "@/features/planner/calendar-day-preview-list";
-import { completionDisabledReasonCopy } from "@/features/planner/calendar-format";
 import type { PlannerEntryDateFactDispatch } from "@/features/planner/calendar-completion-selectors";
 import type {
   CompletionControlDisabledReason,
@@ -22,6 +21,10 @@ import type {
   PlannerCompletionFactMarker,
   PlannerDayDetailEntry,
 } from "@/features/planner/calendar-surface.types";
+import {
+  selectPlannerEntryCompletionToggleViewModel,
+  type PlannerCalendarDayCellRenderModel,
+} from "@/features/planner/calendar-view-model-selectors";
 
 interface PlannerCalendarViewPanelProps {
   viewMode: PlannerCalendarViewMode;
@@ -84,8 +87,8 @@ interface PlannerCalendarViewPanelProps {
   suppressHoverForDrag: (options?: { clearPreview?: boolean }) => void;
   releaseHoverSuppression: () => void;
   weekdayLabels: string[];
-  calendarGridCells: Array<{ date: string; inMonth: boolean }>;
-  renderCalendarDayCell: (cell: { date: string; inMonth: boolean }) => ReactNode;
+  calendarGridDayCellModels: PlannerCalendarDayCellRenderModel[];
+  renderCalendarDayCell: (cellModel: PlannerCalendarDayCellRenderModel) => ReactNode;
   draftSaveBlockedMessage: string | null;
   dayPreview: DayPreviewState | null;
   dayPreviewRef: RefObject<HTMLDivElement | null>;
@@ -140,7 +143,7 @@ export function PlannerCalendarViewPanel({
   suppressHoverForDrag,
   releaseHoverSuppression,
   weekdayLabels,
-  calendarGridCells,
+  calendarGridDayCellModels,
   renderCalendarDayCell,
   draftSaveBlockedMessage,
   dayPreview,
@@ -151,6 +154,50 @@ export function PlannerCalendarViewPanel({
   clearDayPreview,
   onSelectedDayChange,
 }: PlannerCalendarViewPanelProps) {
+  const focusedDayLabel = format(parse(focusedDay, "yyyy-MM-dd", new Date()), "EEE MMM d");
+  const dayPreviewHeading = dayPreview
+    ? format(parse(dayPreview.day, "yyyy-MM-dd", new Date()), "EEEE, MMM d")
+    : null;
+  const getCompletionToggleState = (
+    entry: PlannerDayDetailEntry,
+    day: string
+  ) =>
+    selectPlannerEntryCompletionToggleViewModel({
+      entry,
+      day,
+      canMutateEntryOnDay,
+      isEntryCredited,
+      readOnlyMonthHint,
+      getDateFactDispatchForEntry,
+      completionControlDisabledReasonForEntry,
+    });
+  const openFocusedDayEntry = (entryKey: string) => {
+    const entry = focusedDayEntries.find((candidate) => candidate.key === entryKey);
+    if (!entry || !canMutateEntryOnDay(entry, focusedDay)) {
+      return;
+    }
+    openDayDetails(focusedDay);
+  };
+  const openPreviewDayEntry = (entryKey: string) => {
+    if (!dayPreview) {
+      return;
+    }
+    const entry = previewDayEntries.find((candidate) => candidate.key === entryKey);
+    if (!entry || !canMutateEntryOnDay(entry, dayPreview.day)) {
+      return;
+    }
+    openDayDetails(dayPreview.day);
+  };
+  const toggleCompletionIfMutable = (
+    entry: PlannerDayDetailEntry,
+    day: string
+  ) => {
+    if (!canMutateEntryOnDay(entry, day)) {
+      return;
+    }
+    void toggleDateFact(entry, day);
+  };
+
   return (
     <div className="rounded-xl border bg-card p-4 shadow-sm">
       <div className="mb-3 space-y-3">
@@ -257,9 +304,7 @@ export function PlannerCalendarViewPanel({
           {viewMode === "day" ? (
             <div className="space-y-2" data-no-swipe="true">
               <div className="rounded-lg border p-3">
-                <p className="mb-2 text-sm font-medium">
-                  {format(parse(focusedDay, "yyyy-MM-dd", new Date()), "EEE MMM d")}
-                </p>
+                <p className="mb-2 text-sm font-medium">{focusedDayLabel}</p>
                 <CalendarDayPreviewList
                   day={focusedDay}
                   entries={focusedDayEntries}
@@ -272,43 +317,9 @@ export function PlannerCalendarViewPanel({
                     !canMutateEntryOnDay(entry, focusedDay) ||
                     isEntryImmovableForDraft(entry)
                   }
-                  getCompletionToggleState={(entry, day) => {
-                    if (!canMutateEntryOnDay(entry, day)) {
-                      return {
-                        currentlyCredited: isEntryCredited(entry),
-                        disabledReasonCopy: readOnlyMonthHint,
-                      };
-                    }
-                    const dayCompletionDispatch = getDateFactDispatchForEntry(entry, day);
-                    const dayCompletionDisabledReason =
-                      completionControlDisabledReasonForEntry(
-                        entry,
-                        dayCompletionDispatch
-                      );
-                    return {
-                      currentlyCredited: Boolean(
-                        dayCompletionDispatch?.currentlyCredited
-                      ),
-                      disabledReasonCopy: dayCompletionDisabledReason
-                        ? completionDisabledReasonCopy(dayCompletionDisabledReason)
-                        : null,
-                    };
-                  }}
-                  onEntryOpen={(entryKey) => {
-                    const entry = focusedDayEntries.find(
-                      (candidate) => candidate.key === entryKey
-                    );
-                    if (!entry || !canMutateEntryOnDay(entry, focusedDay)) {
-                      return;
-                    }
-                    openDayDetails(focusedDay);
-                  }}
-                  onToggleCompletion={(entry, day) => {
-                    if (!canMutateEntryOnDay(entry, day)) {
-                      return;
-                    }
-                    void toggleDateFact(entry, day);
-                  }}
+                  getCompletionToggleState={getCompletionToggleState}
+                  onEntryOpen={openFocusedDayEntry}
+                  onToggleCompletion={toggleCompletionIfMutable}
                   onEntryPointerStart={(immovable) => {
                     void immovable;
                     suppressHoverForDrag();
@@ -325,7 +336,7 @@ export function PlannerCalendarViewPanel({
                 ))}
               </div>
               <div className="mt-2 grid grid-cols-7 gap-2" data-no-swipe="true">
-                {calendarGridCells.map(renderCalendarDayCell)}
+                {calendarGridDayCellModels.map(renderCalendarDayCell)}
               </div>
             </>
           )}
@@ -360,9 +371,7 @@ export function PlannerCalendarViewPanel({
               }}
             >
               <div className="mb-2 flex items-center justify-between gap-2">
-                <p className="text-sm font-medium">
-                  {format(parse(dayPreview.day, "yyyy-MM-dd", new Date()), "EEEE, MMM d")}
-                </p>
+                <p className="text-sm font-medium">{dayPreviewHeading}</p>
                 <div className="flex items-center gap-1">
                   <Button
                     type="button"
@@ -401,43 +410,9 @@ export function PlannerCalendarViewPanel({
                   !canMutateEntryOnDay(entry, dayPreview.day) ||
                   isEntryImmovableForDraft(entry)
                 }
-                getCompletionToggleState={(entry, day) => {
-                  if (!canMutateEntryOnDay(entry, day)) {
-                    return {
-                      currentlyCredited: isEntryCredited(entry),
-                      disabledReasonCopy: readOnlyMonthHint,
-                    };
-                  }
-                  const previewCompletionDispatch = getDateFactDispatchForEntry(entry, day);
-                  const previewCompletionDisabledReason =
-                    completionControlDisabledReasonForEntry(
-                      entry,
-                      previewCompletionDispatch
-                    );
-                  return {
-                    currentlyCredited: Boolean(
-                      previewCompletionDispatch?.currentlyCredited
-                    ),
-                    disabledReasonCopy: previewCompletionDisabledReason
-                      ? completionDisabledReasonCopy(previewCompletionDisabledReason)
-                      : null,
-                  };
-                }}
-                onEntryOpen={(entryKey) => {
-                  const entry = previewDayEntries.find(
-                    (candidate) => candidate.key === entryKey
-                  );
-                  if (!entry || !canMutateEntryOnDay(entry, dayPreview.day)) {
-                    return;
-                  }
-                  openDayDetails(dayPreview.day);
-                }}
-                onToggleCompletion={(entry, day) => {
-                  if (!canMutateEntryOnDay(entry, day)) {
-                    return;
-                  }
-                  void toggleDateFact(entry, day);
-                }}
+                getCompletionToggleState={getCompletionToggleState}
+                onEntryOpen={openPreviewDayEntry}
+                onToggleCompletion={toggleCompletionIfMutable}
                 onEntryPointerStart={(immovable) => {
                   void immovable;
                   suppressHoverForDrag();
