@@ -27,6 +27,7 @@ const PROVIDER_TIMEOUT_MS = 12_000;
 const MAX_PROVIDER_ATTEMPTS = 2;
 const BULK_PARSER_RATE_LIMIT_PER_MINUTE = 20;
 const localTimePattern = /^([01]\d|2[0-3]):[0-5]\d$/;
+const INVALID_ARGUMENT_PROVIDER_RE = /\(400\)|INVALID_ARGUMENT/i;
 
 const requestSchema = z.object({
   prompt: z.string().trim().min(1).max(8000),
@@ -182,6 +183,13 @@ function normalizeGeneratedPayload(
   return { goals, warnings };
 }
 
+function shouldRetryWithoutResponseSchema(error: GeminiRequestError) {
+  if (error.code !== "provider_error") {
+    return false;
+  }
+  return INVALID_ARGUMENT_PROVIDER_RE.test(error.message);
+}
+
 export async function POST(request: Request) {
   return withRoute(async ({ correlationId }) => {
     const supabase = await createClient();
@@ -296,17 +304,34 @@ export async function POST(request: Request) {
       );
     }
 
+    const prompt = buildPrompt(parsedRequest.prompt, today);
     let candidateJson: unknown;
     try {
-      const result = await generateGeminiJson({
-        apiKey,
-        prompt: buildPrompt(parsedRequest.prompt, today),
-        responseSchema: bulkGoalResponseSchema as unknown as Record<string, unknown>,
-        maxResponseBytes: MAX_PROVIDER_RESPONSE_BYTES,
-        totalTimeoutMs: PROVIDER_TIMEOUT_MS,
-        maxAttempts: MAX_PROVIDER_ATTEMPTS,
-        signal: request.signal,
-      });
+      let result: Awaited<ReturnType<typeof generateGeminiJson>>;
+      try {
+        result = await generateGeminiJson({
+          apiKey,
+          prompt,
+          responseSchema: bulkGoalResponseSchema as unknown as Record<string, unknown>,
+          maxResponseBytes: MAX_PROVIDER_RESPONSE_BYTES,
+          totalTimeoutMs: PROVIDER_TIMEOUT_MS,
+          maxAttempts: MAX_PROVIDER_ATTEMPTS,
+          signal: request.signal,
+        });
+      } catch (error) {
+        if (error instanceof GeminiRequestError && shouldRetryWithoutResponseSchema(error)) {
+          result = await generateGeminiJson({
+            apiKey,
+            prompt,
+            maxResponseBytes: MAX_PROVIDER_RESPONSE_BYTES,
+            totalTimeoutMs: PROVIDER_TIMEOUT_MS,
+            maxAttempts: MAX_PROVIDER_ATTEMPTS,
+            signal: request.signal,
+          });
+        } else {
+          throw error;
+        }
+      }
       candidateJson = result.candidateJson;
     } catch (error) {
       if (error instanceof GeminiRequestError) {
@@ -314,28 +339,36 @@ export async function POST(request: Request) {
           throw new ApiRouteError(
             504,
             "ai_timeout",
-            "Goal draft generation timed out. Try again."
+            "Goal draft generation timed out. Try again.",
+            undefined,
+            error
           );
         }
         if (error.code === "response_too_large") {
           throw new ApiRouteError(
             502,
             "ai_response_too_large",
-            "Goal draft generation returned too much data."
+            "Goal draft generation returned too much data.",
+            undefined,
+            error
           );
         }
         if (error.code === "invalid_response" || error.code === "empty_response") {
           throw new ApiRouteError(
             502,
             "ai_invalid_output",
-            "Generated goal drafts could not be validated."
+            "Generated goal drafts could not be validated.",
+            undefined,
+            error
           );
         }
       }
       throw new ApiRouteError(
         502,
         "ai_provider_error",
-        "Goal draft generation failed. Try again."
+        "Goal draft generation failed. Try again.",
+        undefined,
+        error
       );
     }
 

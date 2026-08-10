@@ -198,4 +198,73 @@ describe("bulk goal parser route", () => {
     expect(body).toMatchObject({ code: "ai_provider_error" });
     expect(JSON.stringify(body)).not.toContain("provider-secret");
   });
+
+  it("retries without response schema when provider rejects schema arguments", async () => {
+    const fetchSpy = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            error: {
+              code: 400,
+              message: "Request contains an invalid argument.",
+              status: "INVALID_ARGUMENT",
+            },
+          }),
+          { status: 400 }
+        )
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            error: {
+              code: 400,
+              message: "Request contains an invalid argument.",
+              status: "INVALID_ARGUMENT",
+            },
+          }),
+          { status: 400 }
+        )
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            candidates: [
+              {
+                content: {
+                  parts: [
+                    {
+                      text: JSON.stringify({
+                        goals: [{ title: "Read every day" }],
+                      }),
+                    },
+                  ],
+                },
+              },
+            ],
+          }),
+          { status: 200 }
+        )
+      );
+    vi.stubGlobal("fetch", fetchSpy);
+
+    const response = await POST(
+      request({ prompt: "Read every day", timezone: "UTC" })
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      goals: [{ title: "Read every day" }],
+    });
+    expect(fetchSpy).toHaveBeenCalledTimes(3);
+
+    const firstBody = JSON.parse(
+      String((fetchSpy.mock.calls[0]?.[1] as RequestInit | undefined)?.body ?? "")
+    ) as { generationConfig?: { responseSchema?: unknown } };
+    const thirdBody = JSON.parse(
+      String((fetchSpy.mock.calls[2]?.[1] as RequestInit | undefined)?.body ?? "")
+    ) as { generationConfig?: { responseSchema?: unknown } };
+    expect(firstBody.generationConfig?.responseSchema).toBeDefined();
+    expect(thirdBody.generationConfig?.responseSchema).toBeUndefined();
+  });
 });
