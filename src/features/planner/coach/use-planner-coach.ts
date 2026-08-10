@@ -18,6 +18,13 @@ import {
   mapAutoApplyStatusToProposalStatus,
   type CoachProposalAutoApplyStatus,
 } from "@/features/planner/coach/coach-message-utils";
+import {
+  buildCoachFocusGoalIds,
+  buildCoachGoalHint,
+  countAssignmentChanges,
+  isTemporarilyUnavailableSavedConversationError,
+  resolveSavedConversationSelection,
+} from "@/features/planner/coach/coach-state-utils";
 import type {
   PlannerCoachModel,
   UsePlannerCoachArgs,
@@ -105,16 +112,10 @@ export function usePlannerCoach({
   );
 
   const coachFocusGoalIds = useMemo(() => {
-    const ids = new Set<string>();
-    for (const unit of effectivePreview?.workUnits ?? []) {
-      ids.add(unit.originalGoalId);
-    }
-    if (ids.size === 0) {
-      for (const goalId of Object.keys(context?.goalTitles ?? {})) {
-        ids.add(goalId);
-      }
-    }
-    return Array.from(ids).slice(0, 20);
+    return buildCoachFocusGoalIds({
+      workUnits: effectivePreview?.workUnits,
+      goalTitles: context?.goalTitles,
+    });
   }, [context, effectivePreview]);
 
   const loadSavedCoachConversations = useCallback(
@@ -124,10 +125,10 @@ export function usePlannerCoach({
         const conversations = await listPlannerCoachConversations({ scopeMonth, limit: 20 });
         setSavedCoachConversations(conversations);
         setSelectedSavedCoachConversationId((current) => {
-          if (current && conversations.some((conversation) => conversation.id === current)) {
-            return current;
-          }
-          return conversations[0]?.id ?? "";
+          return resolveSavedConversationSelection({
+            currentId: current,
+            conversations,
+          });
         });
       } catch (error) {
         setSavedCoachConversations([]);
@@ -136,11 +137,7 @@ export function usePlannerCoach({
           error instanceof Error
             ? error.message
             : "Saved conversations could not be loaded.";
-        if (
-          message
-            .toLowerCase()
-            .includes("saved coach conversations are temporarily unavailable")
-        ) {
+        if (isTemporarilyUnavailableSavedConversationError(message)) {
           return;
         }
         toast.error(
@@ -230,27 +227,10 @@ export function usePlannerCoach({
           });
           appendCoachContextEvent("Persisted coach proposal to planner defaults");
         }
-        const previousDatesByKey = new Map(
-          (effectivePreview?.workUnits ?? []).map((unit) => [
-            `${unit.originalGoalId}:${unit.unitKey}`,
-            unit.scheduledDate,
-          ])
-        );
-        const refreshedDatesByKey = new Map(
-          refreshedPreview.workUnits.map((unit) => [
-            `${unit.originalGoalId}:${unit.unitKey}`,
-            unit.scheduledDate,
-          ])
-        );
-        let assignmentChanges = 0;
-        for (const key of new Set([
-          ...previousDatesByKey.keys(),
-          ...refreshedDatesByKey.keys(),
-        ])) {
-          if (previousDatesByKey.get(key) !== refreshedDatesByKey.get(key)) {
-            assignmentChanges += 1;
-          }
-        }
+        const assignmentChanges = countAssignmentChanges({
+          previousWorkUnits: effectivePreview?.workUnits,
+          refreshedWorkUnits: refreshedPreview.workUnits,
+        });
         if (context.scopeMonth) {
           applyDraftPolicy(context.scopeMonth, result.policy);
         }
@@ -556,15 +536,10 @@ export function usePlannerCoach({
   }, [appendCoachContextEvent]);
 
   const requestCalendarEditsFromCoach = useCallback(() => {
-    const goalHint =
-      coachFocusGoalIds.length > 0
-        ? `Current focus goals: ${coachFocusGoalIds
-            .map(
-              (goalId) =>
-                `${goalId} (${context?.goalTitles?.[goalId] ?? "Untitled goal"})`
-            )
-            .join(", ")}.`
-        : "There are no focus goals in the current planner scope.";
+    const goalHint = buildCoachGoalHint({
+      focusGoalIds: coachFocusGoalIds,
+      goalTitles: context?.goalTitles,
+    });
     setCoachInput(
       `Please convert your guidance into concrete calendar intent I can apply now. Make safe assumptions and keep them explicit. ${goalHint} Use action="apply" for concrete scheduling edits. Restrict edits to restWeekdays and blackout ranges; use action="needs_goal" when the request cannot be represented by those planner fields.`.trim()
     );
