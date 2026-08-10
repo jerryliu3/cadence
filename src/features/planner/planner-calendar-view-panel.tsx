@@ -23,27 +23,40 @@ import type {
 } from "@/features/planner/calendar-surface.types";
 import {
   selectPlannerEntryCompletionToggleViewModel,
+  type PlannerCalendarSaveStateModel,
   type PlannerCalendarDayCellRenderModel,
+  type PlannerCalendarViewModel,
 } from "@/features/planner/calendar-selectors";
 
-interface PlannerCalendarViewPanelProps {
+export interface PlannerCalendarViewPanelViewModel
+  extends Pick<
+    PlannerCalendarViewModel,
+    | "viewHeading"
+    | "viewHeadingControlWidth"
+    | "previousWindowAriaLabel"
+    | "nextWindowAriaLabel"
+    | "canResetViewWindow"
+    | "viewDescription"
+  > {
   viewMode: PlannerCalendarViewMode;
   plannerViewModes: readonly {
     value: PlannerCalendarViewMode;
     label: string;
   }[];
   loading: boolean;
-  viewHeading: string;
-  viewHeadingControlWidth: string;
-  previousWindowAriaLabel: string;
-  nextWindowAriaLabel: string;
-  moveViewWindow: (direction: -1 | 1) => void;
-  canResetViewWindow: boolean;
-  resetViewWindow: () => void;
   expandedMonthRows: boolean;
-  setExpandedMonthRows: Dispatch<SetStateAction<boolean>>;
-  setCalendarViewMode: (nextViewMode: PlannerCalendarViewMode) => void;
-  viewDescription: string;
+  focusedDay: string;
+  focusedDayEntries: PlannerDayDetailEntry[];
+  focusedDayCompletionFactMarkers: PlannerCompletionFactMarker[];
+  previewDayEntries: PlannerDayDetailEntry[];
+  previewDayCompletionFactMarkers: PlannerCompletionFactMarker[];
+  mutationLoading: boolean;
+  weekdayLabels: string[];
+  calendarGridDayCellModels: PlannerCalendarDayCellRenderModel[];
+  dayPreview: DayPreviewState | null;
+}
+
+export interface PlannerCalendarViewPanelDndModel {
   getDragEntryLabel: (entryKey: string) => string;
   getDragDayLabel: (day: string) => string;
   renderEntryDragOverlay: (entryKey: string) => ReactNode;
@@ -53,12 +66,9 @@ interface PlannerCalendarViewPanelProps {
     target: PlannerDragTarget
   ) => void;
   handleDndEntryDragCancel: (entryKey: string | null) => void;
-  focusedDay: string;
-  focusedDayEntries: PlannerDayDetailEntry[];
-  focusedDayCompletionFactMarkers: PlannerCompletionFactMarker[];
-  previewDayEntries: PlannerDayDetailEntry[];
-  previewDayCompletionFactMarkers: PlannerCompletionFactMarker[];
-  mutationLoading: boolean;
+}
+
+export interface PlannerCalendarViewPanelEntryModel {
   getEntryDisplayTitleWithTime: (entry: PlannerDayDetailEntry) => string;
   getEntrySubtitle: (entry: {
     goalTitle: string | null;
@@ -70,7 +80,6 @@ interface PlannerCalendarViewPanelProps {
     day: string | null
   ) => boolean;
   isEntryImmovableForDraft: (entry: PlannerDayDetailEntry) => boolean;
-  readOnlyMonthHint: string;
   getDateFactDispatchForEntry: (
     entry: PlannerDayDetailEntry,
     selectedDate?: string | null
@@ -79,6 +88,14 @@ interface PlannerCalendarViewPanelProps {
     entry: PlannerDayDetailEntry,
     dispatch: PlannerEntryDateFactDispatch | null
   ) => CompletionControlDisabledReason | null;
+  renderCalendarDayCell: (cellModel: PlannerCalendarDayCellRenderModel) => ReactNode;
+}
+
+export interface PlannerCalendarViewPanelHandlers {
+  moveViewWindow: (direction: -1 | 1) => void;
+  resetViewWindow: () => void;
+  setExpandedMonthRows: Dispatch<SetStateAction<boolean>>;
+  setCalendarViewMode: (nextViewMode: PlannerCalendarViewMode) => void;
   openDayDetails: (day: string) => void;
   toggleDateFact: (
     entry: PlannerDayDetailEntry,
@@ -86,12 +103,6 @@ interface PlannerCalendarViewPanelProps {
   ) => Promise<void>;
   suppressHoverForDrag: (options?: { clearPreview?: boolean }) => void;
   releaseHoverSuppression: () => void;
-  weekdayLabels: string[];
-  calendarGridDayCellModels: PlannerCalendarDayCellRenderModel[];
-  renderCalendarDayCell: (cellModel: PlannerCalendarDayCellRenderModel) => ReactNode;
-  draftSaveBlockedMessage: string | null;
-  dayPreview: DayPreviewState | null;
-  dayPreviewRef: RefObject<HTMLDivElement | null>;
   pinDayPreview: () => void;
   handleDayPreviewMouseEnter: () => void;
   handleDayPreviewMouseLeave: (day: string) => void;
@@ -103,57 +114,81 @@ interface PlannerCalendarViewPanelProps {
   ) => void;
 }
 
+interface PlannerCalendarViewPanelProps {
+  viewModel: PlannerCalendarViewPanelViewModel;
+  saveState: Pick<
+    PlannerCalendarSaveStateModel,
+    "draftSaveBlockedMessage" | "readOnlyMonthHint"
+  >;
+  dndModel: PlannerCalendarViewPanelDndModel;
+  entryModel: PlannerCalendarViewPanelEntryModel;
+  handlers: PlannerCalendarViewPanelHandlers;
+  dayPreviewRef: RefObject<HTMLDivElement | null>;
+}
+
 export function PlannerCalendarViewPanel({
-  viewMode,
-  plannerViewModes,
-  loading,
-  viewHeading,
-  viewHeadingControlWidth,
-  previousWindowAriaLabel,
-  nextWindowAriaLabel,
-  moveViewWindow,
-  canResetViewWindow,
-  resetViewWindow,
-  expandedMonthRows,
-  setExpandedMonthRows,
-  setCalendarViewMode,
-  viewDescription,
-  getDragEntryLabel,
-  getDragDayLabel,
-  renderEntryDragOverlay,
-  handleDndEntryDragStart,
-  handleDndEntryDragEnd,
-  handleDndEntryDragCancel,
-  focusedDay,
-  focusedDayEntries,
-  focusedDayCompletionFactMarkers,
-  previewDayEntries,
-  previewDayCompletionFactMarkers,
-  mutationLoading,
-  getEntryDisplayTitleWithTime,
-  getEntrySubtitle,
-  isEntryCredited,
-  canMutateEntryOnDay,
-  isEntryImmovableForDraft,
-  readOnlyMonthHint,
-  getDateFactDispatchForEntry,
-  completionControlDisabledReasonForEntry,
-  openDayDetails,
-  toggleDateFact,
-  suppressHoverForDrag,
-  releaseHoverSuppression,
-  weekdayLabels,
-  calendarGridDayCellModels,
-  renderCalendarDayCell,
-  draftSaveBlockedMessage,
-  dayPreview,
+  viewModel,
+  saveState,
+  dndModel,
+  entryModel,
+  handlers,
   dayPreviewRef,
-  pinDayPreview,
-  handleDayPreviewMouseEnter,
-  handleDayPreviewMouseLeave,
-  clearDayPreview,
-  onSelectedDayChange,
 }: PlannerCalendarViewPanelProps) {
+  const {
+    viewMode,
+    plannerViewModes,
+    loading,
+    viewHeading,
+    viewHeadingControlWidth,
+    previousWindowAriaLabel,
+    nextWindowAriaLabel,
+    canResetViewWindow,
+    expandedMonthRows,
+    viewDescription,
+    focusedDay,
+    focusedDayEntries,
+    focusedDayCompletionFactMarkers,
+    previewDayEntries,
+    previewDayCompletionFactMarkers,
+    mutationLoading,
+    weekdayLabels,
+    calendarGridDayCellModels,
+    dayPreview,
+  } = viewModel;
+  const { draftSaveBlockedMessage, readOnlyMonthHint } = saveState;
+  const {
+    getDragEntryLabel,
+    getDragDayLabel,
+    renderEntryDragOverlay,
+    handleDndEntryDragStart,
+    handleDndEntryDragEnd,
+    handleDndEntryDragCancel,
+  } = dndModel;
+  const {
+    getEntryDisplayTitleWithTime,
+    getEntrySubtitle,
+    isEntryCredited,
+    canMutateEntryOnDay,
+    isEntryImmovableForDraft,
+    getDateFactDispatchForEntry,
+    completionControlDisabledReasonForEntry,
+    renderCalendarDayCell,
+  } = entryModel;
+  const {
+    moveViewWindow,
+    resetViewWindow,
+    setExpandedMonthRows,
+    setCalendarViewMode,
+    openDayDetails,
+    toggleDateFact,
+    suppressHoverForDrag,
+    releaseHoverSuppression,
+    pinDayPreview,
+    handleDayPreviewMouseEnter,
+    handleDayPreviewMouseLeave,
+    clearDayPreview,
+    onSelectedDayChange,
+  } = handlers;
   const focusedDayLabel = format(parse(focusedDay, "yyyy-MM-dd", new Date()), "EEE MMM d");
   const dayPreviewHeading = dayPreview
     ? format(parse(dayPreview.day, "yyyy-MM-dd", new Date()), "EEEE, MMM d")

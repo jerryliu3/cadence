@@ -214,6 +214,10 @@ export function selectPlannerCalendarViewModel({
   };
 }
 
+export type PlannerCalendarViewModel = ReturnType<
+  typeof selectPlannerCalendarViewModel
+>;
+
 /**
  * Save blocking is per scope month, not per calendar view. A draft can dirty
  * several months at once, and each one is validated against its own preview --
@@ -301,6 +305,10 @@ export function selectPlannerCalendarSaveStateModel({
     readOnlyMonthHint: READ_ONLY_MONTH_HINT,
   };
 }
+
+export type PlannerCalendarSaveStateModel = ReturnType<
+  typeof selectPlannerCalendarSaveStateModel
+>;
 
 
 export interface PlannerCalendarDayCellRenderModel {

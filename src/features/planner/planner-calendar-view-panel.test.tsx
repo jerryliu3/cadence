@@ -111,9 +111,7 @@ function buildDispatch(): PlannerEntryDateFactDispatch {
   };
 }
 
-function createProps(
-  overrides: Partial<ComponentProps<typeof PlannerCalendarViewPanel>> = {}
-): ComponentProps<typeof PlannerCalendarViewPanel> {
+function createProps(): ComponentProps<typeof PlannerCalendarViewPanel> {
   const defaultEntry = buildEntry();
   const cellModels = [buildCellModel("2026-08-10"), buildCellModel("2026-08-11")];
   const renderCalendarDayCell = vi.fn((model: PlannerCalendarDayCellRenderModel) => (
@@ -123,60 +121,69 @@ function createProps(
   ));
 
   return {
-    viewMode: "month",
-    plannerViewModes: [
-      { value: "month", label: "Month" },
-      { value: "week", label: "Week" },
-      { value: "day", label: "Day" },
-    ],
-    loading: false,
-    viewHeading: "August 2026",
-    viewHeadingControlWidth: "min(100%, 20rem)",
-    previousWindowAriaLabel: "Previous month",
-    nextWindowAriaLabel: "Next month",
-    moveViewWindow: vi.fn(),
-    canResetViewWindow: true,
-    resetViewWindow: vi.fn(),
-    expandedMonthRows: false,
-    setExpandedMonthRows: vi.fn(),
-    setCalendarViewMode: vi.fn(),
-    viewDescription: "Month view description",
-    getDragEntryLabel: (entryKey) => entryKey,
-    getDragDayLabel: (day) => day,
-    renderEntryDragOverlay: (entryKey) => entryKey,
-    handleDndEntryDragStart: vi.fn(),
-    handleDndEntryDragEnd: vi.fn(),
-    handleDndEntryDragCancel: vi.fn(),
-    focusedDay: "2026-08-12",
-    focusedDayEntries: [defaultEntry],
-    focusedDayCompletionFactMarkers: [] as PlannerCompletionFactMarker[],
-    previewDayEntries: [defaultEntry],
-    previewDayCompletionFactMarkers: [] as PlannerCompletionFactMarker[],
-    mutationLoading: false,
-    getEntryDisplayTitleWithTime: (entry) => entry.label ?? "Untitled",
-    getEntrySubtitle: () => null,
-    isEntryCredited: () => false,
-    canMutateEntryOnDay: () => true,
-    isEntryImmovableForDraft: () => false,
-    readOnlyMonthHint: "Read-only month",
-    getDateFactDispatchForEntry: () => buildDispatch(),
-    completionControlDisabledReasonForEntry: () => null,
-    openDayDetails: vi.fn(),
-    toggleDateFact: vi.fn(async () => {}),
-    suppressHoverForDrag: vi.fn(),
-    releaseHoverSuppression: vi.fn(),
-    weekdayLabels: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
-    calendarGridDayCellModels: cellModels,
-    renderCalendarDayCell,
-    draftSaveBlockedMessage: null,
-    dayPreview: null,
+    viewModel: {
+      viewMode: "month",
+      plannerViewModes: [
+        { value: "month", label: "Month" },
+        { value: "week", label: "Week" },
+        { value: "day", label: "Day" },
+      ],
+      loading: false,
+      viewHeading: "August 2026",
+      viewHeadingControlWidth: "min(100%, 20rem)",
+      previousWindowAriaLabel: "Previous month",
+      nextWindowAriaLabel: "Next month",
+      canResetViewWindow: true,
+      expandedMonthRows: false,
+      viewDescription: "Month view description",
+      focusedDay: "2026-08-12",
+      focusedDayEntries: [defaultEntry],
+      focusedDayCompletionFactMarkers: [] as PlannerCompletionFactMarker[],
+      previewDayEntries: [defaultEntry],
+      previewDayCompletionFactMarkers: [] as PlannerCompletionFactMarker[],
+      mutationLoading: false,
+      weekdayLabels: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
+      calendarGridDayCellModels: cellModels,
+      dayPreview: null,
+    },
+    saveState: {
+      draftSaveBlockedMessage: null,
+      readOnlyMonthHint: "Read-only month",
+    },
+    dndModel: {
+      getDragEntryLabel: (entryKey) => entryKey,
+      getDragDayLabel: (day) => day,
+      renderEntryDragOverlay: (entryKey) => entryKey,
+      handleDndEntryDragStart: vi.fn(),
+      handleDndEntryDragEnd: vi.fn(),
+      handleDndEntryDragCancel: vi.fn(),
+    },
+    entryModel: {
+      getEntryDisplayTitleWithTime: (entry) => entry.label ?? "Untitled",
+      getEntrySubtitle: () => null,
+      isEntryCredited: () => false,
+      canMutateEntryOnDay: () => true,
+      isEntryImmovableForDraft: () => false,
+      getDateFactDispatchForEntry: () => buildDispatch(),
+      completionControlDisabledReasonForEntry: () => null,
+      renderCalendarDayCell,
+    },
+    handlers: {
+      moveViewWindow: vi.fn(),
+      resetViewWindow: vi.fn(),
+      setExpandedMonthRows: vi.fn(),
+      setCalendarViewMode: vi.fn(),
+      openDayDetails: vi.fn(),
+      toggleDateFact: vi.fn(async () => {}),
+      suppressHoverForDrag: vi.fn(),
+      releaseHoverSuppression: vi.fn(),
+      pinDayPreview: vi.fn(),
+      handleDayPreviewMouseEnter: vi.fn(),
+      handleDayPreviewMouseLeave: vi.fn(),
+      clearDayPreview: vi.fn(),
+      onSelectedDayChange: vi.fn(),
+    },
     dayPreviewRef: { current: null },
-    pinDayPreview: vi.fn(),
-    handleDayPreviewMouseEnter: vi.fn(),
-    handleDayPreviewMouseLeave: vi.fn(),
-    clearDayPreview: vi.fn(),
-    onSelectedDayChange: vi.fn(),
-    ...overrides,
   };
 }
 
@@ -192,12 +199,11 @@ describe("PlannerCalendarViewPanel", () => {
       </div>
     ));
 
-    const props = createProps({
-      moveViewWindow,
-      setCalendarViewMode,
-      resetViewWindow,
-      renderCalendarDayCell,
-    });
+    const props = createProps();
+    props.handlers.moveViewWindow = moveViewWindow;
+    props.handlers.setCalendarViewMode = setCalendarViewMode;
+    props.handlers.resetViewWindow = resetViewWindow;
+    props.entryModel.renderCalendarDayCell = renderCalendarDayCell;
     render(<PlannerCalendarViewPanel {...props} />);
 
     expect(renderCalendarDayCell).toHaveBeenCalledTimes(2);
@@ -220,20 +226,19 @@ describe("PlannerCalendarViewPanel", () => {
     const clearDayPreview = vi.fn();
     const onSelectedDayChange = vi.fn();
 
-    const props = createProps({
-      dayPreview: {
-        day: "2026-08-15",
-        pinned: true,
-        position: {
-          top: 80,
-          left: 20,
-          width: 260,
-          placement: "below",
-        },
+    const props = createProps();
+    props.viewModel.dayPreview = {
+      day: "2026-08-15",
+      pinned: true,
+      position: {
+        top: 80,
+        left: 20,
+        width: 260,
+        placement: "below",
       },
-      clearDayPreview,
-      onSelectedDayChange,
-    });
+    };
+    props.handlers.clearDayPreview = clearDayPreview;
+    props.handlers.onSelectedDayChange = onSelectedDayChange;
     render(<PlannerCalendarViewPanel {...props} />);
 
     await user.click(screen.getByRole("button", { name: "Day view" }));
@@ -248,13 +253,12 @@ describe("PlannerCalendarViewPanel", () => {
     const openDayDetails = vi.fn();
     const toggleDateFact = vi.fn(async () => {});
 
-    const props = createProps({
-      viewMode: "day",
-      focusedDay: "2026-08-12",
-      focusedDayEntries: [entry],
-      openDayDetails,
-      toggleDateFact,
-    });
+    const props = createProps();
+    props.viewModel.viewMode = "day";
+    props.viewModel.focusedDay = "2026-08-12";
+    props.viewModel.focusedDayEntries = [entry];
+    props.handlers.openDayDetails = openDayDetails;
+    props.handlers.toggleDateFact = toggleDateFact;
     render(<PlannerCalendarViewPanel {...props} />);
 
     const dayList = screen.getByTestId("preview-list-2026-08-12");

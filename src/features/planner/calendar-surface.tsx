@@ -524,16 +524,7 @@ export function CalendarSurface({
 
   const canShowSetup = !context?.preferences;
   const showBlockingLoading = loading && context === null;
-  const {
-    todayMonth,
-    safeFocusedDay,
-    viewHeading,
-    viewHeadingControlWidth,
-    viewDescription,
-    previousWindowAriaLabel,
-    nextWindowAriaLabel,
-    canResetViewWindow,
-  } = useMemo(
+  const plannerCalendarViewModel = useMemo(
     () =>
       selectPlannerCalendarViewModel({
         month,
@@ -555,6 +546,7 @@ export function CalendarSurface({
       weekStartsOn,
     ]
   );
+  const { todayMonth, safeFocusedDay } = plannerCalendarViewModel;
   const moveViewWindow = (direction: -1 | 1) => {
     if (viewMode === "month") {
       if (!month) {
@@ -584,15 +576,7 @@ export function CalendarSurface({
     clearDayPreview();
     onViewModeChange(nextViewMode, "push");
   };
-  const {
-    scopeMonthsForSaveAction,
-    draftSaveBlocked,
-    draftSaveBlockedMessage,
-    canResetPlan,
-    canShowSaveAction,
-    saveButtonLabel,
-    readOnlyMonthHint,
-  } = selectPlannerCalendarSaveStateModel({
+  const plannerCalendarSaveStateModel = selectPlannerCalendarSaveStateModel({
     context,
     effectivePreview,
     hasDraftSession,
@@ -601,6 +585,14 @@ export function CalendarSurface({
     draftPreviewByScope,
     visibleMonthContexts,
   });
+  const {
+    scopeMonthsForSaveAction,
+    draftSaveBlocked,
+    draftSaveBlockedMessage,
+    canResetPlan,
+    canShowSaveAction,
+    saveButtonLabel,
+  } = plannerCalendarSaveStateModel;
   const openDayDetails = (day: string) => {
     prepareForDayDetailOpen();
     setDayDetailDay(day);
@@ -841,57 +833,57 @@ export function CalendarSurface({
       ) : month ? (
         <>
           <PlannerCalendarViewPanel
-            viewMode={viewMode}
-            plannerViewModes={PLANNER_VIEW_MODES}
-            loading={loading}
-            viewHeading={viewHeading}
-            viewHeadingControlWidth={viewHeadingControlWidth}
-            previousWindowAriaLabel={previousWindowAriaLabel}
-            nextWindowAriaLabel={nextWindowAriaLabel}
-            moveViewWindow={moveViewWindow}
-            canResetViewWindow={canResetViewWindow}
-            resetViewWindow={resetViewWindow}
-            expandedMonthRows={expandedMonthRows}
-            setExpandedMonthRows={setExpandedMonthRows}
-            setCalendarViewMode={setCalendarViewMode}
-            viewDescription={viewDescription}
-            getDragEntryLabel={getDragEntryLabel}
-            getDragDayLabel={getDragDayLabel}
-            renderEntryDragOverlay={renderEntryDragOverlay}
-            handleDndEntryDragStart={handleDndEntryDragStart}
-            handleDndEntryDragEnd={handleDndEntryDragEnd}
-            handleDndEntryDragCancel={handleDndEntryDragCancel}
-            focusedDay={focusedDay}
-            focusedDayEntries={focusedDayEntries}
-            focusedDayCompletionFactMarkers={focusedDayCompletionFactMarkers}
-            previewDayEntries={previewDayEntries}
-            previewDayCompletionFactMarkers={previewDayCompletionFactMarkers}
-            mutationLoading={Boolean(mutationLoadingKey)}
-            getEntryDisplayTitleWithTime={getEntryDisplayTitleWithTime}
-            getEntrySubtitle={getEntrySubtitle}
-            isEntryCredited={isEntryCredited}
-            canMutateEntryOnDay={canMutateEntryOnDay}
-            isEntryImmovableForDraft={isEntryImmovableForDraft}
-            readOnlyMonthHint={readOnlyMonthHint}
-            getDateFactDispatchForEntry={getDateFactDispatchForEntry}
-            completionControlDisabledReasonForEntry={
-              completionControlDisabledReasonForEntry
-            }
-            openDayDetails={openDayDetails}
-            toggleDateFact={toggleDateFact}
-            suppressHoverForDrag={suppressHoverForDrag}
-            releaseHoverSuppression={releaseHoverSuppression}
-            weekdayLabels={weekdayLabels}
-            calendarGridDayCellModels={calendarGridDayCellModels}
-            renderCalendarDayCell={renderCalendarDayCell}
-            draftSaveBlockedMessage={draftSaveBlockedMessage}
-            dayPreview={dayPreview}
+            viewModel={{
+              ...plannerCalendarViewModel,
+              viewMode,
+              plannerViewModes: PLANNER_VIEW_MODES,
+              loading,
+              expandedMonthRows,
+              focusedDay,
+              focusedDayEntries,
+              focusedDayCompletionFactMarkers,
+              previewDayEntries,
+              previewDayCompletionFactMarkers,
+              mutationLoading: Boolean(mutationLoadingKey),
+              weekdayLabels,
+              calendarGridDayCellModels,
+              dayPreview,
+            }}
+            saveState={plannerCalendarSaveStateModel}
+            dndModel={{
+              getDragEntryLabel,
+              getDragDayLabel,
+              renderEntryDragOverlay,
+              handleDndEntryDragStart,
+              handleDndEntryDragEnd,
+              handleDndEntryDragCancel,
+            }}
+            entryModel={{
+              getEntryDisplayTitleWithTime,
+              getEntrySubtitle,
+              isEntryCredited,
+              canMutateEntryOnDay,
+              isEntryImmovableForDraft,
+              getDateFactDispatchForEntry,
+              completionControlDisabledReasonForEntry,
+              renderCalendarDayCell,
+            }}
+            handlers={{
+              moveViewWindow,
+              resetViewWindow,
+              setExpandedMonthRows,
+              setCalendarViewMode,
+              openDayDetails,
+              toggleDateFact,
+              suppressHoverForDrag,
+              releaseHoverSuppression,
+              pinDayPreview,
+              handleDayPreviewMouseEnter,
+              handleDayPreviewMouseLeave,
+              clearDayPreview,
+              onSelectedDayChange,
+            }}
             dayPreviewRef={dayPreviewRef}
-            pinDayPreview={pinDayPreview}
-            handleDayPreviewMouseEnter={handleDayPreviewMouseEnter}
-            handleDayPreviewMouseLeave={handleDayPreviewMouseLeave}
-            clearDayPreview={clearDayPreview}
-            onSelectedDayChange={onSelectedDayChange}
           />
 
           <PlannerCoachPanel coach={coach} />
