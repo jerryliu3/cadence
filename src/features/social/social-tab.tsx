@@ -37,12 +37,14 @@ import {
   getCategoryLabel,
   getCategorySwatchColor,
 } from "@/lib/goals/category";
+import { groupCompletionsByGoalId } from "@/lib/goals/completion-grouping";
 import {
   isOrdinalGoalDefinition,
   validateGoalDefinition,
 } from "@/lib/goals/definition-validation";
 import { toLocalDateString } from "@/lib/dates/day";
 import { GOAL_TYPE_OPTIONS, RECURRENCE_INTERVAL_OPTIONS } from "@/lib/goals/form-options";
+import { buildMilestoneNames, defaultMilestoneName } from "@/lib/goals/milestones";
 import { getGoalCompletionPercentage } from "@/lib/goals/progress";
 import { MonthHeatmap } from "@/features/insights/month-heatmap";
 import { NotificationSettings } from "@/features/settings/notification-settings";
@@ -93,25 +95,11 @@ const initialState: SocialState = {
   profileDirectory: {},
 };
 
-function groupCompletionsByGoal(completions: Completion[]) {
-  const map = new Map<string, Completion[]>();
-  completions.forEach((completion) => {
-    const existing = map.get(completion.goal_id) ?? [];
-    existing.push(completion);
-    map.set(completion.goal_id, existing);
-  });
-  return map;
-}
-
 function getInitials(profile: Profile | null) {
   if (!profile) {
     return "??";
   }
   return (profile.display_name ?? profile.username).slice(0, 2).toUpperCase();
-}
-
-function defaultMilestoneName(index: number): string {
-  return `Milestone ${index + 1}`;
 }
 
 function parsePositiveTargetCount(value: string): number | null {
@@ -120,14 +108,6 @@ function parsePositiveTargetCount(value: string): number | null {
     return null;
   }
   return parsed;
-}
-
-function buildMilestoneNames(targetCount: number, names: string[] | null | undefined): string[] {
-  const safeTarget = Math.max(targetCount, 1);
-  return Array.from({ length: safeTarget }, (_, index) => {
-    const value = names?.[index]?.trim();
-    return value && value.length > 0 ? value : defaultMilestoneName(index);
-  });
 }
 
 function getSortedCompletionDates(completions: Completion[]): string[] {
@@ -508,7 +488,7 @@ export function SocialTab() {
   );
 
   const completionsByGoal = useMemo(
-    () => groupCompletionsByGoal(state.completions),
+    () => groupCompletionsByGoalId(state.completions),
     [state.completions]
   );
   const parsedGroupTargetCount = parsePositiveTargetCount(groupDraft.targetCount);

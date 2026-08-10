@@ -44,6 +44,14 @@ import {
   fetchProgressContext,
   progressSummaryMap,
 } from "@/lib/goals/progress-context";
+import {
+  getLinkedGoalDeadlineLabel,
+  getLinkedGoalRecurrenceLabel,
+} from "@/lib/goals/linked-goal-labels";
+import {
+  defaultMilestoneName,
+  normalizeMilestoneNamesForSave,
+} from "@/lib/goals/milestones";
 import type { Goal, GoalFrequencyType, RecurrenceInterval } from "@/lib/goals/types";
 import {
   isOrdinalGoalDefinition,
@@ -120,10 +128,6 @@ type BulkInputMode = "natural_language" | "csv";
 const csvExample = `title,description,category,color,is_group,frequency_type,recurrence_interval,target_count,milestone_names,start_date,end_date,default_local_time
 Morning run,Train for a half marathon,Health,#16a34a,false,recurring,daily,20,,2026-06-01,2026-12-31,06:45
 Read 12 books,One book per month,Personal,#6366f1,false,fixed,,12,Book 1|Book 2|Book 3,2026-06-01,2026-12-31,`;
-
-function defaultMilestoneName(index: number): string {
-  return `Milestone ${index + 1}`;
-}
 
 function normalizeHeaderKey(header: string): string {
   return header.trim().toLowerCase().replace(/[^a-z0-9]+/g, "_");
@@ -222,13 +226,6 @@ function normalizeLocalTimeValue(raw: string): string {
 
 function trimMilestoneNames(names: string[], targetCount: number): string[] {
   return Array.from({ length: Math.max(targetCount, 0) }, (_, index) => names[index] ?? "");
-}
-
-function normalizeMilestoneNamesForSave(count: number, names: string[]): string[] {
-  return Array.from({ length: count }, (_, index) => {
-    const value = names[index]?.trim();
-    return value && value.length > 0 ? value : defaultMilestoneName(index);
-  });
 }
 
 function parseMilestoneNames(raw: string): string[] {
@@ -400,26 +397,6 @@ async function parseRowsFromSpreadsheetFile(
     defval: "",
     raw: false,
   });
-}
-
-function getLinkedGoalRecurrenceLabel(goal: Goal): string {
-  if (goal.frequency_type === "fixed_milestones") {
-    return "Milestone";
-  }
-
-  if (goal.recurrence_interval === "weekly") {
-    return "Weekly";
-  }
-
-  if (goal.recurrence_interval === "monthly") {
-    return "Monthly";
-  }
-
-  return "Daily";
-}
-
-function getLinkedGoalDeadlineLabel(goal: Goal): string {
-  return goal.end_date ? `Due ${goal.end_date}` : "No deadline";
 }
 
 export function BulkGoalForm() {
