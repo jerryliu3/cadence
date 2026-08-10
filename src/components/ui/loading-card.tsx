@@ -1,6 +1,6 @@
 "use client";
 
-import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { StateCard } from "@/components/ui/state-card";
 
 interface LoadingCardProps {
   title: string;
@@ -8,12 +8,5 @@ interface LoadingCardProps {
 }
 
 export function LoadingCard({ title, description }: LoadingCardProps) {
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{title}</CardTitle>
-        {description ? <CardDescription>{description}</CardDescription> : null}
-      </CardHeader>
-    </Card>
-  );
+  return <StateCard layout="card" title={title} description={description} />;
 }

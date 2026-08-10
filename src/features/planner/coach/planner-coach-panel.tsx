@@ -10,6 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { StateCard } from "@/components/ui/state-card";
 import { Textarea } from "@/components/ui/textarea";
 import type { PlannerCoachModel } from "@/features/planner/coach/coach-types";
 
@@ -90,16 +91,19 @@ export function PlannerCoachPanel({ coach }: PlannerCoachPanelProps) {
         </Select>
       </div>
       {!state.coachConversationsLoading && state.savedCoachConversations.length === 0 ? (
-        <p className="mb-3 text-xs text-muted-foreground">
-          No saved coach conversations yet.
-        </p>
+        <StateCard
+          title="No saved coach conversations yet."
+          compact
+          className="mb-3 bg-background/60"
+        />
       ) : null}
       <div className="max-h-72 space-y-2 overflow-y-auto rounded-md border p-3">
         {state.coachMessages.length === 0 ? (
-          <p className="rounded-md border border-primary/20 bg-primary/10 px-3 py-2 text-sm text-muted-foreground">
-            Start with a goal question, for example: &quot;Help me build a 4-week
-            running routine.&quot;
-          </p>
+          <StateCard
+            title='Start with a goal question, for example: "Help me build a 4-week running routine."'
+            compact
+            className="border-primary/20 bg-primary/10"
+          />
         ) : (
           state.coachMessages.map((message, index) => (
             <div

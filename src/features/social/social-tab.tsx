@@ -23,6 +23,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { LoadingCard } from "@/components/ui/loading-card";
 import { PeriodStepper } from "@/components/ui/period-stepper";
+import { StateCard } from "@/components/ui/state-card";
 import {
   Select,
   SelectContent,
@@ -1003,7 +1004,12 @@ export function SocialTab() {
             />
           </div>
           {state.sharedGoals.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No goals have been shared with you yet.</p>
+            <StateCard
+              title="No goals have been shared with you yet."
+              compact
+              dashed
+              className="bg-background/60"
+            />
           ) : (
             state.sharedGoals.map((goal) => {
               const owner = state.sharedOwners[goal.id];
@@ -1086,7 +1092,12 @@ export function SocialTab() {
           />
 
           {state.groupGoals.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No group goals available yet.</p>
+            <StateCard
+              title="No group goals available yet."
+              compact
+              dashed
+              className="bg-background/60"
+            />
           ) : (
             state.groupGoals.map((goal) => {
               const goalParticipants = state.participants.filter(

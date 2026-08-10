@@ -4,6 +4,7 @@ import { Bell, BellOff, Clock3, LoaderCircle, Plus, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { StateCard } from "@/components/ui/state-card";
 import {
   Select,
   SelectContent,
@@ -104,9 +105,7 @@ export function NotificationScheduleSection({
           Loading reminders…
         </div>
       ) : schedules.length === 0 ? (
-        <div className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">
-          No daily reminders yet.
-        </div>
+        <StateCard title="No daily reminders yet." centered dashed compact />
       ) : (
         <div className="space-y-2">
           {schedules.map((schedule) => {
