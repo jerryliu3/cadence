@@ -3,6 +3,7 @@
 import { eachDayOfInterval, endOfMonth, format, getISODay, startOfMonth } from "date-fns";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { getHeatmapScaleClass } from "@/lib/goals/heatmap";
 import { cn } from "@/lib/utils";
 
 interface MonthHeatmapProps {
@@ -16,22 +17,6 @@ interface MonthHeatmapProps {
 }
 
 const weekdayHeaders = ["M", "T", "W", "Th", "F", "S", "Su"];
-
-function getScaleClass(value: number) {
-  if (value <= 0) {
-    return "heatmap-scale-0";
-  }
-  if (value === 1) {
-    return "heatmap-scale-1";
-  }
-  if (value === 2) {
-    return "heatmap-scale-2";
-  }
-  if (value === 3) {
-    return "heatmap-scale-3";
-  }
-  return "heatmap-scale-4";
-}
 
 export function MonthHeatmap({
   month,
@@ -103,7 +88,7 @@ export function MonthHeatmap({
                   disabled={pendingDate === key}
                   className={cn(
                     "flex size-8 items-center justify-center rounded-md text-[10px] text-muted-foreground transition-transform hover:scale-105 hover:ring-2 hover:ring-primary/30 disabled:opacity-60",
-                    getScaleClass(value)
+                    getHeatmapScaleClass(value)
                   )}
                 >
                   {format(day, "d")}
@@ -117,7 +102,7 @@ export function MonthHeatmap({
                 title={`${key}: ${value} completion${value === 1 ? "" : "s"}`}
                 className={cn(
                   "flex size-8 items-center justify-center rounded-md text-[10px] text-muted-foreground",
-                  getScaleClass(value)
+                  getHeatmapScaleClass(value)
                 )}
               >
                 {format(day, "d")}

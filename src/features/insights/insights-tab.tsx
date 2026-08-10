@@ -34,18 +34,35 @@ import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { GoalEndMonthBadge } from "@/features/goals/goal-end-month-badge";
 import { GoalListControls } from "@/features/goals/goal-list-controls";
+import { GoalsSurfaceLoadingCard } from "@/features/goals/goals-surface-loading-card";
 import { MonthHeatmap } from "@/features/insights/month-heatmap";
 import { getApiErrorMessage } from "@/lib/api/client";
 import { isAbortError, withAbortSignal } from "@/lib/async/abort";
 import { getCategoryBadgeClass } from "@/lib/goals/category";
-import { groupCompletionsByGoalId } from "@/lib/goals/completion-grouping";
+import {
+  countCompletionsByDate,
+  getSortedCompletionDates,
+  groupCompletionsByGoalId,
+} from "@/lib/goals/completion-grouping";
+import {
+  buildCompletableGoalIds,
+  filterCompletionsForGoalIds,
+  selectCompletableGoals,
+} from "@/lib/goals/completable-goals";
+import { resolveSelectedDateState, toLocalDateString } from "@/lib/dates/day";
 import {
   filterGoalsByEndMonth,
   partitionGoalsByVisibleStart,
+  resolveEffectiveEndMonth,
   sortGoalsByDate,
   type GoalDateSort,
 } from "@/lib/goals/list-view";
-import { buildMilestoneNames, defaultMilestoneName, areMilestoneNamesEqual } from "@/lib/goals/milestones";
+import {
+  areMilestoneNamesEqual,
+  buildMilestoneNames,
+  defaultMilestoneName,
+} from "@/lib/goals/milestones";
+import { getHeatmapScaleClass } from "@/lib/goals/heatmap";
 import {
   fetchProgressContext,
   progressSummaryMap,
@@ -84,21 +101,6 @@ const emptyInsights: InsightsData = {
 };
 
 type HeatmapViewMode = "month" | "year";
-
-function goalCompletionCountsByDate(completions: CompletionDateFact[]) {
-  return completions.reduce<Record<string, number>>((accumulator, completion) => {
-    accumulator[completion.completed_on] = (accumulator[completion.completed_on] ?? 0) + 1;
-    return accumulator;
-  }, {});
-}
-
-function scaleClass(count: number) {
-  if (!count) return "heatmap-scale-0";
-  if (count === 1) return "heatmap-scale-1";
-  if (count === 2) return "heatmap-scale-2";
-  if (count === 3) return "heatmap-scale-3";
-  return "heatmap-scale-4";
-}
 
 const aggregateWeekdayLabels: [string, string, string, string, string, string, string] = [
   "Su",
@@ -166,12 +168,6 @@ function MilestoneSteps({ targetCount, completionDates, milestoneNames = [] }: M
         </button>
       ) : null}
     </div>
-  );
-}
-
-function getSortedCompletionDates(completions: CompletionDateFact[]): string[] {
-  return Array.from(new Set(completions.map((completion) => completion.completed_on))).sort((a, b) =>
-    a.localeCompare(b)
   );
 }
 
@@ -247,7 +243,7 @@ export function InsightsTab() {
               supabase.from("goals").select("*").eq("is_deleted", false).order("title"),
               supabase.from("goal_participants").select("*").eq("user_id", user.id),
               fetchProgressContext({
-                asOfDate: format(new Date(), "yyyy-MM-dd"),
+                asOfDate: toLocalDateString(),
                 factsFrom: yearStart,
                 factsTo: yearEnd,
                 forceRefresh,
@@ -298,31 +294,24 @@ export function InsightsTab() {
     void run();
   }, [loadData]);
 
-  const completableGoalIds = useMemo(() => {
-    const ids = new Set<string>();
-    const visibleGoalIds = new Set(state.goals.map((goal) => goal.id));
-
-    state.goals.forEach((goal) => {
-      if (goal.owner_id === state.userId) {
-        ids.add(goal.id);
-      }
-    });
-
-    state.participants.forEach((participant) => {
-      if (visibleGoalIds.has(participant.goal_id)) {
-        ids.add(participant.goal_id);
-      }
-    });
-    return ids;
-  }, [state.goals, state.participants, state.userId]);
+  const completableGoalIds = useMemo(
+    () =>
+      buildCompletableGoalIds({
+        goals: state.goals,
+        participants: state.participants,
+        userId: state.userId,
+        restrictParticipantsToVisibleGoals: true,
+      }),
+    [state.goals, state.participants, state.userId]
+  );
 
   const personalGoals = useMemo(
-    () => state.goals.filter((goal) => completableGoalIds.has(goal.id)),
+    () => selectCompletableGoals(state.goals, completableGoalIds),
     [completableGoalIds, state.goals]
   );
 
   const personalCompletions = useMemo(
-    () => state.completions.filter((completion) => completableGoalIds.has(completion.goal_id)),
+    () => filterCompletionsForGoalIds(state.completions, completableGoalIds),
     [completableGoalIds, state.completions]
   );
 
@@ -336,7 +325,7 @@ export function InsightsTab() {
   );
 
   const aggregateCountsByDate = useMemo(
-    () => goalCompletionCountsByDate(personalCompletions),
+    () => countCompletionsByDate(personalCompletions),
     [personalCompletions]
   );
 
@@ -358,8 +347,10 @@ export function InsightsTab() {
     [monthCursor, perGoalViewMode]
   );
   const goalFilterStartMonth = visiblePeriodStart.slice(0, 7);
-  const effectiveGoalEndMonth =
-    goalEndMonth !== null && goalEndMonth >= goalFilterStartMonth ? goalEndMonth : null;
+  const effectiveGoalEndMonth = resolveEffectiveEndMonth(
+    goalEndMonth,
+    goalFilterStartMonth
+  );
   const normalizedGoalSearchQuery = useMemo(
     () => goalSearchQuery.trim().toLowerCase(),
     [goalSearchQuery]
@@ -420,7 +411,7 @@ export function InsightsTab() {
       }
 
       const isSelected = selectedDates.includes(completionDate);
-      const localToday = format(new Date(), "yyyy-MM-dd");
+      const localToday = toLocalDateString();
       if (completionDate > localToday && !isSelected) {
         toast.error("You can only select today or past dates.");
         return;
@@ -440,12 +431,7 @@ export function InsightsTab() {
         targetedRecurring: isTargetedRecurringGoal(goal),
         activePlanMembership: false,
         matchingItemState: "none",
-        selectedDateState:
-          completionDate < localToday
-            ? "past"
-            : completionDate > localToday
-              ? "future"
-              : "today",
+        selectedDateState: resolveSelectedDateState(completionDate, localToday),
         existingExactFact: isSelected,
         desiredFactState,
       });
@@ -497,7 +483,7 @@ export function InsightsTab() {
         return;
       }
 
-      const localToday = format(new Date(), "yyyy-MM-dd");
+      const localToday = toLocalDateString();
       if (completionDate > localToday && !hasCompletionOnDate) {
         toast.error("You can only select today or past dates.");
         return;
@@ -512,12 +498,7 @@ export function InsightsTab() {
         targetedRecurring: isTargetedRecurringGoal(goal),
         activePlanMembership: false,
         matchingItemState: "none",
-        selectedDateState:
-          completionDate < localToday
-            ? "past"
-            : completionDate > localToday
-              ? "future"
-              : "today",
+        selectedDateState: resolveSelectedDateState(completionDate, localToday),
         existingExactFact: hasCompletionOnDate,
         desiredFactState,
       });
@@ -681,12 +662,10 @@ export function InsightsTab() {
 
   if (loading) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Loading insights...</CardTitle>
-          <CardDescription>Crunching your completion history.</CardDescription>
-        </CardHeader>
-      </Card>
+      <GoalsSurfaceLoadingCard
+        title="Loading insights..."
+        description="Crunching your completion history."
+      />
     );
   }
 
@@ -707,7 +686,7 @@ export function InsightsTab() {
               values={aggregateHeatmapData}
               showWeekdayLabels
               weekdayLabels={aggregateWeekdayLabels}
-              classForValue={(value) => scaleClass(value?.count ?? 0)}
+              classForValue={(value) => getHeatmapScaleClass(value?.count ?? 0)}
               titleForValue={(value) =>
                 `${value?.date ?? "N/A"}: ${value?.count ?? 0} completion${
                   (value?.count ?? 0) === 1 ? "" : "s"
@@ -859,7 +838,7 @@ export function InsightsTab() {
                 progress?.admissibleCompletionCount ?? 0;
               const hasTargetCount = typeof goal.target_count === "number" && goal.target_count > 0;
               const completionCountLabel = getCompletionCountLabel(goal, completionCount);
-              const countsByDate = goalCompletionCountsByDate(completions);
+              const countsByDate = countCompletionsByDate(completions);
               const percent = progress?.percent ?? 0;
               const streaks = {
                 current: progress?.currentStreak ?? 0,
@@ -1017,7 +996,9 @@ export function InsightsTab() {
                               showWeekdayLabels
                               weekdayLabels={aggregateWeekdayLabels}
                               classForValue={(value) =>
-                                `${scaleClass(value?.count ?? 0)}${editingHistory ? " cursor-pointer" : ""}`
+                                `${getHeatmapScaleClass(value?.count ?? 0)}${
+                                  editingHistory ? " cursor-pointer" : ""
+                                }`
                               }
                               titleForValue={(value) =>
                                 `${value?.date ?? "N/A"}: ${value?.count ?? 0} completion${
@@ -1100,7 +1081,9 @@ export function InsightsTab() {
                               showWeekdayLabels
                               weekdayLabels={aggregateWeekdayLabels}
                               classForValue={(value) =>
-                                `${scaleClass(value?.count ?? 0)}${editingHistory ? " cursor-pointer" : ""}`
+                                `${getHeatmapScaleClass(value?.count ?? 0)}${
+                                  editingHistory ? " cursor-pointer" : ""
+                                }`
                               }
                               titleForValue={(value) =>
                                 `${value?.date ?? "N/A"}: ${value?.count ?? 0} completion${

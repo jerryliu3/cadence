@@ -94,6 +94,16 @@ export function filterGoalsByEndMonth(goals: Goal[], endMonth: string | null): G
   return goals.filter((goal) => goal.end_date !== null && goal.end_date <= cutoff);
 }
 
+export function resolveEffectiveEndMonth(
+  endMonth: string | null,
+  referenceMonth: string
+): string | null {
+  if (endMonth === null) {
+    return null;
+  }
+  return endMonth >= referenceMonth ? endMonth : null;
+}
+
 export function partitionGoalsByVisibleStart(
   goals: Goal[],
   visibleStart: string

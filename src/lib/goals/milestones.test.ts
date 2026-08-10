@@ -35,19 +35,29 @@ describe("milestones helpers", () => {
     expect(buildMilestoneNames(0, [])).toEqual(["Milestone 1"]);
   });
 
-  it("compares milestone name arrays", () => {
+  it("compares milestone name arrays by value", () => {
     expect(areMilestoneNamesEqual(["A", "B"], ["A", "B"])).toBe(true);
-    expect(areMilestoneNamesEqual(["A", "B"], ["A", "C"])).toBe(false);
     expect(areMilestoneNamesEqual(["A"], ["A", "B"])).toBe(false);
+    expect(areMilestoneNamesEqual(["A", "B"], ["A", "C"])).toBe(false);
   });
 
-  it("resolves the next unfinished milestone label", () => {
+  it("resolves the next fixed milestone label", () => {
     expect(
       getNextMilestoneName(
         {
           frequency_type: "fixed_milestones",
           target_count: 3,
-          milestone_names: ["Draft", "", "Ship"],
+          milestone_names: ["Kickoff", "Midpoint", "Finish"],
+        },
+        1
+      )
+    ).toBe("Midpoint");
+    expect(
+      getNextMilestoneName(
+        {
+          frequency_type: "fixed_milestones",
+          target_count: 3,
+          milestone_names: ["Kickoff", "", "Finish"],
         },
         1
       )
