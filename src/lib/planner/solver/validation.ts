@@ -58,33 +58,20 @@ export function validateSolverResult(
     existing.push(unit);
     byGoal.set(unit.goalId, existing);
   }
+  // Ordinal no longer constrains scheduling, so neither date order nor a
+  // contiguous placed prefix is an invariant. One unit per goal per date still
+  // is.
   for (const goalUnits of byGoal.values()) {
-    goalUnits.sort((left, right) => left.ordinal - right.ordinal);
     const usedDates = new Set<string>();
-    let previousDate: string | null = null;
-    let prefixEnded = false;
     for (const unit of goalUnits) {
-      const enforceOrder = false;
       const date = assignmentByKey.get(getSolverUnitId(unit)) ?? null;
       if (date === null) {
-        if (enforceOrder) {
-          prefixEnded = true;
-        }
         continue;
       }
       if (usedDates.has(date)) {
         violations.add("duplicate_goal_date");
       }
       usedDates.add(date);
-      if (enforceOrder && previousDate !== null && date <= previousDate) {
-        violations.add("order_violation");
-      }
-      if (enforceOrder && prefixEnded) {
-        violations.add("skipped_open_ordinal");
-      }
-      if (enforceOrder) {
-        previousDate = date;
-      }
     }
   }
 
