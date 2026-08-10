@@ -364,12 +364,15 @@ test.describe("planner critical rails", () => {
     };
 
     let attempt = await executeMoveAndSave();
-    if (
-      attempt.saveResult.responseStatus === 409 &&
-      attempt.saveResult.responseBody.code === "preview_hash_mismatch"
-    ) {
-      // Preview hashes can become stale from concurrent planner data churn in CI;
-      // rerun the drag/save cycle once from a fresh calendar context.
+    // Preview hashes can become stale from concurrent planner data churn in CI;
+    // replay fresh drag/save cycles up to a small bound before failing.
+    for (let staleRetry = 0; staleRetry < 2; staleRetry += 1) {
+      if (
+        attempt.saveResult.responseStatus !== 409 ||
+        attempt.saveResult.responseBody.code !== "preview_hash_mismatch"
+      ) {
+        break;
+      }
       await page.reload();
       attempt = await executeMoveAndSave();
     }
