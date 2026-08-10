@@ -24,6 +24,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { LoadingCard } from "@/components/ui/loading-card";
 import {
   Select,
   SelectContent,
@@ -31,11 +32,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { CategorySelect, GoalTypeToggle, RecurrenceIntervalToggle, TargetCountField } from "@/features/goals/goal-field-kit";
+import { MilestonePills } from "@/features/goals/milestone-pills";
 import {
-  CATEGORY_PRESETS,
   type CategorySelection,
   getCategoryLabel,
-  getCategorySwatchColor,
 } from "@/lib/goals/category";
 import {
   getSortedCompletionDates,
@@ -46,8 +47,7 @@ import {
   validateGoalDefinition,
 } from "@/lib/goals/definition-validation";
 import { toLocalDateString } from "@/lib/dates/day";
-import { GOAL_TYPE_OPTIONS, RECURRENCE_INTERVAL_OPTIONS } from "@/lib/goals/form-options";
-import { buildMilestoneNames, defaultMilestoneName } from "@/lib/goals/milestones";
+import { buildMilestoneNames } from "@/lib/goals/milestones";
 import { getGoalCompletionPercentage } from "@/lib/goals/progress";
 import { MonthHeatmap } from "@/features/insights/month-heatmap";
 import { NotificationSettings } from "@/features/settings/notification-settings";
@@ -111,49 +111,6 @@ function parsePositiveTargetCount(value: string): number | null {
     return null;
   }
   return parsed;
-}
-
-interface MilestoneSummaryPillsProps {
-  targetCount: number;
-  completionDates: string[];
-  milestoneNames: string[];
-}
-
-function MilestoneSummaryPills({
-  targetCount,
-  completionDates,
-  milestoneNames,
-}: MilestoneSummaryPillsProps) {
-  const safeTarget = Math.max(targetCount, 1);
-
-  return (
-    <div className="space-y-1.5">
-      <p className="text-xs text-muted-foreground">Milestones</p>
-      <div className="flex flex-wrap gap-1.5">
-        {Array.from({ length: safeTarget }).map((_, index) => {
-          const completionDate = completionDates[index];
-          const complete = Boolean(completionDate);
-          const milestoneName = milestoneNames[index] ?? defaultMilestoneName(index);
-
-          return (
-            <div
-              key={`${index + 1}-shared-milestone`}
-              className={`min-w-[110px] rounded-full border px-2.5 py-1 text-[11px] leading-tight ${
-                complete
-                  ? "border-primary/40 bg-primary/10 text-foreground"
-                  : "border-border bg-muted/30 text-muted-foreground"
-              }`}
-            >
-              <p className="truncate font-medium">{milestoneName}</p>
-              <p className={complete ? "text-foreground/75" : "text-muted-foreground"}>
-                {complete ? completionDate : "Pending"}
-              </p>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
 }
 
 interface GroupGoalDraft {
@@ -744,14 +701,10 @@ export function SocialTab() {
 
   if (loading) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Loading settings...</CardTitle>
-          <CardDescription>
-            Syncing your profile, notifications, and collaboration settings.
-          </CardDescription>
-        </CardHeader>
-      </Card>
+      <LoadingCard
+        title="Loading settings..."
+        description="Syncing your profile, notifications, and collaboration settings."
+      />
     );
   }
 
@@ -1135,7 +1088,7 @@ export function SocialTab() {
                       </div>
                     </div>
                     {goal.frequency_type === "fixed_milestones" ? (
-                      <MilestoneSummaryPills
+                      <MilestonePills
                         targetCount={milestoneTargetCount}
                         completionDates={milestoneCompletionDates}
                         milestoneNames={milestoneNames}
@@ -1175,82 +1128,33 @@ export function SocialTab() {
               </div>
               <div className="space-y-2">
                 <Label>Category</Label>
-                <Select
+                <CategorySelect
                   value={groupDraft.categorySelection}
-                  onValueChange={(value: CategorySelection) =>
+                  onValueChange={(value) =>
                     setGroupDraft((prev) => ({ ...prev, categorySelection: value }))
                   }
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Category" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {CATEGORY_PRESETS.map((preset) => (
-                      <SelectItem key={preset.id} value={preset.id}>
-                        <span className="inline-flex items-center gap-2">
-                          <span
-                            className="size-2 rounded-full"
-                            style={{ backgroundColor: getCategorySwatchColor(preset.id) }}
-                          />
-                          {preset.label}
-                        </span>
-                      </SelectItem>
-                    ))}
-                    <SelectItem value="custom">
-                      <span className="inline-flex items-center gap-2">
-                        <span
-                          className="size-2 rounded-full"
-                          style={{ backgroundColor: getCategorySwatchColor("custom") }}
-                        />
-                        Custom
-                      </span>
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
+                  placeholder="Category"
+                />
               </div>
               <div className="space-y-2">
                 <Label>Goal type</Label>
-                <div className="flex flex-wrap gap-2">
-                  {GOAL_TYPE_OPTIONS.map((option) => (
-                    <Button
-                      key={option.value}
-                      type="button"
-                      size="sm"
-                      variant={groupDraft.frequencyType === option.value ? "secondary" : "outline"}
-                      className="rounded-full"
-                      onClick={() => updateGroupFrequencyType(option.value)}
-                    >
-                      {option.label}
-                    </Button>
-                  ))}
-                </div>
+                <GoalTypeToggle
+                  value={groupDraft.frequencyType}
+                  onValueChange={updateGroupFrequencyType}
+                />
               </div>
               {groupDraft.frequencyType === "recurring" ? (
                 <div className="space-y-2">
                   <Label>Recurrence interval</Label>
-                  <div className="flex flex-wrap gap-2">
-                    {RECURRENCE_INTERVAL_OPTIONS.map((option) => (
-                      <Button
-                        key={option.value}
-                        type="button"
-                        size="sm"
-                        variant={
-                          groupDraft.recurrenceInterval === option.value
-                            ? "secondary"
-                            : "outline"
-                        }
-                        className="rounded-full"
-                        onClick={() =>
-                          setGroupDraft((prev) => ({
-                            ...prev,
-                            recurrenceInterval: option.value,
-                          }))
-                        }
-                      >
-                        {option.label}
-                      </Button>
-                    ))}
-                  </div>
+                  <RecurrenceIntervalToggle
+                    value={groupDraft.recurrenceInterval}
+                    onValueChange={(value) =>
+                      setGroupDraft((prev) => ({
+                        ...prev,
+                        recurrenceInterval: value,
+                      }))
+                    }
+                  />
                 </div>
               ) : null}
               {groupDraft.frequencyType === "fixed_milestones" ||
@@ -1261,13 +1165,12 @@ export function SocialTab() {
                       ? "Target count"
                       : "Target completions (optional)"}
                   </Label>
-                  <Input
+                  <TargetCountField
                     id="group-target-count"
-                    type="number"
-                    min={groupDraft.frequencyType === "fixed_milestones" ? 1 : 0}
+                    frequencyType={groupDraft.frequencyType}
                     value={groupDraft.targetCount}
-                    onChange={(event) =>
-                      setGroupDraft((prev) => ({ ...prev, targetCount: event.target.value }))
+                    onValueChange={(value) =>
+                      setGroupDraft((prev) => ({ ...prev, targetCount: value }))
                     }
                   />
                 </div>

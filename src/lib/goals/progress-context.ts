@@ -5,6 +5,7 @@ import {
   getJson,
   isApiClientTransportError,
 } from "@/lib/api/client";
+import { resolveUserTimezone } from "@/lib/dates/timezone";
 
 export interface ProgressContextResponse {
   schemaVersion: "1";
@@ -65,7 +66,7 @@ function isProgressContextResponse(payload: unknown): payload is ProgressContext
 
 export async function fetchProgressContext({
   asOfDate,
-  timezone = Intl.DateTimeFormat().resolvedOptions().timeZone,
+  timezone = resolveUserTimezone(),
   viewDate,
   factsFrom,
   factsTo,

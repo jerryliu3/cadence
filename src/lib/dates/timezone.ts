@@ -7,6 +7,20 @@ export function isValidIanaTimezone(timezone: string) {
   }
 }
 
+export function resolveUserTimezone(candidateTimezone?: string | null) {
+  const normalizedCandidate = candidateTimezone?.trim();
+  if (normalizedCandidate && isValidIanaTimezone(normalizedCandidate)) {
+    return normalizedCandidate;
+  }
+
+  const detectedTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone?.trim();
+  if (detectedTimezone && isValidIanaTimezone(detectedTimezone)) {
+    return detectedTimezone;
+  }
+
+  return "UTC";
+}
+
 export function getDateInTimezone(date: Date, timezone: string) {
   if (!isValidIanaTimezone(timezone)) {
     throw new RangeError(`Invalid IANA timezone: ${timezone}`);
