@@ -1,10 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildCanonicalEntryDayByKey,
   buildCompletionFactMarkerDayByIdentity,
   buildCompletionFactMarkersByDate,
   buildEntriesByDate,
-  buildEntryDayByKey,
-  buildPreviewUnitByEntryKey,
   resolveCalendarDayData,
 } from "./calendar-entries";
 import type {
@@ -141,8 +140,7 @@ describe("resolveCalendarDayData", () => {
     const result = resolveCalendarDayData({
       day: "2026-09-01",
       entriesByDate: currentEntriesByDate,
-      entryDayByKey: buildEntryDayByKey(currentEntriesByDate),
-      previewUnitByEntryKey: buildPreviewUnitByEntryKey(currentWorkUnits),
+      canonicalEntryDayByKey: buildCanonicalEntryDayByKey(currentWorkUnits),
       completionFactMarkersByDate: new Map<string, PlannerCompletionFactMarker[]>(),
       completionFactMarkerDayByIdentity: new Map(),
       visibleMonthCalendarDataByMonth: new Map([
@@ -187,8 +185,7 @@ describe("resolveCalendarDayData", () => {
     const result = resolveCalendarDayData({
       day: "2026-09-01",
       entriesByDate: new Map(),
-      entryDayByKey: new Map(),
-      previewUnitByEntryKey: buildPreviewUnitByEntryKey(currentWorkUnits),
+      canonicalEntryDayByKey: buildCanonicalEntryDayByKey(currentWorkUnits),
       completionFactMarkersByDate: new Map(),
       completionFactMarkerDayByIdentity: new Map(),
       visibleMonthCalendarDataByMonth: new Map([
@@ -258,8 +255,7 @@ describe("resolveCalendarDayData", () => {
     const result = resolveCalendarDayData({
       day: "2026-09-01",
       entriesByDate: new Map(),
-      entryDayByKey: new Map(),
-      previewUnitByEntryKey: buildPreviewUnitByEntryKey(currentWorkUnits),
+      canonicalEntryDayByKey: buildCanonicalEntryDayByKey(currentWorkUnits),
       completionFactMarkersByDate: currentCompletionFactMarkersByDate,
       completionFactMarkerDayByIdentity: buildCompletionFactMarkerDayByIdentity(
         currentCompletionFactMarkersByDate
