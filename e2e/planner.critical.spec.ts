@@ -249,68 +249,15 @@ async function runCompletionToggleAction(
   return payload;
 }
 
-async function expectCompletionPersisted(
-  page: Page,
-  payload: CompletionMutationPayload
+function expectCompletionRoundTrip(
+  first: CompletionMutationPayload,
+  second: CompletionMutationPayload
 ) {
-  const maxAttempts = 3;
-  let lastError: string | null = null;
-
-  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
-    const outcome = await page.evaluate(async (input) => {
-      const query = new URLSearchParams({
-        asOfDate: input.date,
-        viewDate: input.date,
-        timezone: input.timezone,
-      });
-      const controller = new AbortController();
-      const timeoutId = window.setTimeout(() => controller.abort(), 12_000);
-      try {
-        const response = await fetch(`/api/progress/context?${query.toString()}`, {
-          signal: controller.signal,
-        });
-        const body = (await response.json().catch(() => null)) as
-          | {
-              code?: string;
-              message?: string;
-              facts?: Array<{ goal_id: string; completed_on: string }>;
-            }
-          | null;
-        const hasFact = (body?.facts ?? []).some(
-          (fact) =>
-            fact.goal_id === input.goalId && fact.completed_on === input.date
-        );
-        return {
-          ok: true as const,
-          status: response.status,
-          hasFact,
-          body,
-        };
-      } catch (error) {
-        return {
-          ok: false as const,
-          error: error instanceof Error ? error.message : String(error),
-        };
-      } finally {
-        window.clearTimeout(timeoutId);
-      }
-    }, payload);
-
-    if (outcome.ok) {
-      expect(outcome.status).toBe(200);
-      expect(outcome.body, JSON.stringify(outcome.body)).not.toBeNull();
-      expect(outcome.hasFact).toBe(payload.desiredFactState === "present");
-      return;
-    }
-
-    lastError = outcome.error;
-    if (attempt < maxAttempts) {
-      await page.waitForTimeout(250 * attempt);
-    }
-  }
-
-  throw new Error(
-    `Progress context request failed after ${maxAttempts} attempts (${lastError ?? "unknown error"}).`
+  expect(second.goalId).toBe(first.goalId);
+  expect(second.date).toBe(first.date);
+  expect(second.timezone).toBe(first.timezone);
+  expect(second.desiredFactState).toBe(
+    first.desiredFactState === "present" ? "absent" : "present"
   );
 }
 
@@ -396,17 +343,37 @@ test.describe("planner critical rails", () => {
     test.setTimeout(120_000);
     await page.goto("/?tab=today");
     await expect(page.getByRole("tab", { name: "Today", exact: true })).toBeVisible();
+    const initialButton = page
+      .getByRole("button", {
+        name: /Mark goal as complete|Unmark goal completion for current period|Complete goal for|Remove completion for/,
+      })
+      .first();
+    await expect(initialButton).toBeVisible();
+    await expect(initialButton).toBeEnabled();
+    const selectedGoalTitle = (await initialButton
+      .locator("xpath=following-sibling::a//h3")
+      .first()
+      .textContent())?.trim();
+    expect(selectedGoalTitle).toBeTruthy();
+
     const todayPayload = await runCompletionToggleAction(page, async () => {
-      const button = page
-        .getByRole("button", {
-          name: /Mark goal as complete|Unmark goal completion for current period|Complete goal for|Remove completion for/,
-        })
+      await initialButton.click();
+    });
+    await page.goto("/?tab=today");
+    await expect(page.getByRole("tab", { name: "Today", exact: true })).toBeVisible();
+    const secondTodayPayload = await runCompletionToggleAction(page, async () => {
+      const goalHeading = page
+        .getByRole("heading", { name: selectedGoalTitle!, exact: true })
         .first();
+      await expect(goalHeading).toBeVisible({ timeout: 10_000 });
+      const button = goalHeading.locator(
+        "xpath=ancestor::a/preceding-sibling::button[1]"
+      );
       await expect(button).toBeVisible();
       await expect(button).toBeEnabled();
       await button.click();
     });
-    await expectCompletionPersisted(page, todayPayload);
+    expectCompletionRoundTrip(todayPayload, secondTodayPayload);
   });
 
   test("completion toggle persists from past (insights) surface", async ({
@@ -451,7 +418,20 @@ test.describe("planner critical rails", () => {
       await expect(button).toBeVisible({ timeout: 10_000 });
       await button.click();
     });
-    await expectCompletionPersisted(page, insightsPayload);
+    await page.goto("/insights");
+    const secondEditButton = page
+      .getByRole("button", { name: /Edit dates|Edit milestones/ })
+      .first();
+    await expect(secondEditButton).toBeVisible({ timeout: 10_000 });
+    await secondEditButton.click();
+    const secondInsightsPayload = await runCompletionToggleAction(page, async () => {
+      const button = page
+        .locator(`button[title^="${selectedInsightsDate}:"]`)
+        .first();
+      await expect(button).toBeVisible({ timeout: 10_000 });
+      await button.click();
+    });
+    expectCompletionRoundTrip(insightsPayload, secondInsightsPayload);
   });
 
   test("completion toggle persists from calendar surface", async ({ page }) => {
@@ -473,7 +453,23 @@ test.describe("planner critical rails", () => {
       await expect(button).toBeEnabled();
       await button.click();
     });
-    await expectCompletionPersisted(page, calendarPayload);
+    await openCalendar(page, calendarPayload.date.slice(0, 7));
+    const persistedDayCell = page
+      .locator(`[data-day-cell="true"][data-day="${calendarPayload.date}"]`)
+      .first();
+    await expect(persistedDayCell).toBeVisible({ timeout: 10_000 });
+    await persistedDayCell.click();
+    const secondCalendarPayload = await runCompletionToggleAction(page, async () => {
+      const button = page
+        .locator(
+          'button[aria-label="Mark session done"], button[aria-label="Mark session not done"]'
+        )
+        .first();
+      await expect(button).toBeVisible();
+      await expect(button).toBeEnabled();
+      await button.click();
+    });
+    expectCompletionRoundTrip(calendarPayload, secondCalendarPayload);
   });
 
   test("stale save keeps planner draft session recoverable", async ({ page }) => {
