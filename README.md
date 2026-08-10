@@ -116,9 +116,9 @@ Seed data includes:
 Database and browser tests require the local Supabase stack and seeded demo accounts. Playwright starts
 the app on `http://localhost:3100` so it does not reuse another development server on port 3000.
 
-Calendar UI exposure and planner API access are controlled by
-`CALENDAR_ENABLED` (default `true`). Set `CALENDAR_ENABLED=false` to hide the
-Calendar surface and disable planner endpoints.
+Calendar / planner is permanently enabled in the product shell. Uncertain
+launches (for example cross-month moves) use env flags in
+`src/lib/feature-flags.ts` instead of a calendar kill switch.
 
 Planner persistence is additive and blocks direct client writes. Immutable plan
 snapshots are stored in public planning tables, while revisions, owner-lock

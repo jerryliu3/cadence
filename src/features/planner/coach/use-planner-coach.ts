@@ -281,11 +281,7 @@ export function usePlannerCoach({
   }, [activeTab, context?.scopeMonth, context?.timezone, resetCoachUiState]);
 
   useEffect(() => {
-    if (
-      activeTab !== "calendar" ||
-      !context?.scopeMonth ||
-      !context?.capabilities.calendarEnabled
-    ) {
+    if (activeTab !== "calendar" || !context?.scopeMonth) {
       const timer = window.setTimeout(() => {
         setSavedCoachConversations([]);
         setSelectedSavedCoachConversationId("");
@@ -298,7 +294,6 @@ export function usePlannerCoach({
     return () => window.clearTimeout(timer);
   }, [
     activeTab,
-    context?.capabilities.calendarEnabled,
     context?.scopeMonth,
     loadSavedCoachConversations,
   ]);
@@ -439,11 +434,7 @@ export function usePlannerCoach({
   );
 
   const sendCoachMessage = useCallback(async () => {
-    if (
-      !context?.capabilities.calendarEnabled ||
-      !context.scopeMonth ||
-      !context.timezone
-    ) {
+    if (!context?.scopeMonth || !context.timezone) {
       toast.error("Planner coach is currently unavailable.");
       return;
     }
@@ -828,9 +819,7 @@ export function usePlannerCoach({
     appendCoachContextEvent("Discarded draft changes");
   }, [appendCoachContextEvent, persistCoachMessages]);
 
-  const canUseCoach = Boolean(
-    context?.capabilities.calendarEnabled && context?.scopeMonth
-  );
+  const canUseCoach = Boolean(context?.scopeMonth);
   const hasCoachConversationState =
     coachMessages.length > 0 ||
     coachWarnings.length > 0 ||

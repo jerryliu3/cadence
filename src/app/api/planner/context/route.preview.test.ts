@@ -63,7 +63,6 @@ describe("planner context preview route", () => {
       userId: "11111111-1111-4111-8111-111111111111",
       supabase: {},
       capabilities: {
-        calendarEnabled: true,
         crossMonthMovesEnabled: false,
       },
     });

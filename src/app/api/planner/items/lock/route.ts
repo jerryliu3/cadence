@@ -23,8 +23,6 @@ export async function POST(request: Request) {
     const supabase = await createClient();
     const routeContext = await requirePlannerRouteContext({
       supabase,
-      disabledCode: "planner_plan_writes_disabled",
-      disabledMessage: "Planner write APIs are not enabled for this owner.",
     });
     const body = await parseBoundedJsonBody(
       request,

@@ -22,8 +22,6 @@ export async function handleCompletionPost(request: Request) {
     const supabase = await createClient();
     const routeContext = await requirePlannerRouteContext({
       supabase,
-      disabledCode: "targeted_exact_completion_disabled",
-      disabledMessage: "Exact-date completion updates are temporarily unavailable.",
     });
     const {
       goalId,

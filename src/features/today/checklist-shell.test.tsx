@@ -67,7 +67,7 @@ describe("ChecklistShell calendar view normalization", () => {
   });
 
   it("passes through explicit calendar view mode from URL", () => {
-    render(<ChecklistShell calendarEnabled />);
+    render(<ChecklistShell />);
 
     const calendarSurface = screen.getByTestId("calendar-surface");
     expect(calendarSurface).toHaveAttribute("data-view-mode", "week");
@@ -78,7 +78,7 @@ describe("ChecklistShell calendar view normalization", () => {
   it("coerces day deeplinks into calendar day mode", () => {
     mockSearch = "?day=2026-08-09";
 
-    render(<ChecklistShell calendarEnabled />);
+    render(<ChecklistShell />);
 
     const calendarSurface = screen.getByTestId("calendar-surface");
     expect(calendarSurface).toHaveAttribute("data-view-mode", "day");
@@ -91,7 +91,7 @@ describe("ChecklistShell calendar view normalization", () => {
     mockSearch = "?tab=calendar&month=2026-08";
     mockMobileViewport = true;
 
-    render(<ChecklistShell calendarEnabled />);
+    render(<ChecklistShell />);
 
     await waitFor(() => {
       const latestCall = calendarSurfaceMock.mock.calls.at(-1)?.[0];
@@ -103,7 +103,7 @@ describe("ChecklistShell calendar view normalization", () => {
   it("preserves calendar day and view across tab round-trips", async () => {
     mockSearch = "?tab=calendar&view=day&day=2026-08-20&month=2026-08";
     const user = userEvent.setup();
-    const { rerender } = render(<ChecklistShell calendarEnabled />);
+    const { rerender } = render(<ChecklistShell />);
     const pushStateSpy = vi
       .spyOn(window.history, "pushState")
       .mockImplementation((_state, _unused, url) => {
@@ -114,7 +114,7 @@ describe("ChecklistShell calendar view normalization", () => {
       });
 
     await user.click(screen.getByRole("tab", { name: "Today" }));
-    rerender(<ChecklistShell calendarEnabled />);
+    rerender(<ChecklistShell />);
     await user.click(screen.getByRole("tab", { name: "Calendar" }));
 
     const finalUrl = pushStateSpy.mock.calls.at(-1)?.[2];

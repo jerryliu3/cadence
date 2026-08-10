@@ -128,14 +128,8 @@ export function requirePlannerAdminClient() {
 
 export async function requirePlannerRouteContext({
   supabase,
-  disabledCode,
-  disabledMessage,
-  disabledStatus = 503,
 }: {
   supabase: ServerSupabaseClient;
-  disabledCode: string;
-  disabledMessage: string;
-  disabledStatus?: number;
 }): Promise<AuthenticatedPlannerRouteContext> {
   let userId: string;
   try {
@@ -165,10 +159,6 @@ export async function requirePlannerRouteContext({
       "capability_configuration_invalid",
       "Planner capabilities are temporarily unavailable."
     );
-  }
-
-  if (!capabilities.calendarEnabled) {
-    throw new PlannerRouteError(disabledStatus, disabledCode, disabledMessage);
   }
 
   return {

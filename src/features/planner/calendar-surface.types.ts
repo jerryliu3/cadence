@@ -19,7 +19,6 @@ export interface PlannerContextPayload {
     defaultPolicy: PlannerPolicy;
   } | null;
   capabilities: {
-    calendarEnabled: boolean;
     crossMonthMovesEnabled: boolean;
   };
   activePlan: {

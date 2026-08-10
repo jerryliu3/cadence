@@ -104,8 +104,6 @@ export async function POST(request: Request) {
       const supabase = await createClient();
       const routeContext = await requirePlannerRouteContext({
         supabase,
-        disabledCode: "planner_coach_disabled",
-        disabledMessage: "Planner coach is not enabled.",
       });
 
       const rate = checkRateLimit({
