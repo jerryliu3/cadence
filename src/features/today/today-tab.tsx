@@ -40,12 +40,14 @@ import { isAbortError, withAbortSignal } from "@/lib/async/abort";
 import { toLocalDateString } from "@/lib/dates/day";
 import { normalizeWeekStartsOn } from "@/lib/dates/week-start";
 import { getCategoryBadgeClass } from "@/lib/goals/category";
+import { groupCompletionsByGoalId } from "@/lib/goals/completion-grouping";
 import { getGoalLifecycle } from "@/lib/goals/lifecycle";
 import {
   filterGoalsByEndMonth,
   sortGoalsByDate,
   type GoalDateSort,
 } from "@/lib/goals/list-view";
+import { getNextMilestoneName } from "@/lib/goals/milestones";
 import {
   fetchProgressContext,
   progressSummaryMap,
@@ -132,34 +134,6 @@ const recurrenceGroupLabel: Record<RecurrenceGroup, string> = {
   monthly: "Monthly",
   fixed: "Fixed",
 };
-function goalCompletionsMap(completions: CompletionDateFact[]) {
-  const grouped = new Map<string, CompletionDateFact[]>();
-  completions.forEach((completion) => {
-    const existing = grouped.get(completion.goal_id) ?? [];
-    existing.push(completion);
-    grouped.set(completion.goal_id, existing);
-  });
-  return grouped;
-}
-
-function getNextMilestoneName(goal: Goal, completionCount: number): string | null {
-  if (goal.frequency_type !== "fixed_milestones") {
-    return null;
-  }
-
-  const targetCount = goal.target_count ?? 0;
-  if (targetCount <= 0 || completionCount >= targetCount) {
-    return null;
-  }
-
-  const nextMilestoneIndex = completionCount;
-  const customName = goal.milestone_names?.[nextMilestoneIndex]?.trim();
-  if (customName && customName.length > 0) {
-    return customName;
-  }
-
-  return `Milestone ${nextMilestoneIndex + 1}`;
-}
 
 export type ChecklistTabValue = "today" | "not-today";
 
@@ -382,7 +356,7 @@ export function TodayTab({
   }, [isActive, loadData]);
 
   const completionsByGoal = useMemo(
-    () => goalCompletionsMap(data.completions),
+    () => groupCompletionsByGoalId(data.completions),
     [data.completions]
   );
   const progressByGoal = useMemo(

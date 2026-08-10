@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  areMilestoneNamesEqual,
   buildMilestoneNameDrafts,
   buildMilestoneNames,
   defaultMilestoneName,
+  getNextMilestoneName,
   normalizeMilestoneNamesForSave,
 } from "./milestones";
 
@@ -31,5 +33,54 @@ describe("milestones helpers", () => {
       "Milestone 2",
     ]);
     expect(buildMilestoneNames(0, [])).toEqual(["Milestone 1"]);
+  });
+
+  it("compares milestone name arrays", () => {
+    expect(areMilestoneNamesEqual(["A", "B"], ["A", "B"])).toBe(true);
+    expect(areMilestoneNamesEqual(["A", "B"], ["A", "C"])).toBe(false);
+    expect(areMilestoneNamesEqual(["A"], ["A", "B"])).toBe(false);
+  });
+
+  it("resolves the next unfinished milestone label", () => {
+    expect(
+      getNextMilestoneName(
+        {
+          frequency_type: "fixed_milestones",
+          target_count: 3,
+          milestone_names: ["Draft", "", "Ship"],
+        },
+        1
+      )
+    ).toBe("Milestone 2");
+    expect(
+      getNextMilestoneName(
+        {
+          frequency_type: "fixed_milestones",
+          target_count: 2,
+          milestone_names: ["Draft", "Ship"],
+        },
+        0
+      )
+    ).toBe("Draft");
+    expect(
+      getNextMilestoneName(
+        {
+          frequency_type: "recurring",
+          target_count: 3,
+          milestone_names: null,
+        },
+        0
+      )
+    ).toBeNull();
+    expect(
+      getNextMilestoneName(
+        {
+          frequency_type: "fixed_milestones",
+          target_count: 1,
+          milestone_names: ["Only"],
+        },
+        1
+      )
+    ).toBeNull();
   });
 });

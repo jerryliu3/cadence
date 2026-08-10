@@ -49,6 +49,7 @@ import {
   getLinkedGoalRecurrenceLabel,
 } from "@/lib/goals/linked-goal-labels";
 import {
+  buildMilestoneNameDrafts,
   defaultMilestoneName,
   normalizeMilestoneNamesForSave,
 } from "@/lib/goals/milestones";
@@ -224,10 +225,6 @@ function normalizeLocalTimeValue(raw: string): string {
   return isValidLocalTime(trimmed) ? trimmed : "";
 }
 
-function trimMilestoneNames(names: string[], targetCount: number): string[] {
-  return Array.from({ length: Math.max(targetCount, 0) }, (_, index) => names[index] ?? "");
-}
-
 function parseMilestoneNames(raw: string): string[] {
   const trimmed = raw.trim();
   if (!trimmed) {
@@ -348,7 +345,7 @@ function buildDraftFromRow(row: Record<string, unknown>, rowIndex: number): Bulk
       targetRaw.length > 0 ? targetRaw : frequencyType === "fixed_milestones" ? "3" : "",
     milestone_names:
       frequencyType === "fixed_milestones"
-        ? trimMilestoneNames(parsedMilestoneNames, parsedTarget ?? 0)
+        ? buildMilestoneNameDrafts(parsedTarget ?? 0, parsedMilestoneNames)
         : [],
     start_date:
       normalizeDateValue(normalizedRow[normalizeHeaderKey(columnAliases.start_date[0])]) ||
@@ -1096,9 +1093,9 @@ export function BulkGoalForm() {
                                     target_count: nextTargetCount,
                                     milestone_names:
                                       option.value === "fixed_milestones"
-                                        ? trimMilestoneNames(
-                                            previous.milestone_names,
-                                            parseTargetCount(nextTargetCount) ?? 0
+                                        ? buildMilestoneNameDrafts(
+                                            parseTargetCount(nextTargetCount) ?? 0,
+                                            previous.milestone_names
                                           )
                                         : previous.milestone_names,
                                   };
@@ -1155,9 +1152,9 @@ export function BulkGoalForm() {
                               target_count: event.target.value,
                               milestone_names:
                                 previous.frequency_type === "fixed_milestones"
-                                  ? trimMilestoneNames(
-                                      previous.milestone_names,
-                                      parseTargetCount(event.target.value) ?? 0
+                                  ? buildMilestoneNameDrafts(
+                                      parseTargetCount(event.target.value) ?? 0,
+                                      previous.milestone_names
                                     )
                                   : previous.milestone_names,
                             }))
