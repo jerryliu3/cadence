@@ -1,3 +1,5 @@
+import { isAbortError } from "@/lib/async/abort";
+
 export interface CompletionDispatchInput {
   requirementKind:
     | "milestone_sequence"
@@ -85,10 +87,6 @@ function parseErrorMessage(payload: unknown, fallback: string) {
     return payload.message;
   }
   return fallback;
-}
-
-function isAbortError(error: unknown) {
-  return error instanceof Error && error.name === "AbortError";
 }
 
 async function postJsonRoute({
