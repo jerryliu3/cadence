@@ -693,21 +693,39 @@ export function runPlannerKernel(
     draftPinnedDates: rawInput.draftPinnedDates ?? {},
   });
   const dates = enumerateDates(getScopeDateRange(rawInput.scopeMonth));
-  // Solve-order anchors come from an unpinned pass: a pinned unit should slot in
-  // where its date puts it, and the rest should stay where they already were.
-  // Without this a draft on an unpublished month has no anchors at all, so a
-  // single pin would push every other unit after it.
   const solveIntentForRun = rawInput.solveIntent ?? "stable";
+  const draftPinnedDates = rawInput.draftPinnedDates ?? {};
+  const pinnedUnitIds = new Set(
+    Object.keys(draftPinnedDates).map((entryKey) => {
+      const separatorIndex = entryKey.indexOf(":");
+      return getSolverUnitId({
+        goalId: entryKey.slice(0, separatorIndex),
+        unitKey: entryKey.slice(separatorIndex + 1),
+      });
+    })
+  );
+  // Anchors come from a pass with the draft pins released: a pinned unit should
+  // slot in where its own date puts it, and everything else should stay where it
+  // already sits. Hard locks and preserve-mode stay applied, so the anchor pass
+  // reflects the same constraints the real solve will face.
+  //
+  // Without this, a draft on an unpublished month has no anchors and no
+  // stability signal at all: `previousDate` comes from the published plan, so a
+  // single pin would sort first and push everything after it.
   const anchoredSolverUnits =
-    Object.keys(rawInput.draftPinnedDates ?? {}).length > 0
+    pinnedUnitIds.size > 0
       ? (() => {
-          const unpinned = solveOrderedDpV1({
+          const released = solveOrderedDpV1({
             dates,
-            units: solverUnits.map((unit) => ({ ...unit, lockedDate: null })),
+            units: solverUnits.map((unit) =>
+              pinnedUnitIds.has(getSolverUnitId(unit))
+                ? { ...unit, lockedDate: null }
+                : unit
+            ),
             solveIntent: solveIntentForRun,
           });
           const anchorByUnitId = new Map(
-            unpinned.assignments.map((assignment) => [
+            released.assignments.map((assignment) => [
               getSolverUnitId(assignment),
               assignment.scheduledDate,
             ])
@@ -718,9 +736,9 @@ export function runPlannerKernel(
             return {
               ...unit,
               solveOrderAnchor: anchor,
-              // Measure stability against the layout the user is looking at,
-              // not against the published plan. Otherwise an unpublished month
-              // has no stability signal and every unit is free to compact.
+              // Stability is measured against the layout on screen, not the
+              // published plan, or an unpublished month has nothing to be
+              // stable against and every unit is free to compact.
               previousDate: anchor,
             };
           });
