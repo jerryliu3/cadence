@@ -21,7 +21,7 @@ maintainable production outcomes over speculative flexibility.
 7. Fail with typed, actionable errors at route boundaries; do not leak planner/kernel failures as generic 500s.
 8. Keep security-definer SQL hardened (`search_path=''`, explicit auth/ownership checks, least-privilege grants).
 9. Keep idempotency and stale-write protections explicit (digest/version checks, deterministic replay rules).
-10. Prefer additive migrations with clear intent and focused tests; do not silently change semantics without tests.
+10. Prefer additive, forward-only migrations with clear intent and focused tests; do not silently change semantics without tests. Migrations are not reversible via down scripts — the restore story is backup/PITR (see Delivery Workflow notes).
 11. Keep tests aligned with real runtime surfaces; remove tests that only validate deleted/legacy APIs.
 12. Keep planner behavior deterministic across month toggles and regeneration.
 13. Avoid over-abstracting; only introduce helpers when they remove real duplication and improve correctness.
@@ -84,6 +84,9 @@ preserving correctness, maintainability, and clear ownership boundaries.
 ## Resolution Engineering Practices (Required)
 
 - Use strict schema validation at boundaries (request parsing, policy validation, DB row parsing).
+- Validate `process.env` through `src/lib/env.ts` (boot assert in `instrumentation.ts`); do not scatter untyped env reads for new code.
+- Report unexpected/server failures through `reportError` / Sentry (`NEXT_PUBLIC_SENTRY_DSN`); keep correlation IDs on API error responses.
+- Gate uncertain launches with `src/lib/feature-flags.ts` (default-off for risky behavior; remove flags after cutover).
 - Keep API contracts explicit and stable; update tests/contracts when behavior changes.
 - Ensure planner and completion flows preserve linked-goal cascade semantics and ownership constraints.
 - Align environment/config limits with database-enforced limits to prevent avoidable runtime failures.
@@ -213,13 +216,13 @@ Build in synchronized layers:
 
 Before completion:
 
-- Migrations tested and reversible.
+- Migrations tested (pgTAP / reset replay). Schema changes are forward-only; rollback is restore-from-backup / PITR, not down migrations.
 - API docs/types exported.
 - Frontend build clean with zero TS errors.
 - Unit/integration/e2e suites passing.
 - Performance validated (Lighthouse and query plan checks).
 - Security verified (OWASP checklist, secrets only in env vars).
-- Deployment and rollback paths documented.
+- Deployment and app rollback paths documented; DB restore path is backup/PITR.
 
 ### Collaboration Expectations
 

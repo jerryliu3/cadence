@@ -1,11 +1,11 @@
 import { createClient } from "@supabase/supabase-js";
+import { getServerEnv, getSupabaseSecretKey } from "@/lib/env";
 import { getSupabaseConfig } from "@/lib/supabase/config";
 import type { Database } from "@/lib/supabase/database.types";
 
 export function createAdminClient() {
-  const secretKey =
-    process.env.SUPABASE_SECRET_KEY?.trim() ??
-    process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
+  const env = getServerEnv();
+  const secretKey = getSupabaseSecretKey(env);
 
   if (!secretKey) {
     throw new Error(

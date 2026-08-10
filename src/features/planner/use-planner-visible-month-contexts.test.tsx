@@ -33,6 +33,7 @@ describe("usePlannerVisibleMonthContexts", () => {
           preferences: null,
           capabilities: {
             calendarEnabled: true,
+            crossMonthMovesEnabled: false,
           },
           activePlan: null,
           preview: null,
@@ -56,6 +57,7 @@ describe("usePlannerVisibleMonthContexts", () => {
           preferences: null,
           capabilities: {
             calendarEnabled: true,
+            crossMonthMovesEnabled: false,
           },
           activePlan: null,
           preview: null,
@@ -103,6 +105,7 @@ describe("usePlannerVisibleMonthContexts", () => {
           preferences: null,
           capabilities: {
             calendarEnabled: true,
+            crossMonthMovesEnabled: false,
           },
           activePlan: null,
           preview: null,
