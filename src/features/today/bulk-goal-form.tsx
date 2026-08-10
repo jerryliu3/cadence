@@ -38,6 +38,7 @@ import {
   RecurrenceIntervalToggle,
   TargetCountField,
 } from "@/features/goals/goal-field-kit";
+import { MilestoneNameFields } from "@/features/goals/milestone-name-fields";
 import { getApiErrorMessage, postJson } from "@/lib/api/client";
 import { toLocalDateString } from "@/lib/dates/day";
 import { resolveUserTimezone } from "@/lib/dates/timezone";
@@ -57,7 +58,6 @@ import {
 } from "@/lib/goals/linked-goal-labels";
 import {
   buildMilestoneNameDrafts,
-  defaultMilestoneName,
   normalizeMilestoneNamesForSave,
 } from "@/lib/goals/milestones";
 import type { Goal, GoalFrequencyType, RecurrenceInterval } from "@/lib/goals/types";
@@ -1153,31 +1153,21 @@ export function BulkGoalForm() {
                     </div>
 
                     {fixedMilestoneCount > 0 ? (
-                      <div className="space-y-2">
-                        <Label>Milestone names (optional)</Label>
-                        <div className="grid gap-2 sm:grid-cols-2">
-                          {Array.from({ length: fixedMilestoneCount }).map((_, index) => (
-                            <Input
-                              key={`${draft.id}-milestone-${index + 1}`}
-                              value={draft.milestone_names[index] ?? ""}
-                              onChange={(event) =>
-                                updateDraft(draft.id, (previous) => {
-                                  const nextMilestones = [...previous.milestone_names];
-                                  nextMilestones[index] = event.target.value;
-                                  return {
-                                    ...previous,
-                                    milestone_names: nextMilestones,
-                                  };
-                                })
-                              }
-                              placeholder={defaultMilestoneName(index)}
-                            />
-                          ))}
-                        </div>
-                        <p className="text-xs text-muted-foreground">
-                          Leave any field blank to use the default name.
-                        </p>
-                      </div>
+                      <MilestoneNameFields
+                        count={fixedMilestoneCount}
+                        values={draft.milestone_names}
+                        onValueChange={(index, value) =>
+                          updateDraft(draft.id, (previous) => {
+                            const nextMilestones = [...previous.milestone_names];
+                            nextMilestones[index] = value;
+                            return {
+                              ...previous,
+                              milestone_names: nextMilestones,
+                            };
+                          })
+                        }
+                        keyPrefix={`${draft.id}-milestone`}
+                      />
                     ) : null}
 
                     <Collapsible
