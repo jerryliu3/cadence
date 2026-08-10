@@ -105,7 +105,6 @@ import {
   sortPlannerDraftCommands,
   type PlannerDraftCommand,
 } from "@/lib/planner/draft-commands";
-import { buildDraftMoveCommands } from "@/features/planner/draft-move-remap";
 import { buildPlannerConfirmationHash } from "@/lib/planner/publish-payload";
 import {
   createDefaultPlannerPolicy,
@@ -561,9 +560,9 @@ export function CalendarSurface({
       activeGoalsByPlanGoalId,
       context?.goalTitles,
       context?.preview?.workUnits,
+      effectivePreview?.workUnits,
       context?.activePlan?.items,
       effectiveDraftItemEdits,
-      effectivePreview?.workUnits,
     ]
   );
   const entryByKey = useMemo(() => buildEntryByKey(entriesByDate), [entriesByDate]);
@@ -1244,39 +1243,13 @@ export function CalendarSurface({
       }
 
       const scopeMonth = context.scopeMonth;
-      // Pin the goal's whole ordinal-to-date mapping, not just this unit. The
-      // solver orders a goal's units by ordinal, so pinning one ordinal to a
-      // later date would push every later ordinal after it -- moving one
-      // session would visibly shift all the rest.
-      const goalUnits = (effectivePreview?.workUnits ?? [])
-        .filter(
-          (unit) =>
-            unit.originalGoalId === entry.originalGoalId &&
-            unit.scheduledDate !== null &&
-            unit.creditState === "uncredited" &&
-            (unit.classification === "open" || unit.classification === "future")
-        )
-        // Preview work units already arrive in ordinal order per goal, so the
-        // index is a safe fallback when the payload omits `ordinal`.
-        .map((unit, index) => ({
-          unitKey: unit.unitKey,
-          ordinal: unit.ordinal ?? index,
-          scheduledDate: unit.scheduledDate as string,
-        }));
-      for (const command of buildDraftMoveCommands({
-        units: goalUnits,
-        movedUnitKey: entry.unitKey,
-        nextDate: normalized,
-        kind: baselineUnit.kind,
-      })) {
-        dispatchDraftCommand({
-          type: "upsert_move",
-          scopeMonth,
-          goalId: entry.originalGoalId,
-          unitKey: command.unitKey,
-          scheduledDate: command.scheduledDate,
-        });
-      }
+      dispatchDraftCommand({
+        type: "upsert_move",
+        scopeMonth,
+        goalId: entry.originalGoalId,
+        unitKey: entry.unitKey,
+        scheduledDate: normalized,
+      });
       scheduleDraftMovePreviewRefresh();
       if (source === "drag_drop") {
         toast.success(
@@ -1287,7 +1260,6 @@ export function CalendarSurface({
     },
     [
       scheduleDraftMovePreviewRefresh,
-      effectivePreview?.workUnits,
       completionFactUnitsByGoalDate,
       context?.scopeMonth,
       moveConflictByGoalDate,
