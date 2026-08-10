@@ -105,6 +105,7 @@ import {
   sortPlannerDraftCommands,
   type PlannerDraftCommand,
 } from "@/lib/planner/draft-commands";
+import { decideDraftMove } from "@/features/planner/draft-move-validation";
 import { buildReplanMoves } from "@/features/planner/replan-diff";
 import { buildPlannerConfirmationHash } from "@/lib/planner/publish-payload";
 import {
@@ -1154,81 +1155,22 @@ export function CalendarSurface({
       nextDate: string;
       source: "date_input" | "drag_drop";
     }) => {
-      if (entry.draftGhost) {
-        toast.error("Original-date preview markers cannot be moved directly.");
-        return false;
-      }
-      const normalized = nextDate.trim();
-      if (!isValidIsoDate(normalized)) {
-        toast.error("Pick a valid move date.");
-        return false;
-      }
       if (!context?.scopeMonth) {
         return false;
       }
-      if (isEntryImmovableForDraft(entry)) {
-        toast.error(
-          "Completed or historical sessions cannot move in preview mode. Clear completion in the saved plan first."
-        );
+      const decision = decideDraftMove({
+        entry,
+        nextDate,
+        baselineUnit: previewUnitByEntryKey.get(entry.key),
+        moveConflictByGoalDate,
+        completionFactUnitsByGoalDate,
+        isValidIsoDate,
+      });
+      if (!decision.ok) {
+        toast.error(decision.message);
         return false;
       }
-      const baselineUnit = previewUnitByEntryKey.get(entry.key);
-      if (!baselineUnit) {
-        toast.error("This session is unavailable in the current preview.");
-        return false;
-      }
-      const moveWindow = baselineUnit?.draftMoveWindow ?? baselineUnit?.placementWindow;
-      if (!moveWindow) {
-        toast.error("This session does not have a movable placement window.");
-        return false;
-      }
-      if (
-        normalized < moveWindow.start ||
-        normalized > moveWindow.end
-      ) {
-        const creditWindowEnd = baselineUnit.creditWindow?.end ?? moveWindow.end;
-        if (normalized < moveWindow.start) {
-          toast.error(
-            `This session can only move on or after ${moveWindow.start}.`
-          );
-        } else if (normalized > creditWindowEnd) {
-          toast.error(
-            `That date is after this session's credit window end (${creditWindowEnd}), which usually reflects the goal end date or cadence period boundary.`
-          );
-        } else {
-          toast.error(
-            `That date is outside this session's allowed planner window (${moveWindow.start} to ${moveWindow.end}).`
-          );
-        }
-        return false;
-      }
-      const collisionKey = `${entry.originalGoalId}:${normalized}`;
-      const conflictKeys = moveConflictByGoalDate.get(collisionKey);
-      if (
-        conflictKeys &&
-        (conflictKeys.size > 1 || !conflictKeys.has(entry.key))
-      ) {
-        toast.error(
-          "That goal already has a planner session on the selected date."
-        );
-        return false;
-      }
-      const completionFactConflict = (
-        completionFactUnitsByGoalDate.get(collisionKey) ?? []
-      ).find((unit) => unit.unitKey !== entry.unitKey);
-      if (completionFactConflict) {
-        if (
-          completionFactConflict.scheduledDate &&
-          completionFactConflict.scheduledDate !== normalized
-        ) {
-          toast.error(
-            `That goal is already marked done on ${normalized} (credited from the ${completionFactConflict.scheduledDate} session).`
-          );
-        } else {
-          toast.error("That date already has a completion fact for this goal.");
-        }
-        return false;
-      }
+      const normalized = decision.scheduledDate;
 
       const scopeMonth = context.scopeMonth;
       dispatchDraftCommand({
