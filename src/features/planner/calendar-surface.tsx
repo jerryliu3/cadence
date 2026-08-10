@@ -74,6 +74,7 @@ import {
 import { planDraftTimeOverrideUpdate } from "@/features/planner/draft-time-override";
 import { getGoalVisual } from "@/features/planner/goal-visuals";
 import { useCalendarDayPreview } from "@/features/planner/use-calendar-day-preview";
+import { usePlannerDayDetailSelectionState } from "@/features/planner/use-planner-day-detail-selection-state";
 import {
   resolveCompletionControlDisabledReasonForEntry,
   resolveDateFactDispatchForEntry,
@@ -173,11 +174,7 @@ export function CalendarSurface({
     draftCommandReducer,
     initialDraftCommandState
   );
-  const [selectedEventEntryKey, setSelectedEventEntryKey] = useState<string | null>(
-    null
-  );
   const [draggingEntryKey, setDraggingEntryKey] = useState<string | null>(null);
-  const [localSelectedDay, setLocalSelectedDay] = useState<string | null>(null);
   const [expandedMonthRows, setExpandedMonthRows] = useState(false);
   const [previewEntryOrderByDay, setPreviewEntryOrderByDay] = useState<
     Record<string, string[]>
@@ -210,6 +207,14 @@ export function CalendarSurface({
     closeDelayMs: DAY_PREVIEW_CLOSE_DELAY_MS,
     longPressDelayMs: DAY_PREVIEW_LONG_PRESS_DELAY_MS,
   });
+  const {
+    dayDetailDay,
+    selectedEventEntryKey,
+    setDayDetailDay,
+    closeDayDetails,
+    closeEventDetails,
+    selectEventEntry,
+  } = usePlannerDayDetailSelectionState();
 
   const timezoneOptions = useMemo(() => {
     const intlWithSupportedValues = Intl as typeof Intl & {
@@ -528,15 +533,14 @@ export function CalendarSurface({
     previewUnitByEntryKey,
     completionFactUnitsByGoalDate,
   } = calendarStoreProjection;
-  const effectiveSelectedDay = localSelectedDay;
   const dayPreviewDay = dayPreview?.day ?? null;
   const projectionDays = useMemo(() => {
     const days = new Set<string>();
     for (const day of visibleDays) {
       days.add(day);
     }
-    if (effectiveSelectedDay) {
-      days.add(effectiveSelectedDay);
+    if (dayDetailDay) {
+      days.add(dayDetailDay);
     }
     if (focusedDay) {
       days.add(focusedDay);
@@ -545,7 +549,7 @@ export function CalendarSurface({
       days.add(dayPreviewDay);
     }
     return Array.from(days);
-  }, [dayPreviewDay, effectiveSelectedDay, focusedDay, visibleDays]);
+  }, [dayDetailDay, dayPreviewDay, focusedDay, visibleDays]);
   const dayProjectionByDay = useMemo(
     () =>
       selectPlannerCalendarDayProjectionsByDay({
@@ -595,8 +599,8 @@ export function CalendarSurface({
   );
 
   const selectedDayEntries = useMemo(() => {
-    return getOrderedEntriesForDay(effectiveSelectedDay);
-  }, [effectiveSelectedDay, getOrderedEntriesForDay]);
+    return getOrderedEntriesForDay(dayDetailDay);
+  }, [dayDetailDay, getOrderedEntriesForDay]);
   const focusedDayEntries = useMemo(
     () => getOrderedEntriesForDay(focusedDay),
     [focusedDay, getOrderedEntriesForDay]
@@ -1314,7 +1318,7 @@ export function CalendarSurface({
 
   const getDateFactDispatchForEntry = (
     entry: PlannerDayDetailEntry,
-    selectedDate: string | null = effectiveSelectedDay
+    selectedDate: string | null = dayDetailDay
   ) =>
     resolveDateFactDispatchForEntry({
       entry,
@@ -1398,7 +1402,7 @@ export function CalendarSurface({
     entry: PlannerDayDetailEntry,
     selectedDateOverride?: string
   ) => {
-    const selectedDate = selectedDateOverride ?? effectiveSelectedDay;
+    const selectedDate = selectedDateOverride ?? dayDetailDay;
     if (!context || !selectedDate) {
       return;
     }
@@ -1900,8 +1904,7 @@ export function CalendarSurface({
     : null;
   const openDayDetails = (day: string) => {
     prepareForDayDetailOpen();
-    setLocalSelectedDay(day);
-    setSelectedEventEntryKey(null);
+    setDayDetailDay(day);
   };
   const renderCalendarDayCell = (cell: { date: string; inMonth: boolean }) => {
     const dayProjection = getCalendarDayProjection(cell.date);
@@ -2502,11 +2505,10 @@ export function CalendarSurface({
           <PlannerCoachPanel coach={coach} />
 
           <Dialog
-            open={Boolean(effectiveSelectedDay)}
+            open={Boolean(dayDetailDay)}
             onOpenChange={(open) => {
               if (!open) {
-                setSelectedEventEntryKey(null);
-                setLocalSelectedDay(null);
+                closeDayDetails();
               }
             }}
           >
@@ -2516,9 +2518,9 @@ export function CalendarSurface({
             >
               <DialogHeader>
                 <DialogTitle>
-                  {effectiveSelectedDay
+                  {dayDetailDay
                     ? format(
-                        parse(effectiveSelectedDay, "yyyy-MM-dd", new Date()),
+                        parse(dayDetailDay, "yyyy-MM-dd", new Date()),
                         "EEEE, MMMM d"
                       )
                     : "Day detail"}
@@ -2533,68 +2535,68 @@ export function CalendarSurface({
                 ) : (
                   <ul className="space-y-2">
                     {selectedDayEntries.map((entry) => {
-                        const visual = getGoalVisual({
-                          goalId: entry.originalGoalId,
-                          color: entry.activeGoal?.color ?? null,
-                        });
-                        const Icon = visual.Icon;
-                        const displayTitle = getEntryDisplayTitleWithTime(entry);
-                        const subtitle = getEntrySubtitle(entry);
-                        const credited = isEntryCredited(entry);
-                        const draftDiffSummary = getEntryDraftDiffSummary(entry);
-                        const pillToneClasses = getEntryDraftPillClasses({
-                          draftDiffKind: entry.draftDiffKind,
-                          credited,
-                        });
-                        const completionDispatch = getDateFactDispatchForEntry(entry);
-                        const completionDisabledReason =
-                          completionControlDisabledReasonForEntry(
-                            entry,
-                            completionDispatch
-                          );
-                        return (
-                          <li
-                            key={entry.key}
-                            className={`rounded-xl border p-2 ${pillToneClasses} ${
-                              entry.draftGhost ? "opacity-75" : ""
-                            }`}
-                          >
-                            <div className="flex items-start gap-2">
-                              <button
-                                type="button"
-                                className="flex-1 text-left text-sm transition-colors hover:text-primary"
-                                onClick={() => {
-                                  if (!entry.draftGhost) {
-                                    setSelectedEventEntryKey(entry.key);
-                                  }
-                                }}
-                              >
-                                <div className="flex items-center gap-2">
-                                  <span
-                                    className="inline-flex size-5 items-center justify-center rounded-full"
-                                    style={{ backgroundColor: visual.color }}
-                                  >
-                                    <Icon className="size-3 text-white" />
-                                  </span>
-                                  <p className="font-medium">{displayTitle}</p>
-                                </div>
-                                {subtitle ? (
-                                  <p className="mt-1 text-xs text-muted-foreground">
-                                    {subtitle}
-                                  </p>
-                                ) : null}
-                                {draftDiffSummary ? (
-                                  <p className="mt-1 text-xs text-muted-foreground">
-                                    {draftDiffSummary}
-                                  </p>
-                                ) : null}
-                                <p className="mt-1 text-xs text-primary">
-                                  {entry.draftGhost
-                                    ? "Original date marker"
-                                    : "View event details"}
+                      const visual = getGoalVisual({
+                        goalId: entry.originalGoalId,
+                        color: entry.activeGoal?.color ?? null,
+                      });
+                      const Icon = visual.Icon;
+                      const displayTitle = getEntryDisplayTitleWithTime(entry);
+                      const subtitle = getEntrySubtitle(entry);
+                      const credited = isEntryCredited(entry);
+                      const draftDiffSummary = getEntryDraftDiffSummary(entry);
+                      const pillToneClasses = getEntryDraftPillClasses({
+                        draftDiffKind: entry.draftDiffKind,
+                        credited,
+                      });
+                      const completionDispatch = getDateFactDispatchForEntry(entry);
+                      const completionDisabledReason =
+                        completionControlDisabledReasonForEntry(
+                          entry,
+                          completionDispatch
+                        );
+                      return (
+                        <li
+                          key={entry.key}
+                          className={`rounded-xl border p-2 ${pillToneClasses} ${
+                            entry.draftGhost ? "opacity-75" : ""
+                          }`}
+                        >
+                          <div className="flex items-start gap-2">
+                            <button
+                              type="button"
+                              className="flex-1 text-left text-sm transition-colors hover:text-primary"
+                              onClick={() => {
+                                if (!entry.draftGhost) {
+                                  selectEventEntry(entry.key);
+                                }
+                              }}
+                            >
+                              <div className="flex items-center gap-2">
+                                <span
+                                  className="inline-flex size-5 items-center justify-center rounded-full"
+                                  style={{ backgroundColor: visual.color }}
+                                >
+                                  <Icon className="size-3 text-white" />
+                                </span>
+                                <p className="font-medium">{displayTitle}</p>
+                              </div>
+                              {subtitle ? (
+                                <p className="mt-1 text-xs text-muted-foreground">
+                                  {subtitle}
                                 </p>
-                              </button>
-                              {!entry.draftGhost ? (
+                              ) : null}
+                              {draftDiffSummary ? (
+                                <p className="mt-1 text-xs text-muted-foreground">
+                                  {draftDiffSummary}
+                                </p>
+                              ) : null}
+                              <p className="mt-1 text-xs text-primary">
+                                {entry.draftGhost
+                                  ? "Original date marker"
+                                  : "View event details"}
+                              </p>
+                            </button>
+                            {!entry.draftGhost ? (
                                 <button
                                   type="button"
                                   className="group flex size-8 shrink-0 items-center justify-center rounded-full border border-border bg-background transition-all hover:border-primary hover:bg-primary/5 disabled:cursor-not-allowed disabled:opacity-60"
@@ -2647,7 +2649,7 @@ export function CalendarSurface({
             open={Boolean(selectedEventEntry)}
             onOpenChange={(open) => {
               if (!open) {
-                setSelectedEventEntryKey(null);
+                closeEventDetails();
               }
             }}
           >
@@ -2702,7 +2704,7 @@ export function CalendarSurface({
                           value={
                             selectedEventDraftEdit?.scheduledDate ??
                             selectedEventEntry.activeItem?.scheduled_date ??
-                            effectiveSelectedDay ??
+                            dayDetailDay ??
                             ""
                           }
                           onChange={(event) =>
