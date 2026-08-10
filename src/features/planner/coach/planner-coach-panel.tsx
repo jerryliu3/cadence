@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import type { PlannerCoachModel } from "@/features/planner/coach/coach-types";
+import type { CoachMessageProposal } from "@/features/planner/calendar-surface.types";
 
 interface PlannerCoachPanelProps {
   coach: PlannerCoachModel;
@@ -28,14 +29,34 @@ function formatSavedConversationDate(isoTimestamp: string) {
 function formatProposalApplyStatus(status: string) {
   switch (status) {
     case "auto_applied":
-      return "Auto-applied";
+      return "Reflected in draft";
     case "manually_applied":
-      return "Applied manually";
+      return "Manually re-applied";
     case "undone":
       return "Undone";
     default:
-      return "Ready to apply";
+      return "Not reflected";
   }
+}
+
+function formatPatchSummary(proposal: CoachMessageProposal) {
+  if (!proposal.patchSummary) {
+    return `${proposal.policyPatches.length} draft change${
+      proposal.policyPatches.length === 1 ? "" : "s"
+    } available.`;
+  }
+  const summary = proposal.patchSummary;
+  if (
+    summary.applicablePatchCount === 0 &&
+    summary.noOpPatchCount > 0 &&
+    summary.skippedPatchCount === 0 &&
+    summary.unsupportedPatchCount === 0
+  ) {
+    return "Already matches your draft policy. No calendar changes were needed.";
+  }
+  return `${summary.applicablePatchCount} applicable, ${summary.noOpPatchCount} already-matching, ${summary.skippedPatchCount} skipped patch${
+    summary.skippedPatchCount === 1 ? "" : "es"
+  }.`;
 }
 
 export function PlannerCoachPanel({ coach }: PlannerCoachPanelProps) {
@@ -119,15 +140,7 @@ export function PlannerCoachPanel({ coach }: PlannerCoachPanelProps) {
                     {formatProposalApplyStatus(message.proposal.applyStatus)}
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    {message.proposal.patchSummary
-                      ? `${message.proposal.patchSummary.applicablePatchCount} applicable, ${message.proposal.patchSummary.noOpPatchCount} already-matching, ${message.proposal.patchSummary.skippedPatchCount} skipped patch${
-                          message.proposal.patchSummary.skippedPatchCount === 1
-                            ? ""
-                            : "es"
-                        }.`
-                      : `${message.proposal.policyPatches.length} draft change${
-                          message.proposal.policyPatches.length === 1 ? "" : "s"
-                        } available.`}
+                    {formatPatchSummary(message.proposal)}
                   </p>
                   <div className="mt-2 flex flex-wrap gap-2">
                     <Button
