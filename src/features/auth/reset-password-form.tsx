@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createClient } from "@/lib/supabase/client";
+import { resolveAuthRedirectBaseUrl } from "@/lib/supabase/public-app-url";
 
 function isRecoveryFlow(hash: string) {
   return hash.includes("type=recovery");
@@ -38,11 +39,10 @@ export function ResetPasswordForm() {
     event.preventDefault();
     setIsSubmitting(true);
 
-    const configuredAppUrl = process.env.NEXT_PUBLIC_APP_URL?.trim();
-    const appBaseUrl =
-      configuredAppUrl && configuredAppUrl.length > 0
-        ? configuredAppUrl.replace(/\/+$/, "")
-        : window.location.origin;
+    const appBaseUrl = resolveAuthRedirectBaseUrl(
+      process.env.NEXT_PUBLIC_APP_URL,
+      window.location.origin
+    );
     const redirectTo = `${appBaseUrl}/reset-password`;
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo,

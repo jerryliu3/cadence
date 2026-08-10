@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createClient } from "@/lib/supabase/client";
+import { resolveAuthRedirectBaseUrl } from "@/lib/supabase/public-app-url";
 
 type UsernameAvailability =
   | "idle"
@@ -97,10 +98,16 @@ export function SignupForm() {
       return;
     }
 
+    const appBaseUrl = resolveAuthRedirectBaseUrl(
+      process.env.NEXT_PUBLIC_APP_URL,
+      window.location.origin
+    );
+
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
+        emailRedirectTo: `${appBaseUrl}/login`,
         data: {
           username: normalizedUsername,
           display_name: displayName || normalizedUsername,
