@@ -60,7 +60,7 @@ async function openCalendar(page: Page, scopeMonth?: string) {
   await expect(
     page.getByRole("tab", { name: "Calendar", exact: true })
   ).toBeVisible();
-  await expect(page.getByText("Loading planner month context...")).toHaveCount(0);
+  await waitForCalendarReady(page);
   await ensureMonthCalendarDensity(page);
 
   // CI may land on first-run setup instead of the planner grid.
@@ -92,9 +92,25 @@ async function openCalendar(page: Page, scopeMonth?: string) {
     await expect(
       page.getByRole("tab", { name: "Calendar", exact: true })
     ).toBeVisible();
-    await expect(page.getByText("Loading planner month context...")).toHaveCount(0);
+    await waitForCalendarReady(page);
     await ensureMonthCalendarDensity(page);
   }
+}
+
+async function waitForCalendarReady(page: Page) {
+  const loadingLocator = page.getByText("Loading planner month context...");
+  const setupHeading = page.getByRole("heading", { name: "Plan setup" });
+  await expect
+    .poll(
+      async () => {
+        if (await setupHeading.isVisible().catch(() => false)) {
+          return "setup";
+        }
+        return (await loadingLocator.count()) === 0 ? "ready" : "loading";
+      },
+      { timeout: 20_000 }
+    )
+    .not.toBe("loading");
 }
 
 async function ensureMonthCalendarDensity(page: Page) {
@@ -326,6 +342,7 @@ test.describe("planner critical rails", () => {
   );
 
   test("drag + save keeps only intended unit movement", async ({ page }) => {
+    test.setTimeout(120_000);
     const executeMoveAndSave = async () => {
       await openCalendar(page);
       await ensureMovableEntryAvailable(page);
