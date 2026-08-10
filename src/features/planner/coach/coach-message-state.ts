@@ -15,6 +15,21 @@ export function upsertConversationSummary({
   return [conversation, ...remaining];
 }
 
+export function readAssistantMessageWithProposal({
+  messages,
+  messageIndex,
+}: {
+  messages: CoachMessage[];
+  messageIndex: number;
+}) {
+  const message = messages[messageIndex];
+  if (!message || message.role !== "assistant" || !message.proposal) {
+    return null;
+  }
+
+  return message as CoachMessage & { role: "assistant"; proposal: CoachMessageProposal };
+}
+
 export function updateAssistantProposalStatus({
   messages,
   messageIndex,
