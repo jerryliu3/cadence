@@ -39,19 +39,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  buildActiveGoalIndexes,
-  buildCompletionFactMarkerDayByIdentity,
-  buildCompletionFactMarkersByDate,
-  buildCompletionFactUnitsByGoalDate,
-  buildEntriesByDate,
-  buildEntryByKey,
-  buildEntryDayByKey,
-  buildVisibleMonthCalendarDataByMonth,
-  buildPreviewUnitByEntryKey,
-  resolveCalendarDayData,
-  orderEntriesForDay as orderEntriesForDayFromState,
-} from "@/features/planner/calendar-entries";
+import { buildActiveGoalIndexes } from "@/features/planner/calendar-entries";
 import {
   buildWeekdayLabels,
   completionDisabledReasonCopy,
@@ -84,9 +72,14 @@ import {
   selectDraftCommandsForScope,
 } from "@/features/planner/draft-command-reducer";
 import { planDraftTimeOverrideUpdate } from "@/features/planner/draft-time-override";
-import { buildMonthCells } from "@/features/planner/month-cells";
 import { computeDayPreviewPosition } from "@/features/planner/day-preview-popup";
 import { getGoalVisual } from "@/features/planner/goal-visuals";
+import {
+  readPlannerCalendarDayProjection,
+  selectPlannerCalendarDayProjectionsByDay,
+  selectPlannerCalendarStoreProjection,
+} from "@/features/planner/calendar-store-selectors";
+import { selectCalendarViewWindowProjection } from "@/features/planner/calendar-view-projection";
 import { getDateInTimezone, isValidIanaTimezone } from "@/lib/dates/timezone";
 import {
   getApiErrorMessage,
@@ -101,7 +94,6 @@ import {
 } from "@/lib/planner/completion-dispatch";
 import {
   draftCommandEntryKey,
-  projectPlannerDraftCommands,
   sortPlannerDraftCommands,
   type PlannerDraftCommand,
 } from "@/lib/planner/draft-commands";
@@ -115,7 +107,6 @@ import type {
   CalendarSurfaceProps,
   CompletionControlDisabledReason,
   DayPreviewState,
-  DraftItemEdit,
   PlannerContextPayload,
   PlannerDayDetailEntry,
   PlannerErrorPayload,
@@ -298,55 +289,25 @@ export function CalendarSurface({
   const weekStartsOn = normalizeWeekStartsOn(
     context?.preferences?.defaultPolicy.weekStartsOn
   );
-  const cells = useMemo(
-    () => (month ? buildMonthCells(month, weekStartsOn) : []),
-    [month, weekStartsOn]
-  );
-  const cellByDate = useMemo(
-    () => new Map(cells.map((cell) => [cell.date, cell])),
-    [cells]
-  );
   const calendarToday =
     context?.asOfDate ??
     getDateInTimezone(new Date(), context?.timezone ?? setupTimezone);
-  const focusedDay = selectedDay ?? calendarToday;
-  const focusedWeekDays = useMemo(() => {
-    const parsedFocusedDay = parse(focusedDay, "yyyy-MM-dd", new Date());
-    const safeFocusedDay = isValid(parsedFocusedDay)
-      ? parsedFocusedDay
-      : parse(calendarToday, "yyyy-MM-dd", new Date());
-    const weekStartOffset = (safeFocusedDay.getDay() - weekStartsOn + 7) % 7;
-    const weekStart = addDays(safeFocusedDay, -weekStartOffset);
-    return Array.from({ length: 7 }, (_, index) =>
-      format(addDays(weekStart, index), "yyyy-MM-dd")
+  const { cells, focusedDay, focusedWeekDays, focusedWeekCells, visibleDays } =
+    useMemo(
+      () =>
+        selectCalendarViewWindowProjection({
+          month,
+          selectedDay,
+          calendarToday,
+          weekStartsOn,
+          viewMode,
+        }),
+      [calendarToday, month, selectedDay, viewMode, weekStartsOn]
     );
-  }, [calendarToday, focusedDay, weekStartsOn]);
   const weekdayLabels = useMemo(
     () => buildWeekdayLabels(weekStartsOn),
     [weekStartsOn]
   );
-  const focusedWeekCells = useMemo(() => {
-    const monthPrefix = month ? `${month}-` : null;
-    return focusedWeekDays.map((day) => {
-      const existingCell = cellByDate.get(day);
-      if (existingCell) {
-        return existingCell;
-      }
-      return {
-        date: day,
-        inMonth: monthPrefix ? day.startsWith(monthPrefix) : false,
-      };
-    });
-  }, [cellByDate, focusedWeekDays, month]);
-  const visibleDays = useMemo(() => {
-    if (viewMode === "week") {
-      return focusedWeekDays;
-    }
-    if (viewMode === "day") {
-      return [focusedDay];
-    }
-    return cells.map((cell) => cell.date);
-  }, [cells, focusedDay, focusedWeekDays, viewMode]);
   const visibleMonthContexts = usePlannerVisibleMonthContexts({
     activeTab,
     scopeMonth: month,
@@ -588,65 +549,66 @@ export function CalendarSurface({
   );
   const activeGoalsByPlanGoalId = activeGoalIndexes.byPlanGoalId;
   const activeGoalsByOriginalGoalId = activeGoalIndexes.byOriginalGoalId;
-  const visibleMonthCalendarDataByMonth = useMemo(() => {
-    return buildVisibleMonthCalendarDataByMonth(
-      visibleMonthContexts,
-      visibleDraftItemEditsByMonth
-    );
-  }, [visibleDraftItemEditsByMonth, visibleMonthContexts]);
-
-  const entriesByDate = useMemo(
+  const calendarStoreProjection = useMemo(
     () =>
-      buildEntriesByDate({
-        baselineWorkUnits: context?.preview?.workUnits,
-        workUnits: effectivePreview?.workUnits,
-        activeItems: context?.activePlan?.items,
+      selectPlannerCalendarStoreProjection({
+        context,
+        effectivePreview,
+        currentScopeMonth,
+        draftCommandState,
+        visibleMonthContexts,
         activeGoalsByPlanGoalId,
         activeGoalsByOriginalGoalId,
-        goalTitles: context?.goalTitles,
-        draftItemEdits: effectiveDraftItemEdits,
       }),
     [
       activeGoalsByOriginalGoalId,
       activeGoalsByPlanGoalId,
-      context?.goalTitles,
-      context?.preview?.workUnits,
-      effectivePreview?.workUnits,
-      context?.activePlan?.items,
-      effectiveDraftItemEdits,
+      context,
+      currentScopeMonth,
+      draftCommandState,
+      effectivePreview,
+      visibleMonthContexts,
     ]
   );
-  const entryByKey = useMemo(() => buildEntryByKey(entriesByDate), [entriesByDate]);
-  const entryDayByKey = useMemo(
-    () => buildEntryDayByKey(entriesByDate),
-    [entriesByDate]
-  );
-  const previewUnitByEntryKey = useMemo(
-    () => buildPreviewUnitByEntryKey(effectivePreview?.workUnits),
-    [effectivePreview?.workUnits]
-  );
-  const completionFactUnitsByGoalDate = useMemo(
-    () => buildCompletionFactUnitsByGoalDate(effectivePreview?.workUnits),
-    [effectivePreview?.workUnits]
-  );
-  const completionFactMarkersByDate = useMemo(
-    () =>
-      buildCompletionFactMarkersByDate({
-        workUnits: effectivePreview?.workUnits,
-        activeGoalsByOriginalGoalId,
-        goalTitles: context?.goalTitles,
-      }),
-    [
-      activeGoalsByOriginalGoalId,
-      context?.goalTitles,
-      effectivePreview?.workUnits,
-    ]
-  );
-  const completionFactMarkerDayByIdentity = useMemo(
-    () => buildCompletionFactMarkerDayByIdentity(completionFactMarkersByDate),
-    [completionFactMarkersByDate]
-  );
+  const {
+    effectiveDraftCommands,
+    effectiveDraftItemEdits,
+    entriesByDate,
+    entryByKey,
+    entryDayByKey,
+    previewUnitByEntryKey,
+    completionFactUnitsByGoalDate,
+  } = calendarStoreProjection;
   const effectiveSelectedDay = localSelectedDay;
+  const projectionDays = useMemo(() => {
+    const days = new Set<string>();
+    for (const day of visibleDays) {
+      days.add(day);
+    }
+    if (effectiveSelectedDay) {
+      days.add(effectiveSelectedDay);
+    }
+    if (focusedDay) {
+      days.add(focusedDay);
+    }
+    if (dayPreview?.day) {
+      days.add(dayPreview.day);
+    }
+    return Array.from(days);
+  }, [dayPreview, effectiveSelectedDay, focusedDay, visibleDays]);
+  const dayProjectionByDay = useMemo(
+    () =>
+      selectPlannerCalendarDayProjectionsByDay({
+        days: projectionDays,
+        storeProjection: calendarStoreProjection,
+        previewEntryOrderByDay,
+      }),
+    [calendarStoreProjection, previewEntryOrderByDay, projectionDays]
+  );
+  const getCalendarDayProjection = useCallback(
+    (day: string | null) => readPlannerCalendarDayProjection(dayProjectionByDay, day),
+    [dayProjectionByDay]
+  );
 
   const isDayInCurrentScopeMonth = useCallback(
     (day: string | null) => {
@@ -656,26 +618,6 @@ export function CalendarSurface({
       return day.slice(0, 7) === month;
     },
     [month]
-  );
-  const getCalendarDayData = useCallback(
-    (day: string | null) =>
-      resolveCalendarDayData({
-        day,
-        entriesByDate,
-        entryDayByKey,
-        previewUnitByEntryKey,
-        completionFactMarkersByDate,
-        completionFactMarkerDayByIdentity,
-        visibleMonthCalendarDataByMonth,
-      }),
-    [
-      completionFactMarkerDayByIdentity,
-      completionFactMarkersByDate,
-      entryDayByKey,
-      entriesByDate,
-      previewUnitByEntryKey,
-      visibleMonthCalendarDataByMonth,
-    ]
   );
   const canMutateEntryOnDay = useCallback(
     (entry: PlannerDayDetailEntry, day: string | null) => {
@@ -690,33 +632,24 @@ export function CalendarSurface({
     [entryDayByKey, isDayInCurrentScopeMonth]
   );
   const getEntriesForDay = useCallback(
-    (day: string | null) => getCalendarDayData(day).entries,
-    [getCalendarDayData]
+    (day: string | null) => getCalendarDayProjection(day).entries,
+    [getCalendarDayProjection]
   );
   const getCompletionFactMarkersForDay = useCallback(
-    (day: string | null) => getCalendarDayData(day).completionFactMarkers,
-    [getCalendarDayData]
+    (day: string | null) => getCalendarDayProjection(day).completionFactMarkers,
+    [getCalendarDayProjection]
   );
-
-  const orderEntriesForDay = useCallback(
-    (day: string | null, entries: PlannerDayDetailEntry[]) =>
-      orderEntriesForDayFromState({
-        day,
-        entries,
-        previewEntryOrderByDay,
-      }),
-    [previewEntryOrderByDay]
+  const getOrderedEntriesForDay = useCallback(
+    (day: string | null) => getCalendarDayProjection(day).orderedEntries,
+    [getCalendarDayProjection]
   );
 
   const selectedDayEntries = useMemo(() => {
-    return orderEntriesForDay(
-      effectiveSelectedDay,
-      getEntriesForDay(effectiveSelectedDay)
-    );
-  }, [effectiveSelectedDay, getEntriesForDay, orderEntriesForDay]);
+    return getOrderedEntriesForDay(effectiveSelectedDay);
+  }, [effectiveSelectedDay, getOrderedEntriesForDay]);
   const focusedDayEntries = useMemo(
-    () => orderEntriesForDay(focusedDay, getEntriesForDay(focusedDay)),
-    [focusedDay, getEntriesForDay, orderEntriesForDay]
+    () => getOrderedEntriesForDay(focusedDay),
+    [focusedDay, getOrderedEntriesForDay]
   );
   const focusedDayCompletionFactMarkers = useMemo(
     () => getCompletionFactMarkersForDay(focusedDay),
@@ -746,12 +679,8 @@ export function CalendarSurface({
   );
 
   const previewDayEntries = useMemo(
-    () =>
-      orderEntriesForDay(
-        dayPreview?.day ?? null,
-        getEntriesForDay(dayPreview?.day ?? null)
-      ),
-    [dayPreview?.day, getEntriesForDay, orderEntriesForDay]
+    () => getOrderedEntriesForDay(dayPreview?.day ?? null),
+    [dayPreview?.day, getOrderedEntriesForDay]
   );
   const previewDayCompletionFactMarkers = useMemo(
     () => getCompletionFactMarkersForDay(dayPreview?.day ?? null),
@@ -2262,9 +2191,9 @@ export function CalendarSurface({
     setSelectedEventEntryKey(null);
   };
   const renderCalendarDayCell = (cell: { date: string; inMonth: boolean }) => {
-    const dayData = getCalendarDayData(cell.date);
-    const entriesForDay = orderEntriesForDay(cell.date, dayData.entries);
-    const completionFactMarkersForDay = dayData.completionFactMarkers;
+    const dayProjection = getCalendarDayProjection(cell.date);
+    const entriesForDay = dayProjection.orderedEntries;
+    const completionFactMarkersForDay = dayProjection.completionFactMarkers;
     const status =
       entriesForDay.length > 0
         ? getDayStatus(entriesForDay, "No items")
