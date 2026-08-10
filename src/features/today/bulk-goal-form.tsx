@@ -39,6 +39,10 @@ import {
   TargetCountField,
 } from "@/features/goals/goal-field-kit";
 import { MilestoneNameFields } from "@/features/goals/milestone-name-fields";
+import {
+  GoalDateRangeFields,
+  GoalDefaultTimeField,
+} from "@/features/goals/goal-schedule-fields";
 import { getApiErrorMessage, postJson } from "@/lib/api/client";
 import { toLocalDateString } from "@/lib/dates/day";
 import { resolveUserTimezone } from "@/lib/dates/timezone";
@@ -1103,53 +1107,35 @@ export function BulkGoalForm() {
                         />
                       </div>
 
-                      <div className="space-y-2">
-                        <Label>Start date</Label>
-                        <Input
-                          type="date"
-                          value={draft.start_date}
-                          onChange={(event) =>
-                            updateDraft(draft.id, (previous) => ({
-                              ...previous,
-                              start_date: event.target.value,
-                            }))
-                          }
-                        />
-                      </div>
+                      <GoalDateRangeFields
+                        startDate={draft.start_date}
+                        endDate={draft.end_date}
+                        onStartDateChange={(value) =>
+                          updateDraft(draft.id, (previous) => ({
+                            ...previous,
+                            start_date: value,
+                          }))
+                        }
+                        onEndDateChange={(value) =>
+                          updateDraft(draft.id, (previous) => ({
+                            ...previous,
+                            end_date: value,
+                          }))
+                        }
+                        requiresEndDate={requiresEndDate}
+                      />
 
-                      <div className="space-y-2">
-                        <Label>{requiresEndDate ? "End date" : "End date (optional)"}</Label>
-                        <Input
-                          type="date"
-                          value={draft.end_date}
-                          onChange={(event) =>
-                            updateDraft(draft.id, (previous) => ({
-                              ...previous,
-                              end_date: event.target.value,
-                            }))
-                          }
-                          required={requiresEndDate}
-                        />
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label>Default time of day</Label>
-                        <Input
-                          type="time"
-                          value={draft.default_local_time}
-                          onChange={(event) =>
-                            updateDraft(draft.id, (previous) => ({
-                              ...previous,
-                              default_local_time: normalizeLocalTimeValue(
-                                event.target.value
-                              ),
-                            }))
-                          }
-                        />
-                        <p className="text-xs text-muted-foreground">
-                          Optional fallback planner time when no item override is set.
-                        </p>
-                      </div>
+                      <GoalDefaultTimeField
+                        value={draft.default_local_time}
+                        onValueChange={(value) =>
+                          updateDraft(draft.id, (previous) => ({
+                            ...previous,
+                            default_local_time: normalizeLocalTimeValue(value),
+                          }))
+                        }
+                        label="Default time of day"
+                        helperText="Optional fallback planner time when no item override is set."
+                      />
                     </div>
 
                     {fixedMilestoneCount > 0 ? (
