@@ -44,6 +44,15 @@ import {
   fetchProgressContext,
   progressSummaryMap,
 } from "@/lib/goals/progress-context";
+import {
+  getLinkedGoalDeadlineLabel,
+  getLinkedGoalRecurrenceLabel,
+} from "@/lib/goals/linked-goal-labels";
+import {
+  buildMilestoneNameDrafts,
+  defaultMilestoneName,
+  normalizeMilestoneNamesForSave,
+} from "@/lib/goals/milestones";
 import type { Goal, GoalFrequencyType, GoalLink, RecurrenceInterval } from "@/lib/goals/types";
 import {
   isOrdinalGoalDefinition,
@@ -89,54 +98,12 @@ const defaultState: GoalFormState = {
 
 const localTimePattern = /^([01]\d|2[0-3]):[0-5]\d$/;
 
-function defaultMilestoneName(index: number): string {
-  return `Milestone ${index + 1}`;
-}
-
 function parsePositiveTargetCount(value: string): number | null {
   const parsed = Number.parseInt(value, 10);
   if (!Number.isFinite(parsed) || parsed <= 0) {
     return null;
   }
   return parsed;
-}
-
-function buildMilestoneNameDrafts(count: number, existing: string[] = []): string[] {
-  if (!Number.isFinite(count) || count <= 0) {
-    return [];
-  }
-
-  return Array.from({ length: count }, (_, index) => {
-    const existingName = existing[index];
-    return existingName !== undefined ? existingName : "";
-  });
-}
-
-function normalizeMilestoneNamesForSave(count: number, names: string[]): string[] {
-  return Array.from({ length: count }, (_, index) => {
-    const value = names[index]?.trim();
-    return value && value.length > 0 ? value : defaultMilestoneName(index);
-  });
-}
-
-function getLinkedGoalRecurrenceLabel(goal: Goal): string {
-  if (goal.frequency_type === "fixed_milestones") {
-    return "Milestone";
-  }
-
-  if (goal.recurrence_interval === "weekly") {
-    return "Weekly";
-  }
-
-  if (goal.recurrence_interval === "monthly") {
-    return "Monthly";
-  }
-
-  return "Daily";
-}
-
-function getLinkedGoalDeadlineLabel(goal: Goal): string {
-  return goal.end_date ? `Due ${goal.end_date}` : "No deadline";
 }
 
 export function GoalForm({ goalId }: GoalFormProps) {

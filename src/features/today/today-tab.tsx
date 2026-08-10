@@ -36,6 +36,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { GoalEndMonthBadge } from "@/features/goals/goal-end-month-badge";
 import { GoalListControls } from "@/features/goals/goal-list-controls";
+import { isAbortError, withAbortSignal } from "@/lib/async/abort";
 import { toLocalDateString } from "@/lib/dates/day";
 import { normalizeWeekStartsOn } from "@/lib/dates/week-start";
 import { getCategoryBadgeClass } from "@/lib/goals/category";
@@ -106,41 +107,6 @@ const INITIAL_GROUP_EXPANDED: Record<RecurrenceGroup, boolean> = {
   monthly: false,
   fixed: false,
 };
-
-function isAbortError(error: unknown) {
-  if (error instanceof DOMException) {
-    return error.name === "AbortError";
-  }
-  if (
-    typeof error === "object" &&
-    error !== null &&
-    "name" in error &&
-    (error as { name?: unknown }).name === "AbortError"
-  ) {
-    return true;
-  }
-  return false;
-}
-
-function withAbortSignal<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
-  if (signal.aborted) {
-    throw new DOMException("The operation was aborted.", "AbortError");
-  }
-  return new Promise<T>((resolve, reject) => {
-    const onAbort = () => reject(new DOMException("The operation was aborted.", "AbortError"));
-    signal.addEventListener("abort", onAbort, { once: true });
-    promise.then(
-      (value) => {
-        signal.removeEventListener("abort", onAbort);
-        resolve(value);
-      },
-      (error) => {
-        signal.removeEventListener("abort", onAbort);
-        reject(error);
-      }
-    );
-  });
-}
 
 function getRecurrenceGroup(goal: Goal): RecurrenceGroup {
   if (goal.frequency_type === "fixed_milestones") {
