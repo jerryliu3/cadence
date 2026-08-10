@@ -870,9 +870,8 @@ export function CalendarSurface({
   };
 
   /**
-   * A pin is a solver input, so moving one item can legitimately cascade into
-   * others (ordinals must stay in date order). Re-solve so the ghosts show the
-   * whole cascade rather than just the item the user dragged.
+   * A pin is a solver input. Re-solve after drag so preview ghosts stay in sync
+   * with the true draft solve (including any downstream rebalancing).
    */
   const draftMoveRefreshRunnerRef = useRef<() => void>(() => {});
   useEffect(() => {
@@ -1244,10 +1243,8 @@ export function CalendarSurface({
       }
 
       const scopeMonth = context.scopeMonth;
-      // Pin the goal's whole ordinal-to-date mapping, not just this unit. The
-      // solver orders a goal's units by ordinal, so pinning one ordinal to a
-      // later date would push every later ordinal after it -- moving one
-      // session would visibly shift all the rest.
+      // Pin the goal's whole ordinal-to-date mapping, not just this unit, so a
+      // drag behaves like a one-date swap for interchangeable sessions.
       const goalUnits = (effectivePreview?.workUnits ?? [])
         .filter(
           (unit) =>

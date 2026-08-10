@@ -558,7 +558,7 @@ describe("pure planner kernel", () => {
     expect(output.workUnits).toEqual([]);
   });
 
-  it("holds replacement when ordered locks conflict", () => {
+  it("keeps replacement publishable when lock dates are out of ordinal order", () => {
     const output = runPlannerKernel(
       input({
         goals: [goal({ target_count: 2 })],
@@ -589,17 +589,14 @@ describe("pure planner kernel", () => {
       })
     );
 
-    expect(output.solver.issueCodes).toEqual(["invalid_lock"]);
-    expect(output.solver.publishable).toBe(false);
-    expect(output.validation.valid).toBe(false);
+    expect(output.solver.issueCodes).toEqual([]);
+    expect(output.solver.publishable).toBe(true);
+    expect(output.validation.valid).toBe(true);
     expect(output.workUnits.map((unit) => unit.scheduledDate)).toEqual([
       "2026-08-10",
       "2026-08-05",
     ]);
     expect(output.diff.some((entry) => entry.kind === "moved")).toBe(false);
-    expect(output.suggestedRelaxations).toContain(
-      "Unlock the conflicting item before regenerating."
-    );
   });
 
   it("emits a usable unaffected-goal diff beside an invalid lock", () => {
@@ -625,7 +622,7 @@ describe("pure planner kernel", () => {
               goalId: invalidGoal.id,
               requirementFingerprint: invalidFingerprint,
               unitKey: "total:2",
-              scheduledDate: "2026-08-05",
+              scheduledDate: "2026-08-10",
               locked: true,
             },
           ],
@@ -1075,7 +1072,11 @@ describe("solve intent and draft pins", () => {
     ]);
   });
 
-  it("pins a unit to its draft move date and cascades the rest", () => {
+  it("pins one unit without forcing other ordinals to cascade", () => {
+    const stable = runPlannerKernel(input());
+    const stableByUnitKey = new Map(
+      stable.workUnits.map((unit) => [unit.unitKey, unit.scheduledDate])
+    );
     const pinned = runPlannerKernel(
       input({ draftPinnedDates: { "goal-a:total:1": "2026-08-20" } })
     );
@@ -1083,7 +1084,12 @@ describe("solve intent and draft pins", () => {
     expect(pinned.solver.placementStatus).toBe("complete");
     expect(pinned.workUnits[0].scheduledDate).toBe("2026-08-20");
     expect(
-      pinned.workUnits.every((unit) => (unit.scheduledDate ?? "") >= "2026-08-20")
+      pinned.workUnits
+        .filter((unit) => unit.unitKey !== "total:1")
+        .every(
+          (unit) =>
+            unit.scheduledDate === stableByUnitKey.get(unit.unitKey)
+        )
     ).toBe(true);
   });
 

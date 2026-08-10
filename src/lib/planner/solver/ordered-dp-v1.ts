@@ -11,47 +11,6 @@ import type {
 } from "@/lib/planner/solver/types";
 import { getSolverUnitId } from "@/lib/planner/solver/types";
 
-interface DpCell {
-  objective: SolverObjective;
-  choice: string | null;
-  terminatesPrefix: boolean;
-}
-
-function addObjective(
-  left: SolverObjective,
-  right: SolverObjective
-): SolverObjective {
-  return {
-    placed: left.placed + right.placed,
-    moved: left.moved + right.moved,
-    displacement: left.displacement + right.displacement,
-    policyCost: left.policyCost + right.policyCost,
-  };
-}
-
-function compareObjective(
-  left: SolverObjective,
-  right: SolverObjective,
-  solveIntent: SolverSolveIntent
-) {
-  if (left.placed !== right.placed) {
-    return left.placed > right.placed ? -1 : 1;
-  }
-  if (solveIntent === "replan" && left.policyCost !== right.policyCost) {
-    return left.policyCost < right.policyCost ? -1 : 1;
-  }
-  if (left.moved !== right.moved) {
-    return left.moved < right.moved ? -1 : 1;
-  }
-  if (left.displacement !== right.displacement) {
-    return left.displacement < right.displacement ? -1 : 1;
-  }
-  if (solveIntent === "stable" && left.policyCost !== right.policyCost) {
-    return left.policyCost < right.policyCost ? -1 : 1;
-  }
-  return 0;
-}
-
 function scheduledObjective(unit: SolverUnit, date: string): SolverObjective {
   const moved = unit.previousDate === date ? 0 : 1;
   return {
@@ -74,6 +33,150 @@ function nullObjective(unit: SolverUnit): SolverObjective {
   };
 }
 
+type SecondaryObjectiveTuple = [number, number, number];
+
+function getSecondaryObjectiveTuple(
+  objective: SolverObjective,
+  solveIntent: SolverSolveIntent
+): SecondaryObjectiveTuple {
+  if (solveIntent === "replan") {
+    return [objective.policyCost, objective.moved, objective.displacement];
+  }
+  return [objective.moved, objective.displacement, objective.policyCost];
+}
+
+function subtractSecondaryObjectiveTuple(
+  left: SecondaryObjectiveTuple,
+  right: SecondaryObjectiveTuple
+): SecondaryObjectiveTuple {
+  return [
+    left[0] - right[0],
+    left[1] - right[1],
+    left[2] - right[2],
+  ];
+}
+
+function buildLexicographicWeights({
+  maxAbsByComponent,
+  maxSelections,
+}: {
+  maxAbsByComponent: SecondaryObjectiveTuple;
+  maxSelections: number;
+}): SecondaryObjectiveTuple {
+  const selectionBound = Math.max(maxSelections, 1);
+  const totalAbs: SecondaryObjectiveTuple = [
+    maxAbsByComponent[0] * selectionBound,
+    maxAbsByComponent[1] * selectionBound,
+    maxAbsByComponent[2] * selectionBound,
+  ];
+  const weights: SecondaryObjectiveTuple = [0, 0, 1];
+  for (let index = 1; index >= 0; index -= 1) {
+    let lowerSwing = 0;
+    for (let lower = index + 1; lower < 3; lower += 1) {
+      lowerSwing += 2 * totalAbs[lower] * weights[lower];
+    }
+    weights[index] = lowerSwing + 1;
+  }
+  return weights;
+}
+
+function encodeSecondaryTuple(
+  tuple: SecondaryObjectiveTuple,
+  weights: SecondaryObjectiveTuple
+) {
+  return (
+    tuple[0] * weights[0] +
+    tuple[1] * weights[1] +
+    tuple[2] * weights[2]
+  );
+}
+
+function solveMinimumCostAssignment(costByRowColumn: number[][]) {
+  const rowCount = costByRowColumn.length;
+  if (rowCount === 0) {
+    return [] as number[];
+  }
+  const columnCount = costByRowColumn[0]?.length ?? 0;
+  if (columnCount < rowCount) {
+    return null;
+  }
+  for (const row of costByRowColumn) {
+    if (row.length !== columnCount) {
+      throw new Error("Assignment matrix rows must have equal width.");
+    }
+  }
+
+  const u = Array.from({ length: rowCount + 1 }, () => 0);
+  const v = Array.from({ length: columnCount + 1 }, () => 0);
+  const p = Array.from({ length: columnCount + 1 }, () => 0);
+  const way = Array.from({ length: columnCount + 1 }, () => 0);
+
+  for (let row = 1; row <= rowCount; row += 1) {
+    p[0] = row;
+    let column0 = 0;
+    const minReducedCost = Array.from(
+      { length: columnCount + 1 },
+      () => Number.POSITIVE_INFINITY
+    );
+    const usedColumns = Array.from({ length: columnCount + 1 }, () => false);
+
+    do {
+      usedColumns[column0] = true;
+      const row0 = p[column0];
+      let delta = Number.POSITIVE_INFINITY;
+      let column1 = 0;
+
+      for (let column = 1; column <= columnCount; column += 1) {
+        if (usedColumns[column]) {
+          continue;
+        }
+        const reducedCost =
+          costByRowColumn[row0 - 1][column - 1] - u[row0] - v[column];
+        if (reducedCost < minReducedCost[column]) {
+          minReducedCost[column] = reducedCost;
+          way[column] = column0;
+        }
+        if (minReducedCost[column] < delta) {
+          delta = minReducedCost[column];
+          column1 = column;
+        }
+      }
+
+      if (!Number.isFinite(delta)) {
+        return null;
+      }
+
+      for (let column = 0; column <= columnCount; column += 1) {
+        if (usedColumns[column]) {
+          u[p[column]] += delta;
+          v[column] -= delta;
+        } else {
+          minReducedCost[column] -= delta;
+        }
+      }
+      column0 = column1;
+    } while (p[column0] !== 0);
+
+    do {
+      const column1 = way[column0];
+      p[column0] = p[column1];
+      column0 = column1;
+    } while (column0 !== 0);
+  }
+
+  const selectedColumnByRow = Array.from({ length: rowCount }, () => -1);
+  for (let column = 1; column <= columnCount; column += 1) {
+    const row = p[column];
+    if (row > 0) {
+      selectedColumnByRow[row - 1] = column - 1;
+    }
+  }
+  if (selectedColumnByRow.some((column) => column < 0)) {
+    return null;
+  }
+  return selectedColumnByRow;
+}
+
 function canonicalGoalUnits(units: SolverUnit[], dates: Set<string>) {
   return units
     .map((unit) => ({
@@ -91,7 +194,6 @@ function canonicalGoalUnits(units: SolverUnit[], dates: Set<string>) {
 }
 
 function locksAreStructurallyValid(units: SolverUnit[]) {
-  let previousLockedDate: string | null = null;
   const usedDates = new Set<string>();
 
   for (const unit of units) {
@@ -100,12 +202,10 @@ function locksAreStructurallyValid(units: SolverUnit[]) {
     }
     if (
       !unit.candidateDates.includes(unit.lockedDate) ||
-      usedDates.has(unit.lockedDate) ||
-      (previousLockedDate !== null && unit.lockedDate <= previousLockedDate)
+      usedDates.has(unit.lockedDate)
     ) {
       return false;
     }
-    previousLockedDate = unit.lockedDate;
     usedDates.add(unit.lockedDate);
   }
   return true;
@@ -121,152 +221,143 @@ function solveGoal(
   if (!locksAreStructurallyValid(units)) {
     return null;
   }
+  const assignedByUnitId = new Map<string, string | null>();
+  const lockedDates = new Set<string>();
+  const unlockedUnits: SolverUnit[] = [];
+  for (const unit of units) {
+    if (unit.lockedDate !== null) {
+      assignedByUnitId.set(getSolverUnitId(unit), unit.lockedDate);
+      lockedDates.add(unit.lockedDate);
+      continue;
+    }
+    unlockedUnits.push(unit);
+  }
+  const availableDates = dates.filter((date) => !lockedDates.has(date));
+  if (availableDates.length === 0 || unlockedUnits.length === 0) {
+    for (const unit of unlockedUnits) {
+      assignedByUnitId.set(getSolverUnitId(unit), null);
+    }
+    return units.map((unit) => ({
+      goalId: unit.goalId,
+      unitKey: unit.unitKey,
+      scheduledDate: assignedByUnitId.get(getSolverUnitId(unit)) ?? null,
+    }));
+  }
 
-  const dateIndices = new Map(dates.map((date, index) => [date, index]));
-  const allNullSuffix: SolverObjective[] = Array.from(
-    { length: units.length + 1 },
-    () => ({ placed: 0, moved: 0, displacement: 0, policyCost: 0 })
+  const dateIndexByValue = new Map(
+    availableDates.map((date, index) => [date, index])
   );
-  for (let index = units.length - 1; index >= 0; index -= 1) {
-    allNullSuffix[index] = addObjective(
-      nullObjective(units[index]),
-      allNullSuffix[index + 1]
+  const candidateDateIndicesByUnit = unlockedUnits.map((unit) =>
+    unit.candidateDates
+      .filter((date) => !lockedDates.has(date))
+      .map((date) => dateIndexByValue.get(date))
+      .filter((index): index is number => index !== undefined)
+  );
+  const rowCount = availableDates.length;
+  const columnCount = unlockedUnits.length + rowCount;
+  const secondaryDeltaByDateAndUnit: Array<
+    Array<SecondaryObjectiveTuple | null>
+  > =
+    Array.from({ length: rowCount }, () =>
+      Array.from({ length: unlockedUnits.length }, () => null)
     );
-  }
-  const scheduledObjectives = units.map(
-    (unit) =>
-      new Map(
-        unit.candidateDates.map((date) => [
-          date,
-          scheduledObjective(unit, date),
-        ])
-      )
-  );
-  const suffixHasLock = Array.from(
-    { length: units.length + 1 },
-    () => false
-  );
-  for (let index = units.length - 1; index >= 0; index -= 1) {
-    suffixHasLock[index] =
-      units[index].lockedDate !== null || suffixHasLock[index + 1];
-  }
+  const maxAbsByComponent: SecondaryObjectiveTuple = [0, 0, 0];
 
-  const terminalCell: DpCell = {
-    objective: { placed: 0, moved: 0, displacement: 0, policyCost: 0 },
-    choice: null,
-    terminatesPrefix: false,
-  };
-  const cells: Array<Array<DpCell | null>> = Array.from(
-    { length: units.length + 1 },
-    () => Array.from({ length: dates.length + 1 }, () => null)
-  );
-  cells[units.length].fill(terminalCell);
-
-  for (let unitIndex = units.length - 1; unitIndex >= 0; unitIndex -= 1) {
-    const unit = units[unitIndex];
-    const candidates = unit.lockedDate
-      ? [unit.lockedDate]
-      : unit.candidateDates;
-    for (
-      let minimumDateIndex = dates.length;
-      minimumDateIndex >= 0;
-      minimumDateIndex -= 1
-    ) {
-      let best: DpCell | null = null;
-      for (const date of candidates) {
-        const dateIndex = dateIndices.get(date);
-        if (dateIndex === undefined || dateIndex < minimumDateIndex) {
-          continue;
-        }
-        const child = cells[unitIndex + 1][dateIndex + 1];
-        if (!child) {
-          continue;
-        }
-        const candidate: DpCell = {
-          objective: addObjective(
-            scheduledObjectives[unitIndex].get(date)!,
-            child.objective
-          ),
-          choice: date,
-          terminatesPrefix: false,
-        };
-        if (
-          !best ||
-          compareObjective(candidate.objective, best.objective, solveIntent) < 0
-        ) {
-          best = candidate;
+  for (let unitIndex = 0; unitIndex < unlockedUnits.length; unitIndex += 1) {
+    const unit = unlockedUnits[unitIndex];
+    const nullSecondary = getSecondaryObjectiveTuple(
+      nullObjective(unit),
+      solveIntent
+    );
+    for (const dateIndex of candidateDateIndicesByUnit[unitIndex]) {
+      const date = availableDates[dateIndex];
+      const scheduledSecondary = getSecondaryObjectiveTuple(
+        scheduledObjective(unit, date),
+        solveIntent
+      );
+      const secondaryDelta = subtractSecondaryObjectiveTuple(
+        scheduledSecondary,
+        nullSecondary
+      );
+      secondaryDeltaByDateAndUnit[dateIndex][unitIndex] = secondaryDelta;
+      for (let component = 0; component < 3; component += 1) {
+        const absolute = Math.abs(secondaryDelta[component]);
+        if (absolute > maxAbsByComponent[component]) {
+          maxAbsByComponent[component] = absolute;
         }
       }
-
-      if (!unit.lockedDate) {
-        const prefixKind =
-          unit.kind === "milestone_sequence" ||
-          unit.kind === "deadline_total";
-        const child = prefixKind
-          ? null
-          : cells[unitIndex + 1][minimumDateIndex];
-        const candidate: DpCell | null =
-          prefixKind && !suffixHasLock[unitIndex + 1]
-          ? {
-              objective: allNullSuffix[unitIndex],
-              choice: null,
-              terminatesPrefix: true,
-            }
-          : !prefixKind && child
-            ? {
-                objective: addObjective(
-                  nullObjective(unit),
-                  child.objective
-                ),
-                choice: null,
-                terminatesPrefix: false,
-              }
-            : null;
-        if (
-          candidate &&
-          (!best ||
-            compareObjective(candidate.objective, best.objective, solveIntent) < 0)
-        ) {
-          best = candidate;
-        }
-      }
-      cells[unitIndex][minimumDateIndex] = best;
     }
   }
 
-  if (!cells[0][0]) {
+  const weights = buildLexicographicWeights({
+    maxAbsByComponent,
+    maxSelections: rowCount,
+  });
+  let maxAbsEncodedDelta = 0;
+  const encodedDeltaByDateAndUnit: Array<Array<number | null>> =
+    Array.from({ length: rowCount }, () =>
+      Array.from({ length: unlockedUnits.length }, () => null)
+    );
+  for (let dateIndex = 0; dateIndex < rowCount; dateIndex += 1) {
+    for (let unitIndex = 0; unitIndex < unlockedUnits.length; unitIndex += 1) {
+      const secondaryDelta = secondaryDeltaByDateAndUnit[dateIndex][unitIndex];
+      if (secondaryDelta === null) {
+        continue;
+      }
+      const encodedDelta = encodeSecondaryTuple(secondaryDelta, weights);
+      encodedDeltaByDateAndUnit[dateIndex][unitIndex] = encodedDelta;
+      const absolute = Math.abs(encodedDelta);
+      if (absolute > maxAbsEncodedDelta) {
+        maxAbsEncodedDelta = absolute;
+      }
+    }
+  }
+  const secondarySwingBound = 2 * rowCount * maxAbsEncodedDelta;
+  const dummyPenalty = secondarySwingBound + 1;
+  const infeasibleCost = dummyPenalty + maxAbsEncodedDelta + 1;
+  const costByRowColumn = Array.from({ length: rowCount }, (_, dateIndex) => {
+    const row = Array.from({ length: columnCount }, () => infeasibleCost);
+    for (let unitIndex = 0; unitIndex < unlockedUnits.length; unitIndex += 1) {
+      const encodedDelta = encodedDeltaByDateAndUnit[dateIndex][unitIndex];
+      if (encodedDelta !== null) {
+        row[unitIndex] = encodedDelta;
+      }
+    }
+    for (
+      let dummyColumn = unlockedUnits.length;
+      dummyColumn < columnCount;
+      dummyColumn += 1
+    ) {
+      row[dummyColumn] = dummyPenalty;
+    }
+    return row;
+  });
+  const selectedColumnByDate = solveMinimumCostAssignment(costByRowColumn);
+  if (!selectedColumnByDate) {
     return null;
   }
 
-  const assignments: SolverAssignment[] = [];
-  let unitIndex = 0;
-  let minimumDateIndex = 0;
-  while (unitIndex < units.length) {
-    const cell = cells[unitIndex][minimumDateIndex];
-    if (!cell) {
-      return null;
-    }
-    assignments.push({
-      goalId: units[unitIndex].goalId,
-      unitKey: units[unitIndex].unitKey,
-      scheduledDate: cell.choice,
-    });
-    if (cell.choice !== null) {
-      minimumDateIndex = (dateIndices.get(cell.choice) ?? -1) + 1;
-    }
-    unitIndex += 1;
-    if (cell.terminatesPrefix) {
-      while (unitIndex < units.length) {
-        assignments.push({
-          goalId: units[unitIndex].goalId,
-          unitKey: units[unitIndex].unitKey,
-          scheduledDate: null,
-        });
-        unitIndex += 1;
+  for (const unit of unlockedUnits) {
+    assignedByUnitId.set(getSolverUnitId(unit), null);
+  }
+  for (let dateIndex = 0; dateIndex < selectedColumnByDate.length; dateIndex += 1) {
+    const selectedColumn = selectedColumnByDate[dateIndex];
+    if (selectedColumn < unlockedUnits.length) {
+      const encodedDelta =
+        encodedDeltaByDateAndUnit[dateIndex][selectedColumn];
+      if (encodedDelta === null) {
+        return null;
       }
+      const unit = unlockedUnits[selectedColumn];
+      assignedByUnitId.set(getSolverUnitId(unit), availableDates[dateIndex]);
     }
   }
-  return assignments;
+
+  return units.map((unit) => ({
+    goalId: unit.goalId,
+    unitKey: unit.unitKey,
+    scheduledDate: assignedByUnitId.get(getSolverUnitId(unit)) ?? null,
+  }));
 }
 
 export function solveOrderedDpV1({
