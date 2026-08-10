@@ -76,7 +76,6 @@ export interface PlannerVisibleMonthContextPayload {
 export interface PlannerWorkUnit {
   originalGoalId: string;
   unitKey: string;
-  ordinal?: number;
   kind?: "milestone_sequence" | "cadence" | "deadline_total";
   label: string | null;
   scheduledDate: string | null;
