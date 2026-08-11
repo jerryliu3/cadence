@@ -880,7 +880,7 @@ begin
     category.label,
     case
       when goal.id is not null
-        and goal.feed_visibility = 'title_public'::public.goal_feed_visibility
+        and goal.is_private = false
         and goal.is_deleted = false
         and goal.archived_at is null
       then goal.title
