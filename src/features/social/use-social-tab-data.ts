@@ -543,7 +543,7 @@ export function useSocialTabData() {
     const { error } = await supabase.rpc("create_group_goal", {
       p_id: newGroupGoalId,
       p_title: groupDraft.title.trim(),
-      p_description: groupDraft.description.trim() || null,
+      p_description: groupDraft.description.trim() || undefined,
       p_category: getCategoryLabel(
         groupDraft.categorySelection,
         groupDraft.customCategory
@@ -554,16 +554,16 @@ export function useSocialTabData() {
       p_recurrence_interval:
         groupDraft.frequencyType === "recurring"
           ? groupDraft.recurrenceInterval
-          : null,
+          : undefined,
       p_target_count:
         groupDraft.frequencyType === "fixed_milestones"
-          ? parsedGroupTargetCount
+          ? parsedGroupTargetCount ?? undefined
           : groupDraft.frequencyType === "recurring" &&
               groupDraft.targetCount.trim().length > 0
-            ? parsedGroupTargetCount
-            : null,
+            ? parsedGroupTargetCount ?? undefined
+            : undefined,
       p_start_date: groupDraft.startDate,
-      p_end_date: groupDraft.endDate || null,
+      p_end_date: groupDraft.endDate || undefined,
     });
 
     if (error) {

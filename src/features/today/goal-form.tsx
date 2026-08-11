@@ -413,7 +413,7 @@ export function GoalForm({
     const milestoneNames =
       state.frequency_type === "fixed_milestones" && parsedTargetCountForSave !== null
         ? normalizeMilestoneNamesForSave(parsedTargetCountForSave, state.milestone_names)
-        : null;
+        : undefined;
     const categoryValue = getCategoryValueForWrite(
       state.category_selection,
       state.custom_category
@@ -422,24 +422,24 @@ export function GoalForm({
     const goalArgs = {
       p_id: goalId ?? crypto.randomUUID(),
       p_title: state.title.trim(),
-      p_description: state.description.trim() || null,
-      p_reward_text: state.reward_text.trim() || null,
+      p_description: state.description.trim() || undefined,
+      p_reward_text: state.reward_text.trim() || undefined,
       p_category: categoryValue.category,
       p_category_key: categoryValue.categoryKey,
       p_color: state.color,
       p_frequency_type: state.frequency_type,
       p_recurrence_interval:
-        state.frequency_type === "recurring" ? state.recurrence_interval : null,
+        state.frequency_type === "recurring" ? state.recurrence_interval : undefined,
       p_target_count:
         state.frequency_type === "fixed_milestones"
-          ? parsedTargetCountForSave
+          ? parsedTargetCountForSave ?? undefined
           : state.frequency_type === "recurring" && state.target_count.trim().length > 0
-            ? parsedTargetCountForSave
-            : null,
+            ? parsedTargetCountForSave ?? undefined
+            : undefined,
       p_milestone_names: milestoneNames,
       p_start_date: state.start_date,
-      p_end_date: state.end_date || null,
-      p_default_local_time: state.default_local_time.trim() || null,
+      p_end_date: state.end_date || undefined,
+      p_default_local_time: state.default_local_time.trim() || undefined,
       p_is_group: state.is_group,
     };
 
@@ -489,7 +489,8 @@ export function GoalForm({
     {
       const { error: linkError } = await supabase.rpc("replace_goal_source_link", {
         p_source_goal_id: savedGoalId,
-        p_target_goal_id: selectedLinkTarget !== "none" ? selectedLinkTarget : null,
+        p_target_goal_id:
+          selectedLinkTarget !== "none" ? selectedLinkTarget : undefined,
       });
       if (linkError) {
         toast.error(linkError.message);
