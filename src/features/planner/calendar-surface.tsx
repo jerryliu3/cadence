@@ -2074,13 +2074,13 @@ export function CalendarSurface({
               "MMM d, yyyy"
             )}`
         : format(safeFocusedDay, "EEE MMM d");
-  const viewHeadingControlWidth = `min(100%, calc(${Math.max(
+  const fixedViewHeadingWidthCh = Math.max(
     monthLabel.length,
     MAX_MONTH_HEADING_SAMPLE.length,
     MAX_WEEK_HEADING_SAMPLE.length,
     MAX_THREE_DAY_HEADING_SAMPLE.length,
     MAX_DAY_HEADING_SAMPLE.length
-  )}ch + ${viewMode === "month" ? "11rem" : "8rem"}))`;
+  );
   const viewDescription =
     viewMode === "month"
       ? `${restWeekdayOptions.find((option) => option.value === weekStartsOn)?.label ?? "Mon"}-first month view. Drag session pills to stage preview edits.`
@@ -2486,19 +2486,6 @@ export function CalendarSurface({
                   Undo all months
                 </Button>
               ) : null}
-              {context?.preferences ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon-sm"
-                  aria-label="Settings"
-                  title="Settings"
-                  onClick={() => setSettingsOpen(true)}
-                  disabled={loading}
-                >
-                  <Settings className="size-4" />
-                </Button>
-              ) : null}
             </div>
           </div>
         </div>
@@ -2529,30 +2516,26 @@ export function CalendarSurface({
       ) : month ? (
         <>
           <div className="rounded-xl border bg-card p-4 shadow-sm">
-            <div className="mb-3 space-y-3">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div
-                  className={`grid max-w-full items-center gap-2 ${
-                    viewMode === "month"
-                      ? "grid-cols-[2rem_minmax(0,1fr)_2rem_2rem_2rem]"
-                      : "grid-cols-[2rem_minmax(0,1fr)_2rem_2rem]"
-                  }`}
-                  style={{ width: viewHeadingControlWidth }}
-                >
-                  <PeriodStepper
-                    className="contents"
-                    onPrevious={() => moveViewWindow(-1)}
-                    onNext={() => moveViewWindow(1)}
-                    previousDisabled={loading}
-                    nextDisabled={loading}
-                    previousAriaLabel={previousWindowAriaLabel}
-                    nextAriaLabel={nextWindowAriaLabel}
-                    center={
-                      <h3 className="truncate text-center text-base font-semibold">
-                        {viewHeading}
-                      </h3>
-                    }
-                  />
+            <div className="mx-auto mb-3 w-full max-w-[56rem] space-y-3">
+              <div className="flex w-full flex-wrap items-center gap-2">
+                <PeriodStepper
+                  className="shrink-0"
+                  onPrevious={() => moveViewWindow(-1)}
+                  onNext={() => moveViewWindow(1)}
+                  previousDisabled={loading}
+                  nextDisabled={loading}
+                  previousAriaLabel={previousWindowAriaLabel}
+                  nextAriaLabel={nextWindowAriaLabel}
+                  center={
+                    <h3
+                      className="truncate text-center text-base font-semibold"
+                      style={{ width: `${fixedViewHeadingWidthCh}ch` }}
+                    >
+                      {viewHeading}
+                    </h3>
+                  }
+                />
+                <div className="ml-auto flex items-center justify-end gap-2">
                   <Button
                     type="button"
                     variant="outline"
@@ -2581,33 +2564,52 @@ export function CalendarSurface({
                       )}
                     </Button>
                   ) : null}
-                </div>
-                <div className="flex items-center gap-1 rounded-md border p-1">
-                  {PLANNER_VIEW_MODES.map((modeOption) => (
-                    <Button
-                      key={modeOption.value}
-                      type="button"
-                      size="sm"
-                      variant={viewMode === modeOption.value ? "default" : "ghost"}
-                      className="h-7 px-2 text-xs"
+                  <Select
+                    value={viewMode}
+                    onValueChange={(value) =>
+                      setCalendarViewMode(
+                        value as (typeof PLANNER_VIEW_MODES)[number]["value"]
+                      )
+                    }
+                  >
+                    <SelectTrigger
+                      className="h-8 w-[7.5rem] rounded-md bg-background/90 text-xs"
                       disabled={loading}
-                      onClick={() => setCalendarViewMode(modeOption.value)}
+                      aria-label="Calendar view mode"
                     >
-                      {modeOption.label}
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {PLANNER_VIEW_MODES.map((modeOption) => (
+                        <SelectItem key={modeOption.value} value={modeOption.value}>
+                          {modeOption.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {context?.preferences ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon-sm"
+                      aria-label="Settings"
+                      title="Settings"
+                      onClick={() => setSettingsOpen(true)}
+                      disabled={loading}
+                    >
+                      <Settings className="size-4" />
                     </Button>
-                  ))}
-                </div>
-              </div>
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                  <p>{viewDescription}</p>
-                  {loading ? (
-                    <span className="inline-flex items-center gap-1">
-                      <Loader2 className="size-3 animate-spin" />
-                      Updating...
-                    </span>
                   ) : null}
                 </div>
+              </div>
+              <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                <p>{viewDescription}</p>
+                {loading ? (
+                  <span className="inline-flex items-center gap-1">
+                    <Loader2 className="size-3 animate-spin" />
+                    Updating...
+                  </span>
+                ) : null}
               </div>
             </div>
             <PlannerDndProvider
