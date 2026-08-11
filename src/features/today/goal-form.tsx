@@ -45,6 +45,7 @@ import {
 } from "@/features/goals/goal-schedule-fields";
 import { toLocalDateString } from "@/lib/dates/day";
 import {
+  DEFAULT_GOAL_CATEGORIES,
   type CategorySelection,
   getCategorySelectionFromValue,
   getCategorySwatchColor,
@@ -196,6 +197,7 @@ export function GoalForm({ goalId, showBackButton = true }: GoalFormProps) {
         const goal = goalResponse.data as Goal;
         const categoryState = getCategorySelectionFromValue(
           goal.category,
+          DEFAULT_GOAL_CATEGORIES,
           goal.category_key
         );
         setEditingGoal(goal);
