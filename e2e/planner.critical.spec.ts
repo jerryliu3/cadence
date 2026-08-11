@@ -340,6 +340,8 @@ async function moveFirstMovableEntry(
         .locator(`[data-day-cell="true"][data-day="${targetDay}"]`)
         .first();
       await expect(targetCell).toBeVisible();
+      await currentSourceEntry.scrollIntoViewIfNeeded();
+      await targetCell.scrollIntoViewIfNeeded();
 
       const sourceBox = await currentSourceEntry.boundingBox();
       const targetBox = await targetCell.boundingBox();
@@ -350,7 +352,7 @@ async function moveFirstMovableEntry(
       const sourceX = sourceBox.x + sourceBox.width / 2;
       const sourceY = sourceBox.y + sourceBox.height / 2;
       const targetX = targetBox.x + targetBox.width / 2;
-      const targetY = targetBox.y + 28;
+      const targetY = targetBox.y + Math.max(8, Math.min(targetBox.height / 2, 28));
 
       await page.mouse.move(sourceX, sourceY);
       await page.waitForTimeout(50);
