@@ -1,7 +1,7 @@
 -- Social Phase 8:
--- Enable duo subjects across challenge and leaderboard competition flows.
+-- Enable team subjects across challenge and leaderboard competition flows.
 
-create or replace function private.active_duo_for_user(
+create or replace function private.active_team_for_user(
   p_user_id uuid
 )
 returns uuid
@@ -9,11 +9,11 @@ language sql
 stable
 set search_path = ''
 as $$
-  select duo.id
-  from public.duos duo
-  where duo.status = 'active'::public.duo_status
-    and p_user_id in (duo.user_a_id, duo.user_b_id)
-  order by duo.accepted_at desc nulls last
+  select team.id
+  from public.teams team
+  where team.status = 'active'::public.team_status
+    and p_user_id in (team.user_a_id, team.user_b_id)
+  order by team.accepted_at desc nulls last
   limit 1;
 $$;
 
@@ -33,12 +33,12 @@ begin
     return array[p_subject_id]::uuid[];
   end if;
 
-  if p_subject_kind = 'duo'::public.social_subject_kind then
-    select array[duo.user_a_id, duo.user_b_id]::uuid[]
+  if p_subject_kind = 'team'::public.social_subject_kind then
+    select array[team.user_a_id, team.user_b_id]::uuid[]
     into v_user_ids
-    from public.duos duo
-    where duo.id = p_subject_id
-      and duo.status = 'active'::public.duo_status;
+    from public.teams team
+    where team.id = p_subject_id
+      and team.status = 'active'::public.team_status;
 
     return coalesce(v_user_ids, '{}'::uuid[]);
   end if;
@@ -202,7 +202,6 @@ as $$
 declare
   v_now timestamptz := pg_catalog.now();
   v_refreshed integer := 0;
-  v_slots integer;
   r_challenge public.challenges%rowtype;
   r_participant record;
 begin
@@ -223,89 +222,8 @@ begin
     from public.challenges challenge
     where challenge.status = 'active'::public.challenge_status
   loop
-    if r_challenge.enrollment = 'auto'::public.challenge_enrollment then
-      if r_challenge.subject_kind = 'user'::public.social_subject_kind then
-        if r_challenge.max_participants is null then
-          insert into public.challenge_participants (
-            challenge_id,
-            subject_kind,
-            subject_id
-          )
-          select
-            r_challenge.id,
-            'user'::public.social_subject_kind,
-            profile.id
-          from public.profiles profile
-          on conflict (challenge_id, subject_kind, subject_id) do nothing;
-        else
-          select greatest(
-            r_challenge.max_participants - count(*),
-            0
-          )::integer
-          into v_slots
-          from public.challenge_participants participant
-          where participant.challenge_id = r_challenge.id
-            and participant.subject_kind = 'user'::public.social_subject_kind;
+    -- enrollment='auto' does not bulk-enroll all users/teams; opt-in join is primary.
 
-          if v_slots > 0 then
-            insert into public.challenge_participants (
-              challenge_id,
-              subject_kind,
-              subject_id
-            )
-            select
-              r_challenge.id,
-              'user'::public.social_subject_kind,
-              profile.id
-            from public.profiles profile
-            order by profile.created_at asc, profile.id asc
-            limit v_slots
-            on conflict (challenge_id, subject_kind, subject_id) do nothing;
-          end if;
-        end if;
-      elsif r_challenge.subject_kind = 'duo'::public.social_subject_kind then
-        if r_challenge.max_participants is null then
-          insert into public.challenge_participants (
-            challenge_id,
-            subject_kind,
-            subject_id
-          )
-          select
-            r_challenge.id,
-            'duo'::public.social_subject_kind,
-            duo.id
-          from public.duos duo
-          where duo.status = 'active'::public.duo_status
-          on conflict (challenge_id, subject_kind, subject_id) do nothing;
-        else
-          select greatest(
-            r_challenge.max_participants - count(*),
-            0
-          )::integer
-          into v_slots
-          from public.challenge_participants participant
-          where participant.challenge_id = r_challenge.id
-            and participant.subject_kind = 'duo'::public.social_subject_kind;
-
-          if v_slots > 0 then
-            insert into public.challenge_participants (
-              challenge_id,
-              subject_kind,
-              subject_id
-            )
-            select
-              r_challenge.id,
-              'duo'::public.social_subject_kind,
-              duo.id
-            from public.duos duo
-            where duo.status = 'active'::public.duo_status
-            order by duo.accepted_at asc nulls last, duo.id asc
-            limit v_slots
-            on conflict (challenge_id, subject_kind, subject_id) do nothing;
-          end if;
-        end if;
-      end if;
-    end if;
 
     for r_participant in
       select participant.subject_kind, participant.subject_id
@@ -366,13 +284,13 @@ set search_path = ''
 as $$
 declare
   v_uid uuid := auth.uid();
-  v_duo_id uuid;
+  v_team_id uuid;
 begin
   if v_uid is null then
     raise exception using errcode = '28000', message = 'authentication_required';
   end if;
 
-  v_duo_id := private.active_duo_for_user(v_uid);
+  v_team_id := private.active_team_for_user(v_uid);
 
   return query
   with participant_counts as (
@@ -411,9 +329,9 @@ begin
     and (
       (challenge.subject_kind = 'user'::public.social_subject_kind and participant.subject_id = v_uid)
       or (
-        challenge.subject_kind = 'duo'::public.social_subject_kind
-        and v_duo_id is not null
-        and participant.subject_id = v_duo_id
+        challenge.subject_kind = 'team'::public.social_subject_kind
+        and v_team_id is not null
+        and participant.subject_id = v_team_id
       )
     )
   where challenge.status in (
@@ -461,7 +379,7 @@ set search_path = ''
 as $$
 declare
   v_uid uuid := auth.uid();
-  v_duo_id uuid;
+  v_team_id uuid;
   v_subject_kind public.social_subject_kind;
 begin
   if v_uid is null then
@@ -488,12 +406,12 @@ begin
       pg_catalog.now()
     );
   else
-    v_duo_id := private.active_duo_for_user(v_uid);
-    if v_duo_id is not null then
+    v_team_id := private.active_team_for_user(v_uid);
+    if v_team_id is not null then
       perform private.refresh_challenge_participant(
         p_challenge_id,
-        'duo'::public.social_subject_kind,
-        v_duo_id,
+        'team'::public.social_subject_kind,
+        v_team_id,
         pg_catalog.now()
       );
     end if;
@@ -533,9 +451,9 @@ begin
     and (
       (challenge.subject_kind = 'user'::public.social_subject_kind and participant.subject_id = v_uid)
       or (
-        challenge.subject_kind = 'duo'::public.social_subject_kind
-        and v_duo_id is not null
-        and participant.subject_id = v_duo_id
+        challenge.subject_kind = 'team'::public.social_subject_kind
+        and v_team_id is not null
+        and participant.subject_id = v_team_id
       )
     )
   where challenge.id = p_challenge_id
@@ -560,7 +478,7 @@ declare
   v_challenge public.challenges%rowtype;
   v_participant_count integer;
   v_subject_id uuid;
-  v_duo_id uuid;
+  v_team_id uuid;
 begin
   if v_uid is null then
     raise exception using errcode = '28000', message = 'authentication_required';
@@ -584,13 +502,13 @@ begin
 
   if v_challenge.subject_kind = 'user'::public.social_subject_kind then
     v_subject_id := v_uid;
-  elsif v_challenge.subject_kind = 'duo'::public.social_subject_kind then
-    v_duo_id := private.active_duo_for_user(v_uid);
-    if v_duo_id is null then
-      raise exception using errcode = '22023', message = 'duo_required';
+  elsif v_challenge.subject_kind = 'team'::public.social_subject_kind then
+    v_team_id := private.active_team_for_user(v_uid);
+    if v_team_id is null then
+      raise exception using errcode = '22023', message = 'team_required';
     end if;
 
-    v_subject_id := v_duo_id;
+    v_subject_id := v_team_id;
   else
     raise exception using errcode = '22023', message = 'challenge_subject_not_supported';
   end if;
@@ -685,9 +603,9 @@ begin
   if v_subject_kind = 'user'::public.social_subject_kind then
     v_subject_id := v_uid;
   else
-    v_subject_id := private.active_duo_for_user(v_uid);
+    v_subject_id := private.active_team_for_user(v_uid);
     if v_subject_id is null then
-      raise exception using errcode = '22023', message = 'duo_required';
+      raise exception using errcode = '22023', message = 'team_required';
     end if;
   end if;
 
@@ -803,9 +721,16 @@ begin
                 )
             ) as tie_break_at
           from public.profiles profile
+
+          where exists (
+            select 1
+            from public.xp_ledger ledger
+            where ledger.user_id = profile.id
+              and ledger.earned_on between v_from and v_to
+          )
         ) scored
       ) ranked;
-    elsif r_season.subject_kind = 'duo'::public.social_subject_kind then
+    elsif r_season.subject_kind = 'team'::public.social_subject_kind then
       insert into public.leaderboard_standings (
         season_id,
         subject_kind,
@@ -817,7 +742,7 @@ begin
       )
       select
         r_season.id,
-        'duo'::public.social_subject_kind,
+        'team'::public.social_subject_kind,
         ranked.subject_id,
         ranked.score,
         ranked.tie_break_at,
@@ -833,18 +758,18 @@ begin
           )::integer as rank
         from (
           select
-            duo.id as subject_id,
+            team.id as subject_id,
             private.challenge_progress_value(
               r_season.metric,
               r_season.metric_track_key,
-              array[duo.user_a_id, duo.user_b_id]::uuid[],
+              array[team.user_a_id, team.user_b_id]::uuid[],
               v_from,
               v_to
             ) as score,
             (
               select min(ledger.created_at)
               from public.xp_ledger ledger
-              where ledger.user_id in (duo.user_a_id, duo.user_b_id)
+              where ledger.user_id in (team.user_a_id, team.user_b_id)
                 and ledger.earned_on between v_from and v_to
                 and (
                   (r_season.metric in ('total_xp', 'category_xp')
@@ -864,8 +789,15 @@ begin
                   or ledger.track_key = r_season.metric_track_key
                 )
             ) as tie_break_at
-          from public.duos duo
-          where duo.status = 'active'::public.duo_status
+          from public.teams team
+          where team.status = 'active'::public.team_status
+
+            and exists (
+              select 1
+              from public.xp_ledger ledger
+              where ledger.user_id in (team.user_a_id, team.user_b_id)
+                and ledger.earned_on between v_from and v_to
+            )
         ) scored
       ) ranked;
     end if;
@@ -973,10 +905,10 @@ begin
     standing.tie_break_at,
     standing.rank,
     case
-      when standing.subject_kind = 'duo'::public.social_subject_kind then
-        coalesce(duo_a.display_name, duo_a.username, 'Unknown')
+      when standing.subject_kind = 'team'::public.social_subject_kind then
+        coalesce(team_a.display_name, team_a.username, 'Unknown')
         || ' + '
-        || coalesce(duo_b.display_name, duo_b.username, 'Unknown')
+        || coalesce(team_b.display_name, team_b.username, 'Unknown')
       else
         coalesce(profile.display_name, profile.username, 'Unknown')
     end as display_name
@@ -986,11 +918,11 @@ begin
   left join public.profiles profile
     on standing.subject_kind = 'user'::public.social_subject_kind
     and profile.id = standing.subject_id
-  left join public.duos duo
-    on standing.subject_kind = 'duo'::public.social_subject_kind
-    and duo.id = standing.subject_id
-  left join public.profiles duo_a on duo_a.id = duo.user_a_id
-  left join public.profiles duo_b on duo_b.id = duo.user_b_id
+  left join public.teams team
+    on standing.subject_kind = 'team'::public.social_subject_kind
+    and team.id = standing.subject_id
+  left join public.profiles team_a on team_a.id = team.user_a_id
+  left join public.profiles team_b on team_b.id = team.user_b_id
   where season.status = 'closed'::public.leaderboard_season_status
   on conflict (season_id, subject_kind, subject_id) do nothing;
 
@@ -1041,7 +973,7 @@ begin
   select
     member.actor_id,
     'season_result'::public.feed_event_type,
-    standing.season_id::text || ':duo:' || standing.subject_id::text,
+    standing.season_id::text || ':team:' || standing.subject_id::text,
     current_date,
     season.metric_track_key,
     null,
@@ -1051,19 +983,19 @@ begin
       'seasonId', standing.season_id,
       'rank', standing.rank,
       'score', standing.score,
-      'duoId', standing.subject_id
+      'teamId', standing.subject_id
     )
   from public.leaderboard_standings standing
   join public.leaderboard_seasons season
     on season.id = standing.season_id
-  join public.duos duo
-    on duo.id = standing.subject_id
+  join public.teams team
+    on team.id = standing.subject_id
   cross join lateral (
-    values (duo.user_a_id), (duo.user_b_id)
+    values (team.user_a_id), (team.user_b_id)
   ) as member(actor_id)
   where season.status = 'closed'::public.leaderboard_season_status
     and standing.rank <= 3
-    and standing.subject_kind = 'duo'::public.social_subject_kind
+    and standing.subject_kind = 'team'::public.social_subject_kind
   on conflict (actor_id, event_type, subject_key, bucket_date) do nothing;
 
   return v_count;
@@ -1116,7 +1048,7 @@ begin
   if v_subject_kind = 'user'::public.social_subject_kind then
     v_viewer_subject_id := v_uid;
   else
-    v_viewer_subject_id := private.active_duo_for_user(v_uid);
+    v_viewer_subject_id := private.active_team_for_user(v_uid);
   end if;
 
   return query
@@ -1132,10 +1064,10 @@ begin
     standing.subject_kind,
     standing.subject_id,
     case
-      when standing.subject_kind = 'duo'::public.social_subject_kind then
-        coalesce(duo_a.display_name, duo_a.username, result.display_name, 'Unknown')
+      when standing.subject_kind = 'team'::public.social_subject_kind then
+        coalesce(team_a.display_name, team_a.username, result.display_name, 'Unknown')
         || ' + '
-        || coalesce(duo_b.display_name, duo_b.username, result.display_name, 'Unknown')
+        || coalesce(team_b.display_name, team_b.username, result.display_name, 'Unknown')
       else
         coalesce(profile.display_name, profile.username, result.display_name, 'Unknown')
     end as display_name,
@@ -1147,11 +1079,11 @@ begin
   left join public.profiles profile
     on standing.subject_kind = 'user'::public.social_subject_kind
     and profile.id = standing.subject_id
-  left join public.duos duo
-    on standing.subject_kind = 'duo'::public.social_subject_kind
-    and duo.id = standing.subject_id
-  left join public.profiles duo_a on duo_a.id = duo.user_a_id
-  left join public.profiles duo_b on duo_b.id = duo.user_b_id
+  left join public.teams team
+    on standing.subject_kind = 'team'::public.social_subject_kind
+    and team.id = standing.subject_id
+  left join public.profiles team_a on team_a.id = team.user_a_id
+  left join public.profiles team_b on team_b.id = team.user_b_id
   left join public.leaderboard_season_results result
     on result.season_id = standing.season_id
     and result.subject_kind = standing.subject_kind
@@ -1163,7 +1095,7 @@ begin
 end;
 $$;
 
-revoke all on function private.active_duo_for_user(uuid)
+revoke all on function private.active_team_for_user(uuid)
   from public, anon, authenticated;
 revoke all on function private.subject_member_ids(public.social_subject_kind, uuid)
   from public, anon, authenticated;
