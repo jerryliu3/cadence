@@ -1,19 +1,19 @@
 -- Social Phase 7:
--- Duo nudges, feed reactions, and durable notification outbox.
+-- Team nudges, feed reactions, and durable notification outbox.
 
 do $$
 begin
   if exists (
     select 1 from pg_type
     where typnamespace = 'public'::regnamespace
-      and typname = 'duo_status'
+      and typname = 'team_status'
   ) and not exists (
     select 1
     from pg_enum enum_value
-    where enum_value.enumtypid = 'public.duo_status'::regtype
+    where enum_value.enumtypid = 'public.team_status'::regtype
       and enum_value.enumlabel = 'expired'
   ) then
-    alter type public.duo_status add value 'expired';
+    alter type public.team_status add value 'expired';
   end if;
 
   if not exists (
@@ -59,9 +59,9 @@ begin
       and typname = 'notification_kind'
   ) then
     create type public.notification_kind as enum (
-      'duo_invite',
-      'duo_accepted',
-      'duo_dissolved',
+      'team_invite',
+      'team_accepted',
+      'team_dissolved',
       'nudge',
       'reaction',
       'challenge_joined',
@@ -75,43 +75,43 @@ begin
 end;
 $$;
 
-create table if not exists public.duo_preferences (
-  duo_id uuid not null references public.duos(id) on delete cascade,
+create table if not exists public.team_preferences (
+  team_id uuid not null references public.teams(id) on delete cascade,
   user_id uuid not null references public.profiles(id) on delete cascade,
   share_completions boolean not null default true,
   allow_nudges boolean not null default true,
   notify_partner_activity boolean not null default true,
   updated_at timestamptz not null default pg_catalog.now(),
-  primary key (duo_id, user_id)
+  primary key (team_id, user_id)
 );
 
-alter table public.duo_preferences
+alter table public.team_preferences
 add column if not exists share_completions boolean not null default true;
-alter table public.duo_preferences
+alter table public.team_preferences
 add column if not exists allow_nudges boolean not null default true;
-alter table public.duo_preferences
+alter table public.team_preferences
 add column if not exists notify_partner_activity boolean not null default true;
 
-insert into public.duo_preferences (duo_id, user_id)
-select duo.id, duo.user_a_id
-from public.duos duo
-where duo.status = 'active'::public.duo_status
-on conflict (duo_id, user_id) do nothing;
+insert into public.team_preferences (team_id, user_id)
+select team.id, team.user_a_id
+from public.teams team
+where team.status = 'active'::public.team_status
+on conflict (team_id, user_id) do nothing;
 
-insert into public.duo_preferences (duo_id, user_id)
-select duo.id, duo.user_b_id
-from public.duos duo
-where duo.status = 'active'::public.duo_status
-on conflict (duo_id, user_id) do nothing;
+insert into public.team_preferences (team_id, user_id)
+select team.id, team.user_b_id
+from public.teams team
+where team.status = 'active'::public.team_status
+on conflict (team_id, user_id) do nothing;
 
-drop trigger if exists set_duo_preferences_updated_at on public.duo_preferences;
-create trigger set_duo_preferences_updated_at
-before update on public.duo_preferences
+drop trigger if exists set_team_preferences_updated_at on public.team_preferences;
+create trigger set_team_preferences_updated_at
+before update on public.team_preferences
 for each row execute function public.set_updated_at();
 
 create table if not exists public.nudges (
   id uuid primary key default gen_random_uuid(),
-  duo_id uuid not null references public.duos(id) on delete cascade,
+  team_id uuid not null references public.teams(id) on delete cascade,
   from_user_id uuid not null references public.profiles(id) on delete cascade,
   to_user_id uuid not null references public.profiles(id) on delete cascade,
   kind public.nudge_kind not null default 'cheer',
@@ -259,7 +259,7 @@ end;
 $$;
 
 create or replace function private.partner_notifications_allowed(
-  p_duo_id uuid,
+  p_team_id uuid,
   p_user_id uuid
 )
 returns boolean
@@ -269,8 +269,8 @@ set search_path = ''
 as $$
   select coalesce((
     select pref.notify_partner_activity
-    from public.duo_preferences pref
-    where pref.duo_id = p_duo_id
+    from public.team_preferences pref
+    where pref.team_id = p_team_id
       and pref.user_id = p_user_id
   ), true);
 $$;
@@ -289,7 +289,7 @@ declare
   v_actor_id uuid;
   v_event_hidden_at timestamptz;
   v_actor_visible boolean;
-  v_duo_id uuid;
+  v_team_id uuid;
 begin
   if v_uid is null then
     raise exception using errcode = '28000', message = 'authentication_required';
@@ -317,17 +317,17 @@ begin
   on conflict (feed_event_id, user_id, reaction) do nothing;
 
   if v_uid <> v_actor_id then
-    select duo.id
-    into v_duo_id
-    from public.duos duo
-    where duo.status = 'active'::public.duo_status
+    select team.id
+    into v_team_id
+    from public.teams team
+    where team.status = 'active'::public.team_status
       and (
-        (duo.user_a_id = v_uid and duo.user_b_id = v_actor_id)
-        or (duo.user_a_id = v_actor_id and duo.user_b_id = v_uid)
+        (team.user_a_id = v_uid and team.user_b_id = v_actor_id)
+        or (team.user_a_id = v_actor_id and team.user_b_id = v_uid)
       )
     limit 1;
 
-    if v_duo_id is not null and private.partner_notifications_allowed(v_duo_id, v_actor_id) then
+    if v_team_id is not null and private.partner_notifications_allowed(v_team_id, v_actor_id) then
       perform private.enqueue_notification_outbox(
         p_user_id => v_actor_id,
         p_kind => 'reaction'::public.notification_kind,
@@ -384,7 +384,7 @@ set search_path = ''
 as $$
 declare
   v_uid uuid := auth.uid();
-  v_duo_id uuid;
+  v_team_id uuid;
   v_message text := nullif(pg_catalog.btrim(coalesce(p_message, '')), '');
   v_nudge_id uuid;
 begin
@@ -395,24 +395,24 @@ begin
     raise exception using errcode = '22023', message = 'invalid_nudge_target';
   end if;
 
-  select duo.id
-  into v_duo_id
-  from public.duos duo
-  where duo.status = 'active'::public.duo_status
+  select team.id
+  into v_team_id
+  from public.teams team
+  where team.status = 'active'::public.team_status
     and (
-      (duo.user_a_id = v_uid and duo.user_b_id = p_to_user_id)
-      or (duo.user_a_id = p_to_user_id and duo.user_b_id = v_uid)
+      (team.user_a_id = v_uid and team.user_b_id = p_to_user_id)
+      or (team.user_a_id = p_to_user_id and team.user_b_id = v_uid)
     )
   limit 1;
 
-  if v_duo_id is null then
-    raise exception using errcode = '22023', message = 'duo_required';
+  if v_team_id is null then
+    raise exception using errcode = '22023', message = 'team_required';
   end if;
 
   if not exists (
     select 1
-    from public.duo_preferences pref
-    where pref.duo_id = v_duo_id
+    from public.team_preferences pref
+    where pref.team_id = v_team_id
       and pref.user_id = p_to_user_id
       and pref.allow_nudges = true
   ) then
@@ -446,7 +446,7 @@ begin
   end if;
 
   insert into public.nudges (
-    duo_id,
+    team_id,
     from_user_id,
     to_user_id,
     kind,
@@ -454,7 +454,7 @@ begin
     message
   )
   values (
-    v_duo_id,
+    v_team_id,
     v_uid,
     p_to_user_id,
     p_kind,
@@ -463,7 +463,7 @@ begin
   )
   returning id into v_nudge_id;
 
-  if private.partner_notifications_allowed(v_duo_id, p_to_user_id) then
+  if private.partner_notifications_allowed(v_team_id, p_to_user_id) then
     perform private.enqueue_notification_outbox(
       p_user_id => p_to_user_id,
       p_kind => 'nudge'::public.notification_kind,
@@ -472,7 +472,7 @@ begin
         when p_kind = 'custom'::public.nudge_kind and v_message is not null then v_message
         else 'Your partner sent a nudge to keep momentum going.'
       end,
-      p_url => '/social?tab=duo',
+      p_url => '/social?tab=team',
       p_dedupe_key => 'nudge:' || v_nudge_id::text
     );
   end if;
@@ -570,7 +570,7 @@ begin
 end;
 $$;
 
-create or replace function public.expire_pending_duo_invites_service()
+create or replace function public.expire_pending_team_invites_service()
 returns integer
 language plpgsql
 security definer
@@ -579,20 +579,20 @@ as $$
 declare
   v_count integer := 0;
 begin
-  update public.duos duo
+  update public.teams team
   set
-    status = 'expired'::public.duo_status,
+    status = 'expired'::public.team_status,
     responded_at = pg_catalog.now()
-  where duo.status = 'pending'::public.duo_status
-    and duo.invited_at < pg_catalog.now() - interval '14 days';
+  where team.status = 'pending'::public.team_status
+    and team.invited_at < pg_catalog.now() - interval '14 days';
 
   get diagnostics v_count = row_count;
   return v_count;
 end;
 $$;
 
-create or replace function public.accept_duo_invite_service(
-  p_duo_id uuid,
+create or replace function public.accept_team_invite_service(
+  p_team_id uuid,
   p_visibility_acknowledged boolean
 )
 returns boolean
@@ -607,81 +607,81 @@ begin
   if v_uid is null then
     raise exception using errcode = '28000', message = 'authentication_required';
   end if;
-  if p_duo_id is null then
-    raise exception using errcode = '22023', message = 'duo_id_required';
+  if p_team_id is null then
+    raise exception using errcode = '22023', message = 'team_id_required';
   end if;
   if coalesce(p_visibility_acknowledged, false) = false then
     raise exception using errcode = '22023', message = 'visibility_ack_required';
   end if;
 
-  update public.duos duo
+  update public.teams team
   set
-    status = 'active'::public.duo_status,
+    status = 'active'::public.team_status,
     accepted_at = pg_catalog.now(),
     responded_at = pg_catalog.now(),
     visibility_acknowledged_at = pg_catalog.now()
-  where duo.id = p_duo_id
-    and duo.status = 'pending'::public.duo_status
-    and duo.initiator_id <> v_uid
-    and v_uid in (duo.user_a_id, duo.user_b_id)
-  returning case when duo.user_a_id = v_uid then duo.user_b_id else duo.user_a_id end
+  where team.id = p_team_id
+    and team.status = 'pending'::public.team_status
+    and team.initiator_id <> v_uid
+    and v_uid in (team.user_a_id, team.user_b_id)
+  returning case when team.user_a_id = v_uid then team.user_b_id else team.user_a_id end
   into v_partner_id;
 
   if not found then
     return false;
   end if;
 
-  insert into public.duo_preferences (duo_id, user_id)
+  insert into public.team_preferences (team_id, user_id)
   values
-    (p_duo_id, v_uid),
-    (p_duo_id, v_partner_id)
-  on conflict (duo_id, user_id) do nothing;
+    (p_team_id, v_uid),
+    (p_team_id, v_partner_id)
+  on conflict (team_id, user_id) do nothing;
 
   perform private.emit_feed_event(
     p_actor_id => v_uid,
-    p_event_type => 'duo_formed'::public.feed_event_type,
-    p_subject_key => p_duo_id::text,
+    p_event_type => 'team_formed'::public.feed_event_type,
+    p_subject_key => p_team_id::text,
     p_bucket_date => current_date,
     p_track_key => null,
     p_goal_id => null,
     p_xp_delta => 0,
     p_occurrence_delta => 1,
-    p_payload => jsonb_build_object('duoId', p_duo_id)
+    p_payload => jsonb_build_object('teamId', p_team_id)
   );
   perform private.emit_feed_event(
     p_actor_id => v_partner_id,
-    p_event_type => 'duo_formed'::public.feed_event_type,
-    p_subject_key => p_duo_id::text,
+    p_event_type => 'team_formed'::public.feed_event_type,
+    p_subject_key => p_team_id::text,
     p_bucket_date => current_date,
     p_track_key => null,
     p_goal_id => null,
     p_xp_delta => 0,
     p_occurrence_delta => 1,
-    p_payload => jsonb_build_object('duoId', p_duo_id)
+    p_payload => jsonb_build_object('teamId', p_team_id)
   );
 
   perform private.enqueue_notification_outbox(
     p_user_id => v_partner_id,
-    p_kind => 'duo_accepted'::public.notification_kind,
-    p_title => 'Your duo invite was accepted',
-    p_body => 'You now have an active duo partner.',
-    p_url => '/social?tab=duo',
-    p_dedupe_key => 'duo-accepted:' || p_duo_id::text || ':' || v_partner_id::text
+    p_kind => 'team_accepted'::public.notification_kind,
+    p_title => 'Your team invite was accepted',
+    p_body => 'You now have an active team partner.',
+    p_url => '/social?tab=team',
+    p_dedupe_key => 'team-accepted:' || p_team_id::text || ':' || v_partner_id::text
   );
   perform private.enqueue_notification_outbox(
     p_user_id => v_uid,
-    p_kind => 'duo_accepted'::public.notification_kind,
-    p_title => 'Duo connection confirmed',
-    p_body => 'Your duo partnership is now active.',
-    p_url => '/social?tab=duo',
-    p_dedupe_key => 'duo-accepted:' || p_duo_id::text || ':' || v_uid::text
+    p_kind => 'team_accepted'::public.notification_kind,
+    p_title => 'Team connection confirmed',
+    p_body => 'Your team partnership is now active.',
+    p_url => '/social?tab=team',
+    p_dedupe_key => 'team-accepted:' || p_team_id::text || ':' || v_uid::text
   );
 
   return true;
 end;
 $$;
 
-create or replace function public.create_duo_invite_service(
+create or replace function public.create_team_invite_service(
   p_partner_id uuid,
   p_message text default null
 )
@@ -694,7 +694,7 @@ declare
   v_uid uuid := auth.uid();
   v_a uuid;
   v_b uuid;
-  v_duo_id uuid;
+  v_team_id uuid;
 begin
   if v_uid is null then
     raise exception using errcode = '28000', message = 'authentication_required';
@@ -704,16 +704,16 @@ begin
   end if;
 
   if exists (
-    select 1 from public.duos duo
-    where duo.status = 'active'
-      and v_uid in (duo.user_a_id, duo.user_b_id)
+    select 1 from public.teams team
+    where team.status = 'active'
+      and v_uid in (team.user_a_id, team.user_b_id)
   ) then
-    raise exception using errcode = '23514', message = 'duo_already_active';
+    raise exception using errcode = '23514', message = 'team_already_active';
   end if;
   if exists (
-    select 1 from public.duos duo
-    where duo.status = 'active'
-      and p_partner_id in (duo.user_a_id, duo.user_b_id)
+    select 1 from public.teams team
+    where team.status = 'active'
+      and p_partner_id in (team.user_a_id, team.user_b_id)
   ) then
     raise exception using errcode = '23514', message = 'partner_already_active';
   end if;
@@ -721,7 +721,7 @@ begin
   v_a := least(v_uid, p_partner_id);
   v_b := greatest(v_uid, p_partner_id);
 
-  insert into public.duos (
+  insert into public.teams (
     user_a_id,
     user_b_id,
     initiator_id,
@@ -732,39 +732,39 @@ begin
     v_a,
     v_b,
     v_uid,
-    'pending'::public.duo_status,
+    'pending'::public.team_status,
     nullif(btrim(coalesce(p_message, '')), '')
   )
   on conflict (user_a_id, user_b_id)
   where status in ('pending', 'active')
   do nothing
-  returning id into v_duo_id;
+  returning id into v_team_id;
 
-  if v_duo_id is null then
-    select duo.id
-    into v_duo_id
-    from public.duos duo
-    where duo.user_a_id = v_a
-      and duo.user_b_id = v_b
-      and duo.status in ('pending', 'active')
-    order by duo.invited_at desc
+  if v_team_id is null then
+    select team.id
+    into v_team_id
+    from public.teams team
+    where team.user_a_id = v_a
+      and team.user_b_id = v_b
+      and team.status in ('pending', 'active')
+    order by team.invited_at desc
     limit 1;
   end if;
 
   perform private.enqueue_notification_outbox(
     p_user_id => p_partner_id,
-    p_kind => 'duo_invite'::public.notification_kind,
-    p_title => 'New duo invite',
-    p_body => 'You have a pending duo invite to review.',
-    p_url => '/social?tab=duo',
-    p_dedupe_key => 'duo-invite:' || v_duo_id::text || ':' || p_partner_id::text
+    p_kind => 'team_invite'::public.notification_kind,
+    p_title => 'New team invite',
+    p_body => 'You have a pending team invite to review.',
+    p_url => '/social?tab=team',
+    p_dedupe_key => 'team-invite:' || v_team_id::text || ':' || p_partner_id::text
   );
 
-  return v_duo_id;
+  return v_team_id;
 end;
 $$;
 
-create or replace function public.dissolve_duo_service()
+create or replace function public.dissolve_team_service()
 returns boolean
 language plpgsql
 security definer
@@ -773,23 +773,23 @@ as $$
 declare
   v_uid uuid := auth.uid();
   v_partner_id uuid;
-  v_duo_id uuid;
+  v_team_id uuid;
 begin
   if v_uid is null then
     raise exception using errcode = '28000', message = 'authentication_required';
   end if;
 
-  update public.duos duo
+  update public.teams team
   set
-    status = 'dissolved'::public.duo_status,
+    status = 'dissolved'::public.team_status,
     dissolved_at = pg_catalog.now(),
     responded_at = pg_catalog.now()
-  where duo.status = 'active'::public.duo_status
-    and v_uid in (duo.user_a_id, duo.user_b_id)
+  where team.status = 'active'::public.team_status
+    and v_uid in (team.user_a_id, team.user_b_id)
   returning
-    duo.id,
-    case when duo.user_a_id = v_uid then duo.user_b_id else duo.user_a_id end
-  into v_duo_id, v_partner_id;
+    team.id,
+    case when team.user_a_id = v_uid then team.user_b_id else team.user_a_id end
+  into v_team_id, v_partner_id;
 
   if not found then
     return false;
@@ -797,11 +797,11 @@ begin
 
   perform private.enqueue_notification_outbox(
     p_user_id => v_partner_id,
-    p_kind => 'duo_dissolved'::public.notification_kind,
-    p_title => 'Your duo was dissolved',
-    p_body => 'Duo visibility and collaboration access were revoked.',
-    p_url => '/social?tab=duo',
-    p_dedupe_key => 'duo-dissolved:' || v_duo_id::text || ':' || v_partner_id::text
+    p_kind => 'team_dissolved'::public.notification_kind,
+    p_title => 'Your team was dissolved',
+    p_body => 'Team visibility and collaboration access were revoked.',
+    p_url => '/social?tab=team',
+    p_dedupe_key => 'team-dissolved:' || v_team_id::text || ':' || v_partner_id::text
   );
 
   return true;
@@ -841,29 +841,29 @@ as $$
 declare
   v_uid uuid := auth.uid();
   v_limit integer := least(greatest(coalesce(p_limit, 30), 1), 50);
-  v_duo_partner_id uuid := null;
+  v_team_partner_id uuid := null;
 begin
   if v_uid is null then
     raise exception using errcode = '28000', message = 'authentication_required';
   end if;
 
-  if p_scope not in ('global', 'actor', 'duo') then
+  if p_scope not in ('global', 'actor', 'team') then
     raise exception using errcode = '22023', message = 'invalid_feed_scope';
   end if;
 
-  if p_scope = 'duo' and to_regclass('public.duos') is not null then
-    execute $duo$
+  if p_scope = 'team' and to_regclass('public.teams') is not null then
+    execute $team$
       select case
-        when duo.user_a_id = $1 then duo.user_b_id
-        else duo.user_a_id
+        when team.user_a_id = $1 then team.user_b_id
+        else team.user_a_id
       end
-      from public.duos duo
-      where duo.status = 'active'
-        and $1 in (duo.user_a_id, duo.user_b_id)
-      order by duo.accepted_at desc nulls last
+      from public.teams team
+      where team.status = 'active'
+        and $1 in (team.user_a_id, team.user_b_id)
+      order by team.accepted_at desc nulls last
       limit 1
-    $duo$
-    into v_duo_partner_id
+    $team$
+    into v_team_partner_id
     using v_uid;
   end if;
 
@@ -921,9 +921,9 @@ begin
         and event.actor_id = p_scope_id
       )
       or (
-        p_scope = 'duo'
-        and v_duo_partner_id is not null
-        and event.actor_id in (v_uid, v_duo_partner_id)
+        p_scope = 'team'
+        and v_team_partner_id is not null
+        and event.actor_id in (v_uid, v_team_partner_id)
       )
     )
     and (
@@ -936,16 +936,16 @@ begin
 end;
 $$;
 
-alter table public.duo_preferences enable row level security;
+alter table public.team_preferences enable row level security;
 alter table public.nudges enable row level security;
 alter table public.feed_reactions enable row level security;
 alter table public.notification_outbox enable row level security;
 
-revoke all on table public.duo_preferences from public, anon, authenticated;
+revoke all on table public.team_preferences from public, anon, authenticated;
 revoke all on table public.nudges from public, anon, authenticated;
 revoke all on table public.feed_reactions from public, anon, authenticated;
 revoke all on table public.notification_outbox from public, anon, authenticated;
-grant select, insert, update, delete on table public.duo_preferences to service_role;
+grant select, insert, update, delete on table public.team_preferences to service_role;
 grant select, insert, update, delete on table public.nudges to service_role;
 grant select, insert, update, delete on table public.feed_reactions to service_role;
 grant select, insert, update, delete on table public.notification_outbox to service_role;
@@ -1008,23 +1008,23 @@ grant execute on function public.resolve_notification_outbox_delivery_service(
 )
   to service_role;
 
-revoke all on function public.expire_pending_duo_invites_service()
+revoke all on function public.expire_pending_team_invites_service()
   from public, anon, authenticated;
-grant execute on function public.expire_pending_duo_invites_service()
+grant execute on function public.expire_pending_team_invites_service()
   to service_role;
 
 do $cron$
 begin
   begin
-    perform cron.unschedule('expire-duo-invites-daily');
+    perform cron.unschedule('expire-team-invites-daily');
   exception
     when others then null;
   end;
 
   perform cron.schedule(
-    'expire-duo-invites-daily',
+    'expire-team-invites-daily',
     '22 4 * * *',
-    $job$select public.expire_pending_duo_invites_service()$job$
+    $job$select public.expire_pending_team_invites_service()$job$
   );
 exception
   when others then null;

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { sendDuoNudge } from "@/features/social/data";
+import { sendTeamNudge } from "@/features/social/data";
 
 export function NudgeButton({
   partnerId,
@@ -18,7 +18,7 @@ export function NudgeButton({
     setIsPending(true);
     setError(null);
     try {
-      await sendDuoNudge({ toUserId: partnerId, kind: "cheer" });
+      await sendTeamNudge({ toUserId: partnerId, kind: "cheer" });
       onSent?.();
     } catch (nudgeError) {
       setError(nudgeError instanceof Error ? nudgeError.message : "Could not send nudge.");

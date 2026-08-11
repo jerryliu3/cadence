@@ -75,7 +75,7 @@ values (
 )
 on conflict (id) do nothing;
 
-insert into public.duos (
+insert into public.teams (
   id,
   user_a_id,
   user_b_id,
@@ -97,11 +97,11 @@ values (
 )
 on conflict (id) do nothing;
 
-insert into public.duo_preferences (duo_id, user_id, allow_nudges, notify_partner_activity)
+insert into public.team_preferences (team_id, user_id, allow_nudges, notify_partner_activity)
 values
   ('9b700000-0000-4000-8000-000000000001', '9b333333-3333-4333-8333-333333333333', true, true),
   ('9b700000-0000-4000-8000-000000000001', '9b444444-4444-4444-8444-444444444444', true, true)
-on conflict (duo_id, user_id) do update
+on conflict (team_id, user_id) do update
 set allow_nudges = excluded.allow_nudges,
     notify_partner_activity = excluded.notify_partner_activity;
 
@@ -182,7 +182,7 @@ select ok(
     '9b500000-0000-4000-8000-000000000001',
     null
   ) is not null,
-  'active duo member can send nudge'
+  'active team member can send nudge'
 );
 
 select throws_ok(
@@ -199,9 +199,9 @@ select throws_ok(
 
 reset role;
 set local role service_role;
-update public.duo_preferences
+update public.team_preferences
 set allow_nudges = false
-where duo_id = '9b700000-0000-4000-8000-000000000001'
+where team_id = '9b700000-0000-4000-8000-000000000001'
   and user_id = '9b444444-4444-4444-8444-444444444444';
 
 reset role;

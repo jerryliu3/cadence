@@ -27,7 +27,7 @@ vi.mock("@/lib/push/outbox", () => ({
 
 import { POST } from "./route";
 
-describe("POST /api/social/duo/nudges", () => {
+describe("POST /api/social/team/nudges", () => {
   beforeEach(() => {
     vi.stubEnv("SOCIAL_ENABLED", "true");
     resetEnvCacheForTests();
@@ -51,7 +51,7 @@ describe("POST /api/social/duo/nudges", () => {
     vi.stubEnv("SOCIAL_ENABLED", "false");
     resetEnvCacheForTests();
     const response = await POST(
-      new Request("http://localhost/api/social/duo/nudges", {
+      new Request("http://localhost/api/social/team/nudges", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -65,7 +65,7 @@ describe("POST /api/social/duo/nudges", () => {
 
   it("sends a nudge", async () => {
     const response = await POST(
-      new Request("http://localhost/api/social/duo/nudges", {
+      new Request("http://localhost/api/social/team/nudges", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

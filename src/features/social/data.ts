@@ -1,7 +1,7 @@
 import type {
   LeaderboardSeason,
   LeaderboardStanding,
-  DuoStateRow,
+  TeamStateRow,
   SocialChallenge,
   SocialFeedEvent,
 } from "@/features/social/types";
@@ -34,9 +34,9 @@ interface SocialLeaderboardStandingsResponse {
   viewerRank: number | null;
 }
 
-interface SocialDuoStateResponse {
+interface SocialTeamStateResponse {
   schemaVersion: "1";
-  items: DuoStateRow[];
+  items: TeamStateRow[];
 }
 
 export type FeedReactionKind = "cheer" | "fire" | "clap" | "strong";
@@ -55,7 +55,7 @@ export async function fetchSocialFeedPage({
   limit = 20,
 }: {
   cursor?: string | null;
-  scope?: "global" | "duo" | "actor";
+  scope?: "global" | "team" | "actor";
   limit?: number;
 }) {
   const params = new URLSearchParams();
@@ -151,67 +151,67 @@ export async function fetchSocialLeaderboardStandings(
   return (await response.json()) as SocialLeaderboardStandingsResponse;
 }
 
-export async function fetchSocialDuoState() {
-  const response = await fetch("/api/social/duo", {
+export async function fetchSocialTeamState() {
+  const response = await fetch("/api/social/team", {
     cache: "no-store",
     credentials: "include",
   });
   if (!response.ok) {
-    await parseApiError(response, "Failed to load duo state.");
+    await parseApiError(response, "Failed to load team state.");
   }
-  return (await response.json()) as SocialDuoStateResponse;
+  return (await response.json()) as SocialTeamStateResponse;
 }
 
-export async function createSocialDuoInvite({
+export async function createSocialTeamInvite({
   partnerId,
   message,
 }: {
   partnerId: string;
   message?: string;
 }) {
-  const response = await fetch("/api/social/duo/invites", {
+  const response = await fetch("/api/social/team/invites", {
     method: "POST",
     credentials: "include",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ partnerId, message }),
   });
   if (!response.ok) {
-    await parseApiError(response, "Failed to send duo invite.");
+    await parseApiError(response, "Failed to send team invite.");
   }
-  return (await response.json()) as { schemaVersion: "1"; duoId: string };
+  return (await response.json()) as { schemaVersion: "1"; teamId: string };
 }
 
-export async function acceptSocialDuoInvite(duoId: string) {
-  const response = await fetch(`/api/social/duo/invites/${duoId}/accept`, {
+export async function acceptSocialTeamInvite(teamId: string) {
+  const response = await fetch(`/api/social/team/invites/${teamId}/accept`, {
     method: "POST",
     credentials: "include",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ visibilityAcknowledged: true }),
   });
   if (!response.ok) {
-    await parseApiError(response, "Failed to accept duo invite.");
+    await parseApiError(response, "Failed to accept team invite.");
   }
   return (await response.json()) as { schemaVersion: "1"; accepted: boolean };
 }
 
-export async function declineSocialDuoInvite(duoId: string) {
-  const response = await fetch(`/api/social/duo/invites/${duoId}/decline`, {
+export async function declineSocialTeamInvite(teamId: string) {
+  const response = await fetch(`/api/social/team/invites/${teamId}/decline`, {
     method: "POST",
     credentials: "include",
   });
   if (!response.ok) {
-    await parseApiError(response, "Failed to decline duo invite.");
+    await parseApiError(response, "Failed to decline team invite.");
   }
   return (await response.json()) as { schemaVersion: "1"; declined: boolean };
 }
 
-export async function dissolveSocialDuo() {
-  const response = await fetch("/api/social/duo", {
+export async function dissolveSocialTeam() {
+  const response = await fetch("/api/social/team", {
     method: "DELETE",
     credentials: "include",
   });
   if (!response.ok) {
-    await parseApiError(response, "Failed to dissolve duo.");
+    await parseApiError(response, "Failed to dissolve team.");
   }
   return (await response.json()) as { schemaVersion: "1"; dissolved: boolean };
 }
@@ -256,7 +256,7 @@ export async function removeSocialFeedReaction({
   return (await response.json()) as { schemaVersion: "1" };
 }
 
-export async function sendDuoNudge({
+export async function sendTeamNudge({
   toUserId,
   kind = "cheer",
   goalId,
@@ -267,7 +267,7 @@ export async function sendDuoNudge({
   goalId?: string;
   message?: string;
 }) {
-  const response = await fetch("/api/social/duo/nudges", {
+  const response = await fetch("/api/social/team/nudges", {
     method: "POST",
     credentials: "include",
     headers: { "Content-Type": "application/json" },
