@@ -550,55 +550,6 @@ test.describe("planner critical rails", () => {
     expect(after.placementsByEntryKey[movedEntryKey]).toBe(moveCommand.scheduledDate);
   });
 
-  test("completion toggle dispatches from today surface", async ({ page }) => {
-    test.setTimeout(120_000);
-    await page.goto("/?tab=today");
-    await expect(page.getByRole("tab", { name: "Today", exact: true })).toBeVisible();
-    const initialButton = page.locator(COMPLETION_TOGGLE_SELECTOR).first();
-    await expect(initialButton).toBeVisible();
-    await expect(initialButton).toBeEnabled();
-
-    const todayPayload = await runCompletionToggleAction(page, async () => {
-      await initialButton.click();
-    });
-    expect(todayPayload.goalId).toBeTruthy();
-  });
-
-  test("completion toggle dispatches from past tab surface", async ({ page }) => {
-    test.setTimeout(120_000);
-    await page.goto("/?tab=past");
-    await expect(page.getByRole("tab", { name: "Past", exact: true })).toBeVisible();
-    const pastToggle = page.locator(COMPLETION_TOGGLE_SELECTOR).first();
-    await expect(pastToggle).toBeVisible({ timeout: 10_000 });
-    await expect(pastToggle).toBeEnabled();
-    const pastPayload = await runCompletionToggleAction(page, async () => {
-      await pastToggle.click();
-    });
-    expect(pastPayload.goalId).toBeTruthy();
-    const today = await page.evaluate(() => new Date().toISOString().slice(0, 10));
-    expect(pastPayload.date <= today).toBe(true);
-  });
-
-  test("completion toggle dispatches from calendar surface", async ({ page }) => {
-    test.setTimeout(120_000);
-    await openCalendar(page);
-    const dayCellWithEntry = page
-      .locator('[data-day-cell="true"]')
-      .filter({ has: page.locator('[data-calendar-day-entry="true"]') })
-      .first();
-    await expect(dayCellWithEntry).toBeVisible();
-    await dayCellWithEntry.click();
-    const calendarPayload = await runCompletionToggleAction(page, async () => {
-      const button = page
-        .locator(COMPLETION_TOGGLE_SELECTOR)
-        .first();
-      await expect(button).toBeVisible();
-      await expect(button).toBeEnabled();
-      await button.click();
-    });
-    expect(calendarPayload.goalId).toBeTruthy();
-  });
-
   test("stale save keeps planner draft session recoverable", async ({ page }) => {
     test.setTimeout(120_000);
     let movedIntoDraft = false;
@@ -649,5 +600,54 @@ test.describe("planner critical rails", () => {
     await expect(
       page.getByRole("button", { name: /Undo this month/i })
     ).toBeVisible({ timeout: 10_000 });
+  });
+
+  test("completion toggle dispatches from today surface", async ({ page }) => {
+    test.setTimeout(120_000);
+    await page.goto("/?tab=today");
+    await expect(page.getByRole("tab", { name: "Today", exact: true })).toBeVisible();
+    const initialButton = page.locator(COMPLETION_TOGGLE_SELECTOR).first();
+    await expect(initialButton).toBeVisible();
+    await expect(initialButton).toBeEnabled();
+
+    const todayPayload = await runCompletionToggleAction(page, async () => {
+      await initialButton.click();
+    });
+    expect(todayPayload.goalId).toBeTruthy();
+  });
+
+  test("completion toggle dispatches from past tab surface", async ({ page }) => {
+    test.setTimeout(120_000);
+    await page.goto("/?tab=past");
+    await expect(page.getByRole("tab", { name: "Past", exact: true })).toBeVisible();
+    const pastToggle = page.locator(COMPLETION_TOGGLE_SELECTOR).first();
+    await expect(pastToggle).toBeVisible({ timeout: 10_000 });
+    await expect(pastToggle).toBeEnabled();
+    const pastPayload = await runCompletionToggleAction(page, async () => {
+      await pastToggle.click();
+    });
+    expect(pastPayload.goalId).toBeTruthy();
+    const today = await page.evaluate(() => new Date().toISOString().slice(0, 10));
+    expect(pastPayload.date <= today).toBe(true);
+  });
+
+  test("completion toggle dispatches from calendar surface", async ({ page }) => {
+    test.setTimeout(120_000);
+    await openCalendar(page);
+    const dayCellWithEntry = page
+      .locator('[data-day-cell="true"]')
+      .filter({ has: page.locator('[data-calendar-day-entry="true"]') })
+      .first();
+    await expect(dayCellWithEntry).toBeVisible();
+    await dayCellWithEntry.click();
+    const calendarPayload = await runCompletionToggleAction(page, async () => {
+      const button = page
+        .locator(COMPLETION_TOGGLE_SELECTOR)
+        .first();
+      await expect(button).toBeVisible();
+      await expect(button).toBeEnabled();
+      await button.click();
+    });
+    expect(calendarPayload.goalId).toBeTruthy();
   });
 });
