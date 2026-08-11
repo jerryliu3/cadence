@@ -89,6 +89,7 @@ export type TeamStatus =
   | "closed";
 
 
+
 export interface TeamStateRow {
   teamId: string;
   status: TeamStatus;
