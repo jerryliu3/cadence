@@ -464,7 +464,7 @@ begin
 
   return query
   with viewer as (
-    select standing.rank
+    select standing.rank as viewer_rank
     from public.leaderboard_standings standing
     where standing.season_id = p_season_id
       and standing.subject_kind = v_subject_kind
@@ -478,7 +478,7 @@ begin
     standing.score,
     standing.rank,
     standing.tie_break_at,
-    (select rank from viewer) as viewer_rank
+    (select viewer.viewer_rank from viewer) as viewer_rank
   from public.leaderboard_standings standing
   left join public.profiles profile
     on profile.id = standing.subject_id
