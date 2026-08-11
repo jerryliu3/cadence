@@ -44,7 +44,7 @@ insert into public.goals (
   start_date,
   end_date,
   is_group,
-  group_visibility
+  is_private
 )
 values
   (
@@ -59,7 +59,7 @@ values
     current_date - 5,
     current_date + 5,
     false,
-    'shared'
+    false
   ),
   (
     '9a400000-0000-4000-8000-000000000002',
@@ -73,7 +73,7 @@ values
     current_date - 5,
     current_date + 5,
     false,
-    'excluded'
+    true
   )
 on conflict (id) do nothing;
 
