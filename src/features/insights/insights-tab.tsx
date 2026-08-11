@@ -583,11 +583,10 @@ export function InsightsTab() {
       setSavingMilestoneNamesGoalId(goal.id);
       const currentScrollY = window.scrollY;
       try {
-        const { error } = await supabase
-          .from("goals")
-          .update({ milestone_names: names })
-          .eq("id", goal.id)
-          .eq("owner_id", state.userId);
+        const { error } = await supabase.rpc("set_goal_milestone_names", {
+          p_goal_id: goal.id,
+          p_milestone_names: names,
+        });
         if (error) {
           toast.error(error.message);
           return;

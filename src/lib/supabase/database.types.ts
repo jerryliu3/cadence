@@ -2114,8 +2114,110 @@ export type Database = {
         Args: { p_challenge_id: string }
         Returns: boolean
       }
+      add_goal_participant: {
+        Args: {
+          p_goal_id: string
+          p_role?: Database["public"]["Enums"]["participant_role"]
+          p_user_id: string
+        }
+        Returns: undefined
+      }
+      create_goal: {
+        Args: {
+          p_category?: string
+          p_category_key?: string | null
+          p_color?: string | null
+          p_default_local_time?: string | null
+          p_description?: string | null
+          p_end_date?: string | null
+          p_frequency_type?: Database["public"]["Enums"]["goal_frequency_type"]
+          p_id?: string
+          p_is_group?: boolean
+          p_milestone_names?: string[] | null
+          p_recurrence_interval?:
+            | Database["public"]["Enums"]["recurrence_interval"]
+            | null
+          p_reward_text?: string | null
+          p_start_date?: string
+          p_target_count?: number | null
+          p_title: string
+        }
+        Returns: string
+      }
+      create_goal_links: {
+        Args: { p_links: Json }
+        Returns: undefined
+      }
+      create_goals: {
+        Args: { p_goals: Json }
+        Returns: string[]
+      }
+      create_group_goal: {
+        Args: {
+          p_category?: string
+          p_category_key?: string | null
+          p_color?: string | null
+          p_description?: string | null
+          p_end_date?: string | null
+          p_frequency_type?: Database["public"]["Enums"]["goal_frequency_type"]
+          p_id?: string
+          p_recurrence_interval?:
+            | Database["public"]["Enums"]["recurrence_interval"]
+            | null
+          p_start_date?: string
+          p_target_count?: number | null
+          p_title: string
+        }
+        Returns: string
+      }
       mark_goal_complete: {
         Args: { p_date?: string; p_goal_id: string }
+        Returns: undefined
+      }
+      remove_goal_participant: {
+        Args: { p_goal_id: string; p_user_id: string }
+        Returns: undefined
+      }
+      replace_goal_source_link: {
+        Args: { p_source_goal_id: string; p_target_goal_id?: string | null }
+        Returns: undefined
+      }
+      set_goal_archived: {
+        Args: { p_archived: boolean; p_goal_id: string }
+        Returns: undefined
+      }
+      set_goal_milestone_names: {
+        Args: { p_goal_id: string; p_milestone_names: string[] }
+        Returns: undefined
+      }
+      set_goal_photo_path: {
+        Args: { p_goal_id: string; p_photo_path: string }
+        Returns: undefined
+      }
+      soft_delete_goal: {
+        Args: { p_goal_id: string }
+        Returns: undefined
+      }
+      update_goal: {
+        Args: {
+          p_category?: string
+          p_category_key?: string | null
+          p_color?: string | null
+          p_default_local_time?: string | null
+          p_description?: string | null
+          p_end_date?: string | null
+          p_frequency_type?: Database["public"]["Enums"]["goal_frequency_type"]
+          p_id: string
+          p_is_group?: boolean
+          p_milestone_names?: string[] | null
+          p_recurrence_interval?:
+            | Database["public"]["Enums"]["recurrence_interval"]
+            | null
+          p_reward_text?: string | null
+          p_start_date?: string
+          p_target_count?: number | null
+          p_title: string
+        }
         Returns: undefined
       }
       recompute_goal_xp_service: {

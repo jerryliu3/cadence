@@ -419,38 +419,34 @@ export function GoalForm({
       state.custom_category
     );
 
-    const payload = {
-      owner_id: currentUserId,
-      title: state.title.trim(),
-      description: state.description.trim() || null,
-      reward_text: state.reward_text.trim() || null,
-      category: categoryValue.category,
-      category_key: categoryValue.categoryKey,
-      color: state.color,
-      frequency_type: state.frequency_type,
-      recurrence_interval: state.frequency_type === "recurring" ? state.recurrence_interval : null,
-      target_count:
+    const goalArgs = {
+      p_id: goalId ?? crypto.randomUUID(),
+      p_title: state.title.trim(),
+      p_description: state.description.trim() || null,
+      p_reward_text: state.reward_text.trim() || null,
+      p_category: categoryValue.category,
+      p_category_key: categoryValue.categoryKey,
+      p_color: state.color,
+      p_frequency_type: state.frequency_type,
+      p_recurrence_interval:
+        state.frequency_type === "recurring" ? state.recurrence_interval : null,
+      p_target_count:
         state.frequency_type === "fixed_milestones"
           ? parsedTargetCountForSave
           : state.frequency_type === "recurring" && state.target_count.trim().length > 0
             ? parsedTargetCountForSave
-          : null,
-      milestone_names: milestoneNames,
-      start_date: state.start_date,
-      end_date: state.end_date || null,
-      default_local_time: state.default_local_time.trim() || null,
-      is_group: state.is_group,
-      is_private: state.is_private,
+            : null,
+      p_milestone_names: milestoneNames,
+      p_start_date: state.start_date,
+      p_end_date: state.end_date || null,
+      p_default_local_time: state.default_local_time.trim() || null,
+      p_is_group: state.is_group,
     };
 
-    const savedGoalId = goalId ?? crypto.randomUUID();
+    const savedGoalId = goalArgs.p_id;
 
     if (goalId) {
-      const { error } = await supabase
-        .from("goals")
-        .update(payload)
-        .eq("id", goalId)
-        .eq("owner_id", currentUserId);
+      const { error } = await supabase.rpc("update_goal", goalArgs);
 
       if (error) {
         toast.error(error.message ?? "Failed to save goal.");
@@ -458,10 +454,7 @@ export function GoalForm({
         return;
       }
     } else {
-      const { error } = await supabase.from("goals").insert({
-        id: savedGoalId,
-        ...payload,
-      });
+      const { error } = await supabase.rpc("create_goal", goalArgs);
 
       if (error) {
         toast.error(error.message ?? "Failed to save goal.");
@@ -483,25 +476,20 @@ export function GoalForm({
       if (uploadResponse.error) {
         toast.error(uploadResponse.error.message);
       } else {
-        await supabase
-          .from("goals")
-          .update({ photo_path: objectPath })
-          .eq("id", savedGoalId)
-          .eq("owner_id", currentUserId);
+        const { error: photoError } = await supabase.rpc("set_goal_photo_path", {
+          p_goal_id: savedGoalId,
+          p_photo_path: objectPath,
+        });
+        if (photoError) {
+          toast.error(photoError.message);
+        }
       }
     }
 
-    await supabase
-      .from("goal_links")
-      .delete()
-      .eq("owner_id", currentUserId)
-      .eq("source_goal_id", savedGoalId);
-
-    if (selectedLinkTarget !== "none") {
-      const { error: linkError } = await supabase.from("goal_links").insert({
-        owner_id: currentUserId,
-        source_goal_id: savedGoalId,
-        target_goal_id: selectedLinkTarget,
+    {
+      const { error: linkError } = await supabase.rpc("replace_goal_source_link", {
+        p_source_goal_id: savedGoalId,
+        p_target_goal_id: selectedLinkTarget !== "none" ? selectedLinkTarget : null,
       });
       if (linkError) {
         toast.error(linkError.message);
@@ -520,11 +508,10 @@ export function GoalForm({
     }
     setSaving(true);
 
-    const { error } = await supabase
-      .from("goals")
-      .update({ archived_at: archived ? null : new Date().toISOString() })
-      .eq("id", goalId)
-      .eq("owner_id", currentUserId);
+    const { error } = await supabase.rpc("set_goal_archived", {
+      p_goal_id: goalId,
+      p_archived: !archived,
+    });
 
     if (error) {
       toast.error(error.message);
@@ -542,11 +529,9 @@ export function GoalForm({
     }
 
     setSaving(true);
-    const { error } = await supabase
-      .from("goals")
-      .update({ is_deleted: true })
-      .eq("id", goalId)
-      .eq("owner_id", currentUserId);
+    const { error } = await supabase.rpc("soft_delete_goal", {
+      p_goal_id: goalId,
+    });
 
     if (error) {
       toast.error(error.message);
