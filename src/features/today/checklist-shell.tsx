@@ -1,5 +1,6 @@
 "use client";
 
+import { motion } from "motion/react";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Card } from "@/components/ui/card";
@@ -283,10 +284,24 @@ export function ChecklistShell() {
         </Card>
       </Tabs>
 
-      <div
+      <motion.div
         ref={checklistContainerRef}
-        hidden={normalized.tab === "calendar"}
         aria-hidden={normalized.tab === "calendar"}
+        data-motion="checklist-surface"
+        initial={false}
+        animate={{
+          opacity: normalized.tab === "calendar" ? 0 : 1,
+          x: normalized.tab === "calendar" ? -18 : 0,
+        }}
+        transition={{
+          duration: 0.2,
+          ease: [0.16, 1, 0.3, 1],
+        }}
+        className={
+          normalized.tab === "calendar"
+            ? "pointer-events-none h-0 overflow-hidden"
+            : undefined
+        }
       >
         {checklistMounted ? (
           <ChecklistSurface
@@ -300,12 +315,26 @@ export function ChecklistShell() {
             refreshToken={checklistRefreshToken}
           />
         ) : null}
-      </div>
+      </motion.div>
 
-      <div
+      <motion.div
         ref={calendarContainerRef}
-        hidden={normalized.tab !== "calendar"}
         aria-hidden={normalized.tab !== "calendar"}
+        data-motion="calendar-surface"
+        initial={false}
+        animate={{
+          opacity: normalized.tab === "calendar" ? 1 : 0,
+          x: normalized.tab === "calendar" ? 0 : 18,
+        }}
+        transition={{
+          duration: 0.2,
+          ease: [0.16, 1, 0.3, 1],
+        }}
+        className={
+          normalized.tab !== "calendar"
+            ? "pointer-events-none h-0 overflow-hidden"
+            : undefined
+        }
       >
         {calendarMounted ? (
           <CalendarSurface
@@ -319,7 +348,7 @@ export function ChecklistShell() {
             onPlannerMutation={onChecklistMutation}
           />
         ) : null}
-      </div>
+      </motion.div>
     </div>
   );
 }

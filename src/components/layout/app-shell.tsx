@@ -3,7 +3,14 @@
 import { format } from "date-fns";
 import { LogOut } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
-import { type ReactNode, type TouchEventHandler, useMemo, useRef, useState } from "react";
+import {
+  type ReactNode,
+  type TouchEventHandler,
+  useMemo,
+  useRef,
+  useState,
+  ViewTransition,
+} from "react";
 import { TabNav } from "@/components/navigation/tab-nav";
 import { Button } from "@/components/ui/button";
 import { XpLevelBadge } from "@/components/xp/xp-level-badge";
@@ -103,7 +110,11 @@ export function AppShell({ children, userEmail }: AppShellProps) {
       return;
     }
 
-    router.push(tabOrder[targetIndex]);
+    router.push(tabOrder[targetIndex], {
+      transitionTypes: [
+        targetIndex > currentIndex ? "nav-forward" : "nav-back",
+      ],
+    });
   };
 
   return (
@@ -114,7 +125,10 @@ export function AppShell({ children, userEmail }: AppShellProps) {
         onTouchEnd={onTouchEnd}
       >
         <div className="flex w-full max-w-5xl flex-col gap-4 md:gap-6">
-          <header className="rounded-2xl border bg-card p-4 shadow-sm">
+          <header
+            className="rounded-2xl border bg-card p-4 shadow-sm"
+            style={{ viewTransitionName: "app-shell-header" }}
+          >
             <div className="flex items-start justify-between gap-3">
               <div className="space-y-1">
                 <p className="text-sm text-muted-foreground">
@@ -142,9 +156,24 @@ export function AppShell({ children, userEmail }: AppShellProps) {
             </div>
           </header>
 
-          <main className="pb-[calc(5rem+env(safe-area-inset-bottom))] md:pb-0">
-            {children}
-          </main>
+          <ViewTransition
+            name="app-main-content"
+            enter={{
+              "nav-forward": "app-nav-forward",
+              "nav-back": "app-nav-back",
+              default: "app-nav-crossfade",
+            }}
+            exit={{
+              "nav-forward": "app-nav-forward",
+              "nav-back": "app-nav-back",
+              default: "app-nav-crossfade",
+            }}
+            default="none"
+          >
+            <main className="pb-[calc(5rem+env(safe-area-inset-bottom))] md:pb-0">
+              {children}
+            </main>
+          </ViewTransition>
         </div>
 
         <div className="md:hidden">
