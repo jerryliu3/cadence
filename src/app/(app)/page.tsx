@@ -10,15 +10,18 @@ function readParam(
   return typeof value === "string" ? value : null;
 }
 
-export default function TodayPage({
+export default async function TodayPage({
   searchParams,
 }: {
-  searchParams: Record<string, string | string[] | undefined>;
+  searchParams:
+    | Record<string, string | string[] | undefined>
+    | Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const tab = readParam(searchParams.tab);
-  const month = readParam(searchParams.month);
-  const day = readParam(searchParams.day);
-  const view = readParam(searchParams.view);
+  const resolvedSearchParams = await searchParams;
+  const tab = readParam(resolvedSearchParams.tab);
+  const month = readParam(resolvedSearchParams.month);
+  const day = readParam(resolvedSearchParams.day);
+  const view = readParam(resolvedSearchParams.view);
 
   if (tab === "calendar" || day !== null) {
     const calendarParams = new URLSearchParams();
