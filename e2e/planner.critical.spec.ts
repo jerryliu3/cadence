@@ -55,11 +55,6 @@ const MOVABLE_ENTRY_SELECTOR = [
   '[data-calendar-day-entry="true"]:not([class*="cursor-not-allowed"]):visible',
 ].join(", ");
 const DRAFT_MODE_BADGE_TEST_ID = "planner-preview-mode-badge";
-const DRAG_FIXTURE_GOAL_ID = "10000000-0000-4000-8000-000000000022";
-const DRAG_FIXTURE_ENTRY_SELECTOR = [
-  `[data-calendar-day-entry="true"][data-planner-goal-id="${DRAG_FIXTURE_GOAL_ID}"][class*="cursor-grab"]:visible`,
-  `[data-calendar-day-entry="true"][data-planner-goal-id="${DRAG_FIXTURE_GOAL_ID}"]:not([class*="cursor-not-allowed"]):visible`,
-].join(", ");
 
 function shiftScopeMonth(scopeMonth: string, delta: number) {
   const [rawYear, rawMonth] = scopeMonth.split("-");
@@ -148,7 +143,7 @@ async function ensureMonthCalendarDensity(page: Page) {
   }
 }
 
-async function ensureDragFixtureEntryAvailable(page: Page, maxMonthJumps = 12) {
+async function ensureMovableEntryAvailable(page: Page, maxMonthJumps = 12) {
   const startScopeMonth = await resolveCalendarScopeMonth(page);
   const scanOrder = Array.from({ length: maxMonthJumps + 1 }, (_, jump) => jump);
 
@@ -158,13 +153,13 @@ async function ensureDragFixtureEntryAvailable(page: Page, maxMonthJumps = 12) {
     if (delta !== 0) {
       await openCalendar(page, scopeMonth);
     }
-    const fixtureEntries = page.locator(DRAG_FIXTURE_ENTRY_SELECTOR);
-    if ((await fixtureEntries.count()) > 0) {
+    const movableEntries = page.locator(MOVABLE_ENTRY_SELECTOR);
+    if ((await movableEntries.count()) > 0) {
       return scopeMonth;
     }
   }
   throw new Error(
-    `No movable drag fixture entries found for goal ${DRAG_FIXTURE_GOAL_ID} after scanning ${scanOrder.length} month(s) from ${startScopeMonth}.`
+    `No movable planner entries found after scanning ${scanOrder.length} month(s) from ${startScopeMonth}.`
   );
 }
 
@@ -289,8 +284,12 @@ async function moveFirstMovableEntry(
   if (!sourceDay) {
     throw new Error("Could not resolve source day for draggable planner entry.");
   }
+  const sourceGoalId =
+    targetGoalId ??
+    (await sourceEntry.getAttribute("data-planner-goal-id")) ??
+    undefined;
 
-  // Weekly fixture sessions only accept drops inside a short credit window.
+  // Some recurring sessions only accept drops inside a short credit window.
   // Prefer nearby same-month days first so we don't "succeed" a rejected far drop.
   const candidateTargetDays = await page.evaluate(({ currentDay, goalId }) => {
     const scopeMonth = currentDay.slice(0, 7);
@@ -329,7 +328,7 @@ async function moveFirstMovableEntry(
       .filter((candidate) => Math.abs(dayMs(candidate) - sourceMs) > 3 * 86_400_000)
       .sort(byDistance);
     return [...near, ...far];
-  }, { currentDay: sourceDay, goalId: targetGoalId });
+  }, { currentDay: sourceDay, goalId: sourceGoalId });
   if (candidateTargetDays.length === 0) {
     throw new Error("Could not find a valid planner day-cell drop target.");
   }
@@ -470,14 +469,10 @@ test.describe("planner critical rails", () => {
 
     const executeMoveAndSave = async () => {
       await openCalendar(page);
-      const scopeMonth = await ensureDragFixtureEntryAvailable(page);
+      const scopeMonth = await ensureMovableEntryAvailable(page);
       const before = await fetchPlannerContextSnapshot(page, scopeMonth);
 
-      const movedIntoDraft = await moveFirstMovableEntry(
-        page,
-        DRAG_FIXTURE_ENTRY_SELECTOR,
-        DRAG_FIXTURE_GOAL_ID
-      );
+      const movedIntoDraft = await moveFirstMovableEntry(page);
       expect(movedIntoDraft).toBe(true);
       await expect(page.getByTestId(DRAFT_MODE_BADGE_TEST_ID)).toBeVisible();
       const saveButton = page.getByRole("button", { name: "Save plan", exact: true });
@@ -609,12 +604,8 @@ test.describe("planner critical rails", () => {
     let movedIntoDraft = false;
     for (let dragAttempt = 0; dragAttempt < 3; dragAttempt += 1) {
       await openCalendar(page);
-      await ensureDragFixtureEntryAvailable(page);
-      movedIntoDraft = await moveFirstMovableEntry(
-        page,
-        DRAG_FIXTURE_ENTRY_SELECTOR,
-        DRAG_FIXTURE_GOAL_ID
-      );
+      await ensureMovableEntryAvailable(page);
+      movedIntoDraft = await moveFirstMovableEntry(page);
       if (movedIntoDraft && (await isPlannerDraftReady(page))) {
         break;
       }
