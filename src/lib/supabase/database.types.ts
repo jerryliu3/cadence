@@ -635,7 +635,6 @@ export type Database = {
           id: string
           rest_weekdays: number[]
           social_activity_visible: boolean
-          social_competition_eligible: boolean
           timezone: string
           timezone_confirmed_at: string | null
           username: string
@@ -649,7 +648,6 @@ export type Database = {
           id: string
           rest_weekdays?: number[]
           social_activity_visible?: boolean
-          social_competition_eligible?: boolean
           timezone?: string
           timezone_confirmed_at?: string | null
           username: string
@@ -663,7 +661,6 @@ export type Database = {
           id?: string
           rest_weekdays?: number[]
           social_activity_visible?: boolean
-          social_competition_eligible?: boolean
           timezone?: string
           timezone_confirmed_at?: string | null
           username?: string
