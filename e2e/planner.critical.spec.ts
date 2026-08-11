@@ -75,11 +75,9 @@ function shiftScopeMonth(scopeMonth: string, delta: number) {
 }
 
 async function openCalendar(page: Page, scopeMonth?: string) {
-  const query = scopeMonth ? `/?tab=calendar&month=${scopeMonth}` : "/?tab=calendar";
+  const query = scopeMonth ? `/calendar?month=${scopeMonth}` : "/calendar";
   await page.goto(query);
-  await expect(
-    page.getByRole("tab", { name: "Calendar", exact: true })
-  ).toBeVisible();
+  await expect(page).toHaveURL(/\/calendar/);
   await waitForCalendarReady(page);
   await ensureMonthCalendarDensity(page);
 
@@ -109,9 +107,7 @@ async function openCalendar(page: Page, scopeMonth?: string) {
       );
     }
     await page.goto(query);
-    await expect(
-      page.getByRole("tab", { name: "Calendar", exact: true })
-    ).toBeVisible();
+    await expect(page).toHaveURL(/\/calendar/);
     await waitForCalendarReady(page);
     await ensureMonthCalendarDensity(page);
   }
@@ -443,8 +439,8 @@ test.describe("planner critical rails", () => {
 
   // Serial retries restart the whole group; keep each attempt free of leftover draft UI.
   test.beforeEach(async ({ page }) => {
-    await page.goto("/?tab=today");
-    await expect(page.getByRole("tab", { name: "Today", exact: true })).toBeVisible();
+    await page.goto("/");
+    await expect(page.getByText("Today")).toBeVisible();
   });
 
   test.skip(
@@ -557,8 +553,8 @@ test.describe("planner critical rails", () => {
 
   test("completion toggle dispatches from today surface", async ({ page }) => {
     test.setTimeout(120_000);
-    await page.goto("/?tab=today");
-    await expect(page.getByRole("tab", { name: "Today", exact: true })).toBeVisible();
+    await page.goto("/");
+    await expect(page.getByText("Today")).toBeVisible();
     const initialButton = page.locator(COMPLETION_TOGGLE_SELECTOR).first();
     await expect(initialButton).toBeVisible();
     await expect(initialButton).toBeEnabled();
@@ -571,8 +567,8 @@ test.describe("planner critical rails", () => {
 
   test("completion toggle dispatches from past tab surface", async ({ page }) => {
     test.setTimeout(120_000);
-    await page.goto("/?tab=past");
-    await expect(page.getByRole("tab", { name: "Past", exact: true })).toBeVisible();
+    await page.goto("/?tab=not-today");
+    await expect(page.getByText("Past")).toBeVisible();
     const pastToggle = page.locator(COMPLETION_TOGGLE_SELECTOR).first();
     await expect(pastToggle).toBeVisible({ timeout: 10_000 });
     await expect(pastToggle).toBeEnabled();

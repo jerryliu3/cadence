@@ -14,7 +14,7 @@ interface AppShellProps {
   userEmail: string;
 }
 
-const tabOrder = ["/insights", "/", "/?tab=calendar", "/settings"] as const;
+const tabOrder = ["/insights", "/", "/calendar", "/settings"] as const;
 
 function getActiveTabPath(
   pathname: string,
@@ -28,8 +28,11 @@ function getActiveTabPath(
     return "/settings";
   }
 
-  if (pathname === "/" && tabParam === "calendar") {
-    return "/?tab=calendar";
+  if (
+    pathname.startsWith("/calendar") ||
+    (pathname === "/" && tabParam === "calendar")
+  ) {
+    return "/calendar";
   }
 
   return "/";

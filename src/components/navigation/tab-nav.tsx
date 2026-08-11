@@ -23,7 +23,7 @@ const tabs: TabLink[] = [
   { key: "checklist", href: "/", label: "Checklist", icon: ListChecks },
   {
     key: "calendar",
-    href: "/?tab=calendar",
+    href: "/calendar",
     label: "Calendar",
     icon: CalendarDays,
   },
@@ -42,7 +42,8 @@ export function TabNav({ mobile = false }: TabNavProps) {
     ? "insights"
     : pathname.startsWith("/settings")
       ? "profile"
-      : pathname === "/" && tabParam === "calendar"
+      : pathname.startsWith("/calendar") ||
+          (pathname === "/" && tabParam === "calendar")
         ? "calendar"
         : "checklist";
 

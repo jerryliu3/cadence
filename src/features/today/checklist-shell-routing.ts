@@ -147,3 +147,75 @@ export function normalizeChecklistShellRoute({
     nextParams,
   };
 }
+
+export function normalizeCalendarRoute({
+  searchParams,
+  defaultCalendarViewMode,
+}: {
+  searchParams: URLSearchParams;
+  defaultCalendarViewMode: PlannerCalendarViewMode;
+}) {
+  const rawMonth = searchParams.get("month");
+  const rawDay = searchParams.get("day");
+  const rawView = searchParams.get("view");
+  const monthValid = isValidMonth(rawMonth);
+  const dayValid = isValidDate(rawDay);
+  const rawViewModeValid = isValidCalendarViewMode(rawView);
+  const nextParams = new URLSearchParams(searchParams.toString());
+  let changed = false;
+  const viewMode: PlannerCalendarViewMode = rawViewModeValid
+    ? rawView
+    : defaultCalendarViewMode;
+
+  if (rawMonth && !monthValid) {
+    nextParams.delete("month");
+    changed = true;
+  }
+  if (rawDay && !dayValid) {
+    nextParams.delete("day");
+    changed = true;
+  }
+  if (rawView && !rawViewModeValid) {
+    nextParams.delete("view");
+    changed = true;
+  }
+
+  if (viewMode === "month") {
+    if (nextParams.has("day")) {
+      nextParams.delete("day");
+      changed = true;
+    }
+  } else {
+    const dayParam = nextParams.get("day");
+    const monthParam = nextParams.get("month");
+    const fallbackDay = isValidMonth(monthParam)
+      ? `${monthParam}-01`
+      : getTodayDateParam();
+    const normalizedDay = isValidDate(dayParam) ? dayParam : fallbackDay;
+    if (nextParams.get("day") !== normalizedDay) {
+      nextParams.set("day", normalizedDay);
+      changed = true;
+    }
+    const normalizedMonth = normalizedDay.slice(0, 7);
+    if (nextParams.get("month") !== normalizedMonth) {
+      nextParams.set("month", normalizedMonth);
+      changed = true;
+    }
+  }
+
+  if (nextParams.get("view") !== viewMode) {
+    nextParams.set("view", viewMode);
+    changed = true;
+  }
+
+  const normalizedMonthParam = nextParams.get("month");
+  const normalizedDayParam = nextParams.get("day");
+
+  return {
+    month: isValidMonth(normalizedMonthParam) ? normalizedMonthParam : null,
+    day: isValidDate(normalizedDayParam) ? normalizedDayParam : null,
+    viewMode,
+    changed,
+    nextParams,
+  };
+}
