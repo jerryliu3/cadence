@@ -1,37 +1,9 @@
 -- Social Phase 1:
 -- Privacy and visibility foundation for social surfaces.
 
-do $$
-begin
-  if not exists (
-    select 1
-    from pg_type
-    where typnamespace = 'public'::regnamespace
-      and typname = 'goal_feed_visibility'
-  ) then
-    create type public.goal_feed_visibility as enum ('private', 'title_public');
-  end if;
-end;
-$$;
-
-do $$
-begin
-  if not exists (
-    select 1
-    from pg_type
-    where typnamespace = 'public'::regnamespace
-      and typname = 'goal_group_visibility'
-  ) then
-    create type public.goal_group_visibility as enum ('shared', 'excluded');
-  end if;
-end;
-$$;
-
 alter table public.profiles
   add column if not exists social_activity_visible boolean,
-  add column if not exists social_competition_eligible boolean,
-  add column if not exists social_visibility_updated_at timestamptz,
-  add column if not exists leaderboard_banned_at timestamptz;
+  add column if not exists social_competition_eligible boolean;
 
 update public.profiles
 set social_activity_visible = true
@@ -41,43 +13,31 @@ update public.profiles
 set social_competition_eligible = true
 where social_competition_eligible is null;
 
-update public.profiles
-set social_visibility_updated_at = pg_catalog.now()
-where social_visibility_updated_at is null;
-
 alter table public.profiles
   alter column social_activity_visible set default true,
-  alter column social_competition_eligible set default true,
-  alter column social_visibility_updated_at set default pg_catalog.now();
+  alter column social_competition_eligible set default true;
 
 alter table public.profiles
   alter column social_activity_visible set not null,
-  alter column social_competition_eligible set not null,
-  alter column social_visibility_updated_at set not null;
+  alter column social_competition_eligible set not null;
 
 alter table public.goals
-  add column if not exists feed_visibility public.goal_feed_visibility,
-  add column if not exists group_visibility public.goal_group_visibility;
+  add column if not exists is_private boolean;
 
+-- Public by default: feed title + group visibility share this single flag.
 update public.goals
-set feed_visibility = 'private'::public.goal_feed_visibility
-where feed_visibility is null;
-
-update public.goals
-set group_visibility = 'shared'::public.goal_group_visibility
-where group_visibility is null;
+set is_private = false
+where is_private is null;
 
 alter table public.goals
-  alter column feed_visibility set default 'private'::public.goal_feed_visibility,
-  alter column group_visibility set default 'shared'::public.goal_group_visibility;
+  alter column is_private set default false;
 
 alter table public.goals
-  alter column feed_visibility set not null,
-  alter column group_visibility set not null;
+  alter column is_private set not null;
 
-create index if not exists goals_feed_public_idx
+create index if not exists goals_public_visibility_idx
 on public.goals (id)
-where feed_visibility = 'title_public'::public.goal_feed_visibility;
+where is_private = false;
 
 create or replace function public.find_profile_by_username(
   p_query text,

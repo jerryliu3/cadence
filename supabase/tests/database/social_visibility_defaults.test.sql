@@ -1,24 +1,15 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions, pg_catalog;
-select plan(6);
+select plan(5);
 
 select ok(
   not exists (
     select 1
     from public.goals
-    where feed_visibility <> 'private'::public.goal_feed_visibility
+    where is_private <> false
   ),
-  'existing goals are backfilled to private feed visibility'
-);
-
-select ok(
-  not exists (
-    select 1
-    from public.goals
-    where group_visibility <> 'shared'::public.goal_group_visibility
-  ),
-  'existing goals are backfilled to shared group visibility'
+  'existing goals are backfilled to public (is_private=false)'
 );
 
 select ok(
@@ -27,28 +18,26 @@ select ok(
     from public.profiles
     where social_activity_visible <> true
        or social_competition_eligible <> true
-       or social_visibility_updated_at is null
   ),
   'existing profiles are backfilled to social defaults'
 );
 
 insert into auth.users (id, email)
 values
-  ('66111111-1111-4111-8111-111111111111', 'social-hidden@example.com'),
-  ('66222222-2222-4222-8222-222222222222', 'social-searcher@example.com')
+  ('66111111-1111-4111-8111-111111111111', 'social-a@example.com'),
+  ('66222222-2222-4222-8222-222222222222', 'social-b@example.com')
 on conflict (id) do nothing;
 
 insert into public.profiles (id, username)
 values
-  ('66111111-1111-4111-8111-111111111111', 's1_hidden_user'),
-  ('66222222-2222-4222-8222-222222222222', 's1_searcher_user')
+  ('66111111-1111-4111-8111-111111111111', 's1_user_a'),
+  ('66222222-2222-4222-8222-222222222222', 's1_user_b')
 on conflict (id) do nothing;
 
 select ok(
   (
     select social_activity_visible
       and social_competition_eligible
-      and social_visibility_updated_at is not null
     from public.profiles
     where id = '66222222-2222-4222-8222-222222222222'
   ),
@@ -83,22 +72,22 @@ on conflict (id) do nothing;
 
 select is(
   (
-    select feed_visibility::text
+    select is_private::text
     from public.goals
     where id = '66444444-4444-4444-8444-444444444444'
   ),
-  'private',
-  'new goals default to private feed visibility'
+  'false',
+  'new goals default to is_private=false'
 );
 
-select is(
-  (
-    select group_visibility::text
-    from public.goals
-    where id = '66444444-4444-4444-8444-444444444444'
+select ok(
+  exists (
+    select 1
+    from pg_indexes
+    where schemaname = 'public'
+      and indexname = 'goals_public_visibility_idx'
   ),
-  'shared',
-  'new goals default to shared group visibility'
+  'public visibility partial index exists'
 );
 
 select * from finish();

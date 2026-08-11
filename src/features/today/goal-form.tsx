@@ -90,8 +90,7 @@ interface GoalFormState {
   end_date: string;
   default_local_time: string;
   is_group: boolean;
-  feed_visibility: "private" | "title_public";
-  group_visibility: "shared" | "excluded";
+  is_private: boolean;
 }
 
 const defaultState: GoalFormState = {
@@ -109,8 +108,7 @@ const defaultState: GoalFormState = {
   end_date: "",
   default_local_time: "",
   is_group: false,
-  feed_visibility: "private",
-  group_visibility: "shared",
+  is_private: false,
 };
 
 const localTimePattern = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -223,8 +221,7 @@ export function GoalForm({ goalId, showBackButton = true }: GoalFormProps) {
           end_date: goal.end_date ?? "",
           default_local_time: goal.default_local_time ?? "",
           is_group: goal.is_group,
-          feed_visibility: goal.feed_visibility ?? "private",
-          group_visibility: goal.group_visibility ?? "shared",
+          is_private: goal.is_private ?? false,
         });
 
         const existingLinks = (linksResponse.data ?? []) as GoalLink[];
@@ -444,8 +441,7 @@ export function GoalForm({ goalId, showBackButton = true }: GoalFormProps) {
       end_date: state.end_date || null,
       default_local_time: state.default_local_time.trim() || null,
       is_group: state.is_group,
-      feed_visibility: state.feed_visibility,
-      group_visibility: state.group_visibility,
+      is_private: state.is_private,
     };
 
     const savedGoalId = goalId ?? crypto.randomUUID();
@@ -927,41 +923,20 @@ export function GoalForm({ goalId, showBackButton = true }: GoalFormProps) {
                     </label>
                   </div>
 
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label htmlFor="goal-feed-visibility">Feed visibility</Label>
-                      <Select
-                        value={state.feed_visibility}
-                        onValueChange={(value: "private" | "title_public") =>
-                          setState((prev) => ({ ...prev, feed_visibility: value }))
+                  <div className="rounded-xl border bg-background/70 p-3">
+                    <label className="flex items-start gap-3 text-sm">
+                      <input
+                        type="checkbox"
+                        className="mt-1"
+                        checked={state.is_private}
+                        onChange={(event) =>
+                          setState((prev) => ({ ...prev, is_private: event.target.checked }))
                         }
-                      >
-                        <SelectTrigger id="goal-feed-visibility">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="private">Private (no public title)</SelectItem>
-                          <SelectItem value="title_public">Public title in feed</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="goal-group-visibility">Group visibility</Label>
-                      <Select
-                        value={state.group_visibility}
-                        onValueChange={(value: "shared" | "excluded") =>
-                          setState((prev) => ({ ...prev, group_visibility: value }))
-                        }
-                      >
-                        <SelectTrigger id="goal-group-visibility">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="shared">Shared with group</SelectItem>
-                          <SelectItem value="excluded">Hidden from group</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
+                      />
+                      <span>
+                        Keep this goal private (hidden from the social feed and from your group).
+                      </span>
+                    </label>
                   </div>
 
                   {!state.is_group ? (
