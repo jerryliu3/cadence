@@ -7,6 +7,7 @@ import { type ReactNode, type TouchEventHandler, useMemo, useRef, useState } fro
 import { TabNav } from "@/components/navigation/tab-nav";
 import { Button } from "@/components/ui/button";
 import { XpLevelBadge } from "@/components/xp/xp-level-badge";
+import { XpRewardProvider } from "@/components/xp/xp-reward-provider";
 import { unsubscribeCurrentBrowser } from "@/lib/push/client";
 import { createClient } from "@/lib/supabase/client";
 
@@ -106,46 +107,50 @@ export function AppShell({ children, userEmail }: AppShellProps) {
   };
 
   return (
-    <div
-      className="flex min-h-screen w-full justify-center px-4 py-4 sm:px-6 sm:py-6"
-      onTouchStart={onTouchStart}
-      onTouchEnd={onTouchEnd}
-    >
-      <div className="flex w-full max-w-5xl flex-col gap-4 md:gap-6">
-        <header className="rounded-2xl border bg-card p-4 shadow-sm">
-          <div className="flex items-start justify-between gap-3">
-            <div className="space-y-1">
-              <p className="text-sm text-muted-foreground">
-                {format(new Date(), "EEEE, MMM d")}
-              </p>
-              <h1 className="text-2xl font-semibold tracking-tight">Goalmaxxing</h1>
-              <p className="text-xs text-muted-foreground">{userEmail}</p>
+    <XpRewardProvider>
+      <div
+        className="flex min-h-screen w-full justify-center px-4 py-4 sm:px-6 sm:py-6"
+        onTouchStart={onTouchStart}
+        onTouchEnd={onTouchEnd}
+      >
+        <div className="flex w-full max-w-5xl flex-col gap-4 md:gap-6">
+          <header className="rounded-2xl border bg-card p-4 shadow-sm">
+            <div className="flex items-start justify-between gap-3">
+              <div className="space-y-1">
+                <p className="text-sm text-muted-foreground">
+                  {format(new Date(), "EEEE, MMM d")}
+                </p>
+                <h1 className="text-2xl font-semibold tracking-tight">Goalmaxxing</h1>
+                <p className="text-xs text-muted-foreground">{userEmail}</p>
+              </div>
+              <div className="flex flex-col items-end gap-2">
+                <XpLevelBadge />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={signOut}
+                  disabled={isSigningOut}
+                >
+                  <LogOut className="size-4" />
+                  {isSigningOut ? "Signing out..." : "Sign out"}
+                </Button>
+              </div>
             </div>
-            <div className="flex flex-col items-end gap-2">
-              <XpLevelBadge />
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={signOut}
-                disabled={isSigningOut}
-              >
-                <LogOut className="size-4" />
-                {isSigningOut ? "Signing out..." : "Sign out"}
-              </Button>
+            <div className="mt-4 hidden md:block">
+              <TabNav />
             </div>
-          </div>
-          <div className="mt-4 hidden md:block">
-            <TabNav />
-          </div>
-        </header>
+          </header>
 
-        <main className="pb-[calc(5rem+env(safe-area-inset-bottom))] md:pb-0">{children}</main>
-      </div>
+          <main className="pb-[calc(5rem+env(safe-area-inset-bottom))] md:pb-0">
+            {children}
+          </main>
+        </div>
 
-      <div className="md:hidden">
-        <TabNav mobile />
+        <div className="md:hidden">
+          <TabNav mobile />
+        </div>
       </div>
-    </div>
+    </XpRewardProvider>
   );
 }

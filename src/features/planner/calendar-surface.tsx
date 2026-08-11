@@ -107,6 +107,7 @@ import {
   type PlannerPolicy,
 } from "@/lib/planner/policy";
 import { withPlannerRefreshTimeout } from "@/lib/planner/refresh-timeout";
+import { captureViewportRect } from "@/lib/xp/events";
 import type {
   CalendarSurfaceProps,
   CompletionControlDisabledReason,
@@ -1617,8 +1618,12 @@ export function CalendarSurface({
 
   const toggleDateFact = async (
     entry: PlannerDayDetailEntry,
-    selectedDateOverride?: string
+    selectedDateOverride?: string,
+    sourceElement?: HTMLElement
   ) => {
+    const sourceRect = sourceElement
+      ? captureViewportRect(sourceElement)
+      : undefined;
     const selectedDate = selectedDateOverride ?? effectiveSelectedDay;
     if (!context || !selectedDate) {
       return;
@@ -1672,6 +1677,7 @@ export function CalendarSurface({
         goalId: entry.originalGoalId,
         date: selectedDate,
         timezone: context.timezone,
+        sourceRect,
         plannerItemExpectation:
           requiresPlannerExpectation && entry.activeItem && expectedDigest
           ? {
@@ -2722,11 +2728,11 @@ export function CalendarSurface({
                       }
                       openDayDetails(dayPreview.day);
                     }}
-                    onToggleCompletion={(entry, day) => {
+                    onToggleCompletion={(entry, day, sourceElement) => {
                       if (!canMutateEntryOnDay(entry, day)) {
                         return;
                       }
-                      void toggleDateFact(entry, day);
+                      void toggleDateFact(entry, day, sourceElement);
                     }}
                     onEntryPointerStart={(immovable) => {
                       void immovable;
@@ -2845,7 +2851,11 @@ export function CalendarSurface({
                                   size="md"
                                   onClick={(event) => {
                                     event.stopPropagation();
-                                    void toggleDateFact(entry);
+                                    void toggleDateFact(
+                                      entry,
+                                      undefined,
+                                      event.currentTarget
+                                    );
                                   }}
                                   disabled={
                                     Boolean(mutationLoadingKey) ||
@@ -3016,7 +3026,13 @@ export function CalendarSurface({
                             size="sm"
                             variant="outline"
                             className="gap-1"
-                            onClick={() => void toggleDateFact(selectedEventEntry)}
+                            onClick={(event) =>
+                              void toggleDateFact(
+                                selectedEventEntry,
+                                undefined,
+                                event.currentTarget
+                              )
+                            }
                             disabled={
                               Boolean(mutationLoadingKey) ||
                               selectedEventCompletionDisabledReason !== null

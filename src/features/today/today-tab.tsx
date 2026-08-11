@@ -70,6 +70,7 @@ import {
 } from "@/lib/planner/requirements";
 import { useCompletionMutation } from "@/features/planner/use-completion-mutation";
 import { createClient } from "@/lib/supabase/client";
+import { captureViewportRect } from "@/lib/xp/events";
 
 interface TodayData {
   userId: string;
@@ -570,7 +571,11 @@ export function TodayTab({
     [archivedGoalsRaw, prepareNotTodayGoals]
   );
 
-  const toggleCompletion = useCallback(async (goal: Goal) => {
+  const toggleCompletion = useCallback(async (
+    goal: Goal,
+    sourceElement: HTMLButtonElement
+  ) => {
+    const sourceRect = captureViewportRect(sourceElement);
     const completions = completionsByGoal.get(goal.id) ?? [];
     const completedOnViewDate = hasCompletionToday(completions, viewDateObj);
     const completionsInCurrentPeriod = getCompletionsForCurrentPeriod(
@@ -618,6 +623,7 @@ export function TodayTab({
       goalId: goal.id,
       date: dispatchDate,
       timezone: resolveUserTimezone(),
+      sourceRect,
       blockedMessage:
         decision.reason === "future_creation"
           ? "You can only complete goals for today or past dates."
@@ -688,7 +694,11 @@ export function TodayTab({
           selectedDate={viewDate}
           referenceDate={viewDateObj}
           weeklyAnchor={weeklyAnchor}
-          onToggle={archived ? () => undefined : () => toggleCompletion(goal)}
+          onToggle={
+            archived
+              ? () => undefined
+              : (sourceElement) => toggleCompletion(goal, sourceElement)
+          }
         />
       );
     },

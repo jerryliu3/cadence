@@ -10,7 +10,7 @@ interface MonthHeatmapProps {
   countsByDate: Record<string, number>;
   interactive?: boolean;
   pendingDate?: string | null;
-  onDayClick?: (date: string) => void;
+  onDayClick?: (date: string, sourceElement: HTMLButtonElement) => void;
   onPreviousMonth?: () => void;
   onNextMonth?: () => void;
 }
@@ -73,7 +73,7 @@ export function MonthHeatmap({
                   key={key}
                   type="button"
                   title={`${key}: ${value} completion${value === 1 ? "" : "s"}`}
-                  onClick={() => onDayClick(key)}
+                  onClick={(event) => onDayClick(key, event.currentTarget)}
                   disabled={pendingDate === key}
                   className={cn(
                     "flex size-8 items-center justify-center rounded-md text-[10px] text-muted-foreground transition-transform hover:scale-105 hover:ring-2 hover:ring-primary/30 disabled:opacity-60",
