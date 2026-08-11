@@ -27,3 +27,28 @@ export function getSortedCompletionDates<T extends { completed_on: string }>(
     new Set(completions.map((completion) => completion.completed_on))
   ).sort((left, right) => left.localeCompare(right));
 }
+
+export function groupCompletionTitlesByDate<
+  T extends { completed_on: string; goal_id: string },
+>(
+  completions: T[],
+  goalTitleById: Map<string, string>
+) {
+  const grouped: Record<string, string[]> = {};
+  for (const completion of completions) {
+    const title = goalTitleById.get(completion.goal_id);
+    if (!title) {
+      continue;
+    }
+    grouped[completion.completed_on] = [
+      ...(grouped[completion.completed_on] ?? []),
+      title,
+    ];
+  }
+  for (const date of Object.keys(grouped)) {
+    grouped[date] = grouped[date].sort((left, right) =>
+      left.localeCompare(right)
+    );
+  }
+  return grouped;
+}

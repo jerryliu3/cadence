@@ -21,6 +21,7 @@ import {
 } from "react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
+import { AnchoredPopupCard } from "@/components/ui/anchored-popup-card";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -83,6 +84,7 @@ import {
   isValidIanaTimezone,
   resolveUserTimezone,
 } from "@/lib/dates/timezone";
+import { buildTimezoneOptions } from "@/lib/dates/timezone-options";
 import {
   getApiErrorMessage,
   isApiClientError,
@@ -90,6 +92,7 @@ import {
   postJson,
   putJson,
 } from "@/lib/api/client";
+import { useOutsidePointerDismiss } from "@/lib/ui/use-outside-pointer-dismiss";
 import {
   type CompletionDispatchDecision,
   resolveCompletionDispatch,
@@ -117,7 +120,7 @@ import type {
 } from "@/features/planner/calendar-surface.types";
 import { usePlannerVisibleMonthContexts } from "@/features/planner/use-planner-visible-month-contexts";
 const DAY_PREVIEW_HOVER_DELAY_MS = 1000;
-const DAY_PREVIEW_CLOSE_DELAY_MS = 140;
+const DAY_PREVIEW_CLOSE_DELAY_MS = 1000;
 const DAY_PREVIEW_LONG_PRESS_DELAY_MS = 500;
 const MAX_MONTH_HEADING_SAMPLE = "September 2026";
 const MAX_WEEK_HEADING_SAMPLE = "Sep 30 - Sep 30, 2026";
@@ -183,7 +186,6 @@ export function CalendarSurface({
     null
   );
   const [dayPreview, setDayPreview] = useState<DayPreviewState | null>(null);
-  const [dayPreviewExpanded, setDayPreviewExpanded] = useState(false);
   const [draggingEntryKey, setDraggingEntryKey] = useState<string | null>(null);
   const [localSelectedDay, setLocalSelectedDay] = useState<string | null>(null);
   const [expandedMonthRows, setExpandedMonthRows] = useState(false);
@@ -203,23 +205,10 @@ export function CalendarSurface({
   const pointerInsideDayPreviewRef = useRef(false);
   const dayPreviewRef = useRef<HTMLDivElement | null>(null);
 
-  const timezoneOptions = useMemo(() => {
-    const intlWithSupportedValues = Intl as typeof Intl & {
-      supportedValuesOf?: (key: string) => string[];
-    };
-    const supportedTimezones =
-      typeof intlWithSupportedValues.supportedValuesOf === "function"
-        ? intlWithSupportedValues.supportedValuesOf("timeZone")
-        : [];
-    const detectedTimezone = resolveUserTimezone();
-    return Array.from(
-      new Set(
-        [setupTimezone, detectedTimezone, "UTC", ...supportedTimezones].filter(
-          (timezone): timezone is string => Boolean(timezone)
-        )
-      )
-    ).sort((left, right) => left.localeCompare(right));
-  }, [setupTimezone]);
+  const timezoneOptions = useMemo(
+    () => buildTimezoneOptions(setupTimezone),
+    [setupTimezone]
+  );
 
   const loadContext = useCallback(
     async ({
@@ -632,7 +621,6 @@ export function CalendarSurface({
     () => getCompletionFactMarkersForDay(dayPreview?.day ?? null),
     [dayPreview?.day, getCompletionFactMarkersForDay]
   );
-
   useEffect(
     () => () => {
       if (hoverPreviewTimerRef.current) {
@@ -663,29 +651,19 @@ export function CalendarSurface({
   }, []);
 
   useEffect(() => {
-    if (!dayPreview?.pinned) {
-      return;
+    if (!dayPreview) {
+      pointerInsideDayPreviewRef.current = false;
     }
-    const closeOnOutsidePointer = (event: PointerEvent) => {
-      const target = event.target;
-      if (!(target instanceof Node)) {
-        return;
-      }
-      if (dayPreviewRef.current?.contains(target)) {
-        return;
-      }
-      if (
-        target instanceof Element &&
-        target.closest('[data-day-cell="true"]')
-      ) {
-        return;
-      }
+  }, [dayPreview]);
+
+  useOutsidePointerDismiss({
+    enabled: Boolean(dayPreview?.pinned),
+    containerRef: dayPreviewRef,
+    onDismiss: () => {
       setDayPreview(null);
-    };
-    window.addEventListener("pointerdown", closeOnOutsidePointer);
-    return () =>
-      window.removeEventListener("pointerdown", closeOnOutsidePointer);
-  }, [dayPreview?.pinned]);
+    },
+    shouldIgnoreTarget: (target) => Boolean(target.closest('[data-day-cell="true"]')),
+  });
 
   const submitSetup = async () => {
     if (!isValidIanaTimezone(setupTimezone)) {
@@ -1031,12 +1009,10 @@ export function CalendarSurface({
     day,
     pinned,
     target,
-    expanded = false,
   }: {
     day: string;
     pinned: boolean;
     target: EventTarget & HTMLElement;
-    expanded?: boolean;
   }) => {
     const rect = target.getBoundingClientRect();
     const position = computeDayPreviewPosition({
@@ -1050,7 +1026,6 @@ export function CalendarSurface({
       viewportHeight: window.innerHeight,
     });
     setDayPreview({ day, position, pinned });
-    setDayPreviewExpanded(expanded);
   };
 
   const scheduleHoverPreview = (
@@ -1965,6 +1940,11 @@ export function CalendarSurface({
     if (!context) {
       return;
     }
+    const expectedDigest = context.revisions.scheduleDigest;
+    if (!expectedDigest) {
+      toast.error("Planner state is stale. Refresh and try again.");
+      return;
+    }
     const confirmed = window.confirm(
       "Full reset will clear planner schedules across all months in the planning horizon. Continue?"
     );
@@ -1973,8 +1953,6 @@ export function CalendarSurface({
     }
 
     setFullResetLoading(true);
-    let resetCount = 0;
-    let failedMonths = 0;
     const asOfMonth = context.asOfDate.slice(0, 7);
     const scopeMonthsToProcess = new Set<string>([
       context.scopeMonth,
@@ -1987,54 +1965,45 @@ export function CalendarSurface({
       );
     }
 
-    try {
-      for (const scopeMonth of Array.from(scopeMonthsToProcess).sort((left, right) =>
-        left.localeCompare(right)
-      )) {
-        let scopeContext: PlannerContextPayload;
-        try {
-          scopeContext = await getJson<PlannerContextPayload>("/api/planner/context", {
-            query: { scopeMonth },
-          });
-        } catch {
-          failedMonths += 1;
-          continue;
-        }
-        const expectedDigest = scopeContext.revisions.scheduleDigest;
-        if (!expectedDigest) {
-          continue;
-        }
-        try {
-          await postJson("/api/planner/reset", {
-            scopeMonth,
-            expectedDigest,
-          });
-          clearDraftScopeSession(scopeMonth);
-          resetCount += 1;
-        } catch {
-          failedMonths += 1;
-        }
-      }
+    const scopeMonths = Array.from(scopeMonthsToProcess).sort((left, right) =>
+      left.localeCompare(right)
+    );
 
+    try {
+      const payload = await postJson<{
+        scopeCount: number;
+      }>("/api/planner/reset-all", {
+        expectedDigest,
+        scopeMonths,
+      });
+
+      for (const scopeMonth of scopeMonths) {
+        clearDraftScopeSession(scopeMonth);
+      }
       onPlannerMutation();
-      await loadContext({ showLoading: false, toastOnError: false });
-      coach.actions.resetForPlannerStateReset();
-      if (resetCount > 0) {
-        toast.success(
-          `Full reset complete for ${resetCount} month${resetCount === 1 ? "" : "s"}.`
-        );
-      } else {
-        toast("No planner months needed reset.");
-      }
-      if (failedMonths > 0) {
+      const refreshed = await withPlannerRefreshTimeout({
+        operation: loadContext({ showLoading: false, toastOnError: false }),
+        timeoutMessage:
+          "Full reset ran, but calendar refresh timed out. Please refresh the page.",
+      });
+      if (!refreshed) {
         toast.error(
-          `${failedMonths} month${failedMonths === 1 ? "" : "s"} could not be reset.`
+          "Full reset ran, but calendar refresh failed. Please refresh the page."
         );
+        return;
       }
-    } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : "Full planner reset failed."
+      coach.actions.resetForPlannerStateReset();
+      const appliedScopeCount =
+        typeof payload.scopeCount === "number" && payload.scopeCount > 0
+          ? payload.scopeCount
+          : scopeMonths.length;
+      toast.success(
+        `Full reset complete for ${appliedScopeCount} month${
+          appliedScopeCount === 1 ? "" : "s"
+        }.`
       );
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, "Full planner reset failed."));
     } finally {
       setFullResetLoading(false);
     }
@@ -2105,13 +2074,13 @@ export function CalendarSurface({
               "MMM d, yyyy"
             )}`
         : format(safeFocusedDay, "EEE MMM d");
-  const viewHeadingControlWidth = `min(100%, calc(${Math.max(
+  const fixedViewHeadingWidthCh = Math.max(
     monthLabel.length,
     MAX_MONTH_HEADING_SAMPLE.length,
     MAX_WEEK_HEADING_SAMPLE.length,
     MAX_THREE_DAY_HEADING_SAMPLE.length,
     MAX_DAY_HEADING_SAMPLE.length
-  )}ch + ${viewMode === "month" ? "11rem" : "8rem"}))`;
+  );
   const viewDescription =
     viewMode === "month"
       ? `${restWeekdayOptions.find((option) => option.value === weekStartsOn)?.label ?? "Mon"}-first month view. Drag session pills to stage preview edits.`
@@ -2274,7 +2243,7 @@ export function CalendarSurface({
           clearHoverPreviewTimer();
           clearHoverPreviewCloseTimer();
           setSelectedEventEntryKey(null);
-          openDayPreview({ day, pinned: true, target, expanded: true });
+          openDayPreview({ day, pinned: true, target });
         }}
         onCellClick={(target) => {
           if (draggingEntryKey) {
@@ -2460,7 +2429,8 @@ export function CalendarSurface({
               {eligibilityNotices.scopeOnlyCount > 0 ? (
                 <p className="text-xs text-muted-foreground">
                   {eligibilityNotices.scopeOnlyCount} goal
-                  {eligibilityNotices.scopeOnlyCount === 1 ? "" : "s"} outside this
+                  {eligibilityNotices.scopeOnlyCount === 1 ? "" : "s"}{" "}
+                  outside this
                   month&apos;s planning scope.
                 </p>
               ) : null}
@@ -2516,19 +2486,6 @@ export function CalendarSurface({
                   Undo all months
                 </Button>
               ) : null}
-              {context?.preferences ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon-sm"
-                  aria-label="Settings"
-                  title="Settings"
-                  onClick={() => setSettingsOpen(true)}
-                  disabled={loading}
-                >
-                  <Settings className="size-4" />
-                </Button>
-              ) : null}
             </div>
           </div>
         </div>
@@ -2559,30 +2516,26 @@ export function CalendarSurface({
       ) : month ? (
         <>
           <div className="rounded-xl border bg-card p-4 shadow-sm">
-            <div className="mb-3 space-y-3">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div
-                  className={`grid max-w-full items-center gap-2 ${
-                    viewMode === "month"
-                      ? "grid-cols-[2rem_minmax(0,1fr)_2rem_2rem_2rem]"
-                      : "grid-cols-[2rem_minmax(0,1fr)_2rem_2rem]"
-                  }`}
-                  style={{ width: viewHeadingControlWidth }}
-                >
-                  <PeriodStepper
-                    className="contents"
-                    onPrevious={() => moveViewWindow(-1)}
-                    onNext={() => moveViewWindow(1)}
-                    previousDisabled={loading}
-                    nextDisabled={loading}
-                    previousAriaLabel={previousWindowAriaLabel}
-                    nextAriaLabel={nextWindowAriaLabel}
-                    center={
-                      <h3 className="truncate text-center text-base font-semibold">
-                        {viewHeading}
-                      </h3>
-                    }
-                  />
+            <div className="mx-auto mb-3 w-full max-w-[56rem] space-y-3">
+              <div className="flex w-full flex-wrap items-center gap-2">
+                <PeriodStepper
+                  className="shrink-0"
+                  onPrevious={() => moveViewWindow(-1)}
+                  onNext={() => moveViewWindow(1)}
+                  previousDisabled={loading}
+                  nextDisabled={loading}
+                  previousAriaLabel={previousWindowAriaLabel}
+                  nextAriaLabel={nextWindowAriaLabel}
+                  center={
+                    <h3
+                      className="truncate text-center text-base font-semibold"
+                      style={{ width: `${fixedViewHeadingWidthCh}ch` }}
+                    >
+                      {viewHeading}
+                    </h3>
+                  }
+                />
+                <div className="ml-auto flex items-center justify-end gap-2">
                   <Button
                     type="button"
                     variant="outline"
@@ -2611,33 +2564,52 @@ export function CalendarSurface({
                       )}
                     </Button>
                   ) : null}
-                </div>
-                <div className="flex items-center gap-1 rounded-md border p-1">
-                  {PLANNER_VIEW_MODES.map((modeOption) => (
-                    <Button
-                      key={modeOption.value}
-                      type="button"
-                      size="sm"
-                      variant={viewMode === modeOption.value ? "default" : "ghost"}
-                      className="h-7 px-2 text-xs"
+                  <Select
+                    value={viewMode}
+                    onValueChange={(value) =>
+                      setCalendarViewMode(
+                        value as (typeof PLANNER_VIEW_MODES)[number]["value"]
+                      )
+                    }
+                  >
+                    <SelectTrigger
+                      className="h-8 w-[7.5rem] rounded-md bg-background/90 text-xs"
                       disabled={loading}
-                      onClick={() => setCalendarViewMode(modeOption.value)}
+                      aria-label="Calendar view mode"
                     >
-                      {modeOption.label}
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {PLANNER_VIEW_MODES.map((modeOption) => (
+                        <SelectItem key={modeOption.value} value={modeOption.value}>
+                          {modeOption.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {context?.preferences ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon-sm"
+                      aria-label="Settings"
+                      title="Settings"
+                      onClick={() => setSettingsOpen(true)}
+                      disabled={loading}
+                    >
+                      <Settings className="size-4" />
                     </Button>
-                  ))}
-                </div>
-              </div>
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                  <p>{viewDescription}</p>
-                  {loading ? (
-                    <span className="inline-flex items-center gap-1">
-                      <Loader2 className="size-3 animate-spin" />
-                      Updating...
-                    </span>
                   ) : null}
                 </div>
+              </div>
+              <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                <p>{viewDescription}</p>
+                {loading ? (
+                  <span className="inline-flex items-center gap-1">
+                    <Loader2 className="size-3 animate-spin" />
+                    Updating...
+                  </span>
+                ) : null}
               </div>
             </div>
             <PlannerDndProvider
@@ -2757,18 +2729,9 @@ export function CalendarSurface({
                 ) : null}
 
                 {viewMode !== "day" && dayPreview ? (
-                  <div
-                    ref={dayPreviewRef}
-                    className="fixed z-40 rounded-md border bg-card p-3 shadow-lg"
-                    style={{
-                      top: dayPreview.position.top,
-                      left: dayPreview.position.left,
-                      width: dayPreview.position.width,
-                      transform:
-                        dayPreview.position.placement === "above"
-                          ? "translateY(-100%)"
-                          : undefined,
-                    }}
+                  <AnchoredPopupCard
+                    popupRef={dayPreviewRef}
+                    position={dayPreview.position}
                     onPointerDownCapture={() => {
                       setDayPreview((current) =>
                         current && !current.pinned
@@ -2785,35 +2748,29 @@ export function CalendarSurface({
                       pointerInsideDayPreviewRef.current = false;
                       scheduleHoverPreviewClose(dayPreview.day);
                     }}
-                  >
-                    <div className="mb-2 flex items-center justify-between gap-2">
-                      <p className="text-sm font-medium">
-                        {format(
-                          parse(dayPreview.day, "yyyy-MM-dd", new Date()),
-                          "EEEE, MMM d"
-                        )}
-                      </p>
-                      <div className="flex items-center gap-1">
+                    title={format(
+                      parse(dayPreview.day, "yyyy-MM-dd", new Date()),
+                      "EEEE, MMM d"
+                    )}
+                    actions={
+                      <>
                         <Button
                           type="button"
-                          variant={dayPreviewExpanded ? "default" : "outline"}
+                          variant="outline"
                           size="sm"
                           className="h-6 px-2 text-xs"
+                          disabled={previewDayEntries.length === 0}
                           onClick={() => {
-                            setDayPreviewExpanded((current) => !current);
+                            const firstEntry = previewDayEntries[0];
+                            if (!firstEntry) {
+                              return;
+                            }
+                            setLocalSelectedDay(dayPreview.day);
+                            setSelectedEventEntryKey(firstEntry.key);
                           }}
                         >
-                          {dayPreviewExpanded ? (
-                            <>
-                              <Minimize2 className="mr-1 size-3" />
-                              Compact
-                            </>
-                          ) : (
-                            <>
-                              <Maximize2 className="mr-1 size-3" />
-                              Expand
-                            </>
-                          )}
+                          <Maximize2 className="mr-1 size-3" />
+                          Expand
                         </Button>
                         {dayPreview.pinned ? (
                           <Button
@@ -2826,71 +2783,72 @@ export function CalendarSurface({
                             X
                           </Button>
                         ) : null}
-                      </div>
-                    </div>
-                  <CalendarDayPreviewList
-                    day={dayPreview.day}
-                    entries={previewDayEntries}
-                    completionFactMarkers={previewDayCompletionFactMarkers}
-                    mutationLoading={Boolean(mutationLoadingKey)}
-                    getEntryDisplayTitle={getEntryDisplayTitleWithTime}
-                    getEntrySubtitle={getEntrySubtitle}
-                    isEntryCredited={isEntryCredited}
-                    isEntryImmovableForDraft={(entry) =>
-                      !canMutateEntryOnDay(entry, dayPreview.day) ||
-                      isEntryImmovableForDraft(entry)
+                      </>
                     }
-                    getCompletionToggleState={(entry, day) => {
-                      if (!canMutateEntryOnDay(entry, day)) {
-                        return {
-                          currentlyCredited: isEntryCredited(entry),
-                          disabledReasonCopy: readOnlyMonthHint,
-                        };
+                  >
+                    <CalendarDayPreviewList
+                      day={dayPreview.day}
+                      entries={previewDayEntries}
+                      completionFactMarkers={previewDayCompletionFactMarkers}
+                      mutationLoading={Boolean(mutationLoadingKey)}
+                      getEntryDisplayTitle={getEntryDisplayTitleWithTime}
+                      getEntrySubtitle={getEntrySubtitle}
+                      isEntryCredited={isEntryCredited}
+                      isEntryImmovableForDraft={(entry) =>
+                        !canMutateEntryOnDay(entry, dayPreview.day) ||
+                        isEntryImmovableForDraft(entry)
                       }
-                      const previewCompletionDispatch = getDateFactDispatchForEntry(
-                        entry,
-                        day
-                      );
-                      const previewCompletionDisabledReason =
-                        completionControlDisabledReasonForEntry(
+                      getCompletionToggleState={(entry, day) => {
+                        if (!canMutateEntryOnDay(entry, day)) {
+                          return {
+                            currentlyCredited: isEntryCredited(entry),
+                            disabledReasonCopy: readOnlyMonthHint,
+                          };
+                        }
+                        const previewCompletionDispatch = getDateFactDispatchForEntry(
                           entry,
-                          previewCompletionDispatch
+                          day
                         );
-                      return {
-                        currentlyCredited: Boolean(
-                          previewCompletionDispatch?.currentlyCredited
-                        ),
-                        disabledReasonCopy: previewCompletionDisabledReason
-                          ? completionDisabledReasonCopy(previewCompletionDisabledReason)
-                          : null,
-                      };
-                    }}
-                    onEntryOpen={(entryKey) => {
-                      const entry = previewDayEntries.find(
-                        (candidate) => candidate.key === entryKey
-                      );
-                      if (!entry || !canMutateEntryOnDay(entry, dayPreview.day)) {
-                        return;
-                      }
-                      setLocalSelectedDay(dayPreview.day);
-                      setSelectedEventEntryKey(entry.key);
-                    }}
-                    onToggleCompletion={(entry, day) => {
-                      if (!canMutateEntryOnDay(entry, day)) {
-                        return;
-                      }
-                      void toggleDateFact(entry, day);
-                    }}
-                    onEntryPointerStart={(immovable) => {
-                      void immovable;
-                      pointerPressActiveRef.current = true;
-                    }}
-                    onEntryPointerEnd={() => {
-                      pointerPressActiveRef.current = false;
-                    }}
-                    density={dayPreviewExpanded ? "expanded" : "compact"}
-                  />
-                  </div>
+                        const previewCompletionDisabledReason =
+                          completionControlDisabledReasonForEntry(
+                            entry,
+                            previewCompletionDispatch
+                          );
+                        return {
+                          currentlyCredited: Boolean(
+                            previewCompletionDispatch?.currentlyCredited
+                          ),
+                          disabledReasonCopy: previewCompletionDisabledReason
+                            ? completionDisabledReasonCopy(previewCompletionDisabledReason)
+                            : null,
+                        };
+                      }}
+                      onEntryOpen={(entryKey) => {
+                        const entry = previewDayEntries.find(
+                          (candidate) => candidate.key === entryKey
+                        );
+                        if (!entry || !canMutateEntryOnDay(entry, dayPreview.day)) {
+                          return;
+                        }
+                        setLocalSelectedDay(dayPreview.day);
+                        setSelectedEventEntryKey(entry.key);
+                      }}
+                      onToggleCompletion={(entry, day) => {
+                        if (!canMutateEntryOnDay(entry, day)) {
+                          return;
+                        }
+                        void toggleDateFact(entry, day);
+                      }}
+                      onEntryPointerStart={(immovable) => {
+                        void immovable;
+                        pointerPressActiveRef.current = true;
+                      }}
+                      onEntryPointerEnd={() => {
+                        pointerPressActiveRef.current = false;
+                      }}
+                      density="compact"
+                    />
+                  </AnchoredPopupCard>
                 ) : null}
               </div>
             </PlannerDndProvider>
