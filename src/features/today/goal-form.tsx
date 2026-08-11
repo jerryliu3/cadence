@@ -71,7 +71,6 @@ interface GoalFormState {
   title: string;
   description: string;
   category_selection: CategorySelection;
-  custom_category: string;
   color: string;
   frequency_type: GoalFrequencyType;
   recurrence_interval: RecurrenceInterval;
@@ -87,7 +86,6 @@ const defaultState: GoalFormState = {
   title: "",
   description: "",
   category_selection: "personal",
-  custom_category: "",
   color: getCategorySwatchColor("personal"),
   frequency_type: "recurring",
   recurrence_interval: "daily",
@@ -193,9 +191,8 @@ export function GoalForm({ goalId, showBackButton = true }: GoalFormProps) {
         setState({
           title: goal.title,
           description: goal.description ?? "",
-          category_selection: categoryState.selection,
-          custom_category: categoryState.customValue,
-          color: getCategorySwatchColor(categoryState.selection),
+          category_selection: categoryState,
+          color: getCategorySwatchColor(categoryState),
           frequency_type: goal.frequency_type,
           recurrence_interval: goal.recurrence_interval ?? "daily",
           target_count: goal.target_count?.toString() ?? "",
@@ -362,13 +359,6 @@ export function GoalForm({ goalId, showBackButton = true }: GoalFormProps) {
       return "Default time must be a valid 24-hour HH:MM value.";
     }
 
-    if (
-      state.category_selection === "custom" &&
-      state.custom_category.trim().length === 0
-    ) {
-      return "Custom category name is required.";
-    }
-
     const definitionErrors = validateGoalDefinition({
       frequencyType: state.frequency_type,
       targetCount: definitionTargetCount,
@@ -401,7 +391,8 @@ export function GoalForm({ goalId, showBackButton = true }: GoalFormProps) {
       owner_id: currentUserId,
       title: state.title.trim(),
       description: state.description.trim() || null,
-      category: getCategoryLabel(state.category_selection, state.custom_category),
+      category_key: state.category_selection,
+      category: getCategoryLabel(state.category_selection),
       color: state.color,
       frequency_type: state.frequency_type,
       recurrence_interval: state.frequency_type === "recurring" ? state.recurrence_interval : null,
@@ -603,21 +594,6 @@ export function GoalForm({ goalId, showBackButton = true }: GoalFormProps) {
               />
             </div>
           </div>
-
-          {state.category_selection === "custom" ? (
-            <div className="space-y-2">
-              <Label htmlFor="custom-category">Custom category label</Label>
-              <Input
-                id="custom-category"
-                value={state.custom_category}
-                onChange={(event) =>
-                  setState((prev) => ({ ...prev, custom_category: event.target.value }))
-                }
-                placeholder="Your custom category"
-                required
-              />
-            </div>
-          ) : null}
 
           <div className="grid gap-3 sm:grid-cols-2">
             {canShowRecurrenceFields ? (

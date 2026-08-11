@@ -1,12 +1,7 @@
 import { cn } from "@/lib/utils";
 
-export type CategoryPresetId =
-  | "health"
-  | "career"
-  | "personal"
-  | "relationships"
-  | "other";
-export type CategorySelection = CategoryPresetId | "custom";
+export type CategoryPresetId = "health" | "career" | "personal" | "relationships" | "other";
+export type CategorySelection = CategoryPresetId;
 
 export const CATEGORY_PRESETS: Array<{
   id: CategoryPresetId;
@@ -25,129 +20,49 @@ const categorySwatchBySelection: Record<CategorySelection, string> = {
   personal: "#6366f1",
   relationships: "#f43f5e",
   other: "#64748b",
-  custom: "#64748b",
 };
 
 const presetLookup = new Map(
   CATEGORY_PRESETS.map((preset) => [preset.id, preset.label])
 );
 
-const GENERIC_OTHER_LABELS = new Set([
-  "other",
-  "general",
-  "misc",
-  "uncategorized",
-  "custom",
-  "test",
-]);
+function toCategoryKey(raw: string | null | undefined): CategoryPresetId {
+  const normalized = raw?.trim().toLowerCase();
+  if (
+    normalized === "health" ||
+    normalized === "career" ||
+    normalized === "personal" ||
+    normalized === "relationships" ||
+    normalized === "other"
+  ) {
+    return normalized;
+  }
+
+  return "other";
+}
 
 export function getCategorySelectionFromValue(
   category: string,
   categoryKey?: string | null
-): {
-  selection: CategorySelection;
-  customValue: string;
-} {
-  const normalizedCategoryKey = categoryKey?.trim().toLowerCase();
-  if (
-    normalizedCategoryKey === "health" ||
-    normalizedCategoryKey === "career" ||
-    normalizedCategoryKey === "personal" ||
-    normalizedCategoryKey === "relationships"
-  ) {
-    return {
-      selection: normalizedCategoryKey,
-      customValue: presetLookup.get(normalizedCategoryKey) ?? category,
-    };
-  }
-
-  const normalized = category.trim().toLowerCase();
-
-  if (
-    normalized === "health" ||
-    normalized === "fitness" ||
-    normalized === "wellness" ||
-    normalized === "nutrition"
-  ) {
-    return { selection: "health", customValue: "Health" };
-  }
-
-  if (
-    normalized === "career" ||
-    normalized === "work" ||
-    normalized === "professional" ||
-    normalized === "business" ||
-    normalized === "job"
-  ) {
-    return { selection: "career", customValue: "Career" };
-  }
-
-  if (
-    normalized === "personal" ||
-    normalized === "planning" ||
-    normalized === "productivity" ||
-    normalized === "home"
-  ) {
-    return { selection: "personal", customValue: "Personal" };
-  }
-
-  if (
-    normalized === "relationships" ||
-    normalized === "social" ||
-    normalized === "family" ||
-    normalized === "friends" ||
-    normalized === "partner" ||
-    normalized === "community"
-  ) {
-    return { selection: "relationships", customValue: "Relationships" };
-  }
-
-  if (GENERIC_OTHER_LABELS.has(normalized) || normalized.length === 0) {
-    return { selection: "other", customValue: "Other" };
-  }
-
-  return {
-    selection: "custom",
-    customValue: category || "",
-  };
+) {
+  return toCategoryKey(categoryKey ?? category);
 }
 
 export function getCategoryLabel(
-  selection: CategorySelection,
-  customValue?: string
+  selection: CategorySelection
 ): string {
-  if (selection === "custom") {
-    const custom = customValue?.trim();
-    return custom && custom.length > 0 ? custom : "Custom";
-  }
-
-  return presetLookup.get(selection) ?? "Custom";
+  return presetLookup.get(selection) ?? "Other";
 }
 
 export function getGoalCategoryLabel(
   category: string,
   categoryKey?: string | null
 ) {
-  const normalizedCategoryKey = categoryKey?.trim().toLowerCase();
-  if (
-    normalizedCategoryKey === "health" ||
-    normalizedCategoryKey === "career" ||
-    normalizedCategoryKey === "personal" ||
-    normalizedCategoryKey === "relationships"
-  ) {
-    return presetLookup.get(normalizedCategoryKey) ?? category;
-  }
-  if (normalizedCategoryKey === "other") {
-    const normalizedCategory = category.trim().toLowerCase();
-    if (GENERIC_OTHER_LABELS.has(normalizedCategory) || normalizedCategory.length === 0) {
-      return "Other";
-    }
-  }
-  return category;
+  return getCategoryLabel(toCategoryKey(categoryKey ?? category));
 }
 
 export function getCategoryBadgeClass(category: string): string {
-  const normalized = category.trim().toLowerCase();
+  const normalized = toCategoryKey(category);
 
   if (normalized === "health") {
     return cn(

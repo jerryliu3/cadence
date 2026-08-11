@@ -1,24 +1,24 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions, pg_catalog;
-select plan(10);
+select plan(13);
 
 select is(
-  private.normalize_goal_category_key('fitness'),
+  private.normalize_goal_category_key('Health'),
   'health',
-  'fitness alias resolves to health key'
+  'display label resolves to health key case-insensitively'
 );
 
 select is(
-  private.normalize_goal_category_key('PRODUCTIVITY'),
-  'personal',
-  'productivity alias resolves case-insensitively'
-);
-
-select is(
-  private.normalize_goal_category_key('career'),
-  'career',
+  private.normalize_goal_category_key('relationships'),
+  'relationships',
   'explicit taxonomy key resolves directly'
+);
+
+select is(
+  private.normalize_goal_category_key('community'),
+  'other',
+  'removed legacy category values normalize to other'
 );
 
 select is(
@@ -35,6 +35,7 @@ insert into public.goals (
   title,
   description,
   category,
+  category_key,
   color,
   frequency_type,
   recurrence_interval,
@@ -48,7 +49,8 @@ values (
   '11111111-1111-4111-8111-111111111111',
   'XP taxonomy trigger insert test',
   null,
-  'fitness',
+  'Health',
+  'career',
   '#10b981',
   'recurring',
   'weekly',
@@ -64,14 +66,24 @@ select is(
     from public.goals
     where id = 'b1400000-0000-4000-8000-000000000001'
   ),
-  'health',
-  'insert trigger derives category_key from category'
+  'career',
+  'insert trigger keeps category_key as canonical source of truth'
+);
+
+select is(
+  (
+    select category
+    from public.goals
+    where id = 'b1400000-0000-4000-8000-000000000001'
+  ),
+  'Career',
+  'insert trigger rewrites category label from the canonical category_key'
 );
 
 update public.goals
 set
-  category = 'professional',
-  category_key = 'health'
+  category = 'Health',
+  category_key = 'relationships'
 where id = 'b1400000-0000-4000-8000-000000000001';
 
 select is(
@@ -80,8 +92,18 @@ select is(
     from public.goals
     where id = 'b1400000-0000-4000-8000-000000000001'
   ),
-  'career',
-  'update trigger rewrites mismatched category_key to normalized category'
+  'relationships',
+  'update trigger uses category_key over category text'
+);
+
+select is(
+  (
+    select category
+    from public.goals
+    where id = 'b1400000-0000-4000-8000-000000000001'
+  ),
+  'Relationships',
+  'update trigger rewrites category text to the canonical display label'
 );
 
 reset role;
@@ -97,6 +119,16 @@ select is(
   (select count(*)::integer from public.goal_categories),
   5,
   'goal_categories seed contains expected category keys'
+);
+
+select is(
+  (
+    select count(*)::integer
+    from public.goal_categories
+    where key in ('learning', 'finance', 'community')
+  ),
+  0,
+  'legacy category keys are removed from taxonomy seed'
 );
 
 select ok(

@@ -95,7 +95,6 @@ interface BulkGoalDraft {
   title: string;
   description: string;
   category_selection: CategorySelection;
-  custom_category: string;
   color: string;
   is_group: boolean;
   frequency_type: GoalFrequencyType;
@@ -250,10 +249,6 @@ function validateDraft(draft: BulkGoalDraft): string[] {
     errors.push("Title is required.");
   }
 
-  if (draft.category_selection === "custom" && !draft.custom_category.trim()) {
-    errors.push("Custom category name is required.");
-  }
-
   if (!isValidHexColor(draft.color)) {
     errors.push("Color accent must be a valid hex color.");
   }
@@ -314,7 +309,7 @@ function buildDraftFromRow(row: Record<string, unknown>, rowIndex: number): Bulk
   const categoryState =
     categoryRaw.length > 0
       ? getCategorySelectionFromValue(categoryRaw)
-      : { selection: "personal" as CategorySelection, customValue: "" };
+      : ("personal" as CategorySelection);
   const frequencyType = parseFrequencyType(
     extractText(normalizedRow, columnAliases.frequency_type)
   );
@@ -328,7 +323,7 @@ function buildDraftFromRow(row: Record<string, unknown>, rowIndex: number): Bulk
   const parsedMilestoneNames = parseMilestoneNames(
     extractText(normalizedRow, columnAliases.milestone_names)
   );
-  const categoryColor = getCategorySwatchColor(categoryState.selection);
+  const categoryColor = getCategorySwatchColor(categoryState);
   const parsedColor = extractText(normalizedRow, columnAliases.color);
   const draftColor = isValidHexColor(parsedColor) ? parsedColor : categoryColor;
 
@@ -338,8 +333,7 @@ function buildDraftFromRow(row: Record<string, unknown>, rowIndex: number): Bulk
     include: true,
     title: extractText(normalizedRow, columnAliases.title),
     description: extractText(normalizedRow, columnAliases.description),
-    category_selection: categoryState.selection,
-    custom_category: categoryState.customValue,
+    category_selection: categoryState,
     color: draftColor,
     is_group: parseBooleanValue(extractText(normalizedRow, columnAliases.is_group)),
     frequency_type: frequencyType,
@@ -643,7 +637,8 @@ export function BulkGoalForm({ showBackButton = true }: BulkGoalFormProps) {
             owner_id: currentUserId,
             title: draft.title.trim(),
             description: draft.description.trim() || null,
-            category: getCategoryLabel(draft.category_selection, draft.custom_category),
+            category_key: draft.category_selection,
+            category: getCategoryLabel(draft.category_selection),
             color: isValidHexColor(draft.color)
               ? draft.color.trim()
               : getCategorySwatchColor(draft.category_selection),
@@ -1102,20 +1097,6 @@ export function BulkGoalForm({ showBackButton = true }: BulkGoalFormProps) {
                         />
                       </div>
 
-                      {draft.category_selection === "custom" ? (
-                        <div className="space-y-2">
-                          <Label>Custom category</Label>
-                          <Input
-                            value={draft.custom_category}
-                            onChange={(event) =>
-                              updateDraft(draft.id, (previous) => ({
-                                ...previous,
-                                custom_category: event.target.value,
-                              }))
-                            }
-                          />
-                        </div>
-                      ) : null}
                     </div>
 
                     <div className="grid gap-3 sm:grid-cols-2">

@@ -1,5 +1,5 @@
 -- XP Phase 1:
--- Introduce constrained goal category taxonomy and derive goals.category_key.
+-- Introduce constrained goal category taxonomy with category_key as canonical goal value.
 
 create table if not exists public.goal_categories (
   key text primary key,
@@ -75,11 +75,11 @@ on public.goal_categories (sort_order, key);
 
 insert into public.goal_categories (key, label, aliases, color, sort_order)
 values
-  ('health', 'Health', array['fitness', 'wellness', 'nutrition'], '#10b981', 10),
-  ('career', 'Career', array['work', 'professional', 'job', 'business'], '#8b5cf6', 20),
-  ('personal', 'Personal', array['planning', 'productivity', 'home'], '#6366f1', 30),
-  ('relationships', 'Relationships', array['social', 'family', 'friends', 'partner'], '#f43f5e', 40),
-  ('other', 'Other', array['general', 'misc', 'uncategorized', 'custom'], '#64748b', 999)
+  ('health', 'Health', '{}'::text[], '#10b981', 10),
+  ('career', 'Career', '{}'::text[], '#8b5cf6', 20),
+  ('personal', 'Personal', '{}'::text[], '#6366f1', 30),
+  ('relationships', 'Relationships', '{}'::text[], '#f43f5e', 40),
+  ('other', 'Other', '{}'::text[], '#64748b', 999)
 on conflict (key)
 do update
 set
@@ -88,6 +88,9 @@ set
   color = excluded.color,
   sort_order = excluded.sort_order,
   updated_at = now();
+
+delete from public.goal_categories
+where key not in ('health', 'career', 'personal', 'relationships', 'other');
 
 alter table public.goal_categories enable row level security;
 
@@ -120,15 +123,28 @@ as $$
       join normalized n on true
       where n.category = lower(gc.key)
          or n.category = lower(gc.label)
-         or exists (
-           select 1
-           from unnest(gc.aliases) as alias
-           where n.category = lower(alias)
-         )
       order by gc.sort_order asc, gc.key asc
       limit 1
     ),
     'other'
+  );
+$$;
+
+create or replace function private.goal_category_label(p_key text)
+returns text
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce(
+    (
+      select gc.label
+      from public.goal_categories gc
+      where gc.key = private.normalize_goal_category_key(p_key)
+      limit 1
+    ),
+    'Other'
   );
 $$;
 
@@ -142,7 +158,10 @@ security definer
 set search_path = ''
 as $$
 begin
-  new.category_key := private.normalize_goal_category_key(new.category);
+  new.category_key := private.normalize_goal_category_key(
+    coalesce(new.category_key, new.category)
+  );
+  new.category := private.goal_category_label(new.category_key);
   return new;
 end;
 $$;
@@ -150,13 +169,16 @@ $$;
 drop trigger if exists goals_set_category_key
 on public.goals;
 create trigger goals_set_category_key
-before insert or update of category
+before insert or update of category, category_key
 on public.goals
 for each row execute function private.set_goal_category_key();
 
 update public.goals
-set category_key = private.normalize_goal_category_key(category)
-where category_key is null;
+set
+  category_key = private.normalize_goal_category_key(coalesce(category_key, category)),
+  category = private.goal_category_label(coalesce(category_key, category))
+where category_key is null
+   or category <> private.goal_category_label(coalesce(category_key, category));
 
 alter table public.goals
 alter column category_key set default 'other';
