@@ -125,9 +125,8 @@ export function GoalForm({ goalId, showBackButton = true }: GoalFormProps) {
   const [milestoneNamesOpen, setMilestoneNamesOpen] = useState(false);
   const [linkTargetSearch, setLinkTargetSearch] = useState("");
   const [linkTargetOpen, setLinkTargetOpen] = useState(false);
-  const goalFormId = isEditing ? "goal-form-edit" : "goal-form-create";
-
   const isEditing = Boolean(goalId);
+  const goalFormId = isEditing ? "goal-form-edit" : "goal-form-create";
 
   useEffect(() => {
     const load = async () => {
