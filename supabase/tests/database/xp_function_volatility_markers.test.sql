@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, private, extensions, pg_catalog;
-select plan(3);
+select plan(5);
 
 select is(
   (
@@ -31,6 +31,26 @@ select is(
   ),
   'v',
   'goal_xp_credited_units remains VOLATILE'
+);
+
+-- Completion RPCs are the only remaining XP accrual entry point now that the
+-- completions trigger is gone. They have been redefined by four separate
+-- migrations, and two of those silently dropped the recompute call, which
+-- surfaced only as unrelated XP totals reading zero. Assert the call directly
+-- so the next redefinition fails here instead.
+
+select ok(
+  pg_catalog.pg_get_functiondef(
+    'public.mark_goal_complete(uuid, date)'::regprocedure
+  ) like '%recompute_goal_xp_service%',
+  'mark_goal_complete still drives XP recompute'
+);
+
+select ok(
+  pg_catalog.pg_get_functiondef(
+    'public.unmark_goal_complete(uuid, date)'::regprocedure
+  ) like '%recompute_goal_xp_service%',
+  'unmark_goal_complete still drives XP recompute'
 );
 
 select * from finish();
