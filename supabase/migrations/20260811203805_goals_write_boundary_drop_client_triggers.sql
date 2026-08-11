@@ -3,6 +3,11 @@
 -- then drop the 5 non-stamp client-facing triggers.
 -- Keep set_goals_updated_at, on_auth_user_created, profiles_xp_initialize,
 -- and xp_levels_assert_monotonic.
+--
+-- No authenticated hard-delete path exists after this cutover (soft_delete_goal only).
+-- goals_xp_reverse_on_delete is intentionally dropped: profile CASCADE deletes already
+-- skipped reversal via xp_skip_for_profile_delete, and service-role raw deletes remain
+-- out of product write paths.
 
 create or replace function private.normalize_goal_category_pair(
   p_category text,
@@ -41,8 +46,7 @@ end;
 $$;
 
 create or replace function private.recompute_xp_for_goal_users(
-  p_goal_id uuid,
-  p_force_zero boolean default false
+  p_goal_id uuid
 )
 returns void
 language plpgsql
@@ -61,11 +65,7 @@ begin
       continue;
     end if;
 
-    perform public.recompute_goal_xp_service(
-      r.user_id,
-      p_goal_id,
-      p_force_zero
-    );
+    perform public.recompute_goal_xp_service(r.user_id, p_goal_id);
   end loop;
 end;
 $$;
@@ -99,6 +99,8 @@ begin
 end;
 $$;
 
+-- INSERT-only helper. Owner-immutability-on-UPDATE from the old trigger is not
+-- reproduced because no authenticated UPDATE path to goal_links remains after cutover.
 create or replace function private.insert_goal_link_validated(
   p_owner_id uuid,
   p_source_goal_id uuid,
@@ -249,6 +251,22 @@ begin
     false
   );
 
+  -- Group goals always get an owner participant row (create_group_goal and
+  -- goal-form is_group paths share create_goal).
+  if coalesce(p_is_group, false) then
+    insert into public.goal_participants (
+      goal_id,
+      user_id,
+      role
+    )
+    values (
+      v_id,
+      v_uid,
+      'owner'::public.participant_role
+    )
+    on conflict (goal_id, user_id) do nothing;
+  end if;
+
   return v_id;
 end;
 $$;
@@ -294,15 +312,14 @@ begin
   into v_category, v_category_key
   from private.normalize_goal_category_pair(p_category, p_category_key) n;
 
-  -- Match former goals_xp_recompute column filter.
+  -- Match former goals_xp_recompute column filter (owner_id is immutable here).
   v_needs_xp :=
     v_old.target_count is distinct from p_target_count
     or v_old.start_date is distinct from p_start_date
     or v_old.end_date is distinct from p_end_date
     or v_old.frequency_type is distinct from p_frequency_type
     or v_old.recurrence_interval is distinct from p_recurrence_interval
-    or v_old.category_key is distinct from v_category_key
-    or v_old.owner_id is distinct from v_uid;
+    or v_old.category_key is distinct from v_category_key;
 
   update public.goals
   set
@@ -324,7 +341,7 @@ begin
     and owner_id = v_uid;
 
   if v_needs_xp then
-    perform private.recompute_xp_for_goal_users(p_id, false);
+    perform private.recompute_xp_for_goal_users(p_id);
   end if;
 end;
 $$;
@@ -447,7 +464,7 @@ begin
     and owner_id = v_uid;
 
   if v_old_archived is distinct from v_new_archived then
-    perform private.recompute_xp_for_goal_users(p_goal_id, false);
+    perform private.recompute_xp_for_goal_users(p_goal_id);
   end if;
 end;
 $$;
@@ -478,7 +495,7 @@ begin
     and owner_id = v_uid;
 
   if not coalesce(v_was_deleted, false) then
-    perform private.recompute_xp_for_goal_users(p_goal_id, false);
+    perform private.recompute_xp_for_goal_users(p_goal_id);
   end if;
 end;
 $$;
@@ -616,17 +633,7 @@ begin
     true
   );
 
-  insert into public.goal_participants (
-    goal_id,
-    user_id,
-    role
-  )
-  values (
-    v_id,
-    v_uid,
-    'owner'::public.participant_role
-  );
-
+  -- Owner participant row is inserted by create_goal when p_is_group is true.
   return v_id;
 end;
 $$;
@@ -663,12 +670,6 @@ begin
   into v_owner, v_is_group
   from public.goals
   where id = p_goal_id;
-
-  if v_owner is null then
-    raise exception using
-      errcode = '23503',
-      message = 'goal must exist for participants';
-  end if;
 
   if v_role = 'owner' and p_user_id <> v_owner then
     raise exception using
@@ -728,7 +729,7 @@ $$;
 -- Grants
 revoke all on function private.normalize_goal_category_pair(text, text)
 from public, anon, authenticated;
-revoke all on function private.recompute_xp_for_goal_users(uuid, boolean)
+revoke all on function private.recompute_xp_for_goal_users(uuid)
 from public, anon, authenticated;
 revoke all on function private.assert_goal_owner(uuid, uuid)
 from public, anon, authenticated;
