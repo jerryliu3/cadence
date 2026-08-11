@@ -262,7 +262,6 @@ returns table (
   title text,
   description text,
   status public.challenge_status,
-  enrollment public.challenge_enrollment,
   subject_kind public.social_subject_kind,
   metric public.challenge_metric,
   metric_track_key text,
@@ -306,7 +305,6 @@ begin
     challenge.title,
     challenge.description,
     challenge.status,
-    challenge.enrollment,
     challenge.subject_kind,
     challenge.metric,
     challenge.metric_track_key,
@@ -358,7 +356,6 @@ returns table (
   title text,
   description text,
   status public.challenge_status,
-  enrollment public.challenge_enrollment,
   subject_kind public.social_subject_kind,
   metric public.challenge_metric,
   metric_track_key text,
@@ -429,7 +426,6 @@ begin
     challenge.title,
     challenge.description,
     challenge.status,
-    challenge.enrollment,
     challenge.subject_kind,
     challenge.metric,
     challenge.metric_track_key,
@@ -573,7 +569,7 @@ set search_path = ''
 as $$
 declare
   v_uid uuid := auth.uid();
-  v_enrollment public.challenge_enrollment;
+  
   v_status public.challenge_status;
   v_subject_kind public.social_subject_kind;
   v_subject_id uuid;
@@ -595,9 +591,6 @@ begin
   end if;
   if v_status not in ('scheduled', 'active') then
     raise exception using errcode = '22023', message = 'challenge_not_leaveable';
-  end if;
-  if v_enrollment <> 'opt_in'::public.challenge_enrollment then
-    raise exception using errcode = '22023', message = 'challenge_auto_enrollment';
   end if;
 
   if v_subject_kind = 'user'::public.social_subject_kind then
