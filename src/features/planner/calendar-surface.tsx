@@ -11,7 +11,6 @@ import {
   RotateCcw,
   Settings,
 } from "lucide-react";
-import { motion } from "motion/react";
 import {
   useCallback,
   useEffect,
@@ -2522,22 +2521,11 @@ export function CalendarSurface({
               onEntryDragEnd={handleDndEntryDragEnd}
               onEntryDragCancel={handleDndEntryDragCancel}
             >
-              <motion.div
+              <div
                 data-motion="planner-view"
                 className={`transition-opacity duration-150 motion-reduce:transition-none ${
                   loading ? "opacity-70" : "opacity-100"
                 }`}
-                initial={false}
-                animate={viewMode}
-                variants={{
-                  month: { opacity: [0.8, 1] },
-                  week: { opacity: [0.8, 1] },
-                  day: { opacity: [0.8, 1] },
-                }}
-                transition={{
-                  duration: 0.2,
-                  ease: [0.16, 1, 0.3, 1],
-                }}
               >
                 {viewMode === "day" ? (
                   <div className="space-y-2" data-no-swipe="true">
@@ -2757,7 +2745,7 @@ export function CalendarSurface({
                   />
                   </div>
                 ) : null}
-              </motion.div>
+              </div>
             </PlannerDndProvider>
           </div>
 

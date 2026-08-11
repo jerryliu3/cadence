@@ -317,23 +317,10 @@ export function ChecklistShell() {
         ) : null}
       </motion.div>
 
-      <motion.div
+      <div
         ref={calendarContainerRef}
+        hidden={normalized.tab !== "calendar"}
         aria-hidden={normalized.tab !== "calendar"}
-        data-motion="calendar-surface"
-        initial={false}
-        animate={{
-          opacity: normalized.tab === "calendar" ? 1 : 0,
-        }}
-        transition={{
-          duration: 0.2,
-          ease: [0.16, 1, 0.3, 1],
-        }}
-        className={
-          normalized.tab !== "calendar"
-            ? "pointer-events-none h-0 overflow-hidden"
-            : undefined
-        }
       >
         {calendarMounted ? (
           <CalendarSurface
@@ -347,7 +334,7 @@ export function ChecklistShell() {
             onPlannerMutation={onChecklistMutation}
           />
         ) : null}
-      </motion.div>
+      </div>
     </div>
   );
 }
