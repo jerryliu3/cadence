@@ -401,8 +401,7 @@ export function GoalForm({ goalId }: GoalFormProps) {
         : null;
     const categoryValue = getCategoryValueForWrite(
       state.category_selection,
-      state.custom_category,
-      categoryCatalog
+      state.custom_category
     );
 
     const payload = {
