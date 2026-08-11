@@ -795,15 +795,6 @@ begin
     return false;
   end if;
 
-  if to_regclass('public.planner_proposals') is not null then
-    execute
-      'update public.planner_proposals proposal
-        set status = ''withdrawn'', decided_at = pg_catalog.now()
-      where proposal.duo_id = $1
-        and proposal.status = ''pending'''
-    using v_duo_id;
-  end if;
-
   perform private.enqueue_notification_outbox(
     p_user_id => v_partner_id,
     p_kind => 'duo_dissolved'::public.notification_kind,
