@@ -2,24 +2,17 @@
 -- Privacy and visibility foundation for social surfaces.
 
 alter table public.profiles
-  add column if not exists social_activity_visible boolean,
-  add column if not exists social_competition_eligible boolean;
+  add column if not exists social_activity_visible boolean;
 
 update public.profiles
 set social_activity_visible = true
 where social_activity_visible is null;
 
-update public.profiles
-set social_competition_eligible = true
-where social_competition_eligible is null;
+alter table public.profiles
+  alter column social_activity_visible set default true;
 
 alter table public.profiles
-  alter column social_activity_visible set default true,
-  alter column social_competition_eligible set default true;
-
-alter table public.profiles
-  alter column social_activity_visible set not null,
-  alter column social_competition_eligible set not null;
+  alter column social_activity_visible set not null;
 
 alter table public.goals
   add column if not exists is_private boolean;

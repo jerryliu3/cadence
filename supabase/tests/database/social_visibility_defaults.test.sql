@@ -17,7 +17,6 @@ select ok(
     select 1
     from public.profiles
     where social_activity_visible <> true
-       or social_competition_eligible <> true
   ),
   'existing profiles are backfilled to social defaults'
 );
@@ -37,11 +36,10 @@ on conflict (id) do nothing;
 select ok(
   (
     select social_activity_visible
-      and social_competition_eligible
     from public.profiles
     where id = '66222222-2222-4222-8222-222222222222'
   ),
-  'newly inserted profiles default social participation flags to true'
+  'newly inserted profiles default social_activity_visible to true'
 );
 
 insert into public.goals (

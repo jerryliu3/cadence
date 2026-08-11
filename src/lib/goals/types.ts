@@ -72,6 +72,5 @@ export interface Profile {
   avatar_url: string | null;
   week_starts_on?: number;
   social_activity_visible?: boolean;
-  social_competition_eligible?: boolean;
   created_at: string;
 }
