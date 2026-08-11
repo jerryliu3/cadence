@@ -34,6 +34,10 @@ export type Database = {
         Args: { p_items: Json; p_month: string; p_owner_id: string }
         Returns: boolean
       }
+      raise_if_future_completion_date: {
+        Args: { p_date: string; p_user_id: string }
+        Returns: undefined
+      }
       sha256_hex_digest: { Args: { p_value: string }; Returns: string }
       validate_planner_json: {
         Args: {
