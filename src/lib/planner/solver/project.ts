@@ -63,6 +63,17 @@ export function projectWorkUnitsToSolver({
       const candidateDates = enumerateDates(unit.placementWindow!).filter(
         (date) => !reservedDatesByGoal.get(unit.originalGoalId)?.has(date)
       );
+      // Preserve-mode locks the existing date even when the placement window
+      // has moved forward (asOfDate). Keep that date in-domain so the solver
+      // does not treat a still-valid preserved assignment as an invalid lock.
+      if (
+        preserveExistingAssignments &&
+        unit.scheduledDate !== null &&
+        !candidateDates.includes(unit.scheduledDate)
+      ) {
+        candidateDates.push(unit.scheduledDate);
+        candidateDates.sort(compareCanonicalStrings);
+      }
       return {
         source: unit,
         candidateDates,

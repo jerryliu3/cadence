@@ -124,7 +124,11 @@ export function validateSolverResult(
 }
 
 export function validateMergedWorkUnitAssignments(
-  workUnits: PlannerWorkUnit[]
+  workUnits: PlannerWorkUnit[],
+  options?: {
+    allowPreservedOutsidePlacementWindow?: boolean;
+    preservedAssignmentsByIdentity?: Map<string, string | null>;
+  }
 ): SolverValidationResult {
   const violations = new Set<string>();
   const identities = new Set<string>();
@@ -153,7 +157,16 @@ export function validateMergedWorkUnitAssignments(
       (!unit.placementWindow ||
         !dateIsInWindow(unit.scheduledDate, unit.placementWindow))
     ) {
-      violations.add("date_outside_placement_window");
+      const preservedDate = options?.preservedAssignmentsByIdentity?.get(
+        identity
+      );
+      const allowPreservedOutOfWindow =
+        options?.allowPreservedOutsidePlacementWindow === true &&
+        preservedDate !== null &&
+        preservedDate === unit.scheduledDate;
+      if (!allowPreservedOutOfWindow) {
+        violations.add("date_outside_placement_window");
+      }
     }
   }
 
