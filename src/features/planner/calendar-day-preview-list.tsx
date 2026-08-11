@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckCircle2, Circle } from "lucide-react";
+import { CompletionToggle } from "@/components/ui/completion-toggle";
 import {
   PlannerDraggablePreviewEntry,
 } from "@/features/planner/calendar-dnd";
@@ -152,9 +152,10 @@ export function CalendarDayPreviewList<
                       </div>
                     </button>
                     {!entry.draftGhost ? (
-                      <button
-                        type="button"
-                        className="group mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full border border-border bg-background transition-all hover:border-primary hover:bg-primary/5 disabled:cursor-not-allowed disabled:opacity-60"
+                      <CompletionToggle
+                        completed={completionToggleState.currentlyCredited}
+                        size="sm"
+                        className="mt-0.5"
                         onPointerDown={(event) => {
                           event.stopPropagation();
                         }}
@@ -175,13 +176,7 @@ export function CalendarDayPreviewList<
                           completionToggleState.disabledReasonCopy ??
                           "Toggle completion for this session"
                         }
-                      >
-                        {completionToggleState.currentlyCredited ? (
-                          <CheckCircle2 className="size-3.5 text-primary transition-transform group-hover:scale-110" />
-                        ) : (
-                          <Circle className="size-3.5 text-muted-foreground transition-transform group-hover:scale-110" />
-                        )}
-                      </button>
+                      />
                     ) : null}
                   </div>
                 )}

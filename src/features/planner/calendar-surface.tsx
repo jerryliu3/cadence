@@ -22,6 +22,7 @@ import {
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { CompletionToggle } from "@/components/ui/completion-toggle";
 import {
   Dialog,
   DialogContent,
@@ -2610,11 +2611,16 @@ export function CalendarSurface({
                 {viewMode !== "day" && dayPreview ? (
                   <div
                     ref={dayPreviewRef}
-                    className="fixed z-40 rounded-lg border bg-card p-3 shadow-lg"
+                    data-motion="planner-day-preview"
+                    className="motion-popup-enter fixed z-40 rounded-lg border bg-card p-3 shadow-lg"
                     style={{
                       top: dayPreview.position.top,
                       left: dayPreview.position.left,
                       width: dayPreview.position.width,
+                      transformOrigin:
+                        dayPreview.position.placement === "above"
+                          ? "bottom center"
+                          : "top center",
                       transform:
                         dayPreview.position.placement === "above"
                           ? "translateY(-100%)"
@@ -2832,9 +2838,11 @@ export function CalendarSurface({
                                 </p>
                               </button>
                               {!entry.draftGhost ? (
-                                <button
-                                  type="button"
-                                  className="group flex size-8 shrink-0 items-center justify-center rounded-full border border-border bg-background transition-all hover:border-primary hover:bg-primary/5 disabled:cursor-not-allowed disabled:opacity-60"
+                                <CompletionToggle
+                                  completed={Boolean(
+                                    completionDispatch?.currentlyCredited
+                                  )}
+                                  size="md"
                                   onClick={(event) => {
                                     event.stopPropagation();
                                     void toggleDateFact(entry);
@@ -2855,13 +2863,7 @@ export function CalendarSurface({
                                         )
                                       : "Toggle completion for this session"
                                   }
-                                >
-                                  {completionDispatch?.currentlyCredited ? (
-                                    <CheckCircle2 className="size-4 text-primary transition-transform group-hover:scale-110" />
-                                  ) : (
-                                    <Circle className="size-4 text-muted-foreground transition-transform group-hover:scale-110" />
-                                  )}
-                                </button>
+                                />
                               ) : null}
                             </div>
                             {completionDisabledReason ? (

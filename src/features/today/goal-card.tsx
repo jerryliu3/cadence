@@ -1,11 +1,12 @@
 "use client";
 
 import { addDays, format } from "date-fns";
-import { CheckCircle2, Circle, Link2 } from "lucide-react";
+import { Link2 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { CompletionToggle } from "@/components/ui/completion-toggle";
 import { GoalEndMonthBadge } from "@/features/goals/goal-end-month-badge";
 import { getCategoryBadgeClass } from "@/lib/goals/category";
 import { getNextMilestoneName } from "@/lib/goals/milestones";
@@ -79,11 +80,11 @@ export function GoalCard({
   return (
     <Card className="shadow-sm">
       <CardContent className="flex items-center gap-2 px-2 py-0.5">
-        <button
-          type="button"
+        <CompletionToggle
+          completed={doneForCurrentPeriod}
+          size="lg"
           onClick={onToggle}
           disabled={disabled || archived}
-          className="group flex size-10 shrink-0 items-center justify-center rounded-full border border-border bg-background transition-all hover:border-primary hover:bg-primary/5 disabled:cursor-not-allowed disabled:opacity-60"
           aria-label={
             doneForCurrentPeriod
               ? targetedRecurring
@@ -93,13 +94,7 @@ export function GoalCard({
                 ? `Complete goal for ${selectedDate}`
                 : "Mark goal as complete"
           }
-        >
-          {doneForCurrentPeriod ? (
-            <CheckCircle2 className="size-5 text-primary transition-transform group-hover:scale-110" />
-          ) : (
-            <Circle className="size-5 text-muted-foreground transition-transform group-hover:scale-110" />
-          )}
-        </button>
+        />
 
         <Link
           href={`/goals/${goal.id}`}
