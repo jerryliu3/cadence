@@ -138,34 +138,3 @@ revoke all on function private.is_platform_admin_for(uuid, public.admin_role)
   from public, anon, authenticated;
 grant execute on function private.is_platform_admin_for(uuid, public.admin_role)
   to service_role;
-
-create or replace function private.guard_leaderboard_ban_mutation()
-returns trigger
-language plpgsql
-security definer
-set search_path = ''
-as $$
-begin
-  if new.leaderboard_banned_at is not distinct from old.leaderboard_banned_at then
-    return new;
-  end if;
-
-  if auth.uid() is not null and auth.uid() = old.id then
-    raise exception
-      using errcode = '42501',
-            message = 'leaderboard_ban_managed_by_admin';
-  end if;
-
-  return new;
-end;
-$$;
-
-drop trigger if exists profiles_guard_leaderboard_ban_mutation
-on public.profiles;
-create trigger profiles_guard_leaderboard_ban_mutation
-before update of leaderboard_banned_at
-on public.profiles
-for each row execute function private.guard_leaderboard_ban_mutation();
-
-revoke all on function private.guard_leaderboard_ban_mutation()
-  from public, anon, authenticated;

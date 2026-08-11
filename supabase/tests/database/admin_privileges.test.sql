@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions, pg_catalog;
-select plan(9);
+select plan(8);
 
 insert into auth.users (id, email)
 values
@@ -55,17 +55,6 @@ select is(
   public.is_platform_admin('moderator'),
   false,
   'non-admin users are not platform admins'
-);
-
-select throws_ok(
-  $tap$
-    update public.profiles
-    set leaderboard_banned_at = pg_catalog.now()
-    where id = '77333333-3333-4333-8333-333333333333';
-  $tap$,
-  '42501',
-  'leaderboard_ban_managed_by_admin',
-  'regular users cannot mutate leaderboard_banned_at'
 );
 
 select set_config('request.jwt.claim.sub', '77111111-1111-4111-8111-111111111111', true);
