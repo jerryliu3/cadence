@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions, pg_catalog;
-select plan(13);
+select plan(15);
 
 set local role service_role;
 
@@ -152,6 +152,22 @@ select ok(
 
 reset role;
 set local role service_role;
+
+select ok(
+  position(
+    'RECOMPUTE_GOAL_XP_SERVICE'
+    in upper(pg_get_functiondef('public.mark_goal_complete(uuid, date)'::regprocedure))
+  ) > 0,
+  'mark_goal_complete definition includes explicit xp recompute call'
+);
+
+select ok(
+  position(
+    'RECOMPUTE_GOAL_XP_SERVICE'
+    in upper(pg_get_functiondef('public.unmark_goal_complete(uuid, date)'::regprocedure))
+  ) > 0,
+  'unmark_goal_complete definition includes explicit xp recompute call'
+);
 
 select ok(
   (
