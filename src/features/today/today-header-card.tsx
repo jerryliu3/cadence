@@ -1,8 +1,7 @@
 "use client";
 
 import { format } from "date-fns";
-import { Plus, Sparkles } from "lucide-react";
-import Link from "next/link";
+import { Sparkles } from "lucide-react";
 import type { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -18,7 +17,9 @@ interface TodayHeaderCardProps {
   onGoToPreviousDate: () => void;
   onGoToNextDate: () => void;
   onResetToToday: () => void;
-  filterControls?: ReactNode;
+  datePickerControls?: ReactNode;
+  searchControls?: ReactNode;
+  quickFilterControls?: ReactNode;
   children: ReactNode;
 }
 
@@ -31,7 +32,9 @@ export function TodayHeaderCard({
   onGoToPreviousDate,
   onGoToNextDate,
   onResetToToday,
-  filterControls,
+  datePickerControls,
+  searchControls,
+  quickFilterControls,
   children,
 }: TodayHeaderCardProps) {
   return (
@@ -46,17 +49,9 @@ export function TodayHeaderCard({
               </div>
               <CardDescription>{format(viewDateObj, "EEEE, MMMM d")}</CardDescription>
             </div>
-            <div className="flex shrink-0 flex-col gap-2 sm:mr-2 sm:flex-row">
-              <Button asChild>
-                <Link href="/goals/new">
-                  <Plus className="size-4" />
-                  New goals
-                </Link>
-              </Button>
-            </div>
           </div>
-          <div className="mt-2 flex items-center gap-2 overflow-x-auto pb-1">
-            <div className="flex shrink-0 items-center gap-2">
+          <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+            <div className="flex min-w-0 shrink-0 items-center gap-2">
               <PeriodStepper
                 onPrevious={onGoToPreviousDate}
                 onNext={onGoToNextDate}
@@ -71,15 +66,20 @@ export function TodayHeaderCard({
                 previousAriaLabel="Previous day"
                 nextAriaLabel="Next day"
               />
+              {datePickerControls ? (
+                <div className="shrink-0">{datePickerControls}</div>
+              ) : null}
               {!viewingToday ? (
                 <Button type="button" variant="ghost" size="sm" onClick={onResetToToday}>
                   Today
                 </Button>
               ) : null}
             </div>
-
-            {filterControls}
           </div>
+          {searchControls ? <div className="mt-2">{searchControls}</div> : null}
+          {quickFilterControls ? (
+            <div className="mt-2">{quickFilterControls}</div>
+          ) : null}
         </div>
       </CardHeader>
       <CardContent className="space-y-3 pt-0">{children}</CardContent>

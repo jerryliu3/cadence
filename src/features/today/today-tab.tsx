@@ -787,49 +787,18 @@ export function TodayTab({
             onGoToPreviousDate={goToPreviousDate}
             onGoToNextDate={goToNextDate}
             onResetToToday={() => setViewDate(todayLocalDate)}
-            filterControls={
-              <div className="flex min-w-0 flex-1 items-center justify-between gap-2">
-                <div className="flex min-w-0 flex-1 items-center gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-                  {recurrenceQuickFilters.map((option) => (
-                    <Button
-                      key={`recurrence-quick-${option.value}`}
-                      type="button"
-                      variant={recurrenceFilter === option.value ? "default" : "outline"}
-                      size="sm"
-                      className="h-8 shrink-0 rounded-full px-3 text-xs"
-                      onClick={() => setRecurrenceFilter(option.value)}
-                    >
-                      {option.label}
-                    </Button>
-                  ))}
-                  {quickCategoryOptions.map((category) => (
-                    <Button
-                      key={`category-quick-${category}`}
-                      type="button"
-                      variant={
-                        categoryFilter === category ? "default" : "outline"
-                      }
-                      size="sm"
-                      className="h-8 shrink-0 rounded-full px-3 text-xs"
-                      onClick={() =>
-                        setCategoryFilter((previous) =>
-                          previous === category ? allCategoriesFilterValue : category
-                        )
-                      }
-                    >
-                      {category}
-                    </Button>
-                  ))}
-                </div>
+            datePickerControls={
+              <>
                 <Button
                   type="button"
                   variant="outline"
-                  size="sm"
-                  className="h-8 shrink-0 rounded-full px-3 text-xs"
+                  size="icon-sm"
+                  className="h-8 w-8 shrink-0 rounded-full"
                   onClick={() => setTodayFiltersOpen(true)}
+                  aria-label="Open filters"
+                  title="Open filters"
                 >
                   <SlidersHorizontal className="size-3.5" />
-                  Filters
                 </Button>
                 <Dialog open={todayFiltersOpen} onOpenChange={setTodayFiltersOpen}>
                   <DialogContent className="top-auto bottom-0 left-1/2 max-h-[85vh] max-w-[calc(100%-1rem)] -translate-x-1/2 translate-y-0 overflow-y-auto rounded-b-none rounded-t-xl pb-[calc(env(safe-area-inset-bottom)+1rem)] sm:top-1/2 sm:bottom-auto sm:max-w-lg sm:-translate-y-1/2 sm:rounded-b-xl">
@@ -837,19 +806,6 @@ export function TodayTab({
                       <DialogTitle>Today filters</DialogTitle>
                     </DialogHeader>
                     <div className="space-y-4">
-                      <label className="block space-y-1">
-                        <Label className="text-xs text-muted-foreground">
-                          Search
-                        </Label>
-                        <Input
-                          value={todayGoalSearchQuery}
-                          onChange={(event) =>
-                            setTodayGoalSearchQuery(event.target.value)
-                          }
-                          placeholder="Search today's goals..."
-                          className="h-8"
-                        />
-                      </label>
                       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                         <label className="block space-y-1">
                           <Label className="text-xs text-muted-foreground">
@@ -908,6 +864,46 @@ export function TodayTab({
                     </div>
                   </DialogContent>
                 </Dialog>
+              </>
+            }
+            searchControls={
+              <Input
+                value={todayGoalSearchQuery}
+                onChange={(event) => setTodayGoalSearchQuery(event.target.value)}
+                placeholder="Search today's goals..."
+                className="h-8"
+              />
+            }
+            quickFilterControls={
+              <div className="flex min-w-0 items-center gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+                {recurrenceQuickFilters.map((option) => (
+                  <Button
+                    key={`recurrence-quick-${option.value}`}
+                    type="button"
+                    variant={recurrenceFilter === option.value ? "default" : "outline"}
+                    size="sm"
+                    className="h-8 shrink-0 rounded-full px-3 text-xs"
+                    onClick={() => setRecurrenceFilter(option.value)}
+                  >
+                    {option.label}
+                  </Button>
+                ))}
+                {quickCategoryOptions.map((category) => (
+                  <Button
+                    key={`category-quick-${category}`}
+                    type="button"
+                    variant={categoryFilter === category ? "default" : "outline"}
+                    size="sm"
+                    className="h-8 shrink-0 rounded-full px-3 text-xs"
+                    onClick={() =>
+                      setCategoryFilter((previous) =>
+                        previous === category ? allCategoriesFilterValue : category
+                      )
+                    }
+                  >
+                    {category}
+                  </Button>
+                ))}
               </div>
             }
           >

@@ -18,14 +18,17 @@ import {
   CalendarRange,
   Flame,
   Layers3,
+  Maximize2,
   PencilLine,
   TrendingUp,
+  X,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { type TouchEventHandler, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import CalendarHeatmap from "react-calendar-heatmap";
 import "react-calendar-heatmap/dist/styles.css";
 import { toast } from "sonner";
+import { AnchoredPopupCard } from "@/components/ui/anchored-popup-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -45,6 +48,7 @@ import { GoalEndMonthBadge } from "@/features/goals/goal-end-month-badge";
 import { MilestonePills } from "@/features/goals/milestone-pills";
 import { GoalListControls } from "@/features/goals/goal-list-controls";
 import { MonthHeatmap } from "@/features/insights/month-heatmap";
+import { computeDayPreviewPosition } from "@/features/planner/day-preview-popup";
 import { getApiErrorMessage } from "@/lib/api/client";
 import { isAbortError, withAbortSignal } from "@/lib/async/abort";
 import { resolveUserTimezone } from "@/lib/dates/timezone";
@@ -94,6 +98,7 @@ import {
 import { useCompletionMutation } from "@/features/planner/use-completion-mutation";
 import { withPlannerRefreshTimeout } from "@/lib/planner/refresh-timeout";
 import { createClient } from "@/lib/supabase/client";
+import { useOutsidePointerDismiss } from "@/lib/ui/use-outside-pointer-dismiss";
 
 interface InsightsData {
   userId: string;
@@ -146,12 +151,18 @@ export function InsightsTab() {
   const [showHistoricalGoals, setShowHistoricalGoals] = useState(false);
   const [editingGoalId, setEditingGoalId] = useState<string | null>(null);
   const [aggregateDrilldownDate, setAggregateDrilldownDate] = useState<string | null>(null);
+  const [aggregateDrilldownExpanded, setAggregateDrilldownExpanded] = useState(false);
+  const [aggregateDrilldownPosition, setAggregateDrilldownPosition] = useState<
+    ReturnType<typeof computeDayPreviewPosition> | null
+  >(null);
   const [pendingRetroDate, setPendingRetroDate] = useState<string | null>(null);
   const [milestoneNameDrafts, setMilestoneNameDrafts] = useState<Record<string, string[]>>({});
   const [savingMilestoneNamesGoalId, setSavingMilestoneNamesGoalId] = useState<string | null>(
     null
   );
   const monthSwipeStartRef = useRef<{ x: number; y: number } | null>(null);
+  const aggregateHeatmapRef = useRef<HTMLDivElement | null>(null);
+  const aggregateDrilldownRef = useRef<HTMLDivElement | null>(null);
   const loadRequestIdRef = useRef(0);
   const visibleLoadCountRef = useRef(0);
   const authRedirectStartedRef = useRef(false);
@@ -685,6 +696,22 @@ export function InsightsTab() {
     [aggregateCompletionItemsByDate, aggregateDrilldownDate]
   );
 
+  useEffect(() => {
+    if (!aggregateDrilldownDate) {
+      setAggregateDrilldownExpanded(false);
+      setAggregateDrilldownPosition(null);
+    }
+  }, [aggregateDrilldownDate]);
+
+  useOutsidePointerDismiss({
+    enabled: aggregateDrilldownDate !== null && !aggregateDrilldownExpanded,
+    containerRef: aggregateDrilldownRef,
+    onDismiss: () => {
+      setAggregateDrilldownDate(null);
+      setAggregateDrilldownPosition(null);
+    },
+  });
+
   if (loading) {
     return (
       <LoadingCard
@@ -704,7 +731,10 @@ export function InsightsTab() {
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="overflow-x-auto rounded-xl border bg-card p-4">
+          <div
+            ref={aggregateHeatmapRef}
+            className="overflow-x-auto rounded-xl border bg-card p-4"
+          >
             <CalendarHeatmap
               startDate={selectedYearStart}
               endDate={selectedYearEnd}
@@ -712,6 +742,11 @@ export function InsightsTab() {
               showWeekdayLabels
               weekdayLabels={aggregateWeekdayLabels}
               classForValue={(value) => `${getHeatmapScaleClass(value?.count ?? 0)} cursor-pointer`}
+              tooltipDataAttrs={(value) =>
+                value?.date
+                  ? { "data-drilldown-date": value.date }
+                  : { "data-drilldown-date": "" }
+              }
               titleForValue={(value) =>
                 `${value?.date ?? "N/A"}: ${value?.count ?? 0} completion${
                   (value?.count ?? 0) === 1 ? "" : "s"
@@ -720,6 +755,27 @@ export function InsightsTab() {
               onClick={(value) => {
                 if (value?.date) {
                   setAggregateDrilldownDate(value.date);
+                  setAggregateDrilldownExpanded(false);
+                  const tile = aggregateHeatmapRef.current?.querySelector(
+                    `[data-drilldown-date="${value.date}"]`
+                  );
+                  if (tile instanceof Element) {
+                    const rect = tile.getBoundingClientRect();
+                    setAggregateDrilldownPosition(
+                      computeDayPreviewPosition({
+                        rect: {
+                          top: rect.top,
+                          left: rect.left,
+                          width: rect.width,
+                          height: rect.height,
+                        },
+                        viewportWidth: window.innerWidth,
+                        viewportHeight: window.innerHeight,
+                      })
+                    );
+                  } else {
+                    setAggregateDrilldownPosition(null);
+                  }
                 }
               }}
             />
@@ -1167,11 +1223,70 @@ export function InsightsTab() {
         </CardContent>
       </Card>
 
+      {aggregateDrilldownDate && !aggregateDrilldownExpanded ? (
+        <AnchoredPopupCard
+          popupRef={aggregateDrilldownRef}
+          position={aggregateDrilldownPosition}
+          fallbackTop={16}
+          fallbackLeft={16}
+          fallbackWidth={320}
+          title={`Completions on ${format(parseISO(aggregateDrilldownDate), "MMM d, yyyy")}`}
+          actions={
+            <>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-6 px-2 text-xs"
+                onClick={() => setAggregateDrilldownExpanded(true)}
+              >
+                <Maximize2 className="mr-1 size-3" />
+                Expand
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-6 px-2 text-xs"
+                onClick={() => {
+                  setAggregateDrilldownDate(null);
+                  setAggregateDrilldownPosition(null);
+                }}
+                aria-label="Close drilldown"
+              >
+                <X className="size-3" />
+              </Button>
+            </>
+          }
+        >
+          <p className="text-xs text-muted-foreground">
+            {aggregateCountsByDate[aggregateDrilldownDate] ?? 0} completion
+            {(aggregateCountsByDate[aggregateDrilldownDate] ?? 0) === 1 ? "" : "s"}
+          </p>
+          <div className="mt-2 max-h-56 space-y-2 overflow-y-auto pr-1">
+            {aggregateDrilldownItems.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                No completed items on this date.
+              </p>
+            ) : (
+              aggregateDrilldownItems.map((title, index) => (
+                <div
+                  key={`${aggregateDrilldownDate}-${title}-${index}`}
+                  className="rounded-sm border bg-muted/20 px-3 py-2 text-sm"
+                >
+                  {title}
+                </div>
+              ))
+            )}
+          </div>
+        </AnchoredPopupCard>
+      ) : null}
+
       <Dialog
-        open={aggregateDrilldownDate !== null}
+        open={aggregateDrilldownDate !== null && aggregateDrilldownExpanded}
         onOpenChange={(open) => {
           if (!open) {
-            setAggregateDrilldownDate(null);
+            setAggregateDrilldownExpanded(false);
           }
         }}
       >

@@ -2,8 +2,11 @@
 
 import { addMonths, format, subMonths } from "date-fns";
 import {
+  ArrowLeft,
   ChevronDown,
+  ChevronRight,
   Crown,
+  LogOut,
   Plus,
   Search,
   Share2,
@@ -14,6 +17,7 @@ import {
   WandSparkles,
 } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -24,6 +28,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { LoadingCard } from "@/components/ui/loading-card";
 import { PeriodStepper } from "@/components/ui/period-stepper";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -61,6 +72,7 @@ import type {
   Profile,
   RecurrenceInterval,
 } from "@/lib/goals/types";
+import { unsubscribeCurrentBrowser } from "@/lib/push/client";
 import { createClient } from "@/lib/supabase/client";
 
 interface SocialState {
@@ -140,9 +152,12 @@ const defaultGroupDraft: GroupGoalDraft = {
 
 export function SocialTab() {
   const supabase = useMemo(() => createClient(), []);
+  const router = useRouter();
   const [state, setState] = useState<SocialState>(initialState);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
+  const [authEmail, setAuthEmail] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [searchResults, setSearchResults] = useState<Profile[]>([]);
   const [selectedShareGoalIds, setSelectedShareGoalIds] = useState<string[]>([]);
@@ -164,6 +179,7 @@ export function SocialTab() {
   const [settingsSection, setSettingsSection] = useState<
     "preferences" | "notifications" | "social"
   >("preferences");
+  const [settingsPanelOpen, setSettingsPanelOpen] = useState(false);
   const shareMenuAnchorRef = useRef<HTMLDivElement | null>(null);
   const shareMenuPanelRef = useRef<HTMLDivElement | null>(null);
 
@@ -215,9 +231,11 @@ export function SocialTab() {
 
     if (!user) {
       setState(initialState);
+      setAuthEmail("");
       setLoading(false);
       return;
     }
+    setAuthEmail(user.email ?? "");
 
     const [profileResponse, ownGoalsResponse, sharesResponse, membershipsResponse] = await Promise.all([
       supabase.from("profiles").select("*").eq("id", user.id).maybeSingle(),
@@ -703,6 +721,33 @@ export function SocialTab() {
     }
   };
 
+  const signOut = async () => {
+    setSigningOut(true);
+    try {
+      await unsubscribeCurrentBrowser();
+    } catch (error) {
+      console.error("Failed to remove push subscription while signing out:", error);
+    }
+
+    await supabase.auth.signOut();
+    router.replace("/login");
+    router.refresh();
+    setSigningOut(false);
+  };
+
+  const settingsSectionTitle =
+    settingsSection === "preferences"
+      ? "Preferences"
+      : settingsSection === "notifications"
+        ? "Notifications"
+        : "Social";
+  const settingsSectionDescription =
+    settingsSection === "preferences"
+      ? "Manage planner timezone and start-of-week defaults."
+      : settingsSection === "notifications"
+        ? "Configure push access and reminder schedules."
+        : "Share goals, manage collaboration, and configure group participation.";
+
   if (loading) {
     return (
       <LoadingCard
@@ -752,6 +797,16 @@ export function SocialTab() {
                 }
               />
             </div>
+            <div className="space-y-2 sm:col-span-2">
+              <Label htmlFor="profile-email">Email</Label>
+              <Input
+                id="profile-email"
+                value={authEmail}
+                readOnly
+                aria-readonly
+                className="bg-muted/30 text-muted-foreground"
+              />
+            </div>
           </div>
           <div className="space-y-2">
             <Label htmlFor="profile-avatar-url">Avatar URL (optional)</Label>
@@ -773,33 +828,64 @@ export function SocialTab() {
       <Card className="shadow-sm">
         <CardHeader>
           <CardTitle>Settings menu</CardTitle>
-          <CardDescription>Choose which settings area to edit.</CardDescription>
         </CardHeader>
-        <CardContent className="grid gap-2 sm:grid-cols-3">
-          <Button
-            type="button"
-            variant={settingsSection === "preferences" ? "default" : "outline"}
-            onClick={() => setSettingsSection("preferences")}
-          >
-            Preferences
-          </Button>
-          <Button
-            type="button"
-            variant={settingsSection === "notifications" ? "default" : "outline"}
-            onClick={() => setSettingsSection("notifications")}
-          >
-            Notifications
-          </Button>
-          <Button
-            type="button"
-            variant={settingsSection === "social" ? "default" : "outline"}
-            onClick={() => setSettingsSection("social")}
-          >
-            Social
-          </Button>
+        <CardContent className="space-y-0 p-0">
+          {[
+            { key: "preferences", label: "Preferences" },
+            { key: "notifications", label: "Notifications" },
+            { key: "social", label: "Social" },
+          ].map((item) => (
+            <button
+              key={item.key}
+              type="button"
+              className="flex w-full items-center justify-between border-t px-4 py-3 text-left text-sm transition-colors hover:bg-muted/30 first:border-t-0"
+              onClick={() => {
+                setSettingsSection(
+                  item.key as "preferences" | "notifications" | "social"
+                );
+                setSettingsPanelOpen(true);
+              }}
+            >
+              <span>{item.label}</span>
+              <ChevronRight className="size-4 text-muted-foreground" />
+            </button>
+          ))}
+          <div className="border-t p-4">
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full justify-start"
+              onClick={() => void signOut()}
+              disabled={signingOut}
+            >
+              <LogOut className="size-4" />
+              {signingOut ? "Signing out..." : "Sign out"}
+            </Button>
+          </div>
         </CardContent>
       </Card>
 
+      <Dialog open={settingsPanelOpen} onOpenChange={setSettingsPanelOpen}>
+        <DialogContent
+          className="!top-0 !right-0 !left-auto !translate-x-0 !translate-y-0 inset-y-0 h-dvh w-[min(100vw,48rem)] max-w-none rounded-none border-l p-0"
+          showCloseButton={false}
+        >
+          <DialogHeader className="gap-3 border-b px-4 py-3">
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setSettingsPanelOpen(false)}
+              >
+                <ArrowLeft className="size-4" />
+                Back
+              </Button>
+              <DialogTitle>{settingsSectionTitle}</DialogTitle>
+            </div>
+            <DialogDescription>{settingsSectionDescription}</DialogDescription>
+          </DialogHeader>
+          <div className="h-[calc(100dvh-5.5rem)] overflow-y-auto p-4">
       {settingsSection === "preferences" ? (
         <Card className="shadow-sm">
           <CardHeader>
@@ -1384,6 +1470,9 @@ export function SocialTab() {
       </div>
         </>
       ) : null}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

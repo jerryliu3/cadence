@@ -8,7 +8,7 @@ import {
   useMemo,
   useRef,
 } from "react";
-import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import {
   type ChecklistTabValue,
   ChecklistSurface,
@@ -115,14 +115,24 @@ export function ChecklistShell() {
 
   return (
     <div className="space-y-5">
-      <Card className="p-3 text-center shadow-sm">
-        <p className="text-xs uppercase tracking-wide text-muted-foreground">
+      <div className="hidden items-center justify-between rounded-xl border bg-card px-4 py-3 shadow-sm md:flex">
+        <p className="text-sm font-medium">
           {normalizedTab === "today" ? "Today" : "Past"}
         </p>
-        <p className="mt-1 text-xs text-muted-foreground">
-          Swipe left or right to switch surfaces.
-        </p>
-      </Card>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onClick={() =>
+            updateTab(
+              normalizedTab === "today" ? "not-today" : "today",
+              "push"
+            )
+          }
+        >
+          {normalizedTab === "today" ? "Show Past" : "Show Today"}
+        </Button>
+      </div>
 
       <div onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
         <ChecklistSurface
