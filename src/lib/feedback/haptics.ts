@@ -12,6 +12,14 @@ export function triggerLightPressFeedback(): boolean {
     return false;
   }
 
+  if (
+    typeof window !== "undefined" &&
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  ) {
+    return false;
+  }
+
   try {
     return navigator.vibrate(LIGHT_PRESS_DURATION_MS);
   } catch {

@@ -1,13 +1,21 @@
 import { cleanup, render, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { XP_REFRESH_REQUESTED_EVENT } from "@/lib/xp/events";
 import { XpLevelBadge } from "./xp-level-badge";
 
 const toastSuccessMock = vi.fn();
+const celebrateMock = vi.fn();
 
 vi.mock("sonner", () => ({
   toast: {
     success: (...args: unknown[]) => toastSuccessMock(...args),
   },
+}));
+
+vi.mock("@/components/xp/xp-reward-provider", () => ({
+  useXpReward: () => ({
+    celebrate: celebrateMock,
+  }),
 }));
 
 describe("XpLevelBadge", () => {
@@ -94,5 +102,109 @@ describe("XpLevelBadge", () => {
     );
     expect(acknowledgeCalls).toHaveLength(2);
     expect(toastSuccessMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("flies a reward to the badge only when XP increases", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            profile: {
+              totalXp: 100,
+              currentLevel: 1,
+              nextLevel: 2,
+              xpToNextLevel: 20,
+            },
+            pendingAwards: [],
+          }),
+          { status: 200 }
+        )
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            profile: {
+              totalXp: 125,
+              currentLevel: 2,
+              nextLevel: 3,
+              xpToNextLevel: 125,
+            },
+            pendingAwards: [],
+          }),
+          { status: 200 }
+        )
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            profile: {
+              totalXp: 100,
+              currentLevel: 1,
+              nextLevel: 2,
+              xpToNextLevel: 20,
+            },
+            pendingAwards: [],
+          }),
+          { status: 200 }
+        )
+      );
+    vi.stubGlobal("fetch", fetchMock);
+    const { container } = render(<XpLevelBadge />);
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledOnce();
+    });
+    const target = container.querySelector("[data-xp-reward-target='true']");
+    expect(target).not.toBeNull();
+    vi.spyOn(target as HTMLElement, "getBoundingClientRect").mockReturnValue({
+      top: 8,
+      left: 300,
+      width: 80,
+      height: 32,
+      bottom: 40,
+      right: 380,
+      x: 300,
+      y: 8,
+      toJSON: () => ({}),
+    });
+    const sourceRect = { top: 220, left: 24, width: 40, height: 40 };
+
+    window.dispatchEvent(
+      new CustomEvent(XP_REFRESH_REQUESTED_EVENT, {
+        detail: {
+          reason: "completion",
+          desiredFactState: "present",
+          sourceRect,
+        },
+      })
+    );
+
+    await waitFor(() => {
+      expect(celebrateMock).toHaveBeenCalledWith({
+        sourceRect,
+        targetRect: {
+          top: 8,
+          left: 300,
+          width: 80,
+          height: 32,
+        },
+      });
+    });
+
+    window.dispatchEvent(
+      new CustomEvent(XP_REFRESH_REQUESTED_EVENT, {
+        detail: {
+          reason: "completion",
+          desiredFactState: "absent",
+          sourceRect,
+        },
+      })
+    );
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledTimes(3);
+    });
+    expect(celebrateMock).toHaveBeenCalledTimes(1);
   });
 });

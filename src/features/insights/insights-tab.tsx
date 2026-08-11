@@ -87,6 +87,7 @@ import {
 import { useCompletionMutation } from "@/features/planner/use-completion-mutation";
 import { withPlannerRefreshTimeout } from "@/lib/planner/refresh-timeout";
 import { createClient } from "@/lib/supabase/client";
+import { captureViewportRect } from "@/lib/xp/events";
 
 interface InsightsData {
   userId: string;
@@ -371,7 +372,8 @@ export function InsightsTab() {
       completionDate: string,
       selectedDates: string[],
       milestoneLimit: number,
-      creditedCount: number
+      creditedCount: number,
+      sourceElement?: HTMLButtonElement
     ) => {
       if (pendingRetroDate !== null) {
         return;
@@ -409,6 +411,9 @@ export function InsightsTab() {
         goalId: goal.id,
         date: completionDate,
         timezone: resolveUserTimezone(),
+        sourceRect: sourceElement
+          ? captureViewportRect(sourceElement)
+          : undefined,
         blockedMessage:
           decision.reason === "future_creation"
             ? "You can only select today or past dates."
@@ -449,7 +454,12 @@ export function InsightsTab() {
   );
 
   const toggleRecurringDateSelection = useCallback(
-    async (goal: Goal, completionDate: string, hasCompletionOnDate: boolean) => {
+    async (
+      goal: Goal,
+      completionDate: string,
+      hasCompletionOnDate: boolean,
+      sourceElement?: HTMLButtonElement
+    ) => {
       if (pendingRetroDate !== null) {
         return;
       }
@@ -480,6 +490,9 @@ export function InsightsTab() {
         goalId: goal.id,
         date: completionDate,
         timezone: resolveUserTimezone(),
+        sourceRect: sourceElement
+          ? captureViewportRect(sourceElement)
+          : undefined,
         blockedMessage:
           decision.reason === "future_creation"
             ? "You can only select today or past dates."
@@ -949,13 +962,14 @@ export function InsightsTab() {
                             pendingDate={pendingRetroDate}
                             onPreviousMonth={() => shiftGoalMonthCursor(goal.id, -1)}
                             onNextMonth={() => shiftGoalMonthCursor(goal.id, 1)}
-                            onDayClick={(date) =>
+                            onDayClick={(date, sourceElement) =>
                               void toggleMilestoneDateSelection(
                                 goal,
                                 date,
                                 milestoneCompletionDates,
                                 milestoneTargetCount,
-                                progress?.creditedUnitCount ?? 0
+                                progress?.creditedUnitCount ?? 0,
+                                sourceElement
                               )
                             }
                           />
@@ -1036,11 +1050,12 @@ export function InsightsTab() {
                             pendingDate={pendingRetroDate}
                             onPreviousMonth={() => shiftGoalMonthCursor(goal.id, -1)}
                             onNextMonth={() => shiftGoalMonthCursor(goal.id, 1)}
-                            onDayClick={(date) =>
+                            onDayClick={(date, sourceElement) =>
                               void toggleRecurringDateSelection(
                                 goal,
                                 date,
-                                (countsByDate[date] ?? 0) > 0
+                                (countsByDate[date] ?? 0) > 0,
+                                sourceElement
                               )
                             }
                           />

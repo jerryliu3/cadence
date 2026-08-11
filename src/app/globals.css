@@ -134,6 +134,119 @@ a {
   }
 }
 
+@keyframes motion-collapsible-open {
+  from {
+    height: 0;
+    opacity: 0;
+  }
+  to {
+    height: var(--radix-collapsible-content-height);
+    opacity: 1;
+  }
+}
+
+@keyframes motion-collapsible-close {
+  from {
+    height: var(--radix-collapsible-content-height);
+    opacity: 1;
+  }
+  to {
+    height: 0;
+    opacity: 0;
+  }
+}
+
+@keyframes app-nav-exit-forward {
+  to {
+    opacity: 0;
+    translate: -32px 0;
+  }
+}
+
+@keyframes app-nav-enter-forward {
+  from {
+    opacity: 0;
+    translate: 32px 0;
+  }
+}
+
+@keyframes app-nav-exit-back {
+  to {
+    opacity: 0;
+    translate: 32px 0;
+  }
+}
+
+@keyframes app-nav-enter-back {
+  from {
+    opacity: 0;
+    translate: -32px 0;
+  }
+}
+
+@keyframes app-nav-fade-out {
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes app-nav-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+.motion-collapsible-content {
+  overflow: hidden;
+}
+
+.motion-collapsible-content[data-state="open"] {
+  animation: motion-collapsible-open var(--motion-duration-standard)
+    var(--motion-ease-emphasized);
+}
+
+.motion-collapsible-content[data-state="closed"] {
+  animation: motion-collapsible-close var(--motion-duration-fast)
+    var(--motion-ease-standard);
+}
+
+::view-transition-group(app-shell-header) {
+  z-index: 100;
+  animation: none;
+}
+
+::view-transition-old(app-shell-header) {
+  display: none;
+}
+
+::view-transition-new(app-shell-header) {
+  animation: none;
+}
+
+::view-transition-old(.app-nav-forward) {
+  animation: 180ms ease-in both app-nav-exit-forward;
+}
+
+::view-transition-new(.app-nav-forward) {
+  animation: 220ms var(--motion-ease-emphasized) both app-nav-enter-forward;
+}
+
+::view-transition-old(.app-nav-back) {
+  animation: 180ms ease-in both app-nav-exit-back;
+}
+
+::view-transition-new(.app-nav-back) {
+  animation: 220ms var(--motion-ease-emphasized) both app-nav-enter-back;
+}
+
+::view-transition-old(.app-nav-crossfade) {
+  animation: 140ms ease-in both app-nav-fade-out;
+}
+
+::view-transition-new(.app-nav-crossfade) {
+  animation: 180ms ease-out both app-nav-fade-in;
+}
+
 .motion-completion-icon {
   animation: motion-completion-icon-pop var(--motion-duration-standard)
     var(--motion-ease-emphasized) both;
@@ -152,8 +265,16 @@ a {
 @media (prefers-reduced-motion: reduce) {
   .motion-completion-icon,
   .motion-completion-ring,
-  .motion-popup-enter {
+  .motion-popup-enter,
+  .motion-collapsible-content {
     animation: none !important;
+  }
+
+  ::view-transition-old(*),
+  ::view-transition-new(*),
+  ::view-transition-group(*) {
+    animation-duration: 0s !important;
+    animation-delay: 0s !important;
   }
 
   [data-motion] {
