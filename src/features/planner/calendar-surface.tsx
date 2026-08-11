@@ -2522,6 +2522,7 @@ export function CalendarSurface({
               onEntryDragCancel={handleDndEntryDragCancel}
             >
               <div
+                data-motion="planner-view"
                 className={`transition-opacity duration-150 motion-reduce:transition-none ${
                   loading ? "opacity-70" : "opacity-100"
                 }`}
@@ -2575,11 +2576,11 @@ export function CalendarSurface({
                           }
                           openDayDetails(focusedDay);
                         }}
-                        onToggleCompletion={(entry, day) => {
+                        onToggleCompletion={(entry, day, sourceElement) => {
                           if (!canMutateEntryOnDay(entry, day)) {
                             return;
                           }
-                          void toggleDateFact(entry, day);
+                          void toggleDateFact(entry, day, sourceElement);
                         }}
                         onEntryPointerStart={(immovable) => {
                           void immovable;
@@ -2760,7 +2761,7 @@ export function CalendarSurface({
             }}
           >
             <DialogContent
-              className="top-auto bottom-0 left-1/2 max-w-[calc(100%-1rem)] -translate-x-1/2 translate-y-0 rounded-b-none rounded-t-xl pb-[calc(env(safe-area-inset-bottom)+1rem)] sm:top-1/2 sm:bottom-auto sm:max-w-lg sm:-translate-y-1/2 sm:rounded-b-xl"
+              className="top-auto bottom-0 left-1/2 max-w-[calc(100%-1rem)] -translate-x-1/2 translate-y-0 rounded-b-none rounded-t-xl pb-[calc(env(safe-area-inset-bottom)+1rem)] data-open:slide-in-from-bottom-4 data-closed:slide-out-to-bottom-4 sm:top-1/2 sm:bottom-auto sm:max-w-lg sm:-translate-y-1/2 sm:rounded-b-xl"
               aria-describedby="planner-day-detail-description"
             >
               <DialogHeader>

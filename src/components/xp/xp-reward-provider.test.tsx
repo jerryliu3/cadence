@@ -5,11 +5,24 @@ import {
   XpRewardProvider,
 } from "@/components/xp/xp-reward-provider";
 
+const { motionPreference } = vi.hoisted(() => ({
+  motionPreference: { current: false },
+}));
+
+vi.mock("motion/react", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("motion/react")>();
+  return {
+    ...actual,
+    useReducedMotion: () => motionPreference.current,
+  };
+});
+
 beforeEach(() => {
+  motionPreference.current = false;
   vi.stubGlobal(
     "matchMedia",
     vi.fn().mockImplementation((query: string) => ({
-      matches: false,
+      matches: motionPreference.current,
       media: query,
       onchange: null,
       addEventListener: vi.fn(),
@@ -59,5 +72,18 @@ describe("XpRewardProvider", () => {
     expect(
       container.querySelector("[data-motion='xp-reward-overlay']")
     ).toHaveClass("pointer-events-none");
+  });
+
+  it("keeps the badge update but omits particles for reduced motion", () => {
+    motionPreference.current = true;
+    const { container } = render(
+      <XpRewardProvider>
+        <RewardHarness />
+      </XpRewardProvider>
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Celebrate" }));
+
+    expect(container.querySelectorAll("[data-reward-burst]")).toHaveLength(0);
   });
 });

@@ -55,11 +55,6 @@ const MOVABLE_ENTRY_SELECTOR = [
   '[data-calendar-day-entry="true"]:not([class*="cursor-not-allowed"]):visible',
 ].join(", ");
 const DRAFT_MODE_BADGE_TEST_ID = "planner-preview-mode-badge";
-const DRAG_FIXTURE_GOAL_ID = "10000000-0000-4000-8000-000000000022";
-const DRAG_FIXTURE_ENTRY_SELECTOR = [
-  `[data-calendar-day-entry="true"][data-planner-goal-id="${DRAG_FIXTURE_GOAL_ID}"][class*="cursor-grab"]:visible`,
-  `[data-calendar-day-entry="true"][data-planner-goal-id="${DRAG_FIXTURE_GOAL_ID}"]:not([class*="cursor-not-allowed"]):visible`,
-].join(", ");
 
 function shiftScopeMonth(scopeMonth: string, delta: number) {
   const [rawYear, rawMonth] = scopeMonth.split("-");
@@ -148,7 +143,7 @@ async function ensureMonthCalendarDensity(page: Page) {
   }
 }
 
-async function ensureDragFixtureEntryAvailable(page: Page, maxMonthJumps = 12) {
+async function ensureMovableEntryAvailable(page: Page, maxMonthJumps = 12) {
   const startScopeMonth = await resolveCalendarScopeMonth(page);
   const scanOrder = Array.from({ length: maxMonthJumps + 1 }, (_, jump) => jump);
 
@@ -158,13 +153,13 @@ async function ensureDragFixtureEntryAvailable(page: Page, maxMonthJumps = 12) {
     if (delta !== 0) {
       await openCalendar(page, scopeMonth);
     }
-    const fixtureEntries = page.locator(DRAG_FIXTURE_ENTRY_SELECTOR);
-    if ((await fixtureEntries.count()) > 0) {
+    const movableEntries = page.locator(MOVABLE_ENTRY_SELECTOR);
+    if ((await movableEntries.count()) > 0) {
       return scopeMonth;
     }
   }
   throw new Error(
-    `No movable drag fixture entries found for goal ${DRAG_FIXTURE_GOAL_ID} after scanning ${scanOrder.length} month(s) from ${startScopeMonth}.`
+    `No movable planner entries found after scanning ${scanOrder.length} month(s) from ${startScopeMonth}.`
   );
 }
 
@@ -277,66 +272,68 @@ async function dismissPlannerMoveErrorToast(page: Page) {
 
 async function moveFirstMovableEntry(
   page: Page,
-  sourceEntrySelector = MOVABLE_ENTRY_SELECTOR,
-  targetGoalId?: string
+  sourceEntrySelector = MOVABLE_ENTRY_SELECTOR
 ): Promise<boolean> {
-  const sourceEntry = page.locator(sourceEntrySelector).first();
-  await expect(sourceEntry).toBeVisible();
-
-  const sourceDay = await sourceEntry.evaluate((element) =>
-    element.closest('[data-day-cell="true"]')?.getAttribute("data-day")
-  );
-  if (!sourceDay) {
-    throw new Error("Could not resolve source day for draggable planner entry.");
+  const sourceEntries = page.locator(sourceEntrySelector);
+  const sourceCount = Math.min(await sourceEntries.count(), 8);
+  if (sourceCount === 0) {
+    throw new Error("Could not find a draggable planner entry.");
   }
 
-  // Weekly fixture sessions only accept drops inside a short credit window.
-  // Prefer nearby same-month days first so we don't "succeed" a rejected far drop.
-  const candidateTargetDays = await page.evaluate(({ currentDay, goalId }) => {
-    const scopeMonth = currentDay.slice(0, 7);
-    const sourceMs = Date.parse(`${currentDay}T00:00:00Z`);
-    const dayMs = (value: string) => Date.parse(`${value}T00:00:00Z`);
-    const candidates = Array.from(
-      document.querySelectorAll<HTMLElement>('[data-day-cell="true"][data-day]')
-    )
-      .map((cell) => {
-        const value = cell.getAttribute("data-day");
-        if (
-          typeof value !== "string" ||
-          !value.startsWith(scopeMonth) ||
-          value === currentDay
-        ) {
-          return null;
-        }
-        if (typeof goalId === "string" && goalId.length > 0) {
-          const hasSameGoalEntry = cell.querySelector(
-            `[data-calendar-day-entry="true"][data-planner-goal-id="${goalId}"]`
-          );
-          if (hasSameGoalEntry) {
+  for (let sourceIndex = 0; sourceIndex < sourceCount; sourceIndex += 1) {
+    const sourceEntry = sourceEntries.nth(sourceIndex);
+    if (!(await sourceEntry.isVisible().catch(() => false))) {
+      continue;
+    }
+    const sourceDay = await sourceEntry.evaluate((element) =>
+      element.closest('[data-day-cell="true"]')?.getAttribute("data-day")
+    );
+    if (!sourceDay) {
+      continue;
+    }
+    const sourceGoalId =
+      (await sourceEntry.getAttribute("data-planner-goal-id")) ?? undefined;
+
+    // Some recurring sessions only accept drops inside a short credit window.
+    // Prefer nearby same-month days and skip dates that already contain the goal.
+    const candidateTargetDays = await page.evaluate(({ currentDay, goalId }) => {
+      const scopeMonth = currentDay.slice(0, 7);
+      const sourceMs = Date.parse(`${currentDay}T00:00:00Z`);
+      const dayMs = (value: string) => Date.parse(`${value}T00:00:00Z`);
+      const candidates = Array.from(
+        document.querySelectorAll<HTMLElement>('[data-day-cell="true"][data-day]')
+      )
+        .map((cell) => {
+          const value = cell.getAttribute("data-day");
+          if (
+            typeof value !== "string" ||
+            !value.startsWith(scopeMonth) ||
+            value === currentDay
+          ) {
             return null;
           }
-        }
-        return value;
-      })
-      .filter((value): value is string => typeof value === "string");
+          if (typeof goalId === "string" && goalId.length > 0) {
+            const hasSameGoalEntry = cell.querySelector(
+              `[data-calendar-day-entry="true"][data-planner-goal-id="${goalId}"]`
+            );
+            if (hasSameGoalEntry) {
+              return null;
+            }
+          }
+          return value;
+        })
+        .filter((value): value is string => typeof value === "string");
 
-    const byDistance = (left: string, right: string) =>
-      Math.abs(dayMs(left) - sourceMs) - Math.abs(dayMs(right) - sourceMs);
-    const near = candidates
-      .filter((candidate) => Math.abs(dayMs(candidate) - sourceMs) <= 3 * 86_400_000)
-      .sort(byDistance);
-    const far = candidates
-      .filter((candidate) => Math.abs(dayMs(candidate) - sourceMs) > 3 * 86_400_000)
-      .sort(byDistance);
-    return [...near, ...far];
-  }, { currentDay: sourceDay, goalId: targetGoalId });
-  if (candidateTargetDays.length === 0) {
-    throw new Error("Could not find a valid planner day-cell drop target.");
-  }
+      return candidates.sort(
+        (left, right) =>
+          Math.abs(dayMs(left) - sourceMs) - Math.abs(dayMs(right) - sourceMs)
+      );
+    }, { currentDay: sourceDay, goalId: sourceGoalId });
 
-  const tryCandidates = async (): Promise<boolean> => {
-    for (const targetDay of candidateTargetDays.slice(0, 12)) {
-      const currentSourceEntry = page.locator(sourceEntrySelector).first();
+    for (const targetDay of candidateTargetDays.slice(0, 4)) {
+      const currentSourceEntry = page
+        .locator(sourceEntrySelector)
+        .nth(sourceIndex);
       await expect(currentSourceEntry).toBeVisible();
       const targetCell = page
         .locator(`[data-day-cell="true"][data-day="${targetDay}"]`)
@@ -375,16 +372,8 @@ async function moveFirstMovableEntry(
       // Clear any stuck drag before trying the next drop target.
       await clearStuckDrag(page);
     }
-    return false;
-  };
-
-  if (await tryCandidates()) {
-    return true;
   }
-  // Outer retry of the full candidate pass after a short settle.
-  await clearStuckDrag(page);
-  await page.waitForTimeout(300);
-  return tryCandidates();
+  return false;
 }
 
 async function runCompletionToggleAction(
@@ -452,6 +441,58 @@ test.describe("planner critical rails", () => {
     "Critical planner rails currently run as chromium-only checks."
   );
 
+  test("stale save keeps planner draft session recoverable", async ({ page }) => {
+    test.setTimeout(120_000);
+    let movedIntoDraft = false;
+    for (let dragAttempt = 0; dragAttempt < 3; dragAttempt += 1) {
+      await openCalendar(page);
+      await ensureMovableEntryAvailable(page);
+      movedIntoDraft = await moveFirstMovableEntry(page);
+      if (movedIntoDraft && (await isPlannerDraftReady(page))) {
+        break;
+      }
+      await dismissPlannerMoveErrorToast(page);
+      await clearStuckDrag(page);
+    }
+    expect(movedIntoDraft).toBe(true);
+    await expect(page.getByTestId(DRAFT_MODE_BADGE_TEST_ID)).toBeVisible();
+    await expect(page.getByRole("button", { name: "Save plan", exact: true })).toBeEnabled();
+
+    await page.route("**/api/planner/save", async (route) => {
+      const request = route.request();
+      const body = request.postDataJSON() as {
+        expectedDigest?: string;
+        [key: string]: unknown;
+      };
+      const digest = body.expectedDigest;
+      if (typeof digest === "string" && digest.length === 64) {
+        body.expectedDigest = `${digest[0] === "a" ? "b" : "a"}${digest.slice(1)}`;
+      }
+      await route.continue({
+        postData: JSON.stringify(body),
+        headers: {
+          ...request.headers(),
+          "content-type": "application/json",
+        },
+      });
+    });
+
+    const saveResponsePromise = page.waitForResponse(
+      (response) =>
+        response.url().includes("/api/planner/save") &&
+        response.request().method() === "POST"
+    );
+    await page.getByRole("button", { name: "Save plan", exact: true }).click();
+    const saveResponse = await saveResponsePromise;
+    const body = (await saveResponse.json()) as { code?: string };
+    expect(saveResponse.status()).toBe(409);
+    expect(["stale_revision", "preview_hash_mismatch"]).toContain(body.code ?? "");
+
+    await expect(
+      page.getByRole("button", { name: /Undo this month/i })
+    ).toBeVisible({ timeout: 10_000 });
+  });
+
   test("drag + save emits only intended unit movement", async ({ page }) => {
     test.setTimeout(120_000);
     const collectMoveCommands = (requestPayload: SavePlanResult["requestPayload"]) =>
@@ -470,14 +511,10 @@ test.describe("planner critical rails", () => {
 
     const executeMoveAndSave = async () => {
       await openCalendar(page);
-      const scopeMonth = await ensureDragFixtureEntryAvailable(page);
+      const scopeMonth = await ensureMovableEntryAvailable(page);
       const before = await fetchPlannerContextSnapshot(page, scopeMonth);
 
-      const movedIntoDraft = await moveFirstMovableEntry(
-        page,
-        DRAG_FIXTURE_ENTRY_SELECTOR,
-        DRAG_FIXTURE_GOAL_ID
-      );
+      const movedIntoDraft = await moveFirstMovableEntry(page);
       expect(movedIntoDraft).toBe(true);
       await expect(page.getByTestId(DRAFT_MODE_BADGE_TEST_ID)).toBeVisible();
       const saveButton = page.getByRole("button", { name: "Save plan", exact: true });
@@ -602,61 +639,5 @@ test.describe("planner critical rails", () => {
       await button.click();
     });
     expect(calendarPayload.goalId).toBeTruthy();
-  });
-
-  test("stale save keeps planner draft session recoverable", async ({ page }) => {
-    test.setTimeout(120_000);
-    let movedIntoDraft = false;
-    for (let dragAttempt = 0; dragAttempt < 3; dragAttempt += 1) {
-      await openCalendar(page);
-      await ensureDragFixtureEntryAvailable(page);
-      movedIntoDraft = await moveFirstMovableEntry(
-        page,
-        DRAG_FIXTURE_ENTRY_SELECTOR,
-        DRAG_FIXTURE_GOAL_ID
-      );
-      if (movedIntoDraft && (await isPlannerDraftReady(page))) {
-        break;
-      }
-      await dismissPlannerMoveErrorToast(page);
-      await clearStuckDrag(page);
-    }
-    expect(movedIntoDraft).toBe(true);
-    await expect(page.getByTestId(DRAFT_MODE_BADGE_TEST_ID)).toBeVisible();
-    await expect(page.getByRole("button", { name: "Save plan", exact: true })).toBeEnabled();
-
-    await page.route("**/api/planner/save", async (route) => {
-      const request = route.request();
-      const body = request.postDataJSON() as {
-        expectedDigest?: string;
-        [key: string]: unknown;
-      };
-      const digest = body.expectedDigest;
-      if (typeof digest === "string" && digest.length === 64) {
-        body.expectedDigest = `${digest[0] === "a" ? "b" : "a"}${digest.slice(1)}`;
-      }
-      await route.continue({
-        postData: JSON.stringify(body),
-        headers: {
-          ...request.headers(),
-          "content-type": "application/json",
-        },
-      });
-    });
-
-    const saveResponsePromise = page.waitForResponse(
-      (response) =>
-        response.url().includes("/api/planner/save") &&
-        response.request().method() === "POST"
-    );
-    await page.getByRole("button", { name: "Save plan", exact: true }).click();
-    const saveResponse = await saveResponsePromise;
-    const body = (await saveResponse.json()) as { code?: string };
-    expect(saveResponse.status()).toBe(409);
-    expect(["stale_revision", "preview_hash_mismatch"]).toContain(body.code ?? "");
-
-    await expect(
-      page.getByRole("button", { name: /Undo this month/i })
-    ).toBeVisible({ timeout: 10_000 });
   });
 });
