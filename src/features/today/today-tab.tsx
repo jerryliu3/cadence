@@ -190,10 +190,13 @@ export function TodayTab({
   const [internalChecklistTab, setInternalChecklistTab] =
     useState<ChecklistTabValue>(activeTab ?? "today");
   const loadRequestIdRef = useRef(0);
+  const viewDateProgressRequestIdRef = useRef(0);
   const visibleLoadCountRef = useRef(0);
   const refreshTokenRef = useRef(refreshToken);
   const pendingRefreshRef = useRef(false);
   const authRedirectStartedRef = useRef(false);
+  const currentViewDateRef = useRef(viewDate);
+  const previousViewDateRef = useRef(viewDate);
   const effectiveChecklistTab = activeTab ?? internalChecklistTab;
   const runCompletionMutation = useCompletionMutation();
 
@@ -204,6 +207,10 @@ export function TodayTab({
     () => todayGoalSearchQuery.trim().toLowerCase(),
     [todayGoalSearchQuery]
   );
+
+  useEffect(() => {
+    currentViewDateRef.current = viewDate;
+  }, [viewDate]);
 
   const redirectToLogin = useCallback(() => {
     if (authRedirectStartedRef.current) {
@@ -261,11 +268,11 @@ export function TodayTab({
                 .order("created_at", { ascending: false }),
               supabase.from("goal_participants").select("*").eq("user_id", user.id),
               supabase.from("goal_links").select("*").eq("owner_id", user.id),
-              // Keep date navigation local to avoid full-section reloads when
-              // browsing previous/next days from the header date control.
+              // Keep date navigation local while still loading facts keyed to
+              // whichever date the user is currently browsing.
               fetchProgressContext({
                 asOfDate: todayLocalDate,
-                viewDate: todayLocalDate,
+                viewDate: currentViewDateRef.current,
                 forceRefresh,
               }),
             ]),
@@ -344,6 +351,45 @@ export function TodayTab({
 
     void run();
   }, [loadData, redirectToLogin]);
+
+  useEffect(() => {
+    if (!isActive || previousViewDateRef.current === viewDate) {
+      return;
+    }
+    previousViewDateRef.current = viewDate;
+    const requestId = viewDateProgressRequestIdRef.current + 1;
+    viewDateProgressRequestIdRef.current = requestId;
+    const timer = window.setTimeout(() => {
+      void fetchProgressContext({
+        asOfDate: todayLocalDate,
+        viewDate,
+      })
+        .then((progress) => {
+          if (requestId !== viewDateProgressRequestIdRef.current) {
+            return;
+          }
+          setData((previous) => ({
+            ...previous,
+            completions: progress.facts,
+            progress,
+          }));
+        })
+        .catch((error: unknown) => {
+          if (isProgressContextAuthenticationError(error)) {
+            redirectToLogin();
+            return;
+          }
+          toast.error(
+            isAbortError(error)
+              ? "Today goals request timed out. Please try again."
+              : error instanceof Error
+                ? error.message
+                : "Goal progress could not be loaded."
+          );
+        });
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [isActive, redirectToLogin, todayLocalDate, viewDate]);
 
   useEffect(() => {
     if (refreshToken === refreshTokenRef.current) {
@@ -739,6 +785,15 @@ export function TodayTab({
   const goToNextDate = () => {
     setViewDate((previous) => format(addDays(parseISO(previous), 1), "yyyy-MM-dd"));
   };
+  const switchChecklistTab = useCallback(
+    (nextTab: ChecklistTabValue) => {
+      if (!activeTab) {
+        setInternalChecklistTab(nextTab);
+      }
+      onActiveTabChange?.(nextTab);
+    },
+    [activeTab, onActiveTabChange]
+  );
 
   const quickCategoryOptions = availableCategories.slice(0, 4);
   const recurrenceQuickFilters = recurrenceFilterOptions.filter(
@@ -761,10 +816,7 @@ export function TodayTab({
         onValueChange={(value) => {
           const nextTab: ChecklistTabValue =
             value === "not-today" ? "not-today" : "today";
-          if (!activeTab) {
-            setInternalChecklistTab(nextTab);
-          }
-          onActiveTabChange?.(nextTab);
+          switchChecklistTab(nextTab);
         }}
         className="flex-col space-y-4"
       >
@@ -787,69 +839,36 @@ export function TodayTab({
             onGoToPreviousDate={goToPreviousDate}
             onGoToNextDate={goToNextDate}
             onResetToToday={() => setViewDate(todayLocalDate)}
-            filterControls={
-              <div className="flex min-w-0 flex-1 items-center justify-between gap-2">
-                <div className="flex min-w-0 flex-1 items-center gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-                  {recurrenceQuickFilters.map((option) => (
-                    <Button
-                      key={`recurrence-quick-${option.value}`}
-                      type="button"
-                      variant={recurrenceFilter === option.value ? "default" : "outline"}
-                      size="sm"
-                      className="h-8 shrink-0 rounded-full px-3 text-xs"
-                      onClick={() => setRecurrenceFilter(option.value)}
-                    >
-                      {option.label}
-                    </Button>
-                  ))}
-                  {quickCategoryOptions.map((category) => (
-                    <Button
-                      key={`category-quick-${category}`}
-                      type="button"
-                      variant={
-                        categoryFilter === category ? "default" : "outline"
-                      }
-                      size="sm"
-                      className="h-8 shrink-0 rounded-full px-3 text-xs"
-                      onClick={() =>
-                        setCategoryFilter((previous) =>
-                          previous === category ? allCategoriesFilterValue : category
-                        )
-                      }
-                    >
-                      {category}
-                    </Button>
-                  ))}
-                </div>
+            datePickerControls={
+              <>
                 <Button
                   type="button"
                   variant="outline"
-                  size="sm"
-                  className="h-8 shrink-0 rounded-full px-3 text-xs"
+                  size="icon-sm"
+                  className="h-8 w-8 shrink-0 rounded-full"
                   onClick={() => setTodayFiltersOpen(true)}
+                  aria-label="Open filters"
+                  title="Open filters"
                 >
                   <SlidersHorizontal className="size-3.5" />
-                  Filters
                 </Button>
+                {hideTabList ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="hidden h-8 rounded-full px-3 text-xs md:inline-flex"
+                    onClick={() => switchChecklistTab("not-today")}
+                  >
+                    Show Past
+                  </Button>
+                ) : null}
                 <Dialog open={todayFiltersOpen} onOpenChange={setTodayFiltersOpen}>
                   <DialogContent className="top-auto bottom-0 left-1/2 max-h-[85vh] max-w-[calc(100%-1rem)] -translate-x-1/2 translate-y-0 overflow-y-auto rounded-b-none rounded-t-xl pb-[calc(env(safe-area-inset-bottom)+1rem)] sm:top-1/2 sm:bottom-auto sm:max-w-lg sm:-translate-y-1/2 sm:rounded-b-xl">
                     <DialogHeader>
                       <DialogTitle>Today filters</DialogTitle>
                     </DialogHeader>
                     <div className="space-y-4">
-                      <label className="block space-y-1">
-                        <Label className="text-xs text-muted-foreground">
-                          Search
-                        </Label>
-                        <Input
-                          value={todayGoalSearchQuery}
-                          onChange={(event) =>
-                            setTodayGoalSearchQuery(event.target.value)
-                          }
-                          placeholder="Search today's goals..."
-                          className="h-8"
-                        />
-                      </label>
                       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                         <label className="block space-y-1">
                           <Label className="text-xs text-muted-foreground">
@@ -908,6 +927,46 @@ export function TodayTab({
                     </div>
                   </DialogContent>
                 </Dialog>
+              </>
+            }
+            searchControls={
+              <Input
+                value={todayGoalSearchQuery}
+                onChange={(event) => setTodayGoalSearchQuery(event.target.value)}
+                placeholder="Search today's goals..."
+                className="h-8 w-full"
+              />
+            }
+            quickFilterControls={
+              <div className="flex min-w-0 items-center gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+                {recurrenceQuickFilters.map((option) => (
+                  <Button
+                    key={`recurrence-quick-${option.value}`}
+                    type="button"
+                    variant={recurrenceFilter === option.value ? "default" : "outline"}
+                    size="sm"
+                    className="h-8 shrink-0 rounded-full px-3 text-xs"
+                    onClick={() => setRecurrenceFilter(option.value)}
+                  >
+                    {option.label}
+                  </Button>
+                ))}
+                {quickCategoryOptions.map((category) => (
+                  <Button
+                    key={`category-quick-${category}`}
+                    type="button"
+                    variant={categoryFilter === category ? "default" : "outline"}
+                    size="sm"
+                    className="h-8 shrink-0 rounded-full px-3 text-xs"
+                    onClick={() =>
+                      setCategoryFilter((previous) =>
+                        previous === category ? allCategoriesFilterValue : category
+                      )
+                    }
+                  >
+                    {category}
+                  </Button>
+                ))}
               </div>
             }
           >
@@ -977,8 +1036,23 @@ export function TodayTab({
         <TabsContent value="not-today" className="space-y-4">
           <Card className="shadow-sm">
             <CardHeader className="pb-3">
-              <CardTitle className="text-xl">Past</CardTitle>
-              <CardDescription>Review upcoming, ended, and archived goals.</CardDescription>
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <CardTitle className="text-xl">Past</CardTitle>
+                  <CardDescription>Review upcoming, ended, and archived goals.</CardDescription>
+                </div>
+                {hideTabList ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="hidden h-8 rounded-full px-3 text-xs md:inline-flex"
+                    onClick={() => switchChecklistTab("today")}
+                  >
+                    Show Today
+                  </Button>
+                ) : null}
+              </div>
             </CardHeader>
             <CardContent>
               <GoalListControls
