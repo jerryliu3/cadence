@@ -23,6 +23,7 @@ import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { AnchoredPopupCard } from "@/components/ui/anchored-popup-card";
 import { Button } from "@/components/ui/button";
+import { CompletionToggle } from "@/components/ui/completion-toggle";
 import {
   Dialog,
   DialogContent,
