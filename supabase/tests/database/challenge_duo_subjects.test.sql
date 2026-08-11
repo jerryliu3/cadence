@@ -12,15 +12,13 @@ on conflict (id) do nothing;
 insert into public.profiles (
   id,
   username,
-  social_challenge_eligible,
-  social_leaderboard_eligible
+  social_competition_eligible
 )
 values
-  ('9d111111-1111-4111-8111-111111111111', 'duo_challenge_a', true, true),
-  ('9d222222-2222-4222-8222-222222222222', 'duo_challenge_b', true, true)
+  ('9d111111-1111-4111-8111-111111111111', 'duo_challenge_a', true),
+  ('9d222222-2222-4222-8222-222222222222', 'duo_challenge_b', true)
 on conflict (id) do update
-set social_challenge_eligible = true,
-    social_leaderboard_eligible = true;
+set social_competition_eligible = true;
 
 set local role service_role;
 
@@ -202,7 +200,7 @@ select is(
     select count(*)::integer
     from public.xp_ledger ledger
     where ledger.event_type = 'challenge_award'
-      and ledger.source_key like 'ch:%'
+      and ledger.source_key like 'challenge:%:duo:%'
       and ledger.user_id in (
         '9d111111-1111-4111-8111-111111111111',
         '9d222222-2222-4222-8222-222222222222'

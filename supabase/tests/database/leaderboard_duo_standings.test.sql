@@ -15,7 +15,7 @@ insert into public.profiles (
   id,
   username,
   display_name,
-  social_leaderboard_eligible
+  social_competition_eligible
 )
 values
   ('9e111111-1111-4111-8111-111111111111', 'duo_board_a1', 'Duo A1', true),
@@ -23,7 +23,7 @@ values
   ('9e333333-3333-4333-8333-333333333333', 'duo_board_b1', 'Duo B1', true),
   ('9e444444-4444-4444-8444-444444444444', 'duo_board_b2', 'Duo B2', true)
 on conflict (id) do update
-set social_leaderboard_eligible = true;
+set social_competition_eligible = true;
 
 set local role service_role;
 
