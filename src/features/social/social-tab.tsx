@@ -51,6 +51,7 @@ import { buildMilestoneNames } from "@/lib/goals/milestones";
 import { getGoalCompletionPercentage } from "@/lib/goals/progress";
 import { MonthHeatmap } from "@/features/insights/month-heatmap";
 import { NotificationSettings } from "@/features/settings/notification-settings";
+import { PlannerPreferencesSettings } from "@/features/settings/planner-preferences-settings";
 import type {
   Completion,
   Goal,
@@ -160,6 +161,9 @@ export function SocialTab() {
     display_name: "",
     avatar_url: "",
   });
+  const [settingsSection, setSettingsSection] = useState<
+    "preferences" | "notifications" | "social"
+  >("preferences");
   const shareMenuAnchorRef = useRef<HTMLDivElement | null>(null);
   const shareMenuPanelRef = useRef<HTMLDivElement | null>(null);
 
@@ -763,10 +767,69 @@ export function SocialTab() {
             <WandSparkles className="size-4" />
             Save profile
           </Button>
-          <NotificationSettings />
         </CardContent>
       </Card>
 
+      <Card className="shadow-sm">
+        <CardHeader>
+          <CardTitle>Settings menu</CardTitle>
+          <CardDescription>Choose which settings area to edit.</CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-2 sm:grid-cols-3">
+          <Button
+            type="button"
+            variant={settingsSection === "preferences" ? "default" : "outline"}
+            onClick={() => setSettingsSection("preferences")}
+          >
+            Preferences
+          </Button>
+          <Button
+            type="button"
+            variant={settingsSection === "notifications" ? "default" : "outline"}
+            onClick={() => setSettingsSection("notifications")}
+          >
+            Notifications
+          </Button>
+          <Button
+            type="button"
+            variant={settingsSection === "social" ? "default" : "outline"}
+            onClick={() => setSettingsSection("social")}
+          >
+            Social
+          </Button>
+        </CardContent>
+      </Card>
+
+      {settingsSection === "preferences" ? (
+        <Card className="shadow-sm">
+          <CardHeader>
+            <CardTitle>Preferences</CardTitle>
+            <CardDescription>
+              Manage planner timezone and start-of-week defaults.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <PlannerPreferencesSettings />
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {settingsSection === "notifications" ? (
+        <Card className="shadow-sm">
+          <CardHeader>
+            <CardTitle>Notifications</CardTitle>
+            <CardDescription>
+              Configure push access and reminder schedules.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <NotificationSettings />
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {settingsSection === "social" ? (
+        <>
       <Card className="shadow-sm">
         <CardHeader>
           <CardTitle>User search</CardTitle>
@@ -1319,6 +1382,8 @@ export function SocialTab() {
           another user’s goals.
         </p>
       </div>
+        </>
+      ) : null}
     </div>
   );
 }

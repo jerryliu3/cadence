@@ -2211,6 +2211,35 @@ export function CalendarSurface({
     );
   };
 
+  const restWeekdaysField = (
+    <div className="space-y-2 text-sm">
+      <p>Rest weekdays</p>
+      <div className="flex flex-wrap gap-2">
+        {restWeekdayOptions.map((option) => (
+          <label
+            key={option.label}
+            className="inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs"
+          >
+            <input
+              type="checkbox"
+              checked={setupRestWeekdays.includes(option.value)}
+              onChange={(event) =>
+                setSetupRestWeekdays((previous) =>
+                  event.target.checked
+                    ? Array.from(new Set([...previous, option.value])).sort(
+                        (left, right) => left - right
+                      )
+                    : previous.filter((weekday) => weekday !== option.value)
+                )
+              }
+            />
+            {option.label}
+          </label>
+        ))}
+      </div>
+    </div>
+  );
+
   const setupForm = (
     <div className="space-y-4">
       <label className="block space-y-1 text-sm">
@@ -2250,34 +2279,21 @@ export function CalendarSurface({
           </SelectContent>
         </Select>
       </label>
-      <div className="space-y-2 text-sm">
-        <p>Rest weekdays</p>
-        <div className="flex flex-wrap gap-2">
-          {restWeekdayOptions.map((option) => (
-            <label
-              key={option.label}
-              className="inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs"
-            >
-              <input
-                type="checkbox"
-                checked={setupRestWeekdays.includes(option.value)}
-                onChange={(event) =>
-                  setSetupRestWeekdays((previous) =>
-                    event.target.checked
-                      ? Array.from(new Set([...previous, option.value])).sort(
-                          (left, right) => left - right
-                        )
-                      : previous.filter((weekday) => weekday !== option.value)
-                  )
-                }
-              />
-              {option.label}
-            </label>
-          ))}
-        </div>
-      </div>
+      {restWeekdaysField}
       <Button type="button" onClick={submitSetup} disabled={setupLoading}>
         {setupLoading ? "Saving setup..." : "Save setup"}
+      </Button>
+    </div>
+  );
+
+  const plannerSettingsForm = (
+    <div className="space-y-4">
+      <p className="text-sm text-muted-foreground">
+        Timezone and first-day-of-week preferences now live in Profile settings.
+      </p>
+      {restWeekdaysField}
+      <Button type="button" onClick={submitSetup} disabled={setupLoading}>
+        {setupLoading ? "Saving settings..." : "Save settings"}
       </Button>
     </div>
   );
@@ -2927,10 +2943,10 @@ export function CalendarSurface({
           <DialogHeader>
             <DialogTitle>Planner settings</DialogTitle>
             <DialogDescription>
-              Update timezone and default planning policy for future previews.
+              Update rest weekdays used by planner default policy.
             </DialogDescription>
           </DialogHeader>
-          {setupForm}
+          {plannerSettingsForm}
         </DialogContent>
       </Dialog>
     </div>
