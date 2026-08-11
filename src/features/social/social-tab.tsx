@@ -56,6 +56,7 @@ export function SocialTab() {
     completionsByGoal,
     groupRequiresEndDate,
     updateGroupFrequencyType,
+    canSaveProfile,
     saveProfile,
     shareGoalWithUser,
     revokeGoalShare,
@@ -177,6 +178,7 @@ export function SocialTab() {
         profileDraft={profileDraft}
         authEmail={authEmail}
         saving={saving}
+        canSaveProfile={canSaveProfile}
         setProfileDraft={setProfileDraft}
         onSaveProfile={saveProfile}
       />

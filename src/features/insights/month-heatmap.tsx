@@ -32,7 +32,7 @@ export function MonthHeatmap({
   const firstWeekdayOffset = getISODay(monthStart) - 1;
 
   return (
-    <div className="space-y-2">
+    <div className="w-full space-y-2">
       {onPreviousMonth || onNextMonth ? (
         <PeriodStepper
           onPrevious={onPreviousMonth}
@@ -48,20 +48,23 @@ export function MonthHeatmap({
       ) : (
         <p className="text-sm font-medium">{format(month, "MMMM yyyy")}</p>
       )}
-      <div className="inline-flex flex-col gap-1">
-        <div className="grid grid-cols-[repeat(7,2rem)] gap-1">
+      <div className="w-full space-y-1 [--month-cell-size:clamp(2.2rem,4.1vw,3rem)]">
+        <div className="grid w-full grid-cols-[repeat(7,var(--month-cell-size))] justify-between gap-y-1">
           {weekdayHeaders.map((label) => (
             <div
               key={label}
-              className="flex h-4 w-8 items-end justify-center text-[10px] font-medium text-muted-foreground"
+              className="flex h-4 w-[var(--month-cell-size)] items-end justify-center text-[10px] font-medium text-muted-foreground"
             >
               {label}
             </div>
           ))}
         </div>
-        <div className="grid grid-cols-[repeat(7,2rem)] gap-1">
+        <div className="grid w-full grid-cols-[repeat(7,var(--month-cell-size))] justify-between gap-y-1">
           {Array.from({ length: firstWeekdayOffset }).map((_, index) => (
-            <div key={`offset-${index}`} className="size-8 rounded-md bg-transparent" />
+            <div
+              key={`offset-${index}`}
+              className="h-[var(--month-cell-size)] w-[var(--month-cell-size)] rounded-md bg-transparent"
+            />
           ))}
           {days.map((day) => {
             const key = format(day, "yyyy-MM-dd");
@@ -76,7 +79,7 @@ export function MonthHeatmap({
                   onClick={() => onDayClick(key)}
                   disabled={pendingDate === key}
                   className={cn(
-                    "flex size-8 items-center justify-center rounded-md text-[10px] text-muted-foreground transition-transform hover:scale-105 hover:ring-2 hover:ring-primary/30 disabled:opacity-60",
+                    "flex h-[var(--month-cell-size)] w-[var(--month-cell-size)] items-center justify-center rounded-md text-[10px] text-muted-foreground transition-transform hover:scale-105 hover:ring-2 hover:ring-primary/30 disabled:opacity-60",
                     getHeatmapScaleClass(value)
                   )}
                 >
@@ -90,7 +93,7 @@ export function MonthHeatmap({
                 key={key}
                 title={`${key}: ${value} completion${value === 1 ? "" : "s"}`}
                 className={cn(
-                  "flex size-8 items-center justify-center rounded-md text-[10px] text-muted-foreground",
+                  "flex h-[var(--month-cell-size)] w-[var(--month-cell-size)] items-center justify-center rounded-md text-[10px] text-muted-foreground",
                   getHeatmapScaleClass(value)
                 )}
               >
