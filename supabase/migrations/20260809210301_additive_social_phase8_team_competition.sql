@@ -569,7 +569,6 @@ set search_path = ''
 as $$
 declare
   v_uid uuid := auth.uid();
-  
   v_status public.challenge_status;
   v_subject_kind public.social_subject_kind;
   v_subject_id uuid;
@@ -581,8 +580,8 @@ begin
     raise exception using errcode = '22023', message = 'challenge_id_required';
   end if;
 
-  select challenge.enrollment, challenge.status, challenge.subject_kind
-  into v_enrollment, v_status, v_subject_kind
+  select challenge.status, challenge.subject_kind
+  into v_status, v_subject_kind
   from public.challenges challenge
   where challenge.id = p_challenge_id;
 
@@ -802,7 +801,6 @@ begin
       update public.leaderboard_seasons season
       set
         status = 'closed'::public.leaderboard_season_status,
-        closed_at = coalesce(season.closed_at, v_now),
         updated_at = v_now
       where season.id = r_season.id
         and season.status = 'open'::public.leaderboard_season_status;
@@ -836,11 +834,14 @@ begin
     select season.*
     from public.leaderboard_seasons season
     where season.status = 'closed'::public.leaderboard_season_status
-      and season.closed_at is not null
       and season.ends_at is not null
-      and season.next_season_id is null
       and season.rollover <> 'none'::public.leaderboard_rollover
       and season.ends_at <= v_now
+      and not exists (
+        select 1
+        from public.leaderboard_seasons child
+        where child.previous_season_id = season.id
+      )
   loop
     v_next_slug := r_season.slug || '-' || to_char(r_season.ends_at, 'YYYYMMDD');
 
@@ -874,9 +875,6 @@ begin
     returning id into v_next_id;
 
     if v_next_id is not null then
-      update public.leaderboard_seasons season
-      set next_season_id = v_next_id
-      where season.id = r_season.id;
       v_count := v_count + 1;
     end if;
   end loop;
@@ -1020,6 +1018,7 @@ declare
   v_limit integer := least(greatest(coalesce(p_limit, 50), 1), 100);
   v_offset integer := greatest(coalesce(p_offset, 0), 0);
   v_subject_kind public.social_subject_kind;
+  v_status public.leaderboard_season_status;
   v_viewer_subject_id uuid;
 begin
   if v_uid is null then
@@ -1029,8 +1028,8 @@ begin
     raise exception using errcode = '22023', message = 'season_id_required';
   end if;
 
-  select season.subject_kind
-  into v_subject_kind
+  select season.subject_kind, season.status
+  into v_subject_kind, v_status
   from public.leaderboard_seasons season
   where season.id = p_season_id;
 
@@ -1042,6 +1041,32 @@ begin
     v_viewer_subject_id := v_uid;
   else
     v_viewer_subject_id := private.active_team_for_user(v_uid);
+  end if;
+
+  if v_status = 'closed'::public.leaderboard_season_status then
+    return query
+    with viewer as (
+      select result.rank
+      from public.leaderboard_season_results result
+      where result.season_id = p_season_id
+        and result.subject_kind = v_subject_kind
+        and result.subject_id = v_viewer_subject_id
+    )
+    select
+      result.season_id,
+      result.subject_kind,
+      result.subject_id,
+      result.display_name,
+      result.score,
+      result.rank,
+      result.tie_break_at,
+      (select viewer.rank from viewer) as viewer_rank
+    from public.leaderboard_season_results result
+    where result.season_id = p_season_id
+    order by result.rank asc
+    limit v_limit
+    offset v_offset;
+    return;
   end if;
 
   return query
@@ -1058,11 +1083,11 @@ begin
     standing.subject_id,
     case
       when standing.subject_kind = 'team'::public.social_subject_kind then
-        coalesce(team_a.display_name, team_a.username, result.display_name, 'Unknown')
+        coalesce(team_a.display_name, team_a.username, 'Unknown')
         || ' + '
-        || coalesce(team_b.display_name, team_b.username, result.display_name, 'Unknown')
+        || coalesce(team_b.display_name, team_b.username, 'Unknown')
       else
-        coalesce(profile.display_name, profile.username, result.display_name, 'Unknown')
+        coalesce(profile.display_name, profile.username, 'Unknown')
     end as display_name,
     standing.score,
     standing.rank,
@@ -1077,10 +1102,6 @@ begin
     and team.id = standing.subject_id
   left join public.profiles team_a on team_a.id = team.user_a_id
   left join public.profiles team_b on team_b.id = team.user_b_id
-  left join public.leaderboard_season_results result
-    on result.season_id = standing.season_id
-    and result.subject_kind = standing.subject_kind
-    and result.subject_id = standing.subject_id
   where standing.season_id = p_season_id
   order by standing.rank asc
   limit v_limit

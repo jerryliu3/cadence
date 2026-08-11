@@ -21,8 +21,8 @@ function mapJoinRpcError(message: string) {
   if (message === "challenge_not_joinable") {
     return new RouteError(409, "challenge_not_joinable", "Challenge is not open for joining.");
   }
-  if (message === "duo_required") {
-    return new RouteError(409, "duo_required", "An active duo is required for this challenge.");
+  if (message === "team_required") {
+    return new RouteError(409, "team_required", "An active team is required for this challenge.");
   }
   if (message === "challenge_subject_not_supported") {
     return new RouteError(409, "challenge_subject_not_supported", "Challenge subject is unsupported.");
@@ -36,11 +36,8 @@ function mapLeaveRpcError(message: string) {
   if (message === "challenge_not_leaveable") {
     return new RouteError(409, "challenge_not_leaveable", "Challenge is not open for leaving.");
   }
-  if (message === "challenge_auto_enrollment") {
-    return new RouteError(409, "challenge_auto_enrollment", "Auto-enrolled challenges cannot be left.");
-  }
-  if (message === "duo_required") {
-    return new RouteError(409, "duo_required", "An active duo is required for this challenge.");
+  if (message === "team_required") {
+    return new RouteError(409, "team_required", "An active team is required for this challenge.");
   }
   return new RouteError(500, "challenge_leave_failed", "Challenge leave failed.", {
     cause: message,

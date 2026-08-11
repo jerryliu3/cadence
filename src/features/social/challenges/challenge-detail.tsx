@@ -66,7 +66,7 @@ export function ChallengeDetail({
         <CardDescription>
           {metricLabel(challenge.metric)}
           {challenge.metricTrackKey ? ` (${challenge.metricTrackKey})` : ""} · Target{" "}
-          {challenge.targetValue} · {challenge.subjectKind === "duo" ? "Duo challenge" : "Solo challenge"}
+          {challenge.targetValue} · {challenge.subjectKind === "team" ? "Team challenge" : "Solo challenge"}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3 text-sm">
@@ -82,7 +82,7 @@ export function ChallengeDetail({
             Participants: <span className="font-medium">{challenge.participantCount}</span>
           </p>
           <p>
-            {challenge.subjectKind === "duo" ? "Your duo progress" : "Your progress"}:{" "}
+            {challenge.subjectKind === "team" ? "Your team progress" : "Your progress"}:{" "}
             <span className="font-medium">{challenge.viewerProgress ?? 0}</span>
           </p>
         </div>
