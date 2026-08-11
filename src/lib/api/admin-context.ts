@@ -1,5 +1,5 @@
+import { requireAuthenticatedRouteContext } from "@/lib/api/route";
 import { createClient } from "@/lib/supabase/server";
-import { requireAuthenticatedUser } from "@/lib/api/context";
 
 export type AdminRole = "moderator" | "admin";
 
@@ -12,8 +12,9 @@ export async function requireAdminContext(
   minRole: AdminRole = "moderator"
 ): Promise<AdminContext | null> {
   const supabase = await createClient();
-  const { userId } = await requireAuthenticatedUser(supabase, {
-    message: "Sign in to continue.",
+  const { userId } = await requireAuthenticatedRouteContext({
+    supabase,
+    unauthorizedMessage: "Sign in to continue.",
   });
 
   const { data: isAdmin, error } = await supabase.rpc("is_platform_admin", {

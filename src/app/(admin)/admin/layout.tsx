@@ -1,7 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import type { ReactNode } from "react";
-import { RouteError } from "@/lib/api/errors";
 import { requireAdminContext } from "@/lib/api/admin-context";
+import { ApiRouteError } from "@/lib/api/route";
 
 export default async function AdminLayout({
   children,
@@ -14,7 +14,7 @@ export default async function AdminLayout({
       notFound();
     }
   } catch (error) {
-    if (error instanceof RouteError && error.status === 401) {
+    if (error instanceof ApiRouteError && error.status === 401) {
       redirect("/login");
     }
     throw error;
