@@ -1,6 +1,7 @@
 import { format, parse } from "date-fns";
 import type { PlannerDraftVisualKind } from "@/lib/planner/diff";
 import { getDateInTimezone } from "@/lib/dates/timezone";
+import { weekStartOptions } from "@/lib/dates/weekday-options";
 import { normalizeWeekStartsOn } from "@/lib/dates/week-start";
 import type {
   CompletionControlDisabledReason,
@@ -18,15 +19,12 @@ export function buildWeekdayLabels(weekStartsOn: number) {
   });
 }
 
-export const restWeekdayOptions: Array<{ value: number; label: string }> = [
-  { value: 0, label: "Sun" },
-  { value: 1, label: "Mon" },
-  { value: 2, label: "Tue" },
-  { value: 3, label: "Wed" },
-  { value: 4, label: "Thu" },
-  { value: 5, label: "Fri" },
-  { value: 6, label: "Sat" },
-];
+export const restWeekdayOptions: Array<{ value: number; label: string }> = weekStartOptions.map(
+  (option) => ({
+    value: option.value,
+    label: option.shortLabel,
+  })
+);
 
 export function parseMonth(month: string) {
   return parse(`${month}-01`, "yyyy-MM-dd", new Date());

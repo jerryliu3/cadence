@@ -1,9 +1,5 @@
-import { BulkGoalForm } from "@/features/today/bulk-goal-form";
+import { redirect } from "next/navigation";
 
 export default function BulkGoalPage() {
-  return (
-    <div className="mx-auto w-full max-w-5xl">
-      <BulkGoalForm />
-    </div>
-  );
+  redirect("/goals/new?mode=multi");
 }
