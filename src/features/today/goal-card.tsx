@@ -7,7 +7,7 @@ import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { GoalEndMonthBadge } from "@/features/goals/goal-end-month-badge";
-import { getCategoryBadgeClass } from "@/lib/goals/category";
+import { getCategoryBadgeClass, getGoalCategoryLabel } from "@/lib/goals/category";
 import { getNextMilestoneName } from "@/lib/goals/milestones";
 import type { GoalProgressSnapshot } from "@/lib/goals/progress";
 import {
@@ -75,6 +75,10 @@ export function GoalCard({
   const completionSourceForSelectedDate = completions.find(
     (completion) => completion.completed_on === selectedDate
   )?.source;
+  const goalCategoryLabel = getGoalCategoryLabel(
+    goal.category,
+    goal.category_key
+  );
 
   return (
     <Card className="shadow-sm">
@@ -124,8 +128,11 @@ export function GoalCard({
               />
               <h3 className="truncate text-sm font-semibold">{goal.title}</h3>
               <GoalEndMonthBadge endDate={goal.end_date} />
-              <Badge variant="outline" className={getCategoryBadgeClass(goal.category)}>
-                {goal.category}
+              <Badge
+                variant="outline"
+                className={getCategoryBadgeClass(goal.category_key ?? goal.category)}
+              >
+                {goalCategoryLabel}
               </Badge>
               {progress?.outcome === "achieved" ? (
                 <Badge variant="secondary">Achieved</Badge>

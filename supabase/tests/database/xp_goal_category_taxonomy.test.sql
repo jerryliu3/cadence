@@ -70,8 +70,8 @@ select is(
 
 update public.goals
 set
-  category = 'finance',
-  category_key = 'learning'
+  category = 'professional',
+  category_key = 'health'
 where id = 'b1400000-0000-4000-8000-000000000001';
 
 select is(
@@ -80,7 +80,7 @@ select is(
     from public.goals
     where id = 'b1400000-0000-4000-8000-000000000001'
   ),
-  'finance',
+  'career',
   'update trigger rewrites mismatched category_key to normalized category'
 );
 
@@ -95,8 +95,8 @@ select set_config('request.jwt.claim.role', 'authenticated', true);
 
 select is(
   (select count(*)::integer from public.goal_categories),
-  8,
-  'goal_categories seed contains expected v1 taxonomy keys'
+  5,
+  'goal_categories seed contains expected category keys'
 );
 
 select ok(

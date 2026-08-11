@@ -185,7 +185,10 @@ export function GoalForm({ goalId, showBackButton = true }: GoalFormProps) {
 
       if (goalResponse.data) {
         const goal = goalResponse.data as Goal;
-        const categoryState = getCategorySelectionFromValue(goal.category);
+        const categoryState = getCategorySelectionFromValue(
+          goal.category,
+          goal.category_key
+        );
         setEditingGoal(goal);
         setState({
           title: goal.title,

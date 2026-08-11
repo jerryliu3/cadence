@@ -75,14 +75,11 @@ on public.goal_categories (sort_order, key);
 
 insert into public.goal_categories (key, label, aliases, color, sort_order)
 values
-  ('personal', 'Personal', array['planning', 'productivity', 'home'], '#6366f1', 10),
-  ('relationships', 'Relationships', array['social', 'family'], '#f43f5e', 20),
-  ('health', 'Health', array['fitness', 'wellness', 'nutrition'], '#10b981', 30),
-  ('career', 'Career', array['work', 'professional'], '#8b5cf6', 40),
-  ('learning', 'Learning', array['creativity', 'education', 'study'], '#3b82f6', 50),
-  ('finance', 'Finance', array['money', 'budget'], '#ec4899', 60),
-  ('community', 'Community', array['volunteer'], '#14b8a6', 70),
-  ('other', 'Other', array[]::text[], '#64748b', 999)
+  ('health', 'Health', array['fitness', 'wellness', 'nutrition'], '#10b981', 10),
+  ('career', 'Career', array['work', 'professional', 'job', 'business'], '#8b5cf6', 20),
+  ('personal', 'Personal', array['planning', 'productivity', 'home'], '#6366f1', 30),
+  ('relationships', 'Relationships', array['social', 'family', 'friends', 'partner'], '#f43f5e', 40),
+  ('other', 'Other', array['general', 'misc', 'uncategorized', 'custom'], '#64748b', 999)
 on conflict (key)
 do update
 set
