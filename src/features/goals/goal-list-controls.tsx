@@ -17,7 +17,7 @@ import {
 import type { Goal } from "@/lib/goals/types";
 import { cn } from "@/lib/utils";
 
-const noEndMonthValue = "__no_end_month_cutoff__";
+const noEndMonthValue = "__no_end_month_filter__";
 
 interface GoalListControlsProps {
   goals: Goal[];

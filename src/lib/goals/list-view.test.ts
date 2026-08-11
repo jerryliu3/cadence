@@ -45,20 +45,20 @@ const goals = [
 ];
 
 describe("goal list view helpers", () => {
-  it("keeps every goal for a blank cutoff", () => {
+  it("keeps every goal when no end-month filter is set", () => {
     expect(filterGoalsByEndMonth(goals, null)).toEqual(goals);
   });
 
   it("keeps only goals ending inside the selected month", () => {
-    const cutoffGoals = [
+    const endMonthGoals = [
       buildGoal("before", "2026-01-01", "2026-07-01"),
-      buildGoal("on-cutoff", "2026-01-01", "2026-07-31"),
+      buildGoal("end-of-month", "2026-01-01", "2026-07-31"),
       buildGoal("after", "2026-01-01", "2026-08-01"),
       buildGoal("ongoing", "2026-01-01", null),
     ];
 
-    expect(filterGoalsByEndMonth(cutoffGoals, "2026-07").map((goal) => goal.id)).toEqual(
-      ["before", "on-cutoff"]
+    expect(filterGoalsByEndMonth(endMonthGoals, "2026-07").map((goal) => goal.id)).toEqual(
+      ["before", "end-of-month"]
     );
   });
 

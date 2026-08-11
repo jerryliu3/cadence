@@ -7,3 +7,7 @@ export const weekStartOptions = [
   { value: 5, label: "Friday", shortLabel: "Fri" },
   { value: 6, label: "Saturday", shortLabel: "Sat" },
 ] as const;
+
+export function dedupeWeekdays(weekdays: number[]) {
+  return Array.from(new Set(weekdays)).sort((left, right) => left - right);
+}
