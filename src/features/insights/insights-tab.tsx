@@ -53,7 +53,10 @@ import { computeDayPreviewPosition } from "@/features/planner/day-preview-popup"
 import { getApiErrorMessage } from "@/lib/api/client";
 import { isAbortError, withAbortSignal } from "@/lib/async/abort";
 import { resolveUserTimezone } from "@/lib/dates/timezone";
-import { getCategoryBadgeClass } from "@/lib/goals/category";
+import {
+  getCategoryBadgeClass,
+  getGoalCategoryLabel,
+} from "@/lib/goals/category";
 import {
   countCompletionsByDate,
   groupCompletionTitlesByDate,
@@ -960,6 +963,10 @@ export function InsightsTab() {
                 draftMilestoneNames,
                 persistedMilestoneNames
               );
+              const goalCategoryLabel = getGoalCategoryLabel(
+                goal.category,
+                goal.category_key
+              );
               const canRenameMilestones = isMilestone && goal.owner_id === state.userId;
               return (
                 <Card key={goal.id} className="border shadow-none">
@@ -978,9 +985,9 @@ export function InsightsTab() {
                         <div className="flex flex-wrap items-center gap-1.5">
                           <Badge
                             variant="outline"
-                            className={`w-fit ${getCategoryBadgeClass(goal.category)}`}
+                            className={`w-fit ${getCategoryBadgeClass(goal.category_key ?? goal.category)}`}
                           >
-                            {goal.category}
+                            {goalCategoryLabel}
                           </Badge>
                           <GoalEndMonthBadge endDate={goal.end_date} />
                         </div>
