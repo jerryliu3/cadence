@@ -2,7 +2,7 @@
 
 import { format } from "date-fns";
 import { LogOut } from "lucide-react";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { type ReactNode, type TouchEventHandler, useMemo, useRef, useState } from "react";
 import { TabNav } from "@/components/navigation/tab-nav";
 import { Button } from "@/components/ui/button";
@@ -14,15 +14,22 @@ interface AppShellProps {
   userEmail: string;
 }
 
-const tabOrder = ["/insights", "/", "/settings"] as const;
+const tabOrder = ["/insights", "/", "/?tab=calendar", "/settings"] as const;
 
-function getActiveTabPath(pathname: string): (typeof tabOrder)[number] {
+function getActiveTabPath(
+  pathname: string,
+  tabParam: string | null
+): (typeof tabOrder)[number] {
   if (pathname.startsWith("/insights")) {
     return "/insights";
   }
 
   if (pathname.startsWith("/settings")) {
     return "/settings";
+  }
+
+  if (pathname === "/" && tabParam === "calendar") {
+    return "/?tab=calendar";
   }
 
   return "/";
@@ -32,6 +39,7 @@ export function AppShell({ children, userEmail }: AppShellProps) {
   const supabase = useMemo(() => createClient(), []);
   const router = useRouter();
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [isSigningOut, setIsSigningOut] = useState(false);
   const swipeStartRef = useRef<{ x: number; y: number } | null>(null);
 
@@ -89,7 +97,7 @@ export function AppShell({ children, userEmail }: AppShellProps) {
       return;
     }
 
-    const currentTab = getActiveTabPath(pathname);
+    const currentTab = getActiveTabPath(pathname, searchParams.get("tab"));
     const currentIndex = tabOrder.indexOf(currentTab);
 
     if (currentIndex === -1) {
@@ -136,7 +144,7 @@ export function AppShell({ children, userEmail }: AppShellProps) {
           </div>
         </header>
 
-        <main className="pb-[calc(5rem+env(safe-area-inset-bottom))] md:pb-0">{children}</main>
+        <main className="pb-[calc(6.5rem+env(safe-area-inset-bottom))] md:pb-0">{children}</main>
       </div>
 
       <div className="md:hidden">
