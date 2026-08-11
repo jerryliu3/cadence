@@ -215,7 +215,6 @@ begin
                 )
             ) as tie_break_at
           from public.profiles profile
-          where profile.social_competition_eligible = true
         ) scored
       ) ranked;
 

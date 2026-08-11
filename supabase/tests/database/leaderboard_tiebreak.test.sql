@@ -15,19 +15,7 @@ values
   ('8d222222-2222-4222-8222-222222222222', 'leaderboard_tie_b')
 on conflict (id) do nothing;
 
-update public.profiles
-set social_competition_eligible = false
-where id not in (
-  '8d111111-1111-4111-8111-111111111111',
-  '8d222222-2222-4222-8222-222222222222'
-);
 
-update public.profiles
-set social_competition_eligible = true
-where id in (
-  '8d111111-1111-4111-8111-111111111111',
-  '8d222222-2222-4222-8222-222222222222'
-);
 
 insert into public.goals (
   id,
@@ -167,19 +155,32 @@ select is(
     select count(*)::integer
     from public.leaderboard_standings standing
     where standing.season_id = '8d400000-0000-4000-8000-000000000001'
+      and standing.subject_id in (
+        '8d111111-1111-4111-8111-111111111111',
+        '8d222222-2222-4222-8222-222222222222'
+      )
   ),
   2,
-  'refresh keeps stable row cardinality for season standings'
+  'refresh keeps both fixture subjects in season standings'
 );
 
-select is(
-  (
-    select max(rank)::integer
+select results_eq(
+  $$
+    select subject_id::text, rank
     from public.leaderboard_standings standing
     where standing.season_id = '8d400000-0000-4000-8000-000000000001'
-  ),
-  2,
-  'dense rank remains stable across consecutive refreshes'
+      and standing.subject_id in (
+        '8d111111-1111-4111-8111-111111111111',
+        '8d222222-2222-4222-8222-222222222222'
+      )
+    order by rank asc, subject_id asc
+  $$,
+  $$
+    values
+      ('8d111111-1111-4111-8111-111111111111'::text, 1),
+      ('8d222222-2222-4222-8222-222222222222'::text, 2)
+  $$,
+  'fixture subject ranks remain stable across consecutive refreshes'
 );
 
 select * from finish();
