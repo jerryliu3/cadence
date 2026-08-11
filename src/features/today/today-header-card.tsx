@@ -50,7 +50,7 @@ export function TodayHeaderCard({
               <CardDescription>{format(viewDateObj, "EEEE, MMMM d")}</CardDescription>
             </div>
           </div>
-          <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+          <div className="mt-2 w-fit max-w-full space-y-2">
             <div className="flex min-w-0 shrink-0 items-center gap-2">
               <PeriodStepper
                 onPrevious={onGoToPreviousDate}
@@ -75,8 +75,8 @@ export function TodayHeaderCard({
                 </Button>
               ) : null}
             </div>
+            {searchControls ? <div className="w-full">{searchControls}</div> : null}
           </div>
-          {searchControls ? <div className="mt-2">{searchControls}</div> : null}
           {quickFilterControls ? (
             <div className="mt-2">{quickFilterControls}</div>
           ) : null}
