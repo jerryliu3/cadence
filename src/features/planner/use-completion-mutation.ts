@@ -65,6 +65,7 @@ export function useCompletionMutation() {
             message: result.message ?? fallbackErrorMessage,
           };
         }
+        window.dispatchEvent(new CustomEvent("xp:refresh-requested"));
         return {
           ok: true,
           message: null,

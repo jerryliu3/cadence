@@ -49,6 +49,7 @@ import { toLocalDateString } from "@/lib/dates/day";
 import { resolveUserTimezone } from "@/lib/dates/timezone";
 import {
   type CategorySelection,
+  getCategoryKeyForSelection,
   getCategoryLabel,
   getCategorySelectionFromValue,
   getCategorySwatchColor,
@@ -643,6 +644,7 @@ export function BulkGoalForm({ showBackButton = true }: BulkGoalFormProps) {
             owner_id: currentUserId,
             title: draft.title.trim(),
             description: draft.description.trim() || null,
+            category_key: getCategoryKeyForSelection(draft.category_selection),
             category: getCategoryLabel(draft.category_selection, draft.custom_category),
             color: isValidHexColor(draft.color)
               ? draft.color.trim()
@@ -1116,6 +1118,7 @@ export function BulkGoalForm({ showBackButton = true }: BulkGoalFormProps) {
                           />
                         </div>
                       ) : null}
+
                     </div>
 
                     <div className="grid gap-3 sm:grid-cols-2">
@@ -1251,7 +1254,7 @@ export function BulkGoalForm({ showBackButton = true }: BulkGoalFormProps) {
                             variant="ghost"
                             className="flex h-auto w-full items-center justify-between rounded-xl px-3 py-2 text-sm"
                           >
-                            <span>Advanced settings</span>
+                            <span>Advanced settings (optional)</span>
                             {draft.advanced_open ? (
                               <ChevronUp className="size-4 text-muted-foreground" />
                             ) : (
@@ -1294,7 +1297,7 @@ export function BulkGoalForm({ showBackButton = true }: BulkGoalFormProps) {
                             </div>
 
                             <div className="space-y-2">
-                              <Label>Photo (optional)</Label>
+                              <Label>Photo</Label>
                               <Input
                                 type="file"
                                 accept="image/png,image/jpeg,image/webp"

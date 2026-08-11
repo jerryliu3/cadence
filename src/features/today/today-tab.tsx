@@ -53,6 +53,7 @@ import {
   selectCompletableGoals,
 } from "@/lib/goals/completable-goals";
 import { groupCompletionsByGoalId } from "@/lib/goals/completion-grouping";
+import { getGoalCategoryLabel } from "@/lib/goals/category";
 import { getGoalLifecycle } from "@/lib/goals/lifecycle";
 import {
   filterGoalsByEndMonth,
@@ -510,7 +511,10 @@ export function TodayTab({
   const availableCategories = useMemo(() => {
     const categories = new Set<string>();
     data.goals.forEach((goal) => {
-      const category = goal.category.trim();
+      const category = getGoalCategoryLabel(
+        goal.category,
+        goal.category_key
+      ).trim();
       if (category.length > 0) {
         categories.add(category);
       }
@@ -531,7 +535,14 @@ export function TodayTab({
   );
   const matchesTodayFacetFilters = useCallback(
     (goal: Goal) => {
-      if (categoryFilter !== allCategoriesFilterValue && goal.category !== categoryFilter) {
+      const goalCategory = getGoalCategoryLabel(
+        goal.category,
+        goal.category_key
+      );
+      if (
+        categoryFilter !== allCategoriesFilterValue &&
+        goalCategory !== categoryFilter
+      ) {
         return false;
       }
 

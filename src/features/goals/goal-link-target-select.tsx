@@ -39,7 +39,7 @@ export function GoalLinkTargetSelect({
     <div className="space-y-2">
       <Label className="inline-flex items-center gap-2">
         <Link2 className="size-4 text-muted-foreground" />
-        Link this goal to another goal (optional)
+        Link this goal to another goal
       </Label>
       <Select value={value} onValueChange={onValueChange} open={open} onOpenChange={onOpenChange}>
         <SelectTrigger>
