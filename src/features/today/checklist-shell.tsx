@@ -324,7 +324,6 @@ export function ChecklistShell() {
         initial={false}
         animate={{
           opacity: normalized.tab === "calendar" ? 1 : 0,
-          x: normalized.tab === "calendar" ? 0 : 18,
         }}
         transition={{
           duration: 0.2,

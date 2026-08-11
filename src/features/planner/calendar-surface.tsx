@@ -2530,9 +2530,9 @@ export function CalendarSurface({
                 initial={false}
                 animate={viewMode}
                 variants={{
-                  month: { opacity: [0.8, 1], x: [-10, 0] },
-                  week: { opacity: [0.8, 1], y: [6, 0] },
-                  day: { opacity: [0.8, 1], x: [10, 0] },
+                  month: { opacity: [0.8, 1] },
+                  week: { opacity: [0.8, 1] },
+                  day: { opacity: [0.8, 1] },
                 }}
                 transition={{
                   duration: 0.2,
