@@ -190,10 +190,13 @@ export function TodayTab({
   const [internalChecklistTab, setInternalChecklistTab] =
     useState<ChecklistTabValue>(activeTab ?? "today");
   const loadRequestIdRef = useRef(0);
+  const viewDateProgressRequestIdRef = useRef(0);
   const visibleLoadCountRef = useRef(0);
   const refreshTokenRef = useRef(refreshToken);
   const pendingRefreshRef = useRef(false);
   const authRedirectStartedRef = useRef(false);
+  const currentViewDateRef = useRef(viewDate);
+  const previousViewDateRef = useRef(viewDate);
   const effectiveChecklistTab = activeTab ?? internalChecklistTab;
   const runCompletionMutation = useCompletionMutation();
 
@@ -204,6 +207,10 @@ export function TodayTab({
     () => todayGoalSearchQuery.trim().toLowerCase(),
     [todayGoalSearchQuery]
   );
+
+  useEffect(() => {
+    currentViewDateRef.current = viewDate;
+  }, [viewDate]);
 
   const redirectToLogin = useCallback(() => {
     if (authRedirectStartedRef.current) {
@@ -261,11 +268,11 @@ export function TodayTab({
                 .order("created_at", { ascending: false }),
               supabase.from("goal_participants").select("*").eq("user_id", user.id),
               supabase.from("goal_links").select("*").eq("owner_id", user.id),
-              // Keep date navigation local to avoid full-section reloads when
-              // browsing previous/next days from the header date control.
+              // Keep date navigation local while still loading facts keyed to
+              // whichever date the user is currently browsing.
               fetchProgressContext({
                 asOfDate: todayLocalDate,
-                viewDate: todayLocalDate,
+                viewDate: currentViewDateRef.current,
                 forceRefresh,
               }),
             ]),
@@ -344,6 +351,45 @@ export function TodayTab({
 
     void run();
   }, [loadData, redirectToLogin]);
+
+  useEffect(() => {
+    if (!isActive || previousViewDateRef.current === viewDate) {
+      return;
+    }
+    previousViewDateRef.current = viewDate;
+    const requestId = viewDateProgressRequestIdRef.current + 1;
+    viewDateProgressRequestIdRef.current = requestId;
+    const timer = window.setTimeout(() => {
+      void fetchProgressContext({
+        asOfDate: todayLocalDate,
+        viewDate,
+      })
+        .then((progress) => {
+          if (requestId !== viewDateProgressRequestIdRef.current) {
+            return;
+          }
+          setData((previous) => ({
+            ...previous,
+            completions: progress.facts,
+            progress,
+          }));
+        })
+        .catch((error: unknown) => {
+          if (isProgressContextAuthenticationError(error)) {
+            redirectToLogin();
+            return;
+          }
+          toast.error(
+            isAbortError(error)
+              ? "Today goals request timed out. Please try again."
+              : error instanceof Error
+                ? error.message
+                : "Goal progress could not be loaded."
+          );
+        });
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [isActive, redirectToLogin, todayLocalDate, viewDate]);
 
   useEffect(() => {
     if (refreshToken === refreshTokenRef.current) {

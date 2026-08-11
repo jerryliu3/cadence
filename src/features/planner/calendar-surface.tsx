@@ -84,6 +84,7 @@ import {
   isValidIanaTimezone,
   resolveUserTimezone,
 } from "@/lib/dates/timezone";
+import { buildTimezoneOptions } from "@/lib/dates/timezone-options";
 import {
   getApiErrorMessage,
   isApiClientError,
@@ -204,23 +205,10 @@ export function CalendarSurface({
   const pointerInsideDayPreviewRef = useRef(false);
   const dayPreviewRef = useRef<HTMLDivElement | null>(null);
 
-  const timezoneOptions = useMemo(() => {
-    const intlWithSupportedValues = Intl as typeof Intl & {
-      supportedValuesOf?: (key: string) => string[];
-    };
-    const supportedTimezones =
-      typeof intlWithSupportedValues.supportedValuesOf === "function"
-        ? intlWithSupportedValues.supportedValuesOf("timeZone")
-        : [];
-    const detectedTimezone = resolveUserTimezone();
-    return Array.from(
-      new Set(
-        [setupTimezone, detectedTimezone, "UTC", ...supportedTimezones].filter(
-          (timezone): timezone is string => Boolean(timezone)
-        )
-      )
-    ).sort((left, right) => left.localeCompare(right));
-  }, [setupTimezone]);
+  const timezoneOptions = useMemo(
+    () => buildTimezoneOptions(setupTimezone),
+    [setupTimezone]
+  );
 
   const loadContext = useCallback(
     async ({

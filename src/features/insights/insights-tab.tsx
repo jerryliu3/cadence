@@ -48,6 +48,7 @@ import { GoalEndMonthBadge } from "@/features/goals/goal-end-month-badge";
 import { MilestonePills } from "@/features/goals/milestone-pills";
 import { GoalListControls } from "@/features/goals/goal-list-controls";
 import { MonthHeatmap } from "@/features/insights/month-heatmap";
+import { CalendarDayPreviewList } from "@/features/planner/calendar-day-preview-list";
 import { computeDayPreviewPosition } from "@/features/planner/day-preview-popup";
 import { getApiErrorMessage } from "@/lib/api/client";
 import { isAbortError, withAbortSignal } from "@/lib/async/abort";
@@ -55,6 +56,7 @@ import { resolveUserTimezone } from "@/lib/dates/timezone";
 import { getCategoryBadgeClass } from "@/lib/goals/category";
 import {
   countCompletionsByDate,
+  groupCompletionTitlesByDate,
   getSortedCompletionDates,
   groupCompletionsByGoalId,
 } from "@/lib/goals/completion-grouping";
@@ -141,6 +143,12 @@ function getCompletionCountLabel(goal: Goal, completionCount: number): string {
   }
 
   return `${completionCount} completion${completionCount === 1 ? "" : "s"}`;
+}
+
+interface AggregateDrilldownCompletionMarker {
+  key: string;
+  goalTitle: string;
+  scheduledDate: string | null;
 }
 
 export function InsightsTab() {
@@ -327,23 +335,10 @@ export function InsightsTab() {
       ),
     [personalGoals]
   );
-  const aggregateCompletionItemsByDate = useMemo(() => {
-    const grouped: Record<string, string[]> = {};
-    for (const completion of personalCompletions) {
-      const title = goalTitleById.get(completion.goal_id);
-      if (!title) {
-        continue;
-      }
-      grouped[completion.completed_on] = [
-        ...(grouped[completion.completed_on] ?? []),
-        title,
-      ];
-    }
-    for (const date of Object.keys(grouped)) {
-      grouped[date] = grouped[date].sort((left, right) => left.localeCompare(right));
-    }
-    return grouped;
-  }, [goalTitleById, personalCompletions]);
+  const aggregateCompletionItemsByDate = useMemo(
+    () => groupCompletionTitlesByDate(personalCompletions, goalTitleById),
+    [goalTitleById, personalCompletions]
+  );
 
   const aggregateHeatmapData = useMemo(() => {
     return eachDayOfInterval({
@@ -700,6 +695,15 @@ export function InsightsTab() {
         ? aggregateCompletionItemsByDate[aggregateDrilldownDate] ?? []
         : [],
     [aggregateCompletionItemsByDate, aggregateDrilldownDate]
+  );
+  const aggregateDrilldownMarkers = useMemo<AggregateDrilldownCompletionMarker[]>(
+    () =>
+      aggregateDrilldownItems.map((title, index) => ({
+        key: `${aggregateDrilldownDate ?? "none"}-${title}-${index}`,
+        goalTitle: title,
+        scheduledDate: aggregateDrilldownDate,
+      })),
+    [aggregateDrilldownDate, aggregateDrilldownItems]
   );
   const clearAggregateDrilldown = useCallback(() => {
     setAggregateDrilldownDate(null);
@@ -1264,14 +1268,25 @@ export function InsightsTab() {
                 No completed items on this date.
               </p>
             ) : (
-              aggregateDrilldownItems.map((title, index) => (
-                <div
-                  key={`${aggregateDrilldownDate}-${title}-${index}`}
-                  className="rounded-sm border bg-muted/20 px-3 py-2 text-sm"
-                >
-                  {title}
-                </div>
-              ))
+              <CalendarDayPreviewList
+                day={aggregateDrilldownDate}
+                entries={[]}
+                completionFactMarkers={aggregateDrilldownMarkers}
+                mutationLoading={false}
+                getEntryDisplayTitle={() => ""}
+                getEntrySubtitle={() => null}
+                isEntryCredited={() => false}
+                isEntryImmovableForDraft={() => true}
+                getCompletionToggleState={() => ({
+                  currentlyCredited: false,
+                  disabledReasonCopy: "Read-only completion history.",
+                })}
+                onEntryOpen={() => undefined}
+                onToggleCompletion={() => undefined}
+                onEntryPointerStart={() => undefined}
+                onEntryPointerEnd={() => undefined}
+                density="expanded"
+              />
             )}
           </div>
         </AnchoredPopupCard>
@@ -1309,14 +1324,25 @@ export function InsightsTab() {
                   No completed items on this date.
                 </p>
               ) : (
-                aggregateDrilldownItems.map((title, index) => (
-                  <div
-                    key={`${aggregateDrilldownDate}-${title}-${index}`}
-                    className="rounded-md border bg-muted/20 px-3 py-2 text-sm"
-                  >
-                    {title}
-                  </div>
-                ))
+                <CalendarDayPreviewList
+                  day={aggregateDrilldownDate}
+                  entries={[]}
+                  completionFactMarkers={aggregateDrilldownMarkers}
+                  mutationLoading={false}
+                  getEntryDisplayTitle={() => ""}
+                  getEntrySubtitle={() => null}
+                  isEntryCredited={() => false}
+                  isEntryImmovableForDraft={() => true}
+                  getCompletionToggleState={() => ({
+                    currentlyCredited: false,
+                    disabledReasonCopy: "Read-only completion history.",
+                  })}
+                  onEntryOpen={() => undefined}
+                  onToggleCompletion={() => undefined}
+                  onEntryPointerStart={() => undefined}
+                  onEntryPointerEnd={() => undefined}
+                  density="expanded"
+                />
               )}
             </div>
           ) : null}
