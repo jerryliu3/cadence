@@ -28,7 +28,6 @@ create table if not exists public.teams (
   visibility_acknowledged_at timestamptz,
   invited_at timestamptz not null default pg_catalog.now(),
   accepted_at timestamptz,
-  responded_at timestamptz,
   dissolved_at timestamptz,
   created_at timestamptz not null default pg_catalog.now(),
   updated_at timestamptz not null default pg_catalog.now(),
@@ -55,37 +54,6 @@ drop trigger if exists set_teams_updated_at on public.teams;
 create trigger set_teams_updated_at
 before update on public.teams
 for each row execute function public.set_updated_at();
-
-create or replace function private.ensure_single_active_team()
-returns trigger
-language plpgsql
-set search_path = ''
-as $$
-begin
-  if new.status <> 'active'::public.team_status then
-    return new;
-  end if;
-
-  if exists (
-    select 1
-    from public.teams team
-    where team.id <> coalesce(new.id, '00000000-0000-0000-0000-000000000000'::uuid)
-      and team.status = 'active'::public.team_status
-      and (new.user_a_id in (team.user_a_id, team.user_b_id)
-        or new.user_b_id in (team.user_a_id, team.user_b_id))
-  ) then
-    raise exception using errcode = '23514', message = 'team_already_active';
-  end if;
-
-  return new;
-end;
-$$;
-
-drop trigger if exists ensure_single_active_team_trigger on public.teams;
-create trigger ensure_single_active_team_trigger
-before insert or update on public.teams
-for each row
-execute function private.ensure_single_active_team();
 
 create table if not exists public.partner_profile_fields (
   field text primary key,
@@ -356,12 +324,21 @@ begin
   set
     status = 'active'::public.team_status,
     accepted_at = pg_catalog.now(),
-    responded_at = pg_catalog.now(),
     visibility_acknowledged_at = pg_catalog.now()
   where team.id = p_team_id
     and team.status = 'pending'::public.team_status
     and team.initiator_id <> v_uid
     and v_uid in (team.user_a_id, team.user_b_id)
+    and not exists (
+      select 1
+      from public.teams active_team
+      where active_team.id <> team.id
+        and active_team.status = 'active'::public.team_status
+        and (
+          team.user_a_id in (active_team.user_a_id, active_team.user_b_id)
+          or team.user_b_id in (active_team.user_a_id, active_team.user_b_id)
+        )
+    )
   returning case when team.user_a_id = v_uid then team.user_b_id else team.user_a_id end
   into v_partner_id;
 
@@ -416,8 +393,7 @@ begin
 
   update public.teams team
   set
-    status = 'closed'::public.team_status,
-    responded_at = pg_catalog.now()
+    status = 'closed'::public.team_status
   where team.id = p_team_id
     and team.status = 'pending'::public.team_status
     and team.initiator_id <> v_uid
@@ -443,8 +419,7 @@ begin
   update public.teams team
   set
     status = 'closed'::public.team_status,
-    dissolved_at = pg_catalog.now(),
-    responded_at = pg_catalog.now()
+    dissolved_at = pg_catalog.now()
   where team.status = 'active'::public.team_status
     and v_uid in (team.user_a_id, team.user_b_id);
 
@@ -474,8 +449,6 @@ revoke all on table public.partner_profile_fields from public, anon, authenticat
 grant select, insert, update, delete on table public.teams to service_role;
 grant select, insert, update, delete on table public.partner_profile_fields to service_role;
 
-revoke all on function private.ensure_single_active_team()
-  from public, anon, authenticated;
 revoke all on function private.is_active_team_pair(uuid, uuid)
   from public, anon, authenticated;
 
