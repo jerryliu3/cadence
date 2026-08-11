@@ -29,8 +29,6 @@ const MAX_PROVIDER_ATTEMPTS = 2;
 const BULK_PARSER_RATE_LIMIT_PER_MINUTE = 20;
 const localTimePattern = /^([01]\d|2[0-3]):[0-5]\d$/;
 const INVALID_ARGUMENT_PROVIDER_RE = /\(400\)|INVALID_ARGUMENT/i;
-const CATEGORY_KEYS = DEFAULT_GOAL_CATEGORIES.map((category) => category.key);
-const CATEGORY_KEY_SET = new Set(CATEGORY_KEYS);
 
 const requestSchema = z.object({
   prompt: z.string().trim().min(1).max(8000),
@@ -42,62 +40,82 @@ const requestSchema = z.object({
     .refine(isValidIanaTimezone, "Provide a valid IANA timezone."),
 });
 
-const generatedGoalSchema = z.object({
-  title: z.string().trim().min(1).max(200),
-  description: z.string().trim().max(2_000).optional(),
-  category: z.string().trim().min(1).max(80).optional(),
-  category_key: z
-    .string()
-    .trim()
-    .refine((value) => CATEGORY_KEY_SET.has(value), "category_key must be known")
-    .optional(),
-  frequency_type: z.enum(["recurring", "fixed_milestones"]).optional(),
-  recurrence_interval: z.enum(["daily", "weekly", "monthly"]).optional(),
-  target_count: z.number().int().positive().nullable().optional(),
-  start_date: z.string().optional(),
-  end_date: z.string().nullable().optional(),
-  default_local_time: z.string().nullable().optional(),
-});
+type GeneratedGoal = {
+  title: string;
+  description?: string;
+  category?: string;
+  category_key?: string;
+  frequency_type?: "recurring" | "fixed_milestones";
+  recurrence_interval?: "daily" | "weekly" | "monthly";
+  target_count?: number | null;
+  start_date?: string;
+  end_date?: string | null;
+  default_local_time?: string | null;
+};
 
-const generatedPayloadSchema = z.object({
-  goals: z.array(generatedGoalSchema).max(MAX_GOALS_PER_REQUEST),
-});
+type GeneratedPayload = {
+  goals: GeneratedGoal[];
+};
 
-const bulkGoalResponseSchema = {
-  type: "object",
-  properties: {
-    goals: {
-      type: "array",
-      maxItems: MAX_GOALS_PER_REQUEST,
-      items: {
-        type: "object",
-        properties: {
-          title: { type: "string" },
-          description: { type: "string" },
-          category: { type: "string" },
-          category_key: {
-            type: "string",
-            enum: CATEGORY_KEYS,
+function buildGeneratedPayloadSchema(categoryKeySet: Set<string>) {
+  const generatedGoalSchema = z.object({
+    title: z.string().trim().min(1).max(200),
+    description: z.string().trim().max(2_000).optional(),
+    category: z.string().trim().min(1).max(80).optional(),
+    category_key: z
+      .string()
+      .trim()
+      .refine((value) => categoryKeySet.has(value), "category_key must be known")
+      .optional(),
+    frequency_type: z.enum(["recurring", "fixed_milestones"]).optional(),
+    recurrence_interval: z.enum(["daily", "weekly", "monthly"]).optional(),
+    target_count: z.number().int().positive().nullable().optional(),
+    start_date: z.string().optional(),
+    end_date: z.string().nullable().optional(),
+    default_local_time: z.string().nullable().optional(),
+  });
+  return z.object({
+    goals: z.array(generatedGoalSchema).max(MAX_GOALS_PER_REQUEST),
+  });
+}
+
+function buildBulkGoalResponseSchema(categoryKeys: string[]) {
+  return {
+    type: "object",
+    properties: {
+      goals: {
+        type: "array",
+        maxItems: MAX_GOALS_PER_REQUEST,
+        items: {
+          type: "object",
+          properties: {
+            title: { type: "string" },
+            description: { type: "string" },
+            category: { type: "string" },
+            category_key: {
+              type: "string",
+              enum: categoryKeys,
+            },
+            frequency_type: {
+              type: "string",
+              enum: ["recurring", "fixed_milestones"],
+            },
+            recurrence_interval: {
+              type: "string",
+              enum: ["daily", "weekly", "monthly"],
+            },
+            target_count: { type: "number" },
+            start_date: { type: "string" },
+            end_date: { type: "string" },
+            default_local_time: { type: "string" },
           },
-          frequency_type: {
-            type: "string",
-            enum: ["recurring", "fixed_milestones"],
-          },
-          recurrence_interval: {
-            type: "string",
-            enum: ["daily", "weekly", "monthly"],
-          },
-          target_count: { type: "number" },
-          start_date: { type: "string" },
-          end_date: { type: "string" },
-          default_local_time: { type: "string" },
+          required: ["title"],
         },
-        required: ["title"],
       },
     },
-  },
-  required: ["goals"],
-} as const;
+    required: ["goals"],
+  } as const;
+}
 
 function toIsoDate(value: string | undefined): string | undefined {
   if (!value) {
@@ -110,7 +128,7 @@ function toIsoDate(value: string | undefined): string | undefined {
   return z.iso.date().safeParse(trimmed).success ? trimmed : undefined;
 }
 
-function buildPrompt(userPrompt: string, today: string): string {
+function buildPrompt(userPrompt: string, today: string, categoryKeys: string[]): string {
   return [
     "Convert the following user text into goal drafts.",
     "Return only JSON with no markdown fences and no extra prose.",
@@ -119,7 +137,7 @@ function buildPrompt(userPrompt: string, today: string): string {
     '- "title" (required string)',
     '- "description" (optional string)',
     '- "category" (string, prefer Personal/Relationships/Health; otherwise custom)',
-    `- "category_key" (${CATEGORY_KEYS.join(" | ")})`,
+    `- "category_key" (${categoryKeys.join(" | ")})`,
     '- "frequency_type" ("recurring" | "fixed_milestones")',
     '- "recurrence_interval" ("daily" | "weekly" | "monthly", only for recurring)',
     '- "target_count" (positive integer or null)',
@@ -157,8 +175,9 @@ function normalizeLocalTime(value: string | null | undefined): string | null {
 }
 
 function normalizeGeneratedPayload(
-  payload: z.infer<typeof generatedPayloadSchema>,
-  today: string
+  payload: GeneratedPayload,
+  today: string,
+  categoryCatalog: typeof DEFAULT_GOAL_CATEGORIES
 ) {
   const warnings: string[] = [];
   const goals = payload.goals.map((goal, index) => {
@@ -175,7 +194,7 @@ function normalizeGeneratedPayload(
       category: goal.category?.trim() ?? "Personal",
       category_key: goal.category_key
         ? goal.category_key
-        : resolveCategoryKey(goal.category?.trim() ?? "Personal"),
+        : resolveCategoryKey(goal.category?.trim() ?? "Personal", categoryCatalog),
       frequency_type: frequency,
       recurrence_interval: recurrence,
       target_count: goal.target_count ?? null,
@@ -204,6 +223,24 @@ function shouldRetryWithoutResponseSchema(error: GeminiRequestError) {
     return false;
   }
   return INVALID_ARGUMENT_PROVIDER_RE.test(error.message);
+}
+
+async function readCategoryCatalog(supabase: Awaited<ReturnType<typeof createClient>>) {
+  const fallback = DEFAULT_GOAL_CATEGORIES;
+  const { data, error } = await supabase
+    .from("goal_categories")
+    .select("*")
+    .order("sort_order", { ascending: true });
+  if (error || !Array.isArray(data) || data.length === 0) {
+    return fallback;
+  }
+  return data.map((category) => ({
+    key: category.key,
+    label: category.label,
+    aliases: category.aliases ?? [],
+    color: category.color,
+    sortOrder: category.sort_order,
+  }));
 }
 
 export async function POST(request: Request) {
@@ -283,6 +320,12 @@ export async function POST(request: Request) {
       );
     }
 
+    const categoryCatalog = await readCategoryCatalog(supabase);
+    const categoryKeys = categoryCatalog.map((category) => category.key);
+    const categoryKeySet = new Set(categoryKeys);
+    const generatedPayloadSchema = buildGeneratedPayloadSchema(categoryKeySet);
+    const responseSchema = buildBulkGoalResponseSchema(categoryKeys);
+
     const today = getDateInTimezone(new Date(), parsedRequest.timezone);
     const estimatedInputTokens = Math.max(
       1,
@@ -320,7 +363,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const prompt = buildPrompt(parsedRequest.prompt, today);
+    const prompt = buildPrompt(parsedRequest.prompt, today, categoryKeys);
     let candidateJson: unknown;
     try {
       let result: Awaited<ReturnType<typeof generateGeminiJson>>;
@@ -328,7 +371,7 @@ export async function POST(request: Request) {
         result = await generateGeminiJson({
           apiKey,
           prompt,
-          responseSchema: bulkGoalResponseSchema as unknown as Record<string, unknown>,
+          responseSchema: responseSchema as unknown as Record<string, unknown>,
           maxResponseBytes: MAX_PROVIDER_RESPONSE_BYTES,
           totalTimeoutMs: PROVIDER_TIMEOUT_MS,
           maxAttempts: MAX_PROVIDER_ATTEMPTS,
@@ -398,7 +441,7 @@ export async function POST(request: Request) {
     }
 
     const responsePayload = {
-      ...normalizeGeneratedPayload(validatedPayload.data, today),
+      ...normalizeGeneratedPayload(validatedPayload.data, today, categoryCatalog),
       correlationId,
     };
 
