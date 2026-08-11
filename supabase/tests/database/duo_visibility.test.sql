@@ -44,7 +44,7 @@ insert into public.goals (
   start_date,
   end_date,
   is_group,
-  partner_visibility
+  group_visibility
 )
 values
   (

@@ -1,8 +1,13 @@
+import {
+  ApiRouteError,
+  apiErrorResponse,
+  createCorrelationId,
+  parseJsonBody,
+} from "@/lib/api/route";
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { parseBoundedJsonBody } from "@/lib/api/body";
-import { createCorrelationId } from "@/lib/api/context";
-import { RouteError, routeErrorResponse, unknownRouteErrorResponse } from "@/lib/api/errors";
+import { runAfterResponse } from "@/lib/api/after";
+import { flushNotificationOutbox } from "@/lib/push/outbox";
 import { requireSocialRouteContext } from "@/lib/social/api";
 import { createClient } from "@/lib/supabase/server";
 
@@ -20,22 +25,21 @@ export async function POST(
   const correlationId = createCorrelationId();
   try {
     const params = paramsSchema.parse(await context.params);
-    const body = await parseBoundedJsonBody(request, 8 * 1024, requestSchema);
+    const body = await parseJsonBody({ request: request, maxBytes: 8 * 1024, schema: requestSchema });
     const supabase = await createClient();
-    const socialContext = await requireSocialRouteContext({
-      supabase,
-      requireDuo: true,
-    });
+    const socialContext = await requireSocialRouteContext({ supabase });
 
     const { data, error } = await socialContext.supabase.rpc("accept_duo_invite_service", {
       p_duo_id: params.duoId,
       p_visibility_acknowledged: body.visibilityAcknowledged,
     });
     if (error) {
-      throw new RouteError(500, "duo_accept_failed", "Could not accept duo invite.", {
+      throw new ApiRouteError(500, "duo_accept_failed", "Could not accept duo invite.", {
         cause: error.message,
       });
     }
+
+    runAfterResponse(() => flushNotificationOutbox({ limit: 20 }));
 
     return NextResponse.json(
       {
@@ -46,20 +50,18 @@ export async function POST(
       { headers: { "Cache-Control": "no-store" } }
     );
   } catch (error) {
-    if (error instanceof RouteError) {
-      return routeErrorResponse(error, correlationId);
+    if (error instanceof ApiRouteError) {
+      return apiErrorResponse(error, correlationId);
     }
     if (error instanceof z.ZodError) {
-      return routeErrorResponse(
-        new RouteError(400, "validation_failed", "Request payload failed validation.", {
+      return apiErrorResponse(
+        new ApiRouteError(400, "validation_failed", "Request payload failed validation.", {
           issues: error.issues,
         }),
         correlationId
       );
     }
-    return unknownRouteErrorResponse({
-      correlationId,
-      message: "Duo accept request failed unexpectedly.",
-    });
+    return apiErrorResponse(new ApiRouteError(500, "internal_error", "Duo accept request failed unexpectedly.",
+    ), correlationId);
   }
 }

@@ -1,7 +1,10 @@
+import {
+  ApiRouteError,
+  apiErrorResponse,
+  createCorrelationId,
+} from "@/lib/api/route";
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { createCorrelationId } from "@/lib/api/context";
-import { RouteError, routeErrorResponse, unknownRouteErrorResponse } from "@/lib/api/errors";
 import { requireSocialRouteContext } from "@/lib/social/api";
 import { createClient } from "@/lib/supabase/server";
 
@@ -17,16 +20,13 @@ export async function POST(
   try {
     const params = paramsSchema.parse(await context.params);
     const supabase = await createClient();
-    const socialContext = await requireSocialRouteContext({
-      supabase,
-      requireDuo: true,
-    });
+    const socialContext = await requireSocialRouteContext({ supabase });
 
     const { data, error } = await socialContext.supabase.rpc("decline_duo_invite_service", {
       p_duo_id: params.duoId,
     });
     if (error) {
-      throw new RouteError(500, "duo_decline_failed", "Could not decline duo invite.", {
+      throw new ApiRouteError(500, "duo_decline_failed", "Could not decline duo invite.", {
         cause: error.message,
       });
     }
@@ -40,20 +40,18 @@ export async function POST(
       { headers: { "Cache-Control": "no-store" } }
     );
   } catch (error) {
-    if (error instanceof RouteError) {
-      return routeErrorResponse(error, correlationId);
+    if (error instanceof ApiRouteError) {
+      return apiErrorResponse(error, correlationId);
     }
     if (error instanceof z.ZodError) {
-      return routeErrorResponse(
-        new RouteError(400, "invalid_duo_id", "Duo id is invalid.", {
+      return apiErrorResponse(
+        new ApiRouteError(400, "invalid_duo_id", "Duo id is invalid.", {
           issues: error.issues,
         }),
         correlationId
       );
     }
-    return unknownRouteErrorResponse({
-      correlationId,
-      message: "Duo decline request failed unexpectedly.",
-    });
+    return apiErrorResponse(new ApiRouteError(500, "internal_error", "Duo decline request failed unexpectedly.",
+    ), correlationId);
   }
 }

@@ -150,7 +150,7 @@ as $$
         or participant.user_id is not null
         or share.shared_with is not null
         or (
-          goal.partner_visibility = 'shared'::public.goal_partner_visibility
+          goal.group_visibility = 'shared'::public.goal_group_visibility
           and private.is_active_duo_pair(goal.owner_id, p_uid)
         )
       )
