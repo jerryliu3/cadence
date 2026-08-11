@@ -87,7 +87,7 @@ export type TeamStatus =
   | "pending"
   | "active"
   | "closed";
-  | "closed";
+
 
 
 
