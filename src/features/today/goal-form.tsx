@@ -91,7 +91,7 @@ interface GoalFormState {
   default_local_time: string;
   is_group: boolean;
   feed_visibility: "private" | "title_public";
-  partner_visibility: "shared" | "excluded";
+  group_visibility: "shared" | "excluded";
 }
 
 const defaultState: GoalFormState = {
@@ -110,7 +110,7 @@ const defaultState: GoalFormState = {
   default_local_time: "",
   is_group: false,
   feed_visibility: "private",
-  partner_visibility: "shared",
+  group_visibility: "shared",
 };
 
 const localTimePattern = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -224,7 +224,7 @@ export function GoalForm({ goalId, showBackButton = true }: GoalFormProps) {
           default_local_time: goal.default_local_time ?? "",
           is_group: goal.is_group,
           feed_visibility: goal.feed_visibility ?? "private",
-          partner_visibility: goal.partner_visibility ?? "shared",
+          group_visibility: goal.group_visibility ?? "shared",
         });
 
         const existingLinks = (linksResponse.data ?? []) as GoalLink[];
@@ -445,7 +445,7 @@ export function GoalForm({ goalId, showBackButton = true }: GoalFormProps) {
       default_local_time: state.default_local_time.trim() || null,
       is_group: state.is_group,
       feed_visibility: state.feed_visibility,
-      partner_visibility: state.partner_visibility,
+      group_visibility: state.group_visibility,
     };
 
     const savedGoalId = goalId ?? crypto.randomUUID();
@@ -946,19 +946,19 @@ export function GoalForm({ goalId, showBackButton = true }: GoalFormProps) {
                       </Select>
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="goal-partner-visibility">Partner visibility</Label>
+                      <Label htmlFor="goal-group-visibility">Group visibility</Label>
                       <Select
-                        value={state.partner_visibility}
+                        value={state.group_visibility}
                         onValueChange={(value: "shared" | "excluded") =>
-                          setState((prev) => ({ ...prev, partner_visibility: value }))
+                          setState((prev) => ({ ...prev, group_visibility: value }))
                         }
                       >
-                        <SelectTrigger id="goal-partner-visibility">
+                        <SelectTrigger id="goal-group-visibility">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="shared">Shared with partner</SelectItem>
-                          <SelectItem value="excluded">Hidden from partner</SelectItem>
+                          <SelectItem value="shared">Shared with group</SelectItem>
+                          <SelectItem value="excluded">Hidden from group</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>

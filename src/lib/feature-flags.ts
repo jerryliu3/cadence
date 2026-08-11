@@ -17,6 +17,11 @@ export interface FeatureFlags {
    * Default: off until XP rollout is explicitly enabled.
    */
   xpEnabled: boolean;
+  /**
+   * Social surfaces (feed, challenges, leaderboards, duo) and social APIs.
+   * Default: off until social rollout is explicitly enabled.
+   */
+  socialEnabled: boolean;
 }
 
 export function getFeatureFlags(): FeatureFlags {
@@ -24,6 +29,7 @@ export function getFeatureFlags(): FeatureFlags {
   return {
     crossMonthMovesEnabled: env.FEATURE_CROSS_MONTH_MOVES,
     xpEnabled: env.XP_ENABLED,
+    socialEnabled: env.SOCIAL_ENABLED,
   };
 }
 

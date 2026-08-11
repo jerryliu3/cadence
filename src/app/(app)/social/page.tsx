@@ -1,16 +1,14 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { getSocialCapabilities } from "@/lib/social/capabilities";
+import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { isFeatureEnabled } from "@/lib/feature-flags";
 
 export default function SocialPage() {
-  const capabilities = getSocialCapabilities();
-
-  if (!capabilities.socialEnabled) {
+  if (!isFeatureEnabled("socialEnabled")) {
     return (
       <Card className="shadow-sm">
         <CardHeader>
           <CardTitle>Social is not enabled yet</CardTitle>
           <CardDescription>
-            Social surfaces are currently staged behind feature flags.
+            Social surfaces are staged behind `SOCIAL_ENABLED`.
           </CardDescription>
         </CardHeader>
       </Card>
@@ -20,17 +18,11 @@ export default function SocialPage() {
   return (
     <Card className="shadow-sm">
       <CardHeader>
-        <CardTitle>Social feed is rolling out</CardTitle>
+        <CardTitle>Social</CardTitle>
         <CardDescription>
-          Feed, challenges, leaderboards, and duo surfaces will appear as each
-          phase is enabled.
+          Social surfaces will appear here as they ship.
         </CardDescription>
       </CardHeader>
-      <CardContent className="text-sm text-muted-foreground">
-        Turn on `SOCIAL_FEED_ENABLED`, `SOCIAL_CHALLENGES_ENABLED`,
-        `SOCIAL_LEADERBOARDS_ENABLED`, and `SOCIAL_DUO_ENABLED` as each surface
-        is ready.
-      </CardContent>
     </Card>
   );
 }
