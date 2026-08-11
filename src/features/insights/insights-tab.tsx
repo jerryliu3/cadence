@@ -701,21 +701,16 @@ export function InsightsTab() {
         : [],
     [aggregateCompletionItemsByDate, aggregateDrilldownDate]
   );
-
-  useEffect(() => {
-    if (!aggregateDrilldownDate) {
-      setAggregateDrilldownExpanded(false);
-      setAggregateDrilldownPosition(null);
-    }
-  }, [aggregateDrilldownDate]);
+  const clearAggregateDrilldown = useCallback(() => {
+    setAggregateDrilldownDate(null);
+    setAggregateDrilldownExpanded(false);
+    setAggregateDrilldownPosition(null);
+  }, []);
 
   useOutsidePointerDismiss({
     enabled: aggregateDrilldownDate !== null && !aggregateDrilldownExpanded,
     containerRef: aggregateDrilldownRef,
-    onDismiss: () => {
-      setAggregateDrilldownDate(null);
-      setAggregateDrilldownPosition(null);
-    },
+    onDismiss: clearAggregateDrilldown,
   });
 
   if (loading) {
@@ -1251,10 +1246,7 @@ export function InsightsTab() {
                 variant="ghost"
                 size="sm"
                 className="h-6 px-2 text-xs"
-                onClick={() => {
-                  setAggregateDrilldownDate(null);
-                  setAggregateDrilldownPosition(null);
-                }}
+                onClick={clearAggregateDrilldown}
                 aria-label="Close drilldown"
               >
                 <X className="size-3" />
