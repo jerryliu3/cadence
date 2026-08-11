@@ -4,6 +4,7 @@ import type {
 } from "@/lib/planner/solver/types";
 import { getSolverUnitId } from "@/lib/planner/solver/types";
 import type { PlannerWorkUnit } from "@/lib/planner/work-units";
+import { compareDateStrings } from "@/lib/goals/periods";
 import { dateIsInWindow } from "@/lib/planner/dates";
 
 export interface SolverValidationResult {
@@ -153,7 +154,14 @@ export function validateMergedWorkUnitAssignments(
       (!unit.placementWindow ||
         !dateIsInWindow(unit.scheduledDate, unit.placementWindow))
     ) {
-      violations.add("date_outside_placement_window");
+      // Dates before the active window are retained past placements (asOfDate
+      // moved forward), not newly assigned out-of-window dates.
+      const retainedBeforeWindow =
+        unit.placementWindow !== null &&
+        compareDateStrings(unit.scheduledDate, unit.placementWindow.start) < 0;
+      if (!retainedBeforeWindow) {
+        violations.add("date_outside_placement_window");
+      }
     }
   }
 
