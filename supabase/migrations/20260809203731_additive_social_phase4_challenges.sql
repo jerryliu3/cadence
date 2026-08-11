@@ -37,15 +37,6 @@ begin
     select 1
     from pg_type
     where typnamespace = 'public'::regnamespace
-      and typname = 'challenge_enrollment'
-  ) then
-    create type public.challenge_enrollment as enum ('auto', 'opt_in');
-  end if;
-
-  if not exists (
-    select 1
-    from pg_type
-    where typnamespace = 'public'::regnamespace
       and typname = 'social_subject_kind'
   ) then
     create type public.social_subject_kind as enum ('user', 'team');
@@ -59,7 +50,6 @@ create table if not exists public.challenges (
   title text not null,
   description text,
   status public.challenge_status not null default 'draft',
-  enrollment public.challenge_enrollment not null default 'opt_in',
   subject_kind public.social_subject_kind not null default 'user',
   metric public.challenge_metric not null,
   metric_track_key text references public.goal_categories(key) on update cascade,
@@ -434,8 +424,6 @@ begin
     from public.challenges challenge
     where challenge.status = 'active'::public.challenge_status
   loop
-    -- enrollment='auto' is retained for admin semantics but does not
-    -- bulk-insert every profile; join remains opt-in via join_challenge_service.
 
     for r_participant in
       select participant.subject_id
@@ -473,7 +461,6 @@ returns table (
   title text,
   description text,
   status public.challenge_status,
-  enrollment public.challenge_enrollment,
   subject_kind public.social_subject_kind,
   metric public.challenge_metric,
   metric_track_key text,
@@ -514,7 +501,6 @@ begin
     challenge.title,
     challenge.description,
     challenge.status,
-    challenge.enrollment,
     challenge.subject_kind,
     challenge.metric,
     challenge.metric_track_key,
@@ -559,7 +545,6 @@ returns table (
   title text,
   description text,
   status public.challenge_status,
-  enrollment public.challenge_enrollment,
   subject_kind public.social_subject_kind,
   metric public.challenge_metric,
   metric_track_key text,
@@ -603,7 +588,6 @@ begin
     challenge.title,
     challenge.description,
     challenge.status,
-    challenge.enrollment,
     challenge.subject_kind,
     challenge.metric,
     challenge.metric_track_key,
@@ -731,7 +715,6 @@ set search_path = ''
 as $$
 declare
   v_uid uuid := auth.uid();
-  v_enrollment public.challenge_enrollment;
   v_status public.challenge_status;
 begin
   if v_uid is null then
@@ -742,8 +725,8 @@ begin
     raise exception using errcode = '22023', message = 'challenge_id_required';
   end if;
 
-  select challenge.enrollment, challenge.status
-  into v_enrollment, v_status
+  select challenge.status
+  into v_status
   from public.challenges challenge
   where challenge.id = p_challenge_id;
 
@@ -753,10 +736,6 @@ begin
 
   if v_status not in ('scheduled', 'active') then
     raise exception using errcode = '22023', message = 'challenge_not_leaveable';
-  end if;
-
-  if v_enrollment <> 'opt_in'::public.challenge_enrollment then
-    raise exception using errcode = '22023', message = 'challenge_auto_enrollment';
   end if;
 
   delete from public.challenge_participants participant

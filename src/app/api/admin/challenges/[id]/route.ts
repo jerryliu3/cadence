@@ -19,7 +19,6 @@ const patchSchema = z
     title: z.string().trim().min(1).max(120).optional(),
     description: z.string().trim().max(2000).nullable().optional(),
     status: z.enum(["draft", "scheduled", "active", "closed", "archived"]).optional(),
-    enrollment: z.enum(["auto", "opt_in"]).optional(),
     subjectKind: z.enum(["user", "team"]).optional(),
     metric: z
       .enum([
@@ -36,31 +35,12 @@ const patchSchema = z
     endsAt: z.iso.datetime().optional(),
     rewardXp: z.number().int().nonnegative().optional(),
     maxParticipants: z.number().int().positive().nullable().optional(),
-    audienceKind: z.enum(["global", "cohort"]).optional(),
-    cohortId: z.uuid().nullable().optional(),
-  })
-  .superRefine((value, context) => {
-    if (value.audienceKind === "cohort" && value.cohortId === undefined) {
-      context.addIssue({
-        code: "custom",
-        message: "cohortId is required when audienceKind is cohort.",
-        path: ["cohortId"],
-      });
-    }
-    if (value.audienceKind === "global" && value.cohortId !== undefined && value.cohortId !== null) {
-      context.addIssue({
-        code: "custom",
-        message: "cohortId must be null when audienceKind is global.",
-        path: ["cohortId"],
-      });
-    }
   })
   .refine((value) => Object.keys(value).length > 0, {
     message: "Provide at least one field to update.",
   });
 
 const immutableWhenActive = new Set([
-  "enrollment",
   "subjectKind",
   "metric",
   "metricTrackKey",
@@ -68,8 +48,6 @@ const immutableWhenActive = new Set([
   "startsAt",
   "endsAt",
   "maxParticipants",
-  "audienceKind",
-  "cohortId",
 ]);
 
 function toChallengeDto(row: Record<string, unknown>) {
@@ -79,7 +57,6 @@ function toChallengeDto(row: Record<string, unknown>) {
     title: row.title,
     description: row.description,
     status: row.status,
-    enrollment: row.enrollment,
     subjectKind: row.subject_kind,
     metric: row.metric,
     metricTrackKey: row.metric_track_key,
@@ -88,8 +65,6 @@ function toChallengeDto(row: Record<string, unknown>) {
     endsAt: row.ends_at,
     rewardXp: row.reward_xp,
     maxParticipants: row.max_participants,
-    audienceKind: row.audience_kind,
-    cohortId: row.cohort_id,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -139,7 +114,6 @@ export async function PATCH(
     if (body.title !== undefined) updates.title = body.title;
     if (body.description !== undefined) updates.description = body.description;
     if (body.status !== undefined) updates.status = body.status;
-    if (body.enrollment !== undefined) updates.enrollment = body.enrollment;
     if (body.subjectKind !== undefined) updates.subject_kind = body.subjectKind;
     if (body.metric !== undefined) updates.metric = body.metric;
     if (body.metricTrackKey !== undefined) updates.metric_track_key = body.metricTrackKey;
@@ -148,8 +122,6 @@ export async function PATCH(
     if (body.endsAt !== undefined) updates.ends_at = body.endsAt;
     if (body.rewardXp !== undefined) updates.reward_xp = body.rewardXp;
     if (body.maxParticipants !== undefined) updates.max_participants = body.maxParticipants;
-    if (body.audienceKind !== undefined) updates.audience_kind = body.audienceKind;
-    if (body.cohortId !== undefined) updates.cohort_id = body.cohortId;
 
     const { data, error } = await admin
       .from("challenges")
@@ -183,8 +155,10 @@ export async function PATCH(
         correlationId
       );
     }
-    return apiErrorResponse(new ApiRouteError(500, "internal_error", "Admin challenge update request failed unexpectedly.",
-    ), correlationId);
+    return apiErrorResponse(
+      new ApiRouteError(500, "internal_error", "Admin challenge update request failed unexpectedly."),
+      correlationId
+    );
   }
 }
 
@@ -249,7 +223,9 @@ export async function DELETE(
         correlationId
       );
     }
-    return apiErrorResponse(new ApiRouteError(500, "internal_error", "Admin challenge delete request failed unexpectedly.",
-    ), correlationId);
+    return apiErrorResponse(
+      new ApiRouteError(500, "internal_error", "Admin challenge delete request failed unexpectedly."),
+      correlationId
+    );
   }
 }

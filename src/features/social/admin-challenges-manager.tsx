@@ -57,7 +57,6 @@ export function AdminChallengesManager() {
           slug,
           title,
           status: "draft",
-          enrollment: "opt_in",
           subjectKind: "user",
           metric: "completions_count",
           targetValue: 5,

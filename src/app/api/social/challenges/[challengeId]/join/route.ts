@@ -18,17 +18,8 @@ function mapJoinRpcError(message: string) {
   if (message === "challenge_full") {
     return new ApiRouteError(409, "challenge_full", "Challenge has reached participant capacity.");
   }
-  if (message === "challenge_not_eligible") {
-    return new ApiRouteError(403, "challenge_not_eligible", "You are not eligible for challenges.");
-  }
   if (message === "challenge_not_joinable") {
     return new ApiRouteError(409, "challenge_not_joinable", "Challenge is not open for joining.");
-  }
-  if (message === "team_required") {
-    return new ApiRouteError(409, "team_required", "An active team is required for this challenge.");
-  }
-  if (message === "cohort_membership_required") {
-    return new ApiRouteError(403, "cohort_membership_required", "Cohort membership is required.");
   }
   if (message === "challenge_subject_not_supported") {
     return new ApiRouteError(409, "challenge_subject_not_supported", "Challenge subject is unsupported.");
@@ -41,12 +32,6 @@ function mapJoinRpcError(message: string) {
 function mapLeaveRpcError(message: string) {
   if (message === "challenge_not_leaveable") {
     return new ApiRouteError(409, "challenge_not_leaveable", "Challenge is not open for leaving.");
-  }
-  if (message === "challenge_auto_enrollment") {
-    return new ApiRouteError(409, "challenge_auto_enrollment", "Auto-enrolled challenges cannot be left.");
-  }
-  if (message === "team_required") {
-    return new ApiRouteError(409, "team_required", "An active team is required for this challenge.");
   }
   return new ApiRouteError(500, "challenge_leave_failed", "Challenge leave failed.", {
     cause: message,

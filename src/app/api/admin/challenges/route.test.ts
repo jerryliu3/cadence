@@ -61,7 +61,6 @@ describe("GET /api/admin/challenges", () => {
           title: "August Completions",
           description: null,
           status: "active",
-          enrollment: "opt_in",
           subject_kind: "user",
           metric: "completions_count",
           metric_track_key: null,

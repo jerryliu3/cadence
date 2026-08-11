@@ -20,7 +20,6 @@ function toChallengeDto(row: {
   title: string;
   description: string | null;
   status: "draft" | "scheduled" | "active" | "closed" | "archived";
-  enrollment: "auto" | "opt_in";
   subject_kind: "user" | "team";
   metric:
     | "total_xp"
@@ -46,7 +45,6 @@ function toChallengeDto(row: {
     title: row.title,
     description: row.description,
     status: row.status,
-    enrollment: row.enrollment,
     subjectKind: row.subject_kind,
     metric: row.metric,
     metricTrackKey: row.metric_track_key,

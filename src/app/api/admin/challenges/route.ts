@@ -17,7 +17,7 @@ const createSchema = z
     title: z.string().trim().min(1).max(120),
     description: z.string().trim().max(2000).nullable().optional(),
     status: z.enum(["draft", "scheduled", "active", "closed", "archived"]).default("draft"),
-    enrollment: z.enum(["auto", "opt_in"]).default("opt_in"),
+    // Team subjects become joinable once team core ships; create still defaults to user.
     subjectKind: z.enum(["user", "team"]).default("user"),
     metric: z.enum([
       "total_xp",
@@ -32,8 +32,6 @@ const createSchema = z
     endsAt: z.iso.datetime(),
     rewardXp: z.number().int().nonnegative().default(0),
     maxParticipants: z.number().int().positive().nullable().optional(),
-    audienceKind: z.enum(["global", "cohort"]).default("global"),
-    cohortId: z.uuid().nullable().optional(),
   })
   .superRefine((value, context) => {
     if (value.metric === "category_xp" && !value.metricTrackKey) {
@@ -41,20 +39,6 @@ const createSchema = z
         code: "custom",
         message: "metricTrackKey is required for category_xp challenges.",
         path: ["metricTrackKey"],
-      });
-    }
-    if (value.audienceKind === "cohort" && !value.cohortId) {
-      context.addIssue({
-        code: "custom",
-        message: "cohortId is required for cohort-scoped challenges.",
-        path: ["cohortId"],
-      });
-    }
-    if (value.audienceKind === "global" && value.cohortId) {
-      context.addIssue({
-        code: "custom",
-        message: "cohortId must be null for global challenges.",
-        path: ["cohortId"],
       });
     }
   });
@@ -66,7 +50,6 @@ function toChallengeDto(row: Record<string, unknown>) {
     title: row.title,
     description: row.description,
     status: row.status,
-    enrollment: row.enrollment,
     subjectKind: row.subject_kind,
     metric: row.metric,
     metricTrackKey: row.metric_track_key,
@@ -75,8 +58,6 @@ function toChallengeDto(row: Record<string, unknown>) {
     endsAt: row.ends_at,
     rewardXp: row.reward_xp,
     maxParticipants: row.max_participants,
-    audienceKind: row.audience_kind,
-    cohortId: row.cohort_id,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -121,8 +102,10 @@ export async function GET() {
         correlationId
       );
     }
-    return apiErrorResponse(new ApiRouteError(500, "internal_error", "Admin challenge list request failed unexpectedly.",
-    ), correlationId);
+    return apiErrorResponse(
+      new ApiRouteError(500, "internal_error", "Admin challenge list request failed unexpectedly."),
+      correlationId
+    );
   }
 }
 
@@ -143,7 +126,6 @@ export async function POST(request: Request) {
         title: body.title,
         description: body.description ?? null,
         status: body.status,
-        enrollment: body.enrollment,
         subject_kind: body.subjectKind,
         metric: body.metric,
         metric_track_key: body.metricTrackKey ?? null,
@@ -152,8 +134,6 @@ export async function POST(request: Request) {
         ends_at: body.endsAt,
         reward_xp: body.rewardXp,
         max_participants: body.maxParticipants ?? null,
-        audience_kind: body.audienceKind,
-        cohort_id: body.cohortId ?? null,
         created_by: adminContext.userId,
       })
       .select("*")
@@ -184,7 +164,9 @@ export async function POST(request: Request) {
         correlationId
       );
     }
-    return apiErrorResponse(new ApiRouteError(500, "internal_error", "Admin challenge create request failed unexpectedly.",
-    ), correlationId);
+    return apiErrorResponse(
+      new ApiRouteError(500, "internal_error", "Admin challenge create request failed unexpectedly."),
+      correlationId
+    );
   }
 }
