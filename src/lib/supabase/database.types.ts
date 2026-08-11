@@ -89,6 +89,10 @@ export type Database = {
           xp_amount: number
         }[]
       }
+      is_active_duo_pair: {
+        Args: { p_user_a: string; p_user_b: string }
+        Returns: boolean
+      }
       is_platform_admin_for: {
         Args: {
           p_min_role?: Database["public"]["Enums"]["admin_role"]
@@ -358,6 +362,76 @@ export type Database = {
           {
             foreignKeyName: "completions_user_id_fkey"
             columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      duos: {
+        Row: {
+          accepted_at: string | null
+          created_at: string
+          dissolved_at: string | null
+          id: string
+          initiator_id: string
+          invite_message: string | null
+          invited_at: string
+          responded_at: string | null
+          status: Database["public"]["Enums"]["duo_status"]
+          updated_at: string
+          user_a_id: string
+          user_b_id: string
+          visibility_acknowledged_at: string | null
+        }
+        Insert: {
+          accepted_at?: string | null
+          created_at?: string
+          dissolved_at?: string | null
+          id?: string
+          initiator_id: string
+          invite_message?: string | null
+          invited_at?: string
+          responded_at?: string | null
+          status?: Database["public"]["Enums"]["duo_status"]
+          updated_at?: string
+          user_a_id: string
+          user_b_id: string
+          visibility_acknowledged_at?: string | null
+        }
+        Update: {
+          accepted_at?: string | null
+          created_at?: string
+          dissolved_at?: string | null
+          id?: string
+          initiator_id?: string
+          invite_message?: string | null
+          invited_at?: string
+          responded_at?: string | null
+          status?: Database["public"]["Enums"]["duo_status"]
+          updated_at?: string
+          user_a_id?: string
+          user_b_id?: string
+          visibility_acknowledged_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "duos_initiator_id_fkey"
+            columns: ["initiator_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "duos_user_a_id_fkey"
+            columns: ["user_a_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "duos_user_b_id_fkey"
+            columns: ["user_b_id"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -930,6 +1004,24 @@ export type Database = {
           },
         ]
       }
+      partner_profile_fields: {
+        Row: {
+          field: string
+          is_exposed: boolean
+          updated_at: string
+        }
+        Insert: {
+          field: string
+          is_exposed?: boolean
+          updated_at?: string
+        }
+        Update: {
+          field?: string
+          is_exposed?: boolean
+          updated_at?: string
+        }
+        Relationships: []
+      }
       planner_ai_usage_daily: {
         Row: {
           created_at: string
@@ -1424,6 +1516,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      accept_duo_invite_service: {
+        Args: { p_duo_id: string; p_visibility_acknowledged: boolean }
+        Returns: boolean
+      }
       acknowledge_user_award_service: {
         Args: { p_award_id: string; p_user_id: string }
         Returns: boolean
@@ -1450,6 +1546,10 @@ export type Database = {
         Args: { p_goal_id: string; p_uid: string }
         Returns: boolean
       }
+      can_view_goal_content: {
+        Args: { p_goal_id: string; p_uid: string }
+        Returns: boolean
+      }
       clear_planner_schedule: {
         Args: { p_expected_digest: string; p_month: string }
         Returns: {
@@ -1472,6 +1572,15 @@ export type Database = {
           retry_after_seconds: number
         }[]
       }
+      create_duo_invite_service: {
+        Args: { p_message?: string; p_partner_id: string }
+        Returns: string
+      }
+      decline_duo_invite_service: {
+        Args: { p_duo_id: string }
+        Returns: boolean
+      }
+      dissolve_duo_service: { Args: never; Returns: boolean }
       find_profile_by_username: {
         Args: { p_limit?: number; p_query: string }
         Returns: {
@@ -1505,6 +1614,21 @@ export type Database = {
           viewer_progress: number
         }[]
       }
+      get_duo_state: {
+        Args: never
+        Returns: {
+          accepted_at: string
+          duo_id: string
+          invite_message: string
+          invited_at: string
+          is_incoming: boolean
+          partner_avatar_url: string
+          partner_display_name: string
+          partner_id: string
+          partner_username: string
+          status: Database["public"]["Enums"]["duo_status"]
+        }[]
+      }
       get_leaderboard_standings: {
         Args: { p_limit?: number; p_offset?: number; p_season_id: string }
         Returns: {
@@ -1517,6 +1641,10 @@ export type Database = {
           tie_break_at: string
           viewer_rank: number
         }[]
+      }
+      get_partner_profile_service: {
+        Args: { p_owner_id: string }
+        Returns: Json
       }
       get_planner_schedule_digest: {
         Args: { p_owner?: string }
@@ -1704,6 +1832,7 @@ export type Database = {
         | "max_streak_days"
       challenge_status: "draft" | "scheduled" | "active" | "closed" | "archived"
       completion_source: "manual" | "linked_cascade"
+      duo_status: "pending" | "active" | "declined" | "cancelled" | "dissolved"
       feed_event_type:
         | "xp_earned"
         | "level_up"
@@ -1870,6 +1999,7 @@ export const Constants = {
       ],
       challenge_status: ["draft", "scheduled", "active", "closed", "archived"],
       completion_source: ["manual", "linked_cascade"],
+      duo_status: ["pending", "active", "declined", "cancelled", "dissolved"],
       feed_event_type: [
         "xp_earned",
         "level_up",
