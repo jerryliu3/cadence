@@ -1,64 +1,40 @@
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ChecklistShell } from "./checklist-shell";
 
-let mockSearch = "?tab=calendar&view=week&month=2026-08";
-let mockMobileViewport = false;
-
-const calendarSurfaceMock = vi.fn((props: {
-  activeTab: string;
-  month: string | null;
-  selectedDay: string | null;
-  viewMode: string;
-}) => (
-  <div
-    data-testid="calendar-surface"
-    data-active-tab={props.activeTab}
-    data-month={props.month ?? ""}
-    data-day={props.selectedDay ?? ""}
-    data-view-mode={props.viewMode}
-  />
-));
+let mockSearch = "?tab=today";
+const checklistSurfaceMock = vi.fn(
+  (props: { activeTab: "today" | "not-today"; onActiveTabChange: (tab: "today" | "not-today") => void }) => (
+    <div data-testid="checklist-surface" data-active-tab={props.activeTab}>
+      <button type="button" onClick={() => props.onActiveTabChange("today")}>
+        Switch Today
+      </button>
+      <button type="button" onClick={() => props.onActiveTabChange("not-today")}>
+        Switch Past
+      </button>
+    </div>
+  )
+);
 
 vi.mock("next/navigation", () => ({
   usePathname: () => "/",
   useSearchParams: () => new URLSearchParams(mockSearch),
 }));
 
-vi.mock("@/features/planner/calendar-surface", () => ({
-  CalendarSurface: (props: {
-    activeTab: string;
-    month: string | null;
-    selectedDay: string | null;
-    viewMode: string;
-  }) => calendarSurfaceMock(props),
-}));
-
 vi.mock("@/features/today/checklist-surface", () => ({
-  ChecklistSurface: () => <div data-testid="checklist-surface" />,
+  ChecklistSurface: (props: {
+    activeTab: "today" | "not-today";
+    onActiveTabChange: (tab: "today" | "not-today") => void;
+  }) => checklistSurfaceMock(props),
 }));
 
-describe("ChecklistShell calendar view normalization", () => {
+describe("ChecklistShell", () => {
   beforeEach(() => {
-    mockSearch = "?tab=calendar&view=week&month=2026-08";
-    mockMobileViewport = false;
-    calendarSurfaceMock.mockClear();
+    mockSearch = "?tab=today";
+    checklistSurfaceMock.mockClear();
     Object.defineProperty(window, "scrollTo", {
       value: vi.fn(),
-      writable: true,
-    });
-    Object.defineProperty(window, "matchMedia", {
-      value: vi.fn().mockImplementation(() => ({
-        matches: mockMobileViewport,
-        media: "(max-width: 767px)",
-        onchange: null,
-        addEventListener: vi.fn(),
-        removeEventListener: vi.fn(),
-        addListener: vi.fn(),
-        removeListener: vi.fn(),
-        dispatchEvent: vi.fn(),
-      })),
       writable: true,
     });
   });
@@ -66,44 +42,31 @@ describe("ChecklistShell calendar view normalization", () => {
     cleanup();
   });
 
-  it("passes through explicit calendar view mode from URL", () => {
+  it("renders the Today surface by default", () => {
     render(<ChecklistShell />);
 
-    const calendarSurface = screen.getByTestId("calendar-surface");
-    expect(calendarSurface).toHaveAttribute("data-view-mode", "week");
-    expect(calendarSurface).toHaveAttribute("data-month", "2026-08");
-    expect(calendarSurface).toHaveAttribute("data-active-tab", "calendar");
+    expect(screen.getByTestId("checklist-surface")).toHaveAttribute(
+      "data-active-tab",
+      "today"
+    );
   });
 
-  it("coerces day deeplinks into calendar day mode", () => {
-    mockSearch = "?day=2026-08-09";
-
-    render(<ChecklistShell />);
-
-    const calendarSurface = screen.getByTestId("calendar-surface");
-    expect(calendarSurface).toHaveAttribute("data-view-mode", "day");
-    expect(calendarSurface).toHaveAttribute("data-day", "2026-08-09");
-    expect(calendarSurface).toHaveAttribute("data-month", "2026-08");
-    expect(calendarSurface).toHaveAttribute("data-active-tab", "calendar");
-  });
-
-  it("defaults to week view on mobile when view is missing", async () => {
-    mockSearch = "?tab=calendar&month=2026-08";
-    mockMobileViewport = true;
+  it("normalizes legacy past tab aliases", () => {
+    mockSearch = "?tab=past";
+    const replaceStateSpy = vi.spyOn(window.history, "replaceState");
 
     render(<ChecklistShell />);
 
-    await waitFor(() => {
-      const latestCall = calendarSurfaceMock.mock.calls.at(-1)?.[0];
-      expect(latestCall?.viewMode).toBe("week");
-      expect(latestCall?.month).toBe("2026-08");
-    });
+    expect(screen.getByTestId("checklist-surface")).toHaveAttribute(
+      "data-active-tab",
+      "not-today"
+    );
+    expect(replaceStateSpy).toHaveBeenCalled();
   });
 
-  it("preserves calendar day and view across tab round-trips", async () => {
-    mockSearch = "?tab=calendar&view=day&day=2026-08-20&month=2026-08";
+  it("pushes tab changes into URL history", async () => {
     const user = userEvent.setup();
-    const { rerender } = render(<ChecklistShell />);
+    render(<ChecklistShell />);
     const pushStateSpy = vi
       .spyOn(window.history, "pushState")
       .mockImplementation((_state, _unused, url) => {
@@ -113,14 +76,9 @@ describe("ChecklistShell calendar view normalization", () => {
         }
       });
 
-    await user.click(screen.getByRole("tab", { name: "Today" }));
-    rerender(<ChecklistShell />);
-    await user.click(screen.getByRole("tab", { name: "Calendar" }));
+    await user.click(screen.getByRole("button", { name: "Switch Past" }));
 
     const finalUrl = pushStateSpy.mock.calls.at(-1)?.[2];
-    expect(finalUrl).toContain("tab=calendar");
-    expect(finalUrl).toContain("view=day");
-    expect(finalUrl).toContain("day=2026-08-20");
-    expect(finalUrl).toContain("month=2026-08");
+    expect(finalUrl).toContain("tab=not-today");
   });
 });

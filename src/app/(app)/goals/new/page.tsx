@@ -1,9 +1,5 @@
-import { GoalForm } from "@/features/today/goal-form";
+import { GoalCreationEntry } from "@/features/goals/goal-creation-entry";
 
 export default function NewGoalPage() {
-  return (
-    <div className="mx-auto w-full max-w-3xl">
-      <GoalForm />
-    </div>
-  );
+  return <GoalCreationEntry />;
 }

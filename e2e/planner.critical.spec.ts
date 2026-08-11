@@ -75,11 +75,11 @@ function shiftScopeMonth(scopeMonth: string, delta: number) {
 }
 
 async function openCalendar(page: Page, scopeMonth?: string) {
-  const query = scopeMonth ? `/?tab=calendar&month=${scopeMonth}` : "/?tab=calendar";
+  const query = scopeMonth
+    ? `/calendar?view=month&month=${scopeMonth}`
+    : "/calendar?view=month";
   await page.goto(query);
-  await expect(
-    page.getByRole("tab", { name: "Calendar", exact: true })
-  ).toBeVisible();
+  await expect(page).toHaveURL(/\/calendar/);
   await waitForCalendarReady(page);
   await ensureMonthCalendarDensity(page);
 
@@ -109,9 +109,7 @@ async function openCalendar(page: Page, scopeMonth?: string) {
       );
     }
     await page.goto(query);
-    await expect(
-      page.getByRole("tab", { name: "Calendar", exact: true })
-    ).toBeVisible();
+    await expect(page).toHaveURL(/\/calendar/);
     await waitForCalendarReady(page);
     await ensureMonthCalendarDensity(page);
   }
@@ -342,6 +340,8 @@ async function moveFirstMovableEntry(
         .locator(`[data-day-cell="true"][data-day="${targetDay}"]`)
         .first();
       await expect(targetCell).toBeVisible();
+      await currentSourceEntry.scrollIntoViewIfNeeded();
+      await targetCell.scrollIntoViewIfNeeded();
 
       const sourceBox = await currentSourceEntry.boundingBox();
       const targetBox = await targetCell.boundingBox();
@@ -352,7 +352,7 @@ async function moveFirstMovableEntry(
       const sourceX = sourceBox.x + sourceBox.width / 2;
       const sourceY = sourceBox.y + sourceBox.height / 2;
       const targetX = targetBox.x + targetBox.width / 2;
-      const targetY = targetBox.y + 28;
+      const targetY = targetBox.y + Math.max(8, Math.min(targetBox.height / 2, 28));
 
       await page.mouse.move(sourceX, sourceY);
       await page.waitForTimeout(50);
@@ -443,8 +443,8 @@ test.describe("planner critical rails", () => {
 
   // Serial retries restart the whole group; keep each attempt free of leftover draft UI.
   test.beforeEach(async ({ page }) => {
-    await page.goto("/?tab=today");
-    await expect(page.getByRole("tab", { name: "Today", exact: true })).toBeVisible();
+    await page.goto("/");
+    await expect(page.getByText("Today")).toBeVisible();
   });
 
   test.skip(
@@ -557,8 +557,8 @@ test.describe("planner critical rails", () => {
 
   test("completion toggle dispatches from today surface", async ({ page }) => {
     test.setTimeout(120_000);
-    await page.goto("/?tab=today");
-    await expect(page.getByRole("tab", { name: "Today", exact: true })).toBeVisible();
+    await page.goto("/");
+    await expect(page.getByText("Today")).toBeVisible();
     const initialButton = page.locator(COMPLETION_TOGGLE_SELECTOR).first();
     await expect(initialButton).toBeVisible();
     await expect(initialButton).toBeEnabled();
@@ -571,8 +571,8 @@ test.describe("planner critical rails", () => {
 
   test("completion toggle dispatches from past tab surface", async ({ page }) => {
     test.setTimeout(120_000);
-    await page.goto("/?tab=past");
-    await expect(page.getByRole("tab", { name: "Past", exact: true })).toBeVisible();
+    await page.goto("/?tab=not-today");
+    await expect(page.getByText("Past")).toBeVisible();
     const pastToggle = page.locator(COMPLETION_TOGGLE_SELECTOR).first();
     await expect(pastToggle).toBeVisible({ timeout: 10_000 });
     await expect(pastToggle).toBeEnabled();
@@ -656,7 +656,7 @@ test.describe("planner critical rails", () => {
     expect(["stale_revision", "preview_hash_mismatch"]).toContain(body.code ?? "");
 
     await expect(
-      page.getByRole("button", { name: /Undo this month/i })
+      page.getByRole("button", { name: /Undo changes/i })
     ).toBeVisible({ timeout: 10_000 });
   });
 });

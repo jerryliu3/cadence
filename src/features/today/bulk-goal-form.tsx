@@ -20,6 +20,13 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { LoadingCard } from "@/components/ui/loading-card";
@@ -119,6 +126,10 @@ interface LlmGoalDraftPayload {
 }
 
 type BulkInputMode = "natural_language" | "csv";
+
+interface BulkGoalFormProps {
+  showBackButton?: boolean;
+}
 
 const csvExample = `title,description,category,color,is_group,frequency_type,recurrence_interval,target_count,milestone_names,start_date,end_date,default_local_time
 Morning run,Train for a half marathon,Health,#16a34a,false,recurring,daily,20,,2026-06-01,2026-12-31,06:45
@@ -390,7 +401,7 @@ async function parseRowsFromSpreadsheetFile(
   });
 }
 
-export function BulkGoalForm() {
+export function BulkGoalForm({ showBackButton = true }: BulkGoalFormProps) {
   const supabase = useMemo(() => createClient(), []);
   const router = useRouter();
   const [inputMode, setInputMode] = useState<BulkInputMode>("natural_language");
@@ -402,6 +413,7 @@ export function BulkGoalForm() {
   const [parsing, setParsing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [drafts, setDrafts] = useState<BulkGoalDraft[]>([]);
+  const [expandedDraftId, setExpandedDraftId] = useState<string | null>(null);
   const [availableGoals, setAvailableGoals] = useState<Goal[]>([]);
 
   useEffect(() => {
@@ -485,6 +497,7 @@ export function BulkGoalForm() {
 
     const nextDrafts = rows.map((row, index) => buildDraftFromRow(row, index));
     setDrafts(nextDrafts);
+    setExpandedDraftId(nextDrafts[0]?.id ?? null);
     toast.success(`Loaded ${nextDrafts.length} goal draft${nextDrafts.length === 1 ? "" : "s"}.`);
   };
 
@@ -731,7 +744,7 @@ export function BulkGoalForm() {
         <CardHeader>
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <CardTitle>New bulk goals</CardTitle>
+              <CardTitle>Create multiple goals</CardTitle>
               <CardDescription>
                 Describe goals with AI, paste CSV, or upload CSV/XLSX, then approve in one click.
               </CardDescription>
@@ -757,12 +770,14 @@ export function BulkGoalForm() {
                   CSV
                 </Button>
               </div>
-              <Button variant="outline" asChild>
-                <Link href="/">
-                  <ArrowLeft className="size-4" />
-                  Back
-                </Link>
-              </Button>
+              {showBackButton ? (
+                <Button variant="outline" asChild>
+                  <Link href="/">
+                    <ArrowLeft className="size-4" />
+                    Back
+                  </Link>
+                </Button>
+              ) : null}
             </div>
           </div>
         </CardHeader>
@@ -944,6 +959,14 @@ export function BulkGoalForm() {
                   deadlineLabel.includes(linkQuery)
                 );
               });
+              const expanded = expandedDraftId === draft.id;
+              const scheduleSummary = draft.end_date
+                ? `${draft.start_date} to ${draft.end_date}`
+                : `Starts ${draft.start_date}`;
+              const recurrenceSummary =
+                draft.frequency_type === "recurring"
+                  ? `Recurring · ${draft.recurrence_interval}`
+                  : `Milestone · ${draft.target_count || "0"} target`;
 
               return (
                 <Card
@@ -968,19 +991,62 @@ export function BulkGoalForm() {
                         />
                         {draft.sourceRowLabel}
                       </label>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon-sm"
-                        onClick={() =>
-                          setDrafts((previous) => previous.filter((entry) => entry.id !== draft.id))
-                        }
-                      >
-                        <Trash2 className="size-4" />
-                      </Button>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          type="button"
+                          variant={expanded ? "secondary" : "outline"}
+                          size="sm"
+                          onClick={() =>
+                            setExpandedDraftId((previous) =>
+                              previous === draft.id ? null : draft.id
+                            )
+                          }
+                        >
+                          {expanded ? "Close" : "Edit"}
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-sm"
+                          onClick={() => {
+                            setDrafts((previous) =>
+                              previous.filter((entry) => entry.id !== draft.id)
+                            );
+                            setExpandedDraftId((previous) =>
+                              previous === draft.id ? null : previous
+                            );
+                          }}
+                        >
+                          <Trash2 className="size-4" />
+                        </Button>
+                      </div>
                     </div>
 
-                    {draft.errors.length > 0 ? (
+                    <button
+                      type="button"
+                      className="w-full rounded-lg border bg-muted/10 px-3 py-2 text-left transition-colors hover:bg-muted/20"
+                      onClick={() =>
+                        setExpandedDraftId((previous) =>
+                          previous === draft.id ? null : draft.id
+                        )
+                      }
+                    >
+                      <div className="flex flex-wrap items-center gap-2 text-sm">
+                        <span className="font-medium">
+                          {draft.title.trim().length > 0 ? draft.title : "Untitled goal"}
+                        </span>
+                        <Badge variant="outline">{draft.category_selection}</Badge>
+                        <Badge variant="outline">{recurrenceSummary}</Badge>
+                        <Badge variant="outline">{scheduleSummary}</Badge>
+                        {draft.errors.length > 0 ? (
+                          <Badge variant="destructive">
+                            {draft.errors.length} error{draft.errors.length === 1 ? "" : "s"}
+                          </Badge>
+                        ) : null}
+                      </div>
+                    </button>
+
+                    {expanded && draft.errors.length > 0 ? (
                       <div className="rounded-lg border border-destructive/40 bg-destructive/5 px-3 py-2">
                         <ul className="space-y-1 text-xs text-destructive">
                           {draft.errors.map((error) => (
@@ -990,6 +1056,24 @@ export function BulkGoalForm() {
                       </div>
                     ) : null}
 
+                    {expanded ? (
+                      <Dialog
+                        open
+                        onOpenChange={(open) => {
+                          if (!open) {
+                            setExpandedDraftId(null);
+                          }
+                        }}
+                      >
+                        <DialogContent className="max-h-[85vh] overflow-y-auto">
+                          <DialogHeader>
+                            <DialogTitle>
+                              {draft.title.trim().length > 0 ? draft.title : "Edit goal draft"}
+                            </DialogTitle>
+                            <DialogDescription>
+                              Update this draft before creating goals.
+                            </DialogDescription>
+                          </DialogHeader>
                     <div className="grid gap-3 sm:grid-cols-2">
                       <div className="space-y-2">
                         <Label>Title</Label>
@@ -1281,6 +1365,9 @@ export function BulkGoalForm() {
                         </CollapsibleContent>
                       </div>
                     </Collapsible>
+                        </DialogContent>
+                      </Dialog>
+                    ) : null}
                   </CardContent>
                 </Card>
               );
