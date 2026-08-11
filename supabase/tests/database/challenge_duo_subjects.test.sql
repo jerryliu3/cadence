@@ -11,14 +11,12 @@ on conflict (id) do nothing;
 
 insert into public.profiles (
   id,
-  username,
-  social_competition_eligible
+  username
 )
 values
-  ('9d111111-1111-4111-8111-111111111111', 'duo_challenge_a', true),
-  ('9d222222-2222-4222-8222-222222222222', 'duo_challenge_b', true)
-on conflict (id) do update
-set social_competition_eligible = true;
+  ('9d111111-1111-4111-8111-111111111111', 'duo_challenge_a'),
+  ('9d222222-2222-4222-8222-222222222222', 'duo_challenge_b')
+on conflict (id) do nothing;
 
 set local role service_role;
 

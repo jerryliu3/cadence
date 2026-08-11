@@ -236,7 +236,6 @@ begin
             'user'::public.social_subject_kind,
             profile.id
           from public.profiles profile
-          where profile.social_competition_eligible = true
           on conflict (challenge_id, subject_kind, subject_id) do nothing;
         else
           select greatest(
@@ -259,7 +258,6 @@ begin
               'user'::public.social_subject_kind,
               profile.id
             from public.profiles profile
-            where profile.social_competition_eligible = true
             order by profile.created_at asc, profile.id asc
             limit v_slots
             on conflict (challenge_id, subject_kind, subject_id) do nothing;
@@ -277,11 +275,7 @@ begin
             'duo'::public.social_subject_kind,
             duo.id
           from public.duos duo
-          join public.profiles left_profile on left_profile.id = duo.user_a_id
-          join public.profiles right_profile on right_profile.id = duo.user_b_id
           where duo.status = 'active'::public.duo_status
-            and left_profile.social_competition_eligible = true
-            and right_profile.social_competition_eligible = true
           on conflict (challenge_id, subject_kind, subject_id) do nothing;
         else
           select greatest(
@@ -304,11 +298,7 @@ begin
               'duo'::public.social_subject_kind,
               duo.id
             from public.duos duo
-            join public.profiles left_profile on left_profile.id = duo.user_a_id
-            join public.profiles right_profile on right_profile.id = duo.user_b_id
             where duo.status = 'active'::public.duo_status
-              and left_profile.social_competition_eligible = true
-              and right_profile.social_competition_eligible = true
             order by duo.accepted_at asc nulls last, duo.id asc
             limit v_slots
             on conflict (challenge_id, subject_kind, subject_id) do nothing;
@@ -593,14 +583,6 @@ begin
   end if;
 
   if v_challenge.subject_kind = 'user'::public.social_subject_kind then
-    if not exists (
-      select 1
-      from public.profiles profile
-      where profile.id = v_uid
-        and profile.social_competition_eligible = true
-    ) then
-      raise exception using errcode = '42501', message = 'challenge_not_eligible';
-    end if;
     v_subject_id := v_uid;
   elsif v_challenge.subject_kind = 'duo'::public.social_subject_kind then
     v_duo_id := private.active_duo_for_user(v_uid);
@@ -608,18 +590,6 @@ begin
       raise exception using errcode = '22023', message = 'duo_required';
     end if;
 
-    if not exists (
-      select 1
-      from public.duos duo
-      join public.profiles left_profile on left_profile.id = duo.user_a_id
-      join public.profiles right_profile on right_profile.id = duo.user_b_id
-      where duo.id = v_duo_id
-        and duo.status = 'active'::public.duo_status
-        and left_profile.social_competition_eligible = true
-        and right_profile.social_competition_eligible = true
-    ) then
-      raise exception using errcode = '42501', message = 'challenge_not_eligible';
-    end if;
     v_subject_id := v_duo_id;
   else
     raise exception using errcode = '22023', message = 'challenge_subject_not_supported';
@@ -833,7 +803,6 @@ begin
                 )
             ) as tie_break_at
           from public.profiles profile
-          where profile.social_competition_eligible = true
         ) scored
       ) ranked;
     elsif r_season.subject_kind = 'duo'::public.social_subject_kind then
@@ -896,11 +865,7 @@ begin
                 )
             ) as tie_break_at
           from public.duos duo
-          join public.profiles left_profile on left_profile.id = duo.user_a_id
-          join public.profiles right_profile on right_profile.id = duo.user_b_id
           where duo.status = 'active'::public.duo_status
-            and left_profile.social_competition_eligible = true
-            and right_profile.social_competition_eligible = true
         ) scored
       ) ranked;
     end if;

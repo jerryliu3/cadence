@@ -14,16 +14,14 @@ on conflict (id) do nothing;
 insert into public.profiles (
   id,
   username,
-  display_name,
-  social_competition_eligible
+  display_name
 )
 values
-  ('9e111111-1111-4111-8111-111111111111', 'duo_board_a1', 'Duo A1', true),
-  ('9e222222-2222-4222-8222-222222222222', 'duo_board_a2', 'Duo A2', true),
-  ('9e333333-3333-4333-8333-333333333333', 'duo_board_b1', 'Duo B1', true),
-  ('9e444444-4444-4444-8444-444444444444', 'duo_board_b2', 'Duo B2', true)
-on conflict (id) do update
-set social_competition_eligible = true;
+  ('9e111111-1111-4111-8111-111111111111', 'duo_board_a1', 'Duo A1'),
+  ('9e222222-2222-4222-8222-222222222222', 'duo_board_a2', 'Duo A2'),
+  ('9e333333-3333-4333-8333-333333333333', 'duo_board_b1', 'Duo B1'),
+  ('9e444444-4444-4444-8444-444444444444', 'duo_board_b2', 'Duo B2')
+on conflict (id) do nothing;
 
 set local role service_role;
 
