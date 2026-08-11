@@ -601,40 +601,268 @@ describe("pure planner kernel", () => {
     expect(output.diff.some((entry) => entry.kind === "moved")).toBe(false);
   });
 
-  it("preserves an existing out-of-window assignment without invalid_lock", () => {
-    const currentGoal = goal({
-      target_count: 1,
-      start_date: "2026-08-01",
-      end_date: "2026-08-31",
-    });
-    const output = runPlannerKernel(
-      input({
-        scopeMonth: "2026-08",
-        asOfDate: "2026-08-20",
-        goals: [currentGoal],
-        preserveExistingAssignments: true,
-        basePlan: {
-          planId: "plan-a",
-          version: 1,
-          assignments: [
-            {
-              goalId: currentGoal.id,
-              requirementFingerprint:
-                computeRequirementFingerprint(currentGoal),
-              unitKey: "total:1",
-              scheduledDate: "2026-08-05",
-              locked: false,
-            },
-          ],
-        },
-      })
-    );
+  describe("preserve-mode past placements when asOfDate advances", () => {
+    it("keeps a preserved assignment before the placement window without invalid_lock", () => {
+      const currentGoal = goal({
+        target_count: 1,
+        start_date: "2026-08-01",
+        end_date: "2026-08-31",
+      });
+      const output = runPlannerKernel(
+        input({
+          scopeMonth: "2026-08",
+          asOfDate: "2026-08-20",
+          goals: [currentGoal],
+          preserveExistingAssignments: true,
+          basePlan: {
+            planId: "plan-a",
+            version: 1,
+            assignments: [
+              {
+                goalId: currentGoal.id,
+                requirementFingerprint:
+                  computeRequirementFingerprint(currentGoal),
+                unitKey: "total:1",
+                scheduledDate: "2026-08-05",
+                locked: false,
+              },
+            ],
+          },
+        })
+      );
 
-    expect(output.solver.issueCodes).not.toContain("invalid_lock");
-    expect(output.validation.valid).toBe(true);
-    expect(output.workUnits.map((unit) => unit.scheduledDate)).toEqual([
-      "2026-08-05",
-    ]);
+      expect(output.solver.issueCodes).not.toContain("invalid_lock");
+      expect(output.solver.publishable).toBe(true);
+      expect(output.validation.valid).toBe(true);
+      expect(output.workUnits.map((unit) => unit.scheduledDate)).toEqual([
+        "2026-08-05",
+      ]);
+    });
+
+    it("re-places that past assignment when preserve mode is off", () => {
+      const currentGoal = goal({
+        target_count: 1,
+        start_date: "2026-08-01",
+        end_date: "2026-08-31",
+      });
+      const output = runPlannerKernel(
+        input({
+          scopeMonth: "2026-08",
+          asOfDate: "2026-08-20",
+          goals: [currentGoal],
+          preserveExistingAssignments: false,
+          basePlan: {
+            planId: "plan-a",
+            version: 1,
+            assignments: [
+              {
+                goalId: currentGoal.id,
+                requirementFingerprint:
+                  computeRequirementFingerprint(currentGoal),
+                unitKey: "total:1",
+                scheduledDate: "2026-08-05",
+                locked: false,
+              },
+            ],
+          },
+        })
+      );
+
+      expect(output.solver.issueCodes).not.toContain("invalid_lock");
+      expect(output.validation.valid).toBe(true);
+      expect(output.workUnits[0]?.scheduledDate).toBe("2026-08-20");
+    });
+
+    it("keeps a past preserved unit while still placing a later sibling", () => {
+      const currentGoal = goal({
+        target_count: 2,
+        start_date: "2026-08-01",
+        end_date: "2026-08-31",
+      });
+      const fingerprint = computeRequirementFingerprint(currentGoal);
+      const output = runPlannerKernel(
+        input({
+          scopeMonth: "2026-08",
+          asOfDate: "2026-08-20",
+          goals: [currentGoal],
+          preserveExistingAssignments: true,
+          basePlan: {
+            planId: "plan-a",
+            version: 1,
+            assignments: [
+              {
+                goalId: currentGoal.id,
+                requirementFingerprint: fingerprint,
+                unitKey: "total:1",
+                scheduledDate: "2026-08-05",
+                locked: false,
+              },
+              {
+                goalId: currentGoal.id,
+                requirementFingerprint: fingerprint,
+                unitKey: "total:2",
+                scheduledDate: "2026-08-25",
+                locked: false,
+              },
+            ],
+          },
+        })
+      );
+
+      expect(output.solver.issueCodes).toEqual([]);
+      expect(output.validation.valid).toBe(true);
+      expect(
+        output.workUnits.map((unit) => [unit.unitKey, unit.scheduledDate])
+      ).toEqual([
+        ["total:1", "2026-08-05"],
+        ["total:2", "2026-08-25"],
+      ]);
+    });
+
+    it("still soft-locks preserved dates that remain inside the window", () => {
+      const currentGoal = goal({
+        target_count: 1,
+        start_date: "2026-08-01",
+        end_date: "2026-08-31",
+      });
+      const output = runPlannerKernel(
+        input({
+          scopeMonth: "2026-08",
+          asOfDate: "2026-08-20",
+          goals: [currentGoal],
+          preserveExistingAssignments: true,
+          basePlan: {
+            planId: "plan-a",
+            version: 1,
+            assignments: [
+              {
+                goalId: currentGoal.id,
+                requirementFingerprint:
+                  computeRequirementFingerprint(currentGoal),
+                unitKey: "total:1",
+                scheduledDate: "2026-08-25",
+                locked: false,
+              },
+            ],
+          },
+        })
+      );
+
+      expect(output.solver.issueCodes).toEqual([]);
+      expect(output.validation.valid).toBe(true);
+      expect(output.workUnits.map((unit) => unit.scheduledDate)).toEqual([
+        "2026-08-25",
+      ]);
+      expect(output.diff.some((entry) => entry.kind === "moved")).toBe(false);
+    });
+
+    it("still reports invalid_lock for a hard lock before the placement window", () => {
+      const currentGoal = goal({
+        target_count: 1,
+        start_date: "2026-08-01",
+        end_date: "2026-08-31",
+      });
+      const output = runPlannerKernel(
+        input({
+          scopeMonth: "2026-08",
+          asOfDate: "2026-08-20",
+          goals: [currentGoal],
+          preserveExistingAssignments: true,
+          basePlan: {
+            planId: "plan-a",
+            version: 1,
+            assignments: [
+              {
+                goalId: currentGoal.id,
+                requirementFingerprint:
+                  computeRequirementFingerprint(currentGoal),
+                unitKey: "total:1",
+                scheduledDate: "2026-08-05",
+                locked: true,
+              },
+            ],
+          },
+        })
+      );
+
+      expect(output.solver.searchStatus).toBe("blocked_invalid_lock");
+      expect(output.solver.issueCodes).toContain("invalid_lock");
+      expect(output.solver.invalidGoalIds).toEqual([currentGoal.id]);
+      expect(output.workUnits.map((unit) => unit.scheduledDate)).toEqual([
+        "2026-08-05",
+      ]);
+    });
+
+    it("still reports invalid_lock when a draft pin targets a pre-window date", () => {
+      const currentGoal = goal({
+        target_count: 1,
+        start_date: "2026-08-01",
+        end_date: "2026-08-31",
+      });
+      const output = runPlannerKernel(
+        input({
+          scopeMonth: "2026-08",
+          asOfDate: "2026-08-20",
+          goals: [currentGoal],
+          preserveExistingAssignments: true,
+          draftPinnedDates: { "goal-a:total:1": "2026-08-05" },
+          basePlan: {
+            planId: "plan-a",
+            version: 1,
+            assignments: [
+              {
+                goalId: currentGoal.id,
+                requirementFingerprint:
+                  computeRequirementFingerprint(currentGoal),
+                unitKey: "total:1",
+                scheduledDate: "2026-08-05",
+                locked: false,
+              },
+            ],
+          },
+        })
+      );
+
+      expect(output.solver.searchStatus).toBe("blocked_invalid_lock");
+      expect(output.solver.issueCodes).toContain("invalid_lock");
+    });
+
+    it("honors a draft pin that moves a past preserved unit into the window", () => {
+      const currentGoal = goal({
+        target_count: 1,
+        start_date: "2026-08-01",
+        end_date: "2026-08-31",
+      });
+      const output = runPlannerKernel(
+        input({
+          scopeMonth: "2026-08",
+          asOfDate: "2026-08-20",
+          goals: [currentGoal],
+          preserveExistingAssignments: true,
+          draftPinnedDates: { "goal-a:total:1": "2026-08-22" },
+          basePlan: {
+            planId: "plan-a",
+            version: 1,
+            assignments: [
+              {
+                goalId: currentGoal.id,
+                requirementFingerprint:
+                  computeRequirementFingerprint(currentGoal),
+                unitKey: "total:1",
+                scheduledDate: "2026-08-05",
+                locked: false,
+              },
+            ],
+          },
+        })
+      );
+
+      expect(output.solver.issueCodes).toEqual([]);
+      expect(output.validation.valid).toBe(true);
+      expect(output.workUnits.map((unit) => unit.scheduledDate)).toEqual([
+        "2026-08-22",
+      ]);
+    });
   });
 
   it("emits a usable unaffected-goal diff beside a colliding lock", () => {
