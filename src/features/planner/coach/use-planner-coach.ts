@@ -42,7 +42,7 @@ import type {
   CoachMessageProposal,
 } from "@/features/planner/calendar-surface.types";
 import type { CoachPolicyPatch } from "@/lib/planner/coach";
-import { plannerPolicySchema, type PlannerPolicy } from "@/lib/planner/policy";
+import { plannerPolicySchema } from "@/lib/planner/policy";
 
 interface CoachProposalApplyResult {
   status: CoachProposalApplyStatus;

@@ -52,7 +52,7 @@ export function GoalListControls({
     <div className={cn("flex flex-wrap items-end gap-2", className)}>
       <div className="space-y-1">
         <Label htmlFor={endMonthId} className="text-xs text-muted-foreground">
-          Ending by
+          Ending in
         </Label>
         <Select
           value={selectedEndMonth ?? noEndMonthValue}
@@ -64,10 +64,10 @@ export function GoalListControls({
             id={endMonthId}
             className="h-8 w-[180px] rounded-full bg-background/90 text-xs"
           >
-            <SelectValue placeholder="No end-date cutoff" />
+            <SelectValue placeholder="All end months" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value={noEndMonthValue}>No end-date cutoff</SelectItem>
+            <SelectItem value={noEndMonthValue}>All end months</SelectItem>
             {monthOptions.map((option) => (
               <SelectItem key={option.value} value={option.value}>
                 {option.label}

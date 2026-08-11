@@ -94,7 +94,11 @@ describe("calendar surface extracted components", () => {
     expect(onEntryPointerStart).toHaveBeenCalledWith(false);
     expect(onCellPointerDown).not.toHaveBeenCalled();
     await user.click(screen.getByText("Easy run"));
-    expect(onEntryClick).toHaveBeenCalledWith("2026-08-06", sampleEntry);
+    expect(onEntryClick).toHaveBeenCalledWith(
+      "2026-08-06",
+      sampleEntry,
+      expect.any(HTMLElement)
+    );
   });
 
   it("renders preview list and supports opening and completion toggle", async () => {
