@@ -28,8 +28,6 @@ const createSchema = z
     endsAt: z.iso.datetime().nullable().optional(),
     status: z.enum(["upcoming", "open", "closed"]).default("upcoming"),
     rollover: z.enum(["none", "weekly", "monthly", "quarterly"]).default("none"),
-    scope: z.enum(["global", "cohort"]).default("global"),
-    cohortId: z.uuid().nullable().optional(),
   })
   .superRefine((value, context) => {
     if (value.metric === "category_xp" && !value.metricTrackKey) {
@@ -37,20 +35,6 @@ const createSchema = z
         code: "custom",
         message: "metricTrackKey is required for category_xp seasons.",
         path: ["metricTrackKey"],
-      });
-    }
-    if (value.scope === "cohort" && !value.cohortId) {
-      context.addIssue({
-        code: "custom",
-        message: "cohortId is required for cohort-scoped seasons.",
-        path: ["cohortId"],
-      });
-    }
-    if (value.scope === "global" && value.cohortId) {
-      context.addIssue({
-        code: "custom",
-        message: "cohortId must be null for global seasons.",
-        path: ["cohortId"],
       });
     }
   });
@@ -113,8 +97,6 @@ export async function POST(request: Request) {
         ends_at: body.endsAt ?? null,
         status: body.status,
         rollover: body.rollover,
-        scope: body.scope,
-        cohort_id: body.cohortId ?? null,
         created_by: adminContext.userId,
       })
       .select("*")
