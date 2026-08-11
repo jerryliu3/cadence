@@ -406,6 +406,7 @@ export function BulkGoalForm({ showBackButton = true }: BulkGoalFormProps) {
   const [parsing, setParsing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [drafts, setDrafts] = useState<BulkGoalDraft[]>([]);
+  const [expandedDraftId, setExpandedDraftId] = useState<string | null>(null);
   const [availableGoals, setAvailableGoals] = useState<Goal[]>([]);
 
   useEffect(() => {
@@ -489,6 +490,7 @@ export function BulkGoalForm({ showBackButton = true }: BulkGoalFormProps) {
 
     const nextDrafts = rows.map((row, index) => buildDraftFromRow(row, index));
     setDrafts(nextDrafts);
+    setExpandedDraftId(nextDrafts[0]?.id ?? null);
     toast.success(`Loaded ${nextDrafts.length} goal draft${nextDrafts.length === 1 ? "" : "s"}.`);
   };
 
@@ -950,6 +952,14 @@ export function BulkGoalForm({ showBackButton = true }: BulkGoalFormProps) {
                   deadlineLabel.includes(linkQuery)
                 );
               });
+              const expanded = expandedDraftId === draft.id;
+              const scheduleSummary = draft.end_date
+                ? `${draft.start_date} to ${draft.end_date}`
+                : `Starts ${draft.start_date}`;
+              const recurrenceSummary =
+                draft.frequency_type === "recurring"
+                  ? `Recurring · ${draft.recurrence_interval}`
+                  : `Milestone · ${draft.target_count || "0"} target`;
 
               return (
                 <Card
@@ -974,19 +984,62 @@ export function BulkGoalForm({ showBackButton = true }: BulkGoalFormProps) {
                         />
                         {draft.sourceRowLabel}
                       </label>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon-sm"
-                        onClick={() =>
-                          setDrafts((previous) => previous.filter((entry) => entry.id !== draft.id))
-                        }
-                      >
-                        <Trash2 className="size-4" />
-                      </Button>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          type="button"
+                          variant={expanded ? "secondary" : "outline"}
+                          size="sm"
+                          onClick={() =>
+                            setExpandedDraftId((previous) =>
+                              previous === draft.id ? null : draft.id
+                            )
+                          }
+                        >
+                          {expanded ? "Close" : "Edit"}
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-sm"
+                          onClick={() => {
+                            setDrafts((previous) =>
+                              previous.filter((entry) => entry.id !== draft.id)
+                            );
+                            setExpandedDraftId((previous) =>
+                              previous === draft.id ? null : previous
+                            );
+                          }}
+                        >
+                          <Trash2 className="size-4" />
+                        </Button>
+                      </div>
                     </div>
 
-                    {draft.errors.length > 0 ? (
+                    <button
+                      type="button"
+                      className="w-full rounded-lg border bg-muted/10 px-3 py-2 text-left transition-colors hover:bg-muted/20"
+                      onClick={() =>
+                        setExpandedDraftId((previous) =>
+                          previous === draft.id ? null : draft.id
+                        )
+                      }
+                    >
+                      <div className="flex flex-wrap items-center gap-2 text-sm">
+                        <span className="font-medium">
+                          {draft.title.trim().length > 0 ? draft.title : "Untitled goal"}
+                        </span>
+                        <Badge variant="outline">{draft.category_selection}</Badge>
+                        <Badge variant="outline">{recurrenceSummary}</Badge>
+                        <Badge variant="outline">{scheduleSummary}</Badge>
+                        {draft.errors.length > 0 ? (
+                          <Badge variant="destructive">
+                            {draft.errors.length} error{draft.errors.length === 1 ? "" : "s"}
+                          </Badge>
+                        ) : null}
+                      </div>
+                    </button>
+
+                    {expanded && draft.errors.length > 0 ? (
                       <div className="rounded-lg border border-destructive/40 bg-destructive/5 px-3 py-2">
                         <ul className="space-y-1 text-xs text-destructive">
                           {draft.errors.map((error) => (
@@ -996,6 +1049,8 @@ export function BulkGoalForm({ showBackButton = true }: BulkGoalFormProps) {
                       </div>
                     ) : null}
 
+                    {expanded ? (
+                      <>
                     <div className="grid gap-3 sm:grid-cols-2">
                       <div className="space-y-2">
                         <Label>Title</Label>
@@ -1287,6 +1342,8 @@ export function BulkGoalForm({ showBackButton = true }: BulkGoalFormProps) {
                         </CollapsibleContent>
                       </div>
                     </Collapsible>
+                      </>
+                    ) : null}
                   </CardContent>
                 </Card>
               );
