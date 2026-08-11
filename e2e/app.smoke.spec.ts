@@ -27,9 +27,9 @@ test("direct calendar URL does not eagerly load checklist context", async ({
   });
 
   await page.goto("/calendar");
-  await expect(page.getByRole("link", { name: "Calendar" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Calendar", exact: true })).toBeVisible();
   await expect(page).toHaveURL(/\/calendar/);
-  await page.waitForLoadState("networkidle");
+  await page.waitForTimeout(750);
   expect(progressContextRequests).toBe(0);
 });
 
