@@ -1,6 +1,7 @@
 // @vitest-environment node
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { resetEnvCacheForTests } from "@/lib/env";
 
 const mocks = vi.hoisted(() => ({
   getUser: vi.fn(),
@@ -36,7 +37,7 @@ import { POST } from "./route";
 describe("POST /api/social/feed/[eventId]/reactions", () => {
   beforeEach(() => {
     vi.stubEnv("SOCIAL_ENABLED", "true");
-    vi.stubEnv("SOCIAL_FEED_ENABLED", "true");
+    resetEnvCacheForTests();
     mocks.getUser.mockResolvedValue({
       data: { user: { id: "viewer-1" } },
       error: null,
@@ -50,6 +51,7 @@ describe("POST /api/social/feed/[eventId]/reactions", () => {
   afterEach(() => {
     vi.clearAllMocks();
     vi.unstubAllEnvs();
+    resetEnvCacheForTests();
   });
 
   it("returns 401 for unauthenticated users", async () => {

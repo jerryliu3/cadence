@@ -1,9 +1,12 @@
+import {
+  ApiRouteError,
+  apiErrorResponse,
+  createCorrelationId,
+  parseJsonBody,
+} from "@/lib/api/route";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { runAfterResponse } from "@/lib/api/after";
-import { parseBoundedJsonBody } from "@/lib/api/body";
-import { createCorrelationId } from "@/lib/api/context";
-import { RouteError, routeErrorResponse, unknownRouteErrorResponse } from "@/lib/api/errors";
 import { flushNotificationOutbox, flushNotificationsForUser } from "@/lib/push/outbox";
 import { requireSocialRouteContext } from "@/lib/social/api";
 import { createClient } from "@/lib/supabase/server";
@@ -21,12 +24,12 @@ const reactionSchema = z.object({
 
 function mapReactionError(message: string) {
   if (message === "feed_event_not_found") {
-    return new RouteError(404, "feed_event_not_found", "Feed event was not found.");
+    return new ApiRouteError(404, "feed_event_not_found", "Feed event was not found.");
   }
   if (message === "feed_event_not_visible") {
-    return new RouteError(403, "feed_event_not_visible", "Feed event is not visible.");
+    return new ApiRouteError(403, "feed_event_not_visible", "Feed event is not visible.");
   }
-  return new RouteError(500, "feed_reaction_failed", "Feed reaction request failed.", {
+  return new ApiRouteError(500, "feed_reaction_failed", "Feed reaction request failed.", {
     cause: message,
   });
 }
@@ -38,12 +41,9 @@ export async function POST(
   const correlationId = createCorrelationId();
   try {
     const params = paramsSchema.parse(await context.params);
-    const body = await parseBoundedJsonBody(request, 8 * 1024, reactionSchema);
+    const body = await parseJsonBody({ request: request, maxBytes: 8 * 1024, schema: reactionSchema });
     const supabase = await createClient();
-    const socialContext = await requireSocialRouteContext({
-      supabase,
-      requireFeed: true,
-    });
+    const socialContext = await requireSocialRouteContext({ supabase });
 
     const { error } = await socialContext.supabase.rpc("add_feed_reaction_service", {
       p_feed_event_id: params.eventId,
@@ -67,21 +67,19 @@ export async function POST(
       { headers: { "Cache-Control": "no-store" } }
     );
   } catch (error) {
-    if (error instanceof RouteError) {
-      return routeErrorResponse(error, correlationId);
+    if (error instanceof ApiRouteError) {
+      return apiErrorResponse(error, correlationId);
     }
     if (error instanceof z.ZodError) {
-      return routeErrorResponse(
-        new RouteError(400, "validation_failed", "Request payload failed validation.", {
+      return apiErrorResponse(
+        new ApiRouteError(400, "validation_failed", "Request payload failed validation.", {
           issues: error.issues,
         }),
         correlationId
       );
     }
-    return unknownRouteErrorResponse({
-      correlationId,
-      message: "Feed reaction request failed unexpectedly.",
-    });
+    return apiErrorResponse(new ApiRouteError(500, "internal_error", "Feed reaction request failed unexpectedly.",
+    ), correlationId);
   }
 }
 
@@ -92,12 +90,9 @@ export async function DELETE(
   const correlationId = createCorrelationId();
   try {
     const params = paramsSchema.parse(await context.params);
-    const body = await parseBoundedJsonBody(request, 8 * 1024, reactionSchema);
+    const body = await parseJsonBody({ request: request, maxBytes: 8 * 1024, schema: reactionSchema });
     const supabase = await createClient();
-    const socialContext = await requireSocialRouteContext({
-      supabase,
-      requireFeed: true,
-    });
+    const socialContext = await requireSocialRouteContext({ supabase });
 
     const { error } = await socialContext.supabase.rpc("remove_feed_reaction_service", {
       p_feed_event_id: params.eventId,
@@ -117,20 +112,18 @@ export async function DELETE(
       { headers: { "Cache-Control": "no-store" } }
     );
   } catch (error) {
-    if (error instanceof RouteError) {
-      return routeErrorResponse(error, correlationId);
+    if (error instanceof ApiRouteError) {
+      return apiErrorResponse(error, correlationId);
     }
     if (error instanceof z.ZodError) {
-      return routeErrorResponse(
-        new RouteError(400, "validation_failed", "Request payload failed validation.", {
+      return apiErrorResponse(
+        new ApiRouteError(400, "validation_failed", "Request payload failed validation.", {
           issues: error.issues,
         }),
         correlationId
       );
     }
-    return unknownRouteErrorResponse({
-      correlationId,
-      message: "Feed reaction delete request failed unexpectedly.",
-    });
+    return apiErrorResponse(new ApiRouteError(500, "internal_error", "Feed reaction delete request failed unexpectedly.",
+    ), correlationId);
   }
 }

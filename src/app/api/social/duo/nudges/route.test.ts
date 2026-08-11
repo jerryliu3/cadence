@@ -1,6 +1,7 @@
 // @vitest-environment node
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { resetEnvCacheForTests } from "@/lib/env";
 
 const mocks = vi.hoisted(() => ({
   getUser: vi.fn(),
@@ -29,7 +30,7 @@ import { POST } from "./route";
 describe("POST /api/social/duo/nudges", () => {
   beforeEach(() => {
     vi.stubEnv("SOCIAL_ENABLED", "true");
-    vi.stubEnv("SOCIAL_DUO_ENABLED", "true");
+    resetEnvCacheForTests();
     mocks.getUser.mockResolvedValue({
       data: { user: { id: "viewer-1" } },
       error: null,
@@ -43,10 +44,12 @@ describe("POST /api/social/duo/nudges", () => {
   afterEach(() => {
     vi.clearAllMocks();
     vi.unstubAllEnvs();
+    resetEnvCacheForTests();
   });
 
-  it("returns 503 when duo is disabled", async () => {
-    vi.stubEnv("SOCIAL_DUO_ENABLED", "false");
+  it("returns 503 when social is disabled", async () => {
+    vi.stubEnv("SOCIAL_ENABLED", "false");
+    resetEnvCacheForTests();
     const response = await POST(
       new Request("http://localhost/api/social/duo/nudges", {
         method: "POST",
