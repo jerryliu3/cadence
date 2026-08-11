@@ -25,14 +25,16 @@ export default async function TodayPage({
 
   if (tab === "calendar" || day !== null) {
     const calendarParams = new URLSearchParams();
-    if (month) {
-      calendarParams.set("month", month);
+    const resolvedMonth = month ?? (day ? day.slice(0, 7) : null);
+    if (resolvedMonth) {
+      calendarParams.set("month", resolvedMonth);
     }
     if (day) {
       calendarParams.set("day", day);
     }
-    if (view) {
-      calendarParams.set("view", view);
+    const resolvedView = view ?? (day ? "day" : null);
+    if (resolvedView) {
+      calendarParams.set("view", resolvedView);
     }
     const query = calendarParams.toString();
     redirect(query.length > 0 ? `/calendar?${query}` : "/calendar");
