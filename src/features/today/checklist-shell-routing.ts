@@ -2,7 +2,7 @@ import { format, parse } from "date-fns";
 
 export type PlannerShellTab = "today" | "not-today" | "calendar";
 export type SurfaceKey = "checklist" | "calendar";
-export type PlannerCalendarViewMode = "month" | "week" | "day";
+export type PlannerCalendarViewMode = "month" | "week" | "three_day" | "day";
 
 const monthPattern = /^\d{4}-(0[1-9]|1[0-2])$/;
 const datePattern = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
@@ -22,7 +22,12 @@ export function isValidDate(value: string | null): value is string {
 export function isValidCalendarViewMode(
   value: string | null
 ): value is PlannerCalendarViewMode {
-  return value === "month" || value === "week" || value === "day";
+  return (
+    value === "month" ||
+    value === "week" ||
+    value === "three_day" ||
+    value === "day"
+  );
 }
 
 export function getTodayDateParam() {
@@ -110,7 +115,7 @@ export function normalizeChecklistShellRoute({
         nextParams.set("month", normalizedMonth);
         changed = true;
       }
-    } else if (viewMode === "week") {
+    } else if (viewMode === "week" || viewMode === "three_day") {
       const dayParam = nextParams.get("day");
       const monthParam = nextParams.get("month");
       const fallbackDay = isValidMonth(monthParam)
@@ -143,6 +148,78 @@ export function normalizeChecklistShellRoute({
     month: isValidMonth(normalizedMonthParam) ? normalizedMonthParam : null,
     day: isValidDate(normalizedDayParam) ? normalizedDayParam : null,
     viewMode: normalizedViewMode,
+    changed,
+    nextParams,
+  };
+}
+
+export function normalizeCalendarRoute({
+  searchParams,
+  defaultCalendarViewMode,
+}: {
+  searchParams: URLSearchParams;
+  defaultCalendarViewMode: PlannerCalendarViewMode;
+}) {
+  const rawMonth = searchParams.get("month");
+  const rawDay = searchParams.get("day");
+  const rawView = searchParams.get("view");
+  const monthValid = isValidMonth(rawMonth);
+  const dayValid = isValidDate(rawDay);
+  const rawViewModeValid = isValidCalendarViewMode(rawView);
+  const nextParams = new URLSearchParams(searchParams.toString());
+  let changed = false;
+  const viewMode: PlannerCalendarViewMode = rawViewModeValid
+    ? rawView
+    : defaultCalendarViewMode;
+
+  if (rawMonth && !monthValid) {
+    nextParams.delete("month");
+    changed = true;
+  }
+  if (rawDay && !dayValid) {
+    nextParams.delete("day");
+    changed = true;
+  }
+  if (rawView && !rawViewModeValid) {
+    nextParams.delete("view");
+    changed = true;
+  }
+
+  if (viewMode === "month") {
+    if (nextParams.has("day")) {
+      nextParams.delete("day");
+      changed = true;
+    }
+  } else {
+    const dayParam = nextParams.get("day");
+    const monthParam = nextParams.get("month");
+    const fallbackDay = isValidMonth(monthParam)
+      ? `${monthParam}-01`
+      : getTodayDateParam();
+    const normalizedDay = isValidDate(dayParam) ? dayParam : fallbackDay;
+    if (nextParams.get("day") !== normalizedDay) {
+      nextParams.set("day", normalizedDay);
+      changed = true;
+    }
+    const normalizedMonth = normalizedDay.slice(0, 7);
+    if (nextParams.get("month") !== normalizedMonth) {
+      nextParams.set("month", normalizedMonth);
+      changed = true;
+    }
+  }
+
+  if (nextParams.get("view") !== viewMode) {
+    nextParams.set("view", viewMode);
+    changed = true;
+  }
+
+  const normalizedMonthParam = nextParams.get("month");
+  const normalizedDayParam = nextParams.get("day");
+
+  return {
+    month: isValidMonth(normalizedMonthParam) ? normalizedMonthParam : null,
+    day: isValidDate(normalizedDayParam) ? normalizedDayParam : null,
+    viewMode,
     changed,
     nextParams,
   };

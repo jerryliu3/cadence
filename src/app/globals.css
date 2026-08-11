@@ -76,7 +76,17 @@
   border-color: var(--border);
 }
 
-html,
+html {
+  min-height: 100%;
+  scrollbar-gutter: stable both-edges;
+}
+
+@supports not (scrollbar-gutter: stable) {
+  html {
+    overflow-y: scroll;
+  }
+}
+
 body {
   min-height: 100%;
 }
@@ -180,4 +190,19 @@ a {
 
 .dark .react-calendar-heatmap .heatmap-scale-4 {
   fill: #40b262;
+}
+
+[data-sonner-toaster][data-position="bottom-right"] {
+  right: max(env(safe-area-inset-right), 0.75rem) !important;
+  left: auto !important;
+}
+
+[data-sonner-toast] {
+  max-width: min(
+    24rem,
+    calc(
+      100vw - max(env(safe-area-inset-left), 0.75rem) - max(env(safe-area-inset-right), 0.75rem) -
+        0.75rem
+    )
+  ) !important;
 }
