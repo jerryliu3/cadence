@@ -13,7 +13,7 @@ function toSeasonDto(row: {
   id: string;
   slug: string;
   title: string;
-  subject_kind: "user" | "duo";
+  subject_kind: "user" | "team";
   metric:
     | "total_xp"
     | "category_xp"

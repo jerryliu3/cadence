@@ -18,7 +18,7 @@ function toSeasonDto(row: {
   id: string;
   slug: string;
   title: string;
-  subject_kind: "user" | "duo";
+  subject_kind: "user" | "team";
   metric:
     | "total_xp"
     | "category_xp"
@@ -49,7 +49,7 @@ function toSeasonDto(row: {
 
 function toStandingDto(row: {
   season_id: string;
-  subject_kind: "user" | "duo";
+  subject_kind: "user" | "team";
   subject_id: string;
   display_name: string;
   score: number | string;

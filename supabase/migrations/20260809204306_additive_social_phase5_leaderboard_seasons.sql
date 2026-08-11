@@ -215,6 +215,13 @@ begin
                 )
             ) as tie_break_at
           from public.profiles profile
+
+          where exists (
+            select 1
+            from public.xp_ledger ledger
+            where ledger.user_id = profile.id
+              and ledger.earned_on between v_from and v_to
+          )
         ) scored
       ) ranked;
 
