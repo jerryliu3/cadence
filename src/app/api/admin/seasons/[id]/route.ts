@@ -1,9 +1,12 @@
+import {
+  ApiRouteError,
+  apiErrorResponse,
+  createCorrelationId,
+  parseJsonBody,
+} from "@/lib/api/route";
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { parseBoundedJsonBody } from "@/lib/api/body";
 import { requireAdminContext } from "@/lib/api/admin-context";
-import { createCorrelationId } from "@/lib/api/context";
-import { RouteError, routeErrorResponse, unknownRouteErrorResponse } from "@/lib/api/errors";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Database } from "@/lib/supabase/database.types";
 
@@ -17,6 +20,24 @@ const patchSchema = z
     endsAt: z.iso.datetime().nullable().optional(),
     status: z.enum(["upcoming", "open", "closed"]).optional(),
     rollover: z.enum(["none", "weekly", "monthly", "quarterly"]).optional(),
+    scope: z.enum(["global", "cohort"]).optional(),
+    cohortId: z.uuid().nullable().optional(),
+  })
+  .superRefine((value, context) => {
+    if (value.scope === "cohort" && value.cohortId === undefined) {
+      context.addIssue({
+        code: "custom",
+        message: "cohortId is required when scope is cohort.",
+        path: ["cohortId"],
+      });
+    }
+    if (value.scope === "global" && value.cohortId !== undefined && value.cohortId !== null) {
+      context.addIssue({
+        code: "custom",
+        message: "cohortId must be null when scope is global.",
+        path: ["cohortId"],
+      });
+    }
   })
   .refine((value) => Object.keys(value).length > 0, {
     message: "Provide at least one field to update.",
@@ -31,16 +52,18 @@ export async function PATCH(
     const params = paramsSchema.parse(await context.params);
     const adminContext = await requireAdminContext("admin");
     if (!adminContext) {
-      throw new RouteError(404, "not_found", "Resource not found.");
+      throw new ApiRouteError(404, "not_found", "Resource not found.");
     }
 
-    const body = await parseBoundedJsonBody(request, 64 * 1024, patchSchema);
+    const body = await parseJsonBody({ request: request, maxBytes: 64 * 1024, schema: patchSchema });
     const updates: Database["public"]["Tables"]["leaderboard_seasons"]["Update"] = {};
     if (body.title !== undefined) updates.title = body.title;
     if (body.startsAt !== undefined) updates.starts_at = body.startsAt;
     if (body.endsAt !== undefined) updates.ends_at = body.endsAt;
     if (body.status !== undefined) updates.status = body.status;
     if (body.rollover !== undefined) updates.rollover = body.rollover;
+    if (body.scope !== undefined) updates.scope = body.scope;
+    if (body.cohortId !== undefined) updates.cohort_id = body.cohortId;
 
     const admin = createAdminClient();
     const { data, error } = await admin
@@ -50,7 +73,7 @@ export async function PATCH(
       .select("*")
       .single();
     if (error) {
-      throw new RouteError(500, "admin_season_update_failed", "Could not update season.", {
+      throw new ApiRouteError(500, "admin_season_update_failed", "Could not update season.", {
         cause: error.message,
       });
     }
@@ -64,20 +87,18 @@ export async function PATCH(
       { headers: { "Cache-Control": "no-store" } }
     );
   } catch (error) {
-    if (error instanceof RouteError) {
-      return routeErrorResponse(error, correlationId);
+    if (error instanceof ApiRouteError) {
+      return apiErrorResponse(error, correlationId);
     }
     if (error instanceof z.ZodError) {
-      return routeErrorResponse(
-        new RouteError(400, "validation_failed", "Request payload failed validation.", {
+      return apiErrorResponse(
+        new ApiRouteError(400, "validation_failed", "Request payload failed validation.", {
           issues: error.issues,
         }),
         correlationId
       );
     }
-    return unknownRouteErrorResponse({
-      correlationId,
-      message: "Admin season update request failed unexpectedly.",
-    });
+    return apiErrorResponse(new ApiRouteError(500, "internal_error", "Admin season update request failed unexpectedly.",
+    ), correlationId);
   }
 }

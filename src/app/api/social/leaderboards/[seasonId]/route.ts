@@ -1,7 +1,10 @@
+import {
+  ApiRouteError,
+  apiErrorResponse,
+  createCorrelationId,
+} from "@/lib/api/route";
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { createCorrelationId } from "@/lib/api/context";
-import { RouteError, routeErrorResponse, unknownRouteErrorResponse } from "@/lib/api/errors";
 import { requireSocialRouteContext } from "@/lib/social/api";
 import { createClient } from "@/lib/supabase/server";
 
@@ -78,10 +81,7 @@ export async function GET(
     const offset = Number.parseInt(url.searchParams.get("offset") ?? "0", 10);
 
     const supabase = await createClient();
-    const socialContext = await requireSocialRouteContext({
-      supabase,
-      requireLeaderboards: true,
-    });
+    const socialContext = await requireSocialRouteContext({ supabase });
 
     const [{ data: seasonRows, error: seasonError }, { data: standingRows, error: standingsError }] =
       await Promise.all([
@@ -96,12 +96,12 @@ export async function GET(
       ]);
 
     if (seasonError) {
-      throw new RouteError(500, "social_leaderboards_unavailable", "Leaderboards are unavailable.", {
+      throw new ApiRouteError(500, "social_leaderboards_unavailable", "Leaderboards are unavailable.", {
         cause: seasonError.message,
       });
     }
     if (standingsError) {
-      throw new RouteError(
+      throw new ApiRouteError(
         500,
         "leaderboard_standings_unavailable",
         "Leaderboard standings are unavailable.",
@@ -111,7 +111,7 @@ export async function GET(
 
     const season = (seasonRows ?? []).find((row) => row.id === params.seasonId);
     if (!season) {
-      throw new RouteError(404, "season_not_found", "Leaderboard season was not found.");
+      throw new ApiRouteError(404, "season_not_found", "Leaderboard season was not found.");
     }
 
     const standings = (standingRows ?? []).map(toStandingDto);
@@ -126,20 +126,18 @@ export async function GET(
       { headers: { "Cache-Control": "no-store" } }
     );
   } catch (error) {
-    if (error instanceof RouteError) {
-      return routeErrorResponse(error, correlationId);
+    if (error instanceof ApiRouteError) {
+      return apiErrorResponse(error, correlationId);
     }
     if (error instanceof z.ZodError) {
-      return routeErrorResponse(
-        new RouteError(400, "invalid_season_id", "Season id is invalid.", {
+      return apiErrorResponse(
+        new ApiRouteError(400, "invalid_season_id", "Season id is invalid.", {
           issues: error.issues,
         }),
         correlationId
       );
     }
-    return unknownRouteErrorResponse({
-      correlationId,
-      message: "Leaderboard standings request failed unexpectedly.",
-    });
+    return apiErrorResponse(new ApiRouteError(500, "internal_error", "Leaderboard standings request failed unexpectedly.",
+    ), correlationId);
   }
 }

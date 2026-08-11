@@ -1,6 +1,9 @@
+import {
+  ApiRouteError,
+  apiErrorResponse,
+  createCorrelationId,
+} from "@/lib/api/route";
 import { NextResponse } from "next/server";
-import { createCorrelationId } from "@/lib/api/context";
-import { RouteError, routeErrorResponse, unknownRouteErrorResponse } from "@/lib/api/errors";
 import { requireSocialRouteContext } from "@/lib/social/api";
 import { createClient } from "@/lib/supabase/server";
 
@@ -43,14 +46,11 @@ export async function GET() {
   const correlationId = createCorrelationId();
   try {
     const supabase = await createClient();
-    const context = await requireSocialRouteContext({
-      supabase,
-      requireLeaderboards: true,
-    });
+    const context = await requireSocialRouteContext({ supabase });
 
     const { data, error } = await context.supabase.rpc("get_social_leaderboards");
     if (error) {
-      throw new RouteError(
+      throw new ApiRouteError(
         500,
         "social_leaderboards_unavailable",
         "Leaderboards are unavailable.",
@@ -67,12 +67,10 @@ export async function GET() {
       { headers: { "Cache-Control": "no-store" } }
     );
   } catch (error) {
-    if (error instanceof RouteError) {
-      return routeErrorResponse(error, correlationId);
+    if (error instanceof ApiRouteError) {
+      return apiErrorResponse(error, correlationId);
     }
-    return unknownRouteErrorResponse({
-      correlationId,
-      message: "Leaderboard list request failed unexpectedly.",
-    });
+    return apiErrorResponse(new ApiRouteError(500, "internal_error", "Leaderboard list request failed unexpectedly.",
+    ), correlationId);
   }
 }

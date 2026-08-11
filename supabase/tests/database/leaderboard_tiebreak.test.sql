@@ -16,14 +16,14 @@ values
 on conflict (id) do nothing;
 
 update public.profiles
-set social_leaderboard_eligible = false
+set social_competition_eligible = false
 where id not in (
   '8d111111-1111-4111-8111-111111111111',
   '8d222222-2222-4222-8222-222222222222'
 );
 
 update public.profiles
-set social_leaderboard_eligible = true
+set social_competition_eligible = true
 where id in (
   '8d111111-1111-4111-8111-111111111111',
   '8d222222-2222-4222-8222-222222222222'
