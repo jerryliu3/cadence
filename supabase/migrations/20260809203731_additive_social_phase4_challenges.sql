@@ -122,7 +122,6 @@ begin
       select 1
       from public.profiles profile
       where profile.id = new.subject_id
-        and profile.social_competition_eligible = true
     )
     into v_exists;
   elsif new.subject_kind = 'duo'::public.social_subject_kind then
@@ -449,7 +448,6 @@ begin
           'user'::public.social_subject_kind,
           profile.id
         from public.profiles profile
-        where profile.social_competition_eligible = true
         on conflict (challenge_id, subject_kind, subject_id) do nothing;
       else
         select greatest(
@@ -472,7 +470,6 @@ begin
             'user'::public.social_subject_kind,
             profile.id
           from public.profiles profile
-          where profile.social_competition_eligible = true
           order by profile.created_at asc, profile.id asc
           limit v_slots
           on conflict (challenge_id, subject_kind, subject_id) do nothing;
@@ -696,14 +693,6 @@ begin
     raise exception using errcode = '22023', message = 'challenge_id_required';
   end if;
 
-  if not exists (
-    select 1
-    from public.profiles profile
-    where profile.id = v_uid
-      and profile.social_competition_eligible = true
-  ) then
-    raise exception using errcode = '42501', message = 'challenge_not_eligible';
-  end if;
 
   select challenge.*
   into v_challenge
