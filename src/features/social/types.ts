@@ -27,6 +27,7 @@ export interface SocialFeedEvent {
 }
 
 export type ChallengeStatus = "draft" | "scheduled" | "active" | "closed" | "archived";
+export type ChallengeEnrollment = "auto" | "opt_in";
 export type SocialSubjectKind = "user" | "team";
 export type ChallengeMetric =
   | "total_xp"
@@ -41,6 +42,7 @@ export interface SocialChallenge {
   title: string;
   description: string | null;
   status: ChallengeStatus;
+  enrollment: ChallengeEnrollment;
   subjectKind: SocialSubjectKind;
   metric: ChallengeMetric;
   metricTrackKey: string | null;
@@ -87,7 +89,8 @@ export type TeamStatus =
   | "pending"
   | "active"
   | "closed";
-
+  | "closed";
+  | "closed";
 
 
 
