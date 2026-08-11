@@ -24,7 +24,7 @@ function toSeasonDto(row: {
   starts_at: string;
   ends_at: string | null;
   status: "upcoming" | "open" | "closed";
-  rollover: "none" | "weekly" | "monthly" | "quarterly";
+  rollover: "none" | "weekly" | "monthly" | "quarterly" | "yearly";
   closed_at: string | null;
 }) {
   return {
