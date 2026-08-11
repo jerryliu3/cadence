@@ -5,6 +5,7 @@ import {
   Archive,
   CalendarClock,
   CheckCircle2,
+  SlidersHorizontal,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import {
@@ -15,14 +16,29 @@ import {
   useState,
 } from "react";
 import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { LoadingCard } from "@/components/ui/loading-card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { buildLoginHref } from "@/lib/auth/login-redirect";
 import { GoalListControls } from "@/features/goals/goal-list-controls";
 import { CollapsibleGoalSection } from "@/features/today/collapsible-goal-section";
-import { TodayHeaderCard, type RecurrenceFilter } from "@/features/today/today-header-card";
+import { TodayHeaderCard } from "@/features/today/today-header-card";
 import { GoalCard } from "@/features/today/goal-card";
 import { GoalLoopScroller } from "@/features/today/goal-loop-scroller";
 import { isAbortError, withAbortSignal } from "@/lib/async/abort";
@@ -92,6 +108,7 @@ const emptyData: TodayData = {
 };
 
 const allCategoriesFilterValue = "__all_categories__";
+type RecurrenceFilter = "all" | "daily" | "weekly" | "monthly" | "fixed";
 type RecurrenceGroup = "daily" | "weekly" | "monthly" | "fixed";
 const VISIBLE_GOALS_PER_GROUP = 5;
 const TODAY_REQUEST_TIMEOUT_MS = 15_000;
@@ -126,6 +143,13 @@ const recurrenceGroupLabel: Record<RecurrenceGroup, string> = {
   monthly: "Monthly",
   fixed: "Fixed",
 };
+const recurrenceFilterOptions: Array<{ value: RecurrenceFilter; label: string }> = [
+  { value: "all", label: "All" },
+  { value: "daily", label: "Daily" },
+  { value: "weekly", label: "Weekly" },
+  { value: "monthly", label: "Monthly" },
+  { value: "fixed", label: "Milestone" },
+];
 
 export type ChecklistTabValue = "today" | "not-today";
 
@@ -157,6 +181,7 @@ export function TodayTab({
   const [categoryFilter, setCategoryFilter] = useState(allCategoriesFilterValue);
   const [recurrenceFilter, setRecurrenceFilter] = useState<RecurrenceFilter>("all");
   const [todayGoalSearchQuery, setTodayGoalSearchQuery] = useState("");
+  const [todayFiltersOpen, setTodayFiltersOpen] = useState(false);
   const [viewDate, setViewDate] = useState(toLocalDateString());
   const [todayEndMonth, setTodayEndMonth] = useState<string | null>(null);
   const [todaySort, setTodaySort] = useState<GoalDateSort>("earliest_end");
@@ -715,6 +740,11 @@ export function TodayTab({
     setViewDate((previous) => format(addDays(parseISO(previous), 1), "yyyy-MM-dd"));
   };
 
+  const quickCategoryOptions = availableCategories.slice(0, 4);
+  const recurrenceQuickFilters = recurrenceFilterOptions.filter(
+    (option) => option.value !== "fixed"
+  );
+
   if (loading) {
     return (
       <LoadingCard
@@ -757,25 +787,130 @@ export function TodayTab({
             onGoToPreviousDate={goToPreviousDate}
             onGoToNextDate={goToNextDate}
             onResetToToday={() => setViewDate(todayLocalDate)}
-            categoryFilter={categoryFilter}
-            onCategoryFilterChange={setCategoryFilter}
-            recurrenceFilter={recurrenceFilter}
-            onRecurrenceFilterChange={setRecurrenceFilter}
-            availableCategories={availableCategories}
-            allCategoriesFilterValue={allCategoriesFilterValue}
-            goals={completableGoals}
-            referenceMonth={checklistFilterStartMonth}
-            endMonth={effectiveTodayEndMonth}
-            onEndMonthChange={setTodayEndMonth}
-            sort={todaySort}
-            onSortChange={setTodaySort}
+            filterControls={
+              <div className="flex min-w-0 flex-1 items-center justify-between gap-2">
+                <div className="flex min-w-0 flex-1 items-center gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+                  {recurrenceQuickFilters.map((option) => (
+                    <Button
+                      key={`recurrence-quick-${option.value}`}
+                      type="button"
+                      variant={recurrenceFilter === option.value ? "default" : "outline"}
+                      size="sm"
+                      className="h-8 shrink-0 rounded-full px-3 text-xs"
+                      onClick={() => setRecurrenceFilter(option.value)}
+                    >
+                      {option.label}
+                    </Button>
+                  ))}
+                  {quickCategoryOptions.map((category) => (
+                    <Button
+                      key={`category-quick-${category}`}
+                      type="button"
+                      variant={
+                        categoryFilter === category ? "default" : "outline"
+                      }
+                      size="sm"
+                      className="h-8 shrink-0 rounded-full px-3 text-xs"
+                      onClick={() =>
+                        setCategoryFilter((previous) =>
+                          previous === category ? allCategoriesFilterValue : category
+                        )
+                      }
+                    >
+                      {category}
+                    </Button>
+                  ))}
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-8 shrink-0 rounded-full px-3 text-xs"
+                  onClick={() => setTodayFiltersOpen(true)}
+                >
+                  <SlidersHorizontal className="size-3.5" />
+                  Filters
+                </Button>
+                <Dialog open={todayFiltersOpen} onOpenChange={setTodayFiltersOpen}>
+                  <DialogContent className="top-auto bottom-0 left-1/2 max-h-[85vh] max-w-[calc(100%-1rem)] -translate-x-1/2 translate-y-0 overflow-y-auto rounded-b-none rounded-t-xl pb-[calc(env(safe-area-inset-bottom)+1rem)] sm:top-1/2 sm:bottom-auto sm:max-w-lg sm:-translate-y-1/2 sm:rounded-b-xl">
+                    <DialogHeader>
+                      <DialogTitle>Today filters</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                      <label className="block space-y-1">
+                        <Label className="text-xs text-muted-foreground">
+                          Search
+                        </Label>
+                        <Input
+                          value={todayGoalSearchQuery}
+                          onChange={(event) =>
+                            setTodayGoalSearchQuery(event.target.value)
+                          }
+                          placeholder="Search today's goals..."
+                          className="h-8"
+                        />
+                      </label>
+                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                        <label className="block space-y-1">
+                          <Label className="text-xs text-muted-foreground">
+                            Category
+                          </Label>
+                          <Select
+                            value={categoryFilter}
+                            onValueChange={setCategoryFilter}
+                          >
+                            <SelectTrigger className="h-8 rounded-full bg-background/90 text-xs">
+                              <SelectValue placeholder="Category" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value={allCategoriesFilterValue}>
+                                All categories
+                              </SelectItem>
+                              {availableCategories.map((category) => (
+                                <SelectItem key={category} value={category}>
+                                  {category}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </label>
+                        <label className="block space-y-1">
+                          <Label className="text-xs text-muted-foreground">
+                            Recurrence
+                          </Label>
+                          <Select
+                            value={recurrenceFilter}
+                            onValueChange={(value) =>
+                              setRecurrenceFilter(value as RecurrenceFilter)
+                            }
+                          >
+                            <SelectTrigger className="h-8 rounded-full bg-background/90 text-xs">
+                              <SelectValue placeholder="Recurrence" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {recurrenceFilterOptions.map((option) => (
+                                <SelectItem key={option.value} value={option.value}>
+                                  {option.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </label>
+                      </div>
+                      <GoalListControls
+                        goals={completableGoals}
+                        referenceMonth={checklistFilterStartMonth}
+                        endMonth={effectiveTodayEndMonth}
+                        onEndMonthChange={setTodayEndMonth}
+                        sort={todaySort}
+                        onSortChange={setTodaySort}
+                      />
+                    </div>
+                  </DialogContent>
+                </Dialog>
+              </div>
+            }
           >
-          <Input
-            value={todayGoalSearchQuery}
-            onChange={(event) => setTodayGoalSearchQuery(event.target.value)}
-            placeholder="Search today's goals..."
-            className="h-8"
-          />
           {todayGoalsSorted.length === 0 ? (
             <Card className="shadow-none">
               <CardContent className="py-6 text-sm text-muted-foreground">

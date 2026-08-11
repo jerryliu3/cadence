@@ -8,12 +8,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { PeriodStepper } from "@/components/ui/period-stepper";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { GoalListControls } from "@/features/goals/goal-list-controls";
-import type { Goal } from "@/lib/goals/types";
-import type { GoalDateSort } from "@/lib/goals/list-view";
-
-export type RecurrenceFilter = "all" | "daily" | "weekly" | "monthly" | "fixed";
 
 interface TodayHeaderCardProps {
   viewDateObj: Date;
@@ -24,18 +18,7 @@ interface TodayHeaderCardProps {
   onGoToPreviousDate: () => void;
   onGoToNextDate: () => void;
   onResetToToday: () => void;
-  categoryFilter: string;
-  onCategoryFilterChange: (value: string) => void;
-  recurrenceFilter: RecurrenceFilter;
-  onRecurrenceFilterChange: (value: RecurrenceFilter) => void;
-  availableCategories: string[];
-  allCategoriesFilterValue: string;
-  goals: Goal[];
-  referenceMonth: string;
-  endMonth: string | null;
-  onEndMonthChange: (value: string | null) => void;
-  sort: GoalDateSort;
-  onSortChange: (value: GoalDateSort) => void;
+  filterControls?: ReactNode;
   children: ReactNode;
 }
 
@@ -48,18 +31,7 @@ export function TodayHeaderCard({
   onGoToPreviousDate,
   onGoToNextDate,
   onResetToToday,
-  categoryFilter,
-  onCategoryFilterChange,
-  recurrenceFilter,
-  onRecurrenceFilterChange,
-  availableCategories,
-  allCategoriesFilterValue,
-  goals,
-  referenceMonth,
-  endMonth,
-  onEndMonthChange,
-  sort,
-  onSortChange,
+  filterControls,
   children,
 }: TodayHeaderCardProps) {
   return (
@@ -112,44 +84,8 @@ export function TodayHeaderCard({
               ) : null}
             </div>
 
-            <div className="flex shrink-0 items-center gap-2">
-              <Select value={categoryFilter} onValueChange={onCategoryFilterChange}>
-                <SelectTrigger className="h-8 w-[170px] rounded-full bg-background/90 text-xs">
-                  <SelectValue placeholder="Category" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={allCategoriesFilterValue}>All Categories</SelectItem>
-                  {availableCategories.map((category) => (
-                    <SelectItem key={category} value={category}>
-                      {category}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-
-              <Select value={recurrenceFilter} onValueChange={onRecurrenceFilterChange}>
-                <SelectTrigger className="h-8 w-[190px] rounded-full bg-background/90 text-xs">
-                  <SelectValue placeholder="Recurrence" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Recurrences</SelectItem>
-                  <SelectItem value="daily">Daily Recurrences</SelectItem>
-                  <SelectItem value="weekly">Weekly Recurrences</SelectItem>
-                  <SelectItem value="monthly">Monthly Recurrences</SelectItem>
-                  <SelectItem value="fixed">Milestone Goals</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+            {filterControls}
           </div>
-          <GoalListControls
-            goals={goals}
-            referenceMonth={referenceMonth}
-            endMonth={endMonth}
-            onEndMonthChange={onEndMonthChange}
-            sort={sort}
-            onSortChange={onSortChange}
-            className="mt-2"
-          />
         </div>
       </CardHeader>
       <CardContent className="space-y-3 pt-0">{children}</CardContent>
