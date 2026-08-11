@@ -27,7 +27,7 @@ insert into public.goals (
   title,
   category,
   category_key,
-  feed_visibility,
+  is_private,
   frequency_type,
   recurrence_interval,
   target_count,
@@ -43,7 +43,7 @@ values
     'Public feed title goal',
     'Health',
     'health',
-    'title_public',
+    false,
     'recurring',
     'weekly',
     3,
@@ -58,7 +58,7 @@ values
     'Private feed title goal',
     'Health',
     'health',
-    'private',
+    true,
     'recurring',
     'weekly',
     3,
@@ -73,7 +73,7 @@ values
     'Archived feed title goal',
     'Health',
     'health',
-    'title_public',
+    false,
     'recurring',
     'weekly',
     3,
@@ -88,7 +88,7 @@ values
     'Deleted feed title goal',
     'Health',
     'health',
-    'title_public',
+    false,
     'recurring',
     'weekly',
     3,
@@ -240,7 +240,7 @@ select is(
     where id = '89800000-0000-4000-8000-000000000001'
   ),
   'Public feed title goal',
-  'title is shown for title_public goals'
+  'title is shown for public goals'
 );
 
 select is(
