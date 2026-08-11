@@ -15,7 +15,7 @@ begin
       'goal_achieved',
       'challenge_completed',
       'season_result',
-      'duo_formed'
+      'team_formed'
     );
   end if;
 end;
@@ -163,61 +163,66 @@ begin
 end;
 $$;
 
-create or replace function private.feed_event_from_xp_ledger()
-returns trigger
+-- Feed emission helpers invoked explicitly from XP RPCs (no DB triggers).
+create or replace function private.emit_feed_for_xp_ledger_row(
+  p_user_id uuid,
+  p_event_type text,
+  p_track_key text,
+  p_goal_id uuid,
+  p_xp_delta integer,
+  p_earned_on date,
+  p_source_key text
+)
+returns uuid
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_event_type public.feed_event_type;
+  v_feed_event_type public.feed_event_type;
   v_subject_key text;
   v_occurrence_delta integer := 1;
 begin
-  if new.event_type not in ('completion_credit', 'goal_achievement') then
-    return new;
+  if p_event_type not in ('completion_credit', 'goal_achievement') then
+    return null;
   end if;
 
-  if new.event_type = 'completion_credit' then
-    v_event_type := 'xp_earned'::public.feed_event_type;
-    v_subject_key := coalesce(new.track_key, 'other');
+  if p_event_type = 'completion_credit' then
+    v_feed_event_type := 'xp_earned'::public.feed_event_type;
+    v_subject_key := coalesce(p_track_key, 'other');
   else
-    v_event_type := 'goal_achieved'::public.feed_event_type;
-    v_subject_key := coalesce(new.goal_id::text, 'goal');
+    v_feed_event_type := 'goal_achieved'::public.feed_event_type;
+    v_subject_key := coalesce(p_goal_id::text, 'goal');
   end if;
 
-  if new.xp_delta < 0 then
+  if p_xp_delta < 0 then
     v_occurrence_delta := -1;
   end if;
 
-  perform private.emit_feed_event(
-    p_actor_id => new.user_id,
-    p_event_type => v_event_type,
+  return private.emit_feed_event(
+    p_actor_id => p_user_id,
+    p_event_type => v_feed_event_type,
     p_subject_key => v_subject_key,
-    p_bucket_date => new.earned_on,
-    p_track_key => new.track_key,
-    p_goal_id => new.goal_id,
-    p_xp_delta => new.xp_delta,
+    p_bucket_date => p_earned_on,
+    p_track_key => p_track_key,
+    p_goal_id => p_goal_id,
+    p_xp_delta => p_xp_delta,
     p_occurrence_delta => v_occurrence_delta,
     p_payload => jsonb_build_object(
-      'eventType', new.event_type,
-      'sourceKey', new.source_key
+      'eventType', p_event_type,
+      'sourceKey', p_source_key
     )
   );
-
-  return new;
 end;
 $$;
 
-drop trigger if exists feed_event_from_xp_ledger
-on public.xp_ledger;
-create trigger feed_event_from_xp_ledger
-after insert on public.xp_ledger
-for each row
-execute function private.feed_event_from_xp_ledger();
-
-create or replace function private.feed_event_from_xp_level()
-returns trigger
+create or replace function private.emit_feed_for_xp_level_up(
+  p_user_id uuid,
+  p_track_key text,
+  p_previous_level integer,
+  p_current_level integer
+)
+returns uuid
 language plpgsql
 security definer
 set search_path = ''
@@ -225,39 +230,32 @@ as $$
 declare
   v_bucket_date date;
 begin
-  if new.current_level <= old.current_level then
-    return new;
+  if p_current_level is null or p_previous_level is null then
+    return null;
+  end if;
+  if p_current_level <= p_previous_level then
+    return null;
   end if;
 
-  select private.local_today_for_profile(new.user_id)
+  select private.local_today_for_profile(p_user_id)
   into v_bucket_date;
 
-  perform private.emit_feed_event(
-    p_actor_id => new.user_id,
+  return private.emit_feed_event(
+    p_actor_id => p_user_id,
     p_event_type => 'level_up'::public.feed_event_type,
-    p_subject_key => new.track_key || ':' || new.current_level::text,
+    p_subject_key => p_track_key || ':' || p_current_level::text,
     p_bucket_date => coalesce(v_bucket_date, current_date),
-    p_track_key => new.track_key,
+    p_track_key => p_track_key,
     p_goal_id => null,
     p_xp_delta => 0,
     p_occurrence_delta => 1,
     p_payload => jsonb_build_object(
-      'trackKey', new.track_key,
-      'level', new.current_level
+      'trackKey', p_track_key,
+      'level', p_current_level
     )
   );
-
-  return new;
 end;
 $$;
-
-drop trigger if exists feed_event_from_xp_level
-on public.xp_profiles;
-create trigger feed_event_from_xp_level
-after update on public.xp_profiles
-for each row
-when (new.current_level > old.current_level)
-execute function private.feed_event_from_xp_level();
 
 create or replace function public.get_social_feed(
   p_scope text default 'global',
@@ -292,19 +290,19 @@ as $$
 declare
   v_uid uuid := auth.uid();
   v_limit integer := least(greatest(coalesce(p_limit, 30), 1), 50);
-  v_duo_partner_id uuid := null;
+  v_team_partner_id uuid := null;
 begin
   if v_uid is null then
     raise exception using errcode = '28000', message = 'authentication_required';
   end if;
 
-  if p_scope not in ('global', 'actor', 'duo') then
+  if p_scope not in ('global', 'actor', 'team') then
     raise exception using errcode = '22023', message = 'invalid_feed_scope';
   end if;
 
-  -- Duo scope is wired in a later migration once public.duos exists.
-  if p_scope = 'duo' then
-    v_duo_partner_id := null;
+  -- Team scope is wired in a later migration once public.teams exists.
+  if p_scope = 'team' then
+    v_team_partner_id := null;
   end if;
 
   return query
@@ -356,9 +354,9 @@ begin
         and event.actor_id = p_scope_id
       )
       or (
-        p_scope = 'duo'
-        and v_duo_partner_id is not null
-        and event.actor_id in (v_uid, v_duo_partner_id)
+        p_scope = 'team'
+        and v_team_partner_id is not null
+        and event.actor_id in (v_uid, v_team_partner_id)
       )
     )
     and (
@@ -439,6 +437,13 @@ $$;
 
 revoke all on function private.local_today_for_profile(uuid)
   from public, anon, authenticated;
+revoke all on function private.emit_feed_for_xp_ledger_row(
+  uuid, text, text, uuid, integer, date, text
+) from public, anon, authenticated;
+revoke all on function private.emit_feed_for_xp_level_up(
+  uuid, text, integer, integer
+) from public, anon, authenticated;
+
 revoke all on function private.emit_feed_event(
   uuid,
   public.feed_event_type,
@@ -450,10 +455,6 @@ revoke all on function private.emit_feed_event(
   integer,
   jsonb
 ) from public, anon, authenticated;
-revoke all on function private.feed_event_from_xp_ledger()
-  from public, anon, authenticated;
-revoke all on function private.feed_event_from_xp_level()
-  from public, anon, authenticated;
 revoke all on function public.get_social_feed(
   text,
   uuid,

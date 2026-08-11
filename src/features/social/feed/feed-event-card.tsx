@@ -1,6 +1,7 @@
 import { formatDistanceToNow } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { ReactionBar } from "@/features/social/feed/reaction-bar";
 import type { SocialFeedEvent } from "@/features/social/types";
 
 function getEventLabel(eventType: SocialFeedEvent["eventType"]) {
@@ -15,8 +16,8 @@ function getEventLabel(eventType: SocialFeedEvent["eventType"]) {
       return "Challenge completed";
     case "season_result":
       return "Season result";
-    case "duo_formed":
-      return "Duo formed";
+    case "team_formed":
+      return "Team formed";
     default:
       return "Activity";
   }
@@ -42,6 +43,12 @@ export function FeedEventCard({ event }: { event: SocialFeedEvent }) {
             ? event.goalTitle
             : `${event.actor.username} earned ${event.xpDelta} XP`}
         </p>
+        <ReactionBar
+          eventId={event.id}
+          actorId={event.actor.id}
+          initialCount={event.reactionCount}
+          initiallyReacted={event.viewerReacted}
+        />
       </CardContent>
     </Card>
   );

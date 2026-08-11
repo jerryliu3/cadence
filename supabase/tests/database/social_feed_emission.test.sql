@@ -160,6 +160,62 @@ values
     'manual'
   );
 
+-- Approach A: emission is explicit from XP RPC helpers (not ledger triggers).
+select private.emit_feed_for_xp_ledger_row(
+  '88111111-1111-4111-8111-111111111111',
+  'completion_credit',
+  'health',
+  '88333333-3333-4333-8333-333333333333',
+  10,
+  current_date,
+  'social-feed-emit-a1'
+);
+select private.emit_feed_for_xp_ledger_row(
+  '88111111-1111-4111-8111-111111111111',
+  'completion_credit',
+  'health',
+  '88444444-4444-4444-8444-444444444444',
+  5,
+  current_date,
+  'social-feed-emit-a2'
+);
+select private.emit_feed_for_xp_ledger_row(
+  '88111111-1111-4111-8111-111111111111',
+  'completion_credit',
+  'health',
+  '88333333-3333-4333-8333-333333333333',
+  -10,
+  current_date,
+  'social-feed-emit-r1'
+);
+select private.emit_feed_for_xp_ledger_row(
+  '88111111-1111-4111-8111-111111111111',
+  'goal_achievement',
+  'health',
+  '88333333-3333-4333-8333-333333333333',
+  100,
+  current_date,
+  'social-feed-emit-ga1'
+);
+select private.emit_feed_for_xp_ledger_row(
+  '88111111-1111-4111-8111-111111111111',
+  'goal_achievement',
+  'health',
+  '88333333-3333-4333-8333-333333333333',
+  -100,
+  current_date,
+  'social-feed-emit-gr1'
+);
+select private.emit_feed_for_xp_ledger_row(
+  '88222222-2222-4222-8222-222222222222',
+  'completion_credit',
+  'health',
+  '88555555-5555-4555-8555-555555555555',
+  11,
+  current_date,
+  'social-feed-hidden'
+);
+
 select is(
   (
     select count(*)::integer
@@ -213,7 +269,7 @@ select is(
     where actor_id = '88222222-2222-4222-8222-222222222222'
   ),
   0,
-  'feed trigger does not emit rows for actors opted out of social activity'
+  'feed helper does not emit rows for actors opted out of social activity'
 );
 
 select * from finish();
