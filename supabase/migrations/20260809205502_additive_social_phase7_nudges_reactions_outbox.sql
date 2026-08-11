@@ -3,19 +3,6 @@
 
 do $$
 begin
-  if exists (
-    select 1 from pg_type
-    where typnamespace = 'public'::regnamespace
-      and typname = 'team_status'
-  ) and not exists (
-    select 1
-    from pg_enum enum_value
-    where enum_value.enumtypid = 'public.team_status'::regtype
-      and enum_value.enumlabel = 'expired'
-  ) then
-    alter type public.team_status add value 'expired';
-  end if;
-
   if not exists (
     select 1 from pg_type
     where typnamespace = 'public'::regnamespace
@@ -581,7 +568,7 @@ declare
 begin
   update public.teams team
   set
-    status = 'expired'::public.team_status,
+    status = 'closed'::public.team_status,
     responded_at = pg_catalog.now()
   where team.status = 'pending'::public.team_status
     and team.invited_at < pg_catalog.now() - interval '14 days';
@@ -781,7 +768,7 @@ begin
 
   update public.teams team
   set
-    status = 'dissolved'::public.team_status,
+    status = 'closed'::public.team_status,
     dissolved_at = pg_catalog.now(),
     responded_at = pg_catalog.now()
   where team.status = 'active'::public.team_status
