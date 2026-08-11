@@ -259,7 +259,7 @@ select is(
     )::integer
   ),
   4,
-  'max_streak_days supports duo-style two-user scoring'
+  'max_streak_days supports team-style two-user scoring'
 );
 
 select * from finish();

@@ -48,7 +48,7 @@ begin
     where typnamespace = 'public'::regnamespace
       and typname = 'social_subject_kind'
   ) then
-    create type public.social_subject_kind as enum ('user', 'duo');
+    create type public.social_subject_kind as enum ('user', 'team');
   end if;
 end;
 $$;
@@ -124,21 +124,21 @@ begin
       where profile.id = new.subject_id
     )
     into v_exists;
-  elsif new.subject_kind = 'duo'::public.social_subject_kind then
-    if to_regclass('public.duos') is null then
+  elsif new.subject_kind = 'team'::public.social_subject_kind then
+    if to_regclass('public.teams') is null then
       raise exception
         using errcode = '42P01',
-              message = 'duos_not_available';
+              message = 'teams_not_available';
     end if;
 
-    execute $duo$
+    execute $team$
       select exists(
         select 1
-        from public.duos duo
-        where duo.id = $1
-          and duo.status = 'active'
+        from public.teams team
+        where team.id = $1
+          and team.status = 'active'
       )
-    $duo$
+    $team$
     into v_exists
     using new.subject_id;
   else
@@ -414,7 +414,6 @@ as $$
 declare
   v_now timestamptz := pg_catalog.now();
   v_refreshed integer := 0;
-  v_slots integer;
   r_challenge public.challenges%rowtype;
   r_participant record;
 begin
@@ -435,47 +434,8 @@ begin
     from public.challenges challenge
     where challenge.status = 'active'::public.challenge_status
   loop
-    if r_challenge.subject_kind = 'user'::public.social_subject_kind
-      and r_challenge.enrollment = 'auto'::public.challenge_enrollment then
-      if r_challenge.max_participants is null then
-        insert into public.challenge_participants (
-          challenge_id,
-          subject_kind,
-          subject_id
-        )
-        select
-          r_challenge.id,
-          'user'::public.social_subject_kind,
-          profile.id
-        from public.profiles profile
-        on conflict (challenge_id, subject_kind, subject_id) do nothing;
-      else
-        select greatest(
-          r_challenge.max_participants - count(*),
-          0
-        )::integer
-        into v_slots
-        from public.challenge_participants participant
-        where participant.challenge_id = r_challenge.id
-          and participant.subject_kind = 'user'::public.social_subject_kind;
-
-        if v_slots > 0 then
-          insert into public.challenge_participants (
-            challenge_id,
-            subject_kind,
-            subject_id
-          )
-          select
-            r_challenge.id,
-            'user'::public.social_subject_kind,
-            profile.id
-          from public.profiles profile
-          order by profile.created_at asc, profile.id asc
-          limit v_slots
-          on conflict (challenge_id, subject_kind, subject_id) do nothing;
-        end if;
-      end if;
-    end if;
+    -- enrollment='auto' is retained for admin semantics but does not
+    -- bulk-insert every profile; join remains opt-in via join_challenge_service.
 
     for r_participant in
       select participant.subject_id

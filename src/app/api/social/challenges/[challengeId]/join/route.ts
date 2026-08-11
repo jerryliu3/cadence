@@ -24,8 +24,8 @@ function mapJoinRpcError(message: string) {
   if (message === "challenge_not_joinable") {
     return new ApiRouteError(409, "challenge_not_joinable", "Challenge is not open for joining.");
   }
-  if (message === "duo_required") {
-    return new ApiRouteError(409, "duo_required", "An active duo is required for this challenge.");
+  if (message === "team_required") {
+    return new ApiRouteError(409, "team_required", "An active team is required for this challenge.");
   }
   if (message === "cohort_membership_required") {
     return new ApiRouteError(403, "cohort_membership_required", "Cohort membership is required.");
@@ -45,8 +45,8 @@ function mapLeaveRpcError(message: string) {
   if (message === "challenge_auto_enrollment") {
     return new ApiRouteError(409, "challenge_auto_enrollment", "Auto-enrolled challenges cannot be left.");
   }
-  if (message === "duo_required") {
-    return new ApiRouteError(409, "duo_required", "An active duo is required for this challenge.");
+  if (message === "team_required") {
+    return new ApiRouteError(409, "team_required", "An active team is required for this challenge.");
   }
   return new ApiRouteError(500, "challenge_leave_failed", "Challenge leave failed.", {
     cause: message,

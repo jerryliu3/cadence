@@ -21,7 +21,7 @@ function toChallengeDto(row: {
   description: string | null;
   status: "draft" | "scheduled" | "active" | "closed" | "archived";
   enrollment: "auto" | "opt_in";
-  subject_kind: "user" | "duo";
+  subject_kind: "user" | "team";
   metric:
     | "total_xp"
     | "category_xp"
