@@ -733,14 +733,12 @@ export type Database = {
       }
       leaderboard_seasons: {
         Row: {
-          closed_at: string | null
           created_at: string
           created_by: string | null
           ends_at: string | null
           id: string
           metric: Database["public"]["Enums"]["challenge_metric"]
           metric_track_key: string | null
-          next_season_id: string | null
           previous_season_id: string | null
           rollover: Database["public"]["Enums"]["leaderboard_rollover"]
           slug: string
@@ -751,14 +749,12 @@ export type Database = {
           updated_at: string
         }
         Insert: {
-          closed_at?: string | null
           created_at?: string
           created_by?: string | null
           ends_at?: string | null
           id?: string
           metric?: Database["public"]["Enums"]["challenge_metric"]
           metric_track_key?: string | null
-          next_season_id?: string | null
           previous_season_id?: string | null
           rollover?: Database["public"]["Enums"]["leaderboard_rollover"]
           slug: string
@@ -769,14 +765,12 @@ export type Database = {
           updated_at?: string
         }
         Update: {
-          closed_at?: string | null
           created_at?: string
           created_by?: string | null
           ends_at?: string | null
           id?: string
           metric?: Database["public"]["Enums"]["challenge_metric"]
           metric_track_key?: string | null
-          next_season_id?: string | null
           previous_season_id?: string | null
           rollover?: Database["public"]["Enums"]["leaderboard_rollover"]
           slug?: string
@@ -800,13 +794,6 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "goal_categories"
             referencedColumns: ["key"]
-          },
-          {
-            foreignKeyName: "leaderboard_seasons_next_season_id_fkey"
-            columns: ["next_season_id"]
-            isOneToOne: false
-            referencedRelation: "leaderboard_seasons"
-            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "leaderboard_seasons_previous_season_id_fkey"
@@ -1585,10 +1572,24 @@ export type Database = {
           xp_delta: number
         }[]
       }
+      get_social_leaderboard_season: {
+        Args: { p_season_id: string }
+        Returns: {
+          ends_at: string
+          id: string
+          metric: Database["public"]["Enums"]["challenge_metric"]
+          metric_track_key: string
+          rollover: Database["public"]["Enums"]["leaderboard_rollover"]
+          slug: string
+          starts_at: string
+          status: Database["public"]["Enums"]["leaderboard_season_status"]
+          subject_kind: Database["public"]["Enums"]["social_subject_kind"]
+          title: string
+        }[]
+      }
       get_social_leaderboards: {
         Args: never
         Returns: {
-          closed_at: string
           ends_at: string
           id: string
           metric: Database["public"]["Enums"]["challenge_metric"]
@@ -1711,7 +1712,12 @@ export type Database = {
         | "season_result"
         | "team_formed"
       goal_frequency_type: "fixed_milestones" | "recurring"
-      leaderboard_rollover: "none" | "weekly" | "monthly" | "quarterly" | "yearly"
+      leaderboard_rollover:
+        | "none"
+        | "weekly"
+        | "monthly"
+        | "quarterly"
+        | "yearly"
       leaderboard_season_status: "upcoming" | "open" | "closed"
       moderation_action:
         | "hide"
@@ -1873,7 +1879,13 @@ export const Constants = {
         "team_formed",
       ],
       goal_frequency_type: ["fixed_milestones", "recurring"],
-      leaderboard_rollover: ["none", "weekly", "monthly", "quarterly", "yearly"],
+      leaderboard_rollover: [
+        "none",
+        "weekly",
+        "monthly",
+        "quarterly",
+        "yearly",
+      ],
       leaderboard_season_status: ["upcoming", "open", "closed"],
       moderation_action: [
         "hide",

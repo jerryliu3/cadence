@@ -38,7 +38,6 @@ describe("GET /api/social/leaderboards", () => {
           ends_at: "2026-09-01T00:00:00.000Z",
           status: "open",
           rollover: "monthly",
-          closed_at: null,
         },
       ],
       error: null,

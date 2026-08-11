@@ -34,9 +34,7 @@ create table if not exists public.leaderboard_seasons (
   ends_at timestamptz,
   status public.leaderboard_season_status not null default 'upcoming',
   rollover public.leaderboard_rollover not null default 'none',
-  closed_at timestamptz,
   previous_season_id uuid references public.leaderboard_seasons(id) on delete set null,
-  next_season_id uuid references public.leaderboard_seasons(id) on delete set null,
   created_by uuid references public.profiles(id) on delete set null,
   created_at timestamptz not null default pg_catalog.now(),
   updated_at timestamptz not null default pg_catalog.now(),
@@ -235,7 +233,6 @@ begin
       update public.leaderboard_seasons season
       set
         status = 'closed'::public.leaderboard_season_status,
-        closed_at = coalesce(season.closed_at, v_now),
         updated_at = v_now
       where season.id = r_season.id
         and season.status = 'open'::public.leaderboard_season_status;
@@ -269,11 +266,14 @@ begin
     select season.*
     from public.leaderboard_seasons season
     where season.status = 'closed'::public.leaderboard_season_status
-      and season.closed_at is not null
       and season.ends_at is not null
-      and season.next_season_id is null
       and season.rollover <> 'none'::public.leaderboard_rollover
       and season.ends_at <= v_now
+      and not exists (
+        select 1
+        from public.leaderboard_seasons child
+        where child.previous_season_id = season.id
+      )
   loop
     v_next_slug := r_season.slug || '-' || to_char(r_season.ends_at, 'YYYYMMDD');
 
@@ -307,9 +307,6 @@ begin
     returning id into v_next_id;
 
     if v_next_id is not null then
-      update public.leaderboard_seasons season
-      set next_season_id = v_next_id
-      where season.id = r_season.id;
       v_count := v_count + 1;
     end if;
   end loop;
@@ -386,8 +383,7 @@ returns table (
   starts_at timestamptz,
   ends_at timestamptz,
   status public.leaderboard_season_status,
-  rollover public.leaderboard_rollover,
-  closed_at timestamptz
+  rollover public.leaderboard_rollover
 )
 language plpgsql
 security definer
@@ -410,8 +406,7 @@ begin
     season.starts_at,
     season.ends_at,
     season.status,
-    season.rollover,
-    season.closed_at
+    season.rollover
   from public.leaderboard_seasons season
   where season.status in (
     'open'::public.leaderboard_season_status,
@@ -422,8 +417,55 @@ begin
       when 'open'::public.leaderboard_season_status then 0
       else 1
     end,
-    coalesce(season.closed_at, season.starts_at) desc
+    coalesce(season.ends_at, season.starts_at) desc
   limit 20;
+end;
+$$;
+
+create or replace function public.get_social_leaderboard_season(p_season_id uuid)
+returns table (
+  id uuid,
+  slug text,
+  title text,
+  subject_kind public.social_subject_kind,
+  metric public.challenge_metric,
+  metric_track_key text,
+  starts_at timestamptz,
+  ends_at timestamptz,
+  status public.leaderboard_season_status,
+  rollover public.leaderboard_rollover
+)
+language plpgsql
+security definer
+stable
+set search_path = ''
+as $$
+begin
+  if auth.uid() is null then
+    raise exception using errcode = '28000', message = 'authentication_required';
+  end if;
+  if p_season_id is null then
+    raise exception using errcode = '22023', message = 'season_id_required';
+  end if;
+
+  return query
+  select
+    season.id,
+    season.slug,
+    season.title,
+    season.subject_kind,
+    season.metric,
+    season.metric_track_key,
+    season.starts_at,
+    season.ends_at,
+    season.status,
+    season.rollover
+  from public.leaderboard_seasons season
+  where season.id = p_season_id
+    and season.status in (
+      'open'::public.leaderboard_season_status,
+      'closed'::public.leaderboard_season_status
+    );
 end;
 $$;
 
@@ -452,6 +494,7 @@ declare
   v_limit integer := least(greatest(coalesce(p_limit, 50), 1), 100);
   v_offset integer := greatest(coalesce(p_offset, 0), 0);
   v_subject_kind public.social_subject_kind;
+  v_status public.leaderboard_season_status;
 begin
   if v_uid is null then
     raise exception using errcode = '28000', message = 'authentication_required';
@@ -460,13 +503,39 @@ begin
     raise exception using errcode = '22023', message = 'season_id_required';
   end if;
 
-  select season.subject_kind
-  into v_subject_kind
+  select season.subject_kind, season.status
+  into v_subject_kind, v_status
   from public.leaderboard_seasons season
   where season.id = p_season_id;
 
   if not found then
     raise exception using errcode = '22023', message = 'season_not_found';
+  end if;
+
+  if v_status = 'closed'::public.leaderboard_season_status then
+    return query
+    with viewer as (
+      select result.rank as viewer_rank
+      from public.leaderboard_season_results result
+      where result.season_id = p_season_id
+        and result.subject_kind = v_subject_kind
+        and result.subject_id = v_uid
+    )
+    select
+      result.season_id,
+      result.subject_kind,
+      result.subject_id,
+      result.display_name,
+      result.score,
+      result.rank,
+      result.tie_break_at,
+      (select viewer.viewer_rank from viewer) as viewer_rank
+    from public.leaderboard_season_results result
+    where result.season_id = p_season_id
+    order by result.rank asc
+    limit v_limit
+    offset v_offset;
+    return;
   end if;
 
   return query
@@ -481,7 +550,7 @@ begin
     standing.season_id,
     standing.subject_kind,
     standing.subject_id,
-    coalesce(profile.display_name, profile.username, result.display_name, 'Unknown') as display_name,
+    coalesce(profile.display_name, profile.username, 'Unknown') as display_name,
     standing.score,
     standing.rank,
     standing.tie_break_at,
@@ -489,10 +558,6 @@ begin
   from public.leaderboard_standings standing
   left join public.profiles profile
     on profile.id = standing.subject_id
-  left join public.leaderboard_season_results result
-    on result.season_id = standing.season_id
-    and result.subject_kind = standing.subject_kind
-    and result.subject_id = standing.subject_id
   where standing.season_id = p_season_id
   order by standing.rank asc
   limit v_limit
@@ -528,6 +593,11 @@ grant execute on function public.rollover_leaderboard_seasons_service()
 revoke all on function public.get_social_leaderboards()
   from public, anon;
 grant execute on function public.get_social_leaderboards()
+  to authenticated;
+
+revoke all on function public.get_social_leaderboard_season(uuid)
+  from public, anon;
+grant execute on function public.get_social_leaderboard_season(uuid)
   to authenticated;
 
 revoke all on function public.get_leaderboard_standings(uuid, integer, integer)

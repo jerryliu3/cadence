@@ -19,9 +19,7 @@ const patchSchema = z
     startsAt: z.iso.datetime().optional(),
     endsAt: z.iso.datetime().nullable().optional(),
     status: z.enum(["upcoming", "open", "closed"]).optional(),
-    rollover: z.enum(["none", "weekly", "monthly", "quarterly"]).optional(),
-  })
-  .superRefine((value, context) => {
+    rollover: z.enum(["none", "weekly", "monthly", "quarterly", "yearly"]).optional(),
   })
   .refine((value) => Object.keys(value).length > 0, {
     message: "Provide at least one field to update.",

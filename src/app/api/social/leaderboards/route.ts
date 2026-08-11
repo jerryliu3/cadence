@@ -25,7 +25,6 @@ function toSeasonDto(row: {
   ends_at: string | null;
   status: "upcoming" | "open" | "closed";
   rollover: "none" | "weekly" | "monthly" | "quarterly" | "yearly";
-  closed_at: string | null;
 }) {
   return {
     id: row.id,
@@ -38,7 +37,6 @@ function toSeasonDto(row: {
     endsAt: row.ends_at,
     status: row.status,
     rollover: row.rollover,
-    closedAt: row.closed_at,
   };
 }
 

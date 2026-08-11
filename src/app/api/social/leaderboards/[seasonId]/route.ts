@@ -30,7 +30,6 @@ function toSeasonDto(row: {
   ends_at: string | null;
   status: "upcoming" | "open" | "closed";
   rollover: "none" | "weekly" | "monthly" | "quarterly" | "yearly";
-  closed_at: string | null;
 }) {
   return {
     id: row.id,
@@ -43,7 +42,6 @@ function toSeasonDto(row: {
     endsAt: row.ends_at,
     status: row.status,
     rollover: row.rollover,
-    closedAt: row.closed_at,
   };
 }
 
@@ -85,9 +83,9 @@ export async function GET(
 
     const [{ data: seasonRows, error: seasonError }, { data: standingRows, error: standingsError }] =
       await Promise.all([
-        socialContext.supabase
-          .rpc("get_social_leaderboards")
-          .then((result) => ({ data: result.data, error: result.error })),
+        socialContext.supabase.rpc("get_social_leaderboard_season", {
+          p_season_id: params.seasonId,
+        }),
         socialContext.supabase.rpc("get_leaderboard_standings", {
           p_season_id: params.seasonId,
           p_limit: Number.isFinite(limit) ? limit : 50,
@@ -101,15 +99,20 @@ export async function GET(
       });
     }
     if (standingsError) {
+      const code = standingsError.message.includes("season_not_found")
+        ? "season_not_found"
+        : "leaderboard_standings_unavailable";
       throw new ApiRouteError(
-        500,
-        "leaderboard_standings_unavailable",
-        "Leaderboard standings are unavailable.",
+        code === "season_not_found" ? 404 : 500,
+        code,
+        code === "season_not_found"
+          ? "Leaderboard season was not found."
+          : "Leaderboard standings are unavailable.",
         { cause: standingsError.message }
       );
     }
 
-    const season = (seasonRows ?? []).find((row) => row.id === params.seasonId);
+    const season = (seasonRows ?? [])[0];
     if (!season) {
       throw new ApiRouteError(404, "season_not_found", "Leaderboard season was not found.");
     }

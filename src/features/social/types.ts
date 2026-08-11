@@ -72,7 +72,6 @@ export interface LeaderboardSeason {
   endsAt: string | null;
   status: LeaderboardSeasonStatus;
   rollover: LeaderboardRollover;
-  closedAt: string | null;
 }
 
 export interface LeaderboardStanding {

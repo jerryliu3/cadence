@@ -25,22 +25,64 @@ export async function POST(
     }
 
     const admin = createAdminClient();
-    const { error } = await admin
+
+    // Refresh open seasons first so early close freezes current scores.
+    const { error: refreshError } = await admin.rpc("refresh_leaderboard_standings_service");
+    if (refreshError) {
+      throw new ApiRouteError(500, "admin_season_close_failed", "Could not refresh standings before close.", {
+        cause: refreshError.message,
+      });
+    }
+
+    const { data: season, error: seasonError } = await admin
+      .from("leaderboard_seasons")
+      .select("id, ends_at, status")
+      .eq("id", params.id)
+      .maybeSingle();
+    if (seasonError) {
+      throw new ApiRouteError(500, "admin_season_close_failed", "Could not load season.", {
+        cause: seasonError.message,
+      });
+    }
+    if (!season) {
+      throw new ApiRouteError(404, "season_not_found", "Leaderboard season was not found.");
+    }
+    if (season.status !== "open") {
+      throw new ApiRouteError(409, "season_not_open", "Only open seasons can be closed.");
+    }
+
+    const nowIso = new Date().toISOString();
+    const endsAt =
+      season.ends_at == null || Date.parse(season.ends_at) > Date.parse(nowIso)
+        ? nowIso
+        : season.ends_at;
+
+    const { data: closed, error } = await admin
       .from("leaderboard_seasons")
       .update({
         status: "closed",
-        closed_at: new Date().toISOString(),
+        ends_at: endsAt,
       })
       .eq("id", params.id)
-      .eq("status", "open");
+      .eq("status", "open")
+      .select("id")
+      .maybeSingle();
 
     if (error) {
       throw new ApiRouteError(500, "admin_season_close_failed", "Could not close season.", {
         cause: error.message,
       });
     }
+    if (!closed) {
+      throw new ApiRouteError(409, "season_not_open", "Only open seasons can be closed.");
+    }
 
-    await admin.rpc("rollover_leaderboard_seasons_service");
+    const { error: rolloverError } = await admin.rpc("rollover_leaderboard_seasons_service");
+    if (rolloverError) {
+      throw new ApiRouteError(500, "admin_season_close_failed", "Could not rollover after close.", {
+        cause: rolloverError.message,
+      });
+    }
 
     return NextResponse.json(
       {

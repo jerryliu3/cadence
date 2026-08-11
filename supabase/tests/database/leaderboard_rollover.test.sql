@@ -125,12 +125,12 @@ select ok(
 );
 
 select ok(
-  (
-    select next_season_id is not null
+  exists (
+    select 1
     from public.leaderboard_seasons season
-    where season.id = '8e400000-0000-4000-8000-000000000001'
+    where season.previous_season_id = '8e400000-0000-4000-8000-000000000001'
   ),
-  'monthly rollover links to next generated season'
+  'monthly rollover creates next season pointing at previous'
 );
 
 select is(
