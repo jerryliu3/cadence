@@ -1,15 +1,16 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 
+const APP_TAB_LABELS = ["Insights", "Checklist", "Social", "Settings"] as const;
+
 test("loads the seeded authenticated checklist", async ({ page }, testInfo) => {
   await page.goto("/");
 
-  await expect(
-    page.getByRole("navigation", { name: "Main navigation" })
-  ).toBeVisible();
-  await expect(page.getByRole("link", { name: "Checklist" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Calendar" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Profile" })).toBeVisible();
+  const nav = page.getByRole("navigation", { name: "Main navigation" });
+  await expect(nav).toBeVisible();
+  for (const label of APP_TAB_LABELS) {
+    await expect(nav.getByRole("link", { name: label, exact: true })).toBeVisible();
+  }
   await expect(page.getByText("Loading your goals...")).toHaveCount(0);
 
   if (testInfo.project.name === "mobile-webkit") {
@@ -27,7 +28,9 @@ test("direct calendar URL does not eagerly load checklist context", async ({
   });
 
   await page.goto("/calendar");
-  await expect(page.getByRole("link", { name: "Calendar", exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("navigation", { name: "Main navigation" })
+  ).toBeVisible();
   await expect(page).toHaveURL(/\/calendar/);
   await page.waitForTimeout(750);
   expect(progressContextRequests).toBe(0);
