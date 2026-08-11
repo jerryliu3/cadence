@@ -441,6 +441,58 @@ test.describe("planner critical rails", () => {
     "Critical planner rails currently run as chromium-only checks."
   );
 
+  test("stale save keeps planner draft session recoverable", async ({ page }) => {
+    test.setTimeout(120_000);
+    let movedIntoDraft = false;
+    for (let dragAttempt = 0; dragAttempt < 3; dragAttempt += 1) {
+      await openCalendar(page);
+      await ensureMovableEntryAvailable(page);
+      movedIntoDraft = await moveFirstMovableEntry(page);
+      if (movedIntoDraft && (await isPlannerDraftReady(page))) {
+        break;
+      }
+      await dismissPlannerMoveErrorToast(page);
+      await clearStuckDrag(page);
+    }
+    expect(movedIntoDraft).toBe(true);
+    await expect(page.getByTestId(DRAFT_MODE_BADGE_TEST_ID)).toBeVisible();
+    await expect(page.getByRole("button", { name: "Save plan", exact: true })).toBeEnabled();
+
+    await page.route("**/api/planner/save", async (route) => {
+      const request = route.request();
+      const body = request.postDataJSON() as {
+        expectedDigest?: string;
+        [key: string]: unknown;
+      };
+      const digest = body.expectedDigest;
+      if (typeof digest === "string" && digest.length === 64) {
+        body.expectedDigest = `${digest[0] === "a" ? "b" : "a"}${digest.slice(1)}`;
+      }
+      await route.continue({
+        postData: JSON.stringify(body),
+        headers: {
+          ...request.headers(),
+          "content-type": "application/json",
+        },
+      });
+    });
+
+    const saveResponsePromise = page.waitForResponse(
+      (response) =>
+        response.url().includes("/api/planner/save") &&
+        response.request().method() === "POST"
+    );
+    await page.getByRole("button", { name: "Save plan", exact: true }).click();
+    const saveResponse = await saveResponsePromise;
+    const body = (await saveResponse.json()) as { code?: string };
+    expect(saveResponse.status()).toBe(409);
+    expect(["stale_revision", "preview_hash_mismatch"]).toContain(body.code ?? "");
+
+    await expect(
+      page.getByRole("button", { name: /Undo this month/i })
+    ).toBeVisible({ timeout: 10_000 });
+  });
+
   test("drag + save emits only intended unit movement", async ({ page }) => {
     test.setTimeout(120_000);
     const collectMoveCommands = (requestPayload: SavePlanResult["requestPayload"]) =>
@@ -538,58 +590,6 @@ test.describe("planner critical rails", () => {
       .sort();
     expect(changedEntries).toEqual([movedEntryKey]);
     expect(after.placementsByEntryKey[movedEntryKey]).toBe(moveCommand.scheduledDate);
-  });
-
-  test("stale save keeps planner draft session recoverable", async ({ page }) => {
-    test.setTimeout(120_000);
-    let movedIntoDraft = false;
-    for (let dragAttempt = 0; dragAttempt < 3; dragAttempt += 1) {
-      await openCalendar(page);
-      await ensureMovableEntryAvailable(page);
-      movedIntoDraft = await moveFirstMovableEntry(page);
-      if (movedIntoDraft && (await isPlannerDraftReady(page))) {
-        break;
-      }
-      await dismissPlannerMoveErrorToast(page);
-      await clearStuckDrag(page);
-    }
-    expect(movedIntoDraft).toBe(true);
-    await expect(page.getByTestId(DRAFT_MODE_BADGE_TEST_ID)).toBeVisible();
-    await expect(page.getByRole("button", { name: "Save plan", exact: true })).toBeEnabled();
-
-    await page.route("**/api/planner/save", async (route) => {
-      const request = route.request();
-      const body = request.postDataJSON() as {
-        expectedDigest?: string;
-        [key: string]: unknown;
-      };
-      const digest = body.expectedDigest;
-      if (typeof digest === "string" && digest.length === 64) {
-        body.expectedDigest = `${digest[0] === "a" ? "b" : "a"}${digest.slice(1)}`;
-      }
-      await route.continue({
-        postData: JSON.stringify(body),
-        headers: {
-          ...request.headers(),
-          "content-type": "application/json",
-        },
-      });
-    });
-
-    const saveResponsePromise = page.waitForResponse(
-      (response) =>
-        response.url().includes("/api/planner/save") &&
-        response.request().method() === "POST"
-    );
-    await page.getByRole("button", { name: "Save plan", exact: true }).click();
-    const saveResponse = await saveResponsePromise;
-    const body = (await saveResponse.json()) as { code?: string };
-    expect(saveResponse.status()).toBe(409);
-    expect(["stale_revision", "preview_hash_mismatch"]).toContain(body.code ?? "");
-
-    await expect(
-      page.getByRole("button", { name: /Undo this month/i })
-    ).toBeVisible({ timeout: 10_000 });
   });
 
   test("completion toggle dispatches from today surface", async ({ page }) => {
