@@ -1,9 +1,12 @@
+import {
+  ApiRouteError,
+  apiErrorResponse,
+  createCorrelationId,
+  parseJsonBody,
+} from "@/lib/api/route";
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { parseBoundedJsonBody } from "@/lib/api/body";
 import { requireAdminContext } from "@/lib/api/admin-context";
-import { createCorrelationId } from "@/lib/api/context";
-import { RouteError, routeErrorResponse, unknownRouteErrorResponse } from "@/lib/api/errors";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export const runtime = "nodejs";
@@ -29,6 +32,8 @@ const createSchema = z
     endsAt: z.iso.datetime(),
     rewardXp: z.number().int().nonnegative().default(0),
     maxParticipants: z.number().int().positive().nullable().optional(),
+    audienceKind: z.enum(["global", "cohort"]).default("global"),
+    cohortId: z.uuid().nullable().optional(),
   })
   .superRefine((value, context) => {
     if (value.metric === "category_xp" && !value.metricTrackKey) {
@@ -36,6 +41,20 @@ const createSchema = z
         code: "custom",
         message: "metricTrackKey is required for category_xp challenges.",
         path: ["metricTrackKey"],
+      });
+    }
+    if (value.audienceKind === "cohort" && !value.cohortId) {
+      context.addIssue({
+        code: "custom",
+        message: "cohortId is required for cohort-scoped challenges.",
+        path: ["cohortId"],
+      });
+    }
+    if (value.audienceKind === "global" && value.cohortId) {
+      context.addIssue({
+        code: "custom",
+        message: "cohortId must be null for global challenges.",
+        path: ["cohortId"],
       });
     }
   });
@@ -56,6 +75,8 @@ function toChallengeDto(row: Record<string, unknown>) {
     endsAt: row.ends_at,
     rewardXp: row.reward_xp,
     maxParticipants: row.max_participants,
+    audienceKind: row.audience_kind,
+    cohortId: row.cohort_id,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -66,7 +87,7 @@ export async function GET() {
   try {
     const adminContext = await requireAdminContext("moderator");
     if (!adminContext) {
-      throw new RouteError(404, "not_found", "Resource not found.");
+      throw new ApiRouteError(404, "not_found", "Resource not found.");
     }
 
     const admin = createAdminClient();
@@ -75,7 +96,7 @@ export async function GET() {
       .select("*")
       .order("created_at", { ascending: false });
     if (error) {
-      throw new RouteError(500, "admin_challenges_unavailable", "Challenges are unavailable.", {
+      throw new ApiRouteError(500, "admin_challenges_unavailable", "Challenges are unavailable.", {
         cause: error.message,
       });
     }
@@ -89,21 +110,19 @@ export async function GET() {
       { headers: { "Cache-Control": "no-store" } }
     );
   } catch (error) {
-    if (error instanceof RouteError) {
-      return routeErrorResponse(error, correlationId);
+    if (error instanceof ApiRouteError) {
+      return apiErrorResponse(error, correlationId);
     }
     if (error instanceof z.ZodError) {
-      return routeErrorResponse(
-        new RouteError(400, "validation_failed", "Request payload failed validation.", {
+      return apiErrorResponse(
+        new ApiRouteError(400, "validation_failed", "Request payload failed validation.", {
           issues: error.issues,
         }),
         correlationId
       );
     }
-    return unknownRouteErrorResponse({
-      correlationId,
-      message: "Admin challenge list request failed unexpectedly.",
-    });
+    return apiErrorResponse(new ApiRouteError(500, "internal_error", "Admin challenge list request failed unexpectedly.",
+    ), correlationId);
   }
 }
 
@@ -112,10 +131,10 @@ export async function POST(request: Request) {
   try {
     const adminContext = await requireAdminContext("admin");
     if (!adminContext) {
-      throw new RouteError(404, "not_found", "Resource not found.");
+      throw new ApiRouteError(404, "not_found", "Resource not found.");
     }
 
-    const body = await parseBoundedJsonBody(request, 64 * 1024, createSchema);
+    const body = await parseJsonBody({ request: request, maxBytes: 64 * 1024, schema: createSchema });
     const admin = createAdminClient();
     const { data, error } = await admin
       .from("challenges")
@@ -133,12 +152,14 @@ export async function POST(request: Request) {
         ends_at: body.endsAt,
         reward_xp: body.rewardXp,
         max_participants: body.maxParticipants ?? null,
+        audience_kind: body.audienceKind,
+        cohort_id: body.cohortId ?? null,
         created_by: adminContext.userId,
       })
       .select("*")
       .single();
     if (error) {
-      throw new RouteError(500, "admin_challenge_create_failed", "Could not create challenge.", {
+      throw new ApiRouteError(500, "admin_challenge_create_failed", "Could not create challenge.", {
         cause: error.message,
       });
     }
@@ -152,20 +173,18 @@ export async function POST(request: Request) {
       { status: 201, headers: { "Cache-Control": "no-store" } }
     );
   } catch (error) {
-    if (error instanceof RouteError) {
-      return routeErrorResponse(error, correlationId);
+    if (error instanceof ApiRouteError) {
+      return apiErrorResponse(error, correlationId);
     }
     if (error instanceof z.ZodError) {
-      return routeErrorResponse(
-        new RouteError(400, "validation_failed", "Request payload failed validation.", {
+      return apiErrorResponse(
+        new ApiRouteError(400, "validation_failed", "Request payload failed validation.", {
           issues: error.issues,
         }),
         correlationId
       );
     }
-    return unknownRouteErrorResponse({
-      correlationId,
-      message: "Admin challenge create request failed unexpectedly.",
-    });
+    return apiErrorResponse(new ApiRouteError(500, "internal_error", "Admin challenge create request failed unexpectedly.",
+    ), correlationId);
   }
 }

@@ -1,7 +1,10 @@
+import {
+  ApiRouteError,
+  apiErrorResponse,
+  createCorrelationId,
+} from "@/lib/api/route";
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { createCorrelationId } from "@/lib/api/context";
-import { RouteError, routeErrorResponse, unknownRouteErrorResponse } from "@/lib/api/errors";
 import { requireSocialRouteContext } from "@/lib/social/api";
 import { createClient } from "@/lib/supabase/server";
 
@@ -69,16 +72,13 @@ export async function GET(
   try {
     const params = paramsSchema.parse(await context.params);
     const supabase = await createClient();
-    const socialContext = await requireSocialRouteContext({
-      supabase,
-      requireChallenges: true,
-    });
+    const socialContext = await requireSocialRouteContext({ supabase });
 
     const { data, error } = await socialContext.supabase.rpc("get_challenge_detail", {
       p_challenge_id: params.challengeId,
     });
     if (error) {
-      throw new RouteError(
+      throw new ApiRouteError(
         500,
         "social_challenge_unavailable",
         "Challenge details are unavailable.",
@@ -88,7 +88,7 @@ export async function GET(
 
     const row = data?.[0];
     if (!row) {
-      throw new RouteError(404, "challenge_not_found", "Challenge was not found.");
+      throw new ApiRouteError(404, "challenge_not_found", "Challenge was not found.");
     }
 
     return NextResponse.json(
@@ -100,20 +100,18 @@ export async function GET(
       { headers: { "Cache-Control": "no-store" } }
     );
   } catch (error) {
-    if (error instanceof RouteError) {
-      return routeErrorResponse(error, correlationId);
+    if (error instanceof ApiRouteError) {
+      return apiErrorResponse(error, correlationId);
     }
     if (error instanceof z.ZodError) {
-      return routeErrorResponse(
-        new RouteError(400, "invalid_challenge_id", "Challenge id is invalid.", {
+      return apiErrorResponse(
+        new ApiRouteError(400, "invalid_challenge_id", "Challenge id is invalid.", {
           issues: error.issues,
         }),
         correlationId
       );
     }
-    return unknownRouteErrorResponse({
-      correlationId,
-      message: "Challenge detail request failed unexpectedly.",
-    });
+    return apiErrorResponse(new ApiRouteError(500, "internal_error", "Challenge detail request failed unexpectedly.",
+    ), correlationId);
   }
 }

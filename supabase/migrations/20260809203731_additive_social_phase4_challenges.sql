@@ -122,7 +122,7 @@ begin
       select 1
       from public.profiles profile
       where profile.id = new.subject_id
-        and profile.social_challenge_eligible = true
+        and profile.social_competition_eligible = true
         and profile.leaderboard_banned_at is null
     )
     into v_exists;
@@ -450,7 +450,7 @@ begin
           'user'::public.social_subject_kind,
           profile.id
         from public.profiles profile
-        where profile.social_challenge_eligible = true
+        where profile.social_competition_eligible = true
           and profile.leaderboard_banned_at is null
         on conflict (challenge_id, subject_kind, subject_id) do nothing;
       else
@@ -474,7 +474,7 @@ begin
             'user'::public.social_subject_kind,
             profile.id
           from public.profiles profile
-          where profile.social_challenge_eligible = true
+          where profile.social_competition_eligible = true
             and profile.leaderboard_banned_at is null
           order by profile.created_at asc, profile.id asc
           limit v_slots
@@ -703,7 +703,7 @@ begin
     select 1
     from public.profiles profile
     where profile.id = v_uid
-      and profile.social_challenge_eligible = true
+      and profile.social_competition_eligible = true
       and profile.leaderboard_banned_at is null
   ) then
     raise exception using errcode = '42501', message = 'challenge_not_eligible';

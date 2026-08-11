@@ -1,9 +1,12 @@
+import {
+  ApiRouteError,
+  apiErrorResponse,
+  createCorrelationId,
+  parseJsonBody,
+} from "@/lib/api/route";
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { parseBoundedJsonBody } from "@/lib/api/body";
 import { requireAdminContext } from "@/lib/api/admin-context";
-import { createCorrelationId } from "@/lib/api/context";
-import { RouteError, routeErrorResponse, unknownRouteErrorResponse } from "@/lib/api/errors";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Database } from "@/lib/supabase/database.types";
 
@@ -33,6 +36,24 @@ const patchSchema = z
     endsAt: z.iso.datetime().optional(),
     rewardXp: z.number().int().nonnegative().optional(),
     maxParticipants: z.number().int().positive().nullable().optional(),
+    audienceKind: z.enum(["global", "cohort"]).optional(),
+    cohortId: z.uuid().nullable().optional(),
+  })
+  .superRefine((value, context) => {
+    if (value.audienceKind === "cohort" && value.cohortId === undefined) {
+      context.addIssue({
+        code: "custom",
+        message: "cohortId is required when audienceKind is cohort.",
+        path: ["cohortId"],
+      });
+    }
+    if (value.audienceKind === "global" && value.cohortId !== undefined && value.cohortId !== null) {
+      context.addIssue({
+        code: "custom",
+        message: "cohortId must be null when audienceKind is global.",
+        path: ["cohortId"],
+      });
+    }
   })
   .refine((value) => Object.keys(value).length > 0, {
     message: "Provide at least one field to update.",
@@ -47,6 +68,8 @@ const immutableWhenActive = new Set([
   "startsAt",
   "endsAt",
   "maxParticipants",
+  "audienceKind",
+  "cohortId",
 ]);
 
 function toChallengeDto(row: Record<string, unknown>) {
@@ -65,6 +88,8 @@ function toChallengeDto(row: Record<string, unknown>) {
     endsAt: row.ends_at,
     rewardXp: row.reward_xp,
     maxParticipants: row.max_participants,
+    audienceKind: row.audience_kind,
+    cohortId: row.cohort_id,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -79,10 +104,10 @@ export async function PATCH(
     const params = paramsSchema.parse(await context.params);
     const adminContext = await requireAdminContext("admin");
     if (!adminContext) {
-      throw new RouteError(404, "not_found", "Resource not found.");
+      throw new ApiRouteError(404, "not_found", "Resource not found.");
     }
 
-    const body = await parseBoundedJsonBody(request, 64 * 1024, patchSchema);
+    const body = await parseJsonBody({ request: request, maxBytes: 64 * 1024, schema: patchSchema });
     const admin = createAdminClient();
 
     const { data: existing, error: existingError } = await admin
@@ -91,19 +116,19 @@ export async function PATCH(
       .eq("id", params.id)
       .maybeSingle();
     if (existingError) {
-      throw new RouteError(500, "admin_challenge_lookup_failed", "Could not read challenge.", {
+      throw new ApiRouteError(500, "admin_challenge_lookup_failed", "Could not read challenge.", {
         cause: existingError.message,
       });
     }
     if (!existing) {
-      throw new RouteError(404, "challenge_not_found", "Challenge was not found.");
+      throw new ApiRouteError(404, "challenge_not_found", "Challenge was not found.");
     }
 
     if (
       existing.status === "active" &&
       Object.keys(body).some((key) => immutableWhenActive.has(key))
     ) {
-      throw new RouteError(
+      throw new ApiRouteError(
         409,
         "challenge_active_field_locked",
         "Cannot update immutable fields on an active challenge."
@@ -123,6 +148,8 @@ export async function PATCH(
     if (body.endsAt !== undefined) updates.ends_at = body.endsAt;
     if (body.rewardXp !== undefined) updates.reward_xp = body.rewardXp;
     if (body.maxParticipants !== undefined) updates.max_participants = body.maxParticipants;
+    if (body.audienceKind !== undefined) updates.audience_kind = body.audienceKind;
+    if (body.cohortId !== undefined) updates.cohort_id = body.cohortId;
 
     const { data, error } = await admin
       .from("challenges")
@@ -131,7 +158,7 @@ export async function PATCH(
       .select("*")
       .single();
     if (error) {
-      throw new RouteError(500, "admin_challenge_update_failed", "Could not update challenge.", {
+      throw new ApiRouteError(500, "admin_challenge_update_failed", "Could not update challenge.", {
         cause: error.message,
       });
     }
@@ -145,21 +172,19 @@ export async function PATCH(
       { headers: { "Cache-Control": "no-store" } }
     );
   } catch (error) {
-    if (error instanceof RouteError) {
-      return routeErrorResponse(error, correlationId);
+    if (error instanceof ApiRouteError) {
+      return apiErrorResponse(error, correlationId);
     }
     if (error instanceof z.ZodError) {
-      return routeErrorResponse(
-        new RouteError(400, "validation_failed", "Request payload failed validation.", {
+      return apiErrorResponse(
+        new ApiRouteError(400, "validation_failed", "Request payload failed validation.", {
           issues: error.issues,
         }),
         correlationId
       );
     }
-    return unknownRouteErrorResponse({
-      correlationId,
-      message: "Admin challenge update request failed unexpectedly.",
-    });
+    return apiErrorResponse(new ApiRouteError(500, "internal_error", "Admin challenge update request failed unexpectedly.",
+    ), correlationId);
   }
 }
 
@@ -172,7 +197,7 @@ export async function DELETE(
     const params = paramsSchema.parse(await context.params);
     const adminContext = await requireAdminContext("admin");
     if (!adminContext) {
-      throw new RouteError(404, "not_found", "Resource not found.");
+      throw new ApiRouteError(404, "not_found", "Resource not found.");
     }
 
     const admin = createAdminClient();
@@ -182,15 +207,15 @@ export async function DELETE(
       .eq("id", params.id)
       .maybeSingle();
     if (existingError) {
-      throw new RouteError(500, "admin_challenge_lookup_failed", "Could not read challenge.", {
+      throw new ApiRouteError(500, "admin_challenge_lookup_failed", "Could not read challenge.", {
         cause: existingError.message,
       });
     }
     if (!existing) {
-      throw new RouteError(404, "challenge_not_found", "Challenge was not found.");
+      throw new ApiRouteError(404, "challenge_not_found", "Challenge was not found.");
     }
     if (existing.status === "active") {
-      throw new RouteError(
+      throw new ApiRouteError(
         409,
         "challenge_active_delete_blocked",
         "Active challenges must be closed before deletion."
@@ -199,7 +224,7 @@ export async function DELETE(
 
     const { error } = await admin.from("challenges").delete().eq("id", params.id);
     if (error) {
-      throw new RouteError(500, "admin_challenge_delete_failed", "Could not delete challenge.", {
+      throw new ApiRouteError(500, "admin_challenge_delete_failed", "Could not delete challenge.", {
         cause: error.message,
       });
     }
@@ -213,20 +238,18 @@ export async function DELETE(
       { headers: { "Cache-Control": "no-store" } }
     );
   } catch (error) {
-    if (error instanceof RouteError) {
-      return routeErrorResponse(error, correlationId);
+    if (error instanceof ApiRouteError) {
+      return apiErrorResponse(error, correlationId);
     }
     if (error instanceof z.ZodError) {
-      return routeErrorResponse(
-        new RouteError(400, "invalid_challenge_id", "Challenge id is invalid.", {
+      return apiErrorResponse(
+        new ApiRouteError(400, "invalid_challenge_id", "Challenge id is invalid.", {
           issues: error.issues,
         }),
         correlationId
       );
     }
-    return unknownRouteErrorResponse({
-      correlationId,
-      message: "Admin challenge delete request failed unexpectedly.",
-    });
+    return apiErrorResponse(new ApiRouteError(500, "internal_error", "Admin challenge delete request failed unexpectedly.",
+    ), correlationId);
   }
 }
