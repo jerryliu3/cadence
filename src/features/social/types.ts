@@ -90,6 +90,7 @@ export type TeamStatus =
   | "active"
   | "closed";
 
+
 export interface TeamStateRow {
   teamId: string;
   status: TeamStatus;
