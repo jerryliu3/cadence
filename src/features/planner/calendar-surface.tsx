@@ -121,6 +121,7 @@ const DAY_PREVIEW_CLOSE_DELAY_MS = 140;
 const DAY_PREVIEW_LONG_PRESS_DELAY_MS = 500;
 const MAX_MONTH_HEADING_SAMPLE = "September 2026";
 const MAX_WEEK_HEADING_SAMPLE = "Sep 30 - Sep 30, 2026";
+const MAX_THREE_DAY_HEADING_SAMPLE = "Sep 30 - Oct 2, 2026";
 const MAX_DAY_HEADING_SAMPLE = "Wed Aug 30";
 const DRAFT_MOVE_PREVIEW_REFRESH_DELAY_MS = 200;
 const SCOPE_ONLY_ELIGIBILITY_REASONS = new Set([
@@ -147,6 +148,7 @@ function getEligibilityReasonLabel(reason: string) {
 const PLANNER_VIEW_MODES = [
   { value: "month", label: "Month" },
   { value: "week", label: "Week" },
+  { value: "three_day", label: "3 Day" },
   { value: "day", label: "Day" },
 ] as const;
 
@@ -165,6 +167,7 @@ export function CalendarSurface({
   const [setupLoading, setSetupLoading] = useState(false);
   const [saveLoading, setSaveLoading] = useState(false);
   const [resetLoading, setResetLoading] = useState(false);
+  const [fullResetLoading, setFullResetLoading] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [draftPolicyByScope, setDraftPolicyByScope] = useState<
     Record<string, PlannerPolicy>
@@ -292,7 +295,15 @@ export function CalendarSurface({
   const calendarToday =
     context?.asOfDate ??
     getDateInTimezone(new Date(), context?.timezone ?? setupTimezone);
-  const { cells, focusedDay, focusedWeekDays, focusedWeekCells, visibleDays } =
+  const {
+    cells,
+    focusedDay,
+    focusedWeekDays,
+    focusedWeekCells,
+    focusedThreeDayDays,
+    focusedThreeDayCells,
+    visibleDays,
+  } =
     useMemo(
       () =>
         selectCalendarViewWindowProjection({
@@ -1950,6 +1961,85 @@ export function CalendarSurface({
     }
   };
 
+  const resetPlanFully = async () => {
+    if (!context) {
+      return;
+    }
+    const confirmed = window.confirm(
+      "Full reset will clear planner schedules across all months in the planning horizon. Continue?"
+    );
+    if (!confirmed) {
+      return;
+    }
+
+    setFullResetLoading(true);
+    let resetCount = 0;
+    let failedMonths = 0;
+    const asOfMonth = context.asOfDate.slice(0, 7);
+    const scopeMonthsToProcess = new Set<string>([
+      context.scopeMonth,
+      ...(month ? [month] : []),
+      ...dirtyScopeMonths,
+    ]);
+    for (let monthOffset = 0; monthOffset < 24; monthOffset += 1) {
+      scopeMonthsToProcess.add(
+        format(addMonths(parseMonth(asOfMonth), monthOffset), "yyyy-MM")
+      );
+    }
+
+    try {
+      for (const scopeMonth of Array.from(scopeMonthsToProcess).sort((left, right) =>
+        left.localeCompare(right)
+      )) {
+        let scopeContext: PlannerContextPayload;
+        try {
+          scopeContext = await getJson<PlannerContextPayload>("/api/planner/context", {
+            query: { scopeMonth },
+          });
+        } catch {
+          failedMonths += 1;
+          continue;
+        }
+        const expectedDigest = scopeContext.revisions.scheduleDigest;
+        if (!expectedDigest) {
+          continue;
+        }
+        try {
+          await postJson("/api/planner/reset", {
+            scopeMonth,
+            expectedDigest,
+          });
+          clearDraftScopeSession(scopeMonth);
+          resetCount += 1;
+        } catch {
+          failedMonths += 1;
+        }
+      }
+
+      onPlannerMutation();
+      await loadContext({ showLoading: false, toastOnError: false });
+      coach.actions.resetForPlannerStateReset();
+      if (resetCount > 0) {
+        toast.success(
+          `Full reset complete for ${resetCount} month${resetCount === 1 ? "" : "s"}.`
+        );
+      } else {
+        toast("No planner months needed reset.");
+      }
+      if (failedMonths > 0) {
+        toast.error(
+          `${failedMonths} month${failedMonths === 1 ? "" : "s"} could not be reset.`
+        );
+      }
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Full planner reset failed."
+      );
+    } finally {
+      setFullResetLoading(false);
+    }
+  };
+
   const discardDraftChanges = (mode: "current" | "all" = "current") => {
     const scopesToClear =
       mode === "all"
@@ -1991,6 +2081,16 @@ export function CalendarSurface({
     "yyyy-MM-dd",
     new Date()
   );
+  const focusedThreeDayStartDate = parse(
+    focusedThreeDayDays[0] ?? focusedDay,
+    "yyyy-MM-dd",
+    new Date()
+  );
+  const focusedThreeDayEndDate = parse(
+    focusedThreeDayDays[2] ?? focusedDay,
+    "yyyy-MM-dd",
+    new Date()
+  );
   const viewHeading =
     viewMode === "month"
       ? monthLabel
@@ -1999,11 +2099,17 @@ export function CalendarSurface({
             focusedWeekEndDate,
             "MMM d, yyyy"
           )}`
+        : viewMode === "three_day"
+          ? `${format(focusedThreeDayStartDate, "MMM d")} - ${format(
+              focusedThreeDayEndDate,
+              "MMM d, yyyy"
+            )}`
         : format(safeFocusedDay, "EEE MMM d");
   const viewHeadingControlWidth = `min(100%, calc(${Math.max(
     monthLabel.length,
     MAX_MONTH_HEADING_SAMPLE.length,
     MAX_WEEK_HEADING_SAMPLE.length,
+    MAX_THREE_DAY_HEADING_SAMPLE.length,
     MAX_DAY_HEADING_SAMPLE.length
   )}ch + ${viewMode === "month" ? "11rem" : "8rem"}))`;
   const viewDescription =
@@ -2011,18 +2117,24 @@ export function CalendarSurface({
       ? `${restWeekdayOptions.find((option) => option.value === weekStartsOn)?.label ?? "Mon"}-first month view. Drag session pills to stage preview edits.`
       : viewMode === "week"
         ? "Expanded 7-day planner view with drag-and-drop editing."
+        : viewMode === "three_day"
+          ? "Three-day rolling planner view for focused short-range planning."
         : "Day agenda view with completion and detail controls.";
   const previousWindowAriaLabel =
     viewMode === "month"
       ? "Previous month"
       : viewMode === "week"
         ? "Previous week"
+        : viewMode === "three_day"
+          ? "Previous 3 days"
         : "Previous day";
   const nextWindowAriaLabel =
     viewMode === "month"
       ? "Next month"
       : viewMode === "week"
         ? "Next week"
+        : viewMode === "three_day"
+          ? "Next 3 days"
         : "Next day";
   const canResetViewWindow =
     viewMode === "month" ? month !== todayMonth : focusedDay !== calendarToday;
@@ -2037,7 +2149,7 @@ export function CalendarSurface({
       );
       return;
     }
-    const stepDays = viewMode === "week" ? 7 : 1;
+    const stepDays = viewMode === "week" ? 7 : viewMode === "three_day" ? 3 : 1;
     const nextDay = format(addDays(safeFocusedDay, direction * stepDays), "yyyy-MM-dd");
     onSelectedDayChange(nextDay, "push", viewMode);
   };
@@ -2095,6 +2207,9 @@ export function CalendarSurface({
   const canResetPlan = Boolean(
     !hasDraftSession && hasLockedPlanItems
   );
+  const hasUnsavedPlannerChanges = Boolean(
+    hasDraftSession || !context?.activePlan
+  );
   const canShowSaveAction = Boolean(effectivePreview);
   const saveButtonLabel = saveLoading ? "Saving..." : "Save plan";
   const readOnlyMonthHint =
@@ -2140,7 +2255,7 @@ export function CalendarSurface({
         entriesForDay={entriesForDay}
         completionFactMarkersForDay={completionFactMarkersForDay}
         maxVisibleItems={
-          viewMode === "week"
+          viewMode === "week" || viewMode === "three_day"
             ? Number.MAX_SAFE_INTEGER
             : expandedMonthRows
               ? Number.MAX_SAFE_INTEGER
@@ -2289,6 +2404,19 @@ export function CalendarSurface({
       <Button type="button" onClick={submitSetup} disabled={setupLoading}>
         {setupLoading ? "Saving settings..." : "Save settings"}
       </Button>
+      <div className="space-y-2 rounded-md border border-destructive/30 bg-destructive/5 p-3">
+        <p className="text-xs text-muted-foreground">
+          Full reset clears planner schedule snapshots across the active 24-month horizon.
+        </p>
+        <Button
+          type="button"
+          variant="destructive"
+          onClick={() => void resetPlanFully()}
+          disabled={fullResetLoading || loading || resetLoading}
+        >
+          {fullResetLoading ? "Running full reset..." : "Full reset planner"}
+        </Button>
+      </div>
     </div>
   );
 
@@ -2359,7 +2487,7 @@ export function CalendarSurface({
                     loading ||
                     !context ||
                     scopeMonthsForSaveAction.length === 0 ||
-                    (!hasDraftSession && !effectivePreview) ||
+                    !hasUnsavedPlannerChanges ||
                     draftSaveBlocked
                   }
                 >
@@ -2592,8 +2720,21 @@ export function CalendarSurface({
                       />
                     </div>
                   </div>
+                ) : viewMode === "three_day" ? (
+                  <div className="mx-auto w-full max-w-[56rem]">
+                    <div className="grid grid-cols-3 gap-2 text-center text-xs text-muted-foreground">
+                      {focusedThreeDayDays.map((day) => (
+                        <span key={`three-day-label-${day}`}>
+                          {format(parse(day, "yyyy-MM-dd", new Date()), "EEE d")}
+                        </span>
+                      ))}
+                    </div>
+                    <div className="mt-2 grid grid-cols-3 gap-2" data-no-swipe="true">
+                      {focusedThreeDayCells.map(renderCalendarDayCell)}
+                    </div>
+                  </div>
                 ) : (
-                  <>
+                  <div className="mx-auto w-full max-w-[56rem]">
                     <div className="grid grid-cols-7 gap-2 text-center text-xs text-muted-foreground">
                       {weekdayLabels.map((weekday) => (
                         <span key={weekday}>{weekday}</span>
@@ -2604,7 +2745,7 @@ export function CalendarSurface({
                         renderCalendarDayCell
                       )}
                     </div>
-                  </>
+                  </div>
                 )}
                 {draftSaveBlockedMessage ? (
                   <div className="mt-3 rounded-md border border-amber-400/40 bg-amber-500/10 p-2 text-xs">

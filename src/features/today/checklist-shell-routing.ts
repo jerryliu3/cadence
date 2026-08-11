@@ -2,7 +2,7 @@ import { format, parse } from "date-fns";
 
 export type PlannerShellTab = "today" | "not-today" | "calendar";
 export type SurfaceKey = "checklist" | "calendar";
-export type PlannerCalendarViewMode = "month" | "week" | "day";
+export type PlannerCalendarViewMode = "month" | "week" | "three_day" | "day";
 
 const monthPattern = /^\d{4}-(0[1-9]|1[0-2])$/;
 const datePattern = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
@@ -22,7 +22,12 @@ export function isValidDate(value: string | null): value is string {
 export function isValidCalendarViewMode(
   value: string | null
 ): value is PlannerCalendarViewMode {
-  return value === "month" || value === "week" || value === "day";
+  return (
+    value === "month" ||
+    value === "week" ||
+    value === "three_day" ||
+    value === "day"
+  );
 }
 
 export function getTodayDateParam() {
@@ -110,7 +115,7 @@ export function normalizeChecklistShellRoute({
         nextParams.set("month", normalizedMonth);
         changed = true;
       }
-    } else if (viewMode === "week") {
+    } else if (viewMode === "week" || viewMode === "three_day") {
       const dayParam = nextParams.get("day");
       const monthParam = nextParams.get("month");
       const fallbackDay = isValidMonth(monthParam)
