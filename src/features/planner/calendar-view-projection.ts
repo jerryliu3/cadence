@@ -8,6 +8,8 @@ export interface CalendarViewWindowProjection {
   focusedDay: string;
   focusedWeekDays: string[];
   focusedWeekCells: MonthCell[];
+  focusedThreeDayDays: string[];
+  focusedThreeDayCells: MonthCell[];
   visibleDays: string[];
 }
 
@@ -53,6 +55,44 @@ export function buildFocusedWeekCells({
   });
 }
 
+export function buildFocusedThreeDayDays({
+  focusedDay,
+  calendarToday,
+}: {
+  focusedDay: string;
+  calendarToday: string;
+}) {
+  const parsedFocusedDay = parse(focusedDay, "yyyy-MM-dd", new Date());
+  const safeFocusedDay = isValid(parsedFocusedDay)
+    ? parsedFocusedDay
+    : parse(calendarToday, "yyyy-MM-dd", new Date());
+  return [-1, 0, 1].map((offset) =>
+    format(addDays(safeFocusedDay, offset), "yyyy-MM-dd")
+  );
+}
+
+export function buildFocusedThreeDayCells({
+  month,
+  cellByDate,
+  focusedThreeDayDays,
+}: {
+  month: string | null;
+  cellByDate: Map<string, MonthCell>;
+  focusedThreeDayDays: string[];
+}) {
+  const monthPrefix = month ? `${month}-` : null;
+  return focusedThreeDayDays.map((day) => {
+    const existingCell = cellByDate.get(day);
+    if (existingCell) {
+      return existingCell;
+    }
+    return {
+      date: day,
+      inMonth: monthPrefix ? day.startsWith(monthPrefix) : false,
+    } satisfies MonthCell;
+  });
+}
+
 export function selectCalendarViewWindowProjection({
   month,
   selectedDay,
@@ -79,9 +119,20 @@ export function selectCalendarViewWindowProjection({
     cellByDate,
     focusedWeekDays,
   });
+  const focusedThreeDayDays = buildFocusedThreeDayDays({
+    focusedDay,
+    calendarToday,
+  });
+  const focusedThreeDayCells = buildFocusedThreeDayCells({
+    month,
+    cellByDate,
+    focusedThreeDayDays,
+  });
   const visibleDays =
     viewMode === "week"
       ? focusedWeekDays
+      : viewMode === "three_day"
+        ? focusedThreeDayDays
       : viewMode === "day"
         ? [focusedDay]
         : cells.map((cell) => cell.date);
@@ -91,6 +142,8 @@ export function selectCalendarViewWindowProjection({
     focusedDay,
     focusedWeekDays,
     focusedWeekCells,
+    focusedThreeDayDays,
+    focusedThreeDayCells,
     visibleDays,
   };
 }

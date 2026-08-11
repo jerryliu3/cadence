@@ -1,6 +1,6 @@
 "use client";
 
-import { usePathname, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { CalendarSurface } from "@/features/planner/calendar-surface";
 import {
@@ -10,10 +10,11 @@ import {
   normalizeCalendarRoute,
   type PlannerCalendarViewMode,
 } from "@/features/today/checklist-shell-routing";
+import { useClientSearchParamsUpdater } from "@/lib/navigation/use-client-search-params-updater";
 
 export function CalendarPageShell() {
-  const pathname = usePathname();
   const searchParams = useSearchParams();
+  const { applySearchParams } = useClientSearchParamsUpdater();
   const [defaultCalendarViewMode, setDefaultCalendarViewMode] =
     useState<PlannerCalendarViewMode>("month");
 
@@ -41,30 +42,6 @@ export function CalendarPageShell() {
         defaultCalendarViewMode,
       }),
     [defaultCalendarViewMode, searchParams]
-  );
-
-  const applySearchParams = useCallback(
-    (
-      update: (params: URLSearchParams) => void,
-      mode: "push" | "replace",
-      state: Record<string, unknown> | null = null
-    ) => {
-      const params = new URLSearchParams(searchParams.toString());
-      update(params);
-      const query = params.toString();
-      const nextUrl = query ? `${pathname}?${query}` : pathname;
-      const currentQuery = searchParams.toString();
-      const currentUrl = currentQuery ? `${pathname}?${currentQuery}` : pathname;
-      if (nextUrl === currentUrl) {
-        return;
-      }
-      if (mode === "push") {
-        window.history.pushState(state, "", nextUrl);
-      } else {
-        window.history.replaceState(state, "", nextUrl);
-      }
-    },
-    [pathname, searchParams]
   );
 
   useEffect(() => {

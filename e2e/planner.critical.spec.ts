@@ -656,7 +656,7 @@ test.describe("planner critical rails", () => {
     expect(["stale_revision", "preview_hash_mismatch"]).toContain(body.code ?? "");
 
     await expect(
-      page.getByRole("button", { name: /Undo this month/i })
+      page.getByRole("button", { name: /Undo changes/i })
     ).toBeVisible({ timeout: 10_000 });
   });
 });
