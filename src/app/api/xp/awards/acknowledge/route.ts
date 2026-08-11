@@ -1,9 +1,13 @@
 import { z } from "zod";
-import { parseBoundedJsonBody } from "@/lib/api/body";
-import { createCorrelationId, requireAuthenticatedUser } from "@/lib/api/context";
-import { RouteError, routeErrorResponse } from "@/lib/api/errors";
+import {
+  ApiRouteError,
+  apiErrorResponse,
+  createCorrelationId,
+  parseJsonBody,
+  requireAuthenticatedRouteContext,
+} from "@/lib/api/route";
+import { isFeatureEnabled } from "@/lib/feature-flags";
 import { createClient } from "@/lib/supabase/server";
-import { getXpCapabilities } from "@/lib/xp/capabilities";
 
 export const runtime = "nodejs";
 
@@ -36,8 +40,7 @@ function unavailableResponse(correlationId: string) {
 
 export async function POST(request: Request) {
   const correlationId = createCorrelationId();
-  const capabilities = getXpCapabilities();
-  if (!capabilities.xpEnabled) {
+  if (!isFeatureEnabled("xpEnabled")) {
     return xpDisabledResponse(correlationId);
   }
 
@@ -45,23 +48,28 @@ export async function POST(request: Request) {
   let userId: string;
   try {
     userId = (
-      await requireAuthenticatedUser(supabase, {
-        message: "Sign in to acknowledge awards.",
+      await requireAuthenticatedRouteContext({
+        supabase,
+        unauthorizedMessage: "Sign in to acknowledge awards.",
       })
     ).userId;
   } catch (error) {
-    if (error instanceof RouteError) {
-      return routeErrorResponse(error, correlationId);
+    if (error instanceof ApiRouteError) {
+      return apiErrorResponse(error, correlationId);
     }
     return unavailableResponse(correlationId);
   }
 
   let body: z.infer<typeof acknowledgeBodySchema>;
   try {
-    body = await parseBoundedJsonBody(request, MAX_REQUEST_BYTES, acknowledgeBodySchema);
+    body = await parseJsonBody({
+      request,
+      maxBytes: MAX_REQUEST_BYTES,
+      schema: acknowledgeBodySchema,
+    });
   } catch (error) {
-    if (error instanceof RouteError) {
-      return routeErrorResponse(error, correlationId);
+    if (error instanceof ApiRouteError) {
+      return apiErrorResponse(error, correlationId);
     }
     return unavailableResponse(correlationId);
   }

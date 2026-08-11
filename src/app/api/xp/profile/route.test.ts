@@ -1,6 +1,7 @@
 // @vitest-environment node
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { resetEnvCacheForTests } from "@/lib/env";
 
 const mocks = vi.hoisted(() => ({
   getUser: vi.fn(),
@@ -114,6 +115,7 @@ function buildFromStub() {
 describe("GET /api/xp/profile", () => {
   beforeEach(() => {
     vi.stubEnv("XP_ENABLED", "true");
+    resetEnvCacheForTests();
     mocks.getUser.mockResolvedValue({
       data: { user: { id: "u1" } },
       error: null,
@@ -124,10 +126,12 @@ describe("GET /api/xp/profile", () => {
   afterEach(() => {
     vi.clearAllMocks();
     vi.unstubAllEnvs();
+    resetEnvCacheForTests();
   });
 
   it("returns 503 when XP is disabled", async () => {
     vi.stubEnv("XP_ENABLED", "false");
+    resetEnvCacheForTests();
     const response = await GET();
     expect(response.status).toBe(503);
     await expect(response.json()).resolves.toMatchObject({

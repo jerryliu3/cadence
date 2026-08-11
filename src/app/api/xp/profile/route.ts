@@ -1,8 +1,12 @@
 import { NextResponse } from "next/server";
-import { createCorrelationId, requireAuthenticatedUser } from "@/lib/api/context";
-import { RouteError, routeErrorResponse } from "@/lib/api/errors";
+import {
+  ApiRouteError,
+  apiErrorResponse,
+  createCorrelationId,
+  requireAuthenticatedRouteContext,
+} from "@/lib/api/route";
+import { isFeatureEnabled } from "@/lib/feature-flags";
 import { createClient } from "@/lib/supabase/server";
-import { getXpCapabilities } from "@/lib/xp/capabilities";
 
 export const runtime = "nodejs";
 
@@ -37,8 +41,7 @@ function xpUnavailableResponse(correlationId: string) {
 
 export async function GET() {
   const correlationId = createCorrelationId();
-  const capabilities = getXpCapabilities();
-  if (!capabilities.xpEnabled) {
+  if (!isFeatureEnabled("xpEnabled")) {
     return xpDisabledResponse(correlationId);
   }
 
@@ -46,13 +49,14 @@ export async function GET() {
   let userId: string;
   try {
     userId = (
-      await requireAuthenticatedUser(supabase, {
-        message: "Sign in to view XP profile.",
+      await requireAuthenticatedRouteContext({
+        supabase,
+        unauthorizedMessage: "Sign in to view XP profile.",
       })
     ).userId;
   } catch (error) {
-    if (error instanceof RouteError) {
-      return routeErrorResponse(error, correlationId);
+    if (error instanceof ApiRouteError) {
+      return apiErrorResponse(error, correlationId);
     }
     return xpUnavailableResponse(correlationId);
   }

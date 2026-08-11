@@ -1,6 +1,7 @@
 // @vitest-environment node
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { resetEnvCacheForTests } from "@/lib/env";
 
 const mocks = vi.hoisted(() => ({
   getUser: vi.fn(),
@@ -27,6 +28,7 @@ function request(body: unknown) {
 describe("POST /api/xp/awards/acknowledge", () => {
   beforeEach(() => {
     vi.stubEnv("XP_ENABLED", "true");
+    resetEnvCacheForTests();
     mocks.getUser.mockResolvedValue({
       data: { user: { id: "u1" } },
       error: null,
@@ -40,10 +42,12 @@ describe("POST /api/xp/awards/acknowledge", () => {
   afterEach(() => {
     vi.clearAllMocks();
     vi.unstubAllEnvs();
+    resetEnvCacheForTests();
   });
 
   it("returns 503 when XP is disabled", async () => {
     vi.stubEnv("XP_ENABLED", "false");
+    resetEnvCacheForTests();
     const response = await POST(request({ awardId: "a2785c72-5d33-41ec-bde8-a32976132f3d" }));
     expect(response.status).toBe(503);
     await expect(response.json()).resolves.toMatchObject({ code: "xp_disabled" });
