@@ -4,6 +4,7 @@ import type {
 } from "@/lib/planner/solver/types";
 import { getSolverUnitId } from "@/lib/planner/solver/types";
 import type { PlannerWorkUnit } from "@/lib/planner/work-units";
+import { compareDateStrings } from "@/lib/goals/periods";
 import { dateIsInWindow } from "@/lib/planner/dates";
 
 export interface SolverValidationResult {
@@ -124,11 +125,7 @@ export function validateSolverResult(
 }
 
 export function validateMergedWorkUnitAssignments(
-  workUnits: PlannerWorkUnit[],
-  options?: {
-    allowPreservedOutsidePlacementWindow?: boolean;
-    preservedAssignmentsByIdentity?: Map<string, string | null>;
-  }
+  workUnits: PlannerWorkUnit[]
 ): SolverValidationResult {
   const violations = new Set<string>();
   const identities = new Set<string>();
@@ -157,14 +154,12 @@ export function validateMergedWorkUnitAssignments(
       (!unit.placementWindow ||
         !dateIsInWindow(unit.scheduledDate, unit.placementWindow))
     ) {
-      const preservedDate = options?.preservedAssignmentsByIdentity?.get(
-        identity
-      );
-      const allowPreservedOutOfWindow =
-        options?.allowPreservedOutsidePlacementWindow === true &&
-        preservedDate !== null &&
-        preservedDate === unit.scheduledDate;
-      if (!allowPreservedOutOfWindow) {
+      // Dates before the active window are retained past placements (asOfDate
+      // moved forward), not newly assigned out-of-window dates.
+      const retainedBeforeWindow =
+        unit.placementWindow !== null &&
+        compareDateStrings(unit.scheduledDate, unit.placementWindow.start) < 0;
+      if (!retainedBeforeWindow) {
         violations.add("date_outside_placement_window");
       }
     }
