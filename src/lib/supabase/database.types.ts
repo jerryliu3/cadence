@@ -1173,7 +1173,7 @@ export type Database = {
         | "unban_leaderboard"
         | "remove_participant"
         | "close_challenge"
-      moderation_target: "feed_event" | "user" | "challenge" | "duo"
+      moderation_target: "feed_event" | "user" | "challenge" | "team"
       participant_role: "owner" | "participant"
       recurrence_interval: "daily" | "weekly" | "monthly"
     }
@@ -1317,7 +1317,7 @@ export const Constants = {
         "remove_participant",
         "close_challenge",
       ],
-      moderation_target: ["feed_event", "user", "challenge", "duo"],
+      moderation_target: ["feed_event", "user", "challenge", "team"],
       participant_role: ["owner", "participant"],
       recurrence_interval: ["daily", "weekly", "monthly"],
     },
