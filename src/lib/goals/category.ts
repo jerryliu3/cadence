@@ -1,7 +1,7 @@
 import { cn } from "@/lib/utils";
 
 export type CategoryPresetId = "health" | "career" | "personal" | "relationships" | "other";
-export type CategorySelection = CategoryPresetId;
+export type CategorySelection = CategoryPresetId | "custom";
 
 export const CATEGORY_PRESETS: Array<{
   id: CategoryPresetId;
@@ -20,6 +20,7 @@ const categorySwatchBySelection: Record<CategorySelection, string> = {
   personal: "#6366f1",
   relationships: "#f43f5e",
   other: "#64748b",
+  custom: "#64748b",
 };
 
 const presetLookup = new Map(
@@ -41,16 +42,40 @@ function toCategoryKey(raw: string | null | undefined): CategoryPresetId {
   return "other";
 }
 
+function isOtherLabel(category: string) {
+  const normalized = category.trim().toLowerCase();
+  return normalized === "" || normalized === "other";
+}
+
 export function getCategorySelectionFromValue(
   category: string,
   categoryKey?: string | null
 ) {
-  return toCategoryKey(categoryKey ?? category);
+  const key = toCategoryKey(categoryKey ?? category);
+  if (key === "other" && !isOtherLabel(category)) {
+    return {
+      selection: "custom" as const,
+      customValue: category.trim(),
+    };
+  }
+  return {
+    selection: key,
+    customValue: "",
+  };
+}
+
+export function getCategoryKeyForSelection(selection: CategorySelection): CategoryPresetId {
+  return selection === "custom" ? "other" : selection;
 }
 
 export function getCategoryLabel(
-  selection: CategorySelection
+  selection: CategorySelection,
+  customValue?: string
 ): string {
+  if (selection === "custom") {
+    const custom = customValue?.trim();
+    return custom && custom.length > 0 ? custom : "Other";
+  }
   return presetLookup.get(selection) ?? "Other";
 }
 
@@ -58,7 +83,11 @@ export function getGoalCategoryLabel(
   category: string,
   categoryKey?: string | null
 ) {
-  return getCategoryLabel(toCategoryKey(categoryKey ?? category));
+  const key = toCategoryKey(categoryKey ?? category);
+  if (key === "other" && !isOtherLabel(category)) {
+    return category.trim();
+  }
+  return getCategoryLabel(key);
 }
 
 export function getCategoryBadgeClass(category: string): string {

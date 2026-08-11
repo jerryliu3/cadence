@@ -82,8 +82,8 @@ select is(
 
 update public.goals
 set
-  category = 'Health',
-  category_key = 'relationships'
+  category = 'Friends and family',
+  category_key = 'other'
 where id = 'b1400000-0000-4000-8000-000000000001';
 
 select is(
@@ -92,8 +92,8 @@ select is(
     from public.goals
     where id = 'b1400000-0000-4000-8000-000000000001'
   ),
-  'relationships',
-  'update trigger uses category_key over category text'
+  'other',
+  'update trigger keeps category_key canonical for custom labels'
 );
 
 select is(
@@ -102,8 +102,8 @@ select is(
     from public.goals
     where id = 'b1400000-0000-4000-8000-000000000001'
   ),
-  'Relationships',
-  'update trigger rewrites category text to the canonical display label'
+  'Friends and family',
+  'update trigger preserves custom label when category_key is other'
 );
 
 reset role;

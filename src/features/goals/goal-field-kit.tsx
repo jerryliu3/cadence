@@ -45,6 +45,15 @@ export function CategorySelect({
             </span>
           </SelectItem>
         ))}
+        <SelectItem value="custom">
+          <span className="inline-flex items-center gap-2">
+            <span
+              className="size-2 rounded-full"
+              style={{ backgroundColor: getCategorySwatchColor("custom") }}
+            />
+            Custom
+          </span>
+        </SelectItem>
       </SelectContent>
     </Select>
   );

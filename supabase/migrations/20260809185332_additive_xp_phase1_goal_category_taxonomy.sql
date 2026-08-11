@@ -1,5 +1,6 @@
 -- XP Phase 1:
 -- Introduce constrained goal category taxonomy with category_key as canonical goal value.
+-- "other" may carry a custom user label in goals.category.
 
 create table if not exists public.goal_categories (
   key text primary key,
@@ -161,7 +162,14 @@ begin
   new.category_key := private.normalize_goal_category_key(
     coalesce(new.category_key, new.category)
   );
-  new.category := private.goal_category_label(new.category_key);
+  if new.category_key = 'other' then
+    new.category := coalesce(
+      nullif(btrim(coalesce(new.category, '')), ''),
+      private.goal_category_label('other')
+    );
+  else
+    new.category := private.goal_category_label(new.category_key);
+  end if;
   return new;
 end;
 $$;
@@ -176,9 +184,21 @@ for each row execute function private.set_goal_category_key();
 update public.goals
 set
   category_key = private.normalize_goal_category_key(coalesce(category_key, category)),
-  category = private.goal_category_label(coalesce(category_key, category))
+  category = case
+    when private.normalize_goal_category_key(coalesce(category_key, category)) = 'other'
+      then coalesce(nullif(btrim(coalesce(category, '')), ''), private.goal_category_label('other'))
+    else private.goal_category_label(coalesce(category_key, category))
+  end
 where category_key is null
-   or category <> private.goal_category_label(coalesce(category_key, category));
+   or category_key <> private.normalize_goal_category_key(coalesce(category_key, category))
+   or (
+     private.normalize_goal_category_key(coalesce(category_key, category)) <> 'other'
+     and category <> private.goal_category_label(coalesce(category_key, category))
+   )
+   or (
+     private.normalize_goal_category_key(coalesce(category_key, category)) = 'other'
+     and coalesce(btrim(category), '') = ''
+   );
 
 alter table public.goals
 alter column category_key set default 'other';
