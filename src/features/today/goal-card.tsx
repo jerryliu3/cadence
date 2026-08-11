@@ -33,7 +33,7 @@ interface GoalCardProps {
   };
   disabled?: boolean;
   archived?: boolean;
-  onToggle: () => void;
+  onToggle: (sourceElement: HTMLButtonElement) => void;
 }
 
 export function GoalCard({
@@ -88,7 +88,7 @@ export function GoalCard({
           completed={doneForCurrentPeriod}
           pending={disabled && !archived}
           size="lg"
-          onClick={onToggle}
+          onClick={(event) => onToggle(event.currentTarget)}
           disabled={disabled || archived}
           aria-label={
             doneForCurrentPeriod

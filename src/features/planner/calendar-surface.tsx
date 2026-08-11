@@ -115,6 +115,7 @@ import {
   type PlannerPolicy,
 } from "@/lib/planner/policy";
 import { withPlannerRefreshTimeout } from "@/lib/planner/refresh-timeout";
+import { captureViewportRect } from "@/lib/xp/events";
 import type {
   CalendarSurfaceProps,
   CompletionControlDisabledReason,
@@ -1648,8 +1649,12 @@ export function CalendarSurface({
 
   const toggleDateFact = async (
     entry: PlannerDayDetailEntry,
-    selectedDateOverride?: string
+    selectedDateOverride?: string,
+    sourceElement?: HTMLElement
   ) => {
+    const sourceRect = sourceElement
+      ? captureViewportRect(sourceElement)
+      : undefined;
     const selectedDate = selectedDateOverride ?? effectiveSelectedDay;
     if (!context || !selectedDate) {
       return;
@@ -1703,6 +1708,7 @@ export function CalendarSurface({
         goalId: entry.originalGoalId,
         date: selectedDate,
         timezone: context.timezone,
+        sourceRect,
         plannerItemExpectation:
           requiresPlannerExpectation && entry.activeItem && expectedDigest
           ? {
@@ -2922,11 +2928,11 @@ export function CalendarSurface({
                         setLocalSelectedDay(dayPreview.day);
                         setSelectedEventEntryKey(entry.key);
                       }}
-                      onToggleCompletion={(entry, day) => {
+                      onToggleCompletion={(entry, day, sourceElement) => {
                         if (!canMutateEntryOnDay(entry, day)) {
                           return;
                         }
-                        void toggleDateFact(entry, day);
+                        void toggleDateFact(entry, day, sourceElement);
                       }}
                       onEntryPointerStart={(immovable) => {
                         void immovable;
@@ -3084,7 +3090,13 @@ export function CalendarSurface({
                                 mutationLoadingKey === `fact:${selectedEventEntry.key}`
                               }
                               size="sm"
-                              onClick={() => void toggleDateFact(selectedEventEntry)}
+                              onClick={(event) =>
+                                void toggleDateFact(
+                                  selectedEventEntry,
+                                  undefined,
+                                  event.currentTarget
+                                )
+                              }
                               disabled={
                                 Boolean(mutationLoadingKey) ||
                                 selectedEventCompletionDisabledReason !== null

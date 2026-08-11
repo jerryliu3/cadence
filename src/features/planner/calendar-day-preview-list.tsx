@@ -33,7 +33,11 @@ interface CalendarDayPreviewListProps<
   isEntryImmovableForDraft: (entry: TEntry) => boolean;
   getCompletionToggleState: (entry: TEntry, day: string) => PreviewCompletionToggleState;
   onEntryOpen: (entryKey: string) => void;
-  onToggleCompletion: (entry: TEntry, day: string) => void;
+  onToggleCompletion: (
+    entry: TEntry,
+    day: string,
+    sourceElement: HTMLButtonElement
+  ) => void;
   onEntryPointerStart: (immovable: boolean) => void;
   onEntryPointerEnd: () => void;
   density?: "compact" | "expanded";
@@ -179,7 +183,7 @@ export function CalendarDayPreviewList<
                         }}
                         onClick={(event) => {
                           event.stopPropagation();
-                          onToggleCompletion(entry, day);
+                          onToggleCompletion(entry, day, event.currentTarget);
                         }}
                         disabled={
                           mutationLoading ||
