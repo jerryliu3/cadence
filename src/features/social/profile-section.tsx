@@ -19,6 +19,7 @@ interface ProfileSectionProps {
   profileDraft: ProfileDraft;
   authEmail: string;
   saving: boolean;
+  canSaveProfile: boolean;
   setProfileDraft: (updater: (previous: ProfileDraft) => ProfileDraft) => void;
   onSaveProfile: () => Promise<void>;
 }
@@ -35,6 +36,7 @@ export function ProfileSection({
   profileDraft,
   authEmail,
   saving,
+  canSaveProfile,
   setProfileDraft,
   onSaveProfile,
 }: ProfileSectionProps) {
@@ -98,7 +100,11 @@ export function ProfileSection({
             }
           />
         </div>
-        <Button type="button" onClick={() => void onSaveProfile()} disabled={saving}>
+        <Button
+          type="button"
+          onClick={() => void onSaveProfile()}
+          disabled={saving || !canSaveProfile}
+        >
           <WandSparkles className="size-4" />
           Save profile
         </Button>

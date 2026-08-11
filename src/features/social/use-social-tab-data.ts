@@ -368,16 +368,38 @@ export function useSocialTabData() {
     }));
   };
 
+  const normalizedProfileDraft = useMemo(
+    () => ({
+      username: profileDraft.username.trim().toLowerCase(),
+      display_name: profileDraft.display_name.trim() || null,
+      avatar_url: profileDraft.avatar_url.trim() || null,
+    }),
+    [profileDraft.avatar_url, profileDraft.display_name, profileDraft.username]
+  );
+  const normalizedPersistedProfile = useMemo(
+    () => ({
+      username: state.profile?.username?.trim().toLowerCase() ?? "",
+      display_name: state.profile?.display_name?.trim() || null,
+      avatar_url: state.profile?.avatar_url?.trim() || null,
+    }),
+    [state.profile?.avatar_url, state.profile?.display_name, state.profile?.username]
+  );
+  const profileDirty =
+    normalizedProfileDraft.username !== normalizedPersistedProfile.username ||
+    normalizedProfileDraft.display_name !== normalizedPersistedProfile.display_name ||
+    normalizedProfileDraft.avatar_url !== normalizedPersistedProfile.avatar_url;
+  const canSaveProfile = Boolean(state.userId) && profileDirty;
+
   const saveProfile = async () => {
-    if (!state.userId) {
+    if (!canSaveProfile) {
       return;
     }
     setSaving(true);
     const payload = {
       id: state.userId,
-      username: profileDraft.username.trim().toLowerCase(),
-      display_name: profileDraft.display_name.trim() || null,
-      avatar_url: profileDraft.avatar_url.trim() || null,
+      username: normalizedProfileDraft.username,
+      display_name: normalizedProfileDraft.display_name,
+      avatar_url: normalizedProfileDraft.avatar_url,
     };
 
     const { error } = await supabase.from("profiles").upsert(payload, {
@@ -656,6 +678,7 @@ export function useSocialTabData() {
     completionsByGoal,
     groupRequiresEndDate,
     updateGroupFrequencyType,
+    canSaveProfile,
     saveProfile,
     shareGoalWithUser,
     revokeGoalShare,
