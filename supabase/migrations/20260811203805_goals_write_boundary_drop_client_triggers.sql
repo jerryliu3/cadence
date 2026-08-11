@@ -340,6 +340,22 @@ begin
   where id = p_id
     and owner_id = v_uid;
 
+  -- Personal → group conversion must get the same owner participant row
+  -- that create_goal inserts for p_is_group => true.
+  if coalesce(p_is_group, false) and not coalesce(v_old.is_group, false) then
+    insert into public.goal_participants (
+      goal_id,
+      user_id,
+      role
+    )
+    values (
+      p_id,
+      v_uid,
+      'owner'::public.participant_role
+    )
+    on conflict (goal_id, user_id) do nothing;
+  end if;
+
   if v_needs_xp then
     perform private.recompute_xp_for_goal_users(p_id);
   end if;

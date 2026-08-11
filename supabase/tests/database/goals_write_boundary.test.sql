@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions, pg_catalog;
-select plan(24);
+select plan(31);
 
 -- Pin the five dropped client-PostgREST triggers.
 select hasnt_trigger(
@@ -347,6 +347,184 @@ select is(
   ),
   0,
   'soft_delete_goal recomputes XP to a zero balance'
+);
+
+-- XP recompute on archive (most common user path).
+select public.create_goal(
+  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa5',
+  'XP archive goal',
+  null,
+  null,
+  'health',
+  'health',
+  '#10b981',
+  'recurring',
+  'daily',
+  null,
+  null,
+  current_date - 7,
+  null,
+  null,
+  false
+);
+
+select public.mark_goal_complete(
+  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa5',
+  current_date
+);
+
+select ok(
+  (
+    select coalesce(sum(l.xp_delta), 0)
+    from public.xp_ledger l
+    where l.user_id = '11111111-1111-4111-8111-111111111111'
+      and l.goal_id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa5'
+  ) > 0,
+  'completion accrues XP before archive'
+);
+
+select public.set_goal_archived(
+  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa5',
+  true
+);
+
+select ok(
+  (
+    select archived_at is not null
+    from public.goals
+    where id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa5'
+  ),
+  'set_goal_archived stamps archived_at'
+);
+
+select ok(
+  (
+    select coalesce(sum(l.xp_delta), 0)
+    from public.xp_ledger l
+    where l.user_id = '11111111-1111-4111-8111-111111111111'
+      and l.goal_id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa5'
+  ) > 0,
+  'archive recomputes without wiping already-credited XP'
+);
+
+select ok(
+  position(
+    'RECOMPUTE_XP_FOR_GOAL_USERS'
+    in upper(pg_get_functiondef('public.set_goal_archived(uuid, boolean)'::regprocedure))
+  ) > 0,
+  'set_goal_archived definition includes explicit xp recompute call'
+);
+
+-- XP recompute on target_count change via update_goal.
+select public.create_goal(
+  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa6',
+  'XP target change goal',
+  null,
+  null,
+  'health',
+  'health',
+  '#10b981',
+  'fixed_milestones',
+  null,
+  1,
+  null,
+  current_date - 7,
+  current_date + 30,
+  null,
+  false
+);
+
+select public.mark_goal_complete(
+  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa6',
+  current_date
+);
+
+select is(
+  (
+    select coalesce(sum(l.xp_delta), 0)::integer
+    from public.xp_ledger l
+    where l.user_id = '11111111-1111-4111-8111-111111111111'
+      and l.goal_id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa6'
+  ),
+  120,
+  'hitting target_count=1 accrues unit XP (20) plus achievement (100)'
+);
+
+select public.update_goal(
+  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa6',
+  'XP target change goal',
+  null,
+  null,
+  'health',
+  'health',
+  '#10b981',
+  'fixed_milestones',
+  null,
+  10,
+  null,
+  current_date - 7,
+  current_date + 30,
+  null,
+  false
+);
+
+select is(
+  (
+    select coalesce(sum(l.xp_delta), 0)::integer
+    from public.xp_ledger l
+    where l.user_id = '11111111-1111-4111-8111-111111111111'
+      and l.goal_id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa6'
+  ),
+  20,
+  'update_goal target_count change recomputes and drops achievement XP'
+);
+
+-- Personal → group conversion inserts owner participant.
+select public.create_goal(
+  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa7',
+  'Convert to group',
+  null,
+  null,
+  'health',
+  'health',
+  '#0ea5e9',
+  'recurring',
+  'weekly',
+  null,
+  null,
+  current_date,
+  null,
+  null,
+  false
+);
+
+select public.update_goal(
+  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa7',
+  'Convert to group',
+  null,
+  null,
+  'health',
+  'health',
+  '#0ea5e9',
+  'recurring',
+  'weekly',
+  null,
+  null,
+  current_date,
+  null,
+  null,
+  true
+);
+
+select is(
+  (
+    select role::text
+    from public.goal_participants
+    where goal_id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa7'
+      and user_id = '11111111-1111-4111-8111-111111111111'
+  ),
+  'owner',
+  'update_goal personal-to-group inserts owner participant row'
 );
 
 select * from finish();
