@@ -8,9 +8,10 @@ import {
 } from "@/lib/goals/category";
 
 describe("goal category helpers", () => {
-  it("resolves aliases and keys to catalog keys", () => {
-    expect(resolveCategoryKey("fitness", DEFAULT_GOAL_CATEGORIES)).toBe("health");
+  it("resolves explicit labels/keys and keeps unknowns on other", () => {
+    expect(resolveCategoryKey("Health", DEFAULT_GOAL_CATEGORIES)).toBe("health");
     expect(resolveCategoryKey("career", DEFAULT_GOAL_CATEGORIES)).toBe("career");
+    expect(resolveCategoryKey("fitness", DEFAULT_GOAL_CATEGORIES)).toBe("other");
   });
 
   it("treats unknown labels as custom when category key is other", () => {
@@ -39,5 +40,15 @@ describe("goal category helpers", () => {
       category: "Deep Work",
       categoryKey: "other",
     });
+  });
+
+  it("keeps defaults constrained to fixed category keys", () => {
+    expect(DEFAULT_GOAL_CATEGORIES.map((category) => category.key)).toEqual([
+      "health",
+      "career",
+      "personal",
+      "relationships",
+      "other",
+    ]);
   });
 });

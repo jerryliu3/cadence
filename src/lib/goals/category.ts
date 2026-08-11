@@ -11,80 +11,67 @@ export interface GoalCategory {
 }
 
 export type CategoryPresetId = "health" | "career" | "personal" | "relationships" | "other";
-export type CategorySelection = string;
+export type CategorySelection = CategoryPresetId | typeof CATEGORY_CUSTOM_VALUE;
 
 export const CATEGORY_CUSTOM_VALUE = "custom";
 
-const GENERIC_OTHER_LABELS = new Set([
+const GENERIC_OTHER_LABELS = new Set(["other"]);
+const CATEGORY_PRESET_IDS: readonly CategoryPresetId[] = [
+  "health",
+  "career",
+  "personal",
+  "relationships",
   "other",
-  "general",
-  "misc",
-  "uncategorized",
-  "custom",
-  "test",
-]);
+];
+
+function isCategoryPresetId(value: string): value is CategoryPresetId {
+  return (CATEGORY_PRESET_IDS as readonly string[]).includes(value);
+}
 
 export const DEFAULT_GOAL_CATEGORIES: GoalCategory[] = [
   {
-    key: "personal",
-    label: "Personal",
-    aliases: ["self", "habits", "mindfulness", "home", "productivity"],
-    color: "#6366f1",
-    sortOrder: 10,
-  },
-  {
-    key: "relationships",
-    label: "Relationships",
-    aliases: ["family", "friends", "social", "community", "partner"],
-    color: "#f43f5e",
-    sortOrder: 20,
-  },
-  {
     key: "health",
     label: "Health",
-    aliases: ["fitness", "wellness", "wellbeing", "exercise", "workout", "nutrition", "sleep"],
+    aliases: [],
     color: "#10b981",
-    sortOrder: 30,
+    sortOrder: 10,
   },
   {
     key: "career",
     label: "Career",
-    aliases: ["work", "professional", "business", "job"],
+    aliases: [],
     color: "#8b5cf6",
+    sortOrder: 20,
+  },
+  {
+    key: "personal",
+    label: "Personal",
+    aliases: [],
+    color: "#6366f1",
+    sortOrder: 30,
+  },
+  {
+    key: "relationships",
+    label: "Relationships",
+    aliases: [],
+    color: "#f43f5e",
     sortOrder: 40,
-  },
-  {
-    key: "learning",
-    label: "Learning",
-    aliases: ["education", "study", "skills", "reading", "languages"],
-    color: "#3b82f6",
-    sortOrder: 50,
-  },
-  {
-    key: "finance",
-    label: "Finance",
-    aliases: ["money", "budget", "savings", "investing"],
-    color: "#ec4899",
-    sortOrder: 60,
-  },
-  {
-    key: "community",
-    label: "Community",
-    aliases: ["volunteer"],
-    color: "#14b8a6",
-    sortOrder: 70,
   },
   {
     key: "other",
     label: "Other",
-    aliases: ["general", "uncategorized", "misc", "custom", "test"],
+    aliases: [],
     color: "#64748b",
     sortOrder: 999,
   },
 ];
 
 export const CATEGORY_PRESETS = DEFAULT_GOAL_CATEGORIES.filter(
-  (category) => category.key !== "other"
+  (
+    category
+  ): category is GoalCategory & {
+    key: Exclude<CategoryPresetId, "other">;
+  } => isCategoryPresetId(category.key) && category.key !== "other"
 ).map((category) => ({
   id: category.key,
   label: category.label,
@@ -129,47 +116,43 @@ export function getCategorySelectionFromValue(
 } {
   const normalizedCatalog = normalizeCategoryCatalog(categories);
   const categoryLookup = buildLookup(normalizedCatalog);
-  const normalized = category.trim().toLowerCase();
+  const trimmedCategory = category.trim();
+  const normalized = trimmedCategory.toLowerCase();
 
   if (categoryKey) {
-    const keyed = categoryLookup.get(categoryKey);
-    if (keyed && keyed.key !== "other") {
-      return { selection: keyed.key, customValue: keyed.label };
+    const keyed = categoryLookup.get(categoryKey.trim());
+    if (keyed && isCategoryPresetId(keyed.key) && keyed.key !== "other") {
+      return { selection: keyed.key, customValue: "" };
     }
-    if (keyed && keyed.key === "other") {
-      const resolved = resolveCategoryKey(category, normalizedCatalog);
-      if (resolved === "other" && !GENERIC_OTHER_LABELS.has(normalized) && normalized.length > 0) {
-        return {
-          selection: CATEGORY_CUSTOM_VALUE,
-          customValue: category || "",
-        };
+    if ((keyed && keyed.key === "other") || categoryKey.trim().toLowerCase() === "other") {
+      if (!GENERIC_OTHER_LABELS.has(normalized) && normalized.length > 0) {
+        return { selection: CATEGORY_CUSTOM_VALUE, customValue: trimmedCategory };
       }
       return {
         selection: "other",
-        customValue: category || keyed.label,
+        customValue: "",
       };
     }
   }
 
   const resolved = resolveCategoryKey(category, normalizedCatalog);
-  if (resolved !== "other") {
-    const resolvedCategory = categoryLookup.get(resolved);
+  if (resolved !== "other" && isCategoryPresetId(resolved)) {
     return {
       selection: resolved,
-      customValue: resolvedCategory?.label ?? category,
+      customValue: "",
     };
   }
 
   if (normalized.length > 0 && !GENERIC_OTHER_LABELS.has(normalized)) {
     return {
       selection: CATEGORY_CUSTOM_VALUE,
-      customValue: category || "",
+      customValue: trimmedCategory,
     };
   }
 
   return {
     selection: "other",
-    customValue: category || "",
+    customValue: "",
   };
 }
 
@@ -193,7 +176,7 @@ export function getCategoryLabel(
     return custom && custom.length > 0 ? custom : "Other";
   }
 
-  return categoryLookup.get(selection)?.label ?? "Custom";
+  return categoryLookup.get(selection)?.label ?? "Other";
 }
 
 export function resolveCategoryKey(
@@ -211,9 +194,6 @@ export function resolveCategoryKey(
       return category.key;
     }
     if (normalizedInput === category.label.toLowerCase()) {
-      return category.key;
-    }
-    if (category.aliases.some((alias) => alias.toLowerCase() === normalizedInput)) {
       return category.key;
     }
   }
@@ -288,27 +268,6 @@ export function getCategoryBadgeClass(categoryKey: string): string {
     return cn(
       "border-violet-200 bg-violet-100 text-violet-700",
       "dark:border-violet-700/40 dark:bg-violet-900/30 dark:text-violet-200"
-    );
-  }
-
-  if (normalized === "learning") {
-    return cn(
-      "border-blue-200 bg-blue-100 text-blue-700",
-      "dark:border-blue-700/40 dark:bg-blue-900/30 dark:text-blue-200"
-    );
-  }
-
-  if (normalized === "finance") {
-    return cn(
-      "border-pink-200 bg-pink-100 text-pink-700",
-      "dark:border-pink-700/40 dark:bg-pink-900/30 dark:text-pink-200"
-    );
-  }
-
-  if (normalized === "community") {
-    return cn(
-      "border-cyan-200 bg-cyan-100 text-cyan-700",
-      "dark:border-cyan-700/40 dark:bg-cyan-900/30 dark:text-cyan-200"
     );
   }
 
