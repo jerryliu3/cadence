@@ -15,6 +15,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      active_duo_for_user: { Args: { p_user_id: string }; Returns: string }
       challenge_progress_value: {
         Args: {
           p_from: string
@@ -146,6 +147,15 @@ export type Database = {
         Args: { p_date: string; p_user_id: string }
         Returns: undefined
       }
+      refresh_challenge_participant: {
+        Args: {
+          p_challenge_id: string
+          p_now?: string
+          p_subject_id: string
+          p_subject_kind: Database["public"]["Enums"]["social_subject_kind"]
+        }
+        Returns: boolean
+      }
       refresh_user_challenge_participant: {
         Args: { p_challenge_id: string; p_now?: string; p_user_id: string }
         Returns: boolean
@@ -155,6 +165,13 @@ export type Database = {
         Returns: undefined
       }
       sha256_hex_digest: { Args: { p_value: string }; Returns: string }
+      subject_member_ids: {
+        Args: {
+          p_subject_id: string
+          p_subject_kind: Database["public"]["Enums"]["social_subject_kind"]
+        }
+        Returns: string[]
+      }
       validate_planner_json: {
         Args: {
           p_expected_type: string
