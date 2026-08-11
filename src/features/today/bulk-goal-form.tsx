@@ -735,7 +735,7 @@ export function BulkGoalForm({ showBackButton = true }: BulkGoalFormProps) {
         <CardHeader>
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <CardTitle>New bulk goals</CardTitle>
+              <CardTitle>Create multiple goals</CardTitle>
               <CardDescription>
                 Describe goals with AI, paste CSV, or upload CSV/XLSX, then approve in one click.
               </CardDescription>

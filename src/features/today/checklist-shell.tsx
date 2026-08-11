@@ -114,7 +114,7 @@ export function ChecklistShell() {
   );
 
   return (
-    <div className="space-y-5" data-no-swipe="true">
+    <div className="space-y-5">
       <Card className="p-3 text-center shadow-sm">
         <p className="text-xs uppercase tracking-wide text-muted-foreground">
           {normalizedTab === "today" ? "Today" : "Past"}
@@ -124,11 +124,7 @@ export function ChecklistShell() {
         </p>
       </Card>
 
-      <div
-        onTouchStart={onTouchStart}
-        onTouchEnd={onTouchEnd}
-        data-no-swipe="true"
-      >
+      <div onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
         <ChecklistSurface
           activeTab={normalizedTab}
           onActiveTabChange={(tab) => updateTab(tab, "push")}

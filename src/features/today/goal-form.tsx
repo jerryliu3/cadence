@@ -17,7 +17,7 @@ import { useRouter } from "next/navigation";
 import { type FormEvent, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -125,6 +125,7 @@ export function GoalForm({ goalId, showBackButton = true }: GoalFormProps) {
   const [milestoneNamesOpen, setMilestoneNamesOpen] = useState(false);
   const [linkTargetSearch, setLinkTargetSearch] = useState("");
   const [linkTargetOpen, setLinkTargetOpen] = useState(false);
+  const goalFormId = isEditing ? "goal-form-edit" : "goal-form-create";
 
   const isEditing = Boolean(goalId);
 
@@ -547,22 +548,25 @@ export function GoalForm({ goalId, showBackButton = true }: GoalFormProps) {
         <div className="flex items-center justify-between gap-2">
           <div>
             <CardTitle>{isEditing ? "Edit goal" : "Create goal"}</CardTitle>
-            <CardDescription>
-              Configure goal type, timing, and optional links between goals.
-            </CardDescription>
           </div>
-          {showBackButton ? (
-            <Button variant="outline" asChild>
-              <Link href={state.is_group ? "/settings" : "/"}>
-                <ArrowLeft className="size-4" />
-                Back
-              </Link>
+          <div className="flex items-center gap-2">
+            {showBackButton ? (
+              <Button variant="outline" asChild>
+                <Link href={state.is_group ? "/settings" : "/"}>
+                  <ArrowLeft className="size-4" />
+                  Back
+                </Link>
+              </Button>
+            ) : null}
+            <Button type="submit" form={goalFormId} disabled={saving}>
+              {saving ? <LoaderCircle className="size-4 animate-spin" /> : <Save className="size-4" />}
+              {isEditing ? "Save changes" : "Create goal"}
             </Button>
-          ) : null}
+          </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-6">
-        <form className="space-y-4" onSubmit={onSubmit}>
+        <form id={goalFormId} className="space-y-4" onSubmit={onSubmit}>
           <div className="space-y-2">
             <Label htmlFor="goal-title">Title</Label>
             <Input
@@ -570,22 +574,32 @@ export function GoalForm({ goalId, showBackButton = true }: GoalFormProps) {
               value={state.title}
               onChange={(event) => setState((prev) => ({ ...prev, title: event.target.value }))}
               placeholder="Run 20 times by Dec 31"
+              className="h-9"
               required
             />
           </div>
 
-          <div className="space-y-2">
-            <Label>Category</Label>
-            <CategorySelect
-              value={state.category_selection}
-              onValueChange={(value: CategorySelection) =>
-                setState((prev) => ({
-                  ...prev,
-                  category_selection: value,
-                  color: getCategorySwatchColor(value),
-                }))
-              }
-            />
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label>Category</Label>
+              <CategorySelect
+                value={state.category_selection}
+                onValueChange={(value: CategorySelection) =>
+                  setState((prev) => ({
+                    ...prev,
+                    category_selection: value,
+                    color: getCategorySwatchColor(value),
+                  }))
+                }
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Goal type</Label>
+              <GoalTypeToggle
+                value={state.frequency_type}
+                onValueChange={updateFrequencyType}
+              />
+            </div>
           </div>
 
           {state.category_selection === "custom" ? (
@@ -603,15 +617,7 @@ export function GoalForm({ goalId, showBackButton = true }: GoalFormProps) {
             </div>
           ) : null}
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label>Goal type</Label>
-              <GoalTypeToggle
-                value={state.frequency_type}
-                onValueChange={updateFrequencyType}
-              />
-            </div>
-
+          <div className="grid gap-3 sm:grid-cols-2">
             {canShowRecurrenceFields ? (
               <div className="space-y-2">
                 <Label>Recurrence interval</Label>
@@ -688,77 +694,75 @@ export function GoalForm({ goalId, showBackButton = true }: GoalFormProps) {
             </Collapsible>
           ) : null}
 
-          <GoalDateRangeFields
-            startDate={state.start_date}
-            endDate={state.end_date}
-            onStartDateChange={(value) =>
-              setState((previous) => ({ ...previous, start_date: value }))
-            }
-            onEndDateChange={(value) =>
-              setState((previous) => ({ ...previous, end_date: value }))
-            }
-            requiresEndDate={requiresEndDate}
-            startDateId="start-date"
-            endDateId="end-date"
-            startDateActions={
-              <div className="flex items-center gap-2 text-xs">
-                <button
-                  type="button"
-                  className="text-primary hover:underline"
-                  onClick={applyThisMonthStartDate}
-                >
-                  this month
-                </button>
-                <button
-                  type="button"
-                  className="text-primary hover:underline"
-                  onClick={applyThisYearStartDate}
-                >
-                  this year
-                </button>
-              </div>
-            }
-            endDateActions={
-              <div className="flex items-center gap-2 text-xs">
-                <button
-                  type="button"
-                  className="text-primary hover:underline"
-                  onClick={applyThisMonthEndDate}
-                >
-                  this month
-                </button>
-                <button
-                  type="button"
-                  className="text-primary hover:underline"
-                  onClick={applyThisYearEndDate}
-                >
-                  this year
-                </button>
-              </div>
-            }
-          />
+          <div className="grid gap-3 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+            <GoalDateRangeFields
+              startDate={state.start_date}
+              endDate={state.end_date}
+              onStartDateChange={(value) =>
+                setState((previous) => ({ ...previous, start_date: value }))
+              }
+              onEndDateChange={(value) =>
+                setState((previous) => ({ ...previous, end_date: value }))
+              }
+              requiresEndDate={requiresEndDate}
+              startDateId="start-date"
+              endDateId="end-date"
+              startDateActions={
+                <div className="flex items-center gap-2 text-xs">
+                  <button
+                    type="button"
+                    className="text-primary hover:underline"
+                    onClick={applyThisMonthStartDate}
+                  >
+                    this month
+                  </button>
+                  <button
+                    type="button"
+                    className="text-primary hover:underline"
+                    onClick={applyThisYearStartDate}
+                  >
+                    this year
+                  </button>
+                </div>
+              }
+              endDateActions={
+                <div className="flex items-center gap-2 text-xs">
+                  <button
+                    type="button"
+                    className="text-primary hover:underline"
+                    onClick={applyThisMonthEndDate}
+                  >
+                    this month
+                  </button>
+                  <button
+                    type="button"
+                    className="text-primary hover:underline"
+                    onClick={applyThisYearEndDate}
+                  >
+                    this year
+                  </button>
+                </div>
+              }
+            />
 
-          <GoalDefaultTimeField
-            id="default-local-time"
-            value={state.default_local_time}
-            onValueChange={(value) =>
-              setState((previous) => ({
-                ...previous,
-                default_local_time: value,
-              }))
-            }
-            onClear={() => setState((previous) => ({ ...previous, default_local_time: "" }))}
-          />
+            <GoalDefaultTimeField
+              id="default-local-time"
+              value={state.default_local_time}
+              onValueChange={(value) =>
+                setState((previous) => ({
+                  ...previous,
+                  default_local_time: value,
+                }))
+              }
+              onClear={() => setState((previous) => ({ ...previous, default_local_time: "" }))}
+            />
+          </div>
 
           {validationError ? (
             <p className="text-sm text-destructive">{validationError}</p>
           ) : null}
 
           <div className="flex flex-wrap items-center gap-2">
-            <Button type="submit" disabled={saving}>
-              {saving ? <LoaderCircle className="size-4 animate-spin" /> : <Save className="size-4" />}
-              {isEditing ? "Save changes" : "Create goal"}
-            </Button>
             {isEditing && editingGoal?.archived_at ? (
               <Button
                 type="button"

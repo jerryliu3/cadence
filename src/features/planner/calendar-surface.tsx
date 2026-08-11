@@ -1198,11 +1198,7 @@ export function CalendarSurface({
         scheduledDate: normalized,
       });
       scheduleDraftMovePreviewRefresh();
-      if (source === "drag_drop") {
-        toast.success(
-          `Moved ${getEntryDisplayTitle(entry)} in preview mode to ${normalized}.`
-        );
-      }
+      void source;
       return true;
     },
     [
@@ -1595,7 +1591,6 @@ export function CalendarSurface({
           );
           return;
         }
-        toast.success(nextLocked ? "Planner item locked." : "Planner item unlocked.");
       } catch (error) {
         if (lockUpdated) {
           toast.error(
@@ -1723,7 +1718,6 @@ export function CalendarSurface({
         );
         return;
       }
-      toast.success(desiredFactState === "present" ? "Marked done." : "Marked not done.");
       if (draftDateOverlayActive || draftPreviewRefreshFailed) {
         toast(
           "This entry is still shown with preview overlays. Save or discard preview edits to view canonical placement only."
@@ -2380,7 +2374,7 @@ export function CalendarSurface({
                   onClick={() => discardDraftChanges("current")}
                   disabled={saveLoading || loading}
                 >
-                  Undo this month
+                  Undo changes
                 </Button>
               ) : null}
               {hasDraftSession && dirtyScopeMonths.length > 1 ? (
@@ -2529,7 +2523,7 @@ export function CalendarSurface({
               <div
                 className={`transition-opacity duration-150 motion-reduce:transition-none ${
                   loading ? "opacity-70" : "opacity-100"
-                }`}
+                } ${viewMode === "month" ? "min-h-[34rem]" : "min-h-[26rem]"}`}
               >
                 {viewMode === "day" ? (
                   <div className="space-y-2" data-no-swipe="true">
