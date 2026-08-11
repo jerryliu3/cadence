@@ -12,12 +12,18 @@ export interface FeatureFlags {
    * Default: off until the feature is ready for dark launch.
    */
   crossMonthMovesEnabled: boolean;
+  /**
+   * XP profile and awards API availability.
+   * Default: off until XP rollout is explicitly enabled.
+   */
+  xpEnabled: boolean;
 }
 
 export function getFeatureFlags(): FeatureFlags {
   const env = getServerEnv();
   return {
     crossMonthMovesEnabled: env.FEATURE_CROSS_MONTH_MOVES,
+    xpEnabled: env.XP_ENABLED,
   };
 }
 
