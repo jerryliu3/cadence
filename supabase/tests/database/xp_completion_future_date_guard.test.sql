@@ -54,38 +54,31 @@ select throws_ok(
       'manual'
     );
   $tap$,
-  '22023',
+  '42501',
+  null,
+  'authenticated clients cannot insert completion rows directly'
+);
+
+select throws_ok(
+  $tap$
+    select public.mark_goal_complete(
+      'b2400000-0000-4000-8000-000000000001',
+      current_date + 1
+    );
+  $tap$,
+  '23514',
   'future_completion_not_allowed',
-  'future dated completion inserts are rejected'
+  'future dated completions are rejected by mark_goal_complete'
 );
 
 select lives_ok(
   $tap$
-    insert into public.completions (goal_id, user_id, completed_on, source)
-    values (
+    select public.mark_goal_complete(
       'b2400000-0000-4000-8000-000000000001',
-      '11111111-1111-4111-8111-111111111111',
-      current_date,
-      'manual'
+      current_date
     );
   $tap$,
-  'today completion insert remains allowed'
-);
-
-reset role;
-set local role service_role;
-
-select throws_ok(
-  $tap$
-    update public.completions
-    set completed_on = current_date + 1
-    where goal_id = 'b2400000-0000-4000-8000-000000000001'
-      and user_id = '11111111-1111-4111-8111-111111111111'
-      and completed_on = current_date;
-  $tap$,
-  '22023',
-  'future_completion_not_allowed',
-  'future dated completion updates are rejected'
+  'today completion RPC remains allowed'
 );
 
 reset role;
