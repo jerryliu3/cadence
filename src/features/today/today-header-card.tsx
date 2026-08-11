@@ -1,7 +1,7 @@
 "use client";
 
 import { format } from "date-fns";
-import { ListPlus, Plus, Sparkles } from "lucide-react";
+import { Plus, Sparkles } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
@@ -47,16 +47,10 @@ export function TodayHeaderCard({
               <CardDescription>{format(viewDateObj, "EEEE, MMMM d")}</CardDescription>
             </div>
             <div className="flex shrink-0 flex-col gap-2 sm:mr-2 sm:flex-row">
-              <Button variant="outline" asChild>
-                <Link href="/goals/bulk">
-                  <ListPlus className="size-4" />
-                  New bulk goal
-                </Link>
-              </Button>
               <Button asChild>
                 <Link href="/goals/new">
                   <Plus className="size-4" />
-                  New goal
+                  New goals
                 </Link>
               </Button>
             </div>

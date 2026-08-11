@@ -64,6 +64,7 @@ import { createClient } from "@/lib/supabase/client";
 
 interface GoalFormProps {
   goalId?: string;
+  showBackButton?: boolean;
 }
 
 interface GoalFormState {
@@ -108,7 +109,7 @@ function parsePositiveTargetCount(value: string): number | null {
   return parsed;
 }
 
-export function GoalForm({ goalId }: GoalFormProps) {
+export function GoalForm({ goalId, showBackButton = true }: GoalFormProps) {
   const supabase = useMemo(() => createClient(), []);
   const router = useRouter();
   const [state, setState] = useState<GoalFormState>(defaultState);
@@ -550,12 +551,14 @@ export function GoalForm({ goalId }: GoalFormProps) {
               Configure goal type, timing, and optional links between goals.
             </CardDescription>
           </div>
-          <Button variant="outline" asChild>
-            <Link href={state.is_group ? "/settings" : "/"}>
-              <ArrowLeft className="size-4" />
-              Back
-            </Link>
-          </Button>
+          {showBackButton ? (
+            <Button variant="outline" asChild>
+              <Link href={state.is_group ? "/settings" : "/"}>
+                <ArrowLeft className="size-4" />
+                Back
+              </Link>
+            </Button>
+          ) : null}
         </div>
       </CardHeader>
       <CardContent className="space-y-6">

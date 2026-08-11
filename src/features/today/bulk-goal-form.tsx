@@ -120,6 +120,10 @@ interface LlmGoalDraftPayload {
 
 type BulkInputMode = "natural_language" | "csv";
 
+interface BulkGoalFormProps {
+  showBackButton?: boolean;
+}
+
 const csvExample = `title,description,category,color,is_group,frequency_type,recurrence_interval,target_count,milestone_names,start_date,end_date,default_local_time
 Morning run,Train for a half marathon,Health,#16a34a,false,recurring,daily,20,,2026-06-01,2026-12-31,06:45
 Read 12 books,One book per month,Personal,#6366f1,false,fixed,,12,Book 1|Book 2|Book 3,2026-06-01,2026-12-31,`;
@@ -390,7 +394,7 @@ async function parseRowsFromSpreadsheetFile(
   });
 }
 
-export function BulkGoalForm() {
+export function BulkGoalForm({ showBackButton = true }: BulkGoalFormProps) {
   const supabase = useMemo(() => createClient(), []);
   const router = useRouter();
   const [inputMode, setInputMode] = useState<BulkInputMode>("natural_language");
@@ -757,12 +761,14 @@ export function BulkGoalForm() {
                   CSV
                 </Button>
               </div>
-              <Button variant="outline" asChild>
-                <Link href="/">
-                  <ArrowLeft className="size-4" />
-                  Back
-                </Link>
-              </Button>
+              {showBackButton ? (
+                <Button variant="outline" asChild>
+                  <Link href="/">
+                    <ArrowLeft className="size-4" />
+                    Back
+                  </Link>
+                </Button>
+              ) : null}
             </div>
           </div>
         </CardHeader>
