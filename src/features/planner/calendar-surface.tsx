@@ -43,7 +43,6 @@ import {
   buildWeekdayLabels,
   completionDisabledReasonCopy,
   getEntryDraftDiffSummary,
-  getEntryDraftPillClasses,
   getDayStatus,
   getEntryDisplayTitle,
   getEntrySubtitle,
@@ -676,12 +675,6 @@ export function CalendarSurface({
     return () =>
       window.removeEventListener("pointerdown", closeOnOutsidePointer);
   }, [dayPreview?.pinned]);
-
-  useEffect(() => {
-    if (!dayPreview) {
-      setDayPreviewExpanded(false);
-    }
-  }, [dayPreview]);
 
   const submitSetup = async () => {
     if (!isValidIanaTimezone(setupTimezone)) {
