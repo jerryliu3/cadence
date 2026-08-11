@@ -7,15 +7,9 @@ test("loads the seeded authenticated checklist", async ({ page }, testInfo) => {
   await expect(
     page.getByRole("navigation", { name: "Main navigation" })
   ).toBeVisible();
-  await expect(
-    page.getByRole("tab", { name: "Today", exact: true })
-  ).toBeVisible();
-  await expect(
-    page.getByRole("tab", { name: "Past", exact: true })
-  ).toBeVisible();
-  await expect(
-    page.getByRole("tab", { name: "Calendar", exact: true })
-  ).toBeVisible();
+  await expect(page.getByRole("link", { name: "Checklist" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Calendar" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Profile" })).toBeVisible();
   await expect(page.getByText("Loading your goals...")).toHaveCount(0);
 
   if (testInfo.project.name === "mobile-webkit") {
@@ -32,31 +26,20 @@ test("direct calendar URL does not eagerly load checklist context", async ({
     await route.continue();
   });
 
-  await page.goto("/?tab=calendar");
-  await expect(
-    page.getByRole("tab", { name: "Calendar", exact: true })
-  ).toBeVisible();
-  await expect(page).toHaveURL(/tab=calendar/);
+  await page.goto("/calendar");
+  await expect(page.getByRole("link", { name: "Calendar" })).toBeVisible();
+  await expect(page).toHaveURL(/\/calendar/);
   await page.waitForLoadState("networkidle");
   expect(progressContextRequests).toBe(0);
 });
 
-test("planner shell normalizes URL and preserves history navigation", async ({
+test("legacy day links redirect into calendar route", async ({
   page,
 }) => {
   await page.goto("/?day=2026-08-04");
-  await expect(page).toHaveURL(/tab=calendar/);
+  await expect(page).toHaveURL(/\/calendar/);
   await expect(page).toHaveURL(/month=2026-08/);
   await expect(page).toHaveURL(/day=2026-08-04/);
-
-  await page.getByRole("tab", { name: "Past", exact: true }).click();
-  await expect(page).toHaveURL(/tab=not-today/);
-  // Keep the selected calendar day in the URL so returning to calendar
-  // restores the previous day context.
-  await expect(page).toHaveURL(/day=2026-08-04/);
-
-  await page.goBack();
-  await expect(page).toHaveURL(/tab=calendar/);
 });
 
 test("login surface has no detectable WCAG A/AA violations", async ({
