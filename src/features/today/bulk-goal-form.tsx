@@ -20,6 +20,13 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { LoadingCard } from "@/components/ui/loading-card";
@@ -1050,7 +1057,23 @@ export function BulkGoalForm({ showBackButton = true }: BulkGoalFormProps) {
                     ) : null}
 
                     {expanded ? (
-                      <>
+                      <Dialog
+                        open
+                        onOpenChange={(open) => {
+                          if (!open) {
+                            setExpandedDraftId(null);
+                          }
+                        }}
+                      >
+                        <DialogContent className="max-h-[85vh] overflow-y-auto">
+                          <DialogHeader>
+                            <DialogTitle>
+                              {draft.title.trim().length > 0 ? draft.title : "Edit goal draft"}
+                            </DialogTitle>
+                            <DialogDescription>
+                              Update this draft before creating goals.
+                            </DialogDescription>
+                          </DialogHeader>
                     <div className="grid gap-3 sm:grid-cols-2">
                       <div className="space-y-2">
                         <Label>Title</Label>
@@ -1342,7 +1365,8 @@ export function BulkGoalForm({ showBackButton = true }: BulkGoalFormProps) {
                         </CollapsibleContent>
                       </div>
                     </Collapsible>
-                      </>
+                        </DialogContent>
+                      </Dialog>
                     ) : null}
                   </CardContent>
                 </Card>
