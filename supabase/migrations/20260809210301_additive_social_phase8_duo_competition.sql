@@ -237,7 +237,6 @@ begin
             profile.id
           from public.profiles profile
           where profile.social_competition_eligible = true
-            and profile.leaderboard_banned_at is null
           on conflict (challenge_id, subject_kind, subject_id) do nothing;
         else
           select greatest(
@@ -261,7 +260,6 @@ begin
               profile.id
             from public.profiles profile
             where profile.social_competition_eligible = true
-              and profile.leaderboard_banned_at is null
             order by profile.created_at asc, profile.id asc
             limit v_slots
             on conflict (challenge_id, subject_kind, subject_id) do nothing;
@@ -284,8 +282,6 @@ begin
           where duo.status = 'active'::public.duo_status
             and left_profile.social_competition_eligible = true
             and right_profile.social_competition_eligible = true
-            and left_profile.leaderboard_banned_at is null
-            and right_profile.leaderboard_banned_at is null
           on conflict (challenge_id, subject_kind, subject_id) do nothing;
         else
           select greatest(
@@ -313,8 +309,6 @@ begin
             where duo.status = 'active'::public.duo_status
               and left_profile.social_competition_eligible = true
               and right_profile.social_competition_eligible = true
-              and left_profile.leaderboard_banned_at is null
-              and right_profile.leaderboard_banned_at is null
             order by duo.accepted_at asc nulls last, duo.id asc
             limit v_slots
             on conflict (challenge_id, subject_kind, subject_id) do nothing;
@@ -604,7 +598,6 @@ begin
       from public.profiles profile
       where profile.id = v_uid
         and profile.social_competition_eligible = true
-        and profile.leaderboard_banned_at is null
     ) then
       raise exception using errcode = '42501', message = 'challenge_not_eligible';
     end if;
@@ -624,8 +617,6 @@ begin
         and duo.status = 'active'::public.duo_status
         and left_profile.social_competition_eligible = true
         and right_profile.social_competition_eligible = true
-        and left_profile.leaderboard_banned_at is null
-        and right_profile.leaderboard_banned_at is null
     ) then
       raise exception using errcode = '42501', message = 'challenge_not_eligible';
     end if;
@@ -843,7 +834,6 @@ begin
             ) as tie_break_at
           from public.profiles profile
           where profile.social_competition_eligible = true
-            and profile.leaderboard_banned_at is null
         ) scored
       ) ranked;
     elsif r_season.subject_kind = 'duo'::public.social_subject_kind then
@@ -911,8 +901,6 @@ begin
           where duo.status = 'active'::public.duo_status
             and left_profile.social_competition_eligible = true
             and right_profile.social_competition_eligible = true
-            and left_profile.leaderboard_banned_at is null
-            and right_profile.leaderboard_banned_at is null
         ) scored
       ) ranked;
     end if;
