@@ -249,7 +249,6 @@ export type Database = {
           created_by: string | null
           description: string | null
           ends_at: string
-          enrollment: Database["public"]["Enums"]["challenge_enrollment"]
           id: string
           max_participants: number | null
           metric: Database["public"]["Enums"]["challenge_metric"]
@@ -268,7 +267,6 @@ export type Database = {
           created_by?: string | null
           description?: string | null
           ends_at: string
-          enrollment?: Database["public"]["Enums"]["challenge_enrollment"]
           id?: string
           max_participants?: number | null
           metric: Database["public"]["Enums"]["challenge_metric"]
@@ -287,7 +285,6 @@ export type Database = {
           created_by?: string | null
           description?: string | null
           ends_at?: string
-          enrollment?: Database["public"]["Enums"]["challenge_enrollment"]
           id?: string
           max_participants?: number | null
           metric?: Database["public"]["Enums"]["challenge_metric"]
@@ -1331,7 +1328,6 @@ export type Database = {
         Returns: {
           description: string
           ends_at: string
-          enrollment: Database["public"]["Enums"]["challenge_enrollment"]
           id: string
           max_participants: number
           metric: Database["public"]["Enums"]["challenge_metric"]
@@ -1359,7 +1355,6 @@ export type Database = {
         Returns: {
           description: string
           ends_at: string
-          enrollment: Database["public"]["Enums"]["challenge_enrollment"]
           id: string
           max_participants: number
           metric: Database["public"]["Enums"]["challenge_metric"]
@@ -1497,7 +1492,6 @@ export type Database = {
     }
     Enums: {
       admin_role: "admin" | "moderator"
-      challenge_enrollment: "auto" | "opt_in"
       challenge_metric:
         | "total_xp"
         | "category_xp"
@@ -1524,7 +1518,7 @@ export type Database = {
       moderation_target: "feed_event" | "user" | "challenge" | "team"
       participant_role: "owner" | "participant"
       recurrence_interval: "daily" | "weekly" | "monthly"
-      social_subject_kind: "user" | "duo"
+      social_subject_kind: "user" | "team"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1656,7 +1650,6 @@ export const Constants = {
   public: {
     Enums: {
       admin_role: ["admin", "moderator"],
-      challenge_enrollment: ["auto", "opt_in"],
       challenge_metric: [
         "total_xp",
         "category_xp",
@@ -1686,7 +1679,7 @@ export const Constants = {
       moderation_target: ["feed_event", "user", "challenge", "team"],
       participant_role: ["owner", "participant"],
       recurrence_interval: ["daily", "weekly", "monthly"],
-      social_subject_kind: ["user", "duo"],
+      social_subject_kind: ["user", "team"],
     },
   },
 } as const
