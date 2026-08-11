@@ -7,7 +7,7 @@ import {
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { runAfterResponse } from "@/lib/api/after";
-import { flushNotificationsForUser } from "@/lib/push/outbox";
+import { flushNotificationOutbox } from "@/lib/push/outbox";
 import { requireSocialRouteContext } from "@/lib/social/api";
 import { createClient } from "@/lib/supabase/server";
 
@@ -50,7 +50,7 @@ export async function POST(request: Request) {
       throw mapNudgeError(error.message);
     }
 
-    runAfterResponse(() => flushNotificationsForUser(body.toUserId));
+    runAfterResponse(() => flushNotificationOutbox({ limit: 20 }));
 
     return NextResponse.json(
       {

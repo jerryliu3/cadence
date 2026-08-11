@@ -7,7 +7,7 @@ import {
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { runAfterResponse } from "@/lib/api/after";
-import { flushNotificationOutbox, flushNotificationsForUser } from "@/lib/push/outbox";
+import { flushNotificationOutbox } from "@/lib/push/outbox";
 import { requireSocialRouteContext } from "@/lib/social/api";
 import { createClient } from "@/lib/supabase/server";
 
@@ -19,7 +19,6 @@ const paramsSchema = z.object({
 
 const reactionSchema = z.object({
   reaction: z.enum(["cheer", "fire", "clap", "strong"]),
-  actorId: z.uuid().optional(),
 });
 
 function mapReactionError(message: string) {
@@ -53,9 +52,7 @@ export async function POST(
       throw mapReactionError(error.message);
     }
 
-    runAfterResponse(() =>
-      body.actorId ? flushNotificationsForUser(body.actorId) : flushNotificationOutbox({ limit: 20 })
-    );
+    runAfterResponse(() => flushNotificationOutbox({ limit: 20 }));
 
     return NextResponse.json(
       {

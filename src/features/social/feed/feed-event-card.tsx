@@ -45,7 +45,6 @@ export function FeedEventCard({ event }: { event: SocialFeedEvent }) {
         </p>
         <ReactionBar
           eventId={event.id}
-          actorId={event.actor.id}
           initialCount={event.reactionCount}
           initiallyReacted={event.viewerReacted}
         />

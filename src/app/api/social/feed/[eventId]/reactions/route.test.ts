@@ -23,13 +23,6 @@ vi.mock("@/lib/push/outbox", () => ({
     skipped: 0,
     removedSubscriptions: 0,
   }),
-  flushNotificationsForUser: vi.fn().mockResolvedValue({
-    claimed: 0,
-    sent: 0,
-    failed: 0,
-    skipped: 0,
-    removedSubscriptions: 0,
-  }),
 }));
 
 import { POST } from "./route";

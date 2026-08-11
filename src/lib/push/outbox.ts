@@ -28,60 +28,23 @@ function isNoSubscriptionResult(result: {
 
 export async function flushNotificationOutbox({
   limit = 50,
-  userId,
 }: {
   limit?: number;
-  userId?: string;
 } = {}): Promise<OutboxFlushResult> {
   configureWebPush();
   const admin = createAdminClient();
   const clampedLimit = Math.min(Math.max(limit, 1), 200);
-  let rows: ClaimedOutboxRow[] = [];
-
-  if (userId) {
-    const { data, error } = await admin
-      .from("notification_outbox")
-      .select("id,user_id,kind,title,body,url,attempts")
-      .eq("state", "pending")
-      .eq("user_id", userId)
-      .lte("available_at", new Date().toISOString())
-      .order("available_at", { ascending: true })
-      .limit(clampedLimit);
-    if (error) {
-      throw error;
+  const { data: claimedRows, error: claimError } = await admin.rpc(
+    "claim_notification_outbox_service",
+    {
+      p_limit: clampedLimit,
     }
+  );
 
-    for (const row of (data ?? []) as ClaimedOutboxRow[]) {
-      const { data: claimed, error: claimError } = await admin
-        .from("notification_outbox")
-        .update({
-          attempts: row.attempts + 1,
-          available_at: new Date(Date.now() + 2 * 60 * 1000).toISOString(),
-        })
-        .eq("id", row.id)
-        .eq("state", "pending")
-        .select("id,user_id,kind,title,body,url,attempts")
-        .maybeSingle();
-      if (claimError) {
-        throw claimError;
-      }
-      if (claimed) {
-        rows.push(claimed as ClaimedOutboxRow);
-      }
-    }
-  } else {
-    const { data: claimedRows, error: claimError } = await admin.rpc(
-      "claim_notification_outbox_service",
-      {
-        p_limit: clampedLimit,
-      }
-    );
-
-    if (claimError) {
-      throw claimError;
-    }
-    rows = (claimedRows ?? []) as ClaimedOutboxRow[];
+  if (claimError) {
+    throw claimError;
   }
+  const rows = (claimedRows ?? []) as ClaimedOutboxRow[];
   let sent = 0;
   let failed = 0;
   let skipped = 0;
@@ -143,8 +106,4 @@ export async function flushNotificationOutbox({
     skipped,
     removedSubscriptions,
   };
-}
-
-export async function flushNotificationsForUser(userId: string, limit = 20) {
-  return flushNotificationOutbox({ limit, userId });
 }

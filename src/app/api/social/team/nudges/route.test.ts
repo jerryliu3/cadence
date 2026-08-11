@@ -16,7 +16,7 @@ vi.mock("@/lib/supabase/server", () => ({
 }));
 
 vi.mock("@/lib/push/outbox", () => ({
-  flushNotificationsForUser: vi.fn().mockResolvedValue({
+  flushNotificationOutbox: vi.fn().mockResolvedValue({
     claimed: 0,
     sent: 0,
     failed: 0,

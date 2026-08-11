@@ -105,7 +105,6 @@ create table if not exists public.nudges (
   goal_id uuid references public.goals(id) on delete set null,
   message text,
   created_at timestamptz not null default pg_catalog.now(),
-  read_at timestamptz,
   constraint nudges_distinct check (from_user_id <> to_user_id),
   constraint nudges_message_len check (
     message is null or pg_catalog.char_length(pg_catalog.btrim(message)) between 1 and 140
@@ -159,42 +158,6 @@ create unique index if not exists notification_outbox_dedupe
 create index if not exists notification_outbox_pending_idx
   on public.notification_outbox (available_at)
   where state = 'pending';
-
-create or replace function private.sync_feed_reaction_count()
-returns trigger
-language plpgsql
-set search_path = ''
-as $$
-declare
-  v_feed_event_id uuid := coalesce(new.feed_event_id, old.feed_event_id);
-begin
-  update public.feed_events event
-  set
-    reaction_count = (
-      select count(*)::integer
-      from public.feed_reactions reaction
-      where reaction.feed_event_id = v_feed_event_id
-    ),
-    updated_at = pg_catalog.now()
-  where event.id = v_feed_event_id;
-
-  return coalesce(new, old);
-end;
-$$;
-
-drop trigger if exists sync_feed_reaction_count_after_insert
-on public.feed_reactions;
-create trigger sync_feed_reaction_count_after_insert
-after insert on public.feed_reactions
-for each row
-execute function private.sync_feed_reaction_count();
-
-drop trigger if exists sync_feed_reaction_count_after_delete
-on public.feed_reactions;
-create trigger sync_feed_reaction_count_after_delete
-after delete on public.feed_reactions
-for each row
-execute function private.sync_feed_reaction_count();
 
 create or replace function private.enqueue_notification_outbox(
   p_user_id uuid,
@@ -568,8 +531,7 @@ declare
 begin
   update public.teams team
   set
-    status = 'closed'::public.team_status,
-    responded_at = pg_catalog.now()
+    status = 'closed'::public.team_status
   where team.status = 'pending'::public.team_status
     and team.invited_at < pg_catalog.now() - interval '14 days';
 
@@ -605,12 +567,21 @@ begin
   set
     status = 'active'::public.team_status,
     accepted_at = pg_catalog.now(),
-    responded_at = pg_catalog.now(),
     visibility_acknowledged_at = pg_catalog.now()
   where team.id = p_team_id
     and team.status = 'pending'::public.team_status
     and team.initiator_id <> v_uid
     and v_uid in (team.user_a_id, team.user_b_id)
+    and not exists (
+      select 1
+      from public.teams active_team
+      where active_team.id <> team.id
+        and active_team.status = 'active'::public.team_status
+        and (
+          team.user_a_id in (active_team.user_a_id, active_team.user_b_id)
+          or team.user_b_id in (active_team.user_a_id, active_team.user_b_id)
+        )
+    )
   returning case when team.user_a_id = v_uid then team.user_b_id else team.user_a_id end
   into v_partner_id;
 
@@ -769,8 +740,7 @@ begin
   update public.teams team
   set
     status = 'closed'::public.team_status,
-    dissolved_at = pg_catalog.now(),
-    responded_at = pg_catalog.now()
+    dissolved_at = pg_catalog.now()
   where team.status = 'active'::public.team_status
     and v_uid in (team.user_a_id, team.user_b_id)
   returning
@@ -875,7 +845,11 @@ begin
     end as goal_title,
     event.xp_delta,
     event.occurrence_count,
-    event.reaction_count,
+    (
+      select count(*)::integer
+      from public.feed_reactions reaction
+      where reaction.feed_event_id = event.id
+    ) as reaction_count,
     exists (
       select 1
       from public.feed_reactions reaction
@@ -937,8 +911,6 @@ grant select, insert, update, delete on table public.nudges to service_role;
 grant select, insert, update, delete on table public.feed_reactions to service_role;
 grant select, insert, update, delete on table public.notification_outbox to service_role;
 
-revoke all on function private.sync_feed_reaction_count()
-  from public, anon, authenticated;
 revoke all on function private.enqueue_notification_outbox(
   uuid,
   public.notification_kind,

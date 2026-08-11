@@ -7,12 +7,10 @@ import type { FeedReactionKind } from "@/features/social/data";
 
 export function ReactionBar({
   eventId,
-  actorId,
   initialCount,
   initiallyReacted,
 }: {
   eventId: string;
-  actorId: string;
   initialCount: number;
   initiallyReacted: boolean;
 }) {
@@ -30,7 +28,7 @@ export function ReactionBar({
         setReacted(false);
         setCount((value) => Math.max(value - 1, 0));
       } else {
-        await addSocialFeedReaction({ eventId, reaction: kind, actorId });
+        await addSocialFeedReaction({ eventId, reaction: kind });
         setReacted(true);
         setCount((value) => value + 1);
       }
