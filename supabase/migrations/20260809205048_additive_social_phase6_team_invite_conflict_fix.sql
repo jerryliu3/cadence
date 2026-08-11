@@ -1,4 +1,4 @@
-create or replace function public.create_duo_invite_service(
+create or replace function public.create_team_invite_service(
   p_partner_id uuid,
   p_message text default null
 )
@@ -11,7 +11,7 @@ declare
   v_uid uuid := auth.uid();
   v_a uuid;
   v_b uuid;
-  v_duo_id uuid;
+  v_team_id uuid;
 begin
   if v_uid is null then
     raise exception using errcode = '28000', message = 'authentication_required';
@@ -21,16 +21,16 @@ begin
   end if;
 
   if exists (
-    select 1 from public.duos duo
-    where duo.status = 'active'
-      and v_uid in (duo.user_a_id, duo.user_b_id)
+    select 1 from public.teams team
+    where team.status = 'active'
+      and v_uid in (team.user_a_id, team.user_b_id)
   ) then
-    raise exception using errcode = '23514', message = 'duo_already_active';
+    raise exception using errcode = '23514', message = 'team_already_active';
   end if;
   if exists (
-    select 1 from public.duos duo
-    where duo.status = 'active'
-      and p_partner_id in (duo.user_a_id, duo.user_b_id)
+    select 1 from public.teams team
+    where team.status = 'active'
+      and p_partner_id in (team.user_a_id, team.user_b_id)
   ) then
     raise exception using errcode = '23514', message = 'partner_already_active';
   end if;
@@ -38,7 +38,7 @@ begin
   v_a := least(v_uid, p_partner_id);
   v_b := greatest(v_uid, p_partner_id);
 
-  insert into public.duos (
+  insert into public.teams (
     user_a_id,
     user_b_id,
     initiator_id,
@@ -49,25 +49,25 @@ begin
     v_a,
     v_b,
     v_uid,
-    'pending'::public.duo_status,
+    'pending'::public.team_status,
     nullif(btrim(coalesce(p_message, '')), '')
   )
   on conflict (user_a_id, user_b_id)
   where status in ('pending', 'active')
   do nothing
-  returning id into v_duo_id;
+  returning id into v_team_id;
 
-  if v_duo_id is null then
-    select duo.id
-    into v_duo_id
-    from public.duos duo
-    where duo.user_a_id = v_a
-      and duo.user_b_id = v_b
-      and duo.status in ('pending', 'active')
-    order by duo.invited_at desc
+  if v_team_id is null then
+    select team.id
+    into v_team_id
+    from public.teams team
+    where team.user_a_id = v_a
+      and team.user_b_id = v_b
+      and team.status in ('pending', 'active')
+    order by team.invited_at desc
     limit 1;
   end if;
 
-  return v_duo_id;
+  return v_team_id;
 end;
 $$;

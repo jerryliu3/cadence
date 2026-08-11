@@ -5,29 +5,29 @@ select plan(8);
 
 insert into auth.users (id, email)
 values
-  ('9a111111-1111-4111-8111-111111111111', 'duo-owner@example.com'),
-  ('9a222222-2222-4222-8222-222222222222', 'duo-partner@example.com'),
-  ('9a333333-3333-4333-8333-333333333333', 'duo-outsider@example.com')
+  ('9a111111-1111-4111-8111-111111111111', 'team-owner@example.com'),
+  ('9a222222-2222-4222-8222-222222222222', 'team-partner@example.com'),
+  ('9a333333-3333-4333-8333-333333333333', 'team-outsider@example.com')
 on conflict (id) do nothing;
 
 insert into public.profiles (id, username)
 values
-  ('9a111111-1111-4111-8111-111111111111', 'duo_owner'),
-  ('9a222222-2222-4222-8222-222222222222', 'duo_partner'),
-  ('9a333333-3333-4333-8333-333333333333', 'duo_outsider')
+  ('9a111111-1111-4111-8111-111111111111', 'team_owner'),
+  ('9a222222-2222-4222-8222-222222222222', 'team_partner'),
+  ('9a333333-3333-4333-8333-333333333333', 'team_outsider')
 on conflict (id) do nothing;
 
 set local role authenticated;
 select set_config('request.jwt.claim.role', 'authenticated', true);
 select set_config('request.jwt.claim.sub', '9a111111-1111-4111-8111-111111111111', true);
 
-create temporary table _duo_ctx as
-select public.create_duo_invite_service('9a222222-2222-4222-8222-222222222222', null) as duo_id;
+create temporary table _team_ctx as
+select public.create_team_invite_service('9a222222-2222-4222-8222-222222222222', null) as team_id;
 
 select set_config('request.jwt.claim.sub', '9a222222-2222-4222-8222-222222222222', true);
 select ok(
-  public.accept_duo_invite_service((select duo_id from _duo_ctx), true),
-  'partner accepts duo invite'
+  public.accept_team_invite_service((select team_id from _team_ctx), true),
+  'partner accepts team invite'
 );
 
 reset role;
@@ -100,7 +100,7 @@ select is(
       and public.can_view_goal_content(goal.id, '9a222222-2222-4222-8222-222222222222')
   ),
   1,
-  'partner sees only shared goals through duo visibility'
+  'partner sees only shared goals through team visibility'
 );
 
 select ok(
@@ -110,7 +110,7 @@ select ok(
       '9a222222-2222-4222-8222-222222222222'
     )
   ),
-  'duo partner cannot complete owner goals'
+  'team partner cannot complete owner goals'
 );
 
 select ok(
@@ -141,8 +141,8 @@ select ok(
 
 select set_config('request.jwt.claim.sub', '9a111111-1111-4111-8111-111111111111', true);
 select ok(
-  public.dissolve_duo_service(),
-  'owner can dissolve active duo'
+  public.dissolve_team_service(),
+  'owner can dissolve active team'
 );
 
 select set_config('request.jwt.claim.sub', '9a222222-2222-4222-8222-222222222222', true);
@@ -154,7 +154,7 @@ select is(
       and public.can_view_goal_content(goal.id, '9a222222-2222-4222-8222-222222222222')
   ),
   0,
-  'duo visibility is revoked after dissolution'
+  'team visibility is revoked after dissolution'
 );
 
 select * from finish();

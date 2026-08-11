@@ -10,11 +10,11 @@ import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 
-const paramsSchema = z.object({ duoId: z.uuid() });
+const paramsSchema = z.object({ teamId: z.uuid() });
 
 export async function POST(
   _request: Request,
-  context: { params: Promise<{ duoId: string }> | { duoId: string } }
+  context: { params: Promise<{ teamId: string }> | { teamId: string } }
 ) {
   const correlationId = createCorrelationId();
   try {
@@ -22,11 +22,11 @@ export async function POST(
     const supabase = await createClient();
     const socialContext = await requireSocialRouteContext({ supabase });
 
-    const { data, error } = await socialContext.supabase.rpc("decline_duo_invite_service", {
-      p_duo_id: params.duoId,
+    const { data, error } = await socialContext.supabase.rpc("decline_team_invite_service", {
+      p_team_id: params.teamId,
     });
     if (error) {
-      throw new ApiRouteError(500, "duo_decline_failed", "Could not decline duo invite.", {
+      throw new ApiRouteError(500, "team_decline_failed", "Could not decline team invite.", {
         cause: error.message,
       });
     }
@@ -45,13 +45,13 @@ export async function POST(
     }
     if (error instanceof z.ZodError) {
       return apiErrorResponse(
-        new ApiRouteError(400, "invalid_duo_id", "Duo id is invalid.", {
+        new ApiRouteError(400, "invalid_team_id", "Team id is invalid.", {
           issues: error.issues,
         }),
         correlationId
       );
     }
-    return apiErrorResponse(new ApiRouteError(500, "internal_error", "Duo decline request failed unexpectedly.",
+    return apiErrorResponse(new ApiRouteError(500, "internal_error", "Team decline request failed unexpectedly.",
     ), correlationId);
   }
 }

@@ -25,12 +25,12 @@ export async function POST(request: Request) {
     const context = await requireSocialRouteContext({ supabase });
     const body = await parseJsonBody({ request: request, maxBytes: 32 * 1024, schema: requestSchema });
 
-    const { data, error } = await context.supabase.rpc("create_duo_invite_service", {
+    const { data, error } = await context.supabase.rpc("create_team_invite_service", {
       p_partner_id: body.partnerId,
       p_message: body.message ?? undefined,
     });
     if (error) {
-      throw new ApiRouteError(500, "duo_invite_failed", "Could not create duo invite.", {
+      throw new ApiRouteError(500, "team_invite_failed", "Could not create team invite.", {
         cause: error.message,
       });
     }
@@ -41,7 +41,7 @@ export async function POST(request: Request) {
       {
         schemaVersion: "1",
         correlationId,
-        duoId: data,
+        teamId: data,
       },
       { status: 201, headers: { "Cache-Control": "no-store" } }
     );
@@ -57,7 +57,7 @@ export async function POST(request: Request) {
         correlationId
       );
     }
-    return apiErrorResponse(new ApiRouteError(500, "internal_error", "Duo invite request failed unexpectedly.",
+    return apiErrorResponse(new ApiRouteError(500, "internal_error", "Team invite request failed unexpectedly.",
     ), correlationId);
   }
 }

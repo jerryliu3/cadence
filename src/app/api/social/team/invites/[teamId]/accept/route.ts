@@ -13,14 +13,14 @@ import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 
-const paramsSchema = z.object({ duoId: z.uuid() });
+const paramsSchema = z.object({ teamId: z.uuid() });
 const requestSchema = z.object({
   visibilityAcknowledged: z.boolean(),
 });
 
 export async function POST(
   request: Request,
-  context: { params: Promise<{ duoId: string }> | { duoId: string } }
+  context: { params: Promise<{ teamId: string }> | { teamId: string } }
 ) {
   const correlationId = createCorrelationId();
   try {
@@ -29,12 +29,12 @@ export async function POST(
     const supabase = await createClient();
     const socialContext = await requireSocialRouteContext({ supabase });
 
-    const { data, error } = await socialContext.supabase.rpc("accept_duo_invite_service", {
-      p_duo_id: params.duoId,
+    const { data, error } = await socialContext.supabase.rpc("accept_team_invite_service", {
+      p_team_id: params.teamId,
       p_visibility_acknowledged: body.visibilityAcknowledged,
     });
     if (error) {
-      throw new ApiRouteError(500, "duo_accept_failed", "Could not accept duo invite.", {
+      throw new ApiRouteError(500, "team_accept_failed", "Could not accept team invite.", {
         cause: error.message,
       });
     }
@@ -61,7 +61,7 @@ export async function POST(
         correlationId
       );
     }
-    return apiErrorResponse(new ApiRouteError(500, "internal_error", "Duo accept request failed unexpectedly.",
+    return apiErrorResponse(new ApiRouteError(500, "internal_error", "Team accept request failed unexpectedly.",
     ), correlationId);
   }
 }

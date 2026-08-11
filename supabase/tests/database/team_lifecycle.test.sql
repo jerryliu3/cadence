@@ -5,16 +5,16 @@ select plan(7);
 
 insert into auth.users (id, email)
 values
-  ('8f111111-1111-4111-8111-111111111111', 'duo-a@example.com'),
-  ('8f222222-2222-4222-8222-222222222222', 'duo-b@example.com'),
-  ('8f333333-3333-4333-8333-333333333333', 'duo-c@example.com')
+  ('8f111111-1111-4111-8111-111111111111', 'team-a@example.com'),
+  ('8f222222-2222-4222-8222-222222222222', 'team-b@example.com'),
+  ('8f333333-3333-4333-8333-333333333333', 'team-c@example.com')
 on conflict (id) do nothing;
 
 insert into public.profiles (id, username)
 values
-  ('8f111111-1111-4111-8111-111111111111', 'duo_user_a'),
-  ('8f222222-2222-4222-8222-222222222222', 'duo_user_b'),
-  ('8f333333-3333-4333-8333-333333333333', 'duo_user_c')
+  ('8f111111-1111-4111-8111-111111111111', 'team_user_a'),
+  ('8f222222-2222-4222-8222-222222222222', 'team_user_b'),
+  ('8f333333-3333-4333-8333-333333333333', 'team_user_c')
 on conflict (id) do nothing;
 
 set local role authenticated;
@@ -22,8 +22,8 @@ select set_config('request.jwt.claim.role', 'authenticated', true);
 select set_config('request.jwt.claim.sub', '8f111111-1111-4111-8111-111111111111', true);
 
 select set_config(
-  'request.duo_id',
-  public.create_duo_invite_service(
+  'request.team_id',
+  public.create_team_invite_service(
     '8f222222-2222-4222-8222-222222222222',
     'hey lets pair'
   )::text,
@@ -35,11 +35,11 @@ set local role service_role;
 select is(
   (
     select count(*)::integer
-    from public.duos duo
-    where duo.id = current_setting('request.duo_id')::uuid
-      and duo.user_a_id = '8f111111-1111-4111-8111-111111111111'
-      and duo.user_b_id = '8f222222-2222-4222-8222-222222222222'
-      and duo.status = 'pending'
+    from public.teams team
+    where team.id = current_setting('request.team_id')::uuid
+      and team.user_a_id = '8f111111-1111-4111-8111-111111111111'
+      and team.user_b_id = '8f222222-2222-4222-8222-222222222222'
+      and team.status = 'pending'
   ),
   1,
   'invite is created in canonical pair order'
@@ -49,7 +49,7 @@ reset role;
 set local role authenticated;
 select set_config('request.jwt.claim.role', 'authenticated', true);
 select set_config('request.jwt.claim.sub', '8f222222-2222-4222-8222-222222222222', true);
-select public.create_duo_invite_service(
+select public.create_team_invite_service(
   '8f111111-1111-4111-8111-111111111111',
   'reciprocal'
 );
@@ -59,13 +59,13 @@ set local role service_role;
 select is(
   (
     select count(*)::integer
-    from public.duos duo
-    where duo.user_a_id = '8f111111-1111-4111-8111-111111111111'
-      and duo.user_b_id = '8f222222-2222-4222-8222-222222222222'
-      and duo.status = 'pending'
+    from public.teams team
+    where team.user_a_id = '8f111111-1111-4111-8111-111111111111'
+      and team.user_b_id = '8f222222-2222-4222-8222-222222222222'
+      and team.status = 'pending'
   ),
   1,
-  'reciprocal invite reuses same pending duo row'
+  'reciprocal invite reuses same pending team row'
 );
 
 reset role;
@@ -73,8 +73,8 @@ set local role authenticated;
 select set_config('request.jwt.claim.role', 'authenticated', true);
 select throws_ok(
   format(
-    $$select public.accept_duo_invite_service('%s'::uuid, false)$$,
-    current_setting('request.duo_id')
+    $$select public.accept_team_invite_service('%s'::uuid, false)$$,
+    current_setting('request.team_id')
   ),
   '22023',
   'visibility_ack_required',
@@ -82,8 +82,8 @@ select throws_ok(
 );
 
 select ok(
-  public.accept_duo_invite_service(
-    current_setting('request.duo_id')::uuid,
+  public.accept_team_invite_service(
+    current_setting('request.team_id')::uuid,
     true
   ),
   'invitee can accept with acknowledgement'
@@ -94,11 +94,11 @@ set local role service_role;
 select is(
   (
     select status
-    from public.duos
-    where id = current_setting('request.duo_id')::uuid
+    from public.teams
+    where id = current_setting('request.team_id')::uuid
   ),
-  'active'::public.duo_status,
-  'accepted invite transitions duo to active'
+  'active'::public.team_status,
+  'accepted invite transitions team to active'
 );
 
 reset role;
@@ -106,15 +106,15 @@ set local role authenticated;
 select set_config('request.jwt.claim.role', 'authenticated', true);
 select set_config('request.jwt.claim.sub', '8f111111-1111-4111-8111-111111111111', true);
 select throws_ok(
-  $$select public.create_duo_invite_service('8f333333-3333-4333-8333-333333333333', null)$$,
+  $$select public.create_team_invite_service('8f333333-3333-4333-8333-333333333333', null)$$,
   '23514',
-  'duo_already_active',
-  'single active duo guard prevents second active pair for same user'
+  'team_already_active',
+  'single active team guard prevents second active pair for same user'
 );
 
 select ok(
-  public.dissolve_duo_service(),
-  'active duo can be dissolved by either member'
+  public.dissolve_team_service(),
+  'active team can be dissolved by either member'
 );
 
 select * from finish();

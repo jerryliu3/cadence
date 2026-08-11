@@ -17,7 +17,7 @@ vi.mock("@/lib/supabase/server", () => ({
 
 import { GET } from "./route";
 
-describe("GET /api/social/duo", () => {
+describe("GET /api/social/team", () => {
   beforeEach(() => {
     vi.stubEnv("SOCIAL_ENABLED", "true");
     resetEnvCacheForTests();
@@ -28,7 +28,7 @@ describe("GET /api/social/duo", () => {
     mocks.rpc.mockResolvedValue({
       data: [
         {
-          duo_id: "11111111-1111-4111-8111-111111111111",
+          team_id: "11111111-1111-4111-8111-111111111111",
           status: "pending",
           partner_id: "partner-1",
           partner_username: "partner",
@@ -60,7 +60,7 @@ describe("GET /api/social/duo", () => {
     });
   });
 
-  it("returns duo state envelope", async () => {
+  it("returns team state envelope", async () => {
     const response = await GET();
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toMatchObject({

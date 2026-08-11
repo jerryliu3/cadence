@@ -1,7 +1,7 @@
 "use client";
 
 import { ChallengeList } from "@/features/social/challenges/challenge-list";
-import { DuoPanel } from "@/features/social/duo/duo-panel";
+import { TeamPanel } from "@/features/social/team/team-panel";
 import { FeedList } from "@/features/social/feed/feed-list";
 import { LeaderboardsPanel } from "@/features/social/leaderboards/leaderboards-panel";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -13,7 +13,7 @@ export function SocialSurface() {
         <TabsTrigger value="feed">Feed</TabsTrigger>
         <TabsTrigger value="challenges">Challenges</TabsTrigger>
         <TabsTrigger value="leaderboards">Leaderboards</TabsTrigger>
-        <TabsTrigger value="duo">Duo</TabsTrigger>
+        <TabsTrigger value="team">Team</TabsTrigger>
       </TabsList>
 
       <TabsContent value="feed" className="space-y-4">
@@ -25,8 +25,8 @@ export function SocialSurface() {
       <TabsContent value="leaderboards" className="space-y-4">
         <LeaderboardsPanel />
       </TabsContent>
-      <TabsContent value="duo" className="space-y-4">
-        <DuoPanel />
+      <TabsContent value="team" className="space-y-4">
+        <TeamPanel />
       </TabsContent>
     </Tabs>
   );
