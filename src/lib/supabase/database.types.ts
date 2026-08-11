@@ -15,6 +15,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      goal_category_label: { Args: { p_key: string }; Returns: string }
       is_valid_planner_timezone: {
         Args: { p_timezone: string }
         Returns: boolean
