@@ -29,6 +29,27 @@ export type Database = {
         }
         Returns: string
       }
+      emit_feed_for_xp_ledger_row: {
+        Args: {
+          p_earned_on: string
+          p_event_type: string
+          p_goal_id: string
+          p_source_key: string
+          p_track_key: string
+          p_user_id: string
+          p_xp_delta: number
+        }
+        Returns: string
+      }
+      emit_feed_for_xp_level_up: {
+        Args: {
+          p_current_level: number
+          p_previous_level: number
+          p_track_key: string
+          p_user_id: string
+        }
+        Returns: string
+      }
       goal_anchored_period_start: {
         Args: {
           p_anchor: string
@@ -1296,7 +1317,7 @@ export type Database = {
         | "goal_achieved"
         | "challenge_completed"
         | "season_result"
-        | "duo_formed"
+        | "team_formed"
       goal_frequency_type: "fixed_milestones" | "recurring"
       moderation_action:
         | "hide"
@@ -1446,7 +1467,7 @@ export const Constants = {
         "goal_achieved",
         "challenge_completed",
         "season_result",
-        "duo_formed",
+        "team_formed",
       ],
       goal_frequency_type: ["fixed_milestones", "recurring"],
       moderation_action: [
