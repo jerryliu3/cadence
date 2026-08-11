@@ -8,7 +8,10 @@ import {
   type PlannerGoalDateFactExpectation,
   type PlannerItemDateFactExpectation,
 } from "@/lib/planner/completion-dispatch";
-import { requestXpRefresh } from "@/lib/xp/refresh";
+import {
+  requestXpRefresh,
+  type ViewportRectSnapshot,
+} from "@/lib/xp/events";
 
 export interface RunCompletionMutationInput {
   decision: CompletionDispatchDecision;
@@ -18,6 +21,7 @@ export interface RunCompletionMutationInput {
   timezone: string;
   plannerItemExpectation?: PlannerItemDateFactExpectation;
   plannerGoalExpectation?: PlannerGoalDateFactExpectation;
+  sourceRect?: ViewportRectSnapshot;
   blockedMessage?: string;
   fallbackErrorMessage: string;
 }
@@ -37,6 +41,7 @@ export function useCompletionMutation() {
       timezone,
       plannerItemExpectation,
       plannerGoalExpectation,
+      sourceRect,
       blockedMessage,
       fallbackErrorMessage,
     }: RunCompletionMutationInput): Promise<RunCompletionMutationResult> => {
@@ -68,7 +73,11 @@ export function useCompletionMutation() {
           };
         }
         invalidatePlannerRelatedTabCaches();
-        requestXpRefresh();
+        requestXpRefresh({
+          reason: "completion",
+          desiredFactState,
+          sourceRect,
+        });
         return {
           ok: true,
           message: null,
