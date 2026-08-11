@@ -302,20 +302,9 @@ begin
     raise exception using errcode = '22023', message = 'invalid_feed_scope';
   end if;
 
-  if p_scope = 'duo' and to_regclass('public.duos') is not null then
-    execute $duo$
-      select case
-        when duo.user_a_id = $1 then duo.user_b_id
-        else duo.user_a_id
-      end
-      from public.duos duo
-      where duo.status = 'active'
-        and $1 in (duo.user_a_id, duo.user_b_id)
-      order by duo.accepted_at desc nulls last
-      limit 1
-    $duo$
-    into v_duo_partner_id
-    using v_uid;
+  -- Duo scope is wired in a later migration once public.duos exists.
+  if p_scope = 'duo' then
+    v_duo_partner_id := null;
   end if;
 
   return query
