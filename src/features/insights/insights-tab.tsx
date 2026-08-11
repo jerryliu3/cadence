@@ -129,6 +129,12 @@ const aggregateWeekdayLabels: [string, string, string, string, string, string, s
 ];
 const INSIGHTS_REQUEST_TIMEOUT_MS = 15_000;
 const MAX_VISIBLE_MILESTONES = 5;
+const AGGREGATE_DRILLDOWN_DAY_CLASS_PREFIX = "aggregate-drilldown-day-";
+
+function getAggregateDrilldownDayClass(date: string | null | undefined): string {
+  return date ? `${AGGREGATE_DRILLDOWN_DAY_CLASS_PREFIX}${date}` : "";
+}
+
 function getCompletionCountLabel(goal: Goal, completionCount: number): string {
   if (typeof goal.target_count === "number" && goal.target_count > 0) {
     return `${completionCount}/${goal.target_count} completions`;
@@ -741,11 +747,8 @@ export function InsightsTab() {
               values={aggregateHeatmapData}
               showWeekdayLabels
               weekdayLabels={aggregateWeekdayLabels}
-              classForValue={(value) => `${getHeatmapScaleClass(value?.count ?? 0)} cursor-pointer`}
-              tooltipDataAttrs={(value) =>
-                value?.date
-                  ? { "data-drilldown-date": value.date }
-                  : { "data-drilldown-date": "" }
+              classForValue={(value) =>
+                `${getHeatmapScaleClass(value?.count ?? 0)} cursor-pointer ${getAggregateDrilldownDayClass(value?.date)}`
               }
               titleForValue={(value) =>
                 `${value?.date ?? "N/A"}: ${value?.count ?? 0} completion${
@@ -757,7 +760,7 @@ export function InsightsTab() {
                   setAggregateDrilldownDate(value.date);
                   setAggregateDrilldownExpanded(false);
                   const tile = aggregateHeatmapRef.current?.querySelector(
-                    `[data-drilldown-date="${value.date}"]`
+                    `.${getAggregateDrilldownDayClass(value.date)}`
                   );
                   if (tile instanceof Element) {
                     const rect = tile.getBoundingClientRect();
