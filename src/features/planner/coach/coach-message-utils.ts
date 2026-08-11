@@ -2,19 +2,16 @@ import type { CoachMessageProposal } from "@/features/planner/calendar-surface.t
 import type { CoachPolicyPatch } from "@/lib/planner/coach";
 import { canonicalHash } from "@/lib/planner/canonical";
 import type { PlannerPolicy } from "@/lib/planner/policy";
+import { dedupeWeekdays, weekStartOptions } from "@/lib/dates/weekday-options";
 
 const MAX_COACH_MESSAGE_CHARACTERS = 12_000;
-const WEEKDAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
+const WEEKDAY_NAMES = weekStartOptions.map((option) => option.shortLabel);
 
 export type CoachProposalAutoApplyStatus =
   | "not_attempted"
   | "applied"
   | "already_applied"
   | "failed";
-
-function dedupeWeekdays(weekdays: number[]) {
-  return Array.from(new Set(weekdays)).sort((left, right) => left - right);
-}
 
 function formatWeekdayList(weekdays: number[]) {
   const labels = dedupeWeekdays(weekdays)

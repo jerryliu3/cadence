@@ -1,5 +1,6 @@
 import { compilePlannerPolicy, type PlannerPolicy } from "@/lib/planner/policy";
 import type { CoachPolicyPatch } from "@/lib/planner/coach";
+import { dedupeWeekdays } from "@/lib/dates/weekday-options";
 
 export interface ApplyCoachPolicyPatchesResult {
   policy: PlannerPolicy;
@@ -13,10 +14,6 @@ export interface ApplyCoachPolicyPatchesResult {
   /** Understood, but changed nothing (e.g. removing a range not present). */
   ignoredPatchCount: number;
   unsupportedPatchCount: number;
-}
-
-function dedupeWeekdays(weekdays: number[]) {
-  return Array.from(new Set(weekdays)).sort((left, right) => left - right);
 }
 
 function sameNumberArray(left: number[] | undefined, right: number[]) {

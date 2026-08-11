@@ -8,7 +8,7 @@ import type {
   PlannerDayDetailEntry,
 } from "@/features/planner/calendar-surface.types";
 
-const weekdayLabelsSunFirst = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const weekdayLabelsSunFirst = weekStartOptions.map((option) => option.shortLabel);
 export { normalizeWeekStartsOn };
 
 export function buildWeekdayLabels(weekStartsOn: number) {

@@ -2391,7 +2391,7 @@ export function CalendarSurface({
 
   return (
     <div className="space-y-4">
-      <div className="rounded-xl border bg-card p-4 shadow-sm" data-no-swipe="true">
+      <div className="rounded-xl border bg-card p-4 shadow-sm">
         <div className="space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="space-y-1">
@@ -2626,7 +2626,7 @@ export function CalendarSurface({
                 } ${viewMode === "month" ? "min-h-[34rem]" : "min-h-[26rem]"}`}
               >
                 {viewMode === "day" ? (
-                  <div className="space-y-2" data-no-swipe="true">
+                  <div className="space-y-2">
                     <div className="rounded-md border p-3">
                       <p className="mb-2 text-sm font-medium">
                         {format(parse(focusedDay, "yyyy-MM-dd", new Date()), "EEE MMM d")}
@@ -2701,7 +2701,7 @@ export function CalendarSurface({
                         </span>
                       ))}
                     </div>
-                    <div className="mt-2 grid grid-cols-3 gap-2" data-no-swipe="true">
+                    <div className="mt-2 grid grid-cols-3 gap-2">
                       {focusedThreeDayCells.map(renderCalendarDayCell)}
                     </div>
                   </div>
@@ -2712,7 +2712,7 @@ export function CalendarSurface({
                         <span key={weekday}>{weekday}</span>
                       ))}
                     </div>
-                    <div className="mt-2 grid grid-cols-7 gap-2" data-no-swipe="true">
+                    <div className="mt-2 grid grid-cols-7 gap-2">
                       {(viewMode === "week" ? focusedWeekCells : cells).map(
                         renderCalendarDayCell
                       )}
