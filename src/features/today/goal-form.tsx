@@ -397,12 +397,12 @@ export function GoalForm({ goalId, showBackButton = true }: GoalFormProps) {
 
     return null;
   }, [state, parsedTargetCount, definitionTargetCount]);
+  const submitDisabled = saving || validationError !== null;
 
   const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     if (validationError) {
-      toast.error(validationError);
       return;
     }
 
@@ -582,7 +582,10 @@ export function GoalForm({ goalId, showBackButton = true }: GoalFormProps) {
                 </Link>
               </Button>
             ) : null}
-            <Button type="submit" form={goalFormId} disabled={saving}>
+            {validationError ? (
+              <p className="max-w-xs text-right text-sm text-destructive">{validationError}</p>
+            ) : null}
+            <Button type="submit" form={goalFormId} disabled={submitDisabled}>
               {saving ? <LoaderCircle className="size-4 animate-spin" /> : <Save className="size-4" />}
               {isEditing ? "Save changes" : "Create goal"}
             </Button>
@@ -782,10 +785,6 @@ export function GoalForm({ goalId, showBackButton = true }: GoalFormProps) {
             />
           </div>
 
-          {validationError ? (
-            <p className="text-sm text-destructive">{validationError}</p>
-          ) : null}
-
           <div className="flex flex-wrap items-center gap-2">
             {isEditing && editingGoal?.archived_at ? (
               <Button
@@ -830,7 +829,7 @@ export function GoalForm({ goalId, showBackButton = true }: GoalFormProps) {
                   variant="ghost"
                   className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-sm"
                 >
-                  <span>Advanced settings</span>
+                  <span>Advanced settings (optional)</span>
                   {advancedOpen ? (
                     <ChevronUp className="size-4 text-muted-foreground" />
                   ) : (
@@ -853,7 +852,7 @@ export function GoalForm({ goalId, showBackButton = true }: GoalFormProps) {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="goal-reward-text">Achievement reward text (optional)</Label>
+                    <Label htmlFor="goal-reward-text">Achievement reward text</Label>
                     <Textarea
                       id="goal-reward-text"
                       value={state.reward_text}
@@ -885,7 +884,7 @@ export function GoalForm({ goalId, showBackButton = true }: GoalFormProps) {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="goal-photo">Photo (optional)</Label>
+                    <Label htmlFor="goal-photo">Photo</Label>
                     <Input
                       id="goal-photo"
                       type="file"

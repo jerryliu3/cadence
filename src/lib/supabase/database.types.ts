@@ -23,6 +23,7 @@ export type Database = {
         }
         Returns: string
       }
+      goal_category_label: { Args: { p_key: string }; Returns: string }
       goal_period_key: {
         Args: {
           p_anchor: string
@@ -60,6 +61,10 @@ export type Database = {
       planner_scope_is_replay: {
         Args: { p_items: Json; p_month: string; p_owner_id: string }
         Returns: boolean
+      }
+      raise_if_future_completion_date: {
+        Args: { p_date: string; p_user_id: string }
+        Returns: undefined
       }
       refresh_xp_profile: {
         Args: { p_track_keys?: string[]; p_user_id: string }
@@ -990,6 +995,10 @@ export type Database = {
       }
       recompute_goal_xp_service: {
         Args: { p_force_zero?: boolean; p_goal_id: string; p_user_id: string }
+        Returns: number
+      }
+      reconcile_goal_xp_service: {
+        Args: { p_user_id?: string }
         Returns: number
       }
       record_planner_ai_output_tokens: {

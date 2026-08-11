@@ -17,11 +17,11 @@ export function AppShell({ children }: AppShellProps) {
       <div className="flex w-full max-w-5xl flex-col gap-4 md:gap-6">
         <header className="rounded-2xl border bg-card p-4 shadow-sm">
           <div className="flex items-start justify-between gap-3">
-            <div className="space-y-1">
+            <div className="flex flex-wrap items-start gap-3">
               <h1 className="text-2xl font-semibold tracking-tight">Goalmaxxing</h1>
-            </div>
-            <div className="flex flex-col items-end gap-2">
               <XpLevelBadge />
+            </div>
+            <div className="flex items-center">
               <Button asChild size="sm" className="hidden md:inline-flex" title="New goal">
                 <Link href="/goals/new" aria-label="New goals">
                   <Plus className="size-4" />
