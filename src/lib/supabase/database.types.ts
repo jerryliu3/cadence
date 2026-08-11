@@ -23,6 +23,10 @@ export type Database = {
         Args: { p_timezone: string }
         Returns: string
       }
+      normalize_goal_category_key: {
+        Args: { p_category: string }
+        Returns: string
+      }
       planner_json_depth: { Args: { p_value: Json }; Returns: number }
       planner_owner_lock_key: { Args: { p_owner: string }; Returns: number }
       planner_scope_is_replay: {
@@ -90,6 +94,36 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      goal_categories: {
+        Row: {
+          aliases: string[]
+          color: string
+          created_at: string
+          key: string
+          label: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          aliases?: string[]
+          color: string
+          created_at?: string
+          key: string
+          label: string
+          sort_order: number
+          updated_at?: string
+        }
+        Update: {
+          aliases?: string[]
+          color?: string
+          created_at?: string
+          key?: string
+          label?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
       }
       goal_links: {
         Row: {
@@ -216,6 +250,7 @@ export type Database = {
         Row: {
           archived_at: string | null
           category: string
+          category_key: string
           color: string | null
           created_at: string
           default_local_time: string | null
@@ -239,6 +274,7 @@ export type Database = {
         Insert: {
           archived_at?: string | null
           category?: string
+          category_key?: string
           color?: string | null
           created_at?: string
           default_local_time?: string | null
@@ -262,6 +298,7 @@ export type Database = {
         Update: {
           archived_at?: string | null
           category?: string
+          category_key?: string
           color?: string | null
           created_at?: string
           default_local_time?: string | null
@@ -283,6 +320,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "goals_category_key_fkey"
+            columns: ["category_key"]
+            isOneToOne: false
+            referencedRelation: "goal_categories"
+            referencedColumns: ["key"]
+          },
           {
             foreignKeyName: "goals_owner_id_fkey"
             columns: ["owner_id"]
