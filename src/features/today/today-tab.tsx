@@ -15,11 +15,8 @@ import {
   useState,
 } from "react";
 import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { PeriodStepper } from "@/components/ui/period-stepper";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { GoalListControls } from "@/features/goals/goal-list-controls";
 import { GoalsSurfaceLoadingCard } from "@/features/goals/goals-surface-loading-card";
@@ -34,7 +31,6 @@ import {
 } from "@/lib/dates/day";
 import { resolveUserTimezone } from "@/lib/dates/timezone";
 import { normalizeWeekStartsOn } from "@/lib/dates/week-start";
-import { getCategoryBadgeClass } from "@/lib/goals/category";
 import {
   buildCompletableGoalIds,
   selectCompletableGoals,
@@ -547,7 +543,7 @@ export function TodayTab({
     [archivedGoalsRaw, prepareNotTodayGoals]
   );
 
-  const toggleCompletion = async (goal: Goal) => {
+  const toggleCompletion = useCallback(async (goal: Goal) => {
     const completions = completionsByGoal.get(goal.id) ?? [];
     const completedOnViewDate = hasCompletionToday(completions, viewDateObj);
     const completionsInCurrentPeriod = getCompletionsForCurrentPeriod(
@@ -635,7 +631,7 @@ export function TodayTab({
     } finally {
       setSavingGoalId(null);
     }
-  };
+  }, [completionsByGoal, loadData, runCompletionMutation, todayLocalDate, viewDate, viewDateObj, weeklyAnchor]);
   const renderGoalCard = useCallback(
     (goal: Goal, options?: { archived?: boolean; key?: string }) => {
       const archived = options?.archived ?? false;
