@@ -1254,7 +1254,7 @@ export function BulkGoalForm({ showBackButton = true }: BulkGoalFormProps) {
                             variant="ghost"
                             className="flex h-auto w-full items-center justify-between rounded-xl px-3 py-2 text-sm"
                           >
-                            <span>Advanced settings</span>
+                            <span>Advanced settings (optional)</span>
                             {draft.advanced_open ? (
                               <ChevronUp className="size-4 text-muted-foreground" />
                             ) : (
@@ -1297,7 +1297,7 @@ export function BulkGoalForm({ showBackButton = true }: BulkGoalFormProps) {
                             </div>
 
                             <div className="space-y-2">
-                              <Label>Photo (optional)</Label>
+                              <Label>Photo</Label>
                               <Input
                                 type="file"
                                 accept="image/png,image/jpeg,image/webp"

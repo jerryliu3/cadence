@@ -22,6 +22,13 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { LoadingCard } from "@/components/ui/loading-card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import {
   CategorySelect,
@@ -38,11 +45,11 @@ import {
 } from "@/features/goals/goal-schedule-fields";
 import { toLocalDateString } from "@/lib/dates/day";
 import {
+  DEFAULT_GOAL_CATEGORIES,
   type CategorySelection,
-  getCategoryKeyForSelection,
-  getCategoryLabel,
   getCategorySelectionFromValue,
   getCategorySwatchColor,
+  getCategoryValueForWrite,
 } from "@/lib/goals/category";
 import {
   fetchProgressContext,
@@ -71,6 +78,7 @@ interface GoalFormProps {
 interface GoalFormState {
   title: string;
   description: string;
+  reward_text: string;
   category_selection: CategorySelection;
   custom_category: string;
   color: string;
@@ -87,6 +95,7 @@ interface GoalFormState {
 const defaultState: GoalFormState = {
   title: "",
   description: "",
+  reward_text: "",
   category_selection: "personal",
   custom_category: "",
   color: getCategorySwatchColor("personal"),
@@ -188,12 +197,14 @@ export function GoalForm({ goalId, showBackButton = true }: GoalFormProps) {
         const goal = goalResponse.data as Goal;
         const categoryState = getCategorySelectionFromValue(
           goal.category,
+          DEFAULT_GOAL_CATEGORIES,
           goal.category_key
         );
         setEditingGoal(goal);
         setState({
           title: goal.title,
           description: goal.description ?? "",
+          reward_text: goal.reward_text ?? "",
           category_selection: categoryState.selection,
           custom_category: categoryState.customValue,
           color: getCategorySwatchColor(categoryState.selection),
@@ -370,6 +381,10 @@ export function GoalForm({ goalId, showBackButton = true }: GoalFormProps) {
       return "Custom category name is required.";
     }
 
+    if (state.reward_text.trim().length > 500) {
+      return "Achievement reward text must be 500 characters or fewer.";
+    }
+
     const definitionErrors = validateGoalDefinition({
       frequencyType: state.frequency_type,
       targetCount: definitionTargetCount,
@@ -382,12 +397,12 @@ export function GoalForm({ goalId, showBackButton = true }: GoalFormProps) {
 
     return null;
   }, [state, parsedTargetCount, definitionTargetCount]);
+  const submitDisabled = saving || validationError !== null;
 
   const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     if (validationError) {
-      toast.error(validationError);
       return;
     }
 
@@ -397,13 +412,18 @@ export function GoalForm({ goalId, showBackButton = true }: GoalFormProps) {
       state.frequency_type === "fixed_milestones" && parsedTargetCountForSave !== null
         ? normalizeMilestoneNamesForSave(parsedTargetCountForSave, state.milestone_names)
         : null;
+    const categoryValue = getCategoryValueForWrite(
+      state.category_selection,
+      state.custom_category
+    );
 
     const payload = {
       owner_id: currentUserId,
       title: state.title.trim(),
       description: state.description.trim() || null,
-      category_key: getCategoryKeyForSelection(state.category_selection),
-      category: getCategoryLabel(state.category_selection, state.custom_category),
+      reward_text: state.reward_text.trim() || null,
+      category: categoryValue.category,
+      category_key: categoryValue.categoryKey,
       color: state.color,
       frequency_type: state.frequency_type,
       recurrence_interval: state.frequency_type === "recurring" ? state.recurrence_interval : null,
@@ -562,7 +582,10 @@ export function GoalForm({ goalId, showBackButton = true }: GoalFormProps) {
                 </Link>
               </Button>
             ) : null}
-            <Button type="submit" form={goalFormId} disabled={saving}>
+            {validationError ? (
+              <p className="max-w-xs text-right text-sm text-destructive">{validationError}</p>
+            ) : null}
+            <Button type="submit" form={goalFormId} disabled={submitDisabled}>
               {saving ? <LoaderCircle className="size-4 animate-spin" /> : <Save className="size-4" />}
               {isEditing ? "Save changes" : "Create goal"}
             </Button>
@@ -762,10 +785,6 @@ export function GoalForm({ goalId, showBackButton = true }: GoalFormProps) {
             />
           </div>
 
-          {validationError ? (
-            <p className="text-sm text-destructive">{validationError}</p>
-          ) : null}
-
           <div className="flex flex-wrap items-center gap-2">
             {isEditing && editingGoal?.archived_at ? (
               <Button
@@ -810,7 +829,7 @@ export function GoalForm({ goalId, showBackButton = true }: GoalFormProps) {
                   variant="ghost"
                   className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-sm"
                 >
-                  <span>Advanced settings</span>
+                  <span>Advanced settings (optional)</span>
                   {advancedOpen ? (
                     <ChevronUp className="size-4 text-muted-foreground" />
                   ) : (
@@ -833,6 +852,22 @@ export function GoalForm({ goalId, showBackButton = true }: GoalFormProps) {
                   </div>
 
                   <div className="space-y-2">
+                    <Label htmlFor="goal-reward-text">Achievement reward text</Label>
+                    <Textarea
+                      id="goal-reward-text"
+                      value={state.reward_text}
+                      onChange={(event) =>
+                        setState((prev) => ({ ...prev, reward_text: event.target.value }))
+                      }
+                      placeholder="How you will celebrate when this goal is achieved"
+                      maxLength={500}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Shown only on your achieved goal cards. Not shared to social feeds.
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
                     <Label htmlFor="goal-color">Color accent</Label>
                     <Input
                       id="goal-color"
@@ -849,7 +884,7 @@ export function GoalForm({ goalId, showBackButton = true }: GoalFormProps) {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="goal-photo">Photo (optional)</Label>
+                    <Label htmlFor="goal-photo">Photo</Label>
                     <Input
                       id="goal-photo"
                       type="file"
