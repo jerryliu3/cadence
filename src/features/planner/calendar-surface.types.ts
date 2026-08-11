@@ -4,7 +4,7 @@ import type { PlannerDraftVisualKind } from "@/lib/planner/diff";
 import type { PlannerPolicy } from "@/lib/planner/policy";
 
 export type CalendarTab = "today" | "not-today" | "calendar";
-export type PlannerCalendarViewMode = "month" | "week" | "day";
+export type PlannerCalendarViewMode = "month" | "week" | "three_day" | "day";
 
 export interface PlannerContextPayload {
   schemaVersion: "1";

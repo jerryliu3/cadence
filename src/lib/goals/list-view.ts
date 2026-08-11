@@ -1,4 +1,4 @@
-import { eachMonthOfInterval, endOfMonth, format, parseISO, startOfMonth } from "date-fns";
+import { eachMonthOfInterval, format, parseISO, startOfMonth } from "date-fns";
 import type { Goal } from "@/lib/goals/types";
 
 export type GoalDateSort =
@@ -81,17 +81,14 @@ export function sortGoalsByDate(goals: Goal[], sort: GoalDateSort): Goal[] {
   return [...goals].sort((left, right) => compareGoalsByDate(left, right, sort));
 }
 
-export function getMonthEndDate(month: string): string {
-  return format(endOfMonth(parseISO(`${month}-01`)), "yyyy-MM-dd");
-}
-
 export function filterGoalsByEndMonth(goals: Goal[], endMonth: string | null): Goal[] {
   if (endMonth === null) {
     return goals;
   }
 
-  const cutoff = getMonthEndDate(endMonth);
-  return goals.filter((goal) => goal.end_date !== null && goal.end_date <= cutoff);
+  return goals.filter(
+    (goal) => goal.end_date !== null && goal.end_date.slice(0, 7) === endMonth
+  );
 }
 
 export function resolveEffectiveEndMonth(
