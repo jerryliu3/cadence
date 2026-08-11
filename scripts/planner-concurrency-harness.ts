@@ -413,6 +413,23 @@ async function main() {
       xpRaceOwnerId,
     ]);
     await control.query("delete from public.profiles where id = $1", [xpRaceOwnerId]);
+    await control.query("delete from auth.users where id = $1", [xpRaceOwnerId]);
+    await control.query(
+      `insert into auth.users (
+         id, instance_id, aud, role, email, encrypted_password,
+         email_confirmed_at, confirmation_token, recovery_token,
+         email_change_token_new, email_change_token_current,
+         reauthentication_token, email_change, raw_app_meta_data,
+         raw_user_meta_data, created_at, updated_at
+       )
+       values (
+         $1, '00000000-0000-0000-0000-000000000000',
+         'authenticated', 'authenticated', 'planner-xp-race@example.test', '',
+         now(), '', '', '', '', '', '', '{"provider":"email"}',
+         '{"username":"planner_xp_race"}', now(), now()
+       )`,
+      [xpRaceOwnerId]
+    );
     await control.query(
       `insert into public.profiles (id, username, timezone)
        values ($1, 'planner_xp_race', 'America/New_York')
@@ -441,7 +458,7 @@ async function main() {
     );
     await control.query(
       `insert into public.completions (goal_id, user_id, completed_on, source)
-       values ($1, $2, current_date, 'manual')`,
+       values ($1, $2, (now() at time zone 'America/New_York')::date, 'manual')`,
       [xpRaceGoalId, xpRaceOwnerId]
     );
     await control.query("delete from public.user_awards where user_id = $1", [
@@ -615,6 +632,7 @@ async function main() {
         xpRaceOwnerId,
       ]);
       await control.query("delete from public.profiles where id = $1", [xpRaceOwnerId]);
+      await control.query("delete from auth.users where id = $1", [xpRaceOwnerId]);
     } catch {
       // The setup may not have reached XP race fixture creation.
     }
