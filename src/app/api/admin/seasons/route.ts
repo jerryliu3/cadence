@@ -27,7 +27,7 @@ const createSchema = z
     startsAt: z.iso.datetime(),
     endsAt: z.iso.datetime().nullable().optional(),
     status: z.enum(["upcoming", "open", "closed"]).default("upcoming"),
-    rollover: z.enum(["none", "weekly", "monthly", "quarterly"]).default("none"),
+    rollover: z.enum(["none", "weekly", "monthly", "quarterly", "yearly"]).default("none"),
     scope: z.enum(["global", "cohort"]).default("global"),
     cohortId: z.uuid().nullable().optional(),
   })

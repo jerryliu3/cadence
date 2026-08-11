@@ -59,7 +59,7 @@ export interface SocialChallenge {
 }
 
 export type LeaderboardSeasonStatus = "upcoming" | "open" | "closed";
-export type LeaderboardRollover = "none" | "weekly" | "monthly" | "quarterly";
+export type LeaderboardRollover = "none" | "weekly" | "monthly" | "quarterly" | "yearly";
 
 export interface LeaderboardSeason {
   id: string;

@@ -1711,7 +1711,7 @@ export type Database = {
         | "season_result"
         | "team_formed"
       goal_frequency_type: "fixed_milestones" | "recurring"
-      leaderboard_rollover: "none" | "weekly" | "monthly" | "quarterly"
+      leaderboard_rollover: "none" | "weekly" | "monthly" | "quarterly" | "yearly"
       leaderboard_season_status: "upcoming" | "open" | "closed"
       moderation_action:
         | "hide"
@@ -1873,7 +1873,7 @@ export const Constants = {
         "team_formed",
       ],
       goal_frequency_type: ["fixed_milestones", "recurring"],
-      leaderboard_rollover: ["none", "weekly", "monthly", "quarterly"],
+      leaderboard_rollover: ["none", "weekly", "monthly", "quarterly", "yearly"],
       leaderboard_season_status: ["upcoming", "open", "closed"],
       moderation_action: [
         "hide",

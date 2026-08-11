@@ -18,7 +18,7 @@ begin
     where typnamespace = 'public'::regnamespace
       and typname = 'leaderboard_rollover'
   ) then
-    create type public.leaderboard_rollover as enum ('none', 'weekly', 'monthly', 'quarterly');
+    create type public.leaderboard_rollover as enum ('none', 'weekly', 'monthly', 'quarterly', 'yearly');
   end if;
 end;
 $$;
@@ -107,6 +107,8 @@ begin
       return p_starts_at + interval '1 month';
     when 'quarterly'::public.leaderboard_rollover then
       return p_starts_at + interval '3 months';
+    when 'yearly'::public.leaderboard_rollover then
+      return p_starts_at + interval '1 year';
     else
       return null;
   end case;
