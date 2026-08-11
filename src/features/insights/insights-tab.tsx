@@ -29,6 +29,13 @@ import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { LoadingCard } from "@/components/ui/loading-card";
 import { PeriodStepper } from "@/components/ui/period-stepper";
@@ -138,6 +145,7 @@ export function InsightsTab() {
   const [goalSort, setGoalSort] = useState<GoalDateSort>("earliest_end");
   const [showHistoricalGoals, setShowHistoricalGoals] = useState(false);
   const [editingGoalId, setEditingGoalId] = useState<string | null>(null);
+  const [aggregateDrilldownDate, setAggregateDrilldownDate] = useState<string | null>(null);
   const [pendingRetroDate, setPendingRetroDate] = useState<string | null>(null);
   const [milestoneNameDrafts, setMilestoneNameDrafts] = useState<Record<string, string[]>>({});
   const [savingMilestoneNamesGoalId, setSavingMilestoneNamesGoalId] = useState<string | null>(
@@ -295,13 +303,43 @@ export function InsightsTab() {
     () => countCompletionsByDate(personalCompletions),
     [personalCompletions]
   );
+  const goalTitleById = useMemo(
+    () =>
+      new Map(
+        personalGoals.map((goal) => [goal.id, goal.title])
+      ),
+    [personalGoals]
+  );
+  const aggregateCompletionItemsByDate = useMemo(() => {
+    const grouped: Record<string, string[]> = {};
+    for (const completion of personalCompletions) {
+      const title = goalTitleById.get(completion.goal_id);
+      if (!title) {
+        continue;
+      }
+      grouped[completion.completed_on] = [
+        ...(grouped[completion.completed_on] ?? []),
+        title,
+      ];
+    }
+    for (const date of Object.keys(grouped)) {
+      grouped[date] = grouped[date].sort((left, right) => left.localeCompare(right));
+    }
+    return grouped;
+  }, [goalTitleById, personalCompletions]);
 
   const aggregateHeatmapData = useMemo(() => {
-    return Object.entries(aggregateCountsByDate).map(([date, count]) => ({
-      date,
-      count,
-    }));
-  }, [aggregateCountsByDate]);
+    return eachDayOfInterval({
+      start: startOfYear(monthCursor),
+      end: endOfYear(monthCursor),
+    }).map((date) => {
+      const key = format(date, "yyyy-MM-dd");
+      return {
+        date: key,
+        count: aggregateCountsByDate[key] ?? 0,
+      };
+    });
+  }, [aggregateCountsByDate, monthCursor]);
 
   const selectedYearStart = useMemo(() => startOfYear(monthCursor), [monthCursor]);
   const selectedYearEnd = useMemo(() => endOfYear(monthCursor), [monthCursor]);
@@ -639,6 +677,14 @@ export function InsightsTab() {
     [goalMonthOverrides, monthCursor]
   );
 
+  const aggregateDrilldownItems = useMemo(
+    () =>
+      aggregateDrilldownDate
+        ? aggregateCompletionItemsByDate[aggregateDrilldownDate] ?? []
+        : [],
+    [aggregateCompletionItemsByDate, aggregateDrilldownDate]
+  );
+
   if (loading) {
     return (
       <LoadingCard
@@ -665,12 +711,17 @@ export function InsightsTab() {
               values={aggregateHeatmapData}
               showWeekdayLabels
               weekdayLabels={aggregateWeekdayLabels}
-              classForValue={(value) => getHeatmapScaleClass(value?.count ?? 0)}
+              classForValue={(value) => `${getHeatmapScaleClass(value?.count ?? 0)} cursor-pointer`}
               titleForValue={(value) =>
                 `${value?.date ?? "N/A"}: ${value?.count ?? 0} completion${
                   (value?.count ?? 0) === 1 ? "" : "s"
                 }`
               }
+              onClick={(value) => {
+                if (value?.date) {
+                  setAggregateDrilldownDate(value.date);
+                }
+              }}
             />
           </div>
           <div className="flex items-center justify-end gap-2 text-xs text-muted-foreground">
@@ -1115,6 +1166,52 @@ export function InsightsTab() {
           )}
         </CardContent>
       </Card>
+
+      <Dialog
+        open={aggregateDrilldownDate !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setAggregateDrilldownDate(null);
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {aggregateDrilldownDate
+                ? `Completions on ${format(parseISO(aggregateDrilldownDate), "MMMM d, yyyy")}`
+                : "Completions"}
+            </DialogTitle>
+            <DialogDescription>
+              {aggregateDrilldownDate
+                ? `${aggregateCountsByDate[aggregateDrilldownDate] ?? 0} completion${
+                    (aggregateCountsByDate[aggregateDrilldownDate] ?? 0) === 1
+                      ? ""
+                      : "s"
+                  }`
+                : "Review completions for a selected heatmap tile."}
+            </DialogDescription>
+          </DialogHeader>
+          {aggregateDrilldownDate ? (
+            <div className="max-h-72 space-y-2 overflow-y-auto pr-1">
+              {aggregateDrilldownItems.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  No completed items on this date.
+                </p>
+              ) : (
+                aggregateDrilldownItems.map((title, index) => (
+                  <div
+                    key={`${aggregateDrilldownDate}-${title}-${index}`}
+                    className="rounded-md border bg-muted/20 px-3 py-2 text-sm"
+                  >
+                    {title}
+                  </div>
+                ))
+              )}
+            </div>
+          ) : null}
+        </DialogContent>
+      </Dialog>
 
       <div className="rounded-xl border bg-muted/30 p-3 text-xs text-muted-foreground">
         <p className="inline-flex items-center gap-1">
