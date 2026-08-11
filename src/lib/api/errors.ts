@@ -1,4 +1,7 @@
-import { NextResponse } from "next/server";
+import {
+  ApiRouteError,
+  apiErrorResponse,
+} from "@/lib/api/route";
 
 export interface RouteErrorBody {
   code: string;
@@ -7,32 +10,20 @@ export interface RouteErrorBody {
   details?: Record<string, unknown>;
 }
 
-export class RouteError extends Error {
+export class RouteError extends ApiRouteError {
   constructor(
     readonly status: number,
     readonly code: string,
     message: string,
     readonly details?: Record<string, unknown>
   ) {
-    super(message);
+    super(status, code, message, details);
     this.name = "RouteError";
   }
 }
 
 export function routeErrorResponse(error: RouteError, correlationId: string) {
-  const payload: RouteErrorBody = {
-    code: error.code,
-    message: error.message,
-    correlationId,
-  };
-  if (error.details) {
-    payload.details = error.details;
-  }
-
-  return NextResponse.json(payload, {
-    status: error.status,
-    headers: { "Cache-Control": "no-store" },
-  });
+  return apiErrorResponse(error, correlationId);
 }
 
 export function unknownRouteErrorResponse({

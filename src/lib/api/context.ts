@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createCorrelationId as createSharedCorrelationId } from "@/lib/api/route";
 import { RouteError } from "@/lib/api/errors";
 
 export interface AuthenticatedUserResult {
@@ -15,7 +15,7 @@ interface SupabaseAuthClientLike {
 }
 
 export function createCorrelationId() {
-  return randomUUID();
+  return createSharedCorrelationId();
 }
 
 export async function requireAuthenticatedUser(
