@@ -39,7 +39,7 @@ begin
     where typnamespace = 'public'::regnamespace
       and typname = 'moderation_target'
   ) then
-    create type public.moderation_target as enum ('feed_event', 'user', 'challenge', 'duo');
+    create type public.moderation_target as enum ('feed_event', 'user', 'challenge', 'team');
   end if;
 end;
 $$;
