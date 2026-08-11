@@ -76,7 +76,17 @@
   border-color: var(--border);
 }
 
-html,
+html {
+  min-height: 100%;
+  scrollbar-gutter: stable both-edges;
+}
+
+@supports not (scrollbar-gutter: stable) {
+  html {
+    overflow-y: scroll;
+  }
+}
+
 body {
   min-height: 100%;
 }
