@@ -1,0 +1,20 @@
+const LIGHT_PRESS_DURATION_MS = 8;
+
+/**
+ * Best-effort mobile-web feedback. Chromium on Android supports this API;
+ * unsupported browsers, including iOS Safari, intentionally no-op.
+ */
+export function triggerLightPressFeedback(): boolean {
+  if (
+    typeof navigator === "undefined" ||
+    typeof navigator.vibrate !== "function"
+  ) {
+    return false;
+  }
+
+  try {
+    return navigator.vibrate(LIGHT_PRESS_DURATION_MS);
+  } catch {
+    return false;
+  }
+}
