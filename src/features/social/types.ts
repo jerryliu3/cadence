@@ -88,10 +88,7 @@ export interface LeaderboardStanding {
 export type TeamStatus =
   | "pending"
   | "active"
-  | "declined"
-  | "cancelled"
-  | "dissolved"
-  | "expired";
+  | "closed";
 
 export interface TeamStateRow {
   teamId: string;

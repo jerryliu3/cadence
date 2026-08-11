@@ -12,9 +12,7 @@ begin
     create type public.team_status as enum (
       'pending',
       'active',
-      'declined',
-      'cancelled',
-      'dissolved'
+      'closed'
     );
   end if;
 end;
@@ -418,7 +416,7 @@ begin
 
   update public.teams team
   set
-    status = 'declined'::public.team_status,
+    status = 'closed'::public.team_status,
     responded_at = pg_catalog.now()
   where team.id = p_team_id
     and team.status = 'pending'::public.team_status
@@ -444,7 +442,7 @@ begin
 
   update public.teams team
   set
-    status = 'dissolved'::public.team_status,
+    status = 'closed'::public.team_status,
     dissolved_at = pg_catalog.now(),
     responded_at = pg_catalog.now()
   where team.status = 'active'::public.team_status

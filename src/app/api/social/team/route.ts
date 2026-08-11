@@ -13,7 +13,7 @@ export const runtime = "nodejs";
 
 function toTeamDto(row: {
   team_id: string;
-  status: "pending" | "active" | "declined" | "cancelled" | "dissolved" | "expired";
+  status: "pending" | "active" | "closed";
   partner_id: string;
   partner_username: string | null;
   partner_display_name: string | null;
