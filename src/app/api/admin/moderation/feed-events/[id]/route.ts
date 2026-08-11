@@ -1,8 +1,11 @@
+import {
+  ApiRouteError,
+  apiErrorResponse,
+  createCorrelationId,
+  parseJsonBody,
+} from "@/lib/api/route";
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { parseBoundedJsonBody } from "@/lib/api/body";
-import { createCorrelationId } from "@/lib/api/context";
-import { RouteError, routeErrorResponse, unknownRouteErrorResponse } from "@/lib/api/errors";
 import { requireAdminContext } from "@/lib/api/admin-context";
 
 export const runtime = "nodejs";
@@ -25,10 +28,10 @@ export async function POST(
     const params = routeParamsSchema.parse(await context.params);
     const adminContext = await requireAdminContext("moderator");
     if (!adminContext) {
-      throw new RouteError(404, "not_found", "Resource not found.");
+      throw new ApiRouteError(404, "not_found", "Resource not found.");
     }
 
-    const body = await parseBoundedJsonBody(request, 32 * 1024, requestSchema);
+    const body = await parseJsonBody({ request: request, maxBytes: 32 * 1024, schema: requestSchema });
     const { data, error } = await adminContext.supabase.rpc("hide_feed_event_service", {
       p_event_id: params.id,
       p_hidden: body.hidden,
@@ -36,7 +39,7 @@ export async function POST(
     });
 
     if (error) {
-      throw new RouteError(
+      throw new ApiRouteError(
         500,
         "moderation_update_failed",
         "Feed moderation update failed.",
@@ -44,7 +47,7 @@ export async function POST(
       );
     }
     if (!data) {
-      throw new RouteError(404, "feed_event_not_found", "Feed event was not found.");
+      throw new ApiRouteError(404, "feed_event_not_found", "Feed event was not found.");
     }
 
     return NextResponse.json(
@@ -57,20 +60,18 @@ export async function POST(
       { headers: { "Cache-Control": "no-store" } }
     );
   } catch (error) {
-    if (error instanceof RouteError) {
-      return routeErrorResponse(error, correlationId);
+    if (error instanceof ApiRouteError) {
+      return apiErrorResponse(error, correlationId);
     }
     if (error instanceof z.ZodError) {
-      return routeErrorResponse(
-        new RouteError(400, "validation_failed", "Request payload failed validation.", {
+      return apiErrorResponse(
+        new ApiRouteError(400, "validation_failed", "Request payload failed validation.", {
           issues: error.issues,
         }),
         correlationId
       );
     }
-    return unknownRouteErrorResponse({
-      correlationId,
-      message: "Feed moderation request failed unexpectedly.",
-    });
+    return apiErrorResponse(new ApiRouteError(500, "internal_error", "Feed moderation request failed unexpectedly.",
+    ), correlationId);
   }
 }

@@ -1,6 +1,9 @@
+import {
+  ApiRouteError,
+  apiErrorResponse,
+  createCorrelationId,
+} from "@/lib/api/route";
 import { NextResponse } from "next/server";
-import { createCorrelationId } from "@/lib/api/context";
-import { RouteError, routeErrorResponse, unknownRouteErrorResponse } from "@/lib/api/errors";
 import { decodeSocialFeedCursor, encodeSocialFeedCursor } from "@/lib/social/feed/cursor";
 import { requireSocialRouteContext } from "@/lib/social/api";
 import { createClient } from "@/lib/supabase/server";
@@ -11,14 +14,12 @@ export async function GET(request: Request) {
   const correlationId = createCorrelationId();
   try {
     const supabase = await createClient();
-    const context = await requireSocialRouteContext({
-      supabase,
-      requireFeed: true,
-    });
+    const context = await requireSocialRouteContext({ supabase });
 
     const url = new URL(request.url);
     const scope = url.searchParams.get("scope") ?? "global";
     const actorId = url.searchParams.get("actorId");
+    const scopeId = url.searchParams.get("scopeId");
     const cursor = url.searchParams.get("cursor");
     const limit = Number.parseInt(url.searchParams.get("limit") ?? "30", 10);
 
@@ -32,13 +33,13 @@ export async function GET(request: Request) {
 
     const { data, error } = await context.supabase.rpc("get_social_feed", {
       p_scope: scope,
-      p_scope_id: actorId ?? undefined,
+      p_scope_id: (scopeId ?? actorId) ?? undefined,
       p_before_at: beforeAt ?? undefined,
       p_before_id: beforeId ?? undefined,
       p_limit: Number.isFinite(limit) ? limit : 30,
     });
     if (error) {
-      throw new RouteError(
+      throw new ApiRouteError(
         500,
         "social_feed_unavailable",
         "Social feed is unavailable.",
@@ -86,18 +87,16 @@ export async function GET(request: Request) {
       { headers: { "Cache-Control": "no-store" } }
     );
   } catch (error) {
-    if (error instanceof RouteError) {
-      return routeErrorResponse(error, correlationId);
+    if (error instanceof ApiRouteError) {
+      return apiErrorResponse(error, correlationId);
     }
     if (error instanceof Error && error.message === "Malformed social feed cursor.") {
-      return routeErrorResponse(
-        new RouteError(400, "invalid_cursor", "Feed cursor is malformed."),
+      return apiErrorResponse(
+        new ApiRouteError(400, "invalid_cursor", "Feed cursor is malformed."),
         correlationId
       );
     }
-    return unknownRouteErrorResponse({
-      correlationId,
-      message: "Social feed request failed unexpectedly.",
-    });
+    return apiErrorResponse(new ApiRouteError(500, "internal_error", "Social feed request failed unexpectedly.",
+    ), correlationId);
   }
 }

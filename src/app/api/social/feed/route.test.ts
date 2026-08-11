@@ -1,6 +1,7 @@
 // @vitest-environment node
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { resetEnvCacheForTests } from "@/lib/env";
 
 const mocks = vi.hoisted(() => ({
   getUser: vi.fn(),
@@ -19,7 +20,7 @@ import { GET } from "./route";
 describe("GET /api/social/feed", () => {
   beforeEach(() => {
     vi.stubEnv("SOCIAL_ENABLED", "true");
-    vi.stubEnv("SOCIAL_FEED_ENABLED", "true");
+    resetEnvCacheForTests();
     mocks.getUser.mockResolvedValue({
       data: { user: { id: "viewer-1" } },
       error: null,
@@ -51,14 +52,16 @@ describe("GET /api/social/feed", () => {
   afterEach(() => {
     vi.clearAllMocks();
     vi.unstubAllEnvs();
+    resetEnvCacheForTests();
   });
 
-  it("returns 503 when social feed is disabled", async () => {
-    vi.stubEnv("SOCIAL_FEED_ENABLED", "false");
+  it("returns 503 when social is disabled", async () => {
+    vi.stubEnv("SOCIAL_ENABLED", "false");
+    resetEnvCacheForTests();
     const response = await GET(new Request("http://localhost/api/social/feed"));
     expect(response.status).toBe(503);
     await expect(response.json()).resolves.toMatchObject({
-      code: "social_feed_disabled",
+      code: "social_disabled",
     });
   });
 
