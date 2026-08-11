@@ -1,6 +1,6 @@
 "use client";
 
-import { usePathname, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import {
   type TouchEvent,
   useCallback,
@@ -8,15 +8,15 @@ import {
   useMemo,
   useRef,
 } from "react";
-import { Button } from "@/components/ui/button";
 import {
   type ChecklistTabValue,
   ChecklistSurface,
 } from "@/features/today/checklist-surface";
+import { useClientSearchParamsUpdater } from "@/lib/navigation/use-client-search-params-updater";
 
 export function ChecklistShell() {
-  const pathname = usePathname();
   const searchParams = useSearchParams();
+  const { applySearchParams } = useClientSearchParamsUpdater();
   const swipeStartRef = useRef<{ x: number; y: number } | null>(null);
   const rawTab = searchParams.get("tab");
   const normalizedTab: ChecklistTabValue = useMemo(() => {
@@ -25,30 +25,6 @@ export function ChecklistShell() {
     }
     return "today";
   }, [rawTab]);
-
-  const applySearchParams = useCallback(
-    (
-      update: (params: URLSearchParams) => void,
-      mode: "push" | "replace",
-      state: Record<string, unknown> | null = null
-    ) => {
-      const params = new URLSearchParams(searchParams.toString());
-      update(params);
-      const query = params.toString();
-      const nextUrl = query ? `${pathname}?${query}` : pathname;
-      const currentQuery = searchParams.toString();
-      const currentUrl = currentQuery ? `${pathname}?${currentQuery}` : pathname;
-      if (nextUrl === currentUrl) {
-        return;
-      }
-      if (mode === "push") {
-        window.history.pushState(state, "", nextUrl);
-      } else {
-        window.history.replaceState(state, "", nextUrl);
-      }
-    },
-    [pathname, searchParams]
-  );
 
   useEffect(() => {
     if (rawTab === null || rawTab === "today" || rawTab === "not-today") {
@@ -115,25 +91,6 @@ export function ChecklistShell() {
 
   return (
     <div className="space-y-5">
-      <div className="hidden items-center justify-between rounded-xl border bg-card px-4 py-3 shadow-sm md:flex">
-        <p className="text-sm font-medium">
-          {normalizedTab === "today" ? "Today" : "Past"}
-        </p>
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          onClick={() =>
-            updateTab(
-              normalizedTab === "today" ? "not-today" : "today",
-              "push"
-            )
-          }
-        >
-          {normalizedTab === "today" ? "Show Past" : "Show Today"}
-        </Button>
-      </div>
-
       <div onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
         <ChecklistSurface
           activeTab={normalizedTab}

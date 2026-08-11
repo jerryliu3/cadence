@@ -785,6 +785,15 @@ export function TodayTab({
   const goToNextDate = () => {
     setViewDate((previous) => format(addDays(parseISO(previous), 1), "yyyy-MM-dd"));
   };
+  const switchChecklistTab = useCallback(
+    (nextTab: ChecklistTabValue) => {
+      if (!activeTab) {
+        setInternalChecklistTab(nextTab);
+      }
+      onActiveTabChange?.(nextTab);
+    },
+    [activeTab, onActiveTabChange]
+  );
 
   const quickCategoryOptions = availableCategories.slice(0, 4);
   const recurrenceQuickFilters = recurrenceFilterOptions.filter(
@@ -807,10 +816,7 @@ export function TodayTab({
         onValueChange={(value) => {
           const nextTab: ChecklistTabValue =
             value === "not-today" ? "not-today" : "today";
-          if (!activeTab) {
-            setInternalChecklistTab(nextTab);
-          }
-          onActiveTabChange?.(nextTab);
+          switchChecklistTab(nextTab);
         }}
         className="flex-col space-y-4"
       >
@@ -846,6 +852,17 @@ export function TodayTab({
                 >
                   <SlidersHorizontal className="size-3.5" />
                 </Button>
+                {hideTabList ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="hidden h-8 rounded-full px-3 text-xs md:inline-flex"
+                    onClick={() => switchChecklistTab("not-today")}
+                  >
+                    Show Past
+                  </Button>
+                ) : null}
                 <Dialog open={todayFiltersOpen} onOpenChange={setTodayFiltersOpen}>
                   <DialogContent className="top-auto bottom-0 left-1/2 max-h-[85vh] max-w-[calc(100%-1rem)] -translate-x-1/2 translate-y-0 overflow-y-auto rounded-b-none rounded-t-xl pb-[calc(env(safe-area-inset-bottom)+1rem)] sm:top-1/2 sm:bottom-auto sm:max-w-lg sm:-translate-y-1/2 sm:rounded-b-xl">
                     <DialogHeader>
@@ -917,7 +934,7 @@ export function TodayTab({
                 value={todayGoalSearchQuery}
                 onChange={(event) => setTodayGoalSearchQuery(event.target.value)}
                 placeholder="Search today's goals..."
-                className="h-8"
+                className="h-8 w-full"
               />
             }
             quickFilterControls={
@@ -1019,8 +1036,23 @@ export function TodayTab({
         <TabsContent value="not-today" className="space-y-4">
           <Card className="shadow-sm">
             <CardHeader className="pb-3">
-              <CardTitle className="text-xl">Past</CardTitle>
-              <CardDescription>Review upcoming, ended, and archived goals.</CardDescription>
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <CardTitle className="text-xl">Past</CardTitle>
+                  <CardDescription>Review upcoming, ended, and archived goals.</CardDescription>
+                </div>
+                {hideTabList ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="hidden h-8 rounded-full px-3 text-xs md:inline-flex"
+                    onClick={() => switchChecklistTab("today")}
+                  >
+                    Show Today
+                  </Button>
+                ) : null}
+              </div>
             </CardHeader>
             <CardContent>
               <GoalListControls

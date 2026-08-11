@@ -76,7 +76,7 @@ export function TabNav({ mobile = false }: TabNavProps) {
           "grid w-full gap-1",
           mobile
             ? "grid-cols-5 rounded-2xl border border-border/60 bg-background/70 p-1.5 shadow-lg backdrop-blur supports-[backdrop-filter]:bg-background/55"
-            : "grid-cols-4 max-w-md"
+            : "grid-cols-4"
         )}
       >
         {(mobile ? mobileTabs : tabs).map((tab) => {
