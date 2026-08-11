@@ -24,6 +24,7 @@ test("reduced motion keeps navigation functional without panel animation", async
   await expect(
     page.getByRole("navigation", { name: "Main navigation" })
   ).toBeVisible();
+  await page.emulateMedia({ reducedMotion: "no-preference" });
 });
 
 test("motion overlays do not create mobile viewport overflow", async ({
