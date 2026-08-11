@@ -14,6 +14,8 @@ import {
 } from "@/components/ui/select";
 import { getApiErrorMessage, getJson, putJson } from "@/lib/api/client";
 import { resolveUserTimezone } from "@/lib/dates/timezone";
+import { buildTimezoneOptions } from "@/lib/dates/timezone-options";
+import { weekStartOptions } from "@/lib/dates/weekday-options";
 import { normalizeWeekStartsOn } from "@/lib/dates/week-start";
 import { createDefaultPlannerPolicy, type PlannerPolicy } from "@/lib/planner/policy";
 
@@ -27,16 +29,6 @@ interface PlannerPreferencesContextPayload {
   } | null;
 }
 
-const weekStartOptions = [
-  { value: 0, label: "Sunday" },
-  { value: 1, label: "Monday" },
-  { value: 2, label: "Tuesday" },
-  { value: 3, label: "Wednesday" },
-  { value: 4, label: "Thursday" },
-  { value: 5, label: "Friday" },
-  { value: 6, label: "Saturday" },
-] as const;
-
 export function PlannerPreferencesSettings() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -44,23 +36,10 @@ export function PlannerPreferencesSettings() {
   const [weekStartsOn, setWeekStartsOn] = useState(1);
   const [restWeekdays, setRestWeekdays] = useState<number[]>([]);
 
-  const timezoneOptions = useMemo(() => {
-    const intlWithSupportedValues = Intl as typeof Intl & {
-      supportedValuesOf?: (key: string) => string[];
-    };
-    const detectedTimezone = resolveUserTimezone();
-    const supportedTimezones =
-      typeof intlWithSupportedValues.supportedValuesOf === "function"
-        ? intlWithSupportedValues.supportedValuesOf("timeZone")
-        : [];
-    return Array.from(
-      new Set(
-        [timezone, detectedTimezone, "UTC", ...supportedTimezones].filter(
-          (value): value is string => Boolean(value)
-        )
-      )
-    ).sort((left, right) => left.localeCompare(right));
-  }, [timezone]);
+  const timezoneOptions = useMemo(
+    () => buildTimezoneOptions(timezone),
+    [timezone]
+  );
 
   useEffect(() => {
     const loadPreferences = async () => {
