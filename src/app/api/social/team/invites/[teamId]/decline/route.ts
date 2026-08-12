@@ -10,7 +10,23 @@ import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 
+type RpcErrorLike = {
+  message: string;
+};
+
 const paramsSchema = z.object({ teamId: z.uuid() });
+
+function mapDeclineTeamInviteError(error: RpcErrorLike) {
+  if (error.message === "authentication_required") {
+    return new ApiRouteError(401, "authentication_required", "You must be signed in.");
+  }
+  if (error.message === "team_id_required") {
+    return new ApiRouteError(400, "team_id_required", "Team id is required.");
+  }
+  return new ApiRouteError(500, "team_decline_failed", "Could not decline team invite.", {
+    cause: error.message,
+  });
+}
 
 export async function POST(
   _request: Request,
@@ -26,9 +42,14 @@ export async function POST(
       p_team_id: params.teamId,
     });
     if (error) {
-      throw new ApiRouteError(500, "team_decline_failed", "Could not decline team invite.", {
-        cause: error.message,
-      });
+      throw mapDeclineTeamInviteError(error);
+    }
+    if (!data) {
+      throw new ApiRouteError(
+        409,
+        "team_invite_not_actionable",
+        "Team invite is no longer pending or cannot be declined."
+      );
     }
 
     return NextResponse.json(

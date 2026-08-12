@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions, pg_catalog;
-select plan(3);
+select plan(6);
 
 insert into auth.users (id, email)
 values
@@ -67,6 +67,86 @@ values (
 )
 on conflict (id) do nothing;
 
+insert into public.challenges (
+  id,
+  slug,
+  title,
+  status,
+  subject_kind,
+  metric,
+  target_value,
+  starts_at,
+  ends_at,
+  reward_xp,
+  audience_kind,
+  cohort_id
+)
+values (
+  'aa400000-0000-4000-8000-000000000002',
+  'cohort-challenge-expired-scheduled',
+  'Expired scheduled challenge',
+  'scheduled',
+  'user',
+  'total_xp',
+  10,
+  pg_catalog.now() - interval '2 days',
+  pg_catalog.now() - interval '2 hours',
+  5,
+  'cohort',
+  'aa300000-0000-4000-8000-000000000001'
+)
+on conflict (id) do nothing;
+
+insert into public.challenges (
+  id,
+  slug,
+  title,
+  status,
+  subject_kind,
+  metric,
+  target_value,
+  starts_at,
+  ends_at,
+  reward_xp,
+  audience_kind,
+  cohort_id
+)
+values (
+  'aa400000-0000-4000-8000-000000000003',
+  'cohort-challenge-completed',
+  'Completed challenge',
+  'active',
+  'user',
+  'total_xp',
+  10,
+  pg_catalog.now() - interval '2 days',
+  pg_catalog.now() + interval '2 hours',
+  5,
+  'cohort',
+  'aa300000-0000-4000-8000-000000000001'
+)
+on conflict (id) do nothing;
+
+insert into public.challenge_participants (
+  challenge_id,
+  subject_kind,
+  subject_id,
+  progress_value,
+  progress_at,
+  completed_at,
+  awarded_at
+)
+values (
+  'aa400000-0000-4000-8000-000000000003',
+  'user',
+  'aa111111-1111-4111-8111-111111111111',
+  10,
+  pg_catalog.now() - interval '1 hour',
+  pg_catalog.now() - interval '1 hour',
+  pg_catalog.now() - interval '1 hour'
+)
+on conflict (challenge_id, subject_kind, subject_id) do nothing;
+
 reset role;
 set local role authenticated;
 select set_config('request.jwt.claim.role', 'authenticated', true);
@@ -97,6 +177,34 @@ select is(
 select ok(
   public.join_challenge_service('aa400000-0000-4000-8000-000000000001'),
   'cohort member can join cohort challenge'
+);
+
+select throws_ok(
+  $$
+    select public.join_challenge_service('aa400000-0000-4000-8000-000000000002');
+  $$,
+  '22023',
+  'challenge_not_joinable',
+  'expired scheduled challenge is not joinable'
+);
+
+select is(
+  (
+    select count(*)::integer
+    from public.get_social_challenges() challenge
+    where challenge.id = 'aa400000-0000-4000-8000-000000000002'
+  ),
+  0,
+  'expired scheduled challenge is hidden from challenge list'
+);
+
+select throws_ok(
+  $$
+    select public.leave_challenge_service('aa400000-0000-4000-8000-000000000003');
+  $$,
+  '22023',
+  'challenge_not_leaveable',
+  'completed challenge participant cannot leave silently'
 );
 
 select * from finish();

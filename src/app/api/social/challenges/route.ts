@@ -65,6 +65,9 @@ export async function GET() {
 
     const { data, error } = await context.supabase.rpc("get_social_challenges");
     if (error) {
+      if (error.message === "authentication_required") {
+        throw new ApiRouteError(401, "authentication_required", "You must be signed in.");
+      }
       throw new ApiRouteError(
         500,
         "social_challenges_unavailable",

@@ -2,17 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  fetchSocialChallengeDetail,
-  fetchSocialChallenges,
-} from "@/features/social/data";
+import { fetchSocialChallenges } from "@/features/social/data";
 import { ChallengeDetail } from "@/features/social/challenges/challenge-detail";
 import type { SocialChallenge } from "@/features/social/types";
 
 export function ChallengeList() {
   const [items, setItems] = useState<SocialChallenge[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [detail, setDetail] = useState<SocialChallenge | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -22,7 +18,6 @@ export function ChallengeList() {
     }
     return items.find((item) => item.id === selectedId) ?? null;
   }, [items, selectedId]);
-  const selectedDetail = detail && detail.id === selectedId ? detail : null;
 
   const loadChallenges = useCallback(async () => {
     setIsLoading(true);
@@ -30,33 +25,25 @@ export function ChallengeList() {
     try {
       const response = await fetchSocialChallenges();
       setItems(response.items);
-      const nextSelectedId =
-        selectedId && response.items.some((item) => item.id === selectedId)
-          ? selectedId
-          : response.items[0]?.id ?? null;
-      setSelectedId(nextSelectedId);
+      setSelectedId((previousSelectedId) => {
+        if (
+          previousSelectedId &&
+          response.items.some((item) => item.id === previousSelectedId)
+        ) {
+          return previousSelectedId;
+        }
+        return response.items[0]?.id ?? null;
+      });
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "Failed to load challenges.");
     } finally {
       setIsLoading(false);
     }
-  }, [selectedId]);
-
-  const loadDetail = useCallback(async (challengeId: string) => {
-    try {
-      const response = await fetchSocialChallengeDetail(challengeId);
-      setDetail(response.item);
-    } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : "Failed to load challenge.");
-    }
   }, []);
 
   const refreshAll = useCallback(async () => {
     await loadChallenges();
-    if (selectedId) {
-      await loadDetail(selectedId);
-    }
-  }, [loadChallenges, loadDetail, selectedId]);
+  }, [loadChallenges]);
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -66,18 +53,6 @@ export function ChallengeList() {
       window.clearTimeout(timeoutId);
     };
   }, [loadChallenges]);
-
-  useEffect(() => {
-    if (!selectedId) {
-      return;
-    }
-    const timeoutId = window.setTimeout(() => {
-      void loadDetail(selectedId);
-    }, 0);
-    return () => {
-      window.clearTimeout(timeoutId);
-    };
-  }, [loadDetail, selectedId]);
 
   if (isLoading) {
     return (
@@ -141,9 +116,9 @@ export function ChallengeList() {
         </CardContent>
       </Card>
 
-      {selectedDetail ?? selectedChallenge ? (
+      {selectedChallenge ? (
         <ChallengeDetail
-          challenge={selectedDetail ?? selectedChallenge!}
+          challenge={selectedChallenge}
           onUpdated={refreshAll}
         />
       ) : null}

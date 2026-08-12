@@ -14,6 +14,21 @@ const paramsSchema = z.object({
   challengeId: z.uuid(),
 });
 
+function mapChallengeDetailRpcError(message: string) {
+  if (message === "authentication_required") {
+    return new ApiRouteError(401, "authentication_required", "You must be signed in.");
+  }
+  if (message === "challenge_not_found") {
+    return new ApiRouteError(404, "challenge_not_found", "Challenge was not found.");
+  }
+  if (message === "cohort_membership_required") {
+    return new ApiRouteError(403, "cohort_membership_required", "Cohort membership is required.");
+  }
+  return new ApiRouteError(500, "social_challenge_unavailable", "Challenge details are unavailable.", {
+    cause: message,
+  });
+}
+
 function toChallengeDto(row: {
   id: string;
   slug: string;
@@ -76,12 +91,7 @@ export async function GET(
       p_challenge_id: params.challengeId,
     });
     if (error) {
-      throw new ApiRouteError(
-        500,
-        "social_challenge_unavailable",
-        "Challenge details are unavailable.",
-        { cause: error.message }
-      );
+      throw mapChallengeDetailRpcError(error.message);
     }
 
     const row = data?.[0];

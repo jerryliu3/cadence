@@ -67,6 +67,24 @@ function toStandingDto(row: {
   };
 }
 
+function mapLeaderboardRpcError(message: string, isSeasonLookup = false) {
+  if (message.includes("authentication_required")) {
+    return new ApiRouteError(401, "authentication_required", "You must be signed in.");
+  }
+  if (message.includes("season_not_found")) {
+    return new ApiRouteError(404, "season_not_found", "Leaderboard season was not found.");
+  }
+  if (message.includes("cohort_membership_required")) {
+    return new ApiRouteError(403, "cohort_membership_required", "Cohort membership is required.");
+  }
+  return new ApiRouteError(
+    500,
+    isSeasonLookup ? "social_leaderboards_unavailable" : "leaderboard_standings_unavailable",
+    isSeasonLookup ? "Leaderboards are unavailable." : "Leaderboard standings are unavailable.",
+    { cause: message }
+  );
+}
+
 export async function GET(
   request: Request,
   context: { params: Promise<{ seasonId: string }> | { seasonId: string } }
@@ -94,22 +112,10 @@ export async function GET(
       ]);
 
     if (seasonError) {
-      throw new ApiRouteError(500, "social_leaderboards_unavailable", "Leaderboards are unavailable.", {
-        cause: seasonError.message,
-      });
+      throw mapLeaderboardRpcError(seasonError.message, true);
     }
     if (standingsError) {
-      const code = standingsError.message.includes("season_not_found")
-        ? "season_not_found"
-        : "leaderboard_standings_unavailable";
-      throw new ApiRouteError(
-        code === "season_not_found" ? 404 : 500,
-        code,
-        code === "season_not_found"
-          ? "Leaderboard season was not found."
-          : "Leaderboard standings are unavailable.",
-        { cause: standingsError.message }
-      );
+      throw mapLeaderboardRpcError(standingsError.message);
     }
 
     const season = (seasonRows ?? [])[0];

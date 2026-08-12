@@ -179,10 +179,6 @@ export type Database = {
         }
         Returns: boolean
       }
-      refresh_user_challenge_participant: {
-        Args: { p_challenge_id: string; p_now?: string; p_user_id: string }
-        Returns: boolean
-      }
       refresh_xp_profile: {
         Args: { p_track_keys?: string[]; p_user_id: string }
         Returns: undefined
@@ -1905,7 +1901,6 @@ export type Database = {
         }
         Returns: undefined
       }
-      assert_xp_ledger_consistency_service: { Args: never; Returns: number }
       award_social_xp_service: {
         Args: {
           p_event_type: string
@@ -2012,7 +2007,6 @@ export type Database = {
         Returns: boolean
       }
       dissolve_team_service: { Args: never; Returns: boolean }
-      expire_pending_team_invites_service: { Args: never; Returns: number }
       find_profile_by_username: {
         Args: { p_limit?: number; p_query: string }
         Returns: {
