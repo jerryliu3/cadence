@@ -87,9 +87,6 @@ export type TeamStatus =
   | "pending"
   | "active"
   | "closed";
-
-
-
 export interface TeamStateRow {
   teamId: string;
   status: TeamStatus;
