@@ -1107,6 +1107,62 @@ begin
 end;
 $$;
 
+create or replace function public.assert_xp_ledger_consistency_service()
+returns integer
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_count integer := 0;
+  r record;
+begin
+  for r in
+    with ledger as (
+      select
+        user_id,
+        track_key,
+        pg_catalog.sum(xp_delta)::integer as ledger_total
+      from public.xp_ledger
+      group by user_id, track_key
+    ),
+    global_ledger as (
+      select
+        user_id,
+        'global'::text as track_key,
+        pg_catalog.sum(xp_delta)::integer as ledger_total
+      from public.xp_ledger
+      group by user_id
+    ),
+    expected as (
+      select * from global_ledger
+      union all
+      select * from ledger where track_key <> 'global'
+    )
+    select
+      coalesce(e.user_id, p.user_id) as user_id,
+      coalesce(e.track_key, p.track_key) as track_key,
+      coalesce(e.ledger_total, 0) as ledger_total,
+      coalesce(p.total_xp, 0) as profile_total
+    from expected e
+    full outer join public.xp_profiles p
+      on p.user_id = e.user_id
+     and p.track_key = e.track_key
+    where coalesce(e.ledger_total, 0) <> coalesce(p.total_xp, 0)
+  loop
+    v_count := v_count + 1;
+    raise warning 'xp_anomaly kind=drift user=% track=% ledger=% profile=% delta=%',
+      r.user_id,
+      r.track_key,
+      r.ledger_total,
+      r.profile_total,
+      r.ledger_total - r.profile_total;
+  end loop;
+
+  return v_count;
+end;
+$$;
+
 create or replace function private.xp_skip_for_profile_delete(
   p_user_id uuid
 )
@@ -1431,6 +1487,11 @@ grant execute on function public.acknowledge_user_award_service(uuid, uuid)
 grant execute on function public.acknowledge_user_award_service(uuid, uuid)
   to service_role;
 
+revoke all on function public.assert_xp_ledger_consistency_service()
+  from public, anon, authenticated;
+grant execute on function public.assert_xp_ledger_consistency_service()
+  to service_role;
+
 insert into public.xp_profiles (
   user_id,
   track_key,
@@ -1475,5 +1536,13 @@ begin
   loop
     perform cron.unschedule(v_job_id);
   end loop;
+
+  perform cron.schedule(
+    'xp-drift-check-daily',
+    '23 4 * * *',
+    $xp$
+      select public.assert_xp_ledger_consistency_service();
+    $xp$
+  );
 end;
 $$;

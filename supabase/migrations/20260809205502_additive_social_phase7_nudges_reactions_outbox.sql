@@ -520,6 +520,27 @@ begin
 end;
 $$;
 
+create or replace function public.expire_pending_team_invites_service()
+returns integer
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_count integer := 0;
+begin
+  update public.teams team
+  set
+    status = 'closed'::public.team_status,
+    closed_at = pg_catalog.now()
+  where team.status = 'pending'::public.team_status
+    and team.invited_at < pg_catalog.now() - interval '14 days';
+
+  get diagnostics v_count = row_count;
+  return v_count;
+end;
+$$;
+
 create or replace function public.accept_team_invite_service(
   p_team_id uuid,
   p_visibility_acknowledged boolean
@@ -578,6 +599,7 @@ begin
   set
     status = 'active'::public.team_status,
     accepted_at = pg_catalog.now(),
+    closed_at = null,
     visibility_acknowledged_at = pg_catalog.now()
   where team.id = p_team_id
     and team.status = 'pending'::public.team_status
@@ -751,8 +773,8 @@ begin
   update public.teams team
   set
     status = 'closed'::public.team_status,
-    dissolved_at = pg_catalog.now(),
-    closed_at = pg_catalog.now()
+    closed_at = pg_catalog.now(),
+    dissolved_at = pg_catalog.now()
   where team.status = 'active'::public.team_status
     and v_uid in (team.user_a_id, team.user_b_id)
   returning
@@ -978,6 +1000,29 @@ grant execute on function public.resolve_notification_outbox_delivery_service(
   text
 )
   to service_role;
+
+revoke all on function public.expire_pending_team_invites_service()
+  from public, anon, authenticated;
+grant execute on function public.expire_pending_team_invites_service()
+  to service_role;
+
+do $cron$
+begin
+  begin
+    perform cron.unschedule('expire-team-invites-daily');
+  exception
+    when others then null;
+  end;
+
+  perform cron.schedule(
+    'expire-team-invites-daily',
+    '22 4 * * *',
+    $job$select public.expire_pending_team_invites_service()$job$
+  );
+exception
+  when others then null;
+end;
+$cron$;
 
 do $http$
 begin

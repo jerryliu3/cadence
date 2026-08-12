@@ -94,7 +94,7 @@ create or replace function private.next_rollover_end(
 )
 returns timestamptz
 language plpgsql
-stable
+immutable
 set search_path = ''
 as $$
 begin
@@ -617,11 +617,6 @@ begin
   exception
     when others then null;
   end;
-  begin
-    perform cron.unschedule('rollover-leaderboard-seasons-daily');
-  exception
-    when others then null;
-  end;
 
   perform cron.schedule(
     'refresh-leaderboard-standings',
@@ -630,8 +625,8 @@ begin
   );
 
   perform cron.schedule(
-    'rollover-leaderboard-seasons-daily',
-    '5 0 * * *',
+    'rollover-leaderboard-seasons-hourly',
+    '5 * * * *',
     $job$select public.rollover_leaderboard_seasons_service()$job$
   );
 exception
