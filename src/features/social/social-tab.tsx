@@ -184,9 +184,6 @@ export function SocialTab() {
       />
 
       <Card className="shadow-sm">
-        <CardHeader>
-          <CardTitle>Settings menu</CardTitle>
-        </CardHeader>
         <CardContent className="space-y-0 p-0">
           {[
             { key: "preferences", label: "Preferences" },
@@ -196,7 +193,7 @@ export function SocialTab() {
             <button
               key={item.key}
               type="button"
-              className="flex w-full items-center justify-between border-t px-4 py-3 text-left text-sm transition-colors hover:bg-muted/30 first:border-t-0"
+              className="flex w-full items-center justify-between border-t px-4 py-3 text-left text-base font-medium transition-colors hover:bg-muted/30 first:border-t-0"
               onClick={() => {
                 setSettingsSection(
                   item.key as "preferences" | "notifications" | "social"
@@ -223,9 +220,9 @@ export function SocialTab() {
         </CardContent>
       </Card>
 
-      <Dialog open={settingsPanelOpen} onOpenChange={setSettingsPanelOpen}>
+      <Dialog modal={false} open={settingsPanelOpen} onOpenChange={setSettingsPanelOpen}>
         <DialogContent
-          className="!top-0 !right-0 !left-auto !translate-x-0 !translate-y-0 inset-y-0 h-dvh w-[min(100vw,48rem)] max-w-none rounded-none border-l p-0"
+          className="!top-0 !right-0 !left-auto !translate-x-0 !translate-y-0 inset-y-0 h-dvh w-[min(100vw,64rem)] max-w-none rounded-none border-l p-0"
           showCloseButton={false}
         >
           <DialogHeader className="gap-3 border-b px-4 py-3">
