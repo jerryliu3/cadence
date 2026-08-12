@@ -531,7 +531,8 @@ declare
 begin
   update public.teams team
   set
-    status = 'closed'::public.team_status
+    status = 'closed'::public.team_status,
+    closed_at = pg_catalog.now()
   where team.status = 'pending'::public.team_status
     and team.invited_at < pg_catalog.now() - interval '14 days';
 
@@ -567,6 +568,7 @@ begin
   set
     status = 'active'::public.team_status,
     accepted_at = pg_catalog.now(),
+    closed_at = null,
     visibility_acknowledged_at = pg_catalog.now()
   where team.id = p_team_id
     and team.status = 'pending'::public.team_status
@@ -740,6 +742,7 @@ begin
   update public.teams team
   set
     status = 'closed'::public.team_status,
+    closed_at = pg_catalog.now(),
     dissolved_at = pg_catalog.now()
   where team.status = 'active'::public.team_status
     and v_uid in (team.user_a_id, team.user_b_id)
