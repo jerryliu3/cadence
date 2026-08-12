@@ -1,8 +1,8 @@
 import type { GoalFrequencyType, RecurrenceInterval } from "@/lib/goals/types";
 
 export const GOAL_TYPE_OPTIONS: Array<{ value: GoalFrequencyType; label: string }> = [
-  { value: "recurring", label: "Repeat" },
-  { value: "fixed_milestones", label: "Milestone" },
+  { value: "recurring", label: "Repeated" },
+  { value: "fixed_milestones", label: "Milestones" },
 ];
 
 export const RECURRENCE_INTERVAL_OPTIONS: Array<{

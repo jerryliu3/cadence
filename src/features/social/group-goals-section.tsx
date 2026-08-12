@@ -91,7 +91,7 @@ export function GroupGoalsSection({
               </div>
               {groupDraft.frequencyType === "recurring" ? (
                 <div className="space-y-2">
-                  <Label>Recurrence interval</Label>
+                  <Label>Cadence</Label>
                   <RecurrenceIntervalToggle
                     value={groupDraft.recurrenceInterval}
                     onValueChange={(value) =>
@@ -108,8 +108,8 @@ export function GroupGoalsSection({
                 <div className="space-y-2">
                   <Label htmlFor="group-target-count">
                     {groupDraft.frequencyType === "fixed_milestones"
-                      ? "Target count"
-                      : "Target completions (optional)"}
+                      ? "Total target #"
+                      : "Total target # (optional)"}
                   </Label>
                   <TargetCountField
                     id="group-target-count"

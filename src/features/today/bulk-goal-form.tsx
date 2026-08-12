@@ -38,6 +38,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { LoadingCard } from "@/components/ui/loading-card";
 import { Textarea } from "@/components/ui/textarea";
+import { TooltipIcon } from "@/components/ui/tooltip-icon";
 import {
   CategorySelect,
   GoalTypeToggle,
@@ -345,7 +346,7 @@ function buildDraftFromRow(row: Record<string, unknown>, rowIndex: number): Bulk
 
   return withValidatedDraft({
     id: crypto.randomUUID(),
-    sourceRowLabel: `Row ${rowIndex + 2}`,
+    sourceRowLabel: `Row ${rowIndex + 1}`,
     include: true,
     title: extractText(normalizedRow, columnAliases.title),
     description: extractText(normalizedRow, columnAliases.description),
@@ -520,7 +521,7 @@ export function BulkGoalForm({
 
     const nextDrafts = rows.map((row, index) => buildDraftFromRow(row, index));
     setDrafts(nextDrafts);
-    setExpandedDraftId(nextDrafts[0]?.id ?? null);
+    setExpandedDraftId(null);
     toast.success(`Loaded ${nextDrafts.length} goal draft${nextDrafts.length === 1 ? "" : "s"}.`);
   };
 
@@ -844,10 +845,6 @@ export function BulkGoalForm({
                   Parse natural language
                 </Button>
               </div>
-              <p className="text-xs text-muted-foreground">
-                Uses Gemini through a secure server route. Set <code>GEMINI_API_KEY</code> in{" "}
-                <code>.env.local</code>.
-              </p>
             </section>
           ) : (
             <>
@@ -1000,114 +997,124 @@ export function BulkGoalForm({
               const recurrenceSummary =
                 draft.frequency_type === "recurring"
                   ? `Recurring · ${draft.recurrence_interval}`
-                  : `Milestone · ${draft.target_count || "0"} target`;
+                  : `Milestones · ${draft.target_count || "0"} target`;
+              const toggleDraftEditor = () =>
+                setExpandedDraftId((previous) =>
+                  previous === draft.id ? null : draft.id
+                );
 
               return (
-                <Card
-                  key={draft.id}
-                  className={cn(
-                    "border shadow-none",
-                    draft.include && draft.errors.length > 0 && "border-destructive/50"
-                  )}
-                >
-                  <CardContent className="space-y-4 py-4">
-                    <div className="flex flex-wrap items-start justify-between gap-2">
-                      <label className="inline-flex items-center gap-2 text-sm font-medium">
-                        <input
-                          type="checkbox"
-                          checked={draft.include}
-                          onChange={(event) =>
-                            updateDraft(draft.id, (previous) => ({
-                              ...previous,
-                              include: event.target.checked,
-                            }))
-                          }
-                        />
-                        {draft.sourceRowLabel}
-                      </label>
-                      <div className="flex items-center gap-2">
-                        <Button
-                          type="button"
-                          variant={expanded ? "secondary" : "outline"}
-                          size="sm"
-                          onClick={() =>
-                            setExpandedDraftId((previous) =>
-                              previous === draft.id ? null : draft.id
-                            )
-                          }
-                        >
-                          {expanded ? "Close" : "Edit"}
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon-sm"
-                          onClick={() => {
-                            setDrafts((previous) =>
-                              previous.filter((entry) => entry.id !== draft.id)
-                            );
-                            setExpandedDraftId((previous) =>
-                              previous === draft.id ? null : previous
-                            );
-                          }}
-                        >
-                          <Trash2 className="size-4" />
-                        </Button>
+                <div key={draft.id} className="space-y-2">
+                  <div className="flex items-center gap-3">
+                    <label className="inline-flex shrink-0 items-center gap-2 text-sm font-medium">
+                      <input
+                        type="checkbox"
+                        checked={draft.include}
+                        onChange={(event) =>
+                          updateDraft(draft.id, (previous) => ({
+                            ...previous,
+                            include: event.target.checked,
+                          }))
+                        }
+                      />
+                      {draft.sourceRowLabel}
+                    </label>
+                    <div
+                      className={cn(
+                        "min-w-0 flex-1 cursor-pointer rounded-lg border bg-muted/10 px-3 py-2 transition-colors hover:bg-muted/20",
+                        draft.include && draft.errors.length > 0 && "border-destructive/50"
+                      )}
+                      role="button"
+                      tabIndex={0}
+                      onClick={toggleDraftEditor}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          toggleDraftEditor();
+                        }
+                      }}
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex flex-wrap items-center gap-2 text-sm">
+                          <span className="font-medium">
+                            {draft.title.trim().length > 0 ? draft.title : "Untitled goal"}
+                          </span>
+                          <Badge variant="outline">{draft.category_selection}</Badge>
+                          <Badge variant="outline">{recurrenceSummary}</Badge>
+                          <Badge variant="outline">{scheduleSummary}</Badge>
+                          {draft.errors.length > 0 ? (
+                            <Badge variant="destructive">
+                              {draft.errors.length} error{draft.errors.length === 1 ? "" : "s"}
+                            </Badge>
+                          ) : null}
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            className="px-1 text-xs text-muted-foreground hover:text-foreground hover:underline"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              toggleDraftEditor();
+                            }}
+                          >
+                            {expanded ? "close" : "tap to edit"}
+                          </button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon-sm"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              setDrafts((previous) =>
+                                previous.filter((entry) => entry.id !== draft.id)
+                              );
+                              setExpandedDraftId((previous) =>
+                                previous === draft.id ? null : previous
+                              );
+                            }}
+                          >
+                            <Trash2 className="size-4" />
+                          </Button>
+                        </div>
                       </div>
                     </div>
+                  </div>
 
-                    <button
-                      type="button"
-                      className="w-full rounded-lg border bg-muted/10 px-3 py-2 text-left transition-colors hover:bg-muted/20"
-                      onClick={() =>
-                        setExpandedDraftId((previous) =>
-                          previous === draft.id ? null : draft.id
-                        )
-                      }
+                  {expanded && draft.errors.length > 0 ? (
+                    <div className="rounded-lg border border-destructive/40 bg-destructive/5 px-3 py-2">
+                      <ul className="space-y-1 text-xs text-destructive">
+                        {draft.errors.map((error) => (
+                          <li key={`${draft.id}-${error}`}>- {error}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
+
+                  {expanded ? (
+                    <Dialog
+                      open
+                      onOpenChange={(open) => {
+                        if (!open) {
+                          setExpandedDraftId(null);
+                        }
+                      }}
                     >
-                      <div className="flex flex-wrap items-center gap-2 text-sm">
-                        <span className="font-medium">
-                          {draft.title.trim().length > 0 ? draft.title : "Untitled goal"}
-                        </span>
-                        <Badge variant="outline">{draft.category_selection}</Badge>
-                        <Badge variant="outline">{recurrenceSummary}</Badge>
-                        <Badge variant="outline">{scheduleSummary}</Badge>
-                        {draft.errors.length > 0 ? (
-                          <Badge variant="destructive">
-                            {draft.errors.length} error{draft.errors.length === 1 ? "" : "s"}
-                          </Badge>
-                        ) : null}
-                      </div>
-                    </button>
-
-                    {expanded && draft.errors.length > 0 ? (
-                      <div className="rounded-lg border border-destructive/40 bg-destructive/5 px-3 py-2">
-                        <ul className="space-y-1 text-xs text-destructive">
-                          {draft.errors.map((error) => (
-                            <li key={`${draft.id}-${error}`}>- {error}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    ) : null}
-
-                    {expanded ? (
-                      <Dialog
-                        open
-                        onOpenChange={(open) => {
-                          if (!open) {
-                            setExpandedDraftId(null);
-                          }
+                      <DialogContent
+                        overlayClassName="z-[115] bg-black/15"
+                        className="z-[120] max-h-[88vh] overflow-y-auto sm:!max-w-none"
+                        style={{
+                          width: "min(calc(100vw - 1.5rem), 62rem)",
+                          maxWidth: "min(calc(100vw - 1.5rem), 62rem)",
                         }}
                       >
-                        <DialogContent className="max-h-[85vh] overflow-y-auto">
-                          <DialogHeader>
-                            <DialogTitle>
-                              {draft.title.trim().length > 0 ? draft.title : "Edit goal draft"}
-                            </DialogTitle>
-                            <DialogDescription>
-                              Update this draft before creating goals.
-                            </DialogDescription>
-                          </DialogHeader>
+                        <DialogHeader>
+                          <DialogTitle>
+                            {draft.title.trim().length > 0 ? draft.title : "Edit goal draft"}
+                          </DialogTitle>
+                          <DialogDescription>
+                            Update this draft before creating goals.
+                          </DialogDescription>
+                        </DialogHeader>
                     <div className="grid gap-3 sm:grid-cols-2">
                       <div className="space-y-2">
                         <Label>Title</Label>
@@ -1155,7 +1162,13 @@ export function BulkGoalForm({
 
                     <div className="grid gap-3 sm:grid-cols-2">
                       <div className="space-y-2">
-                        <Label>Goal type</Label>
+                        <Label className="inline-flex items-center gap-1">
+                          <span>Goal type</span>
+                          <TooltipIcon
+                            content="Repeated keeps the same action pattern over time. Milestones are unique steps that move you toward a final outcome."
+                            label="Goal type help"
+                          />
+                        </Label>
                         <GoalTypeToggle
                           value={draft.frequency_type}
                           onValueChange={(value) =>
@@ -1183,7 +1196,13 @@ export function BulkGoalForm({
                       </div>
                       {draft.frequency_type === "recurring" ? (
                         <div className="space-y-2">
-                          <Label>Recurrence interval</Label>
+                          <Label className="inline-flex items-center gap-1">
+                            <span>Cadence</span>
+                            <TooltipIcon
+                              content="Cadence controls how often the goal appears in your routine: every day, every week, or every month."
+                              label="Cadence help"
+                            />
+                          </Label>
                           <RecurrenceIntervalToggle
                             value={draft.recurrence_interval}
                             onValueChange={(value) =>
@@ -1199,8 +1218,8 @@ export function BulkGoalForm({
                       <div className="space-y-2">
                         <Label>
                           {draft.frequency_type === "fixed_milestones"
-                            ? "Target count"
-                            : "Target completions (optional)"}
+                            ? "Total target #"
+                            : "Total target # (optional)"}
                         </Label>
                         <TargetCountField
                           frequencyType={draft.frequency_type}
@@ -1400,11 +1419,10 @@ export function BulkGoalForm({
                         </CollapsibleContent>
                       </div>
                     </Collapsible>
-                        </DialogContent>
-                      </Dialog>
-                    ) : null}
-                  </CardContent>
-                </Card>
+                      </DialogContent>
+                    </Dialog>
+                  ) : null}
+                </div>
               );
             })
           )}
