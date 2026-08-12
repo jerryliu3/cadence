@@ -5,13 +5,14 @@ import {
   Archive,
   ChevronDown,
   ChevronUp,
+  CircleAlert,
   CircleHelp,
   LoaderCircle,
   Save,
   Trash2,
   Undo2,
 } from "lucide-react";
-import { endOfMonth, endOfYear, format, startOfMonth, startOfYear } from "date-fns";
+import { endOfMonth, endOfYear, format, startOfMonth } from "date-fns";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
@@ -343,13 +344,6 @@ export function GoalForm({
     }));
   };
 
-  const applyThisYearStartDate = () => {
-    setState((previous) => ({
-      ...previous,
-      start_date: format(startOfYear(new Date()), "yyyy-MM-dd"),
-    }));
-  };
-
   const applyThisYearEndDate = () => {
     setState((previous) => ({
       ...previous,
@@ -579,7 +573,15 @@ export function GoalForm({
               </Button>
             ) : null}
             {validationError ? (
-              <p className="max-w-xs text-right text-sm text-destructive">{validationError}</p>
+              <button
+                type="button"
+                className="inline-flex size-9 items-center justify-center rounded-full border border-destructive/40 text-destructive transition-colors hover:bg-destructive/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive/40"
+                title={validationError}
+                aria-label={validationError}
+                onClick={() => toast.error(validationError)}
+              >
+                <CircleAlert className="size-4" />
+              </button>
             ) : null}
             <Button type="submit" form={goalFormId} disabled={submitDisabled}>
               {saving ? <LoaderCircle className="size-4 animate-spin" /> : <Save className="size-4" />}
@@ -590,7 +592,7 @@ export function GoalForm({
       </CardHeader>
       <CardContent className="space-y-6">
         <form id={goalFormId} className="space-y-4" onSubmit={onSubmit}>
-          <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
+          <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
             <div className="space-y-2">
               <Label htmlFor="goal-title">Title</Label>
               <Input
@@ -634,11 +636,11 @@ export function GoalForm({
           ) : null}
 
           <div
-            className={`grid gap-3 ${
+            className={`grid items-start gap-3 ${
               canShowRecurrenceFields
-                ? "xl:grid-cols-[minmax(0,1fr)_9rem_minmax(0,1fr)]"
-                : "xl:grid-cols-[minmax(0,1fr)_9rem]"
-            } xl:items-start`}
+                ? "grid-cols-[minmax(0,1fr)_7rem_minmax(0,1fr)]"
+                : "grid-cols-[minmax(0,1fr)_7rem]"
+            }`}
           >
             <div className="space-y-2">
               <Label>Goal type</Label>
@@ -674,7 +676,7 @@ export function GoalForm({
             ) : null}
 
             {canShowRecurrenceFields ? (
-              <div className="space-y-2 xl:justify-self-end">
+              <div className="space-y-2">
                 <Label>Recurrence interval</Label>
                 <RecurrenceIntervalToggle
                   value={state.recurrence_interval}
@@ -708,14 +710,14 @@ export function GoalForm({
                   className="text-primary hover:underline"
                   onClick={applyThisMonthStartDate}
                 >
-                  this month
+                  month start
                 </button>
                 <button
                   type="button"
                   className="text-primary hover:underline"
-                  onClick={applyThisYearStartDate}
+                  onClick={applyThisMonthEndDate}
                 >
-                  this year
+                  month end
                 </button>
               </div>
             }
@@ -726,14 +728,14 @@ export function GoalForm({
                   className="text-primary hover:underline"
                   onClick={applyThisMonthEndDate}
                 >
-                  this month
+                  month end
                 </button>
                 <button
                   type="button"
                   className="text-primary hover:underline"
                   onClick={applyThisYearEndDate}
                 >
-                  this year
+                  year end
                 </button>
               </div>
             }
