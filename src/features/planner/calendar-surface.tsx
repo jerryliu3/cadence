@@ -84,7 +84,6 @@ import {
   isValidIanaTimezone,
   resolveUserTimezone,
 } from "@/lib/dates/timezone";
-import { buildTimezoneOptions } from "@/lib/dates/timezone-options";
 import {
   getApiErrorMessage,
   isApiClientError,
@@ -120,7 +119,7 @@ import type {
 } from "@/features/planner/calendar-surface.types";
 import { usePlannerVisibleMonthContexts } from "@/features/planner/use-planner-visible-month-contexts";
 const DAY_PREVIEW_HOVER_DELAY_MS = 1000;
-const DAY_PREVIEW_CLOSE_DELAY_MS = 1000;
+const DAY_PREVIEW_CLOSE_DELAY_MS = 250;
 const DAY_PREVIEW_LONG_PRESS_DELAY_MS = 500;
 const MAX_MONTH_HEADING_SAMPLE = "September 2026";
 const MAX_WEEK_HEADING_SAMPLE = "Sep 30 - Sep 30, 2026";
@@ -204,11 +203,9 @@ export function CalendarSurface({
   const pointerPressActiveRef = useRef(false);
   const pointerInsideDayPreviewRef = useRef(false);
   const dayPreviewRef = useRef<HTMLDivElement | null>(null);
-
-  const timezoneOptions = useMemo(
-    () => buildTimezoneOptions(setupTimezone),
-    [setupTimezone]
-  );
+  const isDayPreviewSurfaceTarget = (target: Element) =>
+    Boolean(target.closest('[data-day-cell="true"]')) ||
+    Boolean(dayPreviewRef.current?.contains(target));
 
   const loadContext = useCallback(
     async ({
@@ -662,7 +659,7 @@ export function CalendarSurface({
     onDismiss: () => {
       setDayPreview(null);
     },
-    shouldIgnoreTarget: (target) => Boolean(target.closest('[data-day-cell="true"]')),
+    shouldIgnoreTarget: isDayPreviewSurfaceTarget,
   });
 
   const submitSetup = async () => {
@@ -997,6 +994,28 @@ export function CalendarSurface({
       });
     }, DAY_PREVIEW_CLOSE_DELAY_MS);
   };
+
+  useEffect(() => {
+    if (!dayPreview || dayPreview.pinned) {
+      return;
+    }
+    const handlePointerMove = (event: PointerEvent) => {
+      const target = event.target;
+      if (!(target instanceof Element)) {
+        return;
+      }
+      if (isDayPreviewSurfaceTarget(target)) {
+        return;
+      }
+      pointerInsideDayPreviewRef.current = false;
+      scheduleHoverPreviewClose(dayPreview.day);
+    };
+
+    window.addEventListener("pointermove", handlePointerMove, { passive: true });
+    return () => {
+      window.removeEventListener("pointermove", handlePointerMove);
+    };
+  }, [dayPreview, scheduleHoverPreviewClose]);
 
   const clearLongPressTimer = () => {
     if (longPressTimerRef.current) {
@@ -2030,7 +2049,6 @@ export function CalendarSurface({
     );
   };
 
-  const canShowSetup = !context?.preferences;
   const showBlockingLoading = loading && context === null;
   const monthLabel = month ? monthToLabel(month) : "Calendar";
   const todayMonth = context?.timezone
@@ -2318,52 +2336,6 @@ export function CalendarSurface({
     </div>
   );
 
-  const setupForm = (
-    <div className="space-y-4">
-      <label className="block space-y-1 text-sm">
-        <span>Timezone (IANA)</span>
-        <Select value={setupTimezone} onValueChange={setSetupTimezone}>
-          <SelectTrigger>
-            <SelectValue placeholder="Select timezone" />
-          </SelectTrigger>
-          <SelectContent className="max-h-80">
-            {timezoneOptions.map((timezone) => (
-              <SelectItem key={timezone} value={timezone}>
-                {timezone}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </label>
-      <label className="block space-y-1 text-sm">
-        <span>First day of week</span>
-        <Select
-          value={`${setupWeekStartsOn}`}
-          onValueChange={(value) =>
-            setSetupWeekStartsOn(
-              normalizeWeekStartsOn(Number.parseInt(value, 10))
-            )
-          }
-        >
-          <SelectTrigger>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {restWeekdayOptions.map((option) => (
-              <SelectItem key={option.value} value={`${option.value}`}>
-                {option.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </label>
-      {restWeekdaysField}
-      <Button type="button" onClick={submitSetup} disabled={setupLoading}>
-        {setupLoading ? "Saving setup..." : "Save setup"}
-      </Button>
-    </div>
-  );
-
   const plannerSettingsForm = (
     <div className="space-y-4">
       <p className="text-sm text-muted-foreground">
@@ -2501,17 +2473,6 @@ export function CalendarSurface({
       ) : error ? (
         <div className="rounded-xl border bg-card p-6 text-sm text-destructive">
           {error}
-        </div>
-      ) : canShowSetup ? (
-        <div className="rounded-xl border bg-card p-4 shadow-sm">
-          <div className="mb-3 flex items-center gap-2">
-            <Settings className="size-4 text-primary" />
-            <h3 className="text-base font-semibold">Plan setup</h3>
-          </div>
-          <p className="mb-4 text-sm text-muted-foreground">
-            Confirm timezone and manual defaults before generating planner previews.
-          </p>
-          {setupForm}
         </div>
       ) : month ? (
         <>
@@ -2748,7 +2709,12 @@ export function CalendarSurface({
                     }}
                     onMouseLeave={() => {
                       pointerInsideDayPreviewRef.current = false;
-                      scheduleHoverPreviewClose(dayPreview.day);
+                      if (dayPreview.pinned) {
+                        return;
+                      }
+                      clearHoverPreviewTimer();
+                      clearHoverPreviewCloseTimer();
+                      setDayPreview(null);
                     }}
                     title={format(
                       parse(dayPreview.day, "yyyy-MM-dd", new Date()),

@@ -108,7 +108,7 @@ export function XpLevelBadge() {
   }
 
   return (
-    <div className="flex flex-col items-end gap-1">
+    <div className="flex flex-col items-start gap-1">
       <Badge variant="secondary">{`Lv ${profile.currentLevel} · ${profile.totalXp} XP`}</Badge>
       <p className="text-xs text-muted-foreground">
         {profile.nextLevel !== null && profile.xpToNextLevel !== null

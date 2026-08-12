@@ -1426,3 +1426,502 @@ values
     null,
     now() - interval '7 hours'
   );
+
+-- Additional social demo scenarios for recent rollouts:
+-- - cohort-scoped visibility partitions
+-- - archived/closed historical records
+-- - broader feed/reaction/nudge/outbox coverage
+
+insert into public.cohorts (
+  id,
+  slug,
+  title,
+  description,
+  join_code,
+  is_active,
+  created_by
+)
+values (
+  '70000000-0000-4000-8000-000000000002',
+  'seed-builders-cohort',
+  'Builders Cohort',
+  'Second seeded cohort to demo scope-restricted challenges and leaderboards.',
+  'BUILD2',
+  true,
+  '11111111-1111-4111-8111-111111111111'
+);
+
+insert into public.cohort_members (cohort_id, user_id, role)
+values
+  ('70000000-0000-4000-8000-000000000002', '11111111-1111-4111-8111-111111111111', 'manager'),
+  ('70000000-0000-4000-8000-000000000002', '22222222-2222-4222-8222-222222222222', 'member');
+
+insert into public.teams (
+  id,
+  user_a_id,
+  user_b_id,
+  initiator_id,
+  status,
+  invite_message,
+  visibility_acknowledged_at,
+  invited_at,
+  accepted_at,
+  dissolved_at,
+  closed_at
+)
+values
+  (
+    '71000000-0000-4000-8000-000000000003',
+    '11111111-1111-4111-8111-111111111111',
+    '22222222-2222-4222-8222-222222222222',
+    '11111111-1111-4111-8111-111111111111',
+    'pending',
+    'Want to pair on the builders cohort challenge?',
+    null,
+    now() - interval '5 hours',
+    null,
+    null,
+    null
+  ),
+  (
+    '71000000-0000-4000-8000-000000000004',
+    '11111111-1111-4111-8111-111111111111',
+    '33333333-3333-4333-8333-333333333333',
+    '11111111-1111-4111-8111-111111111111',
+    'closed',
+    'Historical team used for closed-state demos.',
+    now() - interval '45 days',
+    now() - interval '46 days',
+    now() - interval '45 days',
+    now() - interval '32 days',
+    now() - interval '32 days'
+  );
+
+insert into public.challenges (
+  id,
+  slug,
+  title,
+  description,
+  status,
+  subject_kind,
+  metric,
+  metric_track_key,
+  target_value,
+  starts_at,
+  ends_at,
+  reward_xp,
+  max_participants,
+  created_by,
+  audience_kind,
+  cohort_id
+)
+values
+  (
+    '72000000-0000-4000-8000-000000000006',
+    'seed-builders-career-push',
+    'Builders Career Push',
+    'Active cohort-scoped category XP challenge for Alice and Bob.',
+    'active',
+    'user',
+    'category_xp',
+    'career',
+    120,
+    now() - interval '3 days',
+    now() + interval '6 days',
+    95,
+    12,
+    '11111111-1111-4111-8111-111111111111',
+    'cohort',
+    '70000000-0000-4000-8000-000000000002'
+  ),
+  (
+    '72000000-0000-4000-8000-000000000007',
+    'seed-archived-team-streak',
+    'Archived Team Streak',
+    'Archived team challenge retained for admin/history demos.',
+    'archived',
+    'team',
+    'completions_count',
+    null,
+    14,
+    now() - interval '40 days',
+    now() - interval '10 days',
+    75,
+    null,
+    '22222222-2222-4222-8222-222222222222',
+    'global',
+    null
+  );
+
+insert into public.challenge_participants (
+  challenge_id,
+  subject_kind,
+  subject_id,
+  joined_at,
+  progress_value,
+  progress_at,
+  completed_at,
+  awarded_at
+)
+values
+  (
+    '72000000-0000-4000-8000-000000000006',
+    'user',
+    '11111111-1111-4111-8111-111111111111',
+    now() - interval '3 days',
+    96,
+    now() - interval '45 minutes',
+    null,
+    null
+  ),
+  (
+    '72000000-0000-4000-8000-000000000006',
+    'user',
+    '22222222-2222-4222-8222-222222222222',
+    now() - interval '3 days',
+    132,
+    now() - interval '75 minutes',
+    now() - interval '75 minutes',
+    now() - interval '40 minutes'
+  ),
+  (
+    '72000000-0000-4000-8000-000000000007',
+    'team',
+    '71000000-0000-4000-8000-000000000001',
+    now() - interval '39 days',
+    17,
+    now() - interval '11 days',
+    now() - interval '11 days',
+    now() - interval '10 days'
+  );
+
+insert into public.leaderboard_seasons (
+  id,
+  slug,
+  title,
+  subject_kind,
+  metric,
+  metric_track_key,
+  starts_at,
+  ends_at,
+  status,
+  rollover,
+  previous_season_id,
+  created_by,
+  scope,
+  cohort_id
+)
+values
+  (
+    '74000000-0000-4000-8000-000000000004',
+    'seed-builders-career-open',
+    'Builders Career Open Season',
+    'user',
+    'category_xp',
+    'career',
+    now() - interval '6 days',
+    now() + interval '1 day',
+    'open',
+    'weekly',
+    null,
+    '11111111-1111-4111-8111-111111111111',
+    'cohort',
+    '70000000-0000-4000-8000-000000000002'
+  ),
+  (
+    '74000000-0000-4000-8000-000000000005',
+    'seed-team-closed-global',
+    'Seed Team Closed Global Season',
+    'team',
+    'completions_count',
+    null,
+    now() - interval '40 days',
+    now() - interval '12 days',
+    'closed',
+    'none',
+    null,
+    '22222222-2222-4222-8222-222222222222',
+    'global',
+    null
+  );
+
+insert into public.leaderboard_standings (
+  season_id,
+  subject_kind,
+  subject_id,
+  score,
+  tie_break_at,
+  rank,
+  refreshed_at
+)
+values
+  (
+    '74000000-0000-4000-8000-000000000004',
+    'user',
+    '11111111-1111-4111-8111-111111111111',
+    165,
+    now() - interval '4 hours',
+    1,
+    now() - interval '10 minutes'
+  ),
+  (
+    '74000000-0000-4000-8000-000000000004',
+    'user',
+    '22222222-2222-4222-8222-222222222222',
+    142,
+    now() - interval '5 hours',
+    2,
+    now() - interval '10 minutes'
+  );
+
+insert into public.leaderboard_season_results (
+  season_id,
+  subject_kind,
+  subject_id,
+  score,
+  tie_break_at,
+  rank,
+  display_name,
+  frozen_at
+)
+values
+  (
+    '74000000-0000-4000-8000-000000000005',
+    'team',
+    '71000000-0000-4000-8000-000000000001',
+    27,
+    now() - interval '13 days',
+    1,
+    'Bob Chen + Carla Diaz',
+    now() - interval '12 days'
+  );
+
+insert into public.feed_events (
+  id,
+  actor_id,
+  event_type,
+  subject_key,
+  bucket_date,
+  track_key,
+  goal_id,
+  xp_delta,
+  occurrence_count,
+  payload,
+  reaction_count,
+  hidden_at,
+  hidden_by,
+  hidden_reason,
+  created_at,
+  updated_at
+)
+values
+  (
+    '73000000-0000-4000-8000-000000000011',
+    '22222222-2222-4222-8222-222222222222',
+    'challenge_completed',
+    '72000000-0000-4000-8000-000000000006',
+    current_date - 1,
+    'career',
+    null,
+    95,
+    1,
+    jsonb_build_object('challengeId', '72000000-0000-4000-8000-000000000006', 'subjectKind', 'user'),
+    1,
+    null,
+    null,
+    null,
+    now() - interval '2 hours',
+    now() - interval '2 hours'
+  ),
+  (
+    '73000000-0000-4000-8000-000000000012',
+    '22222222-2222-4222-8222-222222222222',
+    'season_result',
+    '74000000-0000-4000-8000-000000000005',
+    current_date - 12,
+    null,
+    null,
+    0,
+    1,
+    jsonb_build_object('seasonId', '74000000-0000-4000-8000-000000000005', 'rank', 1, 'score', 27),
+    0,
+    null,
+    null,
+    null,
+    now() - interval '12 days',
+    now() - interval '12 days'
+  ),
+  (
+    '73000000-0000-4000-8000-000000000013',
+    '11111111-1111-4111-8111-111111111111',
+    'team_formed',
+    '71000000-0000-4000-8000-000000000004',
+    current_date - 46,
+    null,
+    null,
+    0,
+    1,
+    jsonb_build_object('teamId', '71000000-0000-4000-8000-000000000004', 'historical', true),
+    0,
+    null,
+    null,
+    null,
+    now() - interval '46 days',
+    now() - interval '46 days'
+  );
+
+insert into public.feed_reactions (
+  feed_event_id,
+  user_id,
+  reaction,
+  created_at
+)
+values (
+  '73000000-0000-4000-8000-000000000011',
+  '11111111-1111-4111-8111-111111111111',
+  'fire',
+  now() - interval '100 minutes'
+);
+
+insert into public.nudges (
+  id,
+  team_id,
+  from_user_id,
+  to_user_id,
+  kind,
+  goal_id,
+  message,
+  created_at
+)
+values (
+  '75000000-0000-4000-8000-000000000004',
+  '71000000-0000-4000-8000-000000000001',
+  '33333333-3333-4333-8333-333333333333',
+  '22222222-2222-4222-8222-222222222222',
+  'custom',
+  '10000000-0000-4000-8000-000000000006',
+  'Great momentum on the cohort push.',
+  now() - interval '95 minutes'
+);
+
+insert into public.notification_outbox (
+  id,
+  user_id,
+  kind,
+  title,
+  body,
+  url,
+  dedupe_key,
+  state,
+  attempts,
+  last_error,
+  available_at,
+  sent_at,
+  created_at
+)
+values
+  (
+    '76000000-0000-4000-8000-000000000005',
+    '33333333-3333-4333-8333-333333333333',
+    'team_accepted',
+    'Invite accepted',
+    'Bob accepted your team invite.',
+    '/social',
+    'seed-team-accepted-1',
+    'sent',
+    1,
+    null,
+    now() - interval '14 days',
+    now() - interval '14 days',
+    now() - interval '14 days'
+  ),
+  (
+    '76000000-0000-4000-8000-000000000006',
+    '11111111-1111-4111-8111-111111111111',
+    'team_dissolved',
+    'Team dissolved',
+    'A historical team partnership was closed.',
+    '/social',
+    'seed-team-dissolved-1',
+    'pending',
+    0,
+    null,
+    now() - interval '15 minutes',
+    null,
+    now() - interval '20 minutes'
+  ),
+  (
+    '76000000-0000-4000-8000-000000000007',
+    '22222222-2222-4222-8222-222222222222',
+    'challenge_joined',
+    'Challenge joined',
+    'Alice joined Builders Career Push.',
+    '/social',
+    'seed-challenge-joined-1',
+    'sent',
+    1,
+    null,
+    now() - interval '3 hours',
+    now() - interval '2 hours',
+    now() - interval '3 hours'
+  ),
+  (
+    '76000000-0000-4000-8000-000000000008',
+    '11111111-1111-4111-8111-111111111111',
+    'challenge_completed',
+    'Challenge completed',
+    'Bob completed Builders Career Push.',
+    '/social',
+    'seed-challenge-completed-1',
+    'sent',
+    1,
+    null,
+    now() - interval '90 minutes',
+    now() - interval '80 minutes',
+    now() - interval '90 minutes'
+  ),
+  (
+    '76000000-0000-4000-8000-000000000009',
+    '22222222-2222-4222-8222-222222222222',
+    'season_closed',
+    'Season closed',
+    'Seed Team Closed Global Season is now final.',
+    '/social',
+    'seed-season-closed-1',
+    'failed',
+    2,
+    'push_gateway_429',
+    now() - interval '11 days',
+    null,
+    now() - interval '11 days'
+  ),
+  (
+    '76000000-0000-4000-8000-000000000010',
+    '11111111-1111-4111-8111-111111111111',
+    'planner_proposal',
+    'Partner proposal ready',
+    'A partner planner proposal is waiting for review.',
+    '/social',
+    'seed-planner-proposal-1',
+    'pending',
+    0,
+    null,
+    now() - interval '25 minutes',
+    null,
+    now() - interval '30 minutes'
+  ),
+  (
+    '76000000-0000-4000-8000-000000000011',
+    '22222222-2222-4222-8222-222222222222',
+    'planner_proposal_decided',
+    'Proposal updated',
+    'Your partner responded to the planner proposal.',
+    '/social',
+    'seed-planner-proposal-decided-1',
+    'skipped',
+    1,
+    'notifications_disabled',
+    now() - interval '70 minutes',
+    null,
+    now() - interval '70 minutes'
+  );

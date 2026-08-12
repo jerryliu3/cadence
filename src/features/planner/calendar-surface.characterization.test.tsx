@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { CalendarSurface } from "./calendar-surface";
 import type {
@@ -172,5 +172,149 @@ describe("CalendarSurface characterization", () => {
     expect(dayCell).not.toHaveAccessibleName(
       expect.stringContaining("2 planned items")
     );
+  });
+
+  it("renders calendar directly when planner preferences are missing", async () => {
+    const context = buildContext([
+      unit({
+        originalGoalId: "goal-a",
+        unitKey: "total:1",
+        scheduledDate: "2026-08-31",
+      }),
+    ]);
+    getJsonMock.mockResolvedValue({
+      ...context,
+      preferences: null,
+    });
+    usePlannerVisibleMonthContextsMock.mockReturnValue({});
+
+    render(
+      <CalendarSurface
+        activeTab="calendar"
+        month="2026-08"
+        selectedDay={null}
+        viewMode="month"
+        onMonthChange={vi.fn()}
+        onViewModeChange={vi.fn()}
+        onSelectedDayChange={vi.fn()}
+        onPlannerMutation={vi.fn()}
+      />
+    );
+
+    await waitFor(() => {
+      expect(getJsonMock).toHaveBeenCalledWith("/api/planner/context", {
+        query: { scopeMonth: "2026-08" },
+      });
+    });
+
+    expect(screen.queryByText("Plan setup")).not.toBeInTheDocument();
+    expect(await screen.findAllByRole("button", { name: "Go to today" })).not.toHaveLength(0);
+  });
+
+  it("dismisses unpinned day preview after pointer leaves preview surface", async () => {
+    const context = buildContext([
+      unit({
+        originalGoalId: "goal-a",
+        unitKey: "total:1",
+        scheduledDate: "2026-08-31",
+      }),
+    ]);
+    getJsonMock.mockResolvedValue(context);
+    usePlannerVisibleMonthContextsMock.mockReturnValue({});
+
+    render(
+      <CalendarSurface
+        activeTab="calendar"
+        month="2026-08"
+        selectedDay={null}
+        viewMode="month"
+        onMonthChange={vi.fn()}
+        onViewModeChange={vi.fn()}
+        onSelectedDayChange={vi.fn()}
+        onPlannerMutation={vi.fn()}
+      />
+    );
+
+    await waitFor(() => {
+      expect(getJsonMock).toHaveBeenCalledWith("/api/planner/context", {
+        query: { scopeMonth: "2026-08" },
+      });
+    });
+
+    const dayCell = await waitFor(() => {
+      const match = document.querySelector('[data-day-cell="true"][data-day="2026-08-31"]');
+      if (!(match instanceof HTMLButtonElement)) {
+        throw new Error("Expected calendar day cell for 2026-08-31.");
+      }
+      return match;
+    });
+    fireEvent.mouseEnter(dayCell);
+
+    const expandAction = await screen.findByText("Expand", {}, { timeout: 2500 });
+    expect(expandAction).toBeInTheDocument();
+
+    const popup = document.querySelector('[data-no-swipe="true"].fixed');
+    expect(popup).not.toBeNull();
+    fireEvent.mouseEnter(popup as Element);
+    fireEvent.mouseLeave(dayCell);
+
+    // Simulates the "mouseleave did not fire on popup" stuck path.
+    fireEvent.pointerMove(document.body);
+
+    await waitFor(() => {
+      expect(screen.queryByText("Expand")).not.toBeInTheDocument();
+    }, { timeout: 2500 });
+  });
+
+  it("closes hover preview quickly when mouse leaves popup", async () => {
+    const context = buildContext([
+      unit({
+        originalGoalId: "goal-a",
+        unitKey: "total:1",
+        scheduledDate: "2026-08-31",
+      }),
+    ]);
+    getJsonMock.mockResolvedValue(context);
+    usePlannerVisibleMonthContextsMock.mockReturnValue({});
+
+    render(
+      <CalendarSurface
+        activeTab="calendar"
+        month="2026-08"
+        selectedDay={null}
+        viewMode="month"
+        onMonthChange={vi.fn()}
+        onViewModeChange={vi.fn()}
+        onSelectedDayChange={vi.fn()}
+        onPlannerMutation={vi.fn()}
+      />
+    );
+
+    await waitFor(() => {
+      expect(getJsonMock).toHaveBeenCalledWith("/api/planner/context", {
+        query: { scopeMonth: "2026-08" },
+      });
+    });
+
+    const dayCell = await waitFor(() => {
+      const match = document.querySelector('[data-day-cell="true"][data-day="2026-08-31"]');
+      if (!(match instanceof HTMLButtonElement)) {
+        throw new Error("Expected calendar day cell for 2026-08-31.");
+      }
+      return match;
+    });
+    fireEvent.mouseEnter(dayCell);
+
+    const expandAction = await screen.findByText("Expand", {}, { timeout: 2500 });
+    expect(expandAction).toBeInTheDocument();
+
+    const popup = document.querySelector('[data-no-swipe="true"].fixed');
+    expect(popup).not.toBeNull();
+    fireEvent.mouseEnter(popup as Element);
+    fireEvent.mouseLeave(popup as Element);
+
+    await waitFor(() => {
+      expect(screen.queryByText("Expand")).not.toBeInTheDocument();
+    }, { timeout: 300 });
   });
 });

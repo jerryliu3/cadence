@@ -1,4 +1,4 @@
-import { cleanup, render, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { XpLevelBadge } from "./xp-level-badge";
 
@@ -94,5 +94,32 @@ describe("XpLevelBadge", () => {
     );
     expect(acknowledgeCalls).toHaveLength(2);
     expect(toastSuccessMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("aligns level and progress lines from the same left edge", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          profile: {
+            totalXp: 220,
+            currentLevel: 2,
+            nextLevel: 3,
+            xpToNextLevel: 30,
+          },
+          pendingAwards: [],
+        }),
+        { status: 200 }
+      )
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<XpLevelBadge />);
+
+    const levelLine = await screen.findByText("Lv 2 · 220 XP");
+    const progressLine = await screen.findByText("30 XP to Lv 3");
+    const wrapper = levelLine.closest("div");
+    expect(wrapper).not.toBeNull();
+    expect(progressLine).toBeInTheDocument();
+    expect(wrapper?.className).toContain("items-start");
   });
 });
