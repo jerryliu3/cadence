@@ -6,9 +6,14 @@ import type {
   PlannerContextPayload,
   PlannerVisibleMonthContextPayload,
 } from "@/features/planner/calendar-surface.types";
+import {
+  readTabDataCache,
+  writeTabDataCache,
+} from "@/lib/cache/tab-data-cache";
 import { MAX_HORIZON_MONTHS } from "@/lib/planner/contracts/bounds";
 
 const VISIBLE_MONTH_FETCH_DEBOUNCE_MS = 80;
+const PLANNER_VISIBLE_MONTH_CACHE_PREFIX = "planner-visible-month-context:";
 
 interface UsePlannerVisibleMonthContextsArgs {
   activeTab: CalendarTab;
@@ -69,9 +74,34 @@ export function usePlannerVisibleMonthContexts({
     }
     let cancelled = false;
     const abortController = new AbortController();
+    const cachedEntries: Array<readonly [string, PlannerVisibleMonthContextPayload]> = [];
+    const monthsToFetch: string[] = [];
+    for (const visibleMonth of visibleMonths) {
+      const cacheKey = `${PLANNER_VISIBLE_MONTH_CACHE_PREFIX}${visibleMonth}`;
+      const cachedPayload = readTabDataCache<PlannerVisibleMonthContextPayload>(cacheKey);
+      if (cachedPayload) {
+        cachedEntries.push([visibleMonth, cachedPayload] as const);
+      } else {
+        monthsToFetch.push(visibleMonth);
+      }
+    }
+
+    if (monthsToFetch.length === 0) {
+      const syncTimer = window.setTimeout(() => {
+        if (cancelled) {
+          return;
+        }
+        setVisibleMonthContexts(Object.fromEntries(cachedEntries));
+      }, 0);
+      return () => {
+        cancelled = true;
+        window.clearTimeout(syncTimer);
+      };
+    }
+
     const timer = window.setTimeout(() => {
       void Promise.allSettled(
-        visibleMonths.map(async (visibleMonth) => {
+        monthsToFetch.map(async (visibleMonth) => {
           const query = new URLSearchParams({
             scopeMonth: visibleMonth,
           });
@@ -101,13 +131,17 @@ export function usePlannerVisibleMonthContexts({
           }
           const entries: Array<
             readonly [string, PlannerVisibleMonthContextPayload]
-          > = [];
+          > = [...cachedEntries];
           results.forEach((result, index) => {
             if (result.status === "fulfilled") {
               entries.push(result.value);
+              writeTabDataCache(
+                `${PLANNER_VISIBLE_MONTH_CACHE_PREFIX}${result.value[0]}`,
+                result.value[1]
+              );
               return;
             }
-            const visibleMonth = visibleMonths[index] ?? null;
+            const visibleMonth = monthsToFetch[index] ?? null;
             const errorMessage =
               result.reason instanceof Error
                 ? result.reason.message

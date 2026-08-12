@@ -92,6 +92,7 @@ import {
   putJson,
 } from "@/lib/api/client";
 import { useOutsidePointerDismiss } from "@/lib/ui/use-outside-pointer-dismiss";
+import { readTabDataCache, writeTabDataCache } from "@/lib/cache/tab-data-cache";
 import {
   type CompletionDispatchDecision,
   resolveCompletionDispatch,
@@ -130,6 +131,7 @@ const ROLLING_WEEK_GRID_LABELS_CLASS =
 const ROLLING_WEEK_GRID_CELLS_CLASS =
   "mt-2 grid min-w-[calc(7*((100%-1rem)/3))] grid-cols-[repeat(7,minmax(0,calc((100%-1rem)/3)))] gap-2 md:min-w-[calc(7*((100%-2rem)/5))] md:grid-cols-[repeat(7,minmax(0,calc((100%-2rem)/5)))] xl:min-w-0 xl:grid-cols-7";
 const DRAFT_MOVE_PREVIEW_REFRESH_DELAY_MS = 200;
+const PLANNER_CONTEXT_CACHE_PREFIX = "planner-context:";
 const SCOPE_ONLY_ELIGIBILITY_REASONS = new Set([
   "end_outside_scope",
   "starts_after_scope",
@@ -224,7 +226,8 @@ export function CalendarSurface({
       return false;
     }
 
-    if (showLoading) {
+    let shouldShowLoading = showLoading;
+    if (shouldShowLoading) {
       setError(null);
     }
     if (!month) {
@@ -233,7 +236,21 @@ export function CalendarSurface({
       return true;
     }
 
-    if (showLoading) {
+    const plannerContextCacheKey = `${PLANNER_CONTEXT_CACHE_PREFIX}${month}`;
+    const cachedContextPayload = readTabDataCache<PlannerContextPayload>(plannerContextCacheKey);
+    if (cachedContextPayload) {
+      setContext(cachedContextPayload);
+      if (cachedContextPayload.preferences?.timezone) {
+        setSetupTimezone(cachedContextPayload.preferences.timezone);
+        setSetupWeekStartsOn(
+          normalizeWeekStartsOn(cachedContextPayload.preferences.defaultPolicy.weekStartsOn)
+        );
+        setSetupRestWeekdays(cachedContextPayload.preferences.defaultPolicy.restWeekdays);
+      }
+      shouldShowLoading = false;
+    }
+
+    if (shouldShowLoading) {
       setLoading(true);
     }
     let contextPayload: PlannerContextPayload;
@@ -242,14 +259,14 @@ export function CalendarSurface({
         query: { scopeMonth: month },
       });
     } catch (error) {
-      if (showLoading) {
+      if (shouldShowLoading) {
         setLoading(false);
       }
       const message = getApiErrorMessage(
         error,
         "Planner calendar context could not be loaded."
       );
-      if (showLoading) {
+      if (shouldShowLoading) {
         setContext(null);
         setError(message);
       }
@@ -258,11 +275,12 @@ export function CalendarSurface({
       }
       return false;
     }
-    if (showLoading) {
+    if (shouldShowLoading) {
       setLoading(false);
     }
 
     setContext(contextPayload);
+    writeTabDataCache(plannerContextCacheKey, contextPayload);
     if (contextPayload.preferences?.timezone) {
       setSetupTimezone(contextPayload.preferences.timezone);
       setSetupWeekStartsOn(
