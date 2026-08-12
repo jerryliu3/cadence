@@ -3,6 +3,117 @@ create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions, pg_catalog;
 select plan(7);
 
+insert into auth.users (id, email)
+values
+  ('11111111-1111-4111-8111-111111111111', 'rpc-rls-alice@example.com'),
+  ('22222222-2222-4222-8222-222222222222', 'rpc-rls-bob@example.com')
+on conflict (id) do nothing;
+
+insert into public.profiles (id, username, timezone)
+values
+  ('11111111-1111-4111-8111-111111111111', 'rpc_rls_alice', 'UTC'),
+  ('22222222-2222-4222-8222-222222222222', 'rpc_rls_bob', 'UTC')
+on conflict (id) do update
+set timezone = excluded.timezone;
+
+set local role service_role;
+
+insert into public.goals (
+  id,
+  owner_id,
+  title,
+  description,
+  category,
+  color,
+  frequency_type,
+  recurrence_interval,
+  target_count,
+  start_date,
+  end_date,
+  is_group
+)
+values
+  (
+    '10000000-0000-4000-8000-000000000003',
+    '11111111-1111-4111-8111-111111111111',
+    'RPC RLS root goal',
+    null,
+    'health',
+    '#10b981',
+    'recurring',
+    'weekly',
+    3,
+    current_date - 14,
+    current_date + 14,
+    false
+  ),
+  (
+    '10000000-0000-4000-8000-000000000004',
+    '11111111-1111-4111-8111-111111111111',
+    'RPC RLS linked goal',
+    null,
+    'health',
+    '#10b981',
+    'recurring',
+    'weekly',
+    3,
+    current_date - 14,
+    current_date + 14,
+    false
+  ),
+  (
+    '10000000-0000-4000-8000-000000000009',
+    '22222222-2222-4222-8222-222222222222',
+    'RPC RLS Bob private goal',
+    null,
+    'health',
+    '#10b981',
+    'recurring',
+    'weekly',
+    3,
+    current_date - 14,
+    current_date + 14,
+    false
+  ),
+  (
+    '10000000-0000-4000-8000-000000000011',
+    '11111111-1111-4111-8111-111111111111',
+    'RPC RLS target-total goal',
+    null,
+    'health',
+    '#10b981',
+    'fixed_milestones',
+    'weekly',
+    5,
+    current_date - 14,
+    current_date + 14,
+    false
+  )
+on conflict (id) do update
+set
+  owner_id = excluded.owner_id,
+  frequency_type = excluded.frequency_type,
+  recurrence_interval = excluded.recurrence_interval,
+  target_count = excluded.target_count,
+  start_date = excluded.start_date,
+  end_date = excluded.end_date,
+  is_group = excluded.is_group;
+
+insert into public.goal_links (id, owner_id, source_goal_id, target_goal_id)
+values (
+  '10000000-0000-4000-8000-000000000404',
+  '11111111-1111-4111-8111-111111111111',
+  '10000000-0000-4000-8000-000000000003',
+  '10000000-0000-4000-8000-000000000004'
+)
+on conflict (source_goal_id, target_goal_id) do update
+set
+  id = excluded.id,
+  owner_id = excluded.owner_id,
+  source_goal_id = excluded.source_goal_id,
+  target_goal_id = excluded.target_goal_id;
+
+reset role;
 set local role authenticated;
 select set_config(
   'request.jwt.claim.sub',
