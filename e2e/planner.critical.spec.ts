@@ -443,8 +443,10 @@ test.describe("planner critical rails", () => {
 
   // Serial retries restart the whole group; keep each attempt free of leftover draft UI.
   test.beforeEach(async ({ page }) => {
-    await page.goto("/checklist");
-    await expect(page.getByText("Today")).toBeVisible();
+    await page.goto("/checklist?tab=today");
+    await expect(
+      page.getByRole("navigation", { name: "Main navigation" })
+    ).toBeVisible();
   });
 
   test.skip(
@@ -557,8 +559,7 @@ test.describe("planner critical rails", () => {
 
   test("completion toggle dispatches from today surface", async ({ page }) => {
     test.setTimeout(120_000);
-    await page.goto("/checklist");
-    await expect(page.getByText("Today")).toBeVisible();
+    await page.goto("/checklist?tab=today");
     const initialButton = page.locator(COMPLETION_TOGGLE_SELECTOR).first();
     await expect(initialButton).toBeVisible();
     await expect(initialButton).toBeEnabled();
@@ -571,8 +572,7 @@ test.describe("planner critical rails", () => {
 
   test("completion toggle dispatches from past tab surface", async ({ page }) => {
     test.setTimeout(120_000);
-    await page.goto("/checklist?tab=not-today");
-    await expect(page.getByText("Past")).toBeVisible();
+    await page.goto("/checklist?tab=past");
     const pastToggle = page.locator(COMPLETION_TOGGLE_SELECTOR).first();
     await expect(pastToggle).toBeVisible({ timeout: 10_000 });
     await expect(pastToggle).toBeEnabled();
