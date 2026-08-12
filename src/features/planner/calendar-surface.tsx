@@ -125,6 +125,10 @@ const MAX_MONTH_HEADING_SAMPLE = "September 2026";
 const MAX_WEEK_HEADING_SAMPLE = "Sep 30 - Sep 30, 2026";
 const MAX_THREE_DAY_HEADING_SAMPLE = "Sep 30 - Oct 2, 2026";
 const MAX_DAY_HEADING_SAMPLE = "Wed Aug 30";
+const ROLLING_WEEK_GRID_LABELS_CLASS =
+  "grid min-w-[calc(7*((100%-1rem)/3))] grid-cols-[repeat(7,minmax(0,calc((100%-1rem)/3)))] gap-2 text-center text-xs text-muted-foreground md:min-w-[calc(7*((100%-2rem)/5))] md:grid-cols-[repeat(7,minmax(0,calc((100%-2rem)/5)))] xl:min-w-0 xl:grid-cols-7";
+const ROLLING_WEEK_GRID_CELLS_CLASS =
+  "mt-2 grid min-w-[calc(7*((100%-1rem)/3))] grid-cols-[repeat(7,minmax(0,calc((100%-1rem)/3)))] gap-2 md:min-w-[calc(7*((100%-2rem)/5))] md:grid-cols-[repeat(7,minmax(0,calc((100%-2rem)/5)))] xl:min-w-0 xl:grid-cols-7";
 const DRAFT_MOVE_PREVIEW_REFRESH_DELAY_MS = 200;
 const SCOPE_ONLY_ELIGIBILITY_REASONS = new Set([
   "end_outside_scope",
@@ -203,6 +207,7 @@ export function CalendarSurface({
   const pointerPressActiveRef = useRef(false);
   const pointerInsideDayPreviewRef = useRef(false);
   const dayPreviewRef = useRef<HTMLDivElement | null>(null);
+  const rollingWeekStripRef = useRef<HTMLDivElement | null>(null);
   const isDayPreviewSurfaceTarget = (target: Element) =>
     Boolean(target.closest('[data-day-cell="true"]')) ||
     Boolean(dayPreviewRef.current?.contains(target));
@@ -287,7 +292,6 @@ export function CalendarSurface({
     focusedWeekDays,
     focusedWeekCells,
     focusedThreeDayDays,
-    focusedThreeDayCells,
     visibleDays,
   } =
     useMemo(
@@ -2105,8 +2109,8 @@ export function CalendarSurface({
       : viewMode === "week"
         ? "Expanded 7-day planner view with drag-and-drop editing."
         : viewMode === "three_day"
-          ? "Three-day rolling planner view for focused short-range planning."
-        : "Day agenda view with completion and detail controls.";
+          ? "Three-day focus with a scrollable week strip for context."
+        : "Day agenda with a scrollable week strip and detail controls.";
   const previousWindowAriaLabel =
     viewMode === "month"
       ? "Previous month"
@@ -2154,6 +2158,56 @@ export function CalendarSurface({
     setDayPreview(null);
     onViewModeChange(nextViewMode, "push");
   };
+  const alignRollingWeekStripToFocusedDay = useCallback(() => {
+    if (viewMode !== "day" && viewMode !== "three_day") {
+      return;
+    }
+    const strip = rollingWeekStripRef.current;
+    if (!strip) {
+      return;
+    }
+    const weekGrid = strip.querySelector<HTMLElement>('[data-rolling-week-grid="cells"]');
+    const firstCell = weekGrid?.firstElementChild;
+    if (!(firstCell instanceof HTMLElement) || !weekGrid) {
+      return;
+    }
+    const focusedDayIndex = focusedWeekDays.indexOf(focusedDay);
+    if (focusedDayIndex < 0) {
+      return;
+    }
+    const gridStyles = window.getComputedStyle(weekGrid);
+    const columnGap = Number.parseFloat(gridStyles.columnGap || "0");
+    const columnWidth = firstCell.getBoundingClientRect().width;
+    if (!Number.isFinite(columnWidth) || columnWidth <= 0) {
+      return;
+    }
+    const visibleColumnCount = Math.max(
+      1,
+      Math.round((strip.clientWidth + columnGap) / (columnWidth + columnGap))
+    );
+    const leftMostVisibleIndex = Math.max(
+      0,
+      Math.min(
+        focusedDayIndex - Math.floor(visibleColumnCount / 2),
+        Math.max(0, focusedWeekDays.length - visibleColumnCount)
+      )
+    );
+    strip.scrollTo({
+      left: leftMostVisibleIndex * (columnWidth + columnGap),
+      behavior: "auto",
+    });
+  }, [focusedDay, focusedWeekDays, viewMode]);
+  useEffect(() => {
+    if (viewMode !== "day" && viewMode !== "three_day") {
+      return;
+    }
+    const frame = window.requestAnimationFrame(alignRollingWeekStripToFocusedDay);
+    window.addEventListener("resize", alignRollingWeekStripToFocusedDay);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener("resize", alignRollingWeekStripToFocusedDay);
+    };
+  }, [alignRollingWeekStripToFocusedDay, viewMode]);
   const scopeMonthsForSaveAction =
     hasDraftSession && dirtyScopeMonths.length > 0
       ? dirtyScopeMonths
@@ -2258,6 +2312,15 @@ export function CalendarSurface({
           if (!canMutateEntryOnDay(entry, day)) {
             return;
           }
+          if (viewMode === "day") {
+            if (day !== focusedDay) {
+              setLocalSelectedDay(day);
+              onSelectedDayChange(day, "push", "day");
+            }
+            setSelectedEventEntryKey(entry.key);
+            setDayPreview(null);
+            return;
+          }
           clearHoverPreviewTimer();
           clearHoverPreviewCloseTimer();
           setSelectedEventEntryKey(null);
@@ -2267,16 +2330,33 @@ export function CalendarSurface({
           if (draggingEntryKey) {
             return;
           }
+          if (viewMode === "day") {
+            if (cell.date !== focusedDay) {
+              setLocalSelectedDay(cell.date);
+              onSelectedDayChange(cell.date, "push", "day");
+            }
+            setDayPreview(null);
+            return;
+          }
           handleDayCellClick(cell.date, target);
         }}
         onCellMouseEnter={(target) => {
+          if (viewMode === "day") {
+            return;
+          }
           scheduleHoverPreview(cell.date, target);
         }}
         onCellMouseLeave={() => {
+          if (viewMode === "day") {
+            return;
+          }
           clearHoverPreviewTimer();
           scheduleHoverPreviewClose(cell.date);
         }}
         onCellPointerDown={(pointerType, target) => {
+          if (viewMode === "day") {
+            return;
+          }
           pointerPressActiveRef.current = true;
           clearHoverPreviewTimer();
           if (pointerType === "touch") {
@@ -2284,14 +2364,23 @@ export function CalendarSurface({
           }
         }}
         onCellPointerUp={() => {
+          if (viewMode === "day") {
+            return;
+          }
           pointerPressActiveRef.current = false;
           clearLongPressTimer();
         }}
         onCellPointerCancel={() => {
+          if (viewMode === "day") {
+            return;
+          }
           pointerPressActiveRef.current = false;
           clearLongPressTimer();
         }}
         onCellPointerLeave={() => {
+          if (viewMode === "day") {
+            return;
+          }
           clearLongPressTimer();
         }}
         onEntryPointerStart={(immovable) => {
@@ -2306,6 +2395,22 @@ export function CalendarSurface({
       />
     );
   };
+  const rollingWeekStrip = (
+    <div className="mx-auto w-full max-w-[56rem]">
+      <div ref={rollingWeekStripRef} className="overflow-x-auto pb-1">
+        <div className={ROLLING_WEEK_GRID_LABELS_CLASS}>
+          {focusedWeekDays.map((day) => (
+            <span key={`rolling-week-label-${day}`}>
+              {format(parse(day, "yyyy-MM-dd", new Date()), "EEE d")}
+            </span>
+          ))}
+        </div>
+        <div data-rolling-week-grid="cells" className={ROLLING_WEEK_GRID_CELLS_CLASS}>
+          {focusedWeekCells.map(renderCalendarDayCell)}
+        </div>
+      </div>
+    </div>
+  );
 
   const restWeekdaysField = (
     <div className="space-y-2 text-sm">
@@ -2588,6 +2693,7 @@ export function CalendarSurface({
               >
                 {viewMode === "day" ? (
                   <div className="space-y-2">
+                    {rollingWeekStrip}
                     <div className="rounded-md border p-3">
                       <p className="mb-2 text-sm font-medium">
                         {format(parse(focusedDay, "yyyy-MM-dd", new Date()), "EEE MMM d")}
@@ -2654,18 +2760,7 @@ export function CalendarSurface({
                     </div>
                   </div>
                 ) : viewMode === "three_day" ? (
-                  <div className="mx-auto w-full max-w-[56rem]">
-                    <div className="grid grid-cols-3 gap-2 text-center text-xs text-muted-foreground">
-                      {focusedThreeDayDays.map((day) => (
-                        <span key={`three-day-label-${day}`}>
-                          {format(parse(day, "yyyy-MM-dd", new Date()), "EEE d")}
-                        </span>
-                      ))}
-                    </div>
-                    <div className="mt-2 grid grid-cols-3 gap-2">
-                      {focusedThreeDayCells.map(renderCalendarDayCell)}
-                    </div>
-                  </div>
+                  rollingWeekStrip
                 ) : (
                   <div className="mx-auto w-full max-w-[56rem]">
                     <div className="overflow-x-auto pb-1">
