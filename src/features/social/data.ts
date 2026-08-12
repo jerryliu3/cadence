@@ -5,6 +5,10 @@ import type {
   SocialChallenge,
   SocialFeedEvent,
 } from "@/features/social/types";
+import {
+  readTabDataCache,
+  writeTabDataCache,
+} from "@/lib/cache/tab-data-cache";
 
 interface SocialFeedResponse {
   schemaVersion: "1";
@@ -40,6 +44,7 @@ interface SocialTeamStateResponse {
 }
 
 export type FeedReactionKind = "cheer" | "fire" | "clap" | "strong";
+const SOCIAL_TAB_CACHE_PREFIX = "social:";
 
 async function parseApiError(response: Response, fallbackMessage: string) {
   const errorBody = (await response.json().catch(() => ({}))) as {
@@ -47,6 +52,32 @@ async function parseApiError(response: Response, fallbackMessage: string) {
     code?: string;
   };
   throw new Error(errorBody.message ?? errorBody.code ?? fallbackMessage);
+}
+
+async function fetchSocialCachedJson<TPayload>({
+  cacheKey,
+  path,
+  fallbackMessage,
+}: {
+  cacheKey: string;
+  path: string;
+  fallbackMessage: string;
+}) {
+  const cached = readTabDataCache<TPayload>(cacheKey);
+  if (cached) {
+    return cached;
+  }
+
+  const response = await fetch(path, {
+    cache: "no-store",
+    credentials: "include",
+  });
+  if (!response.ok) {
+    await parseApiError(response, fallbackMessage);
+  }
+  const payload = (await response.json()) as TPayload;
+  writeTabDataCache(cacheKey, payload);
+  return payload;
 }
 
 export async function fetchSocialFeedPage({
@@ -64,39 +95,27 @@ export async function fetchSocialFeedPage({
   if (cursor) {
     params.set("cursor", cursor);
   }
-
-  const response = await fetch(`/api/social/feed?${params.toString()}`, {
-    cache: "no-store",
-    credentials: "include",
+  return fetchSocialCachedJson<SocialFeedResponse>({
+    cacheKey: `${SOCIAL_TAB_CACHE_PREFIX}feed:${params.toString()}`,
+    path: `/api/social/feed?${params.toString()}`,
+    fallbackMessage: "Failed to load feed.",
   });
-
-  if (!response.ok) {
-    await parseApiError(response, "Failed to load feed.");
-  }
-
-  return (await response.json()) as SocialFeedResponse;
 }
 
 export async function fetchSocialChallenges() {
-  const response = await fetch("/api/social/challenges", {
-    cache: "no-store",
-    credentials: "include",
+  return fetchSocialCachedJson<SocialChallengesResponse>({
+    cacheKey: `${SOCIAL_TAB_CACHE_PREFIX}challenges`,
+    path: "/api/social/challenges",
+    fallbackMessage: "Failed to load challenges.",
   });
-  if (!response.ok) {
-    await parseApiError(response, "Failed to load challenges.");
-  }
-  return (await response.json()) as SocialChallengesResponse;
 }
 
 export async function fetchSocialChallengeDetail(challengeId: string) {
-  const response = await fetch(`/api/social/challenges/${challengeId}`, {
-    cache: "no-store",
-    credentials: "include",
+  return fetchSocialCachedJson<SocialChallengeDetailResponse>({
+    cacheKey: `${SOCIAL_TAB_CACHE_PREFIX}challenge:${challengeId}`,
+    path: `/api/social/challenges/${challengeId}`,
+    fallbackMessage: "Failed to load challenge.",
   });
-  if (!response.ok) {
-    await parseApiError(response, "Failed to load challenge.");
-  }
-  return (await response.json()) as SocialChallengeDetailResponse;
 }
 
 export async function joinSocialChallenge(challengeId: string) {
@@ -124,14 +143,11 @@ export async function leaveSocialChallenge(challengeId: string) {
 }
 
 export async function fetchSocialLeaderboards() {
-  const response = await fetch("/api/social/leaderboards", {
-    cache: "no-store",
-    credentials: "include",
+  return fetchSocialCachedJson<SocialLeaderboardsResponse>({
+    cacheKey: `${SOCIAL_TAB_CACHE_PREFIX}leaderboards`,
+    path: "/api/social/leaderboards",
+    fallbackMessage: "Failed to load leaderboards.",
   });
-  if (!response.ok) {
-    await parseApiError(response, "Failed to load leaderboards.");
-  }
-  return (await response.json()) as SocialLeaderboardsResponse;
 }
 
 export async function fetchSocialLeaderboardStandings(
@@ -141,25 +157,19 @@ export async function fetchSocialLeaderboardStandings(
   const params = new URLSearchParams();
   params.set("limit", String(limit));
   params.set("offset", String(offset));
-  const response = await fetch(`/api/social/leaderboards/${seasonId}?${params.toString()}`, {
-    cache: "no-store",
-    credentials: "include",
+  return fetchSocialCachedJson<SocialLeaderboardStandingsResponse>({
+    cacheKey: `${SOCIAL_TAB_CACHE_PREFIX}standings:${seasonId}:${params.toString()}`,
+    path: `/api/social/leaderboards/${seasonId}?${params.toString()}`,
+    fallbackMessage: "Failed to load leaderboard standings.",
   });
-  if (!response.ok) {
-    await parseApiError(response, "Failed to load leaderboard standings.");
-  }
-  return (await response.json()) as SocialLeaderboardStandingsResponse;
 }
 
 export async function fetchSocialTeamState() {
-  const response = await fetch("/api/social/team", {
-    cache: "no-store",
-    credentials: "include",
+  return fetchSocialCachedJson<SocialTeamStateResponse>({
+    cacheKey: `${SOCIAL_TAB_CACHE_PREFIX}team`,
+    path: "/api/social/team",
+    fallbackMessage: "Failed to load team state.",
   });
-  if (!response.ok) {
-    await parseApiError(response, "Failed to load team state.");
-  }
-  return (await response.json()) as SocialTeamStateResponse;
 }
 
 export async function createSocialTeamInvite({
