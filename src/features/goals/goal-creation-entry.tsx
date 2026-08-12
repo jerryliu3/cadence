@@ -50,7 +50,7 @@ export function GoalCreationEntry({ onExit }: GoalCreationEntryProps) {
             onExit={onExit}
             modeSwitchControl={
               <Button type="button" size="sm" variant="outline" asChild>
-                <Link href={multiGoalHref}>
+                <Link href={multiGoalHref} replace>
                   <ListPlus className="size-4" />
                   Multiple goals
                 </Link>
@@ -63,7 +63,7 @@ export function GoalCreationEntry({ onExit }: GoalCreationEntryProps) {
             onExit={onExit}
             modeSwitchControl={
               <Button type="button" size="sm" variant="outline" asChild>
-                <Link href={singleGoalHref}>
+                <Link href={singleGoalHref} replace>
                   <Plus className="size-4" />
                   New goal
                 </Link>
