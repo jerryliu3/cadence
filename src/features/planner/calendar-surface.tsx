@@ -31,6 +31,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { LoadingCard } from "@/components/ui/loading-card";
 import { PeriodStepper } from "@/components/ui/period-stepper";
 import {
   Select,
@@ -2597,12 +2598,10 @@ export function CalendarSurface({
       </div>
 
       {showBlockingLoading ? (
-        <div className="rounded-xl border bg-card p-8 text-sm text-muted-foreground">
-          <div className="flex items-center gap-2">
-            <Loader2 className="size-4 animate-spin" />
-            Loading planner month context...
-          </div>
-        </div>
+        <LoadingCard
+          title="Loading planner month context..."
+          description="Preparing your schedule and completion state."
+        />
       ) : error ? (
         <div className="rounded-xl border bg-card p-6 text-sm text-destructive">
           {error}
