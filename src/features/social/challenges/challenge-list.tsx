@@ -133,7 +133,7 @@ export function ChallengeList() {
               >
                 <p className="font-medium">{item.title}</p>
                 <p className="text-xs text-muted-foreground">
-                  {item.status} · {item.viewerProgress ?? 0}/{item.targetValue}
+                  {item.status} · {item.subjectKind} · {item.viewerProgress ?? 0}/{item.targetValue}
                 </p>
               </button>
             );
