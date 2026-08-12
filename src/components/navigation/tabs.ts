@@ -9,7 +9,7 @@ export type AppTab = {
 
 export const APP_TABS: AppTab[] = [
   { href: "/insights", label: "Insights", icon: BarChart3 },
-  { href: "/", label: "Checklist", icon: ListChecks },
+  { href: "/checklist", label: "Checklist", icon: ListChecks },
   { href: "/calendar", label: "Calendar", icon: CalendarDays },
   { href: "/social", label: "Challenges", icon: Trophy },
   { href: "/settings", label: "Profile", icon: User },

@@ -29,6 +29,15 @@ describe("TabNav", () => {
     );
   });
 
+  it("routes the checklist tab to checklist path", () => {
+    render(<TabNav />);
+
+    expect(screen.getByRole("link", { name: /Checklist/i })).toHaveAttribute(
+      "href",
+      "/checklist"
+    );
+  });
+
   it("uses the five-column grid class when five tabs are present", () => {
     const { container } = render(<TabNav />);
     const tabList = container.querySelector("ul");
