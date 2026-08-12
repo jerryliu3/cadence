@@ -67,7 +67,7 @@ describe("fetchProgressContext", () => {
       viewDate: "2026-08-08",
     });
 
-    nowSpy.mockReturnValue(1_000_000 + 20 * 60 * 1000);
+    nowSpy.mockReturnValue(1_000_000 + 3 * 60 * 1000);
     await fetchProgressContext({
       asOfDate: "2026-08-08",
       timezone: "UTC",
