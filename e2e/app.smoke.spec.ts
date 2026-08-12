@@ -9,7 +9,16 @@ test("loads the seeded authenticated checklist", async ({ page }, testInfo) => {
     mainNav
   ).toBeVisible();
   await expect(mainNav.getByRole("link", { name: "Checklist" })).toBeVisible();
-  await expect(mainNav.getByRole("link", { name: /Insights|Calendar/ })).toBeVisible();
+  const insightsLink = mainNav.getByRole("link", { name: "Insights" });
+  const calendarLink = mainNav.getByRole("link", { name: "Calendar" });
+  const insightsCount = await insightsLink.count();
+  const calendarCount = await calendarLink.count();
+  expect(insightsCount + calendarCount).toBeGreaterThan(0);
+  if (insightsCount > 0) {
+    await expect(insightsLink.first()).toBeVisible();
+  } else {
+    await expect(calendarLink.first()).toBeVisible();
+  }
   await expect(mainNav.getByRole("link", { name: /Settings|Profile/ })).toBeVisible();
   await expect(page.getByText("Loading your goals...")).toHaveCount(0);
 
