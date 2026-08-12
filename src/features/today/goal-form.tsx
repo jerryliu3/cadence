@@ -139,11 +139,9 @@ export function GoalForm({
   const [linkTargetOpen, setLinkTargetOpen] = useState(false);
   const isEditing = Boolean(goalId);
   const goalFormId = isEditing ? "goal-form-edit" : "goal-form-create";
-  // Exit to Settings only for goals that already lived there (group goals).
-  // Flipping the group checkbox on a personal goal must not yank the user to /settings.
-  const exitHref = editingGoal?.is_group ? "/settings" : "/";
-  const afterSaveHref =
-    editingGoal?.is_group || (!isEditing && state.is_group) ? "/settings" : "/";
+  // Always return to Today. Group management lives under Settings, but the form
+  // should not redirect based on is_group (create, convert either direction, or delete).
+  const exitHref = "/";
 
   useEffect(() => {
     const load = async () => {
@@ -505,7 +503,7 @@ export function GoalForm({
 
     toast.success(isEditing ? "Goal updated." : "Goal created.");
     requestXpRefresh();
-    router.replace(afterSaveHref);
+    router.replace(exitHref);
     router.refresh();
     setSaving(false);
   };

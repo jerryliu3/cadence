@@ -728,7 +728,7 @@ export function BulkGoalForm({
       toast.success(
         `Created ${preparedRows.length} goal${preparedRows.length === 1 ? "" : "s"}.`
       );
-      router.replace(preparedRows.some((entry) => entry.draft.is_group) ? "/settings" : "/");
+      router.replace("/");
       router.refresh();
     } finally {
       setSaving(false);
