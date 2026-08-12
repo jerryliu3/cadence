@@ -44,7 +44,7 @@ describe("selectCalendarViewWindowProjection", () => {
     ).toBe(true);
   });
 
-  it("uses selected day as the only visible day in day mode", () => {
+  it("keeps day mode focused on a selected day while exposing the focused week window", () => {
     const projection = selectCalendarViewWindowProjection({
       month: "2026-08",
       selectedDay: "2026-08-23",
@@ -54,7 +54,15 @@ describe("selectCalendarViewWindowProjection", () => {
     });
 
     expect(projection.focusedDay).toBe("2026-08-23");
-    expect(projection.visibleDays).toEqual(["2026-08-23"]);
+    expect(projection.visibleDays).toEqual([
+      "2026-08-17",
+      "2026-08-18",
+      "2026-08-19",
+      "2026-08-20",
+      "2026-08-21",
+      "2026-08-22",
+      "2026-08-23",
+    ]);
   });
 
   it("returns a centered 3-day window in three_day mode", () => {
@@ -72,7 +80,7 @@ describe("selectCalendarViewWindowProjection", () => {
       "2026-08-23",
       "2026-08-24",
     ]);
-    expect(projection.visibleDays).toEqual(projection.focusedThreeDayDays);
+    expect(projection.visibleDays).toEqual(projection.focusedWeekDays);
     expect(projection.focusedThreeDayCells).toHaveLength(3);
   });
 });
