@@ -14,23 +14,24 @@ describe("TabNav", () => {
     mockPathname = "/";
   });
 
-  it("renders four app tabs and marks the active tab", () => {
-    mockPathname = "/calendar";
+  it("renders five app tabs and marks the active tab", () => {
+    mockPathname = "/social";
     render(<TabNav />);
 
     expect(screen.getByRole("link", { name: /Insights/i })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Checklist/i })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Calendar/i })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Social/i })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Settings/i })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Calendar/i })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: /Social/i })).toHaveAttribute(
       "aria-current",
       "page"
     );
   });
 
-  it("uses the four-column grid class when four tabs are present", () => {
+  it("uses the five-column grid class when five tabs are present", () => {
     const { container } = render(<TabNav />);
     const tabList = container.querySelector("ul");
-    expect(tabList).toHaveClass("grid-cols-4");
+    expect(tabList).toHaveClass("grid-cols-5");
   });
 });
