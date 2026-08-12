@@ -41,7 +41,6 @@ export function TabNav({ mobile = false }: TabNavProps) {
           "grid w-full gap-1",
           mobile
             ? `${gridClass} rounded-2xl border border-border/60 bg-background/55 p-1.5 shadow-[0_-6px_24px_-18px_hsl(var(--foreground))] backdrop-blur-xl supports-[backdrop-filter]:bg-background/35`
-            : "grid-cols-4"
             : gridClass
         )}
       >
