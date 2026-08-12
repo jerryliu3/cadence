@@ -310,6 +310,7 @@ export type Database = {
           id: string
           is_deleted: boolean
           is_group: boolean
+          is_private: boolean
           milestone_names: string[] | null
           owner_id: string
           photo_path: string | null
@@ -335,6 +336,7 @@ export type Database = {
           id?: string
           is_deleted?: boolean
           is_group?: boolean
+          is_private?: boolean
           milestone_names?: string[] | null
           owner_id: string
           photo_path?: string | null
@@ -360,6 +362,7 @@ export type Database = {
           id?: string
           is_deleted?: boolean
           is_group?: boolean
+          is_private?: boolean
           milestone_names?: string[] | null
           owner_id?: string
           photo_path?: string | null
@@ -631,6 +634,7 @@ export type Database = {
           display_name: string | null
           id: string
           rest_weekdays: number[]
+          social_activity_visible: boolean
           timezone: string
           timezone_confirmed_at: string | null
           username: string
@@ -643,6 +647,7 @@ export type Database = {
           display_name?: string | null
           id: string
           rest_weekdays?: number[]
+          social_activity_visible?: boolean
           timezone?: string
           timezone_confirmed_at?: string | null
           username: string
@@ -655,6 +660,7 @@ export type Database = {
           display_name?: string | null
           id?: string
           rest_weekdays?: number[]
+          social_activity_visible?: boolean
           timezone?: string
           timezone_confirmed_at?: string | null
           username?: string

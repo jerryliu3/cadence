@@ -10,6 +10,7 @@ export interface Goal {
   description: string | null;
   category: string;
   category_key?: string;
+  is_private?: boolean;
   color: string | null;
   frequency_type: GoalFrequencyType;
   recurrence_interval: RecurrenceInterval | null;
@@ -70,5 +71,6 @@ export interface Profile {
   display_name: string | null;
   avatar_url: string | null;
   week_starts_on?: number;
+  social_activity_visible?: boolean;
   created_at: string;
 }
