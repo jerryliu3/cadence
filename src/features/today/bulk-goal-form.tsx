@@ -14,7 +14,14 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { type ChangeEvent, type ReactNode, useEffect, useMemo, useState } from "react";
+import {
+  type ChangeEvent,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -132,6 +139,7 @@ type BulkInputMode = "natural_language" | "csv";
 interface BulkGoalFormProps {
   showBackButton?: boolean;
   modeSwitchControl?: ReactNode;
+  onExit?: () => void;
 }
 
 const csvExample = `title,description,category,color,is_group,frequency_type,recurrence_interval,target_count,milestone_names,start_date,end_date,default_local_time
@@ -407,9 +415,18 @@ async function parseRowsFromSpreadsheetFile(
 export function BulkGoalForm({
   showBackButton = true,
   modeSwitchControl,
+  onExit,
 }: BulkGoalFormProps) {
   const supabase = useMemo(() => createClient(), []);
   const router = useRouter();
+  const completeAndExit = useCallback(() => {
+    if (onExit) {
+      onExit();
+      return;
+    }
+    router.replace("/");
+    router.refresh();
+  }, [onExit, router]);
   const [inputMode, setInputMode] = useState<BulkInputMode>("natural_language");
   const [initializing, setInitializing] = useState(true);
   const [currentUserId, setCurrentUserId] = useState("");
@@ -730,8 +747,7 @@ export function BulkGoalForm({
       toast.success(
         `Created ${preparedRows.length} goal${preparedRows.length === 1 ? "" : "s"}.`
       );
-      router.replace("/");
-      router.refresh();
+      completeAndExit();
     } finally {
       setSaving(false);
     }
@@ -782,12 +798,19 @@ export function BulkGoalForm({
                 </Button>
               </div>
               {showBackButton ? (
-                <Button variant="outline" asChild>
-                  <Link href="/">
+                onExit ? (
+                  <Button type="button" variant="outline" onClick={onExit}>
                     <ArrowLeft className="size-4" />
                     Back
-                  </Link>
-                </Button>
+                  </Button>
+                ) : (
+                  <Button variant="outline" asChild>
+                    <Link href="/">
+                      <ArrowLeft className="size-4" />
+                      Back
+                    </Link>
+                  </Button>
+                )
               ) : null}
             </div>
           </div>

@@ -16,7 +16,14 @@ import { endOfMonth, endOfYear, format, startOfMonth } from "date-fns";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { type FormEvent, type ReactNode, useEffect, useMemo, useState } from "react";
+import {
+  type FormEvent,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -25,6 +32,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { LoadingCard } from "@/components/ui/loading-card";
 import { Textarea } from "@/components/ui/textarea";
+import { Tooltip } from "@/components/ui/tooltip";
 import {
   CategorySelect,
   GoalTypeToggle,
@@ -71,6 +79,7 @@ interface GoalFormProps {
   goalId?: string;
   showBackButton?: boolean;
   modeSwitchControl?: ReactNode;
+  onExit?: () => void;
 }
 
 interface GoalFormState {
@@ -123,6 +132,7 @@ export function GoalForm({
   goalId,
   showBackButton = true,
   modeSwitchControl,
+  onExit,
 }: GoalFormProps) {
   const supabase = useMemo(() => createClient(), []);
   const router = useRouter();
@@ -144,6 +154,14 @@ export function GoalForm({
   // Always return to Today. Group management lives under Settings, but the form
   // should not redirect based on is_group (create, convert either direction, or delete).
   const exitHref = "/";
+  const completeAndExit = useCallback(() => {
+    if (onExit) {
+      onExit();
+      return;
+    }
+    router.replace(exitHref);
+    router.refresh();
+  }, [exitHref, onExit, router]);
 
   useEffect(() => {
     const load = async () => {
@@ -499,8 +517,7 @@ export function GoalForm({
     invalidatePlannerRelatedTabCaches();
     toast.success(isEditing ? "Goal updated." : "Goal created.");
     requestXpRefresh();
-    router.replace(exitHref);
-    router.refresh();
+    completeAndExit();
     setSaving(false);
   };
 
@@ -545,8 +562,7 @@ export function GoalForm({
     requestXpRefresh();
     invalidatePlannerRelatedTabCaches();
     toast.success("Goal deleted.");
-    router.replace(exitHref);
-    router.refresh();
+    completeAndExit();
     setSaving(false);
   };
 
@@ -569,28 +585,39 @@ export function GoalForm({
           </div>
           <div className="flex items-center gap-2">
             {showBackButton ? (
-              <Button variant="outline" asChild>
-                <Link href={exitHref}>
+              onExit ? (
+                <Button type="button" variant="outline" onClick={onExit}>
                   <ArrowLeft className="size-4" />
                   Back
-                </Link>
+                </Button>
+              ) : (
+                <Button variant="outline" asChild>
+                  <Link href={exitHref}>
+                    <ArrowLeft className="size-4" />
+                    Back
+                  </Link>
+                </Button>
+              )
+            ) : null}
+            <div className="flex items-center gap-0">
+              {validationError ? (
+                <Tooltip content={validationError} side="bottom" align="end">
+                  <span
+                    className="inline-flex size-9 items-center justify-center text-destructive"
+                    title={validationError}
+                    tabIndex={0}
+                    aria-label={validationError}
+                  >
+                    <CircleAlert className="size-4" />
+                    <span className="sr-only">{validationError}</span>
+                  </span>
+                </Tooltip>
+              ) : null}
+              <Button type="submit" form={goalFormId} disabled={submitDisabled}>
+                {saving ? <LoaderCircle className="size-4 animate-spin" /> : <Save className="size-4" />}
+                {isEditing ? "Save changes" : "Save"}
               </Button>
-            ) : null}
-            {validationError ? (
-              <button
-                type="button"
-                className="inline-flex size-9 items-center justify-center rounded-full border border-destructive/40 text-destructive transition-colors hover:bg-destructive/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive/40"
-                title={validationError}
-                aria-label={validationError}
-                onClick={() => toast.error(validationError)}
-              >
-                <CircleAlert className="size-4" />
-              </button>
-            ) : null}
-            <Button type="submit" form={goalFormId} disabled={submitDisabled}>
-              {saving ? <LoaderCircle className="size-4 animate-spin" /> : <Save className="size-4" />}
-              {isEditing ? "Save changes" : "Save"}
-            </Button>
+            </div>
           </div>
         </div>
       </CardHeader>
