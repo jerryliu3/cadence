@@ -31,12 +31,24 @@ export function TabNav({ mobile = false }: TabNavProps) {
       className={cn(
         "w-full",
         mobile
-          ? "fixed inset-x-0 bottom-0 z-30 border-t bg-background/95 px-3 pt-2 pb-[calc(env(safe-area-inset-bottom)+0.5rem)] backdrop-blur supports-[backdrop-filter]:bg-background/80"
-          : "rounded-2xl border bg-card/90 p-1"
+          ? "fixed inset-x-0 z-30 px-4"
+          : "mx-auto rounded-2xl border bg-card/90 p-1"
       )}
+      style={
+        mobile
+          ? { bottom: "calc(env(safe-area-inset-bottom) + 0.5rem)" }
+          : undefined
+      }
       aria-label="Main navigation"
     >
-      <ul className={cn("grid w-full gap-1", gridClass, !mobile && "max-w-xl")}>
+      <ul
+        className={cn(
+          "grid w-full gap-1",
+          mobile
+            ? `${gridClass} rounded-2xl border border-border/60 bg-background/70 p-1.5 shadow-lg backdrop-blur supports-[backdrop-filter]:bg-background/55`
+            : gridClass
+        )}
+      >
         {APP_TABS.map((tab) => {
           const active = isActive(pathname, tab.href);
           const Icon = tab.icon;
@@ -45,15 +57,17 @@ export function TabNav({ mobile = false }: TabNavProps) {
               <Link
                 href={tab.href}
                 className={cn(
-                  "flex w-full items-center justify-center rounded-xl px-3 py-2 font-medium transition-colors",
-                  mobile ? "flex-col gap-0.5 text-[11px]" : "gap-2 text-sm",
+                  "flex w-full items-center justify-center rounded-xl px-2 font-medium transition-colors",
+                  mobile
+                    ? "min-h-12 flex-col gap-1 py-1.5 text-[10px]"
+                    : "min-h-14 flex-col gap-1 py-2 text-[11px]",
                   active
                     ? "bg-primary text-primary-foreground shadow-sm"
                     : "text-muted-foreground hover:bg-muted hover:text-foreground"
                 )}
                 aria-current={active ? "page" : undefined}
               >
-                <Icon className="size-4" />
+                <Icon className="size-5" />
                 <span>{tab.label}</span>
               </Link>
             </li>

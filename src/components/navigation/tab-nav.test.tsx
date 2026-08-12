@@ -15,14 +15,14 @@ describe("TabNav", () => {
   });
 
   it("renders four app tabs and marks the active tab", () => {
-    mockPathname = "/social";
+    mockPathname = "/calendar";
     render(<TabNav />);
 
     expect(screen.getByRole("link", { name: /Insights/i })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Checklist/i })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Social/i })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Calendar/i })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Settings/i })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Social/i })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: /Calendar/i })).toHaveAttribute(
       "aria-current",
       "page"
     );
