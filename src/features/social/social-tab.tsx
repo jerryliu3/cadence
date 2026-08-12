@@ -112,7 +112,7 @@ export function SocialTab() {
       top: rect.bottom + gap,
       bottom: undefined,
     });
-  }, []);
+  }, [setShareMenuPosition]);
 
   useOutsidePointerDismiss({
     enabled: shareMenuOpen,
@@ -147,7 +147,7 @@ export function SocialTab() {
       window.removeEventListener("resize", handleViewportChange);
       window.removeEventListener("scroll", handleViewportChange, true);
     };
-  }, [shareMenuOpen, updateShareMenuPosition]);
+  }, [shareMenuOpen, setShareMenuOpen, updateShareMenuPosition]);
 
   const settingsSectionTitle =
     settingsSection === "preferences"
