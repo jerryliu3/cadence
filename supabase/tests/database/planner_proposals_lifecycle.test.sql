@@ -39,7 +39,7 @@ values (
 )
 on conflict (id) do nothing;
 
-insert into public.duo_preferences (
+insert into public.team_preferences (
   team_id,
   user_id,
   share_planner,
@@ -138,7 +138,7 @@ select ok(
 
 reset role;
 set local role service_role;
-update public.duo_preferences
+update public.team_preferences
 set allow_proposals = false
 where team_id = '9a730000-0000-4000-8000-000000000001'
   and user_id = '9a722222-2222-4222-8222-222222222222';

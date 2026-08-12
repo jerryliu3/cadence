@@ -39,7 +39,7 @@ values (
 )
 on conflict (id) do nothing;
 
-insert into public.duo_preferences (
+insert into public.team_preferences (
   team_id,
   user_id,
   share_planner,
@@ -64,7 +64,7 @@ insert into public.goals (
   start_date,
   end_date,
   is_group,
-  partner_visibility
+  is_private
 )
 values
   (
@@ -79,7 +79,7 @@ values
     date '2026-08-01',
     date '2026-08-31',
     false,
-    'shared'
+    false
   ),
   (
     '9f400000-0000-4000-8000-000000000002',
@@ -93,7 +93,7 @@ values
     date '2026-08-01',
     date '2026-08-31',
     false,
-    'excluded'
+    true
   )
 on conflict (id) do nothing;
 
@@ -151,7 +151,7 @@ select ok(
 
 reset role;
 set local role service_role;
-update public.duo_preferences
+update public.team_preferences
 set share_planner = false
 where team_id = '9f300000-0000-4000-8000-000000000001'
   and user_id = '9f222222-2222-4222-8222-222222222222';

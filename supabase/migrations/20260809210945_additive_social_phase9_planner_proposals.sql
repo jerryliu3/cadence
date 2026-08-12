@@ -229,7 +229,7 @@ begin
   join public.goals goal on goal.id = item.goal_id
   where item.owner_id = v_partner_id
     and date_trunc('month', item.scheduled_date)::date = p_scope_month
-    and goal.partner_visibility = 'shared'::public.goal_partner_visibility
+    and goal.is_private = false
     and goal.is_deleted = false
   order by item.scheduled_date asc, item.goal_id asc, item.unit_key asc;
 end;
