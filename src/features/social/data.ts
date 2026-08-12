@@ -6,6 +6,7 @@ import type {
   SocialFeedEvent,
 } from "@/features/social/types";
 import {
+  invalidateTabDataCacheByPrefix,
   readTabDataCache,
   writeTabDataCache,
 } from "@/lib/cache/tab-data-cache";
@@ -44,7 +45,7 @@ interface SocialTeamStateResponse {
 }
 
 export type FeedReactionKind = "cheer" | "fire" | "clap" | "strong";
-const SOCIAL_TAB_CACHE_PREFIX = "social:";
+export const SOCIAL_TAB_CACHE_PREFIX = "social:";
 
 async function parseApiError(response: Response, fallbackMessage: string) {
   const errorBody = (await response.json().catch(() => ({}))) as {
@@ -52,6 +53,10 @@ async function parseApiError(response: Response, fallbackMessage: string) {
     code?: string;
   };
   throw new Error(errorBody.message ?? errorBody.code ?? fallbackMessage);
+}
+
+function invalidateSocialTabCache() {
+  invalidateTabDataCacheByPrefix(SOCIAL_TAB_CACHE_PREFIX);
 }
 
 async function fetchSocialCachedJson<TPayload>({
@@ -127,7 +132,9 @@ export async function joinSocialChallenge(challengeId: string) {
   if (!response.ok) {
     await parseApiError(response, "Failed to join challenge.");
   }
-  return (await response.json()) as { schemaVersion: "1"; joined: boolean };
+  const payload = (await response.json()) as { schemaVersion: "1"; joined: boolean };
+  invalidateSocialTabCache();
+  return payload;
 }
 
 export async function leaveSocialChallenge(challengeId: string) {
@@ -139,7 +146,9 @@ export async function leaveSocialChallenge(challengeId: string) {
   if (!response.ok) {
     await parseApiError(response, "Failed to leave challenge.");
   }
-  return (await response.json()) as { schemaVersion: "1"; joined: boolean };
+  const payload = (await response.json()) as { schemaVersion: "1"; joined: boolean };
+  invalidateSocialTabCache();
+  return payload;
 }
 
 export async function fetchSocialLeaderboards() {
@@ -188,7 +197,9 @@ export async function createSocialTeamInvite({
   if (!response.ok) {
     await parseApiError(response, "Failed to send team invite.");
   }
-  return (await response.json()) as { schemaVersion: "1"; teamId: string };
+  const payload = (await response.json()) as { schemaVersion: "1"; teamId: string };
+  invalidateSocialTabCache();
+  return payload;
 }
 
 export async function acceptSocialTeamInvite(teamId: string) {
@@ -201,7 +212,9 @@ export async function acceptSocialTeamInvite(teamId: string) {
   if (!response.ok) {
     await parseApiError(response, "Failed to accept team invite.");
   }
-  return (await response.json()) as { schemaVersion: "1"; accepted: boolean };
+  const payload = (await response.json()) as { schemaVersion: "1"; accepted: boolean };
+  invalidateSocialTabCache();
+  return payload;
 }
 
 export async function declineSocialTeamInvite(teamId: string) {
@@ -212,7 +225,9 @@ export async function declineSocialTeamInvite(teamId: string) {
   if (!response.ok) {
     await parseApiError(response, "Failed to decline team invite.");
   }
-  return (await response.json()) as { schemaVersion: "1"; declined: boolean };
+  const payload = (await response.json()) as { schemaVersion: "1"; declined: boolean };
+  invalidateSocialTabCache();
+  return payload;
 }
 
 export async function dissolveSocialTeam() {
@@ -223,7 +238,9 @@ export async function dissolveSocialTeam() {
   if (!response.ok) {
     await parseApiError(response, "Failed to dissolve team.");
   }
-  return (await response.json()) as { schemaVersion: "1"; dissolved: boolean };
+  const payload = (await response.json()) as { schemaVersion: "1"; dissolved: boolean };
+  invalidateSocialTabCache();
+  return payload;
 }
 
 export async function addSocialFeedReaction({
@@ -242,7 +259,9 @@ export async function addSocialFeedReaction({
   if (!response.ok) {
     await parseApiError(response, "Failed to add reaction.");
   }
-  return (await response.json()) as { schemaVersion: "1" };
+  const payload = (await response.json()) as { schemaVersion: "1" };
+  invalidateSocialTabCache();
+  return payload;
 }
 
 export async function removeSocialFeedReaction({
@@ -261,7 +280,9 @@ export async function removeSocialFeedReaction({
   if (!response.ok) {
     await parseApiError(response, "Failed to remove reaction.");
   }
-  return (await response.json()) as { schemaVersion: "1" };
+  const payload = (await response.json()) as { schemaVersion: "1" };
+  invalidateSocialTabCache();
+  return payload;
 }
 
 export async function sendTeamNudge({
@@ -289,5 +310,7 @@ export async function sendTeamNudge({
   if (!response.ok) {
     await parseApiError(response, "Failed to send nudge.");
   }
-  return (await response.json()) as { schemaVersion: "1"; nudgeId: string };
+  const payload = (await response.json()) as { schemaVersion: "1"; nudgeId: string };
+  invalidateSocialTabCache();
+  return payload;
 }

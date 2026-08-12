@@ -92,7 +92,12 @@ import {
   putJson,
 } from "@/lib/api/client";
 import { useOutsidePointerDismiss } from "@/lib/ui/use-outside-pointer-dismiss";
-import { readTabDataCache, writeTabDataCache } from "@/lib/cache/tab-data-cache";
+import {
+  invalidateTabDataCacheByPrefix,
+  readTabDataCache,
+  writeTabDataCache,
+} from "@/lib/cache/tab-data-cache";
+import { invalidateProgressContextCache } from "@/lib/goals/progress-context";
 import {
   type CompletionDispatchDecision,
   resolveCompletionDispatch,
@@ -132,6 +137,7 @@ const ROLLING_WEEK_GRID_CELLS_CLASS =
   "mt-2 grid min-w-[calc(7*((100%-1rem)/3))] grid-cols-[repeat(7,minmax(0,calc((100%-1rem)/3)))] gap-2 md:min-w-[calc(7*((100%-2rem)/5))] md:grid-cols-[repeat(7,minmax(0,calc((100%-2rem)/5)))] xl:min-w-0 xl:grid-cols-7";
 const DRAFT_MOVE_PREVIEW_REFRESH_DELAY_MS = 200;
 const PLANNER_CONTEXT_CACHE_PREFIX = "planner-context:";
+const PLANNER_VISIBLE_MONTH_CONTEXT_CACHE_PREFIX = "planner-visible-month-context:";
 const SCOPE_ONLY_ELIGIBILITY_REASONS = new Set([
   "end_outside_scope",
   "starts_after_scope",
@@ -332,6 +338,12 @@ export function CalendarSurface({
     scopeMonth: month,
     visibleDays,
   });
+  const handlePlannerMutation = useCallback(() => {
+    invalidateTabDataCacheByPrefix(PLANNER_CONTEXT_CACHE_PREFIX);
+    invalidateTabDataCacheByPrefix(PLANNER_VISIBLE_MONTH_CONTEXT_CACHE_PREFIX);
+    invalidateProgressContextCache();
+    onPlannerMutation();
+  }, [onPlannerMutation]);
   const currentScopeMonth = month ?? context?.scopeMonth ?? null;
   const setDraftPolicyForScope = useCallback(
     (scopeMonth: string, policy: PlannerPolicy | null) => {
@@ -1603,7 +1615,7 @@ export function CalendarSurface({
         return;
       }
       try {
-        onPlannerMutation();
+        handlePlannerMutation();
         const refreshed = await withPlannerRefreshTimeout({
           operation: loadContext({
             showLoading: false,
@@ -1730,7 +1742,7 @@ export function CalendarSurface({
         }
       }
 
-      onPlannerMutation();
+      handlePlannerMutation();
       const refreshed = await withPlannerRefreshTimeout({
         operation: loadContext({
           showLoading: false,
@@ -1888,7 +1900,7 @@ export function CalendarSurface({
         for (const scopeMonth of scopeMonthsToPublish) {
           clearDraftScopeSession(scopeMonth);
         }
-        onPlannerMutation();
+        handlePlannerMutation();
         const refreshed = await withPlannerRefreshTimeout({
           operation: loadContext({
             showLoading: false,
@@ -1948,7 +1960,7 @@ export function CalendarSurface({
       }
       try {
         clearDraftScopeSession(context.scopeMonth);
-        onPlannerMutation();
+        handlePlannerMutation();
         const refreshed = await withPlannerRefreshTimeout({
           operation: loadContext({
             showLoading: false,
@@ -2021,7 +2033,7 @@ export function CalendarSurface({
       for (const scopeMonth of scopeMonths) {
         clearDraftScopeSession(scopeMonth);
       }
-      onPlannerMutation();
+      handlePlannerMutation();
       const refreshed = await withPlannerRefreshTimeout({
         operation: loadContext({ showLoading: false, toastOnError: false }),
         timeoutMessage:
