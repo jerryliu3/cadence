@@ -17,17 +17,14 @@ describe("AppShell", () => {
     cleanup();
   });
 
-  it("renders both mobile and desktop `New Goal +` links in the header", () => {
+  it("renders the `New Goal +` header link", () => {
     render(
       <AppShell>
         <div>Child content</div>
       </AppShell>
     );
 
-    const newGoalLinks = screen.getAllByRole("link", { name: /new goal \+/i });
-    expect(newGoalLinks).toHaveLength(2);
-    newGoalLinks.forEach((link) => {
-      expect(link).toHaveAttribute("href", "/goals/new");
-    });
+    const newGoalLink = screen.getByRole("link", { name: /new goal \+/i });
+    expect(newGoalLink).toHaveAttribute("href", "/goals/new");
   });
 });

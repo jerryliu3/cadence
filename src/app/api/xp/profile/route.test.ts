@@ -35,16 +35,40 @@ function buildFromStub() {
       };
     }
     if (table === "xp_levels") {
+      const levels = [
+        { level: 1, min_total_xp: 0 },
+        { level: 2, min_total_xp: 100 },
+        { level: 3, min_total_xp: 250 },
+      ];
       return {
-        select: () =>
-          Promise.resolve({
-            data: [
-              { level: 1, min_total_xp: 0 },
-              { level: 2, min_total_xp: 100 },
-              { level: 3, min_total_xp: 250 },
-            ],
-            error: null,
-          }),
+        select: () => {
+          const byLevel = {
+            eq: (_column: string, level: number) => ({
+              maybeSingle: () => {
+                const row = levels.find((entry) => entry.level === level) ?? null;
+                return Promise.resolve({
+                  data: row ? { min_total_xp: row.min_total_xp } : null,
+                  error: null,
+                });
+              },
+            }),
+            gt: (_column: string, level: number) => ({
+              order: () => ({
+                limit: () => ({
+                  maybeSingle: () =>
+                    Promise.resolve({
+                      data:
+                        levels
+                          .filter((entry) => entry.level > level)
+                          .sort((left, right) => left.level - right.level)[0] ?? null,
+                      error: null,
+                    }),
+                }),
+              }),
+            }),
+          };
+          return byLevel;
+        },
       };
     }
     if (table === "xp_rewards") {

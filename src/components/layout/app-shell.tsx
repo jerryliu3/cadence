@@ -21,13 +21,8 @@ export function AppShell({ children }: AppShellProps) {
               <XpLevelBadge />
             </div>
             <div className="flex items-center">
-              <Button asChild size="sm" className="md:hidden" title="New Goal +">
-                <Link href="/goals/new" aria-label="New Goal +">
-                  New Goal +
-                </Link>
-              </Button>
-              <Button asChild size="sm" className="hidden md:inline-flex" title="New Goal +">
-                <Link href="/goals/new" aria-label="New Goal +">
+              <Button asChild size="sm" title="New Goal +">
+                <Link href="/goals/new">
                   New Goal +
                 </Link>
               </Button>
