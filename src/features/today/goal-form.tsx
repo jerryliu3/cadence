@@ -63,6 +63,7 @@ import {
   validateGoalDefinition,
 } from "@/lib/goals/definition-validation";
 import { createClient } from "@/lib/supabase/client";
+import { requestXpRefresh } from "@/lib/xp/refresh";
 
 interface GoalFormProps {
   goalId?: string;
@@ -138,6 +139,11 @@ export function GoalForm({
   const [linkTargetOpen, setLinkTargetOpen] = useState(false);
   const isEditing = Boolean(goalId);
   const goalFormId = isEditing ? "goal-form-edit" : "goal-form-create";
+  // Exit to Settings only for goals that already lived there (group goals).
+  // Flipping the group checkbox on a personal goal must not yank the user to /settings.
+  const exitHref = editingGoal?.is_group ? "/settings" : "/";
+  const afterSaveHref =
+    editingGoal?.is_group || (!isEditing && state.is_group) ? "/settings" : "/";
 
   useEffect(() => {
     const load = async () => {
@@ -498,7 +504,8 @@ export function GoalForm({
     }
 
     toast.success(isEditing ? "Goal updated." : "Goal created.");
-    router.replace(state.is_group ? "/settings" : "/");
+    requestXpRefresh();
+    router.replace(afterSaveHref);
     router.refresh();
     setSaving(false);
   };
@@ -540,8 +547,9 @@ export function GoalForm({
       return;
     }
 
+    requestXpRefresh();
     toast.success("Goal deleted.");
-    router.replace(state.is_group ? "/settings" : "/");
+    router.replace(exitHref);
     router.refresh();
     setSaving(false);
   };
@@ -566,7 +574,7 @@ export function GoalForm({
           <div className="flex items-center gap-2">
             {showBackButton ? (
               <Button variant="outline" asChild>
-                <Link href={state.is_group ? "/settings" : "/"}>
+                <Link href={exitHref}>
                   <ArrowLeft className="size-4" />
                   Back
                 </Link>

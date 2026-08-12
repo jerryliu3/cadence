@@ -25,6 +25,7 @@ import type {
 } from "@/lib/goals/types";
 import { unsubscribeCurrentBrowser } from "@/lib/push/client";
 import { createClient } from "@/lib/supabase/client";
+import { requestXpRefresh } from "@/lib/xp/refresh";
 
 interface SocialState {
   userId: string;
@@ -615,6 +616,7 @@ export function useSocialTabData() {
       toast.error(error.message);
     } else {
       toast.success("Group goal deleted.");
+      requestXpRefresh();
       await loadData();
     }
   };
