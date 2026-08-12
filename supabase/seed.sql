@@ -5,6 +5,19 @@
 -- carla@example.com / password123
 
 truncate table
+  public.feed_reactions,
+  public.nudges,
+  public.notification_outbox,
+  public.challenge_participants,
+  public.challenges,
+  public.team_preferences,
+  public.teams,
+  public.leaderboard_standings,
+  public.leaderboard_season_results,
+  public.leaderboard_seasons,
+  public.cohort_members,
+  public.cohorts,
+  public.feed_events,
   public.planner_items,
   public.goal_shares,
   public.goal_participants,
@@ -625,3 +638,791 @@ insert into public.completions (goal_id, user_id, completed_on, source)
 select '10000000-0000-4000-8000-000000000008', '33333333-3333-4333-8333-333333333333', d::date, 'manual'
 from generate_series(current_date - interval '35 day', current_date, interval '7 day') d
 on conflict (goal_id, user_id, completed_on) do nothing;
+
+-- Social seed coverage
+-- Includes: cohorts, teams, mixed challenge states/types, leaderboard states,
+-- feed/reactions, nudges, and notification outbox samples.
+update public.profiles profile
+set social_activity_visible = true
+where profile.id in (
+  '11111111-1111-4111-8111-111111111111',
+  '22222222-2222-4222-8222-222222222222',
+  '33333333-3333-4333-8333-333333333333'
+);
+
+insert into public.cohorts (
+  id,
+  slug,
+  title,
+  description,
+  join_code,
+  is_active,
+  created_by
+)
+values (
+  '70000000-0000-4000-8000-000000000001',
+  'seed-alpha-cohort',
+  'Alpha Cohort',
+  'Seeded cohort for social scope demos.',
+  'ALPHA1',
+  true,
+  '11111111-1111-4111-8111-111111111111'
+);
+
+insert into public.cohort_members (cohort_id, user_id, role)
+values
+  ('70000000-0000-4000-8000-000000000001', '11111111-1111-4111-8111-111111111111', 'manager'),
+  ('70000000-0000-4000-8000-000000000001', '22222222-2222-4222-8222-222222222222', 'member'),
+  ('70000000-0000-4000-8000-000000000001', '33333333-3333-4333-8333-333333333333', 'member');
+
+insert into public.teams (
+  id,
+  user_a_id,
+  user_b_id,
+  initiator_id,
+  status,
+  invite_message,
+  visibility_acknowledged_at,
+  invited_at,
+  accepted_at
+)
+values
+  (
+    '71000000-0000-4000-8000-000000000001',
+    '22222222-2222-4222-8222-222222222222',
+    '33333333-3333-4333-8333-333333333333',
+    '22222222-2222-4222-8222-222222222222',
+    'active',
+    'Lets pair on the weekly challenges.',
+    now() - interval '12 days',
+    now() - interval '13 days',
+    now() - interval '12 days'
+  ),
+  (
+    '71000000-0000-4000-8000-000000000002',
+    '11111111-1111-4111-8111-111111111111',
+    '33333333-3333-4333-8333-333333333333',
+    '33333333-3333-4333-8333-333333333333',
+    'pending',
+    'Want to join forces for next month?',
+    null,
+    now() - interval '1 day',
+    null
+  );
+
+insert into public.team_preferences (
+  team_id,
+  user_id,
+  share_completions,
+  allow_nudges,
+  notify_partner_activity
+)
+values
+  (
+    '71000000-0000-4000-8000-000000000001',
+    '22222222-2222-4222-8222-222222222222',
+    true,
+    true,
+    true
+  ),
+  (
+    '71000000-0000-4000-8000-000000000001',
+    '33333333-3333-4333-8333-333333333333',
+    true,
+    true,
+    true
+  );
+
+insert into public.challenges (
+  id,
+  slug,
+  title,
+  description,
+  status,
+  subject_kind,
+  metric,
+  metric_track_key,
+  target_value,
+  starts_at,
+  ends_at,
+  reward_xp,
+  max_participants,
+  created_by,
+  audience_kind,
+  cohort_id
+)
+values
+  (
+    '72000000-0000-4000-8000-000000000001',
+    'seed-active-user-total-xp',
+    'Weekly XP Sprint',
+    'Active individual sprint based on total XP.',
+    'active',
+    'user',
+    'total_xp',
+    null,
+    280,
+    now() - interval '10 days',
+    now() + interval '4 days',
+    120,
+    null,
+    '11111111-1111-4111-8111-111111111111',
+    'global',
+    null
+  ),
+  (
+    '72000000-0000-4000-8000-000000000002',
+    'seed-active-team-completions',
+    'Team Completion Rally',
+    'Active team challenge based on completion count.',
+    'active',
+    'team',
+    'completions_count',
+    null,
+    8,
+    now() - interval '5 days',
+    now() + interval '5 days',
+    150,
+    6,
+    '22222222-2222-4222-8222-222222222222',
+    'global',
+    null
+  ),
+  (
+    '72000000-0000-4000-8000-000000000003',
+    'seed-scheduled-cohort-health',
+    'Cohort Health Push',
+    'Upcoming cohort-scoped category XP challenge.',
+    'scheduled',
+    'user',
+    'category_xp',
+    'health',
+    160,
+    now() + interval '2 days',
+    now() + interval '9 days',
+    80,
+    20,
+    '11111111-1111-4111-8111-111111111111',
+    'cohort',
+    '70000000-0000-4000-8000-000000000001'
+  ),
+  (
+    '72000000-0000-4000-8000-000000000004',
+    'seed-closed-active-days',
+    'Consistency Wrap-Up',
+    'Closed challenge to show history and completions.',
+    'closed',
+    'user',
+    'distinct_active_days',
+    null,
+    12,
+    now() - interval '20 days',
+    now() - interval '2 days',
+    90,
+    null,
+    '33333333-3333-4333-8333-333333333333',
+    'global',
+    null
+  ),
+  (
+    '72000000-0000-4000-8000-000000000005',
+    'seed-draft-streak',
+    'Draft Streak Prototype',
+    'Draft challenge for admin/moderation surfaces.',
+    'draft',
+    'user',
+    'max_streak_days',
+    null,
+    7,
+    now() + interval '5 days',
+    now() + interval '20 days',
+    60,
+    null,
+    '11111111-1111-4111-8111-111111111111',
+    'global',
+    null
+  );
+
+insert into public.challenge_participants (
+  challenge_id,
+  subject_kind,
+  subject_id,
+  joined_at,
+  progress_value,
+  progress_at,
+  completed_at,
+  awarded_at
+)
+values
+  (
+    '72000000-0000-4000-8000-000000000001',
+    'user',
+    '11111111-1111-4111-8111-111111111111',
+    now() - interval '9 days',
+    215,
+    now() - interval '2 hours',
+    null,
+    null
+  ),
+  (
+    '72000000-0000-4000-8000-000000000001',
+    'user',
+    '22222222-2222-4222-8222-222222222222',
+    now() - interval '9 days',
+    292,
+    now() - interval '3 hours',
+    now() - interval '3 hours',
+    now() - interval '2 hours'
+  ),
+  (
+    '72000000-0000-4000-8000-000000000001',
+    'user',
+    '33333333-3333-4333-8333-333333333333',
+    now() - interval '8 days',
+    148,
+    now() - interval '5 hours',
+    null,
+    null
+  ),
+  (
+    '72000000-0000-4000-8000-000000000002',
+    'team',
+    '71000000-0000-4000-8000-000000000001',
+    now() - interval '4 days',
+    6,
+    now() - interval '1 hour',
+    null,
+    null
+  ),
+  (
+    '72000000-0000-4000-8000-000000000004',
+    'user',
+    '11111111-1111-4111-8111-111111111111',
+    now() - interval '18 days',
+    14,
+    now() - interval '3 days',
+    now() - interval '3 days',
+    now() - interval '2 days'
+  ),
+  (
+    '72000000-0000-4000-8000-000000000004',
+    'user',
+    '22222222-2222-4222-8222-222222222222',
+    now() - interval '18 days',
+    10,
+    now() - interval '3 days',
+    null,
+    null
+  );
+
+insert into public.leaderboard_seasons (
+  id,
+  slug,
+  title,
+  subject_kind,
+  metric,
+  metric_track_key,
+  starts_at,
+  ends_at,
+  status,
+  rollover,
+  previous_season_id,
+  created_by,
+  scope,
+  cohort_id
+)
+values
+  (
+    '74000000-0000-4000-8000-000000000001',
+    'seed-user-open',
+    'Seed User Cohort Season',
+    'user',
+    'total_xp',
+    null,
+    now() - interval '14 days',
+    now() + interval '14 days',
+    'open',
+    'monthly',
+    null,
+    '11111111-1111-4111-8111-111111111111',
+    'cohort',
+    '70000000-0000-4000-8000-000000000001'
+  ),
+  (
+    '74000000-0000-4000-8000-000000000002',
+    'seed-user-closed',
+    'Seed User Closed Season',
+    'user',
+    'total_xp',
+    null,
+    now() - interval '45 days',
+    now() - interval '15 days',
+    'closed',
+    'none',
+    null,
+    '22222222-2222-4222-8222-222222222222',
+    'global',
+    null
+  ),
+  (
+    '74000000-0000-4000-8000-000000000003',
+    'seed-team-open-cohort',
+    'Seed Team Cohort Season',
+    'team',
+    'completions_count',
+    null,
+    now() - interval '7 days',
+    now() + interval '7 days',
+    'open',
+    'none',
+    null,
+    '11111111-1111-4111-8111-111111111111',
+    'cohort',
+    '70000000-0000-4000-8000-000000000001'
+  );
+
+insert into public.leaderboard_standings (
+  season_id,
+  subject_kind,
+  subject_id,
+  score,
+  tie_break_at,
+  rank,
+  refreshed_at
+)
+values
+  (
+    '74000000-0000-4000-8000-000000000001',
+    'user',
+    '11111111-1111-4111-8111-111111111111',
+    420,
+    now() - interval '3 days',
+    1,
+    now() - interval '10 minutes'
+  ),
+  (
+    '74000000-0000-4000-8000-000000000001',
+    'user',
+    '22222222-2222-4222-8222-222222222222',
+    300,
+    now() - interval '2 days',
+    2,
+    now() - interval '10 minutes'
+  ),
+  (
+    '74000000-0000-4000-8000-000000000001',
+    'user',
+    '33333333-3333-4333-8333-333333333333',
+    265,
+    now() - interval '1 day',
+    3,
+    now() - interval '10 minutes'
+  ),
+  (
+    '74000000-0000-4000-8000-000000000003',
+    'team',
+    '71000000-0000-4000-8000-000000000001',
+    12,
+    now() - interval '1 day',
+    1,
+    now() - interval '10 minutes'
+  );
+
+insert into public.leaderboard_season_results (
+  season_id,
+  subject_kind,
+  subject_id,
+  score,
+  tie_break_at,
+  rank,
+  display_name,
+  frozen_at
+)
+values
+  (
+    '74000000-0000-4000-8000-000000000002',
+    'user',
+    '11111111-1111-4111-8111-111111111111',
+    610,
+    now() - interval '20 days',
+    1,
+    'Alice Park',
+    now() - interval '15 days'
+  ),
+  (
+    '74000000-0000-4000-8000-000000000002',
+    'user',
+    '22222222-2222-4222-8222-222222222222',
+    540,
+    now() - interval '19 days',
+    2,
+    'Bob Chen',
+    now() - interval '15 days'
+  ),
+  (
+    '74000000-0000-4000-8000-000000000002',
+    'user',
+    '33333333-3333-4333-8333-333333333333',
+    500,
+    now() - interval '18 days',
+    3,
+    'Carla Diaz',
+    now() - interval '15 days'
+  );
+
+insert into public.feed_events (
+  id,
+  actor_id,
+  event_type,
+  subject_key,
+  bucket_date,
+  track_key,
+  goal_id,
+  xp_delta,
+  occurrence_count,
+  payload,
+  reaction_count,
+  hidden_at,
+  hidden_by,
+  hidden_reason,
+  created_at,
+  updated_at
+)
+values
+  (
+    '73000000-0000-4000-8000-000000000001',
+    '11111111-1111-4111-8111-111111111111',
+    'xp_earned',
+    'health',
+    current_date - 1,
+    'health',
+    '10000000-0000-4000-8000-000000000004',
+    40,
+    2,
+    jsonb_build_object('source', 'seed', 'note', 'double workout day'),
+    2,
+    null,
+    null,
+    null,
+    now() - interval '20 hours',
+    now() - interval '20 hours'
+  ),
+  (
+    '73000000-0000-4000-8000-000000000002',
+    '22222222-2222-4222-8222-222222222222',
+    'goal_achieved',
+    '10000000-0000-4000-8000-000000000006',
+    current_date - 2,
+    'career',
+    '10000000-0000-4000-8000-000000000006',
+    100,
+    1,
+    jsonb_build_object('goalId', '10000000-0000-4000-8000-000000000006'),
+    1,
+    null,
+    null,
+    null,
+    now() - interval '40 hours',
+    now() - interval '40 hours'
+  ),
+  (
+    '73000000-0000-4000-8000-000000000003',
+    '11111111-1111-4111-8111-111111111111',
+    'challenge_completed',
+    '72000000-0000-4000-8000-000000000004',
+    current_date - 2,
+    'health',
+    null,
+    90,
+    1,
+    jsonb_build_object('challengeId', '72000000-0000-4000-8000-000000000004', 'rank', 1),
+    1,
+    null,
+    null,
+    null,
+    now() - interval '36 hours',
+    now() - interval '36 hours'
+  ),
+  (
+    '73000000-0000-4000-8000-000000000004',
+    '11111111-1111-4111-8111-111111111111',
+    'season_result',
+    '74000000-0000-4000-8000-000000000002',
+    current_date - 14,
+    'health',
+    null,
+    0,
+    1,
+    jsonb_build_object('seasonId', '74000000-0000-4000-8000-000000000002', 'rank', 1, 'score', 610),
+    0,
+    null,
+    null,
+    null,
+    now() - interval '14 days',
+    now() - interval '14 days'
+  ),
+  (
+    '73000000-0000-4000-8000-000000000005',
+    '22222222-2222-4222-8222-222222222222',
+    'team_formed',
+    '71000000-0000-4000-8000-000000000001',
+    current_date - 12,
+    null,
+    null,
+    0,
+    1,
+    jsonb_build_object('teamId', '71000000-0000-4000-8000-000000000001'),
+    0,
+    null,
+    null,
+    null,
+    now() - interval '12 days',
+    now() - interval '12 days'
+  ),
+  (
+    '73000000-0000-4000-8000-000000000006',
+    '33333333-3333-4333-8333-333333333333',
+    'team_formed',
+    '71000000-0000-4000-8000-000000000001',
+    current_date - 12,
+    null,
+    null,
+    0,
+    1,
+    jsonb_build_object('teamId', '71000000-0000-4000-8000-000000000001'),
+    0,
+    null,
+    null,
+    null,
+    now() - interval '12 days',
+    now() - interval '12 days'
+  ),
+  (
+    '73000000-0000-4000-8000-000000000007',
+    '33333333-3333-4333-8333-333333333333',
+    'level_up',
+    'global',
+    current_date - 3,
+    'global',
+    null,
+    0,
+    1,
+    jsonb_build_object('level', 3, 'track', 'global'),
+    0,
+    null,
+    null,
+    null,
+    now() - interval '3 days',
+    now() - interval '3 days'
+  ),
+  (
+    '73000000-0000-4000-8000-000000000008',
+    '22222222-2222-4222-8222-222222222222',
+    'xp_earned',
+    'career',
+    current_date - 1,
+    'career',
+    '10000000-0000-4000-8000-000000000006',
+    30,
+    1,
+    jsonb_build_object('source', 'seed', 'note', 'writing streak'),
+    1,
+    null,
+    null,
+    null,
+    now() - interval '18 hours',
+    now() - interval '18 hours'
+  ),
+  (
+    '73000000-0000-4000-8000-000000000009',
+    '33333333-3333-4333-8333-333333333333',
+    'xp_earned',
+    'personal',
+    current_date - 4,
+    'personal',
+    '10000000-0000-4000-8000-000000000007',
+    20,
+    1,
+    jsonb_build_object('source', 'seed', 'note', 'planning ritual'),
+    0,
+    now() - interval '2 days',
+    '11111111-1111-4111-8111-111111111111',
+    'duplicate_demo_event',
+    now() - interval '4 days',
+    now() - interval '2 days'
+  ),
+  (
+    '73000000-0000-4000-8000-000000000010',
+    '11111111-1111-4111-8111-111111111111',
+    'challenge_completed',
+    '72000000-0000-4000-8000-000000000001',
+    current_date,
+    'health',
+    null,
+    120,
+    1,
+    jsonb_build_object('challengeId', '72000000-0000-4000-8000-000000000001', 'subjectKind', 'user'),
+    0,
+    null,
+    null,
+    null,
+    now() - interval '2 hours',
+    now() - interval '2 hours'
+  );
+
+insert into public.feed_reactions (
+  feed_event_id,
+  user_id,
+  reaction,
+  created_at
+)
+values
+  (
+    '73000000-0000-4000-8000-000000000001',
+    '22222222-2222-4222-8222-222222222222',
+    'fire',
+    now() - interval '19 hours'
+  ),
+  (
+    '73000000-0000-4000-8000-000000000001',
+    '33333333-3333-4333-8333-333333333333',
+    'clap',
+    now() - interval '18 hours'
+  ),
+  (
+    '73000000-0000-4000-8000-000000000002',
+    '11111111-1111-4111-8111-111111111111',
+    'strong',
+    now() - interval '38 hours'
+  ),
+  (
+    '73000000-0000-4000-8000-000000000003',
+    '22222222-2222-4222-8222-222222222222',
+    'cheer',
+    now() - interval '34 hours'
+  ),
+  (
+    '73000000-0000-4000-8000-000000000008',
+    '11111111-1111-4111-8111-111111111111',
+    'clap',
+    now() - interval '17 hours'
+  );
+
+insert into public.nudges (
+  id,
+  team_id,
+  from_user_id,
+  to_user_id,
+  kind,
+  goal_id,
+  message,
+  created_at
+)
+values
+  (
+    '75000000-0000-4000-8000-000000000001',
+    '71000000-0000-4000-8000-000000000001',
+    '22222222-2222-4222-8222-222222222222',
+    '33333333-3333-4333-8333-333333333333',
+    'cheer',
+    '10000000-0000-4000-8000-000000000006',
+    null,
+    now() - interval '1 day'
+  ),
+  (
+    '75000000-0000-4000-8000-000000000002',
+    '71000000-0000-4000-8000-000000000001',
+    '22222222-2222-4222-8222-222222222222',
+    '33333333-3333-4333-8333-333333333333',
+    'custom',
+    '10000000-0000-4000-8000-000000000009',
+    'Nice run streak this week. Keep it rolling.',
+    now() - interval '22 hours'
+  ),
+  (
+    '75000000-0000-4000-8000-000000000003',
+    '71000000-0000-4000-8000-000000000001',
+    '22222222-2222-4222-8222-222222222222',
+    '33333333-3333-4333-8333-333333333333',
+    'remind',
+    '10000000-0000-4000-8000-000000000009',
+    null,
+    now() - interval '6 hours'
+  );
+
+insert into public.notification_outbox (
+  id,
+  user_id,
+  kind,
+  title,
+  body,
+  url,
+  dedupe_key,
+  state,
+  attempts,
+  last_error,
+  available_at,
+  sent_at,
+  created_at
+)
+values
+  (
+    '76000000-0000-4000-8000-000000000001',
+    '11111111-1111-4111-8111-111111111111',
+    'team_invite',
+    'New team invite',
+    'Carla invited you to join her team.',
+    '/social',
+    'seed-team-invite-1',
+    'pending',
+    0,
+    null,
+    now() - interval '30 minutes',
+    null,
+    now() - interval '1 hour'
+  ),
+  (
+    '76000000-0000-4000-8000-000000000002',
+    '11111111-1111-4111-8111-111111111111',
+    'reaction',
+    'New reaction',
+    'Bob reacted to your challenge completion.',
+    '/social',
+    'seed-reaction-1',
+    'sent',
+    1,
+    null,
+    now() - interval '6 hours',
+    now() - interval '5 hours',
+    now() - interval '6 hours'
+  ),
+  (
+    '76000000-0000-4000-8000-000000000003',
+    '33333333-3333-4333-8333-333333333333',
+    'challenge_ending_soon',
+    'Challenge ending soon',
+    'Only a day left in Weekly XP Sprint.',
+    '/social',
+    'seed-challenge-ending-1',
+    'failed',
+    5,
+    'delivery_timeout',
+    now() - interval '3 hours',
+    null,
+    now() - interval '10 hours'
+  ),
+  (
+    '76000000-0000-4000-8000-000000000004',
+    '22222222-2222-4222-8222-222222222222',
+    'nudge',
+    'Partner nudge',
+    'Alice nudged you on Daily sketching.',
+    '/social',
+    'seed-nudge-1',
+    'skipped',
+    1,
+    'no_subscriptions',
+    now() - interval '4 hours',
+    null,
+    now() - interval '7 hours'
+  );
