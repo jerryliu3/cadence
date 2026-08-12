@@ -25,7 +25,7 @@ import type {
 } from "@/lib/goals/types";
 import { unsubscribeCurrentBrowser } from "@/lib/push/client";
 import { createClient } from "@/lib/supabase/client";
-import { requestXpRefresh } from "@/lib/xp/refresh";
+import { requestXpRefresh } from "@/lib/xp/events";
 
 interface SocialState {
   userId: string;

@@ -74,7 +74,7 @@ import {
 } from "@/lib/goals/definition-validation";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
-import { requestXpRefresh } from "@/lib/xp/refresh";
+import { requestXpRefresh } from "@/lib/xp/events";
 
 interface GoalFormProps {
   goalId?: string;
