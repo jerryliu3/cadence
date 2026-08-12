@@ -998,21 +998,21 @@ export function CalendarSurface({
     return isValid(parsed) && format(parsed, "yyyy-MM-dd") === value;
   };
 
-  const clearHoverPreviewTimer = () => {
+  const clearHoverPreviewTimer = useCallback(() => {
     if (hoverPreviewTimerRef.current) {
       window.clearTimeout(hoverPreviewTimerRef.current);
       hoverPreviewTimerRef.current = null;
     }
-  };
+  }, []);
 
-  const clearHoverPreviewCloseTimer = () => {
+  const clearHoverPreviewCloseTimer = useCallback(() => {
     if (hoverPreviewCloseTimerRef.current) {
       window.clearTimeout(hoverPreviewCloseTimerRef.current);
       hoverPreviewCloseTimerRef.current = null;
     }
-  };
+  }, []);
 
-  const scheduleHoverPreviewClose = (day: string) => {
+  const scheduleHoverPreviewClose = useCallback((day: string) => {
     clearHoverPreviewCloseTimer();
     hoverPreviewCloseTimerRef.current = window.setTimeout(() => {
       setDayPreview((current) => {
@@ -1025,7 +1025,7 @@ export function CalendarSurface({
         return null;
       });
     }, DAY_PREVIEW_CLOSE_DELAY_MS);
-  };
+  }, [clearHoverPreviewCloseTimer]);
 
   useEffect(() => {
     if (!dayPreview || dayPreview.pinned) {
