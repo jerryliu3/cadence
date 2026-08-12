@@ -645,7 +645,6 @@ export function BulkGoalForm({
           goalId,
           row: {
             id: goalId,
-            owner_id: currentUserId,
             title: draft.title.trim(),
             description: draft.description.trim() || null,
             category_key: getCategoryKeyForSelection(draft.category_selection),
@@ -662,12 +661,13 @@ export function BulkGoalForm({
             end_date: draft.end_date || null,
             default_local_time: draft.default_local_time.trim() || null,
             is_group: draft.is_group,
-            is_deleted: false,
           },
         };
       });
 
-      const { error } = await supabase.from("goals").insert(preparedRows.map((entry) => entry.row));
+      const { error } = await supabase.rpc("create_goals", {
+        p_goals: preparedRows.map((entry) => entry.row),
+      });
       if (error) {
         toast.error(error.message ?? "Failed to create bulk goals.");
         return;
@@ -678,13 +678,14 @@ export function BulkGoalForm({
           ({ draft }) => !draft.is_group && draft.linked_target_goal_id && draft.linked_target_goal_id !== "none"
         )
         .map(({ draft, goalId }) => ({
-          owner_id: currentUserId,
           source_goal_id: goalId,
           target_goal_id: draft.linked_target_goal_id,
         }));
 
       if (linkRows.length > 0) {
-        const { error: linkError } = await supabase.from("goal_links").insert(linkRows);
+        const { error: linkError } = await supabase.rpc("create_goal_links", {
+          p_links: linkRows,
+        });
         if (linkError) {
           toast.error(`Some linked goals were not saved: ${linkError.message}`);
         }
@@ -708,11 +709,10 @@ export function BulkGoalForm({
           continue;
         }
 
-        const { error: updateError } = await supabase
-          .from("goals")
-          .update({ photo_path: objectPath })
-          .eq("id", goalId)
-          .eq("owner_id", currentUserId);
+        const { error: updateError } = await supabase.rpc("set_goal_photo_path", {
+          p_goal_id: goalId,
+          p_photo_path: objectPath,
+        });
 
         if (updateError) {
           failedPhotoUploads += 1;
@@ -728,7 +728,7 @@ export function BulkGoalForm({
       toast.success(
         `Created ${preparedRows.length} goal${preparedRows.length === 1 ? "" : "s"}.`
       );
-      router.replace(preparedRows.some((entry) => entry.draft.is_group) ? "/settings" : "/");
+      router.replace("/");
       router.refresh();
     } finally {
       setSaving(false);

@@ -27,27 +27,18 @@ select is(
   'unknown categories normalize to other'
 );
 
-set local role service_role;
-
-insert into public.goals (
-  id,
-  owner_id,
-  title,
-  description,
-  category,
-  category_key,
-  color,
-  frequency_type,
-  recurrence_interval,
-  target_count,
-  start_date,
-  end_date,
-  is_group
-)
-values (
-  'b1400000-0000-4000-8000-000000000001',
+set local role authenticated;
+select set_config(
+  'request.jwt.claim.sub',
   '11111111-1111-4111-8111-111111111111',
-  'XP taxonomy trigger insert test',
+  true
+);
+select set_config('request.jwt.claim.role', 'authenticated', true);
+
+select public.create_goal(
+  'b1400000-0000-4000-8000-000000000001',
+  'XP taxonomy write-boundary insert test',
+  null,
   null,
   'Health',
   'career',
@@ -55,8 +46,10 @@ values (
   'recurring',
   'weekly',
   3,
+  null,
   current_date - 7,
   current_date + 7,
+  null,
   false
 );
 
@@ -67,7 +60,7 @@ select is(
     where id = 'b1400000-0000-4000-8000-000000000001'
   ),
   'career',
-  'insert trigger keeps category_key as canonical source of truth'
+  'create_goal keeps category_key as canonical source of truth'
 );
 
 select is(
@@ -77,14 +70,26 @@ select is(
     where id = 'b1400000-0000-4000-8000-000000000001'
   ),
   'Career',
-  'insert trigger rewrites category label from the canonical category_key'
+  'create_goal rewrites category label from the canonical category_key'
 );
 
-update public.goals
-set
-  category = 'Friends and family',
-  category_key = 'other'
-where id = 'b1400000-0000-4000-8000-000000000001';
+select public.update_goal(
+  'b1400000-0000-4000-8000-000000000001',
+  'XP taxonomy write-boundary insert test',
+  null,
+  null,
+  'Friends and family',
+  'other',
+  '#10b981',
+  'recurring',
+  'weekly',
+  3,
+  null,
+  current_date - 7,
+  current_date + 7,
+  null,
+  false
+);
 
 select is(
   (
@@ -93,7 +98,7 @@ select is(
     where id = 'b1400000-0000-4000-8000-000000000001'
   ),
   'other',
-  'update trigger keeps category_key canonical for custom labels'
+  'update_goal keeps category_key canonical for custom labels'
 );
 
 select is(
@@ -103,17 +108,8 @@ select is(
     where id = 'b1400000-0000-4000-8000-000000000001'
   ),
   'Friends and family',
-  'update trigger preserves custom label when category_key is other'
+  'update_goal preserves custom label when category_key is other'
 );
-
-reset role;
-set local role authenticated;
-select set_config(
-  'request.jwt.claim.sub',
-  '11111111-1111-4111-8111-111111111111',
-  true
-);
-select set_config('request.jwt.claim.role', 'authenticated', true);
 
 select is(
   (select count(*)::integer from public.goal_categories),

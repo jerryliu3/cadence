@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
   type CategorySelection,
+  getCategoryKeyForSelection,
   getCategoryLabel,
 } from "@/lib/goals/category";
 import { groupCompletionsByGoalId } from "@/lib/goals/completion-grouping";
@@ -24,6 +25,7 @@ import type {
 } from "@/lib/goals/types";
 import { unsubscribeCurrentBrowser } from "@/lib/push/client";
 import { createClient } from "@/lib/supabase/client";
+import { requestXpRefresh } from "@/lib/xp/refresh";
 
 interface SocialState {
   userId: string;
@@ -485,10 +487,10 @@ export function useSocialTabData() {
       return;
     }
 
-    const { error } = await supabase.from("goal_participants").insert({
-      goal_id: selectedGroupGoalId,
-      user_id: targetUserId,
-      role: "participant",
+    const { error } = await supabase.rpc("add_goal_participant", {
+      p_goal_id: selectedGroupGoalId,
+      p_user_id: targetUserId,
+      p_role: "participant",
     });
 
     if (error) {
@@ -539,31 +541,30 @@ export function useSocialTabData() {
 
     setSaving(true);
     const newGroupGoalId = crypto.randomUUID();
-    const { error } = await supabase.from("goals").insert({
-      id: newGroupGoalId,
-      owner_id: state.userId,
-      title: groupDraft.title.trim(),
-      description: groupDraft.description.trim() || null,
-      category: getCategoryLabel(
+    const { error } = await supabase.rpc("create_group_goal", {
+      p_id: newGroupGoalId,
+      p_title: groupDraft.title.trim(),
+      p_description: groupDraft.description.trim() || undefined,
+      p_category: getCategoryLabel(
         groupDraft.categorySelection,
         groupDraft.customCategory
       ),
-      color: "#0ea5e9",
-      frequency_type: groupDraft.frequencyType,
-      recurrence_interval:
+      p_category_key: getCategoryKeyForSelection(groupDraft.categorySelection),
+      p_color: "#0ea5e9",
+      p_frequency_type: groupDraft.frequencyType,
+      p_recurrence_interval:
         groupDraft.frequencyType === "recurring"
           ? groupDraft.recurrenceInterval
-          : null,
-      target_count:
+          : undefined,
+      p_target_count:
         groupDraft.frequencyType === "fixed_milestones"
-          ? parsedGroupTargetCount
+          ? parsedGroupTargetCount ?? undefined
           : groupDraft.frequencyType === "recurring" &&
               groupDraft.targetCount.trim().length > 0
-            ? parsedGroupTargetCount
-            : null,
-      start_date: groupDraft.startDate,
-      end_date: groupDraft.endDate || null,
-      is_group: true,
+            ? parsedGroupTargetCount ?? undefined
+            : undefined,
+      p_start_date: groupDraft.startDate,
+      p_end_date: groupDraft.endDate || undefined,
     });
 
     if (error) {
@@ -571,12 +572,6 @@ export function useSocialTabData() {
       setSaving(false);
       return;
     }
-
-    await supabase.from("goal_participants").insert({
-      goal_id: newGroupGoalId,
-      user_id: state.userId,
-      role: "owner",
-    });
 
     toast.success("Group goal created.");
     setGroupDraft({
@@ -588,11 +583,10 @@ export function useSocialTabData() {
   };
 
   const removeParticipant = async (goalId: string, participantUserId: string) => {
-    const { error } = await supabase
-      .from("goal_participants")
-      .delete()
-      .eq("goal_id", goalId)
-      .eq("user_id", participantUserId);
+    const { error } = await supabase.rpc("remove_goal_participant", {
+      p_goal_id: goalId,
+      p_user_id: participantUserId,
+    });
     if (error) {
       toast.error(error.message);
     } else {
@@ -602,11 +596,10 @@ export function useSocialTabData() {
   };
 
   const leaveGroup = async (goalId: string) => {
-    const { error } = await supabase
-      .from("goal_participants")
-      .delete()
-      .eq("goal_id", goalId)
-      .eq("user_id", state.userId);
+    const { error } = await supabase.rpc("remove_goal_participant", {
+      p_goal_id: goalId,
+      p_user_id: state.userId,
+    });
     if (error) {
       toast.error(error.message);
     } else {
@@ -616,15 +609,14 @@ export function useSocialTabData() {
   };
 
   const deleteGroupGoal = async (goalId: string) => {
-    const { error } = await supabase
-      .from("goals")
-      .update({ is_deleted: true })
-      .eq("id", goalId)
-      .eq("owner_id", state.userId);
+    const { error } = await supabase.rpc("soft_delete_goal", {
+      p_goal_id: goalId,
+    });
     if (error) {
       toast.error(error.message);
     } else {
       toast.success("Group goal deleted.");
+      requestXpRefresh();
       await loadData();
     }
   };

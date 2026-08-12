@@ -16,6 +16,10 @@ export type Database = {
     }
     Functions: {
       active_team_for_user: { Args: { p_user_id: string }; Returns: string }
+      assert_goal_owner: {
+        Args: { p_goal_id: string; p_uid: string }
+        Returns: undefined
+      }
       challenge_progress_value: {
         Args: {
           p_from: string
@@ -102,6 +106,14 @@ export type Database = {
           xp_amount: number
         }[]
       }
+      insert_goal_link_validated: {
+        Args: {
+          p_owner_id: string
+          p_source_goal_id: string
+          p_target_goal_id: string
+        }
+        Returns: undefined
+      }
       is_active_team_pair: {
         Args: { p_user_a: string; p_user_b: string }
         Returns: boolean
@@ -133,6 +145,13 @@ export type Database = {
         Args: { p_category: string }
         Returns: string
       }
+      normalize_goal_category_pair: {
+        Args: { p_category: string; p_category_key: string }
+        Returns: {
+          category: string
+          category_key: string
+        }[]
+      }
       partner_notifications_allowed: {
         Args: { p_team_id: string; p_user_id: string }
         Returns: boolean
@@ -145,6 +164,10 @@ export type Database = {
       }
       raise_if_future_completion_date: {
         Args: { p_date: string; p_user_id: string }
+        Returns: undefined
+      }
+      recompute_xp_for_goal_users: {
+        Args: { p_goal_id: string }
         Returns: undefined
       }
       refresh_challenge_participant: {
@@ -1874,6 +1897,14 @@ export type Database = {
         }
         Returns: boolean
       }
+      add_goal_participant: {
+        Args: {
+          p_goal_id: string
+          p_role?: Database["public"]["Enums"]["participant_role"]
+          p_user_id: string
+        }
+        Returns: undefined
+      }
       assert_xp_ledger_consistency_service: { Args: never; Returns: number }
       award_social_xp_service: {
         Args: {
@@ -1933,6 +1964,44 @@ export type Database = {
           request_count: number
           retry_after_seconds: number
         }[]
+      }
+      create_goal: {
+        Args: {
+          p_category?: string
+          p_category_key?: string
+          p_color?: string
+          p_default_local_time?: string
+          p_description?: string
+          p_end_date?: string
+          p_frequency_type?: Database["public"]["Enums"]["goal_frequency_type"]
+          p_id: string
+          p_is_group?: boolean
+          p_milestone_names?: string[]
+          p_recurrence_interval?: Database["public"]["Enums"]["recurrence_interval"]
+          p_reward_text?: string
+          p_start_date?: string
+          p_target_count?: number
+          p_title: string
+        }
+        Returns: string
+      }
+      create_goal_links: { Args: { p_links: Json }; Returns: undefined }
+      create_goals: { Args: { p_goals: Json }; Returns: string[] }
+      create_group_goal: {
+        Args: {
+          p_category?: string
+          p_category_key?: string
+          p_color?: string
+          p_description?: string
+          p_end_date?: string
+          p_frequency_type?: Database["public"]["Enums"]["goal_frequency_type"]
+          p_id: string
+          p_recurrence_interval?: Database["public"]["Enums"]["recurrence_interval"]
+          p_start_date?: string
+          p_target_count?: number
+          p_title: string
+        }
+        Returns: string
       }
       create_team_invite_service: {
         Args: { p_message?: string; p_partner_id: string }
@@ -2144,6 +2213,14 @@ export type Database = {
         }
         Returns: boolean
       }
+      remove_goal_participant: {
+        Args: { p_goal_id: string; p_user_id: string }
+        Returns: undefined
+      }
+      replace_goal_source_link: {
+        Args: { p_source_goal_id: string; p_target_goal_id?: string }
+        Returns: undefined
+      }
       resolve_notification_outbox_delivery_service: {
         Args: { p_error?: string; p_outbox_id: string; p_sent: boolean }
         Returns: boolean
@@ -2177,6 +2254,18 @@ export type Database = {
         }
         Returns: string
       }
+      set_goal_archived: {
+        Args: { p_archived: boolean; p_goal_id: string }
+        Returns: undefined
+      }
+      set_goal_milestone_names: {
+        Args: { p_goal_id: string; p_milestone_names: string[] }
+        Returns: undefined
+      }
+      set_goal_photo_path: {
+        Args: { p_goal_id: string; p_photo_path: string }
+        Returns: undefined
+      }
       set_planner_item_lock: {
         Args: {
           p_expected_digest: string
@@ -2204,8 +2293,29 @@ export type Database = {
           upserted_count: number
         }[]
       }
+      soft_delete_goal: { Args: { p_goal_id: string }; Returns: undefined }
       unmark_goal_complete: {
         Args: { p_date?: string; p_goal_id: string }
+        Returns: undefined
+      }
+      update_goal: {
+        Args: {
+          p_category?: string
+          p_category_key?: string
+          p_color?: string
+          p_default_local_time?: string
+          p_description?: string
+          p_end_date?: string
+          p_frequency_type?: Database["public"]["Enums"]["goal_frequency_type"]
+          p_id: string
+          p_is_group?: boolean
+          p_milestone_names?: string[]
+          p_recurrence_interval?: Database["public"]["Enums"]["recurrence_interval"]
+          p_reward_text?: string
+          p_start_date?: string
+          p_target_count?: number
+          p_title: string
+        }
         Returns: undefined
       }
       username_is_available: { Args: { p_username: string }; Returns: boolean }

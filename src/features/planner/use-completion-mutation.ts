@@ -7,6 +7,7 @@ import {
   type PlannerGoalDateFactExpectation,
   type PlannerItemDateFactExpectation,
 } from "@/lib/planner/completion-dispatch";
+import { requestXpRefresh } from "@/lib/xp/refresh";
 
 export interface RunCompletionMutationInput {
   decision: CompletionDispatchDecision;
@@ -65,7 +66,7 @@ export function useCompletionMutation() {
             message: result.message ?? fallbackErrorMessage,
           };
         }
-        window.dispatchEvent(new CustomEvent("xp:refresh-requested"));
+        requestXpRefresh();
         return {
           ok: true,
           message: null,
