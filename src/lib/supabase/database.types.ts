@@ -15,6 +15,16 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      challenge_progress_value: {
+        Args: {
+          p_from: string
+          p_metric: Database["public"]["Enums"]["challenge_metric"]
+          p_to: string
+          p_track_key: string
+          p_user_ids: string[]
+        }
+        Returns: number
+      }
       emit_feed_event: {
         Args: {
           p_actor_id: string
@@ -109,6 +119,10 @@ export type Database = {
         Args: { p_date: string; p_user_id: string }
         Returns: undefined
       }
+      refresh_user_challenge_participant: {
+        Args: { p_challenge_id: string; p_now?: string; p_user_id: string }
+        Returns: boolean
+      }
       refresh_xp_profile: {
         Args: { p_track_keys?: string[]; p_user_id: string }
         Returns: undefined
@@ -185,6 +199,119 @@ export type Database = {
             isOneToOne: true
             referencedRelation: "profiles"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      challenge_participants: {
+        Row: {
+          awarded_at: string | null
+          challenge_id: string
+          completed_at: string | null
+          joined_at: string
+          progress_at: string | null
+          progress_value: number
+          subject_id: string
+          subject_kind: Database["public"]["Enums"]["social_subject_kind"]
+        }
+        Insert: {
+          awarded_at?: string | null
+          challenge_id: string
+          completed_at?: string | null
+          joined_at?: string
+          progress_at?: string | null
+          progress_value?: number
+          subject_id: string
+          subject_kind: Database["public"]["Enums"]["social_subject_kind"]
+        }
+        Update: {
+          awarded_at?: string | null
+          challenge_id?: string
+          completed_at?: string | null
+          joined_at?: string
+          progress_at?: string | null
+          progress_value?: number
+          subject_id?: string
+          subject_kind?: Database["public"]["Enums"]["social_subject_kind"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "challenge_participants_challenge_id_fkey"
+            columns: ["challenge_id"]
+            isOneToOne: false
+            referencedRelation: "challenges"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      challenges: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          description: string | null
+          ends_at: string
+          id: string
+          max_participants: number | null
+          metric: Database["public"]["Enums"]["challenge_metric"]
+          metric_track_key: string | null
+          reward_xp: number
+          slug: string
+          starts_at: string
+          status: Database["public"]["Enums"]["challenge_status"]
+          subject_kind: Database["public"]["Enums"]["social_subject_kind"]
+          target_value: number
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          ends_at: string
+          id?: string
+          max_participants?: number | null
+          metric: Database["public"]["Enums"]["challenge_metric"]
+          metric_track_key?: string | null
+          reward_xp?: number
+          slug: string
+          starts_at: string
+          status?: Database["public"]["Enums"]["challenge_status"]
+          subject_kind?: Database["public"]["Enums"]["social_subject_kind"]
+          target_value: number
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          ends_at?: string
+          id?: string
+          max_participants?: number | null
+          metric?: Database["public"]["Enums"]["challenge_metric"]
+          metric_track_key?: string | null
+          reward_xp?: number
+          slug?: string
+          starts_at?: string
+          status?: Database["public"]["Enums"]["challenge_status"]
+          subject_kind?: Database["public"]["Enums"]["social_subject_kind"]
+          target_value?: number
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "challenges_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "challenges_metric_track_key_fkey"
+            columns: ["metric_track_key"]
+            isOneToOne: false
+            referencedRelation: "goal_categories"
+            referencedColumns: ["key"]
           },
         ]
       }
@@ -1196,9 +1323,55 @@ export type Database = {
           username: string
         }[]
       }
+      get_challenge_detail: {
+        Args: { p_challenge_id: string }
+        Returns: {
+          description: string
+          ends_at: string
+          id: string
+          max_participants: number
+          metric: Database["public"]["Enums"]["challenge_metric"]
+          metric_track_key: string
+          participant_count: number
+          reward_xp: number
+          slug: string
+          starts_at: string
+          status: Database["public"]["Enums"]["challenge_status"]
+          subject_kind: Database["public"]["Enums"]["social_subject_kind"]
+          target_value: number
+          title: string
+          viewer_awarded_at: string
+          viewer_completed_at: string
+          viewer_joined: boolean
+          viewer_progress: number
+        }[]
+      }
       get_planner_schedule_digest: {
         Args: { p_owner?: string }
         Returns: string
+      }
+      get_social_challenges: {
+        Args: never
+        Returns: {
+          description: string
+          ends_at: string
+          id: string
+          max_participants: number
+          metric: Database["public"]["Enums"]["challenge_metric"]
+          metric_track_key: string
+          participant_count: number
+          reward_xp: number
+          slug: string
+          starts_at: string
+          status: Database["public"]["Enums"]["challenge_status"]
+          subject_kind: Database["public"]["Enums"]["social_subject_kind"]
+          target_value: number
+          title: string
+          viewer_awarded_at: string
+          viewer_completed_at: string
+          viewer_joined: boolean
+          viewer_progress: number
+        }[]
       }
       get_social_feed: {
         Args: {
@@ -1235,6 +1408,14 @@ export type Database = {
         Args: { p_min_role?: Database["public"]["Enums"]["admin_role"] }
         Returns: boolean
       }
+      join_challenge_service: {
+        Args: { p_challenge_id: string }
+        Returns: boolean
+      }
+      leave_challenge_service: {
+        Args: { p_challenge_id: string }
+        Returns: boolean
+      }
       mark_goal_complete: {
         Args: { p_date?: string; p_goal_id: string }
         Returns: undefined
@@ -1256,6 +1437,7 @@ export type Database = {
         }
         Returns: number
       }
+      refresh_challenge_progress_service: { Args: never; Returns: number }
       save_planner_coach_conversation_service: {
         Args: {
           p_messages: Json
@@ -1310,6 +1492,13 @@ export type Database = {
     }
     Enums: {
       admin_role: "admin" | "moderator"
+      challenge_metric:
+        | "total_xp"
+        | "category_xp"
+        | "completions_count"
+        | "distinct_active_days"
+        | "max_streak_days"
+      challenge_status: "draft" | "scheduled" | "active" | "closed" | "archived"
       completion_source: "manual" | "linked_cascade"
       feed_event_type:
         | "xp_earned"
@@ -1329,6 +1518,7 @@ export type Database = {
       moderation_target: "feed_event" | "user" | "challenge" | "team"
       participant_role: "owner" | "participant"
       recurrence_interval: "daily" | "weekly" | "monthly"
+      social_subject_kind: "user" | "team"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1460,6 +1650,14 @@ export const Constants = {
   public: {
     Enums: {
       admin_role: ["admin", "moderator"],
+      challenge_metric: [
+        "total_xp",
+        "category_xp",
+        "completions_count",
+        "distinct_active_days",
+        "max_streak_days",
+      ],
+      challenge_status: ["draft", "scheduled", "active", "closed", "archived"],
       completion_source: ["manual", "linked_cascade"],
       feed_event_type: [
         "xp_earned",
@@ -1481,6 +1679,7 @@ export const Constants = {
       moderation_target: ["feed_event", "user", "challenge", "team"],
       participant_role: ["owner", "participant"],
       recurrence_interval: ["daily", "weekly", "monthly"],
+      social_subject_kind: ["user", "team"],
     },
   },
 } as const
