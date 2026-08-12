@@ -16,7 +16,7 @@ concurrency:
 jobs:
   verify-static-full:
     name: verify-static-full
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, cadence-ci]
     timeout-minutes: 20
 
     steps:
@@ -49,7 +49,7 @@ jobs:
 
   verify-integration-full:
     name: verify-integration-full
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, cadence-ci]
     timeout-minutes: 40
 
     steps:
@@ -178,7 +178,7 @@ jobs:
     needs:
       - verify-static-full
       - verify-integration-full
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, cadence-ci]
     timeout-minutes: 5
 
     steps:
@@ -195,7 +195,7 @@ jobs:
     if: always()
     needs:
       - verify-full
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, cadence-ci]
     permissions:
       contents: read
       issues: write
