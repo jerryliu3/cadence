@@ -177,50 +177,6 @@ begin
     return 0;
   end if;
 
-  if to_regclass('public.xp_ledger') is null then
-    case p_metric
-      when 'completions_count'::public.challenge_metric then
-        select count(*)::numeric
-        into v_value
-        from public.completions completion
-        where completion.user_id = any(p_user_ids)
-          and completion.completed_on between p_from and p_to;
-      when 'distinct_active_days'::public.challenge_metric then
-        select count(distinct completion.completed_on)::numeric
-        into v_value
-        from public.completions completion
-        where completion.user_id = any(p_user_ids)
-          and completion.completed_on between p_from and p_to;
-      when 'max_streak_days'::public.challenge_metric then
-        with days as (
-          select distinct completion.completed_on as active_on
-          from public.completions completion
-          where completion.user_id = any(p_user_ids)
-            and completion.completed_on between p_from and p_to
-        ),
-        islands as (
-          select
-            active_on,
-            active_on
-            - ((row_number() over (order by active_on))::text || ' day')::interval as island_key
-          from days
-        )
-        select coalesce(max(streak_days), 0)::numeric
-        into v_value
-        from (
-          select count(*)::integer as streak_days
-          from islands
-          group by island_key
-        ) streaks;
-      else
-        raise exception
-          using errcode = '22023',
-                message = 'unsupported_metric_without_xp';
-    end case;
-
-    return coalesce(v_value, 0);
-  end if;
-
   case p_metric
     when 'total_xp'::public.challenge_metric then
       select coalesce(sum(ledger.xp_delta), 0)::numeric

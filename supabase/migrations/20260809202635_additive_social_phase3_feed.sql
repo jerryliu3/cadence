@@ -76,9 +76,7 @@ language sql
 stable
 set search_path = ''
 as $$
-  select (pg_catalog.now() at time zone profile.timezone)::date
-  from public.profiles profile
-  where profile.id = p_user_id;
+  select private.local_today_for_user(p_user_id);
 $$;
 
 create or replace function private.emit_feed_event(
