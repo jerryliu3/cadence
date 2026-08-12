@@ -142,7 +142,7 @@ const recurrenceGroupLabel: Record<RecurrenceGroup, string> = {
   daily: "Daily",
   weekly: "Weekly",
   monthly: "Monthly",
-  fixed: "Fixed",
+  fixed: "Milestone",
 };
 const recurrenceFilterOptions: Array<{ value: RecurrenceFilter; label: string }> = [
   { value: "all", label: "All" },
@@ -815,7 +815,7 @@ export function TodayTab({
     return (
       <LoadingCard
         title="Loading your goals..."
-        description="Pulling your latest progress from Supabase."
+        description="Pulling your latest status."
       />
     );
   }
@@ -842,7 +842,6 @@ export function TodayTab({
 
         <TabsContent value="today" className="space-y-5">
           <TodayHeaderCard
-            viewDateObj={viewDateObj}
             viewDate={viewDate}
             todayLocalDate={todayLocalDate}
             viewingToday={viewingToday}
@@ -852,28 +851,30 @@ export function TodayTab({
             onResetToToday={() => setViewDate(todayLocalDate)}
             datePickerControls={
               <>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon-sm"
-                  className="h-8 w-8 shrink-0 rounded-full"
-                  onClick={() => setTodayFiltersOpen(true)}
-                  aria-label="Open filters"
-                  title="Open filters"
-                >
-                  <SlidersHorizontal className="size-3.5" />
-                </Button>
-                {hideTabList ? (
+                <div className="flex items-center gap-2">
                   <Button
                     type="button"
                     variant="outline"
-                    size="sm"
-                    className="hidden h-8 rounded-full px-3 text-xs md:inline-flex"
-                    onClick={() => switchChecklistTab("not-today")}
+                    size="icon-sm"
+                    className="h-8 w-8 shrink-0 rounded-full"
+                    onClick={() => setTodayFiltersOpen(true)}
+                    aria-label="Open filters"
+                    title="Open filters"
                   >
-                    Show Past
+                    <SlidersHorizontal className="size-3.5" />
                   </Button>
-                ) : null}
+                  {hideTabList ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="hidden h-8 rounded-full px-3 text-xs md:inline-flex"
+                      onClick={() => switchChecklistTab("not-today")}
+                    >
+                      Show Past
+                    </Button>
+                  ) : null}
+                </div>
                 <Dialog open={todayFiltersOpen} onOpenChange={setTodayFiltersOpen}>
                   <DialogContent className="top-auto bottom-0 left-1/2 max-h-[85vh] max-w-[calc(100%-1rem)] -translate-x-1/2 translate-y-0 overflow-y-auto rounded-b-none rounded-t-xl pb-[calc(env(safe-area-inset-bottom)+1rem)] sm:top-1/2 sm:bottom-auto sm:max-w-lg sm:-translate-y-1/2 sm:rounded-b-xl">
                     <DialogHeader>

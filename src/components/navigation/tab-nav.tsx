@@ -31,21 +31,16 @@ export function TabNav({ mobile = false }: TabNavProps) {
       className={cn(
         "w-full",
         mobile
-          ? "fixed inset-x-0 z-30 px-4"
+          ? "fixed inset-x-0 bottom-0 z-40 px-3 pt-2 pb-[calc(env(safe-area-inset-bottom)+0.5rem)]"
           : "mx-auto rounded-2xl border bg-card/90 p-1"
       )}
-      style={
-        mobile
-          ? { bottom: "calc(env(safe-area-inset-bottom) + 0.5rem)" }
-          : undefined
-      }
       aria-label="Main navigation"
     >
       <ul
         className={cn(
           "grid w-full gap-1",
           mobile
-            ? `${gridClass} rounded-2xl border border-border/60 bg-background/70 p-1.5 shadow-lg backdrop-blur supports-[backdrop-filter]:bg-background/55`
+            ? `${gridClass} rounded-2xl border border-border/60 bg-background/55 p-1.5 shadow-[0_-6px_24px_-18px_hsl(var(--foreground))] backdrop-blur-xl supports-[backdrop-filter]:bg-background/35`
             : gridClass
         )}
       >

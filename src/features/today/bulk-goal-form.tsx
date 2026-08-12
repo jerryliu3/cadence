@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { type ChangeEvent, useEffect, useMemo, useState } from "react";
+import { type ChangeEvent, type ReactNode, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -130,6 +130,7 @@ type BulkInputMode = "natural_language" | "csv";
 
 interface BulkGoalFormProps {
   showBackButton?: boolean;
+  modeSwitchControl?: ReactNode;
 }
 
 const csvExample = `title,description,category,color,is_group,frequency_type,recurrence_interval,target_count,milestone_names,start_date,end_date,default_local_time
@@ -402,7 +403,10 @@ async function parseRowsFromSpreadsheetFile(
   });
 }
 
-export function BulkGoalForm({ showBackButton = true }: BulkGoalFormProps) {
+export function BulkGoalForm({
+  showBackButton = true,
+  modeSwitchControl,
+}: BulkGoalFormProps) {
   const supabase = useMemo(() => createClient(), []);
   const router = useRouter();
   const [inputMode, setInputMode] = useState<BulkInputMode>("natural_language");
@@ -746,7 +750,10 @@ export function BulkGoalForm({ showBackButton = true }: BulkGoalFormProps) {
         <CardHeader>
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <CardTitle>Create multiple goals</CardTitle>
+              <div className="flex flex-wrap items-center gap-2">
+                <CardTitle>Create multiple goals</CardTitle>
+                {modeSwitchControl}
+              </div>
               <CardDescription>
                 Describe goals with AI, paste CSV, or upload CSV/XLSX, then approve in one click.
               </CardDescription>

@@ -15,7 +15,7 @@ export function AppShell({ children }: AppShellProps) {
   return (
     <div className="flex min-h-screen w-full justify-center px-4 py-4 sm:px-6 sm:py-6">
       <div className="flex w-full max-w-5xl flex-col gap-4 md:gap-6">
-        <header className="rounded-2xl border bg-card p-4 shadow-sm">
+        <header className="sticky top-2 z-40 rounded-2xl border bg-card/90 p-4 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-card/70 md:static md:bg-card md:backdrop-blur-none">
           <div className="flex items-start justify-between gap-3">
             <div className="flex flex-wrap items-start gap-3">
               <h1 className="text-2xl font-semibold tracking-tight">Goalmaxxing</h1>

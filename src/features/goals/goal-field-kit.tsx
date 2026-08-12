@@ -16,21 +16,24 @@ import {
 } from "@/lib/goals/category";
 import { GOAL_TYPE_OPTIONS, RECURRENCE_INTERVAL_OPTIONS } from "@/lib/goals/form-options";
 import type { GoalFrequencyType, RecurrenceInterval } from "@/lib/goals/types";
+import { cn } from "@/lib/utils";
 
 interface CategorySelectProps {
   value: CategorySelection;
   onValueChange: (value: CategorySelection) => void;
   placeholder?: string;
+  triggerClassName?: string;
 }
 
 export function CategorySelect({
   value,
   onValueChange,
   placeholder = "Select category",
+  triggerClassName,
 }: CategorySelectProps) {
   return (
     <Select value={value} onValueChange={(nextValue) => onValueChange(nextValue as CategorySelection)}>
-      <SelectTrigger>
+      <SelectTrigger className={cn(triggerClassName)}>
         <SelectValue placeholder={placeholder} />
       </SelectTrigger>
       <SelectContent>
@@ -115,6 +118,7 @@ interface TargetCountFieldProps {
   frequencyType: GoalFrequencyType;
   value: string;
   onValueChange: (value: string) => void;
+  showRecurringHelperText?: boolean;
 }
 
 export function TargetCountField({
@@ -122,6 +126,7 @@ export function TargetCountField({
   frequencyType,
   value,
   onValueChange,
+  showRecurringHelperText = true,
 }: TargetCountFieldProps) {
   return (
     <>
@@ -133,7 +138,7 @@ export function TargetCountField({
         onChange={(event) => onValueChange(event.target.value)}
         required={frequencyType === "fixed_milestones"}
       />
-      {frequencyType === "recurring" ? (
+      {frequencyType === "recurring" && showRecurringHelperText ? (
         <p className="text-xs text-muted-foreground">
           Optional: set a total due by the end date. Each date is checked independently;
           target-total goals do not use current-period or streak semantics.

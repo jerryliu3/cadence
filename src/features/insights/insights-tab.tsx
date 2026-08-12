@@ -16,6 +16,7 @@ import {
 } from "date-fns";
 import {
   CalendarRange,
+  ChevronDown,
   Flame,
   Layers3,
   Maximize2,
@@ -31,7 +32,7 @@ import { toast } from "sonner";
 import { AnchoredPopupCard } from "@/components/ui/anchored-popup-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -735,65 +736,64 @@ export function InsightsTab() {
         <CardHeader>
           <div className="flex items-center gap-2">
             <Layers3 className="size-4 text-primary" />
-            <CardTitle>Progress tracking</CardTitle>
+            <CardTitle>Overall stats</CardTitle>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div
-            ref={aggregateHeatmapRef}
-            className="overflow-x-auto rounded-xl border bg-card p-4"
-          >
-            <CalendarHeatmap
-              startDate={selectedYearStart}
-              endDate={selectedYearEnd}
-              values={aggregateHeatmapData}
-              showWeekdayLabels
-              weekdayLabels={aggregateWeekdayLabels}
-              classForValue={(value) =>
-                `${getHeatmapScaleClass(value?.count ?? 0)} cursor-pointer ${getAggregateDrilldownDayClass(value?.date)}`
-              }
-              titleForValue={(value) =>
-                `${value?.date ?? "N/A"}: ${value?.count ?? 0} completion${
-                  (value?.count ?? 0) === 1 ? "" : "s"
-                }`
-              }
-              onClick={(value) => {
-                if (value?.date) {
-                  setAggregateDrilldownDate(value.date);
-                  setAggregateDrilldownExpanded(false);
-                  const tile = aggregateHeatmapRef.current?.querySelector(
-                    `.${getAggregateDrilldownDayClass(value.date)}`
-                  );
-                  if (tile instanceof Element) {
-                    const rect = tile.getBoundingClientRect();
-                    setAggregateDrilldownPosition(
-                      computeDayPreviewPosition({
-                        rect: {
-                          top: rect.top,
-                          left: rect.left,
-                          width: rect.width,
-                          height: rect.height,
-                        },
-                        viewportWidth: window.innerWidth,
-                        viewportHeight: window.innerHeight,
-                      })
-                    );
-                  } else {
-                    setAggregateDrilldownPosition(null);
-                  }
+          <div className="space-y-0">
+            <div ref={aggregateHeatmapRef} className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+              <CalendarHeatmap
+                startDate={selectedYearStart}
+                endDate={selectedYearEnd}
+                values={aggregateHeatmapData}
+                showWeekdayLabels
+                weekdayLabels={aggregateWeekdayLabels}
+                classForValue={(value) =>
+                  `${getHeatmapScaleClass(value?.count ?? 0)} cursor-pointer ${getAggregateDrilldownDayClass(value?.date)}`
                 }
-              }}
-            />
-          </div>
-          <div className="flex items-center justify-end gap-2 text-xs text-muted-foreground">
-            <span>Less</span>
-            {[0, 1, 2, 3, 4].map((scale) => (
-              <span
-                key={scale}
-                className={`inline-block size-3 rounded-[3px] heatmap-scale-${scale}`}
+                titleForValue={(value) =>
+                  `${value?.date ?? "N/A"}: ${value?.count ?? 0} completion${
+                    (value?.count ?? 0) === 1 ? "" : "s"
+                  }`
+                }
+                onClick={(value) => {
+                  if (value?.date) {
+                    setAggregateDrilldownDate(value.date);
+                    setAggregateDrilldownExpanded(false);
+                    const tile = aggregateHeatmapRef.current?.querySelector(
+                      `.${getAggregateDrilldownDayClass(value.date)}`
+                    );
+                    if (tile instanceof Element) {
+                      const rect = tile.getBoundingClientRect();
+                      setAggregateDrilldownPosition(
+                        computeDayPreviewPosition({
+                          rect: {
+                            top: rect.top,
+                            left: rect.left,
+                            width: rect.width,
+                            height: rect.height,
+                          },
+                          viewportWidth: window.innerWidth,
+                          viewportHeight: window.innerHeight,
+                        })
+                      );
+                    } else {
+                      setAggregateDrilldownPosition(null);
+                    }
+                  }
+                }}
               />
-            ))}
-            <span>More</span>
+            </div>
+            <div className="-mt-4 flex items-center justify-end gap-2 text-xs text-muted-foreground">
+              <span>Less</span>
+              {[0, 1, 2, 3, 4].map((scale) => (
+                <span
+                  key={scale}
+                  className={`inline-block size-3 rounded-[3px] heatmap-scale-${scale}`}
+                />
+              ))}
+              <span>More</span>
+            </div>
           </div>
           <div className="flex items-center justify-between text-sm">
             <span className="text-muted-foreground">Overall completion</span>
@@ -807,57 +807,52 @@ export function InsightsTab() {
         <CardHeader className="pb-3">
           <div className="flex items-center gap-2">
             <CalendarRange className="size-4 text-primary" />
-            <CardTitle>Per-goal controls</CardTitle>
+            <CardTitle>Goal Stats</CardTitle>
           </div>
-          <CardDescription>Switch between monthly and yearly goal heatmaps.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div
-              className="inline-flex items-center rounded-lg border bg-muted/20 p-1"
-              role="group"
-              aria-label="Heatmap view"
-            >
-              <Button
-                type="button"
-                size="sm"
-                variant={perGoalViewMode === "month" ? "secondary" : "ghost"}
-                aria-pressed={perGoalViewMode === "month"}
-                onClick={() => {
-                  setGoalMonthOverrides({});
-                  setPerGoalViewMode("month");
-                }}
-              >
-                Month View
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant={perGoalViewMode === "year" ? "secondary" : "ghost"}
-                aria-pressed={perGoalViewMode === "year"}
-                onClick={() => {
-                  setGoalMonthOverrides({});
-                  setPerGoalViewMode("year");
-                }}
-              >
-                Year View
-              </Button>
+          <div className="space-y-3">
+            <div className="flex justify-center">
+              <PeriodStepper
+                onPrevious={() => shiftGlobalMonthCursor(-1)}
+                onNext={() => shiftGlobalMonthCursor(1)}
+                center={
+                  <span className="min-w-[120px] text-center text-sm font-medium text-muted-foreground">
+                    {perGoalViewMode === "month"
+                      ? format(monthCursor, "MMMM yyyy")
+                      : format(monthCursor, "yyyy")}
+                  </span>
+                }
+                previousAriaLabel="Previous period"
+                nextAriaLabel="Next period"
+              />
             </div>
-            <PeriodStepper
-              onPrevious={() => shiftGlobalMonthCursor(-1)}
-              onNext={() => shiftGlobalMonthCursor(1)}
-              center={
-                <span className="min-w-[120px] text-center text-sm font-medium text-muted-foreground">
-                  {perGoalViewMode === "month"
-                    ? format(monthCursor, "MMMM yyyy")
-                    : format(monthCursor, "yyyy")}
-                </span>
-              }
-              previousAriaLabel="Previous period"
-              nextAriaLabel="Next period"
-            />
           </div>
           <div className="flex flex-wrap items-end gap-3">
+            <div className="space-y-1">
+              <label
+                htmlFor="insights-goal-stats-view-mode"
+                className="block text-xs text-muted-foreground"
+              >
+                View
+              </label>
+              <div className="relative w-[110px]">
+                <select
+                  id="insights-goal-stats-view-mode"
+                  value={perGoalViewMode}
+                  onChange={(event) => {
+                    setGoalMonthOverrides({});
+                    setPerGoalViewMode(event.target.value as HeatmapViewMode);
+                  }}
+                  className="h-8 w-full appearance-none rounded-full border border-input bg-background/90 px-3 pr-8 text-xs text-foreground outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                  aria-label="Goal stats view mode"
+                >
+                  <option value="month">Month</option>
+                  <option value="year">Year</option>
+                </select>
+                <ChevronDown className="pointer-events-none absolute top-1/2 right-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
+              </div>
+            </div>
             <GoalListControls
               goals={personalGoals}
               referenceMonth={goalFilterStartMonth}
@@ -865,6 +860,7 @@ export function InsightsTab() {
               onEndMonthChange={setGoalEndMonth}
               sort={goalSort}
               onSortChange={setGoalSort}
+              mode="native"
             />
             <label
               className={`flex h-8 w-fit items-center gap-2 text-xs text-muted-foreground ${
@@ -891,21 +887,9 @@ export function InsightsTab() {
         </CardContent>
       </Card>
 
-      <Card className="shadow-sm">
-        <CardHeader>
-          <div>
-            <CardTitle>
-              {perGoalViewMode === "month" ? "Per-goal monthly heatmaps" : "Per-goal yearly heatmaps"}
-            </CardTitle>
-            <CardDescription>
-              {perGoalViewMode === "month"
-                ? "Navigate by month to inspect each goal pattern."
-                : "Yearly consistency view per goal."}
-            </CardDescription>
-          </div>
-        </CardHeader>
+      <Card className="border-0 bg-transparent py-0 shadow-none ring-0">
         <CardContent
-          className="space-y-3"
+          className="space-y-3 px-0"
           data-no-swipe="true"
           onTouchStart={perGoalViewMode === "month" ? onMonthSectionTouchStart : undefined}
           onTouchEnd={perGoalViewMode === "month" ? onMonthSectionTouchEnd : undefined}
@@ -1076,7 +1060,7 @@ export function InsightsTab() {
                             }
                           />
                         ) : (
-                          <div className="overflow-x-auto rounded-xl border bg-card p-3">
+                          <div className="overflow-x-auto py-1">
                             <CalendarHeatmap
                               startDate={selectedYearStart}
                               endDate={selectedYearEnd}
@@ -1161,7 +1145,7 @@ export function InsightsTab() {
                             }
                           />
                         ) : (
-                          <div className="overflow-x-auto rounded-xl border bg-card p-3">
+                          <div className="overflow-x-auto py-1">
                             <CalendarHeatmap
                               startDate={selectedYearStart}
                               endDate={selectedYearEnd}

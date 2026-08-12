@@ -1,15 +1,13 @@
 "use client";
 
-import { format } from "date-fns";
 import { Sparkles } from "lucide-react";
 import type { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { PeriodStepper } from "@/components/ui/period-stepper";
 
 interface TodayHeaderCardProps {
-  viewDateObj: Date;
   viewDate: string;
   todayLocalDate: string;
   viewingToday: boolean;
@@ -24,7 +22,6 @@ interface TodayHeaderCardProps {
 }
 
 export function TodayHeaderCard({
-  viewDateObj,
   viewDate,
   todayLocalDate,
   viewingToday,
@@ -38,7 +35,7 @@ export function TodayHeaderCard({
   children,
 }: TodayHeaderCardProps) {
   return (
-    <Card className="shadow-sm">
+    <Card className="rounded-none border-0 bg-transparent py-0 shadow-none ring-0 sm:rounded-xl sm:bg-card sm:py-4 sm:ring-1 sm:shadow-sm">
       <CardHeader className="pb-3">
         <div className="min-w-0">
           <div className="flex items-start justify-between gap-3">
@@ -47,32 +44,35 @@ export function TodayHeaderCard({
                 <Sparkles className="size-4 text-primary" />
                 <CardTitle className="text-xl">Today</CardTitle>
               </div>
-              <CardDescription>{format(viewDateObj, "EEEE, MMMM d")}</CardDescription>
             </div>
           </div>
-          <div className="mt-2 w-fit max-w-full space-y-2">
-            <div className="flex min-w-0 shrink-0 items-center gap-2">
-              <PeriodStepper
-                onPrevious={onGoToPreviousDate}
-                onNext={onGoToNextDate}
-                center={
-                  <Input
-                    type="date"
-                    value={viewDate}
-                    onChange={(event) => onViewDateChange(event.target.value || todayLocalDate)}
-                    className="h-8 w-[170px]"
-                  />
-                }
-                previousAriaLabel="Previous day"
-                nextAriaLabel="Next day"
-              />
-              {datePickerControls ? (
-                <div className="shrink-0">{datePickerControls}</div>
-              ) : null}
-              {!viewingToday ? (
-                <Button type="button" variant="ghost" size="sm" onClick={onResetToToday}>
-                  Today
-                </Button>
+          <div className="mt-2 flex w-full flex-col gap-2">
+            <div className="grid w-full grid-cols-[1fr_auto_1fr] items-center">
+              <div className="col-start-2 justify-self-center">
+                <PeriodStepper
+                  onPrevious={onGoToPreviousDate}
+                  onNext={onGoToNextDate}
+                  center={
+                    <Input
+                      type="date"
+                      value={viewDate}
+                      onChange={(event) => onViewDateChange(event.target.value || todayLocalDate)}
+                      className="h-8 w-[170px]"
+                    />
+                  }
+                  previousAriaLabel="Previous day"
+                  nextAriaLabel="Next day"
+                />
+              </div>
+              {datePickerControls || !viewingToday ? (
+                <div className="col-start-3 ml-2 flex items-center gap-2 justify-self-start">
+                  {datePickerControls ? <div className="shrink-0">{datePickerControls}</div> : null}
+                  {!viewingToday ? (
+                    <Button type="button" variant="ghost" size="sm" onClick={onResetToToday}>
+                      Today
+                    </Button>
+                  ) : null}
+                </div>
               ) : null}
             </div>
             {searchControls ? <div className="w-full">{searchControls}</div> : null}

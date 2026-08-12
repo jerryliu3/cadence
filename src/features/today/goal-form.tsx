@@ -5,6 +5,7 @@ import {
   Archive,
   ChevronDown,
   ChevronUp,
+  CircleHelp,
   LoaderCircle,
   Save,
   Trash2,
@@ -14,7 +15,7 @@ import { endOfMonth, endOfYear, format, startOfMonth, startOfYear } from "date-f
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { type FormEvent, useEffect, useMemo, useState } from "react";
+import { type FormEvent, type ReactNode, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -22,13 +23,6 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { LoadingCard } from "@/components/ui/loading-card";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import {
   CategorySelect,
@@ -73,6 +67,7 @@ import { createClient } from "@/lib/supabase/client";
 interface GoalFormProps {
   goalId?: string;
   showBackButton?: boolean;
+  modeSwitchControl?: ReactNode;
 }
 
 interface GoalFormState {
@@ -121,7 +116,11 @@ function parsePositiveTargetCount(value: string): number | null {
   return parsed;
 }
 
-export function GoalForm({ goalId, showBackButton = true }: GoalFormProps) {
+export function GoalForm({
+  goalId,
+  showBackButton = true,
+  modeSwitchControl,
+}: GoalFormProps) {
   const supabase = useMemo(() => createClient(), []);
   const router = useRouter();
   const [state, setState] = useState<GoalFormState>(defaultState);
@@ -574,8 +573,9 @@ export function GoalForm({ goalId, showBackButton = true }: GoalFormProps) {
     <Card className="shadow-sm">
       <CardHeader>
         <div className="flex items-center justify-between gap-2">
-          <div>
-            <CardTitle>{isEditing ? "Edit goal" : "Create goal"}</CardTitle>
+          <div className="flex flex-wrap items-center gap-2">
+            <CardTitle>{isEditing ? "Edit goal" : "New goal"}</CardTitle>
+            {modeSwitchControl}
           </div>
           <div className="flex items-center gap-2">
             {showBackButton ? (
@@ -591,30 +591,30 @@ export function GoalForm({ goalId, showBackButton = true }: GoalFormProps) {
             ) : null}
             <Button type="submit" form={goalFormId} disabled={submitDisabled}>
               {saving ? <LoaderCircle className="size-4 animate-spin" /> : <Save className="size-4" />}
-              {isEditing ? "Save changes" : "Create goal"}
+              {isEditing ? "Save changes" : "Save"}
             </Button>
           </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-6">
         <form id={goalFormId} className="space-y-4" onSubmit={onSubmit}>
-          <div className="space-y-2">
-            <Label htmlFor="goal-title">Title</Label>
-            <Input
-              id="goal-title"
-              value={state.title}
-              onChange={(event) => setState((prev) => ({ ...prev, title: event.target.value }))}
-              placeholder="Run 20 times by Dec 31"
-              className="h-9"
-              required
-            />
-          </div>
-
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
             <div className="space-y-2">
+              <Label htmlFor="goal-title">Title</Label>
+              <Input
+                id="goal-title"
+                value={state.title}
+                onChange={(event) => setState((prev) => ({ ...prev, title: event.target.value }))}
+                placeholder="Run 20 times by Dec 31"
+                className="h-9"
+                required
+              />
+            </div>
+            <div className="space-y-2 sm:justify-self-end">
               <Label>Category</Label>
               <CategorySelect
                 value={state.category_selection}
+                triggerClassName="h-9"
                 onValueChange={(value: CategorySelection) =>
                   setState((prev) => ({
                     ...prev,
@@ -622,13 +622,6 @@ export function GoalForm({ goalId, showBackButton = true }: GoalFormProps) {
                     color: getCategorySwatchColor(value),
                   }))
                 }
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Goal type</Label>
-              <GoalTypeToggle
-                value={state.frequency_type}
-                onValueChange={updateFrequencyType}
               />
             </div>
           </div>
@@ -648,9 +641,48 @@ export function GoalForm({ goalId, showBackButton = true }: GoalFormProps) {
             </div>
           ) : null}
 
-          <div className="grid gap-3 sm:grid-cols-2">
-            {canShowRecurrenceFields ? (
+          <div
+            className={`grid gap-3 ${
+              canShowRecurrenceFields
+                ? "xl:grid-cols-[minmax(0,1fr)_9rem_minmax(0,1fr)]"
+                : "xl:grid-cols-[minmax(0,1fr)_9rem]"
+            } xl:items-start`}
+          >
+            <div className="space-y-2">
+              <Label>Goal type</Label>
+              <GoalTypeToggle
+                value={state.frequency_type}
+                onValueChange={updateFrequencyType}
+              />
+            </div>
+
+            {canShowTargetCount ? (
               <div className="space-y-2">
+                <Label htmlFor="target-count" className="inline-flex items-center gap-1">
+                  <span>Target count</span>
+                  {state.frequency_type === "recurring" ? (
+                    <span
+                      className="inline-flex text-muted-foreground"
+                      title="Optional: set a total due by the end date. Each date is checked independently; target-total goals do not use current-period or streak semantics."
+                    >
+                      <CircleHelp className="size-3.5" />
+                    </span>
+                  ) : null}
+                </Label>
+                <div className="w-24">
+                  <TargetCountField
+                    id="target-count"
+                    frequencyType={state.frequency_type}
+                    value={state.target_count}
+                    onValueChange={updateTargetCount}
+                    showRecurringHelperText={false}
+                  />
+                </div>
+              </div>
+            ) : null}
+
+            {canShowRecurrenceFields ? (
+              <div className="space-y-2 xl:justify-self-end">
                 <Label>Recurrence interval</Label>
                 <RecurrenceIntervalToggle
                   value={state.recurrence_interval}
@@ -663,131 +695,57 @@ export function GoalForm({ goalId, showBackButton = true }: GoalFormProps) {
                 />
               </div>
             ) : null}
-
-            {canShowTargetCount ? (
-              <div className="space-y-2">
-                <Label htmlFor="target-count">
-                  {state.frequency_type === "fixed_milestones"
-                    ? "Target count"
-                    : "Target completions (optional)"}
-                </Label>
-                <TargetCountField
-                  id="target-count"
-                  frequencyType={state.frequency_type}
-                  value={state.target_count}
-                  onValueChange={updateTargetCount}
-                />
-              </div>
-            ) : null}
           </div>
 
-          {fixedMilestoneCount > 0 ? (
-            <Collapsible
-              open={fixedMilestoneCount > 0 ? milestoneNamesOpen : false}
-              onOpenChange={setMilestoneNamesOpen}
-            >
-              <div className="rounded-xl border bg-muted/20">
-                <CollapsibleTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-sm"
-                  >
-                    <span>Milestone names (optional)</span>
-                    {milestoneNamesOpen ? (
-                      <ChevronUp className="size-4 text-muted-foreground" />
-                    ) : (
-                      <ChevronDown className="size-4 text-muted-foreground" />
-                    )}
-                  </Button>
-                </CollapsibleTrigger>
-                <CollapsibleContent>
-                  <div className="space-y-3 border-t px-3 py-3">
-                    <MilestoneNameFields
-                      count={fixedMilestoneCount}
-                      values={state.milestone_names}
-                      onValueChange={(index, value) =>
-                        setState((previous) => {
-                          const nextMilestoneNames = [...previous.milestone_names];
-                          nextMilestoneNames[index] = value;
-                          return {
-                            ...previous,
-                            milestone_names: nextMilestoneNames,
-                          };
-                        })
-                      }
-                      showLabel={false}
-                      keyPrefix="milestone-name"
-                    />
-                  </div>
-                </CollapsibleContent>
+          <GoalDateRangeFields
+            startDate={state.start_date}
+            endDate={state.end_date}
+            onStartDateChange={(value) =>
+              setState((previous) => ({ ...previous, start_date: value }))
+            }
+            onEndDateChange={(value) =>
+              setState((previous) => ({ ...previous, end_date: value }))
+            }
+            requiresEndDate={requiresEndDate}
+            startDateId="start-date"
+            endDateId="end-date"
+            startDateActions={
+              <div className="flex items-center gap-2 text-xs">
+                <button
+                  type="button"
+                  className="text-primary hover:underline"
+                  onClick={applyThisMonthStartDate}
+                >
+                  this month
+                </button>
+                <button
+                  type="button"
+                  className="text-primary hover:underline"
+                  onClick={applyThisYearStartDate}
+                >
+                  this year
+                </button>
               </div>
-            </Collapsible>
-          ) : null}
-
-          <div className="grid gap-3 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-            <GoalDateRangeFields
-              startDate={state.start_date}
-              endDate={state.end_date}
-              onStartDateChange={(value) =>
-                setState((previous) => ({ ...previous, start_date: value }))
-              }
-              onEndDateChange={(value) =>
-                setState((previous) => ({ ...previous, end_date: value }))
-              }
-              requiresEndDate={requiresEndDate}
-              startDateId="start-date"
-              endDateId="end-date"
-              startDateActions={
-                <div className="flex items-center gap-2 text-xs">
-                  <button
-                    type="button"
-                    className="text-primary hover:underline"
-                    onClick={applyThisMonthStartDate}
-                  >
-                    this month
-                  </button>
-                  <button
-                    type="button"
-                    className="text-primary hover:underline"
-                    onClick={applyThisYearStartDate}
-                  >
-                    this year
-                  </button>
-                </div>
-              }
-              endDateActions={
-                <div className="flex items-center gap-2 text-xs">
-                  <button
-                    type="button"
-                    className="text-primary hover:underline"
-                    onClick={applyThisMonthEndDate}
-                  >
-                    this month
-                  </button>
-                  <button
-                    type="button"
-                    className="text-primary hover:underline"
-                    onClick={applyThisYearEndDate}
-                  >
-                    this year
-                  </button>
-                </div>
-              }
-            />
-
-            <GoalDefaultTimeField
-              id="default-local-time"
-              value={state.default_local_time}
-              onValueChange={(value) =>
-                setState((previous) => ({
-                  ...previous,
-                  default_local_time: value,
-                }))
-              }
-              onClear={() => setState((previous) => ({ ...previous, default_local_time: "" }))}
-            />
-          </div>
+            }
+            endDateActions={
+              <div className="flex items-center gap-2 text-xs">
+                <button
+                  type="button"
+                  className="text-primary hover:underline"
+                  onClick={applyThisMonthEndDate}
+                >
+                  this month
+                </button>
+                <button
+                  type="button"
+                  className="text-primary hover:underline"
+                  onClick={applyThisYearEndDate}
+                >
+                  this year
+                </button>
+              </div>
+            }
+          />
 
           <div className="flex flex-wrap items-center gap-2">
             {isEditing && editingGoal?.archived_at ? (
@@ -843,6 +801,64 @@ export function GoalForm({ goalId, showBackButton = true }: GoalFormProps) {
               </CollapsibleTrigger>
               <CollapsibleContent>
                 <div className="space-y-4 border-t px-3 py-3">
+                  <GoalDefaultTimeField
+                    id="default-local-time"
+                    value={state.default_local_time}
+                    onValueChange={(value) =>
+                      setState((previous) => ({
+                        ...previous,
+                        default_local_time: value,
+                      }))
+                    }
+                    onClear={() =>
+                      setState((previous) => ({ ...previous, default_local_time: "" }))
+                    }
+                  />
+
+                  {fixedMilestoneCount > 0 ? (
+                    <Collapsible
+                      open={fixedMilestoneCount > 0 ? milestoneNamesOpen : false}
+                      onOpenChange={setMilestoneNamesOpen}
+                    >
+                      <div className="rounded-xl border bg-background/70">
+                        <CollapsibleTrigger asChild>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-sm"
+                          >
+                            <span>Milestone names (optional)</span>
+                            {milestoneNamesOpen ? (
+                              <ChevronUp className="size-4 text-muted-foreground" />
+                            ) : (
+                              <ChevronDown className="size-4 text-muted-foreground" />
+                            )}
+                          </Button>
+                        </CollapsibleTrigger>
+                        <CollapsibleContent>
+                          <div className="space-y-3 border-t px-3 py-3">
+                            <MilestoneNameFields
+                              count={fixedMilestoneCount}
+                              values={state.milestone_names}
+                              onValueChange={(index, value) =>
+                                setState((previous) => {
+                                  const nextMilestoneNames = [...previous.milestone_names];
+                                  nextMilestoneNames[index] = value;
+                                  return {
+                                    ...previous,
+                                    milestone_names: nextMilestoneNames,
+                                  };
+                                })
+                              }
+                              showLabel={false}
+                              keyPrefix="milestone-name"
+                            />
+                          </div>
+                        </CollapsibleContent>
+                      </div>
+                    </Collapsible>
+                  ) : null}
+
                   <div className="space-y-2">
                     <Label htmlFor="goal-description">Description</Label>
                     <Textarea
