@@ -1013,12 +1013,6 @@ begin
   exception
     when others then null;
   end;
-
-  perform cron.schedule(
-    'expire-team-invites-daily',
-    '22 4 * * *',
-    $job$select public.expire_pending_team_invites_service()$job$
-  );
 exception
   when others then null;
 end;

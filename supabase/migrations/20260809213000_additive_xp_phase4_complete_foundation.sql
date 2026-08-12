@@ -1536,13 +1536,5 @@ begin
   loop
     perform cron.unschedule(v_job_id);
   end loop;
-
-  perform cron.schedule(
-    'xp-drift-check-daily',
-    '23 4 * * *',
-    $xp$
-      select public.assert_xp_ledger_consistency_service();
-    $xp$
-  );
 end;
 $$;
