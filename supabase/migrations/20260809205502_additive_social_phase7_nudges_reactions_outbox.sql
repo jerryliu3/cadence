@@ -751,7 +751,8 @@ begin
   update public.teams team
   set
     status = 'closed'::public.team_status,
-    dissolved_at = pg_catalog.now()
+    dissolved_at = pg_catalog.now(),
+    closed_at = pg_catalog.now()
   where team.status = 'active'::public.team_status
     and v_uid in (team.user_a_id, team.user_b_id)
   returning
