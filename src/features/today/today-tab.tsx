@@ -950,7 +950,7 @@ export function TodayTab({
               />
             }
             quickFilterControls={
-              <div className="flex min-w-0 items-center gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+              <div className="flex min-w-0 items-center gap-2 overflow-x-auto pb-1">
                 {recurrenceQuickFilters.map((option) => (
                   <Button
                     key={`recurrence-quick-${option.value}`}
