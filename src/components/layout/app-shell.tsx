@@ -1,8 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { type ReactNode } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { type ReactNode, useEffect } from "react";
 import { TabNav } from "@/components/navigation/tab-nav";
+import { TAB_ORDER } from "@/components/navigation/tabs";
 import { Button } from "@/components/ui/button";
 import { XpLevelBadge } from "@/components/xp/xp-level-badge";
 
@@ -11,6 +13,24 @@ interface AppShellProps {
 }
 
 export function AppShell({ children }: AppShellProps) {
+  const router = useRouter();
+  const pathname = usePathname();
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      for (const href of TAB_ORDER) {
+        if (href === pathname) {
+          continue;
+        }
+        router.prefetch(href);
+      }
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [pathname, router]);
+
   return (
     <div className="flex min-h-screen w-full justify-center px-4 py-4 sm:px-6 sm:py-6">
       <div className="flex w-full max-w-5xl flex-col gap-4 md:gap-6">
