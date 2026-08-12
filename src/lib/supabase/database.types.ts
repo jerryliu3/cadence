@@ -15,6 +15,41 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      emit_feed_event: {
+        Args: {
+          p_actor_id: string
+          p_bucket_date?: string
+          p_event_type: Database["public"]["Enums"]["feed_event_type"]
+          p_goal_id?: string
+          p_occurrence_delta?: number
+          p_payload?: Json
+          p_subject_key: string
+          p_track_key?: string
+          p_xp_delta?: number
+        }
+        Returns: string
+      }
+      emit_feed_for_xp_ledger_row: {
+        Args: {
+          p_earned_on: string
+          p_event_type: string
+          p_goal_id: string
+          p_source_key: string
+          p_track_key: string
+          p_user_id: string
+          p_xp_delta: number
+        }
+        Returns: string
+      }
+      emit_feed_for_xp_level_up: {
+        Args: {
+          p_current_level: number
+          p_previous_level: number
+          p_track_key: string
+          p_user_id: string
+        }
+        Returns: string
+      }
       goal_anchored_period_start: {
         Args: {
           p_anchor: string
@@ -55,6 +90,7 @@ export type Database = {
         Args: { p_timezone: string }
         Returns: boolean
       }
+      local_today_for_profile: { Args: { p_user_id: string }; Returns: string }
       local_today_for_timezone: {
         Args: { p_timezone: string }
         Returns: string
@@ -188,6 +224,85 @@ export type Database = {
           {
             foreignKeyName: "completions_user_id_fkey"
             columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      feed_events: {
+        Row: {
+          actor_id: string
+          bucket_date: string
+          created_at: string
+          event_type: Database["public"]["Enums"]["feed_event_type"]
+          goal_id: string | null
+          hidden_at: string | null
+          hidden_by: string | null
+          hidden_reason: string | null
+          id: string
+          occurrence_count: number
+          payload: Json
+          reaction_count: number
+          subject_key: string
+          track_key: string | null
+          updated_at: string
+          xp_delta: number
+        }
+        Insert: {
+          actor_id: string
+          bucket_date: string
+          created_at?: string
+          event_type: Database["public"]["Enums"]["feed_event_type"]
+          goal_id?: string | null
+          hidden_at?: string | null
+          hidden_by?: string | null
+          hidden_reason?: string | null
+          id?: string
+          occurrence_count?: number
+          payload?: Json
+          reaction_count?: number
+          subject_key: string
+          track_key?: string | null
+          updated_at?: string
+          xp_delta?: number
+        }
+        Update: {
+          actor_id?: string
+          bucket_date?: string
+          created_at?: string
+          event_type?: Database["public"]["Enums"]["feed_event_type"]
+          goal_id?: string | null
+          hidden_at?: string | null
+          hidden_by?: string | null
+          hidden_reason?: string | null
+          id?: string
+          occurrence_count?: number
+          payload?: Json
+          reaction_count?: number
+          subject_key?: string
+          track_key?: string | null
+          updated_at?: string
+          xp_delta?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "feed_events_actor_id_fkey"
+            columns: ["actor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "feed_events_goal_id_fkey"
+            columns: ["goal_id"]
+            isOneToOne: false
+            referencedRelation: "goals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "feed_events_hidden_by_fkey"
+            columns: ["hidden_by"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -1085,6 +1200,37 @@ export type Database = {
         Args: { p_owner?: string }
         Returns: string
       }
+      get_social_feed: {
+        Args: {
+          p_before_at?: string
+          p_before_id?: string
+          p_limit?: number
+          p_scope?: string
+          p_scope_id?: string
+        }
+        Returns: {
+          actor_avatar_url: string
+          actor_display_name: string
+          actor_id: string
+          actor_username: string
+          category_label: string
+          created_at: string
+          event_type: Database["public"]["Enums"]["feed_event_type"]
+          goal_title: string
+          hidden_at: string
+          id: string
+          occurrence_count: number
+          payload: Json
+          reaction_count: number
+          track_key: string
+          viewer_reacted: boolean
+          xp_delta: number
+        }[]
+      }
+      hide_feed_event_service: {
+        Args: { p_event_id: string; p_hidden: boolean; p_reason?: string }
+        Returns: boolean
+      }
       is_platform_admin: {
         Args: { p_min_role?: Database["public"]["Enums"]["admin_role"] }
         Returns: boolean
@@ -1165,6 +1311,13 @@ export type Database = {
     Enums: {
       admin_role: "admin" | "moderator"
       completion_source: "manual" | "linked_cascade"
+      feed_event_type:
+        | "xp_earned"
+        | "level_up"
+        | "goal_achieved"
+        | "challenge_completed"
+        | "season_result"
+        | "team_formed"
       goal_frequency_type: "fixed_milestones" | "recurring"
       moderation_action:
         | "hide"
@@ -1308,6 +1461,14 @@ export const Constants = {
     Enums: {
       admin_role: ["admin", "moderator"],
       completion_source: ["manual", "linked_cascade"],
+      feed_event_type: [
+        "xp_earned",
+        "level_up",
+        "goal_achieved",
+        "challenge_completed",
+        "season_result",
+        "team_formed",
+      ],
       goal_frequency_type: ["fixed_milestones", "recurring"],
       moderation_action: [
         "hide",

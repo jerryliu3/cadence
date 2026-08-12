@@ -1,4 +1,5 @@
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { SocialSurface } from "@/features/social/social-surface";
 import { isFeatureEnabled } from "@/lib/feature-flags";
 
 export default function SocialPage() {
@@ -15,14 +16,5 @@ export default function SocialPage() {
     );
   }
 
-  return (
-    <Card className="shadow-sm">
-      <CardHeader>
-        <CardTitle>Social</CardTitle>
-        <CardDescription>
-          Social surfaces will appear here as they ship.
-        </CardDescription>
-      </CardHeader>
-    </Card>
-  );
+  return <SocialSurface />;
 }
