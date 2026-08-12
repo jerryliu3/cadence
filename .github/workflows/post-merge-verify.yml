@@ -70,7 +70,7 @@ jobs:
 
       - name: Disable Mailpit in CI Supabase config
         run: |
-          python - <<'PY'
+          python3 - <<'PY'
           from pathlib import Path
 
           config_path = Path("supabase/config.toml")
