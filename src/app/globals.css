@@ -92,6 +92,17 @@ body {
   font-family: var(--font-geist-sans), Inter, system-ui, -apple-system, sans-serif;
 }
 
+.overflow-x-auto,
+.overflow-x-scroll {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.overflow-x-auto::-webkit-scrollbar,
+.overflow-x-scroll::-webkit-scrollbar {
+  display: none;
+}
+
 a {
   color: inherit;
   text-decoration: none;
