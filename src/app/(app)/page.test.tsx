@@ -13,8 +13,28 @@ describe("app root page routing", () => {
   });
 
   it("redirects to calendar when no tab is specified", async () => {
-    await TodayPage();
+    await TodayPage({
+      searchParams: Promise.resolve({}),
+    });
 
     expect(redirectMock).toHaveBeenCalledWith("/calendar");
+  });
+
+  it("redirects legacy day links into calendar day view", async () => {
+    await TodayPage({
+      searchParams: Promise.resolve({ day: "2026-08-04" }),
+    });
+
+    expect(redirectMock).toHaveBeenCalledWith(
+      "/calendar?view=day&day=2026-08-04&month=2026-08"
+    );
+  });
+
+  it("redirects legacy past tab links into checklist", async () => {
+    await TodayPage({
+      searchParams: Promise.resolve({ tab: "past" }),
+    });
+
+    expect(redirectMock).toHaveBeenCalledWith("/checklist?tab=not-today");
   });
 });

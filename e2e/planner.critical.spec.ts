@@ -443,7 +443,7 @@ test.describe("planner critical rails", () => {
 
   // Serial retries restart the whole group; keep each attempt free of leftover draft UI.
   test.beforeEach(async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/checklist");
     await expect(page.getByText("Today")).toBeVisible();
   });
 
@@ -557,7 +557,7 @@ test.describe("planner critical rails", () => {
 
   test("completion toggle dispatches from today surface", async ({ page }) => {
     test.setTimeout(120_000);
-    await page.goto("/");
+    await page.goto("/checklist");
     await expect(page.getByText("Today")).toBeVisible();
     const initialButton = page.locator(COMPLETION_TOGGLE_SELECTOR).first();
     await expect(initialButton).toBeVisible();
@@ -571,7 +571,7 @@ test.describe("planner critical rails", () => {
 
   test("completion toggle dispatches from past tab surface", async ({ page }) => {
     test.setTimeout(120_000);
-    await page.goto("/?tab=not-today");
+    await page.goto("/checklist?tab=not-today");
     await expect(page.getByText("Past")).toBeVisible();
     const pastToggle = page.locator(COMPLETION_TOGGLE_SELECTOR).first();
     await expect(pastToggle).toBeVisible({ timeout: 10_000 });
