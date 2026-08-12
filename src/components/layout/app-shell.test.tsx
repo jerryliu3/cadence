@@ -21,6 +21,13 @@ vi.mock("@/components/xp/xp-level-badge", () => ({
   XpLevelBadge: () => <span>XP Badge</span>,
 }));
 
+vi.mock("@/components/layout/tab-keepalive-host", () => ({
+  KEEPALIVE_TAB_PATHS: ["/calendar", "/checklist", "/insights", "/social"],
+  TabKeepaliveHost: ({ activePath }: { activePath: string }) => (
+    <div data-testid="tab-keepalive-host" data-active-path={activePath} />
+  ),
+}));
+
 describe("AppShell", () => {
   afterEach(() => {
     cleanup();
@@ -29,7 +36,7 @@ describe("AppShell", () => {
 
   it("renders both mobile and desktop `New Goal +` links in the header", () => {
     render(
-      <AppShell>
+      <AppShell socialEnabled>
         <div>Child content</div>
       </AppShell>
     );
@@ -43,7 +50,7 @@ describe("AppShell", () => {
 
   it("prefetches non-active tab routes after mount", async () => {
     render(
-      <AppShell>
+      <AppShell socialEnabled>
         <div>Child content</div>
       </AppShell>
     );
@@ -55,5 +62,19 @@ describe("AppShell", () => {
     expect(mocks.prefetch).toHaveBeenCalledWith("/checklist");
     expect(mocks.prefetch).toHaveBeenCalledWith("/social");
     expect(mocks.prefetch).toHaveBeenCalledWith("/settings");
+  });
+
+  it("renders keepalive host for core tab routes", () => {
+    render(
+      <AppShell socialEnabled>
+        <div>Child content</div>
+      </AppShell>
+    );
+
+    expect(screen.getByTestId("tab-keepalive-host")).toHaveAttribute(
+      "data-active-path",
+      "/calendar"
+    );
+    expect(screen.queryByText("Child content")).not.toBeInTheDocument();
   });
 });

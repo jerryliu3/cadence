@@ -3,6 +3,10 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { type ReactNode, useEffect } from "react";
+import {
+  KEEPALIVE_TAB_PATHS,
+  TabKeepaliveHost,
+} from "@/components/layout/tab-keepalive-host";
 import { TabNav } from "@/components/navigation/tab-nav";
 import { TAB_ORDER } from "@/components/navigation/tabs";
 import { Button } from "@/components/ui/button";
@@ -10,11 +14,15 @@ import { XpLevelBadge } from "@/components/xp/xp-level-badge";
 
 interface AppShellProps {
   children: ReactNode;
+  socialEnabled: boolean;
 }
 
-export function AppShell({ children }: AppShellProps) {
+export function AppShell({ children, socialEnabled }: AppShellProps) {
   const router = useRouter();
   const pathname = usePathname();
+  const activeKeepalivePath = KEEPALIVE_TAB_PATHS.find(
+    (path) => path === pathname
+  );
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -58,7 +66,16 @@ export function AppShell({ children }: AppShellProps) {
           </div>
         </header>
 
-        <main className="pb-[calc(6.5rem+env(safe-area-inset-bottom))] md:pb-0">{children}</main>
+        <main className="pb-[calc(6.5rem+env(safe-area-inset-bottom))] md:pb-0">
+          {activeKeepalivePath ? (
+            <TabKeepaliveHost
+              activePath={activeKeepalivePath}
+              socialEnabled={socialEnabled}
+            />
+          ) : (
+            children
+          )}
+        </main>
       </div>
 
       <div className="md:hidden">
