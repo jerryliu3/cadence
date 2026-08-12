@@ -12,6 +12,26 @@ export const runtime = "nodejs";
 
 const paramsSchema = z.object({ id: z.uuid() });
 
+type DbMutationError = {
+  message: string;
+  code?: string | null;
+};
+
+function mapSeasonCloseError(error: DbMutationError) {
+  // Closing stamps ends_at with the current time, which trips the season window
+  // check when the season was opened with a future start date.
+  if (error.code === "23514" && error.message.includes("leaderboard_seasons_window")) {
+    return new ApiRouteError(
+      409,
+      "season_not_started",
+      "Cannot close a season before its start time."
+    );
+  }
+  return new ApiRouteError(500, "admin_season_close_failed", "Could not close season.", {
+    cause: error.message,
+  });
+}
+
 export async function POST(
   _request: Request,
   context: { params: Promise<{ id: string }> | { id: string } }
@@ -69,9 +89,7 @@ export async function POST(
       .maybeSingle();
 
     if (error) {
-      throw new ApiRouteError(500, "admin_season_close_failed", "Could not close season.", {
-        cause: error.message,
-      });
+      throw mapSeasonCloseError(error);
     }
     if (!closed) {
       throw new ApiRouteError(409, "season_not_open", "Only open seasons can be closed.");

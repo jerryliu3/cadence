@@ -19,6 +19,21 @@ const requestSchema = z.object({
   reason: z.string().trim().max(500).optional(),
 });
 
+function mapModerationRpcError(message: string) {
+  if (message.includes("authentication_required")) {
+    return new ApiRouteError(401, "authentication_required", "You must be signed in.");
+  }
+  if (message.includes("admin_required")) {
+    return new ApiRouteError(403, "admin_required", "Moderator access is required.");
+  }
+  return new ApiRouteError(
+    500,
+    "moderation_update_failed",
+    "Feed moderation update failed.",
+    { cause: message }
+  );
+}
+
 export async function POST(
   request: Request,
   context: { params: Promise<{ id: string }> | { id: string } }
@@ -39,12 +54,7 @@ export async function POST(
     });
 
     if (error) {
-      throw new ApiRouteError(
-        500,
-        "moderation_update_failed",
-        "Feed moderation update failed.",
-        { cause: error.message }
-      );
+      throw mapModerationRpcError(error.message);
     }
     if (!data) {
       throw new ApiRouteError(404, "feed_event_not_found", "Feed event was not found.");
