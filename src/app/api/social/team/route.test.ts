@@ -37,6 +37,7 @@ describe("GET /api/social/team", () => {
           invite_message: null,
           invited_at: "2026-08-10T00:00:00.000Z",
           accepted_at: null,
+          closed_at: null,
           is_incoming: true,
         },
       ],

@@ -1225,6 +1225,7 @@ export type Database = {
       teams: {
         Row: {
           accepted_at: string | null
+          closed_at: string | null
           created_at: string
           dissolved_at: string | null
           id: string
@@ -1232,13 +1233,13 @@ export type Database = {
           invite_message: string | null
           invited_at: string
           status: Database["public"]["Enums"]["team_status"]
-          updated_at: string
           user_a_id: string
           user_b_id: string
           visibility_acknowledged_at: string | null
         }
         Insert: {
           accepted_at?: string | null
+          closed_at?: string | null
           created_at?: string
           dissolved_at?: string | null
           id?: string
@@ -1246,13 +1247,13 @@ export type Database = {
           invite_message?: string | null
           invited_at?: string
           status?: Database["public"]["Enums"]["team_status"]
-          updated_at?: string
           user_a_id: string
           user_b_id: string
           visibility_acknowledged_at?: string | null
         }
         Update: {
           accepted_at?: string | null
+          closed_at?: string | null
           created_at?: string
           dissolved_at?: string | null
           id?: string
@@ -1260,7 +1261,6 @@ export type Database = {
           invite_message?: string | null
           invited_at?: string
           status?: Database["public"]["Enums"]["team_status"]
-          updated_at?: string
           user_a_id?: string
           user_b_id?: string
           visibility_acknowledged_at?: string | null
@@ -1716,6 +1716,7 @@ export type Database = {
         Args: never
         Returns: {
           accepted_at: string
+          closed_at: string | null
           invite_message: string
           invited_at: string
           is_incoming: boolean

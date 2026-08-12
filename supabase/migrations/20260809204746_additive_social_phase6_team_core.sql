@@ -29,8 +29,8 @@ create table if not exists public.teams (
   invited_at timestamptz not null default pg_catalog.now(),
   accepted_at timestamptz,
   dissolved_at timestamptz,
+  closed_at timestamptz,
   created_at timestamptz not null default pg_catalog.now(),
-  updated_at timestamptz not null default pg_catalog.now(),
   constraint teams_distinct_users check (user_a_id <> user_b_id),
   constraint teams_canonical_pair check (user_a_id < user_b_id),
   constraint teams_initiator_in_pair check (initiator_id in (user_a_id, user_b_id)),
@@ -40,6 +40,16 @@ create table if not exists public.teams (
   constraint teams_accept_fields check (
     status <> 'active'::public.team_status
     or (accepted_at is not null and visibility_acknowledged_at is not null)
+  ),
+  constraint teams_closed_at_fields check (
+    (
+      status = 'closed'::public.team_status
+      and closed_at is not null
+    )
+    or (
+      status <> 'closed'::public.team_status
+      and closed_at is null
+    )
   )
 );
 
@@ -49,11 +59,6 @@ create unique index if not exists teams_pending_or_active_pair_idx
 
 create index if not exists teams_user_a_idx on public.teams (user_a_id, status);
 create index if not exists teams_user_b_idx on public.teams (user_b_id, status);
-
-drop trigger if exists set_teams_updated_at on public.teams;
-create trigger set_teams_updated_at
-before update on public.teams
-for each row execute function public.set_updated_at();
 
 create table if not exists public.partner_profile_fields (
   field text primary key,
@@ -188,6 +193,7 @@ returns table (
   invite_message text,
   invited_at timestamptz,
   accepted_at timestamptz,
+  closed_at timestamptz,
   is_incoming boolean
 )
 language plpgsql
@@ -213,6 +219,7 @@ begin
     team.invite_message,
     team.invited_at,
     team.accepted_at,
+    team.closed_at,
     team.initiator_id <> v_uid as is_incoming
   from public.teams team
   join public.profiles partner
@@ -324,6 +331,7 @@ begin
   set
     status = 'active'::public.team_status,
     accepted_at = pg_catalog.now(),
+    closed_at = null,
     visibility_acknowledged_at = pg_catalog.now()
   where team.id = p_team_id
     and team.status = 'pending'::public.team_status
@@ -393,7 +401,8 @@ begin
 
   update public.teams team
   set
-    status = 'closed'::public.team_status
+    status = 'closed'::public.team_status,
+    closed_at = pg_catalog.now()
   where team.id = p_team_id
     and team.status = 'pending'::public.team_status
     and team.initiator_id <> v_uid
@@ -419,6 +428,7 @@ begin
   update public.teams team
   set
     status = 'closed'::public.team_status,
+    closed_at = pg_catalog.now(),
     dissolved_at = pg_catalog.now()
   where team.status = 'active'::public.team_status
     and v_uid in (team.user_a_id, team.user_b_id);

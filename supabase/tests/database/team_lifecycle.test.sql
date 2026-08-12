@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions, pg_catalog;
-select plan(7);
+select plan(9);
 
 insert into auth.users (id, email)
 values
@@ -101,6 +101,16 @@ select is(
   'accepted invite transitions team to active'
 );
 
+select is(
+  (
+    select closed_at
+    from public.teams
+    where id = current_setting('request.team_id')::uuid
+  ),
+  null::timestamptz,
+  'active team row keeps closed_at null'
+);
+
 reset role;
 set local role authenticated;
 select set_config('request.jwt.claim.role', 'authenticated', true);
@@ -115,6 +125,25 @@ select throws_ok(
 select ok(
   public.dissolve_team_service(),
   'active team can be dissolved by either member'
+);
+
+select is(
+  (
+    select status
+    from public.teams
+    where id = current_setting('request.team_id')::uuid
+  ),
+  'closed'::public.team_status,
+  'dissolve transitions active team to closed'
+);
+
+select ok(
+  (
+    select closed_at is not null
+    from public.teams
+    where id = current_setting('request.team_id')::uuid
+  ),
+  'closed team row records closed_at'
 );
 
 select * from finish();

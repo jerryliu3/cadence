@@ -19,6 +19,7 @@ function toTeamDto(row: {
   invite_message: string | null;
   invited_at: string;
   accepted_at: string | null;
+  closed_at: string | null;
   is_incoming: boolean;
 }) {
   return {
@@ -31,6 +32,7 @@ function toTeamDto(row: {
     inviteMessage: row.invite_message,
     invitedAt: row.invited_at,
     acceptedAt: row.accepted_at,
+    closedAt: row.closed_at,
     isIncoming: row.is_incoming,
   };
 }

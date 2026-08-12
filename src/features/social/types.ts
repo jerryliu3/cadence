@@ -100,5 +100,6 @@ export interface TeamStateRow {
   inviteMessage: string | null;
   invitedAt: string;
   acceptedAt: string | null;
+  closedAt: string | null;
   isIncoming: boolean;
 }
