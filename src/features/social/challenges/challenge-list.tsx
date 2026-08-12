@@ -88,7 +88,7 @@ export function ChallengeList() {
   }
 
   return (
-    <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
+    <div className="space-y-4">
       <Card className="shadow-sm">
         <CardHeader>
           <CardTitle>Challenges</CardTitle>
@@ -116,12 +116,7 @@ export function ChallengeList() {
         </CardContent>
       </Card>
 
-      {selectedChallenge ? (
-        <ChallengeDetail
-          challenge={selectedChallenge}
-          onUpdated={refreshAll}
-        />
-      ) : null}
+      {selectedChallenge ? <ChallengeDetail challenge={selectedChallenge} onUpdated={refreshAll} /> : null}
     </div>
   );
 }
