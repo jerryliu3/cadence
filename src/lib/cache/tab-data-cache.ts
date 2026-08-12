@@ -1,4 +1,5 @@
-const TAB_DATA_CACHE_STORAGE_PREFIX = "tab-data-cache:v1:";
+const TAB_DATA_CACHE_STORAGE_PREFIX = "tab-data-cache:v1";
+const DEFAULT_TAB_DATA_CACHE_SCOPE = "anonymous";
 export const TAB_DATA_CACHE_TTL_MS = 5 * 60 * 1000;
 
 interface TabDataCacheRecord<TValue> {
@@ -7,9 +8,17 @@ interface TabDataCacheRecord<TValue> {
 }
 
 const tabDataCache = new Map<string, TabDataCacheRecord<unknown>>();
+let tabDataCacheScope = DEFAULT_TAB_DATA_CACHE_SCOPE;
 
 function buildStorageKey(cacheKey: string) {
-  return `${TAB_DATA_CACHE_STORAGE_PREFIX}${cacheKey}`;
+  return `${TAB_DATA_CACHE_STORAGE_PREFIX}:${tabDataCacheScope}:${cacheKey}`;
+}
+
+function normalizeTabDataCacheScope(scope: string | null | undefined) {
+  const normalized = scope?.trim();
+  return normalized && normalized.length > 0
+    ? normalized
+    : DEFAULT_TAB_DATA_CACHE_SCOPE;
 }
 
 function readSessionStorageRecord<TValue>(cacheKey: string) {
@@ -52,6 +61,27 @@ function removeSessionStorageRecord(cacheKey: string) {
   }
   try {
     window.sessionStorage.removeItem(buildStorageKey(cacheKey));
+  } catch {
+    // Ignore storage failures.
+  }
+}
+
+function purgeSessionStorageForOtherScopes(activeScope: string) {
+  if (typeof window === "undefined") {
+    return;
+  }
+  try {
+    const storagePrefix = `${TAB_DATA_CACHE_STORAGE_PREFIX}:`;
+    const activeScopePrefix = `${storagePrefix}${activeScope}:`;
+    for (let index = window.sessionStorage.length - 1; index >= 0; index -= 1) {
+      const storageKey = window.sessionStorage.key(index);
+      if (!storageKey || !storageKey.startsWith(storagePrefix)) {
+        continue;
+      }
+      if (!storageKey.startsWith(activeScopePrefix)) {
+        window.sessionStorage.removeItem(storageKey);
+      }
+    }
   } catch {
     // Ignore storage failures.
   }
@@ -117,15 +147,32 @@ export function invalidateTabDataCacheByPrefix(prefix: string) {
   }
 }
 
+export function setTabDataCacheScope(scope: string | null | undefined) {
+  if (typeof window === "undefined") {
+    return;
+  }
+  const nextScope = normalizeTabDataCacheScope(scope);
+  if (tabDataCacheScope === nextScope) {
+    return;
+  }
+  tabDataCacheScope = nextScope;
+  tabDataCache.clear();
+  purgeSessionStorageForOtherScopes(nextScope);
+}
+
 export function resetTabDataCacheForTests() {
   tabDataCache.clear();
+  tabDataCacheScope = DEFAULT_TAB_DATA_CACHE_SCOPE;
   if (typeof window === "undefined") {
     return;
   }
   try {
     for (let index = window.sessionStorage.length - 1; index >= 0; index -= 1) {
       const storageKey = window.sessionStorage.key(index);
-      if (storageKey && storageKey.startsWith(TAB_DATA_CACHE_STORAGE_PREFIX)) {
+      if (
+        storageKey &&
+        storageKey.startsWith(`${TAB_DATA_CACHE_STORAGE_PREFIX}:`)
+      ) {
         window.sessionStorage.removeItem(storageKey);
       }
     }
