@@ -5,22 +5,22 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
-  acceptSocialDuoInvite,
-  createSocialDuoInvite,
-  declineSocialDuoInvite,
-  dissolveSocialDuo,
-  fetchSocialDuoState,
+  acceptSocialTeamInvite,
+  createSocialTeamInvite,
+  declineSocialTeamInvite,
+  dissolveSocialTeam,
+  fetchSocialTeamState,
 } from "@/features/social/data";
-import type { DuoStateRow } from "@/features/social/types";
-import { NudgeButton } from "@/features/social/duo/nudge-button";
+import type { TeamStateRow } from "@/features/social/types";
+import { NudgeButton } from "@/features/social/team/nudge-button";
 
-export function DuoPanel() {
-  const [rows, setRows] = useState<DuoStateRow[]>([]);
+export function TeamPanel() {
+  const [rows, setRows] = useState<TeamStateRow[]>([]);
   const [partnerId, setPartnerId] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState<string | null>(null);
 
-  const activeDuo = useMemo(
+  const activeTeam = useMemo(
     () => rows.find((row) => row.status === "active") ?? null,
     [rows]
   );
@@ -32,10 +32,10 @@ export function DuoPanel() {
   const load = useCallback(async () => {
     setError(null);
     try {
-      const response = await fetchSocialDuoState();
+      const response = await fetchSocialTeamState();
       setRows(response.items);
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : "Could not load duo state.");
+      setError(loadError instanceof Error ? loadError.message : "Could not load team state.");
     }
   }, []);
 
@@ -49,7 +49,7 @@ export function DuoPanel() {
   async function sendInvite() {
     setError(null);
     try {
-      await createSocialDuoInvite({ partnerId, message });
+      await createSocialTeamInvite({ partnerId, message });
       setPartnerId("");
       setMessage("");
       await load();
@@ -58,33 +58,33 @@ export function DuoPanel() {
     }
   }
 
-  async function acceptInvite(duoId: string) {
+  async function acceptInvite(teamId: string) {
     setError(null);
     try {
-      await acceptSocialDuoInvite(duoId);
+      await acceptSocialTeamInvite(teamId);
       await load();
     } catch (acceptError) {
       setError(acceptError instanceof Error ? acceptError.message : "Could not accept invite.");
     }
   }
 
-  async function declineInvite(duoId: string) {
+  async function declineInvite(teamId: string) {
     setError(null);
     try {
-      await declineSocialDuoInvite(duoId);
+      await declineSocialTeamInvite(teamId);
       await load();
     } catch (declineError) {
       setError(declineError instanceof Error ? declineError.message : "Could not decline invite.");
     }
   }
 
-  async function dissolveActiveDuo() {
+  async function dissolveActiveTeam() {
     setError(null);
     try {
-      await dissolveSocialDuo();
+      await dissolveSocialTeam();
       await load();
     } catch (dissolveError) {
-      setError(dissolveError instanceof Error ? dissolveError.message : "Could not dissolve duo.");
+      setError(dissolveError instanceof Error ? dissolveError.message : "Could not dissolve team.");
     }
   }
 
@@ -92,7 +92,7 @@ export function DuoPanel() {
     <div className="space-y-4">
       <Card className="shadow-sm">
         <CardHeader>
-          <CardTitle>Duo invites</CardTitle>
+          <CardTitle>Team invites</CardTitle>
           <CardDescription>
             Send an invite by partner id while rollout routes are dark-launched.
           </CardDescription>
@@ -121,28 +121,28 @@ export function DuoPanel() {
 
       <Card className="shadow-sm">
         <CardHeader>
-          <CardTitle>Current duo</CardTitle>
+          <CardTitle>Current team</CardTitle>
           <CardDescription>
-            {activeDuo
-              ? `Active with ${activeDuo.partnerDisplayName ?? activeDuo.partnerUsername ?? "partner"}`
-              : "No active duo"}
+            {activeTeam
+              ? `Active with ${activeTeam.partnerDisplayName ?? activeTeam.partnerUsername ?? "partner"}`
+              : "No active team"}
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {activeDuo ? (
+          {activeTeam ? (
             <div className="flex flex-wrap items-center gap-2">
               <NudgeButton
-                partnerId={activeDuo.partnerId}
+                partnerId={activeTeam.partnerId}
                 onSent={() => {
                   void load();
                 }}
               />
-              <Button type="button" variant="outline" onClick={() => void dissolveActiveDuo()}>
-                Dissolve duo
+              <Button type="button" variant="outline" onClick={() => void dissolveActiveTeam()}>
+                Dissolve team
               </Button>
             </div>
           ) : (
-            <p className="text-sm text-muted-foreground">Accept an invite to activate duo features.</p>
+            <p className="text-sm text-muted-foreground">Accept an invite to activate team features.</p>
           )}
         </CardContent>
       </Card>
@@ -156,7 +156,7 @@ export function DuoPanel() {
             <p className="text-muted-foreground">No pending invites.</p>
           ) : (
             pendingInvites.map((invite) => (
-              <div key={invite.duoId} className="rounded border p-3">
+              <div key={invite.teamId} className="rounded border p-3">
                 <p className="font-medium">
                   {invite.partnerDisplayName ?? invite.partnerUsername ?? invite.partnerId}
                 </p>
@@ -165,14 +165,14 @@ export function DuoPanel() {
                 </p>
                 {invite.isIncoming ? (
                   <div className="mt-2 flex gap-2">
-                    <Button type="button" size="sm" onClick={() => void acceptInvite(invite.duoId)}>
+                    <Button type="button" size="sm" onClick={() => void acceptInvite(invite.teamId)}>
                       Accept
                     </Button>
                     <Button
                       type="button"
                       size="sm"
                       variant="outline"
-                      onClick={() => void declineInvite(invite.duoId)}
+                      onClick={() => void declineInvite(invite.teamId)}
                     >
                       Decline
                     </Button>

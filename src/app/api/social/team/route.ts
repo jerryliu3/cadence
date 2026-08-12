@@ -1,15 +1,18 @@
+import {
+  ApiRouteError,
+  apiErrorResponse,
+  createCorrelationId,
+} from "@/lib/api/route";
 import { NextResponse } from "next/server";
 import { runAfterResponse } from "@/lib/api/after";
-import { createCorrelationId } from "@/lib/api/context";
-import { RouteError, routeErrorResponse, unknownRouteErrorResponse } from "@/lib/api/errors";
 import { flushNotificationOutbox } from "@/lib/push/outbox";
 import { requireSocialRouteContext } from "@/lib/social/api";
 import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 
-function toDuoDto(row: {
-  duo_id: string;
+function toTeamDto(row: {
+  team_id: string;
   status: "pending" | "active" | "closed";
   partner_id: string;
   partner_username: string | null;
@@ -22,7 +25,7 @@ function toDuoDto(row: {
   is_incoming: boolean;
 }) {
   return {
-    duoId: row.duo_id,
+    teamId: row.team_id,
     status: row.status,
     partnerId: row.partner_id,
     partnerUsername: row.partner_username,
@@ -40,14 +43,11 @@ export async function GET() {
   const correlationId = createCorrelationId();
   try {
     const supabase = await createClient();
-    const context = await requireSocialRouteContext({
-      supabase,
-      requireDuo: true,
-    });
+    const context = await requireSocialRouteContext({ supabase });
 
-    const { data, error } = await context.supabase.rpc("get_duo_state");
+    const { data, error } = await context.supabase.rpc("get_team_state");
     if (error) {
-      throw new RouteError(500, "duo_state_unavailable", "Duo state is unavailable.", {
+      throw new ApiRouteError(500, "team_state_unavailable", "Team state is unavailable.", {
         cause: error.message,
       });
     }
@@ -56,18 +56,16 @@ export async function GET() {
       {
         schemaVersion: "1",
         correlationId,
-        items: (data ?? []).map(toDuoDto),
+        items: (data ?? []).map(toTeamDto),
       },
       { headers: { "Cache-Control": "no-store" } }
     );
   } catch (error) {
-    if (error instanceof RouteError) {
-      return routeErrorResponse(error, correlationId);
+    if (error instanceof ApiRouteError) {
+      return apiErrorResponse(error, correlationId);
     }
-    return unknownRouteErrorResponse({
-      correlationId,
-      message: "Duo state request failed unexpectedly.",
-    });
+    return apiErrorResponse(new ApiRouteError(500, "internal_error", "Team state request failed unexpectedly.",
+    ), correlationId);
   }
 }
 
@@ -75,14 +73,11 @@ export async function DELETE() {
   const correlationId = createCorrelationId();
   try {
     const supabase = await createClient();
-    const context = await requireSocialRouteContext({
-      supabase,
-      requireDuo: true,
-    });
+    const context = await requireSocialRouteContext({ supabase });
 
-    const { data, error } = await context.supabase.rpc("dissolve_duo_service");
+    const { data, error } = await context.supabase.rpc("dissolve_team_service");
     if (error) {
-      throw new RouteError(500, "duo_dissolve_failed", "Duo dissolve failed.", {
+      throw new ApiRouteError(500, "team_dissolve_failed", "Team dissolve failed.", {
         cause: error.message,
       });
     }
@@ -98,12 +93,10 @@ export async function DELETE() {
       { headers: { "Cache-Control": "no-store" } }
     );
   } catch (error) {
-    if (error instanceof RouteError) {
-      return routeErrorResponse(error, correlationId);
+    if (error instanceof ApiRouteError) {
+      return apiErrorResponse(error, correlationId);
     }
-    return unknownRouteErrorResponse({
-      correlationId,
-      message: "Duo dissolve request failed unexpectedly.",
-    });
+    return apiErrorResponse(new ApiRouteError(500, "internal_error", "Team dissolve request failed unexpectedly.",
+    ), correlationId);
   }
 }

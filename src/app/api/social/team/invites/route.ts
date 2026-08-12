@@ -1,9 +1,12 @@
+import {
+  ApiRouteError,
+  apiErrorResponse,
+  createCorrelationId,
+  parseJsonBody,
+} from "@/lib/api/route";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { runAfterResponse } from "@/lib/api/after";
-import { parseBoundedJsonBody } from "@/lib/api/body";
-import { createCorrelationId } from "@/lib/api/context";
-import { RouteError, routeErrorResponse, unknownRouteErrorResponse } from "@/lib/api/errors";
 import { flushNotificationOutbox } from "@/lib/push/outbox";
 import { requireSocialRouteContext } from "@/lib/social/api";
 import { createClient } from "@/lib/supabase/server";
@@ -19,18 +22,15 @@ export async function POST(request: Request) {
   const correlationId = createCorrelationId();
   try {
     const supabase = await createClient();
-    const context = await requireSocialRouteContext({
-      supabase,
-      requireDuo: true,
-    });
-    const body = await parseBoundedJsonBody(request, 32 * 1024, requestSchema);
+    const context = await requireSocialRouteContext({ supabase });
+    const body = await parseJsonBody({ request: request, maxBytes: 32 * 1024, schema: requestSchema });
 
-    const { data, error } = await context.supabase.rpc("create_duo_invite_service", {
+    const { data, error } = await context.supabase.rpc("create_team_invite_service", {
       p_partner_id: body.partnerId,
       p_message: body.message ?? undefined,
     });
     if (error) {
-      throw new RouteError(500, "duo_invite_failed", "Could not create duo invite.", {
+      throw new ApiRouteError(500, "team_invite_failed", "Could not create team invite.", {
         cause: error.message,
       });
     }
@@ -41,25 +41,23 @@ export async function POST(request: Request) {
       {
         schemaVersion: "1",
         correlationId,
-        duoId: data,
+        teamId: data,
       },
       { status: 201, headers: { "Cache-Control": "no-store" } }
     );
   } catch (error) {
-    if (error instanceof RouteError) {
-      return routeErrorResponse(error, correlationId);
+    if (error instanceof ApiRouteError) {
+      return apiErrorResponse(error, correlationId);
     }
     if (error instanceof z.ZodError) {
-      return routeErrorResponse(
-        new RouteError(400, "validation_failed", "Request payload failed validation.", {
+      return apiErrorResponse(
+        new ApiRouteError(400, "validation_failed", "Request payload failed validation.", {
           issues: error.issues,
         }),
         correlationId
       );
     }
-    return unknownRouteErrorResponse({
-      correlationId,
-      message: "Duo invite request failed unexpectedly.",
-    });
+    return apiErrorResponse(new ApiRouteError(500, "internal_error", "Team invite request failed unexpectedly.",
+    ), correlationId);
   }
 }
