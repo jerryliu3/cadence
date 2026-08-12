@@ -2416,7 +2416,7 @@ export function CalendarSurface({
                 </p>
               ) : null}
               {eligibilityNotices.hardIneligible.length > 0 ? (
-                <div className="rounded-md border border-amber-300/70 bg-amber-50/80 px-3 py-2 text-xs text-amber-900 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-200">
+                <div className="rounded-md border border-yellow-300 bg-yellow-100 px-3 py-2 text-xs text-orange-900 dark:border-yellow-300 dark:bg-yellow-100 dark:text-orange-900">
                   {eligibilityNotices.hardIneligible
                     .slice(0, 4)
                     .map((item) => `${item.goalTitle}: ${item.reasonCopy}`)
