@@ -12,6 +12,7 @@ import {
   fetchSocialTeamState,
 } from "@/features/social/data";
 import type { TeamStateRow } from "@/features/social/types";
+import { NudgeButton } from "@/features/social/team/nudge-button";
 
 export function TeamPanel() {
   const [rows, setRows] = useState<TeamStateRow[]>([]);
@@ -130,6 +131,12 @@ export function TeamPanel() {
         <CardContent>
           {activeTeam ? (
             <div className="flex flex-wrap items-center gap-2">
+              <NudgeButton
+                partnerId={activeTeam.partnerId}
+                onSent={() => {
+                  void load();
+                }}
+              />
               <Button type="button" variant="outline" onClick={() => void dissolveActiveTeam()}>
                 Dissolve team
               </Button>

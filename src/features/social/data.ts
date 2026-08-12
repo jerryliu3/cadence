@@ -219,17 +219,15 @@ export async function dissolveSocialTeam() {
 export async function addSocialFeedReaction({
   eventId,
   reaction,
-  actorId,
 }: {
   eventId: string;
   reaction: FeedReactionKind;
-  actorId?: string;
 }) {
   const response = await fetch(`/api/social/feed/${eventId}/reactions`, {
     method: "POST",
     credentials: "include",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ reaction, actorId }),
+    body: JSON.stringify({ reaction }),
   });
   if (!response.ok) {
     await parseApiError(response, "Failed to add reaction.");
