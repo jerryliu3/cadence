@@ -25,16 +25,21 @@ export function captureViewportRect(
   };
 }
 
-export function requestXpRefresh(detail: XpRefreshRequestDetail): void {
+export function requestXpRefresh(detail?: XpRefreshRequestDetail): void {
   if (typeof window === "undefined") {
     return;
   }
 
-  window.dispatchEvent(
-    new CustomEvent<XpRefreshRequestDetail>(XP_REFRESH_REQUESTED_EVENT, {
-      detail,
-    })
-  );
+  if (detail) {
+    window.dispatchEvent(
+      new CustomEvent<XpRefreshRequestDetail>(XP_REFRESH_REQUESTED_EVENT, {
+        detail,
+      })
+    );
+    return;
+  }
+
+  window.dispatchEvent(new CustomEvent(XP_REFRESH_REQUESTED_EVENT));
 }
 
 export function getXpRefreshRequestDetail(
