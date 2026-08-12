@@ -7,6 +7,7 @@ import {
   isApiClientTransportError,
 } from "@/lib/api/client";
 import {
+  invalidateTabDataCacheByPrefix,
   readTabDataCache,
   TAB_DATA_CACHE_TTL_MS,
   writeTabDataCache,
@@ -37,7 +38,7 @@ const PROGRESS_CONTEXT_CACHE_TTL_MS = TAB_DATA_CACHE_TTL_MS;
 const PROGRESS_CONTEXT_REQUEST_TIMEOUT_MS = 15_000;
 const PROGRESS_CONTEXT_TIMEOUT_MESSAGE =
   "Goal progress request timed out. Please try again.";
-const PROGRESS_CONTEXT_CACHE_PREFIX = "progress-context:";
+export const PROGRESS_CONTEXT_CACHE_PREFIX = "progress-context:";
 
 export class ProgressContextAuthenticationError extends Error {
   readonly code = "authentication_required";
@@ -54,6 +55,10 @@ export function isProgressContextAuthenticationError(
   error: unknown
 ): error is ProgressContextAuthenticationError {
   return error instanceof ProgressContextAuthenticationError;
+}
+
+export function invalidateProgressContextCache() {
+  invalidateTabDataCacheByPrefix(PROGRESS_CONTEXT_CACHE_PREFIX);
 }
 
 function buildProgressContextQuery({

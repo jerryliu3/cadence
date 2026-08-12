@@ -34,6 +34,7 @@ import {
 import { GoalLinkTargetSelect } from "@/features/goals/goal-link-target-select";
 import { MilestoneNameFields } from "@/features/goals/milestone-name-fields";
 import { buildLoginHref } from "@/lib/auth/login-redirect";
+import { invalidatePlannerRelatedTabCaches } from "@/lib/cache/planner-tab-cache";
 import {
   GoalDateRangeFields,
   GoalDefaultTimeField,
@@ -495,6 +496,7 @@ export function GoalForm({
       }
     }
 
+    invalidatePlannerRelatedTabCaches();
     toast.success(isEditing ? "Goal updated." : "Goal created.");
     requestXpRefresh();
     router.replace(exitHref);
@@ -516,6 +518,7 @@ export function GoalForm({
     if (error) {
       toast.error(error.message);
     } else {
+      invalidatePlannerRelatedTabCaches();
       toast.success(archived ? "Goal restored to active." : "Goal archived.");
       router.refresh();
     }
@@ -540,6 +543,7 @@ export function GoalForm({
     }
 
     requestXpRefresh();
+    invalidatePlannerRelatedTabCaches();
     toast.success("Goal deleted.");
     router.replace(exitHref);
     router.refresh();
