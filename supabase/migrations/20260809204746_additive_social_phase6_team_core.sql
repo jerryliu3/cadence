@@ -316,6 +316,10 @@ as $$
 declare
   v_uid uuid := auth.uid();
   v_partner_id uuid;
+  v_user_a_id uuid;
+  v_user_b_id uuid;
+  v_lock_first text;
+  v_lock_second text;
 begin
   if v_uid is null then
     raise exception using errcode = '28000', message = 'authentication_required';
@@ -326,6 +330,33 @@ begin
   if coalesce(p_visibility_acknowledged, false) = false then
     raise exception using errcode = '22023', message = 'visibility_ack_required';
   end if;
+
+  select
+    team.user_a_id,
+    team.user_b_id
+  into
+    v_user_a_id,
+    v_user_b_id
+  from public.teams team
+  where team.id = p_team_id
+    and team.status = 'pending'::public.team_status
+    and team.initiator_id <> v_uid
+    and v_uid in (team.user_a_id, team.user_b_id)
+  for update;
+
+  if not found then
+    return false;
+  end if;
+
+  v_lock_first := least(v_user_a_id::text, v_user_b_id::text);
+  v_lock_second := greatest(v_user_a_id::text, v_user_b_id::text);
+
+  perform pg_catalog.pg_advisory_xact_lock(
+    private.xp_lock_key('resolution.social.team_user:' || v_lock_first)
+  );
+  perform pg_catalog.pg_advisory_xact_lock(
+    private.xp_lock_key('resolution.social.team_user:' || v_lock_second)
+  );
 
   update public.teams team
   set
@@ -343,8 +374,8 @@ begin
       where active_team.id <> team.id
         and active_team.status = 'active'::public.team_status
         and (
-          team.user_a_id in (active_team.user_a_id, active_team.user_b_id)
-          or team.user_b_id in (active_team.user_a_id, active_team.user_b_id)
+          v_user_a_id in (active_team.user_a_id, active_team.user_b_id)
+          or v_user_b_id in (active_team.user_a_id, active_team.user_b_id)
         )
     )
   returning case when team.user_a_id = v_uid then team.user_b_id else team.user_a_id end
