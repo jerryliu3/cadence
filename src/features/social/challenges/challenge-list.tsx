@@ -88,7 +88,7 @@ export function ChallengeList() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
       <Card className="shadow-sm">
         <CardHeader>
           <CardTitle>Challenges</CardTitle>
