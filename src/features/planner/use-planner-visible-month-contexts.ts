@@ -74,34 +74,28 @@ export function usePlannerVisibleMonthContexts({
     }
     let cancelled = false;
     const abortController = new AbortController();
+    let syncTimer: number | null = null;
     const cachedEntries: Array<readonly [string, PlannerVisibleMonthContextPayload]> = [];
-    const monthsToFetch: string[] = [];
     for (const visibleMonth of visibleMonths) {
       const cacheKey = `${PLANNER_VISIBLE_MONTH_CACHE_PREFIX}${visibleMonth}`;
       const cachedPayload = readTabDataCache<PlannerVisibleMonthContextPayload>(cacheKey);
       if (cachedPayload) {
         cachedEntries.push([visibleMonth, cachedPayload] as const);
-      } else {
-        monthsToFetch.push(visibleMonth);
       }
     }
 
-    if (monthsToFetch.length === 0) {
-      const syncTimer = window.setTimeout(() => {
+    if (cachedEntries.length > 0) {
+      syncTimer = window.setTimeout(() => {
         if (cancelled) {
           return;
         }
         setVisibleMonthContexts(Object.fromEntries(cachedEntries));
       }, 0);
-      return () => {
-        cancelled = true;
-        window.clearTimeout(syncTimer);
-      };
     }
 
     const timer = window.setTimeout(() => {
       void Promise.allSettled(
-        monthsToFetch.map(async (visibleMonth) => {
+        visibleMonths.map(async (visibleMonth) => {
           const query = new URLSearchParams({
             scopeMonth: visibleMonth,
           });
@@ -129,19 +123,20 @@ export function usePlannerVisibleMonthContexts({
           if (cancelled) {
             return;
           }
-          const entries: Array<
-            readonly [string, PlannerVisibleMonthContextPayload]
-          > = [...cachedEntries];
+          const entryMap = new Map<
+            string,
+            PlannerVisibleMonthContextPayload
+          >(cachedEntries);
           results.forEach((result, index) => {
             if (result.status === "fulfilled") {
-              entries.push(result.value);
+              entryMap.set(result.value[0], result.value[1]);
               writeTabDataCache(
                 `${PLANNER_VISIBLE_MONTH_CACHE_PREFIX}${result.value[0]}`,
                 result.value[1]
               );
               return;
             }
-            const visibleMonth = monthsToFetch[index] ?? null;
+            const visibleMonth = visibleMonths[index] ?? null;
             const errorMessage =
               result.reason instanceof Error
                 ? result.reason.message
@@ -152,13 +147,16 @@ export function usePlannerVisibleMonthContexts({
               error: errorMessage,
             });
           });
-          setVisibleMonthContexts(Object.fromEntries(entries));
+          setVisibleMonthContexts(Object.fromEntries(entryMap.entries()));
         });
     }, VISIBLE_MONTH_FETCH_DEBOUNCE_MS);
     return () => {
       cancelled = true;
       abortController.abort();
       window.clearTimeout(timer);
+      if (syncTimer !== null) {
+        window.clearTimeout(syncTimer);
+      }
     };
   }, [activeTab, scopeMonth, visibleMonths]);
 

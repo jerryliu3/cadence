@@ -45,6 +45,7 @@ interface SocialTeamStateResponse {
 
 export type FeedReactionKind = "cheer" | "fire" | "clap" | "strong";
 const SOCIAL_TAB_CACHE_PREFIX = "social:";
+const SOCIAL_FEED_CACHE_TTL_MS = 60 * 1000;
 
 async function parseApiError(response: Response, fallbackMessage: string) {
   const errorBody = (await response.json().catch(() => ({}))) as {
@@ -58,10 +59,12 @@ async function fetchSocialCachedJson<TPayload>({
   cacheKey,
   path,
   fallbackMessage,
+  ttlMs,
 }: {
   cacheKey: string;
   path: string;
   fallbackMessage: string;
+  ttlMs?: number;
 }) {
   const cached = readTabDataCache<TPayload>(cacheKey);
   if (cached) {
@@ -76,7 +79,7 @@ async function fetchSocialCachedJson<TPayload>({
     await parseApiError(response, fallbackMessage);
   }
   const payload = (await response.json()) as TPayload;
-  writeTabDataCache(cacheKey, payload);
+  writeTabDataCache(cacheKey, payload, ttlMs);
   return payload;
 }
 
@@ -99,6 +102,7 @@ export async function fetchSocialFeedPage({
     cacheKey: `${SOCIAL_TAB_CACHE_PREFIX}feed:${params.toString()}`,
     path: `/api/social/feed?${params.toString()}`,
     fallbackMessage: "Failed to load feed.",
+    ttlMs: SOCIAL_FEED_CACHE_TTL_MS,
   });
 }
 

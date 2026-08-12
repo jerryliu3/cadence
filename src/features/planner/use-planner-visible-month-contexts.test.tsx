@@ -231,6 +231,8 @@ describe("usePlannerVisibleMonthContexts", () => {
       expect(second.result.current["2026-07"]?.scopeMonth).toBe("2026-07");
       expect(second.result.current["2026-09"]?.scopeMonth).toBe("2026-09");
     });
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledTimes(4);
+    });
   });
 });
