@@ -6,6 +6,13 @@ import type {
   PlannerContextPayload,
   PlannerVisibleMonthContextPayload,
 } from "@/features/planner/calendar-surface.types";
+import {
+  PLANNER_VISIBLE_MONTH_CONTEXT_CACHE_PREFIX as PLANNER_VISIBLE_MONTH_CACHE_PREFIX,
+} from "@/lib/cache/planner-tab-cache";
+import {
+  readTabDataCache,
+  writeTabDataCache,
+} from "@/lib/cache/tab-data-cache";
 import { MAX_HORIZON_MONTHS } from "@/lib/planner/contracts/bounds";
 
 const VISIBLE_MONTH_FETCH_DEBOUNCE_MS = 80;
@@ -69,6 +76,25 @@ export function usePlannerVisibleMonthContexts({
     }
     let cancelled = false;
     const abortController = new AbortController();
+    let syncTimer: number | null = null;
+    const cachedEntries: Array<readonly [string, PlannerVisibleMonthContextPayload]> = [];
+    for (const visibleMonth of visibleMonths) {
+      const cacheKey = `${PLANNER_VISIBLE_MONTH_CACHE_PREFIX}${visibleMonth}`;
+      const cachedPayload = readTabDataCache<PlannerVisibleMonthContextPayload>(cacheKey);
+      if (cachedPayload) {
+        cachedEntries.push([visibleMonth, cachedPayload] as const);
+      }
+    }
+
+    if (cachedEntries.length > 0) {
+      syncTimer = window.setTimeout(() => {
+        if (cancelled) {
+          return;
+        }
+        setVisibleMonthContexts(Object.fromEntries(cachedEntries));
+      }, 0);
+    }
+
     const timer = window.setTimeout(() => {
       void Promise.allSettled(
         visibleMonths.map(async (visibleMonth) => {
@@ -99,12 +125,17 @@ export function usePlannerVisibleMonthContexts({
           if (cancelled) {
             return;
           }
-          const entries: Array<
-            readonly [string, PlannerVisibleMonthContextPayload]
-          > = [];
+          const entryMap = new Map<
+            string,
+            PlannerVisibleMonthContextPayload
+          >(cachedEntries);
           results.forEach((result, index) => {
             if (result.status === "fulfilled") {
-              entries.push(result.value);
+              entryMap.set(result.value[0], result.value[1]);
+              writeTabDataCache(
+                `${PLANNER_VISIBLE_MONTH_CACHE_PREFIX}${result.value[0]}`,
+                result.value[1]
+              );
               return;
             }
             const visibleMonth = visibleMonths[index] ?? null;
@@ -118,13 +149,16 @@ export function usePlannerVisibleMonthContexts({
               error: errorMessage,
             });
           });
-          setVisibleMonthContexts(Object.fromEntries(entries));
+          setVisibleMonthContexts(Object.fromEntries(entryMap.entries()));
         });
     }, VISIBLE_MONTH_FETCH_DEBOUNCE_MS);
     return () => {
       cancelled = true;
       abortController.abort();
       window.clearTimeout(timer);
+      if (syncTimer !== null) {
+        window.clearTimeout(syncTimer);
+      }
     };
   }, [activeTab, scopeMonth, visibleMonths]);
 

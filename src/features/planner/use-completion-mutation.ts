@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback } from "react";
+import { invalidatePlannerRelatedTabCaches } from "@/lib/cache/planner-tab-cache";
 import {
   executeCompletionDispatch,
   type CompletionDispatchDecision,
@@ -66,6 +67,7 @@ export function useCompletionMutation() {
             message: result.message ?? fallbackErrorMessage,
           };
         }
+        invalidatePlannerRelatedTabCaches();
         requestXpRefresh();
         return {
           ok: true,

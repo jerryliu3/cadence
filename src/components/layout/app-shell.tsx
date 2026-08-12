@@ -1,17 +1,19 @@
 "use client";
 
-import { Plus } from "lucide-react";
 import Link from "next/link";
 import { type ReactNode } from "react";
 import { TabNav } from "@/components/navigation/tab-nav";
 import { Button } from "@/components/ui/button";
 import { XpLevelBadge } from "@/components/xp/xp-level-badge";
+import { setTabDataCacheScope } from "@/lib/cache/tab-data-cache";
 
 interface AppShellProps {
   children: ReactNode;
+  userId: string;
 }
 
-export function AppShell({ children }: AppShellProps) {
+export function AppShell({ children, userId }: AppShellProps) {
+  setTabDataCacheScope(userId);
   return (
     <div className="flex min-h-screen w-full justify-center px-4 py-4 sm:px-6 sm:py-6">
       <div className="flex w-full max-w-5xl flex-col gap-4 md:gap-6">
@@ -22,15 +24,9 @@ export function AppShell({ children }: AppShellProps) {
               <XpLevelBadge />
             </div>
             <div className="flex items-center">
-              <Button asChild size="icon-sm" className="md:hidden" title="New goal">
-                <Link href="/goals/new" aria-label="New goal">
-                  <Plus className="size-4" />
-                </Link>
-              </Button>
-              <Button asChild size="sm" className="hidden md:inline-flex" title="New goal">
-                <Link href="/goals/new" aria-label="New goal">
-                  <Plus className="size-4" />
-                  New goal
+              <Button asChild size="sm" title="New Goal +">
+                <Link href="/goals/new">
+                  New Goal +
                 </Link>
               </Button>
             </div>
@@ -40,7 +36,9 @@ export function AppShell({ children }: AppShellProps) {
           </div>
         </header>
 
-        <main className="pb-[calc(6.5rem+env(safe-area-inset-bottom))] md:pb-0">{children}</main>
+        <main className="pb-[calc(6.5rem+env(safe-area-inset-bottom))] md:pb-0">
+          {children}
+        </main>
       </div>
 
       <div className="md:hidden">

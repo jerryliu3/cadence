@@ -6,6 +6,12 @@ import {
   isApiClientError,
   isApiClientTransportError,
 } from "@/lib/api/client";
+import {
+  invalidateTabDataCacheByPrefix,
+  readTabDataCache,
+  TAB_DATA_CACHE_TTL_MS,
+  writeTabDataCache,
+} from "@/lib/cache/tab-data-cache";
 import { resolveUserTimezone } from "@/lib/dates/timezone";
 
 export interface ProgressContextResponse {
@@ -28,14 +34,11 @@ export interface ProgressContextRequest {
   forceRefresh?: boolean;
 }
 
-const PROGRESS_CONTEXT_CACHE_TTL_MS = 15_000;
+const PROGRESS_CONTEXT_CACHE_TTL_MS = TAB_DATA_CACHE_TTL_MS;
 const PROGRESS_CONTEXT_REQUEST_TIMEOUT_MS = 15_000;
 const PROGRESS_CONTEXT_TIMEOUT_MESSAGE =
   "Goal progress request timed out. Please try again.";
-const progressContextCache = new Map<
-  string,
-  { expiresAt: number; payload: ProgressContextResponse }
->();
+export const PROGRESS_CONTEXT_CACHE_PREFIX = "progress-context:";
 
 export class ProgressContextAuthenticationError extends Error {
   readonly code = "authentication_required";
@@ -52,6 +55,10 @@ export function isProgressContextAuthenticationError(
   error: unknown
 ): error is ProgressContextAuthenticationError {
   return error instanceof ProgressContextAuthenticationError;
+}
+
+export function invalidateProgressContextCache() {
+  invalidateTabDataCacheByPrefix(PROGRESS_CONTEXT_CACHE_PREFIX);
 }
 
 function buildProgressContextQuery({
@@ -97,10 +104,10 @@ export async function fetchProgressContext({
     factsFrom,
     factsTo,
   });
-  const cacheKey = query.toString();
-  const cached = progressContextCache.get(cacheKey);
-  if (!forceRefresh && cached && cached.expiresAt > Date.now()) {
-    return cached.payload;
+  const cacheKey = `${PROGRESS_CONTEXT_CACHE_PREFIX}${query.toString()}`;
+  const cached = readTabDataCache<ProgressContextResponse>(cacheKey);
+  if (!forceRefresh && cached) {
+    return cached;
   }
 
   let payload: ProgressContextResponse;
@@ -129,10 +136,7 @@ export async function fetchProgressContext({
   if (payload.truncated !== false) {
     throw new Error("Goal progress response was unexpectedly truncated.");
   }
-  progressContextCache.set(cacheKey, {
-    expiresAt: Date.now() + PROGRESS_CONTEXT_CACHE_TTL_MS,
-    payload,
-  });
+  writeTabDataCache(cacheKey, payload, PROGRESS_CONTEXT_CACHE_TTL_MS);
   return payload;
 }
 

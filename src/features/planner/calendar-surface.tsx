@@ -31,6 +31,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { LoadingCard } from "@/components/ui/loading-card";
 import { PeriodStepper } from "@/components/ui/period-stepper";
 import {
   Select,
@@ -92,6 +93,14 @@ import {
   putJson,
 } from "@/lib/api/client";
 import { useOutsidePointerDismiss } from "@/lib/ui/use-outside-pointer-dismiss";
+import {
+  readTabDataCache,
+  writeTabDataCache,
+} from "@/lib/cache/tab-data-cache";
+import {
+  invalidatePlannerRelatedTabCaches,
+  PLANNER_CONTEXT_CACHE_PREFIX,
+} from "@/lib/cache/planner-tab-cache";
 import {
   type CompletionDispatchDecision,
   resolveCompletionDispatch,
@@ -224,7 +233,8 @@ export function CalendarSurface({
       return false;
     }
 
-    if (showLoading) {
+    let shouldShowLoading = showLoading;
+    if (shouldShowLoading) {
       setError(null);
     }
     if (!month) {
@@ -233,7 +243,21 @@ export function CalendarSurface({
       return true;
     }
 
-    if (showLoading) {
+    const plannerContextCacheKey = `${PLANNER_CONTEXT_CACHE_PREFIX}${month}`;
+    const cachedContextPayload = readTabDataCache<PlannerContextPayload>(plannerContextCacheKey);
+    if (cachedContextPayload) {
+      setContext(cachedContextPayload);
+      if (cachedContextPayload.preferences?.timezone) {
+        setSetupTimezone(cachedContextPayload.preferences.timezone);
+        setSetupWeekStartsOn(
+          normalizeWeekStartsOn(cachedContextPayload.preferences.defaultPolicy.weekStartsOn)
+        );
+        setSetupRestWeekdays(cachedContextPayload.preferences.defaultPolicy.restWeekdays);
+      }
+      shouldShowLoading = false;
+    }
+
+    if (shouldShowLoading) {
       setLoading(true);
     }
     let contextPayload: PlannerContextPayload;
@@ -242,14 +266,14 @@ export function CalendarSurface({
         query: { scopeMonth: month },
       });
     } catch (error) {
-      if (showLoading) {
+      if (shouldShowLoading) {
         setLoading(false);
       }
       const message = getApiErrorMessage(
         error,
         "Planner calendar context could not be loaded."
       );
-      if (showLoading) {
+      if (shouldShowLoading) {
         setContext(null);
         setError(message);
       }
@@ -258,11 +282,12 @@ export function CalendarSurface({
       }
       return false;
     }
-    if (showLoading) {
+    if (shouldShowLoading) {
       setLoading(false);
     }
 
     setContext(contextPayload);
+    writeTabDataCache(plannerContextCacheKey, contextPayload);
     if (contextPayload.preferences?.timezone) {
       setSetupTimezone(contextPayload.preferences.timezone);
       setSetupWeekStartsOn(
@@ -314,6 +339,10 @@ export function CalendarSurface({
     scopeMonth: month,
     visibleDays,
   });
+  const handlePlannerMutation = useCallback(() => {
+    invalidatePlannerRelatedTabCaches();
+    onPlannerMutation();
+  }, [onPlannerMutation]);
   const currentScopeMonth = month ?? context?.scopeMonth ?? null;
   const setDraftPolicyForScope = useCallback(
     (scopeMonth: string, policy: PlannerPolicy | null) => {
@@ -698,7 +727,7 @@ export function CalendarSurface({
     }
     setSetupLoading(false);
 
-    onPlannerMutation();
+    handlePlannerMutation();
     setDraftPolicyByScope({});
     setDraftPreviewByScope({});
     dispatchDraftCommand({ type: "clear" });
@@ -1585,7 +1614,7 @@ export function CalendarSurface({
         return;
       }
       try {
-        onPlannerMutation();
+        handlePlannerMutation();
         const refreshed = await withPlannerRefreshTimeout({
           operation: loadContext({
             showLoading: false,
@@ -1712,7 +1741,7 @@ export function CalendarSurface({
         }
       }
 
-      onPlannerMutation();
+      handlePlannerMutation();
       const refreshed = await withPlannerRefreshTimeout({
         operation: loadContext({
           showLoading: false,
@@ -1870,7 +1899,7 @@ export function CalendarSurface({
         for (const scopeMonth of scopeMonthsToPublish) {
           clearDraftScopeSession(scopeMonth);
         }
-        onPlannerMutation();
+        handlePlannerMutation();
         const refreshed = await withPlannerRefreshTimeout({
           operation: loadContext({
             showLoading: false,
@@ -1930,7 +1959,7 @@ export function CalendarSurface({
       }
       try {
         clearDraftScopeSession(context.scopeMonth);
-        onPlannerMutation();
+        handlePlannerMutation();
         const refreshed = await withPlannerRefreshTimeout({
           operation: loadContext({
             showLoading: false,
@@ -2003,7 +2032,7 @@ export function CalendarSurface({
       for (const scopeMonth of scopeMonths) {
         clearDraftScopeSession(scopeMonth);
       }
-      onPlannerMutation();
+      handlePlannerMutation();
       const refreshed = await withPlannerRefreshTimeout({
         operation: loadContext({ showLoading: false, toastOnError: false }),
         timeoutMessage:
@@ -2569,12 +2598,10 @@ export function CalendarSurface({
       </div>
 
       {showBlockingLoading ? (
-        <div className="rounded-xl border bg-card p-8 text-sm text-muted-foreground">
-          <div className="flex items-center gap-2">
-            <Loader2 className="size-4 animate-spin" />
-            Loading planner month context...
-          </div>
-        </div>
+        <LoadingCard
+          title="Loading planner month context..."
+          description="Preparing your schedule and completion state."
+        />
       ) : error ? (
         <div className="rounded-xl border bg-card p-6 text-sm text-destructive">
           {error}

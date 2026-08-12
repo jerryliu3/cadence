@@ -63,7 +63,6 @@ export async function GET() {
 
   const [
     xpProfilesResponse,
-    levelsResponse,
     rewardsResponse,
     categoryResponse,
     pendingAwardsResponse,
@@ -72,9 +71,6 @@ export async function GET() {
       .from("xp_profiles")
       .select("track_key, total_xp, current_level")
       .eq("user_id", userId),
-    supabase
-      .from("xp_levels")
-      .select("level, min_total_xp"),
     supabase
       .from("xp_rewards")
       .select("id, level, reward_code, reward_title, reward_description"),
@@ -94,7 +90,6 @@ export async function GET() {
 
   if (
     xpProfilesResponse.error ||
-    levelsResponse.error ||
     rewardsResponse.error ||
     categoryResponse.error ||
     pendingAwardsResponse.error
@@ -102,12 +97,6 @@ export async function GET() {
     return xpUnavailableResponse(correlationId);
   }
 
-  const levelMinByLevel = new Map<number, number>();
-  for (const levelRow of levelsResponse.data ?? []) {
-    levelMinByLevel.set(levelRow.level, levelRow.min_total_xp);
-  }
-
-  const sortedLevels = Array.from(levelMinByLevel.keys()).sort((left, right) => left - right);
   const rewards = (rewardsResponse.data ?? []).slice().sort((left, right) => left.level - right.level);
   const categoryByKey = new Map(
     (categoryResponse.data ?? []).map((row) => [row.key, { label: row.label, sortOrder: row.sort_order }])
@@ -120,9 +109,27 @@ export async function GET() {
     current_level: 1,
   };
 
-  const currentLevelMinXp = levelMinByLevel.get(globalProfile.current_level) ?? 0;
-  const nextLevel = sortedLevels.find((level) => level > globalProfile.current_level) ?? null;
-  const nextLevelMinXp = nextLevel === null ? null : (levelMinByLevel.get(nextLevel) ?? null);
+  const [currentLevelResponse, nextLevelResponse] = await Promise.all([
+    supabase
+      .from("xp_levels")
+      .select("min_total_xp")
+      .eq("level", globalProfile.current_level)
+      .maybeSingle(),
+    supabase
+      .from("xp_levels")
+      .select("level, min_total_xp")
+      .gt("level", globalProfile.current_level)
+      .order("level", { ascending: true })
+      .limit(1)
+      .maybeSingle(),
+  ]);
+  if (currentLevelResponse.error || nextLevelResponse.error) {
+    return xpUnavailableResponse(correlationId);
+  }
+
+  const currentLevelMinXp = currentLevelResponse.data?.min_total_xp ?? 0;
+  const nextLevel = nextLevelResponse.data?.level ?? null;
+  const nextLevelMinXp = nextLevelResponse.data?.min_total_xp ?? null;
   const xpToNextLevel =
     nextLevelMinXp === null ? null : Math.max(nextLevelMinXp - globalProfile.total_xp, 0);
 
