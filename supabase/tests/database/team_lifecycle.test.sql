@@ -127,6 +127,9 @@ select ok(
   'active team can be dissolved by either member'
 );
 
+reset role;
+set local role service_role;
+
 select is(
   (
     select status
