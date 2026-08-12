@@ -21,9 +21,9 @@ describe("TabNav", () => {
     expect(screen.getByRole("link", { name: /Insights/i })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Checklist/i })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Calendar/i })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Social/i })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Settings/i })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Social/i })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: /Challenges/i })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Profile/i })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Challenges/i })).toHaveAttribute(
       "aria-current",
       "page"
     );

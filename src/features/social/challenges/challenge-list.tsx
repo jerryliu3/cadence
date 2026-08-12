@@ -116,12 +116,7 @@ export function ChallengeList() {
         </CardContent>
       </Card>
 
-      {selectedChallenge ? (
-        <ChallengeDetail
-          challenge={selectedChallenge}
-          onUpdated={refreshAll}
-        />
-      ) : null}
+      {selectedChallenge ? <ChallengeDetail challenge={selectedChallenge} onUpdated={refreshAll} /> : null}
     </div>
   );
 }

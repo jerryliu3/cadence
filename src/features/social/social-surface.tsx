@@ -8,7 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export function SocialSurface() {
   return (
-    <Tabs defaultValue="feed" className="flex-col space-y-4">
+    <Tabs defaultValue="feed" className="flex flex-col gap-4">
       <TabsList variant="line">
         <TabsTrigger value="feed">Feed</TabsTrigger>
         <TabsTrigger value="challenges">Challenges</TabsTrigger>
