@@ -1,6 +1,7 @@
 import type {
   LeaderboardSeason,
   LeaderboardStanding,
+  TeamStateRow,
   SocialChallenge,
   SocialFeedEvent,
 } from "@/features/social/types";
@@ -33,6 +34,13 @@ interface SocialLeaderboardStandingsResponse {
   viewerRank: number | null;
 }
 
+interface SocialTeamStateResponse {
+  schemaVersion: "1";
+  items: TeamStateRow[];
+}
+
+export type FeedReactionKind = "cheer" | "fire" | "clap" | "strong";
+
 async function parseApiError(response: Response, fallbackMessage: string) {
   const errorBody = (await response.json().catch(() => ({}))) as {
     message?: string;
@@ -47,7 +55,7 @@ export async function fetchSocialFeedPage({
   limit = 20,
 }: {
   cursor?: string | null;
-  scope?: "global" | "duo" | "actor";
+  scope?: "global" | "team" | "actor";
   limit?: number;
 }) {
   const params = new URLSearchParams();
@@ -141,4 +149,135 @@ export async function fetchSocialLeaderboardStandings(
     await parseApiError(response, "Failed to load leaderboard standings.");
   }
   return (await response.json()) as SocialLeaderboardStandingsResponse;
+}
+
+export async function fetchSocialTeamState() {
+  const response = await fetch("/api/social/team", {
+    cache: "no-store",
+    credentials: "include",
+  });
+  if (!response.ok) {
+    await parseApiError(response, "Failed to load team state.");
+  }
+  return (await response.json()) as SocialTeamStateResponse;
+}
+
+export async function createSocialTeamInvite({
+  partnerId,
+  message,
+}: {
+  partnerId: string;
+  message?: string;
+}) {
+  const response = await fetch("/api/social/team/invites", {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ partnerId, message }),
+  });
+  if (!response.ok) {
+    await parseApiError(response, "Failed to send team invite.");
+  }
+  return (await response.json()) as { schemaVersion: "1"; teamId: string };
+}
+
+export async function acceptSocialTeamInvite(teamId: string) {
+  const response = await fetch(`/api/social/team/invites/${teamId}/accept`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ visibilityAcknowledged: true }),
+  });
+  if (!response.ok) {
+    await parseApiError(response, "Failed to accept team invite.");
+  }
+  return (await response.json()) as { schemaVersion: "1"; accepted: boolean };
+}
+
+export async function declineSocialTeamInvite(teamId: string) {
+  const response = await fetch(`/api/social/team/invites/${teamId}/decline`, {
+    method: "POST",
+    credentials: "include",
+  });
+  if (!response.ok) {
+    await parseApiError(response, "Failed to decline team invite.");
+  }
+  return (await response.json()) as { schemaVersion: "1"; declined: boolean };
+}
+
+export async function dissolveSocialTeam() {
+  const response = await fetch("/api/social/team", {
+    method: "DELETE",
+    credentials: "include",
+  });
+  if (!response.ok) {
+    await parseApiError(response, "Failed to dissolve team.");
+  }
+  return (await response.json()) as { schemaVersion: "1"; dissolved: boolean };
+}
+
+export async function addSocialFeedReaction({
+  eventId,
+  reaction,
+}: {
+  eventId: string;
+  reaction: FeedReactionKind;
+}) {
+  const response = await fetch(`/api/social/feed/${eventId}/reactions`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ reaction }),
+  });
+  if (!response.ok) {
+    await parseApiError(response, "Failed to add reaction.");
+  }
+  return (await response.json()) as { schemaVersion: "1" };
+}
+
+export async function removeSocialFeedReaction({
+  eventId,
+  reaction,
+}: {
+  eventId: string;
+  reaction: FeedReactionKind;
+}) {
+  const response = await fetch(`/api/social/feed/${eventId}/reactions`, {
+    method: "DELETE",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ reaction }),
+  });
+  if (!response.ok) {
+    await parseApiError(response, "Failed to remove reaction.");
+  }
+  return (await response.json()) as { schemaVersion: "1" };
+}
+
+export async function sendTeamNudge({
+  toUserId,
+  kind = "cheer",
+  goalId,
+  message,
+}: {
+  toUserId: string;
+  kind?: "cheer" | "remind" | "custom";
+  goalId?: string;
+  message?: string;
+}) {
+  const response = await fetch("/api/social/team/nudges", {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      toUserId,
+      kind,
+      goalId,
+      message,
+    }),
+  });
+  if (!response.ok) {
+    await parseApiError(response, "Failed to send nudge.");
+  }
+  return (await response.json()) as { schemaVersion: "1"; nudgeId: string };
 }

@@ -27,7 +27,6 @@ export interface SocialFeedEvent {
 }
 
 export type ChallengeStatus = "draft" | "scheduled" | "active" | "closed" | "archived";
-export type ChallengeEnrollment = "auto" | "opt_in";
 export type SocialSubjectKind = "user" | "team";
 export type ChallengeMetric =
   | "total_xp"
@@ -42,7 +41,6 @@ export interface SocialChallenge {
   title: string;
   description: string | null;
   status: ChallengeStatus;
-  enrollment: ChallengeEnrollment;
   subjectKind: SocialSubjectKind;
   metric: ChallengeMetric;
   metricTrackKey: string | null;
@@ -88,11 +86,7 @@ export interface LeaderboardStanding {
 export type TeamStatus =
   | "pending"
   | "active"
-  | "declined"
-  | "cancelled"
-  | "dissolved"
-  | "expired";
-
+  | "closed";
 export interface TeamStateRow {
   teamId: string;
   status: TeamStatus;
@@ -103,5 +97,6 @@ export interface TeamStateRow {
   inviteMessage: string | null;
   invitedAt: string;
   acceptedAt: string | null;
+  closedAt: string | null;
   isIncoming: boolean;
 }

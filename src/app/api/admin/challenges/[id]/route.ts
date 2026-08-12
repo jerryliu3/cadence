@@ -35,6 +35,24 @@ const patchSchema = z
     endsAt: z.iso.datetime().optional(),
     rewardXp: z.number().int().nonnegative().optional(),
     maxParticipants: z.number().int().positive().nullable().optional(),
+    audienceKind: z.enum(["global", "cohort"]).optional(),
+    cohortId: z.uuid().nullable().optional(),
+  })
+  .superRefine((value, context) => {
+    if (value.audienceKind === "cohort" && value.cohortId === undefined) {
+      context.addIssue({
+        code: "custom",
+        message: "cohortId is required when audienceKind is cohort.",
+        path: ["cohortId"],
+      });
+    }
+    if (value.audienceKind === "global" && value.cohortId !== undefined && value.cohortId !== null) {
+      context.addIssue({
+        code: "custom",
+        message: "cohortId must be null when audienceKind is global.",
+        path: ["cohortId"],
+      });
+    }
   })
   .refine((value) => Object.keys(value).length > 0, {
     message: "Provide at least one field to update.",
@@ -48,6 +66,8 @@ const immutableWhenActive = new Set([
   "startsAt",
   "endsAt",
   "maxParticipants",
+  "audienceKind",
+  "cohortId",
 ]);
 
 function toChallengeDto(row: Record<string, unknown>) {
@@ -65,6 +85,8 @@ function toChallengeDto(row: Record<string, unknown>) {
     endsAt: row.ends_at,
     rewardXp: row.reward_xp,
     maxParticipants: row.max_participants,
+    audienceKind: row.audience_kind,
+    cohortId: row.cohort_id,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -122,6 +144,8 @@ export async function PATCH(
     if (body.endsAt !== undefined) updates.ends_at = body.endsAt;
     if (body.rewardXp !== undefined) updates.reward_xp = body.rewardXp;
     if (body.maxParticipants !== undefined) updates.max_participants = body.maxParticipants;
+    if (body.audienceKind !== undefined) updates.audience_kind = body.audienceKind;
+    if (body.cohortId !== undefined) updates.cohort_id = body.cohortId;
 
     const { data, error } = await admin
       .from("challenges")
