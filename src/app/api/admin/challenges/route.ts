@@ -17,7 +17,6 @@ const createSchema = z
     title: z.string().trim().min(1).max(120),
     description: z.string().trim().max(2000).nullable().optional(),
     status: z.enum(["draft", "scheduled", "active", "closed", "archived"]).default("draft"),
-    // Team subjects become joinable once team core ships; create still defaults to user.
     subjectKind: z.enum(["user", "team"]).default("user"),
     metric: z.enum([
       "total_xp",
@@ -32,6 +31,8 @@ const createSchema = z
     endsAt: z.iso.datetime(),
     rewardXp: z.number().int().nonnegative().default(0),
     maxParticipants: z.number().int().positive().nullable().optional(),
+    audienceKind: z.enum(["global", "cohort"]).default("global"),
+    cohortId: z.uuid().nullable().optional(),
   })
   .superRefine((value, context) => {
     if (value.metric === "category_xp" && !value.metricTrackKey) {
@@ -39,6 +40,20 @@ const createSchema = z
         code: "custom",
         message: "metricTrackKey is required for category_xp challenges.",
         path: ["metricTrackKey"],
+      });
+    }
+    if (value.audienceKind === "cohort" && !value.cohortId) {
+      context.addIssue({
+        code: "custom",
+        message: "cohortId is required for cohort-scoped challenges.",
+        path: ["cohortId"],
+      });
+    }
+    if (value.audienceKind === "global" && value.cohortId) {
+      context.addIssue({
+        code: "custom",
+        message: "cohortId must be null for global challenges.",
+        path: ["cohortId"],
       });
     }
   });
@@ -58,6 +73,8 @@ function toChallengeDto(row: Record<string, unknown>) {
     endsAt: row.ends_at,
     rewardXp: row.reward_xp,
     maxParticipants: row.max_participants,
+    audienceKind: row.audience_kind,
+    cohortId: row.cohort_id,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -134,6 +151,8 @@ export async function POST(request: Request) {
         ends_at: body.endsAt,
         reward_xp: body.rewardXp,
         max_participants: body.maxParticipants ?? null,
+        audience_kind: body.audienceKind,
+        cohort_id: body.cohortId ?? null,
         created_by: adminContext.userId,
       })
       .select("*")

@@ -15,6 +15,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      active_team_for_user: { Args: { p_user_id: string }; Returns: string }
       challenge_progress_value: {
         Args: {
           p_from: string
@@ -60,6 +61,18 @@ export type Database = {
         }
         Returns: string
       }
+      enqueue_notification_outbox: {
+        Args: {
+          p_available_at?: string
+          p_body: string
+          p_dedupe_key?: string
+          p_kind: Database["public"]["Enums"]["notification_kind"]
+          p_title: string
+          p_url?: string
+          p_user_id: string
+        }
+        Returns: string
+      }
       goal_anchored_period_start: {
         Args: {
           p_anchor: string
@@ -89,6 +102,10 @@ export type Database = {
           xp_amount: number
         }[]
       }
+      is_active_team_pair: {
+        Args: { p_user_a: string; p_user_b: string }
+        Returns: boolean
+      }
       is_platform_admin_for: {
         Args: {
           p_min_role?: Database["public"]["Enums"]["admin_role"]
@@ -116,6 +133,10 @@ export type Database = {
         Args: { p_category: string }
         Returns: string
       }
+      partner_notifications_allowed: {
+        Args: { p_team_id: string; p_user_id: string }
+        Returns: boolean
+      }
       planner_json_depth: { Args: { p_value: Json }; Returns: number }
       planner_owner_lock_key: { Args: { p_owner: string }; Returns: number }
       planner_scope_is_replay: {
@@ -126,6 +147,15 @@ export type Database = {
         Args: { p_date: string; p_user_id: string }
         Returns: undefined
       }
+      refresh_challenge_participant: {
+        Args: {
+          p_challenge_id: string
+          p_now?: string
+          p_subject_id: string
+          p_subject_kind: Database["public"]["Enums"]["social_subject_kind"]
+        }
+        Returns: boolean
+      }
       refresh_user_challenge_participant: {
         Args: { p_challenge_id: string; p_now?: string; p_user_id: string }
         Returns: boolean
@@ -135,6 +165,17 @@ export type Database = {
         Returns: undefined
       }
       sha256_hex_digest: { Args: { p_value: string }; Returns: string }
+      subject_member_ids: {
+        Args: {
+          p_subject_id: string
+          p_subject_kind: Database["public"]["Enums"]["social_subject_kind"]
+        }
+        Returns: string[]
+      }
+      team_in_cohort: {
+        Args: { p_cohort_id: string; p_team_id: string }
+        Returns: boolean
+      }
       validate_planner_json: {
         Args: {
           p_expected_type: string
@@ -142,6 +183,10 @@ export type Database = {
           p_max_depth?: number
           p_value: Json
         }
+        Returns: boolean
+      }
+      viewer_in_cohort: {
+        Args: { p_cohort_id: string; p_uid: string }
         Returns: boolean
       }
       xp_cascade_multiplier: { Args: never; Returns: number }
@@ -252,6 +297,8 @@ export type Database = {
       }
       challenges: {
         Row: {
+          audience_kind: Database["public"]["Enums"]["social_audience_kind"]
+          cohort_id: string | null
           created_at: string
           created_by: string | null
           description: string | null
@@ -270,6 +317,8 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          audience_kind?: Database["public"]["Enums"]["social_audience_kind"]
+          cohort_id?: string | null
           created_at?: string
           created_by?: string | null
           description?: string | null
@@ -288,6 +337,8 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          audience_kind?: Database["public"]["Enums"]["social_audience_kind"]
+          cohort_id?: string | null
           created_at?: string
           created_by?: string | null
           description?: string | null
@@ -307,6 +358,13 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "challenges_cohort_id_fkey"
+            columns: ["cohort_id"]
+            isOneToOne: false
+            referencedRelation: "cohorts"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "challenges_created_by_fkey"
             columns: ["created_by"]
             isOneToOne: false
@@ -319,6 +377,86 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "goal_categories"
             referencedColumns: ["key"]
+          },
+        ]
+      }
+      cohort_members: {
+        Row: {
+          cohort_id: string
+          joined_at: string
+          role: Database["public"]["Enums"]["cohort_member_role"]
+          user_id: string
+        }
+        Insert: {
+          cohort_id: string
+          joined_at?: string
+          role?: Database["public"]["Enums"]["cohort_member_role"]
+          user_id: string
+        }
+        Update: {
+          cohort_id?: string
+          joined_at?: string
+          role?: Database["public"]["Enums"]["cohort_member_role"]
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cohort_members_cohort_id_fkey"
+            columns: ["cohort_id"]
+            isOneToOne: false
+            referencedRelation: "cohorts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cohort_members_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cohorts: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          description: string | null
+          id: string
+          is_active: boolean
+          join_code: string
+          slug: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          join_code: string
+          slug: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          join_code?: string
+          slug?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cohorts_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -437,6 +575,42 @@ export type Database = {
           {
             foreignKeyName: "feed_events_hidden_by_fkey"
             columns: ["hidden_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      feed_reactions: {
+        Row: {
+          created_at: string
+          feed_event_id: string
+          reaction: Database["public"]["Enums"]["reaction_kind"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          feed_event_id: string
+          reaction: Database["public"]["Enums"]["reaction_kind"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          feed_event_id?: string
+          reaction?: Database["public"]["Enums"]["reaction_kind"]
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "feed_reactions_feed_event_id_fkey"
+            columns: ["feed_event_id"]
+            isOneToOne: false
+            referencedRelation: "feed_events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "feed_reactions_user_id_fkey"
+            columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -733,6 +907,7 @@ export type Database = {
       }
       leaderboard_seasons: {
         Row: {
+          cohort_id: string | null
           created_at: string
           created_by: string | null
           ends_at: string | null
@@ -741,6 +916,7 @@ export type Database = {
           metric_track_key: string | null
           previous_season_id: string | null
           rollover: Database["public"]["Enums"]["leaderboard_rollover"]
+          scope: Database["public"]["Enums"]["leaderboard_scope_kind"]
           slug: string
           starts_at: string
           status: Database["public"]["Enums"]["leaderboard_season_status"]
@@ -749,6 +925,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          cohort_id?: string | null
           created_at?: string
           created_by?: string | null
           ends_at?: string | null
@@ -757,6 +934,7 @@ export type Database = {
           metric_track_key?: string | null
           previous_season_id?: string | null
           rollover?: Database["public"]["Enums"]["leaderboard_rollover"]
+          scope?: Database["public"]["Enums"]["leaderboard_scope_kind"]
           slug: string
           starts_at: string
           status?: Database["public"]["Enums"]["leaderboard_season_status"]
@@ -765,6 +943,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          cohort_id?: string | null
           created_at?: string
           created_by?: string | null
           ends_at?: string | null
@@ -773,6 +952,7 @@ export type Database = {
           metric_track_key?: string | null
           previous_season_id?: string | null
           rollover?: Database["public"]["Enums"]["leaderboard_rollover"]
+          scope?: Database["public"]["Enums"]["leaderboard_scope_kind"]
           slug?: string
           starts_at?: string
           status?: Database["public"]["Enums"]["leaderboard_season_status"]
@@ -781,6 +961,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "leaderboard_seasons_cohort_id_fkey"
+            columns: ["cohort_id"]
+            isOneToOne: false
+            referencedRelation: "cohorts"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "leaderboard_seasons_created_by_fkey"
             columns: ["created_by"]
@@ -883,6 +1070,65 @@ export type Database = {
           },
         ]
       }
+      notification_outbox: {
+        Row: {
+          attempts: number
+          available_at: string
+          body: string
+          channel: Database["public"]["Enums"]["notification_channel"]
+          created_at: string
+          dedupe_key: string | null
+          id: string
+          kind: Database["public"]["Enums"]["notification_kind"]
+          last_error: string | null
+          sent_at: string | null
+          state: Database["public"]["Enums"]["notification_state"]
+          title: string
+          url: string | null
+          user_id: string
+        }
+        Insert: {
+          attempts?: number
+          available_at?: string
+          body: string
+          channel?: Database["public"]["Enums"]["notification_channel"]
+          created_at?: string
+          dedupe_key?: string | null
+          id?: string
+          kind: Database["public"]["Enums"]["notification_kind"]
+          last_error?: string | null
+          sent_at?: string | null
+          state?: Database["public"]["Enums"]["notification_state"]
+          title: string
+          url?: string | null
+          user_id: string
+        }
+        Update: {
+          attempts?: number
+          available_at?: string
+          body?: string
+          channel?: Database["public"]["Enums"]["notification_channel"]
+          created_at?: string
+          dedupe_key?: string | null
+          id?: string
+          kind?: Database["public"]["Enums"]["notification_kind"]
+          last_error?: string | null
+          sent_at?: string | null
+          state?: Database["public"]["Enums"]["notification_state"]
+          title?: string
+          url?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_outbox_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       notification_schedules: {
         Row: {
           created_at: string
@@ -929,6 +1175,86 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      nudges: {
+        Row: {
+          created_at: string
+          from_user_id: string
+          goal_id: string | null
+          id: string
+          kind: Database["public"]["Enums"]["nudge_kind"]
+          message: string | null
+          team_id: string
+          to_user_id: string
+        }
+        Insert: {
+          created_at?: string
+          from_user_id: string
+          goal_id?: string | null
+          id?: string
+          kind?: Database["public"]["Enums"]["nudge_kind"]
+          message?: string | null
+          team_id: string
+          to_user_id: string
+        }
+        Update: {
+          created_at?: string
+          from_user_id?: string
+          goal_id?: string | null
+          id?: string
+          kind?: Database["public"]["Enums"]["nudge_kind"]
+          message?: string | null
+          team_id?: string
+          to_user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "nudges_from_user_id_fkey"
+            columns: ["from_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "nudges_goal_id_fkey"
+            columns: ["goal_id"]
+            isOneToOne: false
+            referencedRelation: "goals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "nudges_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "nudges_to_user_id_fkey"
+            columns: ["to_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      partner_profile_fields: {
+        Row: {
+          field: string
+          is_exposed: boolean
+          updated_at: string
+        }
+        Insert: {
+          field: string
+          is_exposed?: boolean
+          updated_at?: string
+        }
+        Update: {
+          field?: string
+          is_exposed?: boolean
+          updated_at?: string
+        }
+        Relationships: []
       }
       planner_ai_usage_daily: {
         Row: {
@@ -1200,6 +1526,115 @@ export type Database = {
           },
         ]
       }
+      team_preferences: {
+        Row: {
+          allow_nudges: boolean
+          notify_partner_activity: boolean
+          share_completions: boolean
+          team_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          allow_nudges?: boolean
+          notify_partner_activity?: boolean
+          share_completions?: boolean
+          team_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          allow_nudges?: boolean
+          notify_partner_activity?: boolean
+          share_completions?: boolean
+          team_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "team_preferences_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "team_preferences_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      teams: {
+        Row: {
+          accepted_at: string | null
+          closed_at: string | null
+          created_at: string
+          dissolved_at: string | null
+          id: string
+          initiator_id: string
+          invite_message: string | null
+          invited_at: string
+          status: Database["public"]["Enums"]["team_status"]
+          user_a_id: string
+          user_b_id: string
+          visibility_acknowledged_at: string | null
+        }
+        Insert: {
+          accepted_at?: string | null
+          closed_at?: string | null
+          created_at?: string
+          dissolved_at?: string | null
+          id?: string
+          initiator_id: string
+          invite_message?: string | null
+          invited_at?: string
+          status?: Database["public"]["Enums"]["team_status"]
+          user_a_id: string
+          user_b_id: string
+          visibility_acknowledged_at?: string | null
+        }
+        Update: {
+          accepted_at?: string | null
+          closed_at?: string | null
+          created_at?: string
+          dissolved_at?: string | null
+          id?: string
+          initiator_id?: string
+          invite_message?: string | null
+          invited_at?: string
+          status?: Database["public"]["Enums"]["team_status"]
+          user_a_id?: string
+          user_b_id?: string
+          visibility_acknowledged_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "teams_initiator_id_fkey"
+            columns: ["initiator_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "teams_user_a_id_fkey"
+            columns: ["user_a_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "teams_user_b_id_fkey"
+            columns: ["user_b_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_awards: {
         Row: {
           acknowledged_at: string | null
@@ -1424,8 +1859,19 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      accept_team_invite_service: {
+        Args: { p_team_id: string; p_visibility_acknowledged: boolean }
+        Returns: boolean
+      }
       acknowledge_user_award_service: {
         Args: { p_award_id: string; p_user_id: string }
+        Returns: boolean
+      }
+      add_feed_reaction_service: {
+        Args: {
+          p_feed_event_id: string
+          p_reaction: Database["public"]["Enums"]["reaction_kind"]
+        }
         Returns: boolean
       }
       assert_xp_ledger_consistency_service: { Args: never; Returns: number }
@@ -1450,6 +1896,22 @@ export type Database = {
         Args: { p_goal_id: string; p_uid: string }
         Returns: boolean
       }
+      can_view_goal_content: {
+        Args: { p_goal_id: string; p_uid: string }
+        Returns: boolean
+      }
+      claim_notification_outbox_service: {
+        Args: { p_limit?: number }
+        Returns: {
+          attempts: number
+          body: string
+          id: string
+          kind: Database["public"]["Enums"]["notification_kind"]
+          title: string
+          url: string
+          user_id: string
+        }[]
+      }
       clear_planner_schedule: {
         Args: { p_expected_digest: string; p_month: string }
         Returns: {
@@ -1472,6 +1934,16 @@ export type Database = {
           retry_after_seconds: number
         }[]
       }
+      create_team_invite_service: {
+        Args: { p_message?: string; p_partner_id: string }
+        Returns: string
+      }
+      decline_team_invite_service: {
+        Args: { p_team_id: string }
+        Returns: boolean
+      }
+      dissolve_team_service: { Args: never; Returns: boolean }
+      expire_pending_team_invites_service: { Args: never; Returns: number }
       find_profile_by_username: {
         Args: { p_limit?: number; p_query: string }
         Returns: {
@@ -1517,6 +1989,10 @@ export type Database = {
           tie_break_at: string
           viewer_rank: number
         }[]
+      }
+      get_partner_profile_service: {
+        Args: { p_owner_id: string }
+        Returns: Json
       }
       get_planner_schedule_digest: {
         Args: { p_owner?: string }
@@ -1602,6 +2078,22 @@ export type Database = {
           title: string
         }[]
       }
+      get_team_state: {
+        Args: never
+        Returns: {
+          accepted_at: string
+          closed_at: string
+          invite_message: string
+          invited_at: string
+          is_incoming: boolean
+          partner_avatar_url: string
+          partner_display_name: string
+          partner_id: string
+          partner_username: string
+          status: Database["public"]["Enums"]["team_status"]
+          team_id: string
+        }[]
+      }
       hide_feed_event_service: {
         Args: { p_event_id: string; p_hidden: boolean; p_reason?: string }
         Returns: boolean
@@ -1613,6 +2105,10 @@ export type Database = {
       join_challenge_service: {
         Args: { p_challenge_id: string }
         Returns: boolean
+      }
+      join_cohort_with_code_service: {
+        Args: { p_join_code: string }
+        Returns: string
       }
       leave_challenge_service: {
         Args: { p_challenge_id: string }
@@ -1641,6 +2137,17 @@ export type Database = {
       }
       refresh_challenge_progress_service: { Args: never; Returns: number }
       refresh_leaderboard_standings_service: { Args: never; Returns: number }
+      remove_feed_reaction_service: {
+        Args: {
+          p_feed_event_id: string
+          p_reaction: Database["public"]["Enums"]["reaction_kind"]
+        }
+        Returns: boolean
+      }
+      resolve_notification_outbox_delivery_service: {
+        Args: { p_error?: string; p_outbox_id: string; p_sent: boolean }
+        Returns: boolean
+      }
       rollover_leaderboard_seasons_service: { Args: never; Returns: number }
       save_planner_coach_conversation_service: {
         Args: {
@@ -1660,6 +2167,15 @@ export type Database = {
           title: string
           updated_at: string
         }[]
+      }
+      send_nudge_service: {
+        Args: {
+          p_goal_id?: string
+          p_kind?: Database["public"]["Enums"]["nudge_kind"]
+          p_message?: string
+          p_to_user_id: string
+        }
+        Returns: string
       }
       set_planner_item_lock: {
         Args: {
@@ -1703,6 +2219,7 @@ export type Database = {
         | "distinct_active_days"
         | "max_streak_days"
       challenge_status: "draft" | "scheduled" | "active" | "closed" | "archived"
+      cohort_member_role: "member" | "manager"
       completion_source: "manual" | "linked_cascade"
       feed_event_type:
         | "xp_earned"
@@ -1718,6 +2235,7 @@ export type Database = {
         | "monthly"
         | "quarterly"
         | "yearly"
+      leaderboard_scope_kind: "global" | "cohort"
       leaderboard_season_status: "upcoming" | "open" | "closed"
       moderation_action:
         | "hide"
@@ -1727,9 +2245,27 @@ export type Database = {
         | "remove_participant"
         | "close_challenge"
       moderation_target: "feed_event" | "user" | "challenge" | "team"
+      notification_channel: "push"
+      notification_kind:
+        | "team_invite"
+        | "team_accepted"
+        | "team_dissolved"
+        | "nudge"
+        | "reaction"
+        | "challenge_joined"
+        | "challenge_completed"
+        | "challenge_ending_soon"
+        | "season_closed"
+        | "planner_proposal"
+        | "planner_proposal_decided"
+      notification_state: "pending" | "sent" | "failed" | "skipped"
+      nudge_kind: "cheer" | "remind" | "custom"
       participant_role: "owner" | "participant"
+      reaction_kind: "cheer" | "fire" | "clap" | "strong"
       recurrence_interval: "daily" | "weekly" | "monthly"
+      social_audience_kind: "global" | "cohort"
       social_subject_kind: "user" | "team"
+      team_status: "pending" | "active" | "closed"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1869,6 +2405,7 @@ export const Constants = {
         "max_streak_days",
       ],
       challenge_status: ["draft", "scheduled", "active", "closed", "archived"],
+      cohort_member_role: ["member", "manager"],
       completion_source: ["manual", "linked_cascade"],
       feed_event_type: [
         "xp_earned",
@@ -1886,6 +2423,7 @@ export const Constants = {
         "quarterly",
         "yearly",
       ],
+      leaderboard_scope_kind: ["global", "cohort"],
       leaderboard_season_status: ["upcoming", "open", "closed"],
       moderation_action: [
         "hide",
@@ -1896,9 +2434,28 @@ export const Constants = {
         "close_challenge",
       ],
       moderation_target: ["feed_event", "user", "challenge", "team"],
+      notification_channel: ["push"],
+      notification_kind: [
+        "team_invite",
+        "team_accepted",
+        "team_dissolved",
+        "nudge",
+        "reaction",
+        "challenge_joined",
+        "challenge_completed",
+        "challenge_ending_soon",
+        "season_closed",
+        "planner_proposal",
+        "planner_proposal_decided",
+      ],
+      notification_state: ["pending", "sent", "failed", "skipped"],
+      nudge_kind: ["cheer", "remind", "custom"],
       participant_role: ["owner", "participant"],
+      reaction_kind: ["cheer", "fire", "clap", "strong"],
       recurrence_interval: ["daily", "weekly", "monthly"],
+      social_audience_kind: ["global", "cohort"],
       social_subject_kind: ["user", "team"],
+      team_status: ["pending", "active", "closed"],
     },
   },
 } as const
