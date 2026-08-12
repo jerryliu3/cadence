@@ -39,7 +39,7 @@ describe("useCompletionMutation", () => {
     const response = await result.current({
       decision: {
         allowed: true,
-        route: "date_fact",
+        route: "canonical_exact_date",
         exactDateOnly: true,
         reason: "allowed",
       },
@@ -65,7 +65,7 @@ describe("useCompletionMutation", () => {
     const response = await result.current({
       decision: {
         allowed: true,
-        route: "date_fact",
+        route: "canonical_exact_date",
         exactDateOnly: true,
         reason: "allowed",
       },
