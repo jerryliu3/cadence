@@ -89,7 +89,7 @@ export type Database = {
           xp_amount: number
         }[]
       }
-      is_active_duo_pair: {
+      is_active_team_pair: {
         Args: { p_user_a: string; p_user_b: string }
         Returns: boolean
       }
@@ -362,76 +362,6 @@ export type Database = {
           {
             foreignKeyName: "completions_user_id_fkey"
             columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      duos: {
-        Row: {
-          accepted_at: string | null
-          created_at: string
-          dissolved_at: string | null
-          id: string
-          initiator_id: string
-          invite_message: string | null
-          invited_at: string
-          responded_at: string | null
-          status: Database["public"]["Enums"]["duo_status"]
-          updated_at: string
-          user_a_id: string
-          user_b_id: string
-          visibility_acknowledged_at: string | null
-        }
-        Insert: {
-          accepted_at?: string | null
-          created_at?: string
-          dissolved_at?: string | null
-          id?: string
-          initiator_id: string
-          invite_message?: string | null
-          invited_at?: string
-          responded_at?: string | null
-          status?: Database["public"]["Enums"]["duo_status"]
-          updated_at?: string
-          user_a_id: string
-          user_b_id: string
-          visibility_acknowledged_at?: string | null
-        }
-        Update: {
-          accepted_at?: string | null
-          created_at?: string
-          dissolved_at?: string | null
-          id?: string
-          initiator_id?: string
-          invite_message?: string | null
-          invited_at?: string
-          responded_at?: string | null
-          status?: Database["public"]["Enums"]["duo_status"]
-          updated_at?: string
-          user_a_id?: string
-          user_b_id?: string
-          visibility_acknowledged_at?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "duos_initiator_id_fkey"
-            columns: ["initiator_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "duos_user_a_id_fkey"
-            columns: ["user_a_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "duos_user_b_id_fkey"
-            columns: ["user_b_id"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -1292,6 +1222,73 @@ export type Database = {
           },
         ]
       }
+      teams: {
+        Row: {
+          accepted_at: string | null
+          created_at: string
+          dissolved_at: string | null
+          id: string
+          initiator_id: string
+          invite_message: string | null
+          invited_at: string
+          status: Database["public"]["Enums"]["team_status"]
+          updated_at: string
+          user_a_id: string
+          user_b_id: string
+          visibility_acknowledged_at: string | null
+        }
+        Insert: {
+          accepted_at?: string | null
+          created_at?: string
+          dissolved_at?: string | null
+          id?: string
+          initiator_id: string
+          invite_message?: string | null
+          invited_at?: string
+          status?: Database["public"]["Enums"]["team_status"]
+          updated_at?: string
+          user_a_id: string
+          user_b_id: string
+          visibility_acknowledged_at?: string | null
+        }
+        Update: {
+          accepted_at?: string | null
+          created_at?: string
+          dissolved_at?: string | null
+          id?: string
+          initiator_id?: string
+          invite_message?: string | null
+          invited_at?: string
+          status?: Database["public"]["Enums"]["team_status"]
+          updated_at?: string
+          user_a_id?: string
+          user_b_id?: string
+          visibility_acknowledged_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "teams_initiator_id_fkey"
+            columns: ["initiator_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "teams_user_a_id_fkey"
+            columns: ["user_a_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "teams_user_b_id_fkey"
+            columns: ["user_b_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_awards: {
         Row: {
           acknowledged_at: string | null
@@ -1516,8 +1513,8 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      accept_duo_invite_service: {
-        Args: { p_duo_id: string; p_visibility_acknowledged: boolean }
+      accept_team_invite_service: {
+        Args: { p_team_id: string; p_visibility_acknowledged: boolean }
         Returns: boolean
       }
       acknowledge_user_award_service: {
@@ -1572,15 +1569,15 @@ export type Database = {
           retry_after_seconds: number
         }[]
       }
-      create_duo_invite_service: {
+      create_team_invite_service: {
         Args: { p_message?: string; p_partner_id: string }
         Returns: string
       }
-      decline_duo_invite_service: {
-        Args: { p_duo_id: string }
+      decline_team_invite_service: {
+        Args: { p_team_id: string }
         Returns: boolean
       }
-      dissolve_duo_service: { Args: never; Returns: boolean }
+      dissolve_team_service: { Args: never; Returns: boolean }
       find_profile_by_username: {
         Args: { p_limit?: number; p_query: string }
         Returns: {
@@ -1612,21 +1609,6 @@ export type Database = {
           viewer_completed_at: string
           viewer_joined: boolean
           viewer_progress: number
-        }[]
-      }
-      get_duo_state: {
-        Args: never
-        Returns: {
-          accepted_at: string
-          duo_id: string
-          invite_message: string
-          invited_at: string
-          is_incoming: boolean
-          partner_avatar_url: string
-          partner_display_name: string
-          partner_id: string
-          partner_username: string
-          status: Database["public"]["Enums"]["duo_status"]
         }[]
       }
       get_leaderboard_standings: {
@@ -1728,6 +1710,21 @@ export type Database = {
           status: Database["public"]["Enums"]["leaderboard_season_status"]
           subject_kind: Database["public"]["Enums"]["social_subject_kind"]
           title: string
+        }[]
+      }
+      get_team_state: {
+        Args: never
+        Returns: {
+          accepted_at: string
+          invite_message: string
+          invited_at: string
+          is_incoming: boolean
+          partner_avatar_url: string
+          partner_display_name: string
+          partner_id: string
+          partner_username: string
+          status: Database["public"]["Enums"]["team_status"]
+          team_id: string
         }[]
       }
       hide_feed_event_service: {
@@ -1832,7 +1829,6 @@ export type Database = {
         | "max_streak_days"
       challenge_status: "draft" | "scheduled" | "active" | "closed" | "archived"
       completion_source: "manual" | "linked_cascade"
-      duo_status: "pending" | "active" | "declined" | "cancelled" | "dissolved"
       feed_event_type:
         | "xp_earned"
         | "level_up"
@@ -1859,6 +1855,7 @@ export type Database = {
       participant_role: "owner" | "participant"
       recurrence_interval: "daily" | "weekly" | "monthly"
       social_subject_kind: "user" | "team"
+      team_status: "pending" | "active" | "closed"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1999,7 +1996,6 @@ export const Constants = {
       ],
       challenge_status: ["draft", "scheduled", "active", "closed", "archived"],
       completion_source: ["manual", "linked_cascade"],
-      duo_status: ["pending", "active", "declined", "cancelled", "dissolved"],
       feed_event_type: [
         "xp_earned",
         "level_up",
@@ -2029,6 +2025,7 @@ export const Constants = {
       participant_role: ["owner", "participant"],
       recurrence_interval: ["daily", "weekly", "monthly"],
       social_subject_kind: ["user", "team"],
+      team_status: ["pending", "active", "closed"],
     },
   },
 } as const

@@ -6,8 +6,6 @@ import {
 } from "@/lib/api/route";
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { runAfterResponse } from "@/lib/api/after";
-import { flushNotificationOutbox } from "@/lib/push/outbox";
 import { requireSocialRouteContext } from "@/lib/social/api";
 import { createClient } from "@/lib/supabase/server";
 
@@ -34,8 +32,6 @@ export async function POST(request: Request) {
         cause: error.message,
       });
     }
-
-    runAfterResponse(() => flushNotificationOutbox({ limit: 20 }));
 
     return NextResponse.json(
       {
