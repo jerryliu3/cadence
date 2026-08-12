@@ -1,6 +1,5 @@
 "use client";
 
-import { Plus } from "lucide-react";
 import Link from "next/link";
 import { type ReactNode } from "react";
 import { TabNav } from "@/components/navigation/tab-nav";
@@ -22,15 +21,14 @@ export function AppShell({ children }: AppShellProps) {
               <XpLevelBadge />
             </div>
             <div className="flex items-center">
-              <Button asChild size="icon-sm" className="md:hidden" title="New goal">
-                <Link href="/goals/new" aria-label="New goal">
-                  <Plus className="size-4" />
+              <Button asChild size="sm" className="md:hidden" title="New Goal +">
+                <Link href="/goals/new" aria-label="New Goal +">
+                  New Goal +
                 </Link>
               </Button>
-              <Button asChild size="sm" className="hidden md:inline-flex" title="New goal">
-                <Link href="/goals/new" aria-label="New goal">
-                  <Plus className="size-4" />
-                  New goal
+              <Button asChild size="sm" className="hidden md:inline-flex" title="New Goal +">
+                <Link href="/goals/new" aria-label="New Goal +">
+                  New Goal +
                 </Link>
               </Button>
             </div>
