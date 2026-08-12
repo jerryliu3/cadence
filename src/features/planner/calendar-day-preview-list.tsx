@@ -171,6 +171,7 @@ export function CalendarDayPreviewList<
                     {!entry.draftGhost ? (
                       <CompletionToggle
                         completed={completionToggleState.currentlyCredited}
+                        pending={mutationLoading}
                         size="sm"
                         className="mt-0.5"
                         onPointerDown={(event) => {

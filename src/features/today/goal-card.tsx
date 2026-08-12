@@ -86,6 +86,7 @@ export function GoalCard({
       <CardContent className="flex items-center gap-2 px-2 py-0.5">
         <CompletionToggle
           completed={doneForCurrentPeriod}
+          pending={disabled && !archived}
           size="lg"
           onClick={onToggle}
           disabled={disabled || archived}
