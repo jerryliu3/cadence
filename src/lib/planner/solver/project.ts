@@ -1,4 +1,5 @@
 import { enumerateDates } from "@/lib/planner/dates";
+import { compareDateStrings } from "@/lib/goals/periods";
 import { compareCanonicalStrings } from "@/lib/planner/canonical";
 import type { GoalAssessment } from "@/lib/planner/assessment";
 import {
@@ -33,10 +34,29 @@ export function projectWorkUnitsToSolver({
     }
     return preserveExistingAssignments ? unit.scheduledDate : null;
   };
+  // Preserve-mode placements before the active window (asOfDate moved forward)
+  // are already fixed. Leave them out of the solver instead of soft-locking a
+  // date the placement window no longer admits.
+  const isFixedPreservedPastPlacement = (unit: PlannerWorkUnit) => {
+    if (!preserveExistingAssignments || unit.locked) {
+      return false;
+    }
+    if (
+      draftPinnedDates[`${unit.originalGoalId}:${unit.unitKey}`] !== undefined
+    ) {
+      return false;
+    }
+    return (
+      unit.scheduledDate !== null &&
+      unit.placementWindow !== null &&
+      compareDateStrings(unit.scheduledDate, unit.placementWindow.start) < 0
+    );
+  };
   const isProjectable = (unit: PlannerWorkUnit) =>
     (unit.classification === "open" ||
       unit.classification === "future") &&
-    unit.placementWindow !== null;
+    unit.placementWindow !== null &&
+    !isFixedPreservedPastPlacement(unit);
   const reservedDatesByGoal = new Map<string, Set<string>>();
   for (const unit of workUnits) {
     if (isProjectable(unit) || unit.scheduledDate === null) {
