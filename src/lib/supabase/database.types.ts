@@ -1716,7 +1716,7 @@ export type Database = {
         Args: never
         Returns: {
           accepted_at: string
-          closed_at: string | null
+          closed_at: string
           invite_message: string
           invited_at: string
           is_incoming: boolean
