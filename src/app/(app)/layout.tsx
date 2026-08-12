@@ -5,8 +5,10 @@ import { createClient } from "@/lib/supabase/server";
 
 export default async function AuthenticatedLayout({
   children,
+  goalSheet,
 }: {
   children: ReactNode;
+  goalSheet?: ReactNode;
 }) {
   const supabase = await createClient();
   const {
@@ -17,5 +19,9 @@ export default async function AuthenticatedLayout({
     redirect("/login");
   }
 
-  return <AppShell userId={user.id}>{children}</AppShell>;
+  return (
+    <AppShell userId={user.id} goalSheet={goalSheet}>
+      {children}
+    </AppShell>
+  );
 }

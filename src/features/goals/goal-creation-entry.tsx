@@ -10,11 +10,15 @@ import { GoalForm } from "@/features/today/goal-form";
 
 type CreationMode = "single" | "multi";
 
+interface GoalCreationEntryProps {
+  onExit?: () => void;
+}
+
 function resolveMode(rawMode: string | null): CreationMode {
   return rawMode === "multi" ? "multi" : "single";
 }
 
-export function GoalCreationEntry() {
+export function GoalCreationEntry({ onExit }: GoalCreationEntryProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
@@ -43,6 +47,7 @@ export function GoalCreationEntry() {
         {mode === "single" ? (
           <GoalForm
             showBackButton={false}
+            onExit={onExit}
             modeSwitchControl={
               <Button type="button" size="sm" variant="outline" asChild>
                 <Link href={multiGoalHref}>
@@ -55,6 +60,7 @@ export function GoalCreationEntry() {
         ) : (
           <BulkGoalForm
             showBackButton={false}
+            onExit={onExit}
             modeSwitchControl={
               <Button type="button" size="sm" variant="outline" asChild>
                 <Link href={singleGoalHref}>

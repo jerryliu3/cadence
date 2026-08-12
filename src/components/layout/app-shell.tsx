@@ -10,9 +10,10 @@ import { setTabDataCacheScope } from "@/lib/cache/tab-data-cache";
 interface AppShellProps {
   children: ReactNode;
   userId: string;
+  goalSheet?: ReactNode;
 }
 
-export function AppShell({ children, userId }: AppShellProps) {
+export function AppShell({ children, userId, goalSheet }: AppShellProps) {
   setTabDataCacheScope(userId);
   return (
     <div className="flex min-h-screen w-full justify-center px-4 py-4 sm:px-6 sm:py-6">
@@ -44,6 +45,7 @@ export function AppShell({ children, userId }: AppShellProps) {
       <div className="md:hidden">
         <TabNav mobile />
       </div>
+      {goalSheet}
     </div>
   );
 }

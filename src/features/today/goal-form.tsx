@@ -16,7 +16,14 @@ import { endOfMonth, endOfYear, format, startOfMonth } from "date-fns";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { type FormEvent, type ReactNode, useEffect, useMemo, useState } from "react";
+import {
+  type FormEvent,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -71,6 +78,7 @@ interface GoalFormProps {
   goalId?: string;
   showBackButton?: boolean;
   modeSwitchControl?: ReactNode;
+  onExit?: () => void;
 }
 
 interface GoalFormState {
@@ -123,6 +131,7 @@ export function GoalForm({
   goalId,
   showBackButton = true,
   modeSwitchControl,
+  onExit,
 }: GoalFormProps) {
   const supabase = useMemo(() => createClient(), []);
   const router = useRouter();
@@ -144,6 +153,14 @@ export function GoalForm({
   // Always return to Today. Group management lives under Settings, but the form
   // should not redirect based on is_group (create, convert either direction, or delete).
   const exitHref = "/";
+  const completeAndExit = useCallback(() => {
+    if (onExit) {
+      onExit();
+      return;
+    }
+    router.replace(exitHref);
+    router.refresh();
+  }, [exitHref, onExit, router]);
 
   useEffect(() => {
     const load = async () => {
@@ -499,8 +516,7 @@ export function GoalForm({
     invalidatePlannerRelatedTabCaches();
     toast.success(isEditing ? "Goal updated." : "Goal created.");
     requestXpRefresh();
-    router.replace(exitHref);
-    router.refresh();
+    completeAndExit();
     setSaving(false);
   };
 
@@ -545,8 +561,7 @@ export function GoalForm({
     requestXpRefresh();
     invalidatePlannerRelatedTabCaches();
     toast.success("Goal deleted.");
-    router.replace(exitHref);
-    router.refresh();
+    completeAndExit();
     setSaving(false);
   };
 
@@ -569,12 +584,19 @@ export function GoalForm({
           </div>
           <div className="flex items-center gap-2">
             {showBackButton ? (
-              <Button variant="outline" asChild>
-                <Link href={exitHref}>
+              onExit ? (
+                <Button type="button" variant="outline" onClick={onExit}>
                   <ArrowLeft className="size-4" />
                   Back
-                </Link>
-              </Button>
+                </Button>
+              ) : (
+                <Button variant="outline" asChild>
+                  <Link href={exitHref}>
+                    <ArrowLeft className="size-4" />
+                    Back
+                  </Link>
+                </Button>
+              )
             ) : null}
             {validationError ? (
               <button
