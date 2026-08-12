@@ -1,4 +1,9 @@
-import type { SocialChallenge, SocialFeedEvent } from "@/features/social/types";
+import type {
+  LeaderboardSeason,
+  LeaderboardStanding,
+  SocialChallenge,
+  SocialFeedEvent,
+} from "@/features/social/types";
 
 interface SocialFeedResponse {
   schemaVersion: "1";
@@ -14,6 +19,18 @@ interface SocialChallengesResponse {
 interface SocialChallengeDetailResponse {
   schemaVersion: "1";
   item: SocialChallenge;
+}
+
+interface SocialLeaderboardsResponse {
+  schemaVersion: "1";
+  items: LeaderboardSeason[];
+}
+
+interface SocialLeaderboardStandingsResponse {
+  schemaVersion: "1";
+  season: LeaderboardSeason;
+  standings: LeaderboardStanding[];
+  viewerRank: number | null;
 }
 
 async function parseApiError(response: Response, fallbackMessage: string) {
@@ -96,4 +113,32 @@ export async function leaveSocialChallenge(challengeId: string) {
     await parseApiError(response, "Failed to leave challenge.");
   }
   return (await response.json()) as { schemaVersion: "1"; joined: boolean };
+}
+
+export async function fetchSocialLeaderboards() {
+  const response = await fetch("/api/social/leaderboards", {
+    cache: "no-store",
+    credentials: "include",
+  });
+  if (!response.ok) {
+    await parseApiError(response, "Failed to load leaderboards.");
+  }
+  return (await response.json()) as SocialLeaderboardsResponse;
+}
+
+export async function fetchSocialLeaderboardStandings(
+  seasonId: string,
+  { limit = 50, offset = 0 }: { limit?: number; offset?: number } = {}
+) {
+  const params = new URLSearchParams();
+  params.set("limit", String(limit));
+  params.set("offset", String(offset));
+  const response = await fetch(`/api/social/leaderboards/${seasonId}?${params.toString()}`, {
+    cache: "no-store",
+    credentials: "include",
+  });
+  if (!response.ok) {
+    await parseApiError(response, "Failed to load leaderboard standings.");
+  }
+  return (await response.json()) as SocialLeaderboardStandingsResponse;
 }

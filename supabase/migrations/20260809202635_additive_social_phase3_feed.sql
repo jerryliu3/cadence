@@ -76,7 +76,7 @@ language sql
 stable
 set search_path = ''
 as $$
-  select (pg_catalog.now() at time zone profile.timezone)::date
+  select private.local_today_for_timezone(coalesce(profile.timezone, 'UTC'))
   from public.profiles profile
   where profile.id = p_user_id;
 $$;
