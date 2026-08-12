@@ -3,8 +3,6 @@
 import { addDays, addMonths, format, isValid, parse } from "date-fns";
 import {
   CalendarDays,
-  CheckCircle2,
-  Circle,
   Loader2,
   Maximize2,
   Minimize2,
@@ -3077,33 +3075,41 @@ export function CalendarSurface({
                                 ? "Unlock"
                                 : "Lock"}
                           </Button>
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            className="gap-1"
-                            onClick={() => void toggleDateFact(selectedEventEntry)}
-                            disabled={
-                              Boolean(mutationLoadingKey) ||
-                              selectedEventCompletionDisabledReason !== null
-                            }
-                          >
-                            {mutationLoadingKey === `fact:${selectedEventEntry.key}`
-                              ? "Saving..."
-                              : selectedEventCompletionDispatch?.currentlyCredited
-                                ? (
-                                    <>
-                                      <CheckCircle2 className="size-4" />
-                                      Undo done
-                                    </>
-                                  )
-                                : (
-                                    <>
-                                      <Circle className="size-4" />
-                                      Mark done
-                                    </>
-                                  )}
-                          </Button>
+                          <div className="inline-flex items-center gap-2 rounded-md border px-2 py-1">
+                            <CompletionToggle
+                              completed={Boolean(
+                                selectedEventCompletionDispatch?.currentlyCredited
+                              )}
+                              pending={
+                                mutationLoadingKey === `fact:${selectedEventEntry.key}`
+                              }
+                              size="sm"
+                              onClick={() => void toggleDateFact(selectedEventEntry)}
+                              disabled={
+                                Boolean(mutationLoadingKey) ||
+                                selectedEventCompletionDisabledReason !== null
+                              }
+                              aria-label={
+                                selectedEventCompletionDispatch?.currentlyCredited
+                                  ? "Mark session not done"
+                                  : "Mark session done"
+                              }
+                              title={
+                                selectedEventCompletionDisabledReason
+                                  ? completionDisabledReasonCopy(
+                                      selectedEventCompletionDisabledReason
+                                    )
+                                  : "Toggle completion for this session"
+                              }
+                            />
+                            <span className="text-xs font-medium">
+                              {mutationLoadingKey === `fact:${selectedEventEntry.key}`
+                                ? "Saving..."
+                                : selectedEventCompletionDispatch?.currentlyCredited
+                                  ? "Undo done"
+                                  : "Mark done"}
+                            </span>
+                          </div>
                         </div>
                       ) : null}
                       {selectedEventCompletionDisabledReason ? (

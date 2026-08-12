@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { CompletionToggle } from "@/components/ui/completion-toggle";
 
@@ -82,5 +82,33 @@ describe("CompletionToggle", () => {
 
     expect(vibrate).not.toHaveBeenCalled();
     expect(onClick).not.toHaveBeenCalled();
+  });
+
+  it("keeps optimistic completed state visible while pending", () => {
+    vi.useFakeTimers();
+
+    render(
+      <CompletionToggle
+        completed={false}
+        pending
+        aria-label="Mark session done"
+      />
+    );
+
+    const toggle = screen.getByRole("button", { name: "Mark session done" });
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute("data-visual-completed", "true");
+
+    act(() => {
+      vi.advanceTimersByTime(500);
+    });
+    expect(toggle).toHaveAttribute("data-visual-completed", "true");
+
+    act(() => {
+      vi.advanceTimersByTime(3000);
+    });
+    expect(toggle).toHaveAttribute("data-visual-completed", "false");
+
+    vi.useRealTimers();
   });
 });

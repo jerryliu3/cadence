@@ -23,11 +23,13 @@ const sizeClasses = {
 interface CompletionToggleProps
   extends Omit<React.ComponentProps<"button">, "children"> {
   completed: boolean;
+  pending?: boolean;
   size?: keyof typeof sizeClasses;
 }
 
 export function CompletionToggle({
   completed,
+  pending = false,
   size = "md",
   className,
   onClick,
@@ -35,16 +37,32 @@ export function CompletionToggle({
 }: CompletionToggleProps) {
   const classes = sizeClasses[size];
   const [pressActive, setPressActive] = React.useState(false);
+  const [optimisticCompleted, setOptimisticCompleted] = React.useState(false);
   const pressTimerRef = React.useRef<number | null>(null);
+  const optimisticTimerRef = React.useRef<number | null>(null);
 
   React.useEffect(
     () => () => {
       if (pressTimerRef.current !== null) {
         window.clearTimeout(pressTimerRef.current);
       }
+      if (optimisticTimerRef.current !== null) {
+        window.clearTimeout(optimisticTimerRef.current);
+      }
     },
     []
   );
+
+  React.useEffect(() => {
+    if (!completed) {
+      return;
+    }
+    setOptimisticCompleted(false);
+    if (optimisticTimerRef.current !== null) {
+      window.clearTimeout(optimisticTimerRef.current);
+      optimisticTimerRef.current = null;
+    }
+  }, [completed]);
 
   const handleClick: React.MouseEventHandler<HTMLButtonElement> = (event) => {
     triggerLightPressFeedback();
@@ -57,14 +75,26 @@ export function CompletionToggle({
         setPressActive(false);
         pressTimerRef.current = null;
       }, 360);
+
+      setOptimisticCompleted(true);
+      if (optimisticTimerRef.current !== null) {
+        window.clearTimeout(optimisticTimerRef.current);
+      }
+      optimisticTimerRef.current = window.setTimeout(() => {
+        setOptimisticCompleted(false);
+        optimisticTimerRef.current = null;
+      }, pending ? 2200 : 1400);
     }
     onClick?.(event);
   };
+
+  const visualCompleted = completed || optimisticCompleted;
 
   return (
     <button
       type="button"
       data-completed={completed}
+      data-visual-completed={visualCompleted}
       data-motion="completion-toggle"
       className={cn(
         "group relative isolate flex shrink-0 touch-manipulation items-center justify-center overflow-visible rounded-full border border-border bg-background shadow-sm transition-[transform,box-shadow,background-color,border-color] duration-[var(--motion-duration-fast)] ease-[var(--motion-ease-standard)] hover:border-primary hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 active:translate-y-0.5 active:scale-[0.94] active:shadow-none disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transform-none motion-reduce:transition-none",
@@ -74,7 +104,7 @@ export function CompletionToggle({
       onClick={handleClick}
       {...props}
     >
-      {completed || pressActive ? (
+      {visualCompleted || pressActive ? (
         <>
           {pressActive ? (
             <span
@@ -82,7 +112,7 @@ export function CompletionToggle({
               className="motion-completion-ring pointer-events-none absolute inset-0 -z-10 rounded-full border border-primary/50"
             />
           ) : null}
-          {completed ? (
+          {visualCompleted ? (
             <CheckCircle2
               key="completed"
               className={cn(

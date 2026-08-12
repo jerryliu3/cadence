@@ -52,6 +52,7 @@ test("legacy day links redirect into calendar route", async ({
   await page.goto("/?day=2026-08-04");
   await expect(page).toHaveURL(/\/calendar/);
   await expect(page).toHaveURL(/month=2026-08/);
+  await expect(page).toHaveURL(/day=2026-08-04/);
 });
 
 test("login surface has no detectable WCAG A/AA violations", async ({
