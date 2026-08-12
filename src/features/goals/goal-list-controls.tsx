@@ -1,5 +1,6 @@
 "use client";
 
+import { ChevronDown } from "lucide-react";
 import { useId } from "react";
 import { Label } from "@/components/ui/label";
 import {
@@ -27,6 +28,7 @@ interface GoalListControlsProps {
   sort: GoalDateSort;
   onSortChange: (sort: GoalDateSort) => void;
   className?: string;
+  mode?: "radix" | "native";
 }
 
 export function GoalListControls({
@@ -37,6 +39,7 @@ export function GoalListControls({
   sort,
   onSortChange,
   className,
+  mode = "radix",
 }: GoalListControlsProps) {
   const endMonthId = useId();
   const sortId = useId();
@@ -54,48 +57,89 @@ export function GoalListControls({
         <Label htmlFor={endMonthId} className="text-xs text-muted-foreground">
           Ending in
         </Label>
-        <Select
-          value={selectedEndMonth ?? noEndMonthValue}
-          onValueChange={(value) =>
-            onEndMonthChange(value === noEndMonthValue ? null : value)
-          }
-        >
-          <SelectTrigger
-            id={endMonthId}
-            className="h-8 w-[180px] rounded-full bg-background/90 text-xs"
+        {mode === "native" ? (
+          <div className="relative w-[180px]">
+            <select
+              id={endMonthId}
+              value={selectedEndMonth ?? noEndMonthValue}
+              onChange={(event) =>
+                onEndMonthChange(
+                  event.target.value === noEndMonthValue ? null : event.target.value
+                )
+              }
+              className="h-8 w-full appearance-none rounded-full border border-input bg-background/90 px-3 pr-8 text-xs text-foreground outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+            >
+              <option value={noEndMonthValue}>All end months</option>
+              {monthOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            <ChevronDown className="pointer-events-none absolute top-1/2 right-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
+          </div>
+        ) : (
+          <Select
+            value={selectedEndMonth ?? noEndMonthValue}
+            onValueChange={(value) =>
+              onEndMonthChange(value === noEndMonthValue ? null : value)
+            }
           >
-            <SelectValue placeholder="All end months" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={noEndMonthValue}>All end months</SelectItem>
-            {monthOptions.map((option) => (
-              <SelectItem key={option.value} value={option.value}>
-                {option.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+            <SelectTrigger
+              id={endMonthId}
+              className="h-8 w-[180px] rounded-full bg-background/90 text-xs"
+            >
+              <SelectValue placeholder="All end months" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={noEndMonthValue}>All end months</SelectItem>
+              {monthOptions.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
       </div>
 
       <div className="space-y-1">
         <Label htmlFor={sortId} className="text-xs text-muted-foreground">
           Sort goals
         </Label>
-        <Select value={sort} onValueChange={(value: GoalDateSort) => onSortChange(value)}>
-          <SelectTrigger
-            id={sortId}
-            className="h-8 w-[180px] rounded-full bg-background/90 text-xs"
-          >
-            <SelectValue placeholder="Sort goals" />
-          </SelectTrigger>
-          <SelectContent>
-            {goalDateSortOptions.map((option) => (
-              <SelectItem key={option.value} value={option.value}>
-                {option.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        {mode === "native" ? (
+          <div className="relative w-[180px]">
+            <select
+              id={sortId}
+              value={sort}
+              onChange={(event) => onSortChange(event.target.value as GoalDateSort)}
+              className="h-8 w-full appearance-none rounded-full border border-input bg-background/90 px-3 pr-8 text-xs text-foreground outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+            >
+              {goalDateSortOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            <ChevronDown className="pointer-events-none absolute top-1/2 right-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
+          </div>
+        ) : (
+          <Select value={sort} onValueChange={(value: GoalDateSort) => onSortChange(value)}>
+            <SelectTrigger
+              id={sortId}
+              className="h-8 w-[180px] rounded-full bg-background/90 text-xs"
+            >
+              <SelectValue placeholder="Sort goals" />
+            </SelectTrigger>
+            <SelectContent>
+              {goalDateSortOptions.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
       </div>
     </div>
   );

@@ -16,6 +16,7 @@ import {
 } from "date-fns";
 import {
   CalendarRange,
+  ChevronDown,
   Flame,
   Layers3,
   Maximize2,
@@ -43,13 +44,6 @@ import { Input } from "@/components/ui/input";
 import { LoadingCard } from "@/components/ui/loading-card";
 import { PeriodStepper } from "@/components/ui/period-stepper";
 import { Progress } from "@/components/ui/progress";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { buildLoginHref } from "@/lib/auth/login-redirect";
 import { GoalEndMonthBadge } from "@/features/goals/goal-end-month-badge";
 import { MilestonePills } from "@/features/goals/milestone-pills";
@@ -746,58 +740,60 @@ export function InsightsTab() {
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div ref={aggregateHeatmapRef} className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
-            <CalendarHeatmap
-              startDate={selectedYearStart}
-              endDate={selectedYearEnd}
-              values={aggregateHeatmapData}
-              showWeekdayLabels
-              weekdayLabels={aggregateWeekdayLabels}
-              classForValue={(value) =>
-                `${getHeatmapScaleClass(value?.count ?? 0)} cursor-pointer ${getAggregateDrilldownDayClass(value?.date)}`
-              }
-              titleForValue={(value) =>
-                `${value?.date ?? "N/A"}: ${value?.count ?? 0} completion${
-                  (value?.count ?? 0) === 1 ? "" : "s"
-                }`
-              }
-              onClick={(value) => {
-                if (value?.date) {
-                  setAggregateDrilldownDate(value.date);
-                  setAggregateDrilldownExpanded(false);
-                  const tile = aggregateHeatmapRef.current?.querySelector(
-                    `.${getAggregateDrilldownDayClass(value.date)}`
-                  );
-                  if (tile instanceof Element) {
-                    const rect = tile.getBoundingClientRect();
-                    setAggregateDrilldownPosition(
-                      computeDayPreviewPosition({
-                        rect: {
-                          top: rect.top,
-                          left: rect.left,
-                          width: rect.width,
-                          height: rect.height,
-                        },
-                        viewportWidth: window.innerWidth,
-                        viewportHeight: window.innerHeight,
-                      })
-                    );
-                  } else {
-                    setAggregateDrilldownPosition(null);
-                  }
+          <div className="space-y-0">
+            <div ref={aggregateHeatmapRef} className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+              <CalendarHeatmap
+                startDate={selectedYearStart}
+                endDate={selectedYearEnd}
+                values={aggregateHeatmapData}
+                showWeekdayLabels
+                weekdayLabels={aggregateWeekdayLabels}
+                classForValue={(value) =>
+                  `${getHeatmapScaleClass(value?.count ?? 0)} cursor-pointer ${getAggregateDrilldownDayClass(value?.date)}`
                 }
-              }}
-            />
-          </div>
-          <div className="flex items-center justify-end gap-2 text-xs text-muted-foreground">
-            <span>Less</span>
-            {[0, 1, 2, 3, 4].map((scale) => (
-              <span
-                key={scale}
-                className={`inline-block size-3 rounded-[3px] heatmap-scale-${scale}`}
+                titleForValue={(value) =>
+                  `${value?.date ?? "N/A"}: ${value?.count ?? 0} completion${
+                    (value?.count ?? 0) === 1 ? "" : "s"
+                  }`
+                }
+                onClick={(value) => {
+                  if (value?.date) {
+                    setAggregateDrilldownDate(value.date);
+                    setAggregateDrilldownExpanded(false);
+                    const tile = aggregateHeatmapRef.current?.querySelector(
+                      `.${getAggregateDrilldownDayClass(value.date)}`
+                    );
+                    if (tile instanceof Element) {
+                      const rect = tile.getBoundingClientRect();
+                      setAggregateDrilldownPosition(
+                        computeDayPreviewPosition({
+                          rect: {
+                            top: rect.top,
+                            left: rect.left,
+                            width: rect.width,
+                            height: rect.height,
+                          },
+                          viewportWidth: window.innerWidth,
+                          viewportHeight: window.innerHeight,
+                        })
+                      );
+                    } else {
+                      setAggregateDrilldownPosition(null);
+                    }
+                  }
+                }}
               />
-            ))}
-            <span>More</span>
+            </div>
+            <div className="-mt-4 flex items-center justify-end gap-2 text-xs text-muted-foreground">
+              <span>Less</span>
+              {[0, 1, 2, 3, 4].map((scale) => (
+                <span
+                  key={scale}
+                  className={`inline-block size-3 rounded-[3px] heatmap-scale-${scale}`}
+                />
+              ))}
+              <span>More</span>
+            </div>
           </div>
           <div className="flex items-center justify-between text-sm">
             <span className="text-muted-foreground">Overall completion</span>
@@ -817,26 +813,6 @@ export function InsightsTab() {
         <CardContent className="space-y-3">
           <div className="space-y-3">
             <div className="flex justify-center">
-              <Select
-                value={perGoalViewMode}
-                onValueChange={(value) => {
-                  setGoalMonthOverrides({});
-                  setPerGoalViewMode(value as HeatmapViewMode);
-                }}
-              >
-                <SelectTrigger
-                  className="h-8 w-[11rem] rounded-full bg-background/90 text-xs"
-                  aria-label="Goal stats view mode"
-                >
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="month">Month view</SelectItem>
-                  <SelectItem value="year">Year view</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex justify-center">
               <PeriodStepper
                 onPrevious={() => shiftGlobalMonthCursor(-1)}
                 onNext={() => shiftGlobalMonthCursor(1)}
@@ -853,6 +829,30 @@ export function InsightsTab() {
             </div>
           </div>
           <div className="flex flex-wrap items-end gap-3">
+            <div className="space-y-1">
+              <label
+                htmlFor="insights-goal-stats-view-mode"
+                className="block text-xs text-muted-foreground"
+              >
+                View
+              </label>
+              <div className="relative w-[110px]">
+                <select
+                  id="insights-goal-stats-view-mode"
+                  value={perGoalViewMode}
+                  onChange={(event) => {
+                    setGoalMonthOverrides({});
+                    setPerGoalViewMode(event.target.value as HeatmapViewMode);
+                  }}
+                  className="h-8 w-full appearance-none rounded-full border border-input bg-background/90 px-3 pr-8 text-xs text-foreground outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                  aria-label="Goal stats view mode"
+                >
+                  <option value="month">Month</option>
+                  <option value="year">Year</option>
+                </select>
+                <ChevronDown className="pointer-events-none absolute top-1/2 right-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
+              </div>
+            </div>
             <GoalListControls
               goals={personalGoals}
               referenceMonth={goalFilterStartMonth}
@@ -860,6 +860,7 @@ export function InsightsTab() {
               onEndMonthChange={setGoalEndMonth}
               sort={goalSort}
               onSortChange={setGoalSort}
+              mode="native"
             />
             <label
               className={`flex h-8 w-fit items-center gap-2 text-xs text-muted-foreground ${
@@ -888,7 +889,7 @@ export function InsightsTab() {
 
       <Card className="border-0 bg-transparent py-0 shadow-none ring-0">
         <CardContent
-          className="space-y-3"
+          className="space-y-3 px-0"
           data-no-swipe="true"
           onTouchStart={perGoalViewMode === "month" ? onMonthSectionTouchStart : undefined}
           onTouchEnd={perGoalViewMode === "month" ? onMonthSectionTouchEnd : undefined}
@@ -952,8 +953,8 @@ export function InsightsTab() {
               );
               const canRenameMilestones = isMilestone && goal.owner_id === state.userId;
               return (
-                <Card key={goal.id} className="border-0 bg-transparent shadow-none ring-0">
-                  <CardContent className="space-y-3 px-0 py-2">
+                <Card key={goal.id} className="border shadow-none">
+                  <CardContent className="space-y-3 py-4">
                     <div className="flex flex-wrap items-start justify-between gap-2">
                       <div className="min-w-0 flex-1 space-y-1">
                         <div className="flex min-w-0 items-start gap-2">

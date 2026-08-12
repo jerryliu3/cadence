@@ -46,29 +46,33 @@ export function TodayHeaderCard({
               </div>
             </div>
           </div>
-          <div className="mt-2 flex w-full flex-col items-center gap-2">
-            <PeriodStepper
-              onPrevious={onGoToPreviousDate}
-              onNext={onGoToNextDate}
-              center={
-                <Input
-                  type="date"
-                  value={viewDate}
-                  onChange={(event) => onViewDateChange(event.target.value || todayLocalDate)}
-                  className="h-8 w-[170px]"
+          <div className="mt-2 flex w-full flex-col gap-2">
+            <div className="grid w-full grid-cols-[1fr_auto_1fr] items-center">
+              <div className="col-start-2 justify-self-center">
+                <PeriodStepper
+                  onPrevious={onGoToPreviousDate}
+                  onNext={onGoToNextDate}
+                  center={
+                    <Input
+                      type="date"
+                      value={viewDate}
+                      onChange={(event) => onViewDateChange(event.target.value || todayLocalDate)}
+                      className="h-8 w-[170px]"
+                    />
+                  }
+                  previousAriaLabel="Previous day"
+                  nextAriaLabel="Next day"
                 />
-              }
-              previousAriaLabel="Previous day"
-              nextAriaLabel="Next day"
-            />
-            <div className="flex flex-wrap items-center justify-center gap-2">
-              {datePickerControls ? (
-                <div className="shrink-0">{datePickerControls}</div>
-              ) : null}
-              {!viewingToday ? (
-                <Button type="button" variant="ghost" size="sm" onClick={onResetToToday}>
-                  Today
-                </Button>
+              </div>
+              {datePickerControls || !viewingToday ? (
+                <div className="col-start-3 ml-2 flex items-center gap-2 justify-self-start">
+                  {datePickerControls ? <div className="shrink-0">{datePickerControls}</div> : null}
+                  {!viewingToday ? (
+                    <Button type="button" variant="ghost" size="sm" onClick={onResetToToday}>
+                      Today
+                    </Button>
+                  ) : null}
+                </div>
               ) : null}
             </div>
             {searchControls ? <div className="w-full">{searchControls}</div> : null}
