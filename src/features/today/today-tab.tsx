@@ -142,7 +142,7 @@ const recurrenceGroupLabel: Record<RecurrenceGroup, string> = {
   daily: "Daily",
   weekly: "Weekly",
   monthly: "Monthly",
-  fixed: "Fixed",
+  fixed: "Milestone",
 };
 const recurrenceFilterOptions: Array<{ value: RecurrenceFilter; label: string }> = [
   { value: "all", label: "All" },
@@ -815,7 +815,7 @@ export function TodayTab({
     return (
       <LoadingCard
         title="Loading your goals..."
-        description="Pulling your latest progress from Supabase."
+        description="Pulling your latest status."
       />
     );
   }
@@ -842,7 +842,6 @@ export function TodayTab({
 
         <TabsContent value="today" className="space-y-5">
           <TodayHeaderCard
-            viewDateObj={viewDateObj}
             viewDate={viewDate}
             todayLocalDate={todayLocalDate}
             viewingToday={viewingToday}

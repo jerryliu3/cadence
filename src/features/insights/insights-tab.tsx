@@ -31,7 +31,7 @@ import { toast } from "sonner";
 import { AnchoredPopupCard } from "@/components/ui/anchored-popup-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -43,6 +43,13 @@ import { Input } from "@/components/ui/input";
 import { LoadingCard } from "@/components/ui/loading-card";
 import { PeriodStepper } from "@/components/ui/period-stepper";
 import { Progress } from "@/components/ui/progress";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { buildLoginHref } from "@/lib/auth/login-redirect";
 import { GoalEndMonthBadge } from "@/features/goals/goal-end-month-badge";
 import { MilestonePills } from "@/features/goals/milestone-pills";
@@ -735,14 +742,11 @@ export function InsightsTab() {
         <CardHeader>
           <div className="flex items-center gap-2">
             <Layers3 className="size-4 text-primary" />
-            <CardTitle>Progress tracking</CardTitle>
+            <CardTitle>Overall stats</CardTitle>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div
-            ref={aggregateHeatmapRef}
-            className="overflow-x-auto rounded-xl border bg-card p-4"
-          >
+          <div ref={aggregateHeatmapRef} className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
             <CalendarHeatmap
               startDate={selectedYearStart}
               endDate={selectedYearEnd}
@@ -807,55 +811,46 @@ export function InsightsTab() {
         <CardHeader className="pb-3">
           <div className="flex items-center gap-2">
             <CalendarRange className="size-4 text-primary" />
-            <CardTitle>Per-goal controls</CardTitle>
+            <CardTitle>Goal Stats</CardTitle>
           </div>
-          <CardDescription>Switch between monthly and yearly goal heatmaps.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div
-              className="inline-flex items-center rounded-lg border bg-muted/20 p-1"
-              role="group"
-              aria-label="Heatmap view"
-            >
-              <Button
-                type="button"
-                size="sm"
-                variant={perGoalViewMode === "month" ? "secondary" : "ghost"}
-                aria-pressed={perGoalViewMode === "month"}
-                onClick={() => {
+          <div className="space-y-3">
+            <div className="flex justify-center">
+              <Select
+                value={perGoalViewMode}
+                onValueChange={(value) => {
                   setGoalMonthOverrides({});
-                  setPerGoalViewMode("month");
+                  setPerGoalViewMode(value as HeatmapViewMode);
                 }}
               >
-                Month View
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant={perGoalViewMode === "year" ? "secondary" : "ghost"}
-                aria-pressed={perGoalViewMode === "year"}
-                onClick={() => {
-                  setGoalMonthOverrides({});
-                  setPerGoalViewMode("year");
-                }}
-              >
-                Year View
-              </Button>
+                <SelectTrigger
+                  className="h-8 w-[11rem] rounded-full bg-background/90 text-xs"
+                  aria-label="Goal stats view mode"
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="month">Month view</SelectItem>
+                  <SelectItem value="year">Year view</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
-            <PeriodStepper
-              onPrevious={() => shiftGlobalMonthCursor(-1)}
-              onNext={() => shiftGlobalMonthCursor(1)}
-              center={
-                <span className="min-w-[120px] text-center text-sm font-medium text-muted-foreground">
-                  {perGoalViewMode === "month"
-                    ? format(monthCursor, "MMMM yyyy")
-                    : format(monthCursor, "yyyy")}
-                </span>
-              }
-              previousAriaLabel="Previous period"
-              nextAriaLabel="Next period"
-            />
+            <div className="flex justify-center">
+              <PeriodStepper
+                onPrevious={() => shiftGlobalMonthCursor(-1)}
+                onNext={() => shiftGlobalMonthCursor(1)}
+                center={
+                  <span className="min-w-[120px] text-center text-sm font-medium text-muted-foreground">
+                    {perGoalViewMode === "month"
+                      ? format(monthCursor, "MMMM yyyy")
+                      : format(monthCursor, "yyyy")}
+                  </span>
+                }
+                previousAriaLabel="Previous period"
+                nextAriaLabel="Next period"
+              />
+            </div>
           </div>
           <div className="flex flex-wrap items-end gap-3">
             <GoalListControls
@@ -891,19 +886,7 @@ export function InsightsTab() {
         </CardContent>
       </Card>
 
-      <Card className="shadow-sm">
-        <CardHeader>
-          <div>
-            <CardTitle>
-              {perGoalViewMode === "month" ? "Per-goal monthly heatmaps" : "Per-goal yearly heatmaps"}
-            </CardTitle>
-            <CardDescription>
-              {perGoalViewMode === "month"
-                ? "Navigate by month to inspect each goal pattern."
-                : "Yearly consistency view per goal."}
-            </CardDescription>
-          </div>
-        </CardHeader>
+      <Card className="border-0 bg-transparent py-0 shadow-none ring-0">
         <CardContent
           className="space-y-3"
           data-no-swipe="true"
@@ -969,8 +952,8 @@ export function InsightsTab() {
               );
               const canRenameMilestones = isMilestone && goal.owner_id === state.userId;
               return (
-                <Card key={goal.id} className="border shadow-none">
-                  <CardContent className="space-y-3 py-4">
+                <Card key={goal.id} className="border-0 bg-transparent shadow-none ring-0">
+                  <CardContent className="space-y-3 px-0 py-2">
                     <div className="flex flex-wrap items-start justify-between gap-2">
                       <div className="min-w-0 flex-1 space-y-1">
                         <div className="flex min-w-0 items-start gap-2">
@@ -1076,7 +1059,7 @@ export function InsightsTab() {
                             }
                           />
                         ) : (
-                          <div className="overflow-x-auto rounded-xl border bg-card p-3">
+                          <div className="overflow-x-auto py-1">
                             <CalendarHeatmap
                               startDate={selectedYearStart}
                               endDate={selectedYearEnd}
@@ -1161,7 +1144,7 @@ export function InsightsTab() {
                             }
                           />
                         ) : (
-                          <div className="overflow-x-auto rounded-xl border bg-card p-3">
+                          <div className="overflow-x-auto py-1">
                             <CalendarHeatmap
                               startDate={selectedYearStart}
                               endDate={selectedYearEnd}

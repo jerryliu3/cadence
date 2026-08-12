@@ -2707,15 +2707,17 @@ export function CalendarSurface({
                   </div>
                 ) : (
                   <div className="mx-auto w-full max-w-[56rem]">
-                    <div className="grid grid-cols-7 gap-2 text-center text-xs text-muted-foreground">
-                      {weekdayLabels.map((weekday) => (
-                        <span key={weekday}>{weekday}</span>
-                      ))}
-                    </div>
-                    <div className="mt-2 grid grid-cols-7 gap-2">
-                      {(viewMode === "week" ? focusedWeekCells : cells).map(
-                        renderCalendarDayCell
-                      )}
+                    <div className="overflow-x-auto pb-1">
+                      <div className="grid min-w-[calc(7*((100vw-2.5rem)/3))] grid-cols-[repeat(7,minmax(0,calc((100vw-2.5rem)/3)))] gap-2 text-center text-xs text-muted-foreground md:min-w-0 md:grid-cols-7">
+                        {weekdayLabels.map((weekday) => (
+                          <span key={weekday}>{weekday}</span>
+                        ))}
+                      </div>
+                      <div className="mt-2 grid min-w-[calc(7*((100vw-2.5rem)/3))] grid-cols-[repeat(7,minmax(0,calc((100vw-2.5rem)/3)))] gap-2 md:min-w-0 md:grid-cols-7">
+                        {(viewMode === "week" ? focusedWeekCells : cells).map(
+                          renderCalendarDayCell
+                        )}
+                      </div>
                     </div>
                   </div>
                 )}
