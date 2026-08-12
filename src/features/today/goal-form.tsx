@@ -32,6 +32,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { LoadingCard } from "@/components/ui/loading-card";
 import { Textarea } from "@/components/ui/textarea";
+import { Tooltip } from "@/components/ui/tooltip";
 import {
   CategorySelect,
   GoalTypeToggle,
@@ -598,21 +599,25 @@ export function GoalForm({
                 </Button>
               )
             ) : null}
-            {validationError ? (
-              <button
-                type="button"
-                className="inline-flex size-9 items-center justify-center rounded-full border border-destructive/40 text-destructive transition-colors hover:bg-destructive/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive/40"
-                title={validationError}
-                aria-label={validationError}
-                onClick={() => toast.error(validationError)}
-              >
-                <CircleAlert className="size-4" />
-              </button>
-            ) : null}
-            <Button type="submit" form={goalFormId} disabled={submitDisabled}>
-              {saving ? <LoaderCircle className="size-4 animate-spin" /> : <Save className="size-4" />}
-              {isEditing ? "Save changes" : "Save"}
-            </Button>
+            <div className="flex items-center gap-0">
+              {validationError ? (
+                <Tooltip content={validationError} side="bottom" align="end">
+                  <span
+                    className="inline-flex size-9 items-center justify-center text-destructive"
+                    title={validationError}
+                    tabIndex={0}
+                    aria-label={validationError}
+                  >
+                    <CircleAlert className="size-4" />
+                    <span className="sr-only">{validationError}</span>
+                  </span>
+                </Tooltip>
+              ) : null}
+              <Button type="submit" form={goalFormId} disabled={submitDisabled}>
+                {saving ? <LoaderCircle className="size-4 animate-spin" /> : <Save className="size-4" />}
+                {isEditing ? "Save changes" : "Save"}
+              </Button>
+            </div>
           </div>
         </div>
       </CardHeader>
