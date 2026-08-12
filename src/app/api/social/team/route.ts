@@ -11,6 +11,28 @@ import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 
+type RpcErrorLike = {
+  message: string;
+};
+
+function mapTeamStateError(error: RpcErrorLike) {
+  if (error.message === "authentication_required") {
+    return new ApiRouteError(401, "authentication_required", "You must be signed in.");
+  }
+  return new ApiRouteError(500, "team_state_unavailable", "Team state is unavailable.", {
+    cause: error.message,
+  });
+}
+
+function mapDissolveTeamError(error: RpcErrorLike) {
+  if (error.message === "authentication_required") {
+    return new ApiRouteError(401, "authentication_required", "You must be signed in.");
+  }
+  return new ApiRouteError(500, "team_dissolve_failed", "Team dissolve failed.", {
+    cause: error.message,
+  });
+}
+
 function toTeamDto(row: {
   team_id: string;
   status: "pending" | "active" | "closed";
@@ -47,9 +69,7 @@ export async function GET() {
 
     const { data, error } = await context.supabase.rpc("get_team_state");
     if (error) {
-      throw new ApiRouteError(500, "team_state_unavailable", "Team state is unavailable.", {
-        cause: error.message,
-      });
+      throw mapTeamStateError(error);
     }
 
     return NextResponse.json(
@@ -77,9 +97,10 @@ export async function DELETE() {
 
     const { data, error } = await context.supabase.rpc("dissolve_team_service");
     if (error) {
-      throw new ApiRouteError(500, "team_dissolve_failed", "Team dissolve failed.", {
-        cause: error.message,
-      });
+      throw mapDissolveTeamError(error);
+    }
+    if (!data) {
+      throw new ApiRouteError(409, "team_not_active", "No active team is available to dissolve.");
     }
 
     runAfterResponse(() => flushNotificationOutbox({ limit: 20 }));

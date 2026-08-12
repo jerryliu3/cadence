@@ -12,6 +12,11 @@ import type { Database } from "@/lib/supabase/database.types";
 
 export const runtime = "nodejs";
 
+type DbMutationError = {
+  message: string;
+  code?: string | null;
+};
+
 const paramsSchema = z.object({ id: z.uuid() });
 
 const patchSchema = z
@@ -92,6 +97,37 @@ function toChallengeDto(row: Record<string, unknown>) {
   };
 }
 
+function mapChallengeMutationError(error: DbMutationError, fallbackCode: string, fallbackMessage: string) {
+  if (error.code === "23505" && error.message.includes("challenges_slug_key")) {
+    return new ApiRouteError(409, "challenge_slug_conflict", "Challenge slug already exists.");
+  }
+  if (error.code === "23514" && error.message.includes("challenges_window")) {
+    return new ApiRouteError(400, "challenge_window_invalid", "Challenge end time must be after start time.");
+  }
+  if (error.code === "23514" && error.message.includes("challenges_track_required")) {
+    return new ApiRouteError(
+      400,
+      "challenge_metric_track_required",
+      "metricTrackKey is required for category_xp challenges."
+    );
+  }
+  if (error.code === "23514" && error.message.includes("challenges_target_positive")) {
+    return new ApiRouteError(400, "challenge_target_invalid", "Challenge target value must be greater than zero.");
+  }
+  if (error.code === "23514" && error.message.includes("challenges_reward_nonneg")) {
+    return new ApiRouteError(400, "challenge_reward_invalid", "Challenge reward XP must be non-negative.");
+  }
+  if (error.code === "23503" && error.message.includes("challenges_metric_track_key_fkey")) {
+    return new ApiRouteError(400, "metric_track_key_unknown", "metricTrackKey does not match a known track.");
+  }
+  if (error.code === "23503" && error.message.includes("challenges_cohort_id_fkey")) {
+    return new ApiRouteError(400, "cohort_not_found", "Cohort id is invalid.");
+  }
+  return new ApiRouteError(500, fallbackCode, fallbackMessage, {
+    cause: error.message,
+  });
+}
+
 export async function PATCH(
   request: Request,
   context: { params: Promise<{ id: string }> | { id: string } }
@@ -154,9 +190,11 @@ export async function PATCH(
       .select("*")
       .single();
     if (error) {
-      throw new ApiRouteError(500, "admin_challenge_update_failed", "Could not update challenge.", {
-        cause: error.message,
-      });
+      throw mapChallengeMutationError(
+        error,
+        "admin_challenge_update_failed",
+        "Could not update challenge."
+      );
     }
 
     return NextResponse.json(
@@ -222,6 +260,13 @@ export async function DELETE(
 
     const { error } = await admin.from("challenges").delete().eq("id", params.id);
     if (error) {
+      if (error.code === "23503") {
+        throw new ApiRouteError(
+          409,
+          "challenge_delete_blocked",
+          "Challenge cannot be deleted because dependent records still exist."
+        );
+      }
       throw new ApiRouteError(500, "admin_challenge_delete_failed", "Could not delete challenge.", {
         cause: error.message,
       });

@@ -11,6 +11,11 @@ import { createAdminClient } from "@/lib/supabase/admin";
 
 export const runtime = "nodejs";
 
+type DbMutationError = {
+  message: string;
+  code?: string | null;
+};
+
 const createSchema = z
   .object({
     slug: z.string().trim().min(2).max(63).regex(/^[a-z0-9][a-z0-9_-]{1,62}$/),
@@ -78,6 +83,40 @@ function toChallengeDto(row: Record<string, unknown>) {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
+}
+
+function mapChallengeMutationError(error: DbMutationError, fallbackCode: string, fallbackMessage: string) {
+  if (error.code === "23505" && error.message.includes("challenges_slug_key")) {
+    return new ApiRouteError(409, "challenge_slug_conflict", "Challenge slug already exists.");
+  }
+  if (error.code === "23514" && error.message.includes("challenges_window")) {
+    return new ApiRouteError(400, "challenge_window_invalid", "Challenge end time must be after start time.");
+  }
+  if (error.code === "23514" && error.message.includes("challenges_track_required")) {
+    return new ApiRouteError(
+      400,
+      "challenge_metric_track_required",
+      "metricTrackKey is required for category_xp challenges."
+    );
+  }
+  if (error.code === "23514" && error.message.includes("challenges_slug_format")) {
+    return new ApiRouteError(400, "challenge_slug_invalid", "Challenge slug format is invalid.");
+  }
+  if (error.code === "23514" && error.message.includes("challenges_target_positive")) {
+    return new ApiRouteError(400, "challenge_target_invalid", "Challenge target value must be greater than zero.");
+  }
+  if (error.code === "23514" && error.message.includes("challenges_reward_nonneg")) {
+    return new ApiRouteError(400, "challenge_reward_invalid", "Challenge reward XP must be non-negative.");
+  }
+  if (error.code === "23503" && error.message.includes("challenges_metric_track_key_fkey")) {
+    return new ApiRouteError(400, "metric_track_key_unknown", "metricTrackKey does not match a known track.");
+  }
+  if (error.code === "23503" && error.message.includes("challenges_cohort_id_fkey")) {
+    return new ApiRouteError(400, "cohort_not_found", "Cohort id is invalid.");
+  }
+  return new ApiRouteError(500, fallbackCode, fallbackMessage, {
+    cause: error.message,
+  });
 }
 
 export async function GET() {
@@ -158,9 +197,11 @@ export async function POST(request: Request) {
       .select("*")
       .single();
     if (error) {
-      throw new ApiRouteError(500, "admin_challenge_create_failed", "Could not create challenge.", {
-        cause: error.message,
-      });
+      throw mapChallengeMutationError(
+        error,
+        "admin_challenge_create_failed",
+        "Could not create challenge."
+      );
     }
 
     return NextResponse.json(

@@ -601,7 +601,22 @@ begin
     and participant.subject_id = v_subject_id
     and participant.completed_at is null;
 
-  return found;
+  if found then
+    return true;
+  end if;
+
+  if exists (
+    select 1
+    from public.challenge_participants participant
+    where participant.challenge_id = p_challenge_id
+      and participant.subject_kind = v_subject_kind
+      and participant.subject_id = v_subject_id
+      and participant.completed_at is not null
+  ) then
+    raise exception using errcode = '22023', message = 'challenge_not_leaveable';
+  end if;
+
+  return true;
 end;
 $$;
 

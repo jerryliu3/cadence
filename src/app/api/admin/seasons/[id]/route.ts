@@ -12,6 +12,11 @@ import type { Database } from "@/lib/supabase/database.types";
 
 export const runtime = "nodejs";
 
+type DbMutationError = {
+  message: string;
+  code?: string | null;
+};
+
 const paramsSchema = z.object({ id: z.uuid() });
 const patchSchema = z
   .object({
@@ -24,6 +29,45 @@ const patchSchema = z
   .refine((value) => Object.keys(value).length > 0, {
     message: "Provide at least one field to update.",
   });
+
+function mapSeasonMutationError(error: DbMutationError, fallbackCode: string, fallbackMessage: string) {
+  if (error.code === "23505" && error.message.includes("leaderboard_seasons_slug_key")) {
+    return new ApiRouteError(409, "season_slug_conflict", "Season slug already exists.");
+  }
+  if (error.code === "23505" && error.message.includes("leaderboard_seasons_one_open")) {
+    return new ApiRouteError(
+      409,
+      "season_open_conflict",
+      "An open season already exists for this subject/metric/scope."
+    );
+  }
+  if (error.code === "23514" && error.message.includes("leaderboard_seasons_window")) {
+    return new ApiRouteError(400, "season_window_invalid", "Season end time must be after start time.");
+  }
+  if (error.code === "23514" && error.message.includes("leaderboard_seasons_track_required")) {
+    return new ApiRouteError(
+      400,
+      "season_metric_track_required",
+      "metricTrackKey is required for category_xp seasons."
+    );
+  }
+  if (error.code === "23514" && error.message.includes("leaderboard_seasons_rollover_needs_end")) {
+    return new ApiRouteError(
+      400,
+      "season_rollover_requires_end",
+      "Season rollover requires an explicit season end time."
+    );
+  }
+  if (error.code === "23503" && error.message.includes("leaderboard_seasons_metric_track_key_fkey")) {
+    return new ApiRouteError(400, "metric_track_key_unknown", "metricTrackKey does not match a known track.");
+  }
+  if (error.code === "23503" && error.message.includes("leaderboard_seasons_cohort_id_fkey")) {
+    return new ApiRouteError(400, "cohort_not_found", "Cohort id is invalid.");
+  }
+  return new ApiRouteError(500, fallbackCode, fallbackMessage, {
+    cause: error.message,
+  });
+}
 
 export async function PATCH(
   request: Request,
@@ -53,9 +97,7 @@ export async function PATCH(
       .select("*")
       .single();
     if (error) {
-      throw new ApiRouteError(500, "admin_season_update_failed", "Could not update season.", {
-        cause: error.message,
-      });
+      throw mapSeasonMutationError(error, "admin_season_update_failed", "Could not update season.");
     }
 
     return NextResponse.json(

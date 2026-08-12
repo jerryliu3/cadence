@@ -15,6 +15,12 @@ const paramsSchema = z.object({
 });
 
 function mapJoinRpcError(message: string) {
+  if (message === "authentication_required") {
+    return new ApiRouteError(401, "authentication_required", "You must be signed in.");
+  }
+  if (message === "challenge_not_found") {
+    return new ApiRouteError(404, "challenge_not_found", "Challenge was not found.");
+  }
   if (message === "challenge_full") {
     return new ApiRouteError(409, "challenge_full", "Challenge has reached participant capacity.");
   }
@@ -39,6 +45,12 @@ function mapJoinRpcError(message: string) {
 }
 
 function mapLeaveRpcError(message: string) {
+  if (message === "authentication_required") {
+    return new ApiRouteError(401, "authentication_required", "You must be signed in.");
+  }
+  if (message === "challenge_not_found") {
+    return new ApiRouteError(404, "challenge_not_found", "Challenge was not found.");
+  }
   if (message === "challenge_not_leaveable") {
     return new ApiRouteError(409, "challenge_not_leaveable", "Challenge is not open for leaving.");
   }

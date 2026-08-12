@@ -94,7 +94,7 @@ create or replace function private.next_rollover_end(
 )
 returns timestamptz
 language plpgsql
-immutable
+stable
 set search_path = ''
 as $$
 begin

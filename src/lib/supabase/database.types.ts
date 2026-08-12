@@ -179,10 +179,6 @@ export type Database = {
         }
         Returns: boolean
       }
-      refresh_user_challenge_participant: {
-        Args: { p_challenge_id: string; p_now?: string; p_user_id: string }
-        Returns: boolean
-      }
       refresh_xp_profile: {
         Args: { p_track_keys?: string[]; p_user_id: string }
         Returns: undefined
