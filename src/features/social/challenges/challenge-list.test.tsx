@@ -24,7 +24,6 @@ function makeChallenge(id: string, title: string): SocialChallenge {
     title,
     description: `${title} description`,
     status: "active",
-    enrollment: "auto",
     subjectKind: "user",
     metric: "total_xp",
     metricTrackKey: null,
