@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { resetTabDataCacheForTests } from "@/lib/cache/tab-data-cache";
 import {
   fetchProgressContext,
+  invalidateProgressContextCache,
   isProgressContextAuthenticationError,
 } from "./progress-context";
 
@@ -18,6 +20,8 @@ function buildProgressPayload(correlationId: string) {
 
 describe("fetchProgressContext", () => {
   afterEach(() => {
+    resetTabDataCacheForTests();
+    window.sessionStorage.clear();
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
   });
@@ -45,6 +49,32 @@ describe("fetchProgressContext", () => {
 
     expect(first.correlationId).toBe("cache-hit");
     expect(second.correlationId).toBe("cache-hit");
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps cached payloads available for tab-scale revisit windows", async () => {
+    const nowSpy = vi.spyOn(Date, "now");
+    const fetchSpy = vi.fn().mockImplementation(async () =>
+      new Response(JSON.stringify(buildProgressPayload("tab-ttl")), {
+        status: 200,
+      })
+    );
+    vi.stubGlobal("fetch", fetchSpy);
+
+    nowSpy.mockReturnValue(1_000_000);
+    await fetchProgressContext({
+      asOfDate: "2026-08-08",
+      timezone: "UTC",
+      viewDate: "2026-08-08",
+    });
+
+    nowSpy.mockReturnValue(1_000_000 + 3 * 60 * 1000);
+    await fetchProgressContext({
+      asOfDate: "2026-08-08",
+      timezone: "UTC",
+      viewDate: "2026-08-08",
+    });
+
     expect(fetchSpy).toHaveBeenCalledTimes(1);
   });
 
@@ -77,6 +107,29 @@ describe("fetchProgressContext", () => {
 
     expect(first.correlationId).toBe("before-refresh");
     expect(refreshed.correlationId).toBe("after-refresh");
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+  });
+
+  it("drops cached entries when explicit invalidation is requested", async () => {
+    const fetchSpy = vi.fn().mockImplementation(async () =>
+      new Response(JSON.stringify(buildProgressPayload("invalidate")), {
+        status: 200,
+      })
+    );
+    vi.stubGlobal("fetch", fetchSpy);
+
+    await fetchProgressContext({
+      asOfDate: "2026-08-09",
+      timezone: "UTC",
+      viewDate: "2026-08-09",
+    });
+    invalidateProgressContextCache();
+    await fetchProgressContext({
+      asOfDate: "2026-08-09",
+      timezone: "UTC",
+      viewDate: "2026-08-09",
+    });
+
     expect(fetchSpy).toHaveBeenCalledTimes(2);
   });
 
