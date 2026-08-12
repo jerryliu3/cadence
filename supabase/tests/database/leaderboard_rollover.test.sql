@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions, pg_catalog;
-select plan(6);
+select plan(7);
 
 insert into auth.users (id, email)
 values ('8e111111-1111-4111-8111-111111111111', 'leaderboard-rollover-user@example.com')
@@ -103,6 +103,7 @@ on conflict (id) do nothing;
 
 select public.refresh_leaderboard_standings_service();
 select public.rollover_leaderboard_seasons_service();
+select public.rollover_leaderboard_seasons_service();
 
 select is(
   (
@@ -179,6 +180,18 @@ select ok(
       and event.subject_key = '8e400000-0000-4000-8000-000000000001'
   ),
   'rollover emits season_result feed event for top standings'
+);
+
+select is(
+  (
+    select event.occurrence_count
+    from public.feed_events event
+    where event.event_type = 'season_result'
+      and event.subject_key = '8e400000-0000-4000-8000-000000000001'
+    limit 1
+  ),
+  1,
+  'rerunning rollover does not increment frozen season result occurrence count'
 );
 
 select * from finish();

@@ -946,6 +946,7 @@ declare
   v_count integer := 0;
   v_next_id uuid;
   v_next_slug text;
+  v_newly_frozen_seasons uuid[] := '{}'::uuid[];
   r_season public.leaderboard_seasons%rowtype;
 begin
   perform pg_catalog.pg_advisory_xact_lock(
@@ -1007,91 +1008,97 @@ begin
     end if;
   end loop;
 
-  insert into public.leaderboard_season_results (
-    season_id, subject_kind, subject_id, score, tie_break_at, rank, display_name
-  )
-  select
-    standing.season_id,
-    standing.subject_kind,
-    standing.subject_id,
-    standing.score,
-    standing.tie_break_at,
-    standing.rank,
-    case
-      when standing.subject_kind = 'team'::public.social_subject_kind then
-        coalesce(team_a.display_name, team_a.username, 'Unknown')
-        || ' + '
-        || coalesce(team_b.display_name, team_b.username, 'Unknown')
-      else
-        coalesce(profile.display_name, profile.username, 'Unknown')
-    end
-  from public.leaderboard_standings standing
-  join public.leaderboard_seasons season on season.id = standing.season_id
-  left join public.profiles profile
-    on standing.subject_kind = 'user'::public.social_subject_kind
-    and profile.id = standing.subject_id
-  left join public.teams team
-    on standing.subject_kind = 'team'::public.social_subject_kind
-    and team.id = standing.subject_id
-  left join public.profiles team_a on team_a.id = team.user_a_id
-  left join public.profiles team_b on team_b.id = team.user_b_id
-  where season.status = 'closed'::public.leaderboard_season_status
-    and not exists (
-      select 1
-      from public.leaderboard_season_results existing
-      where existing.season_id = standing.season_id
+  with inserted as (
+    insert into public.leaderboard_season_results (
+      season_id, subject_kind, subject_id, score, tie_break_at, rank, display_name
     )
-  on conflict (season_id, subject_kind, subject_id) do nothing;
+    select
+      standing.season_id,
+      standing.subject_kind,
+      standing.subject_id,
+      standing.score,
+      standing.tie_break_at,
+      standing.rank,
+      case
+        when standing.subject_kind = 'team'::public.social_subject_kind then
+          coalesce(team_a.display_name, team_a.username, 'Unknown')
+          || ' + '
+          || coalesce(team_b.display_name, team_b.username, 'Unknown')
+        else
+          coalesce(profile.display_name, profile.username, 'Unknown')
+      end
+    from public.leaderboard_standings standing
+    join public.leaderboard_seasons season on season.id = standing.season_id
+    left join public.profiles profile
+      on standing.subject_kind = 'user'::public.social_subject_kind
+      and profile.id = standing.subject_id
+    left join public.teams team
+      on standing.subject_kind = 'team'::public.social_subject_kind
+      and team.id = standing.subject_id
+    left join public.profiles team_a on team_a.id = team.user_a_id
+    left join public.profiles team_b on team_b.id = team.user_b_id
+    where season.status = 'closed'::public.leaderboard_season_status
+      and not exists (
+        select 1
+        from public.leaderboard_season_results existing
+        where existing.season_id = standing.season_id
+      )
+    on conflict (season_id, subject_kind, subject_id) do nothing
+    returning season_id
+  )
+  select coalesce(array_agg(distinct inserted.season_id), '{}'::uuid[])
+  into v_newly_frozen_seasons
+  from inserted;
 
   perform private.emit_feed_event(
-    p_actor_id => standing.subject_id,
+    p_actor_id => result.subject_id,
     p_event_type => 'season_result'::public.feed_event_type,
-    p_subject_key => standing.season_id::text,
+    p_subject_key => result.season_id::text,
     p_bucket_date => current_date,
     p_track_key => season.metric_track_key,
     p_goal_id => null,
     p_xp_delta => 0,
     p_occurrence_delta => 1,
     p_payload => jsonb_build_object(
-      'seasonId', standing.season_id,
-      'rank', standing.rank,
-      'score', standing.score
+      'seasonId', result.season_id,
+      'rank', result.rank,
+      'score', result.score
     )
   )
-  from public.leaderboard_standings standing
+  from public.leaderboard_season_results result
   join public.leaderboard_seasons season
-    on season.id = standing.season_id
-  where season.status = 'closed'::public.leaderboard_season_status
-    and standing.rank <= 3
-    and standing.subject_kind = 'user'::public.social_subject_kind;
+    on season.id = result.season_id
+  where result.season_id = any(v_newly_frozen_seasons)
+    and result.subject_kind = 'user'::public.social_subject_kind
+    and result.rank <= 3;
 
   perform private.emit_feed_event(
     p_actor_id => member.actor_id,
     p_event_type => 'season_result'::public.feed_event_type,
-    p_subject_key => standing.season_id::text || ':team:' || standing.subject_id::text,
+    p_subject_key => result.season_id::text || ':team:' || result.subject_id::text,
     p_bucket_date => current_date,
     p_track_key => season.metric_track_key,
     p_goal_id => null,
     p_xp_delta => 0,
     p_occurrence_delta => 1,
     p_payload => jsonb_build_object(
-      'seasonId', standing.season_id,
-      'rank', standing.rank,
-      'score', standing.score,
-      'teamId', standing.subject_id
+      'seasonId', result.season_id,
+      'rank', result.rank,
+      'score', result.score,
+      'teamId', result.subject_id
     )
   )
-  from public.leaderboard_standings standing
+  from public.leaderboard_season_results result
   join public.leaderboard_seasons season
-    on season.id = standing.season_id
+    on season.id = result.season_id
   join public.teams team
-    on team.id = standing.subject_id
+    on team.id = result.subject_id
   cross join lateral (
     values (team.user_a_id), (team.user_b_id)
   ) as member(actor_id)
-  where season.status = 'closed'::public.leaderboard_season_status
-    and standing.rank <= 3
-    and standing.subject_kind = 'team'::public.social_subject_kind;
+  where result.season_id = any(v_newly_frozen_seasons)
+    and result.subject_kind = 'team'::public.social_subject_kind
+    and result.rank <= 3;
 
   return v_count;
 end;
@@ -1231,26 +1238,7 @@ begin
       result.tie_break_at,
       (select viewer.rank from viewer) as viewer_rank
     from public.leaderboard_season_results result
-    left join public.profiles result_profile
-      on result.subject_kind = 'user'::public.social_subject_kind
-      and result_profile.id = result.subject_id
-    left join public.teams result_team
-      on result.subject_kind = 'team'::public.social_subject_kind
-      and result_team.id = result.subject_id
-    left join public.profiles result_team_a on result_team_a.id = result_team.user_a_id
-    left join public.profiles result_team_b on result_team_b.id = result_team.user_b_id
     where result.season_id = p_season_id
-      and (
-        (
-          result.subject_kind = 'user'::public.social_subject_kind
-          and coalesce(result_profile.social_activity_visible, false) = true
-        )
-        or (
-          result.subject_kind = 'team'::public.social_subject_kind
-          and coalesce(result_team_a.social_activity_visible, false) = true
-          and coalesce(result_team_b.social_activity_visible, false) = true
-        )
-      )
     order by result.rank asc
     limit v_limit
     offset v_offset;
