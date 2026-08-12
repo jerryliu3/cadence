@@ -7,13 +7,15 @@ import type {
   PlannerVisibleMonthContextPayload,
 } from "@/features/planner/calendar-surface.types";
 import {
+  PLANNER_VISIBLE_MONTH_CONTEXT_CACHE_PREFIX as PLANNER_VISIBLE_MONTH_CACHE_PREFIX,
+} from "@/lib/cache/planner-tab-cache";
+import {
   readTabDataCache,
   writeTabDataCache,
 } from "@/lib/cache/tab-data-cache";
 import { MAX_HORIZON_MONTHS } from "@/lib/planner/contracts/bounds";
 
 const VISIBLE_MONTH_FETCH_DEBOUNCE_MS = 80;
-const PLANNER_VISIBLE_MONTH_CACHE_PREFIX = "planner-visible-month-context:";
 
 interface UsePlannerVisibleMonthContextsArgs {
   activeTab: CalendarTab;

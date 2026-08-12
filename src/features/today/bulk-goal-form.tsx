@@ -45,6 +45,7 @@ import {
 } from "@/features/goals/goal-schedule-fields";
 import { getApiErrorMessage, postJson } from "@/lib/api/client";
 import { buildLoginHref } from "@/lib/auth/login-redirect";
+import { invalidatePlannerRelatedTabCaches } from "@/lib/cache/planner-tab-cache";
 import { toLocalDateString } from "@/lib/dates/day";
 import { resolveUserTimezone } from "@/lib/dates/timezone";
 import {
@@ -725,6 +726,7 @@ export function BulkGoalForm({
         );
       }
 
+      invalidatePlannerRelatedTabCaches();
       toast.success(
         `Created ${preparedRows.length} goal${preparedRows.length === 1 ? "" : "s"}.`
       );

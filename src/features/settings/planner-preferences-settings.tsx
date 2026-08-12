@@ -13,6 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { getApiErrorMessage, getJson, putJson } from "@/lib/api/client";
+import { invalidatePlannerRelatedTabCaches } from "@/lib/cache/planner-tab-cache";
 import { resolveUserTimezone } from "@/lib/dates/timezone";
 import { buildTimezoneOptions } from "@/lib/dates/timezone-options";
 import { weekStartOptions } from "@/lib/dates/weekday-options";
@@ -84,6 +85,7 @@ export function PlannerPreferencesSettings() {
         timezone,
         defaultPolicy,
       });
+      invalidatePlannerRelatedTabCaches();
       toast.success("Preferences updated.");
     } catch (error) {
       toast.error(

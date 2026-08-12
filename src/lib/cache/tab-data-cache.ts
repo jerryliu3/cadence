@@ -101,8 +101,35 @@ export function invalidateTabDataCacheByPrefix(prefix: string) {
       removeSessionStorageRecord(key);
     }
   }
+  if (typeof window === "undefined") {
+    return;
+  }
+  try {
+    const storagePrefix = buildStorageKey(prefix);
+    for (let index = window.sessionStorage.length - 1; index >= 0; index -= 1) {
+      const storageKey = window.sessionStorage.key(index);
+      if (storageKey && storageKey.startsWith(storagePrefix)) {
+        window.sessionStorage.removeItem(storageKey);
+      }
+    }
+  } catch {
+    // Ignore storage failures.
+  }
 }
 
 export function resetTabDataCacheForTests() {
   tabDataCache.clear();
+  if (typeof window === "undefined") {
+    return;
+  }
+  try {
+    for (let index = window.sessionStorage.length - 1; index >= 0; index -= 1) {
+      const storageKey = window.sessionStorage.key(index);
+      if (storageKey && storageKey.startsWith(TAB_DATA_CACHE_STORAGE_PREFIX)) {
+        window.sessionStorage.removeItem(storageKey);
+      }
+    }
+  } catch {
+    // Ignore storage failures in test environments.
+  }
 }

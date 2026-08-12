@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { resetTabDataCacheForTests } from "@/lib/cache/tab-data-cache";
 import {
   fetchProgressContext,
+  invalidateProgressContextCache,
   isProgressContextAuthenticationError,
 } from "./progress-context";
 
@@ -106,6 +107,29 @@ describe("fetchProgressContext", () => {
 
     expect(first.correlationId).toBe("before-refresh");
     expect(refreshed.correlationId).toBe("after-refresh");
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+  });
+
+  it("drops cached entries when explicit invalidation is requested", async () => {
+    const fetchSpy = vi.fn().mockImplementation(async () =>
+      new Response(JSON.stringify(buildProgressPayload("invalidate")), {
+        status: 200,
+      })
+    );
+    vi.stubGlobal("fetch", fetchSpy);
+
+    await fetchProgressContext({
+      asOfDate: "2026-08-09",
+      timezone: "UTC",
+      viewDate: "2026-08-09",
+    });
+    invalidateProgressContextCache();
+    await fetchProgressContext({
+      asOfDate: "2026-08-09",
+      timezone: "UTC",
+      viewDate: "2026-08-09",
+    });
+
     expect(fetchSpy).toHaveBeenCalledTimes(2);
   });
 
