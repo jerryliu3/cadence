@@ -41,12 +41,18 @@ export function TabKeepaliveHost({
   const [mountedPaths, setMountedPaths] = useState<KeepaliveTabPath[]>(() => [activePath]);
 
   useEffect(() => {
-    setMountedPaths((current) => {
-      if (current.includes(activePath)) {
-        return current;
-      }
-      return [...current, activePath];
-    });
+    const timer = window.setTimeout(() => {
+      setMountedPaths((current) => {
+        if (current.includes(activePath)) {
+          return current;
+        }
+        return [...current, activePath];
+      });
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
   }, [activePath]);
 
   const mountedPathSet = useMemo(() => new Set(mountedPaths), [mountedPaths]);

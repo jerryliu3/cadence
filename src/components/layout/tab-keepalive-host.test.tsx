@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { TabKeepaliveHost } from "@/components/layout/tab-keepalive-host";
 
@@ -19,7 +19,7 @@ vi.mock("@/features/social/social-surface", () => ({
 }));
 
 describe("TabKeepaliveHost", () => {
-  it("keeps previously mounted tab sections in the DOM", () => {
+  it("keeps previously mounted tab sections in the DOM", async () => {
     const { rerender } = render(
       <TabKeepaliveHost activePath="/calendar" socialEnabled />
     );
@@ -30,7 +30,9 @@ describe("TabKeepaliveHost", () => {
     rerender(<TabKeepaliveHost activePath="/insights" socialEnabled />);
 
     expect(screen.getByText("Calendar Tab Content")).toBeInTheDocument();
-    expect(screen.getByText("Insights Tab Content")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText("Insights Tab Content")).toBeInTheDocument();
+    });
   });
 
   it("renders social disabled fallback when social flag is off", () => {
