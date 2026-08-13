@@ -85,10 +85,10 @@ describe("CompletionToggle", () => {
     expect(onClick).not.toHaveBeenCalled();
   });
 
-  it("keeps optimistic completed state visible while pending", () => {
+  it("keeps optimistic completed state visible until the completed prop catches up", () => {
     vi.useFakeTimers();
 
-    render(
+    const { rerender } = render(
       <CompletionToggle
         completed={false}
         pending
@@ -101,22 +101,27 @@ describe("CompletionToggle", () => {
     expect(toggle).toHaveAttribute("data-visual-completed", "true");
 
     act(() => {
-      vi.advanceTimersByTime(500);
+      vi.advanceTimersByTime(5000);
     });
     expect(toggle).toHaveAttribute("data-visual-completed", "true");
 
-    act(() => {
-      vi.advanceTimersByTime(3000);
-    });
-    expect(toggle).toHaveAttribute("data-visual-completed", "false");
+    rerender(
+      <CompletionToggle
+        completed
+        pending={false}
+        aria-label="Mark session done"
+      />
+    );
+    expect(toggle).toHaveAttribute("data-visual-completed", "true");
+    expect(toggle).toHaveAttribute("data-completed", "true");
 
     vi.useRealTimers();
   });
 
-  it("optimistically clears the checkmark when unchecking", () => {
+  it("keeps an optimistic uncheck until the completed prop catches up", () => {
     vi.useFakeTimers();
 
-    render(
+    const { rerender } = render(
       <CompletionToggle
         completed
         pending
@@ -131,11 +136,52 @@ describe("CompletionToggle", () => {
     expect(toggle).toHaveAttribute("data-visual-completed", "false");
 
     act(() => {
-      vi.advanceTimersByTime(3000);
+      vi.advanceTimersByTime(5000);
     });
-    expect(toggle).toHaveAttribute("data-visual-completed", "true");
+    expect(toggle).toHaveAttribute("data-visual-completed", "false");
+
+    rerender(
+      <CompletionToggle
+        completed={false}
+        pending={false}
+        aria-label="Mark session not done"
+      />
+    );
+    expect(toggle).toHaveAttribute("data-visual-completed", "false");
+    expect(toggle).toHaveAttribute("data-completed", "false");
 
     vi.useRealTimers();
+  });
+
+  it("reverts optimistic state when pending ends without a matching completed prop", () => {
+    const { rerender } = render(
+      <CompletionToggle
+        completed={false}
+        aria-label="Mark session done"
+      />
+    );
+
+    const toggle = screen.getByRole("button", { name: "Mark session done" });
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute("data-visual-completed", "true");
+
+    rerender(
+      <CompletionToggle
+        completed={false}
+        pending
+        aria-label="Mark session done"
+      />
+    );
+    expect(toggle).toHaveAttribute("data-visual-completed", "true");
+
+    rerender(
+      <CompletionToggle
+        completed={false}
+        pending={false}
+        aria-label="Mark session done"
+      />
+    );
+    expect(toggle).toHaveAttribute("data-visual-completed", "false");
   });
 
   it("suppresses haptics when the user requests reduced motion", () => {

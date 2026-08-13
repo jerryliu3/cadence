@@ -1,3 +1,30 @@
+import type { CompletionDateFact, CompletionSource } from "@/lib/goals/types";
+
+export function applyCompletionDateFact(
+  facts: CompletionDateFact[],
+  input: {
+    goalId: string;
+    date: string;
+    desiredFactState: "present" | "absent";
+    source?: CompletionSource;
+  }
+): CompletionDateFact[] {
+  const withoutExact = facts.filter(
+    (fact) => !(fact.goal_id === input.goalId && fact.completed_on === input.date)
+  );
+  if (input.desiredFactState === "absent") {
+    return withoutExact;
+  }
+  return [
+    ...withoutExact,
+    {
+      goal_id: input.goalId,
+      completed_on: input.date,
+      source: input.source ?? "manual",
+    },
+  ];
+}
+
 export function groupCompletionsByGoalId<T extends { goal_id: string }>(
   completions: T[]
 ) {
