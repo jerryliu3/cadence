@@ -31,22 +31,21 @@ insert into public.goals (
   recurrence_interval,
   target_count,
   start_date,
-  end_date,
-  is_group
+  end_date
 )
-values (
-  '9b500000-0000-4000-8000-000000000001',
-  '9b333333-3333-4333-8333-333333333333',
-  'Nudge test goal',
-  'Health',
-  'health',
-  'recurring',
-  'weekly',
-  3,
-  current_date - 5,
-  current_date + 5,
-  false
-)
+values
+  (
+    '9b500000-0000-4000-8000-000000000001',
+    '9b333333-3333-4333-8333-333333333333',
+    'Nudge test goal',
+    'Health',
+    'health',
+    'recurring',
+    'weekly',
+    3,
+    current_date - 5,
+    current_date + 5
+  )
 on conflict (id) do nothing;
 
 insert into public.feed_events (

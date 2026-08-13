@@ -25,23 +25,22 @@ insert into public.goals (
   recurrence_interval,
   target_count,
   start_date,
-  end_date,
-  is_group
+  end_date
 )
-values (
-  'b3500000-0000-4000-8000-000000000001',
-  '11111111-1111-4111-8111-111111111111',
-  'XP user awards lifecycle goal',
-  null,
-  'health',
-  '#10b981',
-  'recurring',
-  'daily',
-  1,
-  current_date - 7,
-  current_date + 7,
-  false
-)
+values
+  (
+    'b3500000-0000-4000-8000-000000000001',
+    '11111111-1111-4111-8111-111111111111',
+    'XP user awards lifecycle goal',
+    null,
+    'health',
+    '#10b981',
+    'recurring',
+    'daily',
+    1,
+    current_date - 7,
+    current_date + 7
+  )
 on conflict (id) do nothing;
 
 update public.goals

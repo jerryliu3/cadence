@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions, pg_catalog;
-select plan(31);
+select plan(33);
 
 -- Pin the five dropped client-PostgREST triggers.
 select hasnt_trigger(
@@ -10,11 +10,10 @@ select hasnt_trigger(
   'validate_goal_link',
   'validate_goal_link trigger is dropped'
 );
-select hasnt_trigger(
+select hasnt_table(
   'public',
   'goal_participants',
-  'validate_goal_participant',
-  'validate_goal_participant trigger is dropped'
+  'goal_participants table is dropped'
 );
 select hasnt_trigger(
   'public',
@@ -41,6 +40,13 @@ select has_trigger(
   'set_goals_updated_at trigger is kept'
 );
 
+insert into auth.users (id, email)
+values ('aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeee2', 'write-boundary-partner@example.com')
+on conflict (id) do nothing;
+insert into public.profiles (id, username)
+values ('aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeee2', 'write_boundary_partner')
+on conflict (id) do nothing;
+
 set local role authenticated;
 select set_config(
   'request.jwt.claim.sub',
@@ -66,7 +72,7 @@ select lives_ok(
       current_date,
       null,
       null,
-      false
+      null
     )
   $$,
   'create_goal succeeds for authenticated owner'
@@ -159,19 +165,6 @@ select throws_ok(
   'cross-owner goal link is rejected'
 );
 
--- Group goal cannot participate in personal links.
-select throws_ok(
-  $$
-    select public.replace_goal_source_link(
-      'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',
-      '10000000-0000-4000-8000-000000000008'
-    )
-  $$,
-  '23514',
-  'group goals cannot participate in personal goal links',
-  'group-goal link is rejected'
-);
-
 select throws_ok(
   $$
     insert into public.goal_links (
@@ -203,11 +196,27 @@ select ok(
   'direct goal_links delete is a no-op under RLS'
 );
 
+-- Seed now gives Alice an active team; this file needs a fresh pair for team-goal writes.
+select public.dissolve_team_service();
+
+select set_config(
+  'request.team_id',
+  public.create_team_invite_service('aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeee2', null)::text,
+  true
+);
+select set_config('request.jwt.claim.sub', 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeee2', true);
+select ok(
+  public.accept_team_invite_service(current_setting('request.team_id')::uuid, true),
+  'partner accepts team invite for team-goal writes'
+);
+
+select set_config('request.jwt.claim.sub', '11111111-1111-4111-8111-111111111111', true);
 select lives_ok(
   $$
-    select public.create_group_goal(
+    select public.create_goal(
       'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa3',
-      'Group boundary goal',
+      'Team boundary goal',
+      null,
       null,
       'health',
       'health',
@@ -215,92 +224,65 @@ select lives_ok(
       'recurring',
       'weekly',
       null,
+      null,
       current_date,
-      null
+      null,
+      null,
+      current_setting('request.team_id')::uuid
     )
   $$,
-  'create_group_goal creates goal and owner participant'
+  'create_goal accepts p_team_id for a team the owner belongs to'
 );
 
 select is(
   (
-    select role::text
-    from public.goal_participants
-    where goal_id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa3'
-      and user_id = '11111111-1111-4111-8111-111111111111'
+    select team_id
+    from public.goals
+    where id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa3'
   ),
-  'owner',
-  'create_group_goal inserts owner participant row'
+  current_setting('request.team_id')::uuid,
+  'create_goal stores team_id'
 );
-
-select lives_ok(
-  $$
-    select public.add_goal_participant(
-      'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa3',
-      '22222222-2222-4222-8222-222222222222',
-      'participant'
-    )
-  $$,
-  'owner can invite a participant'
-);
-
--- Self-leave must work for non-owners.
-reset role;
-set local role authenticated;
-select set_config(
-  'request.jwt.claim.sub',
-  '22222222-2222-4222-8222-222222222222',
-  true
-);
-select set_config('request.jwt.claim.role', 'authenticated', true);
-
-select lives_ok(
-  $$
-    select public.remove_goal_participant(
-      'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa3',
-      '22222222-2222-4222-8222-222222222222'
-    )
-  $$,
-  'participant can self-leave via remove_goal_participant'
-);
-
-select is(
-  (
-    select count(*)::integer
-    from public.goal_participants
-    where goal_id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa3'
-      and user_id = '22222222-2222-4222-8222-222222222222'
-  ),
-  0,
-  'self-leave removes the participant row'
-);
-
-reset role;
-set local role authenticated;
-select set_config(
-  'request.jwt.claim.sub',
-  '11111111-1111-4111-8111-111111111111',
-  true
-);
-select set_config('request.jwt.claim.role', 'authenticated', true);
 
 select throws_ok(
   $$
-    insert into public.goal_participants (
-      goal_id,
-      user_id,
-      role
+    select public.replace_goal_source_link(
+      'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',
+      'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa3'
     )
-    values (
-      'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa3',
-      '22222222-2222-4222-8222-222222222222',
-      'participant'
+  $$,
+  '23514',
+  'team goals cannot participate in personal goal links',
+  'team-goal link is rejected'
+);
+
+select set_config('request.jwt.claim.sub', '33333333-3333-4333-8333-333333333333', true);
+select throws_ok(
+  $$
+    select public.create_goal(
+      'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa30',
+      'Outsider team goal',
+      null,
+      null,
+      'health',
+      'health',
+      '#0ea5e9',
+      'recurring',
+      'weekly',
+      null,
+      null,
+      current_date,
+      null,
+      null,
+      current_setting('request.team_id')::uuid
     )
   $$,
   '42501',
-  null,
-  'direct goal_participants insert is blocked'
+  'not a member of team',
+  'non-members cannot create a team goal'
 );
+
+select set_config('request.jwt.claim.sub', '11111111-1111-4111-8111-111111111111', true);
 
 -- XP recompute on soft-delete (replaces goals_xp_recompute for is_deleted).
 select public.create_goal(
@@ -318,7 +300,7 @@ select public.create_goal(
   current_date - 7,
   null,
   null,
-  false
+  null
 );
 
 select public.mark_goal_complete(
@@ -365,7 +347,7 @@ select public.create_goal(
   current_date - 7,
   null,
   null,
-  false
+  null
 );
 
 select public.mark_goal_complete(
@@ -431,7 +413,7 @@ select public.create_goal(
   current_date - 7,
   current_date + 30,
   null,
-  false
+  null
 );
 
 select public.mark_goal_complete(
@@ -465,7 +447,7 @@ select public.update_goal(
   current_date - 7,
   current_date + 30,
   null,
-  false
+  null
 );
 
 select is(
@@ -479,38 +461,44 @@ select is(
   'update_goal target_count change recomputes and drops achievement XP'
 );
 
--- Personal → group conversion inserts owner participant.
-select public.create_goal(
-  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa7',
-  'Convert to group',
-  null,
-  null,
-  'health',
-  'health',
-  '#0ea5e9',
-  'recurring',
-  'weekly',
-  null,
-  null,
-  current_date,
-  null,
-  null,
-  false
+reset role;
+set local role service_role;
+insert into public.goal_shares (goal_id, shared_with)
+values (
+  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',
+  '33333333-3333-4333-8333-333333333333'
+);
+reset role;
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config(
+  'request.jwt.claim.sub',
+  '11111111-1111-4111-8111-111111111111',
+  true
+);
+
+select ok(
+  public.can_view_goal(
+    'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',
+    '33333333-3333-4333-8333-333333333333'
+  ),
+  'sharee can view a shared personal goal'
 );
 
 select public.update_goal(
-  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa7',
-  'Convert to group',
-  null,
+  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',
+  'Write boundary goal',
+  'desc',
   null,
   'health',
   'health',
   '#0ea5e9',
   'recurring',
-  'weekly',
+  'daily',
   null,
   null,
   current_date,
+  null,
   null,
   null,
   true
@@ -518,13 +506,50 @@ select public.update_goal(
 
 select is(
   (
-    select role::text
-    from public.goal_participants
-    where goal_id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa7'
-      and user_id = '11111111-1111-4111-8111-111111111111'
+    select count(*)::integer
+    from public.goal_shares
+    where goal_id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1'
   ),
-  'owner',
-  'update_goal personal-to-group inserts owner participant row'
+  0,
+  'marking a goal private revokes its shares'
+);
+
+select ok(
+  not public.can_view_goal(
+    'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',
+    '33333333-3333-4333-8333-333333333333'
+  ),
+  'former sharee cannot view after privacy revoke'
+);
+
+select throws_ok(
+  $$
+    insert into public.goal_shares (goal_id, shared_with)
+    values (
+      'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',
+      '33333333-3333-4333-8333-333333333333'
+    )
+  $$,
+  '42501',
+  null,
+  'sharing a private goal is rejected'
+);
+
+reset role;
+set local role service_role;
+insert into public.goal_shares (goal_id, shared_with)
+values (
+  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',
+  '33333333-3333-4333-8333-333333333333'
+);
+reset role;
+
+select ok(
+  not public.can_view_goal(
+    'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',
+    '33333333-3333-4333-8333-333333333333'
+  ),
+  'a leftover share on a private goal does not grant view'
 );
 
 select * from finish();

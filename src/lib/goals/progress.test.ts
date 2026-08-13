@@ -22,7 +22,7 @@ function buildGoal(overrides: Partial<Goal>): Goal {
     start_date: "2026-05-01",
     end_date: null,
     photo_path: null,
-    is_group: false,
+    team_id: null,
     is_deleted: false,
     archived_at: null,
     created_at: new Date().toISOString(),

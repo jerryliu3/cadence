@@ -51,7 +51,7 @@ export const plannerGoalSchema = z
     end_date: nullableDateSchema,
     default_local_time: plannerLocalTimeSchema.nullable().optional(),
     photo_path: z.string().max(2_000).nullable(),
-    is_group: z.boolean(),
+    team_id: z.string().min(1).max(100).nullable(),
     is_deleted: z.boolean(),
     archived_at: z.string().datetime({ offset: true }).nullable(),
     created_at: z.string().datetime({ offset: true }),

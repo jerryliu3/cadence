@@ -23,7 +23,7 @@ function goal(overrides: Partial<Goal> = {}): Goal {
     start_date: "2026-08-01",
     end_date: "2026-08-31",
     photo_path: null,
-    is_group: false,
+    team_id: null,
     is_deleted: false,
     archived_at: null,
     created_at: "2026-08-01T00:00:00Z",

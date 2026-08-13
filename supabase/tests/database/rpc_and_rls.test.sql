@@ -29,8 +29,7 @@ insert into public.goals (
   recurrence_interval,
   target_count,
   start_date,
-  end_date,
-  is_group
+  end_date
 )
 values
   (
@@ -44,8 +43,7 @@ values
     'weekly',
     3,
     current_date - 14,
-    current_date + 14,
-    false
+    current_date + 14
   ),
   (
     '10000000-0000-4000-8000-000000000004',
@@ -58,8 +56,7 @@ values
     'weekly',
     3,
     current_date - 14,
-    current_date + 14,
-    false
+    current_date + 14
   ),
   (
     '10000000-0000-4000-8000-000000000009',
@@ -72,8 +69,7 @@ values
     'weekly',
     3,
     current_date - 14,
-    current_date + 14,
-    false
+    current_date + 14
   ),
   (
     '10000000-0000-4000-8000-000000000011',
@@ -86,8 +82,7 @@ values
     'weekly',
     5,
     current_date - 14,
-    current_date + 14,
-    false
+    current_date + 14
   )
 on conflict (id) do update
 set
@@ -96,8 +91,7 @@ set
   recurrence_interval = excluded.recurrence_interval,
   target_count = excluded.target_count,
   start_date = excluded.start_date,
-  end_date = excluded.end_date,
-  is_group = excluded.is_group;
+  end_date = excluded.end_date;
 
 insert into public.goal_links (id, owner_id, source_goal_id, target_goal_id)
 values (

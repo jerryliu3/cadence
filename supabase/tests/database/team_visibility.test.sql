@@ -43,7 +43,6 @@ insert into public.goals (
   target_count,
   start_date,
   end_date,
-  is_group,
   is_private
 )
 values
@@ -58,7 +57,6 @@ values
     3,
     current_date - 5,
     current_date + 5,
-    false,
     false
   ),
   (
@@ -72,7 +70,6 @@ values
     3,
     current_date - 5,
     current_date + 5,
-    false,
     true
   )
 on conflict (id) do nothing;
@@ -97,7 +94,7 @@ select is(
     select count(*)::integer
     from public.goals goal
     where goal.owner_id = '9a111111-1111-4111-8111-111111111111'
-      and public.can_view_goal_content(goal.id, '9a222222-2222-4222-8222-222222222222')
+      and public.can_view_goal(goal.id, '9a222222-2222-4222-8222-222222222222')
   ),
   1,
   'partner sees only shared goals through team visibility'
@@ -151,7 +148,7 @@ select is(
     select count(*)::integer
     from public.goals goal
     where goal.owner_id = '9a111111-1111-4111-8111-111111111111'
-      and public.can_view_goal_content(goal.id, '9a222222-2222-4222-8222-222222222222')
+      and public.can_view_goal(goal.id, '9a222222-2222-4222-8222-222222222222')
   ),
   0,
   'team visibility is revoked after dissolution'

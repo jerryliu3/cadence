@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, private, extensions, pg_catalog;
-select plan(15);
+select plan(19);
 
 insert into auth.users (id, email)
 values
@@ -52,14 +52,14 @@ select throws_ok(
     $$insert into public.goals (
       id, owner_id, title, category, category_key, frequency_type,
       recurrence_interval, target_count, start_date, end_date,
-      is_group, is_private, team_id
+      is_private, team_id
     ) values (
       'bf400000-0000-4000-8000-000000000099',
       'bf111111-1111-4111-8111-111111111111',
       'Private team goal',
       'Health', 'health', 'recurring', 'weekly', 3,
       current_date - 5, current_date + 5,
-      false, true, '%s'::uuid
+      true, '%s'::uuid
     )$$,
     current_setting('request.team_id')::uuid
   ),
@@ -79,7 +79,6 @@ insert into public.goals (
   target_count,
   start_date,
   end_date,
-  is_group,
   is_private,
   team_id
 )
@@ -96,7 +95,6 @@ values
     current_date - 5,
     current_date + 5,
     false,
-    false,
     current_setting('request.team_id')::uuid
   ),
   (
@@ -111,7 +109,6 @@ values
     current_date - 5,
     current_date + 5,
     false,
-    false,
     null
   ),
   (
@@ -125,32 +122,9 @@ values
     3,
     current_date - 5,
     current_date + 5,
-    false,
     true,
-    null
-  ),
-  (
-    'bf400000-0000-4000-8000-000000000004',
-    'bf111111-1111-4111-8111-111111111111',
-    'Leftover group goal',
-    'Health',
-    'health',
-    'recurring',
-    'weekly',
-    3,
-    current_date - 5,
-    current_date + 5,
-    true,
-    false,
     null
   );
-
-insert into public.goal_participants (goal_id, user_id, role)
-values (
-  'bf400000-0000-4000-8000-000000000004',
-  'bf222222-2222-4222-8222-222222222222',
-  'participant'
-);
 
 insert into public.completions (goal_id, user_id, completed_on, source)
 values
@@ -184,14 +158,6 @@ select ok(
 );
 
 select ok(
-  public.can_view_goal_content(
-    'bf400000-0000-4000-8000-000000000001',
-    'bf222222-2222-4222-8222-222222222222'
-  ),
-  'team member can view team-id goal content'
-);
-
-select ok(
   public.can_complete_goal(
     'bf400000-0000-4000-8000-000000000001',
     'bf222222-2222-4222-8222-222222222222'
@@ -199,8 +165,14 @@ select ok(
   'team member can complete a team-id goal'
 );
 
+select hasnt_function(
+  'public',
+  'can_view_goal_content',
+  'can_view_goal_content is folded into can_view_goal'
+);
+
 select ok(
-  public.can_view_goal_content(
+  public.can_view_goal(
     'bf400000-0000-4000-8000-000000000002',
     'bf222222-2222-4222-8222-222222222222'
   ),
@@ -216,7 +188,7 @@ select ok(
 );
 
 select ok(
-  not public.can_view_goal_content(
+  not public.can_view_goal(
     'bf400000-0000-4000-8000-000000000003',
     'bf222222-2222-4222-8222-222222222222'
   ),
@@ -239,12 +211,16 @@ select ok(
   'outsider cannot complete a team-id goal'
 );
 
-select ok(
-  not public.can_complete_goal(
-    'bf400000-0000-4000-8000-000000000004',
-    'bf222222-2222-4222-8222-222222222222'
+select is(
+  (
+    select count(*)::integer
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'goals'
+      and column_name = 'is_group'
   ),
-  'leftover group participants are not completers after the team-id cutover'
+  0,
+  'is_group column is gone'
 );
 
 set local role authenticated;
@@ -275,6 +251,57 @@ select throws_ok(
   '22023',
   'team_goal_required',
   'progress rpc rejects personal goals'
+);
+
+reset role;
+set local role service_role;
+insert into public.goal_shares (goal_id, shared_with)
+values (
+  'bf400000-0000-4000-8000-000000000001',
+  'bf333333-3333-4333-8333-333333333333'
+);
+reset role;
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config(
+  'request.jwt.claim.sub',
+  'bf333333-3333-4333-8333-333333333333',
+  true
+);
+
+select throws_ok(
+  $$select * from public.get_team_goal_progress('bf400000-0000-4000-8000-000000000001')$$,
+  '42501',
+  'not authorized for goal',
+  'sharee cannot read team roster via goal progress'
+);
+
+select set_config(
+  'request.jwt.claim.sub',
+  'bf111111-1111-4111-8111-111111111111',
+  true
+);
+select ok(
+  public.dissolve_team_service(),
+  'owner can dissolve the team'
+);
+
+reset role;
+
+select ok(
+  not public.can_complete_goal(
+    'bf400000-0000-4000-8000-000000000001',
+    'bf222222-2222-4222-8222-222222222222'
+  ),
+  'ex-member cannot complete a team-id goal after dissolve'
+);
+
+select ok(
+  not public.can_view_goal(
+    'bf400000-0000-4000-8000-000000000001',
+    'bf222222-2222-4222-8222-222222222222'
+  ),
+  'ex-member cannot view a team-id goal after dissolve'
 );
 
 select * from finish();

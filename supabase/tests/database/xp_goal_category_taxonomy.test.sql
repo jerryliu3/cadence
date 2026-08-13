@@ -50,7 +50,7 @@ select public.create_goal(
   current_date - 7,
   current_date + 7,
   null,
-  false
+  null
 );
 
 select is(
@@ -88,7 +88,7 @@ select public.update_goal(
   current_date - 7,
   current_date + 7,
   null,
-  false
+  null
 );
 
 select is(

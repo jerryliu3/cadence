@@ -51,21 +51,20 @@ insert into public.goals (
   recurrence_interval,
   target_count,
   start_date,
-  end_date,
-  is_group
+  end_date
 )
-values (
-  '66444444-4444-4444-8444-444444444444',
-  '66222222-2222-4222-8222-222222222222',
-  'Social visibility defaults goal',
-  'Personal',
-  'recurring',
-  'weekly',
-  3,
-  current_date - 1,
-  current_date + 30,
-  false
-)
+values
+  (
+    '66444444-4444-4444-8444-444444444444',
+    '66222222-2222-4222-8222-222222222222',
+    'Social visibility defaults goal',
+    'Personal',
+    'recurring',
+    'weekly',
+    3,
+    current_date - 1,
+    current_date + 30
+  )
 on conflict (id) do nothing;
 
 select is(

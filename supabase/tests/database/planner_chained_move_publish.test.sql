@@ -7,16 +7,33 @@ set local role service_role;
 
 -- Alice's profile comes from the seed.
 insert into public.goals (
-  id, owner_id, title, description, category, color,
-  frequency_type, recurrence_interval, target_count,
-  start_date, end_date, is_group
-) values (
-  '10000000-0000-4000-8000-0000000000c1',
-  '11111111-1111-4111-8111-111111111111',
-  'Chained move goal', null, 'Personal', null,
-  'recurring', 'daily', 3,
-  '2027-03-01', '2027-03-31', false
-) on conflict (id) do nothing;
+  id,
+  owner_id,
+  title,
+  description,
+  category,
+  color,
+  frequency_type,
+  recurrence_interval,
+  target_count,
+  start_date,
+  end_date
+)
+values
+  (
+    '10000000-0000-4000-8000-0000000000c1',
+    '11111111-1111-4111-8111-111111111111',
+    'Chained move goal',
+    null,
+    'Personal',
+    null,
+    'recurring',
+    'daily',
+    3,
+    '2027-03-01',
+    '2027-03-31'
+  )
+on conflict (id) do nothing;
 
 insert into public.planner_items (
   owner_id, goal_id, unit_key, scheduled_date, original_scheduled_date, locked

@@ -97,7 +97,7 @@ interface GoalFormState {
   start_date: string;
   end_date: string;
   default_local_time: string;
-  is_group: boolean;
+  team_id: string | null;
   is_private: boolean;
 }
 
@@ -115,7 +115,7 @@ const defaultState: GoalFormState = {
   start_date: toLocalDateString(),
   end_date: "",
   default_local_time: "",
-  is_group: false,
+  team_id: null,
   is_private: false,
 };
 
@@ -211,7 +211,7 @@ export function GoalForm({
       const linkableGoals = goals.filter(
         (goal) =>
           goal.id !== goalId &&
-          !goal.is_group &&
+          goal.team_id === null &&
           progressByGoal.get(goal.id)?.lifecycle === "active"
       );
       const linkableGoalIdSet = new Set(linkableGoals.map((goal) => goal.id));
@@ -242,7 +242,7 @@ export function GoalForm({
           start_date: goal.start_date,
           end_date: goal.end_date ?? "",
           default_local_time: goal.default_local_time ?? "",
-          is_group: goal.is_group,
+          team_id: goal.team_id ?? null,
           is_private: goal.is_private ?? false,
         });
 
@@ -463,7 +463,8 @@ export function GoalForm({
       p_start_date: state.start_date,
       p_end_date: state.end_date || undefined,
       p_default_local_time: state.default_local_time.trim() || undefined,
-      p_is_group: state.is_group,
+      p_team_id: state.team_id ?? undefined,
+      p_is_private: state.team_id ? false : state.is_private,
     };
 
     const savedGoalId = goalArgs.p_id;
@@ -969,23 +970,25 @@ export function GoalForm({
                     ) : null}
                   </div>
 
-                  <div className="rounded-xl border bg-background/70 p-3">
-                    <label className="flex items-start gap-3 text-sm">
-                      <input
-                        type="checkbox"
-                        className="mt-1"
-                        checked={state.is_private}
-                        onChange={(event) =>
-                          setState((prev) => ({ ...prev, is_private: event.target.checked }))
-                        }
-                      />
-                      <span>
-                        Keep this goal private (hidden from the social feed and from your team).
-                      </span>
-                    </label>
-                  </div>
+                  {state.team_id === null ? (
+                    <div className="rounded-xl border bg-background/70 p-3">
+                      <label className="flex items-start gap-3 text-sm">
+                        <input
+                          type="checkbox"
+                          className="mt-1"
+                          checked={state.is_private}
+                          onChange={(event) =>
+                            setState((prev) => ({ ...prev, is_private: event.target.checked }))
+                          }
+                        />
+                        <span>
+                          Keep this goal private (hidden from your partner, the social feed, and any shares).
+                        </span>
+                      </label>
+                    </div>
+                  ) : null}
 
-                  {!state.is_group ? (
+                  {state.team_id === null ? (
                     <GoalLinkTargetSelect
                       value={selectedLinkTarget}
                       onValueChange={setSelectedLinkTarget}

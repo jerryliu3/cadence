@@ -21,22 +21,21 @@ insert into public.goals (
   recurrence_interval,
   target_count,
   start_date,
-  end_date,
-  is_group
+  end_date
 )
-values (
-  '8e300000-0000-4000-8000-000000000001',
-  '8e111111-1111-4111-8111-111111111111',
-  'Rollover goal',
-  'Health',
-  'health',
-  'recurring',
-  'weekly',
-  3,
-  current_date - 40,
-  current_date + 40,
-  false
-)
+values
+  (
+    '8e300000-0000-4000-8000-000000000001',
+    '8e111111-1111-4111-8111-111111111111',
+    'Rollover goal',
+    'Health',
+    'health',
+    'recurring',
+    'weekly',
+    3,
+    current_date - 40,
+    current_date + 40
+  )
 on conflict (id) do nothing;
 
 insert into public.xp_ledger (

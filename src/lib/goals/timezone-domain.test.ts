@@ -19,7 +19,7 @@ const monthlyGoal: Goal = {
   start_date: "2026-01-31",
   end_date: null,
   photo_path: null,
-  is_group: false,
+  team_id: null,
   is_deleted: false,
   archived_at: null,
   created_at: "2026-01-31T00:00:00Z",

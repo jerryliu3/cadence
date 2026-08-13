@@ -47,8 +47,7 @@ insert into public.goals (
   recurrence_interval,
   target_count,
   start_date,
-  end_date,
-  is_group
+  end_date
 )
 values
   (
@@ -61,8 +60,7 @@ values
     'weekly',
     2,
     current_date - 7,
-    current_date + 7,
-    false
+    current_date + 7
   ),
   (
     'ab500000-0000-4000-8000-000000000002',
@@ -74,8 +72,7 @@ values
     'weekly',
     2,
     current_date - 7,
-    current_date + 7,
-    false
+    current_date + 7
   )
 on conflict (id) do nothing;
 

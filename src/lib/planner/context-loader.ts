@@ -42,7 +42,7 @@ const PLANNER_GOAL_SELECT = [
   "end_date",
   "default_local_time",
   "photo_path",
-  "is_group",
+  "team_id",
   "is_deleted",
   "archived_at",
   "created_at",
@@ -177,7 +177,6 @@ async function loadOwnerGoals(
       .from("goals")
       .select(PLANNER_GOAL_SELECT)
       .eq("owner_id", ownerId)
-      .eq("is_group", false)
       .eq("is_deleted", false)
       .order("id")
       .limit(PAGE_SIZE);

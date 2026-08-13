@@ -253,7 +253,7 @@ async function main() {
     await control.query(
       `insert into public.goals (
          id, owner_id, title, category, frequency_type,
-         recurrence_interval, target_count, start_date, end_date, is_group
+         recurrence_interval, target_count, start_date, end_date
        )
        values (
          $1,
@@ -264,8 +264,7 @@ async function main() {
          'weekly',
          1,
          date_trunc('month', current_date)::date,
-         (date_trunc('month', current_date) + interval '1 month - 1 day')::date,
-         false
+         (date_trunc('month', current_date) + interval '1 month - 1 day')::date
        )`,
       [raceGoalId, raceOwnerId]
     );
@@ -446,7 +445,7 @@ async function main() {
     await control.query(
       `insert into public.goals (
          id, owner_id, title, category, frequency_type,
-         recurrence_interval, target_count, start_date, end_date, is_group
+         recurrence_interval, target_count, start_date, end_date
        )
        values (
          $1,
@@ -457,8 +456,7 @@ async function main() {
          'weekly',
          1,
          current_date - 14,
-         current_date + 14,
-         false
+         current_date + 14
        )`,
       [xpRaceGoalId, xpRaceOwnerId]
     );
