@@ -1386,7 +1386,7 @@ export function CalendarSurface({
       clearHoverPreviewTimer();
       setDraggingEntryKey(entryKey);
     },
-    []
+    [clearHoverPreviewTimer]
   );
 
   const reorderPreviewEntriesForDay = useCallback(
