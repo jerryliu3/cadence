@@ -805,9 +805,8 @@ export function TodayTab({
           selectedDate={viewDate}
           referenceDate={viewDateObj}
           weeklyAnchor={weeklyAnchor}
-          readOnly={readOnly || archived}
-          {...(readOnly || archived
-            ? {}
+          {...(readOnly
+            ? { readOnly: true as const }
             : {
                 onToggle: (sourceElement: HTMLButtonElement) =>
                   toggleCompletion(goal, sourceElement),
