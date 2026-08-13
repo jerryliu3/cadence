@@ -14,10 +14,12 @@ import {
 } from "@cadence/shared/planner/reorder-preview-entries";
 import { getApiErrorMessage } from "@cadence/shared/api-client";
 import { api } from "../../lib/api";
+import { useForceUpgradeRequired } from "../../lib/runtime-config";
 import { useCalendarStore } from "../../store/calendar-state";
 import { getMobileTheme } from "../../theme";
 import { PrimaryButton } from "../../ui/button";
 import { LoadingScreen, Screen } from "../../ui/screen";
+import { CoachPanel } from "./CoachPanel";
 import { DraftMoveError, previewDraftMove } from "./draft-moves";
 import { DraggableSession } from "./DraggableSession";
 import {
@@ -40,6 +42,10 @@ export function CalendarScreen() {
   const scopeMonth = month ?? format(new Date(), "yyyy-MM");
   const selectedDay = day ?? `${scopeMonth}-01`;
   const planner = usePlannerContext(scopeMonth);
+  const { flags } = useForceUpgradeRequired();
+  const crossMonthMovesEnabled = Boolean(
+    flags?.crossMonthMovesEnabled || planner.data?.capabilities?.crossMonthMovesEnabled
+  );
   const [moveUnit, setMoveUnit] = useState<MobilePlannerWorkUnit | null>(null);
   const [moveDate, setMoveDate] = useState("");
   const [message, setMessage] = useState<string | null>(null);
@@ -104,15 +110,22 @@ export function CalendarScreen() {
     }
     setBusy(true);
     try {
-      await previewDraftMove({
+      const result = await previewDraftMove({
         context: planner.data,
         unit,
         nextDate,
-        crossMonthMovesEnabled: false,
+        crossMonthMovesEnabled,
       });
+      if (result.crossMonth) {
+        apply({ month: result.scopeMonth, day: result.scheduledDate });
+      }
       await planner.refresh();
       setMoveUnit(null);
-      setMessage("Draft move previewed. Long-press still has a Move-to sheet fallback.");
+      setMessage(
+        result.crossMonth
+          ? `Moved into ${result.scopeMonth}. Review that month before saving.`
+          : "Draft move previewed. Long-press still has a Move-to sheet fallback."
+      );
     } catch (error) {
       setMessage(
         error instanceof DraftMoveError
@@ -167,10 +180,6 @@ export function CalendarScreen() {
     }
     const targetDay = hit.day;
     if (targetDay === sourceDay) {
-      return;
-    }
-    if (hit.type === "day" && !hit.inMonth) {
-      setMessage("Cross-month drag lands in the coach/cross-month slice.");
       return;
     }
     void applyMove(unit, targetDay);
@@ -328,9 +337,12 @@ export function CalendarScreen() {
         />
       </View>
       {message ? <Text style={{ color: theme.colors.foreground }}>{message}</Text> : null}
+      {planner.data ? (
+        <CoachPanel context={planner.data} onApplied={() => planner.refresh()} />
+      ) : null}
       <Text style={{ color: theme.colors.mutedForeground }}>
-        Long-press a session to drag it onto another day, or tap it to use the Move-to
-        sheet. Same-day drops reorder incomplete and completed groups separately.
+        Long-press a session to drag it onto another day, including faded out-of-month
+        cells when cross-month moves are enabled. Tap a session to use the Move-to sheet.
       </Text>
       <Modal visible={Boolean(moveUnit)} animationType="slide" transparent>
         <View style={styles.sheetBackdrop}>

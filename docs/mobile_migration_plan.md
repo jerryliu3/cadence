@@ -13,7 +13,7 @@ Router client in `apps/mobile`. Shared contracts live in `packages/shared`.
 - **C5** Tokens, tab metadata, calendar state, cache/XP/haptics seams, planner helper extraction.
 - **C6** Auth stack, tabs, form-sheet goals, config/upgrade gate, `cadence://` redirects.
 - **C7** Checklist completions, goal CRUD, ArrayBuffer photo upload.
-- **C8** Store-backed calendar views and sheet move/lock/reset. Drag and coach deferred.
+- **C8** Store-backed calendar, sheet moves, drag/reorder, coach, and cross-month drops.
 - **C9** Insights SVG heatmap, social flag gate, native push schema + Expo send path.
 - **C10** EAS profiles, docs, and `verify-mobile-static` CI job.
 
@@ -22,7 +22,7 @@ Router client in `apps/mobile`. Shared contracts live in `packages/shared`.
 - Hosted Supabase Auth additional redirect URLs must include `cadence://` in production, not only `supabase/config.toml`.
 - APNs / FCM / EAS credentials and `EXPO_TOKEN` are operator setup, not in git.
 - Native push requires a physical device and a migrated `push_subscriptions` table.
-- Calendar save/publish hashes and coach are not at web parity yet.
+- Calendar save/publish hash confirmation is thinner on mobile than web.
 
 ## Accepted intentional divergences from web UX
 
@@ -32,7 +32,6 @@ Router client in `apps/mobile`. Shared contracts live in `packages/shared`.
 - Colors use shared hex tokens; web keeps `oklch()` in CSS.
 - Offline mutation queues are out of scope.
 - Admin and bulk CSV/XLSX remain web-only.
-- Planner drag-and-drop is deferred; the Move-to sheet is the accessible path.
 
 ## Release
 
