@@ -55,7 +55,6 @@ import {
 import { groupCompletionsByGoalId } from "@/lib/goals/completion-grouping";
 import {
   DEFAULT_GOAL_CATEGORIES,
-  getGoalCategoryLabel,
   resolveCategoryKey,
 } from "@/lib/goals/category";
 import { getGoalLifecycle } from "@/lib/goals/lifecycle";
@@ -513,34 +512,18 @@ export function TodayTab({
     });
   }, [completableGoals, lifecycleByGoalAtViewDate]);
 
-  const availableCategories = useMemo(() => {
-    const options = new Map<string, { key: string; label: string }>();
-    for (const category of DEFAULT_GOAL_CATEGORIES) {
-      options.set(category.key, { key: category.key, label: category.label });
-    }
-    data.goals.forEach((goal) => {
-      const key = resolveCategoryKey(goal.category_key ?? goal.category);
-      const label = getGoalCategoryLabel(goal.category, goal.category_key).trim();
-      if (label.length === 0) {
-        return;
-      }
-      if (key === "other" && label.toLowerCase() !== "other") {
-        options.set(`other:${label}`, { key: `other:${label}`, label });
-        return;
-      }
-      options.set(key, { key, label });
-    });
-    return Array.from(options.values()).sort((left, right) => {
-      const leftOrder =
-        DEFAULT_GOAL_CATEGORIES.find((category) => category.key === left.key)?.sortOrder ?? 500;
-      const rightOrder =
-        DEFAULT_GOAL_CATEGORIES.find((category) => category.key === right.key)?.sortOrder ?? 500;
-      if (leftOrder !== rightOrder) {
-        return leftOrder - rightOrder;
-      }
-      return left.label.localeCompare(right.label);
-    });
-  }, [data.goals]);
+  const availableCategories = useMemo(
+    () =>
+      [...DEFAULT_GOAL_CATEGORIES]
+        .sort((left, right) => {
+          if (left.sortOrder !== right.sortOrder) {
+            return left.sortOrder - right.sortOrder;
+          }
+          return left.label.localeCompare(right.label);
+        })
+        .map((category) => ({ key: category.key, label: category.label })),
+    []
+  );
 
   const todayDate = viewDate;
   const checklistFilterStartMonth = viewDate.slice(0, 7);
@@ -555,18 +538,8 @@ export function TodayTab({
   const matchesTodayFacetFilters = useCallback(
     (goal: Goal) => {
       const goalCategoryKey = resolveCategoryKey(goal.category_key ?? goal.category);
-      const goalCategoryLabel = getGoalCategoryLabel(
-        goal.category,
-        goal.category_key
-      );
-      if (categoryFilter !== allCategoriesFilterValue) {
-        if (categoryFilter.startsWith("other:")) {
-          if (goalCategoryLabel.trim() !== categoryFilter.slice("other:".length).trim()) {
-            return false;
-          }
-        } else if (goalCategoryKey !== categoryFilter) {
-          return false;
-        }
+      if (categoryFilter !== allCategoriesFilterValue && goalCategoryKey !== categoryFilter) {
+        return false;
       }
 
       if (recurrenceFilter !== "all") {
@@ -839,19 +812,9 @@ export function TodayTab({
   );
 
   const quickCategoryOptions = useMemo(() => {
-    const userKeys = new Set<string>();
-    for (const goal of data.goals) {
-      const key = resolveCategoryKey(goal.category_key ?? goal.category);
-      const label = getGoalCategoryLabel(goal.category, goal.category_key).trim();
-      if (label.length === 0) {
-        continue;
-      }
-      if (key === "other" && label.toLowerCase() !== "other") {
-        userKeys.add(`other:${label}`);
-      } else {
-        userKeys.add(key);
-      }
-    }
+    const userKeys = new Set(
+      data.goals.map((goal) => resolveCategoryKey(goal.category_key ?? goal.category))
+    );
     const fromUser = availableCategories.filter((category) => userKeys.has(category.key));
     const picked = [...fromUser];
     for (const preset of availableCategories) {
