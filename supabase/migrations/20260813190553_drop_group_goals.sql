@@ -1,4 +1,6 @@
 -- Drop is_group / goal_participants. Team-owned goals use goals.team_id.
+-- Goal surfaces share one visibility predicate (owner | share | team_id |
+-- active-pair personal). Profile relatedness stays off the pair branch.
 
 drop function if exists public.create_group_goal(
   uuid, text, text, text, text, text,
@@ -14,10 +16,20 @@ drop function if exists public.create_goal(
   public.goal_frequency_type, public.recurrence_interval,
   integer, text[], date, date, text, boolean
 );
+drop function if exists public.create_goal(
+  uuid, text, text, text, text, text, text,
+  public.goal_frequency_type, public.recurrence_interval,
+  integer, text[], date, date, text, uuid
+);
 drop function if exists public.update_goal(
   uuid, text, text, text, text, text, text,
   public.goal_frequency_type, public.recurrence_interval,
   integer, text[], date, date, text, boolean
+);
+drop function if exists public.update_goal(
+  uuid, text, text, text, text, text, text,
+  public.goal_frequency_type, public.recurrence_interval,
+  integer, text[], date, date, text, uuid
 );
 
 create or replace function private.insert_goal_link_validated(
@@ -108,7 +120,8 @@ create or replace function public.create_goal(
   p_start_date date default current_date,
   p_end_date date default null,
   p_default_local_time text default null,
-  p_team_id uuid default null
+  p_team_id uuid default null,
+  p_is_private boolean default false
 )
 returns uuid
 language plpgsql
@@ -159,6 +172,7 @@ begin
     end_date,
     default_local_time,
     team_id,
+    is_private,
     is_deleted
   )
   values (
@@ -178,6 +192,7 @@ begin
     p_end_date,
     p_default_local_time,
     p_team_id,
+    coalesce(p_is_private, false),
     false
   );
 
@@ -200,7 +215,8 @@ create or replace function public.update_goal(
   p_start_date date default current_date,
   p_end_date date default null,
   p_default_local_time text default null,
-  p_team_id uuid default null
+  p_team_id uuid default null,
+  p_is_private boolean default false
 )
 returns void
 language plpgsql
@@ -213,6 +229,7 @@ declare
   v_category text;
   v_category_key text;
   v_needs_xp boolean := false;
+  v_is_private boolean := coalesce(p_is_private, false);
 begin
   perform private.assert_goal_owner(p_id, v_uid);
 
@@ -260,9 +277,15 @@ begin
     start_date = p_start_date,
     end_date = p_end_date,
     default_local_time = p_default_local_time,
-    team_id = p_team_id
+    team_id = p_team_id,
+    is_private = v_is_private
   where id = p_id
     and owner_id = v_uid;
+
+  if v_is_private then
+    delete from public.goal_shares
+    where goal_id = p_id;
+  end if;
 
   if v_needs_xp then
     perform private.recompute_xp_for_goal_users(p_id);
@@ -325,7 +348,8 @@ begin
       coalesce((v_item->>'start_date')::date, current_date),
       nullif(v_item->>'end_date', '')::date,
       nullif(v_item->>'default_local_time', ''),
-      nullif(v_item->>'team_id', '')::uuid
+      nullif(v_item->>'team_id', '')::uuid,
+      coalesce((v_item->>'is_private')::boolean, false)
     );
     v_ids := array_append(v_ids, v_id);
   end loop;
@@ -345,7 +369,24 @@ using (
     select 1
     from public.goals goal
     where goal.owner_id = profiles.id
-      and public.can_view_goal(goal.id, (select auth.uid()))
+      and goal.is_deleted = false
+      and (
+        exists (
+          select 1
+          from public.goal_shares share
+          where share.goal_id = goal.id
+            and share.shared_with = (select auth.uid())
+        )
+        or (
+          goal.team_id is not null
+          and exists (
+            select 1
+            from public.team_members member
+            where member.team_id = goal.team_id
+              and member.user_id = (select auth.uid())
+          )
+        )
+      )
   )
   or exists (
     select 1
@@ -356,6 +397,115 @@ using (
       and public.can_view_goal(goal.id, profiles.id)
   )
 );
+
+create or replace function public.can_view_goal(p_goal_id uuid, p_uid uuid)
+returns boolean
+language sql
+security definer
+stable
+set search_path = ''
+as $$
+  select exists (
+    select 1
+    from public.goals goal
+    left join public.goal_shares share
+      on share.goal_id = goal.id
+      and share.shared_with = p_uid
+    where goal.id = p_goal_id
+      and goal.is_deleted = false
+      and (
+        goal.owner_id = p_uid
+        or share.shared_with is not null
+        or (
+          goal.team_id is not null
+          and exists (
+            select 1
+            from public.team_members member
+            where member.team_id = goal.team_id
+              and member.user_id = p_uid
+          )
+        )
+        or (
+          goal.team_id is null
+          and goal.is_private = false
+          and private.is_active_team_pair(goal.owner_id, p_uid)
+        )
+      )
+  );
+$$;
+
+create or replace function public.get_team_goal_progress(p_goal_id uuid)
+returns table (
+  user_id uuid,
+  username text,
+  display_name text,
+  completion_count integer
+)
+language plpgsql
+security definer
+stable
+set search_path = ''
+as $$
+declare
+  v_uid uuid := (select auth.uid());
+  v_team_id uuid;
+begin
+  if v_uid is null then
+    raise exception using
+      errcode = '42501',
+      message = 'authentication required';
+  end if;
+
+  if not public.can_view_goal(p_goal_id, v_uid) then
+    raise exception using
+      errcode = '42501',
+      message = 'not authorized for goal';
+  end if;
+
+  select goal.team_id
+  into v_team_id
+  from public.goals goal
+  where goal.id = p_goal_id
+    and goal.is_deleted = false;
+
+  if v_team_id is null then
+    raise exception using
+      errcode = '22023',
+      message = 'team_goal_required';
+  end if;
+
+  return query
+  select
+    member.user_id,
+    profile.username,
+    profile.display_name,
+    count(completion.id)::integer as completion_count
+  from public.team_members member
+  join public.profiles profile on profile.id = member.user_id
+  left join public.completions completion
+    on completion.goal_id = p_goal_id
+    and completion.user_id = member.user_id
+  where member.team_id = v_team_id
+  group by member.user_id, profile.username, profile.display_name
+  order by member.user_id;
+end;
+$$;
+
+drop policy if exists goals_select_related_users on public.goals;
+create policy goals_select_related_users
+on public.goals
+for select
+to authenticated
+using (public.can_view_goal(id, (select auth.uid())));
+
+drop policy if exists completions_select_viewable_goal on public.completions;
+create policy completions_select_viewable_goal
+on public.completions
+for select
+to authenticated
+using (public.can_view_goal(goal_id, (select auth.uid())));
+
+drop function if exists public.can_view_goal_content(uuid, uuid);
 
 drop table if exists public.goal_participants cascade;
 alter table public.goals drop column if exists is_group;
@@ -373,21 +523,21 @@ grant select on table public.team_members to authenticated;
 revoke all on function public.create_goal(
   uuid, text, text, text, text, text, text,
   public.goal_frequency_type, public.recurrence_interval,
-  integer, text[], date, date, text, uuid
+  integer, text[], date, date, text, uuid, boolean
 ) from public, anon;
 grant execute on function public.create_goal(
   uuid, text, text, text, text, text, text,
   public.goal_frequency_type, public.recurrence_interval,
-  integer, text[], date, date, text, uuid
+  integer, text[], date, date, text, uuid, boolean
 ) to authenticated;
 
 revoke all on function public.update_goal(
   uuid, text, text, text, text, text, text,
   public.goal_frequency_type, public.recurrence_interval,
-  integer, text[], date, date, text, uuid
+  integer, text[], date, date, text, uuid, boolean
 ) from public, anon;
 grant execute on function public.update_goal(
   uuid, text, text, text, text, text, text,
   public.goal_frequency_type, public.recurrence_interval,
-  integer, text[], date, date, text, uuid
+  integer, text[], date, date, text, uuid, boolean
 ) to authenticated;

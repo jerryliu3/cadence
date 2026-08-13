@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions, pg_catalog;
-select plan(28);
+select plan(31);
 
 -- Pin the five dropped client-PostgREST triggers.
 select hasnt_trigger(
@@ -456,6 +456,67 @@ select is(
   ),
   20,
   'update_goal target_count change recomputes and drops achievement XP'
+);
+
+reset role;
+set local role service_role;
+insert into public.goal_shares (goal_id, shared_with)
+values (
+  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',
+  '33333333-3333-4333-8333-333333333333'
+);
+reset role;
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config(
+  'request.jwt.claim.sub',
+  '11111111-1111-4111-8111-111111111111',
+  true
+);
+
+select ok(
+  public.can_view_goal(
+    'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',
+    '33333333-3333-4333-8333-333333333333'
+  ),
+  'sharee can view a shared personal goal'
+);
+
+select public.update_goal(
+  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',
+  'Write boundary goal',
+  'desc',
+  null,
+  'health',
+  'health',
+  '#0ea5e9',
+  'recurring',
+  'daily',
+  null,
+  null,
+  current_date,
+  null,
+  null,
+  null,
+  true
+);
+
+select is(
+  (
+    select count(*)::integer
+    from public.goal_shares
+    where goal_id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1'
+  ),
+  0,
+  'marking a goal private revokes its shares'
+);
+
+select ok(
+  not public.can_view_goal(
+    'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',
+    '33333333-3333-4333-8333-333333333333'
+  ),
+  'former sharee cannot view after privacy revoke'
 );
 
 select * from finish();

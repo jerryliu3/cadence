@@ -158,14 +158,6 @@ select ok(
 );
 
 select ok(
-  public.can_view_goal_content(
-    'bf400000-0000-4000-8000-000000000001',
-    'bf222222-2222-4222-8222-222222222222'
-  ),
-  'team member can view team-id goal content'
-);
-
-select ok(
   public.can_complete_goal(
     'bf400000-0000-4000-8000-000000000001',
     'bf222222-2222-4222-8222-222222222222'
@@ -173,8 +165,14 @@ select ok(
   'team member can complete a team-id goal'
 );
 
+select hasnt_function(
+  'public',
+  'can_view_goal_content',
+  'can_view_goal_content is folded into can_view_goal'
+);
+
 select ok(
-  public.can_view_goal_content(
+  public.can_view_goal(
     'bf400000-0000-4000-8000-000000000002',
     'bf222222-2222-4222-8222-222222222222'
   ),
@@ -190,7 +188,7 @@ select ok(
 );
 
 select ok(
-  not public.can_view_goal_content(
+  not public.can_view_goal(
     'bf400000-0000-4000-8000-000000000003',
     'bf222222-2222-4222-8222-222222222222'
   ),

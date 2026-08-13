@@ -1899,10 +1899,6 @@ export type Database = {
         Args: { p_goal_id: string; p_uid: string }
         Returns: boolean
       }
-      can_view_goal_content: {
-        Args: { p_goal_id: string; p_uid: string }
-        Returns: boolean
-      }
       claim_notification_outbox_service: {
         Args: { p_limit?: number }
         Returns: {
@@ -1947,6 +1943,7 @@ export type Database = {
           p_end_date?: string
           p_frequency_type?: Database["public"]["Enums"]["goal_frequency_type"]
           p_id: string
+          p_is_private?: boolean
           p_milestone_names?: string[]
           p_recurrence_interval?: Database["public"]["Enums"]["recurrence_interval"]
           p_reward_text?: string
@@ -2276,6 +2273,7 @@ export type Database = {
           p_end_date?: string
           p_frequency_type?: Database["public"]["Enums"]["goal_frequency_type"]
           p_id: string
+          p_is_private?: boolean
           p_milestone_names?: string[]
           p_recurrence_interval?: Database["public"]["Enums"]["recurrence_interval"]
           p_reward_text?: string

@@ -464,6 +464,7 @@ export function GoalForm({
       p_end_date: state.end_date || undefined,
       p_default_local_time: state.default_local_time.trim() || undefined,
       p_team_id: state.team_id ?? undefined,
+      p_is_private: state.team_id ? false : state.is_private,
     };
 
     const savedGoalId = goalArgs.p_id;
@@ -969,21 +970,23 @@ export function GoalForm({
                     ) : null}
                   </div>
 
-                  <div className="rounded-xl border bg-background/70 p-3">
-                    <label className="flex items-start gap-3 text-sm">
-                      <input
-                        type="checkbox"
-                        className="mt-1"
-                        checked={state.is_private}
-                        onChange={(event) =>
-                          setState((prev) => ({ ...prev, is_private: event.target.checked }))
-                        }
-                      />
-                      <span>
-                        Keep this goal private (hidden from the social feed and from your team).
-                      </span>
-                    </label>
-                  </div>
+                  {state.team_id === null ? (
+                    <div className="rounded-xl border bg-background/70 p-3">
+                      <label className="flex items-start gap-3 text-sm">
+                        <input
+                          type="checkbox"
+                          className="mt-1"
+                          checked={state.is_private}
+                          onChange={(event) =>
+                            setState((prev) => ({ ...prev, is_private: event.target.checked }))
+                          }
+                        />
+                        <span>
+                          Keep this goal private (hidden from your partner, the social feed, and any shares).
+                        </span>
+                      </label>
+                    </div>
+                  ) : null}
 
                   {state.team_id === null ? (
                     <GoalLinkTargetSelect
