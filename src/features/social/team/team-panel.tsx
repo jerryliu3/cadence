@@ -13,6 +13,7 @@ import {
 } from "@/features/social/data";
 import type { TeamStateRow } from "@/features/social/types";
 import { NudgeButton } from "@/features/social/team/nudge-button";
+import { PartnerPlan } from "@/features/social/team/partner-plan";
 
 export function TeamPanel() {
   const [rows, setRows] = useState<TeamStateRow[]>([]);
@@ -118,6 +119,8 @@ export function TeamPanel() {
           {error ? <p className="text-xs text-destructive md:col-span-3">{error}</p> : null}
         </CardContent>
       </Card>
+
+      {activeTeam ? <PartnerPlan partnerId={activeTeam.partnerId} /> : null}
 
       <Card className="shadow-sm">
         <CardHeader>

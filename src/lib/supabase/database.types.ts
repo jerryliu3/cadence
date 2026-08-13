@@ -1408,6 +1408,51 @@ export type Database = {
           },
         ]
       }
+      planner_proposals: {
+        Row: {
+          applied_digest: string | null
+          baseline_schedule_digest: string
+          created_at: string
+          decided_at: string | null
+          id: string
+          note: string | null
+          operations: Json
+          proposer_id: string
+          scope_month: string
+          status: Database["public"]["Enums"]["planner_proposal_status"]
+          target_owner_id: string
+          team_id: string
+        }
+        Insert: {
+          applied_digest?: string | null
+          baseline_schedule_digest: string
+          created_at?: string
+          decided_at?: string | null
+          id?: string
+          note?: string | null
+          operations: Json
+          proposer_id: string
+          scope_month: string
+          status?: Database["public"]["Enums"]["planner_proposal_status"]
+          target_owner_id: string
+          team_id: string
+        }
+        Update: {
+          applied_digest?: string | null
+          baseline_schedule_digest?: string
+          created_at?: string
+          decided_at?: string | null
+          id?: string
+          note?: string | null
+          operations?: Json
+          proposer_id?: string
+          scope_month?: string
+          status?: Database["public"]["Enums"]["planner_proposal_status"]
+          target_owner_id?: string
+          team_id?: string
+        }
+        Relationships: []
+      }
       planner_items: {
         Row: {
           created_at: string
@@ -1548,24 +1593,30 @@ export type Database = {
       team_preferences: {
         Row: {
           allow_nudges: boolean
+          allow_proposals: boolean
           notify_partner_activity: boolean
           share_completions: boolean
+          share_planner: boolean
           team_id: string
           updated_at: string
           user_id: string
         }
         Insert: {
           allow_nudges?: boolean
+          allow_proposals?: boolean
           notify_partner_activity?: boolean
           share_completions?: boolean
+          share_planner?: boolean
           team_id: string
           updated_at?: string
           user_id: string
         }
         Update: {
           allow_nudges?: boolean
+          allow_proposals?: boolean
           notify_partner_activity?: boolean
           share_completions?: boolean
+          share_planner?: boolean
           team_id?: string
           updated_at?: string
           user_id?: string
@@ -2002,6 +2053,15 @@ export type Database = {
         Args: { p_message?: string; p_partner_id: string }
         Returns: string
       }
+      create_planner_proposal_service: {
+        Args: {
+          p_note?: string
+          p_operations: Json
+          p_scope_month: string
+          p_target_owner_id: string
+        }
+        Returns: string
+      }
       decline_team_invite_service: {
         Args: { p_team_id: string }
         Returns: boolean
@@ -2056,6 +2116,36 @@ export type Database = {
       get_partner_profile_service: {
         Args: { p_owner_id: string }
         Returns: Json
+      }
+      get_planner_proposals_service: {
+        Args: { p_scope_month?: string }
+        Returns: {
+          applied_digest: string
+          baseline_schedule_digest: string
+          created_at: string
+          decided_at: string
+          id: string
+          note: string
+          operations: Json
+          proposer_id: string
+          scope_month: string
+          status: string
+          target_owner_id: string
+          team_id: string
+        }[]
+      }
+      get_team_partner_plan_service: {
+        Args: { p_scope_month: string }
+        Returns: {
+          goal_id: string
+          goal_title: string
+          item_id: string
+          locked: boolean
+          owner_id: string
+          scheduled_date: string
+          scheduled_time: string
+          unit_key: string
+        }[]
       }
       get_planner_schedule_digest: {
         Args: { p_owner?: string }
@@ -2219,6 +2309,15 @@ export type Database = {
         Args: { p_error?: string; p_outbox_id: string; p_sent: boolean }
         Returns: boolean
       }
+      resolve_planner_proposal_service: {
+        Args: {
+          p_applied_digest?: string
+          p_proposal_id: string
+          p_resolution: string
+        }
+        Returns: boolean
+      }
+      expire_planner_proposals_service: { Args: never; Returns: number }
       rollover_leaderboard_seasons_service: { Args: never; Returns: number }
       save_planner_coach_conversation_service: {
         Args: {
@@ -2365,6 +2464,13 @@ export type Database = {
       notification_state: "pending" | "sent" | "failed" | "skipped"
       nudge_kind: "cheer" | "remind" | "custom"
       participant_role: "owner" | "participant"
+      planner_proposal_status:
+        | "pending"
+        | "accepted"
+        | "rejected"
+        | "withdrawn"
+        | "stale"
+        | "expired"
       reaction_kind: "cheer" | "fire" | "clap" | "strong"
       recurrence_interval: "daily" | "weekly" | "monthly"
       social_audience_kind: "global" | "cohort"
@@ -2555,6 +2661,14 @@ export const Constants = {
       notification_state: ["pending", "sent", "failed", "skipped"],
       nudge_kind: ["cheer", "remind", "custom"],
       participant_role: ["owner", "participant"],
+      planner_proposal_status: [
+        "pending",
+        "accepted",
+        "rejected",
+        "withdrawn",
+        "stale",
+        "expired",
+      ],
       reaction_kind: ["cheer", "fire", "clap", "strong"],
       recurrence_interval: ["daily", "weekly", "monthly"],
       social_audience_kind: ["global", "cohort"],
