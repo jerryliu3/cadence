@@ -196,6 +196,9 @@ select ok(
   'direct goal_links delete is a no-op under RLS'
 );
 
+-- Seed now gives Alice an active team; this file needs a fresh pair for team-goal writes.
+select public.dissolve_team_service();
+
 select set_config(
   'request.team_id',
   public.create_team_invite_service('aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeee2', null)::text,

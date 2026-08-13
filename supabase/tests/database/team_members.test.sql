@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, private, extensions, pg_catalog;
-select plan(14);
+select plan(18);
 
 insert into auth.users (id, email)
 values
@@ -178,6 +178,71 @@ select is(
   private.active_team_for_user('af111111-1111-4111-8111-111111111111'),
   current_setting('request.team_ab')::uuid,
   'active_team_for_user resolves through team_members'
+);
+
+select is(
+  private.team_id_for_pair(
+    'af111111-1111-4111-8111-111111111111',
+    'af222222-2222-4222-8222-222222222222'
+  ),
+  current_setting('request.team_ab')::uuid,
+  'team_id_for_pair returns the shared active team'
+);
+
+select is(
+  (
+    select count(*)::integer
+    from public.team_preferences pref
+    where pref.team_id = current_setting('request.team_ab')::uuid
+  ),
+  2,
+  'accept fans team_preferences out to every member'
+);
+
+reset role;
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config(
+  'request.jwt.claim.sub',
+  'af111111-1111-4111-8111-111111111111',
+  true
+);
+select is(
+  (
+    select count(*)::integer
+    from public.get_team_state()
+    where team_id = current_setting('request.team_ab')::uuid
+  ),
+  1,
+  'get_team_state returns one row per duo team'
+);
+
+reset role;
+alter table public.team_members disable trigger team_members_assert_cap;
+insert into public.team_members (team_id, user_id, role)
+values (
+  current_setting('request.team_ab')::uuid,
+  'af333333-3333-4333-8333-333333333333',
+  'member'
+);
+alter table public.team_members enable trigger team_members_assert_cap;
+
+reset role;
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config(
+  'request.jwt.claim.sub',
+  'af111111-1111-4111-8111-111111111111',
+  true
+);
+select is(
+  (
+    select count(*)::integer
+    from public.get_team_state()
+    where team_id = current_setting('request.team_ab')::uuid
+  ),
+  1,
+  'get_team_state stays one row if the duo cap is bypassed'
 );
 
 select * from finish();

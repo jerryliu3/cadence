@@ -201,6 +201,10 @@ export type Database = {
         Returns: boolean
       }
       team_display_name: { Args: { p_team_id: string }; Returns: string }
+      team_id_for_pair: {
+        Args: { p_user_a: string; p_user_b: string }
+        Returns: string
+      }
       team_in_cohort: {
         Args: { p_cohort_id: string; p_team_id: string }
         Returns: boolean
