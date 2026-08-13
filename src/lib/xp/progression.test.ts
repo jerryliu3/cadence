@@ -1,16 +1,41 @@
 import { describe, expect, it } from "vitest";
 import {
   MAX_LEVEL,
-  PROGRESSION_VECTORS,
   levelForTotalXp,
   minTotalXpForLevel,
   progressionForTotalXp,
 } from "@/lib/xp/progression";
 
+// Mirrored in supabase/tests/database/xp_formula_progression.test.sql. Award
+// grant/revoke reads the SQL curve while /api/xp/profile reads the TS one, so
+// editing the curve on one side without the other must fail here or there.
+const PROGRESSION_VECTORS = {
+  minTotalXpForLevel: [
+    { level: 1, minTotalXp: 0 },
+    { level: 2, minTotalXp: 100 },
+    { level: 3, minTotalXp: 300 },
+    { level: 10, minTotalXp: 4500 },
+    { level: 11, minTotalXp: 5500 },
+    { level: 12, minTotalXp: 6600 },
+    { level: 1000, minTotalXp: 49_950_000 },
+  ],
+  levelForTotalXp: [
+    { totalXp: 0, level: 1 },
+    { totalXp: 99, level: 1 },
+    { totalXp: 100, level: 2 },
+    { totalXp: 299, level: 2 },
+    { totalXp: 300, level: 3 },
+    { totalXp: 1000, level: 5 },
+    { totalXp: 4500, level: 10 },
+    { totalXp: 5500, level: 11 },
+    { totalXp: 49_850_100, level: 999 },
+    { totalXp: 49_949_999, level: 999 },
+    { totalXp: 49_950_000, level: 1000 },
+    { totalXp: 99_999_999, level: 1000 },
+  ],
+} as const;
+
 describe("XP progression", () => {
-  // These vectors are mirrored in
-  // supabase/tests/database/xp_formula_progression.test.sql. Editing the curve
-  // on one side without the other must fail here or there.
   it.each(PROGRESSION_VECTORS.minTotalXpForLevel)(
     "level $level starts at $minTotalXp XP",
     ({ level, minTotalXp }) => {

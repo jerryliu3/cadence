@@ -1,5 +1,8 @@
 -- One quadratic drives every level: min_total_xp(L) = 50 * L * (L - 1).
--- xp_levels keeps only editorial content (level + title) for levels 1-10.
+--
+-- xp_levels shrinks to levels 1-10 and keeps only level + title. It survives
+-- because xp_rewards.level references it; nothing currently reads title, so if
+-- rewards ever stop keying off level the whole table can go.
 --
 -- This changes the shipped curve. Level 3+ thresholds all move upward
 -- (level 10 goes from 3200 to 4500), so stored current_level values are
@@ -63,10 +66,6 @@ alter table public.xp_profiles
 alter table public.xp_profiles
   drop constraint if exists xp_profiles_current_level_range;
 
-alter table public.xp_profiles
-  add constraint xp_profiles_current_level_range
-  check (current_level between 1 and 1000);
-
 delete from public.xp_levels
 where level > 10;
 
@@ -76,11 +75,17 @@ alter table public.xp_levels
   drop column if exists min_total_xp;
 
 -- The curve changed, so stored levels are stale until each row's next XP event.
+-- Backfill before adding the range check so the constraint validates corrected
+-- rows rather than depending on the dropped FK having bounded them.
 update public.xp_profiles
 set
   current_level = private.xp_level_for_total(total_xp),
   updated_at = pg_catalog.now()
 where current_level <> private.xp_level_for_total(total_xp);
+
+alter table public.xp_profiles
+  add constraint xp_profiles_current_level_range
+  check (current_level between 1 and 1000);
 
 revoke all on function private.xp_min_total_for_level(integer) from public, anon, authenticated;
 revoke all on function private.xp_level_for_total(integer) from public, anon, authenticated;

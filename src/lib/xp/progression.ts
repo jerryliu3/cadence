@@ -4,9 +4,9 @@
 //
 // Both sides matter: /api/xp/profile reads this module, while award
 // grant/revoke in private.refresh_xp_profile reads the SQL functions. The
-// vectors in PROGRESSION_VECTORS are mirrored in
+// vectors in progression.test.ts are mirrored in
 // supabase/tests/database/xp_formula_progression.test.sql so a one-sided edit
-// fails on one side or the other.
+// to the curve fails on one side or the other.
 //
 // Point values (manual completion, cascade multiplier, goal achievement) are
 // SQL literals in private.xp_manual_completion_points and friends. They are
@@ -21,33 +21,6 @@ export interface XpProgression {
   nextLevelMinXp: number | null;
   xpToNextLevel: number | null;
 }
-
-/** Shared with the SQL test. Keep both lists identical. */
-export const PROGRESSION_VECTORS = {
-  minTotalXpForLevel: [
-    { level: 1, minTotalXp: 0 },
-    { level: 2, minTotalXp: 100 },
-    { level: 3, minTotalXp: 300 },
-    { level: 10, minTotalXp: 4500 },
-    { level: 11, minTotalXp: 5500 },
-    { level: 12, minTotalXp: 6600 },
-    { level: 1000, minTotalXp: 49_950_000 },
-  ],
-  levelForTotalXp: [
-    { totalXp: 0, level: 1 },
-    { totalXp: 99, level: 1 },
-    { totalXp: 100, level: 2 },
-    { totalXp: 299, level: 2 },
-    { totalXp: 300, level: 3 },
-    { totalXp: 1000, level: 5 },
-    { totalXp: 4500, level: 10 },
-    { totalXp: 5500, level: 11 },
-    { totalXp: 49_850_100, level: 999 },
-    { totalXp: 49_949_999, level: 999 },
-    { totalXp: 49_950_000, level: 1000 },
-    { totalXp: 99_999_999, level: 1000 },
-  ],
-} as const;
 
 export function minTotalXpForLevel(level: number): number {
   const clamped = Math.min(MAX_LEVEL, Math.max(1, Math.trunc(level)));

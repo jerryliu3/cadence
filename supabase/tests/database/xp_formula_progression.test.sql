@@ -3,7 +3,7 @@ create extension if not exists pgtap with schema extensions;
 set local search_path = public, private, extensions, pg_catalog;
 select plan(6);
 
--- Vectors mirrored from PROGRESSION_VECTORS in src/lib/xp/progression.ts.
+-- Vectors mirrored from PROGRESSION_VECTORS in src/lib/xp/progression.test.ts.
 -- Award grant/revoke reads these SQL functions while /api/xp/profile reads the
 -- TS module, so the two curves must stay identical. Editing one side without
 -- the other fails here or in src/lib/xp/progression.test.ts.
