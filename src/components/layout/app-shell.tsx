@@ -10,13 +10,14 @@ import { XpRewardProvider } from "@/components/xp/xp-reward-provider";
 import { DuoProvider } from "@/features/social/duo/duo-context";
 import { DuoScopeToggle } from "@/features/social/duo/duo-scope-toggle";
 import { setTabDataCacheScope } from "@/lib/cache/tab-data-cache";
-import type { DuoContextState, DuoScope } from "@/lib/social/duo/types";
+import type { DuoAvailability, DuoContextState, DuoScope } from "@/lib/social/duo/types";
 
 interface AppShellProps {
   children: ReactNode;
   userId: string;
   goalSheet?: ReactNode;
   duoState: DuoContextState;
+  duoAvailability: DuoAvailability;
   initialDuoScopePreference: DuoScope | null;
 }
 
@@ -25,6 +26,7 @@ export function AppShell({
   userId,
   goalSheet,
   duoState,
+  duoAvailability,
   initialDuoScopePreference,
 }: AppShellProps) {
   setTabDataCacheScope(userId);
@@ -44,7 +46,9 @@ export function AppShell({
   return (
     <XpRewardProvider>
       <DuoProvider
+        viewerUserId={userId}
         initialState={duoState}
+        availability={duoAvailability}
         initialScopePreference={initialDuoScopePreference}
       >
         <div className="flex min-h-screen w-full justify-center px-4 py-4 sm:px-6 sm:py-6">

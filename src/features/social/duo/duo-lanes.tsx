@@ -46,7 +46,7 @@ export function DuoLanes({
     >
       {lanes.map((subject) => (
         <section key={subject.id} className="space-y-2">
-          {lanes.length > 1 ? (
+          {scope !== "me" ? (
             <div className="flex items-center gap-2 px-1">
               <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                 {subject.label}

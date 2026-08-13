@@ -17,14 +17,20 @@ export function reportDuoTelemetry(
   if (!process.env.NEXT_PUBLIC_SENTRY_DSN?.trim()) {
     return;
   }
+  const data = {
+    deviceClass: deviceClass(),
+    ...extras,
+  };
   Sentry.addBreadcrumb({
     category: "duo",
     message: event,
     level: "info",
-    data: {
-      deviceClass: deviceClass(),
-      ...extras,
-    },
+    data,
+  });
+  Sentry.captureMessage(`duo.${event}`, {
+    level: "info",
+    tags: { area: "duo", duoEvent: event },
+    extra: data,
   });
 }
 
