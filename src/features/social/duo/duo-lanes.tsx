@@ -24,7 +24,7 @@ export function DuoLanes({
   partner: DuoLaneSubject | null;
   renderLane: (subject: DuoLaneSubject) => ReactNode;
   className?: string;
-}): JSX.Element {
+}): ReactNode {
   const lanes =
     scope === "partner"
       ? partner
