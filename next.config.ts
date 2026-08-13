@@ -5,6 +5,7 @@ const nextConfig: NextConfig = {
   experimental: {
     viewTransition: true,
   },
+  transpilePackages: ["@cadence/shared"],
   images: {
     remotePatterns: [
       {
