@@ -16,11 +16,14 @@ import { DuoLanes, type DuoLaneSubject } from "@/features/social/duo/duo-lanes";
 import { useDuoScope } from "@/features/social/duo/duo-context";
 import { useClientSearchParamsUpdater } from "@/lib/navigation/use-client-search-params-updater";
 import { reportDuoTelemetry } from "@/lib/social/duo/telemetry";
+import { DUO_SURFACE_DEFAULTS } from "@/lib/social/duo/surface-defaults";
 
 export function ChecklistShell() {
   const searchParams = useSearchParams();
   const { applySearchParams } = useClientSearchParamsUpdater();
-  const { scope, activePartner, setScopePreference } = useDuoScope("me");
+  const { scope, activePartner, setScopePreference } = useDuoScope(
+    DUO_SURFACE_DEFAULTS.checklist
+  );
   const swipeStartRef = useRef<{ x: number; y: number } | null>(null);
   const rawTab = searchParams.get("tab");
   const normalizedTab: ChecklistTabValue = useMemo(() => {
@@ -132,7 +135,6 @@ export function ChecklistShell() {
               onActiveTabChange={(tab) => updateTab(tab, "push")}
               hideTabList
               isActive
-              laneLabel={subject.label}
               subjectUserId={subject.userId}
               readOnly={subject.readOnly}
               partnerSummary={
