@@ -383,6 +383,163 @@ describe("usePlannerCoach", () => {
     );
   });
 
+  it("does not replan or persist when every coach session move is missing from the calendar", async () => {
+    applyCoachPolicyPatchesMock.mockReturnValue({
+      policy: buildPolicy(),
+      appliedPatchCount: 0,
+      ignoredPatchCount: 0,
+      noOpPatchCount: 0,
+      unsupportedPatchCount: 0,
+    });
+    requestPlannerCoachReplyMock.mockResolvedValue({
+      schemaVersion: "1",
+      phase: "ready",
+      reply: "Move those sessions.",
+      proposal: {
+        policyPatches: [
+          {
+            kind: "move_session",
+            goalId: "11111111-1111-4111-8111-111111111111",
+            unitKey: "unit-1",
+            scheduledDate: "2026-08-12",
+          },
+          {
+            kind: "move_session",
+            goalId: "22222222-2222-4222-8222-222222222222",
+            unitKey: "unit-2",
+            scheduledDate: "2026-08-13",
+          },
+        ],
+        unresolvedQuestions: [],
+      },
+      recommendations: [],
+      warnings: [],
+    });
+    const context = buildContext();
+    const refreshDraftPreviewMock = vi.fn().mockResolvedValue(context.preview);
+    const applyPolicyReplanMovesMock = vi
+      .fn()
+      .mockResolvedValue({ moveCount: 0, movedEntryKeys: [] });
+    const queueDraftMoveCommandMock = vi.fn().mockReturnValue(false);
+    const { result } = renderHook(() =>
+      usePlannerCoach(
+        buildArgs({
+          activeTab: "calendar",
+          context,
+          entriesByDate: new Map(),
+          effectivePreview: context.preview,
+          refreshDraftPreview: refreshDraftPreviewMock,
+          applyPolicyReplanMoves: applyPolicyReplanMovesMock,
+          queueDraftMoveCommand: queueDraftMoveCommandMock,
+        })
+      )
+    );
+
+    await waitFor(() => expect(loadCoachSessionMock).toHaveBeenCalled());
+    act(() => {
+      result.current.actions.setCoachInput("Move my sessions");
+    });
+    await act(async () => {
+      await result.current.actions.sendCoachMessage();
+    });
+
+    expect(queueDraftMoveCommandMock).not.toHaveBeenCalled();
+    expect(applyPolicyReplanMovesMock).not.toHaveBeenCalled();
+    expect(refreshDraftPreviewMock).not.toHaveBeenCalled();
+    expect(persistPlannerDefaultPolicyMock).not.toHaveBeenCalled();
+    expect(toastSuccessMock).not.toHaveBeenCalled();
+    expect(toastErrorMock).toHaveBeenCalledTimes(1);
+    expect(toastErrorMock).toHaveBeenCalledWith(
+      "Coach could not move 2 sessions that are not on the calendar."
+    );
+    expect(result.current.state.coachMessages.at(-1)?.proposal?.applyStatus).toBe(
+      "not_applied"
+    );
+
+    const proposalIndex = result.current.state.coachMessages.findIndex(
+      (message) => message.role === "assistant" && Boolean(message.proposal)
+    );
+    await act(async () => {
+      await result.current.actions.applyCoachProposal(proposalIndex);
+    });
+
+    expect(persistPlannerDefaultPolicyMock).not.toHaveBeenCalled();
+    expect(applyPolicyReplanMovesMock).not.toHaveBeenCalled();
+    expect(
+      result.current.state.coachMessages[proposalIndex]?.proposal?.applyStatus
+    ).toBe("not_applied");
+  });
+
+  it("does not treat rejected session queues as a successful apply", async () => {
+    const goalId = "11111111-1111-4111-8111-111111111111";
+    applyCoachPolicyPatchesMock.mockReturnValue({
+      policy: buildPolicy(),
+      appliedPatchCount: 0,
+      ignoredPatchCount: 0,
+      noOpPatchCount: 0,
+      unsupportedPatchCount: 0,
+    });
+    requestPlannerCoachReplyMock.mockResolvedValue({
+      schemaVersion: "1",
+      phase: "ready",
+      reply: "Move that session.",
+      proposal: {
+        policyPatches: [
+          {
+            kind: "move_session",
+            goalId,
+            unitKey: "unit-1",
+            scheduledDate: "2026-08-12",
+          },
+        ],
+        unresolvedQuestions: [],
+      },
+      recommendations: [],
+      warnings: [],
+    });
+    const context = buildContext();
+    const refreshDraftPreviewMock = vi.fn().mockResolvedValue(context.preview);
+    const applyPolicyReplanMovesMock = vi
+      .fn()
+      .mockResolvedValue({ moveCount: 0, movedEntryKeys: [] });
+    const queueDraftMoveCommandMock = vi.fn().mockReturnValue(false);
+    const { result } = renderHook(() =>
+      usePlannerCoach(
+        buildArgs({
+          activeTab: "calendar",
+          context,
+          entriesByDate: new Map([
+            [
+              "2026-08-01",
+              [buildEntry({ originalGoalId: goalId, unitKey: "unit-1" })],
+            ],
+          ]),
+          effectivePreview: context.preview,
+          refreshDraftPreview: refreshDraftPreviewMock,
+          applyPolicyReplanMoves: applyPolicyReplanMovesMock,
+          queueDraftMoveCommand: queueDraftMoveCommandMock,
+        })
+      )
+    );
+
+    await waitFor(() => expect(loadCoachSessionMock).toHaveBeenCalled());
+    act(() => {
+      result.current.actions.setCoachInput("Move my session");
+    });
+    await act(async () => {
+      await result.current.actions.sendCoachMessage();
+    });
+
+    expect(queueDraftMoveCommandMock).toHaveBeenCalledTimes(1);
+    expect(applyPolicyReplanMovesMock).not.toHaveBeenCalled();
+    expect(refreshDraftPreviewMock).not.toHaveBeenCalled();
+    expect(persistPlannerDefaultPolicyMock).not.toHaveBeenCalled();
+    expect(toastSuccessMock).not.toHaveBeenCalled();
+    expect(result.current.state.coachMessages.at(-1)?.proposal?.applyStatus).toBe(
+      "not_applied"
+    );
+  });
+
   it("keeps the latest proposal available across later non-proposal replies", async () => {
     applyCoachPolicyPatchesMock.mockReturnValue({
       policy: buildPolicy(),

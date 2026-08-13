@@ -141,4 +141,20 @@ describe("shouldKeepDraftCommandForPreview", () => {
       })
     ).toBe(true);
   });
+
+  it("keeps an unpaired source-clear after an A→B→A round trip leaves a null move on a month that never held the entry", () => {
+    const leftoverClear = moveCommand(null);
+    const returnClaim = moveCommand("2026-08-12", "44444444-4444-4444-8444-444444444444");
+    expect(
+      shouldKeepDraftCommandForPreview({
+        command: leftoverClear,
+        scopeMonth: "2026-09",
+        previewEntryKeys: new Set(),
+        commandsByScope: {
+          "2026-09": [leftoverClear],
+          "2026-08": [returnClaim],
+        },
+      })
+    ).toBe(true);
+  });
 });

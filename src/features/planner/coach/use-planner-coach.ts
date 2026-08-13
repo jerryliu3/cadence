@@ -158,28 +158,41 @@ export function usePlannerCoach({
         (patch): patch is Extract<CoachPolicyPatch, { kind: "move_session" }> =>
           patch.kind === "move_session"
       );
-      if (sessionMoves.length > 0) {
-        for (const move of sessionMoves) {
-          const entry = [...entriesByDate.values()]
-            .flat()
-            .find(
-              (item) =>
-                item.originalGoalId === move.goalId &&
-                item.unitKey === move.unitKey &&
-                !item.draftGhost
-            );
-          if (!entry) {
-            toast.error("Coach could not move a session that is not on the calendar.");
-            continue;
-          }
+      const calendarEntries = [...entriesByDate.values()].flat();
+      let queuedSessionMoves = 0;
+      let missingSessionMoves = 0;
+      for (const move of sessionMoves) {
+        const entry = calendarEntries.find(
+          (item) =>
+            item.originalGoalId === move.goalId &&
+            item.unitKey === move.unitKey &&
+            !item.draftGhost
+        );
+        if (!entry) {
+          missingSessionMoves += 1;
+          continue;
+        }
+        if (
           queueDraftMoveCommand({
             entry,
             nextDate: move.scheduledDate,
             source: "coach",
-          });
+          })
+        ) {
+          queuedSessionMoves += 1;
         }
       }
-      if (result.appliedPatchCount === 0 && sessionMoves.length === 0) {
+      if (missingSessionMoves > 0) {
+        toast.error(
+          missingSessionMoves === 1
+            ? "Coach could not move a session that is not on the calendar."
+            : `Coach could not move ${missingSessionMoves} sessions that are not on the calendar.`
+        );
+      }
+      if (result.appliedPatchCount === 0 && queuedSessionMoves === 0) {
+        if (sessionMoves.length > 0) {
+          return { status: "failed", movedEntryKeys: [] };
+        }
         if (result.noOpPatchCount > 0 && result.unsupportedPatchCount === 0) {
           appendCoachContextEvent("Coach proposal already matched current draft");
           toast.success(
