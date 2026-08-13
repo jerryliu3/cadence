@@ -75,6 +75,12 @@ export function isProgressContextRequestError(
   return error instanceof ProgressContextRequestError;
 }
 
+export function isProgressContextAuthenticationError(
+  error: unknown
+): error is ProgressContextAuthenticationError {
+  return error instanceof ProgressContextAuthenticationError;
+}
+
 export function invalidateProgressContextCache() {
   invalidateTabDataCacheByPrefix(PROGRESS_CONTEXT_CACHE_PREFIX);
 }
