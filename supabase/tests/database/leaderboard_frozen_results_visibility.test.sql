@@ -15,6 +15,13 @@ values
   ('ad222222-2222-4222-8222-222222222222', 'frozen_visible_b')
 on conflict (id) do nothing;
 
+update public.profiles profile
+set social_activity_visible = true
+where profile.id in (
+  'ad111111-1111-4111-8111-111111111111',
+  'ad222222-2222-4222-8222-222222222222'
+);
+
 set local role service_role;
 
 update public.profiles profile
