@@ -45,6 +45,8 @@ import {
 import { ChecklistTodayGroups } from "@/features/today/checklist-today-groups";
 import { TodayHeaderCard } from "@/features/today/today-header-card";
 import { GoalCard } from "@/features/today/goal-card";
+import { useChecklistData } from "@/features/today/use-checklist-data";
+import { captureViewportRect } from "@/lib/xp/events";
 import { PartnerChecklistStrip } from "@/features/social/duo/partner-checklist-strip";
 import type { DuoActivePartner } from "@/lib/social/duo/types";
 import { buildCompletableGoalIds, selectCompletableGoals } from "@/lib/goals/completable-goals";
