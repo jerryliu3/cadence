@@ -1,4 +1,1 @@
 import "@testing-library/jest-dom/vitest";
-import { bootstrapWebPlatform } from "@/lib/platform-bootstrap";
-
-bootstrapWebPlatform();

@@ -1,8 +1,6 @@
-import { configureLightPressHaptics } from "@cadence/shared/feedback/haptics";
-
 const LIGHT_PRESS_DURATION_MS = 8;
 
-function webLightPressHaptics(): boolean {
+export function triggerLightPressFeedback(): boolean {
   if (
     typeof navigator === "undefined" ||
     typeof navigator.vibrate !== "function"
@@ -24,9 +22,3 @@ function webLightPressHaptics(): boolean {
     return false;
   }
 }
-
-export function configureWebHaptics() {
-  configureLightPressHaptics(webLightPressHaptics);
-}
-
-export { triggerLightPressFeedback } from "@cadence/shared/feedback/haptics";
