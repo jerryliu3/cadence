@@ -10,6 +10,7 @@ import {
   readTabDataCache,
   writeTabDataCache,
 } from "@/lib/cache/tab-data-cache";
+import { invalidateProgressContextCache } from "@/lib/goals/progress-context";
 
 interface SocialFeedResponse {
   schemaVersion: "1";
@@ -231,6 +232,7 @@ export async function declineSocialTeamInvite(teamId: string) {
   }
   const payload = (await response.json()) as { schemaVersion: "1"; declined: boolean };
   invalidateSocialTabCache();
+  invalidateProgressContextCache();
   return payload;
 }
 
@@ -244,6 +246,7 @@ export async function dissolveSocialTeam() {
   }
   const payload = (await response.json()) as { schemaVersion: "1"; dissolved: boolean };
   invalidateSocialTabCache();
+  invalidateProgressContextCache();
   return payload;
 }
 
