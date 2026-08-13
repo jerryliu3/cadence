@@ -7,6 +7,7 @@ import {
 } from "@/lib/api/route";
 import { isFeatureEnabled } from "@/lib/feature-flags";
 import { createClient } from "@/lib/supabase/server";
+import { levelForTotalXp, progressionForTotalXp } from "@/lib/xp/progression";
 
 export const runtime = "nodejs";
 
@@ -69,7 +70,7 @@ export async function GET() {
   ] = await Promise.all([
     supabase
       .from("xp_profiles")
-      .select("track_key, total_xp, current_level")
+      .select("track_key, total_xp")
       .eq("user_id", userId),
     supabase
       .from("xp_rewards")
@@ -106,32 +107,8 @@ export async function GET() {
   const globalProfile = xpRows.find((row) => row.track_key === "global") ?? {
     track_key: "global",
     total_xp: 0,
-    current_level: 1,
   };
-
-  const [currentLevelResponse, nextLevelResponse] = await Promise.all([
-    supabase
-      .from("xp_levels")
-      .select("min_total_xp")
-      .eq("level", globalProfile.current_level)
-      .maybeSingle(),
-    supabase
-      .from("xp_levels")
-      .select("level, min_total_xp")
-      .gt("level", globalProfile.current_level)
-      .order("level", { ascending: true })
-      .limit(1)
-      .maybeSingle(),
-  ]);
-  if (currentLevelResponse.error || nextLevelResponse.error) {
-    return xpUnavailableResponse(correlationId);
-  }
-
-  const currentLevelMinXp = currentLevelResponse.data?.min_total_xp ?? 0;
-  const nextLevel = nextLevelResponse.data?.level ?? null;
-  const nextLevelMinXp = nextLevelResponse.data?.min_total_xp ?? null;
-  const xpToNextLevel =
-    nextLevelMinXp === null ? null : Math.max(nextLevelMinXp - globalProfile.total_xp, 0);
+  const progression = progressionForTotalXp(globalProfile.total_xp);
 
   const tracks: XpTrackSummary[] = xpRows
     .filter((row) => row.track_key !== "global")
@@ -139,7 +116,7 @@ export async function GET() {
       trackKey: row.track_key,
       label: categoryByKey.get(row.track_key)?.label ?? row.track_key,
       totalXp: row.total_xp,
-      currentLevel: row.current_level,
+      currentLevel: levelForTotalXp(row.total_xp),
       sortOrder: categoryByKey.get(row.track_key)?.sortOrder ?? Number.MAX_SAFE_INTEGER,
     }))
     .sort((left, right) => {
@@ -155,7 +132,7 @@ export async function GET() {
       currentLevel: track.currentLevel,
     }));
 
-  const nextReward = rewards.find((reward) => reward.level > globalProfile.current_level) ?? null;
+  const nextReward = rewards.find((reward) => reward.level > progression.currentLevel) ?? null;
   const pendingAwards = (pendingAwardsResponse.data ?? [])
     .map((award) => {
       const reward = Array.isArray(award.xp_rewards) ? award.xp_rewards[0] : award.xp_rewards;
@@ -178,11 +155,11 @@ export async function GET() {
       correlationId,
       profile: {
         totalXp: globalProfile.total_xp,
-        currentLevel: globalProfile.current_level,
-        currentLevelMinXp,
-        nextLevel,
-        nextLevelMinXp,
-        xpToNextLevel,
+        currentLevel: progression.currentLevel,
+        currentLevelMinXp: progression.currentLevelMinXp,
+        nextLevel: progression.nextLevel,
+        nextLevelMinXp: progression.nextLevelMinXp,
+        xpToNextLevel: progression.xpToNextLevel,
       },
       tracks,
       nextReward: nextReward

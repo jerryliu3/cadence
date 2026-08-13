@@ -25,9 +25,9 @@ function buildFromStub() {
           eq: () =>
             Promise.resolve({
               data: [
-                { track_key: "global", total_xp: 145, current_level: 2 },
-                { track_key: "health", total_xp: 80, current_level: 1 },
-                { track_key: "career", total_xp: 65, current_level: 1 },
+                { track_key: "global", total_xp: 145, current_level: 10 },
+                { track_key: "health", total_xp: 80, current_level: 8 },
+                { track_key: "career", total_xp: 65, current_level: 8 },
               ],
               error: null,
             }),
@@ -35,41 +35,7 @@ function buildFromStub() {
       };
     }
     if (table === "xp_levels") {
-      const levels = [
-        { level: 1, min_total_xp: 0 },
-        { level: 2, min_total_xp: 100 },
-        { level: 3, min_total_xp: 250 },
-      ];
-      return {
-        select: () => {
-          const byLevel = {
-            eq: (_column: string, level: number) => ({
-              maybeSingle: () => {
-                const row = levels.find((entry) => entry.level === level) ?? null;
-                return Promise.resolve({
-                  data: row ? { min_total_xp: row.min_total_xp } : null,
-                  error: null,
-                });
-              },
-            }),
-            gt: (_column: string, level: number) => ({
-              order: () => ({
-                limit: () => ({
-                  maybeSingle: () =>
-                    Promise.resolve({
-                      data:
-                        levels
-                          .filter((entry) => entry.level > level)
-                          .sort((left, right) => left.level - right.level)[0] ?? null,
-                      error: null,
-                    }),
-                }),
-              }),
-            }),
-          };
-          return byLevel;
-        },
-      };
+      throw new Error("xp_levels must not drive profile progression");
     }
     if (table === "xp_rewards") {
       return {
@@ -185,8 +151,8 @@ describe("GET /api/xp/profile", () => {
         currentLevel: 2,
         currentLevelMinXp: 100,
         nextLevel: 3,
-        nextLevelMinXp: 250,
-        xpToNextLevel: 105,
+        nextLevelMinXp: 300,
+        xpToNextLevel: 155,
       },
       tracks: [
         { trackKey: "health", label: "Health", totalXp: 80, currentLevel: 1 },
