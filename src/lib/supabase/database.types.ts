@@ -134,6 +134,7 @@ export type Database = {
         Args: { p_timezone: string }
         Returns: string
       }
+      max_team_size: { Args: never; Returns: number }
       next_rollover_end: {
         Args: {
           p_rollover: Database["public"]["Enums"]["leaderboard_rollover"]
@@ -191,9 +192,18 @@ export type Database = {
         }
         Returns: string[]
       }
+      team_all_members_socially_visible: {
+        Args: { p_team_id: string }
+        Returns: boolean
+      }
+      team_display_name: { Args: { p_team_id: string }; Returns: string }
       team_in_cohort: {
         Args: { p_cohort_id: string; p_team_id: string }
         Returns: boolean
+      }
+      team_partner_id: {
+        Args: { p_team_id: string; p_user_id: string }
+        Returns: string
       }
       validate_planner_json: {
         Args: {
@@ -1545,6 +1555,42 @@ export type Database = {
           },
         ]
       }
+      team_members: {
+        Row: {
+          joined_at: string
+          role: string
+          team_id: string
+          user_id: string
+        }
+        Insert: {
+          joined_at?: string
+          role?: string
+          team_id: string
+          user_id: string
+        }
+        Update: {
+          joined_at?: string
+          role?: string
+          team_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "team_members_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "team_members_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       team_preferences: {
         Row: {
           allow_nudges: boolean
@@ -1598,8 +1644,6 @@ export type Database = {
           invite_message: string | null
           invited_at: string
           status: Database["public"]["Enums"]["team_status"]
-          user_a_id: string
-          user_b_id: string
           visibility_acknowledged_at: string | null
         }
         Insert: {
@@ -1612,8 +1656,6 @@ export type Database = {
           invite_message?: string | null
           invited_at?: string
           status?: Database["public"]["Enums"]["team_status"]
-          user_a_id: string
-          user_b_id: string
           visibility_acknowledged_at?: string | null
         }
         Update: {
@@ -1626,28 +1668,12 @@ export type Database = {
           invite_message?: string | null
           invited_at?: string
           status?: Database["public"]["Enums"]["team_status"]
-          user_a_id?: string
-          user_b_id?: string
           visibility_acknowledged_at?: string | null
         }
         Relationships: [
           {
             foreignKeyName: "teams_initiator_id_fkey"
             columns: ["initiator_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "teams_user_a_id_fkey"
-            columns: ["user_a_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "teams_user_b_id_fkey"
-            columns: ["user_b_id"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]

@@ -37,12 +37,19 @@ select is(
     select count(*)::integer
     from public.teams team
     where team.id = current_setting('request.team_id')::uuid
-      and team.user_a_id = '8f111111-1111-4111-8111-111111111111'
-      and team.user_b_id = '8f222222-2222-4222-8222-222222222222'
       and team.status = 'pending'
+      and (
+        select count(*)::integer
+        from public.team_members member
+        where member.team_id = team.id
+          and member.user_id in (
+            '8f111111-1111-4111-8111-111111111111',
+            '8f222222-2222-4222-8222-222222222222'
+          )
+      ) = 2
   ),
   1,
-  'invite is created in canonical pair order'
+  'invite is created with both members on the pending team'
 );
 
 reset role;
@@ -60,9 +67,19 @@ select is(
   (
     select count(*)::integer
     from public.teams team
-    where team.user_a_id = '8f111111-1111-4111-8111-111111111111'
-      and team.user_b_id = '8f222222-2222-4222-8222-222222222222'
-      and team.status = 'pending'
+    where team.status = 'pending'
+      and exists (
+        select 1
+        from public.team_members member
+        where member.team_id = team.id
+          and member.user_id = '8f111111-1111-4111-8111-111111111111'
+      )
+      and exists (
+        select 1
+        from public.team_members member
+        where member.team_id = team.id
+          and member.user_id = '8f222222-2222-4222-8222-222222222222'
+      )
   ),
   1,
   'reciprocal invite reuses same pending team row'

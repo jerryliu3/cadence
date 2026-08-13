@@ -77,8 +77,6 @@ on conflict (id) do nothing;
 
 insert into public.teams (
   id,
-  user_a_id,
-  user_b_id,
   initiator_id,
   status,
   invited_at,
@@ -88,14 +86,18 @@ insert into public.teams (
 values (
   '9b700000-0000-4000-8000-000000000001',
   '9b333333-3333-4333-8333-333333333333',
-  '9b444444-4444-4444-8444-444444444444',
-  '9b333333-3333-4333-8333-333333333333',
   'active',
   pg_catalog.now() - interval '1 day',
   pg_catalog.now() - interval '1 day',
   pg_catalog.now() - interval '1 day'
 )
 on conflict (id) do nothing;
+
+insert into public.team_members (team_id, user_id, role)
+values
+  ('9b700000-0000-4000-8000-000000000001', '9b333333-3333-4333-8333-333333333333', 'initiator'),
+  ('9b700000-0000-4000-8000-000000000001', '9b444444-4444-4444-8444-444444444444', 'member')
+on conflict (team_id, user_id) do nothing;
 
 insert into public.team_preferences (team_id, user_id, allow_nudges, notify_partner_activity)
 values
