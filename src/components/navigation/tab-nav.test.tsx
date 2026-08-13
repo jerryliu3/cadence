@@ -37,7 +37,7 @@ describe("TabNav", () => {
 
   it("renders five app tabs and marks the active tab", () => {
     mockPathname = "/social";
-    render(<TabNav />);
+    const { container } = render(<TabNav />);
 
     expect(screen.getByRole("link", { name: /Insights/i })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Checklist/i })).toBeInTheDocument();
@@ -48,6 +48,7 @@ describe("TabNav", () => {
       "aria-current",
       "page"
     );
+    expect(container.querySelectorAll("[data-motion='tab-nav-highlight']")).toHaveLength(1);
   });
 
   it("routes the checklist tab to checklist path", () => {

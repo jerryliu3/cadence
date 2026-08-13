@@ -245,20 +245,20 @@ jobs:
         run: |
           set -euo pipefail
           PLAYWRIGHT_PORT="$(
-            python3 - <<'PY'
-            import socket
+          python3 - <<'PY'
+          import socket
 
-            for port in range(3100, 3200):
-                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-                    try:
-                        sock.bind(("127.0.0.1", port))
-                    except OSError:
-                        continue
-                    print(port)
-                    break
-            else:
-                raise SystemExit(1)
-            PY
+          for port in range(3100, 3200):
+              with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+                  try:
+                      sock.bind(("127.0.0.1", port))
+                  except OSError:
+                      continue
+                  print(port)
+                  break
+          else:
+              raise SystemExit(1)
+          PY
           )"
 
           if [[ -z "${PLAYWRIGHT_PORT}" ]]; then

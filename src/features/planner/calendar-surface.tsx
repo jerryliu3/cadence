@@ -134,10 +134,15 @@ const MAX_MONTH_HEADING_SAMPLE = "September 2026";
 const MAX_WEEK_HEADING_SAMPLE = "Sep 30 - Sep 30, 2026";
 const MAX_THREE_DAY_HEADING_SAMPLE = "Sep 30 - Oct 2, 2026";
 const MAX_DAY_HEADING_SAMPLE = "Wed Aug 30";
-const ROLLING_WEEK_GRID_LABELS_CLASS =
-  "grid min-w-[calc(7*((100%-1rem)/3))] grid-cols-[repeat(7,minmax(0,calc((100%-1rem)/3)))] gap-2 text-center text-xs text-muted-foreground md:min-w-[calc(7*((100%-2rem)/5))] md:grid-cols-[repeat(7,minmax(0,calc((100%-2rem)/5)))] xl:min-w-0 xl:grid-cols-7";
-const ROLLING_WEEK_GRID_CELLS_CLASS =
-  "mt-2 grid min-w-[calc(7*((100%-1rem)/3))] grid-cols-[repeat(7,minmax(0,calc((100%-1rem)/3)))] gap-2 md:min-w-[calc(7*((100%-2rem)/5))] md:grid-cols-[repeat(7,minmax(0,calc((100%-2rem)/5)))] xl:min-w-0 xl:grid-cols-7";
+const ROLLING_WEEK_GRID_LABELS_BASE_CLASS =
+  "grid min-w-[calc(7*var(--rolling-week-cell-width))] grid-cols-[repeat(7,minmax(0,var(--rolling-week-cell-width)))] gap-2 text-center text-xs text-muted-foreground";
+const ROLLING_WEEK_GRID_CELLS_BASE_CLASS =
+  "mt-2 grid min-w-[calc(7*var(--rolling-week-cell-width))] grid-cols-[repeat(7,minmax(0,var(--rolling-week-cell-width)))] gap-2";
+const ROLLING_WEEK_GRID_WIDTH_BY_VIEW: Record<"day" | "three_day", string> = {
+  day: "[--rolling-week-cell-width:calc((100%-1rem)/2)] md:[--rolling-week-cell-width:calc((100%-1.5rem)/3)] xl:[--rolling-week-cell-width:calc((100%-2rem)/4)]",
+  three_day:
+    "[--rolling-week-cell-width:calc((100%-1rem)/3)] md:[--rolling-week-cell-width:calc((100%-2rem)/5)] xl:[--rolling-week-cell-width:calc((100%-2.5rem)/6)]",
+};
 const DRAFT_MOVE_PREVIEW_REFRESH_DELAY_MS = 200;
 const SCOPE_ONLY_ELIGIBILITY_REASONS = new Set([
   "end_outside_scope",
@@ -1901,9 +1906,6 @@ export function CalendarSurface({
         return;
       }
       try {
-        for (const scopeMonth of scopeMonthsToPublish) {
-          clearDraftScopeSession(scopeMonth);
-        }
         handlePlannerMutation();
         const refreshed = await withPlannerRefreshTimeout({
           operation: loadContext({
@@ -1918,6 +1920,9 @@ export function CalendarSurface({
             "Plan saved, but calendar refresh failed. Please refresh the page."
           );
           return;
+        }
+        for (const scopeMonth of scopeMonthsToPublish) {
+          clearDraftScopeSession(scopeMonth);
         }
         coach.actions.resetForPlannerStateReset();
         const publishedScopeCount = scopeMonthsToPublish.length;
@@ -2432,14 +2437,23 @@ export function CalendarSurface({
   const rollingWeekStrip = (
     <div className="mx-auto w-full max-w-[56rem]">
       <div ref={rollingWeekStripRef} className="overflow-x-auto pb-1">
-        <div className={ROLLING_WEEK_GRID_LABELS_CLASS}>
+        <div
+          className={`${ROLLING_WEEK_GRID_LABELS_BASE_CLASS} ${
+            ROLLING_WEEK_GRID_WIDTH_BY_VIEW[viewMode === "day" ? "day" : "three_day"]
+          }`}
+        >
           {focusedWeekDays.map((day) => (
             <span key={`rolling-week-label-${day}`}>
               {format(parse(day, "yyyy-MM-dd", new Date()), "EEE d")}
             </span>
           ))}
         </div>
-        <div data-rolling-week-grid="cells" className={ROLLING_WEEK_GRID_CELLS_CLASS}>
+        <div
+          data-rolling-week-grid="cells"
+          className={`${ROLLING_WEEK_GRID_CELLS_BASE_CLASS} ${
+            ROLLING_WEEK_GRID_WIDTH_BY_VIEW[viewMode === "day" ? "day" : "three_day"]
+          }`}
+        >
           {focusedWeekCells.map(renderCalendarDayCell)}
         </div>
       </div>
