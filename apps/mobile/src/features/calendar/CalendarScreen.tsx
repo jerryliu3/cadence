@@ -1,5 +1,5 @@
 import { addDays, format, parseISO } from "date-fns";
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState, type ReactNode } from "react";
 import {
   Modal,
   Pressable,
@@ -23,7 +23,9 @@ import { DraftMoveError, planMobileDraftMove } from "./draft-moves";
 import { DraggableSession } from "./DraggableSession";
 import {
   hitTestDropTarget,
+  measureNodeInWindow,
   type DayDropTarget,
+  type LayoutRect,
   type SessionDropTarget,
 } from "./drop-targets";
 import {
@@ -40,6 +42,29 @@ import {
 } from "./use-planner-context";
 
 const VIEW_MODES = ["month", "week", "three_day", "day"] as const;
+
+function MeasureableDay({
+  onRect,
+  children,
+  style,
+}: {
+  onRect: (rect: LayoutRect) => void;
+  children: ReactNode;
+  style?: object;
+}) {
+  const viewRef = useRef<View>(null);
+  return (
+    <View
+      ref={viewRef}
+      onLayout={() => {
+        measureNodeInWindow(viewRef.current, onRect);
+      }}
+      style={style}
+    >
+      {children}
+    </View>
+  );
+}
 
 export function CalendarScreen() {
   const theme = getMobileTheme();
@@ -237,26 +262,13 @@ export function CalendarScreen() {
       {viewMode === "month" ? (
         <View style={styles.grid}>
           {buildMonthCells(scopeMonth).map((cell) => (
-            <Pressable
+            <MeasureableDay
               key={cell.date}
-              onPress={() => apply({ day: cell.date, viewMode: "day" })}
-              onLayout={(event) => {
-                const node = event.target as unknown as {
-                  measureInWindow?: (
-                    callback: (
-                      x: number,
-                      y: number,
-                      width: number,
-                      height: number
-                    ) => void
-                  ) => void;
-                };
-                node.measureInWindow?.((x, y, width, height) => {
-                  dayTargets.current.set(cell.date, {
-                    day: cell.date,
-                    inMonth: cell.inMonth,
-                    rect: { x, y, width, height },
-                  });
+              onRect={(rect) => {
+                dayTargets.current.set(cell.date, {
+                  day: cell.date,
+                  inMonth: cell.inMonth,
+                  rect,
                 });
               }}
               style={[
@@ -269,36 +281,29 @@ export function CalendarScreen() {
                 },
               ]}
             >
-              <Text style={{ color: theme.colors.foreground, fontSize: 12 }}>
-                {cell.date.slice(8)}
-              </Text>
-              <Text style={{ color: theme.colors.mutedForeground, fontSize: 10 }}>
-                {unitsByDate.get(cell.date)?.length ?? 0}
-              </Text>
-            </Pressable>
+              <Pressable
+                onPress={() => apply({ day: cell.date, viewMode: "day" })}
+                style={styles.cellPress}
+              >
+                <Text style={{ color: theme.colors.foreground, fontSize: 12 }}>
+                  {cell.date.slice(8)}
+                </Text>
+                <Text style={{ color: theme.colors.mutedForeground, fontSize: 10 }}>
+                  {unitsByDate.get(cell.date)?.length ?? 0}
+                </Text>
+              </Pressable>
+            </MeasureableDay>
           ))}
         </View>
       ) : (
         visibleDays.map((visibleDay) => (
-          <View
+          <MeasureableDay
             key={visibleDay}
-            onLayout={(event) => {
-              const node = event.target as unknown as {
-                measureInWindow?: (
-                  callback: (
-                    x: number,
-                    y: number,
-                    width: number,
-                    height: number
-                  ) => void
-                ) => void;
-              };
-              node.measureInWindow?.((x, y, width, height) => {
-                dayTargets.current.set(visibleDay, {
-                  day: visibleDay,
-                  inMonth: visibleDay.slice(0, 7) === scopeMonth,
-                  rect: { x, y, width, height },
-                });
+            onRect={(rect) => {
+              dayTargets.current.set(visibleDay, {
+                day: visibleDay,
+                inMonth: visibleDay.slice(0, 7) === scopeMonth,
+                rect,
               });
             }}
             style={[styles.dayCard, { borderColor: theme.colors.border }]}
@@ -326,7 +331,7 @@ export function CalendarScreen() {
                 }}
               />
             ))}
-          </View>
+          </MeasureableDay>
         ))
       )}
       {draft.dirty ? (
@@ -492,6 +497,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     padding: 4,
   },
+  cellPress: { flex: 1 },
   dayCard: { borderWidth: 1, borderRadius: 12, padding: 12, gap: 6 },
   sheetBackdrop: {
     flex: 1,

@@ -54,3 +54,19 @@ function containsPoint(rect: LayoutRect, x: number, y: number) {
     y <= rect.y + rect.height
   );
 }
+
+export function measureNodeInWindow(
+  node: {
+    measureInWindow?: (
+      callback: (x: number, y: number, width: number, height: number) => void
+    ) => void;
+  } | null,
+  onRect: (rect: LayoutRect) => void
+) {
+  node?.measureInWindow?.((x, y, width, height) => {
+    if (width <= 0 || height <= 0) {
+      return;
+    }
+    onRect({ x, y, width, height });
+  });
+}

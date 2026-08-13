@@ -1,3 +1,5 @@
+import { createClientUuid } from "../ids";
+
 export function moveItemInArray<T>(items: T[], fromIndex: number, toIndex: number) {
   const next = [...items];
   const [moved] = next.splice(fromIndex, 1);
@@ -81,7 +83,7 @@ export function createMoveItemDraftCommand({
   sequence?: number;
 }): PlannerMoveItemDraftCommand {
   return {
-    id: globalThis.crypto.randomUUID(),
+    id: createClientUuid(),
     sequence,
     goalId,
     unitKey,
