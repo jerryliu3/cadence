@@ -298,9 +298,7 @@ export function InsightsTab() {
     () =>
       buildCompletableGoalIds({
         goals: state.goals,
-        participants: [],
         userId: state.userId,
-        restrictParticipantsToVisibleGoals: true,
       }),
     [state.goals, state.userId]
   );

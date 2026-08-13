@@ -477,7 +477,6 @@ export function TodayTab({
     () =>
       buildCompletableGoalIds({
         goals: data.goals,
-        participants: [],
         userId: data.userId,
       }),
     [data.goals, data.userId]

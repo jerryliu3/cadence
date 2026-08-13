@@ -10,35 +10,14 @@ const goals = [
   { id: "goal-visible", owner_id: "user-2" },
 ];
 
-const participants = [
-  { goal_id: "goal-visible" },
-  { goal_id: "goal-hidden" },
-];
-
 describe("buildCompletableGoalIds", () => {
-  it("includes owned goals and participant goals by default", () => {
+  it("includes only goals owned by the current user", () => {
     const ids = buildCompletableGoalIds({
       goals,
-      participants,
       userId: "user-1",
     });
 
-    expect(Array.from(ids).sort()).toEqual([
-      "goal-hidden",
-      "goal-owned",
-      "goal-visible",
-    ]);
-  });
-
-  it("can restrict participant goals to the visible goals list", () => {
-    const ids = buildCompletableGoalIds({
-      goals,
-      participants,
-      userId: "user-1",
-      restrictParticipantsToVisibleGoals: true,
-    });
-
-    expect(Array.from(ids).sort()).toEqual(["goal-owned", "goal-visible"]);
+    expect(Array.from(ids)).toEqual(["goal-owned"]);
   });
 });
 
