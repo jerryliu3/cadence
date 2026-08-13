@@ -4,6 +4,12 @@
     "slug": "cadence-mobile",
     "scheme": "cadence",
     "version": "1.0.0",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/replace-with-eas-project-id"
+    },
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "plugins": [
