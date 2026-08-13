@@ -8,10 +8,12 @@
     "./api-client": "./src/api-client/index.ts",
     "./async/abort": "./src/async/abort.ts",
     "./navigation/tabs": "./src/navigation/tabs.ts",
+    "./planner/calendar-state": "./src/planner/calendar-state.ts",
     "./supabase/database.types": "./src/supabase/database.types.ts",
     "./tokens": "./src/tokens.ts"
   },
   "dependencies": {
+    "date-fns": "^4.4.0",
     "zod": "^4.4.3"
   }
 }
