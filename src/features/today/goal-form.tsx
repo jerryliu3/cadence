@@ -6,13 +6,12 @@ import {
   ChevronDown,
   ChevronUp,
   CircleAlert,
-  CircleHelp,
   LoaderCircle,
   Save,
   Trash2,
   Undo2,
 } from "lucide-react";
-import { endOfMonth, endOfYear, format, startOfMonth } from "date-fns";
+import { endOfMonth, endOfYear, format, startOfMonth, startOfYear } from "date-fns";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
@@ -32,6 +31,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { LoadingCard } from "@/components/ui/loading-card";
 import { Textarea } from "@/components/ui/textarea";
+import { TooltipIcon } from "@/components/ui/tooltip-icon";
 import { Tooltip } from "@/components/ui/tooltip";
 import {
   CategorySelect,
@@ -73,6 +73,7 @@ import {
   validateGoalDefinition,
 } from "@/lib/goals/definition-validation";
 import { createClient } from "@/lib/supabase/client";
+import { cn } from "@/lib/utils";
 import { requestXpRefresh } from "@/lib/xp/refresh";
 
 interface GoalFormProps {
@@ -363,6 +364,13 @@ export function GoalForm({
     }));
   };
 
+  const applyThisYearStartDate = () => {
+    setState((previous) => ({
+      ...previous,
+      start_date: format(startOfYear(new Date()), "yyyy-MM-dd"),
+    }));
+  };
+
   const applyThisYearEndDate = () => {
     setState((previous) => ({
       ...previous,
@@ -376,7 +384,7 @@ export function GoalForm({
     }
 
     if (state.frequency_type === "recurring" && !state.recurrence_interval) {
-      return "Repeat goals require a recurrence interval.";
+      return "Repeated goals require a cadence.";
     }
 
     if (
@@ -625,13 +633,13 @@ export function GoalForm({
         <form id={goalFormId} className="space-y-4" onSubmit={onSubmit}>
           <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
             <div className="space-y-2">
-              <Label htmlFor="goal-title">Title</Label>
+              <Label htmlFor="goal-title">Name</Label>
               <Input
                 id="goal-title"
                 value={state.title}
                 onChange={(event) => setState((prev) => ({ ...prev, title: event.target.value }))}
                 placeholder="Run 20 times by Dec 31"
-                className="h-9"
+                className="h-8 text-sm"
                 required
               />
             </div>
@@ -639,7 +647,7 @@ export function GoalForm({
               <Label>Category</Label>
               <CategorySelect
                 value={state.category_selection}
-                triggerClassName="h-9"
+                triggerClassName="h-8"
                 onValueChange={(value: CategorySelection) =>
                   setState((prev) => ({
                     ...prev,
@@ -667,50 +675,61 @@ export function GoalForm({
           ) : null}
 
           <div
-            className={`grid items-start gap-3 ${
+            className={cn(
+              "grid items-start gap-3",
               canShowRecurrenceFields
-                ? "grid-cols-[minmax(0,1fr)_7rem_minmax(0,1fr)]"
-                : "grid-cols-[minmax(0,1fr)_7rem]"
-            }`}
+                ? "grid-cols-2 min-[390px]:grid-cols-3"
+                : "grid-cols-2"
+            )}
           >
-            <div className="space-y-2">
-              <Label>Goal type</Label>
+            <div className="min-w-0 space-y-2">
+              <Label className="inline-flex items-center gap-1">
+                <span>Goal type</span>
+                <TooltipIcon
+                  content="Repeated keeps the same action pattern over time. Milestones are unique steps that move you toward a final outcome."
+                  label="Goal type help"
+                />
+              </Label>
               <GoalTypeToggle
                 value={state.frequency_type}
                 onValueChange={updateFrequencyType}
+                triggerClassName="h-8"
               />
             </div>
 
             {canShowTargetCount ? (
               <div className="space-y-2">
                 <Label htmlFor="target-count" className="inline-flex items-center gap-1">
-                  <span>Target count</span>
+                  <span>Total target #</span>
                   {state.frequency_type === "recurring" ? (
-                    <span
-                      className="inline-flex text-muted-foreground"
-                      title="Optional: set a total due by the end date. Each date is checked independently; target-total goals do not use current-period or streak semantics."
-                    >
-                      <CircleHelp className="size-3.5" />
-                    </span>
+                    <TooltipIcon
+                      content="Optional for repeated goals: set how many completions you want by the end date."
+                      label="Total target help"
+                    />
                   ) : null}
                 </Label>
-                <div className="w-24">
-                  <TargetCountField
-                    id="target-count"
-                    frequencyType={state.frequency_type}
-                    value={state.target_count}
-                    onValueChange={updateTargetCount}
-                    showRecurringHelperText={false}
-                  />
-                </div>
+                <TargetCountField
+                  id="target-count"
+                  frequencyType={state.frequency_type}
+                  value={state.target_count}
+                  onValueChange={updateTargetCount}
+                  showRecurringHelperText={false}
+                />
               </div>
             ) : null}
 
             {canShowRecurrenceFields ? (
-              <div className="space-y-2">
-                <Label>Recurrence interval</Label>
+              <div className="min-w-0 space-y-2">
+                <Label className="inline-flex items-center gap-1">
+                  <span>Cadence</span>
+                  <TooltipIcon
+                    content="Cadence controls how often the goal appears in your routine: every day, every week, or every month."
+                    label="Cadence help"
+                  />
+                </Label>
                 <RecurrenceIntervalToggle
                   value={state.recurrence_interval}
+                  triggerClassName="h-8"
                   onValueChange={(value) =>
                     setState((prev) => ({
                       ...prev,
@@ -735,7 +754,7 @@ export function GoalForm({
             startDateId="start-date"
             endDateId="end-date"
             startDateActions={
-              <div className="flex items-center gap-2 text-xs">
+              <>
                 <button
                   type="button"
                   className="text-primary hover:underline"
@@ -746,14 +765,14 @@ export function GoalForm({
                 <button
                   type="button"
                   className="text-primary hover:underline"
-                  onClick={applyThisMonthEndDate}
+                  onClick={applyThisYearStartDate}
                 >
-                  month end
+                  year start
                 </button>
-              </div>
+              </>
             }
             endDateActions={
-              <div className="flex items-center gap-2 text-xs">
+              <>
                 <button
                   type="button"
                   className="text-primary hover:underline"
@@ -768,7 +787,7 @@ export function GoalForm({
                 >
                   year end
                 </button>
-              </div>
+              </>
             }
           />
 

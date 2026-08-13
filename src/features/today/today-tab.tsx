@@ -142,14 +142,14 @@ const recurrenceGroupLabel: Record<RecurrenceGroup, string> = {
   daily: "Daily",
   weekly: "Weekly",
   monthly: "Monthly",
-  fixed: "Milestone",
+  fixed: "Milestones",
 };
 const recurrenceFilterOptions: Array<{ value: RecurrenceFilter; label: string }> = [
   { value: "all", label: "All" },
   { value: "daily", label: "Daily" },
   { value: "weekly", label: "Weekly" },
   { value: "monthly", label: "Monthly" },
-  { value: "fixed", label: "Milestone" },
+  { value: "fixed", label: "Milestones" },
 ];
 
 export type ChecklistTabValue = "today" | "not-today";

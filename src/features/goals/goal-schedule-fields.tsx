@@ -32,34 +32,36 @@ export function GoalDateRangeFields({
   endDateActions,
 }: GoalDateRangeFieldsProps) {
   return (
-    <div className="grid grid-cols-2 gap-4">
+    <div className="grid grid-cols-1 gap-3 min-[430px]:grid-cols-2">
       <div className="space-y-2">
-        <div className="flex items-center justify-between gap-2">
-          <Label htmlFor={startDateId}>{startDateLabel}</Label>
-          {startDateActions}
-        </div>
+        <Label htmlFor={startDateId}>{startDateLabel}</Label>
         <Input
           id={startDateId}
           type="date"
           value={startDate}
           onChange={(event) => onStartDateChange(event.target.value)}
           required
+          className="h-9 min-w-0"
         />
+        {startDateActions ? (
+          <div className="flex flex-wrap items-center gap-2 text-xs">{startDateActions}</div>
+        ) : null}
       </div>
       <div className="space-y-2">
-        <div className="flex items-center justify-between gap-2">
-          <Label htmlFor={endDateId}>
-            {endDateLabel ?? (requiresEndDate ? "End date" : "End date (optional)")}
-          </Label>
-          {endDateActions}
-        </div>
+        <Label htmlFor={endDateId}>
+          {endDateLabel ?? (requiresEndDate ? "End date" : "End date (optional)")}
+        </Label>
         <Input
           id={endDateId}
           type="date"
           value={endDate}
           onChange={(event) => onEndDateChange(event.target.value)}
           required={requiresEndDate}
+          className="h-9 min-w-0"
         />
+        {endDateActions ? (
+          <div className="flex flex-wrap items-center gap-2 text-xs">{endDateActions}</div>
+        ) : null}
       </div>
     </div>
   );

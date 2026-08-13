@@ -1,6 +1,5 @@
 "use client";
 
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -65,51 +64,54 @@ export function CategorySelect({
 interface GoalTypeToggleProps {
   value: GoalFrequencyType;
   onValueChange: (value: GoalFrequencyType) => void;
+  triggerClassName?: string;
 }
 
-export function GoalTypeToggle({ value, onValueChange }: GoalTypeToggleProps) {
+export function GoalTypeToggle({
+  value,
+  onValueChange,
+  triggerClassName,
+}: GoalTypeToggleProps) {
   return (
-    <div className="flex flex-wrap gap-2">
-      {GOAL_TYPE_OPTIONS.map((option) => (
-        <Button
-          key={option.value}
-          type="button"
-          size="sm"
-          variant={value === option.value ? "secondary" : "outline"}
-          className="rounded-full"
-          onClick={() => onValueChange(option.value)}
-        >
-          {option.label}
-        </Button>
-      ))}
-    </div>
+    <Select value={value} onValueChange={(nextValue) => onValueChange(nextValue as GoalFrequencyType)}>
+      <SelectTrigger className={cn("h-9 w-full", triggerClassName)}>
+        <SelectValue placeholder="Select goal type" />
+      </SelectTrigger>
+      <SelectContent>
+        {GOAL_TYPE_OPTIONS.map((option) => (
+          <SelectItem key={option.value} value={option.value}>
+            {option.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   );
 }
 
 interface RecurrenceIntervalToggleProps {
   value: RecurrenceInterval;
   onValueChange: (value: RecurrenceInterval) => void;
+  triggerClassName?: string;
 }
 
 export function RecurrenceIntervalToggle({
   value,
   onValueChange,
+  triggerClassName,
 }: RecurrenceIntervalToggleProps) {
   return (
-    <div className="flex flex-wrap gap-2">
-      {RECURRENCE_INTERVAL_OPTIONS.map((option) => (
-        <Button
-          key={option.value}
-          type="button"
-          size="sm"
-          variant={value === option.value ? "secondary" : "outline"}
-          className="rounded-full"
-          onClick={() => onValueChange(option.value)}
-        >
-          {option.label}
-        </Button>
-      ))}
-    </div>
+    <Select value={value} onValueChange={(nextValue) => onValueChange(nextValue as RecurrenceInterval)}>
+      <SelectTrigger className={cn("h-9 w-full", triggerClassName)}>
+        <SelectValue placeholder="Select cadence" />
+      </SelectTrigger>
+      <SelectContent>
+        {RECURRENCE_INTERVAL_OPTIONS.map((option) => (
+          <SelectItem key={option.value} value={option.value}>
+            {option.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   );
 }
 
