@@ -272,43 +272,6 @@ type SharedRequestOptions = Omit<
   "path" | "method" | "body"
 >;
 
-export function getJson<TResponse>(
-  path: string,
-  options: SharedRequestOptions = {}
-) {
-  return requestJson<TResponse>({
-    ...options,
-    path,
-    method: "GET",
-  });
-}
-
-export function postJson<TResponse, TBody = unknown>(
-  path: string,
-  body: TBody,
-  options: SharedRequestOptions = {}
-) {
-  return requestJson<TResponse, TBody>({
-    ...options,
-    path,
-    method: "POST",
-    body,
-  });
-}
-
-export function putJson<TResponse, TBody = unknown>(
-  path: string,
-  body: TBody,
-  options: SharedRequestOptions = {}
-) {
-  return requestJson<TResponse, TBody>({
-    ...options,
-    path,
-    method: "PUT",
-    body,
-  });
-}
-
 export function isApiClientError(error: unknown): error is ApiClientError {
   return error instanceof ApiClientError;
 }
@@ -426,4 +389,29 @@ export function createApiClient({
       });
     },
   };
+}
+
+const defaultClient = createApiClient();
+
+export function getJson<TResponse>(
+  path: string,
+  options: SharedRequestOptions = {}
+) {
+  return defaultClient.getJson<TResponse>(path, options);
+}
+
+export function postJson<TResponse, TBody = unknown>(
+  path: string,
+  body: TBody,
+  options: SharedRequestOptions = {}
+) {
+  return defaultClient.postJson<TResponse, TBody>(path, body, options);
+}
+
+export function putJson<TResponse, TBody = unknown>(
+  path: string,
+  body: TBody,
+  options: SharedRequestOptions = {}
+) {
+  return defaultClient.putJson<TResponse, TBody>(path, body, options);
 }
