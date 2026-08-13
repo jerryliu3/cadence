@@ -1,21 +1,18 @@
-export const XP_REFRESH_REQUESTED_EVENT = "xp:refresh-requested";
+import {
+  getXpRefreshRequestDetail as getSharedXpRefreshRequestDetail,
+  requestXpRefresh as emitXpRefresh,
+  XP_REFRESH_REQUESTED_EVENT,
+  type ViewportRectSnapshot,
+  type XpRefreshRequestDetail,
+} from "@cadence/shared/xp/events";
 
-export interface ViewportRectSnapshot {
-  top: number;
-  left: number;
-  width: number;
-  height: number;
-}
+export {
+  XP_REFRESH_REQUESTED_EVENT,
+  type ViewportRectSnapshot,
+  type XpRefreshRequestDetail,
+};
 
-export interface XpRefreshRequestDetail {
-  reason: "completion";
-  desiredFactState: "present" | "absent";
-  sourceRect?: ViewportRectSnapshot;
-}
-
-export function captureViewportRect(
-  element: Element
-): ViewportRectSnapshot {
+export function captureViewportRect(element: Element): ViewportRectSnapshot {
   const rect = element.getBoundingClientRect();
   return {
     top: rect.top,
@@ -26,6 +23,7 @@ export function captureViewportRect(
 }
 
 export function requestXpRefresh(detail?: XpRefreshRequestDetail): void {
+  emitXpRefresh(detail);
   if (typeof window === "undefined") {
     return;
   }
@@ -48,16 +46,5 @@ export function getXpRefreshRequestDetail(
   if (!(event instanceof CustomEvent)) {
     return null;
   }
-
-  const detail = event.detail as XpRefreshRequestDetail | undefined;
-  if (
-    !detail ||
-    detail.reason !== "completion" ||
-    (detail.desiredFactState !== "present" &&
-      detail.desiredFactState !== "absent")
-  ) {
-    return null;
-  }
-
-  return detail;
+  return getSharedXpRefreshRequestDetail(event.detail);
 }
