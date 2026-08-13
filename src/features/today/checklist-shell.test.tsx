@@ -22,6 +22,10 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(mockSearch),
 }));
 
+vi.mock("@/lib/social/duo/telemetry", () => ({
+  reportDuoTelemetry: vi.fn(),
+}));
+
 vi.mock("@/features/today/checklist-surface", () => ({
   ChecklistSurface: (props: {
     activeTab: "today" | "not-today";

@@ -244,26 +244,31 @@ export function CalendarMonthDayCell<
           {hasVisibleContent ? (
             <div className="mt-4 space-y-1">
               {visibleEntries.map(renderEntry)}
-              {visibleCompletionFactMarkers.map((marker) => (
+              {visibleCompletionFactMarkers.map((marker) => {
+                const partnerOwned = marker.owner === "partner";
+                const statusCopy = partnerOwned
+                  ? "Partner marked this done."
+                  : marker.scheduledDate && marker.scheduledDate !== day
+                    ? `Marked done here, currently credited from the ${marker.scheduledDate} scheduled session.`
+                    : "Marked done on this date.";
+                return (
                 <div
                   key={`completion-fact-${marker.key}`}
                   className={
-                    marker.owner === "partner"
+                    partnerOwned
                       ? "flex items-center gap-1.5 rounded-sm border-2 border-sky-500 bg-transparent px-1.5 py-1 text-[11px] text-sky-700 dark:text-sky-300"
                       : "flex items-center gap-1.5 rounded-sm border border-emerald-300 bg-emerald-100 px-1.5 py-1 text-[11px] text-emerald-950 dark:border-emerald-300 dark:bg-emerald-100 dark:text-emerald-950"
                   }
-                  title={
-                    marker.owner === "partner"
-                      ? "Partner marked this done."
-                      : marker.scheduledDate && marker.scheduledDate !== day
-                      ? `Marked done here, currently credited from the ${marker.scheduledDate} scheduled session.`
-                      : "Marked done on this date."
-                  }
+                  aria-label={`${marker.goalTitle}. ${statusCopy}`}
                 >
                   <CheckCircle2 className="size-3 shrink-0" />
                   <span className="truncate">{marker.goalTitle}</span>
+                  {partnerOwned ? (
+                    <span className="sr-only">Partner marked this done.</span>
+                  ) : null}
                 </div>
-              ))}
+                );
+              })}
               {hiddenItemCount > 0 ? (
                 <p className="text-[10px] text-muted-foreground">
                   +{hiddenItemCount} more
