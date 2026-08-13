@@ -22,9 +22,11 @@ export interface UsePlannerCoachArgs {
   ) => Promise<{ moveCount: number; movedEntryKeys: string[] }>;
   clearDraftMoveCommands: (entryKeys: string[]) => void;
   applyDraftPolicy: (scopeMonth: string, policy: PlannerPolicy) => void;
-  applyCoachSessionMoves: (
-    moves: Array<{ goalId: string; unitKey: string; scheduledDate: string }>
-  ) => void;
+  queueDraftMoveCommand: (args: {
+    entry: PlannerDayDetailEntry;
+    nextDate: string;
+    source: "date_input" | "drag_drop" | "coach";
+  }) => boolean;
   getNonPublishablePreviewMessage: (
     preview: NonNullable<PlannerContextPayload["preview"]>
   ) => string;

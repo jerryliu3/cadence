@@ -63,7 +63,7 @@ export function usePlannerCoach({
   applyPolicyReplanMoves,
   clearDraftMoveCommands,
   applyDraftPolicy,
-  applyCoachSessionMoves,
+  queueDraftMoveCommand,
   getNonPublishablePreviewMessage,
 }: UsePlannerCoachArgs): PlannerCoachModel {
   const [coachLoading, setCoachLoading] = useState(false);
@@ -159,13 +159,25 @@ export function usePlannerCoach({
           patch.kind === "move_session"
       );
       if (sessionMoves.length > 0) {
-        applyCoachSessionMoves(
-          sessionMoves.map((move) => ({
-            goalId: move.goalId,
-            unitKey: move.unitKey,
-            scheduledDate: move.scheduledDate,
-          }))
-        );
+        for (const move of sessionMoves) {
+          const entry = [...entriesByDate.values()]
+            .flat()
+            .find(
+              (item) =>
+                item.originalGoalId === move.goalId &&
+                item.unitKey === move.unitKey &&
+                !item.draftGhost
+            );
+          if (!entry) {
+            toast.error("Coach could not move a session that is not on the calendar.");
+            continue;
+          }
+          queueDraftMoveCommand({
+            entry,
+            nextDate: move.scheduledDate,
+            source: "coach",
+          });
+        }
       }
       if (result.appliedPatchCount === 0 && sessionMoves.length === 0) {
         if (result.noOpPatchCount > 0 && result.unsupportedPatchCount === 0) {
@@ -256,14 +268,15 @@ export function usePlannerCoach({
     },
     [
       appendCoachContextEvent,
-      applyCoachSessionMoves,
       applyDraftPolicy,
       applyPolicyReplanMoves,
       context,
       effectiveDraftPolicy,
       effectivePreview,
+      entriesByDate,
       getNonPublishablePreviewMessage,
       hasDraftSession,
+      queueDraftMoveCommand,
       refreshDraftPreview,
     ]
   );

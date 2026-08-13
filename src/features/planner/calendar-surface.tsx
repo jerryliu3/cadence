@@ -69,11 +69,8 @@ import {
   draftCommandReducer,
   initialDraftCommandState,
   selectDraftCommandsForScope,
-} from "@/features/planner/draft-command-reducer";
-import {
-  buildSessionMoveCommands,
   shouldKeepDraftCommandForPreview,
-} from "@/features/planner/session-move";
+} from "@/features/planner/draft-command-reducer";
 import { planDraftTimeOverrideUpdate } from "@/features/planner/draft-time-override";
 import { computeDayPreviewPosition } from "@/features/planner/day-preview-popup";
 import { getGoalVisual } from "@/features/planner/goal-visuals";
@@ -120,6 +117,7 @@ import {
   type PlannerPolicy,
 } from "@/lib/planner/policy";
 import { withPlannerRefreshTimeout } from "@/lib/planner/refresh-timeout";
+import { monthFromDate } from "@/lib/planner/dates";
 import { captureViewportRect } from "@/lib/xp/events";
 import type {
   CalendarSurfaceProps,
@@ -1000,7 +998,7 @@ export function CalendarSurface({
     (args: {
       entry: PlannerDayDetailEntry;
       nextDate: string;
-      source: "date_input" | "drag_drop";
+      source: "date_input" | "drag_drop" | "coach";
     }) => boolean
   >(() => false);
   const coach = usePlannerCoach({
@@ -1016,26 +1014,7 @@ export function CalendarSurface({
     applyDraftPolicy: (scopeMonth, policy) => {
       setDraftPolicyForScope(scopeMonth, policy);
     },
-    applyCoachSessionMoves: (moves) => {
-      for (const move of moves) {
-        const entry = [...entryByKey.values()].find(
-          (item) =>
-            item.originalGoalId === move.goalId &&
-            item.unitKey === move.unitKey &&
-            !item.draftGhost
-        );
-        if (!entry) {
-          toast.error("Coach could not move a session that is not on the calendar.");
-          continue;
-        }
-        queueDraftMoveCommandRef.current({
-          entry,
-          nextDate: move.scheduledDate,
-          source: "drag_drop",
-        });
-      }
-      scheduleDraftMovePreviewRefresh();
-    },
+    queueDraftMoveCommand: (args) => queueDraftMoveCommandRef.current(args),
     getNonPublishablePreviewMessage: nonPublishablePreviewMessage,
   });
 
@@ -1197,7 +1176,7 @@ export function CalendarSurface({
     }: {
       entry: PlannerDayDetailEntry;
       nextDate: string;
-      source: "date_input" | "drag_drop";
+      source: "date_input" | "drag_drop" | "coach";
     }) => {
       if (entry.draftGhost) {
         toast.error("Original-date preview markers cannot be moved directly.");
@@ -1222,9 +1201,10 @@ export function CalendarSurface({
         toast.error("This session is unavailable in the current preview.");
         return false;
       }
-      const destMonth = normalized.slice(0, 7);
-      const sourceMonth =
-        (entryDayByKey.get(entry.key) ?? context.scopeMonth).slice(0, 7);
+      const destMonth = monthFromDate(normalized);
+      const sourceMonth = monthFromDate(
+        entryDayByKey.get(entry.key) ?? context.scopeMonth
+      );
       const creditWindow = baselineUnit.creditWindow;
       const crossMonth = destMonth !== sourceMonth;
       const moveWindow = crossMonth
@@ -1282,13 +1262,20 @@ export function CalendarSurface({
         return false;
       }
 
-      for (const action of buildSessionMoveCommands({
-        goalId: entry.originalGoalId,
-        unitKey: entry.unitKey,
-        sourceMonth,
-        destDate: normalized,
-      })) {
-        dispatchDraftCommand(action);
+      const commands =
+        destMonth === sourceMonth
+          ? [{ scopeMonth: sourceMonth, scheduledDate: normalized }]
+          : [
+              { scopeMonth: sourceMonth, scheduledDate: null },
+              { scopeMonth: destMonth, scheduledDate: normalized },
+            ];
+      for (const command of commands) {
+        dispatchDraftCommand({
+          type: "upsert_move",
+          goalId: entry.originalGoalId,
+          unitKey: entry.unitKey,
+          ...command,
+        });
       }
       scheduleDraftMovePreviewRefresh();
       void source;

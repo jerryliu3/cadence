@@ -280,3 +280,32 @@ export function selectDraftEntriesForScope(
   return Array.from(entriesByKey.values());
 }
 
+export function shouldKeepDraftCommandForPreview({
+  command,
+  scopeMonth,
+  previewEntryKeys,
+  commandsByScope,
+}: {
+  command: PlannerDraftCommand;
+  scopeMonth: string;
+  previewEntryKeys: Set<string>;
+  commandsByScope: Record<string, PlannerDraftCommand[]>;
+}) {
+  const entryKey = draftCommandEntryKey(command);
+  if (previewEntryKeys.has(entryKey)) {
+    return true;
+  }
+  if (command.kind !== "move_item") {
+    return false;
+  }
+  return Object.entries(commandsByScope).some(([month, commands]) => {
+    if (month === scopeMonth) {
+      return false;
+    }
+    return commands.some(
+      (other) =>
+        other.kind === "move_item" && draftCommandEntryKey(other) === entryKey
+    );
+  });
+}
+
