@@ -549,7 +549,6 @@ export function GoalForm({
         router.refresh();
       } else {
         completeAndExit();
-        return;
       }
     }
 
