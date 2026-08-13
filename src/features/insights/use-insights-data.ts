@@ -46,9 +46,9 @@ export function useInsightsData({
   failClosed?: boolean;
 }) {
   const supabase = useMemo(() => createClient(), []);
+  const { viewerUserId, state: duoState } = useDuo();
+  const partnerId = duoState.activePartner?.partnerId ?? null;
   const router = useRouter();
-  const { state: duoState } = useDuo();
-  const duoPartnerId = duoState.activePartner?.partnerId ?? null;
   const [state, setState] = useState<InsightsData>(emptyInsights);
   const [loading, setLoading] = useState(true);
   const [laneError, setLaneError] = useState<string | null>(null);
@@ -87,16 +87,17 @@ export function useInsightsData({
         INSIGHTS_REQUEST_TIMEOUT_MS
       );
       try {
-        const {
-          data: { user },
-          error: userError,
-        } = await withAbortSignal(supabase.auth.getUser(), controller.signal);
+        const userId = viewerUserId
+          ? viewerUserId
+          : (
+              await withAbortSignal(supabase.auth.getUser(), controller.signal)
+            ).data.user?.id;
 
         if (requestId !== loadRequestIdRef.current) {
           return;
         }
 
-        if (userError || !user) {
+        if (!userId) {
           setState(emptyInsights);
           redirectToLogin();
           return;
@@ -104,8 +105,8 @@ export function useInsightsData({
 
         const yearStart = `${selectedYear}-01-01`;
         const yearEnd = `${selectedYear}-12-31`;
-        const targetSubjectUserId = subjectUserId ?? user.id;
-        const targetIsViewer = targetSubjectUserId === user.id;
+        const targetSubjectUserId = subjectUserId ?? userId;
+        const targetIsViewer = targetSubjectUserId === userId;
         const [goalsResponse, teamMembersResponse, progress] =
           await withAbortSignal(
             Promise.all([
@@ -121,7 +122,7 @@ export function useInsightsData({
                 return query;
               })(),
               targetIsViewer
-                ? supabase.from("team_members").select("team_id").eq("user_id", user.id)
+                ? supabase.from("team_members").select("team_id").eq("user_id", userId)
                 : Promise.resolve({ data: [], error: null }),
               fetchProgressContext({
                 asOfDate: toLocalDateString(),
@@ -146,7 +147,7 @@ export function useInsightsData({
         }>).map((row) => row.team_id);
         const goals = (goalsResponse.data ?? []) as Goal[];
         const visibleGoals = targetIsViewer
-          ? selectViewerVisibleGoals({ goals, partnerId: duoPartnerId })
+          ? selectViewerVisibleGoals({ goals, partnerId })
           : goals;
 
         setState({
@@ -167,7 +168,7 @@ export function useInsightsData({
         }
       }
     },
-    [duoPartnerId, redirectToLogin, selectedYear, subjectUserId, supabase]
+    [partnerId, redirectToLogin, selectedYear, subjectUserId, supabase, viewerUserId]
   );
 
   useEffect(() => {
