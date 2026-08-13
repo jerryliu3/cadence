@@ -994,29 +994,6 @@ export function CalendarSurface({
     [context]
   );
   const runCompletionMutation = useCompletionMutation();
-  const queueDraftMoveCommandRef = useRef<
-    (args: {
-      entry: PlannerDayDetailEntry;
-      nextDate: string;
-      source: "date_input" | "drag_drop" | "coach";
-    }) => boolean
-  >(() => false);
-  const coach = usePlannerCoach({
-    activeTab,
-    context,
-    entriesByDate,
-    effectivePreview,
-    effectiveDraftPolicy,
-    hasDraftSession,
-    refreshDraftPreview,
-    applyPolicyReplanMoves,
-    clearDraftMoveCommands,
-    applyDraftPolicy: (scopeMonth, policy) => {
-      setDraftPolicyForScope(scopeMonth, policy);
-    },
-    queueDraftMoveCommand: (args) => queueDraftMoveCommandRef.current(args),
-    getNonPublishablePreviewMessage: nonPublishablePreviewMessage,
-  });
 
   const isValidIsoDate = (value: string) => {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
@@ -1290,7 +1267,23 @@ export function CalendarSurface({
       previewUnitByEntryKey,
     ]
   );
-  queueDraftMoveCommandRef.current = queueDraftMoveCommand;
+
+  const coach = usePlannerCoach({
+    activeTab,
+    context,
+    entriesByDate,
+    effectivePreview,
+    effectiveDraftPolicy,
+    hasDraftSession,
+    refreshDraftPreview,
+    applyPolicyReplanMoves,
+    clearDraftMoveCommands,
+    applyDraftPolicy: (scopeMonth, policy) => {
+      setDraftPolicyForScope(scopeMonth, policy);
+    },
+    queueDraftMoveCommand,
+    getNonPublishablePreviewMessage: nonPublishablePreviewMessage,
+  });
 
   const updateDraftLabel = (entry: PlannerDayDetailEntry, label: string) => {
     if (entry.draftGhost) {
