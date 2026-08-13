@@ -10,21 +10,6 @@ export function parseDuoScopeCookieValue(value: string | null | undefined): DuoS
   return null;
 }
 
-export function readDuoScopeCookieFromDocument(): DuoScope | null {
-  if (typeof document === "undefined") {
-    return null;
-  }
-  const cookie = document.cookie
-    .split(";")
-    .map((part) => part.trim())
-    .find((part) => part.startsWith(`${DUO_SCOPE_COOKIE_NAME}=`));
-  if (!cookie) {
-    return null;
-  }
-  const value = cookie.slice(DUO_SCOPE_COOKIE_NAME.length + 1);
-  return parseDuoScopeCookieValue(decodeURIComponent(value));
-}
-
 export function writeDuoScopeCookie(scope: DuoScope | null) {
   if (typeof document === "undefined") {
     return;
