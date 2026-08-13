@@ -1,10 +1,5 @@
-import { Text } from "react-native";
-import { Screen } from "../../src/ui/screen";
+import { GoalFormScreen } from "../../src/features/goals/GoalFormScreen";
 
-export default function NewGoalScreen() {
-  return (
-    <Screen title="New goal">
-      <Text>Goal create form lands in the checklist/goals slice.</Text>
-    </Screen>
-  );
+export default function NewGoalRoute() {
+  return <GoalFormScreen />;
 }
