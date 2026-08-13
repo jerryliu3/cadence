@@ -7,7 +7,8 @@ import {
 } from "@/lib/api/route";
 import { createAdminClient } from "@/lib/supabase/admin";
 
-const subscriptionSchema = z.object({
+const webSubscriptionSchema = z.object({
+  platform: z.literal("web").optional(),
   endpoint: z.string().url().max(4096),
   keys: z.object({
     p256dh: z.string().min(1).max(512),
@@ -15,9 +16,23 @@ const subscriptionSchema = z.object({
   }),
 });
 
-const unsubscribeSchema = z.object({
-  endpoint: z.string().url().max(4096),
+const nativeSubscriptionSchema = z.object({
+  platform: z.enum(["ios", "android"]),
+  token: z.string().trim().min(8).max(4096),
 });
+
+const subscriptionSchema = z.union([
+  webSubscriptionSchema,
+  nativeSubscriptionSchema,
+]);
+
+const unsubscribeSchema = z.union([
+  z.object({ endpoint: z.string().url().max(4096) }),
+  z.object({
+    platform: z.enum(["ios", "android"]),
+    token: z.string().trim().min(8).max(4096),
+  }),
+]);
 
 function requirePushAdminClient() {
   try {
@@ -49,15 +64,30 @@ export async function POST(request: Request) {
       );
     }
     const admin = requirePushAdminClient();
+    const row =
+      parsed.data.platform === "ios" || parsed.data.platform === "android"
+        ? {
+            user_id: userId,
+            platform: parsed.data.platform,
+            native_token: parsed.data.token,
+            endpoint: `native:${parsed.data.platform}:${parsed.data.token}`,
+            p256dh: null,
+            auth: null,
+            user_agent: request.headers.get("user-agent")?.slice(0, 1000) ?? null,
+            updated_at: new Date().toISOString(),
+          }
+        : {
+            user_id: userId,
+            platform: "web" as const,
+            native_token: null,
+            endpoint: parsed.data.endpoint,
+            p256dh: parsed.data.keys.p256dh,
+            auth: parsed.data.keys.auth,
+            user_agent: request.headers.get("user-agent")?.slice(0, 1000) ?? null,
+            updated_at: new Date().toISOString(),
+          };
     const { error } = await admin.from("push_subscriptions").upsert(
-      {
-        user_id: userId,
-        endpoint: parsed.data.endpoint,
-        p256dh: parsed.data.keys.p256dh,
-        auth: parsed.data.keys.auth,
-        user_agent: request.headers.get("user-agent")?.slice(0, 1000) ?? null,
-        updated_at: new Date().toISOString(),
-      },
+      row,
       { onConflict: "endpoint" }
     );
 
@@ -92,11 +122,15 @@ export async function DELETE(request: Request) {
       );
     }
     const admin = requirePushAdminClient();
+    const endpoint =
+      "endpoint" in parsed.data
+        ? parsed.data.endpoint
+        : `native:${parsed.data.platform}:${parsed.data.token}`;
     const { error } = await admin
       .from("push_subscriptions")
       .delete()
       .eq("user_id", userId)
-      .eq("endpoint", parsed.data.endpoint);
+      .eq("endpoint", endpoint);
 
     if (error) {
       console.error("Failed to delete push subscription:", error);
