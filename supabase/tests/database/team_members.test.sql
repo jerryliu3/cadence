@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, private, extensions, pg_catalog;
-select plan(18);
+select plan(19);
 
 insert into auth.users (id, email)
 values
@@ -243,6 +243,36 @@ select is(
   ),
   1,
   'get_team_state stays one row if the duo cap is bypassed'
+);
+
+-- private.team_id_for_pair exists so pair-scoped callers cannot silently resolve
+-- the wrong team. One-active-team-per-user is enforced in the invite/accept RPCs,
+-- not the schema, so bypass those to prove the guard fires instead of guessing.
+reset role;
+insert into public.teams (
+  id, initiator_id, status, invited_at, accepted_at, visibility_acknowledged_at
+)
+values (
+  'af900000-0000-4000-8000-000000000001',
+  'af111111-1111-4111-8111-111111111111',
+  'active',
+  pg_catalog.now() - interval '2 days',
+  pg_catalog.now() - interval '2 days',
+  pg_catalog.now() - interval '2 days'
+);
+insert into public.team_members (team_id, user_id, role)
+values
+  ('af900000-0000-4000-8000-000000000001', 'af111111-1111-4111-8111-111111111111', 'initiator'),
+  ('af900000-0000-4000-8000-000000000001', 'af222222-2222-4222-8222-222222222222', 'member');
+
+select throws_ok(
+  $$select private.team_id_for_pair(
+      'af111111-1111-4111-8111-111111111111'::uuid,
+      'af222222-2222-4222-8222-222222222222'::uuid
+    )$$,
+  '23514',
+  'ambiguous_active_team_pair',
+  'team_id_for_pair raises rather than picking when a pair shares two active teams'
 );
 
 select * from finish();

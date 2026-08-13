@@ -29,7 +29,8 @@ insert into public.goals (
   recurrence_interval,
   target_count,
   start_date,
-  end_date
+  end_date,
+  is_private
 )
 values
   (
@@ -43,7 +44,8 @@ values
     'weekly',
     3,
     current_date - 14,
-    current_date + 14
+    current_date + 14,
+    false
   ),
   (
     '10000000-0000-4000-8000-000000000004',
@@ -56,8 +58,12 @@ values
     'weekly',
     3,
     current_date - 14,
-    current_date + 14
+    current_date + 14,
+    false
   ),
+  -- Bob and Alice are an active duo in supabase/seed.sql, so a non-private
+  -- goal here is visible to Alice by design. This row must actually be private
+  -- for the assertion below to test privacy rather than the absence of a path.
   (
     '10000000-0000-4000-8000-000000000009',
     '22222222-2222-4222-8222-222222222222',
@@ -69,7 +75,8 @@ values
     'weekly',
     3,
     current_date - 14,
-    current_date + 14
+    current_date + 14,
+    true
   ),
   (
     '10000000-0000-4000-8000-000000000011',
@@ -82,7 +89,8 @@ values
     'weekly',
     5,
     current_date - 14,
-    current_date + 14
+    current_date + 14,
+    false
   )
 on conflict (id) do update
 set
@@ -91,7 +99,8 @@ set
   recurrence_interval = excluded.recurrence_interval,
   target_count = excluded.target_count,
   start_date = excluded.start_date,
-  end_date = excluded.end_date;
+  end_date = excluded.end_date,
+  is_private = excluded.is_private;
 
 insert into public.goal_links (id, owner_id, source_goal_id, target_goal_id)
 values (
