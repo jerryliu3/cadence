@@ -17,47 +17,21 @@ on conflict (id) do nothing;
 
 set local role service_role;
 
-insert into public.goals (
-  id,
-  owner_id,
-  title,
-  category,
-  category_key,
-  frequency_type,
-  recurrence_interval,
-  target_count,
-  start_date,
-  end_date,
-  is_group
-)
-values
-  (
-    'ad500000-0000-4000-8000-000000000001',
-    'ad111111-1111-4111-8111-111111111111',
-    'Frozen visibility goal A',
-    'Health',
-    'health',
-    'recurring',
-    'weekly',
-    2,
-    current_date - 7,
-    current_date + 7,
-    false
-  ),
-  (
-    'ad500000-0000-4000-8000-000000000002',
-    'ad222222-2222-4222-8222-222222222222',
-    'Frozen visibility goal B',
-    'Health',
-    'health',
-    'recurring',
-    'weekly',
-    2,
-    current_date - 7,
-    current_date + 7,
-    false
-  )
-on conflict (id) do nothing;
+update public.profiles profile
+set social_activity_visible = true
+where profile.id in (
+  'ad111111-1111-4111-8111-111111111111',
+  'ad222222-2222-4222-8222-222222222222'
+);
+
+delete from public.leaderboard_season_results result
+where result.season_id = 'ad400000-0000-4000-8000-000000000001'::uuid;
+
+delete from public.leaderboard_standings standing
+where standing.season_id = 'ad400000-0000-4000-8000-000000000001'::uuid;
+
+delete from public.leaderboard_seasons season
+where season.id = 'ad400000-0000-4000-8000-000000000001'::uuid;
 
 insert into public.leaderboard_seasons (
   id,
@@ -80,54 +54,47 @@ values (
   'total_xp',
   pg_catalog.now() - interval '10 days',
   pg_catalog.now() - interval '1 hour',
-  'open',
+  'closed',
   'none',
   'global',
   'ad111111-1111-4111-8111-111111111111'
 )
 on conflict (id) do nothing;
 
-insert into public.xp_ledger (
-  user_id,
-  goal_id,
-  completion_id,
-  track_key,
-  event_type,
-  entry_kind,
-  source_key,
-  xp_delta,
-  earned_on,
-  completion_source
+insert into public.leaderboard_season_results (
+  season_id,
+  subject_kind,
+  subject_id,
+  score,
+  tie_break_at,
+  rank,
+  display_name
 )
 values
   (
+    'ad400000-0000-4000-8000-000000000001',
+    'user',
     'ad111111-1111-4111-8111-111111111111',
-    'ad500000-0000-4000-8000-000000000001',
-    null,
-    'health',
-    'completion_credit',
-    'award',
-    'frozen-results-visible-a',
     40,
-    current_date,
-    'manual'
+    pg_catalog.now() - interval '2 hours',
+    1,
+    'frozen_visible_a'
   ),
   (
+    'ad400000-0000-4000-8000-000000000001',
+    'user',
     'ad222222-2222-4222-8222-222222222222',
-    'ad500000-0000-4000-8000-000000000002',
-    null,
-    'health',
-    'completion_credit',
-    'award',
-    'frozen-results-visible-b',
     30,
-    current_date,
-    'manual'
+    pg_catalog.now() - interval '1 hour',
+    2,
+    'frozen_visible_b'
   )
-on conflict do nothing;
-
-select public.refresh_leaderboard_standings_service();
-select public.rollover_leaderboard_seasons_service();
+on conflict (season_id, subject_kind, subject_id) do update
+set
+  score = excluded.score,
+  tie_break_at = excluded.tie_break_at,
+  rank = excluded.rank,
+  display_name = excluded.display_name;
 
 update public.profiles profile
 set social_activity_visible = false
