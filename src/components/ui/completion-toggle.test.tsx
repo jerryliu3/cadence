@@ -10,6 +10,7 @@ const originalVibrate = Object.getOwnPropertyDescriptor(
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
   if (originalVibrate) {
     Object.defineProperty(window.navigator, "vibrate", originalVibrate);
   } else {
@@ -110,5 +111,36 @@ describe("CompletionToggle", () => {
     expect(toggle).toHaveAttribute("data-visual-completed", "false");
 
     vi.useRealTimers();
+  });
+
+  it("suppresses haptics when the user requests reduced motion", () => {
+    const vibrate = vi.fn(() => true);
+    Object.defineProperty(window.navigator, "vibrate", {
+      configurable: true,
+      value: vibrate,
+    });
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn().mockReturnValue({
+        matches: true,
+        media: "(prefers-reduced-motion: reduce)",
+        onchange: null,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      })
+    );
+
+    render(
+      <CompletionToggle
+        completed={false}
+        aria-label="Mark session done"
+      />
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Mark session done" }));
+
+    expect(vibrate).not.toHaveBeenCalled();
   });
 });
