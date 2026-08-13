@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-  applyCompletionDateFact,
   countCompletionsByDate,
   getSortedCompletionDates,
   groupCompletionsByGoalId,
@@ -31,59 +30,6 @@ describe("countCompletionsByDate", () => {
       "2026-08-10": 2,
       "2026-08-11": 1,
     });
-  });
-});
-
-describe("applyCompletionDateFact", () => {
-  it("adds a manual fact for the selected date", () => {
-    expect(
-      applyCompletionDateFact(
-        [{ goal_id: "goal-1", completed_on: "2026-08-09", source: "manual" }],
-        {
-          goalId: "goal-1",
-          date: "2026-08-10",
-          desiredFactState: "present",
-        }
-      )
-    ).toEqual([
-      { goal_id: "goal-1", completed_on: "2026-08-09", source: "manual" },
-      { goal_id: "goal-1", completed_on: "2026-08-10", source: "manual" },
-    ]);
-  });
-
-  it("removes the matching date fact without touching other rows", () => {
-    expect(
-      applyCompletionDateFact(
-        [
-          { goal_id: "goal-1", completed_on: "2026-08-09", source: "manual" },
-          { goal_id: "goal-1", completed_on: "2026-08-10", source: "manual" },
-          { goal_id: "goal-2", completed_on: "2026-08-10", source: "manual" },
-        ],
-        {
-          goalId: "goal-1",
-          date: "2026-08-10",
-          desiredFactState: "absent",
-        }
-      )
-    ).toEqual([
-      { goal_id: "goal-1", completed_on: "2026-08-09", source: "manual" },
-      { goal_id: "goal-2", completed_on: "2026-08-10", source: "manual" },
-    ]);
-  });
-
-  it("replaces a duplicate fact for the same goal and date", () => {
-    expect(
-      applyCompletionDateFact(
-        [{ goal_id: "goal-1", completed_on: "2026-08-10", source: "linked_cascade" }],
-        {
-          goalId: "goal-1",
-          date: "2026-08-10",
-          desiredFactState: "present",
-        }
-      )
-    ).toEqual([
-      { goal_id: "goal-1", completed_on: "2026-08-10", source: "manual" },
-    ]);
   });
 });
 

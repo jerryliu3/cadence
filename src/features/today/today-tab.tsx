@@ -52,7 +52,7 @@ import {
   buildCompletableGoalIds,
   selectCompletableGoals,
 } from "@/lib/goals/completable-goals";
-import { applyCompletionDateFact, groupCompletionsByGoalId } from "@/lib/goals/completion-grouping";
+import { groupCompletionsByGoalId } from "@/lib/goals/completion-grouping";
 import {
   DEFAULT_GOAL_CATEGORIES,
   resolveCategoryKey,
@@ -685,6 +685,7 @@ export function TodayTab({
     });
 
     setSavingGoalId(goal.id);
+    const currentScrollY = window.scrollY;
     const routeDesiredFactState =
       decision.route === "legacy_period"
         ? completedForCurrentPeriod
@@ -716,22 +717,6 @@ export function TodayTab({
       return;
     }
 
-    setData((previous) => {
-      const facts = applyCompletionDateFact(previous.completions, {
-        goalId: goal.id,
-        date: dispatchDate,
-        desiredFactState: routeDesiredFactState,
-      });
-      return {
-        ...previous,
-        completions: facts,
-        progress: previous.progress
-          ? { ...previous.progress, facts }
-          : previous.progress,
-      };
-    });
-    setSavingGoalId(null);
-
     if (routeDesiredFactState === "present") {
       toast.success(`Great work. Goal completed for ${viewDate}.`);
     } else {
@@ -742,34 +727,30 @@ export function TodayTab({
       toast.success(`Marked as incomplete for ${removedDate}.`);
     }
 
-    void fetchProgressContext({
-      asOfDate: todayLocalDate,
-      viewDate,
-      forceRefresh: true,
-    })
-      .then((progress) => {
-        setData((previous) => ({
-          ...previous,
-          completions: progress.facts,
-          progress,
-        }));
-      })
-      .catch((error: unknown) => {
-        if (isProgressContextAuthenticationError(error)) {
-          redirectToLogin();
-          return;
-        }
-        const timeoutLike =
-          error instanceof Error &&
-          error.message.toLowerCase().includes("timed out");
-        toast.error(
-          timeoutLike
-            ? "Completion updated, but calendar refresh timed out. Please refresh the page."
-            : "Completion updated, but calendar refresh failed. Please refresh the page."
-        );
+    try {
+      await loadData({ showLoading: false, forceRefresh: true });
+      requestAnimationFrame(() => {
+        window.scrollTo({ top: currentScrollY, behavior: "auto" });
       });
+    } catch (error) {
+      if (isProgressContextAuthenticationError(error)) {
+        redirectToLogin();
+        return;
+      }
+      const timeoutLike =
+        error instanceof Error &&
+        error.message.toLowerCase().includes("timed out");
+      toast.error(
+        timeoutLike
+          ? "Completion updated, but calendar refresh timed out. Please refresh the page."
+          : "Completion updated, but calendar refresh failed. Please refresh the page."
+      );
+    } finally {
+      setSavingGoalId(null);
+    }
   }, [
     completionsByGoal,
+    loadData,
     redirectToLogin,
     runCompletionMutation,
     todayLocalDate,

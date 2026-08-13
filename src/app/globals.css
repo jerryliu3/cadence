@@ -226,19 +226,16 @@ a {
     var(--motion-ease-standard);
 }
 
-::view-transition-group(app-shell-header),
-::view-transition-group(app-shell-tab-nav) {
+::view-transition-group(app-shell-header) {
   z-index: 100;
   animation: none;
 }
 
-::view-transition-old(app-shell-header),
-::view-transition-old(app-shell-tab-nav) {
+::view-transition-old(app-shell-header) {
   display: none;
 }
 
-::view-transition-new(app-shell-header),
-::view-transition-new(app-shell-tab-nav) {
+::view-transition-new(app-shell-header) {
   animation: none;
 }
 
