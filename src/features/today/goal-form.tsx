@@ -982,7 +982,8 @@ export function GoalForm({
                           }
                         />
                         <span>
-                          Keep this goal private (hidden from your partner, the social feed, and any shares).
+                          Keep this goal private (hidden from the public activity feed and from
+                          anyone you share goals with). An active team partner still sees it.
                         </span>
                       </label>
                     </div>
