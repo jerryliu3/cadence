@@ -155,7 +155,17 @@ interface AggregateDrilldownCompletionMarker {
   scheduledDate: string | null;
 }
 
-export function InsightsTab() {
+interface InsightsTabProps {
+  subjectUserId?: string;
+  readOnly?: boolean;
+  laneLabel?: string;
+}
+
+export function InsightsTab({
+  subjectUserId,
+  readOnly = false,
+  laneLabel,
+}: InsightsTabProps = {}) {
   const supabase = useMemo(() => createClient(), []);
   const router = useRouter();
   const [state, setState] = useState<InsightsData>(emptyInsights);
@@ -235,17 +245,40 @@ export function InsightsTab() {
 
         const yearStart = `${selectedYear}-01-01`;
         const yearEnd = `${selectedYear}-12-31`;
+        const targetSubjectUserId = subjectUserId ?? user.id;
+        const targetIsViewer = targetSubjectUserId === user.id;
         // Heatmap facts are intentionally year-bounded. A per-year client cache
         // is optional later if measured navigation latency warrants it.
         const [goalsResponse, teamMembersResponse, progress] =
           await withAbortSignal(
             Promise.all([
+<<<<<<< HEAD
               supabase.from("goals").select("*").eq("is_deleted", false).order("title"),
               supabase.from("team_members").select("team_id").eq("user_id", user.id),
+=======
+              (() => {
+                let query = supabase
+                  .from("goals")
+                  .select("*")
+                  .eq("is_deleted", false)
+                  .order("title");
+                if (!targetIsViewer) {
+                  query = query.eq("owner_id", targetSubjectUserId);
+                }
+                return query;
+              })(),
+              targetIsViewer
+                ? supabase.from("goal_participants").select("*").eq("user_id", user.id)
+                : Promise.resolve({ data: [], error: null }),
+>>>>>>> f57fd2de (wire duo lanes into checklist and insights surfaces)
               fetchProgressContext({
                 asOfDate: toLocalDateString(),
                 factsFrom: yearStart,
                 factsTo: yearEnd,
+                subjectUserId:
+                  targetSubjectUserId === user.id
+                    ? undefined
+                    : targetSubjectUserId,
                 forceRefresh,
               }),
             ]),
@@ -256,9 +289,28 @@ export function InsightsTab() {
           return;
         }
 
+<<<<<<< HEAD
         setState({
           userId: user.id,
           goals: (goalsResponse.data ?? []) as Goal[],
+=======
+        const participants = (participantsResponse.data ?? []) as GoalParticipant[];
+        const goals = (goalsResponse.data ?? []) as Goal[];
+        const participantGoalIds = new Set(
+          participants.map((participant) => participant.goal_id)
+        );
+        const visibleGoals = targetIsViewer
+          ? goals.filter(
+              (goal) =>
+                goal.owner_id === user.id ||
+                participantGoalIds.has(goal.id)
+            )
+          : goals;
+
+        setState({
+          userId: targetSubjectUserId,
+          goals: visibleGoals,
+>>>>>>> f57fd2de (wire duo lanes into checklist and insights surfaces)
           completions: progress.facts,
           memberTeamIds: (teamMembersResponse.data ?? []).map((row) => row.team_id),
           progress,
@@ -273,7 +325,7 @@ export function InsightsTab() {
         }
       }
     },
-    [redirectToLogin, selectedYear, supabase]
+    [redirectToLogin, selectedYear, subjectUserId, supabase]
   );
 
   useEffect(() => {
@@ -427,6 +479,9 @@ export function InsightsTab() {
       creditedCount: number,
       sourceElement?: HTMLButtonElement
     ) => {
+      if (readOnly) {
+        return;
+      }
       if (pendingRetroDate !== null) {
         return;
       }
@@ -502,7 +557,7 @@ export function InsightsTab() {
         setPendingRetroDate(null);
       }
     },
-    [loadData, pendingRetroDate, redirectToLogin, runCompletionMutation]
+    [loadData, pendingRetroDate, readOnly, redirectToLogin, runCompletionMutation]
   );
 
   const toggleRecurringDateSelection = useCallback(
@@ -512,6 +567,9 @@ export function InsightsTab() {
       hasCompletionOnDate: boolean,
       sourceElement?: HTMLButtonElement
     ) => {
+      if (readOnly) {
+        return;
+      }
       if (pendingRetroDate !== null) {
         return;
       }
@@ -581,11 +639,14 @@ export function InsightsTab() {
         setPendingRetroDate(null);
       }
     },
-    [loadData, pendingRetroDate, redirectToLogin, runCompletionMutation]
+    [loadData, pendingRetroDate, readOnly, redirectToLogin, runCompletionMutation]
   );
 
   const saveMilestoneNames = useCallback(
     async (goal: Goal, names: string[]) => {
+      if (readOnly) {
+        return;
+      }
       if (goal.owner_id !== state.userId) {
         toast.error("Only the goal owner can rename milestones.");
         return;
@@ -623,7 +684,7 @@ export function InsightsTab() {
         setSavingMilestoneNamesGoalId(null);
       }
     },
-    [loadData, redirectToLogin, state.userId, supabase]
+    [loadData, readOnly, redirectToLogin, state.userId, supabase]
   );
 
   const onMonthSectionTouchStart: TouchEventHandler<HTMLDivElement> = (event) => {
@@ -742,6 +803,12 @@ export function InsightsTab() {
 
   return (
     <div className="space-y-5">
+      {laneLabel ? (
+        <div className="px-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          {laneLabel}
+          {readOnly ? " (read-only)" : ""}
+        </div>
+      ) : null}
       <Card className="shadow-sm">
         <CardHeader>
           <div className="flex items-center gap-2">
@@ -931,7 +998,7 @@ export function InsightsTab() {
               const isRecurring = goal.frequency_type === "recurring";
               const targetedRecurring = isTargetedRecurringGoal(goal);
               const isMilestone = goal.frequency_type === "fixed_milestones";
-              const canEditHistory = isRecurring || isMilestone;
+              const canEditHistory = !readOnly && (isRecurring || isMilestone);
               const editingHistory = editingGoalId === goal.id;
               const milestoneTargetCount = Math.max(goal.target_count ?? completionCount, 1);
               const milestoneCompletionDates = getSortedCompletionDates(completions);
