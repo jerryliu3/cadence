@@ -40,8 +40,8 @@ export function CompletionToggle({
   const [optimisticCompleted, setOptimisticCompleted] = React.useState<boolean | null>(
     null
   );
+  const [sawPending, setSawPending] = React.useState(false);
   const pressTimerRef = React.useRef<number | null>(null);
-  const sawPendingRef = React.useRef(false);
 
   React.useEffect(
     () => () => {
@@ -52,26 +52,20 @@ export function CompletionToggle({
     []
   );
 
-  React.useEffect(() => {
-    if (pending) {
-      sawPendingRef.current = true;
-    }
-  }, [pending]);
+  if (pending && !sawPending) {
+    setSawPending(true);
+  }
 
-  React.useEffect(() => {
-    if (optimisticCompleted === null) {
-      return;
-    }
-    if (completed === optimisticCompleted) {
+  if (optimisticCompleted !== null) {
+    const caughtUp = completed === optimisticCompleted;
+    const failedAfterPending = sawPending && !pending && !caughtUp;
+    if (caughtUp || failedAfterPending) {
       setOptimisticCompleted(null);
-      sawPendingRef.current = false;
-      return;
+      if (sawPending) {
+        setSawPending(false);
+      }
     }
-    if (sawPendingRef.current && !pending) {
-      setOptimisticCompleted(null);
-      sawPendingRef.current = false;
-    }
-  }, [completed, optimisticCompleted, pending]);
+  }
 
   const handleClick: React.MouseEventHandler<HTMLButtonElement> = (event) => {
     triggerLightPressFeedback();
