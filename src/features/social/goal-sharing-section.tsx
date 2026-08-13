@@ -81,7 +81,7 @@ export function GoalSharingSection({
         <CardHeader>
           <CardTitle>User search</CardTitle>
           <CardDescription>
-            Share read-only goals and invite participants to your group goals.
+            Share read-only goals with people you search for.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">

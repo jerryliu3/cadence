@@ -274,15 +274,6 @@ export function SocialTab() {
         completionsByGoal={completionsByGoal}
         removeSharedGoalForMe={removeSharedGoalForMe}
       />
-
-      <Card className="shadow-sm">
-        <CardHeader>
-          <CardTitle>Team collaboration</CardTitle>
-          <CardDescription>
-            Group goals are retired. Invite a partner from the Team tab on Challenges to share planner visibility and proposals.
-          </CardDescription>
-        </CardHeader>
-      </Card>
         </>
       ) : null}
           </div>

@@ -667,7 +667,6 @@ export function BulkGoalForm({
             start_date: draft.start_date,
             end_date: draft.end_date || null,
             default_local_time: draft.default_local_time.trim() || null,
-            is_group: false,
           },
         };
       });

@@ -97,7 +97,6 @@ interface GoalFormState {
   start_date: string;
   end_date: string;
   default_local_time: string;
-  is_group: boolean;
   is_private: boolean;
 }
 
@@ -115,7 +114,6 @@ const defaultState: GoalFormState = {
   start_date: toLocalDateString(),
   end_date: "",
   default_local_time: "",
-  is_group: false,
   is_private: false,
 };
 
@@ -152,8 +150,6 @@ export function GoalForm({
   const [linkTargetOpen, setLinkTargetOpen] = useState(false);
   const isEditing = Boolean(goalId);
   const goalFormId = isEditing ? "goal-form-edit" : "goal-form-create";
-  // Always return to Today. Group management lives under Settings, but the form
-  // should not redirect based on is_group (create, convert either direction, or delete).
   const exitHref = "/";
   const completeAndExit = useCallback(() => {
     if (onExit) {
@@ -244,7 +240,6 @@ export function GoalForm({
           start_date: goal.start_date,
           end_date: goal.end_date ?? "",
           default_local_time: goal.default_local_time ?? "",
-          is_group: goal.is_group,
           is_private: goal.is_private ?? false,
         });
 
@@ -465,7 +460,6 @@ export function GoalForm({
       p_start_date: state.start_date,
       p_end_date: state.end_date || undefined,
       p_default_local_time: state.default_local_time.trim() || undefined,
-      p_is_group: false,
     };
 
     const savedGoalId = goalArgs.p_id;
