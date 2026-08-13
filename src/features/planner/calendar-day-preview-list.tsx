@@ -208,15 +208,19 @@ export function CalendarDayPreviewList<
           {completionFactMarkers.map((marker) => (
             <div
               key={`preview-completion-fact-${marker.key}`}
-              className={`rounded-md border border-emerald-300 bg-emerald-100 text-emerald-950 dark:border-emerald-300 dark:bg-emerald-100 dark:text-emerald-950 ${
-                expanded ? "p-2" : "p-1.5"
-              }`}
+              className={`rounded-md ${
+                marker.owner === "partner"
+                  ? "border-2 border-sky-500 bg-transparent text-sky-700 dark:text-sky-300"
+                  : "border border-emerald-300 bg-emerald-100 text-emerald-950 dark:border-emerald-300 dark:bg-emerald-100 dark:text-emerald-950"
+              } ${expanded ? "p-2" : "p-1.5"}`}
             >
               <p className="truncate font-medium">{marker.goalTitle}</p>
               <p className="truncate text-[11px]">
-                {marker.scheduledDate && marker.scheduledDate !== day
-                  ? `Marked done here; credited from the ${marker.scheduledDate} scheduled session.`
-                  : "Marked done on this date."}
+                {marker.owner === "partner"
+                  ? "Partner marked this done."
+                  : marker.scheduledDate && marker.scheduledDate !== day
+                    ? `Marked done here; credited from the ${marker.scheduledDate} scheduled session.`
+                    : "Marked done on this date."}
               </p>
             </div>
           ))}
