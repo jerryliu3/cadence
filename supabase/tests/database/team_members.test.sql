@@ -189,14 +189,16 @@ select is(
   'team_id_for_pair returns the shared active team'
 );
 
+-- Social Duo 4 dropped public.team_preferences (unreachable configuration:
+-- no route, no RPC, no UI). Assert the membership fan-out it used to proxy for.
 select is(
   (
     select count(*)::integer
-    from public.team_preferences pref
-    where pref.team_id = current_setting('request.team_ab')::uuid
+    from public.team_members member
+    where member.team_id = current_setting('request.team_ab')::uuid
   ),
   2,
-  'accept fans team_preferences out to every member'
+  'accept fans membership out to every member'
 );
 
 reset role;
