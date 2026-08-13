@@ -414,6 +414,7 @@ export function TodayTab({
           {...(readOnly
             ? { readOnly: true as const }
             : {
+                readOnly: false as const,
                 onToggle: (sourceElement: HTMLButtonElement) =>
                   toggleCompletion(goal, sourceElement),
               })}
