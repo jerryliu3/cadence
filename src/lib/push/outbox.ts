@@ -1,5 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
-import { configureWebPush, sendPushToUser } from "@/lib/push/send";
+import { sendPushToUser } from "@/lib/push/send";
 
 interface ClaimedOutboxRow {
   id: string;
@@ -31,7 +31,6 @@ export async function flushNotificationOutbox({
 }: {
   limit?: number;
 } = {}): Promise<OutboxFlushResult> {
-  configureWebPush();
   const admin = createAdminClient();
   const clampedLimit = Math.min(Math.max(limit, 1), 200);
   const { data: claimedRows, error: claimError } = await admin.rpc(
