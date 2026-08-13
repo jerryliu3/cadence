@@ -114,6 +114,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      is_active_team_member: {
+        Args: { p_team_id: string; p_user_id: string }
+        Returns: boolean
+      }
       is_active_team_pair: {
         Args: { p_user_a: string; p_user_b: string }
         Returns: boolean

@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, private, extensions, pg_catalog;
-select plan(15);
+select plan(19);
 
 insert into auth.users (id, email)
 values
@@ -251,6 +251,57 @@ select throws_ok(
   '22023',
   'team_goal_required',
   'progress rpc rejects personal goals'
+);
+
+reset role;
+set local role service_role;
+insert into public.goal_shares (goal_id, shared_with)
+values (
+  'bf400000-0000-4000-8000-000000000001',
+  'bf333333-3333-4333-8333-333333333333'
+);
+reset role;
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config(
+  'request.jwt.claim.sub',
+  'bf333333-3333-4333-8333-333333333333',
+  true
+);
+
+select throws_ok(
+  $$select * from public.get_team_goal_progress('bf400000-0000-4000-8000-000000000001')$$,
+  '42501',
+  'not authorized for goal',
+  'sharee cannot read team roster via goal progress'
+);
+
+select set_config(
+  'request.jwt.claim.sub',
+  'bf111111-1111-4111-8111-111111111111',
+  true
+);
+select ok(
+  public.dissolve_team_service(),
+  'owner can dissolve the team'
+);
+
+reset role;
+
+select ok(
+  not public.can_complete_goal(
+    'bf400000-0000-4000-8000-000000000001',
+    'bf222222-2222-4222-8222-222222222222'
+  ),
+  'ex-member cannot complete a team-id goal after dissolve'
+);
+
+select ok(
+  not public.can_view_goal(
+    'bf400000-0000-4000-8000-000000000001',
+    'bf222222-2222-4222-8222-222222222222'
+  ),
+  'ex-member cannot view a team-id goal after dissolve'
 );
 
 select * from finish();

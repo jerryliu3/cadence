@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions, pg_catalog;
-select plan(31);
+select plan(33);
 
 -- Pin the five dropped client-PostgREST triggers.
 select hasnt_trigger(
@@ -517,6 +517,36 @@ select ok(
     '33333333-3333-4333-8333-333333333333'
   ),
   'former sharee cannot view after privacy revoke'
+);
+
+select throws_ok(
+  $$
+    insert into public.goal_shares (goal_id, shared_with)
+    values (
+      'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',
+      '33333333-3333-4333-8333-333333333333'
+    )
+  $$,
+  '42501',
+  null,
+  'sharing a private goal is rejected'
+);
+
+reset role;
+set local role service_role;
+insert into public.goal_shares (goal_id, shared_with)
+values (
+  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',
+  '33333333-3333-4333-8333-333333333333'
+);
+reset role;
+
+select ok(
+  not public.can_view_goal(
+    'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',
+    '33333333-3333-4333-8333-333333333333'
+  ),
+  'a leftover share on a private goal does not grant view'
 );
 
 select * from finish();

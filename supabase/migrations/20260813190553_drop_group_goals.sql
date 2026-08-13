@@ -358,6 +358,29 @@ begin
 end;
 $$;
 
+create or replace function private.is_active_team_member(
+  p_team_id uuid,
+  p_user_id uuid
+)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select
+    p_team_id is not null
+    and p_user_id is not null
+    and exists (
+      select 1
+      from public.team_members member
+      join public.teams team on team.id = member.team_id
+      where member.team_id = p_team_id
+        and member.user_id = p_user_id
+        and team.status = 'active'::public.team_status
+    );
+$$;
+
 drop policy if exists profiles_select_self_or_related on public.profiles;
 create policy profiles_select_self_or_related
 on public.profiles
@@ -370,21 +393,14 @@ using (
     from public.goals goal
     where goal.owner_id = profiles.id
       and goal.is_deleted = false
+      and public.can_view_goal(goal.id, (select auth.uid()))
       and (
-        exists (
+        goal.team_id is not null
+        or exists (
           select 1
           from public.goal_shares share
           where share.goal_id = goal.id
             and share.shared_with = (select auth.uid())
-        )
-        or (
-          goal.team_id is not null
-          and exists (
-            select 1
-            from public.team_members member
-            where member.team_id = goal.team_id
-              and member.user_id = (select auth.uid())
-          )
         )
       )
   )
@@ -415,20 +431,40 @@ as $$
       and goal.is_deleted = false
       and (
         goal.owner_id = p_uid
-        or share.shared_with is not null
+        or (
+          share.shared_with is not null
+          and goal.is_private = false
+        )
         or (
           goal.team_id is not null
-          and exists (
-            select 1
-            from public.team_members member
-            where member.team_id = goal.team_id
-              and member.user_id = p_uid
-          )
+          and private.is_active_team_member(goal.team_id, p_uid)
         )
         or (
           goal.team_id is null
           and goal.is_private = false
           and private.is_active_team_pair(goal.owner_id, p_uid)
+        )
+      )
+  );
+$$;
+
+create or replace function public.can_complete_goal(p_goal_id uuid, p_uid uuid)
+returns boolean
+language sql
+security definer
+stable
+set search_path = ''
+as $$
+  select exists (
+    select 1
+    from public.goals goal
+    where goal.id = p_goal_id
+      and goal.is_deleted = false
+      and (
+        goal.owner_id = p_uid
+        or (
+          goal.team_id is not null
+          and private.is_active_team_member(goal.team_id, p_uid)
         )
       )
   );
@@ -474,6 +510,12 @@ begin
       message = 'team_goal_required';
   end if;
 
+  if not private.is_active_team_member(v_team_id, v_uid) then
+    raise exception using
+      errcode = '42501',
+      message = 'not authorized for goal';
+  end if;
+
   return query
   select
     member.user_id,
@@ -507,6 +549,21 @@ using (public.can_view_goal(goal_id, (select auth.uid())));
 
 drop function if exists public.can_view_goal_content(uuid, uuid);
 
+drop policy if exists goal_shares_owner_insert on public.goal_shares;
+create policy goal_shares_owner_insert
+on public.goal_shares
+for insert
+to authenticated
+with check (
+  public.can_administer_goal(goal_id, (select auth.uid()))
+  and exists (
+    select 1
+    from public.goals goal
+    where goal.id = goal_id
+      and goal.is_private = false
+  )
+);
+
 drop table if exists public.goal_participants cascade;
 alter table public.goals drop column if exists is_group;
 drop type if exists public.participant_role;
@@ -519,6 +576,9 @@ to authenticated
 using (user_id = (select auth.uid()));
 
 grant select on table public.team_members to authenticated;
+
+revoke all on function private.is_active_team_member(uuid, uuid)
+  from public, anon, authenticated;
 
 revoke all on function public.create_goal(
   uuid, text, text, text, text, text, text,
