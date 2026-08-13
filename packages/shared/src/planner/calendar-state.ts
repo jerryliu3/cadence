@@ -38,198 +38,33 @@ export function getSurfaceKey(tab: PlannerShellTab): SurfaceKey {
   return tab === "calendar" ? "calendar" : "checklist";
 }
 
-export function normalizeChecklistShellRoute({
-  searchParams,
-  defaultCalendarViewMode,
-}: {
-  searchParams: URLSearchParams;
-  defaultCalendarViewMode: PlannerCalendarViewMode;
-}) {
-  const rawTab = searchParams.get("tab");
-  const rawMonth = searchParams.get("month");
-  const rawDay = searchParams.get("day");
-  const rawView = searchParams.get("view");
-  const dayValid = isValidDate(rawDay);
-  const monthValid = isValidMonth(rawMonth);
-  const nextParams = new URLSearchParams(searchParams.toString());
-  const rawViewModeValid = isValidCalendarViewMode(rawView);
-  const hasExplicitTab =
-    rawTab === "today" || rawTab === "not-today" || rawTab === "calendar";
-  let viewMode: PlannerCalendarViewMode = rawViewModeValid
-    ? rawView
-    : defaultCalendarViewMode;
-  let tab: PlannerShellTab = hasExplicitTab ? rawTab : "today";
-  let changed = false;
-  if (rawTab && !hasExplicitTab) {
-    nextParams.set("tab", "today");
-    changed = true;
-  }
-
-  if (rawDay && !dayValid) {
-    nextParams.delete("day");
-    changed = true;
-  }
-  if (rawMonth && !monthValid) {
-    nextParams.delete("month");
-    changed = true;
-  }
-  if (rawView && !rawViewModeValid) {
-    nextParams.delete("view");
-    changed = true;
-  }
-
-  if (dayValid) {
-    if (!hasExplicitTab || tab === "calendar") {
-      const dayMonth = rawDay.slice(0, 7);
-      if (nextParams.get("month") !== dayMonth) {
-        nextParams.set("month", dayMonth);
-        changed = true;
-      }
-      if (tab !== "calendar") {
-        tab = "calendar";
-        nextParams.set("tab", "calendar");
-        changed = true;
-      }
-      if (!rawViewModeValid && viewMode !== "day") {
-        viewMode = "day";
-        nextParams.set("view", "day");
-        changed = true;
-      }
-    }
-  }
-
-  if (tab === "calendar") {
-    if (nextParams.get("view") !== viewMode) {
-      nextParams.set("view", viewMode);
-      changed = true;
-    }
-    if (viewMode === "day") {
-      const dayParam = nextParams.get("day");
-      const normalizedDay = isValidDate(dayParam) ? dayParam : getTodayDateParam();
-      if (nextParams.get("day") !== normalizedDay) {
-        nextParams.set("day", normalizedDay);
-        changed = true;
-      }
-      const normalizedMonth = normalizedDay.slice(0, 7);
-      if (nextParams.get("month") !== normalizedMonth) {
-        nextParams.set("month", normalizedMonth);
-        changed = true;
-      }
-    } else if (viewMode === "week" || viewMode === "three_day") {
-      const dayParam = nextParams.get("day");
-      const monthParam = nextParams.get("month");
-      const fallbackDay = isValidMonth(monthParam)
-        ? `${monthParam}-01`
-        : getTodayDateParam();
-      const normalizedDay = isValidDate(dayParam) ? dayParam : fallbackDay;
-      if (nextParams.get("day") !== normalizedDay) {
-        nextParams.set("day", normalizedDay);
-        changed = true;
-      }
-      const normalizedMonth = normalizedDay.slice(0, 7);
-      if (nextParams.get("month") !== normalizedMonth) {
-        nextParams.set("month", normalizedMonth);
-        changed = true;
-      }
-    } else if (viewMode === "month" && nextParams.has("day")) {
-      nextParams.delete("day");
-      changed = true;
-    }
-  }
-  const normalizedMonthParam = nextParams.get("month");
-  const normalizedDayParam = nextParams.get("day");
-  const normalizedViewParam = nextParams.get("view");
-  const normalizedViewMode = isValidCalendarViewMode(normalizedViewParam)
-    ? normalizedViewParam
-    : viewMode;
-
-  return {
-    tab,
-    month: isValidMonth(normalizedMonthParam) ? normalizedMonthParam : null,
-    day: isValidDate(normalizedDayParam) ? normalizedDayParam : null,
-    viewMode: normalizedViewMode,
-    changed,
-    nextParams,
-  };
-}
-
-export function normalizeCalendarRoute({
-  searchParams,
-  defaultCalendarViewMode,
-}: {
-  searchParams: URLSearchParams;
-  defaultCalendarViewMode: PlannerCalendarViewMode;
-}) {
-  const rawMonth = searchParams.get("month");
-  const rawDay = searchParams.get("day");
-  const rawView = searchParams.get("view");
-  const monthValid = isValidMonth(rawMonth);
-  const dayValid = isValidDate(rawDay);
-  const rawViewModeValid = isValidCalendarViewMode(rawView);
-  const nextParams = new URLSearchParams(searchParams.toString());
-  let changed = false;
-  const viewMode: PlannerCalendarViewMode = rawViewModeValid
-    ? rawView
-    : defaultCalendarViewMode;
-
-  if (rawMonth && !monthValid) {
-    nextParams.delete("month");
-    changed = true;
-  }
-  if (rawDay && !dayValid) {
-    nextParams.delete("day");
-    changed = true;
-  }
-  if (rawView && !rawViewModeValid) {
-    nextParams.delete("view");
-    changed = true;
-  }
-
-  if (viewMode === "month") {
-    if (nextParams.has("day")) {
-      nextParams.delete("day");
-      changed = true;
-    }
-  } else {
-    const dayParam = nextParams.get("day");
-    const monthParam = nextParams.get("month");
-    const fallbackDay = isValidMonth(monthParam)
-      ? `${monthParam}-01`
-      : getTodayDateParam();
-    const normalizedDay = isValidDate(dayParam) ? dayParam : fallbackDay;
-    if (nextParams.get("day") !== normalizedDay) {
-      nextParams.set("day", normalizedDay);
-      changed = true;
-    }
-    const normalizedMonth = normalizedDay.slice(0, 7);
-    if (nextParams.get("month") !== normalizedMonth) {
-      nextParams.set("month", normalizedMonth);
-      changed = true;
-    }
-  }
-
-  if (nextParams.get("view") !== viewMode) {
-    nextParams.set("view", viewMode);
-    changed = true;
-  }
-
-  const normalizedMonthParam = nextParams.get("month");
-  const normalizedDayParam = nextParams.get("day");
-
-  return {
-    month: isValidMonth(normalizedMonthParam) ? normalizedMonthParam : null,
-    day: isValidDate(normalizedDayParam) ? normalizedDayParam : null,
-    viewMode,
-    changed,
-    nextParams,
-  };
-}
-
 export interface CalendarState {
   tab: PlannerShellTab;
   month: string | null;
   day: string | null;
   viewMode: PlannerCalendarViewMode;
+}
+
+function applyCalendarViewInvariants(
+  month: string | null,
+  day: string | null,
+  viewMode: PlannerCalendarViewMode
+): Pick<CalendarState, "month" | "day" | "viewMode"> {
+  if (viewMode === "month") {
+    return {
+      month: isValidMonth(month) ? month : null,
+      day: null,
+      viewMode,
+    };
+  }
+
+  const fallbackDay = isValidMonth(month) ? `${month}-01` : getTodayDateParam();
+  const normalizedDay = isValidDate(day) ? day : fallbackDay;
+  return {
+    day: normalizedDay,
+    month: normalizedDay.slice(0, 7),
+    viewMode,
+  };
 }
 
 export function normalizeCalendarState({
@@ -247,41 +82,46 @@ export function normalizeCalendarState({
   defaultCalendarViewMode: PlannerCalendarViewMode;
   surface?: "checklist-shell" | "calendar";
 }): CalendarState {
-  const searchParams = new URLSearchParams();
-  if (tab) {
-    searchParams.set("tab", tab);
-  }
-  if (month) {
-    searchParams.set("month", month);
-  }
-  if (day) {
-    searchParams.set("day", day);
-  }
-  if (viewMode) {
-    searchParams.set("view", viewMode);
-  }
+  const validMonth = isValidMonth(month) ? month : null;
+  const validDay = isValidDate(day) ? day : null;
+  const rawViewValid = isValidCalendarViewMode(viewMode);
+  let resolvedView: PlannerCalendarViewMode = rawViewValid
+    ? viewMode
+    : defaultCalendarViewMode;
 
   if (surface === "calendar") {
-    const result = normalizeCalendarRoute({
-      searchParams,
-      defaultCalendarViewMode,
-    });
     return {
       tab: "calendar",
-      month: result.month,
-      day: result.day,
-      viewMode: result.viewMode,
+      ...applyCalendarViewInvariants(validMonth, validDay, resolvedView),
     };
   }
 
-  const result = normalizeChecklistShellRoute({
-    searchParams,
-    defaultCalendarViewMode,
-  });
+  const hasExplicitTab =
+    tab === "today" || tab === "not-today" || tab === "calendar";
+  let resolvedTab: PlannerShellTab = hasExplicitTab ? tab : "today";
+
+  if (validDay && (!hasExplicitTab || resolvedTab === "calendar")) {
+    resolvedTab = "calendar";
+    if (!rawViewValid && resolvedView !== "day") {
+      resolvedView = "day";
+    }
+  }
+
+  if (resolvedTab === "calendar") {
+    return {
+      tab: "calendar",
+      ...applyCalendarViewInvariants(
+        validDay ? validDay.slice(0, 7) : validMonth,
+        validDay,
+        resolvedView
+      ),
+    };
+  }
+
   return {
-    tab: result.tab,
-    month: result.month,
-    day: result.day,
-    viewMode: result.viewMode,
+    tab: resolvedTab,
+    month: validMonth,
+    day: validDay,
+    viewMode: resolvedView,
   };
 }

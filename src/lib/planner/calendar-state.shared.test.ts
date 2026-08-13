@@ -1,8 +1,6 @@
 import { describe, expect, it } from "vitest";
-import {
-  normalizeCalendarState,
-  normalizeChecklistShellRoute,
-} from "@cadence/shared/planner/calendar-state";
+import { normalizeCalendarState } from "@cadence/shared/planner/calendar-state";
+import { normalizeChecklistShellRoute } from "@/lib/planner/calendar-route";
 
 describe("normalizeChecklistShellRoute", () => {
   it("falls back to today for an invalid tab", () => {
@@ -27,6 +25,16 @@ describe("normalizeChecklistShellRoute", () => {
       viewMode: "day",
       changed: true,
     });
+  });
+
+  it("does not promote a valid day when the today tab is explicit", () => {
+    const result = normalizeChecklistShellRoute({
+      searchParams: new URLSearchParams("tab=today&day=2026-08-13"),
+      defaultCalendarViewMode: "month",
+    });
+    expect(result.tab).toBe("today");
+    expect(result.day).toBe("2026-08-13");
+    expect(result.changed).toBe(false);
   });
 
   it("drops an invalid day instead of keeping it", () => {
@@ -62,5 +70,17 @@ describe("normalizeCalendarState", () => {
     expect(result.day).toBe("2026-08-01");
     expect(result.viewMode).toBe("week");
     expect(result.month).toBe("2026-08");
+  });
+
+  it("keeps an explicit today tab with a valid day", () => {
+    const result = normalizeCalendarState({
+      tab: "today",
+      day: "2026-08-13",
+      defaultCalendarViewMode: "month",
+      surface: "checklist-shell",
+    });
+    expect(result.tab).toBe("today");
+    expect(result.day).toBe("2026-08-13");
+    expect(result.viewMode).toBe("month");
   });
 });
