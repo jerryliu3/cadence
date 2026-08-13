@@ -222,7 +222,16 @@ begin
         and participant.subject_id = v_team_id
       )
     )
-  where challenge.id = p_challenge_id;
+  where challenge.id = p_challenge_id
+    and challenge.status in (
+      'scheduled'::public.challenge_status,
+      'active'::public.challenge_status,
+      'closed'::public.challenge_status
+    )
+    and (
+      challenge.status <> 'scheduled'::public.challenge_status
+      or challenge.ends_at > pg_catalog.now()
+    );
 end;
 $$;
 

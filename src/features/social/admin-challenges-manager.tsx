@@ -11,6 +11,9 @@ interface AdminChallengeResponse {
   items?: SocialChallenge[];
 }
 
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
 export function AdminChallengesManager() {
   const [items, setItems] = useState<SocialChallenge[]>([]);
   const [title, setTitle] = useState("");
@@ -46,6 +49,10 @@ export function AdminChallengesManager() {
     setError(null);
     setIsPending(true);
     try {
+      const trimmedCohortId = cohortId.trim();
+      if (trimmedCohortId.length > 0 && !UUID_RE.test(trimmedCohortId)) {
+        throw new Error("Cohort id must be a UUID.");
+      }
       const now = new Date();
       const endsAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
       const response = await fetch("/api/admin/challenges", {
@@ -64,8 +71,8 @@ export function AdminChallengesManager() {
           startsAt: now.toISOString(),
           endsAt: endsAt.toISOString(),
           rewardXp: 0,
-          audienceKind: cohortId.trim().length > 0 ? "cohort" : "global",
-          cohortId: cohortId.trim().length > 0 ? cohortId.trim() : null,
+          audienceKind: trimmedCohortId.length > 0 ? "cohort" : "global",
+          cohortId: trimmedCohortId.length > 0 ? trimmedCohortId : null,
         }),
       });
       if (!response.ok) {
