@@ -4,7 +4,10 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./api-client": "./src/api-client/index.ts",
+    "./async/abort": "./src/async/abort.ts",
+    "./supabase/database.types": "./src/supabase/database.types.ts"
   },
   "dependencies": {
     "zod": "^4.4.3"

@@ -2,9 +2,10 @@ import "react-native-url-polyfill/auto";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { createClient } from "@supabase/supabase-js";
 import { AppState } from "react-native";
+import type { Database } from "@cadence/shared/supabase/database.types";
 import { mobileEnv } from "../config/env";
 
-export const supabase = createClient(
+export const supabase = createClient<Database>(
   mobileEnv.supabaseUrl,
   mobileEnv.supabaseAnonKey,
   {
