@@ -57,7 +57,6 @@ export function CompletionToggle({
     if (!completed) {
       return;
     }
-    setOptimisticCompleted(false);
     if (optimisticTimerRef.current !== null) {
       window.clearTimeout(optimisticTimerRef.current);
       optimisticTimerRef.current = null;
