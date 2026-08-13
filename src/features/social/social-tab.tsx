@@ -33,38 +33,26 @@ export function SocialTab() {
     searchTerm,
     setSearchTerm,
     setSelectedShareGoalIds,
-    selectedGroupGoalId,
-    setSelectedGroupGoalId,
     shareMenuOpen,
     setShareMenuOpen,
     shareMenuPosition,
     setShareMenuPosition,
     sharedMonthCursor,
     setSharedMonthCursor,
-    groupDraft,
-    setGroupDraft,
     profileDraft,
     setProfileDraft,
     visibleSearchResults,
     shareableGoals,
-    ownGroupGoals,
     activeSelectedShareGoalIds,
     shareMenuListMaxHeight,
     outgoingSharesByGoal,
     sharedByMeGoals,
     completionsByGoal,
-    groupRequiresEndDate,
-    updateGroupFrequencyType,
     canSaveProfile,
     saveProfile,
     shareGoalWithUser,
     revokeGoalShare,
     removeSharedGoalForMe,
-    inviteToGroupGoal,
-    createGroupGoal,
-    removeParticipant,
-    leaveGroup,
-    deleteGroupGoal,
     signOut,
   } = useSocialTabData();
   const [settingsSection, setSettingsSection] = useState<
@@ -159,7 +147,7 @@ export function SocialTab() {
       ? "Manage planner timezone and start-of-week defaults."
       : settingsSection === "notifications"
         ? "Configure push access and reminder schedules."
-        : "Share goals, manage collaboration, and configure group participation.";
+        : "Share goals and manage who can see them.";
 
   if (loading) {
     return (
@@ -269,16 +257,12 @@ export function SocialTab() {
         shareableGoals={shareableGoals}
         activeSelectedShareGoalIds={activeSelectedShareGoalIds}
         setSelectedShareGoalIds={setSelectedShareGoalIds}
-        selectedGroupGoalId={selectedGroupGoalId}
-        setSelectedGroupGoalId={setSelectedGroupGoalId}
-        ownGroupGoals={ownGroupGoals}
         shareMenuPosition={shareMenuPosition}
         shareMenuListMaxHeight={shareMenuListMaxHeight}
         searchTerm={searchTerm}
         setSearchTerm={setSearchTerm}
         visibleSearchResults={visibleSearchResults}
         shareGoalWithUser={shareGoalWithUser}
-        inviteToGroupGoal={inviteToGroupGoal}
         sharedByMeGoals={sharedByMeGoals}
         outgoingSharesByGoal={outgoingSharesByGoal}
         profileDirectory={state.profileDirectory}

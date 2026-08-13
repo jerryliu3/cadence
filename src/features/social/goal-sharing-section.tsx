@@ -1,7 +1,7 @@
 "use client";
 
 import { addMonths, format, subMonths } from "date-fns";
-import { ChevronDown, Search, Share2, UserMinus, UserPlus } from "lucide-react";
+import { ChevronDown, Search, Share2, UserMinus } from "lucide-react";
 import { type Dispatch, type RefObject, type SetStateAction } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -9,13 +9,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PeriodStepper } from "@/components/ui/period-stepper";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { MonthHeatmap } from "@/features/insights/month-heatmap";
 import { MilestonePills } from "@/features/goals/milestone-pills";
 import { buildMilestoneNames } from "@/lib/goals/milestones";
@@ -38,16 +31,12 @@ interface GoalSharingSectionProps {
   shareableGoals: Goal[];
   activeSelectedShareGoalIds: string[];
   setSelectedShareGoalIds: Dispatch<SetStateAction<string[]>>;
-  selectedGroupGoalId: string;
-  setSelectedGroupGoalId: (value: string) => void;
-  ownGroupGoals: Goal[];
   shareMenuPosition: ShareMenuPosition;
   shareMenuListMaxHeight: number;
   searchTerm: string;
   setSearchTerm: (value: string) => void;
   visibleSearchResults: Profile[];
   shareGoalWithUser: (targetUserId: string) => Promise<void>;
-  inviteToGroupGoal: (targetUserId: string) => Promise<void>;
   sharedByMeGoals: Goal[];
   outgoingSharesByGoal: Map<string, GoalShare[]>;
   profileDirectory: Record<string, Profile>;
@@ -69,16 +58,12 @@ export function GoalSharingSection({
   shareableGoals,
   activeSelectedShareGoalIds,
   setSelectedShareGoalIds,
-  selectedGroupGoalId,
-  setSelectedGroupGoalId,
-  ownGroupGoals,
   shareMenuPosition,
   shareMenuListMaxHeight,
   searchTerm,
   setSearchTerm,
   visibleSearchResults,
   shareGoalWithUser,
-  inviteToGroupGoal,
   sharedByMeGoals,
   outgoingSharesByGoal,
   profileDirectory,
@@ -135,21 +120,6 @@ export function GoalSharingSection({
                   />
                 </button>
               </div>
-            </div>
-            <div className="space-y-2">
-              <Label>Group goal for invitations</Label>
-              <Select value={selectedGroupGoalId} onValueChange={setSelectedGroupGoalId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Choose group goal" />
-                </SelectTrigger>
-                <SelectContent>
-                  {ownGroupGoals.map((goal) => (
-                    <SelectItem key={goal.id} value={goal.id}>
-                      {goal.title}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
             </div>
           </div>
 
@@ -259,14 +229,6 @@ export function GoalSharingSection({
                     >
                       <Share2 className="size-3.5" />
                       Share selected
-                    </Button>
-                    <Button
-                      size="sm"
-                      type="button"
-                      onClick={() => void inviteToGroupGoal(profile.id)}
-                    >
-                      <UserPlus className="size-3.5" />
-                      Invite
                     </Button>
                   </div>
                 </div>

@@ -88,7 +88,6 @@ const columnAliases = {
   description: ["description", "details", "notes"],
   category: ["category", "tag"],
   color: ["color", "accent_color", "hex_color"],
-  is_group: ["is_group", "group_goal", "collaborative", "is_collaborative"],
   frequency_type: ["frequency_type", "frequency", "type"],
   recurrence_interval: ["recurrence_interval", "recurrence", "interval"],
   target_count: ["target_count", "target", "count", "milestones"],
@@ -107,7 +106,6 @@ interface BulkGoalDraft {
   category_selection: CategorySelection;
   custom_category: string;
   color: string;
-  is_group: boolean;
   frequency_type: GoalFrequencyType;
   recurrence_interval: RecurrenceInterval;
   target_count: string;
@@ -143,9 +141,9 @@ interface BulkGoalFormProps {
   onExit?: () => void;
 }
 
-const csvExample = `title,description,category,color,is_group,frequency_type,recurrence_interval,target_count,milestone_names,start_date,end_date,default_local_time
-Morning run,Train for a half marathon,Health,#16a34a,false,recurring,daily,20,,2026-06-01,2026-12-31,06:45
-Read 12 books,One book per month,Personal,#6366f1,false,fixed,,12,Book 1|Book 2|Book 3,2026-06-01,2026-12-31,`;
+const csvExample = `title,description,category,color,frequency_type,recurrence_interval,target_count,milestone_names,start_date,end_date,default_local_time
+Morning run,Train for a half marathon,Health,#16a34a,recurring,daily,20,,2026-06-01,2026-12-31,06:45
+Read 12 books,One book per month,Personal,#6366f1,fixed,,12,Book 1|Book 2|Book 3,2026-06-01,2026-12-31,`;
 
 function normalizeHeaderKey(header: string): string {
   return header.trim().toLowerCase().replace(/[^a-z0-9]+/g, "_");
@@ -219,11 +217,6 @@ function parseTargetCount(raw: string): number | null {
 
   const parsed = Number.parseInt(trimmed, 10);
   return Number.isNaN(parsed) ? null : parsed;
-}
-
-function parseBooleanValue(raw: string): boolean {
-  const normalized = raw.trim().toLowerCase();
-  return normalized === "true" || normalized === "1" || normalized === "yes" || normalized === "y";
 }
 
 function isValidHexColor(raw: string): boolean {
@@ -306,10 +299,6 @@ function validateDraft(draft: BulkGoalDraft): string[] {
     errors.push(issue.message);
   }
 
-  if (draft.is_group && draft.linked_target_goal_id !== "none") {
-    errors.push("Group goals cannot be linked to another goal.");
-  }
-
   return errors;
 }
 
@@ -353,7 +342,6 @@ function buildDraftFromRow(row: Record<string, unknown>, rowIndex: number): Bulk
     category_selection: categoryState.selection,
     custom_category: categoryState.customValue,
     color: draftColor,
-    is_group: parseBooleanValue(extractText(normalizedRow, columnAliases.is_group)),
     frequency_type: frequencyType,
     recurrence_interval: parseRecurrenceInterval(
       extractText(normalizedRow, columnAliases.recurrence_interval)
@@ -694,7 +682,7 @@ export function BulkGoalForm({
 
       const linkRows = preparedRows
         .filter(
-          ({ draft }) => !draft.is_group && draft.linked_target_goal_id && draft.linked_target_goal_id !== "none"
+          ({ draft }) => draft.linked_target_goal_id && draft.linked_target_goal_id !== "none"
         )
         .map(({ draft, goalId }) => ({
           source_goal_id: goalId,
@@ -870,7 +858,7 @@ export function BulkGoalForm({
                   id="bulk-csv-input"
                   value={csvInput}
                   onChange={(event) => setCsvInput(event.target.value)}
-                  placeholder="title,description,category,color,is_group,frequency_type,recurrence_interval,target_count,milestone_names,start_date,end_date,default_local_time"
+                  placeholder="title,description,category,color,frequency_type,recurrence_interval,target_count,milestone_names,start_date,end_date,default_local_time"
                   className="min-h-36"
                 />
                 <div className="flex flex-wrap items-center gap-2">
@@ -915,7 +903,7 @@ export function BulkGoalForm({
                   ) : null}
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Supported columns: title, description, category, color, is_group,
+                  Supported columns: title, description, category, color,
                   frequency_type, recurrence_interval, target_count, milestone_names, start_date,
                   end_date, default_local_time.
                 </p>
@@ -1364,10 +1352,7 @@ export function BulkGoalForm({
                               ) : null}
                             </div>
 
-                            </div>
-
-                            {!draft.is_group ? (
-                              <GoalLinkTargetSelect
+                            <GoalLinkTargetSelect
                                 value={draft.linked_target_goal_id}
                                 onValueChange={(value) =>
                                   updateDraft(draft.id, (previous) => ({
@@ -1393,7 +1378,6 @@ export function BulkGoalForm({
                                 filteredLinkTargets={filteredLinkTargets}
                                 keyPrefix={draft.id}
                               />
-                            ) : null}
                           </div>
                         </CollapsibleContent>
                       </div>
