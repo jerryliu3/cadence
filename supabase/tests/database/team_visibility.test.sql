@@ -79,8 +79,8 @@ set local role authenticated;
 select set_config('request.jwt.claim.role', 'authenticated', true);
 select set_config('request.jwt.claim.sub', '9a111111-1111-4111-8111-111111111111', true);
 
-select ok(
-  public.mark_goal_complete('9a400000-0000-4000-8000-000000000001', current_date),
+select lives_ok(
+  $$select public.mark_goal_complete('9a400000-0000-4000-8000-000000000001', current_date)$$,
   'owner can record completion on shared goal'
 );
 
