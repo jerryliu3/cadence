@@ -18,16 +18,12 @@ import {
   CalendarRange,
   ChevronDown,
   Flame,
-  Layers3,
   Maximize2,
   PencilLine,
   TrendingUp,
   X,
 } from "lucide-react";
-import { useRouter } from "next/navigation";
-import { type TouchEventHandler, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import CalendarHeatmap from "react-calendar-heatmap";
-import "react-calendar-heatmap/dist/styles.css";
+import { type TouchEventHandler, useCallback, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { AnchoredPopupCard } from "@/components/ui/anchored-popup-card";
 import { Badge } from "@/components/ui/badge";
@@ -44,15 +40,22 @@ import { Input } from "@/components/ui/input";
 import { LoadingCard } from "@/components/ui/loading-card";
 import { PeriodStepper } from "@/components/ui/period-stepper";
 import { Progress } from "@/components/ui/progress";
-import { buildLoginHref } from "@/lib/auth/login-redirect";
 import { GoalEndMonthBadge } from "@/features/goals/goal-end-month-badge";
 import { MilestonePills } from "@/features/goals/milestone-pills";
 import { GoalListControls } from "@/features/goals/goal-list-controls";
+import { InsightsOverallStatsCard } from "@/features/insights/insights-overall-stats-card";
+import {
+  selectOverallCompletionPercent,
+  selectSearchedGoals,
+  selectVisiblePerGoalHeatmaps,
+  selectYearHeatmapValues,
+} from "@/features/insights/insights-selectors";
 import { MonthHeatmap } from "@/features/insights/month-heatmap";
+import { useInsightsData } from "@/features/insights/use-insights-data";
 import { CalendarDayPreviewList } from "@/features/planner/calendar-day-preview-list";
 import { computeDayPreviewPosition } from "@/features/planner/day-preview-popup";
 import { getApiErrorMessage } from "@/lib/api/client";
-import { isAbortError, withAbortSignal } from "@/lib/async/abort";
+import { isAbortError } from "@/lib/async/abort";
 import { resolveUserTimezone } from "@/lib/dates/timezone";
 import {
   getCategoryBadgeClass,
@@ -71,10 +74,7 @@ import {
 } from "@/lib/goals/completable-goals";
 import { resolveSelectedDateState, toLocalDateString } from "@/lib/dates/day";
 import {
-  filterGoalsByEndMonth,
-  partitionGoalsByVisibleStart,
   resolveEffectiveEndMonth,
-  sortGoalsByDate,
   type GoalDateSort,
 } from "@/lib/goals/list-view";
 import {
@@ -84,17 +84,10 @@ import {
 } from "@/lib/goals/milestones";
 import { getHeatmapScaleClass } from "@/lib/goals/heatmap";
 import {
-  fetchProgressContext,
   isProgressContextAuthenticationError,
   progressSummaryMap,
-  type ProgressContextResponse,
 } from "@/lib/goals/progress-context";
-import { selectViewerVisibleGoals } from "@/lib/goals/visible-goals";
-import { useDuo } from "@/features/social/duo/duo-context";
-import type {
-  CompletionDateFact,
-  Goal,
-} from "@/lib/goals/types";
+import type { Goal } from "@/lib/goals/types";
 import {
   resolveCompletionDispatch,
 } from "@/lib/planner/completion-dispatch";
@@ -104,38 +97,11 @@ import {
 } from "@/lib/planner/requirements";
 import { useCompletionMutation } from "@/features/planner/use-completion-mutation";
 import { withPlannerRefreshTimeout } from "@/lib/planner/refresh-timeout";
-import { createClient } from "@/lib/supabase/client";
 import { useOutsidePointerDismiss } from "@/lib/ui/use-outside-pointer-dismiss";
 import { captureViewportRect } from "@/lib/xp/events";
 
-interface InsightsData {
-  userId: string;
-  goals: Goal[];
-  completions: CompletionDateFact[];
-  memberTeamIds: string[];
-  progress: ProgressContextResponse | null;
-}
-
-const emptyInsights: InsightsData = {
-  userId: "",
-  goals: [],
-  completions: [],
-  memberTeamIds: [],
-  progress: null,
-};
-
 type HeatmapViewMode = "month" | "year";
 
-const aggregateWeekdayLabels: [string, string, string, string, string, string, string] = [
-  "Su",
-  "M",
-  "T",
-  "W",
-  "Th",
-  "F",
-  "S",
-];
-const INSIGHTS_REQUEST_TIMEOUT_MS = 15_000;
 const MAX_VISIBLE_MILESTONES = 5;
 const AGGREGATE_DRILLDOWN_DAY_CLASS_PREFIX = "aggregate-drilldown-day-";
 
@@ -168,12 +134,6 @@ export function InsightsTab({
   readOnly = false,
   laneLabel,
 }: InsightsTabProps = {}) {
-  const supabase = useMemo(() => createClient(), []);
-  const { state: duoState } = useDuo();
-  const duoPartnerId = duoState.activePartner?.partnerId ?? null;
-  const router = useRouter();
-  const [state, setState] = useState<InsightsData>(emptyInsights);
-  const [loading, setLoading] = useState(true);
   const [monthCursor, setMonthCursor] = useState(new Date());
   const [goalMonthOverrides, setGoalMonthOverrides] = useState<Record<string, Date>>({});
   const [perGoalViewMode, setPerGoalViewMode] = useState<HeatmapViewMode>("month");
@@ -195,145 +155,12 @@ export function InsightsTab({
   const monthSwipeStartRef = useRef<{ x: number; y: number } | null>(null);
   const aggregateHeatmapRef = useRef<HTMLDivElement | null>(null);
   const aggregateDrilldownRef = useRef<HTMLDivElement | null>(null);
-  const loadRequestIdRef = useRef(0);
-  const visibleLoadCountRef = useRef(0);
-  const authRedirectStartedRef = useRef(false);
   const runCompletionMutation = useCompletionMutation();
   const selectedYear = useMemo(() => format(monthCursor, "yyyy"), [monthCursor]);
-
-  const redirectToLogin = useCallback(() => {
-    if (authRedirectStartedRef.current) {
-      return;
-    }
-    authRedirectStartedRef.current = true;
-    const nextPath =
-      typeof window === "undefined"
-        ? "/"
-        : `${window.location.pathname}${window.location.search}`;
-    router.replace(buildLoginHref(nextPath));
-  }, [router]);
-
-  const loadData = useCallback(
-    async (
-      {
-        showLoading = true,
-        forceRefresh = false,
-      }: { showLoading?: boolean; forceRefresh?: boolean } = {}
-    ) => {
-      const requestId = loadRequestIdRef.current + 1;
-      loadRequestIdRef.current = requestId;
-      if (showLoading) {
-        visibleLoadCountRef.current += 1;
-        setLoading(true);
-      }
-      const controller = new AbortController();
-      const timeoutId = window.setTimeout(
-        () => controller.abort(),
-        INSIGHTS_REQUEST_TIMEOUT_MS
-      );
-      try {
-        const {
-          data: { user },
-          error: userError,
-        } = await withAbortSignal(supabase.auth.getUser(), controller.signal);
-
-        if (requestId !== loadRequestIdRef.current) {
-          return;
-        }
-
-        if (userError || !user) {
-          setState(emptyInsights);
-          redirectToLogin();
-          return;
-        }
-
-        const yearStart = `${selectedYear}-01-01`;
-        const yearEnd = `${selectedYear}-12-31`;
-        const targetSubjectUserId = subjectUserId ?? user.id;
-        const targetIsViewer = targetSubjectUserId === user.id;
-        // Heatmap facts are intentionally year-bounded. A per-year client cache
-        // is optional later if measured navigation latency warrants it.
-        const [goalsResponse, teamMembersResponse, progress] =
-          await withAbortSignal(
-            Promise.all([
-              (() => {
-                let query = supabase
-                  .from("goals")
-                  .select("*")
-                  .eq("is_deleted", false)
-                  .order("title");
-                if (!targetIsViewer) {
-                  query = query.eq("owner_id", targetSubjectUserId);
-                }
-                return query;
-              })(),
-              targetIsViewer
-                ? supabase.from("team_members").select("team_id").eq("user_id", user.id)
-                : Promise.resolve({ data: [], error: null }),
-              fetchProgressContext({
-                asOfDate: toLocalDateString(),
-                factsFrom: yearStart,
-                factsTo: yearEnd,
-                subjectUserId:
-                  targetSubjectUserId === user.id
-                    ? undefined
-                    : targetSubjectUserId,
-                forceRefresh,
-              }),
-            ]),
-            controller.signal
-          );
-
-        if (requestId !== loadRequestIdRef.current) {
-          return;
-        }
-
-        const goals = (goalsResponse.data ?? []) as Goal[];
-        const visibleGoals = targetIsViewer
-          ? selectViewerVisibleGoals({ goals, partnerId: duoPartnerId })
-          : goals;
-
-        setState({
-          userId: targetSubjectUserId,
-          goals: visibleGoals,
-          completions: progress.facts,
-          memberTeamIds: (teamMembersResponse.data ?? []).map((row) => row.team_id),
-          progress,
-        });
-      } finally {
-        window.clearTimeout(timeoutId);
-        if (showLoading) {
-          visibleLoadCountRef.current = Math.max(visibleLoadCountRef.current - 1, 0);
-          if (visibleLoadCountRef.current === 0) {
-            setLoading(false);
-          }
-        }
-      }
-    },
-    [duoPartnerId, redirectToLogin, selectedYear, subjectUserId, supabase]
-  );
-
-  useEffect(() => {
-    const run = async () => {
-      try {
-        await loadData();
-      } catch (error) {
-        if (isProgressContextAuthenticationError(error)) {
-          redirectToLogin();
-          return;
-        }
-        toast.error(
-          isAbortError(error)
-            ? "Insights request timed out. Please try again."
-            : error instanceof Error
-              ? error.message
-              : "Insights progress could not be loaded."
-        );
-      }
-    };
-
-    void run();
-  }, [loadData, redirectToLogin]);
+  const { state, loading, loadData, redirectToLogin } = useInsightsData({
+    subjectUserId,
+    selectedYear,
+  });
 
   const completableGoalIds = useMemo(
     () =>
@@ -380,18 +207,10 @@ export function InsightsTab({
     [goalTitleById, personalCompletions]
   );
 
-  const aggregateHeatmapData = useMemo(() => {
-    return eachDayOfInterval({
-      start: startOfYear(monthCursor),
-      end: endOfYear(monthCursor),
-    }).map((date) => {
-      const key = format(date, "yyyy-MM-dd");
-      return {
-        date: key,
-        count: aggregateCountsByDate[key] ?? 0,
-      };
-    });
-  }, [aggregateCountsByDate, monthCursor]);
+  const aggregateHeatmapData = useMemo(
+    () => selectYearHeatmapValues(monthCursor, aggregateCountsByDate),
+    [aggregateCountsByDate, monthCursor]
+  );
 
   const selectedYearStart = useMemo(() => startOfYear(monthCursor), [monthCursor]);
   const selectedYearEnd = useMemo(() => endOfYear(monthCursor), [monthCursor]);
@@ -408,52 +227,32 @@ export function InsightsTab({
     goalEndMonth,
     goalFilterStartMonth
   );
-  const normalizedGoalSearchQuery = useMemo(
-    () => goalSearchQuery.trim().toLowerCase(),
-    [goalSearchQuery]
+  const searchedPersonalGoals = useMemo(
+    () => selectSearchedGoals(personalGoals, goalSearchQuery),
+    [goalSearchQuery, personalGoals]
   );
-  const searchedPersonalGoals = useMemo(() => {
-    if (normalizedGoalSearchQuery.length === 0) {
-      return personalGoals;
-    }
-
-    return personalGoals.filter((goal) =>
-      goal.title.toLowerCase().includes(normalizedGoalSearchQuery)
-    );
-  }, [normalizedGoalSearchQuery, personalGoals]);
-  const filteredPersonalGoals = useMemo(
-    () => filterGoalsByEndMonth(searchedPersonalGoals, effectiveGoalEndMonth),
-    [effectiveGoalEndMonth, searchedPersonalGoals]
+  const { historicalGoals, visiblePerGoalHeatmaps } = useMemo(
+    () =>
+      selectVisiblePerGoalHeatmaps({
+        goals: searchedPersonalGoals,
+        visiblePeriodStart,
+        endMonth: effectiveGoalEndMonth,
+        showHistoricalGoals,
+        sort: goalSort,
+      }),
+    [
+      effectiveGoalEndMonth,
+      goalSort,
+      searchedPersonalGoals,
+      showHistoricalGoals,
+      visiblePeriodStart,
+    ]
   );
-  const goalsByVisiblePeriod = useMemo(
-    () => partitionGoalsByVisibleStart(filteredPersonalGoals, visiblePeriodStart),
-    [filteredPersonalGoals, visiblePeriodStart]
+
+  const overallCompletion = useMemo(
+    () => selectOverallCompletionPercent(personalGoals, progressByGoal),
+    [personalGoals, progressByGoal]
   );
-  const currentPeriodGoals = goalsByVisiblePeriod.current;
-  const historicalGoals = goalsByVisiblePeriod.historical;
-  const visiblePerGoalHeatmaps = useMemo(() => {
-    const currentGoals = sortGoalsByDate(currentPeriodGoals, goalSort);
-    if (!showHistoricalGoals) {
-      return currentGoals;
-    }
-
-    return [
-      ...currentGoals,
-      ...sortGoalsByDate(historicalGoals, goalSort),
-    ];
-  }, [currentPeriodGoals, goalSort, historicalGoals, showHistoricalGoals]);
-
-  const overallCompletion = useMemo(() => {
-    if (personalGoals.length === 0) {
-      return 0;
-    }
-    return (
-      personalGoals.reduce(
-        (total, goal) => total + (progressByGoal.get(goal.id)?.percent ?? 0),
-        0
-      ) / personalGoals.length
-    );
-  }, [personalGoals, progressByGoal]);
 
   const toggleMilestoneDateSelection = useCallback(
     async (
@@ -794,76 +593,47 @@ export function InsightsTab({
           {readOnly ? " (read-only)" : ""}
         </div>
       ) : null}
-      <Card className="shadow-sm">
-        <CardHeader>
-          <div className="flex items-center gap-2">
-            <Layers3 className="size-4 text-primary" />
-            <CardTitle>Overall stats</CardTitle>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-0">
-            <div ref={aggregateHeatmapRef} className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
-              <CalendarHeatmap
-                startDate={selectedYearStart}
-                endDate={selectedYearEnd}
-                values={aggregateHeatmapData}
-                showWeekdayLabels
-                weekdayLabels={aggregateWeekdayLabels}
-                classForValue={(value) =>
-                  `${getHeatmapScaleClass(value?.count ?? 0)} cursor-pointer ${getAggregateDrilldownDayClass(value?.date)}`
-                }
-                titleForValue={(value) =>
-                  `${value?.date ?? "N/A"}: ${value?.count ?? 0} completion${
-                    (value?.count ?? 0) === 1 ? "" : "s"
-                  }`
-                }
-                onClick={(value) => {
-                  if (value?.date) {
-                    setAggregateDrilldownDate(value.date);
-                    setAggregateDrilldownExpanded(false);
-                    const tile = aggregateHeatmapRef.current?.querySelector(
-                      `.${getAggregateDrilldownDayClass(value.date)}`
-                    );
-                    if (tile instanceof Element) {
-                      const rect = tile.getBoundingClientRect();
-                      setAggregateDrilldownPosition(
-                        computeDayPreviewPosition({
-                          rect: {
-                            top: rect.top,
-                            left: rect.left,
-                            width: rect.width,
-                            height: rect.height,
-                          },
-                          viewportWidth: window.innerWidth,
-                          viewportHeight: window.innerHeight,
-                        })
-                      );
-                    } else {
-                      setAggregateDrilldownPosition(null);
-                    }
-                  }
-                }}
-              />
-            </div>
-            <div className="-mt-4 flex items-center justify-end gap-2 text-xs text-muted-foreground">
-              <span>Less</span>
-              {[0, 1, 2, 3, 4].map((scale) => (
-                <span
-                  key={scale}
-                  className={`inline-block size-3 rounded-[3px] heatmap-scale-${scale}`}
-                />
-              ))}
-              <span>More</span>
-            </div>
-          </div>
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-muted-foreground">Overall completion</span>
-            <span>{Math.round(overallCompletion)}%</span>
-          </div>
-          <Progress value={overallCompletion} />
-        </CardContent>
-      </Card>
+      <InsightsOverallStatsCard
+        heatmapRef={aggregateHeatmapRef}
+        selectedYearStart={selectedYearStart}
+        selectedYearEnd={selectedYearEnd}
+        values={aggregateHeatmapData}
+        overallCompletion={overallCompletion}
+        classForValue={(value) =>
+          `${getHeatmapScaleClass(value?.count ?? 0)} cursor-pointer ${getAggregateDrilldownDayClass(value?.date)}`
+        }
+        titleForValue={(value) =>
+          `${value?.date ?? "N/A"}: ${value?.count ?? 0} completion${
+            (value?.count ?? 0) === 1 ? "" : "s"
+          }`
+        }
+        onDayClick={(value) => {
+          if (value?.date) {
+            setAggregateDrilldownDate(value.date);
+            setAggregateDrilldownExpanded(false);
+            const tile = aggregateHeatmapRef.current?.querySelector(
+              `.${getAggregateDrilldownDayClass(value.date)}`
+            );
+            if (tile instanceof Element) {
+              const rect = tile.getBoundingClientRect();
+              setAggregateDrilldownPosition(
+                computeDayPreviewPosition({
+                  rect: {
+                    top: rect.top,
+                    left: rect.left,
+                    width: rect.width,
+                    height: rect.height,
+                  },
+                  viewportWidth: window.innerWidth,
+                  viewportHeight: window.innerHeight,
+                })
+              );
+            } else {
+              setAggregateDrilldownPosition(null);
+            }
+          }
+        }}
+      />
 
       <Card className="shadow-sm">
         <CardHeader className="pb-3">
