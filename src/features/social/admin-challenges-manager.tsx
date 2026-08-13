@@ -88,7 +88,7 @@ export function AdminChallengesManager() {
             Minimal admin surface for creating and reviewing challenge rows during rollout.
           </CardDescription>
         </CardHeader>
-        <CardContent className="grid gap-2 md:grid-cols-3">
+        <CardContent className="grid gap-2 md:grid-cols-2">
           <Input
             value={title}
             onChange={(event) => setTitle(event.target.value)}
@@ -106,7 +106,7 @@ export function AdminChallengesManager() {
           >
             Create draft
           </Button>
-          {error ? <p className="text-xs text-destructive md:col-span-3">{error}</p> : null}
+          {error ? <p className="text-xs text-destructive md:col-span-2">{error}</p> : null}
         </CardContent>
       </Card>
 
@@ -124,6 +124,7 @@ export function AdminChallengesManager() {
                 <p className="font-medium">{item.title}</p>
                 <p className="text-xs text-muted-foreground">
                   {item.slug} · {item.status} · {item.metric}
+                  {item.audienceKind === "cohort" ? " · cohort" : ""}
                 </p>
               </div>
             ))
