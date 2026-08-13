@@ -1,44 +1,32 @@
 interface GoalIdentity {
   id: string;
   owner_id: string;
-}
-
-interface GoalParticipantIdentity {
-  goal_id: string;
+  team_id?: string | null;
 }
 
 interface GoalScopedCompletion {
   goal_id: string;
 }
 
-export function buildCompletableGoalIds<
-  TGoal extends GoalIdentity,
-  TParticipant extends GoalParticipantIdentity
->({
+export function buildCompletableGoalIds<TGoal extends GoalIdentity>({
   goals,
-  participants,
   userId,
-  restrictParticipantsToVisibleGoals = false,
+  memberTeamIds = [],
 }: {
   goals: TGoal[];
-  participants: TParticipant[];
   userId: string;
-  restrictParticipantsToVisibleGoals?: boolean;
+  memberTeamIds?: Iterable<string>;
 }): Set<string> {
   const ids = new Set<string>();
-  const visibleGoalIds = restrictParticipantsToVisibleGoals
-    ? new Set(goals.map((goal) => goal.id))
-    : null;
+  const teams = new Set(memberTeamIds);
 
   for (const goal of goals) {
     if (goal.owner_id === userId) {
       ids.add(goal.id);
+      continue;
     }
-  }
-
-  for (const participant of participants) {
-    if (!visibleGoalIds || visibleGoalIds.has(participant.goal_id)) {
-      ids.add(participant.goal_id);
+    if (goal.team_id && teams.has(goal.team_id)) {
+      ids.add(goal.id);
     }
   }
 

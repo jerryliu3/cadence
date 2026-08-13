@@ -723,45 +723,6 @@ export type Database = {
           },
         ]
       }
-      goal_participants: {
-        Row: {
-          goal_id: string
-          id: string
-          joined_at: string
-          role: Database["public"]["Enums"]["participant_role"]
-          user_id: string
-        }
-        Insert: {
-          goal_id: string
-          id?: string
-          joined_at?: string
-          role?: Database["public"]["Enums"]["participant_role"]
-          user_id: string
-        }
-        Update: {
-          goal_id?: string
-          id?: string
-          joined_at?: string
-          role?: Database["public"]["Enums"]["participant_role"]
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "goal_participants_goal_id_fkey"
-            columns: ["goal_id"]
-            isOneToOne: false
-            referencedRelation: "goals"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "goal_participants_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       goal_shares: {
         Row: {
           created_at: string
@@ -811,7 +772,6 @@ export type Database = {
           frequency_type: Database["public"]["Enums"]["goal_frequency_type"]
           id: string
           is_deleted: boolean
-          is_group: boolean
           is_private: boolean
           milestone_names: string[] | null
           owner_id: string
@@ -838,7 +798,6 @@ export type Database = {
           frequency_type: Database["public"]["Enums"]["goal_frequency_type"]
           id?: string
           is_deleted?: boolean
-          is_group?: boolean
           is_private?: boolean
           milestone_names?: string[] | null
           owner_id: string
@@ -865,7 +824,6 @@ export type Database = {
           frequency_type?: Database["public"]["Enums"]["goal_frequency_type"]
           id?: string
           is_deleted?: boolean
-          is_group?: boolean
           is_private?: boolean
           milestone_names?: string[] | null
           owner_id?: string
@@ -1920,14 +1878,6 @@ export type Database = {
         }
         Returns: boolean
       }
-      add_goal_participant: {
-        Args: {
-          p_goal_id: string
-          p_role?: Database["public"]["Enums"]["participant_role"]
-          p_user_id: string
-        }
-        Returns: undefined
-      }
       award_social_xp_service: {
         Args: {
           p_event_type: string
@@ -1997,34 +1947,18 @@ export type Database = {
           p_end_date?: string
           p_frequency_type?: Database["public"]["Enums"]["goal_frequency_type"]
           p_id: string
-          p_is_group?: boolean
           p_milestone_names?: string[]
           p_recurrence_interval?: Database["public"]["Enums"]["recurrence_interval"]
           p_reward_text?: string
           p_start_date?: string
           p_target_count?: number
+          p_team_id?: string
           p_title: string
         }
         Returns: string
       }
       create_goal_links: { Args: { p_links: Json }; Returns: undefined }
       create_goals: { Args: { p_goals: Json }; Returns: string[] }
-      create_group_goal: {
-        Args: {
-          p_category?: string
-          p_category_key?: string
-          p_color?: string
-          p_description?: string
-          p_end_date?: string
-          p_frequency_type?: Database["public"]["Enums"]["goal_frequency_type"]
-          p_id: string
-          p_recurrence_interval?: Database["public"]["Enums"]["recurrence_interval"]
-          p_start_date?: string
-          p_target_count?: number
-          p_title: string
-        }
-        Returns: string
-      }
       create_team_invite_service: {
         Args: { p_message?: string; p_partner_id: string }
         Returns: string
@@ -2251,10 +2185,6 @@ export type Database = {
         }
         Returns: boolean
       }
-      remove_goal_participant: {
-        Args: { p_goal_id: string; p_user_id: string }
-        Returns: undefined
-      }
       replace_goal_source_link: {
         Args: { p_source_goal_id: string; p_target_goal_id?: string }
         Returns: undefined
@@ -2346,12 +2276,12 @@ export type Database = {
           p_end_date?: string
           p_frequency_type?: Database["public"]["Enums"]["goal_frequency_type"]
           p_id: string
-          p_is_group?: boolean
           p_milestone_names?: string[]
           p_recurrence_interval?: Database["public"]["Enums"]["recurrence_interval"]
           p_reward_text?: string
           p_start_date?: string
           p_target_count?: number
+          p_team_id?: string
           p_title: string
         }
         Returns: undefined
@@ -2408,7 +2338,6 @@ export type Database = {
         | "planner_proposal_decided"
       notification_state: "pending" | "sent" | "failed" | "skipped"
       nudge_kind: "cheer" | "remind" | "custom"
-      participant_role: "owner" | "participant"
       reaction_kind: "cheer" | "fire" | "clap" | "strong"
       recurrence_interval: "daily" | "weekly" | "monthly"
       social_audience_kind: "global" | "cohort"
@@ -2598,7 +2527,6 @@ export const Constants = {
       ],
       notification_state: ["pending", "sent", "failed", "skipped"],
       nudge_kind: ["cheer", "remind", "custom"],
-      participant_role: ["owner", "participant"],
       reaction_kind: ["cheer", "fire", "clap", "strong"],
       recurrence_interval: ["daily", "weekly", "monthly"],
       social_audience_kind: ["global", "cohort"],

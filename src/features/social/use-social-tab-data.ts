@@ -112,7 +112,7 @@ export function useSocialTabData() {
 
     const sharedGoalIds = sharedEntries.map((entry) => entry.goal_id);
     const ownShareableGoalIds = ownGoals
-      .filter((goal) => !goal.is_group)
+      .filter((goal) => goal.team_id == null)
       .map((goal) => goal.id);
 
     const [sharedGoalsResponse, outgoingSharesResponse] = await Promise.all([
@@ -224,7 +224,7 @@ export function useSocialTabData() {
 
   const visibleSearchResults = searchTerm.trim() ? searchResults : [];
   const shareableGoals = useMemo(
-    () => state.ownGoals.filter((goal) => !goal.is_group),
+    () => state.ownGoals.filter((goal) => goal.team_id == null),
     [state.ownGoals]
   );
   const shareableGoalIds = useMemo(

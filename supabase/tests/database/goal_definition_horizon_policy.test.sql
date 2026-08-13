@@ -30,8 +30,7 @@ select lives_ok(
       recurrence_interval,
       target_count,
       start_date,
-      end_date,
-      is_group
+      end_date
     ) values (
       '31000000-0000-4000-8000-000000000001',
       '11111111-1111-4111-8111-111111111111',
@@ -41,8 +40,7 @@ select lives_ok(
       'weekly',
       null,
       '2026-01-01',
-      null,
-      false
+      null
     )
   $$,
   'open-ended cadence goals can be created without deadlines'
@@ -59,8 +57,7 @@ select throws_ok(
       recurrence_interval,
       target_count,
       start_date,
-      end_date,
-      is_group
+      end_date
     ) values (
       '31000000-0000-4000-8000-000000000002',
       '11111111-1111-4111-8111-111111111111',
@@ -70,8 +67,7 @@ select throws_ok(
       null,
       3,
       '2026-01-01',
-      null,
-      false
+      null
     )
   $$,
   '23514'::character(5),
@@ -90,8 +86,7 @@ select throws_ok(
       recurrence_interval,
       target_count,
       start_date,
-      end_date,
-      is_group
+      end_date
     ) values (
       '31000000-0000-4000-8000-000000000003',
       '11111111-1111-4111-8111-111111111111',
@@ -101,8 +96,7 @@ select throws_ok(
       'weekly',
       8,
       '2026-01-01',
-      null,
-      false
+      null
     )
   $$,
   '23514'::character(5),
@@ -121,8 +115,7 @@ select throws_ok(
       recurrence_interval,
       target_count,
       start_date,
-      end_date,
-      is_group
+      end_date
     ) values (
       '31000000-0000-4000-8000-000000000004',
       '11111111-1111-4111-8111-111111111111',
@@ -132,8 +125,7 @@ select throws_ok(
       'weekly',
       null,
       '2026-01-01',
-      '2028-01-01',
-      false
+      '2028-01-01'
     )
   $$,
   '23514'::character(5),
@@ -152,8 +144,7 @@ select lives_ok(
       recurrence_interval,
       target_count,
       start_date,
-      end_date,
-      is_group
+      end_date
     ) values (
       '31000000-0000-4000-8000-000000000005',
       '11111111-1111-4111-8111-111111111111',
@@ -163,8 +154,7 @@ select lives_ok(
       null,
       2,
       '2026-01-01',
-      '2027-12-31',
-      false
+      '2027-12-31'
     )
   $$,
   'twenty-four-month deadline spans are accepted'

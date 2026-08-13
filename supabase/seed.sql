@@ -20,7 +20,6 @@ truncate table
   public.feed_events,
   public.planner_items,
   public.goal_shares,
-  public.goal_participants,
   public.goal_links,
   public.completions,
   public.goals
@@ -205,7 +204,6 @@ insert into public.goals (
   target_count,
   start_date,
   end_date,
-  is_group,
   archived_at
 )
 values
@@ -221,7 +219,6 @@ values
     1,
     current_date - 20,
     current_date + 10,
-    false,
     null
   ),
   (
@@ -236,7 +233,6 @@ values
     20,
     current_date - 56,
     current_date + 45,
-    false,
     null
   ),
   (
@@ -251,7 +247,6 @@ values
     null,
     current_date - 56,
     null,
-    false,
     null
   ),
   (
@@ -266,7 +261,6 @@ values
     null,
     current_date - 56,
     null,
-    false,
     null
   ),
   (
@@ -281,7 +275,6 @@ values
     null,
     current_date - 140,
     null,
-    false,
     null
   ),
   (
@@ -296,7 +289,6 @@ values
     10,
     current_date - 56,
     current_date + 30,
-    false,
     null
   ),
   (
@@ -311,7 +303,6 @@ values
     null,
     current_date - 56,
     null,
-    false,
     null
   ),
   (
@@ -326,7 +317,6 @@ values
     null,
     current_date - 56,
     null,
-    true,
     null
   ),
   (
@@ -341,7 +331,6 @@ values
     null,
     current_date - 56,
     null,
-    false,
     null
   ),
   (
@@ -356,7 +345,6 @@ values
     1,
     current_date - 80,
     current_date - 20,
-    false,
     null
   ),
   (
@@ -371,7 +359,6 @@ values
     12,
     current_date - 20,
     current_date + 20,
-    false,
     null
   ),
   (
@@ -386,7 +373,6 @@ values
     null,
     date_trunc('month', current_date)::date,
     (date_trunc('month', current_date) + interval '1 month - 1 day')::date,
-    false,
     null
   ),
   (
@@ -401,7 +387,6 @@ values
     null,
     date_trunc('month', current_date)::date,
     (date_trunc('month', current_date) + interval '1 month - 1 day')::date,
-    false,
     null
   ),
   (
@@ -416,7 +401,6 @@ values
     null,
     date_trunc('month', current_date)::date,
     (date_trunc('month', current_date) + interval '1 month - 1 day')::date,
-    false,
     null
   ),
   (
@@ -431,7 +415,6 @@ values
     null,
     date_trunc('month', current_date)::date,
     (date_trunc('month', current_date) + interval '1 month - 1 day')::date,
-    false,
     null
   ),
   (
@@ -446,7 +429,6 @@ values
     null,
     date_trunc('month', current_date)::date,
     (date_trunc('month', current_date) + interval '1 month - 1 day')::date,
-    false,
     null
   ),
   (
@@ -461,7 +443,6 @@ values
     null,
     date_trunc('month', current_date)::date,
     (date_trunc('month', current_date) + interval '1 month - 1 day')::date,
-    false,
     null
   ),
   (
@@ -476,7 +457,6 @@ values
     null,
     (date_trunc('month', current_date)::date + 6),
     (date_trunc('month', current_date) + interval '1 month - 1 day')::date,
-    false,
     null
   ),
   (
@@ -491,7 +471,6 @@ values
     null,
     (date_trunc('month', current_date)::date + 13),
     (date_trunc('month', current_date) + interval '1 month - 1 day')::date,
-    false,
     null
   ),
   (
@@ -506,7 +485,6 @@ values
     null,
     (date_trunc('month', current_date)::date + 20),
     (date_trunc('month', current_date) + interval '1 month - 1 day')::date,
-    false,
     null
   ),
   (
@@ -521,7 +499,6 @@ values
     null,
     (date_trunc('month', current_date)::date + 27),
     (date_trunc('month', current_date) + interval '1 month - 1 day')::date,
-    false,
     null
   ),
   (
@@ -536,7 +513,6 @@ values
     null,
     current_date - 1,
     current_date + 180,
-    false,
     null
   )
 on conflict (id) do update
@@ -550,7 +526,6 @@ set
   target_count = excluded.target_count,
   start_date = excluded.start_date,
   end_date = excluded.end_date,
-  is_group = excluded.is_group,
   archived_at = excluded.archived_at,
   updated_at = now();
 
@@ -565,14 +540,6 @@ values
   ('10000000-0000-4000-8000-000000000002', '22222222-2222-4222-8222-222222222222'),
   ('10000000-0000-4000-8000-000000000003', '33333333-3333-4333-8333-333333333333')
 on conflict (goal_id, shared_with) do nothing;
-
-insert into public.goal_participants (goal_id, user_id, role)
-values
-  ('10000000-0000-4000-8000-000000000008', '11111111-1111-4111-8111-111111111111', 'owner'),
-  ('10000000-0000-4000-8000-000000000008', '22222222-2222-4222-8222-222222222222', 'participant'),
-  ('10000000-0000-4000-8000-000000000008', '33333333-3333-4333-8333-333333333333', 'participant')
-on conflict (goal_id, user_id) do update
-set role = excluded.role;
 
 insert into public.completions (goal_id, user_id, completed_on, source)
 select '10000000-0000-4000-8000-000000000002', '11111111-1111-4111-8111-111111111111', d::date, 'manual'

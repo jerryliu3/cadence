@@ -29,8 +29,7 @@ insert into public.goals (
   recurrence_interval,
   target_count,
   start_date,
-  end_date,
-  is_group
+  end_date
 )
 values
   (
@@ -44,8 +43,7 @@ values
     'weekly',
     20,
     date_trunc('month', current_date)::date,
-    (date_trunc('month', current_date) + interval '2 month - 1 day')::date,
-    false
+    (date_trunc('month', current_date) + interval '2 month - 1 day')::date
   ),
   (
     '91500000-0000-4000-8000-000000000002',
@@ -58,8 +56,7 @@ values
     'weekly',
     20,
     date_trunc('month', current_date)::date,
-    (date_trunc('month', current_date) + interval '2 month - 1 day')::date,
-    false
+    (date_trunc('month', current_date) + interval '2 month - 1 day')::date
   );
 
 reset role;

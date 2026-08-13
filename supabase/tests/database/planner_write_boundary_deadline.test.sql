@@ -32,23 +32,22 @@ insert into public.goals (
   recurrence_interval,
   target_count,
   start_date,
-  end_date,
-  is_group
+  end_date
 )
-values (
-  '91400000-0000-4000-8000-000000000001',
-  '11111111-1111-4111-8111-111111111111',
-  'Planner write boundary lifetime goal',
-  null,
-  'test',
-  null,
-  'recurring',
-  'weekly',
-  3,
-  date_trunc('month', current_date)::date,
-  (date_trunc('month', current_date) + interval '2 days')::date,
-  false
-);
+values
+  (
+    '91400000-0000-4000-8000-000000000001',
+    '11111111-1111-4111-8111-111111111111',
+    'Planner write boundary lifetime goal',
+    null,
+    'test',
+    null,
+    'recurring',
+    'weekly',
+    3,
+    date_trunc('month', current_date)::date,
+    (date_trunc('month', current_date) + interval '2 days')::date
+  );
 
 reset role;
 set local role authenticated;

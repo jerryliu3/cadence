@@ -43,7 +43,6 @@ insert into public.goals (
   target_count,
   start_date,
   end_date,
-  is_group,
   is_private
 )
 values
@@ -58,7 +57,6 @@ values
     3,
     current_date - 5,
     current_date + 5,
-    false,
     false
   ),
   (
@@ -72,7 +70,6 @@ values
     3,
     current_date - 5,
     current_date + 5,
-    false,
     true
   )
 on conflict (id) do nothing;

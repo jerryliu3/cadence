@@ -6,53 +6,44 @@ import {
 } from "./completable-goals";
 
 const goals = [
-  { id: "goal-owned", owner_id: "user-1" },
-  { id: "goal-visible", owner_id: "user-2" },
-];
-
-const participants = [
-  { goal_id: "goal-visible" },
-  { goal_id: "goal-hidden" },
+  { id: "goal-owned", owner_id: "user-1", team_id: null },
+  { id: "goal-team", owner_id: "user-2", team_id: "team-1" },
+  { id: "goal-other", owner_id: "user-2", team_id: "team-2" },
 ];
 
 describe("buildCompletableGoalIds", () => {
-  it("includes owned goals and participant goals by default", () => {
+  it("includes owned goals and goals for teams the user belongs to", () => {
     const ids = buildCompletableGoalIds({
       goals,
-      participants,
       userId: "user-1",
+      memberTeamIds: ["team-1"],
     });
 
-    expect(Array.from(ids).sort()).toEqual([
-      "goal-hidden",
-      "goal-owned",
-      "goal-visible",
-    ]);
+    expect(Array.from(ids).sort()).toEqual(["goal-owned", "goal-team"]);
   });
 
-  it("can restrict participant goals to the visible goals list", () => {
+  it("does not treat another team's goals as completable", () => {
     const ids = buildCompletableGoalIds({
       goals,
-      participants,
       userId: "user-1",
-      restrictParticipantsToVisibleGoals: true,
+      memberTeamIds: ["team-1"],
     });
 
-    expect(Array.from(ids).sort()).toEqual(["goal-owned", "goal-visible"]);
+    expect(ids.has("goal-other")).toBe(false);
   });
 });
 
 describe("goal scope selectors", () => {
   it("selects only goals present in the completable scope", () => {
-    const selected = selectCompletableGoals(goals, new Set(["goal-visible"]));
-    expect(selected.map((goal) => goal.id)).toEqual(["goal-visible"]);
+    const selected = selectCompletableGoals(goals, new Set(["goal-team"]));
+    expect(selected.map((goal) => goal.id)).toEqual(["goal-team"]);
   });
 
   it("filters completions by completable goal id scope", () => {
     const scoped = filterCompletionsForGoalIds(
       [
         { goal_id: "goal-owned", completed_on: "2026-08-10" },
-        { goal_id: "goal-hidden", completed_on: "2026-08-11" },
+        { goal_id: "goal-other", completed_on: "2026-08-11" },
       ],
       new Set(["goal-owned"])
     );

@@ -461,7 +461,7 @@ export function BulkGoalForm({
         setAvailableGoals(
           goals.filter(
             (goal) =>
-              !goal.is_group &&
+              goal.team_id === null &&
               progressByGoal.get(goal.id)?.lifecycle === "active"
           )
         );
