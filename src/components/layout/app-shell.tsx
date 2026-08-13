@@ -46,6 +46,7 @@ export function AppShell({
   return (
     <XpRewardProvider>
       <DuoProvider
+        key={`${duoAvailability}:${duoState.activePartner?.partnerId ?? "none"}`}
         viewerUserId={userId}
         initialState={duoState}
         availability={duoAvailability}
