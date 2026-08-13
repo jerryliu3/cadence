@@ -62,7 +62,9 @@ function createSessionStorageAdapter(): TabDataCacheStorage {
   };
 }
 
-configureTabDataCacheStorage(createSessionStorageAdapter());
+export function configureWebTabDataCache() {
+  configureTabDataCacheStorage(createSessionStorageAdapter());
+}
 
 export {
   invalidateTabDataCache,

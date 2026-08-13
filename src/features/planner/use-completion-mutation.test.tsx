@@ -2,10 +2,7 @@ import { act, cleanup, renderHook } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { useCompletionMutation } from "@/features/planner/use-completion-mutation";
 import { executeCompletionDispatch } from "@/lib/planner/completion-dispatch";
-import {
-  XP_REFRESH_REQUESTED_EVENT,
-  type XpRefreshRequestDetail,
-} from "@/lib/xp/events";
+import { subscribeXpRefresh, type XpRefreshRequestDetail } from "@/lib/xp/events";
 
 vi.mock("@/lib/planner/completion-dispatch", async (importOriginal) => {
   const actual =
@@ -35,12 +32,11 @@ describe("useCompletionMutation", () => {
       message: null,
     });
     const refreshDetails: XpRefreshRequestDetail[] = [];
-    const onRefresh = (event: Event) => {
-      refreshDetails.push(
-        (event as CustomEvent<XpRefreshRequestDetail>).detail
-      );
-    };
-    window.addEventListener(XP_REFRESH_REQUESTED_EVENT, onRefresh);
+    const unsubscribe = subscribeXpRefresh((detail) => {
+      if (detail) {
+        refreshDetails.push(detail);
+      }
+    });
     const { result } = renderHook(() => useCompletionMutation());
     const sourceRect = { top: 12, left: 24, width: 40, height: 40 };
 
@@ -57,7 +53,7 @@ describe("useCompletionMutation", () => {
         });
       });
     } finally {
-      window.removeEventListener(XP_REFRESH_REQUESTED_EVENT, onRefresh);
+      unsubscribe();
     }
 
     expect(refreshDetails).toEqual([
@@ -75,7 +71,7 @@ describe("useCompletionMutation", () => {
       message: "Rejected.",
     });
     const onRefresh = vi.fn();
-    window.addEventListener(XP_REFRESH_REQUESTED_EVENT, onRefresh);
+    const unsubscribe = subscribeXpRefresh(onRefresh);
     const { result } = renderHook(() => useCompletionMutation());
 
     try {
@@ -90,7 +86,7 @@ describe("useCompletionMutation", () => {
         });
       });
     } finally {
-      window.removeEventListener(XP_REFRESH_REQUESTED_EVENT, onRefresh);
+      unsubscribe();
     }
 
     expect(onRefresh).not.toHaveBeenCalled();

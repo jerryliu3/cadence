@@ -1,12 +1,14 @@
 import {
   getXpRefreshRequestDetail as getSharedXpRefreshRequestDetail,
   requestXpRefresh as emitXpRefresh,
+  subscribeXpRefresh,
   XP_REFRESH_REQUESTED_EVENT,
   type ViewportRectSnapshot,
   type XpRefreshRequestDetail,
 } from "@cadence/shared/xp/events";
 
 export {
+  subscribeXpRefresh,
   XP_REFRESH_REQUESTED_EVENT,
   type ViewportRectSnapshot,
   type XpRefreshRequestDetail,
@@ -24,20 +26,6 @@ export function captureViewportRect(element: Element): ViewportRectSnapshot {
 
 export function requestXpRefresh(detail?: XpRefreshRequestDetail): void {
   emitXpRefresh(detail);
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  if (detail) {
-    window.dispatchEvent(
-      new CustomEvent<XpRefreshRequestDetail>(XP_REFRESH_REQUESTED_EVENT, {
-        detail,
-      })
-    );
-    return;
-  }
-
-  window.dispatchEvent(new CustomEvent(XP_REFRESH_REQUESTED_EVENT));
 }
 
 export function getXpRefreshRequestDetail(

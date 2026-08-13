@@ -25,6 +25,8 @@ function webLightPressHaptics(): boolean {
   }
 }
 
-configureLightPressHaptics(webLightPressHaptics);
+export function configureWebHaptics() {
+  configureLightPressHaptics(webLightPressHaptics);
+}
 
 export { triggerLightPressFeedback } from "@cadence/shared/feedback/haptics";

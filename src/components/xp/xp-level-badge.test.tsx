@@ -1,6 +1,6 @@
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { XP_REFRESH_REQUESTED_EVENT } from "@/lib/xp/events";
+import { requestXpRefresh } from "@/lib/xp/events";
 import { XpLevelBadge } from "./xp-level-badge";
 
 const toastSuccessMock = vi.fn();
@@ -92,7 +92,7 @@ describe("XpLevelBadge", () => {
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledTimes(2);
     });
-    window.dispatchEvent(new CustomEvent("xp:refresh-requested"));
+    requestXpRefresh();
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledTimes(4);
     });
@@ -197,15 +197,11 @@ describe("XpLevelBadge", () => {
     });
     const sourceRect = { top: 220, left: 24, width: 40, height: 40 };
 
-    window.dispatchEvent(
-      new CustomEvent(XP_REFRESH_REQUESTED_EVENT, {
-        detail: {
-          reason: "completion",
-          desiredFactState: "present",
-          sourceRect,
-        },
-      })
-    );
+    requestXpRefresh({
+      reason: "completion",
+      desiredFactState: "present",
+      sourceRect,
+    });
 
     await waitFor(() => {
       expect(celebrateMock).toHaveBeenCalledWith({
@@ -219,15 +215,11 @@ describe("XpLevelBadge", () => {
       });
     });
 
-    window.dispatchEvent(
-      new CustomEvent(XP_REFRESH_REQUESTED_EVENT, {
-        detail: {
-          reason: "completion",
-          desiredFactState: "absent",
-          sourceRect,
-        },
-      })
-    );
+    requestXpRefresh({
+      reason: "completion",
+      desiredFactState: "absent",
+      sourceRect,
+    });
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledTimes(3);

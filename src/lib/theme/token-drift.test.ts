@@ -16,8 +16,20 @@ function extractThemeBlock(selector: string) {
   const start = globalsCss.indexOf(selector);
   expect(start).toBeGreaterThanOrEqual(0);
   const open = globalsCss.indexOf("{", start);
-  const close = globalsCss.indexOf("}", open);
-  return globalsCss.slice(open, close);
+  expect(open).toBeGreaterThan(start);
+  let depth = 0;
+  for (let index = open; index < globalsCss.length; index += 1) {
+    const char = globalsCss[index];
+    if (char === "{") {
+      depth += 1;
+    } else if (char === "}") {
+      depth -= 1;
+      if (depth === 0) {
+        return globalsCss.slice(open, index + 1);
+      }
+    }
+  }
+  throw new Error(`Unclosed theme block for ${selector}`);
 }
 
 function readCssToken(block: string, cssName: string) {
@@ -32,6 +44,7 @@ describe("design token drift", () => {
       [ThemeTokenName, string]
     >) {
       expect(readCssToken(block, cssName)).toBe(lightTheme[tokenName].oklch);
+      expect(lightTheme[tokenName].hex).toMatch(/^#[0-9A-Fa-f]{6}$/);
     }
   });
 
@@ -41,6 +54,7 @@ describe("design token drift", () => {
       [ThemeTokenName, string]
     >) {
       expect(readCssToken(block, cssName)).toBe(darkTheme[tokenName].oklch);
+      expect(darkTheme[tokenName].hex).toMatch(/^#[0-9A-Fa-f]{6}$/);
     }
   });
 });
