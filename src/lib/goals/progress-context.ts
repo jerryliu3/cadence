@@ -52,10 +52,27 @@ export class ProgressContextAuthenticationError extends Error {
   }
 }
 
-export function isProgressContextAuthenticationError(
+export class ProgressContextRequestError extends Error {
+  readonly code?: string;
+  readonly status?: number;
+  readonly correlationId?: string;
+
+  constructor(
+    message: string,
+    options: { code?: string; status?: number; correlationId?: string } = {}
+  ) {
+    super(message);
+    this.name = "ProgressContextRequestError";
+    this.code = options.code;
+    this.status = options.status;
+    this.correlationId = options.correlationId;
+  }
+}
+
+export function isProgressContextRequestError(
   error: unknown
-): error is ProgressContextAuthenticationError {
-  return error instanceof ProgressContextAuthenticationError;
+): error is ProgressContextRequestError {
+  return error instanceof ProgressContextRequestError;
 }
 
 export function invalidateProgressContextCache() {
@@ -131,6 +148,16 @@ export async function fetchProgressContext({
       throw new ProgressContextAuthenticationError(
         error.message,
         error.correlationId
+      );
+    }
+    if (isApiClientError(error)) {
+      throw new ProgressContextRequestError(
+        getApiErrorMessage(error, "Goal progress could not be loaded."),
+        {
+          code: error.code,
+          status: error.status,
+          correlationId: error.correlationId,
+        }
       );
     }
     throw new Error(

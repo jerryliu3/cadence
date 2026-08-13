@@ -9,8 +9,10 @@ import { toLocalDateString } from "@/lib/dates/day";
 import {
   fetchProgressContext,
   isProgressContextAuthenticationError,
+  isProgressContextRequestError,
   type ProgressContextResponse,
 } from "@/lib/goals/progress-context";
+import { reportDuoPartnerFetchFailure } from "@/lib/social/duo/telemetry";
 import type {
   CompletionDateFact,
   Goal,
@@ -47,11 +49,13 @@ export function useChecklistData({
   isActive,
   refreshToken,
   viewDate,
+  failClosed = false,
 }: {
   subjectUserId?: string;
   isActive: boolean;
   refreshToken: number;
   viewDate: string;
+  failClosed?: boolean;
 }) {
   const supabase = useMemo(() => createClient(), []);
   const { state: duoState } = useDuo();
@@ -59,6 +63,7 @@ export function useChecklistData({
   const router = useRouter();
   const [data, setData] = useState<TodayData>(emptyTodayData);
   const [loading, setLoading] = useState(true);
+  const [laneError, setLaneError] = useState<string | null>(null);
   const loadRequestIdRef = useRef(0);
   const viewDateProgressRequestIdRef = useRef(0);
   const visibleLoadCountRef = useRef(0);
@@ -90,6 +95,18 @@ export function useChecklistData({
       redirectToLogin();
       return;
     }
+    if (failClosed) {
+      setLaneError("Partner checklist is unavailable.");
+      reportDuoPartnerFetchFailure(error, {
+        surface: "checklist",
+        code: isProgressContextRequestError(error) ? error.code : undefined,
+        status: isProgressContextRequestError(error) ? error.status : undefined,
+        stalePartner: isProgressContextRequestError(error)
+          ? error.code === "not_team_partner"
+          : false,
+      });
+      return;
+    }
     toast.error(
       isAbortError(error)
         ? "Today goals request timed out. Please try again."
@@ -97,7 +114,7 @@ export function useChecklistData({
           ? error.message
           : "Goal progress could not be loaded."
     );
-  }, [redirectToLogin]);
+  }, [failClosed, redirectToLogin]);
 
   const loadData = useCallback(
     async (
@@ -211,6 +228,7 @@ export function useChecklistData({
           photoUrls,
           progress,
         });
+        setLaneError(null);
       } finally {
         window.clearTimeout(timeoutId);
         if (showLoading) {
@@ -305,6 +323,7 @@ export function useChecklistData({
   return {
     data,
     loading,
+    laneError,
     loadData,
     redirectToLogin,
     todayLocalDate,
