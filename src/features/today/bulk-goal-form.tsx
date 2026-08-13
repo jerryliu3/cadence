@@ -679,7 +679,7 @@ export function BulkGoalForm({
             start_date: draft.start_date,
             end_date: draft.end_date || null,
             default_local_time: draft.default_local_time.trim() || null,
-            is_group: draft.is_group,
+            is_group: false,
           },
         };
       });
@@ -1364,27 +1364,6 @@ export function BulkGoalForm({
                               ) : null}
                             </div>
 
-                            <div className="rounded-xl border bg-background/70 p-3">
-                              <label className="flex items-start gap-3 text-sm">
-                                <input
-                                  type="checkbox"
-                                  className="mt-1"
-                                  checked={draft.is_group}
-                                  onChange={(event) =>
-                                    updateDraft(draft.id, (previous) => ({
-                                      ...previous,
-                                      is_group: event.target.checked,
-                                      linked_target_goal_id: event.target.checked
-                                        ? "none"
-                                        : previous.linked_target_goal_id,
-                                    }))
-                                  }
-                                />
-                                <span>
-                                  This is a collaborative group goal (participants track their own
-                                  completions).
-                                </span>
-                              </label>
                             </div>
 
                             {!draft.is_group ? (

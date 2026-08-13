@@ -465,7 +465,7 @@ export function GoalForm({
       p_start_date: state.start_date,
       p_end_date: state.end_date || undefined,
       p_default_local_time: state.default_local_time.trim() || undefined,
-      p_is_group: state.is_group,
+      p_is_group: false,
     };
 
     const savedGoalId = goalArgs.p_id;
@@ -976,35 +976,18 @@ export function GoalForm({
                       <input
                         type="checkbox"
                         className="mt-1"
-                        checked={state.is_group}
-                        onChange={(event) =>
-                          setState((prev) => ({ ...prev, is_group: event.target.checked }))
-                        }
-                      />
-                      <span>
-                        This is a collaborative group goal (participants track their own completions).
-                      </span>
-                    </label>
-                  </div>
-
-                  <div className="rounded-xl border bg-background/70 p-3">
-                    <label className="flex items-start gap-3 text-sm">
-                      <input
-                        type="checkbox"
-                        className="mt-1"
                         checked={state.is_private}
                         onChange={(event) =>
                           setState((prev) => ({ ...prev, is_private: event.target.checked }))
                         }
                       />
                       <span>
-                        Keep this goal private (hidden from the social feed and from your group).
+                        Keep this goal private (hidden from the social feed and from your team).
                       </span>
                     </label>
                   </div>
 
-                  {!state.is_group ? (
-                    <GoalLinkTargetSelect
+                  <GoalLinkTargetSelect
                       value={selectedLinkTarget}
                       onValueChange={setSelectedLinkTarget}
                       open={linkTargetOpen}
@@ -1018,7 +1001,6 @@ export function GoalForm({
                       onSearchQueryChange={setLinkTargetSearch}
                       filteredLinkTargets={filteredLinkTargets}
                     />
-                  ) : null}
                 </div>
               </CollapsibleContent>
             </div>

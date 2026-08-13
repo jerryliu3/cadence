@@ -18,7 +18,6 @@ import {
 } from "@/components/ui/dialog";
 import { PlannerPreferencesSettings } from "@/features/settings/planner-preferences-settings";
 import { GoalSharingSection } from "@/features/social/goal-sharing-section";
-import { GroupGoalsSection } from "@/features/social/group-goals-section";
 import { NotificationsSection } from "@/features/social/notifications-section";
 import { ProfileSection } from "@/features/social/profile-section";
 import { useSocialTabData } from "@/features/social/use-social-tab-data";
@@ -292,22 +291,14 @@ export function SocialTab() {
         removeSharedGoalForMe={removeSharedGoalForMe}
       />
 
-      <GroupGoalsSection
-        groupDraft={groupDraft}
-        setGroupDraft={setGroupDraft}
-        groupRequiresEndDate={groupRequiresEndDate}
-        updateGroupFrequencyType={updateGroupFrequencyType}
-        createGroupGoal={createGroupGoal}
-        saving={saving}
-        groupGoals={state.groupGoals}
-        participants={state.participants}
-        completionsByGoal={completionsByGoal}
-        currentUserId={state.userId}
-        profileDirectory={state.profileDirectory}
-        deleteGroupGoal={deleteGroupGoal}
-        leaveGroup={leaveGroup}
-        removeParticipant={removeParticipant}
-      />
+      <Card className="shadow-sm">
+        <CardHeader>
+          <CardTitle>Team collaboration</CardTitle>
+          <CardDescription>
+            Group goals are retired. Invite a partner from the Team tab on Challenges to share planner visibility and proposals.
+          </CardDescription>
+        </CardHeader>
+      </Card>
         </>
       ) : null}
           </div>
