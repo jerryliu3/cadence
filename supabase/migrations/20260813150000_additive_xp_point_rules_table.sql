@@ -33,6 +33,7 @@ create or replace function private.xp_rule(p_key text)
 returns numeric
 language plpgsql
 stable
+security definer
 set search_path = ''
 as $$
 declare
@@ -57,6 +58,7 @@ create or replace function private.xp_points_for_completion_source(
 returns integer
 language sql
 stable
+security definer
 set search_path = ''
 as $$
   select case
@@ -77,6 +79,7 @@ create or replace function private.xp_manual_completion_points()
 returns integer
 language sql
 stable
+security definer
 set search_path = ''
 as $$
   select private.xp_rule('manual_completion_points')::integer;
@@ -86,6 +89,7 @@ create or replace function private.xp_cascade_multiplier()
 returns numeric
 language sql
 stable
+security definer
 set search_path = ''
 as $$
   select private.xp_rule('cascade_multiplier');
@@ -95,6 +99,7 @@ create or replace function private.xp_goal_achievement_points()
 returns integer
 language sql
 stable
+security definer
 set search_path = ''
 as $$
   select private.xp_rule('goal_achievement_points')::integer;
