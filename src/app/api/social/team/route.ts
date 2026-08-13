@@ -7,6 +7,7 @@ import { NextResponse } from "next/server";
 import { runAfterResponse } from "@/lib/api/after";
 import { flushNotificationOutbox } from "@/lib/push/outbox";
 import { requireSocialRouteContext } from "@/lib/social/api";
+import { mapTeamStateError } from "@/lib/social/team";
 import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
@@ -14,15 +15,6 @@ export const runtime = "nodejs";
 type RpcErrorLike = {
   message: string;
 };
-
-function mapTeamStateError(error: RpcErrorLike) {
-  if (error.message === "authentication_required") {
-    return new ApiRouteError(401, "authentication_required", "You must be signed in.");
-  }
-  return new ApiRouteError(500, "team_state_unavailable", "Team state is unavailable.", {
-    cause: error.message,
-  });
-}
 
 function mapDissolveTeamError(error: RpcErrorLike) {
   if (error.message === "authentication_required") {
