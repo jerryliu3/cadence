@@ -63,6 +63,7 @@ export function usePlannerCoach({
   applyPolicyReplanMoves,
   clearDraftMoveCommands,
   applyDraftPolicy,
+  applyCoachSessionMoves,
   getNonPublishablePreviewMessage,
 }: UsePlannerCoachArgs): PlannerCoachModel {
   const [coachLoading, setCoachLoading] = useState(false);
@@ -153,6 +154,19 @@ export function usePlannerCoach({
         policy: priorPolicy,
         patches,
       });
+      const sessionMoves = patches.filter(
+        (patch): patch is Extract<CoachPolicyPatch, { kind: "move_session" }> =>
+          patch.kind === "move_session"
+      );
+      if (sessionMoves.length > 0) {
+        applyCoachSessionMoves?.(
+          sessionMoves.map((move) => ({
+            goalId: move.goalId,
+            unitKey: move.unitKey,
+            scheduledDate: move.scheduledDate,
+          }))
+        );
+      }
       if (result.appliedPatchCount === 0) {
         if (result.noOpPatchCount > 0 && result.unsupportedPatchCount === 0) {
           appendCoachContextEvent("Coach proposal already matched current draft");
@@ -242,6 +256,7 @@ export function usePlannerCoach({
     },
     [
       appendCoachContextEvent,
+      applyCoachSessionMoves,
       applyDraftPolicy,
       applyPolicyReplanMoves,
       context,

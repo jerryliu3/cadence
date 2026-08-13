@@ -1,8 +1,10 @@
 "use client";
 
+import { addMonths, format, parseISO } from "date-fns";
 import type { ReactNode } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { MAX_HORIZON_MONTHS } from "@/lib/planner/contracts/bounds";
 
 interface GoalDateRangeFieldsProps {
   startDate: string;
@@ -31,6 +33,9 @@ export function GoalDateRangeFields({
   startDateActions,
   endDateActions,
 }: GoalDateRangeFieldsProps) {
+  const maxEndDate = startDate
+    ? format(addMonths(parseISO(startDate), MAX_HORIZON_MONTHS), "yyyy-MM-dd")
+    : undefined;
   return (
     <div className="grid grid-cols-1 gap-3 min-[430px]:grid-cols-2">
       <div className="space-y-2">
@@ -55,6 +60,7 @@ export function GoalDateRangeFields({
           id={endDateId}
           type="date"
           value={endDate}
+          max={maxEndDate}
           onChange={(event) => onEndDateChange(event.target.value)}
           required={requiresEndDate}
           className="h-9 min-w-0"

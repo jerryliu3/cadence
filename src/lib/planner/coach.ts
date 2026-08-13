@@ -66,6 +66,19 @@ const calendarIntentSchema = z
   .object({
     action: z.enum(["none", "needs_goal", "apply"]),
     global: calendarIntentGlobalSchema.nullable().optional().default(null),
+    sessionMoves: z
+      .array(
+        z
+          .object({
+            goalId: z.uuid(),
+            unitKey: z.string().trim().min(1).max(200),
+            scheduledDate: z.iso.date(),
+          })
+          .strict()
+      )
+      .max(50)
+      .optional()
+      .default([]),
   })
   .strict();
 
@@ -107,12 +120,12 @@ export const coachPolicyPatchSchema = z.discriminatedUnion("kind", [
     .refine((value) => value.start <= value.end),
   z
     .object({
-      kind: z.literal("remove_blackout_range"),
-      start: z.iso.date(),
-      end: z.iso.date(),
+      kind: z.literal("move_session"),
+      goalId: z.uuid(),
+      unitKey: z.string().trim().min(1).max(200),
+      scheduledDate: z.iso.date(),
     })
-    .strict()
-    .refine((value) => value.start <= value.end),
+    .strict(),
 ]);
 
 function dedupeWeekdays(weekdays: number[]) {
@@ -123,7 +136,6 @@ function compileCalendarIntent(
   intent: z.infer<typeof calendarIntentSchema>,
   goalsById: Map<string, Goal>
 ) {
-  void goalsById;
   const policyPatches: CoachPolicyPatch[] = [];
   const warnings: string[] = [];
   if (intent.action === "none") {
@@ -153,6 +165,21 @@ function compileCalendarIntent(
         kind: "remove_blackout_range",
         start: range.start,
         end: range.end,
+      });
+    }
+  }
+  if (intent.sessionMoves.length > 0) {
+    const knownGoalIds = new Set(goalsById.keys());
+    for (const move of intent.sessionMoves) {
+      if (!knownGoalIds.has(move.goalId)) {
+        warnings.push(`Ignored session move for unknown goal ${move.goalId}.`);
+        continue;
+      }
+      policyPatches.push({
+        kind: "move_session",
+        goalId: move.goalId,
+        unitKey: move.unitKey,
+        scheduledDate: move.scheduledDate,
       });
     }
   }

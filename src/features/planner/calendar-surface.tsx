@@ -449,6 +449,7 @@ export function CalendarSurface({
         )
       );
       commandsByScope[scopeMonth] = scopedCommands.filter((command) =>
+        command.kind === "move_item" ||
         previewEntryKeys.has(draftCommandEntryKey(command))
       );
     }
@@ -996,6 +997,31 @@ export function CalendarSurface({
     applyDraftPolicy: (scopeMonth, policy) => {
       setDraftPolicyForScope(scopeMonth, policy);
     },
+    applyCoachSessionMoves: (moves) => {
+      if (!context?.scopeMonth) {
+        return;
+      }
+      for (const move of moves) {
+        const destMonth = move.scheduledDate.slice(0, 7);
+        if (destMonth !== context.scopeMonth) {
+          dispatchDraftCommand({
+            type: "upsert_move",
+            scopeMonth: context.scopeMonth,
+            goalId: move.goalId,
+            unitKey: move.unitKey,
+            scheduledDate: null,
+          });
+        }
+        dispatchDraftCommand({
+          type: "upsert_move",
+          scopeMonth: destMonth,
+          goalId: move.goalId,
+          unitKey: move.unitKey,
+          scheduledDate: move.scheduledDate,
+        });
+      }
+      scheduleDraftMovePreviewRefresh();
+    },
     getNonPublishablePreviewMessage: nonPublishablePreviewMessage,
   });
 
@@ -1182,7 +1208,13 @@ export function CalendarSurface({
         toast.error("This session is unavailable in the current preview.");
         return false;
       }
-      const moveWindow = baselineUnit?.draftMoveWindow ?? baselineUnit?.placementWindow;
+      const destMonth = normalized.slice(0, 7);
+      const sourceMonth = context.scopeMonth;
+      const creditWindow = baselineUnit.creditWindow;
+      const crossMonth = destMonth !== sourceMonth;
+      const moveWindow = crossMonth
+        ? creditWindow ?? baselineUnit.draftMoveWindow ?? baselineUnit.placementWindow
+        : baselineUnit.draftMoveWindow ?? baselineUnit.placementWindow;
       if (!moveWindow) {
         toast.error("This session does not have a movable placement window.");
         return false;
@@ -1236,13 +1268,30 @@ export function CalendarSurface({
       }
 
       const scopeMonth = context.scopeMonth;
-      dispatchDraftCommand({
-        type: "upsert_move",
-        scopeMonth,
-        goalId: entry.originalGoalId,
-        unitKey: entry.unitKey,
-        scheduledDate: normalized,
-      });
+      if (destMonth !== scopeMonth) {
+        dispatchDraftCommand({
+          type: "upsert_move",
+          scopeMonth,
+          goalId: entry.originalGoalId,
+          unitKey: entry.unitKey,
+          scheduledDate: null,
+        });
+        dispatchDraftCommand({
+          type: "upsert_move",
+          scopeMonth: destMonth,
+          goalId: entry.originalGoalId,
+          unitKey: entry.unitKey,
+          scheduledDate: normalized,
+        });
+      } else {
+        dispatchDraftCommand({
+          type: "upsert_move",
+          scopeMonth,
+          goalId: entry.originalGoalId,
+          unitKey: entry.unitKey,
+          scheduledDate: normalized,
+        });
+      }
       scheduleDraftMovePreviewRefresh();
       void source;
       return true;
