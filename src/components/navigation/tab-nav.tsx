@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { motion, useReducedMotion } from "motion/react";
 import { APP_TABS } from "@/components/navigation/tabs";
 import { cn } from "@/lib/utils";
 
@@ -24,8 +25,10 @@ interface TabNavProps {
 
 export function TabNav({ mobile = false }: TabNavProps) {
   const pathname = usePathname();
+  const reduceMotion = useReducedMotion();
   const gridClass = GRID_BY_COUNT[APP_TABS.length] ?? "grid-cols-4";
   const currentIndex = APP_TABS.findIndex((tab) => isActive(pathname, tab.href));
+  const highlightLayoutId = mobile ? "mobile-tab-highlight" : "desktop-tab-highlight";
 
   return (
     <nav
@@ -49,7 +52,7 @@ export function TabNav({ mobile = false }: TabNavProps) {
           const active = isActive(pathname, tab.href);
           const Icon = tab.icon;
           return (
-            <li key={tab.href}>
+            <li key={tab.href} className="relative">
               <Link
                 href={tab.href}
                 transitionTypes={
@@ -62,16 +65,32 @@ export function TabNav({ mobile = false }: TabNavProps) {
                       ]
                 }
                 className={cn(
-                  "flex w-full touch-manipulation items-center justify-center rounded-xl px-2 font-medium transition-[color,background-color,transform] duration-[var(--motion-duration-fast)] ease-[var(--motion-ease-standard)] active:scale-[0.97] motion-reduce:transform-none motion-reduce:transition-none",
+                  "relative isolate flex w-full touch-manipulation items-center justify-center rounded-xl px-2 font-medium transition-[color,transform] duration-[var(--motion-duration-fast)] ease-[var(--motion-ease-standard)] active:scale-[0.97] motion-reduce:transform-none motion-reduce:transition-none",
                   mobile
                     ? "min-h-12 flex-col gap-1 py-1.5 text-[10px]"
                     : "min-h-14 flex-col gap-1 py-2 text-[11px]",
                   active
-                    ? "bg-primary text-primary-foreground shadow-sm"
+                    ? "text-primary-foreground"
                     : "text-muted-foreground hover:bg-muted hover:text-foreground"
                 )}
                 aria-current={active ? "page" : undefined}
               >
+                {active ? (
+                  <motion.span
+                    layoutId={highlightLayoutId}
+                    aria-hidden="true"
+                    data-motion="tab-nav-highlight"
+                    className="absolute inset-0 -z-10 rounded-xl bg-primary shadow-sm"
+                    transition={
+                      reduceMotion
+                        ? { duration: 0 }
+                        : {
+                            duration: 0.24,
+                            ease: [0.22, 1, 0.36, 1],
+                          }
+                    }
+                  />
+                ) : null}
                 <Icon className="size-5" />
                 <span>{tab.label}</span>
               </Link>

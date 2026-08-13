@@ -113,6 +113,31 @@ describe("CompletionToggle", () => {
     vi.useRealTimers();
   });
 
+  it("optimistically clears the checkmark when unchecking", () => {
+    vi.useFakeTimers();
+
+    render(
+      <CompletionToggle
+        completed
+        pending
+        aria-label="Mark session not done"
+      />
+    );
+
+    const toggle = screen.getByRole("button", {
+      name: "Mark session not done",
+    });
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute("data-visual-completed", "false");
+
+    act(() => {
+      vi.advanceTimersByTime(3000);
+    });
+    expect(toggle).toHaveAttribute("data-visual-completed", "true");
+
+    vi.useRealTimers();
+  });
+
   it("suppresses haptics when the user requests reduced motion", () => {
     const vibrate = vi.fn(() => true);
     Object.defineProperty(window.navigator, "vibrate", {

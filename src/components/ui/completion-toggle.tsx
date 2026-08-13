@@ -37,7 +37,9 @@ export function CompletionToggle({
 }: CompletionToggleProps) {
   const classes = sizeClasses[size];
   const [pressActive, setPressActive] = React.useState(false);
-  const [optimisticCompleted, setOptimisticCompleted] = React.useState(false);
+  const [optimisticCompleted, setOptimisticCompleted] = React.useState<boolean | null>(
+    null
+  );
   const pressTimerRef = React.useRef<number | null>(null);
   const optimisticTimerRef = React.useRef<number | null>(null);
 
@@ -53,19 +55,11 @@ export function CompletionToggle({
     []
   );
 
-  React.useEffect(() => {
-    if (!completed) {
-      return;
-    }
-    if (optimisticTimerRef.current !== null) {
-      window.clearTimeout(optimisticTimerRef.current);
-      optimisticTimerRef.current = null;
-    }
-  }, [completed]);
-
   const handleClick: React.MouseEventHandler<HTMLButtonElement> = (event) => {
     triggerLightPressFeedback();
-    if (!completed) {
+    const desiredState = !completed;
+
+    if (desiredState) {
       setPressActive(true);
       if (pressTimerRef.current !== null) {
         window.clearTimeout(pressTimerRef.current);
@@ -74,20 +68,24 @@ export function CompletionToggle({
         setPressActive(false);
         pressTimerRef.current = null;
       }, 360);
-
-      setOptimisticCompleted(true);
-      if (optimisticTimerRef.current !== null) {
-        window.clearTimeout(optimisticTimerRef.current);
-      }
-      optimisticTimerRef.current = window.setTimeout(() => {
-        setOptimisticCompleted(false);
-        optimisticTimerRef.current = null;
-      }, pending ? 2200 : 1400);
+    } else if (pressTimerRef.current !== null) {
+      window.clearTimeout(pressTimerRef.current);
+      pressTimerRef.current = null;
+      setPressActive(false);
     }
+
+    setOptimisticCompleted(desiredState);
+    if (optimisticTimerRef.current !== null) {
+      window.clearTimeout(optimisticTimerRef.current);
+    }
+    optimisticTimerRef.current = window.setTimeout(() => {
+      setOptimisticCompleted(null);
+      optimisticTimerRef.current = null;
+    }, pending ? 2200 : desiredState ? 1400 : 900);
     onClick?.(event);
   };
 
-  const visualCompleted = completed || optimisticCompleted;
+  const visualCompleted = optimisticCompleted ?? completed;
 
   return (
     <button
