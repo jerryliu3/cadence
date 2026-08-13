@@ -3,15 +3,12 @@
 import {
   createContext,
   type ReactNode,
+  useCallback,
   useContext,
-  useEffect,
   useMemo,
   useState,
 } from "react";
-import {
-  readDuoScopeCookieFromDocument,
-  writeDuoScopeCookie,
-} from "@/lib/social/duo/scope-cookie";
+import { writeDuoScopeCookie } from "@/lib/social/duo/scope-cookie";
 import type { DuoContextState, DuoScope } from "@/lib/social/duo/types";
 
 interface DuoContextValue {
@@ -38,23 +35,17 @@ export function DuoProvider({
   initialState: DuoContextState;
   initialScopePreference: DuoScope | null;
 }) {
-  const [scopePreference, setScopePreference] = useState<DuoScope | null>(
+  const [scopePreference, setScopePreferenceState] = useState<DuoScope | null>(
     initialScopePreference
   );
 
-  useEffect(() => {
-    if (initialScopePreference !== null) {
-      return;
-    }
-    const cookiePreference = readDuoScopeCookieFromDocument();
-    if (cookiePreference) {
-      setScopePreference(cookiePreference);
-    }
-  }, [initialScopePreference]);
-
-  useEffect(() => {
-    writeDuoScopeCookie(scopePreference);
-  }, [scopePreference]);
+  // The cookie write is a side effect of the user's choice, not of rendering.
+  // Doing it in an effect also fought the server-rendered initial value: the
+  // first pass cleared the cookie before restoring it on the next render.
+  const setScopePreference = useCallback((next: DuoScope | null) => {
+    setScopePreferenceState(next);
+    writeDuoScopeCookie(next);
+  }, []);
 
   const value = useMemo<DuoContextValue>(
     () => ({
@@ -62,7 +53,7 @@ export function DuoProvider({
       scopePreference,
       setScopePreference,
     }),
-    [initialState, scopePreference]
+    [initialState, scopePreference, setScopePreference]
   );
 
   return <DuoContext.Provider value={value}>{children}</DuoContext.Provider>;
