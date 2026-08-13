@@ -27,6 +27,10 @@ export function reportDuoTelemetry(
     level: "info",
     data,
   });
+  const sampleUsageEvent = event === "scope_viewed" && Math.random() >= 0.1;
+  if (sampleUsageEvent) {
+    return;
+  }
   Sentry.captureMessage(`duo.${event}`, {
     level: "info",
     tags: { area: "duo", duoEvent: event },
