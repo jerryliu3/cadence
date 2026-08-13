@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -15,6 +16,7 @@ import type { TeamStateRow } from "@/features/social/types";
 import { NudgeButton } from "@/features/social/team/nudge-button";
 
 export function TeamPanel() {
+  const router = useRouter();
   const [rows, setRows] = useState<TeamStateRow[]>([]);
   const [partnerId, setPartnerId] = useState("");
   const [message, setMessage] = useState("");
@@ -63,6 +65,7 @@ export function TeamPanel() {
     try {
       await acceptSocialTeamInvite(teamId);
       await load();
+      router.refresh();
     } catch (acceptError) {
       setError(acceptError instanceof Error ? acceptError.message : "Could not accept invite.");
     }
@@ -73,6 +76,7 @@ export function TeamPanel() {
     try {
       await declineSocialTeamInvite(teamId);
       await load();
+      router.refresh();
     } catch (declineError) {
       setError(declineError instanceof Error ? declineError.message : "Could not decline invite.");
     }
@@ -83,6 +87,7 @@ export function TeamPanel() {
     try {
       await dissolveSocialTeam();
       await load();
+      router.refresh();
     } catch (dissolveError) {
       setError(dissolveError instanceof Error ? dissolveError.message : "Could not dissolve team.");
     }
