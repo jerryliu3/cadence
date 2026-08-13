@@ -213,6 +213,7 @@ export type Database = {
       xp_level_for_total: { Args: { p_total_xp: number }; Returns: number }
       xp_lock_key: { Args: { p_scope: string }; Returns: number }
       xp_manual_completion_points: { Args: never; Returns: number }
+      xp_min_total_for_level: { Args: { p_level: number }; Returns: number }
       xp_points_for_completion_source: {
         Args: { p_source: Database["public"]["Enums"]["completion_source"] }
         Returns: number
@@ -1822,13 +1823,6 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
-          {
-            foreignKeyName: "xp_profiles_current_level_fkey"
-            columns: ["current_level"]
-            isOneToOne: false
-            referencedRelation: "xp_levels"
-            referencedColumns: ["level"]
-          },
           {
             foreignKeyName: "xp_profiles_user_id_fkey"
             columns: ["user_id"]

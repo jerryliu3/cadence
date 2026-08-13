@@ -16,12 +16,31 @@ describe("XP progression", () => {
     expect(GOAL_ACHIEVEMENT_POINTS).toBe(100);
   });
 
-  it("uses the existing early-level thresholds", () => {
+  it("uses bespoke thresholds only for levels 1-4", () => {
     expect(minTotalXpForLevel(1)).toBe(0);
     expect(minTotalXpForLevel(2)).toBe(100);
+    expect(minTotalXpForLevel(3)).toBe(250);
+    expect(minTotalXpForLevel(4)).toBe(450);
+  });
+
+  it("uses the closed form from level 5 through the cap", () => {
+    for (let level = 5; level <= 12; level += 1) {
+      expect(minTotalXpForLevel(level)).toBe(400 + 50 * (level - 2) * (level - 3));
+    }
+    expect(minTotalXpForLevel(5)).toBe(700);
     expect(minTotalXpForLevel(10)).toBe(3200);
     expect(minTotalXpForLevel(11)).toBe(4000);
     expect(minTotalXpForLevel(12)).toBe(4900);
+  });
+
+  it("lands exactly on named-tier thresholds", () => {
+    expect(levelForTotalXp(700)).toBe(5);
+    expect(levelForTotalXp(699)).toBe(4);
+    expect(levelForTotalXp(1000)).toBe(6);
+    expect(levelForTotalXp(3200)).toBe(10);
+    expect(levelForTotalXp(4000)).toBe(11);
+    expect(levelForTotalXp(minTotalXpForLevel(999))).toBe(999);
+    expect(levelForTotalXp(minTotalXpForLevel(1000) - 1)).toBe(999);
   });
 
   it("resolves current and next level from total XP without a SQL table", () => {

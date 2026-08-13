@@ -8,8 +8,8 @@ select is(
     select max(level)::integer
     from public.xp_levels
   ),
-  1000,
-  'xp levels seed extends to level 1000'
+  10,
+  'xp_levels keeps editorial titles for levels 1-10 only'
 );
 
 select is(
