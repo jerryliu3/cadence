@@ -240,12 +240,9 @@ select is(
 
 select is(
   (
-    select feed.goal_title
-    from _feed_page feed
-    join public.goals goal
-      on goal.id = '89555555-5555-4555-8555-555555555555'
-    where feed.id = '89800000-0000-4000-8000-000000000002'
-      and goal.is_private = true
+    select goal_title
+    from _feed_page
+    where id = '89800000-0000-4000-8000-000000000002'
   ),
   null,
   'get_social_feed still nulls goal_title for is_private goal 89555555-5555-4555-8555-555555555555'
