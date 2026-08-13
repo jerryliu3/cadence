@@ -1,0 +1,96 @@
+import type { ReactNode } from "react";
+import { cleanup, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { GoalCard } from "@/features/today/goal-card";
+import type { Goal } from "@/lib/goals/types";
+
+vi.mock("next/image", () => ({
+  default: () => null,
+}));
+
+vi.mock("next/link", () => ({
+  default: ({
+    href,
+    children,
+    ...props
+  }: {
+    href: string;
+    children: ReactNode;
+  }) => (
+    <a href={href} {...props}>
+      {children}
+    </a>
+  ),
+}));
+
+const goal: Goal = {
+  id: "10000000-0000-4000-8000-000000000001",
+  owner_id: "11111111-1111-4111-8111-111111111111",
+  title: "Walk",
+  description: null,
+  category: "Health",
+  category_key: "health",
+  color: null,
+  frequency_type: "recurring",
+  recurrence_interval: "daily",
+  target_count: null,
+  milestone_names: null,
+  start_date: "2026-01-01",
+  end_date: "2026-12-31",
+  photo_path: null,
+  team_id: null,
+  is_deleted: false,
+  archived_at: "2026-08-01T00:00:00Z",
+  created_at: "2026-01-01T00:00:00Z",
+  updated_at: "2026-01-01T00:00:00Z",
+};
+
+const weeklyAnchor = { weekStartsOn: 1 };
+
+describe("GoalCard", () => {
+  afterEach(() => {
+    cleanup();
+  });
+  it("keeps archived own goals linked and disables the toggle", () => {
+    render(
+      <GoalCard
+        goal={goal}
+        completions={[]}
+        linkedCount={0}
+        selectedDate="2026-08-13"
+        referenceDate={new Date("2026-08-13T12:00:00")}
+        weeklyAnchor={weeklyAnchor}
+        archived
+        disabled
+        onToggle={vi.fn()}
+      />
+    );
+
+    expect(screen.getByRole("link")).toHaveAttribute(
+      "href",
+      "/goals/10000000-0000-4000-8000-000000000001"
+    );
+    expect(
+      screen.getByRole("button", { name: "Mark goal as complete" })
+    ).toBeDisabled();
+  });
+
+  it("does not link partner read-only goals", () => {
+    render(
+      <GoalCard
+        goal={{ ...goal, archived_at: null }}
+        completions={[]}
+        linkedCount={0}
+        selectedDate="2026-08-13"
+        referenceDate={new Date("2026-08-13T12:00:00")}
+        weeklyAnchor={weeklyAnchor}
+        readOnly={true}
+      />
+    );
+
+    expect(screen.queryByRole("link")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Mark goal as complete" })
+    ).not.toBeInTheDocument();
+  });
+});

@@ -19,8 +19,8 @@ import type {
   GoalLink,
 } from "@/lib/goals/types";
 import { createClient } from "@/lib/supabase/client";
-import { progressSubjectUserId, selectViewerVisibleGoals } from "@/lib/goals/visible-goals";
 import { useDuo } from "@/features/social/duo/duo-context";
+import { progressSubjectUserId, selectViewerVisibleGoals } from "@/lib/goals/visible-goals";
 
 export interface TodayData {
   userId: string;
@@ -58,8 +58,8 @@ export function useChecklistData({
   failClosed?: boolean;
 }) {
   const supabase = useMemo(() => createClient(), []);
-  const { state: duoState } = useDuo();
-  const duoPartnerId = duoState.activePartner?.partnerId ?? null;
+  const { viewerUserId, state: duoState } = useDuo();
+  const partnerId = duoState.activePartner?.partnerId ?? null;
   const router = useRouter();
   const [data, setData] = useState<TodayData>(emptyTodayData);
   const [loading, setLoading] = useState(true);
@@ -135,23 +135,24 @@ export function useChecklistData({
         TODAY_REQUEST_TIMEOUT_MS
       );
       try {
-        const {
-          data: { user },
-          error: userError,
-        } = await withAbortSignal(supabase.auth.getUser(), controller.signal);
+        const userId = viewerUserId
+          ? viewerUserId
+          : (
+              await withAbortSignal(supabase.auth.getUser(), controller.signal)
+            ).data.user?.id;
 
         if (requestId !== loadRequestIdRef.current) {
           return;
         }
 
-        if (userError || !user) {
+        if (!userId) {
           setData(emptyTodayData);
           redirectToLogin();
           return;
         }
 
-        const targetSubjectUserId = subjectUserId ?? user.id;
-        const targetIsViewer = targetSubjectUserId === user.id;
+        const targetSubjectUserId = subjectUserId ?? userId;
+        const targetIsViewer = targetSubjectUserId === userId;
         const [goalsResponse, teamMembersResponse, linksResponse, progress] =
           await withAbortSignal(
             Promise.all([
@@ -167,10 +168,10 @@ export function useChecklistData({
                 return query;
               })(),
               targetIsViewer
-                ? supabase.from("team_members").select("team_id").eq("user_id", user.id)
+                ? supabase.from("team_members").select("team_id").eq("user_id", userId)
                 : Promise.resolve({ data: [], error: null }),
               targetIsViewer
-                ? supabase.from("goal_links").select("*").eq("owner_id", user.id)
+                ? supabase.from("goal_links").select("*").eq("owner_id", userId)
                 : Promise.resolve({ data: [], error: null }),
               fetchProgressContext({
                 asOfDate: todayLocalDate,
@@ -190,9 +191,10 @@ export function useChecklistData({
         const memberTeamIds = ((teamMembersResponse.data ?? []) as Array<{
           team_id: string;
         }>).map((row) => row.team_id);
-        const visibleGoals = targetIsViewer
-          ? selectViewerVisibleGoals({ goals, partnerId: duoPartnerId })
-          : goals;
+        const visibleGoals = selectViewerVisibleGoals({
+          goals,
+          partnerId: targetIsViewer ? partnerId : null,
+        });
         const links = (linksResponse.data ?? []) as GoalLink[];
 
         const photoUrls: Record<string, string> = {};
@@ -239,7 +241,7 @@ export function useChecklistData({
         }
       }
     },
-    [duoPartnerId, redirectToLogin, subjectUserId, supabase, todayLocalDate]
+    [partnerId, redirectToLogin, subjectUserId, supabase, todayLocalDate, viewerUserId]
   );
 
   useEffect(() => {

@@ -9,9 +9,10 @@ import {
   type HeatmapViewMode,
 } from "@/features/insights/insights-tab";
 import { reportDuoTelemetry } from "@/lib/social/duo/telemetry";
+import { DUO_SURFACE_DEFAULTS } from "@/lib/social/duo/surface-defaults";
 
 export function InsightsShell() {
-  const { scope, activePartner } = useDuoScope("both");
+  const { scope, activePartner } = useDuoScope(DUO_SURFACE_DEFAULTS.insights);
   const [monthCursor, setMonthCursor] = useState(new Date());
   const [perGoalViewMode, setPerGoalViewMode] = useState<HeatmapViewMode>("month");
   const sharePeriodControls = scope === "both" && Boolean(activePartner);
@@ -58,7 +59,6 @@ export function InsightsShell() {
         partner={partnerLane}
         renderLane={(subject) => (
           <InsightsTab
-            laneLabel={subject.label}
             subjectUserId={subject.userId}
             readOnly={subject.readOnly}
             monthCursor={sharePeriodControls ? monthCursor : undefined}
