@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, private, extensions, pg_catalog;
-select plan(6);
+select plan(7);
 
 select is(
   private.xp_rule('manual_completion_points')::integer,
@@ -41,6 +41,17 @@ select is(
   private.xp_points_for_completion_source('linked_cascade'::public.completion_source),
   7,
   'cascade source floors 30 * 0.25 to 7 after a rule update'
+);
+
+select throws_ok(
+  $tap$
+    update public.xp_point_rules
+    set value = 20.7
+    where key = 'manual_completion_points';
+  $tap$,
+  '23514',
+  null,
+  'non-multiplier point rules must stay integral'
 );
 
 select * from finish();

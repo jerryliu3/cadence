@@ -10,6 +10,9 @@ create table if not exists public.xp_point_rules (
       'cascade_multiplier',
       'goal_achievement_points'
     )
+  ),
+  constraint xp_point_rules_integral check (
+    key = 'cascade_multiplier' or value = pg_catalog.trunc(value)
   )
 );
 
