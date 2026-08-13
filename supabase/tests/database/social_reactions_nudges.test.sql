@@ -8,7 +8,8 @@ values
   ('9b111111-1111-4111-8111-111111111111', 'social-react-viewer@example.com'),
   ('9b222222-2222-4222-8222-222222222222', 'social-react-actor@example.com'),
   ('9b333333-3333-4333-8333-333333333333', 'social-nudge-sender@example.com'),
-  ('9b444444-4444-4444-8444-444444444444', 'social-nudge-receiver@example.com')
+  ('9b444444-4444-4444-8444-444444444444', 'social-nudge-receiver@example.com'),
+  ('9b555555-5555-4555-8555-555555555555', 'social-nudge-outsider@example.com')
 on conflict (id) do nothing;
 
 insert into public.profiles (id, username)
@@ -16,7 +17,8 @@ values
   ('9b111111-1111-4111-8111-111111111111', 'social_react_viewer'),
   ('9b222222-2222-4222-8222-222222222222', 'social_react_actor'),
   ('9b333333-3333-4333-8333-333333333333', 'social_nudge_sender'),
-  ('9b444444-4444-4444-8444-444444444444', 'social_nudge_receiver')
+  ('9b444444-4444-4444-8444-444444444444', 'social_nudge_receiver'),
+  ('9b555555-5555-4555-8555-555555555555', 'social_nudge_outsider')
 on conflict (id) do nothing;
 
 set local role service_role;
@@ -97,14 +99,6 @@ values
   ('9b700000-0000-4000-8000-000000000001', '9b333333-3333-4333-8333-333333333333', 'initiator'),
   ('9b700000-0000-4000-8000-000000000001', '9b444444-4444-4444-8444-444444444444', 'member')
 on conflict (team_id, user_id) do nothing;
-
-insert into public.team_preferences (team_id, user_id, allow_nudges, notify_partner_activity)
-values
-  ('9b700000-0000-4000-8000-000000000001', '9b333333-3333-4333-8333-333333333333', true, true),
-  ('9b700000-0000-4000-8000-000000000001', '9b444444-4444-4444-8444-444444444444', true, true)
-on conflict (team_id, user_id) do update
-set allow_nudges = excluded.allow_nudges,
-    notify_partner_activity = excluded.notify_partner_activity;
 
 reset role;
 set local role authenticated;
@@ -198,17 +192,7 @@ select throws_ok(
   'same sender/recipient/goal is limited to once per day'
 );
 
-reset role;
-set local role service_role;
-update public.team_preferences
-set allow_nudges = false
-where team_id = '9b700000-0000-4000-8000-000000000001'
-  and user_id = '9b444444-4444-4444-8444-444444444444';
-
-reset role;
-set local role authenticated;
-select set_config('request.jwt.claim.role', 'authenticated', true);
-select set_config('request.jwt.claim.sub', '9b333333-3333-4333-8333-333333333333', true);
+select set_config('request.jwt.claim.sub', '9b555555-5555-4555-8555-555555555555', true);
 
 select throws_ok(
   $$select public.send_nudge_service(
@@ -217,9 +201,9 @@ select throws_ok(
       null,
       null
     )$$,
-  '42501',
-  'nudges_not_allowed',
-  'recipient preferences can block nudges'
+  '22023',
+  'team_required',
+  'non-partners cannot send nudges'
 );
 
 select * from finish();
