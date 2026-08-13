@@ -123,7 +123,8 @@ export function AdminChallengesManager() {
               <div key={item.id} className="rounded border p-3">
                 <p className="font-medium">{item.title}</p>
                 <p className="text-xs text-muted-foreground">
-                  {item.slug} · {item.status} · {item.metric} · {item.audienceKind}
+                  {item.slug} · {item.status} · {item.metric}
+                  {item.audienceKind === "cohort" ? " · cohort" : ""}
                 </p>
               </div>
             ))
