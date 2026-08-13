@@ -7,13 +7,16 @@ interface GoalEndMonthBadgeProps {
 }
 
 export function GoalEndMonthBadge({ endDate }: GoalEndMonthBadgeProps) {
+  const dateLabel = endDate ? format(parseISO(endDate), "MMM d, yyyy") : "No date";
   return (
     <Badge
       variant="secondary"
       className="h-5 gap-1 rounded-md px-1.5 font-medium text-[11px] text-sky-800 dark:text-sky-100"
+      title="Goal end date"
+      aria-label={endDate ? `Goal end date ${dateLabel}` : "No goal end date"}
     >
       <Calendar className="size-3" aria-hidden="true" />
-      <span>{endDate ? format(parseISO(endDate), "MMM d, yyyy") : "No date"}</span>
+      <span>{dateLabel}</span>
     </Badge>
   );
 }
