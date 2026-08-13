@@ -16,29 +16,23 @@ describe("XP progression", () => {
     expect(GOAL_ACHIEVEMENT_POINTS).toBe(100);
   });
 
-  it("uses bespoke thresholds only for levels 1-4", () => {
+  it("uses one quadratic for every level", () => {
+    for (let level = 1; level <= 12; level += 1) {
+      expect(minTotalXpForLevel(level)).toBe(50 * level * (level - 1));
+    }
     expect(minTotalXpForLevel(1)).toBe(0);
     expect(minTotalXpForLevel(2)).toBe(100);
-    expect(minTotalXpForLevel(3)).toBe(250);
-    expect(minTotalXpForLevel(4)).toBe(450);
+    expect(minTotalXpForLevel(3)).toBe(300);
+    expect(minTotalXpForLevel(10)).toBe(4500);
+    expect(minTotalXpForLevel(11)).toBe(5500);
   });
 
-  it("uses the closed form from level 5 through the cap", () => {
-    for (let level = 5; level <= 12; level += 1) {
-      expect(minTotalXpForLevel(level)).toBe(400 + 50 * (level - 2) * (level - 3));
-    }
-    expect(minTotalXpForLevel(5)).toBe(700);
-    expect(minTotalXpForLevel(10)).toBe(3200);
-    expect(minTotalXpForLevel(11)).toBe(4000);
-    expect(minTotalXpForLevel(12)).toBe(4900);
-  });
-
-  it("lands exactly on named-tier thresholds", () => {
-    expect(levelForTotalXp(700)).toBe(5);
-    expect(levelForTotalXp(699)).toBe(4);
-    expect(levelForTotalXp(1000)).toBe(6);
-    expect(levelForTotalXp(3200)).toBe(10);
-    expect(levelForTotalXp(4000)).toBe(11);
+  it("lands exactly on formula thresholds", () => {
+    expect(levelForTotalXp(299)).toBe(2);
+    expect(levelForTotalXp(300)).toBe(3);
+    expect(levelForTotalXp(1000)).toBe(5);
+    expect(levelForTotalXp(4500)).toBe(10);
+    expect(levelForTotalXp(5500)).toBe(11);
     expect(levelForTotalXp(minTotalXpForLevel(999))).toBe(999);
     expect(levelForTotalXp(minTotalXpForLevel(1000) - 1)).toBe(999);
   });
@@ -51,8 +45,8 @@ describe("XP progression", () => {
       currentLevel: 2,
       currentLevelMinXp: 100,
       nextLevel: 3,
-      nextLevelMinXp: 250,
-      xpToNextLevel: 105,
+      nextLevelMinXp: 300,
+      xpToNextLevel: 155,
     });
   });
 

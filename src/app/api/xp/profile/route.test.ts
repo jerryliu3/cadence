@@ -151,8 +151,8 @@ describe("GET /api/xp/profile", () => {
         currentLevel: 2,
         currentLevelMinXp: 100,
         nextLevel: 3,
-        nextLevelMinXp: 250,
-        xpToNextLevel: 105,
+        nextLevelMinXp: 300,
+        xpToNextLevel: 155,
       },
       tracks: [
         { trackKey: "health", label: "Health", totalXp: 80, currentLevel: 1 },

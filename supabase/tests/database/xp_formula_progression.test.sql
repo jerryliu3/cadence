@@ -1,20 +1,18 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, private, extensions, pg_catalog;
-select plan(14);
+select plan(12);
 
+select is(private.xp_min_total_for_level(1), 0, 'level 1 starts at 0 XP');
 select is(private.xp_min_total_for_level(2), 100, 'level 2 starts at 100 XP');
-select is(private.xp_min_total_for_level(4), 450, 'level 4 is the last bespoke threshold');
-select is(private.xp_min_total_for_level(5), 700, 'level 5 starts the closed form');
-select is(private.xp_min_total_for_level(11), 4000, 'level 11 starts at 4000 XP');
-select is(private.xp_min_total_for_level(12), 4900, 'level 12 starts at 4900 XP');
+select is(private.xp_min_total_for_level(3), 300, 'level 3 follows 50·L·(L-1)');
+select is(private.xp_min_total_for_level(11), 5500, 'level 11 starts at 5500 XP');
+select is(private.xp_min_total_for_level(12), 6600, 'level 12 starts at 6600 XP');
 
 select is(private.xp_level_for_total(99), 1, '99 XP stays at level 1');
 select is(private.xp_level_for_total(100), 2, '100 XP reaches level 2');
-select is(private.xp_level_for_total(699), 4, '699 XP stays at level 4');
-select is(private.xp_level_for_total(700), 5, '700 XP reaches level 5 exactly');
-select is(private.xp_level_for_total(3200), 10, '3200 XP reaches level 10 exactly');
-select is(private.xp_level_for_total(4000), 11, '4000 XP reaches level 11 exactly');
+select is(private.xp_level_for_total(299), 2, '299 XP stays at level 2');
+select is(private.xp_level_for_total(300), 3, '300 XP reaches level 3 exactly');
 select is(private.xp_level_for_total(99999999), 1000, 'very high XP caps at level 1000');
 
 select is(
