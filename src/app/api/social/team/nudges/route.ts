@@ -9,7 +9,6 @@ import { z } from "zod";
 import { runAfterResponse } from "@/lib/api/after";
 import { flushNotificationOutbox } from "@/lib/push/outbox";
 import { requireSocialRouteContext } from "@/lib/social/api";
-import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 
@@ -34,8 +33,7 @@ export async function POST(request: Request) {
   const correlationId = createCorrelationId();
   try {
     const body = await parseJsonBody({ request: request, maxBytes: 16 * 1024, schema: requestSchema });
-    const supabase = await createClient();
-    const socialContext = await requireSocialRouteContext({ supabase });
+    const socialContext = await requireSocialRouteContext(request);
 
     const { data, error } = await socialContext.supabase.rpc("send_nudge_service", {
       p_to_user_id: body.toUserId,

@@ -5,7 +5,7 @@ import {
   apiErrorResponse,
   createCorrelationId as createSharedCorrelationId,
   parseJsonBody,
-  requireAuthenticatedRouteContext,
+  requireAuthenticatedRequestContext,
   withRoute as withSharedRoute,
 } from "@/lib/api/route";
 import { getDateInTimezone } from "@/lib/dates/timezone";
@@ -13,10 +13,6 @@ import { reportError } from "@/lib/observability/report-error";
 import { getPlannerCapabilities } from "@/lib/planner/capabilities";
 import type { PlannerCapabilities } from "@/lib/planner/capabilities";
 import { createAdminClient } from "@/lib/supabase/admin";
-import type { createClient as createServerClient } from "@/lib/supabase/server";
-
-type ServerSupabaseClient = Awaited<ReturnType<typeof createServerClient>>;
-
 export interface PlannerApiErrorBody {
   code: string;
   message: string;
@@ -110,7 +106,9 @@ export async function parseBoundedJsonBody<T>(
 
 export interface AuthenticatedPlannerRouteContext {
   userId: string;
-  supabase: ServerSupabaseClient;
+  supabase: Awaited<
+    ReturnType<typeof requireAuthenticatedRequestContext>
+  >["supabase"];
   capabilities: PlannerCapabilities;
 }
 
@@ -126,15 +124,13 @@ export function requirePlannerAdminClient() {
   }
 }
 
-export async function requirePlannerRouteContext({
-  supabase,
-}: {
-  supabase: ServerSupabaseClient;
-}): Promise<AuthenticatedPlannerRouteContext> {
+export async function requirePlannerRouteContext(
+  request: Request
+): Promise<AuthenticatedPlannerRouteContext> {
   let userId: string;
+  let supabase: AuthenticatedPlannerRouteContext["supabase"];
   try {
-    ({ userId } = await requireAuthenticatedRouteContext({
-      supabase,
+    ({ userId, supabase } = await requireAuthenticatedRequestContext(request, {
       unauthorizedMessage: "Sign in to access planner APIs.",
     }));
   } catch (error) {

@@ -4,10 +4,9 @@ import {
   apiErrorResponse,
   createCorrelationId,
   parseJsonBody,
-  requireAuthenticatedRouteContext,
+  requireAuthenticatedRequestContext,
 } from "@/lib/api/route";
 import { isFeatureEnabled } from "@/lib/feature-flags";
-import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 
@@ -44,15 +43,14 @@ export async function POST(request: Request) {
     return xpDisabledResponse(correlationId);
   }
 
-  const supabase = await createClient();
   let userId: string;
+  let supabase: Awaited<
+    ReturnType<typeof requireAuthenticatedRequestContext>
+  >["supabase"];
   try {
-    userId = (
-      await requireAuthenticatedRouteContext({
-        supabase,
+    ({ userId, supabase } = await requireAuthenticatedRequestContext(request, {
         unauthorizedMessage: "Sign in to acknowledge awards.",
-      })
-    ).userId;
+      }));
   } catch (error) {
     if (error instanceof ApiRouteError) {
       return apiErrorResponse(error, correlationId);

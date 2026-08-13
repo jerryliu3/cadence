@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import {
   ApiRouteError,
-  requireAuthenticatedRouteContext,
+  requireAuthenticatedRequestContext,
   withRoute,
 } from "@/lib/api/route";
 import { isFeatureEnabled } from "@/lib/feature-flags";
@@ -24,7 +24,6 @@ import {
 import { isTargetedRecurringGoal } from "@/lib/planner/requirements";
 import { requireTeamPartner, resolveActiveTeamPartner } from "@/lib/social/team";
 import { selectViewerVisibleGoals } from "@/lib/goals/visible-goals";
-import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 
@@ -109,7 +108,9 @@ async function resolveWeeklyAnchor({
   viewerUserId,
   subjectUserId,
 }: {
-  supabase: Awaited<ReturnType<typeof createClient>>;
+  supabase: Awaited<
+    ReturnType<typeof requireAuthenticatedRequestContext>
+  >["supabase"];
   viewerUserId: string;
   subjectUserId: string;
 }): Promise<WeeklyAnchorContext | null> {
@@ -169,9 +170,7 @@ async function resolveWeeklyAnchor({
 
 export async function GET(request: Request) {
   return withRoute(async ({ correlationId }) => {
-    const supabase = await createClient();
-    const { userId } = await requireAuthenticatedRouteContext({
-      supabase,
+    const { supabase, userId } = await requireAuthenticatedRequestContext(request, {
       unauthorizedMessage: "Sign in to view goal progress.",
     });
 

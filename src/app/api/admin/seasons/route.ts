@@ -99,10 +99,10 @@ function mapSeasonMutationError(error: DbMutationError, fallbackCode: string, fa
   });
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   const correlationId = createCorrelationId();
   try {
-    const adminContext = await requireAdminContext("moderator");
+    const adminContext = await requireAdminContext(request, "moderator");
     if (!adminContext) {
       throw new ApiRouteError(404, "not_found", "Resource not found.");
     }
@@ -138,7 +138,7 @@ export async function GET() {
 export async function POST(request: Request) {
   const correlationId = createCorrelationId();
   try {
-    const adminContext = await requireAdminContext("admin");
+    const adminContext = await requireAdminContext(request, "admin");
     if (!adminContext) {
       throw new ApiRouteError(404, "not_found", "Resource not found.");
     }

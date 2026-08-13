@@ -1,24 +1,20 @@
 import {
   ApiRouteError,
-  requireAuthenticatedRouteContext,
+  requireAuthenticatedRequestContext,
 } from "@/lib/api/route";
 import { isFeatureEnabled } from "@/lib/feature-flags";
-import { createClient } from "@/lib/supabase/server";
-
-type ServerSupabaseClient = Awaited<ReturnType<typeof createClient>>;
 
 export interface SocialRouteContext {
   userId: string;
-  supabase: ServerSupabaseClient;
+  supabase: Awaited<
+    ReturnType<typeof requireAuthenticatedRequestContext>
+  >["supabase"];
 }
 
-export async function requireSocialRouteContext({
-  supabase,
-}: {
-  supabase: ServerSupabaseClient;
-}): Promise<SocialRouteContext> {
-  const { userId } = await requireAuthenticatedRouteContext({
-    supabase,
+export async function requireSocialRouteContext(
+  request: Request
+): Promise<SocialRouteContext> {
+  const { userId, supabase } = await requireAuthenticatedRequestContext(request, {
     unauthorizedMessage: "Sign in to access social APIs.",
   });
 

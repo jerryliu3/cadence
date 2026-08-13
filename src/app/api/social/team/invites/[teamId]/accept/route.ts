@@ -9,7 +9,6 @@ import { z } from "zod";
 import { runAfterResponse } from "@/lib/api/after";
 import { flushNotificationOutbox } from "@/lib/push/outbox";
 import { requireSocialRouteContext } from "@/lib/social/api";
-import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 
@@ -52,8 +51,7 @@ export async function POST(
   try {
     const params = paramsSchema.parse(await context.params);
     const body = await parseJsonBody({ request: request, maxBytes: 8 * 1024, schema: requestSchema });
-    const supabase = await createClient();
-    const socialContext = await requireSocialRouteContext({ supabase });
+    const socialContext = await requireSocialRouteContext(request);
 
     const { data, error } = await socialContext.supabase.rpc("accept_team_invite_service", {
       p_team_id: params.teamId,
