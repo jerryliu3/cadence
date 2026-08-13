@@ -84,6 +84,7 @@ const serverEnvSchema = publicEnvSchema.extend({
   VAPID_SUBJECT: optionalNonEmptyString,
   CRON_SECRET: optionalNonEmptyString,
   EXPO_ACCESS_TOKEN: optionalNonEmptyString,
+  MOBILE_MIN_SUPPORTED_APP_VERSION: optionalNonEmptyString,
   GEMINI_API_KEY: optionalNonEmptyString,
   GEMINI_MODEL: optionalNonEmptyString,
   GEMINI_FALLBACK_MODELS: optionalNonEmptyString,
@@ -143,6 +144,8 @@ function readServerEnvInput() {
     VAPID_SUBJECT: process.env.VAPID_SUBJECT,
     CRON_SECRET: process.env.CRON_SECRET,
     EXPO_ACCESS_TOKEN: process.env.EXPO_ACCESS_TOKEN,
+    MOBILE_MIN_SUPPORTED_APP_VERSION:
+      process.env.MOBILE_MIN_SUPPORTED_APP_VERSION,
     GEMINI_API_KEY: process.env.GEMINI_API_KEY,
     GEMINI_MODEL: process.env.GEMINI_MODEL,
     GEMINI_FALLBACK_MODELS: process.env.GEMINI_FALLBACK_MODELS,

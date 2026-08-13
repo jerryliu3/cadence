@@ -96,6 +96,23 @@ describe("push dispatch route", () => {
     });
   });
 
+  it("rejects a user JWT bearer token on the cron route", async () => {
+    const response = await GET(
+      new Request("http://localhost/api/push/dispatch", {
+        method: "GET",
+        headers: {
+          authorization: "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.e30.signature",
+        },
+      })
+    );
+
+    expect(response.status).toBe(401);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "cron_auth_invalid",
+    });
+    expect(mocks.sendPushToUser).not.toHaveBeenCalled();
+  });
+
   it("returns push_dispatch_unavailable when cron is not configured", async () => {
     mocks.getServerEnv.mockReturnValue({
       CRON_SECRET: "",
