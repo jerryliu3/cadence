@@ -1,5 +1,5 @@
-import { InsightsTab } from "@/features/insights/insights-tab";
+import { InsightsShell } from "@/features/insights/insights-shell";
 
 export default function InsightsPage() {
-  return <InsightsTab />;
+  return <InsightsShell />;
 }
