@@ -654,7 +654,7 @@ insert into public.teams (
 values
   (
     '71000000-0000-4000-8000-000000000001',
-    '22222222-2222-4222-8222-222222222222',
+    '11111111-1111-4111-8111-111111111111',
     'active',
     'Lets pair on the weekly challenges.',
     now() - interval '12 days',
@@ -675,13 +675,13 @@ insert into public.team_members (team_id, user_id, role, joined_at)
 values
   (
     '71000000-0000-4000-8000-000000000001',
-    '22222222-2222-4222-8222-222222222222',
+    '11111111-1111-4111-8111-111111111111',
     'initiator',
     now() - interval '13 days'
   ),
   (
     '71000000-0000-4000-8000-000000000001',
-    '33333333-3333-4333-8333-333333333333',
+    '22222222-2222-4222-8222-222222222222',
     'member',
     now() - interval '13 days'
   ),
@@ -708,17 +708,66 @@ insert into public.team_preferences (
 values
   (
     '71000000-0000-4000-8000-000000000001',
-    '22222222-2222-4222-8222-222222222222',
+    '11111111-1111-4111-8111-111111111111',
     true,
     true,
     true
   ),
   (
     '71000000-0000-4000-8000-000000000001',
-    '33333333-3333-4333-8333-333333333333',
+    '22222222-2222-4222-8222-222222222222',
     true,
     true,
     true
+  );
+
+-- Alice + Bob team-owned goal for Checklist / complete-as-member demos.
+insert into public.goals (
+  id,
+  owner_id,
+  title,
+  description,
+  category,
+  category_key,
+  color,
+  frequency_type,
+  recurrence_interval,
+  target_count,
+  start_date,
+  end_date,
+  team_id,
+  is_private
+)
+values (
+  '10000000-0000-4000-8000-000000000023',
+  '11111111-1111-4111-8111-111111111111',
+  'Team daily check-in',
+  'Seeded team-owned goal for Alice and Bob.',
+  'Health',
+  'health',
+  '#10b981',
+  'recurring',
+  'daily',
+  null,
+  current_date - 14,
+  null,
+  '71000000-0000-4000-8000-000000000001',
+  false
+);
+
+insert into public.completions (goal_id, user_id, completed_on, source)
+values
+  (
+    '10000000-0000-4000-8000-000000000023',
+    '11111111-1111-4111-8111-111111111111',
+    current_date - 1,
+    'manual'
+  ),
+  (
+    '10000000-0000-4000-8000-000000000023',
+    '22222222-2222-4222-8222-222222222222',
+    current_date - 1,
+    'manual'
   );
 
 insert into public.challenges (
@@ -1169,7 +1218,7 @@ values
   ),
   (
     '73000000-0000-4000-8000-000000000006',
-    '33333333-3333-4333-8333-333333333333',
+    '11111111-1111-4111-8111-111111111111',
     'team_formed',
     '71000000-0000-4000-8000-000000000001',
     current_date - 12,
@@ -1311,7 +1360,7 @@ values
     '75000000-0000-4000-8000-000000000001',
     '71000000-0000-4000-8000-000000000001',
     '22222222-2222-4222-8222-222222222222',
-    '33333333-3333-4333-8333-333333333333',
+    '11111111-1111-4111-8111-111111111111',
     'cheer',
     '10000000-0000-4000-8000-000000000006',
     null,
@@ -1321,7 +1370,7 @@ values
     '75000000-0000-4000-8000-000000000002',
     '71000000-0000-4000-8000-000000000001',
     '22222222-2222-4222-8222-222222222222',
-    '33333333-3333-4333-8333-333333333333',
+    '11111111-1111-4111-8111-111111111111',
     'custom',
     '10000000-0000-4000-8000-000000000009',
     'Nice run streak this week. Keep it rolling.',
@@ -1331,7 +1380,7 @@ values
     '75000000-0000-4000-8000-000000000003',
     '71000000-0000-4000-8000-000000000001',
     '22222222-2222-4222-8222-222222222222',
-    '33333333-3333-4333-8333-333333333333',
+    '11111111-1111-4111-8111-111111111111',
     'remind',
     '10000000-0000-4000-8000-000000000009',
     null,
@@ -1455,44 +1504,20 @@ insert into public.teams (
   dissolved_at,
   closed_at
 )
-values
-  (
-    '71000000-0000-4000-8000-000000000003',
-    '11111111-1111-4111-8111-111111111111',
-    'pending',
-    'Want to pair on the builders cohort challenge?',
-    null,
-    now() - interval '5 hours',
-    null,
-    null,
-    null
-  ),
-  (
-    '71000000-0000-4000-8000-000000000004',
-    '11111111-1111-4111-8111-111111111111',
-    'closed',
-    'Historical team used for closed-state demos.',
-    now() - interval '45 days',
-    now() - interval '46 days',
-    now() - interval '45 days',
-    now() - interval '32 days',
-    now() - interval '32 days'
-  );
+values (
+  '71000000-0000-4000-8000-000000000004',
+  '11111111-1111-4111-8111-111111111111',
+  'closed',
+  'Historical team used for closed-state demos.',
+  now() - interval '45 days',
+  now() - interval '46 days',
+  now() - interval '45 days',
+  now() - interval '32 days',
+  now() - interval '32 days'
+);
 
 insert into public.team_members (team_id, user_id, role, joined_at)
 values
-  (
-    '71000000-0000-4000-8000-000000000003',
-    '11111111-1111-4111-8111-111111111111',
-    'initiator',
-    now() - interval '5 hours'
-  ),
-  (
-    '71000000-0000-4000-8000-000000000003',
-    '22222222-2222-4222-8222-222222222222',
-    'member',
-    now() - interval '5 hours'
-  ),
   (
     '71000000-0000-4000-8000-000000000004',
     '11111111-1111-4111-8111-111111111111',
@@ -1701,7 +1726,7 @@ values
     27,
     now() - interval '13 days',
     1,
-    'Bob Chen + Carla Diaz',
+    'Alice Park + Bob Chen',
     now() - interval '12 days'
   );
 
@@ -1805,7 +1830,7 @@ insert into public.nudges (
 values (
   '75000000-0000-4000-8000-000000000004',
   '71000000-0000-4000-8000-000000000001',
-  '33333333-3333-4333-8333-333333333333',
+  '11111111-1111-4111-8111-111111111111',
   '22222222-2222-4222-8222-222222222222',
   'custom',
   '10000000-0000-4000-8000-000000000006',
@@ -1831,7 +1856,7 @@ insert into public.notification_outbox (
 values
   (
     '76000000-0000-4000-8000-000000000005',
-    '33333333-3333-4333-8333-333333333333',
+    '11111111-1111-4111-8111-111111111111',
     'team_accepted',
     'Invite accepted',
     'Bob accepted your team invite.',
