@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions, pg_catalog;
-select plan(8);
+select plan(14);
 
 insert into auth.users (id, email)
 values
@@ -77,7 +77,15 @@ on conflict (id) do nothing;
 reset role;
 set local role authenticated;
 select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config('request.jwt.claim.sub', '9a111111-1111-4111-8111-111111111111', true);
+
+select ok(
+  public.mark_goal_complete('9a400000-0000-4000-8000-000000000001', current_date),
+  'owner can record completion on shared goal'
+);
+
 select set_config('request.jwt.claim.sub', '9a222222-2222-4222-8222-222222222222', true);
+select set_config('request.jwt.claim.role', 'authenticated', true);
 
 select is(
   (
@@ -94,12 +102,53 @@ select is(
     select count(*)::integer
     from public.goals goal
     where goal.owner_id = '9a111111-1111-4111-8111-111111111111'
-      and public.can_view_goal(goal.id, '9a222222-2222-4222-8222-222222222222')
   ),
-  1,
-  'partner sees only shared goals through team visibility'
+  2,
+  'partner can read both owner goals through goals RLS'
 );
 
+select is(
+  (
+    select count(*)::integer
+    from public.completions completion
+    join public.goals goal
+      on goal.id = completion.goal_id
+    where goal.owner_id = '9a111111-1111-4111-8111-111111111111'
+      and completion.user_id = '9a111111-1111-4111-8111-111111111111'
+  ),
+  1,
+  'partner can read owner completion facts through completions RLS'
+);
+
+select set_config('request.jwt.claim.sub', '9a333333-3333-4333-8333-333333333333', true);
+select is(
+  (
+    select count(*)::integer
+    from public.goals goal
+    where goal.owner_id = '9a111111-1111-4111-8111-111111111111'
+  ),
+  0,
+  'outsider cannot read owner goals without an active team'
+);
+
+select set_config('request.jwt.claim.sub', '9a111111-1111-4111-8111-111111111111', true);
+select ok(
+  public.create_team_invite_service('9a333333-3333-4333-8333-333333333333', null) is not null,
+  'owner can create pending invite for outsider'
+);
+
+select set_config('request.jwt.claim.sub', '9a333333-3333-4333-8333-333333333333', true);
+select is(
+  (
+    select count(*)::integer
+    from public.goals goal
+    where goal.owner_id = '9a111111-1111-4111-8111-111111111111'
+  ),
+  0,
+  'pending invite confers zero owner-goal visibility'
+);
+
+select set_config('request.jwt.claim.sub', '9a222222-2222-4222-8222-222222222222', true);
 select ok(
   (
     select not public.can_complete_goal(
@@ -148,10 +197,22 @@ select is(
     select count(*)::integer
     from public.goals goal
     where goal.owner_id = '9a111111-1111-4111-8111-111111111111'
-      and public.can_view_goal(goal.id, '9a222222-2222-4222-8222-222222222222')
   ),
   0,
-  'team visibility is revoked after dissolution'
+  'goals RLS visibility is revoked after dissolution'
+);
+
+select is(
+  (
+    select count(*)::integer
+    from public.completions completion
+    join public.goals goal
+      on goal.id = completion.goal_id
+    where goal.owner_id = '9a111111-1111-4111-8111-111111111111'
+      and completion.user_id = '9a111111-1111-4111-8111-111111111111'
+  ),
+  0,
+  'completion visibility is revoked after dissolution'
 );
 
 select * from finish();
