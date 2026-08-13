@@ -27,6 +27,15 @@ vi.mock("@/components/xp/xp-level-badge", () => ({
 vi.mock("@/lib/cache/tab-data-cache", () => ({
   setTabDataCacheScope: (scope: string) => cacheScopeMock.setScope(scope),
 }));
+
+const emptyDuoProps = {
+  duoState: {
+    activePartner: null,
+    pendingInvite: null,
+  },
+  initialDuoScopePreference: null,
+} as const;
+
 describe("AppShell", () => {
   afterEach(() => {
     cleanup();
@@ -37,7 +46,7 @@ describe("AppShell", () => {
 
   it("renders the `New Goal +` header link", () => {
     render(
-      <AppShell userId="user-1">
+      <AppShell userId="user-1" {...emptyDuoProps}>
         <div>Child content</div>
       </AppShell>
     );
@@ -51,7 +60,7 @@ describe("AppShell", () => {
     mockSearch = "tab=challenges&sort=recent";
 
     render(
-      <AppShell userId="user-1">
+      <AppShell userId="user-1" {...emptyDuoProps}>
         <div>Child content</div>
       </AppShell>
     );
@@ -65,7 +74,7 @@ describe("AppShell", () => {
 
   it("scopes tab data cache by authenticated user", () => {
     render(
-      <AppShell userId="user-1">
+      <AppShell userId="user-1" {...emptyDuoProps}>
         <div>Child content</div>
       </AppShell>
     );
@@ -75,7 +84,7 @@ describe("AppShell", () => {
 
   it("renders route children", () => {
     render(
-      <AppShell userId="user-1">
+      <AppShell userId="user-1" {...emptyDuoProps}>
         <div>Child content</div>
       </AppShell>
     );
