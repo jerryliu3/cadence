@@ -79,6 +79,12 @@ export function ChallengeDetail({
             Status: <span className="font-medium">{challenge.status}</span>
           </p>
           <p>
+            Audience:{" "}
+            <span className="font-medium">
+              {challenge.audienceKind === "cohort" ? "Cohort" : "Global"}
+            </span>
+          </p>
+          <p>
             Participants: <span className="font-medium">{challenge.participantCount}</span>
           </p>
           <p>

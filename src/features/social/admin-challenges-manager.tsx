@@ -15,6 +15,7 @@ export function AdminChallengesManager() {
   const [items, setItems] = useState<SocialChallenge[]>([]);
   const [title, setTitle] = useState("");
   const [slug, setSlug] = useState("");
+  const [cohortId, setCohortId] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isPending, setIsPending] = useState(false);
 
@@ -63,6 +64,8 @@ export function AdminChallengesManager() {
           startsAt: now.toISOString(),
           endsAt: endsAt.toISOString(),
           rewardXp: 0,
+          audienceKind: cohortId.trim().length > 0 ? "cohort" : "global",
+          cohortId: cohortId.trim().length > 0 ? cohortId.trim() : null,
         }),
       });
       if (!response.ok) {
@@ -71,6 +74,7 @@ export function AdminChallengesManager() {
       }
       setSlug("");
       setTitle("");
+      setCohortId("");
       await load();
     } catch (createError) {
       setError(createError instanceof Error ? createError.message : "Could not create challenge.");
@@ -99,6 +103,11 @@ export function AdminChallengesManager() {
             onChange={(event) => setSlug(event.target.value)}
             placeholder="challenge-slug"
           />
+          <Input
+            value={cohortId}
+            onChange={(event) => setCohortId(event.target.value)}
+            placeholder="Cohort id (optional)"
+          />
           <Button
             type="button"
             disabled={isPending || title.trim().length === 0 || slug.trim().length < 2}
@@ -123,7 +132,7 @@ export function AdminChallengesManager() {
               <div key={item.id} className="rounded border p-3">
                 <p className="font-medium">{item.title}</p>
                 <p className="text-xs text-muted-foreground">
-                  {item.slug} · {item.status} · {item.metric}
+                  {item.slug} · {item.status} · {item.metric} · {item.audienceKind}
                 </p>
               </div>
             ))

@@ -30,6 +30,8 @@ function toSeasonDto(row: {
   ends_at: string | null;
   status: "upcoming" | "open" | "closed";
   rollover: "none" | "weekly" | "monthly" | "quarterly" | "yearly";
+  scope?: "global" | "cohort";
+  cohort_id?: string | null;
 }) {
   return {
     id: row.id,
@@ -42,6 +44,8 @@ function toSeasonDto(row: {
     endsAt: row.ends_at,
     status: row.status,
     rollover: row.rollover,
+    scope: row.scope ?? "global",
+    cohortId: row.cohort_id ?? null,
   };
 }
 

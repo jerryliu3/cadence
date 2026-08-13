@@ -54,6 +54,8 @@ export interface SocialChallenge {
   viewerProgress: number | null;
   viewerCompletedAt: string | null;
   viewerAwardedAt: string | null;
+  audienceKind: "global" | "cohort";
+  cohortId: string | null;
 }
 
 export type LeaderboardSeasonStatus = "upcoming" | "open" | "closed";
@@ -70,6 +72,8 @@ export interface LeaderboardSeason {
   endsAt: string | null;
   status: LeaderboardSeasonStatus;
   rollover: LeaderboardRollover;
+  scope: "global" | "cohort";
+  cohortId: string | null;
 }
 
 export interface LeaderboardStanding {

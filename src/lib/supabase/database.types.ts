@@ -2038,6 +2038,8 @@ export type Database = {
           viewer_completed_at: string
           viewer_joined: boolean
           viewer_progress: number
+          audience_kind: Database["public"]["Enums"]["social_audience_kind"]
+          cohort_id: string
         }[]
       }
       get_leaderboard_standings: {
@@ -2082,6 +2084,8 @@ export type Database = {
           viewer_completed_at: string
           viewer_joined: boolean
           viewer_progress: number
+          audience_kind: Database["public"]["Enums"]["social_audience_kind"]
+          cohort_id: string
         }[]
       }
       get_social_feed: {
@@ -2124,6 +2128,8 @@ export type Database = {
           status: Database["public"]["Enums"]["leaderboard_season_status"]
           subject_kind: Database["public"]["Enums"]["social_subject_kind"]
           title: string
+          scope: Database["public"]["Enums"]["leaderboard_scope_kind"]
+          cohort_id: string
         }[]
       }
       get_social_leaderboards: {
@@ -2139,6 +2145,8 @@ export type Database = {
           status: Database["public"]["Enums"]["leaderboard_season_status"]
           subject_kind: Database["public"]["Enums"]["social_subject_kind"]
           title: string
+          scope: Database["public"]["Enums"]["leaderboard_scope_kind"]
+          cohort_id: string
         }[]
       }
       get_team_state: {
