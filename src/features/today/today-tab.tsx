@@ -70,6 +70,8 @@ import {
   progressSummaryMap,
   type ProgressContextResponse,
 } from "@/lib/goals/progress-context";
+import { selectViewerVisibleGoals } from "@/lib/goals/visible-goals";
+import { useDuo } from "@/features/social/duo/duo-context";
 import {
   getCompletionsForCurrentPeriod,
   hasCompletionToday,
@@ -163,6 +165,9 @@ interface TodayTabProps {
   hideTabList?: boolean;
   isActive?: boolean;
   refreshToken?: number;
+  subjectUserId?: string;
+  readOnly?: boolean;
+  laneLabel?: string;
 }
 
 export function TodayTab({
@@ -171,8 +176,13 @@ export function TodayTab({
   hideTabList = false,
   isActive = true,
   refreshToken = 0,
+  subjectUserId,
+  readOnly = false,
+  laneLabel,
 }: TodayTabProps = {}) {
   const supabase = useMemo(() => createClient(), []);
+  const { state: duoState } = useDuo();
+  const duoPartnerId = duoState.activePartner?.partnerId ?? null;
   const router = useRouter();
   const [data, setData] = useState<TodayData>(emptyData);
   const [loading, setLoading] = useState(true);
@@ -262,21 +272,34 @@ export function TodayTab({
           return;
         }
 
+        const targetSubjectUserId = subjectUserId ?? user.id;
+        const targetIsViewer = targetSubjectUserId === user.id;
         const [goalsResponse, teamMembersResponse, linksResponse, progress] =
           await withAbortSignal(
             Promise.all([
-              supabase
-                .from("goals")
-                .select("*")
-                .eq("is_deleted", false)
-                .order("created_at", { ascending: false }),
-              supabase.from("team_members").select("team_id").eq("user_id", user.id),
-              supabase.from("goal_links").select("*").eq("owner_id", user.id),
+              (() => {
+                let query = supabase
+                  .from("goals")
+                  .select("*")
+                  .eq("is_deleted", false)
+                  .order("created_at", { ascending: false });
+                if (!targetIsViewer) {
+                  query = query.eq("owner_id", targetSubjectUserId);
+                }
+                return query;
+              })(),
+              targetIsViewer
+                ? supabase.from("team_members").select("team_id").eq("user_id", user.id)
+                : Promise.resolve({ data: [], error: null }),
+              targetIsViewer
+                ? supabase.from("goal_links").select("*").eq("owner_id", user.id)
+                : Promise.resolve({ data: [], error: null }),
               // Keep date navigation local while still loading facts keyed to
               // whichever date the user is currently browsing.
               fetchProgressContext({
                 asOfDate: todayLocalDate,
                 viewDate: currentViewDateRef.current,
+                subjectUserId: targetSubjectUserId === user.id ? undefined : targetSubjectUserId,
                 forceRefresh,
               }),
             ]),
@@ -288,12 +311,15 @@ export function TodayTab({
         const memberTeamIds = (teamMembersResponse.data ?? []).map(
           (row) => row.team_id
         );
+        const visibleGoals = targetIsViewer
+          ? selectViewerVisibleGoals({ goals, partnerId: duoPartnerId })
+          : goals;
         const links = (linksResponse.data ?? []) as GoalLink[];
 
         const photoUrls: Record<string, string> = {};
         await withAbortSignal(
           Promise.all(
-            goals
+            visibleGoals
               .filter((goal) => goal.photo_path)
               .map(async (goal) => {
                 if (!goal.photo_path) {
@@ -315,8 +341,8 @@ export function TodayTab({
         }
 
         setData({
-          userId: user.id,
-          goals,
+          userId: targetSubjectUserId,
+          goals: visibleGoals,
           completions,
           memberTeamIds,
           links,
@@ -333,7 +359,7 @@ export function TodayTab({
         }
       }
     },
-    [redirectToLogin, supabase, todayLocalDate]
+    [duoPartnerId, redirectToLogin, subjectUserId, supabase, todayLocalDate]
   );
 
   useEffect(() => {
@@ -369,6 +395,7 @@ export function TodayTab({
       void fetchProgressContext({
         asOfDate: todayLocalDate,
         viewDate,
+        subjectUserId,
       })
         .then((progress) => {
           if (requestId !== viewDateProgressRequestIdRef.current) {
@@ -395,7 +422,7 @@ export function TodayTab({
         });
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [isActive, redirectToLogin, todayLocalDate, viewDate]);
+  }, [isActive, redirectToLogin, subjectUserId, todayLocalDate, viewDate]);
 
   useEffect(() => {
     if (refreshToken === refreshTokenRef.current) {
@@ -655,6 +682,9 @@ export function TodayTab({
     goal: Goal,
     sourceElement: HTMLButtonElement
   ) => {
+    if (readOnly) {
+      return;
+    }
     const sourceRect = captureViewportRect(sourceElement);
     const completions = completionsByGoal.get(goal.id) ?? [];
     const completedOnViewDate = hasCompletionToday(completions, viewDateObj);
@@ -751,6 +781,7 @@ export function TodayTab({
   }, [
     completionsByGoal,
     loadData,
+    readOnly,
     redirectToLogin,
     runCompletionMutation,
     todayLocalDate,
@@ -774,11 +805,13 @@ export function TodayTab({
           selectedDate={viewDate}
           referenceDate={viewDateObj}
           weeklyAnchor={weeklyAnchor}
-          onToggle={
-            archived
-              ? () => undefined
-              : (sourceElement) => toggleCompletion(goal, sourceElement)
-          }
+          readOnly={readOnly || archived}
+          {...(readOnly || archived
+            ? {}
+            : {
+                onToggle: (sourceElement: HTMLButtonElement) =>
+                  toggleCompletion(goal, sourceElement),
+              })}
         />
       );
     },
@@ -787,6 +820,7 @@ export function TodayTab({
       data.photoUrls,
       linkedCountByGoalId,
       progressByGoal,
+      readOnly,
       savingGoalId,
       toggleCompletion,
       viewDate,
@@ -863,6 +897,7 @@ export function TodayTab({
 
         <TabsContent value="today" className="space-y-5">
           <TodayHeaderCard
+            title={laneLabel ? `${laneLabel} checklist` : undefined}
             viewDate={viewDate}
             todayLocalDate={todayLocalDate}
             viewingToday={viewingToday}

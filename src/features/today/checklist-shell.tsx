@@ -12,11 +12,14 @@ import {
   type ChecklistTabValue,
   ChecklistSurface,
 } from "@/features/today/checklist-surface";
+import { DuoLanes, type DuoLaneSubject } from "@/features/social/duo/duo-lanes";
+import { useDuoScope } from "@/features/social/duo/duo-context";
 import { useClientSearchParamsUpdater } from "@/lib/navigation/use-client-search-params-updater";
 
 export function ChecklistShell() {
   const searchParams = useSearchParams();
   const { applySearchParams } = useClientSearchParamsUpdater();
+  const { scope, activePartner } = useDuoScope("me");
   const swipeStartRef = useRef<{ x: number; y: number } | null>(null);
   const rawTab = searchParams.get("tab");
   const normalizedTab: ChecklistTabValue = useMemo(() => {
@@ -89,14 +92,42 @@ export function ChecklistShell() {
     [normalizedTab, updateTab]
   );
 
+  const viewerLane: DuoLaneSubject = {
+    id: "viewer",
+    label: "Mine",
+    readOnly: false,
+  };
+  const partnerLane: DuoLaneSubject | null = activePartner
+    ? {
+        id: "partner",
+        label:
+          activePartner.partnerDisplayName ??
+          activePartner.partnerUsername ??
+          "Partner",
+        userId: activePartner.partnerId,
+        readOnly: true,
+        avatarUrl: activePartner.partnerAvatarUrl,
+      }
+    : null;
+
   return (
     <div className="space-y-5">
       <div onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
-        <ChecklistSurface
-          activeTab={normalizedTab}
-          onActiveTabChange={(tab) => updateTab(tab, "push")}
-          hideTabList
-          isActive
+        <DuoLanes
+          scope={scope}
+          viewer={viewerLane}
+          partner={partnerLane}
+          renderLane={(subject) => (
+            <ChecklistSurface
+              activeTab={normalizedTab}
+              onActiveTabChange={(tab) => updateTab(tab, "push")}
+              hideTabList
+              isActive
+              laneLabel={subject.label}
+              subjectUserId={subject.userId}
+              readOnly={subject.readOnly}
+            />
+          )}
         />
       </div>
     </div>
