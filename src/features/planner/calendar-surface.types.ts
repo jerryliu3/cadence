@@ -1,6 +1,7 @@
 import type { CoachPolicyPatch } from "@/lib/planner/coach";
 import type { PlannerEligibilityMode } from "@/lib/planner/contracts/bounds";
 import type { PlannerDraftVisualKind } from "@/lib/planner/diff";
+import type { EligibilityReason } from "@/lib/planner/eligibility";
 import type { PlannerPolicy } from "@/lib/planner/policy";
 
 export type CalendarTab = "today" | "not-today" | "calendar";
@@ -51,7 +52,7 @@ export interface PlannerContextPayload {
     eligibility?: Array<{
       goalId: string;
       eligible: boolean;
-      reason: string;
+      reason: EligibilityReason;
     }>;
     horizonSummary?: PlannerGoalHorizonSummary[];
   } | null;
