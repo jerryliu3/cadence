@@ -31,6 +31,7 @@ export interface ProgressContextRequest {
   viewDate?: string;
   factsFrom?: string;
   factsTo?: string;
+  subjectUserId?: string;
   forceRefresh?: boolean;
 }
 
@@ -67,9 +68,10 @@ function buildProgressContextQuery({
   viewDate,
   factsFrom,
   factsTo,
+  subjectUserId,
 }: Pick<
   ProgressContextRequest,
-  "asOfDate" | "timezone" | "viewDate" | "factsFrom" | "factsTo"
+  "asOfDate" | "timezone" | "viewDate" | "factsFrom" | "factsTo" | "subjectUserId"
 >) {
   const query = new URLSearchParams({ asOfDate, timezone: timezone ?? "UTC" });
   if (viewDate) {
@@ -78,6 +80,9 @@ function buildProgressContextQuery({
   if (factsFrom && factsTo) {
     query.set("factsFrom", factsFrom);
     query.set("factsTo", factsTo);
+  }
+  if (subjectUserId) {
+    query.set("subjectUserId", subjectUserId);
   }
   return query;
 }
@@ -95,6 +100,7 @@ export async function fetchProgressContext({
   viewDate,
   factsFrom,
   factsTo,
+  subjectUserId,
   forceRefresh = false,
 }: ProgressContextRequest): Promise<ProgressContextResponse> {
   const query = buildProgressContextQuery({
@@ -103,6 +109,7 @@ export async function fetchProgressContext({
     viewDate,
     factsFrom,
     factsTo,
+    subjectUserId,
   });
   const cacheKey = `${PROGRESS_CONTEXT_CACHE_PREFIX}${query.toString()}`;
   const cached = readTabDataCache<ProgressContextResponse>(cacheKey);

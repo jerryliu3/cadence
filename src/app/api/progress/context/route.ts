@@ -5,6 +5,7 @@ import {
   requireAuthenticatedRouteContext,
   withRoute,
 } from "@/lib/api/route";
+import { isFeatureEnabled } from "@/lib/feature-flags";
 import { normalizeWeekStartsOn } from "@/lib/dates/week-start";
 import { isValidIanaTimezone } from "@/lib/dates/timezone";
 import {
@@ -21,6 +22,8 @@ import {
   MAX_COMPLETION_FACTS,
 } from "@/lib/planner/contracts/bounds";
 import { isTargetedRecurringGoal } from "@/lib/planner/requirements";
+import { requireTeamPartner, resolveActiveTeamPartner } from "@/lib/social/team";
+import { selectViewerVisibleGoals } from "@/lib/goals/visible-goals";
 import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
@@ -39,6 +42,7 @@ const querySchema = z
     viewDate: z.iso.date().optional(),
     factsFrom: z.iso.date().optional(),
     factsTo: z.iso.date().optional(),
+    subjectUserId: z.uuid().optional(),
   })
   .refine(
     ({ factsFrom, factsTo }) => Boolean(factsFrom) === Boolean(factsTo),
@@ -100,6 +104,59 @@ function getChecklistFacts(
   });
 }
 
+async function resolveWeeklyAnchor({
+  supabase,
+  viewerUserId,
+  subjectUserId,
+}: {
+  supabase: Awaited<ReturnType<typeof createClient>>;
+  viewerUserId: string;
+  subjectUserId: string;
+}): Promise<WeeklyAnchorContext | null> {
+  if (viewerUserId === subjectUserId) {
+    const profileResponse = await supabase
+      .from("profiles")
+      .select("week_starts_on")
+      .eq("id", viewerUserId)
+      .maybeSingle();
+    if (profileResponse.error) {
+      throw new ApiRouteError(
+        500,
+        "progress_load_failed",
+        "Goal progress could not be loaded."
+      );
+    }
+    if (!profileResponse.data) {
+      return null;
+    }
+    return {
+      weekStartsOn: normalizeWeekStartsOn(profileResponse.data.week_starts_on),
+    };
+  }
+
+  const { data, error } = await supabase.rpc("get_partner_profile_service", {
+    p_owner_id: subjectUserId,
+  });
+  if (error) {
+    throw new ApiRouteError(
+      500,
+      "progress_load_failed",
+      "Goal progress could not be loaded."
+    );
+  }
+  if (!data || typeof data !== "object" || !("week_starts_on" in data)) {
+    return null;
+  }
+
+  const weekStartsOnValue = (data as { week_starts_on?: unknown }).week_starts_on;
+  if (typeof weekStartsOnValue !== "number") {
+    return null;
+  }
+  return {
+    weekStartsOn: normalizeWeekStartsOn(weekStartsOnValue),
+  };
+}
+
 export async function GET(request: Request) {
   return withRoute(async ({ correlationId }) => {
     const supabase = await createClient();
@@ -115,6 +172,7 @@ export async function GET(request: Request) {
       viewDate: url.searchParams.get("viewDate") ?? undefined,
       factsFrom: url.searchParams.get("factsFrom") ?? undefined,
       factsTo: url.searchParams.get("factsTo") ?? undefined,
+      subjectUserId: url.searchParams.get("subjectUserId") ?? undefined,
     });
     if (!parsedQuery.success) {
       throw new ApiRouteError(
@@ -123,23 +181,33 @@ export async function GET(request: Request) {
         "Provide valid bounded progress dates."
       );
     }
-    const profileResponse = await supabase
-      .from("profiles")
-      .select("week_starts_on")
-      .eq("id", userId)
-      .maybeSingle();
-    if (profileResponse.error) {
-      throw new ApiRouteError(
-        500,
-        "progress_load_failed",
-        "Goal progress could not be loaded."
-      );
+    const subjectUserId = parsedQuery.data.subjectUserId ?? userId;
+    const isViewerSubject = subjectUserId === userId;
+    if (!isViewerSubject) {
+      if (!isFeatureEnabled("socialEnabled")) {
+        throw new ApiRouteError(
+          403,
+          "not_team_partner",
+          "Partner progress is available only for your active team partner."
+        );
+      }
+      await requireTeamPartner({ supabase, subjectUserId });
     }
-    const weeklyAnchor: WeeklyAnchorContext | null = profileResponse.data
-      ? {
-          weekStartsOn: normalizeWeekStartsOn(profileResponse.data.week_starts_on),
-        }
-      : null;
+
+    const weeklyAnchor = await resolveWeeklyAnchor({
+      supabase,
+      viewerUserId: userId,
+      subjectUserId,
+    });
+
+    // A teamed viewer can read their partner's personal goals through
+    // can_view_goal, but those belong in the partner lane, not the viewer's own
+    // summaries. Exclude by owner rather than allow-listing what the viewer can
+    // see: an allow-list silently drops anything the list forgets.
+    const activePartner =
+      isViewerSubject && isFeatureEnabled("socialEnabled")
+        ? await resolveActiveTeamPartner({ supabase })
+        : null;
 
     const goals: Goal[] = [];
     let lastGoalId: string | null = null;
@@ -150,6 +218,9 @@ export async function GET(request: Request) {
         .eq("is_deleted", false)
         .order("id")
         .limit(PAGE_SIZE);
+      if (!isViewerSubject) {
+        query = query.eq("owner_id", subjectUserId);
+      }
       if (lastGoalId) {
         query = query.gt("id", lastGoalId);
       }
@@ -162,7 +233,13 @@ export async function GET(request: Request) {
         );
       }
       const page = (response.data ?? []) as Goal[];
-      goals.push(...page);
+      const visiblePage = isViewerSubject
+        ? selectViewerVisibleGoals({
+            goals: page,
+            partnerId: activePartner?.partnerId ?? null,
+          })
+        : page;
+      goals.push(...visiblePage);
       if (goals.length > MAX_PROGRESS_GOALS) {
         throw new ApiRouteError(
           413,
@@ -182,7 +259,7 @@ export async function GET(request: Request) {
       let query = supabase
         .from("completions")
         .select("*")
-        .eq("user_id", userId)
+        .eq("user_id", subjectUserId)
         .order("id")
         .limit(PAGE_SIZE);
       if (lastCompletionId) {
@@ -213,6 +290,7 @@ export async function GET(request: Request) {
     }
 
     const completionsByGoal = groupCompletions(completions);
+    const visibleGoalIds = new Set(goals.map((goal) => goal.id));
     const summaries: GoalProgressSnapshot[] = goals.map((goal) =>
       getGoalProgressSnapshot(
         goal,
@@ -233,6 +311,7 @@ export async function GET(request: Request) {
     } else if (parsedQuery.data.factsFrom && parsedQuery.data.factsTo) {
       facts = completions.filter(
         (completion) =>
+          visibleGoalIds.has(completion.goal_id) &&
           completion.completed_on >= parsedQuery.data.factsFrom! &&
           completion.completed_on <= parsedQuery.data.factsTo!
       );
