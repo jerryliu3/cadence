@@ -23,7 +23,7 @@ import {
   TrendingUp,
   X,
 } from "lucide-react";
-import { type TouchEventHandler, useCallback, useMemo, useRef, useState } from "react";
+import { type TouchEventHandler, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { AnchoredPopupCard } from "@/components/ui/anchored-popup-card";
 import { Badge } from "@/components/ui/badge";
@@ -102,7 +102,7 @@ import { useOutsidePointerDismiss } from "@/lib/ui/use-outside-pointer-dismiss";
 import { captureViewportRect } from "@/lib/xp/events";
 import { createClient } from "@/lib/supabase/client";
 
-type HeatmapViewMode = "month" | "year";
+export type HeatmapViewMode = "month" | "year";
 
 const MAX_VISIBLE_MILESTONES = 5;
 const AGGREGATE_DRILLDOWN_DAY_CLASS_PREFIX = "aggregate-drilldown-day-";
@@ -138,16 +138,31 @@ interface InsightsTabProps {
   subjectUserId?: string;
   readOnly?: boolean;
   laneLabel?: string;
+  monthCursor?: Date;
+  onMonthCursorChange?: (next: Date) => void;
+  perGoalViewMode?: HeatmapViewMode;
+  onPerGoalViewModeChange?: (mode: HeatmapViewMode) => void;
+  hidePeriodControls?: boolean;
 }
 
 export function InsightsTab({
   subjectUserId,
   readOnly = false,
   laneLabel,
+  monthCursor: monthCursorProp,
+  onMonthCursorChange,
+  perGoalViewMode: perGoalViewModeProp,
+  onPerGoalViewModeChange,
+  hidePeriodControls = false,
 }: InsightsTabProps = {}) {
-  const [monthCursor, setMonthCursor] = useState(new Date());
+  const [internalMonthCursor, setInternalMonthCursor] = useState(new Date());
+  const [internalPerGoalViewMode, setInternalPerGoalViewMode] =
+    useState<HeatmapViewMode>("month");
+  const monthCursor = monthCursorProp ?? internalMonthCursor;
+  const setMonthCursor = onMonthCursorChange ?? setInternalMonthCursor;
+  const perGoalViewMode = perGoalViewModeProp ?? internalPerGoalViewMode;
+  const setPerGoalViewMode = onPerGoalViewModeChange ?? setInternalPerGoalViewMode;
   const [goalMonthOverrides, setGoalMonthOverrides] = useState<Record<string, Date>>({});
-  const [perGoalViewMode, setPerGoalViewMode] = useState<HeatmapViewMode>("month");
   const [goalSearchQuery, setGoalSearchQuery] = useState("");
   const [goalEndMonth, setGoalEndMonth] = useState<string | null>(null);
   const [goalSort, setGoalSort] = useState<GoalDateSort>("earliest_end");
@@ -168,11 +183,18 @@ export function InsightsTab({
   const aggregateDrilldownRef = useRef<HTMLDivElement | null>(null);
   const runCompletionMutation = useCompletionMutation();
   const selectedYear = useMemo(() => format(monthCursor, "yyyy"), [monthCursor]);
-  const { state, loading, loadData, redirectToLogin } = useInsightsData({
+  const { state, loading, laneError, loadData, redirectToLogin } = useInsightsData({
     subjectUserId,
     selectedYear,
+    failClosed: Boolean(readOnly && subjectUserId),
   });
   const supabase = useMemo(() => createClient(), []);
+
+  useEffect(() => {
+    setGoalMonthOverrides((previous) =>
+      Object.keys(previous).length === 0 ? previous : {}
+    );
+  }, [monthCursor, perGoalViewMode]);
 
   const completableGoalIds = useMemo(
     () =>
@@ -597,6 +619,12 @@ export function InsightsTab({
     );
   }
 
+  if (laneError) {
+    return (
+      <p className="px-1 text-sm text-muted-foreground">{laneError}</p>
+    );
+  }
+
   return (
     <div className="space-y-5">
       {laneLabel ? (
@@ -655,48 +683,54 @@ export function InsightsTab({
           </div>
         </CardHeader>
         <CardContent className="space-y-3">
-          <div className="space-y-3">
-            <div className="flex justify-center">
-              <PeriodStepper
-                onPrevious={() => shiftGlobalMonthCursor(-1)}
-                onNext={() => shiftGlobalMonthCursor(1)}
-                center={
-                  <span className="min-w-[120px] text-center text-sm font-medium text-muted-foreground">
-                    {perGoalViewMode === "month"
-                      ? format(monthCursor, "MMMM yyyy")
-                      : format(monthCursor, "yyyy")}
-                  </span>
-                }
-                previousAriaLabel="Previous period"
-                nextAriaLabel="Next period"
-              />
-            </div>
-          </div>
-          <div className="flex flex-wrap items-end gap-3">
-            <div className="space-y-1">
-              <label
-                htmlFor="insights-goal-stats-view-mode"
-                className="block text-xs text-muted-foreground"
-              >
-                View
-              </label>
-              <div className="relative w-[110px]">
-                <select
-                  id="insights-goal-stats-view-mode"
-                  value={perGoalViewMode}
-                  onChange={(event) => {
-                    setGoalMonthOverrides({});
-                    setPerGoalViewMode(event.target.value as HeatmapViewMode);
-                  }}
-                  className="h-8 w-full appearance-none rounded-full border border-input bg-background/90 px-3 pr-8 text-xs text-foreground outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-                  aria-label="Goal stats view mode"
-                >
-                  <option value="month">Month</option>
-                  <option value="year">Year</option>
-                </select>
-                <ChevronDown className="pointer-events-none absolute top-1/2 right-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
+          {hidePeriodControls ? null : (
+            <>
+              <div className="space-y-3">
+                <div className="flex justify-center">
+                  <PeriodStepper
+                    onPrevious={() => shiftGlobalMonthCursor(-1)}
+                    onNext={() => shiftGlobalMonthCursor(1)}
+                    center={
+                      <span className="min-w-[120px] text-center text-sm font-medium text-muted-foreground">
+                        {perGoalViewMode === "month"
+                          ? format(monthCursor, "MMMM yyyy")
+                          : format(monthCursor, "yyyy")}
+                      </span>
+                    }
+                    previousAriaLabel="Previous period"
+                    nextAriaLabel="Next period"
+                  />
+                </div>
               </div>
-            </div>
+              <div className="flex flex-wrap items-end gap-3">
+                <div className="space-y-1">
+                  <label
+                    htmlFor="insights-goal-stats-view-mode"
+                    className="block text-xs text-muted-foreground"
+                  >
+                    View
+                  </label>
+                  <div className="relative w-[110px]">
+                    <select
+                      id="insights-goal-stats-view-mode"
+                      value={perGoalViewMode}
+                      onChange={(event) => {
+                        setGoalMonthOverrides({});
+                        setPerGoalViewMode(event.target.value as HeatmapViewMode);
+                      }}
+                      className="h-8 w-full appearance-none rounded-full border border-input bg-background/90 px-3 pr-8 text-xs text-foreground outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                      aria-label="Goal stats view mode"
+                    >
+                      <option value="month">Month</option>
+                      <option value="year">Year</option>
+                    </select>
+                    <ChevronDown className="pointer-events-none absolute top-1/2 right-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+          <div className="flex flex-wrap items-end gap-3">
             <GoalListControls
               goals={personalGoals}
               referenceMonth={goalFilterStartMonth}
