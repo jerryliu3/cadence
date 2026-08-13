@@ -1,8 +1,12 @@
 import type { LeaderboardSeason, SocialChallenge } from "@/features/social/types";
 import type { Database } from "@/lib/supabase/database.types";
 
-type SocialChallengeRow = Database["public"]["Functions"]["get_social_challenges"]["Returns"][number];
-type SocialSeasonRow = Database["public"]["Functions"]["get_social_leaderboards"]["Returns"][number];
+type SocialChallengeRow =
+  | Database["public"]["Functions"]["get_social_challenges"]["Returns"][number]
+  | Database["public"]["Functions"]["get_challenge_detail"]["Returns"][number];
+type SocialSeasonRow =
+  | Database["public"]["Functions"]["get_social_leaderboards"]["Returns"][number]
+  | Database["public"]["Functions"]["get_social_leaderboard_season"]["Returns"][number];
 
 export function toChallengeDto(row: SocialChallengeRow): SocialChallenge {
   return {
