@@ -167,6 +167,7 @@ export interface PlannerCompletionFactMarker {
   unitKey: string;
   goalTitle: string;
   scheduledDate: string | null;
+  owner?: "viewer" | "partner";
 }
 
 export interface DayPreviewState {
@@ -222,6 +223,9 @@ export interface CalendarSurfaceProps {
     nextViewMode?: PlannerCalendarViewMode
   ) => void;
   onPlannerMutation: () => void;
+  duoScope?: "me" | "partner" | "both";
+  partnerCompletionMarkersByDate?: Map<string, PlannerCompletionFactMarker[]>;
+  partnerOverlayError?: string | null;
 }
 
 export type CoachMessageRole = "user" | "assistant";
