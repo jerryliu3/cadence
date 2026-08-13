@@ -1,6 +1,5 @@
 "use client";
 
-import { addDays, format } from "date-fns";
 import { Link2 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
@@ -9,12 +8,9 @@ import { Card, CardContent } from "@/components/ui/card";
 import { CompletionToggle } from "@/components/ui/completion-toggle";
 import { GoalEndMonthBadge } from "@/features/goals/goal-end-month-badge";
 import { getCategoryBadgeClass, getGoalCategoryLabel } from "@/lib/goals/category";
-import { getNextMilestoneName } from "@/lib/goals/milestones";
 import type { GoalProgressSnapshot } from "@/lib/goals/progress";
 import {
   getFrequencySummary,
-  getGoalPeriodEndDate,
-  hasCompletionToday,
   isGoalDoneForCurrentPeriod,
 } from "@/lib/goals/schedule";
 import type { CompletionDateFact, Goal } from "@/lib/goals/types";
@@ -59,20 +55,6 @@ export function GoalCard({
     referenceDate,
     { weeklyAnchor }
   );
-  const doneOnSelectedDate = hasCompletionToday(completions, referenceDate);
-  const currentMilestoneName = getNextMilestoneName(goal, totalCompletionCount);
-  const nextRecurringStartDate =
-    goal.frequency_type === "recurring" &&
-    !targetedRecurring &&
-    doneForCurrentPeriod
-      ? format(
-          addDays(
-            getGoalPeriodEndDate(goal, referenceDate, { weeklyAnchor }),
-            1
-          ),
-          "yyyy-MM-dd"
-        )
-      : null;
   const completionSourceForSelectedDate = completions.find(
     (completion) => completion.completed_on === selectedDate
   )?.source;
@@ -126,7 +108,9 @@ export function GoalCard({
               <GoalEndMonthBadge endDate={goal.end_date} />
               <Badge
                 variant="outline"
-                className={getCategoryBadgeClass(goal.category_key ?? goal.category)}
+                className={`h-5 rounded-md px-1.5 text-[11px] font-semibold ${getCategoryBadgeClass(
+                  goal.category_key ?? goal.category
+                )}`}
               >
                 {goalCategoryLabel}
               </Badge>
@@ -136,41 +120,18 @@ export function GoalCard({
                 <Badge variant="outline">Shortfall</Badge>
               ) : null}
             </div>
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <div className="flex min-w-0 items-center gap-2">
-                {currentMilestoneName ? (
-                  <>
-                    <span className="max-w-[180px] truncate">
-                      Current milestone: {currentMilestoneName}
-                    </span>
-                    <span className="shrink-0">·</span>
-                  </>
-                ) : null}
-                <p className="truncate">{getFrequencySummary(goal, displayCompletionCount)}</p>
-                {nextRecurringStartDate ? <span className="shrink-0">·</span> : null}
-              </div>
-              {nextRecurringStartDate ? (
-                <span className="shrink-0">Next Start Date: {nextRecurringStartDate}</span>
-              ) : null}
-              <span className="ml-auto shrink-0 text-[11px]">
-                Deadline: {goal.end_date ?? "None"}
-              </span>
-            </div>
-            {goal.description ? (
-              <p className="line-clamp-2 text-xs text-muted-foreground">{goal.description}</p>
-            ) : null}
-            <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+            <div className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
+              <p className="truncate">{getFrequencySummary(goal, displayCompletionCount)}</p>
               {linkedCount > 0 ? (
-                <span className="inline-flex items-center gap-1">
+                <span className="inline-flex shrink-0 items-center gap-1">
                   <Link2 className="size-3" />
-                  {linkedCount} linked
+                  {linkedCount}
                 </span>
               ) : null}
               {completionSourceForSelectedDate === "linked_cascade" ? (
-                <Badge variant="outline">Auto-completed via link</Badge>
-              ) : null}
-              {!targetedRecurring && doneForCurrentPeriod && !doneOnSelectedDate ? (
-                <span>Current period done</span>
+                <Badge variant="outline" className="h-4 px-1 text-[10px]">
+                  Linked
+                </Badge>
               ) : null}
             </div>
           </div>

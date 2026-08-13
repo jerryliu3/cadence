@@ -53,7 +53,11 @@ import {
   selectCompletableGoals,
 } from "@/lib/goals/completable-goals";
 import { groupCompletionsByGoalId } from "@/lib/goals/completion-grouping";
-import { getGoalCategoryLabel } from "@/lib/goals/category";
+import {
+  DEFAULT_GOAL_CATEGORIES,
+  getGoalCategoryLabel,
+  resolveCategoryKey,
+} from "@/lib/goals/category";
 import { getGoalLifecycle } from "@/lib/goals/lifecycle";
 import {
   filterGoalsByEndMonth,
@@ -510,18 +514,25 @@ export function TodayTab({
   }, [completableGoals, lifecycleByGoalAtViewDate]);
 
   const availableCategories = useMemo(() => {
-    const categories = new Set<string>();
+    const options = new Map<string, { key: string; label: string }>();
+    for (const category of DEFAULT_GOAL_CATEGORIES) {
+      options.set(category.key, { key: category.key, label: category.label });
+    }
     data.goals.forEach((goal) => {
-      const category = getGoalCategoryLabel(
-        goal.category,
-        goal.category_key
-      ).trim();
-      if (category.length > 0) {
-        categories.add(category);
+      const key = resolveCategoryKey(goal.category_key ?? goal.category);
+      const label = getGoalCategoryLabel(goal.category, goal.category_key).trim();
+      if (label.length === 0) {
+        return;
       }
+      if (key === "other" && label.toLowerCase() !== "other") {
+        options.set(`other:${label}`, { key: `other:${label}`, label });
+        return;
+      }
+      options.set(key, { key, label });
     });
-
-    return Array.from(categories).sort((left, right) => left.localeCompare(right));
+    return Array.from(options.values()).sort((left, right) =>
+      left.label.localeCompare(right.label)
+    );
   }, [data.goals]);
 
   const todayDate = viewDate;
@@ -536,15 +547,19 @@ export function TodayTab({
   );
   const matchesTodayFacetFilters = useCallback(
     (goal: Goal) => {
-      const goalCategory = getGoalCategoryLabel(
+      const goalCategoryKey = resolveCategoryKey(goal.category_key ?? goal.category);
+      const goalCategoryLabel = getGoalCategoryLabel(
         goal.category,
         goal.category_key
       );
-      if (
-        categoryFilter !== allCategoriesFilterValue &&
-        goalCategory !== categoryFilter
-      ) {
-        return false;
+      if (categoryFilter !== allCategoriesFilterValue) {
+        if (categoryFilter.startsWith("other:")) {
+          if (goalCategoryLabel !== categoryFilter.slice("other:".length)) {
+            return false;
+          }
+        } else if (goalCategoryKey !== categoryFilter) {
+          return false;
+        }
       }
 
       if (recurrenceFilter !== "all") {
@@ -908,8 +923,8 @@ export function TodayTab({
                                 All categories
                               </SelectItem>
                               {availableCategories.map((category) => (
-                                <SelectItem key={category} value={category}>
-                                  {category}
+                                <SelectItem key={category.key} value={category.key}>
+                                  {category.label}
                                 </SelectItem>
                               ))}
                             </SelectContent>
@@ -975,18 +990,18 @@ export function TodayTab({
                 ))}
                 {quickCategoryOptions.map((category) => (
                   <Button
-                    key={`category-quick-${category}`}
+                    key={`category-quick-${category.key}`}
                     type="button"
-                    variant={categoryFilter === category ? "default" : "outline"}
+                    variant={categoryFilter === category.key ? "default" : "outline"}
                     size="sm"
                     className="h-8 shrink-0 rounded-full px-3 text-xs"
                     onClick={() =>
                       setCategoryFilter((previous) =>
-                        previous === category ? allCategoriesFilterValue : category
+                        previous === category.key ? allCategoriesFilterValue : category.key
                       )
                     }
                   >
-                    {category}
+                    {category.label}
                   </Button>
                 ))}
               </div>
