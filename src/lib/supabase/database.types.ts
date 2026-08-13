@@ -217,6 +217,7 @@ export type Database = {
         Args: { p_source: Database["public"]["Enums"]["completion_source"] }
         Returns: number
       }
+      xp_rule: { Args: { p_key: string }; Returns: number }
       xp_skip_for_profile_delete: {
         Args: { p_user_id: string }
         Returns: boolean
@@ -1793,6 +1794,24 @@ export type Database = {
           level?: number
           min_total_xp?: number
           title?: string
+        }
+        Relationships: []
+      }
+      xp_point_rules: {
+        Row: {
+          key: string
+          updated_at: string
+          value: number
+        }
+        Insert: {
+          key: string
+          updated_at?: string
+          value: number
+        }
+        Update: {
+          key?: string
+          updated_at?: string
+          value?: number
         }
         Relationships: []
       }
