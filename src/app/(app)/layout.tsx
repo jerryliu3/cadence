@@ -23,7 +23,7 @@ export default async function AuthenticatedLayout({
     redirect("/login");
   }
 
-  const duoState = await loadDuoContext({ supabase });
+  const duo = await loadDuoContext({ supabase });
   const initialDuoScopePreference = parseDuoScopeCookieValue(
     cookieStore.get(DUO_SCOPE_COOKIE_NAME)?.value
   );
@@ -32,7 +32,8 @@ export default async function AuthenticatedLayout({
     <AppShell
       userId={user.id}
       goalSheet={goalSheet}
-      duoState={duoState}
+      duoState={duo.state}
+      duoAvailability={duo.availability}
       initialDuoScopePreference={initialDuoScopePreference}
     >
       {children}
