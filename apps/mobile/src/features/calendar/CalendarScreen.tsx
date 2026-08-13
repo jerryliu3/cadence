@@ -18,6 +18,7 @@ import { useCalendarStore } from "../../store/calendar-state";
 import { getMobileTheme } from "../../theme";
 import { PrimaryButton } from "../../ui/button";
 import { LoadingScreen, Screen } from "../../ui/screen";
+import { CoachPanel } from "./CoachPanel";
 import { DraftMoveError, planMobileDraftMove } from "./draft-moves";
 import { DraggableSession } from "./DraggableSession";
 import {
@@ -401,6 +402,9 @@ export function CalendarScreen() {
         />
       </View>
       {message ? <Text style={{ color: theme.colors.foreground }}>{message}</Text> : null}
+      {planner.data ? (
+        <CoachPanel context={planner.data} onApplied={() => planner.refresh()} />
+      ) : null}
       <Text style={{ color: theme.colors.mutedForeground }}>
         Long-press a session to drag it onto another day, or tap it to use the Move-to
         sheet. Cross-month moves stay in one draft until you save or discard it.
