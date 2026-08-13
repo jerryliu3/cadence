@@ -1568,48 +1568,6 @@ export type Database = {
           },
         ]
       }
-      team_preferences: {
-        Row: {
-          allow_nudges: boolean
-          notify_partner_activity: boolean
-          share_completions: boolean
-          team_id: string
-          updated_at: string
-          user_id: string
-        }
-        Insert: {
-          allow_nudges?: boolean
-          notify_partner_activity?: boolean
-          share_completions?: boolean
-          team_id: string
-          updated_at?: string
-          user_id: string
-        }
-        Update: {
-          allow_nudges?: boolean
-          notify_partner_activity?: boolean
-          share_completions?: boolean
-          team_id?: string
-          updated_at?: string
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "team_preferences_team_id_fkey"
-            columns: ["team_id"]
-            isOneToOne: false
-            referencedRelation: "teams"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "team_preferences_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       teams: {
         Row: {
           accepted_at: string | null
