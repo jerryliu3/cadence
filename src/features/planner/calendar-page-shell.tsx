@@ -3,6 +3,7 @@
 import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo } from "react";
 import { CalendarSurface } from "@/features/planner/calendar-surface";
+import { usePartnerCompletionOverlay } from "@/features/planner/use-partner-completion-overlay";
 import {
   getTodayDateParam,
   isValidDate,
@@ -10,7 +11,9 @@ import {
   normalizeCalendarRoute,
   type PlannerCalendarViewMode,
 } from "@/features/today/checklist-shell-routing";
+import { useDuoScope } from "@/features/social/duo/duo-context";
 import { useClientSearchParamsUpdater } from "@/lib/navigation/use-client-search-params-updater";
+import { reportDuoTelemetry } from "@/lib/social/duo/telemetry";
 import { useMediaQuery } from "@/lib/ui/use-media-query";
 
 export function CalendarPageShell() {
@@ -18,6 +21,9 @@ export function CalendarPageShell() {
   const { applySearchParams } = useClientSearchParamsUpdater();
   const isMobileViewport = useMediaQuery("(max-width: 767px)");
   const defaultCalendarViewMode: PlannerCalendarViewMode = isMobileViewport ? "week" : "month";
+  const { scope, activePartner } = useDuoScope("me");
+  const overlayEnabled =
+    Boolean(activePartner) && (scope === "partner" || scope === "both");
 
   const normalized = useMemo(
     () =>
@@ -27,6 +33,19 @@ export function CalendarPageShell() {
       }),
     [defaultCalendarViewMode, searchParams]
   );
+  const partnerOverlay = usePartnerCompletionOverlay({
+    enabled: overlayEnabled,
+    partnerId: activePartner?.partnerId,
+    month: normalized.month,
+  });
+
+  useEffect(() => {
+    reportDuoTelemetry("scope_viewed", {
+      surface: "calendar",
+      scope,
+      hasPartner: Boolean(activePartner),
+    });
+  }, [activePartner, scope]);
 
   useEffect(() => {
     if (!normalized.changed) {
@@ -120,6 +139,9 @@ export function CalendarPageShell() {
       onViewModeChange={updateViewMode}
       onSelectedDayChange={updateSelectedDay}
       onPlannerMutation={() => {}}
+      duoScope={scope}
+      partnerCompletionMarkersByDate={partnerOverlay.markersByDate}
+      partnerOverlayError={partnerOverlay.error}
     />
   );
 }
