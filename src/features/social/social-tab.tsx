@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import {
   ArrowLeft,
   ChevronRight,
@@ -20,10 +21,12 @@ import { PlannerPreferencesSettings } from "@/features/settings/planner-preferen
 import { GoalSharingSection } from "@/features/social/goal-sharing-section";
 import { NotificationsSection } from "@/features/social/notifications-section";
 import { ProfileSection } from "@/features/social/profile-section";
+import { useDuo } from "@/features/social/duo/duo-context";
 import { useSocialTabData } from "@/features/social/use-social-tab-data";
 import { useOutsidePointerDismiss } from "@/lib/ui/use-outside-pointer-dismiss";
 
 export function SocialTab() {
+  const { state: duoState, scopePreference } = useDuo();
   const {
     state,
     loading,
@@ -148,6 +151,16 @@ export function SocialTab() {
       : settingsSection === "notifications"
         ? "Configure push access and reminder schedules."
         : "Share goals and manage who can see them.";
+  const activePartner = duoState.activePartner;
+  const pendingInvite = duoState.pendingInvite;
+  const partnerLabel =
+    activePartner?.partnerDisplayName ??
+    activePartner?.partnerUsername ??
+    "your partner";
+  const pendingPartnerLabel =
+    pendingInvite?.partnerDisplayName ??
+    pendingInvite?.partnerUsername ??
+    "your pending partner";
 
   if (loading) {
     return (
@@ -169,6 +182,41 @@ export function SocialTab() {
         setProfileDraft={setProfileDraft}
         onSaveProfile={saveProfile}
       />
+
+      <Card className="shadow-sm">
+        <CardHeader>
+          <CardTitle>User mode</CardTitle>
+          <CardDescription>
+            {activePartner
+              ? `Duo mode is active with ${partnerLabel}.`
+              : "Solo mode is active until you have an active partner."}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {!activePartner && pendingInvite ? (
+            <p className="text-sm text-muted-foreground">
+              {pendingInvite.isIncoming
+                ? `Incoming duo invite from ${pendingPartnerLabel}.`
+                : `Pending duo invite sent to ${pendingPartnerLabel}.`}
+            </p>
+          ) : null}
+          {!activePartner && !pendingInvite && (
+            <p className="text-sm text-muted-foreground">
+              Connect a partner to unlock duo comparisons across Insights and Checklist.
+            </p>
+          )}
+          {!activePartner && (scopePreference === "partner" || scopePreference === "both") ? (
+            <p className="text-sm text-amber-600 dark:text-amber-400">
+              No active partner is available right now, so views are clamped to solo mode.
+            </p>
+          ) : null}
+          <Button asChild variant="outline" size="sm">
+            <Link href="/social?tab=team">
+              {activePartner || pendingInvite ? "Manage team status" : "Connect partner"}
+            </Link>
+          </Button>
+        </CardContent>
+      </Card>
 
       <Card className="shadow-sm">
         <CardContent className="space-y-0 p-0">
