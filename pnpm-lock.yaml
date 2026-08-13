@@ -217,6 +217,9 @@ importers:
 
   packages/shared:
     dependencies:
+      date-fns:
+        specifier: ^4.4.0
+        version: 4.4.0
       zod:
         specifier: ^4.4.3
         version: 4.4.3
@@ -14978,7 +14981,7 @@ snapshots:
       '@webassemblyjs/wasm-edit': 1.14.1
       '@webassemblyjs/wasm-parser': 1.14.1
       acorn: 8.16.0
-      browserslist: 4.28.2
+      browserslist: 4.28.8
       chrome-trace-event: 1.0.4
       enhanced-resolve: 5.24.5
       es-module-lexer: 2.3.1
