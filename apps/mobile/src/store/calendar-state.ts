@@ -31,8 +31,8 @@ export const useCalendarStore = create<{
     set(
       normalizeCalendarState({
         tab: "calendar",
-        month: partial.month ?? current.month,
-        day: partial.day ?? current.day,
+        month: "month" in partial ? partial.month : current.month,
+        day: "day" in partial ? partial.day : current.day,
         viewMode: partial.viewMode ?? current.viewMode,
         defaultCalendarViewMode: "month",
         surface: "calendar",
