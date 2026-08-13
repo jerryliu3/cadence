@@ -94,6 +94,15 @@ preserving correctness, maintainability, and clear ownership boundaries.
 - Prefer small, reviewable commits that preserve a linear history and isolate behavior changes.
 - When cleaning up, verify there is no hidden dependency left in scripts, tests, or workflows.
 
+## Implementation, CI Resolution, and Stack Merge Workflow (Required)
+
+- Execute implementation end-to-end against the approved plan in one continuous run; do not stop at partial progress unless blocked by an external dependency or explicit user direction.
+- Build and maintain stacked PR chains during implementation so each layer lands in reviewable increments without waiting for a single large final PR.
+- During implementation and stack maintenance, minimize non-essential verification churn (for example repeated full typecheck/lint/CI reruns) unless explicitly requested by the user or required to unblock a concrete failure.
+- When CI issues appear on a stack, triage once across the full PR chain, map each failure to the first applicable branch, and apply fixes at the correct branch in the stack before restacking descendants.
+- After applying CI fixes, push the relevant branches promptly; do not add extra local re-verification passes unless the user explicitly asks for verification.
+- Merge stacked PRs using the order and merge mechanism that minimize merge-conflict risk and redundant CI reruns (typically base-to-tip with stack-aware restacking as needed).
+
 ## Frontend Refactor and Reuse Standards (Required)
 
 When changing frontend code, prefer behavior-preserving decomposition over net-new
