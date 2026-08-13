@@ -18,7 +18,7 @@ export interface FeatureFlags {
    */
   xpEnabled: boolean;
   /**
-   * Social surfaces (feed, challenges, leaderboards, duo) and social APIs.
+   * Social surfaces (feed, challenges, leaderboards, team) and social APIs.
    * Default: off until social rollout is explicitly enabled.
    */
   socialEnabled: boolean;

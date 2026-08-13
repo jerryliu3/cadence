@@ -30,17 +30,17 @@ export function buildCompletableGoalIds<
     ? new Set(goals.map((goal) => goal.id))
     : null;
 
-  goals.forEach((goal) => {
+  for (const goal of goals) {
     if (goal.owner_id === userId) {
       ids.add(goal.id);
     }
-  });
+  }
 
-  participants.forEach((participant) => {
+  for (const participant of participants) {
     if (!visibleGoalIds || visibleGoalIds.has(participant.goal_id)) {
       ids.add(participant.goal_id);
     }
-  });
+  }
 
   return ids;
 }

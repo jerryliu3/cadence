@@ -18,7 +18,6 @@ import {
 } from "@/components/ui/dialog";
 import { PlannerPreferencesSettings } from "@/features/settings/planner-preferences-settings";
 import { GoalSharingSection } from "@/features/social/goal-sharing-section";
-import { GroupGoalsSection } from "@/features/social/group-goals-section";
 import { NotificationsSection } from "@/features/social/notifications-section";
 import { ProfileSection } from "@/features/social/profile-section";
 import { useSocialTabData } from "@/features/social/use-social-tab-data";
@@ -34,38 +33,26 @@ export function SocialTab() {
     searchTerm,
     setSearchTerm,
     setSelectedShareGoalIds,
-    selectedGroupGoalId,
-    setSelectedGroupGoalId,
     shareMenuOpen,
     setShareMenuOpen,
     shareMenuPosition,
     setShareMenuPosition,
     sharedMonthCursor,
     setSharedMonthCursor,
-    groupDraft,
-    setGroupDraft,
     profileDraft,
     setProfileDraft,
     visibleSearchResults,
     shareableGoals,
-    ownGroupGoals,
     activeSelectedShareGoalIds,
     shareMenuListMaxHeight,
     outgoingSharesByGoal,
     sharedByMeGoals,
     completionsByGoal,
-    groupRequiresEndDate,
-    updateGroupFrequencyType,
     canSaveProfile,
     saveProfile,
     shareGoalWithUser,
     revokeGoalShare,
     removeSharedGoalForMe,
-    inviteToGroupGoal,
-    createGroupGoal,
-    removeParticipant,
-    leaveGroup,
-    deleteGroupGoal,
     signOut,
   } = useSocialTabData();
   const [settingsSection, setSettingsSection] = useState<
@@ -160,7 +147,7 @@ export function SocialTab() {
       ? "Manage planner timezone and start-of-week defaults."
       : settingsSection === "notifications"
         ? "Configure push access and reminder schedules."
-        : "Share goals, manage collaboration, and configure group participation.";
+        : "Share goals and manage who can see them.";
 
   if (loading) {
     return (
@@ -270,16 +257,12 @@ export function SocialTab() {
         shareableGoals={shareableGoals}
         activeSelectedShareGoalIds={activeSelectedShareGoalIds}
         setSelectedShareGoalIds={setSelectedShareGoalIds}
-        selectedGroupGoalId={selectedGroupGoalId}
-        setSelectedGroupGoalId={setSelectedGroupGoalId}
-        ownGroupGoals={ownGroupGoals}
         shareMenuPosition={shareMenuPosition}
         shareMenuListMaxHeight={shareMenuListMaxHeight}
         searchTerm={searchTerm}
         setSearchTerm={setSearchTerm}
         visibleSearchResults={visibleSearchResults}
         shareGoalWithUser={shareGoalWithUser}
-        inviteToGroupGoal={inviteToGroupGoal}
         sharedByMeGoals={sharedByMeGoals}
         outgoingSharesByGoal={outgoingSharesByGoal}
         profileDirectory={state.profileDirectory}
@@ -290,23 +273,6 @@ export function SocialTab() {
         sharedOwners={state.sharedOwners}
         completionsByGoal={completionsByGoal}
         removeSharedGoalForMe={removeSharedGoalForMe}
-      />
-
-      <GroupGoalsSection
-        groupDraft={groupDraft}
-        setGroupDraft={setGroupDraft}
-        groupRequiresEndDate={groupRequiresEndDate}
-        updateGroupFrequencyType={updateGroupFrequencyType}
-        createGroupGoal={createGroupGoal}
-        saving={saving}
-        groupGoals={state.groupGoals}
-        participants={state.participants}
-        completionsByGoal={completionsByGoal}
-        currentUserId={state.userId}
-        profileDirectory={state.profileDirectory}
-        deleteGroupGoal={deleteGroupGoal}
-        leaveGroup={leaveGroup}
-        removeParticipant={removeParticipant}
       />
         </>
       ) : null}
