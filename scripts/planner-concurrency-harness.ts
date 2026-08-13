@@ -632,11 +632,25 @@ async function main() {
     );
     await control.query(
       `insert into public.teams (
-         id, user_a_id, user_b_id, initiator_id, status, invited_at
+         id, initiator_id, status, invited_at
        )
        values
-       ($1, least($2::uuid, $3::uuid), greatest($2::uuid, $3::uuid), $3, 'pending', now() - interval '2 minutes'),
-       ($4, least($2::uuid, $5::uuid), greatest($2::uuid, $5::uuid), $5, 'pending', now() - interval '1 minute')`,
+       ($1::uuid, $2::uuid, 'pending', now() - interval '2 minutes'),
+       ($3::uuid, $4::uuid, 'pending', now() - interval '1 minute')`,
+      [
+        teamRaceTeamOneId,
+        teamRacePartnerBId,
+        teamRaceTeamTwoId,
+        teamRacePartnerCId,
+      ]
+    );
+    await control.query(
+      `insert into public.team_members (team_id, user_id, role)
+       values
+       ($1::uuid, $2::uuid, 'member'),
+       ($1::uuid, $3::uuid, 'initiator'),
+       ($4::uuid, $2::uuid, 'member'),
+       ($4::uuid, $5::uuid, 'initiator')`,
       [
         teamRaceTeamOneId,
         teamRacePrimaryId,
@@ -726,9 +740,10 @@ async function main() {
     );
     const activeTeamCount = await control.query<{ count: number }>(
       `select count(*)::integer as count
-       from public.teams
-       where status = 'active'
-         and $1 in (user_a_id, user_b_id)`,
+       from public.teams team
+       join public.team_members member on member.team_id = team.id
+       where team.status = 'active'
+         and member.user_id = $1`,
       [teamRacePrimaryId]
     );
     assert.equal(

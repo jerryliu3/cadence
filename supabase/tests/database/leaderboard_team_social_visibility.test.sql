@@ -31,8 +31,6 @@ where profile.id = 'ae444444-4444-4444-8444-444444444444';
 
 insert into public.teams (
   id,
-  user_a_id,
-  user_b_id,
   initiator_id,
   status,
   visibility_acknowledged_at,
@@ -42,8 +40,6 @@ values
   (
     'ae600000-0000-4000-8000-000000000001',
     'ae111111-1111-4111-8111-111111111111',
-    'ae222222-2222-4222-8222-222222222222',
-    'ae111111-1111-4111-8111-111111111111',
     'active',
     pg_catalog.now(),
     pg_catalog.now()
@@ -51,13 +47,19 @@ values
   (
     'ae600000-0000-4000-8000-000000000002',
     'ae333333-3333-4333-8333-333333333333',
-    'ae444444-4444-4444-8444-444444444444',
-    'ae333333-3333-4333-8333-333333333333',
     'active',
     pg_catalog.now(),
     pg_catalog.now()
   )
 on conflict (id) do nothing;
+
+insert into public.team_members (team_id, user_id, role)
+values
+  ('ae600000-0000-4000-8000-000000000001', 'ae111111-1111-4111-8111-111111111111', 'initiator'),
+  ('ae600000-0000-4000-8000-000000000001', 'ae222222-2222-4222-8222-222222222222', 'member'),
+  ('ae600000-0000-4000-8000-000000000002', 'ae333333-3333-4333-8333-333333333333', 'initiator'),
+  ('ae600000-0000-4000-8000-000000000002', 'ae444444-4444-4444-8444-444444444444', 'member')
+on conflict (team_id, user_id) do nothing;
 
 insert into public.goals (
   id,

@@ -677,8 +677,6 @@ values
 
 insert into public.teams (
   id,
-  user_a_id,
-  user_b_id,
   initiator_id,
   status,
   invite_message,
@@ -690,8 +688,6 @@ values
   (
     '71000000-0000-4000-8000-000000000001',
     '22222222-2222-4222-8222-222222222222',
-    '33333333-3333-4333-8333-333333333333',
-    '22222222-2222-4222-8222-222222222222',
     'active',
     'Lets pair on the weekly challenges.',
     now() - interval '12 days',
@@ -700,14 +696,39 @@ values
   ),
   (
     '71000000-0000-4000-8000-000000000002',
-    '11111111-1111-4111-8111-111111111111',
-    '33333333-3333-4333-8333-333333333333',
     '33333333-3333-4333-8333-333333333333',
     'pending',
     'Want to join forces for next month?',
     null,
     now() - interval '1 day',
     null
+  );
+
+insert into public.team_members (team_id, user_id, role, joined_at)
+values
+  (
+    '71000000-0000-4000-8000-000000000001',
+    '22222222-2222-4222-8222-222222222222',
+    'initiator',
+    now() - interval '13 days'
+  ),
+  (
+    '71000000-0000-4000-8000-000000000001',
+    '33333333-3333-4333-8333-333333333333',
+    'member',
+    now() - interval '13 days'
+  ),
+  (
+    '71000000-0000-4000-8000-000000000002',
+    '33333333-3333-4333-8333-333333333333',
+    'initiator',
+    now() - interval '1 day'
+  ),
+  (
+    '71000000-0000-4000-8000-000000000002',
+    '11111111-1111-4111-8111-111111111111',
+    'member',
+    now() - interval '1 day'
   );
 
 insert into public.team_preferences (
@@ -1458,8 +1479,6 @@ values
 
 insert into public.teams (
   id,
-  user_a_id,
-  user_b_id,
   initiator_id,
   status,
   invite_message,
@@ -1473,8 +1492,6 @@ values
   (
     '71000000-0000-4000-8000-000000000003',
     '11111111-1111-4111-8111-111111111111',
-    '22222222-2222-4222-8222-222222222222',
-    '11111111-1111-4111-8111-111111111111',
     'pending',
     'Want to pair on the builders cohort challenge?',
     null,
@@ -1486,8 +1503,6 @@ values
   (
     '71000000-0000-4000-8000-000000000004',
     '11111111-1111-4111-8111-111111111111',
-    '33333333-3333-4333-8333-333333333333',
-    '11111111-1111-4111-8111-111111111111',
     'closed',
     'Historical team used for closed-state demos.',
     now() - interval '45 days',
@@ -1495,6 +1510,33 @@ values
     now() - interval '45 days',
     now() - interval '32 days',
     now() - interval '32 days'
+  );
+
+insert into public.team_members (team_id, user_id, role, joined_at)
+values
+  (
+    '71000000-0000-4000-8000-000000000003',
+    '11111111-1111-4111-8111-111111111111',
+    'initiator',
+    now() - interval '5 hours'
+  ),
+  (
+    '71000000-0000-4000-8000-000000000003',
+    '22222222-2222-4222-8222-222222222222',
+    'member',
+    now() - interval '5 hours'
+  ),
+  (
+    '71000000-0000-4000-8000-000000000004',
+    '11111111-1111-4111-8111-111111111111',
+    'initiator',
+    now() - interval '46 days'
+  ),
+  (
+    '71000000-0000-4000-8000-000000000004',
+    '33333333-3333-4333-8333-333333333333',
+    'member',
+    now() - interval '46 days'
   );
 
 insert into public.challenges (
