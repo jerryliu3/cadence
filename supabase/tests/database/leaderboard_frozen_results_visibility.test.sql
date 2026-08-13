@@ -15,6 +15,8 @@ values
   ('ad222222-2222-4222-8222-222222222222', 'frozen_visible_b')
 on conflict (id) do nothing;
 
+set local role service_role;
+
 update public.profiles profile
 set social_activity_visible = true
 where profile.id in (
@@ -22,7 +24,14 @@ where profile.id in (
   'ad222222-2222-4222-8222-222222222222'
 );
 
-set local role service_role;
+delete from public.leaderboard_season_results result
+where result.season_id = 'ad400000-0000-4000-8000-000000000001'::uuid;
+
+delete from public.leaderboard_standings standing
+where standing.season_id = 'ad400000-0000-4000-8000-000000000001'::uuid;
+
+delete from public.leaderboard_seasons season
+where season.id = 'ad400000-0000-4000-8000-000000000001'::uuid;
 
 update public.profiles profile
 set social_activity_visible = true
