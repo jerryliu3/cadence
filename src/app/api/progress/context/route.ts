@@ -144,16 +144,26 @@ async function resolveWeeklyAnchor({
       "Goal progress could not be loaded."
     );
   }
-  if (!data || typeof data !== "object" || !("week_starts_on" in data)) {
-    return null;
+  if (!data || typeof data !== "object") {
+    throw new ApiRouteError(
+      403,
+      "not_team_partner",
+      "Partner progress is available only for your active team partner."
+    );
+  }
+  if (!("week_starts_on" in data)) {
+    throw new ApiRouteError(
+      500,
+      "progress_load_failed",
+      "Partner weekly anchor is unavailable."
+    );
   }
 
   const weekStartsOnValue = (data as { week_starts_on?: unknown }).week_starts_on;
-  if (typeof weekStartsOnValue !== "number") {
-    return null;
-  }
   return {
-    weekStartsOn: normalizeWeekStartsOn(weekStartsOnValue),
+    weekStartsOn: normalizeWeekStartsOn(
+      typeof weekStartsOnValue === "number" ? weekStartsOnValue : undefined
+    ),
   };
 }
 
@@ -307,7 +317,7 @@ export async function GET(request: Request) {
         completionsByGoal,
         parsedQuery.data.viewDate,
         weeklyAnchor
-      );
+      ).filter((completion) => visibleGoalIds.has(completion.goal_id));
     } else if (parsedQuery.data.factsFrom && parsedQuery.data.factsTo) {
       facts = completions.filter(
         (completion) =>

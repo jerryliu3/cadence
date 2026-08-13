@@ -11,6 +11,10 @@ vi.mock("@/lib/supabase/server", () => ({
   createClient: async () => mocks.client,
 }));
 
+vi.mock("@/lib/feature-flags", () => ({
+  isFeatureEnabled: () => true,
+}));
+
 import { GET } from "./route";
 
 class FakeQuery {
@@ -124,6 +128,7 @@ describe("bounded progress context route", () => {
           error: null,
         }),
       },
+      rpc: async () => ({ data: [], error: null }),
       from: (table: string) =>
         new FakeQuery(
           (
@@ -151,5 +156,30 @@ describe("bounded progress context route", () => {
     expect(body.truncated).toBe(false);
     expect(body.facts).toHaveLength(1_005);
     expect(body.summaries[0]?.admissibleCompletionCount).toBe(1_005);
+  });
+
+  it("rejects subjectUserId that is not the active team partner", async () => {
+    mocks.client = {
+      auth: {
+        getUser: async () => ({
+          data: {
+            user: { id: "11111111-1111-4111-8111-111111111111" },
+          },
+          error: null,
+        }),
+      },
+      rpc: async () => ({ data: [], error: null }),
+      from: () => new FakeQuery([]),
+    };
+
+    const response = await GET(
+      new Request(
+        "http://localhost/api/progress/context?asOfDate=2026-08-01&timezone=UTC&subjectUserId=22222222-2222-4222-8222-222222222222"
+      )
+    );
+    const body = (await response.json()) as { code: string };
+
+    expect(response.status).toBe(403);
+    expect(body.code).toBe("not_team_partner");
   });
 });

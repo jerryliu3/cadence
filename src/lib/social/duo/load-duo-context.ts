@@ -1,5 +1,9 @@
 import { isFeatureEnabled } from "@/lib/feature-flags";
-import type { DuoContextState } from "@/lib/social/duo/types";
+import { reportError } from "@/lib/observability/report-error";
+import type {
+  DuoContextLoadResult,
+  DuoContextState,
+} from "@/lib/social/duo/types";
 import { createClient } from "@/lib/supabase/server";
 
 type ServerSupabaseClient = Awaited<ReturnType<typeof createClient>>;
@@ -23,42 +27,47 @@ export async function loadDuoContext({
   supabase,
 }: {
   supabase: ServerSupabaseClient;
-}): Promise<DuoContextState> {
+}): Promise<DuoContextLoadResult> {
   if (!isFeatureEnabled("socialEnabled")) {
-    return EMPTY_DUO_CONTEXT;
+    return { state: EMPTY_DUO_CONTEXT, availability: "ready" };
   }
 
   try {
     const { data, error } = await supabase.rpc("get_team_state");
     if (error) {
-      return EMPTY_DUO_CONTEXT;
+      reportError(error, { area: "duo", code: "team_state_unavailable" });
+      return { state: EMPTY_DUO_CONTEXT, availability: "unavailable" };
     }
     const rows = (data ?? []) as TeamStateRpcRow[];
     const active = rows.find((row) => row.status === "active") ?? null;
     const pending = rows.find((row) => row.status === "pending") ?? null;
 
     return {
-      activePartner: active
-        ? {
-            teamId: active.team_id,
-            partnerId: active.partner_id,
-            partnerUsername: active.partner_username,
-            partnerDisplayName: active.partner_display_name,
-            partnerAvatarUrl: active.partner_avatar_url,
-          }
-        : null,
-      pendingInvite: pending
-        ? {
-            teamId: pending.team_id,
-            partnerId: pending.partner_id,
-            partnerUsername: pending.partner_username,
-            partnerDisplayName: pending.partner_display_name,
-            partnerAvatarUrl: pending.partner_avatar_url,
-            isIncoming: pending.is_incoming,
-          }
-        : null,
+      availability: "ready",
+      state: {
+        activePartner: active
+          ? {
+              teamId: active.team_id,
+              partnerId: active.partner_id,
+              partnerUsername: active.partner_username,
+              partnerDisplayName: active.partner_display_name,
+              partnerAvatarUrl: active.partner_avatar_url,
+            }
+          : null,
+        pendingInvite: pending
+          ? {
+              teamId: pending.team_id,
+              partnerId: pending.partner_id,
+              partnerUsername: pending.partner_username,
+              partnerDisplayName: pending.partner_display_name,
+              partnerAvatarUrl: pending.partner_avatar_url,
+              isIncoming: pending.is_incoming,
+            }
+          : null,
+      },
     };
-  } catch {
-    return EMPTY_DUO_CONTEXT;
+  } catch (error) {
+    reportError(error, { area: "duo", code: "team_state_unavailable" });
+    return { state: EMPTY_DUO_CONTEXT, availability: "unavailable" };
   }
 }
