@@ -23,6 +23,12 @@ Before deploying that migration to production:
 
 3. Keep a PITR/backup restore path. These migrations are forward-only.
 
+Apply SQL in order: **duo1 → duo2 → duo3** (then duo4+). Duo3 exposes
+`week_starts_on` on the partner profile projection. Partner progress reads
+fail closed with HTTP 500 if that key is missing, so shipping duo1/duo2
+without duo3 breaks every partner Checklist/Insights load rather than
+degrading to a wrong weekly anchor.
+
 ## Social-enabled UI gate
 
 Duo context loading and partner progress reads stay behind `socialEnabled`.
@@ -34,9 +40,11 @@ the target environment:
 - confirm progress cache keys include `subjectUserId` and invalidate on
   dissolve/decline
 
-## Telemetry (Sentry breadcrumbs / extras)
+## Telemetry (Sentry)
 
-Emitted only when `NEXT_PUBLIC_SENTRY_DSN` is set:
+Emitted only when `NEXT_PUBLIC_SENTRY_DSN` is set. Breadcrumbs are always
+recorded. `scope_viewed` `captureMessage` is sampled at 10% so usage mix is
+visible without an event per surface visit. Other duo events always capture.
 
 | Event | Meaning |
 | --- | --- |
