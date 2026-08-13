@@ -117,6 +117,7 @@ import {
 } from "@/lib/planner/policy";
 import { withPlannerRefreshTimeout } from "@/lib/planner/refresh-timeout";
 import { captureViewportRect } from "@/lib/xp/events";
+import { mergeCompletionFactMarkers } from "@/features/planner/calendar-partner-overlay";
 import type {
   CalendarSurfaceProps,
   CompletionControlDisabledReason,
@@ -184,6 +185,9 @@ export function CalendarSurface({
   onViewModeChange,
   onSelectedDayChange,
   onPlannerMutation,
+  duoScope = "me",
+  partnerCompletionMarkersByDate,
+  partnerOverlayError,
 }: CalendarSurfaceProps) {
   const [context, setContext] = useState<PlannerContextPayload | null>(null);
   const [loading, setLoading] = useState(false);
@@ -607,17 +611,35 @@ export function CalendarSurface({
     },
     [entryDayByKey, isDayInCurrentScopeMonth]
   );
+  const hideViewerPlan = duoScope === "partner";
+  const plannerReadOnly = duoScope === "partner";
   const getEntriesForDay = useCallback(
-    (day: string | null) => getCalendarDayProjection(day).entries,
-    [getCalendarDayProjection]
+    (day: string | null) =>
+      hideViewerPlan ? [] : getCalendarDayProjection(day).entries,
+    [getCalendarDayProjection, hideViewerPlan]
   );
   const getCompletionFactMarkersForDay = useCallback(
-    (day: string | null) => getCalendarDayProjection(day).completionFactMarkers,
-    [getCalendarDayProjection]
+    (day: string | null) => {
+      const viewerMarkers = hideViewerPlan
+        ? []
+        : getCalendarDayProjection(day).completionFactMarkers;
+      const partnerMarkers =
+        day && (duoScope === "partner" || duoScope === "both")
+          ? partnerCompletionMarkersByDate?.get(day) ?? []
+          : [];
+      return mergeCompletionFactMarkers(viewerMarkers, partnerMarkers);
+    },
+    [
+      duoScope,
+      getCalendarDayProjection,
+      hideViewerPlan,
+      partnerCompletionMarkersByDate,
+    ]
   );
   const getOrderedEntriesForDay = useCallback(
-    (day: string | null) => getCalendarDayProjection(day).orderedEntries,
-    [getCalendarDayProjection]
+    (day: string | null) =>
+      hideViewerPlan ? [] : getCalendarDayProjection(day).orderedEntries,
+    [getCalendarDayProjection, hideViewerPlan]
   );
 
   const focusedDayEntries = useMemo(
@@ -2307,9 +2329,8 @@ export function CalendarSurface({
       )
     : null;
   const renderCalendarDayCell = (cell: { date: string; inMonth: boolean }) => {
-    const dayProjection = getCalendarDayProjection(cell.date);
-    const entriesForDay = dayProjection.orderedEntries;
-    const completionFactMarkersForDay = dayProjection.completionFactMarkers;
+    const entriesForDay = getOrderedEntriesForDay(cell.date);
+    const completionFactMarkersForDay = getCompletionFactMarkersForDay(cell.date);
     const status =
       entriesForDay.length > 0
         ? getDayStatus(entriesForDay, "No items")
@@ -2348,7 +2369,9 @@ export function CalendarSurface({
         getEntryDisplayTitle={getEntryDisplayTitleWithTime}
         isEntryCredited={isEntryCredited}
         isEntryImmovableForDraft={(entry) =>
-          !canMutateEntryOnDay(entry, cell.date) || isEntryImmovableForDraft(entry)
+          plannerReadOnly ||
+          !canMutateEntryOnDay(entry, cell.date) ||
+          isEntryImmovableForDraft(entry)
         }
         onEntryClick={(day, entry, target) => {
           if (!canMutateEntryOnDay(entry, day)) {
@@ -2556,7 +2579,11 @@ export function CalendarSurface({
               ) : null}
             </div>
             <div className="flex flex-wrap items-center justify-end gap-2">
-              {canResetPlan ? (
+              {plannerReadOnly ? (
+                <span className="text-xs text-muted-foreground">
+                  Partner completions (read-only)
+                </span>
+              ) : canResetPlan ? (
                 <Button
                   type="button"
                   size="sm"
@@ -2675,6 +2702,9 @@ export function CalendarSurface({
         </div>
       </div>
 
+      {partnerOverlayError ? (
+        <p className="text-xs text-muted-foreground">{partnerOverlayError}</p>
+      ) : null}
       {showBlockingLoading ? (
         <LoadingCard
           title="Loading planner month context..."
