@@ -1,9 +1,14 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { readBearerToken } from "@/lib/supabase/auth-header";
 import { getSupabaseConfig } from "@/lib/supabase/config";
 import type { Database } from "@/lib/supabase/database.types";
 
 export async function updateSession(request: NextRequest) {
+  if (readBearerToken(request)) {
+    return NextResponse.next({ request });
+  }
+
   const { supabaseUrl, supabaseAnonKey } = getSupabaseConfig();
   let response = NextResponse.next({
     request,

@@ -13,7 +13,6 @@ import {
   withPlannerRoute,
 } from "@/lib/planner/api";
 import { MAX_API_BODY_BYTES } from "@/lib/planner/contracts/bounds";
-import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 
@@ -52,10 +51,7 @@ function deriveConversationPreview(
 
 export async function GET(request: Request) {
   return withPlannerRoute(async ({ correlationId }) => {
-    const supabase = await createClient();
-    const routeContext = await requirePlannerRouteContext({
-      supabase,
-    });
+    const routeContext = await requirePlannerRouteContext(request);
     const parsedQuery = coachConversationListQuerySchema.safeParse(
       Object.fromEntries(new URL(request.url).searchParams.entries())
     );
@@ -103,10 +99,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   return withPlannerRoute(async ({ correlationId }) => {
-    const supabase = await createClient();
-    const routeContext = await requirePlannerRouteContext({
-      supabase,
-    });
+    const routeContext = await requirePlannerRouteContext(request);
     const body = await parseBoundedJsonBody(
       request,
       Math.min(MAX_API_BODY_BYTES, 128 * 1024),

@@ -11,7 +11,6 @@ import {
   requirePlannerRouteContext,
   withPlannerRoute,
 } from "@/lib/planner/api";
-import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 
@@ -19,10 +18,7 @@ const MAX_REQUEST_BYTES = 16 * 1024;
 
 export async function handleCompletionPost(request: Request) {
   return withPlannerRoute(async ({ correlationId }) => {
-    const supabase = await createClient();
-    const routeContext = await requirePlannerRouteContext({
-      supabase,
-    });
+    const routeContext = await requirePlannerRouteContext(request);
     const {
       goalId,
       date,

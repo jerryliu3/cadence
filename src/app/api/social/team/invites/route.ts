@@ -9,7 +9,6 @@ import { z } from "zod";
 import { runAfterResponse } from "@/lib/api/after";
 import { flushNotificationOutbox } from "@/lib/push/outbox";
 import { requireSocialRouteContext } from "@/lib/social/api";
-import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 
@@ -43,8 +42,7 @@ function mapCreateTeamInviteError(error: RpcErrorLike) {
 export async function POST(request: Request) {
   const correlationId = createCorrelationId();
   try {
-    const supabase = await createClient();
-    const context = await requireSocialRouteContext({ supabase });
+    const context = await requireSocialRouteContext(request);
     const body = await parseJsonBody({ request: request, maxBytes: 32 * 1024, schema: requestSchema });
 
     const { data, error } = await context.supabase.rpc("create_team_invite_service", {

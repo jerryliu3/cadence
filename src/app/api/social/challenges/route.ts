@@ -5,7 +5,6 @@ import {
 } from "@/lib/api/route";
 import { NextResponse } from "next/server";
 import { requireSocialRouteContext } from "@/lib/social/api";
-import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 
@@ -60,8 +59,7 @@ function toChallengeDto(row: {
 export async function GET() {
   const correlationId = createCorrelationId();
   try {
-    const supabase = await createClient();
-    const context = await requireSocialRouteContext({ supabase });
+    const context = await requireSocialRouteContext(request);
 
     const { data, error } = await context.supabase.rpc("get_social_challenges");
     if (error) {

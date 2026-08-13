@@ -3,10 +3,9 @@ import {
   ApiRouteError,
   apiErrorResponse,
   createCorrelationId,
-  requireAuthenticatedRouteContext,
+  requireAuthenticatedRequestContext,
 } from "@/lib/api/route";
 import { isFeatureEnabled } from "@/lib/feature-flags";
-import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 
@@ -39,21 +38,20 @@ function xpUnavailableResponse(correlationId: string) {
   );
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   const correlationId = createCorrelationId();
   if (!isFeatureEnabled("xpEnabled")) {
     return xpDisabledResponse(correlationId);
   }
 
-  const supabase = await createClient();
   let userId: string;
+  let supabase: Awaited<
+    ReturnType<typeof requireAuthenticatedRequestContext>
+  >["supabase"];
   try {
-    userId = (
-      await requireAuthenticatedRouteContext({
-        supabase,
+    ({ userId, supabase } = await requireAuthenticatedRequestContext(request, {
         unauthorizedMessage: "Sign in to view XP profile.",
-      })
-    ).userId;
+      }));
   } catch (error) {
     if (error instanceof ApiRouteError) {
       return apiErrorResponse(error, correlationId);

@@ -6,7 +6,6 @@ import {
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireSocialRouteContext } from "@/lib/social/api";
-import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 
@@ -96,8 +95,7 @@ export async function GET(
     const limit = Number.parseInt(url.searchParams.get("limit") ?? "50", 10);
     const offset = Number.parseInt(url.searchParams.get("offset") ?? "0", 10);
 
-    const supabase = await createClient();
-    const socialContext = await requireSocialRouteContext({ supabase });
+    const socialContext = await requireSocialRouteContext(request);
 
     const [{ data: seasonRows, error: seasonError }, { data: standingRows, error: standingsError }] =
       await Promise.all([

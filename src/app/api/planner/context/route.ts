@@ -31,7 +31,6 @@ import {
 } from "@/lib/planner/preferences-snapshot";
 import { normalizeGoalRequirement } from "@/lib/planner/requirements";
 import { evaluateActivePlanStaleness } from "@/lib/planner/staleness";
-import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 
@@ -248,10 +247,7 @@ function resolvePlannerPreview({
 
 export async function GET(request: Request) {
   return withPlannerRoute(async ({ correlationId }) => {
-    const supabase = await createClient();
-    const routeContext = await requirePlannerRouteContext({
-      supabase,
-    });
+    const routeContext = await requirePlannerRouteContext(request);
 
     const url = new URL(request.url);
     const parsedQuery = contextQuerySchema.safeParse({
@@ -410,10 +406,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   return withPlannerRoute(async ({ correlationId }) => {
-    const supabase = await createClient();
-    const routeContext = await requirePlannerRouteContext({
-      supabase,
-    });
+    const routeContext = await requirePlannerRouteContext(request);
 
     const body = await parseBoundedJsonBody(
       request,
@@ -486,10 +479,7 @@ export async function POST(request: Request) {
 
 export async function PUT(request: Request) {
   return withPlannerRoute(async ({ correlationId }) => {
-    const supabase = await createClient();
-    const routeContext = await requirePlannerRouteContext({
-      supabase,
-    });
+    const routeContext = await requirePlannerRouteContext(request);
 
     const body = await parseBoundedJsonBody(
       request,

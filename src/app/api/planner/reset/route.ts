@@ -9,7 +9,6 @@ import {
 import { MAX_API_BODY_BYTES } from "@/lib/planner/contracts/bounds";
 import { postgresErrorMatches } from "@/lib/planner/postgres-errors";
 import { toScopeMonthDate } from "@/lib/planner/scope-month";
-import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 
@@ -26,10 +25,7 @@ const clearScheduleSchema = z.object({
 
 export async function handlePlannerReset(request: Request) {
   return withPlannerRoute(async ({ correlationId }) => {
-    const supabase = await createClient();
-    const routeContext = await requirePlannerRouteContext({
-      supabase,
-    });
+    const routeContext = await requirePlannerRouteContext(request);
     const body = await parseBoundedJsonBody(
       request,
       Math.min(MAX_API_BODY_BYTES, 128 * 1024),

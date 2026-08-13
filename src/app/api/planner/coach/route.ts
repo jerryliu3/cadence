@@ -27,7 +27,6 @@ import {
   withPlannerRoute,
 } from "@/lib/planner/api";
 import { MAX_API_BODY_BYTES } from "@/lib/planner/contracts/bounds";
-import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 
@@ -101,10 +100,7 @@ export async function POST(request: Request) {
   const coachTimeoutMs = readCoachTimeoutMs();
   return withPlannerRoute(async ({ correlationId }) => {
     try {
-      const supabase = await createClient();
-      const routeContext = await requirePlannerRouteContext({
-        supabase,
-      });
+    const routeContext = await requirePlannerRouteContext(request);
 
       const rate = checkRateLimit({
         key: `planner-coach:${routeContext.userId}`,

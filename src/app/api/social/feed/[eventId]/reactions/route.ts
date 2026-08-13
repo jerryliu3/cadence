@@ -9,7 +9,6 @@ import { z } from "zod";
 import { runAfterResponse } from "@/lib/api/after";
 import { flushNotificationOutbox } from "@/lib/push/outbox";
 import { requireSocialRouteContext } from "@/lib/social/api";
-import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 
@@ -41,8 +40,7 @@ export async function POST(
   try {
     const params = paramsSchema.parse(await context.params);
     const body = await parseJsonBody({ request: request, maxBytes: 8 * 1024, schema: reactionSchema });
-    const supabase = await createClient();
-    const socialContext = await requireSocialRouteContext({ supabase });
+    const socialContext = await requireSocialRouteContext(request);
 
     const { error } = await socialContext.supabase.rpc("add_feed_reaction_service", {
       p_feed_event_id: params.eventId,
@@ -88,8 +86,7 @@ export async function DELETE(
   try {
     const params = paramsSchema.parse(await context.params);
     const body = await parseJsonBody({ request: request, maxBytes: 8 * 1024, schema: reactionSchema });
-    const supabase = await createClient();
-    const socialContext = await requireSocialRouteContext({ supabase });
+    const socialContext = await requireSocialRouteContext(request);
 
     const { error } = await socialContext.supabase.rpc("remove_feed_reaction_service", {
       p_feed_event_id: params.eventId,

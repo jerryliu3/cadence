@@ -2,11 +2,10 @@ import { z } from "zod";
 import {
   ApiRouteError,
   apiSuccessResponse,
-  requireAuthenticatedRouteContext,
+  requireAuthenticatedRequestContext,
   withRoute,
 } from "@/lib/api/route";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createClient } from "@/lib/supabase/server";
 
 const subscriptionSchema = z.object({
   endpoint: z.string().url().max(4096),
@@ -36,9 +35,7 @@ function requirePushAdminClient() {
 
 export async function POST(request: Request) {
   return withRoute(async ({ correlationId }) => {
-    const supabase = await createClient();
-    const { userId } = await requireAuthenticatedRouteContext({
-      supabase,
+    const { userId } = await requireAuthenticatedRequestContext(request, {
       unauthorizedMessage: "Unauthorized.",
     });
     const parsed = subscriptionSchema.safeParse(
@@ -81,9 +78,7 @@ export async function POST(request: Request) {
 
 export async function DELETE(request: Request) {
   return withRoute(async ({ correlationId }) => {
-    const supabase = await createClient();
-    const { userId } = await requireAuthenticatedRouteContext({
-      supabase,
+    const { userId } = await requireAuthenticatedRequestContext(request, {
       unauthorizedMessage: "Unauthorized.",
     });
     const parsed = unsubscribeSchema.safeParse(

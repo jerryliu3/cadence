@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import {
   ApiRouteError,
-  requireAuthenticatedRouteContext,
+  requireAuthenticatedRequestContext,
   withRoute,
 } from "@/lib/api/route";
 import { normalizeWeekStartsOn } from "@/lib/dates/week-start";
@@ -21,7 +21,6 @@ import {
   MAX_COMPLETION_FACTS,
 } from "@/lib/planner/contracts/bounds";
 import { isTargetedRecurringGoal } from "@/lib/planner/requirements";
-import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 
@@ -102,9 +101,7 @@ function getChecklistFacts(
 
 export async function GET(request: Request) {
   return withRoute(async ({ correlationId }) => {
-    const supabase = await createClient();
-    const { userId } = await requireAuthenticatedRouteContext({
-      supabase,
+    const { supabase, userId } = await requireAuthenticatedRequestContext(request, {
       unauthorizedMessage: "Sign in to view goal progress.",
     });
 
