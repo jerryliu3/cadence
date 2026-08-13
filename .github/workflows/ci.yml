@@ -44,6 +44,30 @@ jobs:
       - name: Run timezone process matrix
         run: pnpm test:tz
 
+  verify-mobile-static:
+    name: verify-mobile-static
+    runs-on: [self-hosted, cadence-ci]
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck mobile app
+        run: pnpm --filter @cadence/mobile typecheck
+
   verify-pr-db:
     name: verify-pr-db
     runs-on: ubuntu-latest
