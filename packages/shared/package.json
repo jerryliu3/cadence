@@ -8,9 +8,7 @@
     "./api-client": "./src/api-client/index.ts",
     "./async/abort": "./src/async/abort.ts",
     "./navigation/tabs": "./src/navigation/tabs.ts",
-    "./cache/tab-data-cache": "./src/cache/tab-data-cache.ts",
     "./goals/heatmap": "./src/goals/heatmap.ts",
-    "./feedback/haptics": "./src/feedback/haptics.ts",
     "./ids": "./src/ids.ts",
     "./planner/calendar-state": "./src/planner/calendar-state.ts",
     "./planner/canonical": "./src/planner/canonical.ts",
@@ -20,7 +18,6 @@
     "./planner/reorder-preview-entries": "./src/planner/reorder-preview-entries.ts",
     "./planner/visible-window": "./src/planner/visible-window.ts",
     "./supabase/database.types": "./src/supabase/database.types.ts",
-    "./xp/events": "./src/xp/events.ts",
     "./tokens": "./src/tokens.ts"
   },
   "dependencies": {
