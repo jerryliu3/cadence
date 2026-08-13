@@ -1,7 +1,6 @@
 export type GoalFrequencyType = "fixed_milestones" | "recurring";
 export type RecurrenceInterval = "daily" | "weekly" | "monthly";
 export type CompletionSource = "manual" | "linked_cascade";
-export type ParticipantRole = "owner" | "participant";
 
 export interface Goal {
   id: string;
@@ -48,14 +47,6 @@ export interface GoalLink {
   source_goal_id: string;
   target_goal_id: string;
   created_at: string;
-}
-
-export interface GoalParticipant {
-  id: string;
-  goal_id: string;
-  user_id: string;
-  role: ParticipantRole;
-  joined_at: string;
 }
 
 export interface GoalShare {
