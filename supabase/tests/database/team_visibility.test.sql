@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions, pg_catalog;
-select plan(14);
+select plan(15);
 
 insert into auth.users (id, email)
 values
@@ -131,23 +131,6 @@ select is(
   'outsider cannot read owner goals without an active team'
 );
 
-select set_config('request.jwt.claim.sub', '9a111111-1111-4111-8111-111111111111', true);
-select ok(
-  public.create_team_invite_service('9a333333-3333-4333-8333-333333333333', null) is not null,
-  'owner can create pending invite for outsider'
-);
-
-select set_config('request.jwt.claim.sub', '9a333333-3333-4333-8333-333333333333', true);
-select is(
-  (
-    select count(*)::integer
-    from public.goals goal
-    where goal.owner_id = '9a111111-1111-4111-8111-111111111111'
-  ),
-  0,
-  'pending invite confers zero owner-goal visibility'
-);
-
 select set_config('request.jwt.claim.sub', '9a222222-2222-4222-8222-222222222222', true);
 select ok(
   (
@@ -157,6 +140,14 @@ select ok(
     )
   ),
   'team partner cannot complete owner goals'
+);
+
+select ok(
+  public.can_view_goal(
+    '9a400000-0000-4000-8000-000000000002',
+    '9a222222-2222-4222-8222-222222222222'
+  ),
+  'active partner can view private owner goal 9a400000-0000-4000-8000-000000000002'
 );
 
 select ok(
@@ -213,6 +204,23 @@ select is(
   ),
   0,
   'completion visibility is revoked after dissolution'
+);
+
+select set_config('request.jwt.claim.sub', '9a111111-1111-4111-8111-111111111111', true);
+select ok(
+  public.create_team_invite_service('9a333333-3333-4333-8333-333333333333', null) is not null,
+  'owner can create pending invite for outsider after dissolving the active team'
+);
+
+select set_config('request.jwt.claim.sub', '9a333333-3333-4333-8333-333333333333', true);
+select is(
+  (
+    select count(*)::integer
+    from public.goals goal
+    where goal.owner_id = '9a111111-1111-4111-8111-111111111111'
+  ),
+  0,
+  'pending invite confers zero owner-goal visibility'
 );
 
 select * from finish();

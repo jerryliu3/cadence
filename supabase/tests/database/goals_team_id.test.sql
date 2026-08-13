@@ -187,12 +187,16 @@ select ok(
   'partner cannot complete the owner personal goal'
 );
 
+-- Social Duo 1 changed this contract: an active team pair is total mutual
+-- visibility, so is_private no longer hides a personal goal from a partner.
+-- is_private still masks the goal title in public.get_social_feed and still
+-- gates goal_shares (asserted in social_feed_read_privacy / team_visibility).
 select ok(
-  not public.can_view_goal(
+  public.can_view_goal(
     'bf400000-0000-4000-8000-000000000003',
     'bf222222-2222-4222-8222-222222222222'
   ),
-  'partner cannot view the owner private personal goal'
+  'partner can view the owner private personal goal'
 );
 
 select ok(
