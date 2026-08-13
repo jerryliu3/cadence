@@ -9,6 +9,7 @@
     "./async/abort": "./src/async/abort.ts",
     "./navigation/tabs": "./src/navigation/tabs.ts",
     "./cache/tab-data-cache": "./src/cache/tab-data-cache.ts",
+    "./goals/heatmap": "./src/goals/heatmap.ts",
     "./feedback/haptics": "./src/feedback/haptics.ts",
     "./planner/calendar-state": "./src/planner/calendar-state.ts",
     "./planner/visible-window": "./src/planner/visible-window.ts",
