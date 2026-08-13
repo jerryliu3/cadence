@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, private, extensions, pg_catalog;
-select plan(19);
+select plan(20);
 
 insert into auth.users (id, email)
 values
@@ -302,6 +302,32 @@ select ok(
     'bf222222-2222-4222-8222-222222222222'
   ),
   'ex-member cannot view a team-id goal after dissolve'
+);
+
+-- The team was dissolved above, so bf111111 is still a team_members row but the
+-- team is closed. Read paths already require ACTIVE membership; the write paths
+-- must agree, or you can mint a goal nobody but the owner can ever see.
+reset role;
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config('request.jwt.claim.sub', 'bf111111-1111-4111-8111-111111111111', true);
+
+select throws_ok(
+  format(
+    $$select public.create_goal(
+        'bf400000-0000-4000-8000-000000000077'::uuid,
+        'Closed team goal',
+        null, null, 'Health', 'health', '#10b981',
+        'recurring'::public.goal_frequency_type,
+        'weekly'::public.recurrence_interval,
+        3, null, current_date, current_date + 30, null,
+        '%s'::uuid, false
+      )$$,
+    current_setting('request.team_id')::uuid
+  ),
+  '42501',
+  'not a member of team',
+  'create_goal rejects a team the owner is no longer active in'
 );
 
 select * from finish();

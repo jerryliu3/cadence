@@ -91,6 +91,16 @@ export type TeamStatus =
   | "pending"
   | "active"
   | "closed";
+/**
+ * DUO_CAP(private.max_team_size): duo-shaped view of a team.
+ *
+ * The SQL layer is general — `team_members`, `is_active_team_member`, scoring,
+ * and visibility all work for N members. This DTO is not: `partner*` is a single
+ * other member, and `get_team_state` picks the lowest `user_id` above a cap of 2.
+ *
+ * This is the seam to change when `private.max_team_size()` is raised. Grep
+ * DUO_CAP in supabase/migrations for the matching SQL sites.
+ */
 export interface TeamStateRow {
   teamId: string;
   status: TeamStatus;
