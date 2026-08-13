@@ -11,14 +11,10 @@ interface AdminChallengeResponse {
   items?: SocialChallenge[];
 }
 
-const UUID_RE =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-
 export function AdminChallengesManager() {
   const [items, setItems] = useState<SocialChallenge[]>([]);
   const [title, setTitle] = useState("");
   const [slug, setSlug] = useState("");
-  const [cohortId, setCohortId] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isPending, setIsPending] = useState(false);
 
@@ -49,10 +45,6 @@ export function AdminChallengesManager() {
     setError(null);
     setIsPending(true);
     try {
-      const trimmedCohortId = cohortId.trim();
-      if (trimmedCohortId.length > 0 && !UUID_RE.test(trimmedCohortId)) {
-        throw new Error("Cohort id must be a UUID.");
-      }
       const now = new Date();
       const endsAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
       const response = await fetch("/api/admin/challenges", {
@@ -71,8 +63,6 @@ export function AdminChallengesManager() {
           startsAt: now.toISOString(),
           endsAt: endsAt.toISOString(),
           rewardXp: 0,
-          audienceKind: trimmedCohortId.length > 0 ? "cohort" : "global",
-          cohortId: trimmedCohortId.length > 0 ? trimmedCohortId : null,
         }),
       });
       if (!response.ok) {
@@ -81,7 +71,6 @@ export function AdminChallengesManager() {
       }
       setSlug("");
       setTitle("");
-      setCohortId("");
       await load();
     } catch (createError) {
       setError(createError instanceof Error ? createError.message : "Could not create challenge.");
@@ -99,7 +88,7 @@ export function AdminChallengesManager() {
             Minimal admin surface for creating and reviewing challenge rows during rollout.
           </CardDescription>
         </CardHeader>
-        <CardContent className="grid gap-2 md:grid-cols-3">
+        <CardContent className="grid gap-2 md:grid-cols-2">
           <Input
             value={title}
             onChange={(event) => setTitle(event.target.value)}
@@ -110,11 +99,6 @@ export function AdminChallengesManager() {
             onChange={(event) => setSlug(event.target.value)}
             placeholder="challenge-slug"
           />
-          <Input
-            value={cohortId}
-            onChange={(event) => setCohortId(event.target.value)}
-            placeholder="Cohort id (optional)"
-          />
           <Button
             type="button"
             disabled={isPending || title.trim().length === 0 || slug.trim().length < 2}
@@ -122,7 +106,7 @@ export function AdminChallengesManager() {
           >
             Create draft
           </Button>
-          {error ? <p className="text-xs text-destructive md:col-span-3">{error}</p> : null}
+          {error ? <p className="text-xs text-destructive md:col-span-2">{error}</p> : null}
         </CardContent>
       </Card>
 

@@ -5,44 +5,10 @@ import {
 } from "@/lib/api/route";
 import { NextResponse } from "next/server";
 import { requireSocialRouteContext } from "@/lib/social/api";
+import { toSeasonDto } from "@/lib/social/dto";
 import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
-
-function toSeasonDto(row: {
-  id: string;
-  slug: string;
-  title: string;
-  subject_kind: "user" | "team";
-  metric:
-    | "total_xp"
-    | "category_xp"
-    | "completions_count"
-    | "distinct_active_days"
-    | "max_streak_days";
-  metric_track_key: string | null;
-  starts_at: string;
-  ends_at: string | null;
-  status: "upcoming" | "open" | "closed";
-  rollover: "none" | "weekly" | "monthly" | "quarterly" | "yearly";
-  scope?: "global" | "cohort";
-  cohort_id?: string | null;
-}) {
-  return {
-    id: row.id,
-    slug: row.slug,
-    title: row.title,
-    subjectKind: row.subject_kind,
-    metric: row.metric,
-    metricTrackKey: row.metric_track_key,
-    startsAt: row.starts_at,
-    endsAt: row.ends_at,
-    status: row.status,
-    rollover: row.rollover,
-    scope: row.scope ?? "global",
-    cohortId: row.cohort_id ?? null,
-  };
-}
 
 export async function GET() {
   const correlationId = createCorrelationId();
