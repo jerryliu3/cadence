@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, private, extensions, pg_catalog;
-select plan(5);
+select plan(7);
 
 select is(
   (
@@ -51,6 +51,30 @@ select ok(
     'public.unmark_goal_complete(uuid, date)'::regprocedure
   ) like '%recompute_goal_xp_service%',
   'unmark_goal_complete still drives XP recompute'
+);
+
+-- Level progression is formula-only. IMMUTABLE is what lets it be inlined and
+-- constant-folded; a redefinition that reads xp_levels again would have to
+-- downgrade to STABLE, so assert the marker to catch that.
+
+select is(
+  (
+    select p.provolatile
+    from pg_proc p
+    where p.oid = 'private.xp_min_total_for_level(integer)'::regprocedure
+  ),
+  'i',
+  'xp_min_total_for_level remains IMMUTABLE'
+);
+
+select is(
+  (
+    select p.provolatile
+    from pg_proc p
+    where p.oid = 'private.xp_level_for_total(integer)'::regprocedure
+  ),
+  'i',
+  'xp_level_for_total remains IMMUTABLE'
 );
 
 select * from finish();

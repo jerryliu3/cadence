@@ -1780,19 +1780,16 @@ export type Database = {
         Row: {
           created_at: string
           level: number
-          min_total_xp: number
           title: string
         }
         Insert: {
           created_at?: string
           level: number
-          min_total_xp: number
           title: string
         }
         Update: {
           created_at?: string
           level?: number
-          min_total_xp?: number
           title?: string
         }
         Relationships: []
