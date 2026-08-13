@@ -9,8 +9,10 @@ import { toLocalDateString } from "@/lib/dates/day";
 import {
   fetchProgressContext,
   isProgressContextAuthenticationError,
+  isProgressContextRequestError,
   type ProgressContextResponse,
 } from "@/lib/goals/progress-context";
+import { reportDuoPartnerFetchFailure } from "@/lib/social/duo/telemetry";
 import type { CompletionDateFact, Goal } from "@/lib/goals/types";
 import { createClient } from "@/lib/supabase/client";
 import { progressSubjectUserId, selectViewerVisibleGoals } from "@/lib/goals/visible-goals";
@@ -37,9 +39,11 @@ const INSIGHTS_REQUEST_TIMEOUT_MS = 15_000;
 export function useInsightsData({
   subjectUserId,
   selectedYear,
+  failClosed = false,
 }: {
   subjectUserId?: string;
   selectedYear: string;
+  failClosed?: boolean;
 }) {
   const supabase = useMemo(() => createClient(), []);
   const router = useRouter();
@@ -47,6 +51,7 @@ export function useInsightsData({
   const duoPartnerId = duoState.activePartner?.partnerId ?? null;
   const [state, setState] = useState<InsightsData>(emptyInsights);
   const [loading, setLoading] = useState(true);
+  const [laneError, setLaneError] = useState<string | null>(null);
   const loadRequestIdRef = useRef(0);
   const visibleLoadCountRef = useRef(0);
   const authRedirectStartedRef = useRef(false);
@@ -151,6 +156,7 @@ export function useInsightsData({
           memberTeamIds,
           progress,
         });
+        setLaneError(null);
       } finally {
         window.clearTimeout(timeoutId);
         if (showLoading) {
@@ -173,6 +179,18 @@ export function useInsightsData({
           redirectToLogin();
           return;
         }
+        if (failClosed) {
+          setLaneError("Partner insights are unavailable.");
+          reportDuoPartnerFetchFailure(error, {
+            surface: "insights",
+            code: isProgressContextRequestError(error) ? error.code : undefined,
+            status: isProgressContextRequestError(error) ? error.status : undefined,
+            stalePartner: isProgressContextRequestError(error)
+              ? error.code === "not_team_partner"
+              : false,
+          });
+          return;
+        }
         toast.error(
           isAbortError(error)
             ? "Insights request timed out. Please try again."
@@ -184,11 +202,12 @@ export function useInsightsData({
     };
 
     void run();
-  }, [loadData, redirectToLogin]);
+  }, [failClosed, loadData, redirectToLogin]);
 
   return {
     state,
     loading,
+    laneError,
     loadData,
     redirectToLogin,
   };
