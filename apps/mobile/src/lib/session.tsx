@@ -26,20 +26,11 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    let cancelled = false;
-    void supabase.auth.getSession().then(({ data }) => {
-      if (cancelled) {
-        return;
-      }
-      setSession(data.session);
-      setReady(true);
-    });
     const { data } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       setSession(nextSession);
       setReady(true);
     });
     return () => {
-      cancelled = true;
       data.subscription.unsubscribe();
     };
   }, []);
