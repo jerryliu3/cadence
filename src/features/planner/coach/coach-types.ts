@@ -22,7 +22,7 @@ export interface UsePlannerCoachArgs {
   ) => Promise<{ moveCount: number; movedEntryKeys: string[] }>;
   clearDraftMoveCommands: (entryKeys: string[]) => void;
   applyDraftPolicy: (scopeMonth: string, policy: PlannerPolicy) => void;
-  applyCoachSessionMoves?: (
+  applyCoachSessionMoves: (
     moves: Array<{ goalId: string; unitKey: string; scheduledDate: string }>
   ) => void;
   getNonPublishablePreviewMessage: (

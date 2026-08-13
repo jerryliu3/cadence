@@ -121,7 +121,6 @@ export function buildCoachPrompt({
     "- action=apply when the user asks for planner edits as rest weekdays, blackout ranges, or sessionMoves across months.",
     "- For action=apply, global can be omitted/null or include any subset of restWeekdays/addBlackoutRanges/removeBlackoutRanges.",
     "- sessionMoves can target any date in a focus goal credit window, including future months in the 24-month horizon.",
-    "- For action=apply, global can be omitted/null or include any subset of restWeekdays/addBlackoutRanges/removeBlackoutRanges.",
     "- restWeekdays entries are numeric weekdays where 0=Sunday through 6=Saturday.",
     "- blackout range entries use exact YYYY-MM-DD start/end values.",
     "- If the user says not to ask more questions, make conservative assumptions; if no matching goal exists, use action=needs_goal, leave unresolvedQuestions empty, and explain in reply that calendar edits require a matching goal.",

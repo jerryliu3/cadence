@@ -159,7 +159,7 @@ export function usePlannerCoach({
           patch.kind === "move_session"
       );
       if (sessionMoves.length > 0) {
-        applyCoachSessionMoves?.(
+        applyCoachSessionMoves(
           sessionMoves.map((move) => ({
             goalId: move.goalId,
             unitKey: move.unitKey,
@@ -167,7 +167,7 @@ export function usePlannerCoach({
           }))
         );
       }
-      if (result.appliedPatchCount === 0) {
+      if (result.appliedPatchCount === 0 && sessionMoves.length === 0) {
         if (result.noOpPatchCount > 0 && result.unsupportedPatchCount === 0) {
           appendCoachContextEvent("Coach proposal already matched current draft");
           toast.success(

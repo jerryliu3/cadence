@@ -95,6 +95,7 @@ function buildArgs(overrides: Partial<UsePlannerCoachArgs> = {}): UsePlannerCoac
       .mockResolvedValue({ moveCount: 0, movedEntryKeys: [] }),
     clearDraftMoveCommands: vi.fn(),
     applyDraftPolicy: vi.fn(),
+    applyCoachSessionMoves: vi.fn(),
     getNonPublishablePreviewMessage: vi.fn().mockReturnValue("blocked"),
     ...overrides,
   };

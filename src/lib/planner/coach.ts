@@ -120,6 +120,14 @@ export const coachPolicyPatchSchema = z.discriminatedUnion("kind", [
     .refine((value) => value.start <= value.end),
   z
     .object({
+      kind: z.literal("remove_blackout_range"),
+      start: z.iso.date(),
+      end: z.iso.date(),
+    })
+    .strict()
+    .refine((value) => value.start <= value.end),
+  z
+    .object({
       kind: z.literal("move_session"),
       goalId: z.uuid(),
       unitKey: z.string().trim().min(1).max(200),

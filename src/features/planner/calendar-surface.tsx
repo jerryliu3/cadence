@@ -70,6 +70,10 @@ import {
   initialDraftCommandState,
   selectDraftCommandsForScope,
 } from "@/features/planner/draft-command-reducer";
+import {
+  buildSessionMoveCommands,
+  shouldKeepDraftCommandForPreview,
+} from "@/features/planner/session-move";
 import { planDraftTimeOverrideUpdate } from "@/features/planner/draft-time-override";
 import { computeDayPreviewPosition } from "@/features/planner/day-preview-popup";
 import { getGoalVisual } from "@/features/planner/goal-visuals";
@@ -427,11 +431,15 @@ export function CalendarSurface({
     return Array.from(scopeSet).sort((left, right) => left.localeCompare(right));
   }, [draftCommandState.commands, draftPolicyByScope]);
   const draftCommandsForSaveByScope = useMemo(() => {
-    const commandsByScope: Record<string, PlannerDraftCommand[]> = {};
+    const unfilteredByScope: Record<string, PlannerDraftCommand[]> = {};
     for (const scopeMonth of dirtyScopeMonths) {
-      const scopedCommands = sortPlannerDraftCommands(
+      unfilteredByScope[scopeMonth] = sortPlannerDraftCommands(
         selectDraftCommandsForScope(draftCommandState, scopeMonth)
       );
+    }
+    const commandsByScope: Record<string, PlannerDraftCommand[]> = {};
+    for (const scopeMonth of dirtyScopeMonths) {
+      const scopedCommands = unfilteredByScope[scopeMonth] ?? [];
       const previewForScope =
         scopeMonth === currentScopeMonth
           ? effectivePreview
@@ -449,8 +457,12 @@ export function CalendarSurface({
         )
       );
       commandsByScope[scopeMonth] = scopedCommands.filter((command) =>
-        command.kind === "move_item" ||
-        previewEntryKeys.has(draftCommandEntryKey(command))
+        shouldKeepDraftCommandForPreview({
+          command,
+          scopeMonth,
+          previewEntryKeys,
+          commandsByScope: unfilteredByScope,
+        })
       );
     }
     return commandsByScope;
@@ -984,6 +996,13 @@ export function CalendarSurface({
     [context]
   );
   const runCompletionMutation = useCompletionMutation();
+  const queueDraftMoveCommandRef = useRef<
+    (args: {
+      entry: PlannerDayDetailEntry;
+      nextDate: string;
+      source: "date_input" | "drag_drop";
+    }) => boolean
+  >(() => false);
   const coach = usePlannerCoach({
     activeTab,
     context,
@@ -998,26 +1017,21 @@ export function CalendarSurface({
       setDraftPolicyForScope(scopeMonth, policy);
     },
     applyCoachSessionMoves: (moves) => {
-      if (!context?.scopeMonth) {
-        return;
-      }
       for (const move of moves) {
-        const destMonth = move.scheduledDate.slice(0, 7);
-        if (destMonth !== context.scopeMonth) {
-          dispatchDraftCommand({
-            type: "upsert_move",
-            scopeMonth: context.scopeMonth,
-            goalId: move.goalId,
-            unitKey: move.unitKey,
-            scheduledDate: null,
-          });
+        const entry = [...entryByKey.values()].find(
+          (item) =>
+            item.originalGoalId === move.goalId &&
+            item.unitKey === move.unitKey &&
+            !item.draftGhost
+        );
+        if (!entry) {
+          toast.error("Coach could not move a session that is not on the calendar.");
+          continue;
         }
-        dispatchDraftCommand({
-          type: "upsert_move",
-          scopeMonth: destMonth,
-          goalId: move.goalId,
-          unitKey: move.unitKey,
-          scheduledDate: move.scheduledDate,
+        queueDraftMoveCommandRef.current({
+          entry,
+          nextDate: move.scheduledDate,
+          source: "drag_drop",
         });
       }
       scheduleDraftMovePreviewRefresh();
@@ -1209,7 +1223,8 @@ export function CalendarSurface({
         return false;
       }
       const destMonth = normalized.slice(0, 7);
-      const sourceMonth = context.scopeMonth;
+      const sourceMonth =
+        (entryDayByKey.get(entry.key) ?? context.scopeMonth).slice(0, 7);
       const creditWindow = baselineUnit.creditWindow;
       const crossMonth = destMonth !== sourceMonth;
       const moveWindow = crossMonth
@@ -1267,30 +1282,13 @@ export function CalendarSurface({
         return false;
       }
 
-      const scopeMonth = context.scopeMonth;
-      if (destMonth !== scopeMonth) {
-        dispatchDraftCommand({
-          type: "upsert_move",
-          scopeMonth,
-          goalId: entry.originalGoalId,
-          unitKey: entry.unitKey,
-          scheduledDate: null,
-        });
-        dispatchDraftCommand({
-          type: "upsert_move",
-          scopeMonth: destMonth,
-          goalId: entry.originalGoalId,
-          unitKey: entry.unitKey,
-          scheduledDate: normalized,
-        });
-      } else {
-        dispatchDraftCommand({
-          type: "upsert_move",
-          scopeMonth,
-          goalId: entry.originalGoalId,
-          unitKey: entry.unitKey,
-          scheduledDate: normalized,
-        });
+      for (const action of buildSessionMoveCommands({
+        goalId: entry.originalGoalId,
+        unitKey: entry.unitKey,
+        sourceMonth,
+        destDate: normalized,
+      })) {
+        dispatchDraftCommand(action);
       }
       scheduleDraftMovePreviewRefresh();
       void source;
@@ -1300,10 +1298,12 @@ export function CalendarSurface({
       scheduleDraftMovePreviewRefresh,
       completionFactUnitsByGoalDate,
       context?.scopeMonth,
+      entryDayByKey,
       moveConflictByGoalDate,
       previewUnitByEntryKey,
     ]
   );
+  queueDraftMoveCommandRef.current = queueDraftMoveCommand;
 
   const updateDraftLabel = (entry: PlannerDayDetailEntry, label: string) => {
     if (entry.draftGhost) {

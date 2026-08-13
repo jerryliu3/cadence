@@ -65,4 +65,21 @@ describe("applyCoachPolicyPatches", () => {
     expect(result.ignoredPatchCount).toBe(0);
     expect(result.unsupportedPatchCount).toBe(0);
   });
+
+  it("does not count session moves as policy patches", () => {
+    const result = applyCoachPolicyPatches({
+      policy: basePolicy(),
+      patches: [
+        {
+          kind: "move_session",
+          goalId: "11111111-1111-4111-8111-111111111111",
+          unitKey: "unit-1",
+          scheduledDate: "2026-09-02",
+        },
+      ],
+    });
+    expect(result.appliedPatchCount).toBe(0);
+    expect(result.ignoredPatchCount).toBe(0);
+    expect(result.noOpPatchCount).toBe(0);
+  });
 });
