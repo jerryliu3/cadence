@@ -1,6 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import type { ReactNode } from "react";
-import { requireAdminContext } from "@/lib/api/admin-context";
+import { requireAdminContextFromCookies } from "@/lib/api/admin-context";
 import { ApiRouteError } from "@/lib/api/route";
 
 export default async function AdminLayout({
@@ -9,7 +9,7 @@ export default async function AdminLayout({
   children: ReactNode;
 }) {
   try {
-    const context = await requireAdminContext("moderator");
+    const context = await requireAdminContextFromCookies("moderator");
     if (!context) {
       notFound();
     }

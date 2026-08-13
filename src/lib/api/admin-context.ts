@@ -1,4 +1,4 @@
-import { requireAuthenticatedRequestContext } from "@/lib/api/route";
+import { ApiRouteError, requireAuthenticatedRequestContext } from "@/lib/api/route";
 import { createClient } from "@/lib/supabase/server";
 
 export type AdminRole = "moderator" | "admin";
@@ -10,45 +10,50 @@ export interface AdminContext {
     | Awaited<ReturnType<typeof createClient>>;
 }
 
-export async function requireAdminContext(
-  requestOrRole: Request | AdminRole | null = null,
-  minRole: AdminRole = "moderator"
+async function authorizeAdmin(
+  authContext: { supabase: AdminContext["supabase"]; userId: string },
+  minRole: AdminRole
 ): Promise<AdminContext | null> {
-  const request =
-    requestOrRole instanceof Request ? requestOrRole : null;
-  const role = typeof requestOrRole === "string" ? requestOrRole : minRole;
-  const authContext = request
-    ? await requireAuthenticatedRequestContext(request, {
-        unauthorizedMessage: "Sign in to continue.",
-      })
-    : await (async () => {
-        const supabase = await createClient();
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
-        if (!user) {
-          return null;
-        }
-        return {
-          supabase,
-          userId: user.id,
-        };
-      })();
-  if (!authContext) {
-    return null;
-  }
-  const { supabase, userId } = authContext;
-
-  const { data: isAdmin, error } = await supabase.rpc("is_platform_admin", {
-    p_min_role: role,
-  });
+  const { data: isAdmin, error } = await authContext.supabase.rpc(
+    "is_platform_admin",
+    {
+      p_min_role: minRole,
+    }
+  );
 
   if (error || !isAdmin) {
     return null;
   }
 
   return {
-    userId,
-    supabase,
+    userId: authContext.userId,
+    supabase: authContext.supabase,
   };
+}
+
+export async function requireAdminContext(
+  request: Request,
+  minRole: AdminRole = "moderator"
+): Promise<AdminContext | null> {
+  const authContext = await requireAuthenticatedRequestContext(request, {
+    unauthorizedMessage: "Sign in to continue.",
+  });
+  return authorizeAdmin(authContext, minRole);
+}
+
+export async function requireAdminContextFromCookies(
+  minRole: AdminRole = "moderator"
+): Promise<AdminContext | null> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    throw new ApiRouteError(
+      401,
+      "authentication_required",
+      "Sign in to continue."
+    );
+  }
+  return authorizeAdmin({ supabase, userId: user.id }, minRole);
 }
