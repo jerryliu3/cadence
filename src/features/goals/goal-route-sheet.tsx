@@ -11,6 +11,7 @@ import {
 } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { useMediaQuery } from "@/lib/ui/use-media-query";
 
 interface GoalRouteSheetProps {
   children: ReactNode;
@@ -21,13 +22,6 @@ interface GoalRouteSheetProps {
 const SHEET_TOP_OFFSET_VAR = "--goal-sheet-top-offset";
 const MOBILE_SHEET_BREAKPOINT_QUERY = "(max-width: 767px)";
 const SWIPE_CLOSE_MIN_DELTA_Y = 72;
-
-function getInitialIsMobileViewport() {
-  if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
-    return false;
-  }
-  return window.matchMedia(MOBILE_SHEET_BREAKPOINT_QUERY).matches;
-}
 
 function getInitialHeaderBottomOffset() {
   if (typeof document === "undefined") {
@@ -42,20 +36,8 @@ function getInitialHeaderBottomOffset() {
 
 export function GoalRouteSheet({ children, onClose, title }: GoalRouteSheetProps) {
   const swipeStartRef = useRef<{ x: number; y: number } | null>(null);
-  const [isMobileViewport, setIsMobileViewport] = useState(getInitialIsMobileViewport);
+  const isMobileViewport = useMediaQuery(MOBILE_SHEET_BREAKPOINT_QUERY);
   const [headerBottomOffset, setHeaderBottomOffset] = useState(getInitialHeaderBottomOffset);
-
-  useEffect(() => {
-    if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
-      return;
-    }
-
-    const mediaQuery = window.matchMedia(MOBILE_SHEET_BREAKPOINT_QUERY);
-    const syncViewportMode = (event: MediaQueryListEvent) =>
-      setIsMobileViewport(event.matches);
-    mediaQuery.addEventListener("change", syncViewportMode);
-    return () => mediaQuery.removeEventListener("change", syncViewportMode);
-  }, []);
 
   useEffect(() => {
     if (typeof window === "undefined") {
