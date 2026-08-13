@@ -15,9 +15,12 @@ export function isAppVersionBelowFloor(
   if (!minSupportedAppVersion) {
     return false;
   }
-  const current = currentVersion ? parseXyz(currentVersion) : null;
   const floor = parseXyz(minSupportedAppVersion);
-  if (!current || !floor) {
+  if (!floor) {
+    return false;
+  }
+  const current = currentVersion ? parseXyz(currentVersion) : null;
+  if (!current) {
     return true;
   }
   return (

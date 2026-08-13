@@ -314,7 +314,7 @@ export interface CreateApiClientOptions {
 
 export function createApiClient({
   baseUrl,
-  credentials = "omit",
+  credentials = "same-origin",
   fetcher,
   getAuthHeaders,
   onUnauthorized,
