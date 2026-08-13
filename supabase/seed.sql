@@ -10,7 +10,6 @@ truncate table
   public.notification_outbox,
   public.challenge_participants,
   public.challenges,
-  public.team_preferences,
   public.teams,
   public.leaderboard_standings,
   public.leaderboard_season_results,
@@ -696,29 +695,6 @@ values
     '11111111-1111-4111-8111-111111111111',
     'member',
     now() - interval '1 day'
-  );
-
-insert into public.team_preferences (
-  team_id,
-  user_id,
-  share_completions,
-  allow_nudges,
-  notify_partner_activity
-)
-values
-  (
-    '71000000-0000-4000-8000-000000000001',
-    '11111111-1111-4111-8111-111111111111',
-    true,
-    true,
-    true
-  ),
-  (
-    '71000000-0000-4000-8000-000000000001',
-    '22222222-2222-4222-8222-222222222222',
-    true,
-    true,
-    true
   );
 
 -- Alice + Bob team-owned goal for Checklist / complete-as-member demos.

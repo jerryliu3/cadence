@@ -24,9 +24,6 @@ function mapNudgeError(message: string) {
   if (message === "team_required") {
     return new ApiRouteError(409, "team_required", "You need an active team to send nudges.");
   }
-  if (message === "nudges_not_allowed") {
-    return new ApiRouteError(403, "nudges_not_allowed", "Your partner has nudges disabled.");
-  }
   if (message === "nudge_rate_limited_24h" || message === "nudge_rate_limited_goal_daily") {
     return new ApiRouteError(429, message, "Nudge rate limit reached for this timeframe.");
   }
