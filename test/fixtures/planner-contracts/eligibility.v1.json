@@ -9,7 +9,6 @@
       "scopeMonth": "2026-08",
       "goal": {
         "ownedByViewer": true,
-        "isGroup": false,
         "isDeleted": false,
         "archivedAt": null,
         "currentLinkRole": "none",
@@ -28,7 +27,6 @@
       "scopeMonth": "2026-09",
       "goal": {
         "ownedByViewer": true,
-        "isGroup": false,
         "isDeleted": false,
         "archivedAt": null,
         "currentLinkRole": "none",
@@ -47,7 +45,6 @@
       "scopeMonth": "2026-08",
       "goal": {
         "ownedByViewer": true,
-        "isGroup": false,
         "isDeleted": false,
         "archivedAt": null,
         "currentLinkRole": "none",
@@ -66,7 +63,6 @@
       "scopeMonth": "2026-08",
       "goal": {
         "ownedByViewer": false,
-        "isGroup": false,
         "isDeleted": false,
         "archivedAt": null,
         "currentLinkRole": "none",
@@ -80,31 +76,11 @@
       }
     },
     {
-      "id": "group_goal",
-      "description": "Owned group goals are excluded from V1 planning.",
-      "scopeMonth": "2026-08",
-      "goal": {
-        "ownedByViewer": true,
-        "isGroup": true,
-        "isDeleted": false,
-        "archivedAt": null,
-        "currentLinkRole": "none",
-        "outgoingShareCount": 0,
-        "startDate": "2026-08-01",
-        "endDate": "2026-08-31"
-      },
-      "expected": {
-        "eligible": false,
-        "reason": "group_goal"
-      }
-    },
-    {
       "id": "soft_deleted_goal",
       "description": "Soft-deleted goals are excluded.",
       "scopeMonth": "2026-08",
       "goal": {
         "ownedByViewer": true,
-        "isGroup": false,
         "isDeleted": true,
         "archivedAt": null,
         "currentLinkRole": "none",
@@ -123,7 +99,6 @@
       "scopeMonth": "2026-08",
       "goal": {
         "ownedByViewer": true,
-        "isGroup": false,
         "isDeleted": false,
         "archivedAt": "2026-08-10T15:00:00Z",
         "currentLinkRole": "none",
@@ -142,7 +117,6 @@
       "scopeMonth": "2026-08",
       "goal": {
         "ownedByViewer": true,
-        "isGroup": false,
         "isDeleted": false,
         "archivedAt": null,
         "currentLinkRole": "source",
@@ -161,7 +135,6 @@
       "scopeMonth": "2026-08",
       "goal": {
         "ownedByViewer": true,
-        "isGroup": false,
         "isDeleted": false,
         "archivedAt": null,
         "currentLinkRole": "target",
@@ -180,7 +153,6 @@
       "scopeMonth": "2026-08",
       "goal": {
         "ownedByViewer": true,
-        "isGroup": false,
         "isDeleted": false,
         "archivedAt": null,
         "currentLinkRole": "none",
@@ -199,7 +171,6 @@
       "scopeMonth": "2026-08",
       "goal": {
         "ownedByViewer": true,
-        "isGroup": false,
         "isDeleted": false,
         "archivedAt": null,
         "currentLinkRole": "none",
@@ -218,7 +189,6 @@
       "scopeMonth": "2026-08",
       "goal": {
         "ownedByViewer": true,
-        "isGroup": false,
         "isDeleted": false,
         "archivedAt": null,
         "currentLinkRole": "none",
@@ -237,7 +207,6 @@
       "scopeMonth": "2026-08",
       "goal": {
         "ownedByViewer": true,
-        "isGroup": false,
         "isDeleted": false,
         "archivedAt": null,
         "currentLinkRole": "none",

@@ -61,7 +61,6 @@ export const lifecycleOutcomeFixtureSchema = z
 const eligibilityReasonSchema = z.enum([
   "eligible",
   "not_owner",
-  "group_goal",
   "deleted",
   "archived",
   "linked",
@@ -87,7 +86,6 @@ export const eligibilityFixtureSchema = z
             goal: z
               .object({
                 ownedByViewer: z.boolean(),
-                isGroup: z.boolean(),
                 isDeleted: z.boolean(),
                 archivedAt: z.string().datetime({ offset: true }).nullable(),
                 currentLinkRole: z.enum(["none", "source", "target"]),

@@ -24,7 +24,6 @@ describe("frozen overlap eligibility fixture", () => {
 describe("overlap-v1 eligibility", () => {
   const baseGoal: EligibilityGoal = {
     ownedByViewer: true,
-    isGroup: false,
     isDeleted: false,
     archivedAt: null,
     currentLinkRole: "none",
