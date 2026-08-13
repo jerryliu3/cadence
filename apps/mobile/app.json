@@ -1,0 +1,21 @@
+{
+  "expo": {
+    "name": "Cadence Mobile",
+    "slug": "cadence-mobile",
+    "scheme": "cadence",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "plugins": ["expo-router"],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.cadence.mobile"
+    },
+    "android": {
+      "package": "com.cadence.mobile"
+    }
+  }
+}
