@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, private, extensions, pg_catalog;
-select plan(4);
+select plan(6);
 
 select is(
   private.xp_manual_completion_points(),
@@ -21,6 +21,12 @@ select is(
   'goal achievement points read from xp_point_rules'
 );
 
+select is(
+  private.xp_points_for_completion_source('linked_cascade'::public.completion_source),
+  5,
+  'cascade source floors 20 * 0.25 to 5'
+);
+
 update public.xp_point_rules
 set int_value = 30
 where key = 'manual_completion_points';
@@ -29,6 +35,12 @@ select is(
   private.xp_manual_completion_points(),
   30,
   'point rule updates are visible without a function migration'
+);
+
+select is(
+  private.xp_points_for_completion_source('linked_cascade'::public.completion_source),
+  7,
+  'cascade source floors 30 * 0.25 to 7 after a rule update'
 );
 
 select * from finish();
