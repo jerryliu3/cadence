@@ -51,7 +51,6 @@ import {
   isEntryCredited,
   isEntryImmovableForDraft,
   monthToLabel,
-  moveItemInArray,
   normalizeWeekStartsOn,
   parseMonth,
   restWeekdayOptions,
@@ -70,7 +69,10 @@ import {
   initialDraftCommandState,
   selectDraftCommandsForScope,
 } from "@/features/planner/draft-command-reducer";
+import { getDateFactDispatchForEntry as resolveDateFactDispatchForEntry } from "@/features/planner/completion-entry-dispatch";
+import { planDraftMove } from "@/features/planner/plan-draft-move";
 import { planDraftTimeOverrideUpdate } from "@/features/planner/draft-time-override";
+import { reorderPreviewEntryKeys } from "@/features/planner/reorder-preview-entries";
 import { computeDayPreviewPosition } from "@/features/planner/day-preview-popup";
 import { getGoalVisual } from "@/features/planner/goal-visuals";
 import {
@@ -100,10 +102,6 @@ import {
   invalidatePlannerRelatedTabCaches,
   PLANNER_CONTEXT_CACHE_PREFIX,
 } from "@/lib/cache/planner-tab-cache";
-import {
-  type CompletionDispatchDecision,
-  resolveCompletionDispatch,
-} from "@/lib/planner/completion-dispatch";
 import {
   draftCommandEntryKey,
   sortPlannerDraftCommands,
@@ -1156,79 +1154,26 @@ export function CalendarSurface({
       nextDate: string;
       source: "date_input" | "drag_drop";
     }) => {
-      if (entry.draftGhost) {
-        toast.error("Original-date preview markers cannot be moved directly.");
-        return false;
-      }
-      const normalized = nextDate.trim();
-      if (!isValidIsoDate(normalized)) {
-        toast.error("Pick a valid move date.");
+      const normalizedDate = nextDate.trim();
+      const planned = planDraftMove({
+        entry,
+        nextDate: normalizedDate,
+        scopeMonth: context?.scopeMonth ?? null,
+        previewUnit: previewUnitByEntryKey.get(entry.key),
+        conflictKeys: moveConflictByGoalDate.get(
+          `${entry.originalGoalId}:${normalizedDate}`
+        ),
+        completionFactConflict: (
+          completionFactUnitsByGoalDate.get(
+            `${entry.originalGoalId}:${normalizedDate}`
+          ) ?? []
+        ).find((unit) => unit.unitKey !== entry.unitKey),
+      });
+      if (!planned.ok) {
+        toast.error(planned.message);
         return false;
       }
       if (!context?.scopeMonth) {
-        return false;
-      }
-      if (isEntryImmovableForDraft(entry)) {
-        toast.error(
-          "Completed or historical sessions cannot move in preview mode. Clear completion in the saved plan first."
-        );
-        return false;
-      }
-      const baselineUnit = previewUnitByEntryKey.get(entry.key);
-      if (!baselineUnit) {
-        toast.error("This session is unavailable in the current preview.");
-        return false;
-      }
-      const moveWindow = baselineUnit?.draftMoveWindow ?? baselineUnit?.placementWindow;
-      if (!moveWindow) {
-        toast.error("This session does not have a movable placement window.");
-        return false;
-      }
-      if (
-        normalized < moveWindow.start ||
-        normalized > moveWindow.end
-      ) {
-        const creditWindowEnd = baselineUnit.creditWindow?.end ?? moveWindow.end;
-        if (normalized < moveWindow.start) {
-          toast.error(
-            `This session can only move on or after ${moveWindow.start}.`
-          );
-        } else if (normalized > creditWindowEnd) {
-          toast.error(
-            `That date is after this session's credit window end (${creditWindowEnd}), which usually reflects the goal end date or cadence period boundary.`
-          );
-        } else {
-          toast.error(
-            `That date is outside this session's allowed planner window (${moveWindow.start} to ${moveWindow.end}).`
-          );
-        }
-        return false;
-      }
-      const collisionKey = `${entry.originalGoalId}:${normalized}`;
-      const conflictKeys = moveConflictByGoalDate.get(collisionKey);
-      if (
-        conflictKeys &&
-        (conflictKeys.size > 1 || !conflictKeys.has(entry.key))
-      ) {
-        toast.error(
-          "That goal already has a planner session on the selected date."
-        );
-        return false;
-      }
-      const completionFactConflict = (
-        completionFactUnitsByGoalDate.get(collisionKey) ?? []
-      ).find((unit) => unit.unitKey !== entry.unitKey);
-      if (completionFactConflict) {
-        if (
-          completionFactConflict.scheduledDate &&
-          completionFactConflict.scheduledDate !== normalized
-        ) {
-          toast.error(
-            `That goal is already marked done on ${normalized} (credited from the ${completionFactConflict.scheduledDate} session).`
-          );
-        } else {
-          toast.error("That date already has a completion fact for this goal.");
-        }
         return false;
       }
 
@@ -1238,7 +1183,7 @@ export function CalendarSurface({
         scopeMonth,
         goalId: entry.originalGoalId,
         unitKey: entry.unitKey,
-        scheduledDate: normalized,
+        scheduledDate: planned.scheduledDate,
       });
       scheduleDraftMovePreviewRefresh();
       void source;
@@ -1404,37 +1349,17 @@ export function CalendarSurface({
       const completedKeys = entriesForDay
         .filter((entry) => isEntryCredited(entry))
         .map((entry) => entry.key);
-      const movingCompleted = completedKeys.includes(activeEntryKey);
-      const targetGroupKeys = movingCompleted ? completedKeys : incompleteKeys;
-      if (
-        !targetGroupKeys.includes(activeEntryKey) ||
-        !targetGroupKeys.includes(overEntryKey)
-      ) {
-        return;
-      }
       setPreviewEntryOrderByDay((previous) => {
-        const fallbackOrder = [...incompleteKeys, ...completedKeys];
-        const existing = previous[day] ?? fallbackOrder;
-        const normalized = [
-          ...existing.filter((entryKey) => fallbackOrder.includes(entryKey)),
-          ...fallbackOrder.filter((entryKey) => !existing.includes(entryKey)),
-        ];
-        const groupOrder = normalized.filter((entryKey) =>
-          targetGroupKeys.includes(entryKey)
-        );
-        const fromIndex = groupOrder.indexOf(activeEntryKey);
-        const toIndex = groupOrder.indexOf(overEntryKey);
-        if (fromIndex < 0 || toIndex < 0 || fromIndex === toIndex) {
+        const next = reorderPreviewEntryKeys({
+          incompleteKeys,
+          completedKeys,
+          activeEntryKey,
+          overEntryKey,
+          existingOrder: previous[day],
+        });
+        if (!next) {
           return previous;
         }
-        const nextGroupOrder = moveItemInArray(groupOrder, fromIndex, toIndex);
-        const stableIncomplete = movingCompleted
-          ? normalized.filter((entryKey) => incompleteKeys.includes(entryKey))
-          : nextGroupOrder;
-        const stableCompleted = movingCompleted
-          ? nextGroupOrder
-          : normalized.filter((entryKey) => completedKeys.includes(entryKey));
-        const next = [...stableIncomplete, ...stableCompleted];
         return {
           ...previous,
           [day]: next,
@@ -1500,60 +1425,12 @@ export function CalendarSurface({
   const getDateFactDispatchForEntry = (
     entry: PlannerDayDetailEntry,
     selectedDate: string | null = effectiveSelectedDay
-  ): {
-    currentlyCredited: boolean;
-    desiredFactState: "present" | "absent";
-    decision: CompletionDispatchDecision;
-  } | null => {
-    if (!context || !selectedDate) {
-      return null;
-    }
-
-    const requirementKind =
-      entry.activeItem?.requirement_kind ??
-      (entry.unitKey.startsWith("milestone:")
-        ? "milestone_sequence"
-        : entry.unitKey.startsWith("cadence:")
-          ? "cadence"
-          : "deadline_total");
-    // When a session is not part of an active published plan yet, we still
-    // prefer exact-date completion behavior from the calendar surface.
-    const targetedRecurring =
-      requirementKind === "deadline_total" || !entry.activeGoal;
-    const currentlyCredited =
-      entry.creditState !== "uncredited" || Boolean(entry.activeItem?.credited_completion_id);
-    const desiredFactState = currentlyCredited ? "absent" : "present";
-    const matchingItemState =
-      entry.classification === "satisfied_elsewhere"
-        ? "satisfied_elsewhere"
-        : entry.classification.startsWith("historical")
-          ? "historical"
-          : entry.activeItem
-            ? "actionable"
-            : "none";
-    const selectedDateState =
-      selectedDate < context.asOfDate
-        ? "past"
-        : selectedDate > context.asOfDate
-          ? "future"
-          : "today";
-
-    const decision = resolveCompletionDispatch({
-      requirementKind,
-      targetedRecurring,
-      activePlanMembership: Boolean(entry.activeGoal),
-      matchingItemState,
-      selectedDateState,
-      existingExactFact: currentlyCredited,
-      desiredFactState,
+  ) =>
+    resolveDateFactDispatchForEntry({
+      entry,
+      selectedDate,
+      asOfDate: context?.asOfDate ?? null,
     });
-
-    return {
-      currentlyCredited,
-      desiredFactState,
-      decision,
-    };
-  };
 
   const completionControlDisabledReasonForEntry = (
     entry: PlannerDayDetailEntry,
