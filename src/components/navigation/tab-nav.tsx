@@ -25,6 +25,7 @@ interface TabNavProps {
 export function TabNav({ mobile = false }: TabNavProps) {
   const pathname = usePathname();
   const gridClass = GRID_BY_COUNT[APP_TABS.length] ?? "grid-cols-4";
+  const currentIndex = APP_TABS.findIndex((tab) => isActive(pathname, tab.href));
 
   return (
     <nav
@@ -44,15 +45,24 @@ export function TabNav({ mobile = false }: TabNavProps) {
             : gridClass
         )}
       >
-        {APP_TABS.map((tab) => {
+        {APP_TABS.map((tab, targetIndex) => {
           const active = isActive(pathname, tab.href);
           const Icon = tab.icon;
           return (
             <li key={tab.href}>
               <Link
                 href={tab.href}
+                transitionTypes={
+                  active || currentIndex === -1
+                    ? undefined
+                    : [
+                        targetIndex > currentIndex
+                          ? "nav-forward"
+                          : "nav-back",
+                      ]
+                }
                 className={cn(
-                  "flex w-full items-center justify-center rounded-xl px-2 font-medium transition-colors",
+                  "flex w-full touch-manipulation items-center justify-center rounded-xl px-2 font-medium transition-[color,background-color,transform] duration-[var(--motion-duration-fast)] ease-[var(--motion-ease-standard)] active:scale-[0.97] motion-reduce:transform-none motion-reduce:transition-none",
                   mobile
                     ? "min-h-12 flex-col gap-1 py-1.5 text-[10px]"
                     : "min-h-14 flex-col gap-1 py-2 text-[11px]",
