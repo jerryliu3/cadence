@@ -12,6 +12,8 @@ import {
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "../../..");
 const globalsCss = readFileSync(join(repoRoot, "src/app/globals.css"), "utf8");
 
+// oklch fixtures are the CSS source of truth. If you update a fixture, re-derive
+// the matching hex in packages/shared/src/tokens.ts — this test does not pair them.
 const lightThemeOklch: Record<ThemeTokenName, string> = {
   background: "oklch(0.985 0.003 286)",
   foreground: "oklch(0.22 0.01 286)",
