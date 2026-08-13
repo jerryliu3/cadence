@@ -1,32 +1,19 @@
-import { addDays, addMonths, endOfMonth, format, getDay, parse, startOfMonth } from "date-fns";
+import { addMonths, format, parse } from "date-fns";
 import { useEffect, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import type {
+  PlannerContextPayload,
+  PlannerWorkUnit,
+} from "@cadence/shared/planner/context";
 import { api } from "../../lib/api";
 import { useSession } from "../../lib/session";
-import {
-  createMobilePlannerContextLoader,
-  type MobilePlannerContext,
-  type MobilePlannerWorkUnit,
-} from "./planner-context-loader";
+import { createMobilePlannerContextLoader } from "./planner-context-loader";
 
-export type { MobilePlannerContext, MobilePlannerWorkUnit };
+export type MobilePlannerContext = PlannerContextPayload;
+export type MobilePlannerWorkUnit = PlannerWorkUnit;
 
 function parseMonth(month: string) {
   return parse(`${month}-01`, "yyyy-MM-dd", new Date());
-}
-
-export function buildMonthCells(month: string, weekStartsOn = 1) {
-  const monthStart = startOfMonth(parseMonth(month));
-  const monthEnd = endOfMonth(monthStart);
-  const startOffset = (getDay(monthStart) - weekStartsOn + 7) % 7;
-  const gridStart = addDays(monthStart, -startOffset);
-  return Array.from({ length: 42 }, (_, index) => {
-    const date = addDays(gridStart, index);
-    return {
-      date: format(date, "yyyy-MM-dd"),
-      inMonth: date >= monthStart && date <= monthEnd,
-    };
-  });
 }
 
 export function usePlannerContext(month: string | null) {

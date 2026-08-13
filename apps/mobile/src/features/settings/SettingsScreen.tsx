@@ -5,7 +5,7 @@ import { Text, TextInput } from "react-native";
 import { supabase } from "../../lib/supabase";
 import { registerNativePush, subscribeNotificationOpens } from "../../lib/push";
 import { useSession } from "../../lib/session";
-import { getMobileTheme } from "../../theme";
+import { useTheme } from "../../theme";
 import { PrimaryButton } from "../../ui/button";
 import { Screen } from "../../ui/screen";
 
@@ -18,7 +18,7 @@ interface NotificationSchedule {
 }
 
 export function SettingsScreen() {
-  const theme = getMobileTheme();
+  const theme = useTheme();
   const { session, userId } = useSession();
   const queryClient = useQueryClient();
   const [hour, setHour] = useState("18");

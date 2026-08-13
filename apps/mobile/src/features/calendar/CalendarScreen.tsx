@@ -13,9 +13,12 @@ import {
   unitEntryKey,
 } from "@cadence/shared/planner/reorder-preview-entries";
 import { getApiErrorMessage } from "@cadence/shared/api-client";
+import { normalizeWeekStartsOn } from "@cadence/shared/dates/week-start";
+import { buildMonthCells } from "@cadence/shared/planner/month-cells";
+import type { PlannerWorkUnit } from "@cadence/shared/planner/context";
 import { api } from "../../lib/api";
 import { useCalendarStore } from "../../store/calendar-state";
-import { getMobileTheme } from "../../theme";
+import { useTheme } from "../../theme";
 import { PrimaryButton } from "../../ui/button";
 import { LoadingScreen, Screen } from "../../ui/screen";
 import { CoachPanel } from "./CoachPanel";
@@ -34,12 +37,7 @@ import {
   previewMobilePlannerDraft,
   publishMobilePlannerDraft,
 } from "./mobile-planner-draft";
-import {
-  buildMonthCells,
-  shiftMonth,
-  usePlannerContext,
-  type MobilePlannerWorkUnit,
-} from "./use-planner-context";
+import { shiftMonth, usePlannerContext } from "./use-planner-context";
 
 const VIEW_MODES = ["month", "week", "three_day", "day"] as const;
 
@@ -67,12 +65,15 @@ function MeasureableDay({
 }
 
 export function CalendarScreen() {
-  const theme = getMobileTheme();
+  const theme = useTheme();
   const { month, day, viewMode, apply } = useCalendarStore();
   const scopeMonth = month ?? format(new Date(), "yyyy-MM");
   const selectedDay = day ?? `${scopeMonth}-01`;
   const planner = usePlannerContext(scopeMonth);
-  const [moveUnit, setMoveUnit] = useState<MobilePlannerWorkUnit | null>(null);
+  const weekStartsOn = normalizeWeekStartsOn(
+    planner.data?.preferences?.defaultPolicy.weekStartsOn
+  );
+  const [moveUnit, setMoveUnit] = useState<PlannerWorkUnit | null>(null);
   const [moveDate, setMoveDate] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -85,7 +86,7 @@ export function CalendarScreen() {
     draft.preview?.solver?.confirmationRequired === true;
 
   const unitsByDate = useMemo(() => {
-    const map = new Map<string, MobilePlannerWorkUnit[]>();
+    const map = new Map<string, PlannerWorkUnit[]>();
     for (const unit of effectivePreview?.workUnits ?? []) {
       if (!unit.scheduledDate) {
         continue;
@@ -102,7 +103,7 @@ export function CalendarScreen() {
       const byKey = new Map(units.map((unit) => [unitEntryKey(unit), unit]));
       const ordered = order
         .map((key) => byKey.get(key))
-        .filter((unit): unit is MobilePlannerWorkUnit => Boolean(unit));
+        .filter((unit): unit is PlannerWorkUnit => Boolean(unit));
       const remaining = units.filter(
         (unit) => !order.includes(unitEntryKey(unit))
       );
@@ -121,20 +122,20 @@ export function CalendarScreen() {
     }
     if (viewMode === "week") {
       const start = parseISO(selectedDay);
-      const mondayOffset = (start.getDay() + 6) % 7;
-      const weekStart = addDays(start, -mondayOffset);
+      const weekStartOffset = (start.getDay() - weekStartsOn + 7) % 7;
+      const weekStart = addDays(start, -weekStartOffset);
       return Array.from({ length: 7 }, (_, index) =>
         format(addDays(weekStart, index), "yyyy-MM-dd")
       );
     }
-    return buildMonthCells(scopeMonth)
+    return buildMonthCells(scopeMonth, weekStartsOn)
       .filter((cell) => cell.inMonth)
       .map((cell) => cell.date);
-  }, [scopeMonth, selectedDay, viewMode]);
+  }, [scopeMonth, selectedDay, viewMode, weekStartsOn]);
 
   const digest = planner.data?.revisions.scheduleDigest ?? null;
 
-  const applyMove = async (unit: MobilePlannerWorkUnit, nextDate: string) => {
+  const applyMove = async (unit: PlannerWorkUnit, nextDate: string) => {
     if (!planner.data) {
       return;
     }
@@ -185,7 +186,7 @@ export function CalendarScreen() {
     x,
     y,
   }: {
-    unit: MobilePlannerWorkUnit;
+    unit: PlannerWorkUnit;
     sourceDay: string;
     x: number;
     y: number;
@@ -231,7 +232,7 @@ export function CalendarScreen() {
     return <LoadingScreen />;
   }
 
-  const sessionLabel = (unit: MobilePlannerWorkUnit) =>
+  const sessionLabel = (unit: PlannerWorkUnit) =>
     planner.data?.goalTitles[unit.originalGoalId] ?? unit.label ?? unit.unitKey;
 
   return (
@@ -261,7 +262,7 @@ export function CalendarScreen() {
       </View>
       {viewMode === "month" ? (
         <View style={styles.grid}>
-          {buildMonthCells(scopeMonth).map((cell) => (
+          {buildMonthCells(scopeMonth, weekStartsOn).map((cell) => (
             <MeasureableDay
               key={cell.date}
               onRect={(rect) => {

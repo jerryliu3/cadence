@@ -8,10 +8,10 @@ import Animated, {
   withSpring,
 } from "react-native-reanimated";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import { getMobileTheme } from "../../theme";
+import { useTheme } from "../../theme";
 import type { LayoutRect } from "./drop-targets";
 import { measureNodeInWindow } from "./drop-targets";
-import type { MobilePlannerWorkUnit } from "./use-planner-context";
+import type { PlannerWorkUnit } from "@cadence/shared/planner/context";
 
 const TOUCH_PRESS_TO_DRAG_DELAY_MS = 180;
 
@@ -23,19 +23,19 @@ export function DraggableSession({
   onDrop,
   onLayoutWindow,
 }: {
-  unit: MobilePlannerWorkUnit;
+  unit: PlannerWorkUnit;
   day: string;
   label: string;
   onPress: () => void;
   onDrop: (input: {
-    unit: MobilePlannerWorkUnit;
+    unit: PlannerWorkUnit;
     sourceDay: string;
     x: number;
     y: number;
   }) => void;
   onLayoutWindow: (entryKey: string, day: string, rect: LayoutRect) => void;
 }) {
-  const theme = getMobileTheme();
+  const theme = useTheme();
   const viewRef = useRef<View>(null);
   const translateX = useSharedValue(0);
   const translateY = useSharedValue(0);

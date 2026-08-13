@@ -3,13 +3,13 @@ import { useState } from "react";
 import { StyleSheet, Text, TextInput, View } from "react-native";
 import { supabase } from "../../src/lib/supabase";
 import { useSession } from "../../src/lib/session";
-import { getMobileTheme } from "../../src/theme";
+import { useTheme } from "../../src/theme";
 import { PrimaryButton } from "../../src/ui/button";
 import { Screen } from "../../src/ui/screen";
 
 export default function LoginScreen() {
   const { session, ready } = useSession();
-  const theme = getMobileTheme();
+  const theme = useTheme();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);

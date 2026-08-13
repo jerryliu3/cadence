@@ -1,8 +1,11 @@
+import type {
+  PlannerPolicySnapshot,
+  PlannerWorkUnit,
+} from "@cadence/shared/planner/context";
 import {
   upsertMobilePlannerDraftMove,
   type MobilePlannerDraftState,
 } from "./mobile-planner-draft";
-import type { MobilePlannerWorkUnit } from "./planner-context-loader";
 
 export type CoachPolicyPatch =
   | { kind: "set_rest_weekdays"; restWeekdays: number[] }
@@ -15,23 +18,16 @@ export type CoachPolicyPatch =
       scheduledDate: string;
     };
 
-export interface MobilePlannerPolicy {
-  schemaVersion?: "1";
-  timezone?: string;
-  timezoneConfirmedAt?: string;
-  weekStartsOn?: number;
-  restWeekdays: number[];
-  blackoutRanges: Array<{ start: string; end: string }>;
-}
+export type MobilePlannerPolicy = PlannerPolicySnapshot;
 
 export function applyCoachPolicyPatches({
   policy,
   patches,
 }: {
-  policy: MobilePlannerPolicy;
+  policy: PlannerPolicySnapshot;
   patches: CoachPolicyPatch[];
-}): { policy: MobilePlannerPolicy; appliedPatchCount: number } {
-  const nextPolicy: MobilePlannerPolicy = {
+}): { policy: PlannerPolicySnapshot; appliedPatchCount: number } {
+  const nextPolicy: PlannerPolicySnapshot = {
     ...policy,
     restWeekdays: [...(policy.restWeekdays ?? [])],
     blackoutRanges: [...(policy.blackoutRanges ?? [])],
@@ -79,7 +75,7 @@ export function applyCoachPatchesToMobileDraft({
 }: {
   state: MobilePlannerDraftState;
   policy: MobilePlannerPolicy;
-  workUnits: MobilePlannerWorkUnit[];
+  workUnits: PlannerWorkUnit[];
   patches: CoachPolicyPatch[];
 }) {
   const policyResult = applyCoachPolicyPatches({ policy, patches });

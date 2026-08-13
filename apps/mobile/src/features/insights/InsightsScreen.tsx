@@ -5,7 +5,7 @@ import { useMemo, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import Svg, { Rect } from "react-native-svg";
 import { api } from "../../lib/api";
-import { getMobileTheme } from "../../theme";
+import { useTheme } from "../../theme";
 import { LoadingScreen, Screen } from "../../ui/screen";
 
 interface ProgressContextResponse {
@@ -17,7 +17,7 @@ function timezoneName() {
 }
 
 export function InsightsScreen() {
-  const theme = getMobileTheme();
+  const theme = useTheme();
   const [month, setMonth] = useState(format(new Date(), "yyyy-MM"));
   const monthDate = useMemo(() => new Date(`${month}-01T00:00:00`), [month]);
   const factsFrom = format(startOfMonth(monthDate), "yyyy-MM-dd");

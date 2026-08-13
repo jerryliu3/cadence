@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { getApiErrorMessage } from "@cadence/shared/api-client";
 import { api } from "../../lib/api";
-import { getMobileTheme } from "../../theme";
+import { useTheme } from "../../theme";
 import { PrimaryButton } from "../../ui/button";
 import {
   type CoachPolicyPatch,
@@ -12,7 +12,7 @@ import {
   buildMobileCoachRequest,
 } from "./mobile-coach";
 import type { MobilePlannerDraftState } from "./mobile-planner-draft";
-import type { MobilePlannerContext } from "./use-planner-context";
+import type { PlannerContextPayload } from "@cadence/shared/planner/context";
 
 interface CoachMessage {
   role: "user" | "assistant";
@@ -40,12 +40,12 @@ export function CoachPanel({
   draft,
   onDraftChange,
 }: {
-  context: MobilePlannerContext;
+  context: PlannerContextPayload;
   currentMonth: string;
   draft: MobilePlannerDraftState;
   onDraftChange: (state: MobilePlannerDraftState) => void;
 }) {
-  const theme = getMobileTheme();
+  const theme = useTheme();
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<CoachMessage[]>([]);
   const [busy, setBusy] = useState(false);

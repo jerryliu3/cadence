@@ -1,15 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
+import type { FeatureFlags } from "@cadence/shared/feature-flags";
 import Constants from "expo-constants";
 import { api } from "./api";
 import { isAppVersionBelowFloor } from "./version";
 
 export interface MobileRuntimeConfig {
   schemaVersion: "1";
-  flags: {
-    crossMonthMovesEnabled: boolean;
-    xpEnabled: boolean;
-    socialEnabled: boolean;
-  };
+  flags: FeatureFlags;
   minSupportedAppVersion: string | null;
   correlationId: string;
 }

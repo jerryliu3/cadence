@@ -8,7 +8,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { createClientUuid } from "@cadence/shared/ids";
 import { supabase } from "../../lib/supabase";
 import { useSession } from "../../lib/session";
-import { getMobileTheme } from "../../theme";
+import { useTheme } from "../../theme";
 import { PrimaryButton } from "../../ui/button";
 import { Screen } from "../../ui/screen";
 
@@ -58,7 +58,7 @@ async function uploadGoalPhoto({
 }
 
 export function GoalFormScreen({ goalId }: { goalId?: string }) {
-  const theme = getMobileTheme();
+  const theme = useTheme();
   const { userId } = useSession();
   const queryClient = useQueryClient();
   const [title, setTitle] = useState("");

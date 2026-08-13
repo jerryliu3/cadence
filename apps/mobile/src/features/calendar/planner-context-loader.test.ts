@@ -5,14 +5,21 @@ import {
 } from "./planner-context-loader";
 
 const context = {
+  schemaVersion: "1" as const,
   scopeMonth: "2026-08",
   asOfDate: "2026-08-14",
   timezone: "America/New_York",
   goalTitles: {},
+  capabilities: { crossMonthMovesEnabled: true },
   preview: null,
   activePlan: null,
-  revisions: { scheduleDigest: null },
+  revisions: {
+    canonicalRevision: 1,
+    executionRevision: 1,
+    scheduleDigest: null,
+  },
   preferences: null,
+  staleness: { stale: false, reasons: [] },
   unplaceableGoals: [],
 } satisfies MobilePlannerContext;
 

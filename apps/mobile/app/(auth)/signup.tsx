@@ -2,12 +2,12 @@ import { Link, router } from "expo-router";
 import { useState } from "react";
 import { StyleSheet, Text, TextInput } from "react-native";
 import { supabase } from "../../src/lib/supabase";
-import { getMobileTheme } from "../../src/theme";
+import { useTheme } from "../../src/theme";
 import { PrimaryButton } from "../../src/ui/button";
 import { Screen } from "../../src/ui/screen";
 
 export default function SignupScreen() {
-  const theme = getMobileTheme();
+  const theme = useTheme();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
