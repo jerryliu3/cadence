@@ -78,6 +78,7 @@ export function usePartnerCompletionOverlay({
             titles,
           })
         );
+        setMarkersPartnerId(partnerId);
         setError(null);
       } catch (caught) {
         if (cancelled || isProgressContextAuthenticationError(caught)) {
