@@ -7,7 +7,9 @@
     ".": "./src/index.ts",
     "./api-client": "./src/api-client/index.ts",
     "./async/abort": "./src/async/abort.ts",
-    "./supabase/database.types": "./src/supabase/database.types.ts"
+    "./navigation/tabs": "./src/navigation/tabs.ts",
+    "./supabase/database.types": "./src/supabase/database.types.ts",
+    "./tokens": "./src/tokens.ts"
   },
   "dependencies": {
     "zod": "^4.4.3"
