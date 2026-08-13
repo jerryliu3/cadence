@@ -34,7 +34,6 @@ export function XpLevelBadge() {
   const profileRef = useRef<XpProfileResponse["profile"] | null>(null);
   const targetRef = useRef<HTMLDivElement>(null);
   const loadRequestIdRef = useRef(0);
-  const inFlightLoadRef = useRef<Promise<void> | null>(null);
   const displayedAwardIdsRef = useRef(new Set<string>());
   const acknowledgedAwardIdsRef = useRef(new Set<string>());
   const inFlightAwardIdsRef = useRef(new Set<string>());
@@ -56,97 +55,82 @@ export function XpLevelBadge() {
   }, []);
 
   const loadProfile = useCallback(async (request?: XpRefreshRequestDetail | null) => {
-    const run = async () => {
-      const requestId = loadRequestIdRef.current + 1;
-      loadRequestIdRef.current = requestId;
-      try {
-        const response = await fetch("/api/xp/profile", {
-          method: "GET",
-          headers: {
-            "Cache-Control": "no-store",
-          },
-        });
-        if (!response.ok) {
-          return;
-        }
-
-        const payload = (await response.json()) as XpProfileResponse;
-        if (requestId !== loadRequestIdRef.current) {
-          return;
-        }
-        const previousProfile = profileRef.current;
-        profileRef.current = payload.profile;
-        setProfile(payload.profile);
-
-        const xpIncreased =
-          previousProfile !== null &&
-          payload.profile.totalXp > previousProfile.totalXp &&
-          request?.desiredFactState === "present";
-        if (xpIncreased) {
-          const target = targetRef.current;
-          if (target && request.sourceRect) {
-            celebrate({
-              sourceRect: request.sourceRect,
-              targetRect: captureViewportRect(target),
-            });
-          }
-          setRewardSequence((current) => current + 1);
-        }
-
-        for (const award of payload.pendingAwards ?? []) {
-          if (
-            acknowledgedAwardIdsRef.current.has(award.awardId) ||
-            inFlightAwardIdsRef.current.has(award.awardId)
-          ) {
-            continue;
-          }
-
-          const hasBeenDisplayed = displayedAwardIdsRef.current.has(award.awardId);
-          if (!hasBeenDisplayed) {
-            displayedAwardIdsRef.current.add(award.awardId);
-            toast.success(`${award.title}`, {
-              description: award.description,
-            });
-          }
-
-          inFlightAwardIdsRef.current.add(award.awardId);
-          const acknowledged = await acknowledgeAward(award.awardId);
-          inFlightAwardIdsRef.current.delete(award.awardId);
-          if (acknowledged) {
-            acknowledgedAwardIdsRef.current.add(award.awardId);
-          }
-        }
-      } catch {
-        // Intentionally swallowed: XP is supplementary chrome.
-      }
-    };
-
-    const promise = run();
-    inFlightLoadRef.current = promise;
+    const requestId = loadRequestIdRef.current + 1;
+    loadRequestIdRef.current = requestId;
     try {
-      await promise;
-    } finally {
-      if (inFlightLoadRef.current === promise) {
-        inFlightLoadRef.current = null;
+      const response = await fetch("/api/xp/profile", {
+        method: "GET",
+        headers: {
+          "Cache-Control": "no-store",
+        },
+      });
+      if (!response.ok) {
+        return;
       }
+
+      const payload = (await response.json()) as XpProfileResponse;
+      if (requestId !== loadRequestIdRef.current) {
+        return;
+      }
+      const previousProfile = profileRef.current;
+      profileRef.current = payload.profile;
+      setProfile(payload.profile);
+
+      const xpIncreased =
+        previousProfile !== null &&
+        payload.profile.totalXp > previousProfile.totalXp &&
+        request?.desiredFactState === "present";
+      if (xpIncreased) {
+        const target = targetRef.current;
+        if (target && request.sourceRect) {
+          celebrate({
+            sourceRect: request.sourceRect,
+            targetRect: captureViewportRect(target),
+          });
+        }
+        setRewardSequence((current) => current + 1);
+      }
+
+      for (const award of payload.pendingAwards ?? []) {
+        if (
+          acknowledgedAwardIdsRef.current.has(award.awardId) ||
+          inFlightAwardIdsRef.current.has(award.awardId)
+        ) {
+          continue;
+        }
+
+        const hasBeenDisplayed = displayedAwardIdsRef.current.has(award.awardId);
+        if (!hasBeenDisplayed) {
+          displayedAwardIdsRef.current.add(award.awardId);
+          toast.success(`${award.title}`, {
+            description: award.description,
+          });
+        }
+
+        inFlightAwardIdsRef.current.add(award.awardId);
+        const acknowledged = await acknowledgeAward(award.awardId);
+        inFlightAwardIdsRef.current.delete(award.awardId);
+        if (acknowledged) {
+          acknowledgedAwardIdsRef.current.add(award.awardId);
+        }
+      }
+    } catch {
+      // Intentionally swallowed: XP is supplementary chrome.
     }
   }, [acknowledgeAward, celebrate]);
 
   useEffect(() => {
-    void loadProfile();
+    const timeoutId = window.setTimeout(() => {
+      void loadProfile();
+    }, 0);
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
   }, [loadProfile]);
 
   useEffect(() => {
     const onRefreshRequested = (event: Event) => {
-      const detail = getXpRefreshRequestDetail(event);
-      void (async () => {
-        if (inFlightLoadRef.current) {
-          await inFlightLoadRef.current;
-        } else if (profileRef.current === null) {
-          await loadProfile();
-        }
-        await loadProfile(detail);
-      })();
+      void loadProfile(getXpRefreshRequestDetail(event));
     };
     window.addEventListener(XP_REFRESH_REQUESTED_EVENT, onRefreshRequested);
     return () => {
