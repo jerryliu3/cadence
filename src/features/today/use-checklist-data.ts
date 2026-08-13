@@ -1,0 +1,312 @@
+"use client";
+
+import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
+import { buildLoginHref } from "@/lib/auth/login-redirect";
+import { isAbortError, withAbortSignal } from "@/lib/async/abort";
+import { toLocalDateString } from "@/lib/dates/day";
+import {
+  fetchProgressContext,
+  isProgressContextAuthenticationError,
+  type ProgressContextResponse,
+} from "@/lib/goals/progress-context";
+import type {
+  CompletionDateFact,
+  Goal,
+  GoalLink,
+} from "@/lib/goals/types";
+import { createClient } from "@/lib/supabase/client";
+import { progressSubjectUserId, selectViewerVisibleGoals } from "@/lib/goals/visible-goals";
+import { useDuo } from "@/features/social/duo/duo-context";
+
+export interface TodayData {
+  userId: string;
+  goals: Goal[];
+  completions: CompletionDateFact[];
+  memberTeamIds: string[];
+  links: GoalLink[];
+  photoUrls: Record<string, string>;
+  progress: ProgressContextResponse | null;
+}
+
+export const emptyTodayData: TodayData = {
+  userId: "",
+  goals: [],
+  completions: [],
+  memberTeamIds: [],
+  links: [],
+  photoUrls: {},
+  progress: null,
+};
+
+const TODAY_REQUEST_TIMEOUT_MS = 15_000;
+
+export function useChecklistData({
+  subjectUserId,
+  isActive,
+  refreshToken,
+  viewDate,
+}: {
+  subjectUserId?: string;
+  isActive: boolean;
+  refreshToken: number;
+  viewDate: string;
+}) {
+  const supabase = useMemo(() => createClient(), []);
+  const { state: duoState } = useDuo();
+  const duoPartnerId = duoState.activePartner?.partnerId ?? null;
+  const router = useRouter();
+  const [data, setData] = useState<TodayData>(emptyTodayData);
+  const [loading, setLoading] = useState(true);
+  const loadRequestIdRef = useRef(0);
+  const viewDateProgressRequestIdRef = useRef(0);
+  const visibleLoadCountRef = useRef(0);
+  const refreshTokenRef = useRef(refreshToken);
+  const pendingRefreshRef = useRef(false);
+  const authRedirectStartedRef = useRef(false);
+  const currentViewDateRef = useRef(viewDate);
+  const previousViewDateRef = useRef(viewDate);
+  const todayLocalDate = toLocalDateString();
+
+  useEffect(() => {
+    currentViewDateRef.current = viewDate;
+  }, [viewDate]);
+
+  const redirectToLogin = useCallback(() => {
+    if (authRedirectStartedRef.current) {
+      return;
+    }
+    authRedirectStartedRef.current = true;
+    const nextPath =
+      typeof window === "undefined"
+        ? "/"
+        : `${window.location.pathname}${window.location.search}`;
+    router.replace(buildLoginHref(nextPath));
+  }, [router]);
+
+  const reportLoadError = useCallback((error: unknown) => {
+    if (isProgressContextAuthenticationError(error)) {
+      redirectToLogin();
+      return;
+    }
+    toast.error(
+      isAbortError(error)
+        ? "Today goals request timed out. Please try again."
+        : error instanceof Error
+          ? error.message
+          : "Goal progress could not be loaded."
+    );
+  }, [redirectToLogin]);
+
+  const loadData = useCallback(
+    async (
+      {
+        showLoading = true,
+        forceRefresh = false,
+      }: { showLoading?: boolean; forceRefresh?: boolean } = {}
+    ) => {
+      const requestId = loadRequestIdRef.current + 1;
+      loadRequestIdRef.current = requestId;
+      if (showLoading) {
+        visibleLoadCountRef.current += 1;
+        setLoading(true);
+      }
+      const controller = new AbortController();
+      const timeoutId = window.setTimeout(
+        () => controller.abort(),
+        TODAY_REQUEST_TIMEOUT_MS
+      );
+      try {
+        const {
+          data: { user },
+          error: userError,
+        } = await withAbortSignal(supabase.auth.getUser(), controller.signal);
+
+        if (requestId !== loadRequestIdRef.current) {
+          return;
+        }
+
+        if (userError || !user) {
+          setData(emptyTodayData);
+          redirectToLogin();
+          return;
+        }
+
+        const targetSubjectUserId = subjectUserId ?? user.id;
+        const targetIsViewer = targetSubjectUserId === user.id;
+        const [goalsResponse, teamMembersResponse, linksResponse, progress] =
+          await withAbortSignal(
+            Promise.all([
+              (() => {
+                let query = supabase
+                  .from("goals")
+                  .select("*")
+                  .eq("is_deleted", false)
+                  .order("created_at", { ascending: false });
+                if (!targetIsViewer) {
+                  query = query.eq("owner_id", targetSubjectUserId);
+                }
+                return query;
+              })(),
+              targetIsViewer
+                ? supabase.from("team_members").select("team_id").eq("user_id", user.id)
+                : Promise.resolve({ data: [], error: null }),
+              targetIsViewer
+                ? supabase.from("goal_links").select("*").eq("owner_id", user.id)
+                : Promise.resolve({ data: [], error: null }),
+              fetchProgressContext({
+                asOfDate: todayLocalDate,
+                viewDate: currentViewDateRef.current,
+                subjectUserId: progressSubjectUserId({
+                  targetIsViewer,
+                  targetSubjectUserId,
+                }),
+                forceRefresh,
+              }),
+            ]),
+            controller.signal
+          );
+
+        const goals = (goalsResponse.data ?? []) as Goal[];
+        const completions = progress.facts;
+        const memberTeamIds = ((teamMembersResponse.data ?? []) as Array<{
+          team_id: string;
+        }>).map((row) => row.team_id);
+        const visibleGoals = targetIsViewer
+          ? selectViewerVisibleGoals({ goals, partnerId: duoPartnerId })
+          : goals;
+        const links = (linksResponse.data ?? []) as GoalLink[];
+
+        const photoUrls: Record<string, string> = {};
+        await withAbortSignal(
+          Promise.all(
+            visibleGoals
+              .filter((goal) => goal.photo_path)
+              .map(async (goal) => {
+                if (!goal.photo_path) {
+                  return;
+                }
+                const { data: signedData } = await supabase.storage
+                  .from("goal-photos")
+                  .createSignedUrl(goal.photo_path, 60 * 60);
+                if (signedData?.signedUrl) {
+                  photoUrls[goal.id] = signedData.signedUrl;
+                }
+              })
+          ),
+          controller.signal
+        );
+
+        if (requestId !== loadRequestIdRef.current) {
+          return;
+        }
+
+        setData({
+          userId: targetSubjectUserId,
+          goals: visibleGoals,
+          completions,
+          memberTeamIds,
+          links,
+          photoUrls,
+          progress,
+        });
+      } finally {
+        window.clearTimeout(timeoutId);
+        if (showLoading) {
+          visibleLoadCountRef.current = Math.max(visibleLoadCountRef.current - 1, 0);
+          if (visibleLoadCountRef.current === 0) {
+            setLoading(false);
+          }
+        }
+      }
+    },
+    [duoPartnerId, redirectToLogin, subjectUserId, supabase, todayLocalDate]
+  );
+
+  useEffect(() => {
+    const run = async () => {
+      try {
+        await loadData();
+      } catch (error) {
+        reportLoadError(error);
+      }
+    };
+
+    void run();
+  }, [loadData, reportLoadError]);
+
+  useEffect(() => {
+    if (!isActive || previousViewDateRef.current === viewDate) {
+      return;
+    }
+    previousViewDateRef.current = viewDate;
+    const requestId = viewDateProgressRequestIdRef.current + 1;
+    viewDateProgressRequestIdRef.current = requestId;
+    const timer = window.setTimeout(() => {
+      void fetchProgressContext({
+        asOfDate: todayLocalDate,
+        viewDate,
+        subjectUserId,
+      })
+        .then((progress) => {
+          if (requestId !== viewDateProgressRequestIdRef.current) {
+            return;
+          }
+          setData((previous) => ({
+            ...previous,
+            completions: progress.facts,
+            progress,
+          }));
+        })
+        .catch((error: unknown) => {
+          reportLoadError(error);
+        });
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [isActive, reportLoadError, subjectUserId, todayLocalDate, viewDate]);
+
+  useEffect(() => {
+    if (refreshToken === refreshTokenRef.current) {
+      return;
+    }
+
+    refreshTokenRef.current = refreshToken;
+    if (isActive) {
+      const timer = window.setTimeout(() => {
+        void loadData({ showLoading: false, forceRefresh: true }).catch(
+          (error: unknown) => {
+            reportLoadError(error);
+          }
+        );
+      }, 0);
+      pendingRefreshRef.current = false;
+      return () => window.clearTimeout(timer);
+    }
+
+    pendingRefreshRef.current = true;
+  }, [isActive, loadData, refreshToken, reportLoadError]);
+
+  useEffect(() => {
+    if (!isActive || !pendingRefreshRef.current) {
+      return;
+    }
+    pendingRefreshRef.current = false;
+    const timer = window.setTimeout(() => {
+      void loadData({ showLoading: false, forceRefresh: true }).catch(
+        (error: unknown) => {
+          reportLoadError(error);
+        }
+      );
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [isActive, loadData, reportLoadError]);
+
+  return {
+    data,
+    loading,
+    loadData,
+    redirectToLogin,
+    todayLocalDate,
+  };
+}
