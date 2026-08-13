@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Text } from "react-native";
 import { api } from "../../lib/api";
 import { useForceUpgradeRequired } from "../../lib/runtime-config";
-import { getMobileTheme } from "../../theme";
+import { useTheme } from "../../theme";
 import { LoadingScreen, Screen } from "../../ui/screen";
 
 interface SocialFeedResponse {
@@ -11,7 +11,7 @@ interface SocialFeedResponse {
 }
 
 export function SocialScreen() {
-  const theme = getMobileTheme();
+  const theme = useTheme();
   const { flags } = useForceUpgradeRequired();
   const enabled = flags?.socialEnabled ?? false;
   const query = useQuery({

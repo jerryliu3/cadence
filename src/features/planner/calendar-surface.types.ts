@@ -1,151 +1,31 @@
 import type { CoachPolicyPatch } from "@/lib/planner/coach";
-import type { PlannerEligibilityMode } from "@/lib/planner/contracts/bounds";
 import type { PlannerDraftVisualKind } from "@/lib/planner/diff";
-import type { EligibilityReason } from "@/lib/planner/eligibility";
 import type { PlannerPolicy } from "@/lib/planner/policy";
+import type {
+  PlannerActiveGoalSnapshot,
+  PlannerActiveItemSnapshot,
+  PlannerCompletionFactMarker,
+} from "@cadence/shared/planner/context";
+import type {
+  PlannerCalendarViewMode,
+  PlannerShellTab,
+} from "@cadence/shared/planner/calendar-state";
 
-export type CalendarTab = "today" | "not-today" | "calendar";
-export type PlannerCalendarViewMode = "month" | "week" | "three_day" | "day";
-
-export interface PlannerContextPayload {
-  schemaVersion: "1";
-  scopeMonth: string;
-  asOfDate: string;
-  timezone: string;
-  goalTitles: Record<string, string>;
-  preferences: {
-    timezone: string;
-    timezoneConfirmedAt: string;
-    policyRevision: number;
-    defaultPolicy: PlannerPolicy;
-  } | null;
-  capabilities: {
-    crossMonthMovesEnabled: boolean;
-  };
-  activePlan: {
-    plan: {
-      id: string;
-      version: number;
-      status: "active" | "superseded" | "dismissed";
-    };
-    goals: PlannerActiveGoalSnapshot[];
-    items: PlannerActiveItemSnapshot[];
-  } | null;
-  preview: {
-    eligibilityMode: PlannerEligibilityMode;
-    preserveExistingAssignments: boolean;
-    generationInputHash: string;
-    solver: {
-      placementStatus: "complete" | "partial";
-      searchStatus:
-        | "all_units_placed"
-        | "maximum_partial"
-        | "blocked_invalid_lock";
-      capacityStatus: "unverified";
-      issueCodes: string[];
-      invalidGoalIds: string[];
-      publishable: boolean;
-      confirmationRequired: boolean;
-    };
-    workUnits: PlannerWorkUnit[];
-    eligibility?: Array<{
-      goalId: string;
-      eligible: boolean;
-      reason: EligibilityReason;
-    }>;
-    horizonSummary?: PlannerGoalHorizonSummary[];
-  } | null;
-  revisions: {
-    canonicalRevision: number;
-    executionRevision: number;
-    scheduleDigest?: string | null;
-  };
-  staleness: {
-    stale: boolean;
-    reasons: Array<{ code: string }>;
-  };
-  unplaceableGoals?: Array<{
-    goalId: string;
-    requirementFingerprint: string;
-    policyRevision: number;
-    lockSignature: string;
-    effectiveSpanEnd: string;
-    unplacedCount: number;
-    reason: "capacity" | "invalid_lock";
-    computedAt?: string;
-  }>;
-}
-
-export interface PlannerWorkUnit {
-  originalGoalId: string;
-  requirementFingerprint?: string;
-  unitKey: string;
-  kind?: "milestone_sequence" | "cadence" | "deadline_total";
-  label: string | null;
-  scheduledDate: string | null;
-  creditWindow?: {
-    start: string;
-    end: string;
-  };
-  placementWindow?: {
-    start: string;
-    end: string;
-  } | null;
-  draftMoveWindow?: {
-    start: string;
-    end: string;
-  } | null;
-  restEligible?: boolean;
-  missPolicy?: "roll_forward" | "remain_missed";
-  classification: string;
-  creditState: string;
-  creditedCompletionDate?: string | null;
-  goalDefaultLocalTime?: string | null;
-  scheduledTimeOverride?: string | null;
-  effectiveScheduledLocalTime?: string | null;
-  effectiveScheduledAtLocal?: string | null;
-  locked?: boolean;
-}
-
-export interface PlannerGoalHorizonSummary {
-  goalId: string;
-  kind: "milestone_sequence" | "deadline_total";
-  totalCount: number;
-  creditedCount: number;
-  remainingCount: number;
-  windowPlannedCount: number;
-  months: Array<{
-    month: string;
-    plannedCount: number;
-  }>;
-}
-
-export interface PlannerActiveGoalSnapshot {
-  id: string;
-  goal_id: string | null;
-  original_goal_id: string;
-  requirement_fingerprint: string;
-  title: string;
-  category: string;
-  color: string | null;
-}
-
-export interface PlannerActiveItemSnapshot {
-  id: string;
-  plan_goal_id: string;
-  unit_key: string;
-  requirement_kind: "milestone_sequence" | "cadence" | "deadline_total";
-  scheduled_date: string | null;
-  original_scheduled_date?: string | null;
-  classification: string;
-  credit_state: string;
-  locked: boolean;
-  revision: number;
-  credited_completion_id: string | null;
-  credited_completion_date: string | null;
-  scheduled_time_override?: string | null;
-  effective_scheduled_local_time?: string | null;
-}
+export type {
+  DraftItemEdit,
+  PlannerActiveGoalSnapshot,
+  PlannerActiveItemSnapshot,
+  PlannerCompletionFactMarker,
+  PlannerContextPayload,
+  PlannerErrorPayload,
+  PlannerGoalHorizonSummary,
+  PlannerPreferencesPayload,
+  PlannerPreviewResponsePayload,
+  PlannerVisibleMonthContextPayload,
+  PlannerWorkUnit,
+} from "@cadence/shared/planner/context";
+export type { PlannerCalendarViewMode };
+export type CalendarTab = PlannerShellTab;
 
 export interface PlannerDayDetailEntry {
   key: string;
@@ -166,15 +46,6 @@ export interface PlannerDayDetailEntry {
   effectiveScheduledLocalTime?: string | null;
 }
 
-export interface PlannerCompletionFactMarker {
-  key: string;
-  originalGoalId: string;
-  unitKey: string;
-  goalTitle: string;
-  scheduledDate: string | null;
-  owner?: "viewer" | "partner";
-}
-
 export interface DayPreviewState {
   day: string;
   pinned: boolean;
@@ -184,32 +55,6 @@ export interface DayPreviewState {
     width: number;
     placement: "above" | "below";
   };
-}
-
-export interface PlannerErrorPayload {
-  code?: string;
-  message?: string;
-  details?: Record<string, unknown>;
-}
-
-export interface DraftItemEdit {
-  scheduledDate?: string | null;
-  label?: string | null;
-  scheduledTimeOverride?: string | null;
-}
-
-export interface PlannerPreviewResponsePayload {
-  preview: PlannerContextPayload["preview"];
-}
-
-export interface PlannerPreferencesPayload {
-  schemaVersion: "1";
-  preferences: {
-    timezone: string;
-    timezoneConfirmedAt: string;
-    policyRevision: number;
-    defaultPolicy: PlannerPolicy;
-  } | null;
 }
 
 export interface CalendarSurfaceProps {
@@ -304,4 +149,3 @@ export type CompletionControlDisabledReason =
   | "satisfied_elsewhere"
   | "out_of_scope_route"
   | "unsupported";
-

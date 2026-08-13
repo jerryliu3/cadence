@@ -37,51 +37,46 @@ export type ThemeTokenName =
   | "input"
   | "ring";
 
-export interface ColorToken {
-  oklch: string;
-  hex: string;
-}
-
-export const lightTheme: Record<ThemeTokenName, ColorToken> = {
-  background: { oklch: "oklch(0.985 0.003 286)", hex: "#F8F7FB" },
-  foreground: { oklch: "oklch(0.22 0.01 286)", hex: "#312F38" },
-  card: { oklch: "oklch(0.995 0.002 286)", hex: "#FBFBFD" },
-  cardForeground: { oklch: "oklch(0.22 0.01 286)", hex: "#312F38" },
-  popover: { oklch: "oklch(0.995 0.002 286)", hex: "#FBFBFD" },
-  popoverForeground: { oklch: "oklch(0.22 0.01 286)", hex: "#312F38" },
-  primary: { oklch: "oklch(0.51 0.16 255)", hex: "#2F6FDB" },
-  primaryForeground: { oklch: "oklch(0.985 0.003 286)", hex: "#F8F7FB" },
-  secondary: { oklch: "oklch(0.94 0.01 286)", hex: "#ECEAF1" },
-  secondaryForeground: { oklch: "oklch(0.3 0.01 286)", hex: "#45434D" },
-  muted: { oklch: "oklch(0.95 0.008 286)", hex: "#F0EEF4" },
-  mutedForeground: { oklch: "oklch(0.5 0.01 286)", hex: "#74717D" },
-  accent: { oklch: "oklch(0.92 0.018 255)", hex: "#E4ECF8" },
-  accentForeground: { oklch: "oklch(0.28 0.01 286)", hex: "#413F48" },
-  destructive: { oklch: "oklch(0.6 0.21 28)", hex: "#D94A3A" },
-  border: { oklch: "oklch(0.89 0.008 286)", hex: "#DDDBE3" },
-  input: { oklch: "oklch(0.89 0.008 286)", hex: "#DDDBE3" },
-  ring: { oklch: "oklch(0.55 0.16 255)", hex: "#3B78E0" },
+export const lightTheme: Record<ThemeTokenName, string> = {
+  background: "#F8F7FB",
+  foreground: "#312F38",
+  card: "#FBFBFD",
+  cardForeground: "#312F38",
+  popover: "#FBFBFD",
+  popoverForeground: "#312F38",
+  primary: "#2F6FDB",
+  primaryForeground: "#F8F7FB",
+  secondary: "#ECEAF1",
+  secondaryForeground: "#45434D",
+  muted: "#F0EEF4",
+  mutedForeground: "#74717D",
+  accent: "#E4ECF8",
+  accentForeground: "#413F48",
+  destructive: "#D94A3A",
+  border: "#DDDBE3",
+  input: "#DDDBE3",
+  ring: "#3B78E0",
 };
 
-export const darkTheme: Record<ThemeTokenName, ColorToken> = {
-  background: { oklch: "oklch(0.19 0.01 286)", hex: "#1F1D24" },
-  foreground: { oklch: "oklch(0.96 0.003 286)", hex: "#F3F2F6" },
-  card: { oklch: "oklch(0.24 0.01 286)", hex: "#2B2931" },
-  cardForeground: { oklch: "oklch(0.96 0.003 286)", hex: "#F3F2F6" },
-  popover: { oklch: "oklch(0.24 0.01 286)", hex: "#2B2931" },
-  popoverForeground: { oklch: "oklch(0.96 0.003 286)", hex: "#F3F2F6" },
-  primary: { oklch: "oklch(0.72 0.13 255)", hex: "#7BA8F0" },
-  primaryForeground: { oklch: "oklch(0.18 0.01 286)", hex: "#1C1A21" },
-  secondary: { oklch: "oklch(0.31 0.01 286)", hex: "#3C3944" },
-  secondaryForeground: { oklch: "oklch(0.96 0.003 286)", hex: "#F3F2F6" },
-  muted: { oklch: "oklch(0.3 0.01 286)", hex: "#3A3742" },
-  mutedForeground: { oklch: "oklch(0.75 0.01 286)", hex: "#B6B3BE" },
-  accent: { oklch: "oklch(0.36 0.03 255)", hex: "#3E4B63" },
-  accentForeground: { oklch: "oklch(0.96 0.003 286)", hex: "#F3F2F6" },
-  destructive: { oklch: "oklch(0.72 0.19 25)", hex: "#F0715C" },
-  border: { oklch: "oklch(0.36 0.01 286)", hex: "#4A4754" },
-  input: { oklch: "oklch(0.36 0.01 286)", hex: "#4A4754" },
-  ring: { oklch: "oklch(0.72 0.13 255)", hex: "#7BA8F0" },
+export const darkTheme: Record<ThemeTokenName, string> = {
+  background: "#1F1D24",
+  foreground: "#F3F2F6",
+  card: "#2B2931",
+  cardForeground: "#F3F2F6",
+  popover: "#2B2931",
+  popoverForeground: "#F3F2F6",
+  primary: "#7BA8F0",
+  primaryForeground: "#1C1A21",
+  secondary: "#3C3944",
+  secondaryForeground: "#F3F2F6",
+  muted: "#3A3742",
+  mutedForeground: "#B6B3BE",
+  accent: "#3E4B63",
+  accentForeground: "#F3F2F6",
+  destructive: "#F0715C",
+  border: "#4A4754",
+  input: "#4A4754",
+  ring: "#7BA8F0",
 };
 
 export const cssTokenNames: Record<ThemeTokenName, string> = {

@@ -7,7 +7,7 @@ import {
   Text,
   View,
 } from "react-native";
-import { getMobileTheme } from "../theme";
+import { useTheme } from "../theme";
 
 export function Screen({
   title,
@@ -18,7 +18,7 @@ export function Screen({
   children: ReactNode;
   scroll?: boolean;
 }) {
-  const theme = getMobileTheme();
+  const theme = useTheme();
   const body = (
     <View style={styles.body}>
       <Text style={[styles.title, { color: theme.colors.foreground }]}>
@@ -37,7 +37,7 @@ export function Screen({
 }
 
 export function LoadingScreen() {
-  const theme = getMobileTheme();
+  const theme = useTheme();
   return (
     <SafeAreaView
       style={[styles.safe, styles.center, { backgroundColor: theme.colors.background }]}
