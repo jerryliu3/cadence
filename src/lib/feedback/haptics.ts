@@ -1,10 +1,8 @@
+import { configureLightPressHaptics } from "@cadence/shared/feedback/haptics";
+
 const LIGHT_PRESS_DURATION_MS = 8;
 
-/**
- * Best-effort mobile-web feedback. Chromium on Android supports this API;
- * unsupported browsers, including iOS Safari, intentionally no-op.
- */
-export function triggerLightPressFeedback(): boolean {
+function webLightPressHaptics(): boolean {
   if (
     typeof navigator === "undefined" ||
     typeof navigator.vibrate !== "function"
@@ -26,3 +24,7 @@ export function triggerLightPressFeedback(): boolean {
     return false;
   }
 }
+
+configureLightPressHaptics(webLightPressHaptics);
+
+export { triggerLightPressFeedback } from "@cadence/shared/feedback/haptics";
