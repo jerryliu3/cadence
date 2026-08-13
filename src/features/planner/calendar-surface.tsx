@@ -118,6 +118,7 @@ import {
 } from "@/lib/planner/policy";
 import { withPlannerRefreshTimeout } from "@/lib/planner/refresh-timeout";
 import { monthFromDate } from "@/lib/planner/dates";
+import { resolveQueuedMoveWindow } from "@/lib/planner/work-units";
 import { captureViewportRect } from "@/lib/xp/events";
 import type {
   CalendarSurfaceProps,
@@ -1184,9 +1185,13 @@ export function CalendarSurface({
       );
       const creditWindow = baselineUnit.creditWindow;
       const crossMonth = destMonth !== sourceMonth;
-      const moveWindow = crossMonth
-        ? creditWindow ?? baselineUnit.draftMoveWindow ?? baselineUnit.placementWindow
-        : baselineUnit.draftMoveWindow ?? baselineUnit.placementWindow;
+      const moveWindow = resolveQueuedMoveWindow({
+        crossMonth,
+        creditWindow,
+        draftMoveWindow: baselineUnit.draftMoveWindow,
+        placementWindow: baselineUnit.placementWindow,
+        asOfDate: context.asOfDate,
+      });
       if (!moveWindow) {
         toast.error("This session does not have a movable placement window.");
         return false;
@@ -1261,6 +1266,7 @@ export function CalendarSurface({
     [
       scheduleDraftMovePreviewRefresh,
       completionFactUnitsByGoalDate,
+      context?.asOfDate,
       context?.scopeMonth,
       entryDayByKey,
       moveConflictByGoalDate,

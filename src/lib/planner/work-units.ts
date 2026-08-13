@@ -205,6 +205,32 @@ function resolveDraftMoveWindow({
   };
 }
 
+export function resolveQueuedMoveWindow({
+  crossMonth,
+  creditWindow,
+  draftMoveWindow,
+  placementWindow,
+  asOfDate,
+}: {
+  crossMonth: boolean;
+  creditWindow?: DateWindow | null;
+  draftMoveWindow?: DateWindow | null;
+  placementWindow?: DateWindow | null;
+  asOfDate: string;
+}): DateWindow | null {
+  if (!crossMonth) {
+    return draftMoveWindow ?? placementWindow ?? null;
+  }
+  if (!creditWindow) {
+    return draftMoveWindow ?? placementWindow ?? null;
+  }
+  const candidateStart =
+    draftMoveWindow?.start ?? placementWindow?.start ?? creditWindow.start;
+  const start =
+    compareDateStrings(candidateStart, asOfDate) > 0 ? candidateStart : asOfDate;
+  return { start, end: creditWindow.end };
+}
+
 export function materializeWorkUnits({
   goal,
   normalizedRequirement,

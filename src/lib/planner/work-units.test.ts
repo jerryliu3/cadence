@@ -5,6 +5,7 @@ import { normalizeGoalRequirement } from "@/lib/planner/requirements";
 import {
   isEndMonthCadenceUnit,
   materializeWorkUnits,
+  resolveQueuedMoveWindow,
   type PlannerBaseAssignment,
 } from "@/lib/planner/work-units";
 
@@ -309,6 +310,42 @@ describe("planner draft move windows", () => {
       start: "2026-09-01",
       end: "2026-09-06",
     });
+  });
+
+  it("cannot drop a cross-month move into a month before asOfDate", () => {
+    const moveWindow = resolveQueuedMoveWindow({
+      crossMonth: true,
+      creditWindow: { start: "2026-01-01", end: "2026-12-31" },
+      draftMoveWindow: null,
+      placementWindow: null,
+      asOfDate: "2026-08-13",
+    });
+    expect(moveWindow).toEqual({ start: "2026-08-13", end: "2026-12-31" });
+    expect(moveWindow && "2026-06-15" < moveWindow.start).toBe(true);
+  });
+
+  it("keeps the draft-move floor when crossing months with a credit-window end", () => {
+    expect(
+      resolveQueuedMoveWindow({
+        crossMonth: true,
+        creditWindow: { start: "2026-01-01", end: "2026-12-31" },
+        draftMoveWindow: { start: "2026-08-13", end: "2026-12-31" },
+        placementWindow: { start: "2026-08-13", end: "2026-08-31" },
+        asOfDate: "2026-08-13",
+      })
+    ).toEqual({ start: "2026-08-13", end: "2026-12-31" });
+  });
+
+  it("does not relax the same-month window to the unfloored credit window", () => {
+    expect(
+      resolveQueuedMoveWindow({
+        crossMonth: false,
+        creditWindow: { start: "2026-01-01", end: "2026-12-31" },
+        draftMoveWindow: { start: "2026-08-13", end: "2026-12-31" },
+        placementWindow: { start: "2026-08-13", end: "2026-08-31" },
+        asOfDate: "2026-08-13",
+      })
+    ).toEqual({ start: "2026-08-13", end: "2026-12-31" });
   });
 });
 
