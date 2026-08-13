@@ -1,3 +1,5 @@
+import type { PlannerProposalOperation } from "@/lib/social/team/planner-proposal";
+
 export interface SocialFeedActor {
   id: string;
   username: string;
@@ -128,7 +130,7 @@ export interface TeamPlannerProposal {
   scopeMonth: string;
   status: PlannerProposalStatus;
   baselineScheduleDigest: string;
-  operations: Array<Record<string, unknown>>;
+  operations: PlannerProposalOperation[];
   note: string | null;
   createdAt: string;
   decidedAt: string | null;

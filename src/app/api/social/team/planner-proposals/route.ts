@@ -35,6 +35,13 @@ function mapCreateError(message: string) {
       "There is already a pending proposal for this partner and month."
     );
   }
+  if (message === "move_date_outside_scope_month") {
+    return new ApiRouteError(
+      400,
+      "move_date_outside_scope_month",
+      "Move dates must stay inside the proposal month."
+    );
+  }
   return new ApiRouteError(500, "planner_proposal_create_failed", "Could not create planner proposal.", {
     cause: message,
   });
@@ -115,7 +122,7 @@ export async function POST(request: Request) {
     });
     const body = await parseJsonBody({
       request,
-      maxBytes: 64 * 1024,
+      maxBytes: 32 * 1024,
       schema: createPlannerProposalSchema,
     });
 

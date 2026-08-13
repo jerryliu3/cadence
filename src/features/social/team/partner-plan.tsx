@@ -12,10 +12,24 @@ import {
 } from "@/features/social/data";
 import { PlannerProposalForm } from "@/features/social/team/planner-proposal-form";
 import type { TeamPartnerPlanItem, TeamPlannerProposal } from "@/features/social/types";
+import {
+  describePlannerProposalOperations,
+  getCurrentScopeMonth,
+  plannerProposalOperationsSchema,
+} from "@/lib/social/team/planner-proposal";
 
-function getCurrentScopeMonth() {
-  const now = new Date();
-  return `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}`;
+function ProposalOperationList({ proposal }: { proposal: TeamPlannerProposal }) {
+  const parsed = plannerProposalOperationsSchema.safeParse(proposal.operations);
+  if (!parsed.success) {
+    return <p className="text-xs text-muted-foreground">Could not read proposal operations.</p>;
+  }
+  return (
+    <ul className="list-disc pl-4 text-xs">
+      {describePlannerProposalOperations(parsed.data).map((line) => (
+        <li key={line}>{line}</li>
+      ))}
+    </ul>
+  );
 }
 
 export function PartnerPlan({ partnerId }: { partnerId: string }) {
@@ -127,6 +141,7 @@ export function PartnerPlan({ partnerId }: { partnerId: string }) {
               <div key={proposal.id} className="rounded border p-2">
                 <p className="text-xs text-muted-foreground">{proposal.createdAt}</p>
                 {proposal.note ? <p>{proposal.note}</p> : null}
+                <ProposalOperationList proposal={proposal} />
                 <div className="mt-2 flex gap-2">
                   <Button type="button" size="sm" onClick={() => void handleAccept(proposal.id)}>
                     Accept
@@ -154,6 +169,7 @@ export function PartnerPlan({ partnerId }: { partnerId: string }) {
               <div key={proposal.id} className="rounded border p-2">
                 <p className="text-xs text-muted-foreground">{proposal.createdAt}</p>
                 {proposal.note ? <p>{proposal.note}</p> : null}
+                <ProposalOperationList proposal={proposal} />
                 <Button
                   type="button"
                   size="sm"

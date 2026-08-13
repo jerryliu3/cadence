@@ -29,7 +29,6 @@ import { GET, POST } from "./route";
 describe("social team planner proposals route", () => {
   beforeEach(() => {
     vi.stubEnv("SOCIAL_ENABLED", "true");
-    vi.stubEnv("SOCIAL_DUO_ENABLED", "true");
     mocks.getUser.mockResolvedValue({
       data: { user: { id: "viewer-1" } },
       error: null,

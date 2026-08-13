@@ -2118,7 +2118,7 @@ export type Database = {
         Returns: Json
       }
       get_planner_proposals_service: {
-        Args: { p_scope_month?: string }
+        Args: { p_proposal_id?: string; p_scope_month?: string }
         Returns: {
           applied_digest: string
           baseline_schedule_digest: string

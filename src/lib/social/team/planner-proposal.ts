@@ -47,9 +47,27 @@ export type PlannerScheduleItemInput = {
   locked: boolean;
 };
 
+export class PlannerProposalApplyError extends Error {
+  readonly code: "missing_item" | "outside_month";
+
+  constructor(code: "missing_item" | "outside_month", message: string) {
+    super(message);
+    this.name = "PlannerProposalApplyError";
+    this.code = code;
+  }
+}
+
+export function getCurrentScopeMonth() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+}
+
 function assertDateWithinMonth(date: string, scopeMonth: string) {
   if (!date.startsWith(`${scopeMonth}-`)) {
-    throw new Error("Operation date falls outside proposal scope month.");
+    throw new PlannerProposalApplyError(
+      "outside_month",
+      "Operation date falls outside proposal scope month."
+    );
   }
 }
 
@@ -58,6 +76,19 @@ export function toScopeMonthDate(scopeMonth: string) {
     throw new Error("Invalid scope month.");
   }
   return `${scopeMonth}-01`;
+}
+
+export function describePlannerProposalOperations(operations: PlannerProposalOperation[]) {
+  return operations.map((operation) => {
+    if (operation.op === "clear_month") {
+      return "Clear every session in this month";
+    }
+    if (operation.op === "move_item") {
+      const time = operation.toTime ? ` at ${operation.toTime}` : "";
+      return `Move ${operation.unitKey} to ${operation.toDate}${time}`;
+    }
+    return `${operation.locked ? "Lock" : "Unlock"} ${operation.unitKey}`;
+  });
 }
 
 export function applyPlannerProposalOperations({
@@ -83,7 +114,10 @@ export function applyPlannerProposalOperations({
     const key = `${operation.goalId}::${operation.unitKey}`;
     const current = byKey.get(key);
     if (!current) {
-      throw new Error(`Planner operation references missing item: ${key}`);
+      throw new PlannerProposalApplyError(
+        "missing_item",
+        `Planner operation references missing item: ${key}`
+      );
     }
 
     if (operation.op === "move_item") {
@@ -91,7 +125,7 @@ export function applyPlannerProposalOperations({
       byKey.set(key, {
         ...current,
         scheduledDate: operation.toDate,
-        scheduledTime: operation.toTime ?? null,
+        scheduledTime: operation.toTime ?? current.scheduledTime,
       });
       continue;
     }

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { ApiRouteError, apiErrorResponse, createCorrelationId } from "@/lib/api/route";
-import { toScopeMonthDate } from "@/lib/social/team/planner-proposal";
+import { getCurrentScopeMonth, toScopeMonthDate } from "@/lib/social/team/planner-proposal";
 import { requireSocialRouteContext } from "@/lib/social/api";
 import { createClient } from "@/lib/supabase/server";
 
@@ -13,13 +13,6 @@ const querySchema = z.object({
     .regex(/^\d{4}-(0[1-9]|1[0-2])$/)
     .optional(),
 });
-
-function getCurrentScopeMonth() {
-  const now = new Date();
-  const year = now.getUTCFullYear();
-  const month = String(now.getUTCMonth() + 1).padStart(2, "0");
-  return `${year}-${month}`;
-}
 
 export async function GET(request: Request) {
   const correlationId = createCorrelationId();

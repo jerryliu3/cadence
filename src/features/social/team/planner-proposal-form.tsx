@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { createTeamPlannerProposal } from "@/features/social/data";
 import type { TeamPartnerPlanItem } from "@/features/social/types";
+import type { PlannerProposalOperation } from "@/lib/social/team/planner-proposal";
 
 type ProposalMode = "move_item" | "lock_item" | "clear_month";
 
@@ -29,6 +30,10 @@ export function PlannerProposalForm({
   const [note, setNote] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const monthStart = `${scopeMonth}-01`;
+  const monthEnd = `${scopeMonth}-${String(
+    new Date(Number(scopeMonth.slice(0, 4)), Number(scopeMonth.slice(5, 7)), 0).getDate()
+  ).padStart(2, "0")}`;
 
   const selectedItem = useMemo(
     () => items.find((item) => `${item.goalId}::${item.unitKey}` === selectedKey) ?? null,
@@ -39,7 +44,7 @@ export function PlannerProposalForm({
     setPending(true);
     setError(null);
     try {
-      let operations: Array<Record<string, unknown>>;
+      let operations: PlannerProposalOperation[];
       if (mode === "clear_month") {
         operations = [{ op: "clear_month" }];
       } else {
@@ -131,7 +136,13 @@ export function PlannerProposalForm({
         <div className="grid gap-2 md:grid-cols-2">
           <div className="space-y-1">
             <Label>New date</Label>
-            <Input type="date" value={toDate} onChange={(event) => setToDate(event.target.value)} />
+            <Input
+              type="date"
+              value={toDate}
+              min={monthStart}
+              max={monthEnd}
+              onChange={(event) => setToDate(event.target.value)}
+            />
           </div>
           <div className="space-y-1">
             <Label>New time (optional)</Label>

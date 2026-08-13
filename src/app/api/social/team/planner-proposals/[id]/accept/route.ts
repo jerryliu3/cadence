@@ -5,6 +5,7 @@ import { ApiRouteError, apiErrorResponse, createCorrelationId } from "@/lib/api/
 import { flushNotificationOutbox } from "@/lib/push/outbox";
 import {
   applyPlannerProposalOperations,
+  PlannerProposalApplyError,
   plannerProposalOperationsSchema,
 } from "@/lib/social/team/planner-proposal";
 import { requireSocialRouteContext } from "@/lib/social/api";
@@ -50,6 +51,7 @@ export async function POST(
       "get_planner_proposals_service",
       {
         p_scope_month: undefined,
+        p_proposal_id: params.id,
       }
     );
     if (proposalError) {
@@ -159,7 +161,16 @@ export async function POST(
     }
 
     const row = Array.isArray(publishData) ? publishData[0] : publishData;
-    const appliedDigest = row?.schedule_digest ?? null;
+    let appliedDigest = row?.schedule_digest ?? null;
+    if (!appliedDigest) {
+      const { data: fallbackDigest } = await socialContext.supabase.rpc(
+        "get_planner_schedule_digest",
+        {
+          p_owner: socialContext.userId,
+        }
+      );
+      appliedDigest = fallbackDigest ?? null;
+    }
     const { data: resolved, error: resolveError } = await socialContext.supabase.rpc(
       "resolve_planner_proposal_service",
       {
@@ -203,11 +214,11 @@ export async function POST(
         correlationId
       );
     }
-    if (error instanceof Error && error.message.includes("missing item")) {
-      return apiErrorResponse(
-        new ApiRouteError(422, "proposal_item_missing", error.message),
-        correlationId
-      );
+    if (error instanceof PlannerProposalApplyError) {
+      const status = error.code === "missing_item" ? 422 : 400;
+      const code =
+        error.code === "missing_item" ? "proposal_item_missing" : "proposal_date_outside_month";
+      return apiErrorResponse(new ApiRouteError(status, code, error.message), correlationId);
     }
     return apiErrorResponse(
       new ApiRouteError(
