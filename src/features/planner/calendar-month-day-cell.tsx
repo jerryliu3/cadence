@@ -32,6 +32,7 @@ export interface CalendarCompletionFactMarkerBase {
   key: string;
   goalTitle: string;
   scheduledDate: string | null;
+  owner?: "viewer" | "partner";
 }
 
 interface CalendarMonthDayCellProps<
@@ -246,9 +247,15 @@ export function CalendarMonthDayCell<
               {visibleCompletionFactMarkers.map((marker) => (
                 <div
                   key={`completion-fact-${marker.key}`}
-                  className="flex items-center gap-1.5 rounded-sm border border-emerald-300 bg-emerald-100 px-1.5 py-1 text-[11px] text-emerald-950 dark:border-emerald-300 dark:bg-emerald-100 dark:text-emerald-950"
+                  className={
+                    marker.owner === "partner"
+                      ? "flex items-center gap-1.5 rounded-sm border-2 border-sky-500 bg-transparent px-1.5 py-1 text-[11px] text-sky-700 dark:text-sky-300"
+                      : "flex items-center gap-1.5 rounded-sm border border-emerald-300 bg-emerald-100 px-1.5 py-1 text-[11px] text-emerald-950 dark:border-emerald-300 dark:bg-emerald-100 dark:text-emerald-950"
+                  }
                   title={
-                    marker.scheduledDate && marker.scheduledDate !== day
+                    marker.owner === "partner"
+                      ? "Partner marked this done."
+                      : marker.scheduledDate && marker.scheduledDate !== day
                       ? `Marked done here, currently credited from the ${marker.scheduledDate} scheduled session.`
                       : "Marked done on this date."
                   }
