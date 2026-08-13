@@ -822,6 +822,7 @@ export type Database = {
           reward_text: string | null
           start_date: string
           target_count: number | null
+          team_id: string | null
           title: string
           updated_at: string
         }
@@ -848,6 +849,7 @@ export type Database = {
           reward_text?: string | null
           start_date?: string
           target_count?: number | null
+          team_id?: string | null
           title: string
           updated_at?: string
         }
@@ -874,6 +876,7 @@ export type Database = {
           reward_text?: string | null
           start_date?: string
           target_count?: number | null
+          team_id?: string | null
           title?: string
           updated_at?: string
         }
@@ -890,6 +893,13 @@ export type Database = {
             columns: ["owner_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "goals_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
             referencedColumns: ["id"]
           },
         ]
@@ -2164,6 +2174,15 @@ export type Database = {
           status: Database["public"]["Enums"]["leaderboard_season_status"]
           subject_kind: Database["public"]["Enums"]["social_subject_kind"]
           title: string
+        }[]
+      }
+      get_team_goal_progress: {
+        Args: { p_goal_id: string }
+        Returns: {
+          completion_count: number
+          display_name: string
+          user_id: string
+          username: string
         }[]
       }
       get_team_state: {

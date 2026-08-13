@@ -104,6 +104,7 @@ import {
   type CompletionDispatchDecision,
   resolveCompletionDispatch,
 } from "@/lib/planner/completion-dispatch";
+import type { EligibilityReason } from "@/lib/planner/eligibility";
 import {
   draftCommandEntryKey,
   sortPlannerDraftCommands,
@@ -148,21 +149,23 @@ const SCOPE_ONLY_ELIGIBILITY_REASONS = new Set([
   "end_outside_scope",
   "starts_after_scope",
 ]);
-const ELIGIBILITY_REASON_LABELS: Record<string, string> = {
+const ELIGIBILITY_REASON_LABELS: Record<EligibilityReason, string> = {
+  eligible: "This goal can be planned.",
   not_owner: "Only goals you own can be planned here.",
-  group_goal: "Group goals are excluded from personal planner scheduling.",
   deleted: "Deleted goals are excluded from planning.",
   archived: "Archived goals are excluded from planning.",
   linked: "Linked goals are managed by their source relationship.",
   missing_end_date:
     "This goal needs a deadline before it can be planned in Calendar.",
   invalid_date_range: "The goal dates are invalid (start is after end).",
+  end_outside_scope: "This goal ends before the selected planning month.",
+  starts_after_scope: "This goal starts after the selected planning month.",
   horizon_too_long:
     "This goal deadline exceeds the 24-month planning horizon limit.",
 };
 
-function getEligibilityReasonLabel(reason: string) {
-  return ELIGIBILITY_REASON_LABELS[reason] ?? "This goal is currently ineligible.";
+function getEligibilityReasonLabel(reason: EligibilityReason) {
+  return ELIGIBILITY_REASON_LABELS[reason];
 }
 
 const PLANNER_VIEW_MODES = [

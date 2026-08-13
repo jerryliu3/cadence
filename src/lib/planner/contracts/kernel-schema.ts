@@ -274,7 +274,6 @@ export const plannerKernelOutputSchema = z
           reason: z.enum([
             "eligible",
             "not_owner",
-            "group_goal",
             "deleted",
             "archived",
             "linked",

@@ -6,7 +6,6 @@ import { MAX_HORIZON_MONTHS } from "@/lib/planner/contracts/bounds";
 export type EligibilityReason =
   | "eligible"
   | "not_owner"
-  | "group_goal"
   | "deleted"
   | "archived"
   | "linked"
@@ -18,7 +17,6 @@ export type EligibilityReason =
 
 export interface EligibilityGoal {
   ownedByViewer: boolean;
-  isGroup: boolean;
   isDeleted: boolean;
   archivedAt: string | null;
   currentLinkRole: "none" | "source" | "target";
@@ -36,9 +34,6 @@ export interface EligibilityDecision {
 function evaluateStaticEligibility(goal: EligibilityGoal): EligibilityDecision | null {
   if (!goal.ownedByViewer) {
     return { eligible: false, reason: "not_owner" };
-  }
-  if (goal.isGroup) {
-    return { eligible: false, reason: "group_goal" };
   }
   if (goal.isDeleted) {
     return { eligible: false, reason: "deleted" };
@@ -94,7 +89,6 @@ export function evaluateGoalEligibility({
   });
   const normalizedGoal: EligibilityGoal = {
     ownedByViewer: goal.owner_id === ownerId,
-    isGroup: goal.is_group,
     isDeleted: goal.is_deleted,
     archivedAt: goal.archived_at,
     currentLinkRole,
