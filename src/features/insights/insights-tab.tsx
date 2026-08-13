@@ -23,7 +23,7 @@ import {
   TrendingUp,
   X,
 } from "lucide-react";
-import { type TouchEventHandler, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type TouchEventHandler, useCallback, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { AnchoredPopupCard } from "@/components/ui/anchored-popup-card";
 import { Badge } from "@/components/ui/badge";
@@ -159,7 +159,16 @@ export function InsightsTab({
   const [internalPerGoalViewMode, setInternalPerGoalViewMode] =
     useState<HeatmapViewMode>("month");
   const monthCursor = monthCursorProp ?? internalMonthCursor;
-  const setMonthCursor = onMonthCursorChange ?? setInternalMonthCursor;
+  const setMonthCursor = useCallback(
+    (next: Date | ((previous: Date) => Date)) => {
+      if (onMonthCursorChange) {
+        onMonthCursorChange(typeof next === "function" ? next(monthCursor) : next);
+        return;
+      }
+      setInternalMonthCursor(next);
+    },
+    [monthCursor, onMonthCursorChange]
+  );
   const perGoalViewMode = perGoalViewModeProp ?? internalPerGoalViewMode;
   const setPerGoalViewMode = onPerGoalViewModeChange ?? setInternalPerGoalViewMode;
   const [goalMonthOverrides, setGoalMonthOverrides] = useState<Record<string, Date>>({});
@@ -190,11 +199,14 @@ export function InsightsTab({
   });
   const supabase = useMemo(() => createClient(), []);
 
-  useEffect(() => {
-    setGoalMonthOverrides((previous) =>
-      Object.keys(previous).length === 0 ? previous : {}
-    );
-  }, [monthCursor, perGoalViewMode]);
+  // Switching month/year invalidates per-goal cursors. React's sanctioned form
+  // for "reset state when a prop changes" is a render-phase adjustment, not an
+  // effect -- an effect here cascades an extra render on every switch.
+  const [overridesViewMode, setOverridesViewMode] = useState(perGoalViewMode);
+  if (overridesViewMode !== perGoalViewMode) {
+    setOverridesViewMode(perGoalViewMode);
+    setGoalMonthOverrides({});
+  }
 
   const completableGoalIds = useMemo(
     () =>
@@ -557,7 +569,7 @@ export function InsightsTab({
         return direction > 0 ? addYears(previous, 1) : subYears(previous, 1);
       });
     },
-    [perGoalViewMode]
+    [perGoalViewMode, setMonthCursor]
   );
 
   const shiftGoalMonthCursor = useCallback(
@@ -579,7 +591,7 @@ export function InsightsTab({
         [goalId]: nextMonth,
       }));
     },
-    [goalMonthOverrides, monthCursor]
+    [goalMonthOverrides, monthCursor, setMonthCursor]
   );
 
   const aggregateDrilldownItems = useMemo(
