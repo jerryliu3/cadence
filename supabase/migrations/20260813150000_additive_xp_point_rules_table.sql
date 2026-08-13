@@ -2,8 +2,7 @@
 
 create table if not exists public.xp_point_rules (
   key text primary key,
-  int_value integer,
-  numeric_value numeric,
+  value numeric not null,
   updated_at timestamptz not null default pg_catalog.now(),
   constraint xp_point_rules_known_key check (
     key in (
@@ -11,26 +10,14 @@ create table if not exists public.xp_point_rules (
       'cascade_multiplier',
       'goal_achievement_points'
     )
-  ),
-  constraint xp_point_rules_typed_value check (
-    (
-      key in ('manual_completion_points', 'goal_achievement_points')
-      and int_value is not null
-      and numeric_value is null
-    )
-    or (
-      key = 'cascade_multiplier'
-      and numeric_value is not null
-      and int_value is null
-    )
   )
 );
 
-insert into public.xp_point_rules (key, int_value, numeric_value)
+insert into public.xp_point_rules (key, value)
 values
-  ('manual_completion_points', 20, null),
-  ('cascade_multiplier', null, 0.25),
-  ('goal_achievement_points', 100, null)
+  ('manual_completion_points', 20),
+  ('cascade_multiplier', 0.25),
+  ('goal_achievement_points', 100)
 on conflict (key) do nothing;
 
 drop trigger if exists set_xp_point_rules_updated_at on public.xp_point_rules;
@@ -42,29 +29,7 @@ alter table public.xp_point_rules enable row level security;
 revoke all on table public.xp_point_rules from public, anon, authenticated;
 grant select, insert, update, delete on table public.xp_point_rules to service_role;
 
-create or replace function private.xp_manual_completion_points()
-returns integer
-language plpgsql
-stable
-set search_path = ''
-as $$
-declare
-  v_value integer;
-begin
-  select rule.int_value
-  into v_value
-  from public.xp_point_rules rule
-  where rule.key = 'manual_completion_points';
-  if v_value is null then
-    raise exception using
-      errcode = 'P0001',
-      message = 'xp_point_rule_missing:manual_completion_points';
-  end if;
-  return v_value;
-end;
-$$;
-
-create or replace function private.xp_cascade_multiplier()
+create or replace function private.xp_rule(p_key text)
 returns numeric
 language plpgsql
 stable
@@ -73,36 +38,14 @@ as $$
 declare
   v_value numeric;
 begin
-  select rule.numeric_value
+  select rule.value
   into v_value
   from public.xp_point_rules rule
-  where rule.key = 'cascade_multiplier';
+  where rule.key = p_key;
   if v_value is null then
     raise exception using
       errcode = 'P0001',
-      message = 'xp_point_rule_missing:cascade_multiplier';
-  end if;
-  return v_value;
-end;
-$$;
-
-create or replace function private.xp_goal_achievement_points()
-returns integer
-language plpgsql
-stable
-set search_path = ''
-as $$
-declare
-  v_value integer;
-begin
-  select rule.int_value
-  into v_value
-  from public.xp_point_rules rule
-  where rule.key = 'goal_achievement_points';
-  if v_value is null then
-    raise exception using
-      errcode = 'P0001',
-      message = 'xp_point_rule_missing:goal_achievement_points';
+      message = 'xp_point_rule_missing:' || p_key;
   end if;
   return v_value;
 end;
@@ -121,13 +64,43 @@ as $$
       then greatest(
         1,
         pg_catalog.floor(
-          private.xp_manual_completion_points() * private.xp_cascade_multiplier()
+          private.xp_rule('manual_completion_points')
+          * private.xp_rule('cascade_multiplier')
         )::integer
       )
-    else private.xp_manual_completion_points()
+    else private.xp_rule('manual_completion_points')::integer
   end;
 $$;
 
+-- One-line wrappers so already-shipped credit SQL can keep its call sites.
+create or replace function private.xp_manual_completion_points()
+returns integer
+language sql
+stable
+set search_path = ''
+as $$
+  select private.xp_rule('manual_completion_points')::integer;
+$$;
+
+create or replace function private.xp_cascade_multiplier()
+returns numeric
+language sql
+stable
+set search_path = ''
+as $$
+  select private.xp_rule('cascade_multiplier');
+$$;
+
+create or replace function private.xp_goal_achievement_points()
+returns integer
+language sql
+stable
+set search_path = ''
+as $$
+  select private.xp_rule('goal_achievement_points')::integer;
+$$;
+
+revoke all on function private.xp_rule(text) from public, anon, authenticated;
 revoke all on function private.xp_manual_completion_points() from public, anon, authenticated;
 revoke all on function private.xp_cascade_multiplier() from public, anon, authenticated;
 revoke all on function private.xp_goal_achievement_points() from public, anon, authenticated;

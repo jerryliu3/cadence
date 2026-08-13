@@ -4,19 +4,19 @@ set local search_path = public, private, extensions, pg_catalog;
 select plan(6);
 
 select is(
-  private.xp_manual_completion_points(),
+  private.xp_rule('manual_completion_points')::integer,
   20,
   'manual completion points read from xp_point_rules'
 );
 
 select is(
-  private.xp_cascade_multiplier(),
+  private.xp_rule('cascade_multiplier'),
   0.25::numeric,
   'cascade multiplier reads from xp_point_rules'
 );
 
 select is(
-  private.xp_goal_achievement_points(),
+  private.xp_rule('goal_achievement_points')::integer,
   100,
   'goal achievement points read from xp_point_rules'
 );
@@ -28,11 +28,11 @@ select is(
 );
 
 update public.xp_point_rules
-set int_value = 30
+set value = 30
 where key = 'manual_completion_points';
 
 select is(
-  private.xp_manual_completion_points(),
+  private.xp_rule('manual_completion_points')::integer,
   30,
   'point rule updates are visible without a function migration'
 );
