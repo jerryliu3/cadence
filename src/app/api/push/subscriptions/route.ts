@@ -106,6 +106,18 @@ export async function POST(request: Request) {
       );
     }
 
+    if (parsed.data.platform === "ios" || parsed.data.platform === "android") {
+      const { error: cleanupError } = await admin
+        .from("push_subscriptions")
+        .delete()
+        .eq("user_id", userId)
+        .eq("platform", parsed.data.platform)
+        .neq("endpoint", row.endpoint);
+      if (cleanupError) {
+        console.error("Failed to replace prior native push token:", cleanupError);
+      }
+    }
+
     return apiSuccessResponse({ success: true }, correlationId);
   });
 }

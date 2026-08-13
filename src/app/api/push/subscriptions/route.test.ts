@@ -47,20 +47,36 @@ describe("push subscriptions route", () => {
 
     mocks.upsert.mockResolvedValue({ error: null });
     mocks.deleteRows.mockResolvedValue({ error: null });
-    mocks.deleteEqEndpoint.mockImplementation(() => mocks.deleteRows());
-    mocks.deleteEqUser.mockReturnValue({
-      eq: mocks.deleteEqEndpoint,
-    });
+    mocks.deleteEqUser.mockReset();
+    mocks.deleteEqEndpoint.mockReset();
 
     mocks.from.mockImplementation((table: string) => {
       if (table !== "push_subscriptions") {
         throw new Error(`Unexpected table ${table}`);
       }
+      const chain = {
+        eq(column: string, value: string) {
+          if (column === "endpoint") {
+            mocks.deleteEqEndpoint(column, value);
+          } else {
+            mocks.deleteEqUser(column, value);
+          }
+          return chain;
+        },
+        neq(column: string, value: string) {
+          mocks.deleteEqEndpoint(column, value);
+          return chain;
+        },
+        then(
+          resolve: (value: unknown) => unknown,
+          reject: (reason: unknown) => unknown
+        ) {
+          return Promise.resolve(mocks.deleteRows()).then(resolve, reject);
+        },
+      };
       return {
         upsert: mocks.upsert,
-        delete: () => ({
-          eq: mocks.deleteEqUser,
-        }),
+        delete: () => chain,
       };
     });
     mocks.createAdminClient.mockReturnValue({
@@ -196,6 +212,63 @@ describe("push subscriptions route", () => {
     expect(mocks.deleteEqEndpoint).toHaveBeenCalledWith(
       "endpoint",
       "https://example.test/subscription"
+    );
+  });
+
+  it("stores native tokens and replaces prior rows for the same platform", async () => {
+    const response = await POST(
+      new Request("http://localhost/api/push/subscriptions", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          platform: "ios",
+          token: "ExponentPushToken[rotated]",
+        }),
+      })
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        platform: "ios",
+        native_token: "ExponentPushToken[rotated]",
+        endpoint: "native:ios:ExponentPushToken[rotated]",
+      }),
+      { onConflict: "endpoint" }
+    );
+    expect(mocks.deleteEqUser).toHaveBeenCalledWith(
+      "user_id",
+      "11111111-1111-4111-8111-111111111111"
+    );
+    expect(mocks.deleteEqUser).toHaveBeenCalledWith("platform", "ios");
+    expect(mocks.deleteEqEndpoint).toHaveBeenCalledWith(
+      "endpoint",
+      "native:ios:ExponentPushToken[rotated]"
+    );
+  });
+
+  it("deletes native subscriptions by platform token", async () => {
+    const response = await DELETE(
+      new Request("http://localhost/api/push/subscriptions", {
+        method: "DELETE",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          platform: "android",
+          token: "ExponentPushToken[gone]",
+        }),
+      })
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.deleteEqUser).toHaveBeenCalledWith(
+      "user_id",
+      "11111111-1111-4111-8111-111111111111"
+    );
+    expect(mocks.deleteEqEndpoint).toHaveBeenCalledWith(
+      "endpoint",
+      "native:android:ExponentPushToken[gone]"
     );
   });
 

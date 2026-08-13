@@ -6,19 +6,9 @@ const mocks = vi.hoisted(() => ({
   getServerEnv: vi.fn(),
   fetchSchedules: vi.fn(),
   claimSchedule: vi.fn(),
-  fetchSubscriptions: vi.fn(),
-  deleteSubscriptions: vi.fn(),
   from: vi.fn(),
   reportError: vi.fn(),
-  setVapidDetails: vi.fn(),
-  sendNotification: vi.fn(),
-}));
-
-vi.mock("web-push", () => ({
-  default: {
-    setVapidDetails: mocks.setVapidDetails,
-    sendNotification: mocks.sendNotification,
-  },
+  sendPushToUser: vi.fn(),
 }));
 
 vi.mock("@/lib/env", () => ({
@@ -35,6 +25,10 @@ vi.mock("@/lib/observability/report-error", () => ({
   reportError: mocks.reportError,
 }));
 
+vi.mock("@/lib/push/send", () => ({
+  sendPushToUser: mocks.sendPushToUser,
+}));
+
 import { GET } from "./route";
 
 describe("push dispatch route", () => {
@@ -43,11 +37,12 @@ describe("push dispatch route", () => {
 
     mocks.getServerEnv.mockReturnValue({
       CRON_SECRET: "cron-secret",
-      VAPID_SUBJECT: "mailto:test@example.com",
-      NEXT_PUBLIC_VAPID_PUBLIC_KEY: "public-key",
-      VAPID_PRIVATE_KEY: "private-key",
     });
-
+    mocks.sendPushToUser.mockResolvedValue({
+      sent: 0,
+      removedSubscriptions: 0,
+      hadSubscriptions: true,
+    });
     mocks.fetchSchedules.mockResolvedValue({
       data: [],
       error: null,
@@ -56,14 +51,6 @@ describe("push dispatch route", () => {
       data: null,
       error: null,
     });
-    mocks.fetchSubscriptions.mockResolvedValue({
-      data: [],
-      error: null,
-    });
-    mocks.deleteSubscriptions.mockResolvedValue({
-      error: null,
-    });
-
     mocks.from.mockImplementation((table: string) => {
       if (table === "notification_schedules") {
         return {
@@ -78,16 +65,6 @@ describe("push dispatch route", () => {
                 }),
               }),
             }),
-          }),
-        };
-      }
-      if (table === "push_subscriptions") {
-        return {
-          select: () => ({
-            in: mocks.fetchSubscriptions,
-          }),
-          delete: () => ({
-            in: mocks.deleteSubscriptions,
           }),
         };
       }
@@ -110,9 +87,6 @@ describe("push dispatch route", () => {
   it("returns push_dispatch_unavailable when cron is not configured", async () => {
     mocks.getServerEnv.mockReturnValue({
       CRON_SECRET: "",
-      VAPID_SUBJECT: "mailto:test@example.com",
-      NEXT_PUBLIC_VAPID_PUBLIC_KEY: "public-key",
-      VAPID_PRIVATE_KEY: "private-key",
     });
 
     const response = await GET(
@@ -131,14 +105,7 @@ describe("push dispatch route", () => {
     });
   });
 
-  it("returns push_configuration_invalid when VAPID keys are missing", async () => {
-    mocks.getServerEnv.mockReturnValue({
-      CRON_SECRET: "cron-secret",
-      VAPID_SUBJECT: "",
-      NEXT_PUBLIC_VAPID_PUBLIC_KEY: "",
-      VAPID_PRIVATE_KEY: "",
-    });
-
+  it("dispatches without VAPID when nothing is due", async () => {
     const response = await GET(
       new Request("http://localhost/api/push/dispatch", {
         method: "GET",
@@ -148,11 +115,14 @@ describe("push dispatch route", () => {
       })
     );
 
-    expect(response.status).toBe(503);
+    expect(response.status).toBe(200);
     await expect(response.json()).resolves.toMatchObject({
-      code: "push_configuration_invalid",
+      due: 0,
+      sent: 0,
+      removedSubscriptions: 0,
       correlationId: expect.any(String),
     });
+    expect(mocks.sendPushToUser).not.toHaveBeenCalled();
   });
 
   it("returns push_dispatch_failed when schedule loading crashes", async () => {
@@ -185,25 +155,6 @@ describe("push dispatch route", () => {
     );
   });
 
-  it("returns success payload with correlation id when nothing is due", async () => {
-    const response = await GET(
-      new Request("http://localhost/api/push/dispatch", {
-        method: "GET",
-        headers: {
-          authorization: "Bearer cron-secret",
-        },
-      })
-    );
-
-    expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toMatchObject({
-      due: 0,
-      sent: 0,
-      removedSubscriptions: 0,
-      correlationId: expect.any(String),
-    });
-  });
-
   it("keeps dispatch successful when downstream push delivery fails", async () => {
     const currentUtcHour = new Date().getUTCHours();
     mocks.fetchSchedules.mockResolvedValue({
@@ -223,19 +174,11 @@ describe("push dispatch route", () => {
       data: { id: "schedule-1" },
       error: null,
     });
-    mocks.fetchSubscriptions.mockResolvedValue({
-      data: [
-        {
-          id: "sub-1",
-          user_id: "user-1",
-          endpoint: "https://example.test/sub-1",
-          p256dh: "p256dh",
-          auth: "auth",
-        },
-      ],
-      error: null,
+    mocks.sendPushToUser.mockResolvedValue({
+      sent: 0,
+      removedSubscriptions: 0,
+      hadSubscriptions: true,
     });
-    mocks.sendNotification.mockRejectedValue(new Error("push-provider-down"));
 
     const response = await GET(
       new Request("http://localhost/api/push/dispatch", {
@@ -253,6 +196,14 @@ describe("push dispatch route", () => {
       removedSubscriptions: 0,
       correlationId: expect.any(String),
     });
+    expect(mocks.sendPushToUser).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: "user-1",
+        payload: expect.objectContaining({
+          body: "Keep going",
+        }),
+      })
+    );
     expect(mocks.reportError).not.toHaveBeenCalled();
   });
 });
