@@ -7,15 +7,26 @@ import { TabNav } from "@/components/navigation/tab-nav";
 import { Button } from "@/components/ui/button";
 import { XpLevelBadge } from "@/components/xp/xp-level-badge";
 import { XpRewardProvider } from "@/components/xp/xp-reward-provider";
+import { DuoProvider } from "@/features/social/duo/duo-context";
+import { DuoScopeToggle } from "@/features/social/duo/duo-scope-toggle";
 import { setTabDataCacheScope } from "@/lib/cache/tab-data-cache";
+import type { DuoContextState, DuoScope } from "@/lib/social/duo/types";
 
 interface AppShellProps {
   children: ReactNode;
   userId: string;
   goalSheet?: ReactNode;
+  duoState: DuoContextState;
+  initialDuoScopePreference: DuoScope | null;
 }
 
-export function AppShell({ children, userId, goalSheet }: AppShellProps) {
+export function AppShell({
+  children,
+  userId,
+  goalSheet,
+  duoState,
+  initialDuoScopePreference,
+}: AppShellProps) {
   setTabDataCacheScope(userId);
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -32,56 +43,62 @@ export function AppShell({ children, userId, goalSheet }: AppShellProps) {
 
   return (
     <XpRewardProvider>
-      <div className="flex min-h-screen w-full justify-center px-4 py-4 sm:px-6 sm:py-6">
-        <div className="flex w-full max-w-5xl flex-col gap-4 md:gap-6">
-          <header
-            className="sticky top-0 z-40 -mx-4 -mt-4 border-b bg-background px-4 pb-3 pt-[calc(env(safe-area-inset-top)+0.7rem)] shadow-sm md:static md:m-0 md:rounded-2xl md:border md:bg-card md:p-4"
-            style={{ viewTransitionName: "app-shell-header" }}
-          >
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex flex-wrap items-center gap-3">
-                <h1 className="text-2xl font-semibold tracking-tight">Goalmaxxing</h1>
-                <XpLevelBadge />
-              </div>
-              <div className="flex items-center">
-                <Button asChild size="sm" title="New Goal +">
-                  <Link href={newGoalHref}>
-                    New Goal +
-                  </Link>
-                </Button>
-              </div>
-            </div>
-            <div className="mt-4 hidden md:block">
-              <TabNav />
-            </div>
-          </header>
-
-          {ViewTransitionWrapper === ViewTransition ? (
-            <ViewTransition
-              name="app-main-content"
-              enter={{
-                "nav-forward": "app-nav-forward",
-                "nav-back": "app-nav-back",
-                default: "app-nav-crossfade",
-              }}
-              exit={{
-                "nav-forward": "app-nav-forward",
-                "nav-back": "app-nav-back",
-                default: "app-nav-crossfade",
-              }}
-              default="none"
+      <DuoProvider
+        initialState={duoState}
+        initialScopePreference={initialDuoScopePreference}
+      >
+        <div className="flex min-h-screen w-full justify-center px-4 py-4 sm:px-6 sm:py-6">
+          <div className="flex w-full max-w-5xl flex-col gap-4 md:gap-6">
+            <header
+              className="sticky top-0 z-40 -mx-4 -mt-4 border-b bg-background px-4 pb-3 pt-[calc(env(safe-area-inset-top)+0.7rem)] shadow-sm md:static md:m-0 md:rounded-2xl md:border md:bg-card md:p-4"
+              style={{ viewTransitionName: "app-shell-header" }}
             >
-              {mainContent}
-            </ViewTransition>
-          ) : (
-            <ViewTransitionWrapper>{mainContent}</ViewTransitionWrapper>
-          )}
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex flex-wrap items-center gap-3">
+                  <h1 className="text-2xl font-semibold tracking-tight">Goalmaxxing</h1>
+                  <XpLevelBadge />
+                </div>
+                <div className="flex items-center gap-2">
+                  <DuoScopeToggle />
+                  <Button asChild size="sm" title="New Goal +">
+                    <Link href={newGoalHref}>
+                      New Goal +
+                    </Link>
+                  </Button>
+                </div>
+              </div>
+              <div className="mt-4 hidden md:block">
+                <TabNav />
+              </div>
+            </header>
+
+            {ViewTransitionWrapper === ViewTransition ? (
+              <ViewTransition
+                name="app-main-content"
+                enter={{
+                  "nav-forward": "app-nav-forward",
+                  "nav-back": "app-nav-back",
+                  default: "app-nav-crossfade",
+                }}
+                exit={{
+                  "nav-forward": "app-nav-forward",
+                  "nav-back": "app-nav-back",
+                  default: "app-nav-crossfade",
+                }}
+                default="none"
+              >
+                {mainContent}
+              </ViewTransition>
+            ) : (
+              <ViewTransitionWrapper>{mainContent}</ViewTransitionWrapper>
+            )}
+          </div>
         </div>
-      </div>
-      <div className="md:hidden">
-        <TabNav mobile />
-      </div>
-      {goalSheet}
+        <div className="md:hidden">
+          <TabNav mobile />
+        </div>
+        {goalSheet}
+      </DuoProvider>
     </XpRewardProvider>
   );
 }
