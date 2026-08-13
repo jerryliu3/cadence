@@ -17,6 +17,32 @@ const eslintConfig = defineConfig([
     // Expo Metro config is CommonJS by convention.
     "apps/mobile/metro.config.js",
   ]),
+  {
+    files: ["packages/shared/**/*.ts"],
+    rules: {
+      "no-restricted-globals": [
+        "error",
+        "window",
+        "document",
+        "navigator",
+        "localStorage",
+        "sessionStorage",
+      ],
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: ["react", "react-dom"],
+          patterns: [
+            "next/*",
+            "@radix-ui/*",
+            "@dnd-kit/*",
+            "sonner",
+            "lucide-react",
+          ],
+        },
+      ],
+    },
+  },
 ]);
 
 export default eslintConfig;
