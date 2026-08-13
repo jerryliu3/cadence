@@ -5,10 +5,12 @@ import {
   type ReactNode,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useState,
 } from "react";
 import { writeDuoScopeCookie } from "@/lib/social/duo/scope-cookie";
+import { reportDuoTelemetry } from "@/lib/social/duo/telemetry";
 import type { DuoContextState, DuoScope } from "@/lib/social/duo/types";
 
 interface DuoContextValue {
@@ -47,13 +49,34 @@ export function DuoProvider({
     writeDuoScopeCookie(next);
   }, []);
 
+  // Clamp during render rather than writing state from an effect: useDuoScope
+  // already falls back to "me" without a partner, so the state write was
+  // redundant and only cost an extra render. The effect keeps the two real
+  // side effects -- telemetry and clearing the persisted cookie.
+  const shouldClampScope =
+    initialState.activePartner === null &&
+    scopePreference !== null &&
+    scopePreference !== "me";
+  const displayedScopePreference = shouldClampScope ? null : scopePreference;
+
+  useEffect(() => {
+    if (!shouldClampScope) {
+      return;
+    }
+    reportDuoTelemetry("post_dissolution_scope_clamp", {
+      surface: "shell",
+      previousScope: scopePreference,
+    });
+    writeDuoScopeCookie(null);
+  }, [scopePreference, shouldClampScope]);
+
   const value = useMemo<DuoContextValue>(
     () => ({
       state: initialState,
-      scopePreference,
+      scopePreference: displayedScopePreference,
       setScopePreference,
     }),
-    [initialState, scopePreference, setScopePreference]
+    [displayedScopePreference, initialState, setScopePreference]
   );
 
   return <DuoContext.Provider value={value}>{children}</DuoContext.Provider>;
