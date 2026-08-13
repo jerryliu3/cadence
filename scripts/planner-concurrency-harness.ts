@@ -635,11 +635,10 @@ async function main() {
          id, initiator_id, status, invited_at
        )
        values
-       ($1, $3, 'pending', now() - interval '2 minutes'),
-       ($4, $5, 'pending', now() - interval '1 minute')`,
+       ($1::uuid, $2::uuid, 'pending', now() - interval '2 minutes'),
+       ($3::uuid, $4::uuid, 'pending', now() - interval '1 minute')`,
       [
         teamRaceTeamOneId,
-        teamRacePrimaryId,
         teamRacePartnerBId,
         teamRaceTeamTwoId,
         teamRacePartnerCId,
@@ -648,10 +647,10 @@ async function main() {
     await control.query(
       `insert into public.team_members (team_id, user_id, role)
        values
-       ($1, $2, 'member'),
-       ($1, $3, 'initiator'),
-       ($4, $2, 'member'),
-       ($4, $5, 'initiator')`,
+       ($1::uuid, $2::uuid, 'member'),
+       ($1::uuid, $3::uuid, 'initiator'),
+       ($4::uuid, $2::uuid, 'member'),
+       ($4::uuid, $5::uuid, 'initiator')`,
       [
         teamRaceTeamOneId,
         teamRacePrimaryId,
