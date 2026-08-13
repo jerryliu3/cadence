@@ -7,7 +7,6 @@ import {
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireSocialRouteContext } from "@/lib/social/api";
-import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 
@@ -32,8 +31,7 @@ export async function POST(request: Request) {
       schema: requestSchema,
       maxBytes: 8 * 1024,
     });
-    const supabase = await createClient();
-    const socialContext = await requireSocialRouteContext({ supabase });
+    const socialContext = await requireSocialRouteContext(request);
 
     const { data, error } = await socialContext.supabase.rpc(
       "join_cohort_with_code_service",

@@ -41,7 +41,7 @@ export async function POST(
   const correlationId = createCorrelationId();
   try {
     const params = routeParamsSchema.parse(await context.params);
-    const adminContext = await requireAdminContext("moderator");
+    const adminContext = await requireAdminContext(request, "moderator");
     if (!adminContext) {
       throw new ApiRouteError(404, "not_found", "Resource not found.");
     }

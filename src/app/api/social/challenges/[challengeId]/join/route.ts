@@ -6,7 +6,6 @@ import {
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireSocialRouteContext } from "@/lib/social/api";
-import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 
@@ -69,8 +68,7 @@ export async function POST(
   const correlationId = createCorrelationId();
   try {
     const params = paramsSchema.parse(await context.params);
-    const supabase = await createClient();
-    const socialContext = await requireSocialRouteContext({ supabase });
+    const socialContext = await requireSocialRouteContext(request);
 
     const { data, error } = await socialContext.supabase.rpc("join_challenge_service", {
       p_challenge_id: params.challengeId,
@@ -112,8 +110,7 @@ export async function DELETE(
   const correlationId = createCorrelationId();
   try {
     const params = paramsSchema.parse(await context.params);
-    const supabase = await createClient();
-    const socialContext = await requireSocialRouteContext({ supabase });
+    const socialContext = await requireSocialRouteContext(request);
 
     const { data, error } = await socialContext.supabase.rpc("leave_challenge_service", {
       p_challenge_id: params.challengeId,

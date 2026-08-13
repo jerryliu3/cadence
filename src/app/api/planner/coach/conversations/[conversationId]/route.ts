@@ -11,7 +11,6 @@ import {
   requirePlannerRouteContext,
   withPlannerRoute,
 } from "@/lib/planner/api";
-import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 
@@ -27,10 +26,7 @@ export async function GET(
 ) {
   return withPlannerRoute(async ({ correlationId }) => {
     const params = routeParamsSchema.parse(await context.params);
-    const supabase = await createClient();
-    const routeContext = await requirePlannerRouteContext({
-      supabase,
-    });
+    const routeContext = await requirePlannerRouteContext(request);
 
     const [conversationResponse, messageResponse] = await Promise.all([
       routeContext.supabase

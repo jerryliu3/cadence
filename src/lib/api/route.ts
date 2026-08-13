@@ -6,11 +6,9 @@ import {
   parseBoundedJsonBody,
 } from "@/lib/api/http-route";
 import { reportError } from "@/lib/observability/report-error";
-import { createClient } from "@/lib/supabase/server";
+import { createRouteClient } from "@/lib/supabase/route";
 
 const DEFAULT_MAX_BODY_BYTES = 64 * 1024;
-
-type ServerSupabaseClient = Awaited<ReturnType<typeof createClient>>;
 
 export class ApiRouteError extends Error {
   constructor(
@@ -134,17 +132,24 @@ export async function parseJsonBody<T>({
   }
 }
 
-export async function requireAuthenticatedRouteContext({
-  supabase,
-  unauthorizedMessage = "Sign in to perform this action.",
-}: {
-  supabase: ServerSupabaseClient;
+export async function requireAuthenticatedRequestContext(
+  request: Request,
+  {
+    unauthorizedMessage = "Sign in to perform this action.",
+  }: {
   unauthorizedMessage?: string;
-}) {
+  } = {}
+) {
+  // Keep this check at the start of route handlers. Mobile retries once on 401
+  // after refreshing tokens, and that retry assumes unauthenticated requests
+  // have not performed side effects before returning 401.
+  const { supabase, accessToken } = await createRouteClient(request);
   const {
     data: { user },
     error: userError,
-  } = await supabase.auth.getUser();
+  } = accessToken
+    ? await supabase.auth.getUser(accessToken)
+    : await supabase.auth.getUser();
 
   if (userError || !user) {
     throw new ApiRouteError(
