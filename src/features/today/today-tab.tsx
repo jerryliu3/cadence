@@ -53,7 +53,10 @@ import {
   selectCompletableGoals,
 } from "@/lib/goals/completable-goals";
 import { groupCompletionsByGoalId } from "@/lib/goals/completion-grouping";
-import { getGoalCategoryLabel } from "@/lib/goals/category";
+import {
+  DEFAULT_GOAL_CATEGORIES,
+  resolveCategoryKey,
+} from "@/lib/goals/category";
 import { getGoalLifecycle } from "@/lib/goals/lifecycle";
 import {
   filterGoalsByEndMonth,
@@ -509,20 +512,18 @@ export function TodayTab({
     });
   }, [completableGoals, lifecycleByGoalAtViewDate]);
 
-  const availableCategories = useMemo(() => {
-    const categories = new Set<string>();
-    data.goals.forEach((goal) => {
-      const category = getGoalCategoryLabel(
-        goal.category,
-        goal.category_key
-      ).trim();
-      if (category.length > 0) {
-        categories.add(category);
-      }
-    });
-
-    return Array.from(categories).sort((left, right) => left.localeCompare(right));
-  }, [data.goals]);
+  const availableCategories = useMemo(
+    () =>
+      [...DEFAULT_GOAL_CATEGORIES]
+        .sort((left, right) => {
+          if (left.sortOrder !== right.sortOrder) {
+            return left.sortOrder - right.sortOrder;
+          }
+          return left.label.localeCompare(right.label);
+        })
+        .map((category) => ({ key: category.key, label: category.label })),
+    []
+  );
 
   const todayDate = viewDate;
   const checklistFilterStartMonth = viewDate.slice(0, 7);
@@ -536,14 +537,8 @@ export function TodayTab({
   );
   const matchesTodayFacetFilters = useCallback(
     (goal: Goal) => {
-      const goalCategory = getGoalCategoryLabel(
-        goal.category,
-        goal.category_key
-      );
-      if (
-        categoryFilter !== allCategoriesFilterValue &&
-        goalCategory !== categoryFilter
-      ) {
+      const goalCategoryKey = resolveCategoryKey(goal.category_key ?? goal.category);
+      if (categoryFilter !== allCategoriesFilterValue && goalCategoryKey !== categoryFilter) {
         return false;
       }
 
@@ -816,7 +811,22 @@ export function TodayTab({
     [activeTab, onActiveTabChange]
   );
 
-  const quickCategoryOptions = availableCategories.slice(0, 4);
+  const quickCategoryOptions = useMemo(() => {
+    const userKeys = new Set(
+      data.goals.map((goal) => resolveCategoryKey(goal.category_key ?? goal.category))
+    );
+    const fromUser = availableCategories.filter((category) => userKeys.has(category.key));
+    const picked = [...fromUser];
+    for (const preset of availableCategories) {
+      if (picked.length >= 4) {
+        break;
+      }
+      if (!picked.some((option) => option.key === preset.key)) {
+        picked.push(preset);
+      }
+    }
+    return picked.slice(0, 4);
+  }, [availableCategories, data.goals]);
   const recurrenceQuickFilters = recurrenceFilterOptions.filter(
     (option) => option.value !== "fixed"
   );
@@ -908,8 +918,8 @@ export function TodayTab({
                                 All categories
                               </SelectItem>
                               {availableCategories.map((category) => (
-                                <SelectItem key={category} value={category}>
-                                  {category}
+                                <SelectItem key={category.key} value={category.key}>
+                                  {category.label}
                                 </SelectItem>
                               ))}
                             </SelectContent>
@@ -975,18 +985,18 @@ export function TodayTab({
                 ))}
                 {quickCategoryOptions.map((category) => (
                   <Button
-                    key={`category-quick-${category}`}
+                    key={`category-quick-${category.key}`}
                     type="button"
-                    variant={categoryFilter === category ? "default" : "outline"}
+                    variant={categoryFilter === category.key ? "default" : "outline"}
                     size="sm"
                     className="h-8 shrink-0 rounded-full px-3 text-xs"
                     onClick={() =>
                       setCategoryFilter((previous) =>
-                        previous === category ? allCategoriesFilterValue : category
+                        previous === category.key ? allCategoriesFilterValue : category.key
                       )
                     }
                   >
-                    {category}
+                    {category.label}
                   </Button>
                 ))}
               </div>

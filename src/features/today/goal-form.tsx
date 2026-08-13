@@ -545,7 +545,11 @@ export function GoalForm({
     } else {
       invalidatePlannerRelatedTabCaches();
       toast.success(archived ? "Goal restored to active." : "Goal archived.");
-      router.refresh();
+      if (archived) {
+        router.refresh();
+      } else {
+        completeAndExit();
+      }
     }
 
     setSaving(false);
