@@ -318,3 +318,18 @@ export async function sendTeamNudge({
   invalidateSocialTabCache();
   return payload;
 }
+
+export async function joinSocialCohort(joinCode: string) {
+  const response = await fetch("/api/social/cohorts/join", {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ joinCode }),
+  });
+  if (!response.ok) {
+    await parseApiError(response, "Failed to join cohort.");
+  }
+  const payload = (await response.json()) as { schemaVersion: "1"; cohortId: string };
+  invalidateSocialTabCache();
+  return payload;
+}

@@ -25,6 +25,8 @@ const patchSchema = z
     endsAt: z.iso.datetime().nullable().optional(),
     status: z.enum(["upcoming", "open", "closed"]).optional(),
     rollover: z.enum(["none", "weekly", "monthly", "quarterly", "yearly"]).optional(),
+    scope: z.enum(["global", "cohort"]).optional(),
+    cohortId: z.uuid().nullable().optional(),
   })
   .refine((value) => Object.keys(value).length > 0, {
     message: "Provide at least one field to update.",
@@ -88,6 +90,8 @@ export async function PATCH(
     if (body.endsAt !== undefined) updates.ends_at = body.endsAt;
     if (body.status !== undefined) updates.status = body.status;
     if (body.rollover !== undefined) updates.rollover = body.rollover;
+    if (body.scope !== undefined) updates.scope = body.scope;
+    if (body.cohortId !== undefined) updates.cohort_id = body.cohortId;
 
     const admin = createAdminClient();
     const { data, error } = await admin

@@ -33,6 +33,8 @@ function toChallengeDto(row: {
   viewer_progress: number | string | null;
   viewer_completed_at: string | null;
   viewer_awarded_at: string | null;
+  audience_kind?: "global" | "cohort";
+  cohort_id?: string | null;
 }) {
   return {
     id: row.id,
@@ -54,6 +56,8 @@ function toChallengeDto(row: {
       row.viewer_progress === null ? null : Number(row.viewer_progress),
     viewerCompletedAt: row.viewer_completed_at,
     viewerAwardedAt: row.viewer_awarded_at,
+    audienceKind: row.audience_kind ?? "global",
+    cohortId: row.cohort_id ?? null,
   };
 }
 
