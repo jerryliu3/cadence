@@ -530,9 +530,16 @@ export function TodayTab({
       }
       options.set(key, { key, label });
     });
-    return Array.from(options.values()).sort((left, right) =>
-      left.label.localeCompare(right.label)
-    );
+    return Array.from(options.values()).sort((left, right) => {
+      const leftOrder =
+        DEFAULT_GOAL_CATEGORIES.find((category) => category.key === left.key)?.sortOrder ?? 500;
+      const rightOrder =
+        DEFAULT_GOAL_CATEGORIES.find((category) => category.key === right.key)?.sortOrder ?? 500;
+      if (leftOrder !== rightOrder) {
+        return leftOrder - rightOrder;
+      }
+      return left.label.localeCompare(right.label);
+    });
   }, [data.goals]);
 
   const todayDate = viewDate;
@@ -554,7 +561,7 @@ export function TodayTab({
       );
       if (categoryFilter !== allCategoriesFilterValue) {
         if (categoryFilter.startsWith("other:")) {
-          if (goalCategoryLabel !== categoryFilter.slice("other:".length)) {
+          if (goalCategoryLabel.trim() !== categoryFilter.slice("other:".length).trim()) {
             return false;
           }
         } else if (goalCategoryKey !== categoryFilter) {
@@ -831,7 +838,32 @@ export function TodayTab({
     [activeTab, onActiveTabChange]
   );
 
-  const quickCategoryOptions = availableCategories.slice(0, 4);
+  const quickCategoryOptions = useMemo(() => {
+    const userKeys = new Set<string>();
+    for (const goal of data.goals) {
+      const key = resolveCategoryKey(goal.category_key ?? goal.category);
+      const label = getGoalCategoryLabel(goal.category, goal.category_key).trim();
+      if (label.length === 0) {
+        continue;
+      }
+      if (key === "other" && label.toLowerCase() !== "other") {
+        userKeys.add(`other:${label}`);
+      } else {
+        userKeys.add(key);
+      }
+    }
+    const fromUser = availableCategories.filter((category) => userKeys.has(category.key));
+    const picked = [...fromUser];
+    for (const preset of availableCategories) {
+      if (picked.length >= 4) {
+        break;
+      }
+      if (!picked.some((option) => option.key === preset.key)) {
+        picked.push(preset);
+      }
+    }
+    return picked.slice(0, 4);
+  }, [availableCategories, data.goals]);
   const recurrenceQuickFilters = recurrenceFilterOptions.filter(
     (option) => option.value !== "fixed"
   );
