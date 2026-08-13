@@ -13,7 +13,7 @@ concurrency:
 jobs:
   verify-static:
     name: verify-static
-    runs-on: [self-hosted, cadence-ci]
+    runs-on: ubuntu-latest
     timeout-minutes: 30
 
     steps:
@@ -46,7 +46,7 @@ jobs:
 
   verify-pr-db:
     name: verify-pr-db
-    runs-on: [self-hosted, cadence-ci]
+    runs-on: ubuntu-latest
     timeout-minutes: 35
 
     steps:
@@ -145,7 +145,7 @@ jobs:
 
   verify-pr-e2e:
     name: verify-pr-e2e
-    runs-on: [self-hosted, cadence-ci]
+    runs-on: ubuntu-latest
     timeout-minutes: 25
 
     steps:
@@ -287,7 +287,7 @@ jobs:
     needs:
       - verify-pr-db
       - verify-pr-e2e
-    runs-on: [self-hosted, cadence-ci]
+    runs-on: ubuntu-latest
     timeout-minutes: 5
 
     steps:
@@ -305,7 +305,7 @@ jobs:
     needs:
       - verify-static
       - verify-pr-smoke
-    runs-on: [self-hosted, cadence-ci]
+    runs-on: ubuntu-latest
     timeout-minutes: 5
 
     steps:

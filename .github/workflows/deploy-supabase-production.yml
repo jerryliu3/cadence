@@ -20,7 +20,7 @@ concurrency:
 jobs:
   deploy-migrations:
     name: deploy-migrations
-    runs-on: [self-hosted, cadence-ci]
+    runs-on: ubuntu-latest
     timeout-minutes: 15
     environment: production
     if: >-
