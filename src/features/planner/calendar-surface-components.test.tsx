@@ -135,5 +135,45 @@ describe("calendar surface extracted components", () => {
     await user.click(within(view.container).getByText("Run"));
     expect(onEntryOpen).toHaveBeenCalledWith(sampleEntry.key);
   });
+
+  it("exposes partner completion markers without relying on title tooltips", () => {
+    renderWithDnd(
+      <CalendarMonthDayCell
+        day="2026-08-06"
+        inMonth
+        isToday={false}
+        isPastInMonth={false}
+        ariaLabel="Thursday, August 6, 2026."
+        entriesForDay={[]}
+        completionFactMarkersForDay={[
+          {
+            key: "partner-marker",
+            goalTitle: "Partner stretch",
+            scheduledDate: "2026-08-06",
+            owner: "partner",
+          },
+        ]}
+        isAnyEntryDragging={false}
+        getEntryDisplayTitle={() => ""}
+        isEntryCredited={() => false}
+        isEntryImmovableForDraft={() => false}
+        onEntryClick={() => {}}
+        onCellClick={() => {}}
+        onCellMouseEnter={() => {}}
+        onCellMouseLeave={() => {}}
+        onCellPointerDown={() => {}}
+        onCellPointerUp={() => {}}
+        onCellPointerCancel={() => {}}
+        onCellPointerLeave={() => {}}
+        onEntryPointerStart={() => {}}
+        onEntryPointerEnd={() => {}}
+      />
+    );
+
+    expect(
+      screen.getByLabelText("Partner stretch. Partner marked this done.")
+    ).toBeInTheDocument();
+    expect(screen.getByText("Partner marked this done.")).toBeInTheDocument();
+  });
 });
 
