@@ -38,6 +38,7 @@ export function TabNav({ mobile = false }: TabNavProps) {
           ? "fixed inset-x-0 bottom-[max(calc(env(safe-area-inset-bottom)-0.35rem),0rem)] z-40 flex justify-center px-2"
           : "mx-auto rounded-2xl border bg-card/90 p-1"
       )}
+      style={mobile ? { viewTransitionName: "app-shell-tab-nav" } : undefined}
       aria-label="Main navigation"
     >
       <ul

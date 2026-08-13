@@ -40,20 +40,32 @@ export function CompletionToggle({
   const [optimisticCompleted, setOptimisticCompleted] = React.useState<boolean | null>(
     null
   );
+  const [sawPending, setSawPending] = React.useState(false);
   const pressTimerRef = React.useRef<number | null>(null);
-  const optimisticTimerRef = React.useRef<number | null>(null);
 
   React.useEffect(
     () => () => {
       if (pressTimerRef.current !== null) {
         window.clearTimeout(pressTimerRef.current);
       }
-      if (optimisticTimerRef.current !== null) {
-        window.clearTimeout(optimisticTimerRef.current);
-      }
     },
     []
   );
+
+  if (pending && !sawPending) {
+    setSawPending(true);
+  }
+
+  if (optimisticCompleted !== null) {
+    const caughtUp = completed === optimisticCompleted;
+    const failedAfterPending = sawPending && !pending && !caughtUp;
+    if (caughtUp || failedAfterPending) {
+      setOptimisticCompleted(null);
+      if (sawPending) {
+        setSawPending(false);
+      }
+    }
+  }
 
   const handleClick: React.MouseEventHandler<HTMLButtonElement> = (event) => {
     triggerLightPressFeedback();
@@ -75,13 +87,6 @@ export function CompletionToggle({
     }
 
     setOptimisticCompleted(desiredState);
-    if (optimisticTimerRef.current !== null) {
-      window.clearTimeout(optimisticTimerRef.current);
-    }
-    optimisticTimerRef.current = window.setTimeout(() => {
-      setOptimisticCompleted(null);
-      optimisticTimerRef.current = null;
-    }, pending ? 2200 : desiredState ? 1400 : 900);
     onClick?.(event);
   };
 

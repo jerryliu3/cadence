@@ -66,6 +66,22 @@ describe("TabNav", () => {
     expect(tabList).toHaveClass("grid-cols-5");
   });
 
+  it("names the mobile tab bar so view transitions can freeze it", () => {
+    const { container } = render(<TabNav mobile />);
+    const nav = container.querySelector("nav");
+
+    expect(nav).not.toBeNull();
+    expect((nav as HTMLElement).style.viewTransitionName).toBe("app-shell-tab-nav");
+  });
+
+  it("leaves the desktop tab bar unnamed because the header already freezes", () => {
+    const { container } = render(<TabNav />);
+    const nav = container.querySelector("nav");
+
+    expect(nav).not.toBeNull();
+    expect((nav as HTMLElement).style.viewTransitionName).toBe("");
+  });
+
   it("marks tab navigation with directional transition types", () => {
     mockPathname = "/checklist";
     render(<TabNav />);
