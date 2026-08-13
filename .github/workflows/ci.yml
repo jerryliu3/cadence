@@ -241,7 +241,35 @@ jobs:
         run: pnpm exec playwright install --with-deps chromium
 
       - name: Run Chromium + API E2E smoke
-        run: pnpm test:e2e:chromium
+        shell: bash
+        run: |
+          set -euo pipefail
+          PLAYWRIGHT_PORT="$(
+            python3 - <<'PY'
+            import socket
+
+            for port in range(3100, 3200):
+                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+                    try:
+                        sock.bind(("127.0.0.1", port))
+                    except OSError:
+                        continue
+                    print(port)
+                    break
+            else:
+                raise SystemExit(1)
+            PY
+          )"
+
+          if [[ -z "${PLAYWRIGHT_PORT}" ]]; then
+            echo "Unable to reserve a Playwright port in range 3100-3199." >&2
+            exit 1
+          fi
+
+          export PLAYWRIGHT_PORT
+          export NEXT_PUBLIC_APP_URL="http://localhost:${PLAYWRIGHT_PORT}"
+          echo "Running Playwright against ${NEXT_PUBLIC_APP_URL}."
+          pnpm test:e2e:chromium
 
       - name: Upload Playwright report
         if: failure()
