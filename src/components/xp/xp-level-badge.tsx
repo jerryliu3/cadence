@@ -7,8 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { useXpReward } from "@/components/xp/xp-reward-provider";
 import {
   captureViewportRect,
-  getXpRefreshRequestDetail,
-  XP_REFRESH_REQUESTED_EVENT,
+  subscribeXpRefresh,
   type XpRefreshRequestDetail,
 } from "@/lib/xp/events";
 
@@ -129,13 +128,9 @@ export function XpLevelBadge() {
   }, [loadProfile]);
 
   useEffect(() => {
-    const onRefreshRequested = (event: Event) => {
-      void loadProfile(getXpRefreshRequestDetail(event));
-    };
-    window.addEventListener(XP_REFRESH_REQUESTED_EVENT, onRefreshRequested);
-    return () => {
-      window.removeEventListener(XP_REFRESH_REQUESTED_EVENT, onRefreshRequested);
-    };
+    return subscribeXpRefresh((detail) => {
+      void loadProfile(detail ?? null);
+    });
   }, [loadProfile]);
 
   if (!profile) {

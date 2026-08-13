@@ -6,8 +6,9 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AppQueryProvider } from "../src/lib/query";
 import { SessionProvider } from "../src/lib/session";
 import { initMobileSentry } from "../src/lib/sentry";
-import "../src/lib/haptics";
+import { bootstrapMobilePlatform } from "../src/lib/bootstrap";
 
+bootstrapMobilePlatform();
 initMobileSentry();
 
 export default function RootLayout() {

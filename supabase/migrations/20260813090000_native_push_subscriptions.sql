@@ -12,7 +12,11 @@ alter table public.push_subscriptions
 
 alter table public.push_subscriptions
   add constraint push_subscriptions_platform_check
-  check (platform in ('web', 'ios', 'android'));
+  check (platform in ('web', 'ios', 'android'))
+  not valid;
+
+alter table public.push_subscriptions
+  validate constraint push_subscriptions_platform_check;
 
 alter table public.push_subscriptions
   alter column p256dh drop not null;
@@ -36,7 +40,11 @@ alter table public.push_subscriptions
       and native_token is not null
       and char_length(btrim(native_token)) between 8 and 4096
     )
-  );
+  )
+  not valid;
+
+alter table public.push_subscriptions
+  validate constraint push_subscriptions_platform_credentials_check;
 
 create index if not exists push_subscriptions_native_token_idx
 on public.push_subscriptions (native_token)
