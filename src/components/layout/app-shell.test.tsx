@@ -33,6 +33,7 @@ const emptyDuoProps = {
     activePartner: null,
     pendingInvite: null,
   },
+  duoAvailability: "ready" as const,
   initialDuoScopePreference: null,
 } as const;
 
