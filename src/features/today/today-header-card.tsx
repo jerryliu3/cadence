@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { PeriodStepper } from "@/components/ui/period-stepper";
 
 interface TodayHeaderCardProps {
+  title?: string;
   viewDate: string;
   todayLocalDate: string;
   viewingToday: boolean;
@@ -23,6 +24,7 @@ interface TodayHeaderCardProps {
 }
 
 export function TodayHeaderCard({
+  title = "Today",
   viewDate,
   todayLocalDate,
   viewingToday,
@@ -48,7 +50,7 @@ export function TodayHeaderCard({
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
                 <Sparkles className="size-4 text-primary" />
-                <CardTitle className="text-xl">Today</CardTitle>
+                <CardTitle className="text-xl">{title}</CardTitle>
               </div>
             </div>
           </div>
