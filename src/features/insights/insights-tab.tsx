@@ -52,10 +52,11 @@ import {
 } from "@/features/insights/insights-selectors";
 import { MonthHeatmap } from "@/features/insights/month-heatmap";
 import { useInsightsData } from "@/features/insights/use-insights-data";
+import CalendarHeatmap from "react-calendar-heatmap";
+import "react-calendar-heatmap/dist/styles.css";
 import { CalendarDayPreviewList } from "@/features/planner/calendar-day-preview-list";
 import { computeDayPreviewPosition } from "@/features/planner/day-preview-popup";
 import { getApiErrorMessage } from "@/lib/api/client";
-import { isAbortError } from "@/lib/async/abort";
 import { resolveUserTimezone } from "@/lib/dates/timezone";
 import {
   getCategoryBadgeClass,
@@ -99,11 +100,21 @@ import { useCompletionMutation } from "@/features/planner/use-completion-mutatio
 import { withPlannerRefreshTimeout } from "@/lib/planner/refresh-timeout";
 import { useOutsidePointerDismiss } from "@/lib/ui/use-outside-pointer-dismiss";
 import { captureViewportRect } from "@/lib/xp/events";
+import { createClient } from "@/lib/supabase/client";
 
 type HeatmapViewMode = "month" | "year";
 
 const MAX_VISIBLE_MILESTONES = 5;
 const AGGREGATE_DRILLDOWN_DAY_CLASS_PREFIX = "aggregate-drilldown-day-";
+const aggregateWeekdayLabels: [string, string, string, string, string, string, string] = [
+  "Su",
+  "M",
+  "T",
+  "W",
+  "Th",
+  "F",
+  "S",
+];
 
 function getAggregateDrilldownDayClass(date: string | null | undefined): string {
   return date ? `${AGGREGATE_DRILLDOWN_DAY_CLASS_PREFIX}${date}` : "";
@@ -161,6 +172,7 @@ export function InsightsTab({
     subjectUserId,
     selectedYear,
   });
+  const supabase = useMemo(() => createClient(), []);
 
   const completableGoalIds = useMemo(
     () =>
