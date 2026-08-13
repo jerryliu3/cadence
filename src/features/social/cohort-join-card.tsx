@@ -17,7 +17,7 @@ export function CohortJoinCard() {
     setError(null);
     setMessage(null);
     try {
-      const result = await joinSocialCohort(joinCode);
+      await joinSocialCohort(joinCode);
       setMessage("Joined the cohort.");
       setJoinCode("");
     } catch (joinError) {

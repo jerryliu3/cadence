@@ -2020,6 +2020,8 @@ export type Database = {
       get_challenge_detail: {
         Args: { p_challenge_id: string }
         Returns: {
+          audience_kind: Database["public"]["Enums"]["social_audience_kind"]
+          cohort_id: string
           description: string
           ends_at: string
           id: string
@@ -2038,8 +2040,6 @@ export type Database = {
           viewer_completed_at: string
           viewer_joined: boolean
           viewer_progress: number
-          audience_kind: Database["public"]["Enums"]["social_audience_kind"]
-          cohort_id: string | null
         }[]
       }
       get_leaderboard_standings: {
@@ -2066,6 +2066,8 @@ export type Database = {
       get_social_challenges: {
         Args: never
         Returns: {
+          audience_kind: Database["public"]["Enums"]["social_audience_kind"]
+          cohort_id: string
           description: string
           ends_at: string
           id: string
@@ -2084,8 +2086,6 @@ export type Database = {
           viewer_completed_at: string
           viewer_joined: boolean
           viewer_progress: number
-          audience_kind: Database["public"]["Enums"]["social_audience_kind"]
-          cohort_id: string | null
         }[]
       }
       get_social_feed: {
@@ -2118,35 +2118,35 @@ export type Database = {
       get_social_leaderboard_season: {
         Args: { p_season_id: string }
         Returns: {
+          cohort_id: string
           ends_at: string
           id: string
           metric: Database["public"]["Enums"]["challenge_metric"]
           metric_track_key: string
           rollover: Database["public"]["Enums"]["leaderboard_rollover"]
+          scope: Database["public"]["Enums"]["leaderboard_scope_kind"]
           slug: string
           starts_at: string
           status: Database["public"]["Enums"]["leaderboard_season_status"]
           subject_kind: Database["public"]["Enums"]["social_subject_kind"]
           title: string
-          scope: Database["public"]["Enums"]["leaderboard_scope_kind"]
-          cohort_id: string | null
         }[]
       }
       get_social_leaderboards: {
         Args: never
         Returns: {
+          cohort_id: string
           ends_at: string
           id: string
           metric: Database["public"]["Enums"]["challenge_metric"]
           metric_track_key: string
           rollover: Database["public"]["Enums"]["leaderboard_rollover"]
+          scope: Database["public"]["Enums"]["leaderboard_scope_kind"]
           slug: string
           starts_at: string
           status: Database["public"]["Enums"]["leaderboard_season_status"]
           subject_kind: Database["public"]["Enums"]["social_subject_kind"]
           title: string
-          scope: Database["public"]["Enums"]["leaderboard_scope_kind"]
-          cohort_id: string | null
         }[]
       }
       get_team_state: {
