@@ -15,11 +15,12 @@ import {
 import { DuoLanes, type DuoLaneSubject } from "@/features/social/duo/duo-lanes";
 import { useDuoScope } from "@/features/social/duo/duo-context";
 import { useClientSearchParamsUpdater } from "@/lib/navigation/use-client-search-params-updater";
+import { reportDuoTelemetry } from "@/lib/social/duo/telemetry";
 
 export function ChecklistShell() {
   const searchParams = useSearchParams();
   const { applySearchParams } = useClientSearchParamsUpdater();
-  const { scope, activePartner } = useDuoScope("me");
+  const { scope, activePartner, setScopePreference } = useDuoScope("me");
   const swipeStartRef = useRef<{ x: number; y: number } | null>(null);
   const rawTab = searchParams.get("tab");
   const normalizedTab: ChecklistTabValue = useMemo(() => {
@@ -28,6 +29,14 @@ export function ChecklistShell() {
     }
     return "today";
   }, [rawTab]);
+
+  useEffect(() => {
+    reportDuoTelemetry("scope_viewed", {
+      surface: "checklist",
+      scope,
+      hasPartner: Boolean(activePartner),
+    });
+  }, [activePartner, scope]);
 
   useEffect(() => {
     if (rawTab === null || rawTab === "today" || rawTab === "not-today") {
@@ -126,6 +135,10 @@ export function ChecklistShell() {
               laneLabel={subject.label}
               subjectUserId={subject.userId}
               readOnly={subject.readOnly}
+              partnerSummary={
+                subject.id === "viewer" && scope === "me" ? activePartner : null
+              }
+              onOpenPartner={() => setScopePreference("partner")}
             />
           )}
         />
