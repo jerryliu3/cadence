@@ -79,6 +79,7 @@ import type {
   CompletionDateFact,
   Goal,
   GoalLink,
+  GoalParticipant,
 } from "@/lib/goals/types";
 import {
   resolveCompletionDispatch,
@@ -95,6 +96,7 @@ interface TodayData {
   userId: string;
   goals: Goal[];
   completions: CompletionDateFact[];
+  participants: GoalParticipant[];
   links: GoalLink[];
   photoUrls: Record<string, string>;
   progress: ProgressContextResponse | null;
@@ -104,6 +106,7 @@ const emptyData: TodayData = {
   userId: "",
   goals: [],
   completions: [],
+  participants: [],
   links: [],
   photoUrls: {},
   progress: null,
@@ -260,7 +263,7 @@ export function TodayTab({
           return;
         }
 
-        const [goalsResponse, linksResponse, progress] =
+        const [goalsResponse, participantsResponse, linksResponse, progress] =
           await withAbortSignal(
             Promise.all([
               supabase
@@ -268,6 +271,7 @@ export function TodayTab({
                 .select("*")
                 .eq("is_deleted", false)
                 .order("created_at", { ascending: false }),
+              supabase.from("goal_participants").select("*").eq("user_id", user.id),
               supabase.from("goal_links").select("*").eq("owner_id", user.id),
               // Keep date navigation local while still loading facts keyed to
               // whichever date the user is currently browsing.
@@ -282,6 +286,7 @@ export function TodayTab({
 
         const goals = (goalsResponse.data ?? []) as Goal[];
         const completions = progress.facts;
+        const participants = (participantsResponse.data ?? []) as GoalParticipant[];
         const links = (linksResponse.data ?? []) as GoalLink[];
 
         const photoUrls: Record<string, string> = {};
@@ -312,6 +317,7 @@ export function TodayTab({
           userId: user.id,
           goals,
           completions,
+          participants,
           links,
           photoUrls,
           progress,
@@ -477,9 +483,10 @@ export function TodayTab({
     () =>
       buildCompletableGoalIds({
         goals: data.goals,
+        participants: data.participants,
         userId: data.userId,
       }),
-    [data.goals, data.userId]
+    [data.goals, data.participants, data.userId]
   );
 
   const completableGoals = useMemo(

@@ -92,6 +92,7 @@ import {
 import type {
   CompletionDateFact,
   Goal,
+  GoalParticipant,
 } from "@/lib/goals/types";
 import {
   resolveCompletionDispatch,
@@ -110,6 +111,7 @@ interface InsightsData {
   userId: string;
   goals: Goal[];
   completions: CompletionDateFact[];
+  participants: GoalParticipant[];
   progress: ProgressContextResponse | null;
 }
 
@@ -117,6 +119,7 @@ const emptyInsights: InsightsData = {
   userId: "",
   goals: [],
   completions: [],
+  participants: [],
   progress: null,
 };
 
@@ -235,10 +238,11 @@ export function InsightsTab() {
         const yearEnd = `${selectedYear}-12-31`;
         // Heatmap facts are intentionally year-bounded. A per-year client cache
         // is optional later if measured navigation latency warrants it.
-        const [goalsResponse, progress] =
+        const [goalsResponse, participantsResponse, progress] =
           await withAbortSignal(
             Promise.all([
               supabase.from("goals").select("*").eq("is_deleted", false).order("title"),
+              supabase.from("goal_participants").select("*").eq("user_id", user.id),
               fetchProgressContext({
                 asOfDate: toLocalDateString(),
                 factsFrom: yearStart,
@@ -257,6 +261,7 @@ export function InsightsTab() {
           userId: user.id,
           goals: (goalsResponse.data ?? []) as Goal[],
           completions: progress.facts,
+          participants: (participantsResponse.data ?? []) as GoalParticipant[],
           progress,
         });
       } finally {
@@ -298,9 +303,11 @@ export function InsightsTab() {
     () =>
       buildCompletableGoalIds({
         goals: state.goals,
+        participants: state.participants,
         userId: state.userId,
+        restrictParticipantsToVisibleGoals: true,
       }),
-    [state.goals, state.userId]
+    [state.goals, state.participants, state.userId]
   );
 
   const personalGoals = useMemo(

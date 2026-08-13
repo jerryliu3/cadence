@@ -97,6 +97,7 @@ interface GoalFormState {
   start_date: string;
   end_date: string;
   default_local_time: string;
+  is_group: boolean;
   is_private: boolean;
 }
 
@@ -114,6 +115,7 @@ const defaultState: GoalFormState = {
   start_date: toLocalDateString(),
   end_date: "",
   default_local_time: "",
+  is_group: false,
   is_private: false,
 };
 
@@ -240,6 +242,7 @@ export function GoalForm({
           start_date: goal.start_date,
           end_date: goal.end_date ?? "",
           default_local_time: goal.default_local_time ?? "",
+          is_group: goal.is_group,
           is_private: goal.is_private ?? false,
         });
 
@@ -460,6 +463,7 @@ export function GoalForm({
       p_start_date: state.start_date,
       p_end_date: state.end_date || undefined,
       p_default_local_time: state.default_local_time.trim() || undefined,
+      p_is_group: state.is_group,
     };
 
     const savedGoalId = goalArgs.p_id;
@@ -981,7 +985,8 @@ export function GoalForm({
                     </label>
                   </div>
 
-                  <GoalLinkTargetSelect
+                  {!state.is_group ? (
+                    <GoalLinkTargetSelect
                       value={selectedLinkTarget}
                       onValueChange={setSelectedLinkTarget}
                       open={linkTargetOpen}
@@ -995,6 +1000,7 @@ export function GoalForm({
                       onSearchQueryChange={setLinkTargetSearch}
                       filteredLinkTargets={filteredLinkTargets}
                     />
+                  ) : null}
                 </div>
               </CollapsibleContent>
             </div>
