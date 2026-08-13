@@ -2,15 +2,17 @@ import type { CoachPolicyPatch } from "@/lib/planner/coach";
 import type { PlannerDraftVisualKind } from "@/lib/planner/diff";
 import type { PlannerPolicy } from "@/lib/planner/policy";
 import type {
+  PlannerCalendarViewMode,
+  PlannerShellTab,
+} from "@cadence/shared/planner/calendar-state";
+import type {
   PlannerActiveGoalSnapshot,
   PlannerActiveItemSnapshot,
   PlannerCompletionFactMarker,
 } from "@cadence/shared/planner/context";
-import type {
-  PlannerCalendarViewMode,
-  PlannerShellTab,
-} from "@cadence/shared/planner/calendar-state";
 
+export type CalendarTab = PlannerShellTab;
+export type { PlannerCalendarViewMode };
 export type {
   DraftItemEdit,
   PlannerActiveGoalSnapshot,
@@ -24,8 +26,6 @@ export type {
   PlannerVisibleMonthContextPayload,
   PlannerWorkUnit,
 } from "@cadence/shared/planner/context";
-export type { PlannerCalendarViewMode };
-export type CalendarTab = PlannerShellTab;
 
 export interface PlannerDayDetailEntry {
   key: string;
