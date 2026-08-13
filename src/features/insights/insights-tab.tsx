@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  addYears,
   addMonths,
   differenceInCalendarDays,
   eachDayOfInterval,
@@ -11,12 +10,10 @@ import {
   startOfDay,
   startOfMonth,
   startOfYear,
-  subYears,
   subMonths,
 } from "date-fns";
 import {
   CalendarRange,
-  ChevronDown,
   Flame,
   Maximize2,
   PencilLine,
@@ -38,8 +35,8 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { LoadingCard } from "@/components/ui/loading-card";
-import { PeriodStepper } from "@/components/ui/period-stepper";
 import { Progress } from "@/components/ui/progress";
+import { InsightsPeriodControls } from "@/features/insights/insights-period-controls";
 import { GoalEndMonthBadge } from "@/features/goals/goal-end-month-badge";
 import { MilestonePills } from "@/features/goals/milestone-pills";
 import { GoalListControls } from "@/features/goals/goal-list-controls";
@@ -137,7 +134,6 @@ interface AggregateDrilldownCompletionMarker {
 interface InsightsTabProps {
   subjectUserId?: string;
   readOnly?: boolean;
-  laneLabel?: string;
   monthCursor?: Date;
   onMonthCursorChange?: (next: Date) => void;
   perGoalViewMode?: HeatmapViewMode;
@@ -148,7 +144,6 @@ interface InsightsTabProps {
 export function InsightsTab({
   subjectUserId,
   readOnly = false,
-  laneLabel,
   monthCursor: monthCursorProp,
   onMonthCursorChange,
   perGoalViewMode: perGoalViewModeProp,
@@ -555,22 +550,8 @@ export function InsightsTab({
       return;
     }
 
-    setGoalMonthOverrides({});
     setMonthCursor((previous) => (deltaX < 0 ? addMonths(previous, 1) : subMonths(previous, 1)));
   };
-
-  const shiftGlobalMonthCursor = useCallback(
-    (direction: -1 | 1) => {
-      setGoalMonthOverrides({});
-      setMonthCursor((previous) => {
-        if (perGoalViewMode === "month") {
-          return direction > 0 ? addMonths(previous, 1) : subMonths(previous, 1);
-        }
-        return direction > 0 ? addYears(previous, 1) : subYears(previous, 1);
-      });
-    },
-    [perGoalViewMode, setMonthCursor]
-  );
 
   const shiftGoalMonthCursor = useCallback(
     (goalId: string, direction: -1 | 1) => {
@@ -639,12 +620,6 @@ export function InsightsTab({
 
   return (
     <div className="space-y-5">
-      {laneLabel ? (
-        <div className="px-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-          {laneLabel}
-          {readOnly ? " (read-only)" : ""}
-        </div>
-      ) : null}
       <InsightsOverallStatsCard
         heatmapRef={aggregateHeatmapRef}
         selectedYearStart={selectedYearStart}
@@ -696,51 +671,12 @@ export function InsightsTab({
         </CardHeader>
         <CardContent className="space-y-3">
           {hidePeriodControls ? null : (
-            <>
-              <div className="space-y-3">
-                <div className="flex justify-center">
-                  <PeriodStepper
-                    onPrevious={() => shiftGlobalMonthCursor(-1)}
-                    onNext={() => shiftGlobalMonthCursor(1)}
-                    center={
-                      <span className="min-w-[120px] text-center text-sm font-medium text-muted-foreground">
-                        {perGoalViewMode === "month"
-                          ? format(monthCursor, "MMMM yyyy")
-                          : format(monthCursor, "yyyy")}
-                      </span>
-                    }
-                    previousAriaLabel="Previous period"
-                    nextAriaLabel="Next period"
-                  />
-                </div>
-              </div>
-              <div className="flex flex-wrap items-end gap-3">
-                <div className="space-y-1">
-                  <label
-                    htmlFor="insights-goal-stats-view-mode"
-                    className="block text-xs text-muted-foreground"
-                  >
-                    View
-                  </label>
-                  <div className="relative w-[110px]">
-                    <select
-                      id="insights-goal-stats-view-mode"
-                      value={perGoalViewMode}
-                      onChange={(event) => {
-                        setGoalMonthOverrides({});
-                        setPerGoalViewMode(event.target.value as HeatmapViewMode);
-                      }}
-                      className="h-8 w-full appearance-none rounded-full border border-input bg-background/90 px-3 pr-8 text-xs text-foreground outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-                      aria-label="Goal stats view mode"
-                    >
-                      <option value="month">Month</option>
-                      <option value="year">Year</option>
-                    </select>
-                    <ChevronDown className="pointer-events-none absolute top-1/2 right-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
-                  </div>
-                </div>
-              </div>
-            </>
+            <InsightsPeriodControls
+              monthCursor={monthCursor}
+              onMonthCursorChange={setMonthCursor}
+              perGoalViewMode={perGoalViewMode}
+              onPerGoalViewModeChange={setPerGoalViewMode}
+            />
           )}
           <div className="flex flex-wrap items-end gap-3">
             <GoalListControls
@@ -939,16 +875,22 @@ export function InsightsTab({
                             pendingDate={pendingRetroDate}
                             onPreviousMonth={() => shiftGoalMonthCursor(goal.id, -1)}
                             onNextMonth={() => shiftGoalMonthCursor(goal.id, 1)}
-                            onDayClick={(date, sourceElement) =>
-                              void toggleMilestoneDateSelection(
-                                goal,
-                                date,
-                                milestoneCompletionDates,
-                                milestoneTargetCount,
-                                progress?.creditedUnitCount ?? 0,
-                                sourceElement
-                              )
-                            }
+                            {...(editingHistory
+                              ? {
+                                  onDayClick: (
+                                    date: string,
+                                    sourceElement: HTMLButtonElement
+                                  ) =>
+                                    void toggleMilestoneDateSelection(
+                                      goal,
+                                      date,
+                                      milestoneCompletionDates,
+                                      milestoneTargetCount,
+                                      progress?.creditedUnitCount ?? 0,
+                                      sourceElement
+                                    ),
+                                }
+                              : {})}
                           />
                         ) : (
                           <div className="overflow-x-auto py-1">
@@ -968,20 +910,23 @@ export function InsightsTab({
                                   (value?.count ?? 0) === 1 ? "" : "s"
                                 }`
                               }
-                              onClick={(value) => {
-                                const selectedDate = value?.date;
-                                if (!editingHistory || !selectedDate) {
-                                  return;
-                                }
-
-                                void toggleMilestoneDateSelection(
-                                  goal,
-                                  selectedDate,
-                                  milestoneCompletionDates,
-                                  milestoneTargetCount,
-                                  progress?.creditedUnitCount ?? 0
-                                );
-                              }}
+                              {...(editingHistory
+                                ? {
+                                    onClick: (value?: { date?: string }) => {
+                                      const selectedDate = value?.date;
+                                      if (!selectedDate) {
+                                        return;
+                                      }
+                                      void toggleMilestoneDateSelection(
+                                        goal,
+                                        selectedDate,
+                                        milestoneCompletionDates,
+                                        milestoneTargetCount,
+                                        progress?.creditedUnitCount ?? 0
+                                      );
+                                    },
+                                  }
+                                : {})}
                             />
                           </div>
                         )}
@@ -1027,14 +972,20 @@ export function InsightsTab({
                             pendingDate={pendingRetroDate}
                             onPreviousMonth={() => shiftGoalMonthCursor(goal.id, -1)}
                             onNextMonth={() => shiftGoalMonthCursor(goal.id, 1)}
-                            onDayClick={(date, sourceElement) =>
-                              void toggleRecurringDateSelection(
-                                goal,
-                                date,
-                                (countsByDate[date] ?? 0) > 0,
-                                sourceElement
-                              )
-                            }
+                            {...(editingHistory
+                              ? {
+                                  onDayClick: (
+                                    date: string,
+                                    sourceElement: HTMLButtonElement
+                                  ) =>
+                                    void toggleRecurringDateSelection(
+                                      goal,
+                                      date,
+                                      (countsByDate[date] ?? 0) > 0,
+                                      sourceElement
+                                    ),
+                                }
+                              : {})}
                           />
                         ) : (
                           <div className="overflow-x-auto py-1">
@@ -1054,18 +1005,21 @@ export function InsightsTab({
                                   (value?.count ?? 0) === 1 ? "" : "s"
                                 }`
                               }
-                              onClick={(value) => {
-                                const selectedDate = value?.date;
-                                if (!editingHistory || !selectedDate) {
-                                  return;
-                                }
-
-                                void toggleRecurringDateSelection(
-                                  goal,
-                                  selectedDate,
-                                  (countsByDate[selectedDate] ?? 0) > 0
-                                );
-                              }}
+                              {...(editingHistory
+                                ? {
+                                    onClick: (value?: { date?: string }) => {
+                                      const selectedDate = value?.date;
+                                      if (!selectedDate) {
+                                        return;
+                                      }
+                                      void toggleRecurringDateSelection(
+                                        goal,
+                                        selectedDate,
+                                        (countsByDate[selectedDate] ?? 0) > 0
+                                      );
+                                    },
+                                  }
+                                : {})}
                             />
                           </div>
                         )}

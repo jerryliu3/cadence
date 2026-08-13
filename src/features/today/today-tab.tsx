@@ -95,7 +95,6 @@ interface TodayTabProps {
   refreshToken?: number;
   subjectUserId?: string;
   readOnly?: boolean;
-  laneLabel?: string;
   partnerSummary?: DuoActivePartner | null;
   onOpenPartner?: () => void;
 }
@@ -108,7 +107,6 @@ export function TodayTab({
   refreshToken = 0,
   subjectUserId,
   readOnly = false,
-  laneLabel,
   partnerSummary = null,
   onOpenPartner,
 }: TodayTabProps = {}) {
@@ -526,7 +524,6 @@ export function TodayTab({
 
         <TabsContent value="today" className="space-y-5">
           <TodayHeaderCard
-            title={laneLabel ? `${laneLabel} checklist` : undefined}
             viewDate={viewDate}
             todayLocalDate={todayLocalDate}
             viewingToday={viewingToday}
