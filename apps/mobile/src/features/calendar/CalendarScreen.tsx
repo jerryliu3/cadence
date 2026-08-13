@@ -1,5 +1,5 @@
 import { addDays, format, parseISO } from "date-fns";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
   Modal,
   Pressable,
@@ -8,12 +8,23 @@ import {
   TextInput,
   View,
 } from "react-native";
+import {
+  reorderPreviewEntryKeys,
+  unitEntryKey,
+} from "@cadence/shared/planner/reorder-preview-entries";
 import { getApiErrorMessage } from "@cadence/shared/api-client";
 import { api } from "../../lib/api";
 import { useCalendarStore } from "../../store/calendar-state";
 import { getMobileTheme } from "../../theme";
 import { PrimaryButton } from "../../ui/button";
 import { LoadingScreen, Screen } from "../../ui/screen";
+import { DraftMoveError, previewDraftMove } from "./draft-moves";
+import { DraggableSession } from "./DraggableSession";
+import {
+  hitTestDropTarget,
+  type DayDropTarget,
+  type SessionDropTarget,
+} from "./drop-targets";
 import {
   buildMonthCells,
   shiftMonth,
@@ -33,6 +44,9 @@ export function CalendarScreen() {
   const [moveDate, setMoveDate] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [orderByDay, setOrderByDay] = useState<Record<string, string[]>>({});
+  const dayTargets = useRef<Map<string, DayDropTarget>>(new Map());
+  const sessionTargets = useRef<Map<string, SessionDropTarget>>(new Map());
 
   const unitsByDate = useMemo(() => {
     const map = new Map<string, MobilePlannerWorkUnit[]>();
@@ -44,8 +58,22 @@ export function CalendarScreen() {
       list.push(unit);
       map.set(unit.scheduledDate, list);
     }
+    for (const [date, units] of map.entries()) {
+      const order = orderByDay[date];
+      if (!order) {
+        continue;
+      }
+      const byKey = new Map(units.map((unit) => [unitEntryKey(unit), unit]));
+      const ordered = order
+        .map((key) => byKey.get(key))
+        .filter((unit): unit is MobilePlannerWorkUnit => Boolean(unit));
+      const remaining = units.filter(
+        (unit) => !order.includes(unitEntryKey(unit))
+      );
+      map.set(date, [...ordered, ...remaining]);
+    }
     return map;
-  }, [planner.data]);
+  }, [orderByDay, planner.data]);
 
   const visibleDays = useMemo(() => {
     if (viewMode === "day") {
@@ -63,14 +91,97 @@ export function CalendarScreen() {
         format(addDays(weekStart, index), "yyyy-MM-dd")
       );
     }
-    return buildMonthCells(scopeMonth).filter((cell) => cell.inMonth).map((cell) => cell.date);
+    return buildMonthCells(scopeMonth)
+      .filter((cell) => cell.inMonth)
+      .map((cell) => cell.date);
   }, [scopeMonth, selectedDay, viewMode]);
 
   const digest = planner.data?.revisions.scheduleDigest ?? null;
 
+  const applyMove = async (unit: MobilePlannerWorkUnit, nextDate: string) => {
+    if (!planner.data) {
+      return;
+    }
+    setBusy(true);
+    try {
+      await previewDraftMove({
+        context: planner.data,
+        unit,
+        nextDate,
+        crossMonthMovesEnabled: false,
+      });
+      await planner.refresh();
+      setMoveUnit(null);
+      setMessage("Draft move previewed. Long-press still has a Move-to sheet fallback.");
+    } catch (error) {
+      setMessage(
+        error instanceof DraftMoveError
+          ? error.message
+          : getApiErrorMessage(error, "Move failed.")
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleDrop = ({
+    unit,
+    sourceDay,
+    x,
+    y,
+  }: {
+    unit: MobilePlannerWorkUnit;
+    sourceDay: string;
+    x: number;
+    y: number;
+  }) => {
+    const hit = hitTestDropTarget({
+      x,
+      y,
+      days: Array.from(dayTargets.current.values()),
+      sessions: Array.from(sessionTargets.current.values()),
+    });
+    if (!hit) {
+      return;
+    }
+    const activeKey = unitEntryKey(unit);
+    if (hit.type === "session" && hit.day === sourceDay) {
+      const entries = unitsByDate.get(sourceDay) ?? [];
+      const incompleteKeys = entries
+        .filter((entry) => entry.creditState === "uncredited")
+        .map(unitEntryKey);
+      const completedKeys = entries
+        .filter((entry) => entry.creditState !== "uncredited")
+        .map(unitEntryKey);
+      const next = reorderPreviewEntryKeys({
+        incompleteKeys,
+        completedKeys,
+        activeEntryKey: activeKey,
+        overEntryKey: hit.entryKey,
+        existingOrder: orderByDay[sourceDay],
+      });
+      if (next) {
+        setOrderByDay((previous) => ({ ...previous, [sourceDay]: next }));
+      }
+      return;
+    }
+    const targetDay = hit.day;
+    if (targetDay === sourceDay) {
+      return;
+    }
+    if (hit.type === "day" && !hit.inMonth) {
+      setMessage("Cross-month drag lands in the coach/cross-month slice.");
+      return;
+    }
+    void applyMove(unit, targetDay);
+  };
+
   if (planner.isLoading) {
     return <LoadingScreen />;
   }
+
+  const sessionLabel = (unit: MobilePlannerWorkUnit) =>
+    planner.data?.goalTitles[unit.originalGoalId] ?? unit.label ?? unit.unitKey;
 
   return (
     <Screen title="Calendar">
@@ -103,6 +214,25 @@ export function CalendarScreen() {
             <Pressable
               key={cell.date}
               onPress={() => apply({ day: cell.date, viewMode: "day" })}
+              onLayout={(event) => {
+                const node = event.target as unknown as {
+                  measureInWindow?: (
+                    callback: (
+                      x: number,
+                      y: number,
+                      width: number,
+                      height: number
+                    ) => void
+                  ) => void;
+                };
+                node.measureInWindow?.((x, y, width, height) => {
+                  dayTargets.current.set(cell.date, {
+                    day: cell.date,
+                    inMonth: cell.inMonth,
+                    rect: { x, y, width, height },
+                  });
+                });
+              }}
               style={[
                 styles.cell,
                 {
@@ -124,20 +254,51 @@ export function CalendarScreen() {
         </View>
       ) : (
         visibleDays.map((visibleDay) => (
-          <View key={visibleDay} style={[styles.dayCard, { borderColor: theme.colors.border }]}>
-            <Text style={{ color: theme.colors.foreground, fontWeight: "700" }}>{visibleDay}</Text>
+          <View
+            key={visibleDay}
+            onLayout={(event) => {
+              const node = event.target as unknown as {
+                measureInWindow?: (
+                  callback: (
+                    x: number,
+                    y: number,
+                    width: number,
+                    height: number
+                  ) => void
+                ) => void;
+              };
+              node.measureInWindow?.((x, y, width, height) => {
+                dayTargets.current.set(visibleDay, {
+                  day: visibleDay,
+                  inMonth: visibleDay.slice(0, 7) === scopeMonth,
+                  rect: { x, y, width, height },
+                });
+              });
+            }}
+            style={[styles.dayCard, { borderColor: theme.colors.border }]}
+          >
+            <Text style={{ color: theme.colors.foreground, fontWeight: "700" }}>
+              {visibleDay}
+            </Text>
             {(unitsByDate.get(visibleDay) ?? []).map((unit) => (
-              <Pressable
-                key={`${unit.originalGoalId}:${unit.unitKey}`}
+              <DraggableSession
+                key={unitEntryKey(unit)}
+                unit={unit}
+                day={visibleDay}
+                label={sessionLabel(unit)}
                 onPress={() => {
                   setMoveUnit(unit);
                   setMoveDate(visibleDay);
                 }}
-              >
-                <Text style={{ color: theme.colors.foreground }}>
-                  {planner.data?.goalTitles[unit.originalGoalId] ?? unit.label ?? unit.unitKey}
-                </Text>
-              </Pressable>
+                onDrop={handleDrop}
+                onLayoutWindow={(entryKey, sessionDay, rect) => {
+                  sessionTargets.current.set(entryKey, {
+                    day: sessionDay,
+                    entryKey,
+                    rect,
+                  });
+                }}
+              />
             ))}
           </View>
         ))
@@ -168,8 +329,8 @@ export function CalendarScreen() {
       </View>
       {message ? <Text style={{ color: theme.colors.foreground }}>{message}</Text> : null}
       <Text style={{ color: theme.colors.mutedForeground }}>
-        Drag is deferred; tap a session in week/day view to move it with the sheet. Coach and
-        cross-month advanced moves follow in later polish.
+        Long-press a session to drag it onto another day, or tap it to use the Move-to
+        sheet. Same-day drops reorder incomplete and completed groups separately.
       </Text>
       <Modal visible={Boolean(moveUnit)} animationType="slide" transparent>
         <View style={styles.sheetBackdrop}>
@@ -185,35 +346,11 @@ export function CalendarScreen() {
             <PrimaryButton
               disabled={busy || !moveUnit}
               label="Apply move"
-              onPress={async () => {
-                if (!moveUnit || !planner.data) {
+              onPress={() => {
+                if (!moveUnit) {
                   return;
                 }
-                setBusy(true);
-                try {
-                  await api.postJson("/api/planner/context", {
-                    scopeMonth,
-                    timezone: planner.data.timezone,
-                    policy: planner.data.preferences?.defaultPolicy,
-                    source: planner.data.activePlan ? "update" : "manual",
-                    solveIntent: "stable",
-                    draftCommands: [
-                      {
-                        kind: "move_item",
-                        goalId: moveUnit.originalGoalId,
-                        unitKey: moveUnit.unitKey,
-                        scheduledDate: moveDate,
-                      },
-                    ],
-                  });
-                  await planner.refresh();
-                  setMoveUnit(null);
-                  setMessage("Draft move previewed. Save from web or a follow-up save slice if hashes are required.");
-                } catch (error) {
-                  setMessage(getApiErrorMessage(error, "Move failed."));
-                } finally {
-                  setBusy(false);
-                }
+                void applyMove(moveUnit, moveDate);
               }}
             />
             <PrimaryButton
