@@ -45,7 +45,8 @@ import {
 import { ChecklistTodayGroups } from "@/features/today/checklist-today-groups";
 import { TodayHeaderCard } from "@/features/today/today-header-card";
 import { GoalCard } from "@/features/today/goal-card";
-import { useChecklistData } from "@/features/today/use-checklist-data";
+import { PartnerChecklistStrip } from "@/features/social/duo/partner-checklist-strip";
+import type { DuoActivePartner } from "@/lib/social/duo/types";
 import { buildCompletableGoalIds, selectCompletableGoals } from "@/lib/goals/completable-goals";
 import { resolveUserTimezone } from "@/lib/dates/timezone";
 import { normalizeWeekStartsOn } from "@/lib/dates/week-start";
@@ -78,7 +79,7 @@ import {
   isTargetedRecurringGoal,
 } from "@/lib/planner/requirements";
 import { useCompletionMutation } from "@/features/planner/use-completion-mutation";
-import { captureViewportRect } from "@/lib/xp/events";
+import { reportDuoTelemetry } from "@/lib/social/duo/telemetry";
 
 export type ChecklistTabValue = "today" | "not-today";
 
@@ -93,6 +94,8 @@ interface TodayTabProps {
   subjectUserId?: string;
   readOnly?: boolean;
   laneLabel?: string;
+  partnerSummary?: DuoActivePartner | null;
+  onOpenPartner?: () => void;
 }
 
 export function TodayTab({
@@ -104,6 +107,8 @@ export function TodayTab({
   subjectUserId,
   readOnly = false,
   laneLabel,
+  partnerSummary = null,
+  onOpenPartner,
 }: TodayTabProps = {}) {
   const [savingGoalId, setSavingGoalId] = useState<string | null>(null);
   const [expandedGroups, setExpandedGroups] =
@@ -124,11 +129,12 @@ export function TodayTab({
     useState<ChecklistTabValue>(activeTab ?? "today");
   const effectiveChecklistTab = activeTab ?? internalChecklistTab;
   const runCompletionMutation = useCompletionMutation();
-  const { data, loading, loadData, redirectToLogin, todayLocalDate } = useChecklistData({
+  const { data, loading, laneError, loadData, redirectToLogin, todayLocalDate } = useChecklistData({
     subjectUserId,
     isActive,
     refreshToken,
     viewDate,
+    failClosed: Boolean(readOnly && subjectUserId),
   });
 
   const viewDateObj = useMemo(() => parseISO(viewDate), [viewDate]);
@@ -347,6 +353,7 @@ export function TodayTab({
     }
 
     if (routeDesiredFactState === "present") {
+      reportDuoTelemetry("viewer_lane_completion", { surface: "checklist" });
       toast.success(`Great work. Goal completed for ${viewDate}.`);
     } else {
       const removedDate =
@@ -466,15 +473,37 @@ export function TodayTab({
 
   if (loading) {
     return (
-      <LoadingCard
-        title="Loading your goals..."
-        description="Pulling your latest status."
-      />
+      <div className="space-y-5">
+        {partnerSummary && onOpenPartner ? (
+          <PartnerChecklistStrip
+            partner={partnerSummary}
+            viewDate={viewDate}
+            onOpenPartner={onOpenPartner}
+          />
+        ) : null}
+        <LoadingCard
+          title="Loading your goals..."
+          description="Pulling your latest status."
+        />
+      </div>
+    );
+  }
+
+  if (laneError) {
+    return (
+      <p className="px-1 text-sm text-muted-foreground">{laneError}</p>
     );
   }
 
   return (
     <div className="space-y-5">
+      {partnerSummary && onOpenPartner ? (
+        <PartnerChecklistStrip
+          partner={partnerSummary}
+          viewDate={viewDate}
+          onOpenPartner={onOpenPartner}
+        />
+      ) : null}
       <Tabs
         value={effectiveChecklistTab}
         onValueChange={(value) => {
