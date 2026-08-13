@@ -187,14 +187,18 @@ select is(
   'unmark_goal_complete clears the linked completion'
 );
 
+-- Social Duo 1: Alice and Bob are a seeded active team pair, and a team pair is
+-- total mutual visibility, so is_private no longer hides Bob's personal goal
+-- from Alice. The "private goal stays hidden from a non-partner" case is
+-- asserted in team_visibility.test.sql ("outsider cannot read owner goals").
 select is(
   (
     select count(*)
     from public.goals
     where id = '10000000-0000-4000-8000-000000000009'
   ),
-  0::bigint,
-  'RLS hides Bob private goal from Alice'
+  1::bigint,
+  'team partner Alice can read Bob private goal'
 );
 
 select public.mark_goal_complete(
