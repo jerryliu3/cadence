@@ -72,6 +72,60 @@ export function GoalCard({
     goal.category_key
   );
 
+  const body = (
+    <>
+      {imageUrl ? (
+        <Image
+          src={imageUrl}
+          alt={goal.title}
+          width={48}
+          height={48}
+          unoptimized
+          className="size-12 rounded-lg object-cover ring-1 ring-border"
+        />
+      ) : null}
+
+      <div className="min-w-0 flex-1 space-y-0.5">
+        <div className="flex items-center gap-2">
+          <span
+            className="size-2 rounded-full"
+            style={{ backgroundColor: goal.color ?? "var(--muted-foreground)" }}
+          />
+          <h3 className="truncate text-sm font-semibold">{goal.title}</h3>
+          <GoalEndMonthBadge endDate={goal.end_date} />
+          <Badge
+            variant="outline"
+            className={`h-5 rounded-md px-1.5 text-[11px] font-semibold ${getCategoryBadgeClass(
+              goal.category_key ?? goal.category
+            )}`}
+          >
+            {goalCategoryLabel}
+          </Badge>
+          {progress?.outcome === "achieved" ? (
+            <Badge variant="secondary">Achieved</Badge>
+          ) : progress?.outcome === "ended_with_shortfall" ? (
+            <Badge variant="outline">Shortfall</Badge>
+          ) : null}
+        </div>
+        <div className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
+          <p className="truncate">{getFrequencySummary(goal, displayCompletionCount)}</p>
+          {linkedCount > 0 ? (
+            <span className="inline-flex shrink-0 items-center gap-1">
+              <Link2 className="size-3" />
+              {linkedCount}
+            </span>
+          ) : null}
+          {completionSourceForSelectedDate === "linked_cascade" ? (
+            <Badge variant="outline" className="h-4 px-1 text-[10px]">
+              Linked
+            </Badge>
+          ) : null}
+        </div>
+      </div>
+    </>
+  );
+
+
   return (
     <Card className="shadow-sm">
       <CardContent className="flex items-center gap-2 px-2 py-0.5">
@@ -89,7 +143,7 @@ export function GoalCard({
             completed={doneForCurrentPeriod}
             pending={disabled && !archived}
             size="lg"
-            onClick={(event) => onToggle(event.currentTarget)}
+            onClick={(event) => onToggle?.(event.currentTarget)}
             disabled={disabled || archived}
             aria-label={
               doneForCurrentPeriod
@@ -105,129 +159,14 @@ export function GoalCard({
 
         {readOnly ? (
           <div className="flex min-w-0 flex-1 items-center gap-2 rounded-lg px-0.5 py-0.5">
-            {imageUrl ? (
-              <Image
-                src={imageUrl}
-                alt={goal.title}
-                width={48}
-                height={48}
-                unoptimized
-                className="size-12 rounded-lg object-cover ring-1 ring-border"
-              />
-            ) : null}
-
-            <div className="min-w-0 flex-1 space-y-0.5">
-              <div className="flex items-center gap-2">
-                <span
-                  className="size-2 rounded-full"
-                  style={{ backgroundColor: goal.color ?? "var(--muted-foreground)" }}
-                />
-                <h3 className="truncate text-sm font-semibold">{goal.title}</h3>
-                <GoalEndMonthBadge endDate={goal.end_date} />
-                <Badge
-                  variant="outline"
-                  className={getCategoryBadgeClass(goal.category_key ?? goal.category)}
-                >
-                  {goalCategoryLabel}
-                </Badge>
-                {progress?.outcome === "achieved" ? (
-                  <Badge variant="secondary">Achieved</Badge>
-                ) : progress?.outcome === "ended_with_shortfall" ? (
-                  <Badge variant="outline">Shortfall</Badge>
-                ) : null}
-              </div>
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <div className="flex min-w-0 items-center gap-2">
-                  {currentMilestoneName ? (
-                    <>
-                      <span className="max-w-[180px] truncate">
-                        Current milestone: {currentMilestoneName}
-                      </span>
-                      <span className="shrink-0">·</span>
-                    </>
-                  ) : null}
-                  <p className="truncate">{getFrequencySummary(goal, displayCompletionCount)}</p>
-                  {nextRecurringStartDate ? <span className="shrink-0">·</span> : null}
-                </div>
-                {nextRecurringStartDate ? (
-                  <span className="shrink-0">Next Start Date: {nextRecurringStartDate}</span>
-                ) : null}
-                <span className="ml-auto shrink-0 text-[11px]">
-                  Deadline: {goal.end_date ?? "None"}
-                </span>
-              </div>
-              {goal.description ? (
-                <p className="line-clamp-2 text-xs text-muted-foreground">{goal.description}</p>
-              ) : null}
-              <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                {linkedCount > 0 ? (
-                  <span className="inline-flex items-center gap-1">
-                    <Link2 className="size-3" />
-                    {linkedCount} linked
-                  </span>
-                ) : null}
-                {completionSourceForSelectedDate === "linked_cascade" ? (
-                  <Badge variant="outline">Auto-completed via link</Badge>
-                ) : null}
-                {!targetedRecurring && doneForCurrentPeriod && !doneOnSelectedDate ? (
-                  <span>Current period done</span>
-                ) : null}
-              </div>
-            </div>
+            {body}
           </div>
         ) : (
           <Link
             href={`/goals/${goal.id}`}
             className="flex min-w-0 flex-1 items-center gap-2 rounded-lg px-0.5 py-0.5 transition-colors hover:bg-muted/40"
           >
-          {imageUrl ? (
-            <Image
-              src={imageUrl}
-              alt={goal.title}
-              width={48}
-              height={48}
-              unoptimized
-              className="size-12 rounded-lg object-cover ring-1 ring-border"
-            />
-          ) : null}
-
-          <div className="min-w-0 flex-1 space-y-0.5">
-            <div className="flex items-center gap-2">
-              <span
-                className="size-2 rounded-full"
-                style={{ backgroundColor: goal.color ?? "var(--muted-foreground)" }}
-              />
-              <h3 className="truncate text-sm font-semibold">{goal.title}</h3>
-              <GoalEndMonthBadge endDate={goal.end_date} />
-              <Badge
-                variant="outline"
-                className={`h-5 rounded-md px-1.5 text-[11px] font-semibold ${getCategoryBadgeClass(
-                  goal.category_key ?? goal.category
-                )}`}
-              >
-                {goalCategoryLabel}
-              </Badge>
-              {progress?.outcome === "achieved" ? (
-                <Badge variant="secondary">Achieved</Badge>
-              ) : progress?.outcome === "ended_with_shortfall" ? (
-                <Badge variant="outline">Shortfall</Badge>
-              ) : null}
-            </div>
-            <div className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
-              <p className="truncate">{getFrequencySummary(goal, displayCompletionCount)}</p>
-              {linkedCount > 0 ? (
-                <span className="inline-flex shrink-0 items-center gap-1">
-                  <Link2 className="size-3" />
-                  {linkedCount}
-                </span>
-              ) : null}
-              {completionSourceForSelectedDate === "linked_cascade" ? (
-                <Badge variant="outline" className="h-4 px-1 text-[10px]">
-                  Linked
-                </Badge>
-              ) : null}
-            </div>
-          </div>
+            {body}
           </Link>
         )}
       </CardContent>

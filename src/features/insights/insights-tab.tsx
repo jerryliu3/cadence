@@ -89,6 +89,8 @@ import {
   progressSummaryMap,
   type ProgressContextResponse,
 } from "@/lib/goals/progress-context";
+import { selectViewerVisibleGoals } from "@/lib/goals/visible-goals";
+import { useDuo } from "@/features/social/duo/duo-context";
 import type {
   CompletionDateFact,
   Goal,
@@ -167,6 +169,8 @@ export function InsightsTab({
   laneLabel,
 }: InsightsTabProps = {}) {
   const supabase = useMemo(() => createClient(), []);
+  const { state: duoState } = useDuo();
+  const duoPartnerId = duoState.activePartner?.partnerId ?? null;
   const router = useRouter();
   const [state, setState] = useState<InsightsData>(emptyInsights);
   const [loading, setLoading] = useState(true);
@@ -252,10 +256,6 @@ export function InsightsTab({
         const [goalsResponse, teamMembersResponse, progress] =
           await withAbortSignal(
             Promise.all([
-<<<<<<< HEAD
-              supabase.from("goals").select("*").eq("is_deleted", false).order("title"),
-              supabase.from("team_members").select("team_id").eq("user_id", user.id),
-=======
               (() => {
                 let query = supabase
                   .from("goals")
@@ -268,9 +268,8 @@ export function InsightsTab({
                 return query;
               })(),
               targetIsViewer
-                ? supabase.from("goal_participants").select("*").eq("user_id", user.id)
+                ? supabase.from("team_members").select("team_id").eq("user_id", user.id)
                 : Promise.resolve({ data: [], error: null }),
->>>>>>> f57fd2de (wire duo lanes into checklist and insights surfaces)
               fetchProgressContext({
                 asOfDate: toLocalDateString(),
                 factsFrom: yearStart,
@@ -289,28 +288,14 @@ export function InsightsTab({
           return;
         }
 
-<<<<<<< HEAD
-        setState({
-          userId: user.id,
-          goals: (goalsResponse.data ?? []) as Goal[],
-=======
-        const participants = (participantsResponse.data ?? []) as GoalParticipant[];
         const goals = (goalsResponse.data ?? []) as Goal[];
-        const participantGoalIds = new Set(
-          participants.map((participant) => participant.goal_id)
-        );
         const visibleGoals = targetIsViewer
-          ? goals.filter(
-              (goal) =>
-                goal.owner_id === user.id ||
-                participantGoalIds.has(goal.id)
-            )
+          ? selectViewerVisibleGoals({ goals, partnerId: duoPartnerId })
           : goals;
 
         setState({
           userId: targetSubjectUserId,
           goals: visibleGoals,
->>>>>>> f57fd2de (wire duo lanes into checklist and insights surfaces)
           completions: progress.facts,
           memberTeamIds: (teamMembersResponse.data ?? []).map((row) => row.team_id),
           progress,
@@ -325,7 +310,7 @@ export function InsightsTab({
         }
       }
     },
-    [redirectToLogin, selectedYear, subjectUserId, supabase]
+    [duoPartnerId, redirectToLogin, selectedYear, subjectUserId, supabase]
   );
 
   useEffect(() => {
