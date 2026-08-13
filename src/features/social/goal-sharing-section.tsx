@@ -85,8 +85,7 @@ export function GoalSharingSection({
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="space-y-2">
+          <div className="space-y-2">
               <Label>Goals to share (read-only)</Label>
               <div ref={shareMenuAnchorRef} className="relative">
                 <button
@@ -121,7 +120,6 @@ export function GoalSharingSection({
                 </button>
               </div>
             </div>
-          </div>
 
           {shareMenuOpen ? (
             <div
