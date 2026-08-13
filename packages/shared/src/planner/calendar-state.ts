@@ -20,7 +20,7 @@ export function isValidDate(value: string | null): value is string {
 }
 
 export function isValidCalendarViewMode(
-  value: string | null
+  value: string | null | undefined
 ): value is PlannerCalendarViewMode {
   return (
     value === "month" ||
