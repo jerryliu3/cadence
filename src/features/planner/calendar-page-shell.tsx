@@ -1,7 +1,7 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import { CalendarSurface } from "@/features/planner/calendar-surface";
 import {
   getTodayDateParam,
@@ -11,29 +11,13 @@ import {
   type PlannerCalendarViewMode,
 } from "@/features/today/checklist-shell-routing";
 import { useClientSearchParamsUpdater } from "@/lib/navigation/use-client-search-params-updater";
+import { useMediaQuery } from "@/lib/ui/use-media-query";
 
 export function CalendarPageShell() {
   const searchParams = useSearchParams();
   const { applySearchParams } = useClientSearchParamsUpdater();
-  const [defaultCalendarViewMode, setDefaultCalendarViewMode] =
-    useState<PlannerCalendarViewMode>("month");
-
-  useEffect(() => {
-    if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
-      return;
-    }
-    const mediaQueryList = window.matchMedia("(max-width: 767px)");
-    const updateDefaultViewMode = () => {
-      setDefaultCalendarViewMode(mediaQueryList.matches ? "week" : "month");
-    };
-    updateDefaultViewMode();
-    if (typeof mediaQueryList.addEventListener === "function") {
-      mediaQueryList.addEventListener("change", updateDefaultViewMode);
-      return () => mediaQueryList.removeEventListener("change", updateDefaultViewMode);
-    }
-    mediaQueryList.addListener(updateDefaultViewMode);
-    return () => mediaQueryList.removeListener(updateDefaultViewMode);
-  }, []);
+  const isMobileViewport = useMediaQuery("(max-width: 767px)");
+  const defaultCalendarViewMode: PlannerCalendarViewMode = isMobileViewport ? "week" : "month";
 
   const normalized = useMemo(
     () =>
