@@ -1,18 +1,29 @@
-import { endOfMonth, format, parseISO, startOfMonth } from "date-fns";
+import { addDays, format, parseISO, startOfMonth } from "date-fns";
 import type { PlannerCompletionFactMarker } from "@/features/planner/calendar-surface.types";
 import type { CompletionDateFact } from "@/lib/goals/types";
 
-export function monthFactsBounds(month: string | null): {
+/**
+ * The month grid is a fixed 42-cell window whose first cell is the start of the
+ * week containing the 1st, so it renders up to 6 leading days from the previous
+ * month and trailing days from the next one (see buildMonthCells).
+ *
+ * Bounding the fetch to the calendar month would leave those cells permanently
+ * empty of partner markers. Fetch the widest grid any weekStartsOn can produce
+ * instead — 6 days before the 1st through 41 days after it. That is a superset
+ * of every variant, so the hook does not need the viewer's week-start
+ * preference, and dates outside the rendered grid are simply never looked up.
+ */
+export function monthGridFactsBounds(month: string | null): {
   factsFrom: string;
   factsTo: string;
 } | null {
   if (!month || !/^\d{4}-\d{2}$/.test(month)) {
     return null;
   }
-  const monthDate = parseISO(`${month}-01`);
+  const monthStart = startOfMonth(parseISO(`${month}-01`));
   return {
-    factsFrom: format(startOfMonth(monthDate), "yyyy-MM-dd"),
-    factsTo: format(endOfMonth(monthDate), "yyyy-MM-dd"),
+    factsFrom: format(addDays(monthStart, -6), "yyyy-MM-dd"),
+    factsTo: format(addDays(monthStart, 41), "yyyy-MM-dd"),
   };
 }
 
