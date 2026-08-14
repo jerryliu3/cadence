@@ -11,6 +11,7 @@ export interface SolverUnit {
   candidateDates: string[];
   previousDate: string | null;
   lockedDate: string | null;
+  idealDate: string | null;
   /** Solve-order anchor; falls back to previousDate. Not part of the objective. */
   solveOrderAnchor?: string | null;
   dateCosts?: Record<string, number>;
@@ -50,6 +51,7 @@ export type SolverSolveIntent = "stable" | "replan";
 export interface SolverObjective {
   placed: number;
   moved: number;
+  idealDisplacement: number;
   displacement: number;
   policyCost: number;
 }

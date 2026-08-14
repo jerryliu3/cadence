@@ -297,10 +297,24 @@ function allocateOrdinalWindow({
   for (const unit of reconciledUnits) {
     if (
       unit.kind !== requirement.kind ||
-      unit.creditedCompletionDate === null ||
       unit.ordinal <= 0 ||
       unit.ordinal > requirement.targetCount
     ) {
+      continue;
+    }
+    const persistedScheduledDate =
+      unit.creditedCompletionDate === null &&
+      unit.scheduledDate !== null &&
+      compareCanonicalStrings(unit.scheduledDate, goal.start_date) >= 0 &&
+      compareCanonicalStrings(
+        unit.scheduledDate,
+        goal.end_date ?? unit.scheduledDate
+      ) <= 0
+        ? unit.scheduledDate
+        : null;
+    const pinnedDate =
+      unit.creditedCompletionDate ?? persistedScheduledDate;
+    if (pinnedDate === null) {
       continue;
     }
     const ownerMonth =
@@ -310,9 +324,9 @@ function allocateOrdinalWindow({
         targetCount: requirement.targetCount,
         ordinal: unit.ordinal,
       });
-    const completionMonth = monthFromDate(unit.creditedCompletionDate);
-    const pinnedMonth = lifetimeMonths.includes(completionMonth)
-      ? completionMonth
+    const scheduledMonth = monthFromDate(pinnedDate);
+    const pinnedMonth = lifetimeMonths.includes(scheduledMonth)
+      ? scheduledMonth
       : ownerMonth;
     const ownerQueue = ownerUncreditedByMonth.get(ownerMonth)!;
     const ownerIndex = ownerQueue.indexOf(unit.ordinal);
@@ -700,6 +714,29 @@ export function runPlannerKernel(
     preserveExistingAssignments:
       rawInput.preserveExistingAssignments === true,
     draftPinnedDates: rawInput.draftPinnedDates ?? {},
+    idealDateContextByGoal: new Map(
+      eligibleGoals.flatMap((goal) => {
+        const requirement = normalizedRequirements.get(goal.id)!.requirement;
+        if (requirement.kind === "cadence" || goal.end_date === null) {
+          return [];
+        }
+        return [
+          [
+            goal.id,
+            {
+              targetCount: requirement.targetCount,
+              remainingLifetime: {
+                start:
+                  compareCanonicalStrings(rawInput.asOfDate, goal.start_date) > 0
+                    ? rawInput.asOfDate
+                    : goal.start_date,
+                end: goal.end_date,
+              },
+            },
+          ] as const,
+        ];
+      })
+    ),
   });
   const dates = enumerateDates(window);
   const solveIntentForRun = rawInput.solveIntent ?? "stable";

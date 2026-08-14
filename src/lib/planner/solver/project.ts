@@ -6,8 +6,13 @@ import {
   getCompiledDateCost,
   type CompiledPolicy,
 } from "@/lib/planner/policy";
+import {
+  computeCadenceIdealDate,
+  computeLifetimeIdealDate,
+} from "@/lib/planner/solver/ideal-dates";
 import type { SolverUnit } from "@/lib/planner/solver/types";
 import type { PlannerWorkUnit } from "@/lib/planner/work-units";
+import type { DateWindow } from "@/lib/planner/dates";
 
 export function projectWorkUnitsToSolver({
   workUnits,
@@ -16,6 +21,7 @@ export function projectWorkUnitsToSolver({
   completionDatesByGoal = new Map(),
   preserveExistingAssignments = false,
   draftPinnedDates = {},
+  idealDateContextByGoal = new Map(),
 }: {
   workUnits: PlannerWorkUnit[];
   compiledPolicy: CompiledPolicy;
@@ -23,6 +29,10 @@ export function projectWorkUnitsToSolver({
   completionDatesByGoal?: Map<string, Set<string>>;
   preserveExistingAssignments?: boolean;
   draftPinnedDates?: Record<string, string>;
+  idealDateContextByGoal?: Map<
+    string,
+    { targetCount: number; remainingLifetime: DateWindow }
+  >;
 }): SolverUnit[] {
   const resolveLockedDate = (unit: PlannerWorkUnit) => {
     if (unit.locked) {
@@ -108,6 +118,25 @@ export function projectWorkUnitsToSolver({
       );
     });
     entries.forEach((entry) => {
+      const idealDate =
+        entry.source.kind === "cadence"
+          ? computeCadenceIdealDate({
+              goalId,
+              periodKey: entry.source.periodKey!,
+              candidateDates: entry.candidateDates,
+            })
+          : (() => {
+              const context = idealDateContextByGoal.get(goalId);
+              return context
+                ? computeLifetimeIdealDate({
+                    goalId,
+                    ordinal: entry.source.ordinal,
+                    targetCount: context.targetCount,
+                    remainingLifetime: context.remainingLifetime,
+                    candidateDates: entry.candidateDates,
+                  })
+                : null;
+            })();
       solverUnits.push({
         unitKey: entry.source.unitKey,
         goalId,
@@ -116,6 +145,7 @@ export function projectWorkUnitsToSolver({
         candidateDates: entry.candidateDates,
         previousDate: entry.source.scheduledDate,
         lockedDate: resolveLockedDate(entry.source),
+        idealDate,
         dateCosts: Object.fromEntries(
           entry.candidateDates.map((date) => [
             date,
