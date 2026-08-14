@@ -16,6 +16,8 @@ const eslintConfig = defineConfig([
     ".worktrees/**",
     // Generated Playwright HTML trace assets.
     "playwright-report/**",
+    // Expo Metro config is CommonJS by convention.
+    "apps/mobile/metro.config.js",
   ]),
 ]);
 
