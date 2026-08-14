@@ -196,4 +196,66 @@ describe("projectWorkUnitsToSolver", () => {
     expect(result[0]?.lockedDate).toBe("2026-08-05");
     expect(result[0]?.candidateDates).not.toContain("2026-08-05");
   });
+
+  it("projects a valid deterministic ideal date for ordinal work", () => {
+    const result = projectWorkUnitsToSolver({
+      workUnits: [
+        createWorkUnit({
+          ordinal: 2,
+          unitKey: "total:2",
+          placementWindow: { start: "2026-08-10", end: "2026-08-20" },
+          draftMoveWindow: { start: "2026-08-10", end: "2026-08-31" },
+        }),
+      ],
+      compiledPolicy,
+      assessments,
+      idealDateContextByGoal: new Map([
+        [
+          "goal-a",
+          {
+            targetCount: 3,
+            remainingLifetime: {
+              start: "2026-08-05",
+              end: "2026-08-31",
+            },
+          },
+        ],
+      ]),
+    });
+
+    expect(result).toHaveLength(1);
+    expect(result[0]?.idealDate).not.toBeNull();
+    expect(result[0]?.candidateDates).toContain(result[0]?.idealDate);
+  });
+
+  it("never projects a reserved preferred date as the ideal", () => {
+    const result = projectWorkUnitsToSolver({
+      workUnits: [
+        createWorkUnit({
+          placementWindow: { start: "2026-08-16", end: "2026-08-16" },
+          draftMoveWindow: { start: "2026-08-16", end: "2026-08-31" },
+        }),
+      ],
+      compiledPolicy,
+      assessments,
+      completionDatesByGoal: new Map([
+        ["goal-a", new Set(["2026-08-16"])],
+      ]),
+      idealDateContextByGoal: new Map([
+        [
+          "goal-a",
+          {
+            targetCount: 1,
+            remainingLifetime: {
+              start: "2026-08-16",
+              end: "2026-08-16",
+            },
+          },
+        ],
+      ]),
+    });
+
+    expect(result[0]?.candidateDates).not.toContain("2026-08-16");
+    expect(result[0]?.idealDate).toBeNull();
+  });
 });

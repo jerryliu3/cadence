@@ -3,7 +3,7 @@ export const REQUIREMENT_SCHEMA_VERSION = "1" as const;
 export const ASSESSMENT_SCHEMA_VERSION = "1" as const;
 export const POLICY_SCHEMA_VERSION = "1" as const;
 export const POLICY_COMPILER_VERSION = "1" as const;
-export const SCHEDULER_VERSION = "ordered-dp-v1" as const;
+export const SCHEDULER_VERSION = "ordered-dp-v2" as const;
 export const PLANNER_ELIGIBILITY_MODES = ["overlap_v1"] as const;
 export type PlannerEligibilityMode =
   (typeof PLANNER_ELIGIBILITY_MODES)[number];

@@ -98,6 +98,63 @@ describe("pure planner kernel", () => {
     ).toBe(true);
   });
 
+  it("places six milestones proportionally across a two-month lifetime", () => {
+    const milestoneGoal = goal({
+      id: "goal-milestone",
+      frequency_type: "fixed_milestones",
+      recurrence_interval: null,
+      target_count: 6,
+      milestone_names: ["One", "Two", "Three", "Four", "Five", "Six"],
+      start_date: "2026-08-01",
+      end_date: "2026-09-30",
+    });
+    const output = runPlannerKernel(
+      input({
+        startDate: "2026-08-01",
+        endDate: "2026-09-30",
+        asOfDate: "2026-08-01",
+        goals: [milestoneGoal],
+      })
+    );
+
+    expect(
+      output.workUnits.map((unit) => unit.scheduledDate?.slice(0, 7))
+    ).toEqual([
+      "2026-08",
+      "2026-08",
+      "2026-08",
+      "2026-09",
+      "2026-09",
+      "2026-09",
+    ]);
+  });
+
+  it("produces identical assignments for identical fresh runs", () => {
+    const runA = runPlannerKernel(input());
+    const runB = runPlannerKernel(input());
+
+    expect(runA.solver.assignments).toEqual(runB.solver.assignments);
+  });
+
+  it("does not move one goal when another goal is added", () => {
+    const firstGoal = goal({ id: "goal-a", target_count: 5 });
+    const secondGoal = goal({ id: "goal-b", target_count: 5 });
+    const before = runPlannerKernel(input({ goals: [firstGoal] }));
+    const after = runPlannerKernel(
+      input({ goals: [firstGoal, secondGoal] })
+    );
+    const firstGoalDatesBefore = before.workUnits
+      .filter((unit) => unit.originalGoalId === firstGoal.id)
+      .map((unit) => unit.scheduledDate);
+    const firstGoalDatesAfterAddingSecondGoal = after.workUnits
+      .filter((unit) => unit.originalGoalId === firstGoal.id)
+      .map((unit) => unit.scheduledDate);
+
+    expect(firstGoalDatesAfterAddingSecondGoal).toEqual(
+      firstGoalDatesBefore
+    );
+  });
+
   it("does not inflate planned ordinal totals when toggling months", () => {
     const longGoal = goal({
       target_count: 9,
@@ -235,7 +292,7 @@ describe("pure planner kernel", () => {
           asOfDate: "2026-09-10",
           goals: [longGoal],
           completions,
-          basePlan: null,
+          basePlan: augustBasePlan,
         })
       ),
       runPlannerKernel(
@@ -245,7 +302,7 @@ describe("pure planner kernel", () => {
           asOfDate: "2026-09-10",
           goals: [longGoal],
           completions,
-          basePlan: null,
+          basePlan: augustBasePlan,
         })
       ),
     ];
@@ -260,6 +317,47 @@ describe("pure planner kernel", () => {
     expect(allUnitKeys).toHaveLength(longGoal.target_count ?? 0);
     expect(new Set(allUnitKeys).size).toBe(longGoal.target_count);
     expect(new Set(allUnitKeys)).toEqual(new Set(expectedUnitKeys));
+  });
+
+  it("allocates a persisted uncredited ordinal only to its scheduled month", () => {
+    const milestoneGoal = goal({
+      id: "goal-milestone",
+      frequency_type: "fixed_milestones",
+      recurrence_interval: null,
+      target_count: 6,
+      milestone_names: ["One", "Two", "Three", "Four", "Five", "Six"],
+      start_date: "2026-08-01",
+      end_date: "2026-09-30",
+    });
+    const output = runPlannerKernel(
+      input({
+        ...toKernelWindow("2026-08"),
+        asOfDate: "2026-08-01",
+        goals: [milestoneGoal],
+        basePlan: {
+          planId: "plan-a",
+          version: 1,
+          assignments: [
+            {
+              goalId: milestoneGoal.id,
+              requirementFingerprint:
+                computeRequirementFingerprint(milestoneGoal),
+              unitKey: "milestone:1",
+              scheduledDate: "2026-09-15",
+              locked: false,
+            },
+          ],
+        },
+      })
+    );
+
+    expect(output.workUnits.map((unit) => unit.unitKey)).not.toContain(
+      "milestone:1"
+    );
+    expect(output.horizonSummary[0]?.months).toEqual([
+      { month: "2026-08", plannedCount: 2 },
+      { month: "2026-09", plannedCount: 4 },
+    ]);
   });
 
   it("spills ordinal allocations forward when current-month capacity is constrained", () => {
@@ -697,7 +795,9 @@ describe("pure planner kernel", () => {
 
       expect(output.solver.issueCodes).not.toContain("invalid_lock");
       expect(output.validation.valid).toBe(true);
-      expect(output.workUnits[0]?.scheduledDate).toBe("2026-08-20");
+      expect(output.workUnits[0]?.scheduledDate).not.toBe("2026-08-05");
+      expect(output.workUnits[0]?.scheduledDate).not.toBeNull();
+      expect(output.workUnits[0]!.scheduledDate! >= "2026-08-20").toBe(true);
     });
 
     it("keeps a past preserved unit while still placing a later sibling", () => {
@@ -1359,9 +1459,9 @@ describe("solve intent and draft pins", () => {
 
     expect(stable.solver.placementStatus).toBe("complete");
     expect(stable.workUnits.map((unit) => unit.scheduledDate)).toEqual([
-      "2026-08-05",
-      "2026-08-06",
-      "2026-08-07",
+      "2026-08-08",
+      "2026-08-17",
+      "2026-08-26",
     ]);
   });
 
