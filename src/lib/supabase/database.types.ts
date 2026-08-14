@@ -1449,6 +1449,7 @@ export type Database = {
         Row: {
           avatar_url: string | null
           blackout_ranges: Json
+          calendar_feed_token_version: number
           created_at: string
           display_name: string | null
           id: string
@@ -1462,6 +1463,7 @@ export type Database = {
         Insert: {
           avatar_url?: string | null
           blackout_ranges?: Json
+          calendar_feed_token_version?: number
           created_at?: string
           display_name?: string | null
           id: string
@@ -1475,6 +1477,7 @@ export type Database = {
         Update: {
           avatar_url?: string | null
           blackout_ranges?: Json
+          calendar_feed_token_version?: number
           created_at?: string
           display_name?: string | null
           id?: string
