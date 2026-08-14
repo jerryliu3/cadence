@@ -41,6 +41,7 @@ function record(
     requirementFingerprint:
       input.requirementFingerprint ?? computeRequirementFingerprint(baselineGoal),
     policyRevision: input.policyRevision ?? 2,
+    lockSignature: input.lockSignature ?? "lock-signature",
     effectiveSpanEnd: input.effectiveSpanEnd ?? "2027-07-31",
     unplacedCount: input.unplacedCount ?? 8,
     reason: input.reason ?? "capacity",
@@ -62,6 +63,7 @@ describe("planner unplaceable helpers", () => {
         record: unplaceable,
         goal: plannerGoal,
         policyRevision: 3,
+        lockSignature: "lock-signature",
         preparationEnd: "2027-07-31",
       })
     ).toBe(true);
@@ -77,6 +79,7 @@ describe("planner unplaceable helpers", () => {
         }),
         goal: plannerGoal,
         policyRevision: 2,
+        lockSignature: "lock-signature",
         preparationEnd: "2027-07-31",
       })
     ).toBe(false);
@@ -89,6 +92,7 @@ describe("planner unplaceable helpers", () => {
         record: record({ goalId: plannerGoal.id, policyRevision: 4 }),
         goal: plannerGoal,
         policyRevision: 2,
+        lockSignature: "lock-signature",
         preparationEnd: "2027-07-31",
       })
     ).toBe(false);
@@ -105,6 +109,7 @@ describe("planner unplaceable helpers", () => {
         }),
         goal: plannerGoal,
         policyRevision: 2,
+        lockSignature: "lock-signature",
         preparationEnd: "2027-09-30",
       })
     ).toBe(false);
@@ -121,9 +126,26 @@ describe("planner unplaceable helpers", () => {
         }),
         goal: plannerGoal,
         policyRevision: 2,
+        lockSignature: "lock-signature",
         preparationEnd: "2027-07-31",
       })
     ).toBe(true);
+  });
+
+  it("invalidates when lock signature mismatches", () => {
+    const plannerGoal = goal();
+    expect(
+      isPlannerGoalUnplaceableRecordValid({
+        record: record({
+          goalId: plannerGoal.id,
+          lockSignature: "prior-lock-signature",
+        }),
+        goal: plannerGoal,
+        policyRevision: 2,
+        lockSignature: "next-lock-signature",
+        preparationEnd: "2027-07-31",
+      })
+    ).toBe(false);
   });
 
   it("summarizes unresolved goals in descending unresolved order", () => {

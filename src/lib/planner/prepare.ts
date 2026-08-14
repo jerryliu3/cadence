@@ -28,6 +28,7 @@ import {
 } from "@/lib/planner/preparation-windows";
 import { normalizeGoalRequirement } from "@/lib/planner/requirements";
 import {
+  buildPlannerGoalLockSignature,
   isPlannerGoalUnplaceableReason,
   isPlannerGoalUnplaceableRecordValid,
   type PlannerGoalUnplaceableRecord,
@@ -56,6 +57,7 @@ interface GoalUnplaceablePayload {
   goal_id: string;
   requirement_fingerprint: string;
   policy_revision: number;
+  lock_signature: string;
   effective_span_end: string;
   unplaced_count: number;
   reason: PlannerGoalUnplaceableReason;
@@ -267,6 +269,13 @@ async function prepareOnce({
       preparationStart,
       preparationEnd,
     });
+    const lockSignature = buildPlannerGoalLockSignature(
+      (persistedItemsInHorizonByGoalId.get(goal.id) ?? []).map((item) => ({
+        unitKey: item.unit_key,
+        scheduledDate: item.scheduled_date,
+        locked: item.locked,
+      }))
+    );
     const goalWindows = goalWindowsState.windows as PreparationWindow[];
     const requiredUnitKeys = computeRequiredUnitKeys({
       goal,
@@ -291,6 +300,7 @@ async function prepareOnce({
         record: existingUnplaceableRecord,
         goal,
         policyRevision,
+        lockSignature,
         preparationEnd,
       });
     const accountedCount =
@@ -309,6 +319,7 @@ async function prepareOnce({
           goal_id: goal.id,
           requirement_fingerprint: existingUnplaceableRecord.requirementFingerprint,
           policy_revision: existingUnplaceableRecord.policyRevision,
+          lock_signature: lockSignature,
           effective_span_end: existingUnplaceableRecord.effectiveSpanEnd,
           unplaced_count: existingUnplaceableRecord.unplacedCount,
           reason: existingUnplaceableRecord.reason,
@@ -319,6 +330,7 @@ async function prepareOnce({
           goal_id: goal.id,
           requirement_fingerprint: requirementFingerprint,
           policy_revision: policyRevision,
+          lock_signature: lockSignature,
           effective_span_end: goalWindowsState.effectiveEnd,
           unplaced_count: 0,
           reason: "capacity",
@@ -332,6 +344,7 @@ async function prepareOnce({
         goal_id: goal.id,
         requirement_fingerprint: requirementFingerprint,
         policy_revision: policyRevision,
+        lock_signature: lockSignature,
         effective_span_end: goalWindowsState.effectiveEnd,
         unplaced_count: 0,
         reason: "capacity",
@@ -452,6 +465,7 @@ async function prepareOnce({
       goal_id: goal.id,
       requirement_fingerprint: requirementFingerprint,
       policy_revision: policyRevision,
+      lock_signature: lockSignature,
       effective_span_end: goalWindowsState.effectiveEnd,
       unplaced_count: 0,
       reason: goalUnplaceableReason ?? "capacity",
@@ -570,6 +584,7 @@ async function prepareOnce({
       goal_id: outcome.goal_id,
       requirement_fingerprint: outcome.requirement_fingerprint,
       policy_revision: outcome.policy_revision,
+      lock_signature: outcome.lock_signature,
       effective_span_end: outcome.effective_span_end,
       unplaced_count: outcome.unplaced_count,
       reason: outcome.reason,

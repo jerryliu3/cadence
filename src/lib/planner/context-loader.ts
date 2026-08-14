@@ -29,6 +29,7 @@ import { normalizeGoalRequirement } from "@/lib/planner/requirements";
 import type { PlannerIssueCode } from "@/lib/planner/solver/types";
 import { evaluateActivePlanStaleness } from "@/lib/planner/staleness";
 import {
+  buildPlannerGoalLockSignature,
   isPlannerGoalUnplaceableReason,
   isPlannerGoalUnplaceableRecordValid,
   type PlannerGoalUnplaceableRecord,
@@ -431,6 +432,7 @@ async function loadPlannerGoalUnplaceableRecords(
         goalId: row.goal_id,
         requirementFingerprint: row.requirement_fingerprint,
         policyRevision: row.policy_revision,
+        lockSignature: row.lock_signature,
         effectiveSpanEnd: row.effective_span_end,
         unplacedCount: row.unplaced_count,
         reason: row.reason,
@@ -715,6 +717,26 @@ export async function loadPlannerContextPayload({
   const preparationEnd = buildPreparationWindows(asOfDate).at(-1)?.end ?? endDate;
   const policyRevision = snapshot.preferences?.policy_revision ?? 0;
   const goalById = new Map(snapshot.goals.map((goal) => [goal.id, goal]));
+  const lockSignatureByGoalId = new Map<string, string>();
+  const assignmentsByGoalId = new Map<
+    string,
+    Array<{ unitKey: string; scheduledDate: string; locked: boolean }>
+  >();
+  for (const assignment of snapshot.activePlan?.basePlan.assignments ?? []) {
+    const entries = assignmentsByGoalId.get(assignment.goalId) ?? [];
+    entries.push({
+      unitKey: assignment.unitKey,
+      scheduledDate: assignment.scheduledDate,
+      locked: assignment.locked,
+    });
+    assignmentsByGoalId.set(assignment.goalId, entries);
+  }
+  for (const goal of snapshot.goals) {
+    lockSignatureByGoalId.set(
+      goal.id,
+      buildPlannerGoalLockSignature(assignmentsByGoalId.get(goal.id) ?? [])
+    );
+  }
   const validUnplaceableGoals = (snapshot.unplaceableGoals ?? []).filter((record) => {
     const goal = goalById.get(record.goalId);
     if (!goal) {
@@ -724,6 +746,7 @@ export async function loadPlannerContextPayload({
       record,
       goal,
       policyRevision,
+      lockSignature: lockSignatureByGoalId.get(goal.id) ?? "",
       preparationEnd,
     });
   });
