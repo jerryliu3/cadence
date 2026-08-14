@@ -1,5 +1,6 @@
 import { compareDateStrings } from "@/lib/goals/periods";
 import type { Goal } from "@/lib/goals/types";
+import { canonicalHash } from "@/lib/planner/canonical";
 import { normalizeGoalRequirement } from "@/lib/planner/requirements";
 
 export type PlannerGoalUnplaceableReason = "capacity" | "invalid_lock";
@@ -8,6 +9,7 @@ export interface PlannerGoalUnplaceableRecord {
   goalId: string;
   requirementFingerprint: string;
   policyRevision: number;
+  lockSignature: string;
   effectiveSpanEnd: string;
   unplacedCount: number;
   reason: PlannerGoalUnplaceableReason;
@@ -21,21 +23,46 @@ export interface PlannerGoalUnplaceableSummary {
   reason: PlannerGoalUnplaceableReason;
 }
 
+interface PlannerGoalLockSignatureInput {
+  unitKey: string;
+  scheduledDate: string;
+  locked: boolean;
+}
+
 export function isPlannerGoalUnplaceableReason(
   value: string
 ): value is PlannerGoalUnplaceableReason {
   return value === "capacity" || value === "invalid_lock";
 }
 
+export function buildPlannerGoalLockSignature(
+  entries: PlannerGoalLockSignatureInput[]
+) {
+  const signatureInput = entries
+    .map((entry) => ({
+      unitKey: entry.unitKey,
+      scheduledDate: entry.scheduledDate,
+      locked: entry.locked,
+    }))
+    .sort(
+      (left, right) =>
+        left.scheduledDate.localeCompare(right.scheduledDate) ||
+        left.unitKey.localeCompare(right.unitKey)
+    );
+  return canonicalHash(signatureInput);
+}
+
 export function isPlannerGoalUnplaceableRecordValid({
   record,
   goal,
   policyRevision,
+  lockSignature,
   preparationEnd,
 }: {
   record: PlannerGoalUnplaceableRecord;
   goal: Goal;
   policyRevision: number;
+  lockSignature: string;
   preparationEnd: string;
 }) {
   const requirementFingerprint =
@@ -45,6 +72,7 @@ export function isPlannerGoalUnplaceableRecordValid({
   return (
     record.requirementFingerprint === requirementFingerprint &&
     record.policyRevision === policyRevision &&
+    record.lockSignature === lockSignature &&
     compareDateStrings(record.effectiveSpanEnd, currentEffectiveEnd) >= 0
   );
 }

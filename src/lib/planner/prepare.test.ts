@@ -3,7 +3,10 @@ import type { Goal } from "@/lib/goals/types";
 import { getAnchoredPeriod } from "@/lib/goals/periods";
 import { createDefaultPlannerPolicy } from "@/lib/planner/policy";
 import { computeRequirementFingerprint } from "@/lib/planner/requirements";
-import type { PlannerGoalUnplaceableRecord } from "@/lib/planner/unplaceable";
+import {
+  buildPlannerGoalLockSignature,
+  type PlannerGoalUnplaceableRecord,
+} from "@/lib/planner/unplaceable";
 
 const OWNER_ID = "11111111-1111-4111-8111-111111111111";
 const DIGEST = "a".repeat(64);
@@ -146,6 +149,7 @@ function unplaceableRecord(
     requirementFingerprint:
       input.requirementFingerprint ?? computeRequirementFingerprint(goal()),
     policyRevision: input.policyRevision ?? 1,
+    lockSignature: input.lockSignature ?? "lock-signature",
     effectiveSpanEnd: input.effectiveSpanEnd ?? "2028-07-31",
     unplacedCount: input.unplacedCount ?? 1,
     reason: input.reason ?? "capacity",
@@ -716,6 +720,13 @@ describe("preparePlannerSchedule", () => {
           effectiveSpanEnd: plannerGoal.end_date ?? "2026-09-30",
           unplacedCount: 1,
           reason: "capacity",
+          lockSignature: buildPlannerGoalLockSignature([
+            {
+              unitKey: existing.unit_key,
+              scheduledDate: existing.scheduled_date,
+              locked: existing.locked,
+            },
+          ]),
         }),
       ])
     );
@@ -735,6 +746,50 @@ describe("preparePlannerSchedule", () => {
         ]),
       })
     );
+  });
+
+  it("re-solves invalid_lock records when lock signature changes", async () => {
+    const plannerGoal = goal({ target_count: 2 });
+    const existing = persistedItem({
+      unit_key: "milestone:1",
+      scheduled_date: "2026-08-12",
+      locked: false,
+    });
+    mocks.loadPlannerPreparationSnapshot.mockResolvedValue(
+      preparationSnapshot([plannerGoal], [existing], [
+        unplaceableRecord({
+          goalId: plannerGoal.id,
+          requirementFingerprint: computeRequirementFingerprint(plannerGoal),
+          effectiveSpanEnd: plannerGoal.end_date ?? "2026-09-30",
+          unplacedCount: 1,
+          reason: "invalid_lock",
+          lockSignature: "stale-lock-signature",
+        }),
+      ])
+    );
+    mocks.runPlannerKernel.mockReturnValue(
+      kernelOutput(plannerGoal.id, [
+        { unitKey: "milestone:1", scheduledDate: existing.scheduled_date },
+        { unitKey: "milestone:2", scheduledDate: "2026-09-18" },
+      ])
+    );
+
+    await prepare();
+
+    expect(mocks.runPlannerKernel).toHaveBeenCalledTimes(1);
+    const unplaceablePayload = mocks.rpc.mock.calls[0]?.[1].p_unplaceable as Array<{
+      goal_id: string;
+      lock_signature: string;
+      unplaced_count: number;
+    }>;
+    const goalPayload = unplaceablePayload.find(
+      (entry) => entry.goal_id === plannerGoal.id
+    );
+    expect(goalPayload).toMatchObject({
+      goal_id: plannerGoal.id,
+      unplaced_count: 0,
+    });
+    expect(goalPayload?.lock_signature).not.toBe("stale-lock-signature");
   });
 
   it("deletes stale durable unplaceable rows after a goal becomes fully placeable", async () => {

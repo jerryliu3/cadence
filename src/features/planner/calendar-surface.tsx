@@ -2147,6 +2147,10 @@ export function CalendarSurface({
     if (rebuildLoading) {
       return;
     }
+    if (hasDraftSession) {
+      toast.error("Save or undo preview changes before rebuilding schedule.");
+      return;
+    }
     setRebuildLoading(true);
     try {
       handlePlannerMutation();
@@ -2348,6 +2352,9 @@ export function CalendarSurface({
       : null;
   const draftSaveBlocked = blockedSave !== null;
   const draftSaveBlockedMessage = blockedSave;
+  const rebuildBlockedMessage = hasDraftSession
+    ? "Save or undo preview changes before rebuilding schedule."
+    : undefined;
   const hasLockedPlanItems = Boolean(
     context?.activePlan?.items.some((item) => item.locked)
   );
@@ -2641,7 +2648,8 @@ export function CalendarSurface({
                   size="sm"
                   variant="outline"
                   onClick={rebuildSchedule}
-                  disabled={rebuildLoading || loading}
+                  title={rebuildBlockedMessage}
+                  disabled={rebuildLoading || loading || hasDraftSession}
                 >
                   {rebuildLoading ? "Rebuilding..." : "Rebuild schedule"}
                 </Button>
