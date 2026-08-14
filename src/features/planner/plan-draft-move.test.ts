@@ -18,7 +18,16 @@ describe("planDraftMove", () => {
       ...validMove,
       entry: buildPlannerDayEntry({
         activeItem: {
+          id: "item-1",
+          plan_goal_id: "plan-goal-1",
+          unit_key: "unit-1",
+          requirement_kind: "deadline_total",
+          scheduled_date: "2026-08-01",
+          classification: "planned",
+          credit_state: "uncredited",
+          revision: 0,
           credited_completion_id: null,
+          credited_completion_date: null,
           locked: true,
         },
       }),
