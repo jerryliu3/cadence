@@ -92,6 +92,7 @@ const serverEnvSchema = publicEnvSchema.extend({
   FEATURE_CROSS_MONTH_MOVES: booleanFromEnv(false),
   XP_ENABLED: booleanFromEnv(false),
   SOCIAL_ENABLED: booleanFromEnv(false),
+  INTEGRATIONS_ENABLED: booleanFromEnv(false),
   CALENDAR_COACH_DISABLE_QUOTA: booleanFromEnv(false),
   CALENDAR_COACH_TIMEOUT_MS: optionalPositiveInt({
     min: 10_000,
@@ -106,6 +107,7 @@ const serverEnvSchema = publicEnvSchema.extend({
   PLANNER_TELEMETRY_HMAC_KEY_VERSION: optionalNonEmptyString,
   CALENDAR_TELEMETRY_COHORT: optionalNonEmptyString,
   CALENDAR_FEED_HMAC_KEY: optionalNonEmptyString,
+  INTEGRATIONS_TOKEN_ENCRYPTION_KEY: optionalNonEmptyString,
 });
 
 export type PublicEnv = z.infer<typeof publicEnvSchema>;
@@ -151,6 +153,7 @@ function readServerEnvInput() {
     FEATURE_CROSS_MONTH_MOVES: process.env.FEATURE_CROSS_MONTH_MOVES,
     XP_ENABLED: process.env.XP_ENABLED,
     SOCIAL_ENABLED: process.env.SOCIAL_ENABLED,
+    INTEGRATIONS_ENABLED: process.env.INTEGRATIONS_ENABLED,
     CALENDAR_COACH_DISABLE_QUOTA: process.env.CALENDAR_COACH_DISABLE_QUOTA,
     CALENDAR_COACH_TIMEOUT_MS: process.env.CALENDAR_COACH_TIMEOUT_MS,
     CALENDAR_COACH_DAILY_LIMIT: process.env.CALENDAR_COACH_DAILY_LIMIT,
@@ -161,6 +164,8 @@ function readServerEnvInput() {
       process.env.PLANNER_TELEMETRY_HMAC_KEY_VERSION,
     CALENDAR_TELEMETRY_COHORT: process.env.CALENDAR_TELEMETRY_COHORT,
     CALENDAR_FEED_HMAC_KEY: process.env.CALENDAR_FEED_HMAC_KEY,
+    INTEGRATIONS_TOKEN_ENCRYPTION_KEY:
+      process.env.INTEGRATIONS_TOKEN_ENCRYPTION_KEY,
   };
 }
 

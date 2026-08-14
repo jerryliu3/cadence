@@ -13,10 +13,12 @@ describe("feature flags", () => {
       crossMonthMovesEnabled: false,
       xpEnabled: false,
       socialEnabled: false,
+      integrationsEnabled: false,
     });
     expect(isFeatureEnabled("crossMonthMovesEnabled")).toBe(false);
     expect(isFeatureEnabled("xpEnabled")).toBe(false);
     expect(isFeatureEnabled("socialEnabled")).toBe(false);
+    expect(isFeatureEnabled("integrationsEnabled")).toBe(false);
   });
 
   it("reads the cross-month moves kill switch from env", () => {
@@ -26,6 +28,7 @@ describe("feature flags", () => {
       crossMonthMovesEnabled: true,
       xpEnabled: false,
       socialEnabled: false,
+      integrationsEnabled: false,
     });
   });
 
@@ -36,6 +39,7 @@ describe("feature flags", () => {
       crossMonthMovesEnabled: false,
       xpEnabled: true,
       socialEnabled: false,
+      integrationsEnabled: false,
     });
   });
 
@@ -46,6 +50,18 @@ describe("feature flags", () => {
       crossMonthMovesEnabled: false,
       xpEnabled: false,
       socialEnabled: true,
+      integrationsEnabled: false,
+    });
+  });
+
+  it("reads the integrations kill switch from env", () => {
+    vi.stubEnv("INTEGRATIONS_ENABLED", "true");
+    resetEnvCacheForTests();
+    expect(getFeatureFlags()).toEqual({
+      crossMonthMovesEnabled: false,
+      xpEnabled: false,
+      socialEnabled: false,
+      integrationsEnabled: true,
     });
   });
 });

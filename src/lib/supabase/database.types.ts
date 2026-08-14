@@ -907,6 +907,135 @@ export type Database = {
           },
         ]
       }
+      integration_calendar_busy_days: {
+        Row: {
+          busy_minutes: number
+          created_at: string
+          day: string
+          id: string
+          provider: string
+          source_hash: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          busy_minutes: number
+          created_at?: string
+          day: string
+          id?: string
+          provider: string
+          source_hash: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          busy_minutes?: number
+          created_at?: string
+          day?: string
+          id?: string
+          provider?: string
+          source_hash?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "integration_calendar_busy_days_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      integration_health_daily_rollups: {
+        Row: {
+          active_minutes: number | null
+          created_at: string
+          day: string
+          id: string
+          provider: string
+          source_hash: string
+          steps: number | null
+          updated_at: string
+          user_id: string
+          workout_count: number | null
+        }
+        Insert: {
+          active_minutes?: number | null
+          created_at?: string
+          day: string
+          id?: string
+          provider: string
+          source_hash: string
+          steps?: number | null
+          updated_at?: string
+          user_id: string
+          workout_count?: number | null
+        }
+        Update: {
+          active_minutes?: number | null
+          created_at?: string
+          day?: string
+          id?: string
+          provider?: string
+          source_hash?: string
+          steps?: number | null
+          updated_at?: string
+          user_id?: string
+          workout_count?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "integration_health_daily_rollups_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      integration_sync_runs: {
+        Row: {
+          detail: Json
+          finished_at: string
+          id: string
+          provider: string
+          started_at: string
+          status: string
+          sync_kind: string
+          user_id: string
+        }
+        Insert: {
+          detail?: Json
+          finished_at?: string
+          id?: string
+          provider: string
+          started_at?: string
+          status: string
+          sync_kind: string
+          user_id: string
+        }
+        Update: {
+          detail?: Json
+          finished_at?: string
+          id?: string
+          provider?: string
+          started_at?: string
+          status?: string
+          sync_kind?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "integration_sync_runs_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       leaderboard_seasons: {
         Row: {
           cohort_id: string | null
@@ -1066,6 +1195,59 @@ export type Database = {
           {
             foreignKeyName: "moderation_actions_admin_id_fkey"
             columns: ["admin_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      oauth_connections: {
+        Row: {
+          access_token_ciphertext: string
+          connection_status: string
+          created_at: string
+          id: string
+          last_sync_at: string | null
+          metadata: Json
+          provider: string
+          refresh_token_ciphertext: string | null
+          scope: string[]
+          token_expires_at: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          access_token_ciphertext: string
+          connection_status?: string
+          created_at?: string
+          id?: string
+          last_sync_at?: string | null
+          metadata?: Json
+          provider: string
+          refresh_token_ciphertext?: string | null
+          scope?: string[]
+          token_expires_at?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          access_token_ciphertext?: string
+          connection_status?: string
+          created_at?: string
+          id?: string
+          last_sync_at?: string | null
+          metadata?: Json
+          provider?: string
+          refresh_token_ciphertext?: string | null
+          scope?: string[]
+          token_expires_at?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "oauth_connections_user_id_fkey"
+            columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
