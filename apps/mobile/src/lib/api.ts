@@ -5,7 +5,7 @@ import { supabase } from "./supabase";
 export const api = createApiClient({
   baseUrl: mobileEnv.apiBaseUrl,
   credentials: "omit",
-  getAuthHeaders: async () => {
+  getAuthHeaders: async (): Promise<HeadersInit> => {
     const {
       data: { session },
     } = await supabase.auth.getSession();
