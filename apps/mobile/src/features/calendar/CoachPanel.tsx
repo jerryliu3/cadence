@@ -213,7 +213,7 @@ export function CoachPanel({
       <ScrollView style={styles.transcript}>
         {messages.length === 0 ? (
           <Text style={{ color: theme.colors.mutedForeground }}>
-            Start with a goal question, for example: "Help me build a 4-week running routine."
+            {'Start with a goal question, for example: "Help me build a 4-week running routine."'}
           </Text>
         ) : (
           messages.map((message, index) => (
