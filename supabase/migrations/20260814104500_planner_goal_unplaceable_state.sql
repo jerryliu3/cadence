@@ -3,6 +3,7 @@ create table if not exists public.planner_goal_unplaceable (
   goal_id uuid not null references public.goals(id) on delete cascade,
   requirement_fingerprint text not null,
   policy_revision integer not null,
+  lock_signature text not null default '',
   effective_span_end date not null,
   unplaced_count integer not null check (unplaced_count >= 0),
   reason text not null check (reason in ('capacity', 'invalid_lock')),
@@ -44,8 +45,6 @@ grant execute
 on function public.prepare_planner_schedule_core(jsonb, jsonb, text)
 to service_role;
 
-drop function if exists public.prepare_planner_schedule(jsonb, jsonb, text, jsonb);
-
 create or replace function public.prepare_planner_schedule(
   p_windows jsonb,
   p_items jsonb,
@@ -84,6 +83,10 @@ begin
       or pg_catalog.jsonb_typeof(payload.row -> 'effective_span_end') <> 'string'
       or pg_catalog.jsonb_typeof(payload.row -> 'unplaced_count') <> 'number'
       or pg_catalog.jsonb_typeof(payload.row -> 'reason') <> 'string'
+      or (
+        payload.row ? 'lock_signature'
+        and pg_catalog.jsonb_typeof(payload.row -> 'lock_signature') <> 'string'
+      )
       or (
         payload.row ? 'computed_at'
         and pg_catalog.jsonb_typeof(payload.row -> 'computed_at') not in ('string', 'null')
@@ -153,6 +156,7 @@ begin
       row.goal_id,
       pg_catalog.btrim(row.requirement_fingerprint) as requirement_fingerprint,
       row.policy_revision,
+      coalesce(pg_catalog.btrim(row.lock_signature), '') as lock_signature,
       row.effective_span_end,
       row.unplaced_count,
       row.reason,
@@ -161,6 +165,7 @@ begin
       goal_id uuid,
       requirement_fingerprint text,
       policy_revision integer,
+      lock_signature text,
       effective_span_end date,
       unplaced_count integer,
       reason text,
@@ -172,6 +177,7 @@ begin
     goal_id,
     requirement_fingerprint,
     policy_revision,
+    lock_signature,
     effective_span_end,
     unplaced_count,
     reason,
@@ -182,6 +188,7 @@ begin
     input.goal_id,
     input.requirement_fingerprint,
     input.policy_revision,
+    input.lock_signature,
     input.effective_span_end,
     input.unplaced_count,
     input.reason,
@@ -192,6 +199,7 @@ begin
   do update set
     requirement_fingerprint = excluded.requirement_fingerprint,
     policy_revision = excluded.policy_revision,
+    lock_signature = excluded.lock_signature,
     effective_span_end = excluded.effective_span_end,
     unplaced_count = excluded.unplaced_count,
     reason = excluded.reason,

@@ -1426,6 +1426,7 @@ export type Database = {
           computed_at: string
           effective_span_end: string
           goal_id: string
+          lock_signature: string
           owner_id: string
           policy_revision: number
           reason: string
@@ -1436,6 +1437,7 @@ export type Database = {
           computed_at?: string
           effective_span_end: string
           goal_id: string
+          lock_signature?: string
           owner_id: string
           policy_revision: number
           reason: string
@@ -1446,6 +1448,7 @@ export type Database = {
           computed_at?: string
           effective_span_end?: string
           goal_id?: string
+          lock_signature?: string
           owner_id?: string
           policy_revision?: number
           reason?: string
