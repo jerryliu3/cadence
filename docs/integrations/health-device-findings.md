@@ -26,6 +26,11 @@ produce a stable canonical activity row we can complete goals from.
 - `HKSampleQuery` / `HKAnchoredObjectQuery` return matching samples from
   **all** readable sources (iPhone, Apple Watch, third-party apps). Summing
   those samples double-counts overlapping step / energy windows.
+- Quantity metrics (steps, energy, distance, exercise minutes) arrive as
+  many abutting buckets. Dedup must **not** fuzzy-cluster those buckets:
+  source-priority applies only to true half-open range overlap, then
+  remaining canonical rows **sum**. Fuzzy start-proximity clustering is
+  reserved for `workout_duration_minutes`.
 - `HKStatisticsQuery` / `HKStatisticsCollectionQuery` apply Apple's
   source-priority overlap rules (Health app Data Sources order). That is
   useful for a daily total, not for identity-preserving ingest.
