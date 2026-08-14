@@ -221,12 +221,6 @@ importers:
         specifier: ^4.4.3
         version: 4.4.3
 
-  packages/shared:
-    dependencies:
-      zod:
-        specifier: ^4.4.3
-        version: 4.4.3
-
 packages:
 
   '@0no-co/graphql.web@1.3.3':
