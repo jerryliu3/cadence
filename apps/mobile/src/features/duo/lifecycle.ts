@@ -23,21 +23,23 @@ async function refreshAfterLifecycleMutation({
   queryCoordinator: DuoLifecycleQueryCoordinator;
   viewerUserId: string;
 }) {
-  await queryCoordinator.invalidateQueries({
-    queryKey: duoQueryKeys.team(viewerUserId),
-  });
-  await queryCoordinator.invalidateQueries({
-    queryKey: duoQueryKeys.progressPrefix(viewerUserId),
-  });
-  await queryCoordinator.invalidateQueries({
-    queryKey: duoQueryKeys.insightsPrefix(viewerUserId),
-  });
-  await queryCoordinator.invalidateQueries({
-    queryKey: duoQueryKeys.goalsPrefix(viewerUserId),
-  });
-  await queryCoordinator.invalidateQueries({
-    queryKey: duoQueryKeys.plannerPrefix(viewerUserId),
-  });
+  await Promise.all([
+    queryCoordinator.invalidateQueries({
+      queryKey: duoQueryKeys.team(viewerUserId),
+    }),
+    queryCoordinator.invalidateQueries({
+      queryKey: duoQueryKeys.progressPrefix(viewerUserId),
+    }),
+    queryCoordinator.invalidateQueries({
+      queryKey: duoQueryKeys.insightsPrefix(viewerUserId),
+    }),
+    queryCoordinator.invalidateQueries({
+      queryKey: duoQueryKeys.goalsPrefix(viewerUserId),
+    }),
+    queryCoordinator.invalidateQueries({
+      queryKey: duoQueryKeys.plannerPrefix(viewerUserId),
+    }),
+  ]);
   await queryCoordinator.refetchQueries({
     queryKey: duoQueryKeys.team(viewerUserId),
     type: "active",

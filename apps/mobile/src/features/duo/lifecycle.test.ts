@@ -20,6 +20,14 @@ function createQueryCoordinatorMock(): DuoLifecycleQueryCoordinator {
   };
 }
 
+function createDeferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  const promise = new Promise<T>((nextResolve) => {
+    resolve = nextResolve;
+  });
+  return { promise, resolve };
+}
+
 describe("createDuoLifecycleMutations", () => {
   it("sends expected payloads and invalidates user-scoped prefixes", async () => {
     const api = createApiMock();
@@ -98,5 +106,34 @@ describe("createDuoLifecycleMutations", () => {
 
     expect(queryCoordinator.invalidateQueries).not.toHaveBeenCalled();
     expect(queryCoordinator.refetchQueries).not.toHaveBeenCalled();
+  });
+
+  it("waits for invalidations before team refetch", async () => {
+    const api = createApiMock();
+    const firstInvalidation = createDeferred<unknown>();
+    const queryCoordinator: DuoLifecycleQueryCoordinator = {
+      invalidateQueries: vi
+        .fn()
+        .mockImplementationOnce(() => firstInvalidation.promise)
+        .mockResolvedValue(undefined),
+      refetchQueries: vi.fn().mockResolvedValue(undefined),
+    };
+    const mutation = createDuoLifecycleMutations({
+      api,
+      queryCoordinator,
+      viewerUserId: "viewer-1",
+    });
+
+    const pending = mutation.dissolveActiveTeam();
+    await Promise.resolve();
+    expect(queryCoordinator.refetchQueries).not.toHaveBeenCalled();
+
+    firstInvalidation.resolve(undefined);
+    await pending;
+
+    expect(queryCoordinator.refetchQueries).toHaveBeenCalledWith({
+      queryKey: duoQueryKeys.team("viewer-1"),
+      type: "active",
+    });
   });
 });
