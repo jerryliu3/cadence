@@ -1,15 +1,9 @@
 "use client";
 
 import { format } from "date-fns";
+import { ChevronDown } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import type { PlannerCoachModel } from "@/features/planner/coach/coach-types";
 
@@ -76,32 +70,34 @@ export function PlannerCoachPanel({ coach }: PlannerCoachPanelProps) {
         >
           New conversation
         </Button>
-        <Select
-          value={state.selectedSavedCoachConversationId || undefined}
-          onValueChange={(value) => {
-            actions.setSelectedSavedCoachConversationId(value);
-            void actions.restoreSavedCoachConversation(value);
-          }}
-          disabled={state.coachConversationsLoading || state.coachConversationRestoring}
-          modal={false}
-        >
-          <SelectTrigger className="h-8 w-[min(100%,16.25rem)] min-w-0">
-            <SelectValue
-              placeholder={
-                state.coachConversationsLoading
-                  ? "Loading saved conversations..."
-                  : "Select saved conversation"
+        <div className="relative min-w-0">
+          <select
+            value={state.selectedSavedCoachConversationId || ""}
+            onChange={(event) => {
+              const conversationId = event.target.value;
+              if (!conversationId) {
+                return;
               }
-            />
-          </SelectTrigger>
-          <SelectContent position="popper" align="start">
+              actions.setSelectedSavedCoachConversationId(conversationId);
+              void actions.restoreSavedCoachConversation(conversationId);
+            }}
+            disabled={state.coachConversationsLoading || state.coachConversationRestoring}
+            aria-label="Saved conversations"
+            className="h-8 w-[min(100%,16.25rem)] appearance-none rounded-lg border border-input bg-background/90 px-3 pr-8 text-xs text-foreground outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <option value="" disabled>
+              {state.coachConversationsLoading
+                ? "Loading saved conversations..."
+                : "Select saved conversation"}
+            </option>
             {state.savedCoachConversations.map((conversation) => (
-              <SelectItem key={conversation.id} value={conversation.id}>
+              <option key={conversation.id} value={conversation.id}>
                 {conversation.title} ({formatSavedConversationDate(conversation.updatedAt)})
-              </SelectItem>
+              </option>
             ))}
-          </SelectContent>
-        </Select>
+          </select>
+          <ChevronDown className="pointer-events-none absolute top-1/2 right-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
+        </div>
       </div>
       {!state.coachConversationsLoading && state.savedCoachConversations.length === 0 ? (
         <p className="mb-3 text-xs text-muted-foreground">
