@@ -25,4 +25,15 @@ describe("api client credentials", () => {
       credentials: "omit",
     });
   });
+
+  it("supports deleteJson on configured clients", async () => {
+    const fetcher = vi.fn().mockResolvedValue(jsonOk());
+    const client = createApiClient({ credentials: "omit", fetcher });
+    await client.deleteJson("/api/social/team");
+    expect(fetcher.mock.calls[0]?.[0]).toBe("/api/social/team");
+    expect(fetcher.mock.calls[0]?.[1]).toMatchObject({
+      method: "DELETE",
+      credentials: "omit",
+    });
+  });
 });
