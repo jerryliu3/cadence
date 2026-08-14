@@ -1,0 +1,144 @@
+import { z } from "zod";
+import {
+  HEALTH_METRIC_KEYS,
+  HEALTH_PROVIDERS,
+} from "@cadence/shared/health/providers";
+import {
+  ApiRouteError,
+  apiSuccessResponse,
+  parseJsonBody,
+  requireAuthenticatedRequestContext,
+  withRoute,
+} from "@/lib/api/route";
+import { isFeatureEnabled } from "@/lib/feature-flags";
+import { createAdminClient } from "@/lib/supabase/admin";
+
+export const runtime = "nodejs";
+
+const MAX_REQUEST_BYTES = 512 * 1024;
+
+const sampleSchema = z.object({
+  providerNativeId: z.string().trim().min(1).max(256),
+  sourceIdentifier: z.string().trim().min(1).max(256),
+  sourceName: z.string().trim().max(256).optional(),
+  metricKey: z.enum(HEALTH_METRIC_KEYS),
+  startedAt: z.string().datetime({ offset: true }),
+  endedAt: z.string().datetime({ offset: true }).optional(),
+  utcOffsetMinutes: z.number().int().min(-840).max(840),
+  valueNumeric: z.number().nonnegative(),
+  unit: z.string().trim().min(1).max(32),
+  payload: z.record(z.string(), z.unknown()).optional(),
+});
+
+const ingestSchema = z.object({
+  provider: z.enum(HEALTH_PROVIDERS),
+  permissionPrompted: z.boolean().optional(),
+  samples: z.array(sampleSchema).max(500),
+});
+
+function disabledError() {
+  return new ApiRouteError(
+    503,
+    "integrations_disabled",
+    "Integrations are not enabled."
+  );
+}
+
+export async function POST(request: Request) {
+  return withRoute(async ({ correlationId }) => {
+    if (!isFeatureEnabled("integrationsEnabled")) {
+      throw disabledError();
+    }
+
+    const payload = await parseJsonBody({
+      request,
+      schema: ingestSchema,
+      maxBytes: MAX_REQUEST_BYTES,
+    });
+    const { userId, supabase } = await requireAuthenticatedRequestContext(
+      request,
+      { unauthorizedMessage: "Sign in to sync health data." }
+    );
+
+    let ingestResult: {
+      ingested_count?: number;
+      canonical_count?: number;
+      suppressed_count?: number;
+      recomputed_days?: number;
+    } = {
+      ingested_count: 0,
+      canonical_count: 0,
+      suppressed_count: 0,
+      recomputed_days: 0,
+    };
+
+    if (payload.samples.length > 0) {
+      const rpcResponse = await supabase.rpc("ingest_health_activities_service", {
+        p_samples: payload.samples.map((sample) => ({
+          provider: payload.provider,
+          provider_native_id: sample.providerNativeId,
+          source_identifier: sample.sourceIdentifier,
+          source_name: sample.sourceName ?? null,
+          metric_key: sample.metricKey,
+          started_at: sample.startedAt,
+          ended_at: sample.endedAt ?? null,
+          utc_offset_minutes: sample.utcOffsetMinutes,
+          value_numeric: sample.valueNumeric,
+          unit: sample.unit,
+          payload: sample.payload ?? {},
+        })),
+      });
+      if (rpcResponse.error) {
+        throw new ApiRouteError(
+          500,
+          "health_ingest_failed",
+          "Health samples could not be ingested."
+        );
+      }
+      ingestResult = (rpcResponse.data ?? ingestResult) as typeof ingestResult;
+    }
+
+    const now = new Date().toISOString();
+    const admin = createAdminClient();
+    const syncRow: {
+      user_id: string;
+      provider: (typeof payload)["provider"];
+      last_ingest_at: string;
+      last_error: null;
+      permission_prompted_at?: string;
+      last_sample_at?: string;
+    } = {
+      user_id: userId,
+      provider: payload.provider,
+      last_ingest_at: now,
+      last_error: null,
+    };
+    if (payload.permissionPrompted) {
+      syncRow.permission_prompted_at = now;
+    }
+    if (payload.samples.length > 0) {
+      syncRow.last_sample_at = now;
+    }
+    const upsertResponse = await admin.from("health_sync_state").upsert(syncRow, {
+      onConflict: "user_id,provider",
+    });
+    if (upsertResponse.error) {
+      throw new ApiRouteError(
+        500,
+        "health_ingest_failed",
+        "Health samples could not be ingested."
+      );
+    }
+
+    return apiSuccessResponse(
+      {
+        schemaVersion: "1" as const,
+        provider: payload.provider,
+        ingestedCount: ingestResult.ingested_count ?? payload.samples.length,
+        canonicalCount: ingestResult.canonical_count ?? 0,
+        suppressedCount: ingestResult.suppressed_count ?? 0,
+      },
+      correlationId
+    );
+  });
+}

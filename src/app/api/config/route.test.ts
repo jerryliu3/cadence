@@ -27,6 +27,7 @@ describe("GET /api/config", () => {
       crossMonthMovesEnabled: true,
       xpEnabled: false,
       socialEnabled: true,
+      integrationsEnabled: true,
       futureInternalOnly: true,
     });
   });
@@ -42,6 +43,7 @@ describe("GET /api/config", () => {
         crossMonthMovesEnabled: true,
         xpEnabled: false,
         socialEnabled: true,
+        integrationsEnabled: true,
       },
     });
     expect(payload.correlationId).toBeUndefined();
