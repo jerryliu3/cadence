@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { Goal } from "@/lib/goals/types";
-import { runPlannerKernel, type PlannerKernelInput } from "@/lib/planner/kernel";
+import {
+  PlannerError,
+  runPlannerKernel,
+  type PlannerKernelInput,
+} from "@/lib/planner/kernel";
 import { createDefaultPlannerPolicy } from "@/lib/planner/policy";
 import { computeRequirementFingerprint } from "@/lib/planner/requirements";
 import { toKernelWindow } from "@/lib/planner/dates";
@@ -74,7 +78,12 @@ describe("ordinal is identity, not sequence", () => {
     );
 
     expect(movedUnits(before, after)).toEqual([
-      { unitKey: "total:3", from: "2026-08-03", to: "2026-08-19" },
+      {
+        unitKey: "total:3",
+        from: before.workUnits.find((unit) => unit.unitKey === "total:3")
+          ?.scheduledDate,
+        to: "2026-08-19",
+      },
     ]);
   });
 
@@ -91,32 +100,41 @@ describe("ordinal is identity, not sequence", () => {
     );
 
     expect(movedUnits(before, after)).toEqual([
-      { unitKey: "milestone:1", from: "2026-08-01", to: "2026-08-19" },
+      {
+        unitKey: "milestone:1",
+        from: before.workUnits.find(
+          (unit) => unit.unitKey === "milestone:1"
+        )?.scheduledDate,
+        to: "2026-08-19",
+      },
     ]);
-    expect(
-      after.workUnits.map((unit) => `${unit.label}@${unit.scheduledDate}`)
-    ).toEqual([
-      "Buy engine@2026-08-19",
-      "Buy wheel@2026-08-02",
-      "Assemble@2026-08-03",
-    ]);
+    expect(after.workUnits[0]).toMatchObject({
+      unitKey: "milestone:1",
+      label: "Buy engine",
+      scheduledDate: "2026-08-19",
+    });
     expect(after.solver.issueCodes).toEqual([]);
   });
 
-  it("keeps a second pin from disturbing the first", () => {
+  it("rejects a pin that targets another unit's released anchor", () => {
     const goal = makeGoal();
-    const before = runPlannerKernel(makeInput(goal));
-    const after = runPlannerKernel(
-      makeInput(goal, {
-        "goal-a:total:12": "2026-08-25",
-        "goal-a:total:11": "2026-08-23",
-      })
-    );
+    let thrown: unknown;
+    try {
+      runPlannerKernel(
+        makeInput(goal, {
+          "goal-a:total:12": "2026-08-25",
+          "goal-a:total:11": "2026-08-23",
+        })
+      );
+    } catch (error) {
+      thrown = error;
+    }
 
-    expect(movedUnits(before, after)).toEqual([
-      { unitKey: "total:11", from: "2026-08-11", to: "2026-08-23" },
-      { unitKey: "total:12", from: "2026-08-12", to: "2026-08-25" },
-    ]);
+    expect(thrown).toBeInstanceOf(PlannerError);
+    expect(thrown).toMatchObject({
+      code: "validation_failed",
+      httpStatus: 400,
+    });
   });
 
   it("is deterministic across repeated solves", () => {

@@ -16,15 +16,3 @@ export const MAX_HORIZON_MONTHS = 24;
 /** Inclusive max length of a planner publish window. Publish windows are a contiguous span of whole months. Goal credit/horizon may still span MAX_HORIZON_MONTHS. */
 export const MAX_PLANNER_WINDOW_DAYS = 366;
 export const MAX_API_BODY_BYTES = 3 * 1024 * 1024;
-export const SOFT_REFINEMENT_MAX_OPERATIONS = 25_000;
-
-export function getSoftRefinementOperationBudget(openUnitCount: number) {
-  if (!Number.isSafeInteger(openUnitCount) || openUnitCount < 0) {
-    throw new RangeError("openUnitCount must be a non-negative safe integer.");
-  }
-
-  return Math.min(
-    SOFT_REFINEMENT_MAX_OPERATIONS,
-    500 + 20 * openUnitCount
-  );
-}

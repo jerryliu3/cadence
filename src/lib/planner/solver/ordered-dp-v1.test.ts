@@ -11,8 +11,6 @@ describe("ordered-dp-v1 solver", () => {
       solveOrderedDpV1({
         dates: fixtureCase.dates,
         units: fixtureCase.units,
-        simulateSoftBudgetExhaustion:
-          fixtureCase.simulateSoftBudgetExhaustion,
       })
     ).toEqual(fixtureCase.expected);
   });
