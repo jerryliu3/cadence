@@ -73,6 +73,10 @@ describe("planner coach panel", () => {
     await user.click(screen.getByRole("button", { name: "Save conversation" }));
     expect(coach.actions.saveCoachConversation).toHaveBeenCalledTimes(1);
 
+    expect(screen.getByRole("button", { name: "Save conversation" }).parentElement).toBe(
+      screen.getByRole("button", { name: "New conversation" }).parentElement
+    );
+
     await user.click(screen.getByRole("button", { name: "Send to coach" }));
     expect(coach.actions.sendCoachMessage).toHaveBeenCalledTimes(1);
   });

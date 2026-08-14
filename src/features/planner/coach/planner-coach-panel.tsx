@@ -63,6 +63,19 @@ export function PlannerCoachPanel({ coach }: PlannerCoachPanelProps) {
         >
           {state.coachConversationSaving ? "Saving..." : "Save conversation"}
         </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onClick={actions.startNewCoachConversation}
+          disabled={
+            state.coachLoading ||
+            state.coachPolicyApplying ||
+            !state.hasCoachConversationState
+          }
+        >
+          New conversation
+        </Button>
         <Select
           value={state.selectedSavedCoachConversationId || undefined}
           onValueChange={(value) => {
@@ -165,18 +178,6 @@ export function PlannerCoachPanel({ coach }: PlannerCoachPanelProps) {
           maxLength={4000}
         />
         <div className="flex justify-end gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={actions.startNewCoachConversation}
-            disabled={
-              state.coachLoading ||
-              state.coachPolicyApplying ||
-              !state.hasCoachConversationState
-            }
-          >
-            New conversation
-          </Button>
           <Button
             type="button"
             onClick={() => void actions.sendCoachMessage()}
