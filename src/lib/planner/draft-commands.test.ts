@@ -26,6 +26,7 @@ describe("planner draft commands", () => {
         goalId: GOAL_A,
         unitKey: "total:1",
         scheduledDate: "2026-08-07",
+        sourceDate: "2026-08-01",
       },
       {
         id: "11000000-0000-4000-8000-000000000003",
@@ -34,6 +35,7 @@ describe("planner draft commands", () => {
         goalId: GOAL_A,
         unitKey: "total:1",
         scheduledDate: "2026-08-05",
+        sourceDate: "2026-08-01",
       },
     ];
 
@@ -61,6 +63,7 @@ describe("planner draft commands", () => {
         goalId: GOAL_A,
         unitKey: "total:2",
         scheduledDate: "2026-08-03",
+        sourceDate: "2026-08-01",
       },
       {
         id: "22000000-0000-4000-8000-000000000002",
@@ -69,6 +72,7 @@ describe("planner draft commands", () => {
         goalId: GOAL_A,
         unitKey: "total:1",
         scheduledDate: "2026-08-02",
+        sourceDate: "2026-08-01",
       },
     ];
 

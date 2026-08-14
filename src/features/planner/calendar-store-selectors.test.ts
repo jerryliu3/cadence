@@ -86,6 +86,7 @@ describe("calendar store selectors", () => {
         goalId: "goal-a",
         unitKey: "total:1",
         scheduledDate: "2026-08-10",
+        sourceDate: "2026-08-05",
       },
       {
         id: "cmd-b",
@@ -94,6 +95,7 @@ describe("calendar store selectors", () => {
         goalId: "goal-z",
         unitKey: "total:9",
         scheduledDate: "2026-08-12",
+        sourceDate: "2026-08-12",
       },
     ]);
 
@@ -120,6 +122,7 @@ describe("calendar store selectors", () => {
         goalId: "goal-a",
         unitKey: "total:1",
         scheduledDate: "2026-09-05",
+        sourceDate: "2026-08-31",
       },
     ]);
 
@@ -155,6 +158,7 @@ describe("calendar store selectors", () => {
         goalId: "goal-b",
         unitKey: "total:1",
         scheduledDate: "2026-09-10",
+        sourceDate: "2026-09-01",
       },
       {
         id: "cmd-b",
@@ -203,6 +207,7 @@ describe("calendar store selectors", () => {
         goalId: "goal-a",
         unitKey: "total:1",
         scheduledDate: "2026-08-07",
+        sourceDate: "2026-08-05",
       },
       {
         id: "cmd-b",
@@ -211,6 +216,7 @@ describe("calendar store selectors", () => {
         goalId: "goal-z",
         unitKey: "total:9",
         scheduledDate: "2026-08-09",
+        sourceDate: "2026-08-09",
       },
     ]);
 

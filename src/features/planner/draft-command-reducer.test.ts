@@ -13,6 +13,7 @@ describe("draftCommandReducer remove_entries", () => {
       goalId: "goal-a",
       unitKey: "unit-1",
       scheduledDate: "2026-08-03",
+      sourceDate: "2026-08-01",
     });
     state = draftCommandReducer(state, {
       type: "upsert_rename",
@@ -59,18 +60,21 @@ describe("draftCommandReducer global commands", () => {
       goalId: "goal-a",
       unitKey: "unit-1",
       scheduledDate: "2026-08-03",
+      sourceDate: "2026-08-03",
     });
     state = draftCommandReducer(state, {
       type: "upsert_move",
       goalId: "goal-a",
       unitKey: "unit-1",
       scheduledDate: "2026-09-02",
+      sourceDate: "2026-09-02",
     });
 
     expect(selectDraftCommands(state)).toHaveLength(1);
     expect(selectDraftCommands(state)[0]).toMatchObject({
       kind: "move_item",
       scheduledDate: "2026-09-02",
+      sourceDate: "2026-08-03",
     });
   });
 });
