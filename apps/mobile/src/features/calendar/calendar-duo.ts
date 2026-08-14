@@ -13,7 +13,8 @@ const EMPTY_CALENDAR_MARKERS_BY_DATE = new Map<
   string,
   PlannerCompletionFactMarker[]
 >();
-const PARTNER_CALENDAR_UNAVAILABLE_MESSAGE = "Partner completions are unavailable.";
+export const PARTNER_CALENDAR_UNAVAILABLE_MESSAGE =
+  "Partner completions are unavailable.";
 
 export interface CalendarOverlayPayload {
   partnerId: string;
@@ -25,18 +26,6 @@ export interface CalendarPartnerGoalTitleRow {
   id: string;
   owner_id: string;
   title: string;
-}
-
-export function sanitizeCalendarPartnerTitleQueryFailure(error: unknown): Error {
-  const sanitized = new Error(PARTNER_CALENDAR_UNAVAILABLE_MESSAGE);
-  const postgrestCode =
-    error && typeof error === "object" && typeof (error as { code?: unknown }).code === "string"
-      ? (error as { code: string }).code
-      : undefined;
-  if (postgrestCode) {
-    (sanitized as Error & { postgrestCode?: string }).postgrestCode = postgrestCode;
-  }
-  return sanitized;
 }
 
 export function buildCalendarOverlayQueryModel({

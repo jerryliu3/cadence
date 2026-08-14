@@ -1,13 +1,14 @@
 import { describe, expect, it } from "vitest";
+import { sanitizeMobileSupabaseError } from "../../lib/supabase-error";
 import {
   buildCalendarMonthCellAccessibilityLabel,
   buildCalendarMonthMarkerModel,
   buildCalendarOverlayQueryModel,
   buildCalendarPartnerOverlayPayload,
+  PARTNER_CALENDAR_UNAVAILABLE_MESSAGE,
   buildCalendarPartnerTitleMap,
   buildCalendarPartnerProgressQuery,
   buildPartnerMarkerAccessibilityLabel,
-  sanitizeCalendarPartnerTitleQueryFailure,
   resolveCalendarOverlayState,
   resolveCalendarReadOnlyState,
 } from "./calendar-duo";
@@ -139,15 +140,18 @@ describe("calendar duo behavior helpers", () => {
       code: "PGRST116",
       message: `column owner_id filter failed for ${partnerId}`,
       details: `owner_id=eq.${partnerId}`,
+      hint: "do not leak",
     };
-    const sanitized = sanitizeCalendarPartnerTitleQueryFailure(rawError);
+    const sanitized = sanitizeMobileSupabaseError({
+      error: rawError,
+      userMessage: PARTNER_CALENDAR_UNAVAILABLE_MESSAGE,
+    });
 
-    expect(sanitized.message).toBe("Partner completions are unavailable.");
-    expect((sanitized as Error & { postgrestCode?: string }).postgrestCode).toBe(
-      "PGRST116"
-    );
+    expect(sanitized.message).toBe(PARTNER_CALENDAR_UNAVAILABLE_MESSAGE);
+    expect(sanitized.code).toBe("PGRST116");
     expect(JSON.stringify(sanitized)).not.toContain("owner_id");
     expect(JSON.stringify(sanitized)).not.toContain(partnerId);
+    expect(JSON.stringify(sanitized)).not.toContain("do not leak");
   });
 
   it("fails closed while the current partner-month identity is not fresh", () => {

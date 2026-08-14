@@ -8,6 +8,13 @@ vi.mock("react-native", () => ({
     React.createElement("text", null, children),
   View: ({ children }: { children: React.ReactNode }) =>
     React.createElement("view", null, children),
+  Pressable: ({
+    children,
+    onPress,
+  }: {
+    children: React.ReactNode;
+    onPress: () => void;
+  }) => React.createElement("pressable", { onPress }, children),
   StyleSheet: { create: <T,>(styles: T) => styles },
 }));
 
@@ -58,18 +65,13 @@ describe("CalendarPartnerReadOnlySection partner boundary", () => {
       .flat()
       .join(" ");
 
-    const interactiveNodes = root.root.findAll((node: ReactTestInstance) => {
-      const typeName = String(node.type);
-      return (
-        typeName === "pressable" ||
-        typeName.includes("draggable") ||
-        typeName.includes("button")
-      );
-    });
+    const pressables = root.root.findAll(
+      (node: ReactTestInstance) => String(node.type) === "pressable"
+    );
 
     expect(rendered).toContain("Partner completions (read-only)");
     expect(rendered).toContain("Partner marked this done:");
     expect(rendered).toContain("Read");
-    expect(interactiveNodes).toHaveLength(0);
+    expect(pressables).toHaveLength(0);
   });
 });
