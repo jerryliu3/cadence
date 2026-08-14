@@ -59,7 +59,8 @@ describe("iOS HealthKit bridge", () => {
       }),
     });
 
-    const result = await collectHealthKitSamples(bridge, {});
+    const now = new Date("2026-08-14T16:00:00.000Z");
+    const result = await collectHealthKitSamples(bridge, {}, now);
     expect(result.samples.some((sample) => sample.providerNativeId === "step-1")).toBe(
       true
     );
@@ -79,5 +80,37 @@ describe("iOS HealthKit bridge", () => {
       HKQuantityTypeIdentifierStepCount: "prev",
     });
     expect(result.nextAnchors.HKQuantityTypeIdentifierStepCount).toBe("next");
+  });
+
+  it("drops samples outside today/yesterday and collects deletions", async () => {
+    const now = new Date("2026-08-14T16:00:00.000Z");
+    const bridge = createBridge({
+      queryQuantitySamplesWithAnchor: vi.fn(async (type) => {
+        if (type !== "HKQuantityTypeIdentifierStepCount") {
+          return { samples: [], deletedSamples: [], newAnchor: `${type}-anchor` };
+        }
+        return {
+          samples: [
+            {
+              uuid: "old",
+              quantity: 40,
+              startDate: "2020-01-01T04:00:00.000Z",
+            },
+            {
+              uuid: "today",
+              quantity: 12,
+              startDate: "2026-08-14T04:00:00.000Z",
+            },
+          ],
+          deletedSamples: [{ uuid: "gone" }],
+          newAnchor: "step-anchor",
+        };
+      }),
+    });
+    const result = await collectHealthKitSamples(bridge, {}, now);
+    expect(result.samples.map((sample) => sample.providerNativeId)).toEqual([
+      "today",
+    ]);
+    expect(result.deletedNativeIds).toEqual(["gone"]);
   });
 });

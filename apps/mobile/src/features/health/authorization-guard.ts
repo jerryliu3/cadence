@@ -1,6 +1,6 @@
 export function isUnauthorizedHealthKitError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error);
-  return /authoriz|not determined|HKErrorDomain|not available for this device/i.test(
+  return /authorization not determined|authorization denied|not determined|not available for this device|HKErrorAuthorizationDenied|HKErrorAuthorizationNotDetermined|Code=4\b|Code=5\b/i.test(
     message
   );
 }
