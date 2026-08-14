@@ -2,9 +2,10 @@ import { z } from "zod";
 import { assertDateWindow } from "@/lib/planner/dates";
 import type { Goal } from "@/lib/goals/types";
 import type { GoalAssessment } from "@/lib/planner/assessment";
+import { MAX_COACH_FOCUS_GOALS } from "@/lib/planner/coach-constants";
 
 export const MAX_COACH_MESSAGES = 20;
-export const MAX_COACH_FOCUS_GOALS = 40;
+export { MAX_COACH_FOCUS_GOALS };
 export const MAX_COACH_MESSAGE_CHARS = 12_000;
 export const MAX_COACH_REPLY_CHARS = 12_000;
 const CANONICAL_UNIT_KEY_PATTERN = /^(milestone|total|cadence):/;
@@ -265,6 +266,133 @@ function resolveGoalFromReference({
   return { goalId: scored[0]?.goalId ?? null, ambiguous: false };
 }
 
+type CalendarIntentMove = z.infer<typeof calendarIntentSchema>["sessionMoves"][number];
+
+interface SessionMoveResolutionContext {
+  move: CalendarIntentMove;
+  goalsById: Map<string, Goal>;
+  knownGoalIds: Set<string>;
+  sessionByRef: Map<string, CoachSessionRosterEntry>;
+  sessionsByGoalId: Map<string, CoachSessionRosterEntry[]>;
+  sessionsByGoalAndDate: Map<string, CoachSessionRosterEntry[]>;
+}
+
+interface SessionMoveResolutionResult {
+  patch: CoachPolicyPatch | null;
+  warning?: string;
+  unresolvedQuestion?: string;
+}
+
+function resolveSessionMove({
+  move,
+  goalsById,
+  knownGoalIds,
+  sessionByRef,
+  sessionsByGoalId,
+  sessionsByGoalAndDate,
+}: SessionMoveResolutionContext): SessionMoveResolutionResult {
+  if (move.sessionRef) {
+    const resolved = sessionByRef.get(move.sessionRef);
+    if (!resolved) {
+      return {
+        patch: null,
+        warning: `Ignored session move because sessionRef "${move.sessionRef}" is not available in the current calendar window.`,
+        unresolvedQuestion: `Which listed session should move to ${move.scheduledDate}?`,
+      };
+    }
+    return {
+      patch: {
+        kind: "move_session",
+        goalId: resolved.goalId,
+        unitKey: resolved.unitKey,
+        scheduledDate: move.scheduledDate,
+      },
+    };
+  }
+
+  let resolvedGoalId: string | null = null;
+  if (move.goalId && knownGoalIds.has(move.goalId)) {
+    resolvedGoalId = move.goalId;
+  } else if (move.goalRef) {
+    const resolved = resolveGoalFromReference({
+      goalRef: move.goalRef,
+      goalsById,
+    });
+    if (resolved.ambiguous) {
+      return {
+        patch: null,
+        warning: `Ignored session move because goal "${move.goalRef}" is ambiguous.`,
+        unresolvedQuestion: `Which goal did you mean by "${move.goalRef}"?`,
+      };
+    }
+    if (!resolved.goalId) {
+      return {
+        patch: null,
+        warning: `Ignored session move because goal "${move.goalRef}" was not found.`,
+        unresolvedQuestion: `Which goal should move to ${move.scheduledDate}?`,
+      };
+    }
+    resolvedGoalId = resolved.goalId;
+  } else if (move.goalId) {
+    return {
+      patch: null,
+      warning: `Ignored session move for unknown goal ${move.goalId}.`,
+    };
+  }
+
+  if (!resolvedGoalId) {
+    return {
+      patch: null,
+      warning: "Ignored session move because no goal reference was provided.",
+    };
+  }
+
+  const resolvedGoal = goalsById.get(resolvedGoalId);
+  const resolvedGoalTitle = resolvedGoal?.title ?? "this goal";
+  const sessionsForGoal = sessionsByGoalId.get(resolvedGoalId) ?? [];
+  let resolvedSession: CoachSessionRosterEntry | null = null;
+
+  if (move.unitKey) {
+    resolvedSession =
+      sessionsForGoal.find((session) => session.unitKey === move.unitKey) ?? null;
+  }
+
+  if (!resolvedSession && move.sourceDate) {
+    const sessionsOnSourceDate =
+      sessionsByGoalAndDate.get(`${resolvedGoalId}:${move.sourceDate}`) ?? [];
+    if (sessionsOnSourceDate.length === 1) {
+      resolvedSession = sessionsOnSourceDate[0] ?? null;
+    } else if (sessionsOnSourceDate.length > 1) {
+      return {
+        patch: null,
+        warning: `Ignored session move because ${resolvedGoalTitle} has multiple sessions on ${move.sourceDate}.`,
+        unresolvedQuestion: `Which ${resolvedGoalTitle} session on ${move.sourceDate} should move to ${move.scheduledDate}?`,
+      };
+    }
+  }
+
+  if (!resolvedSession && sessionsForGoal.length === 1) {
+    resolvedSession = sessionsForGoal[0] ?? null;
+  }
+
+  if (!resolvedSession) {
+    return {
+      patch: null,
+      warning: `Ignored session move because no scheduled ${resolvedGoalTitle} session matched the provided reference.`,
+      unresolvedQuestion: `Which existing ${resolvedGoalTitle} session should move to ${move.scheduledDate}?`,
+    };
+  }
+
+  return {
+    patch: {
+      kind: "move_session",
+      goalId: resolvedSession.goalId,
+      unitKey: resolvedSession.unitKey,
+      scheduledDate: move.scheduledDate,
+    },
+  };
+}
+
 function compileCalendarIntent(
   intent: z.infer<typeof calendarIntentSchema>,
   goalsById: Map<string, Goal>,
@@ -293,21 +421,6 @@ function compileCalendarIntent(
     if (!unresolvedQuestions.includes(question)) {
       unresolvedQuestions.push(question);
     }
-  };
-
-  const appendResolutionFailure = ({
-    goalTitle,
-    scheduledDate,
-  }: {
-    goalTitle: string;
-    scheduledDate: string;
-  }) => {
-    warnings.push(
-      `Ignored session move because the session reference for ${goalTitle} did not resolve.`
-    );
-    appendUnresolvedQuestion(
-      `Which existing ${goalTitle} session should move to ${scheduledDate}?`
-    );
   };
 
   if (intent.action === "none") {
@@ -343,100 +456,23 @@ function compileCalendarIntent(
   if (intent.sessionMoves.length > 0) {
     const knownGoalIds = new Set(goalsById.keys());
     for (const move of intent.sessionMoves) {
-      if (move.sessionRef) {
-        const resolved = sessionByRef.get(move.sessionRef);
-        if (!resolved) {
-          warnings.push(
-            `Ignored session move because session reference ${move.sessionRef} is not in the current calendar window.`
-          );
-          continue;
-        }
-        policyPatches.push({
-          kind: "move_session",
-          goalId: resolved.goalId,
-          unitKey: resolved.unitKey,
-          scheduledDate: move.scheduledDate,
-        });
-        continue;
-      }
-
-      let resolvedGoalId: string | null = null;
-      if (move.goalId && knownGoalIds.has(move.goalId)) {
-        resolvedGoalId = move.goalId;
-      } else if (move.goalRef) {
-        const resolved = resolveGoalFromReference({
-          goalRef: move.goalRef,
-          goalsById,
-        });
-        if (resolved.ambiguous) {
-          warnings.push(`Ignored session move because goal "${move.goalRef}" is ambiguous.`);
-          appendUnresolvedQuestion(
-            `Which goal did you mean by "${move.goalRef}"?`
-          );
-          continue;
-        }
-        if (!resolved.goalId) {
-          warnings.push(`Ignored session move because goal "${move.goalRef}" was not found.`);
-          appendUnresolvedQuestion(
-            `Which goal should move to ${move.scheduledDate}?`
-          );
-          continue;
-        }
-        resolvedGoalId = resolved.goalId;
-      } else if (move.goalId) {
-        warnings.push(`Ignored session move for unknown goal ${move.goalId}.`);
-        continue;
-      }
-
-      if (!resolvedGoalId) {
-        warnings.push(
-          "Ignored session move because no goal reference was provided."
-        );
-        continue;
-      }
-
-      const resolvedGoal = goalsById.get(resolvedGoalId);
-      const resolvedGoalTitle = resolvedGoal?.title ?? "this goal";
-      const sessionsForGoal = sessionsByGoalId.get(resolvedGoalId) ?? [];
-      let resolvedSession: CoachSessionRosterEntry | null = null;
-
-      if (move.unitKey) {
-        resolvedSession =
-          sessionsForGoal.find((session) => session.unitKey === move.unitKey) ?? null;
-      }
-
-      if (!resolvedSession && move.sourceDate) {
-        const sessionsOnSourceDate =
-          sessionsByGoalAndDate.get(`${resolvedGoalId}:${move.sourceDate}`) ?? [];
-        if (sessionsOnSourceDate.length === 1) {
-          resolvedSession = sessionsOnSourceDate[0] ?? null;
-        } else if (sessionsOnSourceDate.length > 1) {
-          appendResolutionFailure({
-            goalTitle: resolvedGoalTitle,
-            scheduledDate: move.scheduledDate,
-          });
-          continue;
-        }
-      }
-
-      if (!resolvedSession && sessionsForGoal.length === 1) {
-        resolvedSession = sessionsForGoal[0] ?? null;
-      }
-
-      if (!resolvedSession) {
-        appendResolutionFailure({
-          goalTitle: resolvedGoalTitle,
-          scheduledDate: move.scheduledDate,
-        });
-        continue;
-      }
-
-      policyPatches.push({
-        kind: "move_session",
-        goalId: resolvedSession.goalId,
-        unitKey: resolvedSession.unitKey,
-        scheduledDate: move.scheduledDate,
+      const resolution = resolveSessionMove({
+        move,
+        goalsById,
+        knownGoalIds,
+        sessionByRef,
+        sessionsByGoalId,
+        sessionsByGoalAndDate,
       });
+      if (resolution.patch) {
+        policyPatches.push(resolution.patch);
+      }
+      if (resolution.warning) {
+        warnings.push(resolution.warning);
+      }
+      if (resolution.unresolvedQuestion) {
+        appendUnresolvedQuestion(resolution.unresolvedQuestion);
+      }
     }
   }
   if (policyPatches.length === 0) {

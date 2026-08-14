@@ -4,8 +4,7 @@ import type {
   PlannerWorkUnit,
 } from "@/features/planner/calendar-surface.types";
 import { buildCoachSessionKey } from "@/features/planner/coach-session";
-
-const MAX_COACH_FOCUS_GOALS = 40;
+import { MAX_COACH_FOCUS_GOALS } from "@/lib/planner/coach-constants";
 
 export function buildCoachFocusGoalIds({
   workUnits,
