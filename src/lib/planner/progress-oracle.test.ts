@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { getCreditedUnitCount } from "@/lib/goals/admissible";
 import type { Completion, Goal } from "@/lib/goals/types";
-import { enumerateMonthsInWindow } from "@/lib/planner/dates";
+import { enumerateMonthsInWindow, toKernelWindow } from "@/lib/planner/dates";
 import { runPlannerKernel, type PlannerKernelInput } from "@/lib/planner/kernel";
 import { createDefaultPlannerPolicy } from "@/lib/planner/policy";
 
@@ -70,7 +70,7 @@ function runKernelByMonth({
       schemaVersion: "1",
       eligibilityMode: "overlap_v1",
       ownerId: goal.owner_id,
-      scopeMonth,
+      ...toKernelWindow(scopeMonth),
       asOfDate,
       timezone: "UTC",
       goals: [goal],

@@ -3,10 +3,45 @@ import {
   compareDateStrings,
   getAnchoredPeriod,
 } from "@/lib/goals/periods";
+import { MAX_PLANNER_WINDOW_DAYS } from "@/lib/planner/contracts/bounds";
 
 export interface DateWindow {
   start: string;
   end: string;
+}
+
+export function countDateWindowDays(window: DateWindow) {
+  const startDate = new Date(`${window.start}T00:00:00Z`);
+  const endDate = new Date(`${window.end}T00:00:00Z`);
+  const dayMs = 24 * 60 * 60 * 1000;
+  return Math.max(
+    0,
+    Math.floor((endDate.getTime() - startDate.getTime()) / dayMs) + 1
+  );
+}
+
+export function assertDateWindow(window: DateWindow): DateWindow {
+  if (compareDateStrings(window.end, window.start) < 0) {
+    throw new RangeError(
+      `Invalid planner window: ${window.start}..${window.end}`
+    );
+  }
+  if (countDateWindowDays(window) > MAX_PLANNER_WINDOW_DAYS) {
+    throw new RangeError(
+      `Planner window exceeds ${MAX_PLANNER_WINDOW_DAYS} days.`
+    );
+  }
+  return window;
+}
+
+export function getWindowState(window: DateWindow, asOfDate: string) {
+  if (compareDateStrings(asOfDate, window.start) < 0) {
+    return "future" as const;
+  }
+  if (compareDateStrings(asOfDate, window.end) > 0) {
+    return "historical" as const;
+  }
+  return "current" as const;
 }
 
 export function getScopeDateRange(scopeMonth: string): DateWindow {
@@ -30,6 +65,14 @@ export function toPlannerScheduleWindow(scopeMonth: string) {
   return {
     start_date: window.start,
     end_date: window.end,
+  };
+}
+
+export function toKernelWindow(scopeMonth: string) {
+  const window = getScopeDateRange(scopeMonth);
+  return {
+    startDate: window.start,
+    endDate: window.end,
   };
 }
 
@@ -77,14 +120,7 @@ export function getUtcWeekday(date: string) {
 }
 
 export function getScopeState(scopeMonth: string, asOfDate: string) {
-  const scope = getScopeDateRange(scopeMonth);
-  if (compareDateStrings(asOfDate, scope.start) < 0) {
-    return "future" as const;
-  }
-  if (compareDateStrings(asOfDate, scope.end) > 0) {
-    return "historical" as const;
-  }
-  return "current" as const;
+  return getWindowState(getScopeDateRange(scopeMonth), asOfDate);
 }
 
 export function monthFromDate(date: string) {

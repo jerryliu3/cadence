@@ -31,7 +31,8 @@ export interface GenerationHashInput {
   solveIntent: SolverSolveIntent;
   preserveExistingAssignments: boolean;
   draftPinnedDates: Record<string, string>;
-  scopeMonth: string;
+  startDate: string;
+  endDate: string;
   asOfDate: string;
   timezone: string;
   goals: Goal[];
@@ -65,7 +66,8 @@ export function computeGenerationInputHash(input: GenerationHashInput) {
         compareCanonicalStrings(left, right)
       )
     ),
-    scopeMonth: input.scopeMonth,
+    startDate: input.startDate,
+    endDate: input.endDate,
     asOfDate: input.asOfDate,
     timezone: input.timezone,
     goals: [...input.goals].sort((left, right) =>

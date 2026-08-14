@@ -2,6 +2,7 @@ import { z } from "zod";
 import { goalAssessmentSchema } from "@/lib/planner/assessment";
 import {
   MAX_HORIZON_MONTHS,
+  MAX_PLANNER_WINDOW_DAYS,
   PLANNER_CONTRACT_VERSION,
   PLANNER_ELIGIBILITY_MODES,
   REQUIREMENT_SCHEMA_VERSION,
@@ -11,6 +12,7 @@ import {
   plannerLocalDateTimeSchema,
   plannerLocalTimeSchema,
 } from "@/lib/planner/schedule-time";
+import { countDateWindowDays } from "@/lib/planner/dates";
 
 const dateSchema = z.iso.date();
 const nullableDateSchema = dateSchema.nullable();
@@ -93,7 +95,8 @@ export const plannerKernelInputSchema = z
     preserveExistingAssignments: z.boolean().optional(),
     draftPinnedDates: z.record(z.string(), dateSchema).optional(),
     ownerId: z.string().min(1).max(100),
-    scopeMonth: monthSchema,
+    startDate: dateSchema,
+    endDate: dateSchema,
     asOfDate: dateSchema,
     timezone: z.string().min(1).max(100),
     goals: z.array(plannerGoalSchema),
@@ -135,6 +138,16 @@ export const plannerKernelInputSchema = z
   .refine(
     (input) => input.timezone === input.policy.timezone,
     "Planner and policy timezones must match."
+  )
+  .refine(
+    (input) => input.endDate >= input.startDate,
+    "Planner window endDate must be on or after startDate."
+  )
+  .refine(
+    (input) =>
+      countDateWindowDays({ start: input.startDate, end: input.endDate }) <=
+      MAX_PLANNER_WINDOW_DAYS,
+    `Planner window cannot exceed ${MAX_PLANNER_WINDOW_DAYS} days.`
   );
 
 const workUnitSchema = z
@@ -218,7 +231,7 @@ const goalHorizonSummarySchema = z
     totalCount: z.number().int().nonnegative(),
     creditedCount: z.number().int().nonnegative(),
     remainingCount: z.number().int().nonnegative(),
-    scopeMonthPlannedCount: z.number().int().nonnegative(),
+    windowPlannedCount: z.number().int().nonnegative(),
     months: z
       .array(
         z
