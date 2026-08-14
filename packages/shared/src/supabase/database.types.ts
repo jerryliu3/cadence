@@ -2373,6 +2373,10 @@ export type Database = {
         Args: { p_event_id: string; p_hidden: boolean; p_reason?: string }
         Returns: boolean
       }
+      ingest_health_activities_service: {
+        Args: { p_samples: Json }
+        Returns: Json
+      }
       is_platform_admin: {
         Args: { p_min_role?: Database["public"]["Enums"]["admin_role"] }
         Returns: boolean
@@ -2418,6 +2422,10 @@ export type Database = {
       }
       recompute_goal_xp_service: {
         Args: { p_force_zero?: boolean; p_goal_id: string; p_user_id: string }
+        Returns: number
+      }
+      recompute_health_daily_metrics_service: {
+        Args: { p_from: string; p_to: string }
         Returns: number
       }
       reconcile_goal_xp_service: {
