@@ -23,6 +23,7 @@ import {
   sortPlannerDraftCommands,
   type PlannerDraftCommand,
 } from "@/lib/planner/draft-commands";
+import { summarizePlannerGoalUnplaceableRecords } from "@/lib/planner/unplaceable";
 
 export interface PlannerCalendarStoreProjection {
   effectiveDraftCommands: PlannerDraftCommand[];
@@ -33,6 +34,13 @@ export interface PlannerCalendarStoreProjection {
   previewUnitByEntryKey: Map<string, PlannerWorkUnit>;
   completionFactUnitsByGoalDate: Map<string, PlannerWorkUnit[]>;
   completionFactMarkersByDate: Map<string, PlannerCompletionFactMarker[]>;
+  unplaceableGoalSummaries: Array<{
+    goalId: string;
+    title: string;
+    unplacedCount: number;
+    reason: "capacity" | "invalid_lock";
+  }>;
+  totalUnplacedCount: number;
 }
 
 export interface PlannerCalendarDayProjection {
@@ -95,6 +103,10 @@ export function selectPlannerCalendarStoreProjection({
     activeGoalsByOriginalGoalId,
     goalTitles: context?.goalTitles,
   });
+  const unplaceableGoalSummaries = summarizePlannerGoalUnplaceableRecords({
+    records: context?.unplaceableGoals ?? [],
+    goalTitles: context?.goalTitles ?? {},
+  });
   return {
     effectiveDraftCommands,
     effectiveDraftItemEdits,
@@ -104,6 +116,11 @@ export function selectPlannerCalendarStoreProjection({
     previewUnitByEntryKey,
     completionFactUnitsByGoalDate,
     completionFactMarkersByDate,
+    unplaceableGoalSummaries,
+    totalUnplacedCount: unplaceableGoalSummaries.reduce(
+      (count, entry) => count + entry.unplacedCount,
+      0
+    ),
   };
 }
 

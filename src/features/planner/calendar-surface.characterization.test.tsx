@@ -11,6 +11,8 @@ import {
   buildPlannerPreview,
   buildPlannerWorkUnit,
 } from "@/features/planner/test-fixtures";
+import { invalidatePlannerRelatedTabCaches } from "@/lib/cache/planner-tab-cache";
+import { summarizePlannerGoalUnplaceableRecords } from "@/lib/planner/unplaceable";
 
 const getJsonMock = vi.fn();
 const postJsonMock = vi.fn();
@@ -125,6 +127,8 @@ function buildContext(workUnits: PlannerWorkUnit[]): PlannerContextPayload {
 
 describe("CalendarSurface characterization", () => {
   beforeEach(() => {
+    document.body.innerHTML = "";
+    invalidatePlannerRelatedTabCaches();
     getJsonMock.mockReset();
     getJsonMock.mockImplementation(
       () => postJsonMock.mock.results[0]?.value
@@ -155,7 +159,7 @@ describe("CalendarSurface characterization", () => {
     render(
       <CalendarSurface
         activeTab="calendar"
-        month="2026-08"
+        month="2026-09"
         selectedDay={null}
         viewMode="month"
         onMonthChange={vi.fn()}
@@ -167,9 +171,9 @@ describe("CalendarSurface characterization", () => {
 
     await waitFor(() => {
       expect(postJsonMock).toHaveBeenCalledWith("/api/planner/prepare", {
-        scopeMonth: "2026-08",
-        visibleStart: "2026-07-01",
-        visibleEnd: "2026-09-30",
+        scopeMonth: "2026-09",
+        visibleStart: "2026-08-01",
+        visibleEnd: "2026-10-31",
       });
     });
 
@@ -198,7 +202,7 @@ describe("CalendarSurface characterization", () => {
     render(
       <CalendarSurface
         activeTab="calendar"
-        month="2026-08"
+        month="2026-10"
         selectedDay={null}
         viewMode="month"
         onMonthChange={vi.fn()}
@@ -324,5 +328,100 @@ describe("CalendarSurface characterization", () => {
     await waitFor(() => {
       expect(screen.queryByText("Expand")).not.toBeInTheDocument();
     }, { timeout: 300 });
+  });
+
+  it("renders banner counts from the shared unplaceable selector", async () => {
+    const context = buildContext([
+      unit({
+        originalGoalId: "goal-a",
+        unitKey: "total:1",
+        scheduledDate: "2026-08-31",
+      }),
+    ]);
+    context.unplaceableGoals = [
+      {
+        goalId: "goal-a",
+        requirementFingerprint: "a".repeat(64),
+        policyRevision: 1,
+        effectiveSpanEnd: "2027-07-31",
+        unplacedCount: 3,
+        reason: "capacity",
+      },
+      {
+        goalId: "goal-b",
+        requirementFingerprint: "b".repeat(64),
+        policyRevision: 1,
+        effectiveSpanEnd: "2027-07-31",
+        unplacedCount: 1,
+        reason: "capacity",
+      },
+    ];
+    postJsonMock.mockResolvedValue(context);
+
+    const expectedSummaries = summarizePlannerGoalUnplaceableRecords({
+      records: context.unplaceableGoals,
+      goalTitles: context.goalTitles,
+    });
+    const expectedGoalCount = expectedSummaries.length;
+    const expectedUnitCount = expectedSummaries.reduce(
+      (count, summary) => count + summary.unplacedCount,
+      0
+    );
+
+    render(
+      <CalendarSurface
+        activeTab="calendar"
+        month="2026-08"
+        selectedDay={null}
+        viewMode="month"
+        onMonthChange={vi.fn()}
+        onViewModeChange={vi.fn()}
+        onSelectedDayChange={vi.fn()}
+        onPlannerMutation={vi.fn()}
+      />
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(
+          new RegExp(
+            `${expectedGoalCount} goal${expectedGoalCount === 1 ? "" : "s"} are not fully scheduled \\(${expectedUnitCount} unresolved session${expectedUnitCount === 1 ? "" : "s"}\\)\\.`,
+            "i"
+          )
+        )
+      ).toBeInTheDocument();
+    });
+  });
+
+  it("does not render unplaceable banner when no record is present", async () => {
+    const context = buildContext([
+      unit({
+        originalGoalId: "goal-a",
+        unitKey: "total:1",
+        scheduledDate: "2026-08-31",
+      }),
+    ]);
+    context.unplaceableGoals = [];
+    postJsonMock.mockResolvedValue(context);
+
+    render(
+      <CalendarSurface
+        activeTab="calendar"
+        month="2026-08"
+        selectedDay={null}
+        viewMode="month"
+        onMonthChange={vi.fn()}
+        onViewModeChange={vi.fn()}
+        onSelectedDayChange={vi.fn()}
+        onPlannerMutation={vi.fn()}
+      />
+    );
+
+    await waitFor(() => {
+      expect(postJsonMock).toHaveBeenCalled();
+    });
+    expect(
+      screen.queryByText(/goal[s]? are not fully scheduled/i)
+    ).not.toBeInTheDocument();
   });
 });

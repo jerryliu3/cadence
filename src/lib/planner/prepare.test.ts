@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Goal } from "@/lib/goals/types";
 import { createDefaultPlannerPolicy } from "@/lib/planner/policy";
 import { computeRequirementFingerprint } from "@/lib/planner/requirements";
+import type { PlannerGoalUnplaceableRecord } from "@/lib/planner/unplaceable";
 
 const OWNER_ID = "11111111-1111-4111-8111-111111111111";
 const DIGEST = "a".repeat(64);
@@ -106,7 +107,8 @@ function persistedItem(
 
 function preparationSnapshot(
   goals: Goal[],
-  items: ReturnType<typeof persistedItem>[] = []
+  items: ReturnType<typeof persistedItem>[] = [],
+  unplaceableGoals: PlannerGoalUnplaceableRecord[] = []
 ) {
   return {
     snapshot: {
@@ -128,8 +130,25 @@ function preparationSnapshot(
         ),
       },
       activePlan: null,
+      unplaceableGoals,
     },
     persistedItems: items,
+    unplaceableGoals,
+  };
+}
+
+function unplaceableRecord(
+  input: Partial<PlannerGoalUnplaceableRecord> = {}
+): PlannerGoalUnplaceableRecord {
+  return {
+    goalId: input.goalId ?? goal().id,
+    requirementFingerprint:
+      input.requirementFingerprint ?? computeRequirementFingerprint(goal()),
+    policyRevision: input.policyRevision ?? 1,
+    effectiveSpanEnd: input.effectiveSpanEnd ?? "2028-07-31",
+    unplacedCount: input.unplacedCount ?? 1,
+    reason: input.reason ?? "capacity",
+    computedAt: input.computedAt ?? "2026-08-15T00:00:00.000Z",
   };
 }
 
@@ -147,6 +166,10 @@ function kernelOutput(
       issueCodes: [],
       invalidGoalIds: [],
       publishable: true,
+    },
+    validation: {
+      valid: true,
+      invariantViolations: [],
     },
     workUnits: units.map((unit, index) => ({
       originalGoalId: goalId,
@@ -508,7 +531,7 @@ describe("preparePlannerSchedule", () => {
     expect(mocks.rpc.mock.calls[1]?.[1].p_expected_digest).toBe("b".repeat(64));
   });
 
-  it("keeps existing sessions and returns warnings for unplaceable goals", async () => {
+  it("keeps existing sessions, persists healthy placements, and records unplaceable counts", async () => {
     const blockedGoal = goal();
     const healthyGoal = goal({
       id: "99999999-9999-4999-8999-999999999999",
@@ -526,17 +549,42 @@ describe("preparePlannerSchedule", () => {
       input.goals[0].id === blockedGoal.id
         ? {
             solver: {
-              issueCodes: ["search_exhausted"],
+              issueCodes: ["placement_shortfall"],
               invalidGoalIds: [blockedGoal.id],
               publishable: false,
             },
-            workUnits: [],
+            validation: {
+              valid: true,
+              invariantViolations: [],
+            },
+            workUnits: [
+              {
+                originalGoalId: blockedGoal.id,
+                requirementFingerprint: "fingerprint",
+                unitKey: "milestone:1",
+                scheduledDate: "2026-08-07",
+                locked: true,
+                scheduledTimeOverride: null,
+                effectiveScheduledLocalTime: null,
+                ordinal: 1,
+              },
+              {
+                originalGoalId: blockedGoal.id,
+                requirementFingerprint: "fingerprint",
+                unitKey: "milestone:2",
+                scheduledDate: null,
+                locked: false,
+                scheduledTimeOverride: null,
+                effectiveScheduledLocalTime: null,
+                ordinal: 2,
+              },
+            ],
           }
         : kernelOutput(healthyGoal.id, [
             { unitKey: "milestone:1", scheduledDate: "2026-08-12" },
           ])
     );
-    const result = await prepare();
+    await prepare();
 
     expect(mocks.rpc).toHaveBeenCalledTimes(1);
     const prepared = mocks.rpc.mock.calls[0]?.[1].p_items as Array<{
@@ -558,14 +606,224 @@ describe("preparePlannerSchedule", () => {
         }),
       ])
     );
-    expect(result).toEqual(
+    expect(mocks.rpc).toHaveBeenCalledWith(
+      "prepare_planner_schedule",
       expect.objectContaining({
-        prepareWarnings: [
+        p_unplaceable: expect.arrayContaining([
           expect.objectContaining({
-            goalId: blockedGoal.id,
-            code: "goal_unplaceable",
+            goal_id: blockedGoal.id,
+            reason: "capacity",
+            unplaced_count: 1,
           }),
-        ],
+        ]),
+      })
+    );
+  });
+
+  it("records invalid_lock outcomes without mutating that goal schedule", async () => {
+    const lockedGoal = goal();
+    const healthyGoal = goal({
+      id: "99999999-9999-4999-8999-999999999999",
+      title: "Healthy Goal",
+    });
+    const lockedExisting = persistedItem({
+      goal_id: lockedGoal.id,
+      unit_key: "milestone:1",
+      scheduled_date: "2026-08-07",
+    });
+    mocks.loadPlannerPreparationSnapshot.mockResolvedValue(
+      preparationSnapshot([lockedGoal, healthyGoal], [lockedExisting])
+    );
+    mocks.runPlannerKernel.mockImplementation((input) =>
+      input.goals[0].id === lockedGoal.id
+        ? {
+            solver: {
+              issueCodes: ["invalid_lock", "historical_shortfall"],
+              invalidGoalIds: [lockedGoal.id],
+              publishable: false,
+            },
+            validation: {
+              valid: true,
+              invariantViolations: [],
+            },
+            workUnits: [
+              {
+                originalGoalId: lockedGoal.id,
+                requirementFingerprint: "fingerprint",
+                unitKey: "milestone:1",
+                scheduledDate: "2026-08-07",
+                locked: true,
+                scheduledTimeOverride: null,
+                effectiveScheduledLocalTime: null,
+                ordinal: 1,
+              },
+              {
+                originalGoalId: lockedGoal.id,
+                requirementFingerprint: "fingerprint",
+                unitKey: "milestone:2",
+                scheduledDate: null,
+                locked: true,
+                scheduledTimeOverride: null,
+                effectiveScheduledLocalTime: null,
+                ordinal: 2,
+              },
+            ],
+          }
+        : kernelOutput(healthyGoal.id, [
+            { unitKey: "milestone:1", scheduledDate: "2026-08-12" },
+          ])
+    );
+
+    await prepare();
+
+    const prepared = mocks.rpc.mock.calls[0]?.[1].p_items as Array<{
+      goal_id: string;
+      unit_key: string;
+      scheduled_date: string;
+    }>;
+    expect(
+      prepared.filter((item) => item.goal_id === lockedGoal.id)
+    ).toEqual([
+      expect.objectContaining({
+        goal_id: lockedGoal.id,
+        unit_key: lockedExisting.unit_key,
+        scheduled_date: lockedExisting.scheduled_date,
+      }),
+    ]);
+    expect(mocks.rpc).toHaveBeenCalledWith(
+      "prepare_planner_schedule",
+      expect.objectContaining({
+        p_unplaceable: expect.arrayContaining([
+          expect.objectContaining({
+            goal_id: lockedGoal.id,
+            reason: "invalid_lock",
+            unplaced_count: 1,
+          }),
+        ]),
+      })
+    );
+  });
+
+  it("skips re-solving unchanged infeasible goals when a valid record already accounts for missing units", async () => {
+    const plannerGoal = goal({ target_count: 2 });
+    const existing = persistedItem({ unit_key: "milestone:1" });
+    mocks.loadPlannerPreparationSnapshot.mockResolvedValue(
+      preparationSnapshot([plannerGoal], [existing], [
+        unplaceableRecord({
+          goalId: plannerGoal.id,
+          requirementFingerprint: computeRequirementFingerprint(plannerGoal),
+          effectiveSpanEnd: plannerGoal.end_date ?? "2026-09-30",
+          unplacedCount: 1,
+          reason: "capacity",
+        }),
+      ])
+    );
+
+    await prepare();
+
+    expect(mocks.runPlannerKernel).not.toHaveBeenCalled();
+    expect(mocks.rpc).toHaveBeenCalledWith(
+      "prepare_planner_schedule",
+      expect.objectContaining({
+        p_unplaceable: expect.arrayContaining([
+          expect.objectContaining({
+            goal_id: plannerGoal.id,
+            unplaced_count: 1,
+            reason: "capacity",
+          }),
+        ]),
+      })
+    );
+  });
+
+  it("deletes stale durable unplaceable rows after a goal becomes fully placeable", async () => {
+    const plannerGoal = goal({ target_count: 1, milestone_names: ["Draft"] });
+    const existing = persistedItem({
+      unit_key: "milestone:1",
+      scheduled_date: "2026-08-12",
+    });
+    mocks.loadPlannerPreparationSnapshot.mockResolvedValue(
+      preparationSnapshot([plannerGoal], [existing], [
+        unplaceableRecord({
+          goalId: plannerGoal.id,
+          requirementFingerprint: computeRequirementFingerprint(plannerGoal),
+          effectiveSpanEnd: plannerGoal.end_date ?? "2026-09-30",
+          unplacedCount: 2,
+          reason: "capacity",
+        }),
+      ])
+    );
+    mocks.runPlannerKernel.mockReturnValue(
+      kernelOutput(plannerGoal.id, [
+        {
+          unitKey: "milestone:1",
+          scheduledDate: existing.scheduled_date,
+        },
+      ])
+    );
+
+    await prepare();
+
+    expect(mocks.rpc).toHaveBeenCalledWith(
+      "prepare_planner_schedule",
+      expect.objectContaining({
+        p_unplaceable: expect.arrayContaining([
+          expect.objectContaining({
+            goal_id: plannerGoal.id,
+            unplaced_count: 0,
+          }),
+        ]),
+      })
+    );
+  });
+
+  it("does not create phantom shortfall for ordinal goals already satisfied by historical units", async () => {
+    const plannerGoal = goal({
+      target_count: 3,
+      milestone_names: ["M1", "M2", "M3"],
+      start_date: "2026-06-01",
+      end_date: "2026-08-31",
+    });
+    const historicalOne = persistedItem({
+      id: "71111111-1111-4111-8111-111111111111",
+      goal_id: plannerGoal.id,
+      unit_key: "milestone:1",
+      scheduled_date: "2026-06-15",
+      original_scheduled_date: "2026-06-15",
+      locked: false,
+    });
+    const historicalTwo = persistedItem({
+      id: "72222222-2222-4222-8222-222222222222",
+      goal_id: plannerGoal.id,
+      unit_key: "milestone:2",
+      scheduled_date: "2026-07-10",
+      original_scheduled_date: "2026-07-10",
+      locked: false,
+    });
+    const currentUnit = persistedItem({
+      id: "73333333-3333-4333-8333-333333333333",
+      goal_id: plannerGoal.id,
+      unit_key: "milestone:3",
+      scheduled_date: "2026-08-20",
+      original_scheduled_date: "2026-08-20",
+      locked: false,
+    });
+    mocks.loadPlannerPreparationSnapshot.mockResolvedValue(
+      preparationSnapshot([plannerGoal], [historicalOne, historicalTwo, currentUnit])
+    );
+
+    await prepare();
+
+    expect(mocks.runPlannerKernel).not.toHaveBeenCalled();
+    expect(mocks.rpc).toHaveBeenCalledWith(
+      "prepare_planner_schedule",
+      expect.objectContaining({
+        p_unplaceable: expect.arrayContaining([
+          expect.objectContaining({
+            goal_id: plannerGoal.id,
+            unplaced_count: 0,
+          }),
+        ]),
       })
     );
   });

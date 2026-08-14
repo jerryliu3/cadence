@@ -105,4 +105,38 @@ describe("goal definition validation", () => {
       })
     ).toBeNull();
   });
+
+  it("flags likely capacity shortfall when target exceeds available days", () => {
+    const issues = validateGoalDefinition({
+      frequencyType: "fixed_milestones",
+      targetCount: 6,
+      startDate: "2026-08-01",
+      endDate: "2026-08-07",
+      asOfDate: "2026-08-01",
+      capacity: {
+        restWeekdays: [0, 6],
+        blackoutRanges: [],
+      },
+    });
+    expect(issues).toContainEqual(
+      expect.objectContaining({
+        code: "target_exceeds_capacity",
+      })
+    );
+    expect(
+      issues.find((issue) => issue.code === "target_exceeds_capacity")?.message
+    ).toContain("Only 5 available days");
+  });
+
+  it("skips capacity check when no capacity context is provided", () => {
+    const issues = validateGoalDefinition({
+      frequencyType: "fixed_milestones",
+      targetCount: 6,
+      startDate: "2026-08-01",
+      endDate: "2026-08-07",
+    });
+    expect(
+      issues.some((issue) => issue.code === "target_exceeds_capacity")
+    ).toBe(false);
+  });
 });

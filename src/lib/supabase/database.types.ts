@@ -1475,6 +1475,47 @@ export type Database = {
           },
         ]
       }
+      planner_goal_unplaceable: {
+        Row: {
+          computed_at: string
+          effective_span_end: string
+          goal_id: string
+          owner_id: string
+          policy_revision: number
+          reason: string
+          requirement_fingerprint: string
+          unplaced_count: number
+        }
+        Insert: {
+          computed_at?: string
+          effective_span_end: string
+          goal_id: string
+          owner_id: string
+          policy_revision: number
+          reason: string
+          requirement_fingerprint: string
+          unplaced_count: number
+        }
+        Update: {
+          computed_at?: string
+          effective_span_end?: string
+          goal_id?: string
+          owner_id?: string
+          policy_revision?: number
+          reason?: string
+          requirement_fingerprint?: string
+          unplaced_count?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "planner_goal_unplaceable_goal_id_fkey"
+            columns: ["goal_id"]
+            isOneToOne: false
+            referencedRelation: "goals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -2157,7 +2198,12 @@ export type Database = {
         Returns: undefined
       }
       prepare_planner_schedule: {
-        Args: { p_expected_digest: string; p_items: Json; p_windows: Json }
+        Args: {
+          p_expected_digest: string
+          p_items: Json
+          p_unplaceable: Json
+          p_windows: Json
+        }
         Returns: {
           deleted_count: number
           replayed: boolean

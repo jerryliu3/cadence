@@ -1,12 +1,12 @@
 import { getAnchoredPeriod } from "@/lib/goals/periods";
 import type { Goal } from "@/lib/goals/types";
+import { reportError } from "@/lib/observability/report-error";
 import { createDefaultAssessment } from "@/lib/planner/assessment";
 import {
   resolveCanonicalAsOfDate,
   PlannerRouteError,
 } from "@/lib/planner/api";
 import {
-  MAX_HORIZON_MONTHS,
   PLANNER_CONTRACT_VERSION,
   PLANNER_ELIGIBILITY_MODES,
 } from "@/lib/planner/contracts/bounds";
@@ -15,7 +15,7 @@ import {
   loadPlannerPreparationSnapshot,
   type PlannerItemRow,
 } from "@/lib/planner/context-loader";
-import { getScopeDateRange, nextMonth } from "@/lib/planner/dates";
+import { enumerateDates } from "@/lib/planner/dates";
 import { runPlannerKernel } from "@/lib/planner/kernel";
 import { postgresErrorMatches } from "@/lib/planner/postgres-errors";
 import {
@@ -23,6 +23,14 @@ import {
   plannerPolicySchema,
 } from "@/lib/planner/policy";
 import { normalizeGoalRequirement } from "@/lib/planner/requirements";
+import {
+  buildGoalPreparationWindows,
+  buildPreparationWindows,
+  isPlannerGoalUnplaceableReason,
+  isPlannerGoalUnplaceableRecordValid,
+  type PlannerGoalUnplaceableRecord,
+  type PlannerGoalUnplaceableReason,
+} from "@/lib/planner/unplaceable";
 import type { Json } from "@/lib/supabase/database.types";
 import type { createClient as createServerClient } from "@/lib/supabase/server";
 
@@ -42,69 +50,13 @@ interface PreparedItem {
   locked: boolean;
 }
 
-interface PrepareWarning {
-  goalId: string;
-  code: "goal_unplaceable" | "goal_duplicate_date";
-  message: string;
-  issueCodes?: string[];
-}
-
-function addMonths(month: string, count: number) {
-  let result = month;
-  for (let index = 0; index < count; index += 1) {
-    result = nextMonth(result);
-  }
-  return result;
-}
-
-function buildPreparationWindows(asOfDate: string) {
-  const firstMonth = asOfDate.slice(0, 7);
-  const windows: PreparationWindow[] = [];
-  for (let offset = 0; offset < MAX_HORIZON_MONTHS; offset += 12) {
-    const startMonth = addMonths(firstMonth, offset);
-    const monthCount = Math.min(12, MAX_HORIZON_MONTHS - offset);
-    const endMonth = addMonths(startMonth, monthCount - 1);
-    windows.push({
-      start: getScopeDateRange(startMonth).start,
-      end: getScopeDateRange(endMonth).end,
-    });
-  }
-  return windows;
-}
-
-function buildGoalPreparationWindows({
-  goal,
-  asOfDate,
-  preparationStart,
-  preparationEnd,
-}: {
-  goal: Goal;
-  asOfDate: string;
-  preparationStart: string;
-  preparationEnd: string;
-}) {
-  const effectiveStart = [goal.start_date, asOfDate, preparationStart]
-    .sort()
-    .at(-1)!;
-  const effectiveEnd = [goal.end_date ?? preparationEnd, preparationEnd].sort()[0]!;
-  if (effectiveEnd < effectiveStart) {
-    return [] as PreparationWindow[];
-  }
-
-  const firstMonth = effectiveStart.slice(0, 7);
-  const lastMonth = effectiveEnd.slice(0, 7);
-  const windows: PreparationWindow[] = [];
-  let currentMonth = firstMonth;
-  while (currentMonth <= lastMonth) {
-    const maxEndMonth = addMonths(currentMonth, 11);
-    const endMonth = maxEndMonth < lastMonth ? maxEndMonth : lastMonth;
-    windows.push({
-      start: getScopeDateRange(currentMonth).start,
-      end: getScopeDateRange(endMonth).end,
-    });
-    currentMonth = addMonths(endMonth, 1);
-  }
-  return windows;
+interface GoalUnplaceablePayload {
+  goal_id: string;
+  requirement_fingerprint: string;
+  policy_revision: number;
+  effective_span_end: string;
+  unplaced_count: number;
+  reason: PlannerGoalUnplaceableReason;
 }
 
 function itemKey(item: { goal_id: string; unit_key: string }) {
@@ -144,6 +96,67 @@ function itemMatchesCurrentRequirement({
   return item.unit_key === `cadence:${period.periodKey}`;
 }
 
+function isOrdinalRequirementKind(
+  kind: ReturnType<typeof normalizeGoalRequirement>["requirement"]["kind"]
+) {
+  return kind === "milestone_sequence" || kind === "deadline_total";
+}
+
+function countRequiredUnitsForGoal({
+  goal,
+  effectiveStart,
+  effectiveEnd,
+  weekStartsOn,
+}: {
+  goal: Goal;
+  effectiveStart: string;
+  effectiveEnd: string;
+  weekStartsOn: number;
+}) {
+  if (effectiveEnd < effectiveStart) {
+    return 0;
+  }
+  const requirement = normalizeGoalRequirement(goal).requirement;
+  if (
+    requirement.kind === "milestone_sequence" ||
+    requirement.kind === "deadline_total"
+  ) {
+    return requirement.targetCount;
+  }
+  const periodKeys = new Set<string>();
+  for (const date of enumerateDates({ start: effectiveStart, end: effectiveEnd })) {
+    const period = getAnchoredPeriod(
+      goal.start_date,
+      requirement.interval,
+      date,
+      { weekStartsOn }
+    );
+    periodKeys.add(period.periodKey);
+  }
+  return periodKeys.size;
+}
+
+function throwPrepareInvariant({
+  code,
+  message,
+  details,
+}: {
+  code: string;
+  message: string;
+  details: Record<string, unknown>;
+}): never {
+  const error = new PlannerRouteError(500, "invariant_failed", message, {
+    code,
+    ...details,
+  });
+  reportError(error, {
+    scope: "planner.prepare",
+    code,
+    ...details,
+  });
+  throw error;
+}
+
 async function prepareOnce({
   supabase,
   ownerId,
@@ -164,31 +177,50 @@ async function prepareOnce({
   const windows = buildPreparationWindows(asOfDate);
   const preparationStart = windows[0]!.start;
   const preparationEnd = windows.at(-1)!.end;
+  const policyRevision = preparation.snapshot.preferences?.policy_revision ?? 0;
   const goalById = new Map(
     preparation.snapshot.goals.map((goal) => [goal.id, goal])
   );
-  const existingByKey = new Map(
-    preparation.persistedItems
-      .filter(
-        (item) =>
-          item.scheduled_date >= preparationStart &&
-          item.scheduled_date <= preparationEnd
-      )
-      .filter((item) => {
-        const goal = goalById.get(item.goal_id);
-        return Boolean(
-          goal &&
-            itemMatchesCurrentRequirement({
-              item,
-              goal,
-              weekStartsOn: policy.weekStartsOn ?? 1,
-            })
-        );
-      })
-      .map((item) => [itemKey(item), item])
+  const persistedItemsInHorizon = preparation.persistedItems.filter(
+    (item) =>
+      item.scheduled_date >= preparationStart &&
+      item.scheduled_date <= preparationEnd
   );
+  const persistedItemsInHorizonByGoalId = new Map<string, PlannerItemRow[]>();
+  const persistedItemsInHorizonValidByGoalId = new Map<string, PlannerItemRow[]>();
+  const persistedItemsValidByGoalId = new Map<string, PlannerItemRow[]>();
+  const validIdentityKeys = new Set<string>();
+  const existingByKey = new Map<string, PlannerItemRow>();
+  for (const item of preparation.persistedItems) {
+    const goal = goalById.get(item.goal_id);
+    if (
+      goal &&
+      itemMatchesCurrentRequirement({
+        item,
+        goal,
+        weekStartsOn: policy.weekStartsOn ?? 1,
+      })
+    ) {
+      const validItemsForGoal = persistedItemsValidByGoalId.get(item.goal_id) ?? [];
+      validItemsForGoal.push(item);
+      persistedItemsValidByGoalId.set(item.goal_id, validItemsForGoal);
+      validIdentityKeys.add(itemKey(item));
+    }
+  }
+  for (const item of persistedItemsInHorizon) {
+    const itemsForGoal = persistedItemsInHorizonByGoalId.get(item.goal_id) ?? [];
+    itemsForGoal.push(item);
+    persistedItemsInHorizonByGoalId.set(item.goal_id, itemsForGoal);
+
+    if (validIdentityKeys.has(itemKey(item))) {
+      existingByKey.set(itemKey(item), item);
+      const validItemsForGoal =
+        persistedItemsInHorizonValidByGoalId.get(item.goal_id) ?? [];
+      validItemsForGoal.push(item);
+      persistedItemsInHorizonValidByGoalId.set(item.goal_id, validItemsForGoal);
+    }
+  }
   const completionToUnit = {};
-  const warnings: PrepareWarning[] = [];
   const generatedByKey = new Map<
     string,
     {
@@ -199,10 +231,21 @@ async function prepareOnce({
       locked: boolean;
     }
   >();
+  const goalOutcomeByGoalId = new Map<string, GoalUnplaceablePayload>();
+  const preserveRecordedOutcomeGoalIds = new Set<string>();
+  const validUnplaceableRecordByGoalId = new Map<string, PlannerGoalUnplaceableRecord>(
+    ((preparation.unplaceableGoals ?? []) as PlannerGoalUnplaceableRecord[]).flatMap(
+      (record) =>
+        isPlannerGoalUnplaceableReason(record.reason)
+          ? [[record.goalId, record] as const]
+          : []
+    )
+  );
 
   for (const goal of preparation.snapshot.goals) {
-    const requirementFingerprint =
-      normalizeGoalRequirement(goal).requirementFingerprint;
+    const normalizedRequirement = normalizeGoalRequirement(goal);
+    const requirementFingerprint = normalizedRequirement.requirementFingerprint;
+    const requirementKind = normalizedRequirement.requirement.kind;
     const goalAssignments = preparation.persistedItems
       .filter((item) => item.goal_id === goal.id)
       .map((item) => ({
@@ -213,15 +256,85 @@ async function prepareOnce({
         locked: item.locked,
         scheduledTimeOverride: item.scheduled_time,
       }));
-    const goalWindows = buildGoalPreparationWindows({
+    const goalWindowsState = buildGoalPreparationWindows({
       goal,
       asOfDate,
       preparationStart,
       preparationEnd,
     });
-    if (goalWindows.length === 0) {
+    const goalWindows = goalWindowsState.windows as PreparationWindow[];
+    const requiredCount = countRequiredUnitsForGoal({
+      goal,
+      effectiveStart: goalWindowsState.effectiveStart,
+      effectiveEnd: goalWindowsState.effectiveEnd,
+      weekStartsOn: policy.weekStartsOn ?? 1,
+    });
+    const persistedCoverageCount = isOrdinalRequirementKind(requirementKind)
+      ? (persistedItemsValidByGoalId.get(goal.id) ?? []).length
+      : (persistedItemsInHorizonValidByGoalId.get(goal.id) ?? []).filter(
+          (item) =>
+            item.scheduled_date >= goalWindowsState.effectiveStart &&
+            item.scheduled_date <= goalWindowsState.effectiveEnd
+        ).length;
+    const hasStalePersistedRows =
+      (persistedItemsInHorizonByGoalId.get(goal.id)?.length ?? 0) !==
+      (persistedItemsInHorizonValidByGoalId.get(goal.id)?.length ?? 0);
+    const existingUnplaceableRecord =
+      validUnplaceableRecordByGoalId.get(goal.id) ?? null;
+    const existingRecordIsValid =
+      existingUnplaceableRecord !== null &&
+      isPlannerGoalUnplaceableRecordValid({
+        record: existingUnplaceableRecord,
+        goal,
+        policyRevision,
+        preparationEnd,
+      });
+    const accountedCount =
+      existingRecordIsValid && existingUnplaceableRecord
+        ? existingUnplaceableRecord.unplacedCount
+        : 0;
+    const missingCount = requiredCount - persistedCoverageCount - accountedCount;
+    const goalNeedsPreparation = missingCount !== 0 || hasStalePersistedRows;
+    if (!goalNeedsPreparation) {
+      if (
+        existingRecordIsValid &&
+        existingUnplaceableRecord &&
+        existingUnplaceableRecord.unplacedCount > 0
+      ) {
+        goalOutcomeByGoalId.set(goal.id, {
+          goal_id: goal.id,
+          requirement_fingerprint: existingUnplaceableRecord.requirementFingerprint,
+          policy_revision: existingUnplaceableRecord.policyRevision,
+          effective_span_end: existingUnplaceableRecord.effectiveSpanEnd,
+          unplaced_count: existingUnplaceableRecord.unplacedCount,
+          reason: existingUnplaceableRecord.reason,
+        });
+        preserveRecordedOutcomeGoalIds.add(goal.id);
+      } else {
+        goalOutcomeByGoalId.set(goal.id, {
+          goal_id: goal.id,
+          requirement_fingerprint: requirementFingerprint,
+          policy_revision: policyRevision,
+          effective_span_end: goalWindowsState.effectiveEnd,
+          unplaced_count: 0,
+          reason: "capacity",
+        });
+      }
       continue;
     }
+
+    if (goalWindows.length === 0) {
+      goalOutcomeByGoalId.set(goal.id, {
+        goal_id: goal.id,
+        requirement_fingerprint: requirementFingerprint,
+        policy_revision: policyRevision,
+        effective_span_end: goalWindowsState.effectiveEnd,
+        unplaced_count: 0,
+        reason: "capacity",
+      });
+      continue;
+    }
+
     const generatedForGoal = new Map<
       string,
       {
@@ -233,7 +346,8 @@ async function prepareOnce({
       }
     >();
     const goalDates = new Set<string>();
-    let goalBlocked = false;
+    let goalUnplaceableReason: PlannerGoalUnplaceableReason | null = null;
+    let blockedByInvalidLock = false;
     for (const window of goalWindows) {
       const kernel = runPlannerKernel({
         schemaVersion: PLANNER_CONTRACT_VERSION,
@@ -262,18 +376,50 @@ async function prepareOnce({
         },
         preserveExistingAssignments: true,
       });
-      if (!kernel.solver.publishable) {
-        warnings.push({
-          goalId: goal.id,
-          code: "goal_unplaceable",
-          message:
-            "Goal could not be fully auto-prepared in the current constraints. Existing scheduled sessions were kept.",
-          issueCodes: kernel.solver.issueCodes,
+      if (kernel.validation.invariantViolations.length > 0) {
+        throwPrepareInvariant({
+          code: "invalid_kernel_output",
+          message: "Planner prepare kernel output violated invariants.",
+          details: {
+            goalId: goal.id,
+            invariantViolations: kernel.validation.invariantViolations,
+          },
         });
-        goalBlocked = true;
+      }
+      const issueCodeSet = new Set(kernel.solver.issueCodes);
+      if (issueCodeSet.has("invalid_lock")) {
+        blockedByInvalidLock = true;
+        goalUnplaceableReason = "invalid_lock";
         break;
       }
+      if (!kernel.solver.publishable) {
+        if (issueCodeSet.has("placement_shortfall")) {
+          goalUnplaceableReason = "capacity";
+        } else {
+          throwPrepareInvariant({
+            code: "unexpected_unpublishable",
+            message: "Planner prepare reached an unexpected unpublishable state.",
+            details: { goalId: goal.id, issueCodes: kernel.solver.issueCodes },
+          });
+        }
+      }
       for (const unit of kernel.workUnits) {
+        if (unit.scheduledDate !== null) {
+          const goalDateKey = `${goal.id}\u0000${unit.scheduledDate}`;
+          if (goalDates.has(goalDateKey)) {
+            throwPrepareInvariant({
+              code: "duplicate_goal_date",
+              message:
+                "Planner prepare produced duplicate same-goal same-day assignments.",
+              details: {
+                goalId: goal.id,
+                unitKey: unit.unitKey,
+                scheduledDate: unit.scheduledDate,
+              },
+            });
+          }
+          goalDates.add(goalDateKey);
+        }
         if (
           unit.scheduledDate === null ||
           unit.scheduledDate < preparationStart ||
@@ -281,18 +427,6 @@ async function prepareOnce({
         ) {
           continue;
         }
-        const goalDateKey = `${goal.id}\u0000${unit.scheduledDate}`;
-        if (goalDates.has(goalDateKey)) {
-          warnings.push({
-            goalId: goal.id,
-            code: "goal_duplicate_date",
-            message:
-              "Goal produced multiple sessions on one date during auto-prepare. Existing scheduled sessions were kept.",
-          });
-          goalBlocked = true;
-          break;
-        }
-        goalDates.add(goalDateKey);
         generatedForGoal.set(
           itemKey({ goal_id: unit.originalGoalId, unit_key: unit.unitKey }),
           {
@@ -304,16 +438,20 @@ async function prepareOnce({
           }
         );
       }
-      if (goalBlocked) {
-        break;
+    }
+    if (!blockedByInvalidLock) {
+      for (const [key, generated] of generatedForGoal.entries()) {
+        generatedByKey.set(key, generated);
       }
     }
-    if (goalBlocked) {
-      continue;
-    }
-    for (const [key, generated] of generatedForGoal.entries()) {
-      generatedByKey.set(key, generated);
-    }
+    goalOutcomeByGoalId.set(goal.id, {
+      goal_id: goal.id,
+      requirement_fingerprint: requirementFingerprint,
+      policy_revision: policyRevision,
+      effective_span_end: goalWindowsState.effectiveEnd,
+      unplaced_count: 0,
+      reason: goalUnplaceableReason ?? "capacity",
+    });
   }
 
   const preparedByKey = new Map<string, PreparedItem>(
@@ -365,20 +503,75 @@ async function prepareOnce({
   for (const item of preparedItems) {
     const goalDate = `${item.goal_id}\u0000${item.scheduled_date}`;
     if (occupiedGoalDates.has(goalDate)) {
-      warnings.push({
-        goalId: item.goal_id,
-        code: "goal_duplicate_date",
+      throwPrepareInvariant({
+        code: "duplicate_goal_date",
         message:
-          "Goal produced multiple sessions on one date during auto-prepare. Existing scheduled sessions were kept.",
+          "Planner prepare produced duplicate same-goal same-day assignments.",
+        details: {
+          goalId: item.goal_id,
+          scheduledDate: item.scheduled_date,
+        },
       });
     }
     occupiedGoalDates.add(goalDate);
+  }
+
+  for (const goal of preparation.snapshot.goals) {
+    const preparedOutcome = goalOutcomeByGoalId.get(goal.id);
+    if (!preparedOutcome) {
+      continue;
+    }
+    if (preserveRecordedOutcomeGoalIds.has(goal.id)) {
+      continue;
+    }
+    const requirementKind = normalizeGoalRequirement(goal).requirement.kind;
+    const spanEnd = preparedOutcome.effective_span_end;
+    const span = buildGoalPreparationWindows({
+      goal,
+      asOfDate,
+      preparationStart,
+      preparationEnd,
+    });
+    const requiredCount = countRequiredUnitsForGoal({
+      goal,
+      effectiveStart: span.effectiveStart,
+      effectiveEnd: span.effectiveEnd,
+      weekStartsOn: policy.weekStartsOn ?? 1,
+    });
+    const scheduledCount = isOrdinalRequirementKind(requirementKind)
+      ? (persistedItemsValidByGoalId.get(goal.id) ?? []).filter(
+          (item) =>
+            item.scheduled_date < preparationStart ||
+            item.scheduled_date > preparationEnd
+        ).length +
+        preparedItems.filter((item) => item.goal_id === goal.id).length
+      : preparedItems.filter(
+          (item) =>
+            item.goal_id === goal.id &&
+            item.scheduled_date >= span.effectiveStart &&
+            item.scheduled_date <= spanEnd
+        ).length;
+    const unresolvedCount = Math.max(0, requiredCount - scheduledCount);
+    preparedOutcome.unplaced_count = unresolvedCount;
+    if (unresolvedCount === 0) {
+      preparedOutcome.reason = "capacity";
+    }
   }
 
   const windowsPayload = windows.map((window) => ({
     start_date: window.start,
     end_date: window.end,
   })) as unknown as Json;
+  const unplaceablePayload = Array.from(goalOutcomeByGoalId.values())
+    .sort((left, right) => left.goal_id.localeCompare(right.goal_id))
+    .map((outcome) => ({
+      goal_id: outcome.goal_id,
+      requirement_fingerprint: outcome.requirement_fingerprint,
+      policy_revision: outcome.policy_revision,
+      effective_span_end: outcome.effective_span_end,
+      unplaced_count: outcome.unplaced_count,
+      reason: outcome.reason,
+    })) as unknown as Json;
   const expectedDigest = preparation.snapshot.revisions.scheduleDigest ?? "";
   const prepareScheduleRpcName =
     "prepare_planner_schedule" as Parameters<ServerSupabaseClient["rpc"]>[0];
@@ -386,10 +579,11 @@ async function prepareOnce({
     p_windows: windowsPayload,
     p_items: preparedItems as unknown as Json,
     p_expected_digest: expectedDigest,
+    p_unplaceable: unplaceablePayload,
   });
   if (response.error) {
     if (postgresErrorMatches(response.error, "P0001", "stale_schedule")) {
-      return { stale: true as const, warnings };
+      return { stale: true as const };
     }
     throw new PlannerRouteError(
       409,
@@ -398,7 +592,7 @@ async function prepareOnce({
       { cause: response.error.message }
     );
   }
-  return { stale: false as const, warnings };
+  return { stale: false as const };
 }
 
 export async function preparePlannerSchedule({
@@ -436,7 +630,5 @@ export async function preparePlannerSchedule({
     endDate: visibleWindow.end,
     correlationId,
   });
-  return result.warnings.length > 0
-    ? { ...payload, prepareWarnings: result.warnings }
-    : payload;
+  return payload;
 }
