@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { assertQueriesOk } from "@/lib/supabase/query-error";
 import {
   fetchProgressContext,
   isProgressContextAuthenticationError,
@@ -13,7 +14,7 @@ import { reportDuoPartnerFetchFailure } from "@/lib/social/duo/telemetry";
 import type { PlannerCompletionFactMarker } from "@/features/planner/calendar-surface.types";
 import {
   buildPartnerCompletionMarkersByDate,
-  monthFactsBounds,
+  monthGridFactsBounds,
 } from "@/features/planner/calendar-partner-overlay";
 
 const EMPTY_MARKERS_BY_DATE = new Map<string, PlannerCompletionFactMarker[]>();
@@ -31,9 +32,9 @@ export function usePartnerCompletionOverlay({
     Map<string, PlannerCompletionFactMarker[]>
   >(EMPTY_MARKERS_BY_DATE);
   const [error, setError] = useState<string | null>(null);
-  // Freshness is derived on return rather than cleared in the effect: clearing
-  // in an effect cascades an extra render and still leaves a window where the
-  // previous subject's markers are visible.
+  // Freshness is keyed by partner *and* month, and derived on return rather
+  // than cleared in the effect: clearing in an effect cascades an extra render
+  // and still leaves a window where the previous subject's data is visible.
   const [markersPartnerId, setMarkersPartnerId] = useState<string | null>(null);
   const [markersMonth, setMarkersMonth] = useState<string | null>(null);
 
@@ -41,7 +42,7 @@ export function usePartnerCompletionOverlay({
     if (!enabled || !partnerId) {
       return;
     }
-    const bounds = monthFactsBounds(month);
+    const bounds = monthGridFactsBounds(month);
     if (!bounds) {
       return;
     }
@@ -66,6 +67,8 @@ export function usePartnerCompletionOverlay({
         if (cancelled) {
           return;
         }
+        assertQueriesOk([goalsResponse], "Partner completions are unavailable.");
+
         const titles: Record<string, string> = {};
         for (const goal of (goalsResponse.data ?? []) as Pick<Goal, "id" | "title">[]) {
           titles[goal.id] = goal.title;
@@ -79,6 +82,7 @@ export function usePartnerCompletionOverlay({
           })
         );
         setMarkersPartnerId(partnerId);
+        setMarkersMonth(month);
         setError(null);
       } catch (caught) {
         if (cancelled || isProgressContextAuthenticationError(caught)) {
@@ -104,7 +108,7 @@ export function usePartnerCompletionOverlay({
     };
   }, [enabled, month, partnerId]);
 
-  const overlayActive = Boolean(enabled && partnerId && monthFactsBounds(month));
+  const overlayActive = Boolean(enabled && partnerId && monthGridFactsBounds(month));
   const markersAreCurrent =
     overlayActive && markersPartnerId === partnerId && markersMonth === month;
   return {
