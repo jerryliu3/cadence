@@ -22,7 +22,13 @@ export interface MobilePlannerContext {
   };
   preview: {
     generationInputHash?: string;
-    solver?: { publishable?: boolean; issueCodes?: string[] };
+    eligibilityMode?: "overlap_v1";
+    preserveExistingAssignments?: boolean;
+    solver?: {
+      publishable?: boolean;
+      confirmationRequired?: boolean;
+      issueCodes?: string[];
+    };
     workUnits: MobilePlannerWorkUnit[];
   } | null;
   activePlan: {

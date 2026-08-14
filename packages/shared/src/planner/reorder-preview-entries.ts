@@ -57,17 +57,29 @@ export function unitEntryKey(unit: { originalGoalId: string; unitKey: string }) 
   return `${unit.originalGoalId}:${unit.unitKey}`;
 }
 
+export interface PlannerMoveItemDraftCommand {
+  id: string;
+  sequence: number;
+  goalId: string;
+  unitKey: string;
+  kind: "move_item";
+  scheduledDate: string | null;
+  sourceDate: string;
+}
+
 export function createMoveItemDraftCommand({
   goalId,
   unitKey,
   scheduledDate,
+  sourceDate,
   sequence = 0,
 }: {
   goalId: string;
   unitKey: string;
-  scheduledDate: string;
+  scheduledDate: string | null;
+  sourceDate: string;
   sequence?: number;
-}) {
+}): PlannerMoveItemDraftCommand {
   return {
     id: globalThis.crypto.randomUUID(),
     sequence,
@@ -75,5 +87,6 @@ export function createMoveItemDraftCommand({
     unitKey,
     kind: "move_item" as const,
     scheduledDate,
+    sourceDate,
   };
 }

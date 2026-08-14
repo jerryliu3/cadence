@@ -18,13 +18,19 @@ import { useCalendarStore } from "../../store/calendar-state";
 import { getMobileTheme } from "../../theme";
 import { PrimaryButton } from "../../ui/button";
 import { LoadingScreen, Screen } from "../../ui/screen";
-import { DraftMoveError, previewDraftMove } from "./draft-moves";
+import { DraftMoveError, planMobileDraftMove } from "./draft-moves";
 import { DraggableSession } from "./DraggableSession";
 import {
   hitTestDropTarget,
   type DayDropTarget,
   type SessionDropTarget,
 } from "./drop-targets";
+import {
+  createEmptyMobilePlannerDraft,
+  MobilePlannerDraftError,
+  previewMobilePlannerDraft,
+  publishMobilePlannerDraft,
+} from "./mobile-planner-draft";
 import {
   buildMonthCells,
   shiftMonth,
@@ -45,12 +51,14 @@ export function CalendarScreen() {
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [orderByDay, setOrderByDay] = useState<Record<string, string[]>>({});
+  const [draft, setDraft] = useState(createEmptyMobilePlannerDraft);
   const dayTargets = useRef<Map<string, DayDropTarget>>(new Map());
   const sessionTargets = useRef<Map<string, SessionDropTarget>>(new Map());
+  const effectivePreview = draft.preview ?? planner.data?.preview ?? null;
 
   const unitsByDate = useMemo(() => {
     const map = new Map<string, MobilePlannerWorkUnit[]>();
-    for (const unit of planner.data?.preview?.workUnits ?? []) {
+    for (const unit of effectivePreview?.workUnits ?? []) {
       if (!unit.scheduledDate) {
         continue;
       }
@@ -73,7 +81,7 @@ export function CalendarScreen() {
       map.set(date, [...ordered, ...remaining]);
     }
     return map;
-  }, [orderByDay, planner.data]);
+  }, [effectivePreview, orderByDay]);
 
   const visibleDays = useMemo(() => {
     if (viewMode === "day") {
@@ -104,18 +112,37 @@ export function CalendarScreen() {
     }
     setBusy(true);
     try {
-      await previewDraftMove({
-        context: planner.data,
+      const planned = planMobileDraftMove({
+        state: draft,
+        currentMonth: scopeMonth,
         unit,
         nextDate,
-        crossMonthMovesEnabled: false,
       });
-      await planner.refresh();
+      const previewed = await previewMobilePlannerDraft({
+        client: {
+          postJson: (path, body) => api.postJson(path, body),
+        },
+        context: planner.data,
+        currentMonth: scopeMonth,
+        state: planned.state,
+      });
+      setDraft(previewed);
+      if (planned.crossMonth) {
+        apply({
+          month: planned.targetMonth,
+          day: planned.scheduledDate,
+        });
+      }
       setMoveUnit(null);
-      setMessage("Draft move previewed. Long-press still has a Move-to sheet fallback.");
+      setMessage(
+        planned.crossMonth
+          ? `Move added across months. Review ${planned.targetMonth}, then save the draft.`
+          : "Move added to the draft. Save to publish it."
+      );
     } catch (error) {
       setMessage(
-        error instanceof DraftMoveError
+        error instanceof DraftMoveError ||
+          error instanceof MobilePlannerDraftError
           ? error.message
           : getApiErrorMessage(error, "Move failed.")
       );
@@ -169,14 +196,10 @@ export function CalendarScreen() {
     if (targetDay === sourceDay) {
       return;
     }
-    if (hit.type === "day" && !hit.inMonth) {
-      setMessage("Cross-month drag lands in the coach/cross-month slice.");
-      return;
-    }
     void applyMove(unit, targetDay);
   };
 
-  if (planner.isLoading) {
+  if (planner.isLoading && !draft.preview) {
     return <LoadingScreen />;
   }
 
@@ -303,9 +326,59 @@ export function CalendarScreen() {
           </View>
         ))
       )}
+      {draft.dirty ? (
+        <>
+          <Text style={{ color: theme.colors.mutedForeground }}>
+            Draft window: {draft.previewWindow?.start ?? "refresh required"} to{" "}
+            {draft.previewWindow?.end ?? "refresh required"}
+          </Text>
+          <View style={styles.row}>
+            <PrimaryButton
+              disabled={busy || !planner.data || !draft.preview}
+              label="Save draft"
+              onPress={async () => {
+                if (!planner.data) {
+                  return;
+                }
+                setBusy(true);
+                try {
+                  await publishMobilePlannerDraft({
+                    client: {
+                      postJson: (path, body) => api.postJson(path, body),
+                    },
+                    context: planner.data,
+                    state: draft,
+                  });
+                  setDraft(createEmptyMobilePlannerDraft());
+                  setOrderByDay({});
+                  await planner.forcePrepare();
+                  setMessage("Planner draft saved.");
+                } catch (error) {
+                  setMessage(
+                    error instanceof MobilePlannerDraftError
+                      ? error.message
+                      : getApiErrorMessage(error, "Planner draft could not be saved.")
+                  );
+                } finally {
+                  setBusy(false);
+                }
+              }}
+            />
+            <PrimaryButton
+              disabled={busy}
+              label="Discard draft"
+              onPress={() => {
+                setDraft(createEmptyMobilePlannerDraft());
+                setOrderByDay({});
+                setMessage("Planner draft discarded.");
+              }}
+            />
+          </View>
+        </>
+      ) : null}
       <View style={styles.row}>
         <PrimaryButton
-          disabled={busy || !digest}
+          disabled={busy || !digest || draft.dirty}
           label="Reset locks"
           onPress={async () => {
             if (!digest) {
@@ -330,7 +403,7 @@ export function CalendarScreen() {
       {message ? <Text style={{ color: theme.colors.foreground }}>{message}</Text> : null}
       <Text style={{ color: theme.colors.mutedForeground }}>
         Long-press a session to drag it onto another day, or tap it to use the Move-to
-        sheet. Same-day drops reorder incomplete and completed groups separately.
+        sheet. Cross-month moves stay in one draft until you save or discard it.
       </Text>
       <Modal visible={Boolean(moveUnit)} animationType="slide" transparent>
         <View style={styles.sheetBackdrop}>
@@ -354,7 +427,7 @@ export function CalendarScreen() {
               }}
             />
             <PrimaryButton
-              disabled={busy || !moveUnit}
+              disabled={busy || !moveUnit || draft.dirty}
               label="Toggle lock"
               onPress={async () => {
                 const item = planner.data?.activePlan?.items.find(
