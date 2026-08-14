@@ -1563,37 +1563,31 @@ export type Database = {
       }
       push_subscriptions: {
         Row: {
-          auth: string | null
+          auth: string
           created_at: string
           endpoint: string
           id: string
-          native_token: string | null
-          p256dh: string | null
-          platform: string
+          p256dh: string
           updated_at: string
           user_agent: string | null
           user_id: string
         }
         Insert: {
-          auth?: string | null
+          auth: string
           created_at?: string
           endpoint: string
           id?: string
-          native_token?: string | null
-          p256dh?: string | null
-          platform?: string
+          p256dh: string
           updated_at?: string
           user_agent?: string | null
           user_id: string
         }
         Update: {
-          auth?: string | null
+          auth?: string
           created_at?: string
           endpoint?: string
           id?: string
-          native_token?: string | null
-          p256dh?: string | null
-          platform?: string
+          p256dh?: string
           updated_at?: string
           user_agent?: string | null
           user_id?: string
