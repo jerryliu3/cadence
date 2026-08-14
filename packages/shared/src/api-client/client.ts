@@ -388,6 +388,13 @@ export function createApiClient({
         body,
       });
     },
+    deleteJson<TResponse>(path: string, options: SharedRequestOptions = {}) {
+      return requestWithAuth<TResponse>({
+        ...options,
+        path,
+        method: "DELETE",
+      });
+    },
   };
 }
 
@@ -414,4 +421,11 @@ export function putJson<TResponse, TBody = unknown>(
   options: SharedRequestOptions = {}
 ) {
   return defaultClient.putJson<TResponse, TBody>(path, body, options);
+}
+
+export function deleteJson<TResponse>(
+  path: string,
+  options: SharedRequestOptions = {}
+) {
+  return defaultClient.deleteJson<TResponse>(path, options);
 }
