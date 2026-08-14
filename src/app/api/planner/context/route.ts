@@ -34,6 +34,7 @@ import {
 import { createClient } from "@/lib/supabase/server";
 import {
   assertDateWindow,
+  expandToMonthAlignedWindow,
   getScopeDateRange,
   toKernelWindowFromDates,
 } from "@/lib/planner/dates";
@@ -276,6 +277,30 @@ export async function GET(request: Request) {
         400,
         "validation_failed",
         "Provide both visible planner dates in ascending order."
+      );
+    }
+    const visibleSpanDays =
+      Math.floor(
+        (Date.parse(`${visibleEnd}T00:00:00.000Z`) -
+          Date.parse(`${visibleStart}T00:00:00.000Z`)) /
+          86_400_000
+      ) + 1;
+    if (visibleSpanDays > MAX_PLANNER_WINDOW_DAYS) {
+      throw new PlannerRouteError(
+        400,
+        "validation_failed",
+        `Provide both visible planner dates in ascending order and within ${MAX_PLANNER_WINDOW_DAYS} days.`
+      );
+    }
+    try {
+      assertDateWindow(
+        expandToMonthAlignedWindow({ start: visibleStart, end: visibleEnd })
+      );
+    } catch (error) {
+      throw new PlannerRouteError(
+        400,
+        "validation_failed",
+        error instanceof Error ? error.message : "Invalid planner window."
       );
     }
     let responsePayload: Awaited<ReturnType<typeof loadPlannerContextPayload>>;
