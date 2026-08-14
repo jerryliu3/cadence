@@ -161,10 +161,6 @@ export type Database = {
           category_key: string
         }[]
       }
-      partner_notifications_allowed: {
-        Args: { p_team_id: string; p_user_id: string }
-        Returns: boolean
-      }
       planner_cadence_period_key: {
         Args: {
           p_recurrence_interval: Database["public"]["Enums"]["recurrence_interval"]
