@@ -345,7 +345,9 @@ async function prepareOnce({
     end_date: window.end,
   })) as unknown as Json;
   const expectedDigest = preparation.snapshot.revisions.scheduleDigest ?? "";
-  const response = await supabase.rpc("prepare_planner_schedule", {
+  const prepareScheduleRpcName =
+    "prepare_planner_schedule" as Parameters<ServerSupabaseClient["rpc"]>[0];
+  const response = await supabase.rpc(prepareScheduleRpcName, {
     p_windows: windowsPayload,
     p_items: preparedItems as unknown as Json,
     p_expected_digest: expectedDigest,
