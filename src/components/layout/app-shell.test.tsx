@@ -2,9 +2,18 @@ import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AppShell } from "@/components/layout/app-shell";
 
+let mockPathname = "/";
+let mockSearch = "";
+
 const cacheScopeMock = vi.hoisted(() => ({
   setScope: vi.fn(),
 }));
+
+vi.mock("next/navigation", () => ({
+  usePathname: () => mockPathname,
+  useSearchParams: () => new URLSearchParams(mockSearch),
+}));
+
 vi.mock("@/components/navigation/tab-nav", () => ({
   TabNav: ({ mobile = false }: { mobile?: boolean }) => (
     <nav data-testid={mobile ? "tab-nav-mobile" : "tab-nav-desktop"} />
@@ -22,6 +31,8 @@ describe("AppShell", () => {
   afterEach(() => {
     cleanup();
     cacheScopeMock.setScope.mockReset();
+    mockPathname = "/";
+    mockSearch = "";
   });
 
   it("renders the `New Goal +` header link", () => {
@@ -32,7 +43,24 @@ describe("AppShell", () => {
     );
 
     const newGoalLink = screen.getByRole("link", { name: /new goal \+/i });
-    expect(newGoalLink).toHaveAttribute("href", "/goals/new");
+    expect(newGoalLink).toHaveAttribute("href", "/goals/new?returnTo=%2F");
+  });
+
+  it("includes the current route in the new goal returnTo query", () => {
+    mockPathname = "/social";
+    mockSearch = "tab=challenges&sort=recent";
+
+    render(
+      <AppShell userId="user-1">
+        <div>Child content</div>
+      </AppShell>
+    );
+
+    const newGoalLink = screen.getByRole("link", { name: /new goal \+/i });
+    expect(newGoalLink).toHaveAttribute(
+      "href",
+      "/goals/new?returnTo=%2Fsocial%3Ftab%3Dchallenges%26sort%3Drecent"
+    );
   });
 
   it("scopes tab data cache by authenticated user", () => {

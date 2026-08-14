@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname, useSearchParams } from "next/navigation";
 import { Fragment, type ReactNode, ViewTransition } from "react";
 import { TabNav } from "@/components/navigation/tab-nav";
 import { Button } from "@/components/ui/button";
@@ -16,6 +17,11 @@ interface AppShellProps {
 
 export function AppShell({ children, userId, goalSheet }: AppShellProps) {
   setTabDataCacheScope(userId);
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const search = searchParams.toString();
+  const returnTo = search.length > 0 ? `${pathname}?${search}` : pathname;
+  const newGoalHref = `/goals/new?returnTo=${encodeURIComponent(returnTo)}`;
   const mainContent = (
     <main className="pb-[calc(6.5rem+env(safe-area-inset-bottom))] md:pb-0">
       {children}
@@ -39,7 +45,7 @@ export function AppShell({ children, userId, goalSheet }: AppShellProps) {
               </div>
               <div className="flex items-center">
                 <Button asChild size="sm" title="New Goal +">
-                  <Link href="/goals/new">
+                  <Link href={newGoalHref}>
                     New Goal +
                   </Link>
                 </Button>
