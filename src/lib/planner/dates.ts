@@ -81,6 +81,14 @@ export function toKernelWindow(scopeMonth: string) {
   };
 }
 
+export function toKernelWindowFromDates(window: DateWindow) {
+  const next = assertDateWindow(window);
+  return {
+    startDate: next.start,
+    endDate: next.end,
+  };
+}
+
 export function intersectDateWindows(
   ...windows: Array<DateWindow | null>
 ): DateWindow | null {
