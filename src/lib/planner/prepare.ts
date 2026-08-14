@@ -116,6 +116,51 @@ function itemMatchesCurrentRequirement({
   return item.unit_key === `cadence:${period.periodKey}`;
 }
 
+async function fallbackPrepareWithSetSchedule({
+  supabase,
+  windows,
+  preparedItems,
+  expectedDigest,
+}: {
+  supabase: ServerSupabaseClient;
+  windows: PreparationWindow[];
+  preparedItems: PreparedItem[];
+  expectedDigest: string;
+}) {
+  const itemsByWindow = windows.map((window) =>
+    preparedItems.filter(
+      (item) =>
+        item.scheduled_date >= window.start && item.scheduled_date <= window.end
+    )
+  );
+  let digest = expectedDigest;
+  for (let index = 0; index < windows.length; index += 1) {
+    const window = windows[index]!;
+    const response = await supabase.rpc("set_planner_schedule", {
+      p_start: window.start,
+      p_end: window.end,
+      p_items: itemsByWindow[index]! as unknown as Json,
+      p_expected_digest: digest,
+    });
+    if (response.error) {
+      if (postgresErrorMatches(response.error, "P0001", "stale_schedule")) {
+        return { stale: true as const };
+      }
+      throw new PlannerRouteError(
+        409,
+        "prepare_failed",
+        "Planner calendar could not be prepared.",
+        { cause: response.error.message }
+      );
+    }
+    const row = Array.isArray(response.data) ? response.data[0] : response.data;
+    if (row && typeof row.schedule_digest === "string") {
+      digest = row.schedule_digest;
+    }
+  }
+  return { stale: false as const };
+}
+
 async function prepareOnce({
   supabase,
   ownerId,
@@ -310,24 +355,12 @@ async function prepareOnce({
       return { stale: true as const };
     }
     if (isMissingPrepareScheduleRpc(response.error)) {
-      const fallback = await supabase.rpc("set_planner_schedule", {
-        p_start: preparationStart,
-        p_end: preparationEnd,
-        p_items: preparedItems as unknown as Json,
-        p_expected_digest: expectedDigest,
+      return fallbackPrepareWithSetSchedule({
+        supabase,
+        windows,
+        preparedItems,
+        expectedDigest,
       });
-      if (fallback.error) {
-        if (postgresErrorMatches(fallback.error, "P0001", "stale_schedule")) {
-          return { stale: true as const };
-        }
-        throw new PlannerRouteError(
-          409,
-          "prepare_failed",
-          "Planner calendar could not be prepared.",
-          { cause: fallback.error.message }
-        );
-      }
-      return { stale: false as const };
     }
     throw new PlannerRouteError(
       409,
