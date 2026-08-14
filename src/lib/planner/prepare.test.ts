@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Goal } from "@/lib/goals/types";
+import { getAnchoredPeriod } from "@/lib/goals/periods";
 import { createDefaultPlannerPolicy } from "@/lib/planner/policy";
 import { computeRequirementFingerprint } from "@/lib/planner/requirements";
 import type { PlannerGoalUnplaceableRecord } from "@/lib/planner/unplaceable";
@@ -821,6 +822,48 @@ describe("preparePlannerSchedule", () => {
         p_unplaceable: expect.arrayContaining([
           expect.objectContaining({
             goal_id: plannerGoal.id,
+            unplaced_count: 0,
+          }),
+        ]),
+      })
+    );
+  });
+
+  it("does not create phantom shortfall for cadence goals with earlier-in-period sessions", async () => {
+    const cadenceGoal = goal({
+      frequency_type: "recurring",
+      recurrence_interval: "monthly",
+      target_count: null,
+      milestone_names: null,
+      start_date: "2026-07-01",
+      end_date: "2026-08-31",
+    });
+    const augustPeriodKey = getAnchoredPeriod(
+      cadenceGoal.start_date,
+      "monthly",
+      "2026-08-03",
+      { weekStartsOn: 1 }
+    ).periodKey;
+    const existingCadenceUnit = persistedItem({
+      goal_id: cadenceGoal.id,
+      unit_key: `cadence:${augustPeriodKey}`,
+      scheduled_date: "2026-08-03",
+      original_scheduled_date: "2026-08-03",
+      locked: false,
+    });
+    mocks.loadPlannerPreparationSnapshot.mockResolvedValue(
+      preparationSnapshot([cadenceGoal], [existingCadenceUnit])
+    );
+
+    await prepare();
+
+    expect(mocks.runPlannerKernel).not.toHaveBeenCalled();
+    expect(mocks.rpc).toHaveBeenCalledWith(
+      "prepare_planner_schedule",
+      expect.objectContaining({
+        p_unplaceable: expect.arrayContaining([
+          expect.objectContaining({
+            goal_id: cadenceGoal.id,
             unplaced_count: 0,
           }),
         ]),

@@ -1421,6 +1421,47 @@ export type Database = {
           },
         ]
       }
+      planner_goal_unplaceable: {
+        Row: {
+          computed_at: string
+          effective_span_end: string
+          goal_id: string
+          owner_id: string
+          policy_revision: number
+          reason: string
+          requirement_fingerprint: string
+          unplaced_count: number
+        }
+        Insert: {
+          computed_at?: string
+          effective_span_end: string
+          goal_id: string
+          owner_id: string
+          policy_revision: number
+          reason: string
+          requirement_fingerprint: string
+          unplaced_count: number
+        }
+        Update: {
+          computed_at?: string
+          effective_span_end?: string
+          goal_id?: string
+          owner_id?: string
+          policy_revision?: number
+          reason?: string
+          requirement_fingerprint?: string
+          unplaced_count?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "planner_goal_unplaceable_goal_id_fkey"
+            columns: ["goal_id"]
+            isOneToOne: false
+            referencedRelation: "goals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       planner_items: {
         Row: {
           created_at: string
@@ -1471,47 +1512,6 @@ export type Database = {
             columns: ["owner_id"]
             isOneToOne: false
             referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      planner_goal_unplaceable: {
-        Row: {
-          computed_at: string
-          effective_span_end: string
-          goal_id: string
-          owner_id: string
-          policy_revision: number
-          reason: string
-          requirement_fingerprint: string
-          unplaced_count: number
-        }
-        Insert: {
-          computed_at?: string
-          effective_span_end: string
-          goal_id: string
-          owner_id: string
-          policy_revision: number
-          reason: string
-          requirement_fingerprint: string
-          unplaced_count: number
-        }
-        Update: {
-          computed_at?: string
-          effective_span_end?: string
-          goal_id?: string
-          owner_id?: string
-          policy_revision?: number
-          reason?: string
-          requirement_fingerprint?: string
-          unplaced_count?: number
-        }
-        Relationships: [
-          {
-            foreignKeyName: "planner_goal_unplaceable_goal_id_fkey"
-            columns: ["goal_id"]
-            isOneToOne: false
-            referencedRelation: "goals"
             referencedColumns: ["id"]
           },
         ]
@@ -2204,6 +2204,15 @@ export type Database = {
           p_unplaceable?: Json
           p_windows: Json
         }
+        Returns: {
+          deleted_count: number
+          replayed: boolean
+          schedule_digest: string
+          upserted_count: number
+        }[]
+      }
+      prepare_planner_schedule_core: {
+        Args: { p_expected_digest: string; p_items: Json; p_windows: Json }
         Returns: {
           deleted_count: number
           replayed: boolean
