@@ -1,10 +1,22 @@
+import {
+  upsertMobilePlannerDraftMove,
+  type MobilePlannerDraftState,
+} from "./mobile-planner-draft";
+import type { MobilePlannerWorkUnit } from "./planner-context-loader";
+
 export type CoachPolicyPatch =
   | { kind: "set_rest_weekdays"; restWeekdays: number[] }
   | { kind: "add_blackout_range"; start: string; end: string }
-  | { kind: "remove_blackout_range"; start: string; end: string };
+  | { kind: "remove_blackout_range"; start: string; end: string }
+  | {
+      kind: "move_session";
+      goalId: string;
+      unitKey: string;
+      scheduledDate: string;
+    };
 
 export interface MobilePlannerPolicy {
-  schemaVersion?: number;
+  schemaVersion?: "1";
   timezone?: string;
   timezoneConfirmedAt?: string;
   weekStartsOn?: number;
@@ -59,45 +71,54 @@ export function applyCoachPolicyPatches({
   return { policy: nextPolicy, appliedPatchCount };
 }
 
-export function buildCoachDeterministicSummary({
-  scopeMonth,
-  timezone,
-  asOfDate,
+export function applyCoachPatchesToMobileDraft({
+  state,
+  policy,
   workUnits,
-  goalTitles,
+  patches,
 }: {
-  scopeMonth: string;
-  timezone: string;
-  asOfDate: string;
-  workUnits: Array<{
-    originalGoalId: string;
-    label: string | null;
-    scheduledDate: string | null;
-    creditState: string;
-  }>;
-  goalTitles: Record<string, string>;
+  state: MobilePlannerDraftState;
+  policy: MobilePlannerPolicy;
+  workUnits: MobilePlannerWorkUnit[];
+  patches: CoachPolicyPatch[];
 }) {
-  const placed = workUnits.filter((unit) => unit.scheduledDate);
-  const credited = workUnits.filter((unit) => unit.creditState !== "uncredited");
-  const byDate = new Map<string, string[]>();
-  for (const unit of placed) {
-    const date = unit.scheduledDate as string;
-    const labels = byDate.get(date) ?? [];
-    labels.push(goalTitles[unit.originalGoalId] ?? unit.label ?? unit.originalGoalId);
-    byDate.set(date, labels);
+  const policyResult = applyCoachPolicyPatches({ policy, patches });
+  let nextState =
+    policyResult.appliedPatchCount > 0
+      ? {
+          ...state,
+          policy: policyResult.policy,
+          preview: null,
+          previewWindow: null,
+          dirty: true,
+        }
+      : state;
+  let queuedSessionMoves = 0;
+  let missingSessionMoves = 0;
+  for (const patch of patches) {
+    if (patch.kind !== "move_session") {
+      continue;
+    }
+    const unit = workUnits.find(
+      (candidate) =>
+        candidate.originalGoalId === patch.goalId &&
+        candidate.unitKey === patch.unitKey
+    );
+    if (!unit?.scheduledDate) {
+      missingSessionMoves += 1;
+      continue;
+    }
+    nextState = upsertMobilePlannerDraftMove({
+      state: nextState,
+      unit,
+      scheduledDate: patch.scheduledDate,
+    });
+    queuedSessionMoves += 1;
   }
-  const dayLines = Array.from(byDate.entries())
-    .sort(([left], [right]) => left.localeCompare(right))
-    .slice(0, 14)
-    .map(([date, labels]) => `${date}: ${labels.slice(0, 3).join(", ")}`);
-  return [
-    `scopeMonth=${scopeMonth}`,
-    `timezone=${timezone}`,
-    `asOfDate=${asOfDate}`,
-    `totalWorkUnits=${workUnits.length}`,
-    `scheduledUnits=${placed.length}`,
-    `creditedUnits=${credited.length}`,
-    "dayAssignments:",
-    ...dayLines,
-  ].join("\n");
+  return {
+    state: nextState,
+    appliedPolicyPatchCount: policyResult.appliedPatchCount,
+    queuedSessionMoves,
+    missingSessionMoves,
+  };
 }

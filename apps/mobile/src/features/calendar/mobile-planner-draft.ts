@@ -90,6 +90,32 @@ export function upsertMobilePlannerDraftMove({
   };
 }
 
+export function resolveMobilePlannerDraftWindow({
+  context,
+  currentMonth,
+  state,
+}: {
+  context: MobilePlannerContext;
+  currentMonth: string;
+  state: MobilePlannerDraftState;
+}) {
+  if (state.previewWindow) {
+    return state.previewWindow;
+  }
+  const result = tryBuildPlannerDraftSaveWindow({
+    currentMonth,
+    commands: state.commands,
+    workUnits:
+      state.preview?.workUnits ?? context.preview?.workUnits ?? [],
+  });
+  if (!result.ok) {
+    throw new MobilePlannerDraftError(
+      plannerDraftWindowUnavailableMessage(result)
+    );
+  }
+  return result.window;
+}
+
 export async function previewMobilePlannerDraft({
   client,
   context,
@@ -101,21 +127,15 @@ export async function previewMobilePlannerDraft({
   currentMonth: string;
   state: MobilePlannerDraftState;
 }): Promise<MobilePlannerDraftState> {
-  const windowResult = tryBuildPlannerDraftSaveWindow({
+  const window = resolveMobilePlannerDraftWindow({
+    context,
     currentMonth,
-    commands: state.commands,
-    workUnits:
-      state.preview?.workUnits ?? context.preview?.workUnits ?? [],
+    state,
   });
-  if (!windowResult.ok) {
-    throw new MobilePlannerDraftError(
-      plannerDraftWindowUnavailableMessage(windowResult)
-    );
-  }
   const policy = state.policy ?? context.preferences?.defaultPolicy ?? null;
   const response = (await client.postJson("/api/planner/context", {
-    startDate: windowResult.window.start,
-    endDate: windowResult.window.end,
+    startDate: window.start,
+    endDate: window.end,
     timezone: context.timezone,
     policy,
     source: context.activePlan ? "update" : "manual",
@@ -128,9 +148,68 @@ export async function previewMobilePlannerDraft({
   return {
     ...state,
     preview: response.preview,
-    previewWindow: windowResult.window,
+    previewWindow: window,
     dirty: state.commands.length > 0 || state.policy !== null,
   };
+}
+
+export async function replanMobilePlannerDraftPolicy({
+  client,
+  context,
+  currentMonth,
+  state,
+  baselineWorkUnits,
+}: {
+  client: MobilePlannerDraftApiClient;
+  context: MobilePlannerContext;
+  currentMonth: string;
+  state: MobilePlannerDraftState;
+  baselineWorkUnits: MobilePlannerWorkUnit[];
+}) {
+  const window = resolveMobilePlannerDraftWindow({
+    context,
+    currentMonth,
+    state,
+  });
+  const policy = state.policy ?? context.preferences?.defaultPolicy ?? null;
+  const response = (await client.postJson("/api/planner/context", {
+    startDate: window.start,
+    endDate: window.end,
+    timezone: context.timezone,
+    policy,
+    source: context.activePlan ? "update" : "manual",
+    solveIntent: "replan",
+    draftCommands: state.commands,
+  })) as { preview?: MobilePlannerContext["preview"] };
+  if (!response.preview) {
+    throw new MobilePlannerDraftError("Planner replan is unavailable.");
+  }
+  const baselineByKey = new Map(
+    baselineWorkUnits.map((unit) => [
+      `${unit.originalGoalId}:${unit.unitKey}`,
+      unit,
+    ])
+  );
+  let nextState = state;
+  let moveCount = 0;
+  for (const unit of response.preview.workUnits) {
+    if (!unit.scheduledDate) {
+      continue;
+    }
+    const baseline = baselineByKey.get(
+      `${unit.originalGoalId}:${unit.unitKey}`
+    );
+    if (!baseline || baseline.scheduledDate === unit.scheduledDate) {
+      continue;
+    }
+    nextState = upsertMobilePlannerDraftMove({
+      state: nextState,
+      unit: baseline,
+      scheduledDate: unit.scheduledDate,
+    });
+    moveCount += 1;
+  }
+  return { state: nextState, moveCount };
 }
 
 export async function publishMobilePlannerDraft({
