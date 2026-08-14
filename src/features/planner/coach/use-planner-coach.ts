@@ -63,6 +63,7 @@ export function usePlannerCoach({
   applyPolicyReplanMoves,
   clearDraftMoveCommands,
   applyDraftPolicy,
+  coachWindow,
   getNonPublishablePreviewMessage,
 }: UsePlannerCoachArgs): PlannerCoachModel {
   const [coachLoading, setCoachLoading] = useState(false);
@@ -188,7 +189,7 @@ export function usePlannerCoach({
           refreshedWorkUnits: refreshedPreview.workUnits,
         });
         if (context.scopeMonth) {
-          applyDraftPolicy(context.scopeMonth, result.policy);
+          applyDraftPolicy(result.policy);
         }
         appendCoachContextEvent(
           `Reflected coach proposal in draft (${result.appliedPatchCount} patches, ${moveCount} session moves)`
@@ -254,7 +255,7 @@ export function usePlannerCoach({
   );
 
   const sendCoachMessage = useCallback(async () => {
-    if (!context?.scopeMonth || !context.timezone) {
+    if (!coachWindow || !context?.timezone) {
       toast.error("Planner coach is currently unavailable.");
       return;
     }
@@ -276,7 +277,8 @@ export function usePlannerCoach({
     setCoachWarnings([]);
 
     const deterministicSummary = buildCoachDeterministicSummary({
-      scopeMonth: context.scopeMonth,
+      startDate: coachWindow.start,
+      endDate: coachWindow.end,
       timezone: context.timezone,
       asOfDate: context.asOfDate,
       workUnits: coachSummaryWorkUnits,
@@ -288,6 +290,8 @@ export function usePlannerCoach({
 
     try {
       const coachPayload = await requestPlannerCoachReply({
+        startDate: coachWindow.start,
+        endDate: coachWindow.end,
         scopeMonth: context.scopeMonth,
         messages: nextMessages,
         focusGoalIds: coachFocusGoalIds,
@@ -354,6 +358,7 @@ export function usePlannerCoach({
     effectiveDraftPolicy,
     effectivePreview?.horizonSummary,
     persistCoachMessages,
+    coachWindow,
   ]);
 
   const updateCoachProposalStatus = useCallback(
@@ -471,7 +476,7 @@ export function usePlannerCoach({
             try {
               await refreshDraftPreview(currentDraftPolicy);
               if (scopeMonth) {
-                applyDraftPolicy(scopeMonth, currentDraftPolicy);
+                applyDraftPolicy(currentDraftPolicy);
               }
               appendCoachContextEvent(
                 "Reverted undo preview after planner default restore failed"
@@ -485,7 +490,7 @@ export function usePlannerCoach({
           }
         }
         if (scopeMonth) {
-          applyDraftPolicy(scopeMonth, baselinePolicy);
+          applyDraftPolicy(baselinePolicy);
         }
         updateCoachProposalStatus(messageIndex, "undone");
         appendCoachContextEvent("Undid coach draft proposal");
@@ -525,7 +530,7 @@ export function usePlannerCoach({
     appendCoachContextEvent("Discarded draft changes");
   }, [appendCoachContextEvent, persistCoachMessages]);
 
-  const canUseCoach = Boolean(context?.scopeMonth);
+  const canUseCoach = Boolean(coachWindow && context?.timezone);
   const hasCoachConversationState = computeHasCoachConversationState({
     coachMessages,
     coachWarnings,

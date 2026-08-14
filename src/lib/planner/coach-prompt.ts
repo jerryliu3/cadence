@@ -15,7 +15,8 @@ export interface CoachPromptGoalContext {
 }
 
 export interface BuildCoachPromptInput {
-  scopeMonth: string;
+  startDate: string;
+  endDate: string;
   timezone: string;
   asOfDate: string;
   focusGoals: CoachPromptGoalContext[];
@@ -76,7 +77,8 @@ function buildFocusGoalHorizonMarkers(goals: CoachPromptGoalContext[]) {
 }
 
 export function buildCoachPrompt({
-  scopeMonth,
+  startDate,
+  endDate,
   timezone,
   asOfDate,
   focusGoals,
@@ -127,7 +129,7 @@ export function buildCoachPrompt({
     "Always include 2-5 concrete recommendations in recommendations[] when possible.",
     "",
     "PLANNER CONTEXT",
-    `Context month: ${scopeMonth}`,
+    `Context window: ${startDate}..${endDate}`,
     `Context as-of date: ${asOfDate}`,
     `Confirmed timezone: ${timezone}`,
     `Focus goal horizon markers: ${focusHorizonMarkers}`,

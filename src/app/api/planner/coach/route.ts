@@ -18,7 +18,7 @@ import {
 } from "@/lib/planner/coach";
 import { buildCoachPrompt } from "@/lib/planner/coach-prompt";
 import { loadPlannerCanonicalSnapshot } from "@/lib/planner/context-loader";
-import { toKernelWindow } from "@/lib/planner/dates";
+import { toKernelWindowFromDates } from "@/lib/planner/dates";
 import {
   parseBoundedJsonBody,
   PlannerRouteError,
@@ -138,7 +138,10 @@ export async function POST(request: Request) {
       const snapshot = await loadPlannerCanonicalSnapshot({
         supabase: routeContext.supabase,
         ownerId: routeContext.userId,
-        ...toKernelWindow(body.scopeMonth),
+        ...toKernelWindowFromDates({
+          start: body.startDate,
+          end: body.endDate,
+        }),
       });
       if (!snapshot.preferences) {
         throw new PlannerRouteError(
@@ -164,7 +167,8 @@ export async function POST(request: Request) {
 
       const admin = requirePlannerAdminClient();
       const prompt = buildCoachPrompt({
-        scopeMonth: body.scopeMonth,
+        startDate: body.startDate,
+        endDate: body.endDate,
         timezone: effectiveTimezone,
         asOfDate,
         focusGoals,
@@ -348,6 +352,8 @@ export async function POST(request: Request) {
 
       const responsePayload = {
         ...sanitized,
+        startDate: body.startDate,
+        endDate: body.endDate,
         scopeMonth: body.scopeMonth,
         asOfDate,
         timezone: effectiveTimezone,

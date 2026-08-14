@@ -4,7 +4,8 @@ import { buildCoachDeterministicSummary } from "./coach-context";
 describe("buildCoachDeterministicSummary", () => {
   it("returns a bounded deterministic summary of current calendar state", () => {
     const summary = buildCoachDeterministicSummary({
-      scopeMonth: "2026-08",
+      startDate: "2026-08-01",
+      endDate: "2026-08-31",
       timezone: "UTC",
       asOfDate: "2026-08-05",
       workUnits: [
@@ -42,7 +43,7 @@ describe("buildCoachDeterministicSummary", () => {
       events: ["Applied coach proposal (2 patches)"],
     });
 
-    expect(summary).toContain("scopeMonth=2026-08");
+    expect(summary).toContain("window=2026-08-01..2026-08-31");
     expect(summary).toContain("scheduledUnits=2");
     expect(summary).toContain("horizonSummary:");
     expect(summary).toContain("goal=Running|window=4|total=12|credited=2|remaining=10");

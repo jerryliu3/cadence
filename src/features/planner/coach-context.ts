@@ -19,7 +19,8 @@ interface CoachHorizonGoalSummary {
 }
 
 interface BuildCoachDeterministicSummaryInput {
-  scopeMonth: string;
+  startDate: string;
+  endDate: string;
   timezone: string;
   asOfDate: string;
   workUnits: CoachSummaryWorkUnit[];
@@ -44,7 +45,8 @@ function truncate(value: string, maxLength: number) {
 }
 
 export function buildCoachDeterministicSummary({
-  scopeMonth,
+  startDate,
+  endDate,
   timezone,
   asOfDate,
   workUnits,
@@ -105,7 +107,7 @@ export function buildCoachDeterministicSummary({
     });
 
   const summary = [
-    `scopeMonth=${scopeMonth}`,
+    `window=${startDate}..${endDate}`,
     `timezone=${timezone}`,
     `asOfDate=${asOfDate}`,
     `totalWorkUnits=${workUnits.length}`,

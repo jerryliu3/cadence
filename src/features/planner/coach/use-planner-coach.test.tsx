@@ -95,6 +95,7 @@ function buildArgs(overrides: Partial<UsePlannerCoachArgs> = {}): UsePlannerCoac
       .mockResolvedValue({ moveCount: 0, movedEntryKeys: [] }),
     clearDraftMoveCommands: vi.fn(),
     applyDraftPolicy: vi.fn(),
+    coachWindow: { start: "2026-08-01", end: "2026-08-31" },
     getNonPublishablePreviewMessage: vi.fn().mockReturnValue("blocked"),
     ...overrides,
   };
@@ -224,6 +225,8 @@ describe("usePlannerCoach", () => {
 
     expect(requestPlannerCoachReplyMock).toHaveBeenCalledWith(
       expect.objectContaining({
+        startDate: "2026-08-01",
+        endDate: "2026-08-31",
         scopeMonth: "2026-08",
         focusGoalIds: ["goal-1"],
       })
@@ -376,7 +379,7 @@ describe("usePlannerCoach", () => {
 
     expect(persistPlannerDefaultPolicyMock).not.toHaveBeenCalled();
     expect(refreshDraftPreviewMock).toHaveBeenCalledWith(nextPolicy);
-    expect(applyDraftPolicyMock).toHaveBeenCalledWith("2026-08", nextPolicy);
+    expect(applyDraftPolicyMock).toHaveBeenCalledWith(nextPolicy);
     expect(result.current.state.coachMessages.at(-1)?.proposal?.applyStatus).toBe(
       "auto_applied"
     );
@@ -531,7 +534,7 @@ describe("usePlannerCoach", () => {
       defaultPolicy: nextPolicy,
     });
     expect(refreshDraftPreviewMock).toHaveBeenCalledWith(nextPolicy);
-    expect(applyDraftPolicyMock).toHaveBeenCalledWith("2026-08", nextPolicy);
+    expect(applyDraftPolicyMock).toHaveBeenCalledWith(nextPolicy);
     expect(toastSuccessMock).toHaveBeenCalledWith(
       expect.stringContaining("1 session moved")
     );
@@ -564,7 +567,6 @@ describe("usePlannerCoach", () => {
       }),
     });
     expect(applyDraftPolicyMock).toHaveBeenLastCalledWith(
-      "2026-08",
       expect.objectContaining({
         restWeekdays: [],
         blackoutRanges: [],
@@ -876,7 +878,6 @@ describe("usePlannerCoach", () => {
       }),
     });
     expect(applyDraftPolicyMock).toHaveBeenCalledWith(
-      "2026-08",
       expect.objectContaining({
         restWeekdays: appliedPolicy.restWeekdays,
         blackoutRanges: appliedPolicy.blackoutRanges,
@@ -1123,7 +1124,6 @@ describe("usePlannerCoach", () => {
       })
     );
     expect(applyDraftPolicyMock).toHaveBeenCalledWith(
-      "2026-08",
       expect.objectContaining({
         restWeekdays: baselinePolicy.restWeekdays,
         blackoutRanges: baselinePolicy.blackoutRanges,

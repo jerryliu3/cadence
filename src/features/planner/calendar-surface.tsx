@@ -989,9 +989,10 @@ export function CalendarSurface({
     refreshDraftPreview,
     applyPolicyReplanMoves,
     clearDraftMoveCommands,
-    applyDraftPolicy: (_scopeMonth, policy) => {
+    applyDraftPolicy: (policy) => {
       setDraftPolicy(policy);
     },
+    coachWindow: draftSaveWindow,
     getNonPublishablePreviewMessage: nonPublishablePreviewMessage,
   });
 
