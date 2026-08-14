@@ -161,6 +161,18 @@ export type Database = {
           category_key: string
         }[]
       }
+      partner_notifications_allowed: {
+        Args: { p_team_id: string; p_user_id: string }
+        Returns: boolean
+      }
+      planner_cadence_period_key: {
+        Args: {
+          p_recurrence_interval: Database["public"]["Enums"]["recurrence_interval"]
+          p_scheduled_date: string
+          p_week_starts_on: number
+        }
+        Returns: string
+      }
       planner_json_depth: { Args: { p_value: Json }; Returns: number }
       planner_owner_lock_key: { Args: { p_owner: string }; Returns: number }
       planner_schedule_item_matches_requirement: {
@@ -172,6 +184,7 @@ export type Database = {
           p_start_date: string
           p_target_count: number
           p_unit_key: string
+          p_week_starts_on: number
         }
         Returns: boolean
       }
