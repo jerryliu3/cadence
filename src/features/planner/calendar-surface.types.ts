@@ -66,15 +66,9 @@ export interface PlannerContextPayload {
   };
 }
 
-export interface PlannerVisibleMonthContextPayload {
-  scopeMonth: string;
-  goalTitles: Record<string, string>;
-  activePlan: PlannerContextPayload["activePlan"];
-  preview: PlannerContextPayload["preview"];
-}
-
 export interface PlannerWorkUnit {
   originalGoalId: string;
+  requirementFingerprint?: string;
   unitKey: string;
   kind?: "milestone_sequence" | "cadence" | "deadline_total";
   label: string | null;
@@ -100,6 +94,7 @@ export interface PlannerWorkUnit {
   scheduledTimeOverride?: string | null;
   effectiveScheduledLocalTime?: string | null;
   effectiveScheduledAtLocal?: string | null;
+  locked?: boolean;
 }
 
 export interface PlannerGoalHorizonSummary {
@@ -131,6 +126,7 @@ export interface PlannerActiveItemSnapshot {
   unit_key: string;
   requirement_kind: "milestone_sequence" | "cadence" | "deadline_total";
   scheduled_date: string | null;
+  original_scheduled_date?: string | null;
   classification: string;
   credit_state: string;
   locked: boolean;
