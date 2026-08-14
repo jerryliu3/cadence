@@ -14,6 +14,8 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     // Local worktrees created during stacked-PR workflows.
     ".worktrees/**",
+    // Expo Metro config is CommonJS by convention.
+    "apps/mobile/metro.config.js",
   ]),
 ]);
 
