@@ -68,6 +68,7 @@ export interface PlannerContextPayload {
     goalId: string;
     requirementFingerprint: string;
     policyRevision: number;
+    lockSignature: string;
     effectiveSpanEnd: string;
     unplacedCount: number;
     reason: "capacity" | "invalid_lock";
