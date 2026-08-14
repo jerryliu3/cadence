@@ -7,8 +7,11 @@ import {
   requireAuthenticatedRequestContext,
   withRoute,
 } from "@/lib/api/route";
-import { isFeatureEnabled } from "@/lib/feature-flags";
-import { integrationsDisabledError } from "@/lib/health/integrations-disabled";
+import { reportHealthDiagnostic } from "@/lib/health/diagnostics";
+import {
+  requireIntegrationsAccess,
+  requireIntegrationsFlag,
+} from "@/lib/health/integrations-disabled";
 import {
   toHealthAutocompleteRuleStatuses,
   type HealthAutocompleteRuleRow,
@@ -29,17 +32,16 @@ const deleteSchema = z.object({
 
 export async function PUT(request: Request) {
   return withRoute(async ({ correlationId }) => {
-    if (!isFeatureEnabled("integrationsEnabled")) {
-      throw integrationsDisabledError();
-    }
+    requireIntegrationsFlag();
 
     const payload = await parseJsonBody({
       request,
       schema: upsertSchema,
     });
-    const { supabase } = await requireAuthenticatedRequestContext(request, {
+    const { userId, supabase } = await requireAuthenticatedRequestContext(request, {
       unauthorizedMessage: "Sign in to update auto-complete rules.",
     });
+    requireIntegrationsAccess(userId);
 
     const rpcResponse = await supabase.rpc(
       "upsert_health_autocomplete_rule_service",
@@ -67,6 +69,11 @@ export async function PUT(request: Request) {
       );
     }
 
+    reportHealthDiagnostic({
+      event: "autocomplete_rule",
+      correlationId,
+    });
+
     return apiSuccessResponse(
       {
         schemaVersion: "1" as const,
@@ -79,9 +86,7 @@ export async function PUT(request: Request) {
 
 export async function DELETE(request: Request) {
   return withRoute(async ({ correlationId }) => {
-    if (!isFeatureEnabled("integrationsEnabled")) {
-      throw integrationsDisabledError();
-    }
+    requireIntegrationsFlag();
 
     const parsed = deleteSchema.safeParse({
       id: new URL(request.url).searchParams.get("id"),
@@ -93,9 +98,10 @@ export async function DELETE(request: Request) {
         "A rule id is required."
       );
     }
-    const { supabase } = await requireAuthenticatedRequestContext(request, {
+    const { userId, supabase } = await requireAuthenticatedRequestContext(request, {
       unauthorizedMessage: "Sign in to update auto-complete rules.",
     });
+    requireIntegrationsAccess(userId);
 
     const rpcResponse = await supabase.rpc(
       "delete_health_autocomplete_rule_service",

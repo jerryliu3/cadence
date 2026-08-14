@@ -7,8 +7,11 @@ import {
   requireAuthenticatedRequestContext,
   withRoute,
 } from "@/lib/api/route";
-import { isFeatureEnabled } from "@/lib/feature-flags";
-import { integrationsDisabledError } from "@/lib/health/integrations-disabled";
+import { reportHealthDiagnostic } from "@/lib/health/diagnostics";
+import {
+  requireIntegrationsAccess,
+  requireIntegrationsFlag,
+} from "@/lib/health/integrations-disabled";
 
 export const runtime = "nodejs";
 
@@ -18,17 +21,16 @@ const disconnectSchema = z.object({
 
 export async function POST(request: Request) {
   return withRoute(async ({ correlationId }) => {
-    if (!isFeatureEnabled("integrationsEnabled")) {
-      throw integrationsDisabledError();
-    }
+    requireIntegrationsFlag();
 
     const payload = await parseJsonBody({
       request,
       schema: disconnectSchema,
     });
-    const { supabase } = await requireAuthenticatedRequestContext(request, {
+    const { userId, supabase } = await requireAuthenticatedRequestContext(request, {
       unauthorizedMessage: "Sign in to disconnect health data.",
     });
+    requireIntegrationsAccess(userId);
 
     const rpcResponse = await supabase.rpc("disconnect_health_provider_service", {
       p_provider: payload.provider,
@@ -45,6 +47,14 @@ export async function POST(request: Request) {
       deleted_count?: number;
       recomputed_days?: number;
     };
+
+    reportHealthDiagnostic({
+      event: "disconnect",
+      correlationId,
+      provider: payload.provider,
+      deletedCount: result.deleted_count ?? 0,
+      recomputedDays: result.recomputed_days ?? 0,
+    });
 
     return apiSuccessResponse(
       {

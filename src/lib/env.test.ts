@@ -40,6 +40,7 @@ describe("env schema", () => {
     expect(env.XP_ENABLED).toBe(false);
     expect(env.SOCIAL_ENABLED).toBe(false);
     expect(env.INTEGRATIONS_ENABLED).toBe(false);
+    expect(env.INTEGRATIONS_ROLLOUT_STAGE).toBe("off");
   });
 
   it("requires core secrets in hosted production", () => {
