@@ -530,10 +530,21 @@ describe("preparePlannerSchedule", () => {
       .mockResolvedValueOnce({
         data: [
           {
-            schedule_digest: DIGEST,
+            schedule_digest: "b".repeat(64),
             upserted_count: 1,
             deleted_count: 0,
             replayed: false,
+          },
+        ],
+        error: null,
+      })
+      .mockResolvedValueOnce({
+        data: [
+          {
+            schedule_digest: "c".repeat(64),
+            upserted_count: 0,
+            deleted_count: 0,
+            replayed: true,
           },
         ],
         error: null,
@@ -541,14 +552,22 @@ describe("preparePlannerSchedule", () => {
 
     await prepare();
 
-    expect(mocks.rpc).toHaveBeenCalledTimes(2);
+    expect(mocks.rpc).toHaveBeenCalledTimes(3);
     expect(mocks.rpc.mock.calls[0]?.[0]).toBe("prepare_planner_schedule");
     expect(mocks.rpc.mock.calls[1]?.[0]).toBe("set_planner_schedule");
+    expect(mocks.rpc.mock.calls[2]?.[0]).toBe("set_planner_schedule");
     expect(mocks.rpc.mock.calls[1]?.[1]).toEqual(
       expect.objectContaining({
         p_start: "2026-08-01",
-        p_end: "2028-07-31",
+        p_end: "2027-07-31",
         p_expected_digest: DIGEST,
+      })
+    );
+    expect(mocks.rpc.mock.calls[2]?.[1]).toEqual(
+      expect.objectContaining({
+        p_start: "2027-08-01",
+        p_end: "2028-07-31",
+        p_expected_digest: "b".repeat(64),
       })
     );
   });
