@@ -159,8 +159,13 @@ export type Database = {
       }
       planner_json_depth: { Args: { p_value: Json }; Returns: number }
       planner_owner_lock_key: { Args: { p_owner: string }; Returns: number }
-      planner_scope_is_replay: {
-        Args: { p_items: Json; p_month: string; p_owner_id: string }
+      planner_window_is_replay: {
+        Args: {
+          p_end: string
+          p_items: Json
+          p_owner_id: string
+          p_start: string
+        }
         Returns: boolean
       }
       raise_if_future_completion_date: {
@@ -1874,7 +1879,7 @@ export type Database = {
         }[]
       }
       clear_planner_schedule: {
-        Args: { p_expected_digest: string; p_month: string }
+        Args: { p_end: string; p_expected_digest: string; p_start: string }
         Returns: {
           schedule_digest: string
           unlocked_count: number
@@ -2206,7 +2211,12 @@ export type Database = {
         }[]
       }
       set_planner_schedule: {
-        Args: { p_expected_digest: string; p_items: Json; p_month: string }
+        Args: {
+          p_end: string
+          p_expected_digest: string
+          p_items: Json
+          p_start: string
+        }
         Returns: {
           schedule_digest: string
           upserted_count: number

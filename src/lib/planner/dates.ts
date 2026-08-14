@@ -25,6 +25,14 @@ export function getScopeDateRange(scopeMonth: string): DateWindow {
   };
 }
 
+export function toPlannerScheduleWindow(scopeMonth: string) {
+  const window = getScopeDateRange(scopeMonth);
+  return {
+    start_date: window.start,
+    end_date: window.end,
+  };
+}
+
 export function intersectDateWindows(
   ...windows: Array<DateWindow | null>
 ): DateWindow | null {

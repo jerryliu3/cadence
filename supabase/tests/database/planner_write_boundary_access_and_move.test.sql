@@ -146,6 +146,7 @@ select lives_ok(
     perform *
     from public.set_planner_schedule(
       v_scope_month,
+      (v_scope_month + interval '1 month - 1 day')::date,
       v_payload,
       v_digest
     );
@@ -200,6 +201,7 @@ select lives_ok(
     perform *
     from public.set_planner_schedule(
       v_scope_month,
+      (v_scope_month + interval '1 month - 1 day')::date,
       jsonb_build_array(
         jsonb_build_object(
           'goal_id', '91100000-0000-4000-8000-000000000001',
@@ -249,6 +251,7 @@ select lives_ok(
     perform *
     from public.set_planner_schedule(
       v_scope_month,
+      (v_scope_month + interval '1 month - 1 day')::date,
       jsonb_build_array(
         jsonb_build_object(
           'goal_id', '91100000-0000-4000-8000-000000000001',

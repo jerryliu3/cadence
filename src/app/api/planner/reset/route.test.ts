@@ -110,7 +110,8 @@ describe("planner reset route", () => {
       correlationId: "corr-id",
     });
     expect(mocks.rpc).toHaveBeenCalledWith("clear_planner_schedule", {
-      p_month: "2026-08-01",
+      p_start: "2026-08-01",
+      p_end: "2026-08-31",
       p_expected_digest: "a".repeat(64),
     });
   });

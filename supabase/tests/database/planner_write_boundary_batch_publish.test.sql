@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions, pg_catalog;
-select plan(18);
+select plan(21);
 
 set local role service_role;
 
@@ -115,7 +115,8 @@ select lives_ok(
     from public.set_planner_schedule_batch(
       jsonb_build_array(
         jsonb_build_object(
-          'scope_month', v_scope_a::text,
+          'start_date', v_scope_a::text,
+          'end_date', (v_scope_a + interval '1 month - 1 day')::date::text,
           'items', jsonb_build_array(
             jsonb_build_object(
               'goal_id', '91600000-0000-4000-8000-000000000001',
@@ -127,7 +128,8 @@ select lives_ok(
           )
         ),
         jsonb_build_object(
-          'scope_month', v_scope_b::text,
+          'start_date', v_scope_b::text,
+          'end_date', (v_scope_b + interval '1 month - 1 day')::date::text,
           'items', jsonb_build_array(
             jsonb_build_object(
               'goal_id', '91600000-0000-4000-8000-000000000002',
@@ -144,7 +146,7 @@ select lives_ok(
   end;
   $$;
   $tap$,
-  'set_planner_schedule_batch publishes two scope months in one call'
+  'set_planner_schedule_batch publishes two date windows in one call'
 );
 
 select is(
@@ -193,7 +195,8 @@ select throws_ok(
     from public.set_planner_schedule_batch(
       jsonb_build_array(
         jsonb_build_object(
-          'scope_month', v_scope_a::text,
+          'start_date', v_scope_a::text,
+          'end_date', (v_scope_a + interval '1 month - 1 day')::date::text,
           'items', jsonb_build_array(
             jsonb_build_object(
               'goal_id', '91600000-0000-4000-8000-000000000001',
@@ -205,7 +208,8 @@ select throws_ok(
           )
         ),
         jsonb_build_object(
-          'scope_month', v_scope_b::text,
+          'start_date', v_scope_b::text,
+          'end_date', (v_scope_b + interval '1 month - 1 day')::date::text,
           'items', jsonb_build_array(
             jsonb_build_object(
               'goal_id', '91600000-0000-4000-8000-000000000002',
@@ -223,7 +227,7 @@ select throws_ok(
   $$;
   $tap$,
   '22023'::character(5),
-  'scheduled_date_outside_scope_month',
+  'scheduled_date_outside_window',
   'batch publish fails when any scope payload is invalid'
 );
 
@@ -248,6 +252,7 @@ begin
   perform *
   from public.set_planner_schedule(
     v_scope_b,
+    (v_scope_b + interval '1 month - 1 day')::date,
     jsonb_build_array(
       jsonb_build_object(
         'goal_id', '91600000-0000-4000-8000-000000000002',
@@ -273,7 +278,8 @@ select throws_ok(
     from public.set_planner_schedule_batch(
       jsonb_build_array(
         jsonb_build_object(
-          'scope_month', v_scope_a::text,
+          'start_date', v_scope_a::text,
+          'end_date', (v_scope_a + interval '1 month - 1 day')::date::text,
           'items', jsonb_build_array(
             jsonb_build_object(
               'goal_id', '91600000-0000-4000-8000-000000000001',
@@ -285,7 +291,8 @@ select throws_ok(
           )
         ),
         jsonb_build_object(
-          'scope_month', v_scope_b::text,
+          'start_date', v_scope_b::text,
+          'end_date', (v_scope_b + interval '1 month - 1 day')::date::text,
           'items', jsonb_build_array(
             jsonb_build_object(
               'goal_id', '91600000-0000-4000-8000-000000000002',
@@ -331,7 +338,8 @@ select throws_ok(
     from public.set_planner_schedule_batch(
       jsonb_build_array(
         jsonb_build_object(
-          'scope_month', v_scope_a::text,
+          'start_date', v_scope_a::text,
+          'end_date', (v_scope_a + interval '1 month - 1 day')::date::text,
           'items', jsonb_build_array(
             jsonb_build_object(
               'goal_id', '91600000-0000-4000-8000-000000000001',
@@ -343,7 +351,8 @@ select throws_ok(
           )
         ),
         jsonb_build_object(
-          'scope_month', v_scope_b::text,
+          'start_date', v_scope_b::text,
+          'end_date', (v_scope_b + interval '1 month - 1 day')::date::text,
           'items', jsonb_build_array(
             jsonb_build_object(
               'goal_id', '91600000-0000-4000-8000-000000000001',
@@ -384,11 +393,13 @@ select lives_ok(
     from public.set_planner_schedule_batch(
       jsonb_build_array(
         jsonb_build_object(
-          'scope_month', v_scope_a::text,
+          'start_date', v_scope_a::text,
+          'end_date', (v_scope_a + interval '1 month - 1 day')::date::text,
           'items', jsonb_build_array()
         ),
         jsonb_build_object(
-          'scope_month', v_scope_b::text,
+          'start_date', v_scope_b::text,
+          'end_date', (v_scope_b + interval '1 month - 1 day')::date::text,
           'items', jsonb_build_array(
             jsonb_build_object(
               'goal_id', '91600000-0000-4000-8000-000000000002',
@@ -451,7 +462,8 @@ select lives_ok(
     from public.set_planner_schedule_batch(
       jsonb_build_array(
         jsonb_build_object(
-          'scope_month', v_scope_a::text,
+          'start_date', v_scope_a::text,
+          'end_date', (v_scope_a + interval '1 month - 1 day')::date::text,
           'items', jsonb_build_array(
             jsonb_build_object(
               'goal_id', '91600000-0000-4000-8000-000000000001',
@@ -463,7 +475,8 @@ select lives_ok(
           )
         ),
         jsonb_build_object(
-          'scope_month', v_scope_b::text,
+          'start_date', v_scope_b::text,
+          'end_date', (v_scope_b + interval '1 month - 1 day')::date::text,
           'items', jsonb_build_array(
             jsonb_build_object(
               'goal_id', '91600000-0000-4000-8000-000000000002',
@@ -512,7 +525,8 @@ begin
   from public.set_planner_schedule_batch(
     jsonb_build_array(
       jsonb_build_object(
-        'scope_month', v_scope_a::text,
+        'start_date', v_scope_a::text,
+        'end_date', (v_scope_a + interval '1 month - 1 day')::date::text,
         'items', jsonb_build_array(
           jsonb_build_object(
             'goal_id', '91600000-0000-4000-8000-000000000001',
@@ -524,7 +538,8 @@ begin
         )
       ),
       jsonb_build_object(
-        'scope_month', v_scope_b::text,
+        'start_date', v_scope_b::text,
+        'end_date', (v_scope_b + interval '1 month - 1 day')::date::text,
         'items', jsonb_build_array(
           jsonb_build_object(
             'goal_id', '91600000-0000-4000-8000-000000000002',
@@ -553,7 +568,8 @@ select is(
     from public.set_planner_schedule_batch(
       jsonb_build_array(
         jsonb_build_object(
-          'scope_month', date_trunc('month', current_date)::date::text,
+          'start_date', date_trunc('month', current_date)::date::text,
+          'end_date', (date_trunc('month', current_date) + interval '1 month - 1 day')::date::text,
           'items', jsonb_build_array(
             jsonb_build_object(
               'goal_id', '91600000-0000-4000-8000-000000000001',
@@ -565,7 +581,8 @@ select is(
           )
         ),
         jsonb_build_object(
-          'scope_month', (date_trunc('month', current_date) + interval '1 month')::date::text,
+          'start_date', (date_trunc('month', current_date) + interval '1 month')::date::text,
+          'end_date', (date_trunc('month', current_date) + interval '2 month - 1 day')::date::text,
           'items', jsonb_build_array(
             jsonb_build_object(
               'goal_id', '91600000-0000-4000-8000-000000000002',
@@ -604,6 +621,69 @@ select is(
   ),
   (date_trunc('month', current_date) + interval '2 month + 5 day')::date,
   'scope C is never touched by any batch in this file'
+);
+
+-- A single inclusive window can move a unit across a month boundary without
+-- splitting the write into source/destination month batches.
+select lives_ok(
+  $tap$
+  do $$
+  declare
+    v_start date := date_trunc('month', current_date)::date;
+    v_end date := (date_trunc('month', current_date) + interval '2 month - 1 day')::date;
+    v_digest text;
+  begin
+    v_digest := public.get_planner_schedule_digest();
+    perform *
+    from public.set_planner_schedule(
+      v_start,
+      v_end,
+      jsonb_build_array(
+        jsonb_build_object(
+          'goal_id', '91600000-0000-4000-8000-000000000001',
+          'unit_key', 'unit:scope-a',
+          'scheduled_date', (v_start + interval '1 month + 6 day')::date::text,
+          'original_scheduled_date', (v_start + 2)::text,
+          'locked', false
+        ),
+        jsonb_build_object(
+          'goal_id', '91600000-0000-4000-8000-000000000002',
+          'unit_key', 'unit:scope-b',
+          'scheduled_date', (v_start + interval '1 month + 4 day')::date::text,
+          'original_scheduled_date', (v_start + interval '1 month + 3 day')::date::text,
+          'locked', false
+        )
+      ),
+      v_digest
+    );
+  end;
+  $$;
+  $tap$,
+  'set_planner_schedule moves a unit across months in one date window'
+);
+
+select is(
+  (
+    select scheduled_date
+    from public.planner_items
+    where goal_id = '91600000-0000-4000-8000-000000000001'
+      and unit_key = 'unit:scope-a'
+  ),
+  (date_trunc('month', current_date) + interval '1 month + 6 day')::date,
+  'single-window publish lands the moved unit in the destination month'
+);
+
+select is(
+  (
+    select count(*)::int
+    from public.planner_items
+    where owner_id = '11111111-1111-4111-8111-111111111111'
+      and goal_id = '91600000-0000-4000-8000-000000000001'
+      and date_trunc('month', scheduled_date)::date
+        = date_trunc('month', current_date)::date
+  ),
+  0,
+  'single-window publish leaves no stranded source-month row'
 );
 
 reset role;

@@ -8,7 +8,7 @@ import {
 } from "@/lib/planner/api";
 import { MAX_API_BODY_BYTES } from "@/lib/planner/contracts/bounds";
 import { postgresErrorMatches } from "@/lib/planner/postgres-errors";
-import { toScopeMonthDate } from "@/lib/planner/scope-month";
+import { toPlannerScheduleWindow } from "@/lib/planner/dates";
 import type { Json } from "@/lib/supabase/database.types";
 import { createClient } from "@/lib/supabase/server";
 
@@ -41,7 +41,7 @@ export async function handlePlannerResetAll(request: Request) {
     );
 
     const batches = body.scopeMonths.map((scopeMonth) => ({
-      scope_month: toScopeMonthDate(scopeMonth),
+      ...toPlannerScheduleWindow(scopeMonth),
       items: [],
     }));
 
@@ -70,9 +70,14 @@ export async function handlePlannerResetAll(request: Request) {
         postgresErrorMatches(
           resetResponse.error,
           "22023",
-          "duplicate_scope_month"
+          "duplicate_schedule_window"
         ) ||
-        postgresErrorMatches(resetResponse.error, "22023", "invalid_scope_month")
+        postgresErrorMatches(
+          resetResponse.error,
+          "22023",
+          "overlapping_schedule_windows"
+        ) ||
+        postgresErrorMatches(resetResponse.error, "22023", "invalid_schedule_window")
       ) {
         throw new PlannerRouteError(
           400,

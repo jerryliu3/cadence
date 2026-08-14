@@ -273,19 +273,22 @@ async function main() {
     ]);
 
     const scopeResult = await control.query<{
-      scope_month: string;
+      scope_start: string;
+      scope_end: string;
       scheduled_day_a: string;
       scheduled_day_b: string;
     }>(
       `select
-         date_trunc('month', current_date)::date::text as scope_month,
+         date_trunc('month', current_date)::date::text as scope_start,
+         (date_trunc('month', current_date) + interval '1 month - 1 day')::date::text as scope_end,
          (date_trunc('month', current_date)::date + 3)::text as scheduled_day_a,
          (date_trunc('month', current_date)::date + 5)::text as scheduled_day_b`
     );
-    const scopeMonth = scopeResult.rows[0]?.scope_month;
+    const scopeStart = scopeResult.rows[0]?.scope_start;
+    const scopeEnd = scopeResult.rows[0]?.scope_end;
     const scheduledDayA = scopeResult.rows[0]?.scheduled_day_a;
     const scheduledDayB = scopeResult.rows[0]?.scheduled_day_b;
-    assert.ok(scopeMonth, "Race scope month must be available.");
+    assert.ok(scopeStart && scopeEnd, "Race schedule window must be available.");
     assert.ok(
       scheduledDayA && scheduledDayB,
       "Race scheduled days must be available."
@@ -341,8 +344,8 @@ async function main() {
       );
       await sessionA.query(
         `select schedule_digest, upserted_count
-         from public.set_planner_schedule($1::date, $2::jsonb, $3::text)`,
-        [scopeMonth, JSON.stringify(payloadA), initialDigest]
+         from public.set_planner_schedule($1::date, $2::date, $3::jsonb, $4::text)`,
+        [scopeStart, scopeEnd, JSON.stringify(payloadA), initialDigest]
       );
       raceBarriers.signal("schedule-a-updated");
       await raceBarriers.wait("commit-schedule-a");
@@ -359,8 +362,8 @@ async function main() {
       try {
         await sessionB.query(
           `select schedule_digest, upserted_count
-           from public.set_planner_schedule($1::date, $2::jsonb, $3::text)`,
-          [scopeMonth, JSON.stringify(payloadB), initialDigest]
+           from public.set_planner_schedule($1::date, $2::date, $3::jsonb, $4::text)`,
+          [scopeStart, scopeEnd, JSON.stringify(payloadB), initialDigest]
         );
         await sessionB.query("commit");
       } catch (error) {

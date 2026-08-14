@@ -26,7 +26,7 @@ import {
   buildDraftPinnedDatesFromCommands,
   plannerDraftCommandSchema,
 } from "@/lib/planner/draft-commands";
-import { toScopeMonthDate } from "@/lib/planner/scope-month";
+import { toPlannerScheduleWindow } from "@/lib/planner/dates";
 import { plannerPolicySchema } from "@/lib/planner/policy";
 import type { Json } from "@/lib/supabase/database.types";
 import { createClient } from "@/lib/supabase/server";
@@ -223,7 +223,11 @@ export async function handlePlannerSave(request: Request) {
       publishSchema
     );
     const allScheduledItems: PlannerSaveScheduledItem[] = [];
-    const scheduleBatches: Array<{ scope_month: string; items: PlannerSaveScheduledItem[] }> =
+    const scheduleBatches: Array<{
+      start_date: string;
+      end_date: string;
+      items: PlannerSaveScheduledItem[];
+    }> =
       [];
     for (const scopePublish of body.scopes) {
       try {
@@ -408,7 +412,7 @@ export async function handlePlannerSave(request: Request) {
           }));
         allScheduledItems.push(...scheduledItems);
         scheduleBatches.push({
-          scope_month: toScopeMonthDate(scopePublish.scopeMonth),
+          ...toPlannerScheduleWindow(scopePublish.scopeMonth),
           items: scheduledItems,
         });
       } catch (error) {
@@ -501,8 +505,13 @@ export async function handlePlannerSave(request: Request) {
           "22023",
           "invalid_schedule_batch_payload"
         ) ||
-        postgresErrorMatches(publishResponse.error, "22023", "duplicate_scope_month") ||
-        postgresErrorMatches(publishResponse.error, "22023", "invalid_scope_month") ||
+        postgresErrorMatches(publishResponse.error, "22023", "duplicate_schedule_window") ||
+        postgresErrorMatches(
+          publishResponse.error,
+          "22023",
+          "overlapping_schedule_windows"
+        ) ||
+        postgresErrorMatches(publishResponse.error, "22023", "invalid_schedule_window") ||
         postgresErrorMatches(
           publishResponse.error,
           "22023",
@@ -512,7 +521,7 @@ export async function handlePlannerSave(request: Request) {
         postgresErrorMatches(
           publishResponse.error,
           "22023",
-          "scheduled_date_outside_scope_month"
+          "scheduled_date_outside_window"
         ) ||
         postgresErrorMatches(
           publishResponse.error,
