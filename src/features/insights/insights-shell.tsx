@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { DuoLanes } from "@/features/social/duo/duo-lanes";
 import { useDuoSurface } from "@/features/social/duo/use-duo-surface";
 import { InsightsPeriodControls } from "@/features/insights/insights-period-controls";
@@ -14,6 +14,22 @@ export function InsightsShell() {
   const [monthCursor, setMonthCursor] = useState(new Date());
   const [perGoalViewMode, setPerGoalViewMode] = useState<HeatmapViewMode>("month");
   const sharePeriodControls = scope === "both" && Boolean(activePartner);
+
+  // Memoized because InsightsTab derives its setMonthCursor callback from this
+  // object; a fresh literal each render would churn that callback and every
+  // handler depending on it.
+  const sharedPeriod = useMemo(
+    () =>
+      sharePeriodControls
+        ? {
+            monthCursor,
+            onMonthCursorChange: setMonthCursor,
+            perGoalViewMode,
+            onPerGoalViewModeChange: setPerGoalViewMode,
+          }
+        : undefined,
+    [monthCursor, perGoalViewMode, sharePeriodControls]
+  );
 
   return (
     <div className="space-y-4">
@@ -33,16 +49,7 @@ export function InsightsShell() {
           <InsightsTab
             subjectUserId={subject.userId}
             readOnly={subject.readOnly}
-            sharedPeriod={
-              sharePeriodControls
-                ? {
-                    monthCursor,
-                    onMonthCursorChange: setMonthCursor,
-                    perGoalViewMode,
-                    onPerGoalViewModeChange: setPerGoalViewMode,
-                  }
-                : undefined
-            }
+            sharedPeriod={sharedPeriod}
           />
         )}
       />
