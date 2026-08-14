@@ -31,7 +31,7 @@ describe("GET /api/config", () => {
     });
   });
 
-  it("returns whitelisted flags, min version, and a correlation id", async () => {
+  it("returns a stable cacheable payload without a request correlation id", async () => {
     const response = await GET();
     expect(response.status).toBe(200);
     const payload = await response.json();
@@ -43,9 +43,10 @@ describe("GET /api/config", () => {
         xpEnabled: false,
         socialEnabled: true,
       },
-      correlationId: expect.any(String),
     });
+    expect(payload.correlationId).toBeUndefined();
     expect(payload.flags.futureInternalOnly).toBeUndefined();
+    expect(response.headers.get("cache-control")).toBe("public, max-age=60");
   });
 
   it("returns a correlation id when flag loading fails", async () => {

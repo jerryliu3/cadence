@@ -51,8 +51,9 @@ next-env.d.ts
 
 # expo / react native
 .expo/
-ios/
-android/
+/apps/mobile/ios/
+/apps/mobile/android/
+/apps/mobile/expo-env.d.ts
 *.jks
 *.keystore
 *.mobileprovision
