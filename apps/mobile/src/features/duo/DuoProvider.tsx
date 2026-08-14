@@ -26,6 +26,7 @@ import {
   shouldClearStoredScopePreference,
 } from "./scope-preference";
 import { resolveDuoTeamLoadResult } from "./team-load";
+import { reportMobileDuoTelemetry } from "./telemetry";
 
 interface DuoContextValue {
   socialEnabled: boolean;
@@ -105,6 +106,10 @@ export function DuoProvider({ children }: { children: ReactNode }) {
     ) {
       return;
     }
+    reportMobileDuoTelemetry("post_dissolution_scope_clamp", {
+      surface: "shell",
+      previousScope: scopePreference,
+    });
     void saveStoredDuoScopePreference({ userId, scopePreference: null })
       .then(() => {
         queryClient.setQueryData(scopePreferenceQueryKey, null);

@@ -1,11 +1,15 @@
 import type { ProgressContextResponse } from "@cadence/shared/goals/progress-context";
 import type { DuoLaneSubject } from "@cadence/shared/social/duo";
 import { endOfMonth, format, startOfMonth } from "date-fns";
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../../lib/api";
 import { useSession } from "../../lib/session";
 import { duoQueryKeys } from "../duo/query-keys";
+import {
+  extractMobileDuoPartnerFailureContext,
+  reportMobileDuoPartnerFetchFailure,
+} from "../duo/telemetry";
 import {
   buildInsightsLaneQueryKey,
   buildInsightsProgressQuery,
@@ -53,6 +57,7 @@ export function useInsightsLaneData({
   const timezone = timezoneName();
   const subjectReady = subject.id === "viewer" ? Boolean(userId) : Boolean(subject.userId);
   const laneEnabled = Boolean(userId) && enabled && subjectReady;
+  const reportedPartnerErrorAt = useRef(0);
 
   const query = useQuery({
     queryKey: buildInsightsLaneQueryKey({
@@ -73,6 +78,23 @@ export function useInsightsLaneData({
       });
     },
   });
+
+  useEffect(() => {
+    if (
+      subject.id !== "partner" ||
+      !query.error ||
+      query.errorUpdatedAt === 0 ||
+      query.errorUpdatedAt === reportedPartnerErrorAt.current
+    ) {
+      return;
+    }
+    reportedPartnerErrorAt.current = query.errorUpdatedAt;
+    const details = extractMobileDuoPartnerFailureContext(query.error);
+    reportMobileDuoPartnerFetchFailure(query.error, {
+      surface: "insights",
+      ...details,
+    });
+  }, [query.error, query.errorUpdatedAt, subject.id]);
 
   const factsByDay = useMemo(
     () => countInsightsFactsByDay(query.data?.facts ?? []),

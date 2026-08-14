@@ -1,4 +1,5 @@
 import { format } from "date-fns";
+import { useEffect, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ProgressContextResponse } from "@cadence/shared/goals/progress-context";
 import type { DuoLaneSubject } from "@cadence/shared/social/duo";
@@ -23,8 +24,14 @@ import {
   resolveChecklistCompletableGoalIds,
   resolveTeamMembershipIds,
   selectChecklistGoalsForSubject,
+  shouldReportViewerLaneCompletion,
   type MobileGoal,
 } from "./checklist-lane-data";
+import {
+  extractMobileDuoPartnerFailureContext,
+  reportMobileDuoPartnerFetchFailure,
+  reportMobileDuoTelemetry,
+} from "../duo/telemetry";
 
 function todayIso() {
   return format(new Date(), "yyyy-MM-dd");
@@ -78,6 +85,8 @@ export function useChecklistLaneData({
   const subjectReady = subject.id === "viewer" ? Boolean(userId) : Boolean(subject.userId);
   const laneEnabled = Boolean(userId) && enabled && subjectReady;
   const goalsEnabled = laneEnabled && includeGoals;
+  const reportedPartnerGoalsErrorAt = useRef(0);
+  const reportedPartnerProgressErrorAt = useRef(0);
 
   const goalsQuery = useQuery({
     queryKey: buildMobileGoalsQueryKey({
@@ -149,6 +158,40 @@ export function useChecklistLaneData({
     },
   });
 
+  useEffect(() => {
+    if (
+      subject.id !== "partner" ||
+      !goalsQuery.error ||
+      goalsQuery.errorUpdatedAt === 0 ||
+      goalsQuery.errorUpdatedAt === reportedPartnerGoalsErrorAt.current
+    ) {
+      return;
+    }
+    reportedPartnerGoalsErrorAt.current = goalsQuery.errorUpdatedAt;
+    const details = extractMobileDuoPartnerFailureContext(goalsQuery.error);
+    reportMobileDuoPartnerFetchFailure(goalsQuery.error, {
+      surface: "checklist",
+      ...details,
+    });
+  }, [goalsQuery.error, goalsQuery.errorUpdatedAt, subject.id]);
+
+  useEffect(() => {
+    if (
+      subject.id !== "partner" ||
+      !progressQuery.error ||
+      progressQuery.errorUpdatedAt === 0 ||
+      progressQuery.errorUpdatedAt === reportedPartnerProgressErrorAt.current
+    ) {
+      return;
+    }
+    reportedPartnerProgressErrorAt.current = progressQuery.errorUpdatedAt;
+    const details = extractMobileDuoPartnerFailureContext(progressQuery.error);
+    reportMobileDuoPartnerFetchFailure(progressQuery.error, {
+      surface: "checklist",
+      ...details,
+    });
+  }, [progressQuery.error, progressQuery.errorUpdatedAt, subject.id]);
+
   const toggleMutation = useMutation({
     onMutate: () => {
       setCompletionErrorMessage(null);
@@ -168,7 +211,17 @@ export function useChecklistLaneData({
         timezone,
       });
     },
-    onSuccess: async () => {
+    onSuccess: async (_response, input) => {
+      if (
+        shouldReportViewerLaneCompletion({
+          interactive,
+          desiredFactState: input.desiredFactState,
+        })
+      ) {
+        reportMobileDuoTelemetry("viewer_lane_completion", {
+          surface: "checklist",
+        });
+      }
       await queryClient.invalidateQueries({
         queryKey: duoQueryKeys.progressPrefix(userId),
       });

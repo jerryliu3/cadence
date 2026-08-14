@@ -10,6 +10,7 @@ import {
   resolvePartnerChecklistStripState,
   resolveTeamMembershipIds,
   selectChecklistGoalsForSubject,
+  shouldReportViewerLaneCompletion,
 } from "./checklist-lane-data";
 
 const goals: MobileGoal[] = [
@@ -239,5 +240,26 @@ describe("checklist lane data helpers", () => {
         hasError: false,
       })
     ).toEqual(["team-1", "team-2"]);
+  });
+
+  it("reports completion telemetry only for viewer present toggles", () => {
+    expect(
+      shouldReportViewerLaneCompletion({
+        interactive: true,
+        desiredFactState: "present",
+      })
+    ).toBe(true);
+    expect(
+      shouldReportViewerLaneCompletion({
+        interactive: true,
+        desiredFactState: "absent",
+      })
+    ).toBe(false);
+    expect(
+      shouldReportViewerLaneCompletion({
+        interactive: false,
+        desiredFactState: "present",
+      })
+    ).toBe(false);
   });
 });

@@ -22,7 +22,13 @@ import { useTheme } from "../../theme";
 import { PrimaryButton } from "../../ui/button";
 import { LoadingScreen, Screen } from "../../ui/screen";
 import { CoachPanel } from "./CoachPanel";
+import { useDuo, useDuoSurfaceScope } from "../duo/DuoProvider";
 import { DuoScopeSegmentedControl } from "../duo/DuoScopeSegmentedControl";
+import { useReportMobileDuoScopeViewed } from "../duo/telemetry";
+import {
+  buildPartnerMarkerAccessibilityLabel,
+  resolveCalendarReadOnlyState,
+} from "./calendar-duo";
 import { DraftMoveError, planMobileDraftMove } from "./draft-moves";
 import { DraggableSession } from "./DraggableSession";
 import {
@@ -38,6 +44,7 @@ import {
   previewMobilePlannerDraft,
   publishMobilePlannerDraft,
 } from "./mobile-planner-draft";
+import { useCalendarPartnerOverlay } from "./use-calendar-partner-overlay";
 import { shiftMonth, usePlannerContext } from "./use-planner-context";
 
 const VIEW_MODES = ["month", "week", "three_day", "day"] as const;
@@ -68,9 +75,23 @@ function MeasureableDay({
 export function CalendarScreen() {
   const theme = useTheme();
   const { month, day, viewMode, apply } = useCalendarStore();
+  const { scope, hasActivePartner } = useDuoSurfaceScope("calendar");
+  const { state } = useDuo();
+  const activePartner = hasActivePartner ? state.activePartner : null;
+  const readOnlyState = resolveCalendarReadOnlyState(scope);
   const scopeMonth = month ?? format(new Date(), "yyyy-MM");
   const selectedDay = day ?? `${scopeMonth}-01`;
   const planner = usePlannerContext(scopeMonth);
+  const partnerOverlay = useCalendarPartnerOverlay({
+    enabled: Boolean(activePartner) && (scope === "partner" || scope === "both"),
+    partnerId: activePartner?.partnerId ?? null,
+    month: scopeMonth,
+  });
+  useReportMobileDuoScopeViewed({
+    surface: "calendar",
+    scope,
+    hasPartner: Boolean(activePartner),
+  });
   const weekStartsOn = normalizeWeekStartsOn(
     planner.data?.preferences?.defaultPolicy.weekStartsOn
   );
@@ -229,7 +250,11 @@ export function CalendarScreen() {
     void applyMove(unit, targetDay);
   };
 
-  if (planner.isLoading && !draft.preview) {
+  if (
+    planner.isLoading &&
+    readOnlyState.showViewerSessions &&
+    !draft.preview
+  ) {
     return <LoadingScreen />;
   }
 
@@ -238,7 +263,29 @@ export function CalendarScreen() {
 
   return (
     <Screen title="Calendar">
-      <DuoScopeSegmentedControl surface="calendar" />
+      <DuoScopeSegmentedControl
+        surface="calendar"
+        onScopeChange={(nextScope) => {
+          if (nextScope !== "partner") {
+            return;
+          }
+          setMoveUnit(null);
+          setMoveDate("");
+          setOrderByDay({});
+        }}
+      />
+      {readOnlyState.banner ? (
+        <View
+          style={[
+            styles.readOnlyBanner,
+            { borderColor: theme.colors.border, backgroundColor: theme.colors.card },
+          ]}
+        >
+          <Text style={{ color: theme.colors.foreground, fontWeight: "700" }}>
+            {readOnlyState.banner}
+          </Text>
+        </View>
+      ) : null}
       <View style={styles.row}>
         <Pressable onPress={() => apply({ month: shiftMonth(scopeMonth, -1) })}>
           <Text style={{ color: theme.colors.primary }}>Prev</Text>
@@ -262,6 +309,9 @@ export function CalendarScreen() {
           </Pressable>
         ))}
       </View>
+      {partnerOverlay.error ? (
+        <Text style={{ color: theme.colors.mutedForeground }}>{partnerOverlay.error}</Text>
+      ) : null}
       {viewMode === "month" ? (
         <View style={styles.grid}>
           {buildMonthCells(scopeMonth, weekStartsOn).map((cell) => (
@@ -291,9 +341,25 @@ export function CalendarScreen() {
                 <Text style={{ color: theme.colors.foreground, fontSize: 12 }}>
                   {cell.date.slice(8)}
                 </Text>
-                <Text style={{ color: theme.colors.mutedForeground, fontSize: 10 }}>
-                  {unitsByDate.get(cell.date)?.length ?? 0}
-                </Text>
+                {readOnlyState.showViewerSessions ? (
+                  <Text style={{ color: theme.colors.mutedForeground, fontSize: 10 }}>
+                    {unitsByDate.get(cell.date)?.length ?? 0}
+                  </Text>
+                ) : null}
+                {(partnerOverlay.markersByDate.get(cell.date) ?? []).slice(0, 2).map((marker) => (
+                  <View
+                    key={marker.key}
+                    accessibilityRole="text"
+                    accessible
+                    accessibilityLabel={buildPartnerMarkerAccessibilityLabel(marker.goalTitle)}
+                    style={[
+                      styles.partnerDot,
+                      {
+                        backgroundColor: theme.colors.primary,
+                      },
+                    ]}
+                  />
+                ))}
               </Pressable>
             </MeasureableDay>
           ))}
@@ -314,30 +380,51 @@ export function CalendarScreen() {
             <Text style={{ color: theme.colors.foreground, fontWeight: "700" }}>
               {visibleDay}
             </Text>
-            {(unitsByDate.get(visibleDay) ?? []).map((unit) => (
-              <DraggableSession
-                key={unitEntryKey(unit)}
-                unit={unit}
-                day={visibleDay}
-                label={sessionLabel(unit)}
-                onPress={() => {
-                  setMoveUnit(unit);
-                  setMoveDate(visibleDay);
-                }}
-                onDrop={handleDrop}
-                onLayoutWindow={(entryKey, sessionDay, rect) => {
-                  sessionTargets.current.set(entryKey, {
-                    day: sessionDay,
-                    entryKey,
-                    rect,
-                  });
-                }}
-              />
+            {readOnlyState.showViewerSessions
+              ? (unitsByDate.get(visibleDay) ?? []).map((unit) => (
+                  <DraggableSession
+                    key={unitEntryKey(unit)}
+                    unit={unit}
+                    day={visibleDay}
+                    label={sessionLabel(unit)}
+                    onPress={() => {
+                      setMoveUnit(unit);
+                      setMoveDate(visibleDay);
+                    }}
+                    onDrop={handleDrop}
+                    onLayoutWindow={(entryKey, sessionDay, rect) => {
+                      sessionTargets.current.set(entryKey, {
+                        day: sessionDay,
+                        entryKey,
+                        rect,
+                      });
+                    }}
+                  />
+                ))
+              : null}
+            {(partnerOverlay.markersByDate.get(visibleDay) ?? []).map((marker) => (
+              <View
+                key={marker.key}
+                accessible
+                accessibilityRole="text"
+                accessibilityLabel={buildPartnerMarkerAccessibilityLabel(marker.goalTitle)}
+                style={[
+                  styles.partnerMarker,
+                  {
+                    borderColor: theme.colors.border,
+                    backgroundColor: theme.colors.secondary,
+                  },
+                ]}
+              >
+                <Text style={{ color: theme.colors.foreground, fontWeight: "600" }}>
+                  Partner done: {marker.goalTitle}
+                </Text>
+              </View>
             ))}
           </MeasureableDay>
         ))
       )}
-      {draft.dirty ? (
+      {readOnlyState.allowMutations && draft.dirty ? (
         <>
           <Text style={{ color: theme.colors.mutedForeground }}>
             Draft window: {draft.previewWindow?.start ?? "refresh required"} to{" "}
@@ -396,32 +483,34 @@ export function CalendarScreen() {
           </View>
         </>
       ) : null}
-      <View style={styles.row}>
-        <PrimaryButton
-          disabled={busy || !digest || draft.dirty}
-          label="Reset locks"
-          onPress={async () => {
-            if (!digest) {
-              return;
-            }
-            setBusy(true);
-            try {
-              await api.postJson("/api/planner/reset", {
-                scopeMonth,
-                expectedDigest: digest,
-              });
-              await planner.refresh();
-              setMessage("Reset complete.");
-            } catch (error) {
-              setMessage(getApiErrorMessage(error, "Reset failed."));
-            } finally {
-              setBusy(false);
-            }
-          }}
-        />
-      </View>
+      {readOnlyState.allowMutations ? (
+        <View style={styles.row}>
+          <PrimaryButton
+            disabled={busy || !digest || draft.dirty}
+            label="Reset locks"
+            onPress={async () => {
+              if (!digest) {
+                return;
+              }
+              setBusy(true);
+              try {
+                await api.postJson("/api/planner/reset", {
+                  scopeMonth,
+                  expectedDigest: digest,
+                });
+                await planner.refresh();
+                setMessage("Reset complete.");
+              } catch (error) {
+                setMessage(getApiErrorMessage(error, "Reset failed."));
+              } finally {
+                setBusy(false);
+              }
+            }}
+          />
+        </View>
+      ) : null}
       {message ? <Text style={{ color: theme.colors.foreground }}>{message}</Text> : null}
-      {planner.data ? (
+      {readOnlyState.allowMutations && planner.data ? (
         <CoachPanel
           context={planner.data}
           currentMonth={scopeMonth}
@@ -429,11 +518,18 @@ export function CalendarScreen() {
           onDraftChange={setDraft}
         />
       ) : null}
-      <Text style={{ color: theme.colors.mutedForeground }}>
-        Long-press a session to drag it onto another day, or tap it to use the Move-to
-        sheet. Cross-month moves stay in one draft until you save or discard it.
-      </Text>
-      <Modal visible={Boolean(moveUnit)} animationType="slide" transparent>
+      {readOnlyState.allowMutations ? (
+        <Text style={{ color: theme.colors.mutedForeground }}>
+          Long-press a session to drag it onto another day, or tap it to use the
+          Move-to sheet. Cross-month moves stay in one draft until you save or
+          discard it.
+        </Text>
+      ) : null}
+      <Modal
+        visible={readOnlyState.allowMutations && Boolean(moveUnit)}
+        animationType="slide"
+        transparent
+      >
         <View style={styles.sheetBackdrop}>
           <View style={[styles.sheet, { backgroundColor: theme.colors.card }]}>
             <Text style={{ color: theme.colors.foreground, fontWeight: "700" }}>Move to…</Text>
@@ -493,6 +589,12 @@ export function CalendarScreen() {
 
 const styles = StyleSheet.create({
   row: { flexDirection: "row", justifyContent: "space-between", gap: 8, alignItems: "center" },
+  readOnlyBanner: {
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
   grid: { flexDirection: "row", flexWrap: "wrap" },
   cell: {
     width: "14.28%",
@@ -501,7 +603,19 @@ const styles = StyleSheet.create({
     padding: 4,
   },
   cellPress: { flex: 1 },
+  partnerDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 99,
+    marginTop: 4,
+  },
   dayCard: { borderWidth: 1, borderRadius: 12, padding: 12, gap: 6 },
+  partnerMarker: {
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
   sheetBackdrop: {
     flex: 1,
     justifyContent: "flex-end",
