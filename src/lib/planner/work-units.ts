@@ -67,13 +67,6 @@ export interface PlannerWorkUnit {
   effectiveScheduledAtLocal?: string | null;
 }
 
-export function isEndMonthCadenceUnit(
-  scopeMonth: string,
-  period: DateWindow
-) {
-  return isCadenceUnitInWindow(getScopeDateRange(scopeMonth), period);
-}
-
 export function isCadenceUnitInWindow(window: DateWindow, period: DateWindow) {
   const owningMonthRange = getScopeDateRange(owningMonthForPeriod(period));
   return intersectDateWindows(owningMonthRange, window) !== null;

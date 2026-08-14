@@ -4,7 +4,7 @@ import { getScopeDateRange } from "@/lib/planner/dates";
 import { reconcilePlannerCompletions } from "@/lib/planner/reconciliation";
 import { normalizeGoalRequirement } from "@/lib/planner/requirements";
 import {
-  isEndMonthCadenceUnit,
+  isCadenceUnitInWindow,
   materializeWorkUnits,
   type PlannerBaseAssignment,
 } from "@/lib/planner/work-units";
@@ -115,13 +115,13 @@ describe("planner work units", () => {
 
   it("breaks ties toward the period start month", () => {
     expect(
-      isEndMonthCadenceUnit("2026-01", {
+      isCadenceUnitInWindow(getScopeDateRange("2026-01"), {
         start: "2026-01-31",
         end: "2026-02-01",
       })
     ).toBe(true);
     expect(
-      isEndMonthCadenceUnit("2026-02", {
+      isCadenceUnitInWindow(getScopeDateRange("2026-02"), {
         start: "2026-01-31",
         end: "2026-02-01",
       })
