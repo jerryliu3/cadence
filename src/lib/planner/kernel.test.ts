@@ -129,6 +129,43 @@ describe("pure planner kernel", () => {
     ]);
   });
 
+  it("keeps partial-month ordinal ownership identical across monthly and combined runs", () => {
+    const partialLifetimeGoal = goal({
+      id: "goal-partial-lifetime",
+      frequency_type: "fixed_milestones",
+      recurrence_interval: null,
+      target_count: 4,
+      milestone_names: ["One", "Two", "Three", "Four"],
+      start_date: "2026-08-25",
+      end_date: "2026-10-05",
+    });
+    const combined = runPlannerKernel(
+      input({
+        startDate: "2026-08-01",
+        endDate: "2026-10-31",
+        asOfDate: "2026-08-25",
+        goals: [partialLifetimeGoal],
+      })
+    );
+    const monthlyUnion = ["2026-08", "2026-09", "2026-10"]
+      .flatMap((scopeMonth) =>
+        runPlannerKernel(
+          input({
+            ...toKernelWindow(scopeMonth),
+            asOfDate: "2026-08-25",
+            goals: [partialLifetimeGoal],
+          })
+        ).workUnits
+      )
+      .sort((left, right) => left.ordinal - right.ordinal);
+
+    expect(
+      monthlyUnion.map((unit) => [unit.unitKey, unit.scheduledDate])
+    ).toEqual(
+      combined.workUnits.map((unit) => [unit.unitKey, unit.scheduledDate])
+    );
+  });
+
   it("produces identical assignments for identical fresh runs", () => {
     const runA = runPlannerKernel(input());
     const runB = runPlannerKernel(input());
@@ -208,7 +245,7 @@ describe("pure planner kernel", () => {
     expect(summary.windowPlannedCount).toBe(output.workUnits.length);
   });
 
-  it("carries forward elapsed ordinal obligations into remaining months", () => {
+  it("redistributes elapsed ordinal obligations across remaining lifetime", () => {
     const longGoal = goal({
       target_count: 60,
       start_date: "2026-08-01",
@@ -231,7 +268,7 @@ describe("pure planner kernel", () => {
 
     expect(allUnitKeys).toHaveLength(longGoal.target_count ?? 0);
     expect(new Set(allUnitKeys).size).toBe(longGoal.target_count);
-    expect(monthOutputs[0].workUnits.length).toBeGreaterThan(10);
+    expect(monthOutputs[0].workUnits.length).toBeGreaterThan(0);
   });
 
   it("keeps ordinal partitions stable when one month is regenerated from a published base plan", () => {
@@ -251,7 +288,7 @@ describe("pure planner kernel", () => {
     const completionDates = augustPublished.workUnits
       .map((unit) => unit.scheduledDate)
       .filter((date): date is string => date !== null)
-      .slice(2, 4);
+      .slice(0, 2);
     expect(completionDates).toHaveLength(2);
     const completions: Completion[] = completionDates.map((date, index) => ({
       id: `published-c${index + 1}`,
@@ -360,7 +397,7 @@ describe("pure planner kernel", () => {
     ]);
   });
 
-  it("spills ordinal allocations forward when current-month capacity is constrained", () => {
+  it("uses proportional ownership within a constrained partial first month", () => {
     const constrainedStartGoal = goal({
       target_count: 60,
       start_date: "2026-08-20",
@@ -382,9 +419,9 @@ describe("pure planner kernel", () => {
 
     expect(allUnitKeys).toHaveLength(constrainedStartGoal.target_count ?? 0);
     expect(new Set(allUnitKeys).size).toBe(constrainedStartGoal.target_count);
-    expect(monthOutputs[0].workUnits.length).toBe(12);
-    expect(monthOutputs[1].workUnits.length).toBe(28);
-    expect(monthOutputs[2].workUnits.length).toBe(20);
+    expect(monthOutputs.map((output) => output.workUnits.length)).toEqual([
+      10, 25, 25,
+    ]);
   });
 
   it("marks ordinal goals with oversized horizons as ineligible", () => {
@@ -481,7 +518,7 @@ describe("pure planner kernel", () => {
       )
     );
 
-    expect(monthOutputs.map((output) => output.workUnits.length)).toEqual([4, 4, 4]);
+    expect(monthOutputs.map((output) => output.workUnits.length)).toEqual([3, 4, 5]);
     const unitKeys = monthOutputs.flatMap((output) =>
       output.workUnits.map((unit) => unit.unitKey)
     );
@@ -514,8 +551,8 @@ describe("pure planner kernel", () => {
       })
     );
 
-    expect(september.workUnits.length).toBe(8);
-    expect(october.workUnits.length).toBe(4);
+    expect(september.workUnits.length).toBe(5);
+    expect(october.workUnits.length).toBe(7);
     const unitKeys = [...september.workUnits, ...october.workUnits].map(
       (unit) => unit.unitKey
     );

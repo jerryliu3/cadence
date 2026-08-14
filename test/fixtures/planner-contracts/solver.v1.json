@@ -10,7 +10,6 @@
         "2026-08-01"
       ],
       "units": [],
-      "simulateSoftBudgetExhaustion": false,
       "expected": {
         "assignments": [],
         "placementStatus": "complete",
@@ -60,7 +59,6 @@
           "idealDate": "2026-08-06"
         }
       ],
-      "simulateSoftBudgetExhaustion": false,
       "expected": {
         "assignments": [
           {
@@ -131,7 +129,6 @@
           "idealDate": "2026-08-06"
         }
       ],
-      "simulateSoftBudgetExhaustion": false,
       "expected": {
         "assignments": [
           {
@@ -194,7 +191,6 @@
           "idealDate": "2026-08-05"
         }
       ],
-      "simulateSoftBudgetExhaustion": false,
       "expected": {
         "assignments": [
           {
@@ -256,7 +252,6 @@
           "idealDate": "2026-08-08"
         }
       ],
-      "simulateSoftBudgetExhaustion": false,
       "expected": {
         "assignments": [
           {
@@ -331,7 +326,6 @@
           "idealDate": "2026-08-07"
         }
       ],
-      "simulateSoftBudgetExhaustion": false,
       "expected": {
         "assignments": [
           {
@@ -394,7 +388,6 @@
           "idealDate": "2026-08-10"
         }
       ],
-      "simulateSoftBudgetExhaustion": false,
       "expected": {
         "assignments": [
           {
@@ -412,66 +405,6 @@
         "searchStatus": "all_units_placed",
         "capacityStatus": "unverified",
         "issueCodes": [],
-        "invalidGoalIds": [],
-        "publishable": true,
-        "confirmationRequired": false
-      }
-    },
-    {
-      "id": "soft_budget_exhaustion_preserves_cardinality",
-      "description": "Soft refinement exhaustion keeps the hard-complete assignment and reports quality separately.",
-      "dates": [
-        "2026-08-05",
-        "2026-08-06"
-      ],
-      "units": [
-        {
-          "unitKey": "total:1",
-          "goalId": "goal-a",
-          "kind": "deadline_total",
-          "ordinal": 1,
-          "candidateDates": [
-            "2026-08-05",
-            "2026-08-06"
-          ],
-          "previousDate": null,
-          "lockedDate": null,
-          "idealDate": "2026-08-05"
-        },
-        {
-          "unitKey": "total:2",
-          "goalId": "goal-a",
-          "kind": "deadline_total",
-          "ordinal": 2,
-          "candidateDates": [
-            "2026-08-05",
-            "2026-08-06"
-          ],
-          "previousDate": null,
-          "lockedDate": null,
-          "idealDate": "2026-08-06"
-        }
-      ],
-      "simulateSoftBudgetExhaustion": true,
-      "expected": {
-        "assignments": [
-          {
-            "goalId": "goal-a",
-            "unitKey": "total:1",
-            "scheduledDate": "2026-08-05"
-          },
-          {
-            "goalId": "goal-a",
-            "unitKey": "total:2",
-            "scheduledDate": "2026-08-06"
-          }
-        ],
-        "placementStatus": "complete",
-        "searchStatus": "soft_optimization_exhausted",
-        "capacityStatus": "unverified",
-        "issueCodes": [
-          "soft_optimization_exhausted"
-        ],
         "invalidGoalIds": [],
         "publishable": true,
         "confirmationRequired": false

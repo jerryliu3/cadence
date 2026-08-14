@@ -56,6 +56,7 @@ import {
   type NormalizedGoalRequirement,
 } from "@/lib/planner/requirements";
 import { solveOrderedDpV1 } from "@/lib/planner/solver/ordered-dp-v1";
+import { computeLifetimeIdealDate } from "@/lib/planner/solver/ideal-dates";
 import { projectWorkUnitsToSolver } from "@/lib/planner/solver/project";
 import type {
   PlannerIssueCode,
@@ -174,19 +175,6 @@ function currentLinkRole(
   return "none";
 }
 
-function ownerMonthForOrdinal({
-  months,
-  targetCount,
-  ordinal,
-}: {
-  months: string[];
-  targetCount: number;
-  ordinal: number;
-}) {
-  const ownerIndex = Math.floor(((ordinal - 1) * months.length) / targetCount);
-  return months[ownerIndex]!;
-}
-
 function countDateWindowDays({
   start,
   end,
@@ -239,6 +227,12 @@ function allocateOrdinalWindow({
     compareCanonicalStrings(asOfDate, goal.start_date) > 0
       ? asOfDate
       : goal.start_date;
+  const lifetimeEnd = goal.end_date ?? goal.start_date;
+  const ownershipWindow =
+    compareCanonicalStrings(projectableStart, lifetimeEnd) <= 0
+      ? { start: projectableStart, end: lifetimeEnd }
+      : { start: goal.start_date, end: lifetimeEnd };
+  const ownershipCandidateDates = enumerateDates(ownershipWindow);
   const reservedCompletionDates = new Set(
     reconciledUnits
       .map((unit) => unit.creditedCompletionDate)
@@ -285,11 +279,16 @@ function allocateOrdinalWindow({
   );
   const ownerMonthByOrdinal = new Map<number, string>();
   for (let ordinal = 1; ordinal <= requirement.targetCount; ordinal += 1) {
-    const ownerMonth = ownerMonthForOrdinal({
-      months: lifetimeMonths,
-      targetCount: requirement.targetCount,
+    const targetDate = computeLifetimeIdealDate({
+      goalId: goal.id,
       ordinal,
+      targetCount: requirement.targetCount,
+      remainingLifetime: ownershipWindow,
+      candidateDates: ownershipCandidateDates,
     });
+    const ownerMonth = targetDate
+      ? monthFromDate(targetDate)
+      : lifetimeMonths[lifetimeMonths.length - 1]!;
     ownerMonthByOrdinal.set(ordinal, ownerMonth);
     ownerUncreditedByMonth.get(ownerMonth)!.push(ordinal);
   }
@@ -317,13 +316,7 @@ function allocateOrdinalWindow({
     if (pinnedDate === null) {
       continue;
     }
-    const ownerMonth =
-      ownerMonthByOrdinal.get(unit.ordinal) ??
-      ownerMonthForOrdinal({
-        months: lifetimeMonths,
-        targetCount: requirement.targetCount,
-        ordinal: unit.ordinal,
-      });
+    const ownerMonth = ownerMonthByOrdinal.get(unit.ordinal)!;
     const scheduledMonth = monthFromDate(pinnedDate);
     const pinnedMonth = lifetimeMonths.includes(scheduledMonth)
       ? scheduledMonth
@@ -402,9 +395,6 @@ function suggestedRelaxations(issueCodes: PlannerIssueCode[]) {
   }
   if (issueCodes.includes("invalid_lock")) {
     suggestions.add("Unlock the conflicting item before regenerating.");
-  }
-  if (issueCodes.includes("soft_optimization_exhausted")) {
-    suggestions.add("Keep the hard-feasible plan or retry optimization.");
   }
   return Array.from(suggestions);
 }
@@ -776,6 +766,40 @@ export function runPlannerKernel(
               assignment.scheduledDate,
             ])
           );
+          const releasedUnitByGoalDate = new Map(
+            released.assignments.flatMap((assignment) =>
+              assignment.scheduledDate
+                ? [
+                    [
+                      `${assignment.goalId}\u0000${assignment.scheduledDate}`,
+                      assignment,
+                    ] as const,
+                  ]
+                : []
+            )
+          );
+          for (const unit of solverUnits) {
+            const unitId = getSolverUnitId(unit);
+            if (!pinnedUnitIds.has(unitId) || unit.lockedDate === null) {
+              continue;
+            }
+            const occupant = releasedUnitByGoalDate.get(
+              `${unit.goalId}\u0000${unit.lockedDate}`
+            );
+            if (occupant && getSolverUnitId(occupant) !== unitId) {
+              throw new PlannerError(
+                "validation_failed",
+                400,
+                "Draft pin targets a date occupied by another unit.",
+                {
+                  goalId: unit.goalId,
+                  unitKey: unit.unitKey,
+                  conflictingUnitKey: occupant.unitKey,
+                  scheduledDate: unit.lockedDate,
+                }
+              );
+            }
+          }
           return solverUnits.map((unit) => {
             const anchor =
               anchorByUnitId.get(getSolverUnitId(unit)) ?? unit.previousDate;
