@@ -125,6 +125,7 @@ import {
   createDefaultPlannerPolicy,
   type PlannerPolicy,
 } from "@/lib/planner/policy";
+import { shouldUseDirectDraftPersistence } from "@/lib/planner/save-persistence";
 import { withPlannerRefreshTimeout } from "@/lib/planner/refresh-timeout";
 import { captureViewportRect } from "@/lib/xp/events";
 import { mergeCompletionFactMarkers } from "@/features/planner/calendar-partner-overlay";
@@ -1679,6 +1680,7 @@ export function CalendarSurface({
           operation: loadContext({
             showLoading: false,
             toastOnError: false,
+            forcePrepare: true,
           }),
           timeoutMessage:
             "Lock updated, but calendar refresh timed out. Please refresh the page.",
@@ -1856,10 +1858,11 @@ export function CalendarSurface({
     try {
       const refreshPolicy =
         effectiveDraftPolicy ?? context.preferences?.defaultPolicy ?? null;
-      const hasDirectMoves = draftSaveCommands.some(
-        (command) => command.kind === "move_item"
-      );
-      if (hasDirectMoves) {
+      const useDirectDraftPersistence = shouldUseDirectDraftPersistence({
+        draftCommands: draftSaveCommands,
+        requestedPolicy: effectiveDraftPolicy,
+      });
+      if (useDirectDraftPersistence) {
         try {
           payload = await postJson<
             PlannerErrorPayload & {

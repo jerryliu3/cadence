@@ -39,6 +39,7 @@ import {
   toKernelWindowFromDates,
 } from "@/lib/planner/dates";
 import { plannerPolicySchema } from "@/lib/planner/policy";
+import { shouldUseDirectDraftPersistence } from "@/lib/planner/save-persistence";
 import type { Json } from "@/lib/supabase/database.types";
 import { createClient } from "@/lib/supabase/server";
 
@@ -292,8 +293,11 @@ export async function handlePlannerSave(request: Request) {
       );
     }
     let persistence: ReturnType<typeof buildPlannerPublishPersistencePayload>;
-    const hasDirectDraftCommands = draftCommands.length > 0;
-    if (hasDirectDraftCommands) {
+    const useDirectDraftPersistence = shouldUseDirectDraftPersistence({
+      draftCommands,
+      requestedPolicy,
+    });
+    if (useDirectDraftPersistence) {
       try {
         const persistedItems = await loadAllPlannerItems(
           routeContext.supabase,
