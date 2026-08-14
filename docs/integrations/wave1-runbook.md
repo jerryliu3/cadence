@@ -22,8 +22,11 @@ paste raw health values into tickets, Slack, or Sentry notes.
    `stale` plus `lastError`.
 3. If ingest returns `health_ingest_failed`, inspect Sentry for the correlation
    ID. Dedup outcomes are counts only.
-4. Mobile: resync from Integrations. iOS uses HealthKit anchors; Android uses
-   the Health Connect change token. Disconnect clears those local tokens.
+4. Mobile: foreground AppState, HealthKit `subscribeToChanges`, and the
+   Integrations resync button all post to `/api/health/samples`. iOS uses
+   HealthKit anchors; Android uses `readRecords` for the first/expired
+   token window and `getChanges` afterward. Disconnect clears those local
+   tokens and stops automatic sync until the user connects again.
 
 ## Auto-complete
 
