@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { MAX_HORIZON_MONTHS } from "@/lib/planner/contracts/bounds";
 import {
   getGoalDeadlineMonthSpan,
+  getGoalHorizonEndDate,
   isOrdinalGoalDefinition,
   validateGoalDefinition,
 } from "@/lib/goals/definition-validation";
@@ -81,6 +82,13 @@ describe("goal definition validation", () => {
         endDate: "2028-01-01",
       })[0]
     ).toMatchObject({ code: "horizon_too_long" });
+    expect(getGoalHorizonEndDate("2026-01-01")).toBe("2027-12-31");
+    expect(
+      getGoalDeadlineMonthSpan({
+        startDate: "2026-01-01",
+        endDate: getGoalHorizonEndDate("2026-01-01") ?? "",
+      })
+    ).toBe(MAX_HORIZON_MONTHS);
   });
 
   it("uses strict civil-date parsing for month-span checks", () => {

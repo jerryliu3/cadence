@@ -44,6 +44,23 @@ export function isOrdinalGoalDefinition({
   );
 }
 
+export function getGoalHorizonEndDate(startDate: string): string | null {
+  if (!isIsoDate(startDate)) {
+    return null;
+  }
+  const [yearPart, monthPart] = startDate.split("-");
+  const year = Number(yearPart);
+  const month = Number(monthPart);
+  if (!Number.isInteger(year) || !Number.isInteger(month) || month < 1 || month > 12) {
+    return null;
+  }
+  const endMonthIndex = month - 1 + MAX_HORIZON_MONTHS - 1;
+  const endYear = year + Math.floor(endMonthIndex / 12);
+  const endMonth = (endMonthIndex % 12) + 1;
+  const lastDay = new Date(Date.UTC(endYear, endMonth, 0)).getUTCDate();
+  return `${endYear}-${String(endMonth).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
+}
+
 export function getGoalDeadlineMonthSpan({
   startDate,
   endDate,
