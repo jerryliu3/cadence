@@ -26,7 +26,7 @@ import {
   buildDraftPinnedDatesFromCommands,
   plannerDraftCommandSchema,
 } from "@/lib/planner/draft-commands";
-import { toPlannerScheduleWindow } from "@/lib/planner/dates";
+import { toKernelWindow, toPlannerScheduleWindow } from "@/lib/planner/dates";
 import { plannerPolicySchema } from "@/lib/planner/policy";
 import type { Json } from "@/lib/supabase/database.types";
 import { createClient } from "@/lib/supabase/server";
@@ -252,7 +252,7 @@ export async function handlePlannerSave(request: Request) {
         const snapshot = await loadPlannerCanonicalSnapshot({
           supabase: routeContext.supabase,
           ownerId: routeContext.userId,
-          scopeMonth: scopePublish.scopeMonth,
+          ...toKernelWindow(scopePublish.scopeMonth),
         });
 
         if (!snapshot.preferences) {
@@ -297,7 +297,7 @@ export async function handlePlannerSave(request: Request) {
               scopePublish.preserveExistingAssignments ?? requestedPolicy === null,
             draftPinnedDates,
             ownerId: routeContext.userId,
-            scopeMonth: scopePublish.scopeMonth,
+            ...toKernelWindow(scopePublish.scopeMonth),
             asOfDate,
             timezone: snapshot.preferences.timezone,
             goals: snapshot.goals,

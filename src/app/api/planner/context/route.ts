@@ -32,6 +32,7 @@ import {
 import { normalizeGoalRequirement } from "@/lib/planner/requirements";
 import { evaluateActivePlanStaleness } from "@/lib/planner/staleness";
 import { createClient } from "@/lib/supabase/server";
+import { toKernelWindow } from "@/lib/planner/dates";
 
 export const runtime = "nodejs";
 
@@ -208,7 +209,7 @@ function resolvePlannerPreview({
         schemaVersion: PLANNER_CONTRACT_VERSION,
         eligibilityMode: PLANNER_ELIGIBILITY_MODES[0],
         ownerId,
-        scopeMonth,
+        ...toKernelWindow(scopeMonth),
         asOfDate,
         timezone: effectiveTimezone,
         goals: snapshot.goals,
@@ -270,7 +271,7 @@ export async function GET(request: Request) {
     const snapshot = await loadPlannerCanonicalSnapshot({
       supabase: routeContext.supabase,
       ownerId: routeContext.userId,
-      scopeMonth: parsedQuery.data.scopeMonth,
+      ...toKernelWindow(parsedQuery.data.scopeMonth),
     });
 
     const activeAssessments = (snapshot.activePlan?.goals ?? []).map((goal) =>
@@ -423,7 +424,7 @@ export async function POST(request: Request) {
     const snapshot = await loadPlannerCanonicalSnapshot({
       supabase: routeContext.supabase,
       ownerId: routeContext.userId,
-      scopeMonth: body.scopeMonth,
+      ...toKernelWindow(body.scopeMonth),
     });
 
     let resolvedPreview: ReturnType<typeof resolvePlannerPreview>;

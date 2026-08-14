@@ -71,7 +71,12 @@ export function isEndMonthCadenceUnit(
   scopeMonth: string,
   period: DateWindow
 ) {
-  return owningMonthForPeriod(period) === scopeMonth;
+  return isCadenceUnitInWindow(getScopeDateRange(scopeMonth), period);
+}
+
+export function isCadenceUnitInWindow(window: DateWindow, period: DateWindow) {
+  const owningMonthRange = getScopeDateRange(owningMonthForPeriod(period));
+  return intersectDateWindows(owningMonthRange, window) !== null;
 }
 
 export function owningMonthForPeriod(period: DateWindow) {
@@ -208,7 +213,7 @@ function resolveDraftMoveWindow({
 export function materializeWorkUnits({
   goal,
   normalizedRequirement,
-  scopeMonth,
+  window,
   asOfDate,
   baseAssignments = [],
   ordinalsForScopeMonth,
@@ -216,17 +221,16 @@ export function materializeWorkUnits({
 }: {
   goal: Goal;
   normalizedRequirement: NormalizedGoalRequirement;
-  scopeMonth: string;
+  window: DateWindow;
   asOfDate: string;
   baseAssignments?: PlannerBaseAssignment[];
   ordinalsForScopeMonth?: Set<number>;
   weeklyAnchor?: WeeklyAnchorContext | null;
 }): PlannerWorkUnit[] {
   const requirement = normalizedRequirement.requirement;
-  const scope = getScopeDateRange(scopeMonth);
   const planningWindowEnd =
-    goal.end_date === null || compareDateStrings(goal.end_date, scope.end) > 0
-      ? scope.end
+    goal.end_date === null || compareDateStrings(goal.end_date, window.end) > 0
+      ? window.end
       : goal.end_date;
   const lifetime = {
     start: goal.start_date,
@@ -255,7 +259,7 @@ export function materializeWorkUnits({
         "Planner ordinal work units require an explicit ordinal scope allocation."
       );
     }
-    const placementWindow = intersectDateWindows(scope, {
+    const placementWindow = intersectDateWindows(window, {
       start:
         compareDateStrings(asOfDate, goal.start_date) > 0
           ? asOfDate
@@ -264,7 +268,7 @@ export function materializeWorkUnits({
     });
     const classification: WorkUnitClassification =
       placementWindow === null &&
-      compareDateStrings(scope.end, asOfDate) < 0
+      compareDateStrings(window.end, asOfDate) < 0
         ? "historical_shortfall"
         : placementWindow &&
             compareDateStrings(placementWindow.start, asOfDate) > 0
@@ -305,7 +309,7 @@ export function materializeWorkUnits({
   const firstPeriod = getAnchoredPeriod(
     goal.start_date,
     interval,
-    scope.start,
+    window.start,
     weeklyAnchor
   );
 
@@ -330,11 +334,11 @@ export function materializeWorkUnits({
       weeklyAnchor
     );
     const creditWindow = intersectDateWindows(period, lifetime);
-    if (!creditWindow || !isEndMonthCadenceUnit(scopeMonth, period)) {
+    if (!creditWindow || !isCadenceUnitInWindow(window, period)) {
       continue;
     }
 
-    const placementWindow = intersectDateWindows(creditWindow, scope, {
+    const placementWindow = intersectDateWindows(creditWindow, window, {
       start: asOfDate,
       end: goal.end_date ?? OPEN_ENDED_HORIZON_END,
     });

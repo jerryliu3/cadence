@@ -27,9 +27,10 @@ import {
   enumerateMonthsInWindow,
   enumerateDates,
   getScopeDateRange,
-  getScopeState,
+  getWindowState,
   intersectDateWindows,
   monthFromDate,
+  type DateWindow,
 } from "@/lib/planner/dates";
 import {
   evaluateGoalEligibility,
@@ -96,7 +97,8 @@ export interface PlannerKernelInput {
   preserveExistingAssignments?: boolean;
   draftPinnedDates?: Record<string, string>;
   ownerId: string;
-  scopeMonth: string;
+  startDate: string;
+  endDate: string;
   asOfDate: string;
   timezone: string;
   goals: Goal[];
@@ -147,7 +149,7 @@ export interface PlannerGoalHorizonSummary {
   totalCount: number;
   creditedCount: number;
   remainingCount: number;
-  scopeMonthPlannedCount: number;
+  windowPlannedCount: number;
   months: Array<{
     month: string;
     plannedCount: number;
@@ -201,16 +203,16 @@ function countDateWindowDays({
   );
 }
 
-function allocateOrdinalScopeMonth({
+function allocateOrdinalWindow({
   goal,
   normalizedRequirement,
-  scopeMonth,
+  window,
   asOfDate,
   reconciledUnits,
 }: {
   goal: Goal;
   normalizedRequirement: NormalizedGoalRequirement;
-  scopeMonth: string;
+  window: DateWindow;
   asOfDate: string;
   reconciledUnits: PlannerWorkUnit[];
 }): OrdinalScopeAllocation | undefined {
@@ -222,7 +224,8 @@ function allocateOrdinalScopeMonth({
     start: goal.start_date,
     end: goal.end_date ?? goal.start_date,
   });
-  if (!lifetimeMonths.includes(scopeMonth)) {
+  const windowMonths = enumerateMonthsInWindow(window);
+  if (!windowMonths.some((month) => lifetimeMonths.includes(month))) {
     return {
       scopedOrdinals: new Set<number>(),
       monthOrdinals: new Map(),
@@ -353,7 +356,9 @@ function allocateOrdinalScopeMonth({
   }
 
   return {
-    scopedOrdinals: new Set(finalOrdinalsByMonth.get(scopeMonth) ?? []),
+    scopedOrdinals: new Set(
+      windowMonths.flatMap((month) => finalOrdinalsByMonth.get(month) ?? [])
+    ),
     monthOrdinals: finalOrdinalsByMonth,
   };
 }
@@ -416,7 +421,11 @@ export function runPlannerKernel(
   const weeklyAnchorContext = {
     weekStartsOn: normalizeWeekStartsOn(policy.weekStartsOn),
   };
-  const scopeState = getScopeState(rawInput.scopeMonth, rawInput.asOfDate);
+  const window = {
+    start: rawInput.startDate,
+    end: rawInput.endDate,
+  };
+  const scopeState = getWindowState(window, rawInput.asOfDate);
   if (policy.timezone !== rawInput.timezone) {
     throw new PlannerError(
       "validation_failed",
@@ -440,7 +449,7 @@ export function runPlannerKernel(
   const eligibility = goals.map((goal) => ({
     goal,
     decision: evaluateGoalEligibility({
-      scopeMonth: rawInput.scopeMonth,
+      window,
       ownerId: rawInput.ownerId,
       goal,
       currentLinkRole: currentLinkRole(goal.id, links),
@@ -571,7 +580,7 @@ export function runPlannerKernel(
     const materialized = materializeWorkUnits({
       goal,
       normalizedRequirement: requirement,
-      scopeMonth: rawInput.scopeMonth,
+      window,
       asOfDate: rawInput.asOfDate,
       baseAssignments,
       ordinalsForScopeMonth: reconcileAcrossAllOrdinals,
@@ -590,10 +599,10 @@ export function runPlannerKernel(
     const ordinalAllocation =
       requirement.requirement.kind === "cadence"
         ? undefined
-        : allocateOrdinalScopeMonth({
+        : allocateOrdinalWindow({
             goal,
             normalizedRequirement: requirement,
-            scopeMonth: rawInput.scopeMonth,
+            window,
             asOfDate: rawInput.asOfDate,
             reconciledUnits: reconciled.units,
           });
@@ -636,7 +645,7 @@ export function runPlannerKernel(
           requirement.requirement.targetCount - creditedCount,
           0
         ),
-        scopeMonthPlannedCount: scopedOrdinals?.size ?? 0,
+        windowPlannedCount: scopedOrdinals?.size ?? 0,
         months: Array.from(ordinalAllocation.monthOrdinals.entries())
           .map(([month, ordinals]) => ({
             month,
@@ -692,7 +701,7 @@ export function runPlannerKernel(
       rawInput.preserveExistingAssignments === true,
     draftPinnedDates: rawInput.draftPinnedDates ?? {},
   });
-  const dates = enumerateDates(getScopeDateRange(rawInput.scopeMonth));
+  const dates = enumerateDates(window);
   const solveIntentForRun = rawInput.solveIntent ?? "stable";
   const draftPinnedDates = rawInput.draftPinnedDates ?? {};
   const pinnedUnitIds = new Set(
@@ -859,7 +868,8 @@ export function runPlannerKernel(
     preserveExistingAssignments:
       rawInput.preserveExistingAssignments === true,
     draftPinnedDates: rawInput.draftPinnedDates ?? {},
-    scopeMonth: rawInput.scopeMonth,
+    startDate: rawInput.startDate,
+    endDate: rawInput.endDate,
     asOfDate: rawInput.asOfDate,
     timezone: rawInput.timezone,
     goals: eligibleGoals,

@@ -133,28 +133,6 @@ export interface PlannerCanonicalSnapshot {
   activePlan: ActiveExecutionPlanSnapshot | null;
 }
 
-function toScopeMonthDate(scopeMonth: string) {
-  return `${scopeMonth}-01`;
-}
-
-function nextScopeMonthDate(scopeMonthDate: string) {
-  const [yearText, monthText] = scopeMonthDate.split("-");
-  const year = Number(yearText);
-  const month = Number(monthText);
-  if (!Number.isFinite(year) || !Number.isFinite(month)) {
-    throw new PlannerRouteError(
-      400,
-      "validation_failed",
-      "Provide a valid scope month and optional bounded planner context dates."
-    );
-  }
-  const nextMonth = month === 12 ? 1 : month + 1;
-  const nextYear = month === 12 ? year + 1 : year;
-  return `${nextYear.toString().padStart(4, "0")}-${nextMonth
-    .toString()
-    .padStart(2, "0")}-01`;
-}
-
 function requireTableRead(error: { message: string } | null, code: string) {
   if (error) {
     throw new PlannerRouteError(
@@ -338,19 +316,18 @@ async function loadPlannerPreferences(
   return resolvePlannerPreferencesSnapshot({ profile });
 }
 
-async function loadPlannerItemsForScope(
+async function loadPlannerItemsForWindow(
   supabase: ServerSupabaseClient,
   ownerId: string,
-  scopeMonth: string
+  startDate: string,
+  endDate: string
 ) {
-  const scopeMonthDate = toScopeMonthDate(scopeMonth);
-  const nextMonthDate = nextScopeMonthDate(scopeMonthDate);
   const itemsResponse = await supabase
     .from("planner_items")
     .select("*")
     .eq("owner_id", ownerId)
-    .gte("scheduled_date", scopeMonthDate)
-    .lt("scheduled_date", nextMonthDate)
+    .gte("scheduled_date", startDate)
+    .lte("scheduled_date", endDate)
     .order("scheduled_date")
     .order("goal_id")
     .order("unit_key");
@@ -359,7 +336,7 @@ async function loadPlannerItemsForScope(
 }
 
 async function loadActivePlanSnapshot(
-  scopeMonth: string,
+  windowKey: string,
   plannerItems: PlannerItemRow[],
   goals: Goal[],
   completions: Completion[],
@@ -468,7 +445,7 @@ async function loadActivePlanSnapshot(
     preferences?.default_policy ??
       createDefaultPlannerPolicy(timezone, new Date().toISOString())
   );
-  const planId = `planner-items-${scopeMonth}`;
+  const planId = `planner-items-${windowKey}`;
 
   return {
     plan: {
@@ -502,18 +479,20 @@ async function loadActivePlanSnapshot(
 export async function loadPlannerCanonicalSnapshot({
   supabase,
   ownerId,
-  scopeMonth,
+  startDate,
+  endDate,
 }: {
   supabase: ServerSupabaseClient;
   ownerId: string;
-  scopeMonth: string;
+  startDate: string;
+  endDate: string;
 }): Promise<PlannerCanonicalSnapshot> {
   const [goals, links, revisions, preferences, plannerItems] = await Promise.all([
     loadOwnerGoals(supabase, ownerId),
     loadOwnerLinks(supabase, ownerId),
     loadRevisionTokens(supabase),
     loadPlannerPreferences(supabase, ownerId),
-    loadPlannerItemsForScope(supabase, ownerId, scopeMonth),
+    loadPlannerItemsForWindow(supabase, ownerId, startDate, endDate),
   ]);
   const completions = await loadOwnerCompletions(
     supabase,
@@ -521,7 +500,7 @@ export async function loadPlannerCanonicalSnapshot({
     goals.map((goal) => goal.id)
   );
   const activePlan = await loadActivePlanSnapshot(
-    scopeMonth,
+    `${startDate}:${endDate}`,
     plannerItems,
     goals,
     completions,
