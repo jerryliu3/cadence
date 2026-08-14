@@ -311,6 +311,30 @@ describe("planner draft move windows", () => {
       end: "2026-09-06",
     });
   });
+
+  it("lets ordinals move into earlier months while viewing a later month", () => {
+    const goal = buildGoal({
+      target_count: 2,
+      start_date: "2026-08-01",
+      end_date: "2026-10-31",
+    });
+    const units = materializeWorkUnits({
+      goal,
+      normalizedRequirement: normalizeGoalRequirement(goal),
+      window: getScopeDateRange("2026-10"),
+      asOfDate: "2026-08-13",
+      ordinalsForScopeMonth: new Set([1]),
+    });
+
+    expect(units[0]?.placementWindow).toEqual({
+      start: "2026-10-01",
+      end: "2026-10-31",
+    });
+    expect(units[0]?.draftMoveWindow).toEqual({
+      start: "2026-08-13",
+      end: "2026-10-31",
+    });
+  });
 });
 
 describe("planner time defaults", () => {

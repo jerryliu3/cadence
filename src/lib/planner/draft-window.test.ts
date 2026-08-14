@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildPlannerDraftSaveWindow,
+  plannerDraftWindowUnavailableMessage,
   tryBuildPlannerDraftSaveWindow,
   windowCoveringMonths,
 } from "@/lib/planner/draft-window";
@@ -94,5 +95,10 @@ describe("buildPlannerDraftSaveWindow", () => {
         workUnits: [],
       })
     ).toEqual({ ok: false, code: "too_wide" });
+    expect(
+      plannerDraftWindowUnavailableMessage({ ok: false, code: "too_wide" })
+    ).toBe(
+      "That date is more than 12 months from this draft. Save first, then move further."
+    );
   });
 });

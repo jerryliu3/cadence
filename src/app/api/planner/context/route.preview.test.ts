@@ -164,6 +164,7 @@ describe("planner context preview route", () => {
     expect(mocks.runPlannerKernel).toHaveBeenCalledWith(
       expect.objectContaining({
         solveIntent: "replan",
+        preserveExistingAssignments: false,
         draftPinnedDates: {
           "22222222-2222-4222-8222-222222222222:total:1": "2026-08-20",
         },
