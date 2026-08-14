@@ -14,12 +14,10 @@ export type DraftTimeOverridePlan =
     };
 
 export function planDraftTimeOverrideUpdate({
-  scopeMonth,
   entry,
   localTimeInput,
   baselineOverride,
 }: {
-  scopeMonth: string;
   entry: PlannerDayDetailEntry;
   localTimeInput: string;
   baselineOverride: string | null;
@@ -43,14 +41,12 @@ export function planDraftTimeOverrideUpdate({
 
   const removeSetAction: DraftCommandAction = {
     type: "remove_kind",
-    scopeMonth,
     kind: "set_item_time_override",
     goalId: entry.originalGoalId,
     unitKey: entry.unitKey,
   };
   const removeClearAction: DraftCommandAction = {
     type: "remove_kind",
-    scopeMonth,
     kind: "clear_item_time_override",
     goalId: entry.originalGoalId,
     unitKey: entry.unitKey,
@@ -68,7 +64,6 @@ export function planDraftTimeOverrideUpdate({
       actions: [
         {
           type: "clear_time_override",
-          scopeMonth,
           goalId: entry.originalGoalId,
           unitKey: entry.unitKey,
         },
@@ -88,7 +83,6 @@ export function planDraftTimeOverrideUpdate({
     actions: [
       {
         type: "upsert_time_override",
-        scopeMonth,
         goalId: entry.originalGoalId,
         unitKey: entry.unitKey,
         localTime: normalizedTime,

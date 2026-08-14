@@ -84,15 +84,12 @@ describe("planner save route", () => {
     mocks.parseBoundedJsonBody.mockResolvedValue({
       expectedDigest:
         "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
-      scopes: [
-        {
-          scopeMonth: "2026-08",
-          previewHash:
-            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-          confirmationHash: null,
-          draftCommands: [],
-        },
-      ],
+      startDate: "2026-08-01",
+      endDate: "2026-08-31",
+      previewHash:
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      confirmationHash: null,
+      draftCommands: [],
     });
     mocks.resolveCanonicalAsOfDate.mockReturnValue("2026-08-05");
     mocks.loadPlannerCanonicalSnapshot.mockResolvedValue({
@@ -148,16 +145,13 @@ describe("planner save route", () => {
     mocks.parseBoundedJsonBody.mockResolvedValueOnce({
       expectedDigest:
         "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
-      scopes: [
-        {
-          scopeMonth: "2026-08",
-          previewHash:
-            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-          confirmationHash: null,
-          draftCommands: [],
-          policy: createDefaultPlannerPolicy("UTC", "2026-08-01T00:00:00.000Z"),
-        },
-      ],
+      startDate: "2026-08-01",
+      endDate: "2026-08-31",
+      previewHash:
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      confirmationHash: null,
+      draftCommands: [],
+      policy: createDefaultPlannerPolicy("UTC", "2026-08-01T00:00:00.000Z"),
     });
     mocks.runPlannerKernel.mockImplementation(() => {
       throw new PlannerError(
@@ -180,26 +174,16 @@ describe("planner save route", () => {
     );
   });
 
-  it("publishes multiple scope payloads in one batch RPC call", async () => {
+  it("publishes a cross-month window with one kernel solve and one schedule write", async () => {
     mocks.parseBoundedJsonBody.mockResolvedValueOnce({
       expectedDigest:
         "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
-      scopes: [
-        {
-          scopeMonth: "2026-08",
-          previewHash:
-            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-          confirmationHash: null,
-          draftCommands: [],
-        },
-        {
-          scopeMonth: "2026-09",
-          previewHash:
-            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-          confirmationHash: null,
-          draftCommands: [],
-        },
-      ],
+      startDate: "2026-08-01",
+      endDate: "2026-09-30",
+      previewHash:
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      confirmationHash: null,
+      draftCommands: [],
     });
     mocks.runPlannerKernel.mockReturnValue({
       generationInputHash:
@@ -220,26 +204,27 @@ describe("planner save route", () => {
     );
 
     expect(response.status).toBe(200);
-    expect(mocks.runPlannerKernel).toHaveBeenCalledTimes(2);
-    expect(mocks.routeRpc).toHaveBeenCalledWith(
-      "set_planner_schedule_batch",
+    expect(mocks.runPlannerKernel).toHaveBeenCalledTimes(1);
+    expect(mocks.runPlannerKernel).toHaveBeenCalledWith(
       expect.objectContaining({
-        p_expected_digest:
-          "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
-        p_batches: expect.any(Array),
+        startDate: "2026-08-01",
+        endDate: "2026-09-30",
       })
     );
-    const rpcPayload = mocks.routeRpc.mock.calls.at(-1)?.[1] as {
-      p_batches: Array<{ start_date: string; end_date: string; items: unknown[] }>;
-    };
-    expect(rpcPayload.p_batches).toHaveLength(2);
-    expect(rpcPayload.p_batches[0]).toMatchObject({
-      start_date: "2026-08-01",
-      end_date: "2026-08-31",
-    });
-    expect(rpcPayload.p_batches[1]).toMatchObject({
-      start_date: "2026-09-01",
-      end_date: "2026-09-30",
+    expect(mocks.routeRpc).toHaveBeenCalledWith(
+      "set_planner_schedule",
+      expect.objectContaining({
+        p_start: "2026-08-01",
+        p_end: "2026-09-30",
+        p_expected_digest:
+          "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      })
+    );
+    await expect(response.json()).resolves.toMatchObject({
+      publishedWindow: {
+        startDate: "2026-08-01",
+        endDate: "2026-09-30",
+      },
     });
   });
 
@@ -355,7 +340,7 @@ describe("planner save route", () => {
     });
   });
 
-  it("maps cross-scope duplicate unit validation to typed 400 responses", async () => {
+  it("maps schedule payload validation errors to typed 400 responses", async () => {
     mocks.runPlannerKernel.mockReturnValue({
       generationInputHash:
         "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",

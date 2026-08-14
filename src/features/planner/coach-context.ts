@@ -11,7 +11,7 @@ interface CoachHorizonGoalSummary {
   totalCount: number;
   creditedCount: number;
   remainingCount: number;
-  scopeMonthPlannedCount: number;
+  windowPlannedCount: number;
   months: Array<{
     month: string;
     plannedCount: number;
@@ -99,7 +99,7 @@ export function buildCoachDeterministicSummary({
           ? ` (+${monthTokens.length - visibleMonthTokens.length} more)`
           : "";
       return [
-        `goal=${goalTitle}|scope=${summary.scopeMonthPlannedCount}|total=${summary.totalCount}|credited=${summary.creditedCount}|remaining=${summary.remainingCount}`,
+        `goal=${goalTitle}|window=${summary.windowPlannedCount}|total=${summary.totalCount}|credited=${summary.creditedCount}|remaining=${summary.remainingCount}`,
         `months=${visibleMonthTokens.join(",")}${monthSuffix}`,
       ];
     });

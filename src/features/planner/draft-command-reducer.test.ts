@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   draftCommandReducer,
   initialDraftCommandState,
-  selectDraftCommandsForScope,
+  selectDraftCommands,
 } from "@/features/planner/draft-command-reducer";
 
 describe("draftCommandReducer remove_entries", () => {
@@ -10,21 +10,18 @@ describe("draftCommandReducer remove_entries", () => {
     let state = initialDraftCommandState;
     state = draftCommandReducer(state, {
       type: "upsert_move",
-      scopeMonth: "2026-08",
       goalId: "goal-a",
       unitKey: "unit-1",
       scheduledDate: "2026-08-03",
     });
     state = draftCommandReducer(state, {
       type: "upsert_rename",
-      scopeMonth: "2026-08",
       goalId: "goal-a",
       unitKey: "unit-1",
       label: "Renamed",
     });
     state = draftCommandReducer(state, {
       type: "upsert_time_override",
-      scopeMonth: "2026-08",
       goalId: "goal-b",
       unitKey: "unit-2",
       localTime: "09:30",
@@ -32,11 +29,10 @@ describe("draftCommandReducer remove_entries", () => {
 
     const next = draftCommandReducer(state, {
       type: "remove_entries",
-      scopeMonth: "2026-08",
       entries: [{ goalId: "goal-a", unitKey: "unit-1" }],
     });
 
-    const commands = selectDraftCommandsForScope(next, "2026-08");
+    const commands = selectDraftCommands(next);
     expect(
       commands.some(
         (command) =>
@@ -55,30 +51,26 @@ describe("draftCommandReducer remove_entries", () => {
   });
 });
 
-describe("draftCommandReducer scope isolation", () => {
-  it("keeps entries from other scopes when removing one scope", () => {
+describe("draftCommandReducer global commands", () => {
+  it("keeps a later move for the same unit instead of isolating by month", () => {
     let state = initialDraftCommandState;
     state = draftCommandReducer(state, {
       type: "upsert_move",
-      scopeMonth: "2026-08",
       goalId: "goal-a",
       unitKey: "unit-1",
       scheduledDate: "2026-08-03",
     });
     state = draftCommandReducer(state, {
       type: "upsert_move",
-      scopeMonth: "2026-09",
       goalId: "goal-a",
       unitKey: "unit-1",
       scheduledDate: "2026-09-02",
     });
 
-    const next = draftCommandReducer(state, {
-      type: "remove_scope",
-      scopeMonth: "2026-08",
+    expect(selectDraftCommands(state)).toHaveLength(1);
+    expect(selectDraftCommands(state)[0]).toMatchObject({
+      kind: "move_item",
+      scheduledDate: "2026-09-02",
     });
-
-    expect(selectDraftCommandsForScope(next, "2026-08")).toEqual([]);
-    expect(selectDraftCommandsForScope(next, "2026-09")).toHaveLength(1);
   });
 });
