@@ -1,7 +1,5 @@
 import { differenceInDateStrings } from "@/lib/goals/periods";
 import { compareCanonicalStrings } from "@/lib/planner/canonical";
-import { getSoftRefinementOperationBudget } from "@/lib/planner/contracts/bounds";
-import { refineDailyLoadVariance } from "@/lib/planner/solver/soft-refinement";
 import type {
   PlannerSolverResult,
   SolverAssignment,
@@ -10,6 +8,10 @@ import type {
   SolverUnit,
 } from "@/lib/planner/solver/types";
 import { getSolverUnitId } from "@/lib/planner/solver/types";
+
+type SolverUnitInput = Omit<SolverUnit, "idealDate"> & {
+  idealDate?: string | null;
+};
 
 interface DpCell {
   objective: SolverObjective;
@@ -23,6 +25,8 @@ function addObjective(
   return {
     placed: left.placed + right.placed,
     moved: left.moved + right.moved,
+    idealDisplacement:
+      left.idealDisplacement + right.idealDisplacement,
     displacement: left.displacement + right.displacement,
     policyCost: left.policyCost + right.policyCost,
   };
@@ -42,6 +46,9 @@ function compareObjective(
   if (left.moved !== right.moved) {
     return left.moved < right.moved ? -1 : 1;
   }
+  if (left.idealDisplacement !== right.idealDisplacement) {
+    return left.idealDisplacement < right.idealDisplacement ? -1 : 1;
+  }
   if (left.displacement !== right.displacement) {
     return left.displacement < right.displacement ? -1 : 1;
   }
@@ -56,6 +63,9 @@ function scheduledObjective(unit: SolverUnit, date: string): SolverObjective {
   return {
     placed: 1,
     moved,
+    idealDisplacement: unit.idealDate
+      ? Math.abs(differenceInDateStrings(date, unit.idealDate))
+      : 0,
     displacement:
       moved && unit.previousDate
         ? Math.abs(differenceInDateStrings(date, unit.previousDate))
@@ -68,6 +78,7 @@ function nullObjective(unit: SolverUnit): SolverObjective {
   return {
     placed: 0,
     moved: unit.previousDate === null ? 0 : 1,
+    idealDisplacement: 0,
     displacement: 0,
     policyCost: 0,
   };
@@ -152,7 +163,13 @@ function solveGoal(
   );
 
   const terminalCell: DpCell = {
-    objective: { placed: 0, moved: 0, displacement: 0, policyCost: 0 },
+    objective: {
+      placed: 0,
+      moved: 0,
+      idealDisplacement: 0,
+      displacement: 0,
+      policyCost: 0,
+    },
     choice: null,
   };
   const cells: Array<Array<DpCell | null>> = Array.from(
@@ -248,7 +265,7 @@ export function solveOrderedDpV1({
   simulateSoftBudgetExhaustion = false,
 }: {
   dates: string[];
-  units: SolverUnit[];
+  units: SolverUnitInput[];
   solveIntent?: SolverSolveIntent;
   simulateSoftBudgetExhaustion?: boolean;
 }): PlannerSolverResult {
@@ -257,6 +274,7 @@ export function solveOrderedDpV1({
   const units = rawUnits
     .map((unit) => ({
       ...unit,
+      idealDate: unit.idealDate ?? null,
       candidateDates: Array.from(
         new Set(unit.candidateDates.filter((date) => dateSet.has(date)))
       ).sort(),
@@ -307,7 +325,7 @@ export function solveOrderedDpV1({
     }
   }
 
-  let assignments = units.map((unit) => ({
+  const assignments = units.map((unit) => ({
     goalId: unit.goalId,
     unitKey: unit.unitKey,
     scheduledDate: assignmentsByKey.get(getSolverUnitId(unit)) ?? null,
@@ -342,29 +360,6 @@ export function solveOrderedDpV1({
   const complete = placedCount === units.length;
 
   if (simulateSoftBudgetExhaustion) {
-    return {
-      assignments,
-      placementStatus: complete ? "complete" : "partial",
-      searchStatus: "soft_optimization_exhausted",
-      capacityStatus: "unverified",
-      issueCodes: [
-        ...(complete ? [] : (["placement_shortfall"] as const)),
-        "soft_optimization_exhausted",
-      ],
-      invalidGoalIds: [],
-      publishable: true,
-      confirmationRequired: !complete,
-    };
-  }
-
-  const refinement = refineDailyLoadVariance({
-    dates,
-    units,
-    assignments,
-    operationBudget: getSoftRefinementOperationBudget(units.length),
-  });
-  assignments = refinement.assignments;
-  if (refinement.exhausted) {
     return {
       assignments,
       placementStatus: complete ? "complete" : "partial",

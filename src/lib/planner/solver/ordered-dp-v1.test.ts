@@ -159,6 +159,26 @@ describe("ordered-dp-v1 solver", () => {
 
     expect(result.assignments[0].scheduledDate).toBe("2026-08-01");
   });
+
+  it("places fresh units nearest their independent ideal dates", () => {
+    const result = solveOrderedDpV1({
+      dates: ["2026-08-05", "2026-08-06", "2026-08-07"],
+      units: [
+        {
+          unitKey: "total:1",
+          goalId: "goal-a",
+          kind: "deadline_total",
+          ordinal: 1,
+          candidateDates: ["2026-08-05", "2026-08-06", "2026-08-07"],
+          previousDate: null,
+          lockedDate: null,
+          idealDate: "2026-08-07",
+        },
+      ],
+    });
+
+    expect(result.assignments[0].scheduledDate).toBe("2026-08-07");
+  });
 });
 
 describe("solve intent objective ordering", () => {
