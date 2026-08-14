@@ -1,3 +1,5 @@
+import { MAX_PLANNER_WINDOW_DAYS } from "@/lib/planner/contracts/bounds";
+
 export interface CoachPromptMessage {
   role: "user" | "assistant";
   content: string;
@@ -133,6 +135,7 @@ export function buildCoachPrompt({
     `Context as-of date: ${asOfDate}`,
     `Confirmed timezone: ${timezone}`,
     `Focus goal horizon markers: ${focusHorizonMarkers}`,
+    `Draft save windows are a contiguous span of whole months and cannot exceed ${MAX_PLANNER_WINDOW_DAYS} days. Do not propose session moves that jump farther than that from the current context window in one turn; the user must save first, then move further.`,
     `Total owner goals in context: ${allGoalsCount}`,
     deterministicSummary
       ? `Deterministic summary: ${deterministicSummary}`
