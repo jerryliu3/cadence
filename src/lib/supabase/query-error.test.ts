@@ -1,9 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  assertQueriesOk,
-  isSupabaseQueryError,
-  SupabaseQueryError,
-} from "@/lib/supabase/query-error";
+import { assertQueriesOk, SupabaseQueryError } from "@/lib/supabase/query-error";
 
 describe("assertQueriesOk", () => {
   it("passes when every response succeeded", () => {
@@ -23,11 +19,10 @@ describe("assertQueriesOk", () => {
       thrown = error;
     }
 
-    expect(isSupabaseQueryError(thrown)).toBe(true);
+    expect(thrown).toBeInstanceOf(SupabaseQueryError);
     expect((thrown as SupabaseQueryError).message).toBe(
       "Checklist goals could not be loaded."
     );
-    expect((thrown as SupabaseQueryError).code).toBe("query_failed");
     expect((thrown as SupabaseQueryError).cause).toEqual({
       message: "permission denied",
     });

@@ -12,18 +12,15 @@ import {
   type ChecklistTabValue,
   ChecklistSurface,
 } from "@/features/today/checklist-surface";
-import { DuoLanes, type DuoLaneSubject } from "@/features/social/duo/duo-lanes";
-import { useDuoScope } from "@/features/social/duo/duo-context";
+import { DuoLanes } from "@/features/social/duo/duo-lanes";
+import { useDuoSurface } from "@/features/social/duo/use-duo-surface";
 import { useClientSearchParamsUpdater } from "@/lib/navigation/use-client-search-params-updater";
-import { reportDuoTelemetry } from "@/lib/social/duo/telemetry";
-import { DUO_SURFACE_DEFAULTS } from "@/lib/social/duo/surface-defaults";
 
 export function ChecklistShell() {
   const searchParams = useSearchParams();
   const { applySearchParams } = useClientSearchParamsUpdater();
-  const { scope, activePartner, setScopePreference } = useDuoScope(
-    DUO_SURFACE_DEFAULTS.checklist
-  );
+  const { scope, activePartner, setScopePreference, viewer, partner } =
+    useDuoSurface("checklist");
   const swipeStartRef = useRef<{ x: number; y: number } | null>(null);
   const rawTab = searchParams.get("tab");
   const normalizedTab: ChecklistTabValue = useMemo(() => {
@@ -32,14 +29,6 @@ export function ChecklistShell() {
     }
     return "today";
   }, [rawTab]);
-
-  useEffect(() => {
-    reportDuoTelemetry("scope_viewed", {
-      surface: "checklist",
-      scope,
-      hasPartner: Boolean(activePartner),
-    });
-  }, [activePartner, scope]);
 
   useEffect(() => {
     if (rawTab === null || rawTab === "today" || rawTab === "not-today") {
@@ -104,31 +93,13 @@ export function ChecklistShell() {
     [normalizedTab, updateTab]
   );
 
-  const viewerLane: DuoLaneSubject = {
-    id: "viewer",
-    label: "Mine",
-    readOnly: false,
-  };
-  const partnerLane: DuoLaneSubject | null = activePartner
-    ? {
-        id: "partner",
-        label:
-          activePartner.partnerDisplayName ??
-          activePartner.partnerUsername ??
-          "Partner",
-        userId: activePartner.partnerId,
-        readOnly: true,
-        avatarUrl: activePartner.partnerAvatarUrl,
-      }
-    : null;
-
   return (
     <div className="space-y-5">
       <div onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
         <DuoLanes
           scope={scope}
-          viewer={viewerLane}
-          partner={partnerLane}
+          viewer={viewer}
+          partner={partner}
           renderLane={(subject) => (
             <ChecklistSurface
               activeTab={normalizedTab}

@@ -1,8 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  progressSubjectUserId,
-  selectViewerVisibleGoals,
-} from "@/lib/goals/visible-goals";
+import { selectViewerVisibleGoals } from "@/lib/goals/visible-goals";
 
 describe("selectViewerVisibleGoals", () => {
   it("keeps shared and participant goals for solo viewers", () => {
@@ -25,20 +22,5 @@ describe("selectViewerVisibleGoals", () => {
     expect(
       selectViewerVisibleGoals({ goals, partnerId: "partner" }).map((goal) => goal.id)
     ).toEqual(["owned", "shared"]);
-  });
-
-  it("omits subjectUserId for self progress reads", () => {
-    expect(
-      progressSubjectUserId({
-        targetIsViewer: true,
-        targetSubjectUserId: "me",
-      })
-    ).toBeUndefined();
-    expect(
-      progressSubjectUserId({
-        targetIsViewer: false,
-        targetSubjectUserId: "partner",
-      })
-    ).toBe("partner");
   });
 });

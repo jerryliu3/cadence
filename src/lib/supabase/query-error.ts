@@ -1,5 +1,4 @@
 export class SupabaseQueryError extends Error {
-  readonly code = "query_failed";
   readonly cause?: unknown;
 
   constructor(message: string, cause?: unknown) {
@@ -7,10 +6,6 @@ export class SupabaseQueryError extends Error {
     this.name = "SupabaseQueryError";
     this.cause = cause;
   }
-}
-
-export function isSupabaseQueryError(error: unknown): error is SupabaseQueryError {
-  return error instanceof SupabaseQueryError;
 }
 
 /**
