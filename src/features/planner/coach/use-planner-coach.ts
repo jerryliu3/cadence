@@ -188,8 +188,8 @@ export function usePlannerCoach({
       if (missingSessionMoves > 0) {
         toast.error(
           missingSessionMoves === 1
-            ? "Coach could not move a session that is not on the calendar."
-            : `Coach could not move ${missingSessionMoves} sessions that are not on the calendar.`
+            ? "Coach suggested moving a session reference that is not available in this draft."
+            : `Coach suggested moving ${missingSessionMoves} session references that are not available in this draft.`
         );
       }
       if (result.appliedPatchCount === 0 && queuedSessionMoves === 0) {

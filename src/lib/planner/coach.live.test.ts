@@ -52,6 +52,7 @@ describe.skipIf(!RUN_LIVE_TESTS)("live Gemini coach integration", () => {
         timezone: "America/New_York",
         asOfDate: "2026-08-05",
         allGoalsCount: 1,
+        sessionRoster: [],
         focusGoals: [runningGoal],
         deterministicSummary:
           "The running goal has no existing weekday restrictions or date preferences.",
