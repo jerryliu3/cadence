@@ -80,7 +80,8 @@ describe("planner context preview route", () => {
 
   it("returns typed 400 when request policy fails schema validation", async () => {
     mocks.parseBoundedJsonBody.mockResolvedValue({
-      scopeMonth: "2026-08",
+      startDate: "2026-08-01",
+      endDate: "2026-08-31",
       source: "manual",
       timezone: "UTC",
       policy: {
@@ -108,7 +109,8 @@ describe("planner context preview route", () => {
 
   it("uses fresh recomputation for explicit preview generation", async () => {
     mocks.parseBoundedJsonBody.mockResolvedValueOnce({
-      scopeMonth: "2026-08",
+      startDate: "2026-08-01",
+      endDate: "2026-08-31",
       source: "manual",
       timezone: "UTC",
       policy: createDefaultPlannerPolicy("UTC", "2026-08-01T00:00:00.000Z"),
@@ -133,7 +135,8 @@ describe("planner context preview route", () => {
 
   it("threads solve intent and draft pins into the kernel", async () => {
     mocks.parseBoundedJsonBody.mockResolvedValueOnce({
-      scopeMonth: "2026-08",
+      startDate: "2026-08-01",
+      endDate: "2026-08-31",
       source: "manual",
       timezone: "UTC",
       solveIntent: "replan",
@@ -169,7 +172,8 @@ describe("planner context preview route", () => {
 
   it("rejects a preview that did not honor a draft pin", async () => {
     mocks.parseBoundedJsonBody.mockResolvedValueOnce({
-      scopeMonth: "2026-08",
+      startDate: "2026-08-01",
+      endDate: "2026-08-31",
       source: "manual",
       timezone: "UTC",
       policy: createDefaultPlannerPolicy("UTC", "2026-08-01T00:00:00.000Z"),
