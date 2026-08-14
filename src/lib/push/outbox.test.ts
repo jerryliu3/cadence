@@ -76,6 +76,7 @@ describe("flushNotificationOutbox", () => {
       hadSubscriptions: true,
       webConfigurationUnavailable: true,
     });
+    let resolveAttempts = 0;
     mocks.rpc.mockImplementation(async (name: string) => {
       if (name === "claim_notification_outbox_service") {
         return {
@@ -93,14 +94,18 @@ describe("flushNotificationOutbox", () => {
           error: null,
         };
       }
-      return {
-        data: null,
-        error: { message: "resolver unavailable" },
-      };
+      resolveAttempts += 1;
+      return resolveAttempts === 1
+        ? {
+            data: null,
+            error: { message: "resolver unavailable" },
+          }
+        : { data: true, error: null };
     });
 
     await expect(flushNotificationOutbox()).rejects.toMatchObject({
       message: "resolver unavailable",
     });
+    expect(resolveAttempts).toBe(1);
   });
 });
