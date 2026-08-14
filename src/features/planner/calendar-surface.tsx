@@ -2554,14 +2554,6 @@ export function CalendarSurface({
                     : ""}
                 </div>
               ) : null}
-              {eligibilityNotices.scopeOnlyCount > 0 ? (
-                <p className="text-xs text-muted-foreground">
-                  {eligibilityNotices.scopeOnlyCount} goal
-                  {eligibilityNotices.scopeOnlyCount === 1 ? "" : "s"}{" "}
-                  outside this
-                  month&apos;s planning scope.
-                </p>
-              ) : null}
             </div>
             <div className="flex flex-wrap items-center justify-end gap-2">
               {canResetPlan ? (
