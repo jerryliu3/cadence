@@ -12,6 +12,7 @@
     "./goals/heatmap": "./src/goals/heatmap.ts",
     "./feedback/haptics": "./src/feedback/haptics.ts",
     "./planner/calendar-state": "./src/planner/calendar-state.ts",
+    "./planner/draft-window": "./src/planner/draft-window.ts",
     "./planner/reorder-preview-entries": "./src/planner/reorder-preview-entries.ts",
     "./planner/visible-window": "./src/planner/visible-window.ts",
     "./supabase/database.types": "./src/supabase/database.types.ts",
