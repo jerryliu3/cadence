@@ -4,7 +4,11 @@ import {
   MAX_PLANNER_WINDOW_DAYS,
   MAX_WORK_UNITS,
 } from "@/lib/planner/contracts/bounds";
-import { getScopeDateRange, toPlannerScheduleWindow } from "@/lib/planner/dates";
+import {
+  getScopeDateRange,
+  isMonthAlignedPlannerWindow,
+  toPlannerScheduleWindow,
+} from "@/lib/planner/dates";
 
 describe("planner month scope dates", () => {
   it("derives leap-month bounds", () => {
@@ -31,5 +35,25 @@ describe("planner window capacity gate", () => {
     const twelveMonthDailyWorstCase = MAX_ELIGIBLE_GOALS * MAX_PLANNER_WINDOW_DAYS;
     expect(MAX_PLANNER_WINDOW_DAYS).toBe(366);
     expect(twelveMonthDailyWorstCase).toBeGreaterThan(MAX_WORK_UNITS);
+  });
+});
+
+describe("isMonthAlignedPlannerWindow", () => {
+  it("accepts a contiguous span of whole months", () => {
+    expect(
+      isMonthAlignedPlannerWindow({ start: "2026-08-01", end: "2026-09-30" })
+    ).toBe(true);
+    expect(
+      isMonthAlignedPlannerWindow(getScopeDateRange("2028-02"))
+    ).toBe(true);
+  });
+
+  it("rejects mid-month start or end dates", () => {
+    expect(
+      isMonthAlignedPlannerWindow({ start: "2026-09-10", end: "2026-09-20" })
+    ).toBe(false);
+    expect(
+      isMonthAlignedPlannerWindow({ start: "2026-08-01", end: "2026-09-15" })
+    ).toBe(false);
   });
 });

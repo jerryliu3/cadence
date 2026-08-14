@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions, pg_catalog;
-select plan(21);
+select plan(23);
 
 set local role service_role;
 
@@ -684,6 +684,71 @@ select is(
   ),
   0,
   'single-window publish leaves no stranded source-month row'
+);
+
+select throws_ok(
+  $tap$
+  do $$
+  declare
+    v_scope_a date := date_trunc('month', current_date)::date;
+    v_scope_b date := (date_trunc('month', current_date) + interval '1 month')::date;
+    v_digest text;
+  begin
+    v_digest := public.get_planner_schedule_digest();
+    perform *
+    from public.set_planner_schedule_batch(
+      jsonb_build_array(
+        jsonb_build_object(
+          'start_date', v_scope_a::text,
+          'end_date', (v_scope_b + interval '1 month - 1 day')::date::text,
+          'items', '[]'::jsonb
+        ),
+        jsonb_build_object(
+          'start_date', v_scope_b::text,
+          'end_date', (v_scope_b + interval '1 month - 1 day')::date::text,
+          'items', '[]'::jsonb
+        )
+      ),
+      v_digest
+    );
+  end;
+  $$;
+  $tap$,
+  '22023'::character(5),
+  'overlapping_schedule_windows',
+  'set_planner_schedule_batch rejects overlapping month-aligned windows'
+);
+
+select throws_ok(
+  $tap$
+  do $$
+  declare
+    v_scope_a date := date_trunc('month', current_date)::date;
+    v_digest text;
+  begin
+    v_digest := public.get_planner_schedule_digest();
+    perform *
+    from public.set_planner_schedule_batch(
+      jsonb_build_array(
+        jsonb_build_object(
+          'start_date', v_scope_a::text,
+          'end_date', (v_scope_a + interval '1 month - 1 day')::date::text,
+          'items', '[]'::jsonb
+        ),
+        jsonb_build_object(
+          'start_date', v_scope_a::text,
+          'end_date', (v_scope_a + interval '1 month - 1 day')::date::text,
+          'items', '[]'::jsonb
+        )
+      ),
+      v_digest
+    );
+  end;
+  $$;
+  $tap$,
+  '22023'::character(5),
+  'duplicate_schedule_window',
+  'set_planner_schedule_batch rejects duplicate windows'
 );
 
 reset role;

@@ -111,3 +111,13 @@ export function enumerateMonthsInWindow(window: DateWindow) {
   }
   return months;
 }
+
+export function isMonthAlignedPlannerWindow(window: DateWindow) {
+  try {
+    const startMonth = getScopeDateRange(monthFromDate(window.start));
+    const endMonth = getScopeDateRange(monthFromDate(window.end));
+    return startMonth.start === window.start && endMonth.end === window.end;
+  } catch {
+    return false;
+  }
+}
