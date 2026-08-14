@@ -50,6 +50,38 @@ grant execute on function private.health_source_priority_rank(
   text
 ) to service_role;
 
+-- Half-open ranges so abutting quantity buckets (15-minute steps) do not
+-- count as overlap. Keep in sync with HEALTH_UTC_OFFSET envelope + lookback
+-- in packages/shared/src/health/sync-window.ts.
+create or replace function private.health_ranges_overlap(
+  p_start_a timestamptz,
+  p_end_a timestamptz,
+  p_start_b timestamptz,
+  p_end_b timestamptz
+)
+returns boolean
+language sql
+immutable
+set search_path = ''
+as $$
+  select
+    tstzrange(p_start_a, coalesce(p_end_a, p_start_a), '[)')
+    && tstzrange(p_start_b, coalesce(p_end_b, p_start_b), '[)');
+$$;
+
+revoke all on function private.health_ranges_overlap(
+  timestamptz,
+  timestamptz,
+  timestamptz,
+  timestamptz
+) from public, anon, authenticated;
+grant execute on function private.health_ranges_overlap(
+  timestamptz,
+  timestamptz,
+  timestamptz,
+  timestamptz
+) to service_role;
+
 create or replace function private.health_samples_overlap(
   p_start_a timestamptz,
   p_end_a timestamptz,
@@ -62,8 +94,7 @@ immutable
 set search_path = ''
 as $$
   select
-    tstzrange(p_start_a, coalesce(p_end_a, p_start_a), '[]')
-    && tstzrange(p_start_b, coalesce(p_end_b, p_start_b), '[]')
+    private.health_ranges_overlap(p_start_a, p_end_a, p_start_b, p_end_b)
     or pg_catalog.abs(
       pg_catalog.extract('epoch', p_start_a - p_start_b)
     ) <= 600;
@@ -81,6 +112,69 @@ grant execute on function private.health_samples_overlap(
   timestamptz,
   timestamptz
 ) to service_role;
+
+create or replace function private.health_metric_uses_fuzzy_cluster(
+  p_metric public.health_metric_key
+)
+returns boolean
+language sql
+immutable
+set search_path = ''
+as $$
+  select p_metric = 'workout_duration_minutes'::public.health_metric_key;
+$$;
+
+revoke all on function private.health_metric_uses_fuzzy_cluster(
+  public.health_metric_key
+) from public, anon, authenticated;
+grant execute on function private.health_metric_uses_fuzzy_cluster(
+  public.health_metric_key
+) to service_role;
+
+create or replace function private.health_utc_offset_envelope_dates()
+returns table(min_date date, max_date date)
+language sql
+stable
+set search_path = ''
+as $$
+  select
+    (pg_catalog.timezone('utc', now()) - interval '14 hours')::date,
+    (pg_catalog.timezone('utc', now()) + interval '14 hours')::date;
+$$;
+
+revoke all on function private.health_utc_offset_envelope_dates()
+  from public, anon, authenticated;
+grant execute on function private.health_utc_offset_envelope_dates()
+  to service_role;
+
+create or replace function private.assert_health_local_today(p_local_today date)
+returns void
+language plpgsql
+stable
+set search_path = ''
+as $$
+declare
+  v_min date;
+  v_max date;
+begin
+  if p_local_today is null then
+    raise exception using errcode = '22023', message = 'invalid_local_today';
+  end if;
+
+  select envelope.min_date, envelope.max_date
+  into v_min, v_max
+  from private.health_utc_offset_envelope_dates() as envelope;
+
+  if p_local_today < v_min or p_local_today > v_max then
+    raise exception using errcode = '22023', message = 'local_today_out_of_range';
+  end if;
+end;
+$$;
+
+revoke all on function private.assert_health_local_today(date)
+  from public, anon, authenticated;
+grant execute on function private.assert_health_local_today(date)
+  to service_role;
 
 create or replace function private.finalize_health_activity_cluster(
   p_user_id uuid,
@@ -171,7 +265,9 @@ as $$
 declare
   r record;
   v_cluster_ids uuid[] := '{}'::uuid[];
-  v_cluster_end timestamptz;
+  v_prev_start timestamptz;
+  v_prev_end timestamptz;
+  v_use_fuzzy boolean := private.health_metric_uses_fuzzy_cluster(p_metric);
 begin
   update public.health_activities
   set
@@ -197,12 +293,22 @@ begin
     and loser.id <> winner.id
     and coalesce(loser.suppressed_reason, '') is distinct from 'disconnected'
     and coalesce(winner.suppressed_reason, '') is distinct from 'disconnected'
-    and private.health_samples_overlap(
-      winner.started_at,
-      winner.ended_at,
-      loser.started_at,
-      loser.ended_at
-    )
+    and case
+      when v_use_fuzzy then
+        private.health_samples_overlap(
+          winner.started_at,
+          winner.ended_at,
+          loser.started_at,
+          loser.ended_at
+        )
+      else
+        private.health_ranges_overlap(
+          winner.started_at,
+          winner.ended_at,
+          loser.started_at,
+          loser.ended_at
+        )
+    end
     and private.health_source_priority_rank(
       loser.user_id,
       loser.metric_key,
@@ -213,6 +319,7 @@ begin
       winner.source_identifier
     );
 
+  if v_use_fuzzy then
   for r in
     select
       activity.id,
@@ -225,9 +332,15 @@ begin
       and activity.is_canonical
     order by activity.started_at, activity.id
   loop
-    if v_cluster_end is null or r.started_at <= v_cluster_end + interval '10 minutes' then
+    if v_prev_start is null
+      or private.health_samples_overlap(
+        v_prev_start,
+        v_prev_end,
+        r.started_at,
+        r.ended_at
+      )
+    then
       v_cluster_ids := array_append(v_cluster_ids, r.id);
-      v_cluster_end := greatest(coalesce(v_cluster_end, r.ended_at), r.ended_at);
     else
       perform private.finalize_health_activity_cluster(
         p_user_id,
@@ -236,8 +349,9 @@ begin
         v_cluster_ids
       );
       v_cluster_ids := array[r.id];
-      v_cluster_end := r.ended_at;
     end if;
+    v_prev_start := r.started_at;
+    v_prev_end := r.ended_at;
   end loop;
 
   if pg_catalog.array_length(v_cluster_ids, 1) is not null then
@@ -247,6 +361,7 @@ begin
       p_local_date,
       v_cluster_ids
     );
+  end if;
   end if;
 
   delete from public.health_activity_groups as grp
@@ -361,8 +476,11 @@ revoke all on function public.recompute_health_daily_metrics_service(date, date)
 grant execute on function public.recompute_health_daily_metrics_service(date, date)
   to authenticated, service_role;
 
+drop function if exists public.ingest_health_activities_service(jsonb);
+
 create or replace function public.ingest_health_activities_service(
-  p_samples jsonb
+  p_samples jsonb,
+  p_deleted_native_ids jsonb default '[]'::jsonb
 )
 returns jsonb
 language plpgsql
@@ -372,10 +490,19 @@ as $$
 declare
   v_uid uuid := auth.uid();
   v_sample jsonb;
+  v_deleted jsonb;
   v_ingested integer := 0;
+  v_skipped integer := 0;
+  v_deleted_count integer := 0;
   v_from date;
   v_to date;
   v_keys record;
+  v_key_set jsonb := '[]'::jsonb;
+  v_local_date date;
+  v_ingest_min date;
+  v_ingest_max date;
+  v_started_at timestamptz;
+  v_offset integer;
 begin
   if v_uid is null then
     raise exception using errcode = '28000', message = 'authentication_required';
@@ -385,20 +512,66 @@ begin
     raise exception using errcode = '22023', message = 'invalid_health_samples';
   end if;
 
+  if p_deleted_native_ids is null or jsonb_typeof(p_deleted_native_ids) <> 'array' then
+    raise exception using errcode = '22023', message = 'invalid_health_deletions';
+  end if;
+
   if pg_catalog.jsonb_array_length(p_samples) > 500 then
+    raise exception using errcode = '22023', message = 'health_sample_batch_too_large';
+  end if;
+
+  if pg_catalog.jsonb_array_length(p_deleted_native_ids) > 500 then
     raise exception using errcode = '22023', message = 'health_sample_batch_too_large';
   end if;
 
   perform pg_catalog.pg_advisory_xact_lock(private.health_ingest_lock_key(v_uid));
 
-  if pg_catalog.jsonb_array_length(p_samples) = 0 then
-    return jsonb_build_object(
-      'ingested_count', 0,
-      'canonical_count', 0,
-      'suppressed_count', 0,
-      'recomputed_days', 0
+  select envelope.min_date - 1, envelope.max_date
+  into v_ingest_min, v_ingest_max
+  from private.health_utc_offset_envelope_dates() as envelope;
+
+  select coalesce(
+    jsonb_agg(distinct jsonb_build_object(
+      'local_date', activity.local_date,
+      'metric_key', activity.metric_key
+    )),
+    '[]'::jsonb
+  )
+  into v_key_set
+  from public.health_activities as activity
+  where activity.user_id = v_uid
+    and (
+      exists (
+        select 1
+        from pg_catalog.jsonb_array_elements(p_samples) as sample(value)
+        where activity.provider = (sample.value->>'provider')::public.health_provider
+          and activity.provider_native_id = pg_catalog.btrim(sample.value->>'provider_native_id')
+      )
+      or exists (
+        select 1
+        from pg_catalog.jsonb_array_elements(p_deleted_native_ids) as deleted(value)
+        where activity.provider = (deleted.value->>'provider')::public.health_provider
+          and activity.provider_native_id = pg_catalog.btrim(deleted.value->>'provider_native_id')
+      )
     );
-  end if;
+
+  for v_deleted in
+    select value
+    from pg_catalog.jsonb_array_elements(p_deleted_native_ids) as deleted(value)
+  loop
+    if v_deleted->>'provider' is null or v_deleted->>'provider_native_id' is null then
+      raise exception using errcode = '22023', message = 'invalid_health_deletions';
+    end if;
+
+    delete from public.health_activities as activity
+    where activity.user_id = v_uid
+      and activity.provider = (v_deleted->>'provider')::public.health_provider
+      and activity.provider_native_id = pg_catalog.btrim(v_deleted->>'provider_native_id');
+
+    if found then
+      v_deleted_count := v_deleted_count + 1;
+    end if;
+  end loop;
 
   for v_sample in
     select value
@@ -414,6 +587,19 @@ begin
       or v_sample->>'unit' is null
     then
       raise exception using errcode = '22023', message = 'invalid_health_sample';
+    end if;
+
+    v_started_at := (v_sample->>'started_at')::timestamptz;
+    v_offset := (v_sample->>'utc_offset_minutes')::integer;
+    v_local_date := public.health_local_date_from_offset(v_started_at, v_offset);
+
+    if v_local_date > v_ingest_max then
+      raise exception using errcode = '22023', message = 'health_sample_date_out_of_range';
+    end if;
+
+    if v_local_date < v_ingest_min then
+      v_skipped := v_skipped + 1;
+      continue;
     end if;
 
     insert into public.health_activities (
@@ -437,9 +623,9 @@ begin
       pg_catalog.btrim(v_sample->>'source_identifier'),
       nullif(pg_catalog.btrim(coalesce(v_sample->>'source_name', '')), ''),
       (v_sample->>'metric_key')::public.health_metric_key,
-      (v_sample->>'started_at')::timestamptz,
+      v_started_at,
       nullif(v_sample->>'ended_at', '')::timestamptz,
-      (v_sample->>'utc_offset_minutes')::integer,
+      v_offset,
       (v_sample->>'value_numeric')::numeric,
       pg_catalog.btrim(v_sample->>'unit'),
       coalesce(v_sample->'payload', '{}'::jsonb)
@@ -464,14 +650,32 @@ begin
     v_ingested := v_ingested + 1;
   end loop;
 
+  select coalesce(v_key_set, '[]'::jsonb) || coalesce(
+    (
+      select jsonb_agg(distinct jsonb_build_object(
+        'local_date', activity.local_date,
+        'metric_key', activity.metric_key
+      ))
+      from public.health_activities as activity
+      where activity.user_id = v_uid
+        and exists (
+          select 1
+          from pg_catalog.jsonb_array_elements(p_samples) as sample(value)
+          where activity.provider = (sample.value->>'provider')::public.health_provider
+            and activity.provider_native_id = pg_catalog.btrim(sample.value->>'provider_native_id')
+        )
+    ),
+    '[]'::jsonb
+  )
+  into v_key_set;
+
   for v_keys in
-    select distinct activity.local_date, activity.metric_key
-    from public.health_activities as activity
-    where activity.user_id = v_uid
-      and activity.provider_native_id in (
-        select pg_catalog.btrim(sample.value->>'provider_native_id')
-        from pg_catalog.jsonb_array_elements(p_samples) as sample(value)
-      )
+    select distinct
+      (item.value->>'local_date')::date as local_date,
+      (item.value->>'metric_key')::public.health_metric_key as metric_key
+    from pg_catalog.jsonb_array_elements(v_key_set) as item(value)
+    where item.value->>'local_date' is not null
+      and item.value->>'metric_key' is not null
   loop
     perform private.elect_health_activities_for_key(
       v_uid,
@@ -488,6 +692,8 @@ begin
 
   return jsonb_build_object(
     'ingested_count', v_ingested,
+    'skipped_count', v_skipped,
+    'deleted_count', v_deleted_count,
     'canonical_count', (
       select pg_catalog.count(*)::integer
       from public.health_activities as activity
@@ -512,6 +718,7 @@ begin
 end;
 $$;
 
-revoke all on function public.ingest_health_activities_service(jsonb) from public, anon;
-grant execute on function public.ingest_health_activities_service(jsonb)
+revoke all on function public.ingest_health_activities_service(jsonb, jsonb)
+  from public, anon;
+grant execute on function public.ingest_health_activities_service(jsonb, jsonb)
   to authenticated, service_role;
