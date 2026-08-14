@@ -21,7 +21,7 @@ const routeParamsSchema = z
   .strict();
 
 export async function GET(
-  _request: Request,
+  request: Request,
   context: { params: Promise<{ conversationId: string }> | { conversationId: string } }
 ) {
   return withPlannerRoute(async ({ correlationId }) => {

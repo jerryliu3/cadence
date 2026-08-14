@@ -62,7 +62,7 @@ function mapLeaveRpcError(message: string) {
 }
 
 export async function POST(
-  _request: Request,
+  request: Request,
   context: { params: Promise<{ challengeId: string }> | { challengeId: string } }
 ) {
   const correlationId = createCorrelationId();
@@ -104,7 +104,7 @@ export async function POST(
 }
 
 export async function DELETE(
-  _request: Request,
+  request: Request,
   context: { params: Promise<{ challengeId: string }> | { challengeId: string } }
 ) {
   const correlationId = createCorrelationId();

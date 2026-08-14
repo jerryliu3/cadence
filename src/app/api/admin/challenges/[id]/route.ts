@@ -225,7 +225,7 @@ export async function PATCH(
 }
 
 export async function DELETE(
-  _request: Request,
+  request: Request,
   context: { params: Promise<{ id: string }> | { id: string } }
 ) {
   const correlationId = createCorrelationId();

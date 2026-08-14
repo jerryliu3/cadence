@@ -156,7 +156,7 @@ describe("GET /api/xp/profile", () => {
   it("returns 503 when XP is disabled", async () => {
     vi.stubEnv("XP_ENABLED", "false");
     resetEnvCacheForTests();
-    const response = await GET();
+    const response = await GET(new Request("http://localhost/api/xp/profile"));
     expect(response.status).toBe(503);
     await expect(response.json()).resolves.toMatchObject({
       code: "xp_disabled",
@@ -168,7 +168,7 @@ describe("GET /api/xp/profile", () => {
       data: { user: null },
       error: null,
     });
-    const response = await GET();
+    const response = await GET(new Request("http://localhost/api/xp/profile"));
     expect(response.status).toBe(401);
     await expect(response.json()).resolves.toMatchObject({
       code: "authentication_required",
@@ -176,7 +176,7 @@ describe("GET /api/xp/profile", () => {
   });
 
   it("returns global profile, sorted tracks, and pending awards", async () => {
-    const response = await GET();
+    const response = await GET(new Request("http://localhost/api/xp/profile"));
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toMatchObject({
       schemaVersion: "1",

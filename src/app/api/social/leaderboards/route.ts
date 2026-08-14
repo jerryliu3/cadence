@@ -39,7 +39,7 @@ function toSeasonDto(row: {
   };
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   const correlationId = createCorrelationId();
   try {
     const context = await requireSocialRouteContext(request);

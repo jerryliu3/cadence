@@ -34,7 +34,7 @@ describe("GET /api/admin/seasons", () => {
 
   it("returns 404 for non-admin users", async () => {
     mocks.requireAdminContext.mockResolvedValue(null);
-    const response = await GET();
+    const response = await GET(new Request("http://localhost/api/admin/seasons"));
     expect(response.status).toBe(404);
   });
 
@@ -58,7 +58,7 @@ describe("GET /api/admin/seasons", () => {
       error: null,
     });
 
-    const response = await GET();
+    const response = await GET(new Request("http://localhost/api/admin/seasons"));
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toMatchObject({
       items: [{ slug: "aug-open" }],

@@ -77,7 +77,7 @@ function toChallengeDto(row: {
 }
 
 export async function GET(
-  _request: Request,
+  request: Request,
   context: { params: Promise<{ challengeId: string }> | { challengeId: string } }
 ) {
   const correlationId = createCorrelationId();
