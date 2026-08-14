@@ -75,7 +75,7 @@ export function GoalFormScreen({ goalId }: { goalId?: string }) {
             p_frequency_type: "recurring" as const,
             p_recurrence_interval: "daily" as const,
             p_start_date: format(new Date(), "yyyy-MM-dd"),
-            p_is_group: false,
+            p_is_private: false,
           };
           const { error } = isEditing
             ? await supabase.rpc("update_goal", args)
