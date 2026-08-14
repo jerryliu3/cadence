@@ -15,9 +15,17 @@ describe("HealthKit authorization guards", () => {
 
   it("returns the fallback instead of crashing on unauthorized reads", async () => {
     const result = await withHealthKitAuthorizationGuard(async () => {
-      throw new Error("HKErrorDomain Code=5 Authorization not determined");
+      throw new Error("HKErrorAuthorizationNotDetermined Code=5 Authorization not determined");
     }, { samples: [] });
     expect(result).toEqual({ samples: [] });
+  });
+
+  it("does not swallow locked-device HealthKit failures as unauthorized", async () => {
+    await expect(
+      withHealthKitAuthorizationGuard(async () => {
+        throw new Error("HKErrorDomain Code=6 HKErrorDatabaseInaccessible");
+      }, { samples: [] })
+    ).rejects.toThrow(/DatabaseInaccessible/);
   });
 
   it("rethrows unexpected errors", async () => {
