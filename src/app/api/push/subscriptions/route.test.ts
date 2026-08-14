@@ -103,6 +103,28 @@ describe("push subscriptions route", () => {
     });
   });
 
+  it("rejects web subscriptions that use the reserved native endpoint scheme", async () => {
+    const response = await POST(
+      new Request("http://localhost/api/push/subscriptions", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          endpoint: "native:ios:ExponentPushToken[known]",
+          keys: {
+            p256dh: "key",
+            auth: "auth",
+          },
+        }),
+      })
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "validation_failed",
+    });
+    expect(mocks.upsert).not.toHaveBeenCalled();
+  });
+
   it("returns authentication_required before validation for unauthenticated users", async () => {
     mocks.getUser.mockResolvedValue({
       data: { user: null },
@@ -216,6 +238,24 @@ describe("push subscriptions route", () => {
       "endpoint",
       "https://example.test/subscription"
     );
+  });
+
+  it("rejects web unsubscribe requests that use the native endpoint scheme", async () => {
+    const response = await DELETE(
+      new Request("http://localhost/api/push/subscriptions", {
+        method: "DELETE",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          endpoint: "native:ios:ExponentPushToken[known]",
+        }),
+      })
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "validation_failed",
+    });
+    expect(mocks.deleteRows).not.toHaveBeenCalled();
   });
 
   it("stores native tokens and replaces prior rows for the same platform", async () => {
