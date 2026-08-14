@@ -109,7 +109,29 @@ jobs:
           done
 
       - name: Reset and seed local database
-        run: pnpm supabase:reset
+        shell: bash
+        run: |
+          set -euo pipefail
+          EXCLUDE="studio,mailpit,imgproxy,analytics,vector,edge-runtime,postgres-meta,logflare,supavisor"
+          MAX_ATTEMPTS=3
+          BACKOFFS=(5 15)
+          for attempt in $(seq 1 "$MAX_ATTEMPTS"); do
+            echo "Resetting Supabase database (attempt ${attempt}/${MAX_ATTEMPTS})..."
+            if pnpm supabase:reset; then
+              echo "Supabase database reset succeeded on attempt ${attempt}."
+              exit 0
+            fi
+            if [[ "$attempt" -eq "$MAX_ATTEMPTS" ]]; then
+              echo "Supabase database reset failed after ${MAX_ATTEMPTS} attempts."
+              echo "Running supabase db reset --debug for diagnostics..."
+              pnpm exec supabase db reset --debug
+              exit $?
+            fi
+            echo "Supabase database reset failed; restarting containers before retry..."
+            pnpm exec supabase stop --all || true
+            pnpm supabase:start -- --exclude "$EXCLUDE"
+            sleep "${BACKOFFS[$((attempt - 1))]}"
+          done
 
       - name: Lint and advise local database
         run: |
@@ -208,7 +230,29 @@ jobs:
           done
 
       - name: Reset and seed local database
-        run: pnpm supabase:reset
+        shell: bash
+        run: |
+          set -euo pipefail
+          EXCLUDE="studio,mailpit,imgproxy,analytics,vector,edge-runtime,postgres-meta,logflare,supavisor"
+          MAX_ATTEMPTS=3
+          BACKOFFS=(5 15)
+          for attempt in $(seq 1 "$MAX_ATTEMPTS"); do
+            echo "Resetting Supabase database (attempt ${attempt}/${MAX_ATTEMPTS})..."
+            if pnpm supabase:reset; then
+              echo "Supabase database reset succeeded on attempt ${attempt}."
+              exit 0
+            fi
+            if [[ "$attempt" -eq "$MAX_ATTEMPTS" ]]; then
+              echo "Supabase database reset failed after ${MAX_ATTEMPTS} attempts."
+              echo "Running supabase db reset --debug for diagnostics..."
+              pnpm exec supabase db reset --debug
+              exit $?
+            fi
+            echo "Supabase database reset failed; restarting containers before retry..."
+            pnpm exec supabase stop --all || true
+            pnpm supabase:start -- --exclude "$EXCLUDE"
+            sleep "${BACKOFFS[$((attempt - 1))]}"
+          done
 
       - name: Export local Supabase environment
         shell: bash
