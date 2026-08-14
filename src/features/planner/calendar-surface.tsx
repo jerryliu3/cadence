@@ -1193,6 +1193,7 @@ export function CalendarSurface({
       scheduleDraftMovePreviewRefresh,
       completionFactUnitsByGoalDate,
       context?.scopeMonth,
+      dispatchDraftCommand,
       moveConflictByGoalDate,
       previewUnitByEntryKey,
     ]
