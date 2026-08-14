@@ -1557,10 +1557,10 @@ select ok(
       and strpos(source, 'perform goal.id') >
         strpos(source, 'from public.profiles profile')
       and source like
-        '%from public.profiles profile%where profile.id = v_owner%for update;%perform goal.id%'
+        '%from public.profiles profile%where profile.id = v_owner%for share;%perform goal.id%'
     from definition
   ),
-  'preparation locks the owner profile between advisory and goal locks'
+  'preparation share-locks the owner profile between advisory and goal locks'
 );
 
 select ok(
