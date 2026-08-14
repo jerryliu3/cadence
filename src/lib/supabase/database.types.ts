@@ -1889,6 +1889,14 @@ export type Database = {
           unlocked_count: number
         }[]
       }
+      clear_planner_schedule_windows: {
+        Args: { p_expected_digest: string; p_windows: Json }
+        Returns: {
+          deleted_count: number
+          schedule_digest: string
+          window_count: number
+        }[]
+      }
       consume_planner_ai_quota: {
         Args: {
           p_feature: string

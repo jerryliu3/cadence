@@ -86,9 +86,9 @@ describe("planner full reset route", () => {
     vi.restoreAllMocks();
   });
 
-  it("persists an empty batch for all requested months", async () => {
+  it("clears requested months through the multi-window delete RPC", async () => {
     mocks.rpc.mockResolvedValue({
-      data: [{ schedule_digest: "b".repeat(64), upserted_count: 0, scope_count: 2 }],
+      data: [{ schedule_digest: "b".repeat(64), deleted_count: 4, window_count: 2 }],
       error: null,
     });
 
@@ -98,14 +98,14 @@ describe("planner full reset route", () => {
       schemaVersion: "1",
       requestedScopeCount: 2,
       scopeCount: 2,
-      upsertedCount: 0,
+      deletedCount: 4,
       scheduleDigest: "b".repeat(64),
       correlationId: "corr-id",
     });
-    expect(mocks.rpc).toHaveBeenCalledWith("set_planner_schedule_batch", {
-      p_batches: [
-        { start_date: "2026-08-01", end_date: "2026-08-31", items: [] },
-        { start_date: "2026-09-01", end_date: "2026-09-30", items: [] },
+    expect(mocks.rpc).toHaveBeenCalledWith("clear_planner_schedule_windows", {
+      p_windows: [
+        { start_date: "2026-08-01", end_date: "2026-08-31" },
+        { start_date: "2026-09-01", end_date: "2026-09-30" },
       ],
       p_expected_digest: "a".repeat(64),
     });
