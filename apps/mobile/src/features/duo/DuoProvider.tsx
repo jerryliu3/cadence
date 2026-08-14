@@ -70,14 +70,26 @@ export function DuoProvider({ children }: { children: ReactNode }) {
     enabled: socialEnabled && Boolean(userId),
     queryFn: () => api.getJson<SocialTeamStateResponse>("/api/social/team"),
   });
+  const {
+    data: teamStateResponse,
+    isError: teamHasError,
+    isLoading: teamLoading,
+    isRefetching: teamRefreshing,
+    isSuccess: hasSuccessfulTeamState,
+    refetch: refetchTeamState,
+  } = teamQuery;
 
-  const loadResult = resolveDuoTeamLoadResult({
-    socialEnabled,
-    teamStateResponse: teamQuery.data ?? null,
-    hasError: teamQuery.isError,
-  });
+  const loadResult = useMemo(
+    () =>
+      resolveDuoTeamLoadResult({
+        socialEnabled,
+        teamStateResponse: teamStateResponse ?? null,
+        hasError: teamHasError,
+      }),
+    [socialEnabled, teamHasError, teamStateResponse]
+  );
   const hasActivePartner = Boolean(loadResult.state.activePartner);
-  const hasConfirmedReadyTeamState = !socialEnabled || teamQuery.isSuccess;
+  const hasConfirmedReadyTeamState = !socialEnabled || hasSuccessfulTeamState;
 
   useEffect(() => {
     if (!userId || !scopePreferenceReady || !hasConfirmedReadyTeamState) {
@@ -134,6 +146,13 @@ export function DuoProvider({ children }: { children: ReactNode }) {
     [hasActivePartner, loadResult.availability, scopePreference]
   );
 
+  const refreshTeam = useCallback(async () => {
+    if (!socialEnabled || !userId) {
+      return;
+    }
+    await refetchTeamState();
+  }, [refetchTeamState, socialEnabled, userId]);
+
   const value = useMemo<DuoContextValue>(
     () => ({
       socialEnabled,
@@ -141,26 +160,23 @@ export function DuoProvider({ children }: { children: ReactNode }) {
       state: loadResult.state,
       scopePreference,
       scopePreferenceReady,
-      teamLoading: socialEnabled && Boolean(userId) && teamQuery.isLoading,
-      teamRefreshing: socialEnabled && Boolean(userId) && teamQuery.isRefetching,
+      teamLoading: socialEnabled && Boolean(userId) && teamLoading,
+      teamRefreshing: socialEnabled && Boolean(userId) && teamRefreshing,
       setScopePreference,
       resolveSurfaceScope,
-      refreshTeam: async () => {
-        if (!socialEnabled || !userId) {
-          return;
-        }
-        await teamQuery.refetch();
-      },
+      refreshTeam,
     }),
     [
       loadResult.availability,
       loadResult.state,
+      refreshTeam,
       resolveSurfaceScope,
       scopePreference,
       scopePreferenceReady,
       setScopePreference,
       socialEnabled,
-      teamQuery,
+      teamLoading,
+      teamRefreshing,
       userId,
     ]
   );
