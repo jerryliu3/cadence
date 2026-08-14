@@ -4,9 +4,18 @@ import type { Goal } from "@/lib/goals/types";
 import type { GoalAssessment } from "@/lib/planner/assessment";
 
 export const MAX_COACH_MESSAGES = 20;
-export const MAX_COACH_FOCUS_GOALS = 20;
+export const MAX_COACH_FOCUS_GOALS = 40;
 export const MAX_COACH_MESSAGE_CHARS = 12_000;
 export const MAX_COACH_REPLY_CHARS = 12_000;
+const CANONICAL_UNIT_KEY_PATTERN = /^(milestone|total|cadence):/;
+
+export interface CoachSessionRosterEntry {
+  sessionRef: string;
+  goalId: string;
+  goalTitle: string;
+  unitKey: string;
+  scheduledDate: string;
+}
 
 export const coachRequestSchema = z
   .object({
@@ -86,9 +95,34 @@ const calendarIntentSchema = z
       .array(
         z
           .object({
-            goalId: z.uuid(),
-            unitKey: z.string().trim().min(1).max(200),
             scheduledDate: z.iso.date(),
+            sessionRef: z.string().trim().min(1).max(64).optional(),
+            goalId: z.uuid().optional(),
+            goalRef: z.string().trim().min(1).max(200).optional(),
+            unitKey: z
+              .string()
+              .trim()
+              .min(1)
+              .max(200)
+              .optional()
+              .refine(
+                (value) =>
+                  value === undefined || CANONICAL_UNIT_KEY_PATTERN.test(value),
+                {
+                  message:
+                    "unitKey must use a canonical prefix (milestone:, total:, cadence:).",
+                }
+              ),
+            sourceDate: z.iso.date().optional(),
+          })
+          .superRefine((move, ctx) => {
+            if (!move.sessionRef && !move.goalId && !move.goalRef) {
+              ctx.addIssue({
+                code: "custom",
+                message:
+                  "sessionMoves[] requires at least one of sessionRef, goalId, or goalRef.",
+              });
+            }
           })
           .strict()
       )
@@ -156,20 +190,134 @@ function dedupeWeekdays(weekdays: number[]) {
   return Array.from(new Set(weekdays)).sort((left, right) => left - right);
 }
 
+function normalizeGoalReference(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim()
+    .replace(/\s+/g, " ");
+}
+
+function resolveGoalFromReference({
+  goalRef,
+  goalsById,
+}: {
+  goalRef: string;
+  goalsById: Map<string, Goal>;
+}) {
+  const normalizedRef = normalizeGoalReference(goalRef);
+  if (!normalizedRef) {
+    return { goalId: null, ambiguous: false };
+  }
+  const candidates = Array.from(goalsById.values()).map((goal) => ({
+    goalId: goal.id,
+    goalTitle: goal.title,
+    normalizedTitle: normalizeGoalReference(goal.title),
+  }));
+
+  const exactMatches = candidates.filter(
+    (candidate) => candidate.normalizedTitle === normalizedRef
+  );
+  if (exactMatches.length === 1) {
+    return { goalId: exactMatches[0].goalId, ambiguous: false };
+  }
+  if (exactMatches.length > 1) {
+    return { goalId: null, ambiguous: true };
+  }
+
+  const includesMatches = candidates.filter(
+    (candidate) =>
+      candidate.normalizedTitle.includes(normalizedRef) ||
+      normalizedRef.includes(candidate.normalizedTitle)
+  );
+  if (includesMatches.length === 1) {
+    return { goalId: includesMatches[0].goalId, ambiguous: false };
+  }
+  if (includesMatches.length > 1) {
+    return { goalId: null, ambiguous: true };
+  }
+
+  const refTokens = new Set(normalizedRef.split(" ").filter(Boolean));
+  const scored = candidates
+    .map((candidate) => {
+      const titleTokens = new Set(candidate.normalizedTitle.split(" ").filter(Boolean));
+      let score = 0;
+      for (const token of refTokens) {
+        if (titleTokens.has(token)) {
+          score += 1;
+        }
+      }
+      return { goalId: candidate.goalId, score };
+    })
+    .filter((candidate) => candidate.score > 0)
+    .sort((left, right) => right.score - left.score);
+  if (scored.length === 0) {
+    return { goalId: null, ambiguous: false };
+  }
+  if (
+    scored.length > 1 &&
+    scored[0] &&
+    scored[1] &&
+    scored[0].score === scored[1].score
+  ) {
+    return { goalId: null, ambiguous: true };
+  }
+  return { goalId: scored[0]?.goalId ?? null, ambiguous: false };
+}
+
 function compileCalendarIntent(
   intent: z.infer<typeof calendarIntentSchema>,
-  goalsById: Map<string, Goal>
+  goalsById: Map<string, Goal>,
+  sessionRoster: CoachSessionRosterEntry[]
 ) {
   const policyPatches: CoachPolicyPatch[] = [];
   const warnings: string[] = [];
+  const unresolvedQuestions: string[] = [];
+
+  const sessionByRef = new Map(
+    sessionRoster.map((session) => [session.sessionRef, session] as const)
+  );
+  const sessionsByGoalId = new Map<string, CoachSessionRosterEntry[]>();
+  const sessionsByGoalAndDate = new Map<string, CoachSessionRosterEntry[]>();
+  for (const session of sessionRoster) {
+    const byGoal = sessionsByGoalId.get(session.goalId) ?? [];
+    byGoal.push(session);
+    sessionsByGoalId.set(session.goalId, byGoal);
+    const goalDateKey = `${session.goalId}:${session.scheduledDate}`;
+    const byGoalAndDate = sessionsByGoalAndDate.get(goalDateKey) ?? [];
+    byGoalAndDate.push(session);
+    sessionsByGoalAndDate.set(goalDateKey, byGoalAndDate);
+  }
+
+  const appendUnresolvedQuestion = (question: string) => {
+    if (!unresolvedQuestions.includes(question)) {
+      unresolvedQuestions.push(question);
+    }
+  };
+
+  const appendResolutionFailure = ({
+    goalTitle,
+    scheduledDate,
+  }: {
+    goalTitle: string;
+    scheduledDate: string;
+  }) => {
+    warnings.push(
+      `Ignored session move because the session reference for ${goalTitle} did not resolve.`
+    );
+    appendUnresolvedQuestion(
+      `Which existing ${goalTitle} session should move to ${scheduledDate}?`
+    );
+  };
+
   if (intent.action === "none") {
-    return { policyPatches, warnings };
+    return { policyPatches, warnings, unresolvedQuestions };
   }
   if (intent.action === "needs_goal") {
     warnings.push(
       "No calendar edits were generated because this plan does not map to an existing goal."
     );
-    return { policyPatches, warnings };
+    return { policyPatches, warnings, unresolvedQuestions };
   }
 
   if (intent.global) {
@@ -195,14 +343,98 @@ function compileCalendarIntent(
   if (intent.sessionMoves.length > 0) {
     const knownGoalIds = new Set(goalsById.keys());
     for (const move of intent.sessionMoves) {
-      if (!knownGoalIds.has(move.goalId)) {
+      if (move.sessionRef) {
+        const resolved = sessionByRef.get(move.sessionRef);
+        if (!resolved) {
+          warnings.push(
+            `Ignored session move because session reference ${move.sessionRef} is not in the current calendar window.`
+          );
+          continue;
+        }
+        policyPatches.push({
+          kind: "move_session",
+          goalId: resolved.goalId,
+          unitKey: resolved.unitKey,
+          scheduledDate: move.scheduledDate,
+        });
+        continue;
+      }
+
+      let resolvedGoalId: string | null = null;
+      if (move.goalId && knownGoalIds.has(move.goalId)) {
+        resolvedGoalId = move.goalId;
+      } else if (move.goalRef) {
+        const resolved = resolveGoalFromReference({
+          goalRef: move.goalRef,
+          goalsById,
+        });
+        if (resolved.ambiguous) {
+          warnings.push(`Ignored session move because goal "${move.goalRef}" is ambiguous.`);
+          appendUnresolvedQuestion(
+            `Which goal did you mean by "${move.goalRef}"?`
+          );
+          continue;
+        }
+        if (!resolved.goalId) {
+          warnings.push(`Ignored session move because goal "${move.goalRef}" was not found.`);
+          appendUnresolvedQuestion(
+            `Which goal should move to ${move.scheduledDate}?`
+          );
+          continue;
+        }
+        resolvedGoalId = resolved.goalId;
+      } else if (move.goalId) {
         warnings.push(`Ignored session move for unknown goal ${move.goalId}.`);
         continue;
       }
+
+      if (!resolvedGoalId) {
+        warnings.push(
+          "Ignored session move because no goal reference was provided."
+        );
+        continue;
+      }
+
+      const resolvedGoal = goalsById.get(resolvedGoalId);
+      const resolvedGoalTitle = resolvedGoal?.title ?? "this goal";
+      const sessionsForGoal = sessionsByGoalId.get(resolvedGoalId) ?? [];
+      let resolvedSession: CoachSessionRosterEntry | null = null;
+
+      if (move.unitKey) {
+        resolvedSession =
+          sessionsForGoal.find((session) => session.unitKey === move.unitKey) ?? null;
+      }
+
+      if (!resolvedSession && move.sourceDate) {
+        const sessionsOnSourceDate =
+          sessionsByGoalAndDate.get(`${resolvedGoalId}:${move.sourceDate}`) ?? [];
+        if (sessionsOnSourceDate.length === 1) {
+          resolvedSession = sessionsOnSourceDate[0] ?? null;
+        } else if (sessionsOnSourceDate.length > 1) {
+          appendResolutionFailure({
+            goalTitle: resolvedGoalTitle,
+            scheduledDate: move.scheduledDate,
+          });
+          continue;
+        }
+      }
+
+      if (!resolvedSession && sessionsForGoal.length === 1) {
+        resolvedSession = sessionsForGoal[0] ?? null;
+      }
+
+      if (!resolvedSession) {
+        appendResolutionFailure({
+          goalTitle: resolvedGoalTitle,
+          scheduledDate: move.scheduledDate,
+        });
+        continue;
+      }
+
       policyPatches.push({
         kind: "move_session",
-        goalId: move.goalId,
-        unitKey: move.unitKey,
+        goalId: resolvedSession.goalId,
+        unitKey: resolvedSession.unitKey,
         scheduledDate: move.scheduledDate,
       });
     }
@@ -210,7 +442,7 @@ function compileCalendarIntent(
   if (policyPatches.length === 0) {
     warnings.push("The calendar intent did not contain any scheduling changes.");
   }
-  return { policyPatches, warnings };
+  return { policyPatches, warnings, unresolvedQuestions };
 }
 
 export type CoachPolicyPatch = z.infer<typeof coachPolicyPatchSchema>;
@@ -232,9 +464,11 @@ export interface SanitizedCoachTurn {
 export function sanitizeCoachTurn({
   raw,
   goalsById,
+  sessionRoster = [],
 }: {
   raw: unknown;
   goalsById: Map<string, Goal>;
+  sessionRoster?: CoachSessionRosterEntry[];
 }): SanitizedCoachTurn {
   const parsedEnvelope = coachTurnResponseSchema.safeParse(raw);
   if (!parsedEnvelope.success) {
@@ -243,8 +477,15 @@ export function sanitizeCoachTurn({
   const envelope = parsedEnvelope.data;
   const compiled = compileCalendarIntent(
     envelope.proposal.calendarIntent,
-    goalsById
+    goalsById,
+    sessionRoster
   );
+  const unresolvedQuestions = [
+    ...new Set([
+      ...envelope.proposal.unresolvedQuestions,
+      ...compiled.unresolvedQuestions,
+    ]),
+  ];
 
   return {
     schemaVersion: "1",
@@ -253,7 +494,7 @@ export function sanitizeCoachTurn({
     proposal: {
       assessments: [],
       policyPatches: compiled.policyPatches,
-      unresolvedQuestions: envelope.proposal.unresolvedQuestions,
+      unresolvedQuestions,
     },
     recommendations: envelope.recommendations,
     warnings: compiled.warnings,
@@ -315,11 +556,14 @@ export const coachResponseJsonSchema = {
               items: {
                 type: "object",
                 properties: {
+                  sessionRef: { type: "string" },
                   goalId: { type: "string" },
+                  goalRef: { type: "string" },
                   unitKey: { type: "string" },
+                  sourceDate: { type: "string" },
                   scheduledDate: { type: "string" },
                 },
-                required: ["goalId", "unitKey", "scheduledDate"],
+                required: ["scheduledDate"],
               },
             },
           },

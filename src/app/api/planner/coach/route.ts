@@ -14,7 +14,9 @@ import {
 import {
   coachRequestSchema,
   coachResponseJsonSchema,
+  MAX_COACH_FOCUS_GOALS,
   sanitizeCoachTurn,
+  type CoachSessionRosterEntry,
 } from "@/lib/planner/coach";
 import { buildCoachPrompt } from "@/lib/planner/coach-prompt";
 import { loadPlannerCanonicalSnapshot } from "@/lib/planner/context-loader";
@@ -98,6 +100,30 @@ function readCoachTimeoutMs() {
   return getServerEnv().CALENDAR_COACH_TIMEOUT_MS ?? DEFAULT_COACH_TIMEOUT_MS;
 }
 
+function buildCoachSessionRoster({
+  goalsById,
+  items,
+}: {
+  goalsById: Map<string, { title: string }>;
+  items: Array<{
+    plan_goal_id: string;
+    unit_key: string;
+    scheduled_date: string | null;
+  }>;
+}): CoachSessionRosterEntry[] {
+  return items
+    .filter((item): item is typeof item & { scheduled_date: string } =>
+      Boolean(item.scheduled_date)
+    )
+    .map((item, index) => ({
+      sessionRef: `s${index + 1}`,
+      goalId: item.plan_goal_id,
+      goalTitle: goalsById.get(item.plan_goal_id)?.title ?? "Untitled goal",
+      unitKey: item.unit_key,
+      scheduledDate: item.scheduled_date,
+    }));
+}
+
 export async function POST(request: Request) {
   const coachTimeoutMs = readCoachTimeoutMs();
   return withPlannerRoute(async ({ correlationId }) => {
@@ -160,10 +186,16 @@ export async function POST(request: Request) {
       const focusGoalIds =
         body.focusGoalIds.length > 0
           ? body.focusGoalIds.filter((goalId) => goalsById.has(goalId))
-          : snapshot.goals.slice(0, 20).map((goal) => goal.id);
+          : snapshot.goals
+              .slice(0, MAX_COACH_FOCUS_GOALS)
+              .map((goal) => goal.id);
       const focusGoals = focusGoalIds
         .map((goalId) => goalsById.get(goalId))
         .filter((goal): goal is NonNullable<typeof goal> => Boolean(goal));
+      const sessionRoster = buildCoachSessionRoster({
+        goalsById,
+        items: snapshot.activePlan?.items ?? [],
+      });
 
       const admin = requirePlannerAdminClient();
       const prompt = buildCoachPrompt({
@@ -172,6 +204,7 @@ export async function POST(request: Request) {
         timezone: effectiveTimezone,
         asOfDate,
         focusGoals,
+        sessionRoster,
         allGoalsCount: snapshot.goals.length,
         deterministicSummary: body.deterministicSummary,
         messages: body.messages,
@@ -317,6 +350,7 @@ export async function POST(request: Request) {
         sanitized = sanitizeCoachTurn({
           raw: response.candidateJson,
           goalsById,
+          sessionRoster,
         });
       } catch (error) {
         const candidateTextPreview = truncateForDebug(

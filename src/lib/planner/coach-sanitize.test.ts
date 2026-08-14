@@ -163,6 +163,15 @@ describe("sanitizeCoachTurn", () => {
     const goalA = goal();
     const result = sanitizeCoachTurn({
       goalsById: new Map([[goalA.id, goalA]]),
+      sessionRoster: [
+        {
+          sessionRef: "s1",
+          goalId: goalA.id,
+          unitKey: "total:1",
+          scheduledDate: "2026-09-08",
+          goalTitle: goalA.title,
+        },
+      ],
       raw: {
         schemaVersion: "1",
         phase: "ready",
@@ -198,5 +207,182 @@ describe("sanitizeCoachTurn", () => {
     expect(result.warnings).toContain(
       "Ignored session move for unknown goal 99999999-9999-4999-8999-999999999999."
     );
+  });
+
+  it("resolves sessionRef moves using the server-provided session roster", () => {
+    const goalA = goal();
+    const result = sanitizeCoachTurn({
+      goalsById: new Map([[goalA.id, goalA]]),
+      sessionRoster: [
+        {
+          sessionRef: "s1",
+          goalId: goalA.id,
+          unitKey: "total:5",
+          scheduledDate: "2026-09-10",
+          goalTitle: goalA.title,
+        },
+      ],
+      raw: {
+        schemaVersion: "1",
+        phase: "ready",
+        reply: "Moved that session.",
+        proposal: {
+          calendarIntent: {
+            action: "apply",
+            sessionMoves: [
+              {
+                sessionRef: "s1",
+                scheduledDate: "2026-09-12",
+              },
+            ],
+          },
+        },
+      },
+    });
+
+    expect(result.proposal.policyPatches).toEqual([
+      {
+        kind: "move_session",
+        goalId: goalA.id,
+        unitKey: "total:5",
+        scheduledDate: "2026-09-12",
+      },
+    ]);
+    expect(result.warnings).toEqual([]);
+  });
+
+  it("falls back to the single scheduled session for a goalRef move", () => {
+    const goalA = goal({ title: "Create an ice cream that is at least 8.5/10" });
+    const result = sanitizeCoachTurn({
+      goalsById: new Map([[goalA.id, goalA]]),
+      sessionRoster: [
+        {
+          sessionRef: "s7",
+          goalId: goalA.id,
+          unitKey: "milestone:1",
+          scheduledDate: "2026-08-19",
+          goalTitle: goalA.title,
+        },
+      ],
+      raw: {
+        schemaVersion: "1",
+        phase: "ready",
+        reply: "I moved your ice cream session.",
+        proposal: {
+          calendarIntent: {
+            action: "apply",
+            sessionMoves: [
+              {
+                goalRef: "ice cream",
+                scheduledDate: "2026-08-26",
+              },
+            ],
+          },
+          unresolvedQuestions: [],
+        },
+      },
+    });
+
+    expect(result.proposal.policyPatches).toEqual([
+      {
+        kind: "move_session",
+        goalId: goalA.id,
+        unitKey: "milestone:1",
+        scheduledDate: "2026-08-26",
+      },
+    ]);
+    expect(result.proposal.unresolvedQuestions).toEqual([]);
+    expect(result.warnings).toEqual([]);
+  });
+
+  it("reports unresolved session references with descriptive warnings", () => {
+    const goalA = goal({ title: "Ice cream recipe" });
+    const result = sanitizeCoachTurn({
+      goalsById: new Map([[goalA.id, goalA]]),
+      sessionRoster: [
+        {
+          sessionRef: "s1",
+          goalId: goalA.id,
+          unitKey: "milestone:1",
+          scheduledDate: "2026-08-19",
+          goalTitle: goalA.title,
+        },
+        {
+          sessionRef: "s2",
+          goalId: goalA.id,
+          unitKey: "milestone:2",
+          scheduledDate: "2026-08-22",
+          goalTitle: goalA.title,
+        },
+      ],
+      raw: {
+        schemaVersion: "1",
+        phase: "review",
+        reply: "I need one clarification.",
+        proposal: {
+          calendarIntent: {
+            action: "apply",
+            sessionMoves: [
+              {
+                goalRef: "ice cream recipe",
+                scheduledDate: "2026-08-26",
+              },
+            ],
+          },
+          unresolvedQuestions: [],
+        },
+      },
+    });
+
+    expect(result.proposal.policyPatches).toEqual([]);
+    expect(result.proposal.unresolvedQuestions).toContain(
+      "Which existing Ice cream recipe session should move to 2026-08-26?"
+    );
+    expect(result.warnings).toContain(
+      "Ignored session move because the session reference for Ice cream recipe did not resolve."
+    );
+  });
+
+  it("falls back to goalRef when goalId is unknown", () => {
+    const goalA = goal({ title: "Conference proposal" });
+    const result = sanitizeCoachTurn({
+      goalsById: new Map([[goalA.id, goalA]]),
+      sessionRoster: [
+        {
+          sessionRef: "s9",
+          goalId: goalA.id,
+          unitKey: "total:3",
+          scheduledDate: "2026-08-18",
+          goalTitle: goalA.title,
+        },
+      ],
+      raw: {
+        schemaVersion: "1",
+        phase: "ready",
+        reply: "Moved your proposal work block.",
+        proposal: {
+          calendarIntent: {
+            action: "apply",
+            sessionMoves: [
+              {
+                goalId: "99999999-9999-4999-8999-999999999999",
+                goalRef: "conference proposal",
+                scheduledDate: "2026-08-20",
+              },
+            ],
+          },
+        },
+      },
+    });
+
+    expect(result.proposal.policyPatches).toEqual([
+      {
+        kind: "move_session",
+        goalId: goalA.id,
+        unitKey: "total:3",
+        scheduledDate: "2026-08-20",
+      },
+    ]);
+    expect(result.warnings).toEqual([]);
   });
 });

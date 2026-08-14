@@ -30,10 +30,10 @@ interface BuildCoachDeterministicSummaryInput {
   events?: string[];
 }
 
-const MAX_DAY_LINES = 14;
+const MAX_DAY_LINES = 20;
 const MAX_LABELS_PER_DAY = 3;
 const MAX_EVENT_LINES = 5;
-const MAX_HORIZON_GOALS = 8;
+const MAX_HORIZON_GOALS = 12;
 const MAX_HORIZON_MONTH_LINES = 24;
 const MAX_SUMMARY_CHARS = 3500;
 

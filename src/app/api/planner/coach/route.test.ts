@@ -366,6 +366,113 @@ describe("planner coach route", () => {
     });
   });
 
+  it("resolves sessionRef moves against the server session roster", async () => {
+    mocks.loadSnapshot.mockResolvedValue({
+      goals: [
+        {
+          id: "12000000-0000-4000-8000-000000000001",
+          owner_id: "11111111-1111-4111-8111-111111111111",
+          title: "Read",
+          description: null,
+          category: "Personal",
+          color: null,
+          frequency_type: "recurring",
+          recurrence_interval: "daily",
+          target_count: 20,
+          milestone_names: null,
+          start_date: "2026-01-01",
+          end_date: "2026-01-31",
+          photo_path: null,
+          team_id: null,
+          is_deleted: false,
+          archived_at: null,
+          created_at: "2026-01-01T00:00:00.000Z",
+          updated_at: "2026-01-01T00:00:00.000Z",
+        },
+      ],
+      completions: [],
+      links: [],
+      revisions: { canonicalRevision: 1, executionRevision: 1 },
+      preferences: {
+        owner_id: "11111111-1111-4111-8111-111111111111",
+        timezone: "UTC",
+        default_policy: {
+          schemaVersion: "1",
+          timezone: "UTC",
+          timezoneConfirmedAt: "2026-01-01T00:00:00.000Z",
+          restWeekdays: [],
+          blackoutRanges: [],
+        },
+        policy_schema_version: "1",
+        policy_compiler_version: "1",
+        policy_revision: 1,
+        timezone_confirmed_at: "2026-01-01T00:00:00.000Z",
+        created_at: "2026-01-01T00:00:00.000Z",
+        updated_at: "2026-01-01T00:00:00.000Z",
+      },
+      activePlan: {
+        items: [
+          {
+            plan_goal_id: "12000000-0000-4000-8000-000000000001",
+            unit_key: "total:1",
+            scheduled_date: "2026-01-16",
+          },
+        ],
+      },
+    });
+    mocks.generateGeminiJson.mockResolvedValue({
+      candidateJson: {
+        schemaVersion: "1",
+        phase: "ready",
+        reply: "Moved that session.",
+        proposal: {
+          calendarIntent: {
+            action: "apply",
+            sessionMoves: [
+              {
+                sessionRef: "s1",
+                scheduledDate: "2026-01-20",
+              },
+            ],
+          },
+          unresolvedQuestions: [],
+        },
+        recommendations: [{ text: "Keep spacing consistent." }],
+      },
+      outputTokens: 44,
+      attempts: 1,
+    });
+
+    const response = await POST(
+      request({
+        startDate: "2026-01-01",
+        endDate: "2026-01-31",
+        focusGoalIds: ["12000000-0000-4000-8000-000000000001"],
+        messages: [{ role: "user", content: "Move that session to next week." }],
+      })
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.generateGeminiJson).toHaveBeenCalledWith(
+      expect.objectContaining({
+        prompt: expect.stringContaining("Session roster JSON"),
+      })
+    );
+    await expect(response.json()).resolves.toMatchObject({
+      proposal: {
+        policyPatches: [
+          {
+            kind: "move_session",
+            goalId: "12000000-0000-4000-8000-000000000001",
+            unitKey: "total:1",
+            scheduledDate: "2026-01-20",
+          },
+        ],
+      },
+      warnings: [],
+    });
+  });
+
   it("refuses to compile edits when the activity needs a matching goal", async () => {
     mocks.generateGeminiJson.mockResolvedValue({
       candidateJson: {

@@ -5,6 +5,8 @@ import type {
 } from "@/features/planner/calendar-surface.types";
 import { buildCoachSessionKey } from "@/features/planner/coach-session";
 
+const MAX_COACH_FOCUS_GOALS = 40;
+
 export function buildCoachFocusGoalIds({
   workUnits,
   goalTitles,
@@ -12,16 +14,35 @@ export function buildCoachFocusGoalIds({
   workUnits: PlannerWorkUnit[] | null | undefined;
   goalTitles: Record<string, string> | undefined;
 }) {
-  const ids = new Set<string>();
+  const scheduledCountsByGoalId = new Map<string, number>();
   for (const unit of workUnits ?? []) {
-    ids.add(unit.originalGoalId);
-  }
-  if (ids.size === 0) {
-    for (const goalId of Object.keys(goalTitles ?? {})) {
-      ids.add(goalId);
+    if (!unit.scheduledDate) {
+      continue;
     }
+    const current = scheduledCountsByGoalId.get(unit.originalGoalId) ?? 0;
+    scheduledCountsByGoalId.set(unit.originalGoalId, current + 1);
   }
-  return Array.from(ids).slice(0, 20);
+
+  const goalIdsByWindowActivity = Array.from(scheduledCountsByGoalId.entries())
+    .sort((left, right) => {
+      if (right[1] !== left[1]) {
+        return right[1] - left[1];
+      }
+      return (goalTitles?.[left[0]] ?? left[0]).localeCompare(
+        goalTitles?.[right[0]] ?? right[0]
+      );
+    })
+    .map(([goalId]) => goalId);
+
+  const fallbackGoalIds = Object.keys(goalTitles ?? {})
+    .filter((goalId) => !scheduledCountsByGoalId.has(goalId))
+    .sort((left, right) => (goalTitles?.[left] ?? left).localeCompare(goalTitles?.[right] ?? right));
+
+  const ids = [...goalIdsByWindowActivity, ...fallbackGoalIds];
+  if (ids.length === 0) {
+    return [];
+  }
+  return ids.slice(0, MAX_COACH_FOCUS_GOALS);
 }
 
 export function countAssignmentChanges({
