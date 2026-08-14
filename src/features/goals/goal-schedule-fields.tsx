@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { getGoalHorizonEndDate } from "@/lib/goals/definition-validation";
 
 interface GoalDateRangeFieldsProps {
