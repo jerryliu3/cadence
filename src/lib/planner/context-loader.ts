@@ -18,6 +18,7 @@ import {
   plannerPolicySchema,
   type PlannerPolicy,
 } from "@/lib/planner/policy";
+import { buildPreparationWindows } from "@/lib/planner/preparation-windows";
 import {
   parsePlannerProfilePreferencesRow,
   resolvePlannerPreferencesSnapshot,
@@ -28,7 +29,6 @@ import { normalizeGoalRequirement } from "@/lib/planner/requirements";
 import type { PlannerIssueCode } from "@/lib/planner/solver/types";
 import { evaluateActivePlanStaleness } from "@/lib/planner/staleness";
 import {
-  buildPreparationWindows,
   isPlannerGoalUnplaceableReason,
   isPlannerGoalUnplaceableRecordValid,
   type PlannerGoalUnplaceableRecord,

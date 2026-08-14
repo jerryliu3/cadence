@@ -22,10 +22,12 @@ import {
   createDefaultPlannerPolicy,
   plannerPolicySchema,
 } from "@/lib/planner/policy";
-import { normalizeGoalRequirement } from "@/lib/planner/requirements";
 import {
   buildGoalPreparationWindows,
   buildPreparationWindows,
+} from "@/lib/planner/preparation-windows";
+import { normalizeGoalRequirement } from "@/lib/planner/requirements";
+import {
   isPlannerGoalUnplaceableReason,
   isPlannerGoalUnplaceableRecordValid,
   type PlannerGoalUnplaceableRecord,
@@ -96,13 +98,7 @@ function itemMatchesCurrentRequirement({
   return item.unit_key === `cadence:${period.periodKey}`;
 }
 
-function isOrdinalRequirementKind(
-  kind: ReturnType<typeof normalizeGoalRequirement>["requirement"]["kind"]
-) {
-  return kind === "milestone_sequence" || kind === "deadline_total";
-}
-
-function countRequiredUnitsForGoal({
+function computeRequiredUnitKeys({
   goal,
   effectiveStart,
   effectiveEnd,
@@ -114,16 +110,26 @@ function countRequiredUnitsForGoal({
   weekStartsOn: number;
 }) {
   if (effectiveEnd < effectiveStart) {
-    return 0;
+    return new Set<string>();
   }
   const requirement = normalizeGoalRequirement(goal).requirement;
-  if (
-    requirement.kind === "milestone_sequence" ||
-    requirement.kind === "deadline_total"
-  ) {
-    return requirement.targetCount;
+  if (requirement.kind === "milestone_sequence") {
+    return new Set(
+      Array.from(
+        { length: requirement.targetCount },
+        (_, index) => `milestone:${index + 1}`
+      )
+    );
   }
-  const periodKeys = new Set<string>();
+  if (requirement.kind === "deadline_total") {
+    return new Set(
+      Array.from(
+        { length: requirement.targetCount },
+        (_, index) => `total:${index + 1}`
+      )
+    );
+  }
+  const requiredUnitKeys = new Set<string>();
   for (const date of enumerateDates({ start: effectiveStart, end: effectiveEnd })) {
     const period = getAnchoredPeriod(
       goal.start_date,
@@ -131,9 +137,9 @@ function countRequiredUnitsForGoal({
       date,
       { weekStartsOn }
     );
-    periodKeys.add(period.periodKey);
+    requiredUnitKeys.add(`cadence:${period.periodKey}`);
   }
-  return periodKeys.size;
+  return requiredUnitKeys;
 }
 
 function throwPrepareInvariant({
@@ -245,7 +251,6 @@ async function prepareOnce({
   for (const goal of preparation.snapshot.goals) {
     const normalizedRequirement = normalizeGoalRequirement(goal);
     const requirementFingerprint = normalizedRequirement.requirementFingerprint;
-    const requirementKind = normalizedRequirement.requirement.kind;
     const goalAssignments = preparation.persistedItems
       .filter((item) => item.goal_id === goal.id)
       .map((item) => ({
@@ -263,19 +268,18 @@ async function prepareOnce({
       preparationEnd,
     });
     const goalWindows = goalWindowsState.windows as PreparationWindow[];
-    const requiredCount = countRequiredUnitsForGoal({
+    const requiredUnitKeys = computeRequiredUnitKeys({
       goal,
       effectiveStart: goalWindowsState.effectiveStart,
       effectiveEnd: goalWindowsState.effectiveEnd,
       weekStartsOn: policy.weekStartsOn ?? 1,
     });
-    const persistedCoverageCount = isOrdinalRequirementKind(requirementKind)
-      ? (persistedItemsValidByGoalId.get(goal.id) ?? []).length
-      : (persistedItemsInHorizonValidByGoalId.get(goal.id) ?? []).filter(
-          (item) =>
-            item.scheduled_date >= goalWindowsState.effectiveStart &&
-            item.scheduled_date <= goalWindowsState.effectiveEnd
-        ).length;
+    const persistedUnitKeys = new Set(
+      (persistedItemsValidByGoalId.get(goal.id) ?? []).map((item) => item.unit_key)
+    );
+    const missingRequiredUnitCount = Array.from(requiredUnitKeys).filter(
+      (unitKey) => !persistedUnitKeys.has(unitKey)
+    ).length;
     const hasStalePersistedRows =
       (persistedItemsInHorizonByGoalId.get(goal.id)?.length ?? 0) !==
       (persistedItemsInHorizonValidByGoalId.get(goal.id)?.length ?? 0);
@@ -293,7 +297,7 @@ async function prepareOnce({
       existingRecordIsValid && existingUnplaceableRecord
         ? existingUnplaceableRecord.unplacedCount
         : 0;
-    const missingCount = requiredCount - persistedCoverageCount - accountedCount;
+    const missingCount = missingRequiredUnitCount - accountedCount;
     const goalNeedsPreparation = missingCount !== 0 || hasStalePersistedRows;
     if (!goalNeedsPreparation) {
       if (
@@ -524,34 +528,32 @@ async function prepareOnce({
     if (preserveRecordedOutcomeGoalIds.has(goal.id)) {
       continue;
     }
-    const requirementKind = normalizeGoalRequirement(goal).requirement.kind;
-    const spanEnd = preparedOutcome.effective_span_end;
     const span = buildGoalPreparationWindows({
       goal,
       asOfDate,
       preparationStart,
       preparationEnd,
     });
-    const requiredCount = countRequiredUnitsForGoal({
+    const requiredUnitKeys = computeRequiredUnitKeys({
       goal,
       effectiveStart: span.effectiveStart,
       effectiveEnd: span.effectiveEnd,
       weekStartsOn: policy.weekStartsOn ?? 1,
     });
-    const scheduledCount = isOrdinalRequirementKind(requirementKind)
-      ? (persistedItemsValidByGoalId.get(goal.id) ?? []).filter(
-          (item) =>
-            item.scheduled_date < preparationStart ||
-            item.scheduled_date > preparationEnd
-        ).length +
-        preparedItems.filter((item) => item.goal_id === goal.id).length
-      : preparedItems.filter(
-          (item) =>
-            item.goal_id === goal.id &&
-            item.scheduled_date >= span.effectiveStart &&
-            item.scheduled_date <= spanEnd
-        ).length;
-    const unresolvedCount = Math.max(0, requiredCount - scheduledCount);
+    const scheduledUnitKeys = new Set<string>();
+    for (const item of persistedItemsValidByGoalId.get(goal.id) ?? []) {
+      if (item.scheduled_date < preparationStart || item.scheduled_date > preparationEnd) {
+        scheduledUnitKeys.add(item.unit_key);
+      }
+    }
+    for (const item of preparedItems) {
+      if (item.goal_id === goal.id) {
+        scheduledUnitKeys.add(item.unit_key);
+      }
+    }
+    const unresolvedCount = Array.from(requiredUnitKeys).filter(
+      (unitKey) => !scheduledUnitKeys.has(unitKey)
+    ).length;
     preparedOutcome.unplaced_count = unresolvedCount;
     if (unresolvedCount === 0) {
       preparedOutcome.reason = "capacity";

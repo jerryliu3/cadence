@@ -33,11 +33,24 @@ grant select
 on table public.planner_goal_unplaceable
 to authenticated;
 
+alter function public.prepare_planner_schedule(jsonb, jsonb, text)
+rename to prepare_planner_schedule_core;
+
+revoke all
+on function public.prepare_planner_schedule_core(jsonb, jsonb, text)
+from public, anon, authenticated;
+
+grant execute
+on function public.prepare_planner_schedule_core(jsonb, jsonb, text)
+to service_role;
+
+drop function if exists public.prepare_planner_schedule(jsonb, jsonb, text, jsonb);
+
 create or replace function public.prepare_planner_schedule(
   p_windows jsonb,
   p_items jsonb,
   p_expected_digest text,
-  p_unplaceable jsonb
+  p_unplaceable jsonb default '[]'::jsonb
 )
 returns table (
   schedule_digest text,
@@ -129,7 +142,7 @@ begin
 
   select *
   into v_result
-  from public.prepare_planner_schedule(
+  from public.prepare_planner_schedule_core(
     p_windows => p_windows,
     p_items => p_items,
     p_expected_digest => p_expected_digest
