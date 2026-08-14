@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { Fragment, type ReactNode, ViewTransition } from "react";
+import { JourneyIntroOverlay } from "@/components/intro/journey-intro-overlay";
 import { TabNav } from "@/components/navigation/tab-nav";
 import { Button } from "@/components/ui/button";
 import { AltitudeBackdrop } from "@/components/xp/altitude-backdrop";
@@ -53,6 +54,7 @@ export function AppShell({
     <XpRewardProvider>
       <XpProfileProvider>
         <AltitudeBackdrop />
+        <JourneyIntroOverlay />
         <DuoProvider
           key={`${duoAvailability}:${duoState.activePartner?.partnerId ?? "none"}`}
           viewerUserId={userId}
