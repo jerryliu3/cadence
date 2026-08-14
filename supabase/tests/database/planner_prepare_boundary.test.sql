@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions, pg_catalog;
-select plan(58);
+select plan(59);
 
 insert into auth.users (id, email)
 values
@@ -1541,6 +1541,26 @@ select ok(
     'public.prepare_planner_schedule(jsonb,jsonb,text)'::regprocedure
   ) like '%FOR UPDATE%',
   'preparation locks relevant goal definitions before validation'
+);
+
+select ok(
+  (
+    with definition as (
+      select pg_get_functiondef(
+        'public.prepare_planner_schedule(jsonb,jsonb,text)'::regprocedure
+      ) as source
+    )
+    select
+      strpos(source, 'pg_advisory_xact_lock') > 0
+      and strpos(source, 'from public.profiles profile') >
+        strpos(source, 'pg_advisory_xact_lock')
+      and strpos(source, 'perform goal.id') >
+        strpos(source, 'from public.profiles profile')
+      and source like
+        '%from public.profiles profile%where profile.id = v_owner%for update;%perform goal.id%'
+    from definition
+  ),
+  'preparation locks the owner profile between advisory and goal locks'
 );
 
 select ok(
