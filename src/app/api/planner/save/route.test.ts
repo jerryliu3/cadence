@@ -230,14 +230,16 @@ describe("planner save route", () => {
       })
     );
     const rpcPayload = mocks.routeRpc.mock.calls.at(-1)?.[1] as {
-      p_batches: Array<{ scope_month: string; items: unknown[] }>;
+      p_batches: Array<{ start_date: string; end_date: string; items: unknown[] }>;
     };
     expect(rpcPayload.p_batches).toHaveLength(2);
     expect(rpcPayload.p_batches[0]).toMatchObject({
-      scope_month: "2026-08-01",
+      start_date: "2026-08-01",
+      end_date: "2026-08-31",
     });
     expect(rpcPayload.p_batches[1]).toMatchObject({
-      scope_month: "2026-09-01",
+      start_date: "2026-09-01",
+      end_date: "2026-09-30",
     });
   });
 

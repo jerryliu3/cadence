@@ -104,8 +104,8 @@ describe("planner full reset route", () => {
     });
     expect(mocks.rpc).toHaveBeenCalledWith("set_planner_schedule_batch", {
       p_batches: [
-        { scope_month: "2026-08-01", items: [] },
-        { scope_month: "2026-09-01", items: [] },
+        { start_date: "2026-08-01", end_date: "2026-08-31", items: [] },
+        { start_date: "2026-09-01", end_date: "2026-09-30", items: [] },
       ],
       p_expected_digest: "a".repeat(64),
     });

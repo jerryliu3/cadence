@@ -79,6 +79,7 @@ select throws_ok(
     perform *
     from public.set_planner_schedule(
       v_scope_month,
+      (v_scope_month + interval '1 month - 1 day')::date,
       jsonb_build_array(
         jsonb_build_object(
           'goal_id', '91500000-0000-4000-8000-000000000001',
@@ -108,6 +109,7 @@ select throws_ok(
     perform *
     from public.set_planner_schedule(
       v_scope_month,
+      (v_scope_month + interval '1 month - 1 day')::date,
       jsonb_build_array(
         jsonb_build_object(
           'goal_id', '91500000-0000-4000-8000-000000000001',
@@ -138,6 +140,7 @@ select throws_ok(
     perform *
     from public.set_planner_schedule(
       v_scope_month,
+      (v_scope_month + interval '1 month - 1 day')::date,
       jsonb_build_array(
         jsonb_build_object(
           'goal_id', '91500000-0000-4000-8000-000000000001',
@@ -152,8 +155,8 @@ select throws_ok(
   $$;
   $tap$,
   '22023'::character(5),
-  'scheduled_date_outside_scope_month',
-  'set_planner_schedule rejects schedule rows outside the requested month'
+  'scheduled_date_outside_window',
+  'set_planner_schedule rejects schedule rows outside the requested window'
 );
 
 select throws_ok(
@@ -167,6 +170,7 @@ select throws_ok(
     perform *
     from public.set_planner_schedule(
       v_scope_month,
+      (v_scope_month + interval '1 month - 1 day')::date,
       jsonb_build_array(
         jsonb_build_object(
           'goal_id', '91500000-0000-4000-8000-000000000001',
@@ -202,6 +206,7 @@ select throws_ok(
     perform *
     from public.set_planner_schedule(
       v_scope_month,
+      (v_scope_month + interval '1 month - 1 day')::date,
       jsonb_build_array(
         jsonb_build_object(
           'goal_id', '91500000-0000-4000-8000-000000000001',
@@ -237,6 +242,7 @@ select throws_ok(
     perform *
     from public.set_planner_schedule(
       v_scope_month,
+      (v_scope_month + interval '1 month - 1 day')::date,
       jsonb_build_array(
         jsonb_build_object(
           'goal_id', '91500000-0000-4000-8000-000000000002',
@@ -266,6 +272,7 @@ select throws_ok(
     perform *
     from public.set_planner_schedule(
       v_scope_month,
+      (v_scope_month + interval '1 month - 1 day')::date,
       '{}'::jsonb,
       v_digest
     );
@@ -284,6 +291,7 @@ select throws_ok(
     perform *
     from public.set_planner_schedule(
       current_date,
+      (current_date - 1),
       '[]'::jsonb,
       ''
     );
@@ -291,8 +299,8 @@ select throws_ok(
   $$;
   $tap$,
   '22023'::character(5),
-  'invalid_scope_month',
-  'set_planner_schedule requires a first-of-month scope date'
+  'invalid_schedule_window',
+  'set_planner_schedule rejects inverted date windows'
 );
 
 reset role;

@@ -8,7 +8,7 @@ import {
 } from "@/lib/planner/api";
 import { MAX_API_BODY_BYTES } from "@/lib/planner/contracts/bounds";
 import { postgresErrorMatches } from "@/lib/planner/postgres-errors";
-import { toScopeMonthDate } from "@/lib/planner/scope-month";
+import { getScopeDateRange } from "@/lib/planner/dates";
 import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
@@ -36,8 +36,10 @@ export async function handlePlannerReset(request: Request) {
       clearScheduleSchema
     );
 
+    const window = getScopeDateRange(body.scopeMonth);
     const clearResponse = await routeContext.supabase.rpc("clear_planner_schedule", {
-      p_month: toScopeMonthDate(body.scopeMonth),
+      p_start: window.start,
+      p_end: window.end,
       p_expected_digest: body.expectedDigest,
     });
     if (clearResponse.error) {
@@ -48,7 +50,7 @@ export async function handlePlannerReset(request: Request) {
           "Planner plan state is stale. Refresh and try again."
         );
       }
-      if (postgresErrorMatches(clearResponse.error, "22023", "invalid_scope_month")) {
+      if (postgresErrorMatches(clearResponse.error, "22023", "invalid_schedule_window")) {
         throw new PlannerRouteError(
           400,
           "validation_failed",

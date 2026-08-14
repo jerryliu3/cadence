@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { getScopeDateRange } from "@/lib/planner/dates";
+import {
+  MAX_ELIGIBLE_GOALS,
+  MAX_PLANNER_WINDOW_DAYS,
+  MAX_WORK_UNITS,
+} from "@/lib/planner/contracts/bounds";
+import { getScopeDateRange, toPlannerScheduleWindow } from "@/lib/planner/dates";
 
 describe("planner month scope dates", () => {
   it("derives leap-month bounds", () => {
@@ -11,5 +16,20 @@ describe("planner month scope dates", () => {
 
   it("rejects impossible calendar months", () => {
     expect(() => getScopeDateRange("2026-13")).toThrow(RangeError);
+  });
+
+  it("maps a scope month to an inclusive schedule write window", () => {
+    expect(toPlannerScheduleWindow("2026-08")).toEqual({
+      start_date: "2026-08-01",
+      end_date: "2026-08-31",
+    });
+  });
+});
+
+describe("planner window capacity gate", () => {
+  it("keeps 12-month daily worst-case above the kernel unit cap", () => {
+    const twelveMonthDailyWorstCase = MAX_ELIGIBLE_GOALS * MAX_PLANNER_WINDOW_DAYS;
+    expect(MAX_PLANNER_WINDOW_DAYS).toBe(366);
+    expect(twelveMonthDailyWorstCase).toBeGreaterThan(MAX_WORK_UNITS);
   });
 });
