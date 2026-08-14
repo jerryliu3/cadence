@@ -5,6 +5,11 @@ import { api } from "../../lib/api";
 import { supabase } from "../../lib/supabase";
 import { triggerLightPressFeedback } from "../../lib/haptics";
 import { useSession } from "../../lib/session";
+import {
+  buildMobileGoalsQueryKey,
+  buildMobileProgressQueryKey,
+  duoQueryKeys,
+} from "../duo/query-keys";
 
 export interface MobileGoal {
   id: string;
@@ -37,7 +42,7 @@ export function useChecklistData() {
   const timezone = timezoneName();
 
   const goalsQuery = useQuery({
-    queryKey: ["mobile-goals", userId],
+    queryKey: buildMobileGoalsQueryKey({ viewerUserId: userId }),
     enabled: Boolean(userId),
     queryFn: async () => {
       const { data, error } = await supabase
@@ -55,7 +60,11 @@ export function useChecklistData() {
   });
 
   const progressQuery = useQuery({
-    queryKey: ["mobile-progress", asOfDate, timezone],
+    queryKey: buildMobileProgressQueryKey({
+      viewerUserId: userId,
+      asOfDate,
+      timezone,
+    }),
     enabled: Boolean(userId),
     queryFn: () =>
       api.getJson<ProgressContextResponse>("/api/progress/context", {
@@ -77,7 +86,9 @@ export function useChecklistData() {
       });
     },
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["mobile-progress"] });
+      await queryClient.invalidateQueries({
+        queryKey: duoQueryKeys.progressPrefix(userId),
+      });
     },
   });
 

@@ -8,6 +8,10 @@ import type {
 import { api } from "../../lib/api";
 import { useSession } from "../../lib/session";
 import { createMobilePlannerContextLoader } from "./planner-context-loader";
+import {
+  buildMobilePlannerContextQueryKey,
+  duoQueryKeys,
+} from "../duo/query-keys";
 
 export type MobilePlannerContext = PlannerContextPayload;
 export type MobilePlannerWorkUnit = PlannerWorkUnit;
@@ -33,7 +37,10 @@ export function usePlannerContext(month: string | null) {
   useEffect(() => {
     loaderRef.current?.reset();
   }, [userId]);
-  const queryKey = ["mobile-planner-context", userId, month] as const;
+  const queryKey = buildMobilePlannerContextQueryKey({
+    viewerUserId: userId,
+    month,
+  });
   const query = useQuery({
     queryKey,
     enabled: Boolean(month) && Boolean(userId),
@@ -43,7 +50,7 @@ export function usePlannerContext(month: string | null) {
     ...query,
     refresh: () =>
       queryClient.invalidateQueries({
-        queryKey: ["mobile-planner-context", userId],
+        queryKey: duoQueryKeys.plannerPrefix(userId),
       }),
     forcePrepare: async () => {
       if (!month || !userId) {

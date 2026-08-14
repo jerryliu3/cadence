@@ -3,6 +3,7 @@ import { Link } from "expo-router";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useTheme } from "../../theme";
 import { LoadingScreen, Screen } from "../../ui/screen";
+import { DuoScopeSegmentedControl } from "../duo/DuoScopeSegmentedControl";
 import { useChecklistData } from "./use-checklist-data";
 
 export function ChecklistScreen() {
@@ -16,6 +17,7 @@ export function ChecklistScreen() {
 
   return (
     <Screen title="Checklist" scroll={false}>
+      <DuoScopeSegmentedControl surface="checklist" />
       <Text style={{ color: theme.colors.mutedForeground }}>{asOfDate}</Text>
       <Link href="/goals/new" style={{ color: theme.colors.primary, fontWeight: "700" }}>
         New goal

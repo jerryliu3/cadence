@@ -22,6 +22,7 @@ import { useTheme } from "../../theme";
 import { PrimaryButton } from "../../ui/button";
 import { LoadingScreen, Screen } from "../../ui/screen";
 import { CoachPanel } from "./CoachPanel";
+import { DuoScopeSegmentedControl } from "../duo/DuoScopeSegmentedControl";
 import { DraftMoveError, planMobileDraftMove } from "./draft-moves";
 import { DraggableSession } from "./DraggableSession";
 import {
@@ -237,6 +238,7 @@ export function CalendarScreen() {
 
   return (
     <Screen title="Calendar">
+      <DuoScopeSegmentedControl surface="calendar" />
       <View style={styles.row}>
         <Pressable onPress={() => apply({ month: shiftMonth(scopeMonth, -1) })}>
           <Text style={{ color: theme.colors.primary }}>Prev</Text>
