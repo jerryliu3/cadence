@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Completion, Goal } from "@/lib/goals/types";
+import { getScopeDateRange } from "@/lib/planner/dates";
 import { reconcilePlannerCompletions } from "@/lib/planner/reconciliation";
 import { normalizeGoalRequirement } from "@/lib/planner/requirements";
 import {
@@ -68,7 +69,7 @@ describe("planner work units", () => {
     const units = materializeWorkUnits({
       goal,
       normalizedRequirement: normalizeGoalRequirement(goal),
-      scopeMonth: "2026-08",
+      window: getScopeDateRange("2026-08"),
       asOfDate: "2026-08-01",
     });
 
@@ -89,13 +90,13 @@ describe("planner work units", () => {
     const august = materializeWorkUnits({
       goal,
       normalizedRequirement: normalizeGoalRequirement(goal),
-      scopeMonth: "2026-08",
+      window: getScopeDateRange("2026-08"),
       asOfDate: "2026-08-01",
     });
     const september = materializeWorkUnits({
       goal,
       normalizedRequirement: normalizeGoalRequirement(goal),
-      scopeMonth: "2026-09",
+      window: getScopeDateRange("2026-09"),
       asOfDate: "2026-09-01",
     });
     const boundaryInAugust = august.find(
@@ -143,7 +144,7 @@ describe("planner work units", () => {
       const units = materializeWorkUnits({
         goal,
         normalizedRequirement: normalizeGoalRequirement(goal),
-        scopeMonth,
+        window: getScopeDateRange(scopeMonth),
         asOfDate: `${scopeMonth}-01`,
         weeklyAnchor: { weekStartsOn: 0 },
       });
@@ -158,7 +159,7 @@ describe("planner work units", () => {
     const units = materializeWorkUnits({
       goal,
       normalizedRequirement: normalizeGoalRequirement(goal),
-      scopeMonth: "2026-08",
+      window: getScopeDateRange("2026-08"),
       asOfDate: "2026-08-01",
     });
 
@@ -188,7 +189,7 @@ describe("planner work units", () => {
     const units = materializeWorkUnits({
       goal,
       normalizedRequirement: normalizeGoalRequirement(goal),
-      scopeMonth: "2026-12",
+      window: getScopeDateRange("2026-12"),
       asOfDate: "2026-12-01",
       weeklyAnchor: { weekStartsOn: 4 },
     });
@@ -205,7 +206,7 @@ describe("planner work units", () => {
     const units = materializeWorkUnits({
       goal,
       normalizedRequirement: normalizeGoalRequirement(goal),
-      scopeMonth: "2026-08",
+      window: getScopeDateRange("2026-08"),
       asOfDate: "2026-08-05",
       ordinalsForScopeMonth: allOrdinals(goal),
     });
@@ -231,7 +232,7 @@ describe("planner work units", () => {
       materializeWorkUnits({
         goal: totalGoal,
         normalizedRequirement: normalizeGoalRequirement(totalGoal),
-        scopeMonth: "2026-08",
+        window: getScopeDateRange("2026-08"),
         asOfDate: "2026-08-05",
       })
     ).toThrowError("Planner ordinal work units require an explicit ordinal scope allocation.");
@@ -246,7 +247,7 @@ describe("planner work units", () => {
     const units = materializeWorkUnits({
       goal,
       normalizedRequirement: normalizeGoalRequirement(goal),
-      scopeMonth: "2026-09",
+      window: getScopeDateRange("2026-09"),
       asOfDate: "2026-08-05",
       ordinalsForScopeMonth: new Set([2, 5]),
     });
@@ -262,7 +263,7 @@ describe("planner work units", () => {
     const units = materializeWorkUnits({
       goal,
       normalizedRequirement: normalizeGoalRequirement(goal),
-      scopeMonth: "2026-08",
+      window: getScopeDateRange("2026-08"),
       asOfDate: "2026-09-01",
       ordinalsForScopeMonth: allOrdinals(goal),
     });
@@ -279,7 +280,7 @@ describe("planner work units", () => {
     const units = materializeWorkUnits({
       goal,
       normalizedRequirement: normalizeGoalRequirement(goal),
-      scopeMonth: "2026-08",
+      window: getScopeDateRange("2026-08"),
       asOfDate: "2026-08-12",
     });
 
@@ -296,7 +297,7 @@ describe("planner draft move windows", () => {
     const units = materializeWorkUnits({
       goal,
       normalizedRequirement: normalizeGoalRequirement(goal),
-      scopeMonth: "2026-09",
+      window: getScopeDateRange("2026-09"),
       asOfDate: "2026-09-01",
     });
 
@@ -324,7 +325,7 @@ describe("planner time defaults", () => {
     const units = materializeWorkUnits({
       goal,
       normalizedRequirement: requirement,
-      scopeMonth: "2026-08",
+      window: getScopeDateRange("2026-08"),
       asOfDate: "2026-08-01",
       ordinalsForScopeMonth: allOrdinals(goal),
       baseAssignments: [
@@ -358,7 +359,7 @@ describe("planner time defaults", () => {
     const units = materializeWorkUnits({
       goal,
       normalizedRequirement: requirement,
-      scopeMonth: "2026-08",
+      window: getScopeDateRange("2026-08"),
       asOfDate: "2026-08-01",
       ordinalsForScopeMonth: allOrdinals(goal),
       baseAssignments: [
@@ -403,7 +404,7 @@ describe("planner completion reconciliation", () => {
     const units = materializeWorkUnits({
       goal,
       normalizedRequirement: normalizeGoalRequirement(goal),
-      scopeMonth: "2026-08",
+      window: getScopeDateRange("2026-08"),
       asOfDate: "2026-08-20",
       ordinalsForScopeMonth: allOrdinals(goal),
       baseAssignments,
@@ -450,7 +451,7 @@ describe("planner completion reconciliation", () => {
     const units = materializeWorkUnits({
       goal,
       normalizedRequirement,
-      scopeMonth: "2026-08",
+      window: getScopeDateRange("2026-08"),
       asOfDate: "2026-08-20",
       ordinalsForScopeMonth: allOrdinals(goal),
       baseAssignments: [
@@ -512,7 +513,7 @@ describe("planner completion reconciliation", () => {
     const units = materializeWorkUnits({
       goal,
       normalizedRequirement: normalizeGoalRequirement(goal),
-      scopeMonth: "2026-08",
+      window: getScopeDateRange("2026-08"),
       asOfDate: "2026-08-20",
       ordinalsForScopeMonth: allOrdinals(goal),
       baseAssignments: [
@@ -562,7 +563,7 @@ describe("planner completion reconciliation", () => {
     const units = materializeWorkUnits({
       goal,
       normalizedRequirement: normalizeGoalRequirement(goal),
-      scopeMonth: "2026-08",
+      window: getScopeDateRange("2026-08"),
       asOfDate: "2026-08-20",
       ordinalsForScopeMonth: allOrdinals(goal),
     });
@@ -596,7 +597,7 @@ describe("planner completion reconciliation", () => {
     const units = materializeWorkUnits({
       goal,
       normalizedRequirement: normalizeGoalRequirement(goal),
-      scopeMonth: "2026-08",
+      window: getScopeDateRange("2026-08"),
       asOfDate: "2026-08-20",
     });
     const result = reconcilePlannerCompletions({
@@ -615,7 +616,7 @@ describe("planner completion reconciliation", () => {
     const units = materializeWorkUnits({
       goal,
       normalizedRequirement: normalized,
-      scopeMonth: "2026-08",
+      window: getScopeDateRange("2026-08"),
       asOfDate: "2026-08-10",
       baseAssignments: [
         {

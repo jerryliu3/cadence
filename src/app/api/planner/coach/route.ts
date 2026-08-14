@@ -18,6 +18,7 @@ import {
 } from "@/lib/planner/coach";
 import { buildCoachPrompt } from "@/lib/planner/coach-prompt";
 import { loadPlannerCanonicalSnapshot } from "@/lib/planner/context-loader";
+import { toKernelWindow } from "@/lib/planner/dates";
 import {
   parseBoundedJsonBody,
   PlannerRouteError,
@@ -137,7 +138,7 @@ export async function POST(request: Request) {
       const snapshot = await loadPlannerCanonicalSnapshot({
         supabase: routeContext.supabase,
         ownerId: routeContext.userId,
-        scopeMonth: body.scopeMonth,
+        ...toKernelWindow(body.scopeMonth),
       });
       if (!snapshot.preferences) {
         throw new PlannerRouteError(

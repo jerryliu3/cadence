@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import eligibilityFixtureJson from "../../../test/fixtures/planner-contracts/eligibility.v1.json";
 import { eligibilityFixtureSchema } from "@/lib/planner/contracts/fixture-schema";
-import type { Goal } from "@/lib/goals/types";
+import { getScopeDateRange } from "@/lib/planner/dates";
 import {
   evaluateGoalEligibility,
   evaluateOverlapV1Eligibility,
@@ -14,7 +14,7 @@ describe("frozen overlap eligibility fixture", () => {
   it.each(fixture.cases)("$id", (fixtureCase) => {
     expect(
       evaluateOverlapV1Eligibility(
-        fixtureCase.scopeMonth,
+        getScopeDateRange(fixtureCase.scopeMonth),
         fixtureCase.goal
       )
     ).toEqual(fixtureCase.expected);
@@ -33,7 +33,7 @@ describe("overlap-v1 eligibility", () => {
   };
 
   it("includes goals that overlap the scope month", () => {
-    expect(evaluateOverlapV1Eligibility("2026-08", baseGoal)).toEqual({
+    expect(evaluateOverlapV1Eligibility(getScopeDateRange("2026-08"), baseGoal)).toEqual({
       eligible: true,
       reason: "eligible",
     });
@@ -41,7 +41,7 @@ describe("overlap-v1 eligibility", () => {
 
   it("keeps future-starting goals outside the selected month", () => {
     expect(
-      evaluateOverlapV1Eligibility("2026-08", {
+      evaluateOverlapV1Eligibility(getScopeDateRange("2026-08"), {
         ...baseGoal,
         startDate: "2026-09-01",
         endDate: "2026-10-01",
@@ -54,7 +54,7 @@ describe("overlap-v1 eligibility", () => {
 
   it("keeps fully historical goals outside the selected month", () => {
     expect(
-      evaluateOverlapV1Eligibility("2026-08", {
+      evaluateOverlapV1Eligibility(getScopeDateRange("2026-08"), {
         ...baseGoal,
         startDate: "2026-05-01",
         endDate: "2026-07-31",
@@ -91,7 +91,7 @@ describe("goal-level eligibility guards", () => {
   it("keeps open-ended cadence goals eligible once started", () => {
     expect(
       evaluateGoalEligibility({
-        scopeMonth: "2026-08",
+        window: getScopeDateRange("2026-08"),
         ownerId: "owner-a",
         goal: cadenceGoal,
         currentLinkRole: "none",
@@ -105,7 +105,7 @@ describe("goal-level eligibility guards", () => {
   it("keeps future open-ended cadence goals out of the active month", () => {
     expect(
       evaluateGoalEligibility({
-        scopeMonth: "2026-08",
+        window: getScopeDateRange("2026-08"),
         ownerId: "owner-a",
         goal: {
           ...cadenceGoal,
@@ -122,7 +122,7 @@ describe("goal-level eligibility guards", () => {
   it("requires end dates for targeted recurring goals", () => {
     expect(
       evaluateGoalEligibility({
-        scopeMonth: "2026-08",
+        window: getScopeDateRange("2026-08"),
         ownerId: "owner-a",
         goal: {
           ...cadenceGoal,
@@ -161,7 +161,7 @@ describe("goal-level eligibility guards", () => {
 
     expect(
       evaluateGoalEligibility({
-        scopeMonth: "2026-08",
+        window: getScopeDateRange("2026-08"),
         ownerId: "owner-a",
         goal: longHorizonGoal,
         currentLinkRole: "none",
@@ -175,7 +175,7 @@ describe("goal-level eligibility guards", () => {
   it("marks cadence goals with overlong bounded horizons as ineligible", () => {
     expect(
       evaluateGoalEligibility({
-        scopeMonth: "2026-08",
+        window: getScopeDateRange("2026-08"),
         ownerId: "owner-a",
         goal: {
           ...cadenceGoal,

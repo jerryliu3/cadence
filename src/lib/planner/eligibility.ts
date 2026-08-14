@@ -1,6 +1,6 @@
 import type { Goal } from "@/lib/goals/types";
 import { isOrdinalGoalDefinition } from "@/lib/goals/definition-validation";
-import { enumerateMonthsInWindow, getScopeDateRange } from "@/lib/planner/dates";
+import { enumerateMonthsInWindow, type DateWindow } from "@/lib/planner/dates";
 import { MAX_HORIZON_MONTHS } from "@/lib/planner/contracts/bounds";
 
 export type EligibilityReason =
@@ -54,7 +54,7 @@ function evaluateStaticEligibility(goal: EligibilityGoal): EligibilityDecision |
 }
 
 export function evaluateOverlapV1Eligibility(
-  scopeMonth: string,
+  window: DateWindow,
   goal: EligibilityGoal
 ): EligibilityDecision {
   const staticDecision = evaluateStaticEligibility(goal);
@@ -62,23 +62,22 @@ export function evaluateOverlapV1Eligibility(
     return staticDecision;
   }
 
-  const scope = getScopeDateRange(scopeMonth);
-  if (goal.endDate !== null && goal.endDate < scope.start) {
+  if (goal.endDate !== null && goal.endDate < window.start) {
     return { eligible: false, reason: "end_outside_scope" };
   }
-  if (goal.startDate > scope.end) {
+  if (goal.startDate > window.end) {
     return { eligible: false, reason: "starts_after_scope" };
   }
   return { eligible: true, reason: "eligible" };
 }
 
 export function evaluateGoalEligibility({
-  scopeMonth,
+  window,
   ownerId,
   goal,
   currentLinkRole,
 }: {
-  scopeMonth: string;
+  window: DateWindow;
   ownerId: string;
   goal: Goal;
   currentLinkRole: EligibilityGoal["currentLinkRole"];
@@ -97,7 +96,7 @@ export function evaluateGoalEligibility({
     endDate: goal.end_date,
     requiresDeadline,
   };
-  const decision = evaluateOverlapV1Eligibility(scopeMonth, normalizedGoal);
+  const decision = evaluateOverlapV1Eligibility(window, normalizedGoal);
   if (!decision.eligible || goal.end_date === null) {
     return decision;
   }

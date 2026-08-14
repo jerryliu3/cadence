@@ -3,6 +3,7 @@ import type { Goal } from "@/lib/goals/types";
 import { runPlannerKernel, type PlannerKernelInput } from "@/lib/planner/kernel";
 import { createDefaultPlannerPolicy } from "@/lib/planner/policy";
 import { computeRequirementFingerprint } from "@/lib/planner/requirements";
+import { toKernelWindow } from "@/lib/planner/dates";
 
 function makeGoal(overrides: Partial<Goal> = {}): Goal {
   return {
@@ -36,7 +37,7 @@ function makeInput(
     schemaVersion: "1",
     eligibilityMode: "overlap_v1",
     ownerId: "owner-a",
-    scopeMonth: "2026-08",
+    ...toKernelWindow("2026-08"),
     asOfDate: "2026-08-01",
     timezone: "UTC",
     goals: [goal],

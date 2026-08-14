@@ -7,6 +7,7 @@ import {
 } from "@/lib/planner/kernel";
 import { createDefaultPlannerPolicy } from "@/lib/planner/policy";
 import { computeRequirementFingerprint } from "@/lib/planner/requirements";
+import { toKernelWindow } from "@/lib/planner/dates";
 
 function goal(overrides: Partial<Goal> = {}): Goal {
   return {
@@ -37,7 +38,7 @@ function input(overrides: Partial<PlannerKernelInput> = {}): PlannerKernelInput 
     schemaVersion: "1",
     eligibilityMode: "overlap_v1",
     ownerId: "owner-a",
-    scopeMonth: "2026-08",
+    ...toKernelWindow("2026-08"),
     asOfDate: "2026-08-05",
     timezone: "UTC",
     goals: [goal()],
@@ -71,6 +72,32 @@ describe("pure planner kernel", () => {
     expect(first.validation.valid).toBe(true);
   });
 
+  it("solves a multi-month window in one kernel call", () => {
+    const cadenceGoal = goal({
+      target_count: null,
+      start_date: "2026-08-01",
+      end_date: "2026-09-30",
+    });
+    const august = runPlannerKernel(
+      input({
+        ...toKernelWindow("2026-08"),
+        goals: [cadenceGoal],
+      })
+    );
+    const window = runPlannerKernel(
+      input({
+        startDate: "2026-08-01",
+        endDate: "2026-09-30",
+        goals: [cadenceGoal],
+      })
+    );
+
+    expect(window.workUnits.length).toBeGreaterThan(august.workUnits.length);
+    expect(
+      window.workUnits.some((unit) => unit.unitKey.includes("2026-09"))
+    ).toBe(true);
+  });
+
   it("does not inflate planned ordinal totals when toggling months", () => {
     const longGoal = goal({
       target_count: 9,
@@ -81,7 +108,7 @@ describe("pure planner kernel", () => {
       runPlannerKernel(
         input({
           eligibilityMode: "overlap_v1",
-          scopeMonth,
+          ...toKernelWindow(scopeMonth),
           asOfDate: "2026-08-05",
           goals: [longGoal],
         })
@@ -108,7 +135,7 @@ describe("pure planner kernel", () => {
     const output = runPlannerKernel(
       input({
         eligibilityMode: "overlap_v1",
-        scopeMonth: "2026-09",
+        ...toKernelWindow("2026-09"),
         asOfDate: "2026-08-05",
         goals: [longGoal],
       })
@@ -121,7 +148,7 @@ describe("pure planner kernel", () => {
     expect(
       summary.months.reduce((count, month) => count + month.plannedCount, 0)
     ).toBe(longGoal.target_count);
-    expect(summary.scopeMonthPlannedCount).toBe(output.workUnits.length);
+    expect(summary.windowPlannedCount).toBe(output.workUnits.length);
   });
 
   it("carries forward elapsed ordinal obligations into remaining months", () => {
@@ -135,7 +162,7 @@ describe("pure planner kernel", () => {
         runPlannerKernel(
           input({
             eligibilityMode: "overlap_v1",
-            scopeMonth,
+            ...toKernelWindow(scopeMonth),
             asOfDate: "2026-10-15",
             goals: [longGoal],
           })
@@ -159,7 +186,7 @@ describe("pure planner kernel", () => {
     const augustPublished = runPlannerKernel(
       input({
         eligibilityMode: "overlap_v1",
-        scopeMonth: "2026-08",
+        ...toKernelWindow("2026-08"),
         asOfDate: "2026-08-05",
         goals: [longGoal],
       })
@@ -194,7 +221,7 @@ describe("pure planner kernel", () => {
       runPlannerKernel(
         input({
           eligibilityMode: "overlap_v1",
-          scopeMonth: "2026-08",
+          ...toKernelWindow("2026-08"),
           asOfDate: "2026-09-10",
           goals: [longGoal],
           completions,
@@ -204,7 +231,7 @@ describe("pure planner kernel", () => {
       runPlannerKernel(
         input({
           eligibilityMode: "overlap_v1",
-          scopeMonth: "2026-09",
+          ...toKernelWindow("2026-09"),
           asOfDate: "2026-09-10",
           goals: [longGoal],
           completions,
@@ -214,7 +241,7 @@ describe("pure planner kernel", () => {
       runPlannerKernel(
         input({
           eligibilityMode: "overlap_v1",
-          scopeMonth: "2026-10",
+          ...toKernelWindow("2026-10"),
           asOfDate: "2026-09-10",
           goals: [longGoal],
           completions,
@@ -245,7 +272,7 @@ describe("pure planner kernel", () => {
       runPlannerKernel(
         input({
           eligibilityMode: "overlap_v1",
-          scopeMonth,
+          ...toKernelWindow(scopeMonth),
           asOfDate: "2026-08-20",
           goals: [constrainedStartGoal],
         })
@@ -271,7 +298,7 @@ describe("pure planner kernel", () => {
     const output = runPlannerKernel(
       input({
         eligibilityMode: "overlap_v1",
-        scopeMonth: "2026-08",
+        ...toKernelWindow("2026-08"),
         asOfDate: "2026-08-05",
         goals: [oversizedHorizonGoal],
       })
@@ -296,7 +323,7 @@ describe("pure planner kernel", () => {
     const output = runPlannerKernel(
       input({
         eligibilityMode: "overlap_v1",
-        scopeMonth: "2026-08",
+        ...toKernelWindow("2026-08"),
         asOfDate: "2026-08-05",
         goals: [oversizedCadenceGoal],
       })
@@ -321,7 +348,7 @@ describe("pure planner kernel", () => {
     const output = runPlannerKernel(
       input({
         eligibilityMode: "overlap_v1",
-        scopeMonth: "2026-08",
+        ...toKernelWindow("2026-08"),
         asOfDate: "2026-08-05",
         goals: [openCadenceGoal],
       })
@@ -348,7 +375,7 @@ describe("pure planner kernel", () => {
       runPlannerKernel(
         input({
           eligibilityMode: "overlap_v1",
-          scopeMonth,
+          ...toKernelWindow(scopeMonth),
           asOfDate: "2026-08-05",
           goals: [distributedGoal],
           policy,
@@ -373,7 +400,7 @@ describe("pure planner kernel", () => {
     const september = runPlannerKernel(
       input({
         eligibilityMode: "overlap_v1",
-        scopeMonth: "2026-09",
+        ...toKernelWindow("2026-09"),
         asOfDate: "2026-09-10",
         goals: [distributedGoal],
         policy,
@@ -382,7 +409,7 @@ describe("pure planner kernel", () => {
     const october = runPlannerKernel(
       input({
         eligibilityMode: "overlap_v1",
-        scopeMonth: "2026-10",
+        ...toKernelWindow("2026-10"),
         asOfDate: "2026-09-10",
         goals: [distributedGoal],
         policy,
@@ -419,7 +446,7 @@ describe("pure planner kernel", () => {
       runPlannerKernel(
         input({
           eligibilityMode: "overlap_v1",
-          scopeMonth,
+          ...toKernelWindow(scopeMonth),
           asOfDate: "2026-09-10",
           goals: [distributedGoal],
           completions,
@@ -481,7 +508,7 @@ describe("pure planner kernel", () => {
     const output = runPlannerKernel(
       input({
         eligibilityMode: "overlap_v1",
-        scopeMonth: "2026-09",
+        ...toKernelWindow("2026-09"),
         asOfDate: "2026-09-10",
         goals: [milestoneGoal],
         completions,
@@ -520,7 +547,7 @@ describe("pure planner kernel", () => {
     const output = runPlannerKernel(
       input({
         eligibilityMode: "overlap_v1",
-        scopeMonth: "2026-09",
+        ...toKernelWindow("2026-09"),
         asOfDate: "2026-09-10",
         goals: [deadlineGoal],
         completions,
@@ -610,7 +637,7 @@ describe("pure planner kernel", () => {
       });
       const output = runPlannerKernel(
         input({
-          scopeMonth: "2026-08",
+          ...toKernelWindow("2026-08"),
           asOfDate: "2026-08-20",
           goals: [currentGoal],
           preserveExistingAssignments: true,
@@ -647,7 +674,7 @@ describe("pure planner kernel", () => {
       });
       const output = runPlannerKernel(
         input({
-          scopeMonth: "2026-08",
+          ...toKernelWindow("2026-08"),
           asOfDate: "2026-08-20",
           goals: [currentGoal],
           preserveExistingAssignments: false,
@@ -682,7 +709,7 @@ describe("pure planner kernel", () => {
       const fingerprint = computeRequirementFingerprint(currentGoal);
       const output = runPlannerKernel(
         input({
-          scopeMonth: "2026-08",
+          ...toKernelWindow("2026-08"),
           asOfDate: "2026-08-20",
           goals: [currentGoal],
           preserveExistingAssignments: true,
@@ -727,7 +754,7 @@ describe("pure planner kernel", () => {
       });
       const output = runPlannerKernel(
         input({
-          scopeMonth: "2026-08",
+          ...toKernelWindow("2026-08"),
           asOfDate: "2026-08-20",
           goals: [currentGoal],
           preserveExistingAssignments: true,
@@ -764,7 +791,7 @@ describe("pure planner kernel", () => {
       });
       const output = runPlannerKernel(
         input({
-          scopeMonth: "2026-08",
+          ...toKernelWindow("2026-08"),
           asOfDate: "2026-08-20",
           goals: [currentGoal],
           preserveExistingAssignments: true,
@@ -801,7 +828,7 @@ describe("pure planner kernel", () => {
       });
       const output = runPlannerKernel(
         input({
-          scopeMonth: "2026-08",
+          ...toKernelWindow("2026-08"),
           asOfDate: "2026-08-20",
           goals: [currentGoal],
           preserveExistingAssignments: true,
@@ -835,7 +862,7 @@ describe("pure planner kernel", () => {
       });
       const output = runPlannerKernel(
         input({
-          scopeMonth: "2026-08",
+          ...toKernelWindow("2026-08"),
           asOfDate: "2026-08-20",
           goals: [currentGoal],
           preserveExistingAssignments: true,
