@@ -3,7 +3,7 @@ import {
   buildPartnerCompletionMarkersByDate,
   mergeCompletionFactMarkers,
   monthGridFactsBounds,
-} from "@/features/planner/calendar-partner-overlay";
+} from "@cadence/shared/planner/partner-completion";
 
 describe("calendar partner overlay", () => {
   it("builds month-bounded partner markers without mixing into viewer identity keys", () => {

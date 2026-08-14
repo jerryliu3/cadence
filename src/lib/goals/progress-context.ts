@@ -1,5 +1,3 @@
-import type { GoalProgressSnapshot } from "@/lib/goals/progress";
-import type { CompletionDateFact } from "@/lib/goals/types";
 import {
   getApiErrorMessage,
   getJson,
@@ -13,27 +11,13 @@ import {
   writeTabDataCache,
 } from "@/lib/cache/tab-data-cache";
 import { resolveUserTimezone } from "@/lib/dates/timezone";
+import {
+  buildProgressContextQuery,
+  type ProgressContextRequest,
+  type ProgressContextResponse,
+} from "@cadence/shared/goals/progress-context";
 
-export interface ProgressContextResponse {
-  schemaVersion: "1";
-  asOfDate: string;
-  timezone: string;
-  weekStartsOn: number;
-  summaries: GoalProgressSnapshot[];
-  facts: CompletionDateFact[];
-  truncated: false;
-  correlationId: string;
-}
-
-export interface ProgressContextRequest {
-  asOfDate: string;
-  timezone?: string;
-  viewDate?: string;
-  factsFrom?: string;
-  factsTo?: string;
-  subjectUserId?: string;
-  forceRefresh?: boolean;
-}
+export type { ProgressContextRequest, ProgressContextResponse };
 
 const PROGRESS_CONTEXT_CACHE_TTL_MS = TAB_DATA_CACHE_TTL_MS;
 const PROGRESS_CONTEXT_REQUEST_TIMEOUT_MS = 15_000;
@@ -83,31 +67,6 @@ export function isProgressContextAuthenticationError(
 
 export function invalidateProgressContextCache() {
   invalidateTabDataCacheByPrefix(PROGRESS_CONTEXT_CACHE_PREFIX);
-}
-
-function buildProgressContextQuery({
-  asOfDate,
-  timezone,
-  viewDate,
-  factsFrom,
-  factsTo,
-  subjectUserId,
-}: Pick<
-  ProgressContextRequest,
-  "asOfDate" | "timezone" | "viewDate" | "factsFrom" | "factsTo" | "subjectUserId"
->) {
-  const query = new URLSearchParams({ asOfDate, timezone: timezone ?? "UTC" });
-  if (viewDate) {
-    query.set("viewDate", viewDate);
-  }
-  if (factsFrom && factsTo) {
-    query.set("factsFrom", factsFrom);
-    query.set("factsTo", factsTo);
-  }
-  if (subjectUserId) {
-    query.set("subjectUserId", subjectUserId);
-  }
-  return query;
 }
 
 function isProgressContextResponse(payload: unknown): payload is ProgressContextResponse {

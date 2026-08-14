@@ -10,7 +10,7 @@ import {
   isProgressContextAuthenticationError,
   isProgressContextRequestError,
 } from "@/lib/goals/progress-context";
-import type { DuoActivePartner } from "@/lib/social/duo/types";
+import type { DuoActivePartner } from "@cadence/shared/social/duo";
 import { reportDuoPartnerFetchFailure, reportDuoTelemetry } from "@/lib/social/duo/telemetry";
 
 export function PartnerChecklistStrip({

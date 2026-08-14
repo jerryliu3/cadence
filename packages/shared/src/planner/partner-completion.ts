@@ -1,6 +1,6 @@
 import { addDays, format, parseISO, startOfMonth } from "date-fns";
-import type { PlannerCompletionFactMarker } from "@/features/planner/calendar-surface.types";
-import type { CompletionDateFact } from "@/lib/goals/types";
+import type { ProgressContextFact } from "../goals/progress-context";
+import type { PlannerCompletionFactMarker } from "./context";
 
 /**
  * The month grid is a fixed 42-cell window whose first cell is the start of the
@@ -31,7 +31,7 @@ export function buildPartnerCompletionMarkersByDate({
   facts,
   titles,
 }: {
-  facts: CompletionDateFact[];
+  facts: ProgressContextFact[];
   titles: Record<string, string>;
 }): Map<string, PlannerCompletionFactMarker[]> {
   const map = new Map<string, PlannerCompletionFactMarker[]>();

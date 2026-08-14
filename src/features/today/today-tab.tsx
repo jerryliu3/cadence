@@ -48,7 +48,7 @@ import { GoalCard } from "@/features/today/goal-card";
 import { useChecklistData } from "@/features/today/use-checklist-data";
 import { captureViewportRect } from "@/lib/xp/events";
 import { PartnerChecklistStrip } from "@/features/social/duo/partner-checklist-strip";
-import type { DuoActivePartner } from "@/lib/social/duo/types";
+import type { DuoActivePartner } from "@cadence/shared/social/duo";
 import { buildCompletableGoalIds, selectCompletableGoals } from "@/lib/goals/completable-goals";
 import { resolveUserTimezone } from "@/lib/dates/timezone";
 import { normalizeWeekStartsOn } from "@/lib/dates/week-start";

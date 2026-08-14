@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { selectViewerVisibleGoals } from "@/lib/goals/visible-goals";
+import { selectViewerVisibleGoals } from "@cadence/shared/goals/visible-goals";
 
 describe("selectViewerVisibleGoals", () => {
   it("keeps shared and participant goals for solo viewers", () => {
