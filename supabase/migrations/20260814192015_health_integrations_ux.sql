@@ -163,6 +163,8 @@ begin
     raise exception using errcode = '22023', message = 'invalid_local_today';
   end if;
 
+  perform private.assert_health_local_today(p_local_today);
+
   for v_rule in
     select
       rule.goal_id,

@@ -8,6 +8,7 @@ import { NotificationNavigation } from "../src/lib/notification-navigation";
 import { SessionProvider } from "../src/lib/session";
 import { initMobileSentry } from "../src/lib/sentry";
 import { HealthPrivacyIntentHandler } from "../src/features/health/health-privacy-intent-handler";
+import { HealthSyncLifecycle } from "../src/features/health/health-sync-lifecycle";
 
 initMobileSentry();
 
@@ -21,6 +22,7 @@ export default function RootLayout() {
               <NotificationNavigation />
               <StatusBar style="auto" />
               <HealthPrivacyIntentHandler />
+              <HealthSyncLifecycle />
               <Stack screenOptions={{ headerShown: false }}>
                 <Stack.Screen name="index" />
                 <Stack.Screen name="(auth)" />
