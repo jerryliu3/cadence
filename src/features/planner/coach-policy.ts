@@ -75,6 +75,9 @@ export function applyCoachPolicyPatches({
         }
         break;
       }
+      case "move_session": {
+        break;
+      }
       default: {
         ignoredPatchCount += 1;
         unsupportedPatchCount += 1;

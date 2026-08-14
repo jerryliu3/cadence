@@ -65,4 +65,22 @@ describe("applyCoachPolicyPatches", () => {
     expect(result.ignoredPatchCount).toBe(0);
     expect(result.unsupportedPatchCount).toBe(0);
   });
+
+  it("leaves move_session patches for the calendar apply path", () => {
+    const result = applyCoachPolicyPatches({
+      policy: basePolicy(),
+      patches: [
+        {
+          kind: "move_session",
+          goalId: "12000000-0000-4000-8000-000000000001",
+          unitKey: "total:1",
+          scheduledDate: "2026-09-12",
+        },
+      ],
+    });
+
+    expect(result.appliedPatchCount).toBe(0);
+    expect(result.unsupportedPatchCount).toBe(0);
+    expect(result.policy.restWeekdays).toEqual(basePolicy().restWeekdays);
+  });
 });
