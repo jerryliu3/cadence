@@ -1,4 +1,6 @@
 -- Widen planner schedule writes from a month bucket to an inclusive date window.
+-- Publish windows are a contiguous span of whole months: p_start is day 1,
+-- p_end is that span's month-end, and the inclusive length is at most 366 days.
 -- Callers may still pass a single calendar month as (month-start, month-end).
 -- Replay/idempotency compares the incoming snapshot to rows currently in that window.
 
@@ -18,10 +20,15 @@ as $$
 begin
   -- Inclusive span of 366 days => (end - start) <= 365. Matches
   -- MAX_PLANNER_WINDOW_DAYS in src/lib/planner/contracts/bounds.ts.
+  -- Start must be day 1 of a month; end must be the last day of its month.
+  -- Cadence membership is owning-month based, so mid-month ranges are not a
+  -- supported publish shape.
   if p_start is null
     or p_end is null
     or p_end < p_start
     or (p_end - p_start) > 365
+    or p_start <> date_trunc('month', p_start)::date
+    or p_end <> (date_trunc('month', p_end) + interval '1 month' - interval '1 day')::date
   then
     raise exception using errcode = '22023', message = 'invalid_schedule_window';
   end if;
@@ -376,6 +383,8 @@ begin
       or end_date is null
       or end_date < start_date
       or (end_date - start_date) > 365
+      or start_date <> date_trunc('month', start_date)::date
+      or end_date <> (date_trunc('month', end_date) + interval '1 month' - interval '1 day')::date
       or items is null
       or jsonb_typeof(items) <> 'array'
   ) then

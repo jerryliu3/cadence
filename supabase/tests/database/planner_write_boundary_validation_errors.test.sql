@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions, pg_catalog;
-select plan(8);
+select plan(10);
 
 insert into auth.users (id, email)
 values
@@ -301,6 +301,49 @@ select throws_ok(
   '22023'::character(5),
   'invalid_schedule_window',
   'set_planner_schedule rejects inverted date windows'
+);
+
+select throws_ok(
+  $tap$
+  do $$
+  declare
+    v_scope_month date := date_trunc('month', current_date)::date;
+  begin
+    perform *
+    from public.set_planner_schedule(
+      (v_scope_month + 9),
+      (v_scope_month + interval '1 month - 1 day')::date,
+      '[]'::jsonb,
+      ''
+    );
+  end;
+  $$;
+  $tap$,
+  '22023'::character(5),
+  'invalid_schedule_window',
+  'set_planner_schedule rejects mid-month publish windows'
+);
+
+select throws_ok(
+  $tap$
+  do $$
+  declare
+    v_start date := date_trunc('month', current_date)::date;
+    v_end date := (v_start + interval '13 month' - interval '1 day')::date;
+  begin
+    perform *
+    from public.set_planner_schedule(
+      v_start,
+      v_end,
+      '[]'::jsonb,
+      ''
+    );
+  end;
+  $$;
+  $tap$,
+  '22023'::character(5),
+  'invalid_schedule_window',
+  'set_planner_schedule rejects publish windows longer than 366 days'
 );
 
 reset role;
