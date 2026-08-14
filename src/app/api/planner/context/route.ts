@@ -17,6 +17,7 @@ import {
 } from "@/lib/planner/context-loader";
 import {
   MAX_API_BODY_BYTES,
+  MAX_PLANNER_WINDOW_DAYS,
   PLANNER_ELIGIBILITY_MODES,
   PLANNER_CONTRACT_VERSION,
 } from "@/lib/planner/contracts/bounds";
