@@ -40,15 +40,14 @@ export async function handlePlannerResetAll(request: Request) {
       fullResetSchema
     );
 
-    const batches = body.scopeMonths.map((scopeMonth) => ({
-      ...toPlannerScheduleWindow(scopeMonth),
-      items: [],
-    }));
+    const windows = body.scopeMonths.map((scopeMonth) =>
+      toPlannerScheduleWindow(scopeMonth)
+    );
 
     const resetResponse = await routeContext.supabase.rpc(
-      "set_planner_schedule_batch",
+      "clear_planner_schedule_windows",
       {
-        p_batches: batches as unknown as Json,
+        p_windows: windows as unknown as Json,
         p_expected_digest: body.expectedDigest,
       }
     );
@@ -65,7 +64,7 @@ export async function handlePlannerResetAll(request: Request) {
         postgresErrorMatches(
           resetResponse.error,
           "22023",
-          "invalid_schedule_batch_payload"
+          "invalid_schedule_windows_payload"
         ) ||
         postgresErrorMatches(
           resetResponse.error,
@@ -110,9 +109,9 @@ export async function handlePlannerResetAll(request: Request) {
         schemaVersion: "1",
         requestedScopeCount: body.scopeMonths.length,
         scopeCount:
-          typeof resetRow.scope_count === "number" ? resetRow.scope_count : 0,
-        upsertedCount:
-          typeof resetRow.upserted_count === "number" ? resetRow.upserted_count : 0,
+          typeof resetRow.window_count === "number" ? resetRow.window_count : 0,
+        deletedCount:
+          typeof resetRow.deleted_count === "number" ? resetRow.deleted_count : 0,
         scheduleDigest:
           typeof resetRow.schedule_digest === "string"
             ? resetRow.schedule_digest
