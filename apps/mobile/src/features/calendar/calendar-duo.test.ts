@@ -224,10 +224,38 @@ describe("calendar duo behavior helpers", () => {
     expect(
       buildCalendarMonthCellAccessibilityLabel({
         day: "2026-08-14",
+        includeViewerSessionClause: true,
         viewerSessionCount: 1,
+        overlayActive: true,
         partnerMarkers: markerModel.visibleMarkers,
         partnerOverflowCount: markerModel.overflowCount,
       })
     ).toContain("Partner completions: Read, Run plus 1 more partner completion");
+  });
+
+  it("omits partner clause when overlay is inactive", () => {
+    expect(
+      buildCalendarMonthCellAccessibilityLabel({
+        day: "2026-08-14",
+        includeViewerSessionClause: true,
+        viewerSessionCount: 2,
+        overlayActive: false,
+        partnerMarkers: [],
+        partnerOverflowCount: 0,
+      })
+    ).toBe("2026-08-14. 2 viewer sessions.");
+  });
+
+  it("omits viewer session clause when viewer sessions are hidden", () => {
+    expect(
+      buildCalendarMonthCellAccessibilityLabel({
+        day: "2026-08-14",
+        includeViewerSessionClause: false,
+        viewerSessionCount: 0,
+        overlayActive: true,
+        partnerMarkers: [],
+        partnerOverflowCount: 0,
+      })
+    ).toBe("2026-08-14. No partner completions shown.");
   });
 });
