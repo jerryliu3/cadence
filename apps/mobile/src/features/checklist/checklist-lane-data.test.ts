@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+  CHECKLIST_COMPLETION_ERROR_MESSAGE,
   type MobileGoal,
   buildChecklistProgressQuery,
   countChecklistCompletionsForDate,
   isChecklistLaneInteractive,
+  resolveChecklistCompletableGoalIds,
   resolvePartnerChecklistStripState,
   selectChecklistGoalsForSubject,
 } from "./checklist-lane-data";
@@ -20,6 +22,7 @@ const goals: MobileGoal[] = [
     target_count: 1,
     start_date: "2026-01-01",
     end_date: null,
+    team_id: null,
     photo_path: null,
     archived_at: null,
     is_deleted: false,
@@ -35,6 +38,7 @@ const goals: MobileGoal[] = [
     target_count: 1,
     start_date: "2026-01-01",
     end_date: null,
+    team_id: "team-1",
     photo_path: null,
     archived_at: null,
     is_deleted: false,
@@ -50,6 +54,7 @@ const goals: MobileGoal[] = [
     target_count: 1,
     start_date: "2026-01-01",
     end_date: null,
+    team_id: null,
     photo_path: null,
     archived_at: null,
     is_deleted: false,
@@ -183,5 +188,38 @@ describe("checklist lane data helpers", () => {
     expect(
       isChecklistLaneInteractive({ id: "partner", label: "Alex", readOnly: true })
     ).toBe(false);
+  });
+
+  it("builds completable ids for viewer-owned and active-team goals only", () => {
+    expect(
+      resolveChecklistCompletableGoalIds({
+        goals,
+        subject: { id: "viewer", label: "Mine", readOnly: false, userId: "viewer-1" },
+        viewerUserId: "viewer-1",
+        memberTeamIds: ["team-1"],
+      })
+    ).toEqual(new Set(["viewer-owned", "team-goal"]));
+  });
+
+  it("returns no completable ids for partner lane", () => {
+    expect(
+      resolveChecklistCompletableGoalIds({
+        goals,
+        subject: {
+          id: "partner",
+          label: "Alex",
+          readOnly: true,
+          userId: "partner-1",
+        },
+        viewerUserId: "viewer-1",
+        memberTeamIds: ["team-1"],
+      })
+    ).toEqual(new Set());
+  });
+
+  it("uses a stable actionable completion error message", () => {
+    expect(CHECKLIST_COMPLETION_ERROR_MESSAGE).toBe(
+      "Could not update completion. Try again."
+    );
   });
 });

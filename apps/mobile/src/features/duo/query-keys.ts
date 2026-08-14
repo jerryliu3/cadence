@@ -7,6 +7,8 @@ export const duoQueryKeys = {
     ["mobile-insights", viewerUserId ?? "anonymous"] as const,
   goalsPrefix: (viewerUserId: string | null) =>
     ["mobile-goals", viewerUserId ?? "anonymous"] as const,
+  teamMembershipPrefix: (viewerUserId: string | null) =>
+    ["mobile-team-memberships", viewerUserId ?? "anonymous"] as const,
   plannerPrefix: (viewerUserId: string | null) =>
     ["mobile-planner-context", viewerUserId ?? "anonymous"] as const,
 };
@@ -58,6 +60,19 @@ export function buildMobileGoalsQueryKey({
 }) {
   return [
     ...duoQueryKeys.goalsPrefix(viewerUserId),
+    subjectUserId ?? viewerUserId ?? "viewer",
+  ] as const;
+}
+
+export function buildMobileTeamMembershipQueryKey({
+  viewerUserId,
+  subjectUserId,
+}: {
+  viewerUserId: string | null;
+  subjectUserId?: string | null;
+}) {
+  return [
+    ...duoQueryKeys.teamMembershipPrefix(viewerUserId),
     subjectUserId ?? viewerUserId ?? "viewer",
   ] as const;
 }

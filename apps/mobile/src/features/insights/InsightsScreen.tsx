@@ -13,35 +13,8 @@ import {
   viewerLaneSubject,
 } from "../duo/lane-subjects";
 import { buildInsightsLaneRenderModel } from "./insights-lane-render-model";
+import { InsightsLaneSection } from "./InsightsLaneSection";
 import { useInsightsLaneData } from "./use-insights-lane-data";
-
-function InsightsLaneHeading({
-  label,
-  readOnly,
-}: {
-  label: string;
-  readOnly: boolean;
-}) {
-  const theme = useTheme();
-  return (
-    <View style={styles.headingRow}>
-      <Text style={{ color: theme.colors.foreground, fontWeight: "700" }}>{label}</Text>
-      {readOnly ? (
-        <Text
-          style={[
-            styles.readOnlyTag,
-            {
-              borderColor: theme.colors.border,
-              color: theme.colors.mutedForeground,
-            },
-          ]}
-        >
-          Read-only
-        </Text>
-      ) : null}
-    </View>
-  );
-}
 
 export function InsightsScreen() {
   const theme = useTheme();
@@ -104,64 +77,56 @@ export function InsightsScreen() {
         });
         if (renderModel.status === "loading") {
           return (
-            <View key={lane.id} style={styles.section}>
-              {renderModel.heading ? (
-                <InsightsLaneHeading
-                  label={renderModel.heading.label}
-                  readOnly={renderModel.heading.readOnly}
-                />
-              ) : null}
-              <Text style={{ color: theme.colors.mutedForeground }}>
-                Loading {lane.label.toLowerCase()} insights...
-              </Text>
-            </View>
+            <InsightsLaneSection
+              key={lane.id}
+              showHeading={Boolean(renderModel.heading)}
+              headingLabel={renderModel.heading?.label ?? lane.label}
+              readOnly={Boolean(renderModel.heading?.readOnly)}
+              tone="muted"
+              message={`Loading ${lane.label.toLowerCase()} insights...`}
+            />
           );
         }
 
         if (renderModel.status === "partner_unavailable") {
           return (
-            <View key={lane.id} style={styles.section}>
-              {renderModel.heading ? (
-                <InsightsLaneHeading
-                  label={renderModel.heading.label}
-                  readOnly={renderModel.heading.readOnly}
-                />
-              ) : null}
-              <Text style={{ color: theme.colors.mutedForeground }}>
-                Partner insights are unavailable.
-              </Text>
-            </View>
+            <InsightsLaneSection
+              key={lane.id}
+              showHeading={Boolean(renderModel.heading)}
+              headingLabel={renderModel.heading?.label ?? lane.label}
+              readOnly={Boolean(renderModel.heading?.readOnly)}
+              tone="muted"
+              message="Partner insights are unavailable."
+            />
           );
         }
 
         if (renderModel.status === "error") {
           return (
-            <View key={lane.id} style={styles.section}>
-              {renderModel.heading ? (
-                <InsightsLaneHeading
-                  label={renderModel.heading.label}
-                  readOnly={renderModel.heading.readOnly}
-                />
-              ) : null}
-              <Text style={{ color: theme.colors.destructive }}>
-                {laneData.error instanceof Error
+            <InsightsLaneSection
+              key={lane.id}
+              showHeading={Boolean(renderModel.heading)}
+              headingLabel={renderModel.heading?.label ?? lane.label}
+              readOnly={Boolean(renderModel.heading?.readOnly)}
+              tone="destructive"
+              message={
+                laneData.error instanceof Error
                   ? laneData.error.message
-                  : "Could not load insights."}
-              </Text>
-            </View>
+                  : "Could not load insights."
+              }
+            />
           );
         }
 
         const rows = Math.ceil((laneData.offset + laneData.days.length) / 7);
         const height = rows * (cell + gap);
         return (
-          <View key={lane.id} style={styles.section}>
-            {renderModel.heading ? (
-              <InsightsLaneHeading
-                label={renderModel.heading.label}
-                readOnly={renderModel.heading.readOnly}
-              />
-            ) : null}
+          <InsightsLaneSection
+            key={lane.id}
+            showHeading={Boolean(renderModel.heading)}
+            headingLabel={renderModel.heading?.label ?? lane.label}
+            readOnly={Boolean(renderModel.heading?.readOnly)}
+          >
             <Svg width={width} height={height}>
               {laneData.days.map((date, index) => {
                 const x = ((laneData.offset + index) % 7) * (cell + gap);
@@ -179,7 +144,7 @@ export function InsightsScreen() {
                 );
               })}
             </Svg>
-          </View>
+          </InsightsLaneSection>
         );
       })}
     </Screen>
@@ -188,14 +153,4 @@ export function InsightsScreen() {
 
 const styles = StyleSheet.create({
   row: { flexDirection: "row", justifyContent: "space-between" },
-  section: { gap: 8 },
-  headingRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  readOnlyTag: {
-    borderWidth: 1,
-    borderRadius: 999,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    fontSize: 11,
-    fontWeight: "600",
-  },
 });

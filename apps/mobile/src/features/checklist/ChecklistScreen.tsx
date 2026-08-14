@@ -15,6 +15,7 @@ import {
   buildChecklistListItems,
   type ChecklistListItem,
 } from "./checklist-list-model";
+import { ChecklistGoalRow } from "./ChecklistGoalRow";
 import { resolvePartnerChecklistStripState } from "./checklist-lane-data";
 import { useChecklistClock, useChecklistLaneData } from "./use-checklist-data";
 
@@ -193,70 +194,20 @@ export function ChecklistScreen() {
     const laneData = laneDataById[item.laneId];
     if (item.type === "goal_row") {
       return (
-        <View
-          style={[
-            styles.row,
-            { borderColor: theme.colors.border, backgroundColor: theme.colors.card },
-          ]}
-        >
-          {item.interactive ? (
-            <Pressable
-              disabled={laneData.toggling}
-              onPress={() => {
-                if (!laneData.toggle) {
-                  return;
-                }
-                void laneData.toggle({
-                  goalId: item.goalId,
-                  desiredFactState: item.done ? "absent" : "present",
-                });
-              }}
-              style={[
-                styles.toggle,
-                {
-                  backgroundColor: item.done ? theme.colors.primary : theme.colors.secondary,
-                },
-              ]}
-            >
-              <Text style={{ color: theme.colors.primaryForeground }}>
-                {item.done ? "✓" : ""}
-              </Text>
-            </Pressable>
-          ) : (
-            <View
-              style={[
-                styles.readOnlyStatus,
-                {
-                  borderColor: theme.colors.border,
-                  backgroundColor: theme.colors.secondary,
-                },
-              ]}
-            >
-              <Text style={{ color: theme.colors.mutedForeground }}>
-                {item.done ? "✓" : ""}
-              </Text>
-            </View>
-          )}
-          {item.interactive ? (
-            <Link href={`/goals/${item.goalId}`} style={styles.titleWrap}>
-              <Text style={{ color: theme.colors.foreground, fontWeight: "600" }}>
-                {item.title}
-              </Text>
-              <Text style={{ color: theme.colors.mutedForeground }}>
-                {item.category}
-              </Text>
-            </Link>
-          ) : (
-            <View style={styles.titleWrap}>
-              <Text style={{ color: theme.colors.foreground, fontWeight: "600" }}>
-                {item.title}
-              </Text>
-              <Text style={{ color: theme.colors.mutedForeground }}>
-                {item.category}
-              </Text>
-            </View>
-          )}
-        </View>
+        <ChecklistGoalRow
+          title={item.title}
+          category={item.category}
+          done={item.done}
+          interactive={item.interactive}
+          href={item.interactive ? `/goals/${item.goalId}` : undefined}
+          toggling={laneData.toggling}
+          onToggle={() => {
+            laneData.toggle?.({
+              goalId: item.goalId,
+              desiredFactState: item.done ? "absent" : "present",
+            });
+          }}
+        />
       );
     }
 
@@ -306,28 +257,4 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "600",
   },
-  row: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 12,
-  },
-  toggle: {
-    width: 28,
-    height: 28,
-    borderRadius: 8,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  readOnlyStatus: {
-    width: 28,
-    height: 28,
-    borderRadius: 8,
-    borderWidth: 1,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  titleWrap: { flex: 1, gap: 2 },
 });

@@ -1,4 +1,5 @@
 import type { ProgressContextFact, ProgressContextResponse } from "@cadence/shared/goals/progress-context";
+import { buildCompletableGoalIds } from "@cadence/shared/goals/completable-goals";
 import { buildProgressContextQuery } from "@cadence/shared/goals/progress-context";
 import {
   progressSubjectUserId,
@@ -17,10 +18,14 @@ export interface MobileGoal {
   target_count: number | null;
   start_date: string;
   end_date: string | null;
+  team_id: string | null;
   photo_path: string | null;
   archived_at: string | null;
   is_deleted: boolean;
 }
+
+export const CHECKLIST_COMPLETION_ERROR_MESSAGE =
+  "Could not update completion. Try again.";
 
 export function selectChecklistGoalsForSubject({
   goals,
@@ -80,6 +85,27 @@ export function countChecklistCompletionsForDate({
 
 export function isChecklistLaneInteractive(subject: DuoLaneSubject) {
   return subject.id === "viewer" && !subject.readOnly;
+}
+
+export function resolveChecklistCompletableGoalIds({
+  goals,
+  subject,
+  viewerUserId,
+  memberTeamIds,
+}: {
+  goals: MobileGoal[];
+  subject: DuoLaneSubject;
+  viewerUserId: string | null;
+  memberTeamIds: Iterable<string>;
+}) {
+  if (!viewerUserId || subject.id !== "viewer" || subject.readOnly) {
+    return new Set<string>();
+  }
+  return buildCompletableGoalIds({
+    goals,
+    userId: viewerUserId,
+    memberTeamIds,
+  });
 }
 
 export type PartnerChecklistStripState =

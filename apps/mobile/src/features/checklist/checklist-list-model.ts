@@ -115,6 +115,16 @@ export function buildChecklistListItems({
       continue;
     }
 
+    if (laneData.completionErrorMessage) {
+      items.push({
+        key: `message-completion-error-${lane.id}`,
+        type: "lane_message",
+        laneId: lane.id,
+        text: laneData.completionErrorMessage,
+        tone: "destructive",
+      });
+    }
+
     if (laneData.goals.length === 0) {
       items.push({
         key: `message-empty-${lane.id}`,
@@ -135,7 +145,7 @@ export function buildChecklistListItems({
         title: goal.title,
         category: goal.category,
         done: laneData.completedToday.has(goal.id),
-        interactive: laneData.interactive,
+        interactive: laneData.canToggleGoal(goal.id),
       });
     }
   }
