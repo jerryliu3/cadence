@@ -19,6 +19,7 @@ import type {
   GoalLink,
 } from "@/lib/goals/types";
 import { createClient } from "@/lib/supabase/client";
+import { assertQueriesOk } from "@/lib/supabase/query-error";
 import { useDuo } from "@/features/social/duo/duo-context";
 import { progressSubjectUserId, selectViewerVisibleGoals } from "@/lib/goals/visible-goals";
 
@@ -185,6 +186,11 @@ export function useChecklistData({
             ]),
             controller.signal
           );
+
+        assertQueriesOk(
+          [goalsResponse, teamMembersResponse, linksResponse],
+          "Checklist goals could not be loaded."
+        );
 
         const goals = (goalsResponse.data ?? []) as Goal[];
         const completions = progress.facts;
