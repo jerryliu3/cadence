@@ -8,11 +8,11 @@ export default function AdminChallengesPage() {
         <CardHeader>
           <CardTitle>Challenges admin</CardTitle>
           <CardDescription>
-            Manage challenge drafts and monitor lifecycle state during rollout.
+            Create, edit, close, and hard-delete leaderboard challenges in one place.
           </CardDescription>
         </CardHeader>
         <CardContent className="text-sm text-muted-foreground">
-          Use this surface with `/api/admin/challenges` to create and inspect challenge rows.
+          Configure challenge parameters directly from this dashboard.
         </CardContent>
       </Card>
       <AdminChallengesManager />

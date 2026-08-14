@@ -8,11 +8,11 @@ export default function AdminSeasonsPage() {
         <CardHeader>
           <CardTitle>Seasons admin</CardTitle>
           <CardDescription>
-            Manage leaderboard seasons and inspect lifecycle state during rollout.
+            Create, edit, close, and hard-delete leaderboard seasons from this dashboard.
           </CardDescription>
         </CardHeader>
         <CardContent className="text-sm text-muted-foreground">
-          Use `/api/admin/seasons` and `/api/admin/seasons/[id]/close` to control season lifecycle.
+          Configure season lifecycle and scoring parameters without leaving admin.
         </CardContent>
       </Card>
       <AdminSeasonsManager />
