@@ -30,6 +30,8 @@ describe("buildCoachPrompt", () => {
     expect(prompt).toContain("running and gym");
     expect(prompt).toContain("Focus goal horizon markers:");
     expect(prompt).toContain("12000000-0000-4000-8000-000000000001:2026-08->open-ended");
+    expect(prompt).toContain("cannot exceed 366 days");
+    expect(prompt).toContain("the user must save first");
   });
 
   it("adds explicit prompt-injection and output-contract rules", () => {

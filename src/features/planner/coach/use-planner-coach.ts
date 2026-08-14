@@ -188,9 +188,7 @@ export function usePlannerCoach({
           previousWorkUnits: effectivePreview?.workUnits,
           refreshedWorkUnits: refreshedPreview.workUnits,
         });
-        if (context.scopeMonth) {
-          applyDraftPolicy(result.policy);
-        }
+        applyDraftPolicy(result.policy);
         appendCoachContextEvent(
           `Reflected coach proposal in draft (${result.appliedPatchCount} patches, ${moveCount} session moves)`
         );
@@ -475,9 +473,7 @@ export function usePlannerCoach({
           } catch (error) {
             try {
               await refreshDraftPreview(currentDraftPolicy);
-              if (scopeMonth) {
-                applyDraftPolicy(currentDraftPolicy);
-              }
+              applyDraftPolicy(currentDraftPolicy);
               appendCoachContextEvent(
                 "Reverted undo preview after planner default restore failed"
               );
@@ -489,9 +485,7 @@ export function usePlannerCoach({
             throw error;
           }
         }
-        if (scopeMonth) {
-          applyDraftPolicy(baselinePolicy);
-        }
+        applyDraftPolicy(baselinePolicy);
         updateCoachProposalStatus(messageIndex, "undone");
         appendCoachContextEvent("Undid coach draft proposal");
         toast.success(
