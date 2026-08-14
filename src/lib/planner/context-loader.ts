@@ -723,6 +723,9 @@ export async function loadPlannerContextPayload({
     Array<{ unitKey: string; scheduledDate: string; locked: boolean }>
   >();
   for (const assignment of snapshot.activePlan?.basePlan.assignments ?? []) {
+    if (!assignment.scheduledDate) {
+      continue;
+    }
     const entries = assignmentsByGoalId.get(assignment.goalId) ?? [];
     entries.push({
       unitKey: assignment.unitKey,
