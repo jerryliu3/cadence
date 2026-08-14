@@ -14,6 +14,7 @@ import {
 } from "@/lib/goals/schedule";
 import type { CompletionDateFact, Goal } from "@/lib/goals/types";
 import { isTargetedRecurringGoal } from "@/lib/planner/requirements";
+import { cn } from "@/lib/utils";
 
 interface GoalCardProps {
   goal: Goal;
@@ -95,9 +96,7 @@ export function GoalCard({
             {goalCategoryLabel}
           </Badge>
           <h3 className="truncate text-sm font-semibold">{goal.title}</h3>
-          {progress?.outcome === "achieved" ? (
-            <Badge variant="secondary">Achieved</Badge>
-          ) : progress?.outcome === "ended_with_shortfall" ? (
+          {progress?.outcome === "ended_with_shortfall" ? (
             <Badge variant="outline">Shortfall</Badge>
           ) : null}
         </div>
@@ -121,7 +120,13 @@ export function GoalCard({
 
 
   return (
-    <Card className="shadow-sm">
+    <Card
+      className={cn(
+        "shadow-sm",
+        progress?.outcome === "achieved" &&
+          "border-emerald-200 bg-emerald-50 dark:border-emerald-800/60 dark:bg-emerald-950/40"
+      )}
+    >
       <CardContent className="flex items-center gap-2 px-2 py-0.5">
         {readOnly ? (
           <span
