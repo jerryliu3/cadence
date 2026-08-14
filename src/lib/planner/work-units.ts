@@ -194,18 +194,21 @@ function createUnitBase({
 function resolveDraftMoveWindow({
   creditWindow,
   placementWindow,
+  asOfDate,
 }: {
   creditWindow: DateWindow;
   placementWindow: DateWindow | null;
+  asOfDate: string;
 }) {
-  if (placementWindow === null) {
-    return null;
-  }
-  if (compareDateStrings(creditWindow.end, placementWindow.start) < 0) {
+  const start =
+    compareDateStrings(creditWindow.start, asOfDate) > 0
+      ? creditWindow.start
+      : asOfDate;
+  if (compareDateStrings(start, creditWindow.end) > 0) {
     return placementWindow;
   }
   return {
-    start: placementWindow.start,
+    start,
     end: creditWindow.end,
   };
 }
@@ -295,6 +298,7 @@ export function materializeWorkUnits({
           draftMoveWindow: resolveDraftMoveWindow({
             creditWindow: lifetime,
             placementWindow,
+            asOfDate,
           }),
           classification,
           missPolicy: "roll_forward",
@@ -366,6 +370,7 @@ export function materializeWorkUnits({
         draftMoveWindow: resolveDraftMoveWindow({
           creditWindow,
           placementWindow,
+          asOfDate,
         }),
         classification,
         missPolicy: "remain_missed",

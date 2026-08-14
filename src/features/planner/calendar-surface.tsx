@@ -113,6 +113,7 @@ import {
 import {
   PLANNER_DRAFT_WINDOW_TOO_WIDE_MESSAGE,
   tryBuildPlannerDraftSaveWindow,
+  plannerDraftWindowUnavailableMessage,
 } from "@/lib/planner/draft-window";
 import { getScopeDateRange, getWindowState } from "@/lib/planner/dates";
 import { buildPlannerConfirmationHash } from "@/lib/planner/publish-payload";
@@ -393,17 +394,21 @@ export function CalendarSurface({
       visibleMonthContexts,
     ]
   );
-  const draftSaveWindow = useMemo(() => {
+  const draftSaveWindowResult = useMemo(() => {
     if (!currentScopeMonth) {
-      return null;
+      return { ok: false, code: "empty" as const };
     }
-    const result = tryBuildPlannerDraftSaveWindow({
+    return tryBuildPlannerDraftSaveWindow({
       currentMonth: currentScopeMonth,
       commands: draftSaveCommands,
       workUnits: draftWindowWorkUnits,
     });
-    return result.ok ? result.window : null;
   }, [currentScopeMonth, draftSaveCommands, draftWindowWorkUnits]);
+  const draftSaveWindow = draftSaveWindowResult.ok
+    ? draftSaveWindowResult.window
+    : null;
+  const draftWindowTooWide =
+    !draftSaveWindowResult.ok && draftSaveWindowResult.code === "too_wide";
   const horizonCounter = useMemo(() => {
     const summary = effectivePreview?.horizonSummary ?? [];
     if (summary.length === 0) {
@@ -753,7 +758,9 @@ export function CalendarSurface({
   ) => {
     const window = draftSaveWindow;
     if (!window) {
-      throw new Error("Planner context is unavailable.");
+      throw new Error(
+        plannerDraftWindowUnavailableMessage(draftSaveWindowResult)
+      );
     }
     return requestPreviewForWindow({
       startDate: window.start,
@@ -1806,7 +1813,11 @@ export function CalendarSurface({
   };
 
   const savePlan = async () => {
-    if (!context || !draftSaveWindow) {
+    if (!context) {
+      return;
+    }
+    if (!draftSaveWindow) {
+      toast.error(plannerDraftWindowUnavailableMessage(draftSaveWindowResult));
       return;
     }
     const expectedDigest = context.revisions.scheduleDigest;
@@ -1832,8 +1843,7 @@ export function CalendarSurface({
         if (preview === draftPreview) {
           return (
             draftPreviewWindow?.start === draftSaveWindow.start &&
-            draftPreviewWindow?.end === draftSaveWindow.end &&
-            preview.preserveExistingAssignments === false
+            draftPreviewWindow?.end === draftSaveWindow.end
           );
         }
         if (
@@ -2243,12 +2253,13 @@ export function CalendarSurface({
       window.removeEventListener("resize", alignRollingWeekStripToFocusedDay);
     };
   }, [alignRollingWeekStripToFocusedDay, viewMode]);
-  const blockedSave =
-    context &&
-    effectivePreview &&
-    (getWindowState(draftSaveWindow ?? { start: context.asOfDate, end: context.asOfDate }, context.asOfDate) ===
-      "historical" ||
-      !effectivePreview.solver.publishable)
+  const blockedSave = draftWindowTooWide
+    ? PLANNER_DRAFT_WINDOW_TOO_WIDE_MESSAGE
+    : context &&
+        effectivePreview &&
+        (getWindowState(draftSaveWindow ?? { start: context.asOfDate, end: context.asOfDate }, context.asOfDate) ===
+          "historical" ||
+          !effectivePreview.solver.publishable)
       ? nonPublishablePreviewMessage(effectivePreview)
       : null;
   const draftSaveBlocked = blockedSave !== null;
