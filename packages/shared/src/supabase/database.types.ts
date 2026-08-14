@@ -1736,6 +1736,53 @@ export type Database = {
           },
         ]
       }
+      user_rewards: {
+        Row: {
+          archived_at: string | null
+          claimed_at: string | null
+          created_at: string
+          id: string
+          note: string | null
+          title: string
+          unlock_total_xp: number
+          unlocked_at: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          archived_at?: string | null
+          claimed_at?: string | null
+          created_at?: string
+          id?: string
+          note?: string | null
+          title: string
+          unlock_total_xp: number
+          unlocked_at?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          archived_at?: string | null
+          claimed_at?: string | null
+          created_at?: string
+          id?: string
+          note?: string | null
+          title?: string
+          unlock_total_xp?: number
+          unlocked_at?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_rewards_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       xp_ledger: {
         Row: {
           completion_id: string | null
