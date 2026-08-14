@@ -710,34 +710,42 @@ export async function loadPlannerContextPayload({
   });
   const effectiveTimezone = snapshot.preferences?.timezone ?? "UTC";
   const asOfDate = resolveCanonicalAsOfDate({ timezone: effectiveTimezone });
+  const preparationWindows = buildPreparationWindows(asOfDate);
+  const preparationStart = preparationWindows[0]?.start ?? startDate;
+  const preparationEnd = preparationWindows.at(-1)?.end ?? endDate;
+  const hasUnplaceableRecords = (snapshot.unplaceableGoals?.length ?? 0) > 0;
+  const persistedItemsInPreparationHorizon = hasUnplaceableRecords
+    ? await loadPlannerItemsForWindow(
+        supabase,
+        ownerId,
+        preparationStart,
+        preparationEnd
+      )
+    : [];
   const effectivePolicy = plannerPolicySchema.parse(
     snapshot.preferences?.default_policy ??
       createDefaultPlannerPolicy(effectiveTimezone, new Date().toISOString())
   );
-  const preparationEnd = buildPreparationWindows(asOfDate).at(-1)?.end ?? endDate;
   const policyRevision = snapshot.preferences?.policy_revision ?? 0;
   const goalById = new Map(snapshot.goals.map((goal) => [goal.id, goal]));
   const lockSignatureByGoalId = new Map<string, string>();
-  const assignmentsByGoalId = new Map<
+  const lockEntriesByGoalId = new Map<
     string,
     Array<{ unitKey: string; scheduledDate: string; locked: boolean }>
   >();
-  for (const assignment of snapshot.activePlan?.basePlan.assignments ?? []) {
-    if (!assignment.scheduledDate) {
-      continue;
-    }
-    const entries = assignmentsByGoalId.get(assignment.goalId) ?? [];
+  for (const item of persistedItemsInPreparationHorizon) {
+    const entries = lockEntriesByGoalId.get(item.goal_id) ?? [];
     entries.push({
-      unitKey: assignment.unitKey,
-      scheduledDate: assignment.scheduledDate,
-      locked: assignment.locked,
+      unitKey: item.unit_key,
+      scheduledDate: item.scheduled_date,
+      locked: item.locked,
     });
-    assignmentsByGoalId.set(assignment.goalId, entries);
+    lockEntriesByGoalId.set(item.goal_id, entries);
   }
   for (const goal of snapshot.goals) {
     lockSignatureByGoalId.set(
       goal.id,
-      buildPlannerGoalLockSignature(assignmentsByGoalId.get(goal.id) ?? [])
+      buildPlannerGoalLockSignature(lockEntriesByGoalId.get(goal.id) ?? [])
     );
   }
   const validUnplaceableGoals = (snapshot.unplaceableGoals ?? []).filter((record) => {

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { CalendarSurface } from "./calendar-surface";
 import type {
@@ -19,6 +19,15 @@ const postJsonMock = vi.fn();
 const putJsonMock = vi.fn();
 const toastSuccessMock = vi.fn();
 const toastErrorMock = vi.fn();
+const coachHookMock = vi.hoisted(() => ({
+  latestArgs: null as null | {
+    applyDraftPolicy: (policy: ReturnType<typeof buildPlannerPolicy>) => void;
+  },
+  actions: {
+    resetForPlannerStateReset: vi.fn(),
+    onDraftDiscarded: vi.fn(),
+  },
+}));
 
 vi.mock("sonner", () => ({
   toast: {
@@ -36,7 +45,14 @@ vi.mock("@/lib/api/client", () => ({
 }));
 
 vi.mock("@/features/planner/coach/use-planner-coach", () => ({
-  usePlannerCoach: () => ({}),
+  usePlannerCoach: (args: unknown) => {
+    coachHookMock.latestArgs = args as {
+      applyDraftPolicy: (policy: ReturnType<typeof buildPlannerPolicy>) => void;
+    };
+    return {
+      actions: coachHookMock.actions,
+    };
+  },
 }));
 
 vi.mock("@/features/planner/coach/planner-coach-panel", () => ({
@@ -137,6 +153,9 @@ describe("CalendarSurface characterization", () => {
     putJsonMock.mockReset();
     toastSuccessMock.mockReset();
     toastErrorMock.mockReset();
+    coachHookMock.latestArgs = null;
+    coachHookMock.actions.onDraftDiscarded.mockReset();
+    coachHookMock.actions.resetForPlannerStateReset.mockReset();
   });
 
   it("renders adjacent-month persisted rows from the prepared context", async () => {
@@ -425,5 +444,139 @@ describe("CalendarSurface characterization", () => {
     expect(
       screen.queryByText(/goal[s]? are not fully scheduled/i)
     ).not.toBeInTheDocument();
+  });
+
+  it("uses preview-backed save payload for mixed policy and move drafts", async () => {
+    const context = buildContext([
+      unit({
+        originalGoalId: "goal-a",
+        unitKey: "total:1",
+        scheduledDate: "2026-08-31",
+        placementWindow: { start: "2026-08-01", end: "2026-09-30" },
+        draftMoveWindow: { start: "2026-08-01", end: "2026-09-30" },
+        creditWindow: { start: "2026-08-01", end: "2026-09-30" },
+      }),
+    ]);
+    const previewForSave = buildPlannerPreview(context.preview?.workUnits ?? [], {
+      generationInputHash: "d".repeat(64),
+      preserveExistingAssignments: true,
+    });
+    postJsonMock.mockImplementation(async (url: string) => {
+      if (url === "/api/planner/prepare") {
+        return context;
+      }
+      if (url === "/api/planner/context") {
+        return { preview: previewForSave };
+      }
+      if (url === "/api/planner/save") {
+        return { replayed: false };
+      }
+      throw new Error(`Unexpected route ${url}`);
+    });
+
+    render(
+      <CalendarSurface
+        activeTab="calendar"
+        month="2026-08"
+        selectedDay="2026-08-31"
+        viewMode="day"
+        onMonthChange={vi.fn()}
+        onViewModeChange={vi.fn()}
+        onSelectedDayChange={vi.fn()}
+        onPlannerMutation={vi.fn()}
+      />
+    );
+
+    await waitFor(() => {
+      expect(postJsonMock).toHaveBeenCalledWith(
+        "/api/planner/prepare",
+        expect.any(Object)
+      );
+    });
+    await act(async () => {
+      coachHookMock.latestArgs?.applyDraftPolicy(
+        buildPlannerPolicy({ restWeekdays: [2] })
+      );
+    });
+
+    fireEvent.click(await screen.findByText("Baseline"));
+    fireEvent.change(await screen.findByLabelText("Move to"), {
+      target: { value: "2026-08-30" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Save plan" }));
+
+    await waitFor(() => {
+      expect(postJsonMock).toHaveBeenCalledWith(
+        "/api/planner/save",
+        expect.any(Object)
+      );
+    });
+    const saveCall = postJsonMock.mock.calls.find(
+      ([url]) => url === "/api/planner/save"
+    );
+    expect(saveCall?.[1]).toMatchObject({
+      previewHash: "d".repeat(64),
+      preserveExistingAssignments: true,
+      policy: expect.objectContaining({ restWeekdays: [2] }),
+    });
+    expect(
+      postJsonMock.mock.calls.some(([url]) => url === "/api/planner/context")
+    ).toBe(true);
+  });
+
+  it("forces prepare refresh after toggling a lock", async () => {
+    const context = buildContext([
+      unit({
+        originalGoalId: "goal-a",
+        unitKey: "total:1",
+        scheduledDate: "2026-08-31",
+        locked: false,
+      }),
+    ]);
+    postJsonMock.mockImplementation(async (url: string) => {
+      if (url === "/api/planner/prepare") {
+        return context;
+      }
+      if (url === "/api/planner/items/lock") {
+        return {};
+      }
+      throw new Error(`Unexpected route ${url}`);
+    });
+
+    render(
+      <CalendarSurface
+        activeTab="calendar"
+        month="2026-08"
+        selectedDay="2026-08-31"
+        viewMode="day"
+        onMonthChange={vi.fn()}
+        onViewModeChange={vi.fn()}
+        onSelectedDayChange={vi.fn()}
+        onPlannerMutation={vi.fn()}
+      />
+    );
+
+    await waitFor(() => {
+      expect(postJsonMock).toHaveBeenCalledWith(
+        "/api/planner/prepare",
+        expect.any(Object)
+      );
+    });
+
+    fireEvent.click(await screen.findByText("Baseline"));
+    fireEvent.click(await screen.findByRole("button", { name: "Lock" }));
+
+    await waitFor(() => {
+      expect(postJsonMock).toHaveBeenCalledWith(
+        "/api/planner/items/lock",
+        expect.any(Object)
+      );
+      expect(
+        postJsonMock.mock.calls.filter(([url]) => url === "/api/planner/prepare")
+          .length
+      ).toBe(2);
+    });
   });
 });
