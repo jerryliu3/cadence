@@ -110,8 +110,11 @@ import {
   sortPlannerDraftCommands,
   type PlannerDraftCommand,
 } from "@/lib/planner/draft-commands";
-import { buildPlannerDraftSaveWindow } from "@/lib/planner/draft-window";
-import { getWindowState } from "@/lib/planner/dates";
+import {
+  PLANNER_DRAFT_WINDOW_TOO_WIDE_MESSAGE,
+  tryBuildPlannerDraftSaveWindow,
+} from "@/lib/planner/draft-window";
+import { getScopeDateRange, getWindowState } from "@/lib/planner/dates";
 import { buildPlannerConfirmationHash } from "@/lib/planner/publish-payload";
 import {
   createDefaultPlannerPolicy,
@@ -202,6 +205,10 @@ export function CalendarSurface({
   const [draftPreview, setDraftPreview] = useState<
     NonNullable<PlannerContextPayload["preview"]> | null
   >(null);
+  const [draftPreviewWindow, setDraftPreviewWindow] = useState<{
+    start: string;
+    end: string;
+  } | null>(null);
   const [draftCommandState, dispatchDraftCommand] = useReducer(
     draftCommandReducer,
     initialDraftCommandState
@@ -359,6 +366,7 @@ export function CalendarSurface({
   const clearDraftSession = useCallback(() => {
     setDraftPolicy(null);
     setDraftPreview(null);
+    setDraftPreviewWindow(null);
     dispatchDraftCommand({
       type: "clear",
     });
@@ -371,28 +379,31 @@ export function CalendarSurface({
   );
   const hasDraftSession =
     draftSaveCommands.length > 0 || effectiveDraftPolicy !== null;
+  const draftWindowWorkUnits = useMemo(
+    () => [
+      ...(context?.preview?.workUnits ?? []),
+      ...(effectivePreview?.workUnits ?? []),
+      ...Object.values(visibleMonthContexts).flatMap(
+        (visibleMonthContext) => visibleMonthContext.preview?.workUnits ?? []
+      ),
+    ],
+    [
+      context?.preview?.workUnits,
+      effectivePreview?.workUnits,
+      visibleMonthContexts,
+    ]
+  );
   const draftSaveWindow = useMemo(() => {
     if (!currentScopeMonth) {
       return null;
     }
-    return buildPlannerDraftSaveWindow({
+    const result = tryBuildPlannerDraftSaveWindow({
       currentMonth: currentScopeMonth,
       commands: draftSaveCommands,
-      workUnits: [
-        ...(context?.preview?.workUnits ?? []),
-        ...(effectivePreview?.workUnits ?? []),
-        ...Object.values(visibleMonthContexts).flatMap(
-          (visibleMonthContext) => visibleMonthContext.preview?.workUnits ?? []
-        ),
-      ],
+      workUnits: draftWindowWorkUnits,
     });
-  }, [
-    context?.preview?.workUnits,
-    currentScopeMonth,
-    draftSaveCommands,
-    effectivePreview?.workUnits,
-    visibleMonthContexts,
-  ]);
+    return result.ok ? result.window : null;
+  }, [currentScopeMonth, draftSaveCommands, draftWindowWorkUnits]);
   const horizonCounter = useMemo(() => {
     const summary = effectivePreview?.horizonSummary ?? [];
     if (summary.length === 0) {
@@ -684,6 +695,7 @@ export function CalendarSurface({
     handlePlannerMutation();
     setDraftPolicy(null);
     setDraftPreview(null);
+    setDraftPreviewWindow(null);
     dispatchDraftCommand({ type: "clear" });
     setSettingsOpen(false);
     if (!month) {
@@ -778,6 +790,12 @@ export function CalendarSurface({
     );
     if (preview) {
       setDraftPreview(preview);
+      if (draftSaveWindow) {
+        setDraftPreviewWindow({
+          start: draftSaveWindow.start,
+          end: draftSaveWindow.end,
+        });
+      }
     }
     return preview;
   };
@@ -838,6 +856,13 @@ export function CalendarSurface({
     );
 
     let nextState = draftCommandState;
+    const pendingActions: Array<{
+      type: "upsert_move";
+      goalId: string;
+      unitKey: string;
+      scheduledDate: string;
+      sourceDate: string;
+    }> = [];
     const movedEntryKeys: string[] = [];
     for (const unit of proposal.workUnits) {
       const entryKey = draftCommandEntryKey({
@@ -849,14 +874,34 @@ export function CalendarSurface({
         continue;
       }
       const action = {
-        type: "upsert_move",
+        type: "upsert_move" as const,
         goalId: unit.originalGoalId,
         unitKey: unit.unitKey,
         scheduledDate: nextDate,
-      } as const;
-      dispatchDraftCommand(action);
+        sourceDate: baselineDateByEntryKey.get(entryKey) ?? nextDate,
+      };
       nextState = draftCommandReducer(nextState, action);
+      pendingActions.push(action);
       movedEntryKeys.push(entryKey);
+    }
+
+    if (pendingActions.length > 0) {
+      const prospectiveWindow = tryBuildPlannerDraftSaveWindow({
+        currentMonth: context.scopeMonth,
+        commands: selectDraftCommands(nextState),
+        workUnits: draftWindowWorkUnits,
+      });
+      if (!prospectiveWindow.ok) {
+        if (prospectiveWindow.code === "too_wide") {
+          toast.error(PLANNER_DRAFT_WINDOW_TOO_WIDE_MESSAGE);
+        } else {
+          toast.error("Those session moves cannot fit in the current draft window.");
+        }
+        return { moveCount: 0, movedEntryKeys: [] as string[] };
+      }
+      for (const action of pendingActions) {
+        dispatchDraftCommand(action);
+      }
     }
 
     // Keep the ref ahead of the reducer so the stable refresh that follows
@@ -1179,17 +1224,57 @@ export function CalendarSurface({
         return false;
       }
 
+      const existingMove = draftSaveCommands.find(
+        (command) =>
+          command.kind === "move_item" &&
+          command.goalId === entry.originalGoalId &&
+          command.unitKey === entry.unitKey
+      );
+      const sourceDate =
+        existingMove?.kind === "move_item"
+          ? existingMove.sourceDate
+          : baselineUnit.scheduledDate ??
+            entry.draftDiffFromDate ??
+            normalized;
+      const prospectiveState = draftCommandReducer(draftCommandState, {
+        type: "upsert_move",
+        goalId: entry.originalGoalId,
+        unitKey: entry.unitKey,
+        scheduledDate: normalized,
+        sourceDate,
+      });
+      if (currentScopeMonth) {
+        const prospectiveWindow = tryBuildPlannerDraftSaveWindow({
+          currentMonth: currentScopeMonth,
+          commands: selectDraftCommands(prospectiveState),
+          workUnits: draftWindowWorkUnits,
+        });
+        if (!prospectiveWindow.ok) {
+          toast.error(
+            prospectiveWindow.code === "too_wide"
+              ? PLANNER_DRAFT_WINDOW_TOO_WIDE_MESSAGE
+              : "That date cannot fit in the current draft window."
+          );
+          return false;
+        }
+      }
+
       dispatchDraftCommand({
         type: "upsert_move",
         goalId: entry.originalGoalId,
         unitKey: entry.unitKey,
         scheduledDate: normalized,
+        sourceDate,
       });
       scheduleDraftMovePreviewRefresh();
       void source;
       return true;
     },
     [
+      currentScopeMonth,
+      draftCommandState,
+      draftSaveCommands,
+      draftWindowWorkUnits,
       scheduleDraftMovePreviewRefresh,
       completionFactUnitsByGoalDate,
       context?.scopeMonth,
@@ -1735,13 +1820,42 @@ export function CalendarSurface({
       replayed?: boolean;
     };
     try {
+      const refreshPolicy =
+        effectiveDraftPolicy ?? context.preferences?.defaultPolicy ?? null;
+      const monthWindow = getScopeDateRange(context.scopeMonth);
+      const previewMatchesWriteWindow = (
+        preview: NonNullable<PlannerContextPayload["preview"]> | null
+      ) => {
+        if (!preview) {
+          return false;
+        }
+        if (preview === draftPreview) {
+          return (
+            draftPreviewWindow?.start === draftSaveWindow.start &&
+            draftPreviewWindow?.end === draftSaveWindow.end &&
+            preview.preserveExistingAssignments === false
+          );
+        }
+        if (
+          preview === context.preview &&
+          draftSaveCommands.length === 0 &&
+          !effectiveDraftPolicy
+        ) {
+          return (
+            draftSaveWindow.start === monthWindow.start &&
+            draftSaveWindow.end === monthWindow.end
+          );
+        }
+        return false;
+      };
       let savePreview =
         draftPreview ??
         (draftSaveCommands.length === 0 && !effectiveDraftPolicy
           ? context.preview
           : null);
-      const refreshPolicy =
-        effectiveDraftPolicy ?? context.preferences?.defaultPolicy ?? null;
+      if (!previewMatchesWriteWindow(savePreview)) {
+        savePreview = null;
+      }
       if (!savePreview) {
         if (!refreshPolicy) {
           toast.error(
@@ -1758,6 +1872,10 @@ export function CalendarSurface({
         });
         if (savePreview) {
           setDraftPreview(savePreview);
+          setDraftPreviewWindow({
+            start: draftSaveWindow.start,
+            end: draftSaveWindow.end,
+          });
         }
       }
       if (!savePreview) {

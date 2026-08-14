@@ -15,6 +15,7 @@ export type DraftCommandAction =
       goalId: string;
       unitKey: string;
       scheduledDate: string | null;
+      sourceDate: string;
     }
   | {
       type: "upsert_rename";
@@ -126,6 +127,10 @@ export function draftCommandReducer(
             ...identity,
             kind: "move_item",
             scheduledDate: action.scheduledDate,
+            sourceDate:
+              existingCommand.kind === "move_item"
+                ? existingCommand.sourceDate
+                : action.sourceDate,
           }
         : action.type === "upsert_rename"
           ? {
@@ -161,6 +166,7 @@ export function draftCommandReducer(
           goalId: action.goalId,
           unitKey: action.unitKey,
           scheduledDate: action.scheduledDate,
+          sourceDate: action.sourceDate,
         }
       : action.type === "upsert_rename"
         ? {
