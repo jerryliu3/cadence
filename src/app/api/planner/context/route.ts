@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { normalizeWeekStartsOn } from "@/lib/dates/week-start";
-import { getDateInTimezone, isValidIanaTimezone } from "@/lib/dates/timezone";
+import { isValidIanaTimezone } from "@/lib/dates/timezone";
 import {
   parseBoundedJsonBody,
   PlannerRouteError,
@@ -10,9 +10,11 @@ import {
   resolveCanonicalAsOfDate,
   withPlannerRoute,
 } from "@/lib/planner/api";
-import { createDefaultAssessment, goalAssessmentSchema } from "@/lib/planner/assessment";
-import { canonicalHash } from "@/lib/planner/canonical";
-import { loadPlannerCanonicalSnapshot } from "@/lib/planner/context-loader";
+import { goalAssessmentSchema } from "@/lib/planner/assessment";
+import {
+  loadPlannerCanonicalSnapshot,
+  loadPlannerContextPayload,
+} from "@/lib/planner/context-loader";
 import {
   MAX_API_BODY_BYTES,
   PLANNER_ELIGIBILITY_MODES,
@@ -29,10 +31,12 @@ import {
   parsePlannerProfilePreferencesRow,
   resolvePlannerPreferencesSnapshot,
 } from "@/lib/planner/preferences-snapshot";
-import { normalizeGoalRequirement } from "@/lib/planner/requirements";
-import { evaluateActivePlanStaleness } from "@/lib/planner/staleness";
 import { createClient } from "@/lib/supabase/server";
-import { toKernelWindow } from "@/lib/planner/dates";
+import {
+  assertDateWindow,
+  getScopeDateRange,
+  toKernelWindowFromDates,
+} from "@/lib/planner/dates";
 
 export const runtime = "nodejs";
 
@@ -52,36 +56,46 @@ const contextQuerySchema = z.object({
     .max(100)
     .refine(isValidIanaTimezone)
     .optional(),
+  visibleStart: z.iso.date().optional(),
+  visibleEnd: z.iso.date().optional(),
 });
 
-const previewRequestSchema = z.object({
-  scopeMonth: z
-    .string()
-    .regex(/^\d{4}-\d{2}$/)
-    .refine((month) => {
-      const monthNumber = Number(month.slice(5, 7));
-      return monthNumber >= 1 && monthNumber <= 12;
-    }),
-  asOfDate: z.iso.date().optional(),
-  timezone: z
-    .string()
-    .trim()
-    .min(1)
-    .max(100)
-    .refine(isValidIanaTimezone)
-    .optional(),
-  policy: z.unknown().optional(),
-  source: z.enum(["manual", "ai", "update"]).default("manual"),
-  /**
-   * `replan` is a proposal-generation mode: the caller diffs the result against
-   * the current preview, turns the differences into `move_item` draft commands,
-   * then re-requests a `stable` preview pinned to those commands. A `replan`
-   * preview must never be stored as the draft or sent to save; the save route
-   * always solves `stable`, so its hash would not match.
-   */
-  solveIntent: z.enum(["stable", "replan"]).default("stable"),
-  draftCommands: z.array(plannerDraftCommandSchema).max(4000).default([]),
-});
+const previewRequestSchema = z
+  .object({
+    startDate: z.iso.date(),
+    endDate: z.iso.date(),
+    asOfDate: z.iso.date().optional(),
+    timezone: z
+      .string()
+      .trim()
+      .min(1)
+      .max(100)
+      .refine(isValidIanaTimezone)
+      .optional(),
+    policy: z.unknown().optional(),
+    source: z.enum(["manual", "ai", "update"]).default("manual"),
+    /**
+     * `replan` is a proposal-generation mode: the caller diffs the result against
+     * the current preview, turns the differences into `move_item` draft commands,
+     * then re-requests a `stable` preview pinned to those commands. A `replan`
+     * preview must never be stored as the draft or sent to save; the save route
+     * always solves `stable`, so its hash would not match.
+     */
+    solveIntent: z.enum(["stable", "replan"]).default("stable"),
+    draftCommands: z.array(plannerDraftCommandSchema).max(4000).default([]),
+  })
+  .superRefine((value, ctx) => {
+    try {
+      assertDateWindow({ start: value.startDate, end: value.endDate });
+    } catch (error) {
+      ctx.addIssue({
+        code: "custom",
+        message:
+          error instanceof Error ? error.message : "Invalid planner window.",
+        path: ["endDate"],
+      });
+    }
+  });
 
 const upsertPreferencesSchema = z.object({
   timezone: z
@@ -92,28 +106,6 @@ const upsertPreferencesSchema = z.object({
     .refine(isValidIanaTimezone),
   defaultPolicy: z.unknown().optional(),
 });
-
-function toPlannerGoalSemanticSnapshot(goal: {
-  title: string;
-  category: string;
-  color: string | null;
-  start_date: string;
-  end_date: string | null;
-  requirement_fingerprint: string;
-  assessment_input_hash: string;
-  assessment_snapshot: unknown;
-}) {
-  return {
-    title: goal.title,
-    category: goal.category,
-    color: goal.color,
-    startDate: goal.start_date,
-    endDate: goal.end_date,
-    requirementFingerprint: goal.requirement_fingerprint,
-    assessmentInputHash: goal.assessment_input_hash,
-    assessmentFingerprint: canonicalHash(goal.assessment_snapshot),
-  };
-}
 
 function plannerKernelErrorToRouteError(error: PlannerError) {
   if (error.httpStatus === 413) {
@@ -136,7 +128,8 @@ type PlannerCanonicalSnapshotResult = Awaited<
 
 function resolvePlannerPreview({
   ownerId,
-  scopeMonth,
+  startDate,
+  endDate,
   requestedAsOfDate,
   requestedTimezone,
   requestedPolicy,
@@ -149,7 +142,8 @@ function resolvePlannerPreview({
   draftPinnedDates = {},
 }: {
   ownerId: string;
-  scopeMonth: string;
+  startDate: string;
+  endDate: string;
   requestedAsOfDate?: string;
   requestedTimezone?: string;
   requestedPolicy?: unknown;
@@ -209,7 +203,7 @@ function resolvePlannerPreview({
         schemaVersion: PLANNER_CONTRACT_VERSION,
         eligibilityMode: PLANNER_ELIGIBILITY_MODES[0],
         ownerId,
-        ...toKernelWindow(scopeMonth),
+        ...toKernelWindowFromDates({ start: startDate, end: endDate }),
         asOfDate,
         timezone: effectiveTimezone,
         goals: snapshot.goals,
@@ -259,6 +253,8 @@ export async function GET(request: Request) {
       scopeMonth: url.searchParams.get("scopeMonth") ?? undefined,
       asOfDate: url.searchParams.get("asOfDate") ?? undefined,
       timezone: url.searchParams.get("timezone") ?? undefined,
+      visibleStart: url.searchParams.get("visibleStart") ?? undefined,
+      visibleEnd: url.searchParams.get("visibleEnd") ?? undefined,
     });
     if (!parsedQuery.success) {
       throw new PlannerRouteError(
@@ -268,31 +264,30 @@ export async function GET(request: Request) {
       );
     }
 
-    const snapshot = await loadPlannerCanonicalSnapshot({
-      supabase: routeContext.supabase,
-      ownerId: routeContext.userId,
-      ...toKernelWindow(parsedQuery.data.scopeMonth),
-    });
-
-    const activeAssessments = (snapshot.activePlan?.goals ?? []).map((goal) =>
-      goalAssessmentSchema.parse(goal.assessment_snapshot)
-    );
-    const activeAssessmentByGoalId = new Map(
-      activeAssessments.map((assessment) => [assessment.goalId, assessment])
-    );
-    let resolvedPreview: ReturnType<typeof resolvePlannerPreview>;
+    const defaultWindow = getScopeDateRange(parsedQuery.data.scopeMonth);
+    const visibleStart = parsedQuery.data.visibleStart ?? defaultWindow.start;
+    const visibleEnd = parsedQuery.data.visibleEnd ?? defaultWindow.end;
+    if (
+      (parsedQuery.data.visibleStart === undefined) !==
+        (parsedQuery.data.visibleEnd === undefined) ||
+      visibleEnd < visibleStart
+    ) {
+      throw new PlannerRouteError(
+        400,
+        "validation_failed",
+        "Provide both visible planner dates in ascending order."
+      );
+    }
+    let responsePayload: Awaited<ReturnType<typeof loadPlannerContextPayload>>;
     try {
-      resolvedPreview = resolvePlannerPreview({
+      responsePayload = await loadPlannerContextPayload({
+        supabase: routeContext.supabase,
         ownerId: routeContext.userId,
+        capabilities: routeContext.capabilities,
         scopeMonth: parsedQuery.data.scopeMonth,
-        requestedAsOfDate: parsedQuery.data.asOfDate,
-        requestedTimezone: parsedQuery.data.timezone,
-        snapshot,
-        assessments:
-          activeAssessments.length > 0 ? activeAssessments : undefined,
-        requireExplicitTimezone: false,
-        includeKernel: true,
-        preserveExistingAssignments: true,
+        startDate: visibleStart,
+        endDate: visibleEnd,
+        correlationId,
       });
     } catch (error) {
       if (error instanceof PlannerError) {
@@ -300,97 +295,6 @@ export async function GET(request: Request) {
       }
       throw error;
     }
-    const { asOfDate, effectiveTimezone, effectivePolicy, preview: kernel } =
-      resolvedPreview;
-
-    const currentGoals = Object.fromEntries(
-      snapshot.goals.map((goal) => {
-        const assessment =
-          activeAssessmentByGoalId.get(goal.id) ??
-          createDefaultAssessment(goal);
-        return [
-          goal.id,
-          {
-            title: goal.title,
-            category: goal.category,
-            color: goal.color,
-            startDate: goal.start_date,
-            endDate: goal.end_date,
-            requirementFingerprint:
-              normalizeGoalRequirement(goal).requirementFingerprint,
-            assessmentInputHash: assessment.assessmentInputHash,
-            assessmentFingerprint: canonicalHash(assessment),
-          },
-        ];
-      })
-    );
-
-    const staleness =
-      snapshot.activePlan && kernel
-        ? evaluateActivePlanStaleness({
-            snapshot: {
-              planId: snapshot.activePlan.plan.id,
-              status:
-                snapshot.activePlan.plan.status === "active"
-                  ? "active"
-                  : snapshot.activePlan.plan.status === "dismissed"
-                    ? "dismissed"
-                    : "superseded",
-              timezone: snapshot.activePlan.plan.timezone,
-              policyFingerprint: canonicalHash(snapshot.activePlan.policy),
-              goals: Object.fromEntries(
-                snapshot.activePlan.goals.map((goal) => [
-                  goal.original_goal_id,
-                  toPlannerGoalSemanticSnapshot(goal),
-                ])
-              ),
-            },
-            current: {
-              timezone: effectiveTimezone,
-              policyFingerprint: canonicalHash(effectivePolicy),
-              goals: currentGoals,
-              linkedGoalIds: Array.from(
-                new Set(
-                  snapshot.links.flatMap((link) => [
-                    link.sourceGoalId,
-                    link.targetGoalId,
-                  ])
-                )
-              ),
-              workUnits: kernel.workUnits,
-              driftFacts: kernel.driftFacts,
-              invalidGoalIds: kernel.solver.invalidGoalIds,
-              localToday: getDateInTimezone(
-                new Date(),
-                snapshot.activePlan.plan.timezone
-              ),
-            },
-          })
-        : { status: "not_applicable", stale: false, reasons: [] };
-
-    const responsePayload = {
-      schemaVersion: "1",
-      scopeMonth: parsedQuery.data.scopeMonth,
-      asOfDate,
-      timezone: effectiveTimezone,
-      goalTitles: Object.fromEntries(
-        snapshot.goals.map((goal) => [goal.id, goal.title])
-      ),
-      revisions: snapshot.revisions,
-      capabilities: routeContext.capabilities,
-      preferences: snapshot.preferences
-        ? {
-            timezone: snapshot.preferences.timezone,
-            policyRevision: snapshot.preferences.policy_revision,
-            timezoneConfirmedAt: snapshot.preferences.timezone_confirmed_at,
-            defaultPolicy: effectivePolicy,
-          }
-        : null,
-      activePlan: snapshot.activePlan,
-      preview: kernel,
-      staleness,
-      correlationId,
-    } as const;
 
     if (
       Buffer.byteLength(JSON.stringify(responsePayload), "utf8") >
@@ -421,23 +325,27 @@ export async function POST(request: Request) {
       Math.min(MAX_API_BODY_BYTES, 256 * 1024),
       previewRequestSchema
     );
+    const kernelWindow = toKernelWindowFromDates({
+      start: body.startDate,
+      end: body.endDate,
+    });
     const snapshot = await loadPlannerCanonicalSnapshot({
       supabase: routeContext.supabase,
       ownerId: routeContext.userId,
-      ...toKernelWindow(body.scopeMonth),
+      ...kernelWindow,
     });
 
     let resolvedPreview: ReturnType<typeof resolvePlannerPreview>;
     try {
       resolvedPreview = resolvePlannerPreview({
         ownerId: routeContext.userId,
-        scopeMonth: body.scopeMonth,
+        ...kernelWindow,
         requestedAsOfDate: body.asOfDate,
         requestedTimezone: body.timezone,
         requestedPolicy: body.policy,
         snapshot,
         requireExplicitTimezone: true,
-        preserveExistingAssignments: false,
+        preserveExistingAssignments: (body.solveIntent ?? "stable") !== "replan",
         solveIntent: body.solveIntent ?? "stable",
         draftPinnedDates: buildDraftPinnedDatesFromCommands(
           body.draftCommands ?? []
@@ -454,7 +362,8 @@ export async function POST(request: Request) {
     const responseBody = {
       schemaVersion: "1",
       source: body.source,
-      scopeMonth: body.scopeMonth,
+      startDate: body.startDate,
+      endDate: body.endDate,
       asOfDate,
       timezone: effectiveTimezone,
       revisions: snapshot.revisions,

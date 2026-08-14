@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   requirePlannerRouteContext: vi.fn(),
   resolveCanonicalAsOfDate: vi.fn(),
   loadPlannerCanonicalSnapshot: vi.fn(),
+  loadPlannerContextPayload: vi.fn(),
   runPlannerKernel: vi.fn(),
 }));
 
@@ -30,6 +31,7 @@ vi.mock("@/lib/planner/api", async () => {
 
 vi.mock("@/lib/planner/context-loader", () => ({
   loadPlannerCanonicalSnapshot: mocks.loadPlannerCanonicalSnapshot,
+  loadPlannerContextPayload: mocks.loadPlannerContextPayload,
 }));
 
 vi.mock("@/lib/planner/kernel", async () => {
@@ -78,7 +80,7 @@ describe("planner context GET route", () => {
   });
 
   it("maps planner kernel bounds errors to typed 413 responses", async () => {
-    mocks.runPlannerKernel.mockImplementation(() => {
+    mocks.loadPlannerContextPayload.mockImplementation(() => {
       throw new PlannerError(
         "plan_too_large",
         413,
@@ -96,9 +98,9 @@ describe("planner context GET route", () => {
       message: "Planner generation input exceeds unit limits.",
       correlationId: expect.any(String),
     });
-    expect(mocks.runPlannerKernel).toHaveBeenCalledWith(
+    expect(mocks.loadPlannerContextPayload).toHaveBeenCalledWith(
       expect.objectContaining({
-        preserveExistingAssignments: true,
+        scopeMonth: "2026-08",
       })
     );
   });
