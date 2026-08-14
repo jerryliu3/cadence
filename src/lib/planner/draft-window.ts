@@ -14,6 +14,14 @@ import {
 export const PLANNER_DRAFT_WINDOW_TOO_WIDE_MESSAGE =
   "That date is more than 12 months from this draft. Save first, then move further.";
 
+export function plannerDraftWindowUnavailableMessage(
+  result: PlannerDraftWindowResult
+) {
+  return result.ok === false && result.code === "too_wide"
+    ? PLANNER_DRAFT_WINDOW_TOO_WIDE_MESSAGE
+    : "Planner context is unavailable.";
+}
+
 export type PlannerDraftWindowFailure = "empty" | "too_wide" | "invalid";
 
 export type PlannerDraftWindowResult =
