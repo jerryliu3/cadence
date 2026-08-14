@@ -76,8 +76,9 @@ export async function flushNotificationOutbox({
   let removedSubscriptions = 0;
 
   for (const row of rows) {
+    let result: Awaited<ReturnType<typeof sendPushToUser>>;
     try {
-      const result = await sendPushToUser({
+      result = await sendPushToUser({
         admin,
         userId: row.user_id,
         payload: {
@@ -87,48 +88,50 @@ export async function flushNotificationOutbox({
           tag: `${row.kind}-${row.id}`,
         },
       });
-      removedSubscriptions += result.removedSubscriptions;
-
-      if (result.sent === 0 && result.webConfigurationUnavailable) {
-        deferred += 1;
-        await resolveDelivery({
-          outboxId: row.id,
-          sent: false,
-          error: "web_configuration_unavailable",
-        });
-        continue;
-      }
-
-      if (isNoSubscriptionResult(result)) {
-        skipped += 1;
-        await resolveDelivery({
-          outboxId: row.id,
-          sent: false,
-          error: "no_subscriptions",
-        });
-        continue;
-      }
-
-      if (result.sent > 0) {
-        sent += 1;
-        await resolveDelivery({
-          outboxId: row.id,
-          sent: true,
-        });
-      } else {
-        failed += 1;
-        await resolveDelivery({
-          outboxId: row.id,
-          sent: false,
-          error: "send_failed",
-        });
-      }
     } catch (error) {
       failed += 1;
       await resolveDelivery({
         outboxId: row.id,
         sent: false,
         error: error instanceof Error ? error.message.slice(0, 400) : "unknown_error",
+      });
+      continue;
+    }
+
+    removedSubscriptions += result.removedSubscriptions;
+
+    if (result.sent === 0 && result.webConfigurationUnavailable) {
+      deferred += 1;
+      await resolveDelivery({
+        outboxId: row.id,
+        sent: false,
+        error: "web_configuration_unavailable",
+      });
+      continue;
+    }
+
+    if (isNoSubscriptionResult(result)) {
+      skipped += 1;
+      await resolveDelivery({
+        outboxId: row.id,
+        sent: false,
+        error: "no_subscriptions",
+      });
+      continue;
+    }
+
+    if (result.sent > 0) {
+      sent += 1;
+      await resolveDelivery({
+        outboxId: row.id,
+        sent: true,
+      });
+    } else {
+      failed += 1;
+      await resolveDelivery({
+        outboxId: row.id,
+        sent: false,
+        error: "send_failed",
       });
     }
   }

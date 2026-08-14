@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions, pg_catalog;
-select plan(5);
+select plan(6);
 
 insert into auth.users (id, email)
 values ('9c222222-2222-4222-8222-222222222222', 'native-push@example.com')
@@ -61,6 +61,22 @@ select is(
   ),
   'ExponentPushToken[new]',
   'rotation keeps the newest native token'
+);
+
+select throws_ok(
+  $$
+    select public.replace_native_push_subscription_service(
+      '9c222222-2222-4222-8222-222222222222',
+      null::text,
+      'ExponentPushToken[new]',
+      'native:ios:ExponentPushToken[new]',
+      'pgTAP',
+      pg_catalog.now()
+    )
+  $$,
+  '22023',
+  'native_platform_invalid',
+  'native rotation rejects a missing platform explicitly'
 );
 
 reset role;

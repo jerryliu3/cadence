@@ -15,7 +15,7 @@ begin
   if p_user_id is null then
     raise exception using errcode = '22023', message = 'user_id_required';
   end if;
-  if p_platform not in ('ios', 'android') then
+  if p_platform is null or p_platform not in ('ios', 'android') then
     raise exception using errcode = '22023', message = 'native_platform_invalid';
   end if;
   if p_native_token is null
