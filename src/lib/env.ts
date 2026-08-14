@@ -95,6 +95,11 @@ const serverEnvSchema = publicEnvSchema.extend({
   XP_ENABLED: booleanFromEnv(false),
   SOCIAL_ENABLED: booleanFromEnv(false),
   INTEGRATIONS_ENABLED: booleanFromEnv(false),
+  INTEGRATIONS_ROLLOUT_STAGE: z.preprocess((value) => {
+    const normalized = emptyToUndefined(value);
+    return normalized === undefined ? "off" : normalized;
+  }, z.enum(["off", "internal", "beta", "ga"])),
+  INTEGRATIONS_ALLOWED_USER_IDS: optionalNonEmptyString,
   CALENDAR_COACH_DISABLE_QUOTA: booleanFromEnv(false),
   CALENDAR_COACH_TIMEOUT_MS: optionalPositiveInt({
     min: 10_000,
@@ -158,6 +163,8 @@ function readServerEnvInput() {
     XP_ENABLED: process.env.XP_ENABLED,
     SOCIAL_ENABLED: process.env.SOCIAL_ENABLED,
     INTEGRATIONS_ENABLED: process.env.INTEGRATIONS_ENABLED,
+    INTEGRATIONS_ROLLOUT_STAGE: process.env.INTEGRATIONS_ROLLOUT_STAGE,
+    INTEGRATIONS_ALLOWED_USER_IDS: process.env.INTEGRATIONS_ALLOWED_USER_IDS,
     CALENDAR_COACH_DISABLE_QUOTA: process.env.CALENDAR_COACH_DISABLE_QUOTA,
     CALENDAR_COACH_TIMEOUT_MS: process.env.CALENDAR_COACH_TIMEOUT_MS,
     CALENDAR_COACH_DAILY_LIMIT: process.env.CALENDAR_COACH_DAILY_LIMIT,

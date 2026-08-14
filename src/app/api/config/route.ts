@@ -23,6 +23,7 @@ export async function GET() {
         schemaVersion: "1",
         flags: publicMobileFlags(),
         minSupportedAppVersion: env.MOBILE_MIN_SUPPORTED_APP_VERSION ?? null,
+        integrationsRolloutStage: env.INTEGRATIONS_ROLLOUT_STAGE,
       },
       {
         headers: {
