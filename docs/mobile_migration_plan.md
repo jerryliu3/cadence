@@ -36,6 +36,33 @@ Router client in `apps/mobile`. Shared contracts live in `packages/shared`.
 ## Release
 
 - Local static gate: `pnpm --filter @cadence/mobile typecheck`
+- Local mobile Duo verification: `pnpm --filter @cadence/mobile exec vitest run`
 - iOS/Android binaries: EAS cloud builds (`apps/mobile/eas.json`)
 - Updates: EAS Update channels `development`, `preview`, `production` (disabled in `app.json` until a real EAS project id replaces the placeholder URL)
 - Force upgrade: `MOBILE_MIN_SUPPORTED_APP_VERSION` on `/api/config`
+
+### Duo acceptance checklist
+
+1. Pair two users into an active team and verify Checklist/Insights/Calendar
+   scope toggles all render `me`, `both`, and `partner` correctly.
+2. Confirm partner lanes are read-only (no goal writes, no viewer drag/move/lock/reset
+   affordances in partner calendar scope).
+3. Validate fail-closed behavior by forcing partner fetch failures:
+   - partner overlays clear while loading new partner/month keys,
+   - partner errors show concise unavailable copy,
+   - viewer lanes remain interactive in `both`.
+4. Confirm mobile telemetry in Sentry (when DSN is configured):
+   `scope_viewed`, `partner_fetch_failed`, `viewer_lane_completion`,
+   `partner_strip_open`, `post_dissolution_scope_clamp`.
+
+### Mobile Sentry env notes
+
+- `EXPO_PUBLIC_SENTRY_DSN` is optional. If empty, mobile Sentry is fully disabled
+  (no init and no Duo capture calls).
+- `EXPO_PUBLIC_SENTRY_ENVIRONMENT` is optional and should be set per EAS channel
+  (`preview` for preview builds, `production` for production builds) when DSN is enabled.
+
+### Native module note
+
+Adding `@sentry/react-native` requires rebuilding the Expo dev-client before local
+runtime validation (`pnpm --filter @cadence/mobile ios` / `android` or EAS build).
