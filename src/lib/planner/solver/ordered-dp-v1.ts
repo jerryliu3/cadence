@@ -262,12 +262,10 @@ export function solveOrderedDpV1({
   dates: rawDates,
   units: rawUnits,
   solveIntent = "stable",
-  simulateSoftBudgetExhaustion = false,
 }: {
   dates: string[];
   units: SolverUnitInput[];
   solveIntent?: SolverSolveIntent;
-  simulateSoftBudgetExhaustion?: boolean;
 }): PlannerSolverResult {
   const dates = Array.from(new Set(rawDates)).sort();
   const dateSet = new Set(dates);
@@ -358,22 +356,6 @@ export function solveOrderedDpV1({
     (assignment) => assignment.scheduledDate !== null
   ).length;
   const complete = placedCount === units.length;
-
-  if (simulateSoftBudgetExhaustion) {
-    return {
-      assignments,
-      placementStatus: complete ? "complete" : "partial",
-      searchStatus: "soft_optimization_exhausted",
-      capacityStatus: "unverified",
-      issueCodes: [
-        ...(complete ? [] : (["placement_shortfall"] as const)),
-        "soft_optimization_exhausted",
-      ],
-      invalidGoalIds: [],
-      publishable: true,
-      confirmationRequired: !complete,
-    };
-  }
 
   return {
     assignments,

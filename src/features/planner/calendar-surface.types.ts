@@ -40,8 +40,7 @@ export interface PlannerContextPayload {
       searchStatus:
         | "all_units_placed"
         | "maximum_partial"
-        | "blocked_invalid_lock"
-        | "soft_optimization_exhausted";
+        | "blocked_invalid_lock";
       capacityStatus: "unverified";
       issueCodes: string[];
       invalidGoalIds: string[];

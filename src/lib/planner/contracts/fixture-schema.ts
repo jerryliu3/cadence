@@ -186,7 +186,6 @@ export const solverFixtureSchema = z
             description: z.string().min(1).max(300),
             dates: z.array(dateSchema).max(31),
             units: z.array(solverUnitSchema).max(MAX_WORK_UNITS),
-            simulateSoftBudgetExhaustion: z.boolean(),
             expected: z
               .object({
                 assignments: z.array(
@@ -203,14 +202,12 @@ export const solverFixtureSchema = z
                   "all_units_placed",
                   "maximum_partial",
                   "blocked_invalid_lock",
-                  "soft_optimization_exhausted",
                 ]),
                 capacityStatus: z.literal("unverified"),
                 issueCodes: z.array(
                   z.enum([
                     "placement_shortfall",
                     "invalid_lock",
-                    "soft_optimization_exhausted",
                     "historical_miss",
                     "historical_shortfall",
                   ])

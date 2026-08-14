@@ -26,7 +26,6 @@ const monthSchema = z
 const issueCodeSchema = z.enum([
   "placement_shortfall",
   "invalid_lock",
-  "soft_optimization_exhausted",
   "historical_miss",
   "historical_shortfall",
 ]);
@@ -222,7 +221,6 @@ const solverResultSchema = z
       "all_units_placed",
       "maximum_partial",
       "blocked_invalid_lock",
-      "soft_optimization_exhausted",
     ]),
     capacityStatus: z.literal("unverified"),
     issueCodes: z.array(issueCodeSchema),

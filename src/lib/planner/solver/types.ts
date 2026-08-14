@@ -27,7 +27,6 @@ export interface SolverAssignment {
 export type PlannerIssueCode =
   | "placement_shortfall"
   | "invalid_lock"
-  | "soft_optimization_exhausted"
   | "historical_miss"
   | "historical_shortfall";
 
@@ -37,8 +36,7 @@ export interface PlannerSolverResult {
   searchStatus:
     | "all_units_placed"
     | "maximum_partial"
-    | "blocked_invalid_lock"
-    | "soft_optimization_exhausted";
+    | "blocked_invalid_lock";
   capacityStatus: "unverified";
   issueCodes: PlannerIssueCode[];
   invalidGoalIds: string[];
