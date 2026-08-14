@@ -15,6 +15,7 @@ import {
 import { reportDuoPartnerFetchFailure } from "@/lib/social/duo/telemetry";
 import type { CompletionDateFact, Goal } from "@/lib/goals/types";
 import { createClient } from "@/lib/supabase/client";
+import { assertQueriesOk } from "@/lib/supabase/query-error";
 import { progressSubjectUserId, selectViewerVisibleGoals } from "@/lib/goals/visible-goals";
 import { useDuo } from "@/features/social/duo/duo-context";
 
@@ -141,6 +142,11 @@ export function useInsightsData({
         if (requestId !== loadRequestIdRef.current) {
           return;
         }
+
+        assertQueriesOk(
+          [goalsResponse, teamMembersResponse],
+          "Insights goals could not be loaded."
+        );
 
         const memberTeamIds = ((teamMembersResponse.data ?? []) as Array<{
           team_id: string;
