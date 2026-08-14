@@ -4,7 +4,8 @@ import { buildCoachPrompt } from "./coach-prompt";
 describe("buildCoachPrompt", () => {
   it("includes high-fidelity coaching identity and quality guidance", () => {
     const prompt = buildCoachPrompt({
-      scopeMonth: "2026-08",
+      startDate: "2026-08-01",
+      endDate: "2026-08-31",
       timezone: "UTC",
       asOfDate: "2026-08-05",
       allGoalsCount: 2,
@@ -33,7 +34,8 @@ describe("buildCoachPrompt", () => {
 
   it("adds explicit prompt-injection and output-contract rules", () => {
     const prompt = buildCoachPrompt({
-      scopeMonth: "2026-08",
+      startDate: "2026-08-01",
+      endDate: "2026-08-31",
       timezone: "UTC",
       asOfDate: "2026-08-05",
       allGoalsCount: 1,
@@ -69,7 +71,8 @@ describe("buildCoachPrompt", () => {
 
   it("keeps mixed goal horizons explicit per goal", () => {
     const prompt = buildCoachPrompt({
-      scopeMonth: "2026-08",
+      startDate: "2026-08-01",
+      endDate: "2026-08-31",
       timezone: "UTC",
       asOfDate: "2026-08-05",
       allGoalsCount: 2,

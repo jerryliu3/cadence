@@ -21,7 +21,8 @@ export interface UsePlannerCoachArgs {
     nextPolicy: PlannerPolicy
   ) => Promise<{ moveCount: number; movedEntryKeys: string[] }>;
   clearDraftMoveCommands: (entryKeys: string[]) => void;
-  applyDraftPolicy: (scopeMonth: string, policy: PlannerPolicy) => void;
+  applyDraftPolicy: (policy: PlannerPolicy) => void;
+  coachWindow: { start: string; end: string } | null;
   getNonPublishablePreviewMessage: (
     preview: NonNullable<PlannerContextPayload["preview"]>
   ) => string;
