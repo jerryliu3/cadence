@@ -64,6 +64,12 @@ export interface PlannerContextPayload {
     stale: boolean;
     reasons: Array<{ code: string }>;
   };
+  prepareWarnings?: Array<{
+    goalId: string;
+    code: "goal_unplaceable" | "goal_duplicate_date";
+    message: string;
+    issueCodes?: string[];
+  }>;
 }
 
 export interface PlannerWorkUnit {
