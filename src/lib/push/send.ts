@@ -33,6 +33,15 @@ function isExpiredSubscriptionError(error: unknown): boolean {
   return statusCode === 404 || statusCode === 410;
 }
 
+function isWebPushConfigurationError(error: unknown): boolean {
+  if (!error || typeof error !== "object" || !("statusCode" in error)) {
+    return false;
+  }
+
+  const statusCode = (error as { statusCode?: unknown }).statusCode;
+  return statusCode === 401 || statusCode === 403;
+}
+
 function tryConfigureWebPush() {
   if (isVapidConfigured) {
     return true;
@@ -235,6 +244,12 @@ export async function sendPushToUser({
       );
       sent += 1;
     } catch (sendError) {
+      if (
+        subscription.platform === "web" &&
+        isWebPushConfigurationError(sendError)
+      ) {
+        webConfigurationUnavailable = true;
+      }
       if (isExpiredSubscriptionError(sendError)) {
         expiredIds.add(subscription.id);
         continue;

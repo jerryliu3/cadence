@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   getUser: vi.fn(),
   createAdminClient: vi.fn(),
+  rpc: vi.fn(),
   upsert: vi.fn(),
   deleteRows: vi.fn(),
   deleteEqUser: vi.fn(),
@@ -46,6 +47,7 @@ describe("push subscriptions route", () => {
     });
 
     mocks.upsert.mockResolvedValue({ error: null });
+    mocks.rpc.mockResolvedValue({ data: true, error: null });
     mocks.deleteRows.mockResolvedValue({ error: null });
     mocks.deleteEqUser.mockReset();
     mocks.deleteEqEndpoint.mockReset();
@@ -81,6 +83,7 @@ describe("push subscriptions route", () => {
     });
     mocks.createAdminClient.mockReturnValue({
       from: mocks.from,
+      rpc: mocks.rpc,
     });
   });
 
@@ -230,23 +233,19 @@ describe("push subscriptions route", () => {
     );
 
     expect(response.status).toBe(200);
-    expect(mocks.upsert).toHaveBeenCalledWith(
-      expect.objectContaining({
-        platform: "ios",
-        native_token: "ExponentPushToken[rotated]",
-        endpoint: "native:ios:ExponentPushToken[rotated]",
-      }),
-      { onConflict: "endpoint" }
+    expect(mocks.rpc).toHaveBeenCalledWith(
+      "replace_native_push_subscription_service",
+      {
+        p_endpoint: "native:ios:ExponentPushToken[rotated]",
+        p_native_token: "ExponentPushToken[rotated]",
+        p_platform: "ios",
+        p_updated_at: expect.any(String),
+        p_user_agent: undefined,
+        p_user_id: "11111111-1111-4111-8111-111111111111",
+      }
     );
-    expect(mocks.deleteEqUser).toHaveBeenCalledWith(
-      "user_id",
-      "11111111-1111-4111-8111-111111111111"
-    );
-    expect(mocks.deleteEqUser).toHaveBeenCalledWith("platform", "ios");
-    expect(mocks.deleteEqEndpoint).toHaveBeenCalledWith(
-      "endpoint",
-      "native:ios:ExponentPushToken[rotated]"
-    );
+    expect(mocks.upsert).not.toHaveBeenCalled();
+    expect(mocks.deleteRows).not.toHaveBeenCalled();
   });
 
   it("deletes native subscriptions by platform token", async () => {
