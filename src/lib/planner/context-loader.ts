@@ -1,12 +1,18 @@
 import type { Completion, Goal } from "@/lib/goals/types";
+import { getDateInTimezone } from "@/lib/dates/timezone";
 import { createDefaultAssessment } from "@/lib/planner/assessment";
-import { PlannerRouteError } from "@/lib/planner/api";
+import { resolveCanonicalAsOfDate, PlannerRouteError } from "@/lib/planner/api";
+import { canonicalHash } from "@/lib/planner/canonical";
 import {
   MAX_COMPLETION_FACTS,
   MAX_ELIGIBLE_GOALS,
+  PLANNER_ELIGIBILITY_MODES,
+  PLANNER_CONTRACT_VERSION,
 } from "@/lib/planner/contracts/bounds";
 import { plannerCompletionSchema, plannerGoalSchema } from "@/lib/planner/contracts/kernel-schema";
+import { toKernelWindowFromDates } from "@/lib/planner/dates";
 import type { PlannerCanonicalLink } from "@/lib/planner/fingerprint";
+import { runPlannerKernel } from "@/lib/planner/kernel";
 import {
   createDefaultPlannerPolicy,
   plannerPolicySchema,
@@ -20,12 +26,13 @@ import {
 import type { PlannerCompletionUnitIdentity } from "@/lib/planner/reconciliation";
 import { normalizeGoalRequirement } from "@/lib/planner/requirements";
 import type { PlannerIssueCode } from "@/lib/planner/solver/types";
+import { evaluateActivePlanStaleness } from "@/lib/planner/staleness";
 import type { PlannerBaseAssignment } from "@/lib/planner/work-units";
 import type { Database } from "@/lib/supabase/database.types";
 import type { createClient as createServerClient } from "@/lib/supabase/server";
 
 type ServerSupabaseClient = Awaited<ReturnType<typeof createServerClient>>;
-type PlannerItemRow = Database["public"]["Tables"]["planner_items"]["Row"];
+export type PlannerItemRow = Database["public"]["Tables"]["planner_items"]["Row"];
 const PAGE_SIZE = 1_000;
 const PLANNER_GOAL_SELECT = [
   "id",
@@ -322,17 +329,63 @@ async function loadPlannerItemsForWindow(
   startDate: string,
   endDate: string
 ) {
-  const itemsResponse = await supabase
-    .from("planner_items")
-    .select("*")
-    .eq("owner_id", ownerId)
-    .gte("scheduled_date", startDate)
-    .lte("scheduled_date", endDate)
-    .order("scheduled_date")
-    .order("goal_id")
-    .order("unit_key");
-  requireTableRead(itemsResponse.error, "active_plan_item_load_failed");
-  return (itemsResponse.data ?? []) as PlannerItemRow[];
+  const items: PlannerItemRow[] = [];
+  let lastItemId: string | null = null;
+  for (;;) {
+    let query = supabase
+      .from("planner_items")
+      .select("*")
+      .eq("owner_id", ownerId)
+      .gte("scheduled_date", startDate)
+      .lte("scheduled_date", endDate)
+      .order("id")
+      .limit(PAGE_SIZE);
+    if (lastItemId) {
+      query = query.gt("id", lastItemId);
+    }
+    const response = await query;
+    requireTableRead(response.error, "active_plan_item_load_failed");
+    const page = (response.data ?? []) as PlannerItemRow[];
+    items.push(...page);
+    if (page.length < PAGE_SIZE) {
+      break;
+    }
+    lastItemId = page.at(-1)?.id ?? null;
+  }
+  return items.sort(
+    (left, right) =>
+      left.scheduled_date.localeCompare(right.scheduled_date) ||
+      left.goal_id.localeCompare(right.goal_id) ||
+      left.unit_key.localeCompare(right.unit_key)
+  );
+}
+
+export async function loadAllPlannerItems(
+  supabase: ServerSupabaseClient,
+  ownerId: string
+) {
+  const items: PlannerItemRow[] = [];
+  let lastItemId: string | null = null;
+  for (;;) {
+    let query = supabase
+      .from("planner_items")
+      .select("*")
+      .eq("owner_id", ownerId)
+      .order("id")
+      .limit(PAGE_SIZE);
+    if (lastItemId) {
+      query = query.gt("id", lastItemId);
+    }
+    const response = await query;
+    requireTableRead(response.error, "active_plan_item_load_failed");
+    const page = (response.data ?? []) as PlannerItemRow[];
+    items.push(...page);
+    if (page.length < PAGE_SIZE) {
+      break;
+    }
+    lastItemId = page.at(-1)?.id ?? null;
+  }
+  return items;
 }
 
 async function loadActivePlanSnapshot(
@@ -514,5 +567,192 @@ export async function loadPlannerCanonicalSnapshot({
     revisions,
     preferences,
     activePlan,
+  };
+}
+
+export async function loadPlannerPreparationSnapshot({
+  supabase,
+  ownerId,
+}: {
+  supabase: ServerSupabaseClient;
+  ownerId: string;
+}) {
+  const [goals, links, revisions, preferences, persistedItems] =
+    await Promise.all([
+      loadOwnerGoals(supabase, ownerId),
+      loadOwnerLinks(supabase, ownerId),
+      loadRevisionTokens(supabase),
+      loadPlannerPreferences(supabase, ownerId),
+      loadAllPlannerItems(supabase, ownerId),
+    ]);
+  const completions = await loadOwnerCompletions(
+    supabase,
+    ownerId,
+    goals.map((goal) => goal.id)
+  );
+  return {
+    snapshot: {
+      goals,
+      completions,
+      links,
+      revisions,
+      preferences,
+      activePlan: null,
+    } satisfies PlannerCanonicalSnapshot,
+    persistedItems,
+  };
+}
+
+function toPlannerGoalSemanticSnapshot(goal: PlannerActiveGoalRow) {
+  return {
+    title: goal.title,
+    category: goal.category,
+    color: goal.color,
+    startDate: goal.start_date,
+    endDate: goal.end_date,
+    requirementFingerprint: goal.requirement_fingerprint,
+    assessmentInputHash: goal.assessment_input_hash,
+    assessmentFingerprint: canonicalHash(goal.assessment_snapshot),
+  };
+}
+
+export async function loadPlannerContextPayload({
+  supabase,
+  ownerId,
+  capabilities,
+  scopeMonth,
+  startDate,
+  endDate,
+  correlationId,
+}: {
+  supabase: ServerSupabaseClient;
+  ownerId: string;
+  capabilities: { crossMonthMovesEnabled: boolean };
+  scopeMonth: string;
+  startDate: string;
+  endDate: string;
+  correlationId?: string;
+}) {
+  const kernelWindow = toKernelWindowFromDates({
+    start: `${startDate.slice(0, 7)}-01`,
+    end: (() => {
+      const endMonth = endDate.slice(0, 7);
+      const nextMonthStart = new Date(`${endMonth}-01T00:00:00.000Z`);
+      nextMonthStart.setUTCMonth(nextMonthStart.getUTCMonth() + 1);
+      nextMonthStart.setUTCDate(0);
+      return nextMonthStart.toISOString().slice(0, 10);
+    })(),
+  });
+  const snapshot = await loadPlannerCanonicalSnapshot({
+    supabase,
+    ownerId,
+    ...kernelWindow,
+  });
+  const effectiveTimezone = snapshot.preferences?.timezone ?? "UTC";
+  const asOfDate = resolveCanonicalAsOfDate({ timezone: effectiveTimezone });
+  const effectivePolicy = plannerPolicySchema.parse(
+    snapshot.preferences?.default_policy ??
+      createDefaultPlannerPolicy(effectiveTimezone, new Date().toISOString())
+  );
+  const activeAssessments = (snapshot.activePlan?.goals ?? []).map((goal) =>
+    goal.assessment_snapshot
+  );
+  const preview = runPlannerKernel({
+    schemaVersion: PLANNER_CONTRACT_VERSION,
+    eligibilityMode: PLANNER_ELIGIBILITY_MODES[0],
+    ownerId,
+    ...kernelWindow,
+    asOfDate,
+    timezone: effectiveTimezone,
+    goals: snapshot.goals,
+    completions: snapshot.completions,
+    links: snapshot.links,
+    assessments: activeAssessments.length > 0 ? activeAssessments : undefined,
+    policy: effectivePolicy,
+    basePlan: snapshot.activePlan?.basePlan ?? null,
+    preserveExistingAssignments: true,
+  });
+  const activeAssessmentByGoalId = new Map(
+    activeAssessments.map((assessment) => [assessment.goalId, assessment])
+  );
+  const currentGoals = Object.fromEntries(
+    snapshot.goals.map((goal) => {
+      const assessment =
+        activeAssessmentByGoalId.get(goal.id) ?? createDefaultAssessment(goal);
+      return [
+        goal.id,
+        {
+          title: goal.title,
+          category: goal.category,
+          color: goal.color,
+          startDate: goal.start_date,
+          endDate: goal.end_date,
+          requirementFingerprint:
+            normalizeGoalRequirement(goal).requirementFingerprint,
+          assessmentInputHash: assessment.assessmentInputHash,
+          assessmentFingerprint: canonicalHash(assessment),
+        },
+      ];
+    })
+  );
+  const staleness = snapshot.activePlan
+    ? evaluateActivePlanStaleness({
+        snapshot: {
+          planId: snapshot.activePlan.plan.id,
+          status: snapshot.activePlan.plan.status,
+          timezone: snapshot.activePlan.plan.timezone,
+          policyFingerprint: canonicalHash(snapshot.activePlan.policy),
+          goals: Object.fromEntries(
+            snapshot.activePlan.goals.map((goal) => [
+              goal.original_goal_id,
+              toPlannerGoalSemanticSnapshot(goal),
+            ])
+          ),
+        },
+        current: {
+          timezone: effectiveTimezone,
+          policyFingerprint: canonicalHash(effectivePolicy),
+          goals: currentGoals,
+          linkedGoalIds: Array.from(
+            new Set(
+              snapshot.links.flatMap((link) => [
+                link.sourceGoalId,
+                link.targetGoalId,
+              ])
+            )
+          ),
+          workUnits: preview.workUnits,
+          driftFacts: preview.driftFacts,
+          invalidGoalIds: preview.solver.invalidGoalIds,
+          localToday: getDateInTimezone(
+            new Date(),
+            snapshot.activePlan.plan.timezone
+          ),
+        },
+      })
+    : { status: "not_applicable" as const, stale: false, reasons: [] };
+
+  return {
+    schemaVersion: "1" as const,
+    scopeMonth,
+    asOfDate,
+    timezone: effectiveTimezone,
+    goalTitles: Object.fromEntries(
+      snapshot.goals.map((goal) => [goal.id, goal.title])
+    ),
+    revisions: snapshot.revisions,
+    capabilities,
+    preferences: snapshot.preferences
+      ? {
+          timezone: snapshot.preferences.timezone,
+          policyRevision: snapshot.preferences.policy_revision,
+          timezoneConfirmedAt: snapshot.preferences.timezone_confirmed_at,
+          defaultPolicy: effectivePolicy,
+        }
+      : null,
+    activePlan: snapshot.activePlan,
+    preview,
+    staleness,
+    ...(correlationId ? { correlationId } : {}),
   };
 }
