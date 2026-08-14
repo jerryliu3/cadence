@@ -7,6 +7,7 @@ import {
   buildCalendarPartnerTitleMap,
   buildCalendarPartnerProgressQuery,
   buildPartnerMarkerAccessibilityLabel,
+  sanitizeCalendarPartnerTitleQueryFailure,
   resolveCalendarOverlayState,
   resolveCalendarReadOnlyState,
 } from "./calendar-duo";
@@ -130,6 +131,23 @@ describe("calendar duo behavior helpers", () => {
 
     const dayMarkers = payload.markersByDate.get("2026-08-12") ?? [];
     expect(dayMarkers.map((marker) => marker.goalTitle)).toEqual(["Read", "Run"]);
+  });
+
+  it("sanitizes title-query failures into non-PII throwables", () => {
+    const partnerId = "22222222-2222-4222-8222-222222222222";
+    const rawError = {
+      code: "PGRST116",
+      message: `column owner_id filter failed for ${partnerId}`,
+      details: `owner_id=eq.${partnerId}`,
+    };
+    const sanitized = sanitizeCalendarPartnerTitleQueryFailure(rawError);
+
+    expect(sanitized.message).toBe("Partner completions are unavailable.");
+    expect((sanitized as Error & { postgrestCode?: string }).postgrestCode).toBe(
+      "PGRST116"
+    );
+    expect(JSON.stringify(sanitized)).not.toContain("owner_id");
+    expect(JSON.stringify(sanitized)).not.toContain(partnerId);
   });
 
   it("fails closed while the current partner-month identity is not fresh", () => {

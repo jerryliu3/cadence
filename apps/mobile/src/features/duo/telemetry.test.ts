@@ -134,4 +134,17 @@ describe("mobile duo telemetry", () => {
       stalePartner: false,
     });
   });
+
+  it("prefers sanitized postgrestCode on plain errors", () => {
+    const error = new Error("Partner completions are unavailable.") as Error & {
+      postgrestCode?: string;
+      code?: string;
+    };
+    error.postgrestCode = "PGRST301";
+    error.code = "SHOULD_NOT_WIN";
+    expect(extractMobileDuoPartnerFailureContext(error)).toEqual({
+      postgrestCode: "PGRST301",
+      stalePartner: false,
+    });
+  });
 });

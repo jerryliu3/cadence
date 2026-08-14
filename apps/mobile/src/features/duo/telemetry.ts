@@ -153,9 +153,15 @@ export function extractMobileDuoPartnerFailureContext(error: unknown): {
     };
   }
   const postgrestCode =
-    error && typeof error === "object" && typeof (error as { code?: unknown }).code === "string"
-      ? (error as { code: string }).code
-      : undefined;
+    error &&
+    typeof error === "object" &&
+    typeof (error as { postgrestCode?: unknown }).postgrestCode === "string"
+      ? (error as { postgrestCode: string }).postgrestCode
+      : error &&
+          typeof error === "object" &&
+          typeof (error as { code?: unknown }).code === "string"
+        ? (error as { code: string }).code
+        : undefined;
   return {
     postgrestCode,
     stalePartner: false,

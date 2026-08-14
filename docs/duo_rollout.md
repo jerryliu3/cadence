@@ -74,6 +74,16 @@ Web partner-lane fetch failures also go through `reportError` with `area: "duo"`
 | Insights | Viewer heatmap | Viewer + partner heatmaps | Partner heatmap only |
 | Calendar | Viewer sessions and planner controls | Viewer sessions plus partner completion markers | Partner completion markers only; read-only banner and no planner mutations |
 
+### Team availability unavailable (manual acceptance)
+
+When Duo team state load resolves `availability: unavailable`, each surface must
+fail closed with concise unavailable treatment and no partner mutations:
+
+- Checklist: keep viewer lane usable; partner lane/strip show unavailable copy.
+- Insights: keep viewer lane visible; partner lane shows unavailable copy.
+- Calendar: in `both`, keep viewer sessions usable and show partner unavailable
+  message; in `partner`, show read-only shell plus unavailable/loading treatment.
+
 ## Out of scope
 
 - Partner writes to checklist/goals
