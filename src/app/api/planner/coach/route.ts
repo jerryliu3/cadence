@@ -127,7 +127,7 @@ export async function POST(request: Request) {
   const coachTimeoutMs = readCoachTimeoutMs();
   return withPlannerRoute(async ({ correlationId }) => {
     try {
-    const routeContext = await requirePlannerRouteContext(request);
+      const routeContext = await requirePlannerRouteContext(request);
 
       const rate = checkRateLimit({
         key: `planner-coach:${routeContext.userId}`,
