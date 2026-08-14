@@ -73,6 +73,7 @@ const publishSchema = z
 interface PlannerSaveScheduledItem {
   goal_id: string;
   unit_key: string;
+  label: string | null;
   scheduled_date: string;
   original_scheduled_date: string;
   scheduled_time: string | null;
@@ -454,18 +455,22 @@ export async function handlePlannerSave(request: Request) {
         ): item is (typeof persistence.items)[number] & { scheduled_date: string } =>
           item.scheduled_date !== null
       )
-      .map((item) => ({
-        goal_id: item.goal_id,
-        unit_key: item.unit_key,
-        scheduled_date: item.scheduled_date,
-        original_scheduled_date:
-          item.original_scheduled_date ?? item.scheduled_date,
-        scheduled_time:
-          item.scheduled_time_override ??
-          item.effective_scheduled_local_time ??
-          null,
-        locked: item.locked,
-      }));
+      .map((item) => {
+        const labelCandidate = "label" in item ? item.label : null;
+        return {
+          goal_id: item.goal_id,
+          unit_key: item.unit_key,
+          label: typeof labelCandidate === "string" ? labelCandidate : null,
+          scheduled_date: item.scheduled_date,
+          original_scheduled_date:
+            item.original_scheduled_date ?? item.scheduled_date,
+          scheduled_time:
+            item.scheduled_time_override ??
+            item.effective_scheduled_local_time ??
+            null,
+          locked: item.locked,
+        };
+      });
     const publishResponse = await routeContext.supabase.rpc(
       "set_planner_schedule",
       {
