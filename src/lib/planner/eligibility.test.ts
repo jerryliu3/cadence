@@ -67,7 +67,7 @@ describe("overlap-v1 eligibility", () => {
 });
 
 describe("goal-level eligibility guards", () => {
-  const cadenceGoal: Goal = {
+  const cadenceGoal: EligibilityGoal = {
     id: "goal-cadence-open",
     owner_id: "owner-a",
     title: "Open cadence goal",
@@ -138,7 +138,7 @@ describe("goal-level eligibility guards", () => {
   });
 
   it("marks ordinal goals with overlong horizons as ineligible", () => {
-    const longHorizonGoal: Goal = {
+    const longHorizonGoal: EligibilityGoal = {
       id: "goal-long",
       owner_id: "owner-a",
       title: "Long horizon goal",
