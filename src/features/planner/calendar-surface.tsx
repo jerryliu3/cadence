@@ -979,6 +979,13 @@ export function CalendarSurface({
     [context, draftSaveWindow]
   );
   const runCompletionMutation = useCompletionMutation();
+  const queueDraftMoveCommandRef = useRef<
+    (args: {
+      entry: PlannerDayDetailEntry;
+      nextDate: string;
+      source: "date_input" | "drag_drop" | "coach";
+    }) => boolean
+  >(() => false);
   const coach = usePlannerCoach({
     activeTab,
     context,
@@ -988,6 +995,7 @@ export function CalendarSurface({
     hasDraftSession,
     refreshDraftPreview,
     applyPolicyReplanMoves,
+    queueDraftMoveCommand: (args) => queueDraftMoveCommandRef.current(args),
     clearDraftMoveCommands,
     applyDraftPolicy: (policy) => {
       setDraftPolicy(policy);
@@ -1154,7 +1162,7 @@ export function CalendarSurface({
     }: {
       entry: PlannerDayDetailEntry;
       nextDate: string;
-      source: "date_input" | "drag_drop";
+      source: "date_input" | "drag_drop" | "coach";
     }) => {
       if (entry.draftGhost) {
         toast.error("Original-date preview markers cannot be moved directly.");
@@ -1290,6 +1298,7 @@ export function CalendarSurface({
       previewUnitByEntryKey,
     ]
   );
+  queueDraftMoveCommandRef.current = queueDraftMoveCommand;
 
   const updateDraftLabel = (entry: PlannerDayDetailEntry, label: string) => {
     if (entry.draftGhost) {

@@ -93,6 +93,7 @@ function buildArgs(overrides: Partial<UsePlannerCoachArgs> = {}): UsePlannerCoac
     applyPolicyReplanMoves: vi
       .fn()
       .mockResolvedValue({ moveCount: 0, movedEntryKeys: [] }),
+    queueDraftMoveCommand: vi.fn().mockReturnValue(true),
     clearDraftMoveCommands: vi.fn(),
     applyDraftPolicy: vi.fn(),
     coachWindow: { start: "2026-08-01", end: "2026-08-31" },
@@ -1371,5 +1372,70 @@ describe("usePlannerCoach replan pinning", () => {
     expect(
       result.current.state.coachMessages[proposalIndex]?.proposal?.applyStatus
     ).toBe("undone");
+  });
+
+  it("queues sessionMoves onto the calendar without a policy replan", async () => {
+    const context = buildContext();
+    applyCoachPolicyPatchesMock.mockReturnValue({
+      policy: buildPolicy(),
+      appliedPatchCount: 0,
+      ignoredPatchCount: 0,
+      noOpPatchCount: 0,
+      unsupportedPatchCount: 0,
+    });
+    requestPlannerCoachReplyMock.mockResolvedValue({
+      schemaVersion: "1",
+      phase: "ready",
+      reply: "Moved that session to Saturday.",
+      proposal: {
+        policyPatches: [
+          {
+            kind: "move_session",
+            goalId: "goal-1",
+            unitKey: "unit-1",
+            scheduledDate: "2026-09-12",
+          },
+        ],
+        unresolvedQuestions: [],
+      },
+      recommendations: [],
+      warnings: [],
+    });
+    const queueDraftMoveCommand = vi.fn().mockReturnValue(true);
+    const applyPolicyReplanMoves = vi.fn();
+    const refreshDraftPreview = vi.fn().mockResolvedValue(context.preview!);
+    const entry = buildEntry();
+
+    const { result } = renderHook(() =>
+      usePlannerCoach(
+        buildArgs({
+          activeTab: "calendar",
+          context,
+          entriesByDate: new Map([["2026-08-01", [entry]]]),
+          effectivePreview: context.preview,
+          queueDraftMoveCommand,
+          applyPolicyReplanMoves,
+          refreshDraftPreview,
+        })
+      )
+    );
+
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    await act(async () => {
+      result.current.actions.setCoachInput("Move my long run to Saturday");
+    });
+    await act(async () => {
+      await result.current.actions.sendCoachMessage();
+    });
+
+    expect(queueDraftMoveCommand).toHaveBeenCalledWith({
+      entry,
+      nextDate: "2026-09-12",
+      source: "coach",
+    });
+    expect(applyPolicyReplanMoves).not.toHaveBeenCalled();
+    expect(refreshDraftPreview).toHaveBeenCalled();
   });
 });

@@ -28,6 +28,8 @@ function describePolicyPatch(patch: CoachPolicyPatch) {
       return `Avoid scheduling between ${patch.start} and ${patch.end}.`;
     case "remove_blackout_range":
       return `Remove blackout dates from ${patch.start} to ${patch.end}.`;
+    case "move_session":
+      return `Move ${patch.unitKey} to ${patch.scheduledDate}.`;
   }
 }
 
