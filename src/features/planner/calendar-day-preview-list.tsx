@@ -139,6 +139,34 @@ export function CalendarDayPreviewList<
                     {...attributes}
                     {...listeners}
                   >
+                    {!entry.draftGhost ? (
+                      <CompletionToggle
+                        completed={completionToggleState.currentlyCredited}
+                        pending={mutationLoading}
+                        size="sm"
+                        className="mt-0.5"
+                        onPointerDown={(event) => {
+                          event.stopPropagation();
+                        }}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          onToggleCompletion(entry, day, event.currentTarget);
+                        }}
+                        disabled={
+                          mutationLoading ||
+                          completionToggleState.disabledReasonCopy !== null
+                        }
+                        aria-label={
+                          completionToggleState.currentlyCredited
+                            ? "Mark session not done"
+                            : "Mark session done"
+                        }
+                        title={
+                          completionToggleState.disabledReasonCopy ??
+                          "Toggle completion for this session"
+                        }
+                      />
+                    ) : null}
                     <button
                       type="button"
                       className="flex min-w-0 flex-1 items-start gap-2 text-left"
@@ -172,34 +200,6 @@ export function CalendarDayPreviewList<
                         ) : null}
                       </div>
                     </button>
-                    {!entry.draftGhost ? (
-                      <CompletionToggle
-                        completed={completionToggleState.currentlyCredited}
-                        pending={mutationLoading}
-                        size="sm"
-                        className="mt-0.5"
-                        onPointerDown={(event) => {
-                          event.stopPropagation();
-                        }}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          onToggleCompletion(entry, day, event.currentTarget);
-                        }}
-                        disabled={
-                          mutationLoading ||
-                          completionToggleState.disabledReasonCopy !== null
-                        }
-                        aria-label={
-                          completionToggleState.currentlyCredited
-                            ? "Mark session not done"
-                            : "Mark session done"
-                        }
-                        title={
-                          completionToggleState.disabledReasonCopy ??
-                          "Toggle completion for this session"
-                        }
-                      />
-                    ) : null}
                   </div>
                 )}
               </PlannerDraggablePreviewEntry>

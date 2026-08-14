@@ -83,8 +83,9 @@ export function PlannerCoachPanel({ coach }: PlannerCoachPanelProps) {
             void actions.restoreSavedCoachConversation(value);
           }}
           disabled={state.coachConversationsLoading || state.coachConversationRestoring}
+          modal={false}
         >
-          <SelectTrigger className="h-8 w-[260px]">
+          <SelectTrigger className="h-8 w-[min(100%,16.25rem)] min-w-0">
             <SelectValue
               placeholder={
                 state.coachConversationsLoading
@@ -93,7 +94,7 @@ export function PlannerCoachPanel({ coach }: PlannerCoachPanelProps) {
               }
             />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent position="popper" align="start">
             {state.savedCoachConversations.map((conversation) => (
               <SelectItem key={conversation.id} value={conversation.id}>
                 {conversation.title} ({formatSavedConversationDate(conversation.updatedAt)})

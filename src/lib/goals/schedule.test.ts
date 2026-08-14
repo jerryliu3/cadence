@@ -145,7 +145,7 @@ describe("goal schedule semantics", () => {
     });
 
     expect(getFrequencySummary(goal, 3)).toBe(
-      "3/10 total completions by Dec 31, 2026"
+      "3/10 completions by Dec 31, 2026"
     );
   });
 
@@ -155,6 +155,6 @@ describe("goal schedule semantics", () => {
       end_date: null,
     });
 
-    expect(getFrequencySummary(goal, 3)).toBe("3/10 total completions");
+    expect(getFrequencySummary(goal, 3)).toBe("3/10 completions");
   });
 });
