@@ -117,6 +117,7 @@ export function buildPlannerContext({
       stale: false,
       reasons: [],
     },
+    unplaceableGoals: [],
   };
 
   return {

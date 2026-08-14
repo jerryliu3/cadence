@@ -27,12 +27,20 @@ import type { PlannerCompletionUnitIdentity } from "@/lib/planner/reconciliation
 import { normalizeGoalRequirement } from "@/lib/planner/requirements";
 import type { PlannerIssueCode } from "@/lib/planner/solver/types";
 import { evaluateActivePlanStaleness } from "@/lib/planner/staleness";
+import {
+  buildPreparationWindows,
+  isPlannerGoalUnplaceableReason,
+  isPlannerGoalUnplaceableRecordValid,
+  type PlannerGoalUnplaceableRecord,
+} from "@/lib/planner/unplaceable";
 import type { PlannerBaseAssignment } from "@/lib/planner/work-units";
 import type { Database } from "@/lib/supabase/database.types";
 import type { createClient as createServerClient } from "@/lib/supabase/server";
 
 type ServerSupabaseClient = Awaited<ReturnType<typeof createServerClient>>;
 export type PlannerItemRow = Database["public"]["Tables"]["planner_items"]["Row"];
+export type PlannerGoalUnplaceableRow =
+  Database["public"]["Tables"]["planner_goal_unplaceable"]["Row"];
 const PAGE_SIZE = 1_000;
 const PLANNER_GOAL_SELECT = [
   "id",
@@ -138,6 +146,7 @@ export interface PlannerCanonicalSnapshot {
   revisions: PlannerRevisionTokens;
   preferences: PlannerPreferencesSnapshot | null;
   activePlan: ActiveExecutionPlanSnapshot | null;
+  unplaceableGoals?: PlannerGoalUnplaceableRecord[];
 }
 
 function requireTableRead(error: { message: string } | null, code: string) {
@@ -388,6 +397,49 @@ export async function loadAllPlannerItems(
   return items;
 }
 
+async function loadPlannerGoalUnplaceableRecords(
+  supabase: ServerSupabaseClient,
+  ownerId: string
+) {
+  const rows: PlannerGoalUnplaceableRow[] = [];
+  let lastGoalId: string | null = null;
+  for (;;) {
+    let query = supabase
+      .from("planner_goal_unplaceable")
+      .select("*")
+      .eq("owner_id", ownerId)
+      .order("goal_id")
+      .limit(PAGE_SIZE);
+    if (lastGoalId) {
+      query = query.gt("goal_id", lastGoalId);
+    }
+    const response = await query;
+    requireTableRead(response.error, "unplaceable_load_failed");
+    const page = (response.data ?? []) as PlannerGoalUnplaceableRow[];
+    rows.push(...page);
+    if (page.length < PAGE_SIZE) {
+      break;
+    }
+    lastGoalId = page.at(-1)?.goal_id ?? null;
+  }
+  return rows
+    .flatMap((row) => {
+      if (!isPlannerGoalUnplaceableReason(row.reason)) {
+        return [];
+      }
+      return [{
+        goalId: row.goal_id,
+        requirementFingerprint: row.requirement_fingerprint,
+        policyRevision: row.policy_revision,
+        effectiveSpanEnd: row.effective_span_end,
+        unplacedCount: row.unplaced_count,
+        reason: row.reason,
+        computedAt: row.computed_at,
+      }];
+    })
+    .sort((left, right) => left.goalId.localeCompare(right.goalId));
+}
+
 async function loadActivePlanSnapshot(
   windowKey: string,
   plannerItems: PlannerItemRow[],
@@ -540,13 +592,15 @@ export async function loadPlannerCanonicalSnapshot({
   startDate: string;
   endDate: string;
 }): Promise<PlannerCanonicalSnapshot> {
-  const [goals, links, revisions, preferences, plannerItems] = await Promise.all([
-    loadOwnerGoals(supabase, ownerId),
-    loadOwnerLinks(supabase, ownerId),
-    loadRevisionTokens(supabase),
-    loadPlannerPreferences(supabase, ownerId),
-    loadPlannerItemsForWindow(supabase, ownerId, startDate, endDate),
-  ]);
+  const [goals, links, revisions, preferences, plannerItems, unplaceableGoals] =
+    await Promise.all([
+      loadOwnerGoals(supabase, ownerId),
+      loadOwnerLinks(supabase, ownerId),
+      loadRevisionTokens(supabase),
+      loadPlannerPreferences(supabase, ownerId),
+      loadPlannerItemsForWindow(supabase, ownerId, startDate, endDate),
+      loadPlannerGoalUnplaceableRecords(supabase, ownerId),
+    ]);
   const completions = await loadOwnerCompletions(
     supabase,
     ownerId,
@@ -567,6 +621,7 @@ export async function loadPlannerCanonicalSnapshot({
     revisions,
     preferences,
     activePlan,
+    unplaceableGoals,
   };
 }
 
@@ -577,13 +632,14 @@ export async function loadPlannerPreparationSnapshot({
   supabase: ServerSupabaseClient;
   ownerId: string;
 }) {
-  const [goals, links, revisions, preferences, persistedItems] =
+  const [goals, links, revisions, preferences, persistedItems, unplaceableGoals] =
     await Promise.all([
       loadOwnerGoals(supabase, ownerId),
       loadOwnerLinks(supabase, ownerId),
       loadRevisionTokens(supabase),
       loadPlannerPreferences(supabase, ownerId),
       loadAllPlannerItems(supabase, ownerId),
+      loadPlannerGoalUnplaceableRecords(supabase, ownerId),
     ]);
   const completions = await loadOwnerCompletions(
     supabase,
@@ -598,8 +654,10 @@ export async function loadPlannerPreparationSnapshot({
       revisions,
       preferences,
       activePlan: null,
+      unplaceableGoals,
     } satisfies PlannerCanonicalSnapshot,
     persistedItems,
+    unplaceableGoals,
   };
 }
 
@@ -654,6 +712,21 @@ export async function loadPlannerContextPayload({
     snapshot.preferences?.default_policy ??
       createDefaultPlannerPolicy(effectiveTimezone, new Date().toISOString())
   );
+  const preparationEnd = buildPreparationWindows(asOfDate).at(-1)?.end ?? endDate;
+  const policyRevision = snapshot.preferences?.policy_revision ?? 0;
+  const goalById = new Map(snapshot.goals.map((goal) => [goal.id, goal]));
+  const validUnplaceableGoals = (snapshot.unplaceableGoals ?? []).filter((record) => {
+    const goal = goalById.get(record.goalId);
+    if (!goal) {
+      return false;
+    }
+    return isPlannerGoalUnplaceableRecordValid({
+      record,
+      goal,
+      policyRevision,
+      preparationEnd,
+    });
+  });
   const activeAssessments = (snapshot.activePlan?.goals ?? []).map((goal) =>
     goal.assessment_snapshot
   );
@@ -753,6 +826,7 @@ export async function loadPlannerContextPayload({
     activePlan: snapshot.activePlan,
     preview,
     staleness,
+    unplaceableGoals: validUnplaceableGoals,
     ...(correlationId ? { correlationId } : {}),
   };
 }

@@ -69,6 +69,7 @@ import {
 } from "@/lib/goals/milestones";
 import type { Goal, GoalFrequencyType, GoalLink, RecurrenceInterval } from "@/lib/goals/types";
 import {
+  type GoalCapacityInput,
   isOrdinalGoalDefinition,
   validateGoalDefinition,
 } from "@/lib/goals/definition-validation";
@@ -146,6 +147,8 @@ export function GoalForm({
   const [saving, setSaving] = useState(false);
   const [editingGoal, setEditingGoal] = useState<Goal | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string>("");
+  const [goalCapacityInput, setGoalCapacityInput] =
+    useState<GoalCapacityInput | null>(null);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [milestoneNamesOpen, setMilestoneNamesOpen] = useState(false);
   const [linkTargetSearch, setLinkTargetSearch] = useState("");
@@ -178,7 +181,7 @@ export function GoalForm({
 
       setCurrentUserId(user.id);
 
-      const [goalOptionsResponse, goalResponse, linksResponse, progress] =
+      const [goalOptionsResponse, goalResponse, linksResponse, progress, profileResponse] =
         await Promise.all([
         supabase
           .from("goals")
@@ -202,6 +205,11 @@ export function GoalForm({
               .eq("source_goal_id", goalId)
           : Promise.resolve({ data: null, error: null } as const),
         fetchProgressContext({ asOfDate: toLocalDateString() }),
+        supabase
+          .from("profiles")
+          .select("rest_weekdays, blackout_ranges")
+          .eq("id", user.id)
+          .maybeSingle(),
       ]);
 
       const goals = (goalOptionsResponse.data ?? []) as Goal[];
@@ -216,6 +224,43 @@ export function GoalForm({
       );
       const linkableGoalIdSet = new Set(linkableGoals.map((goal) => goal.id));
       setAvailableGoals(linkableGoals);
+      if (profileResponse.error) {
+        setGoalCapacityInput(null);
+      } else {
+        const restWeekdays = Array.isArray(profileResponse.data?.rest_weekdays)
+          ? profileResponse.data.rest_weekdays.filter(
+              (weekday): weekday is number =>
+                Number.isInteger(weekday) && weekday >= 0 && weekday <= 6
+            )
+          : [];
+        const blackoutRanges = Array.isArray(profileResponse.data?.blackout_ranges)
+          ? profileResponse.data.blackout_ranges.flatMap((range) => {
+              if (
+                typeof range !== "object" ||
+                range === null ||
+                !("start" in range) ||
+                !("end" in range)
+              ) {
+                return [];
+              }
+              const start = (range as { start?: unknown }).start;
+              const end = (range as { end?: unknown }).end;
+              if (
+                typeof start !== "string" ||
+                typeof end !== "string" ||
+                !/^\d{4}-\d{2}-\d{2}$/.test(start) ||
+                !/^\d{4}-\d{2}-\d{2}$/.test(end)
+              ) {
+                return [];
+              }
+              if (start > end) {
+                return [];
+              }
+              return [{ start, end }];
+            })
+          : [];
+        setGoalCapacityInput({ restWeekdays, blackoutRanges });
+      }
 
       if (goalResponse.data) {
         const goal = goalResponse.data as Goal;
@@ -376,52 +421,78 @@ export function GoalForm({
     }));
   };
 
-  const validationError = useMemo(() => {
+  const { validationError, validationWarning } = useMemo(() => {
     if (!state.title.trim()) {
-      return "Title is required.";
+      return { validationError: "Title is required.", validationWarning: null };
     }
 
     if (state.frequency_type === "recurring" && !state.recurrence_interval) {
-      return "Repeated goals require a cadence.";
+      return {
+        validationError: "Repeated goals require a cadence.",
+        validationWarning: null,
+      };
     }
 
     if (
       state.frequency_type === "fixed_milestones" &&
       parsedTargetCount === null
     ) {
-      return "Milestone goals require a positive target count.";
+      return {
+        validationError: "Milestone goals require a positive target count.",
+        validationWarning: null,
+      };
     }
 
     if (
       state.default_local_time.trim().length > 0 &&
       !localTimePattern.test(state.default_local_time.trim())
     ) {
-      return "Default time must be a valid 24-hour HH:MM value.";
+      return {
+        validationError: "Default time must be a valid 24-hour HH:MM value.",
+        validationWarning: null,
+      };
     }
 
     if (
       state.category_selection === "custom" &&
       state.custom_category.trim().length === 0
     ) {
-      return "Custom category name is required.";
+      return {
+        validationError: "Custom category name is required.",
+        validationWarning: null,
+      };
     }
 
     if (state.reward_text.trim().length > 500) {
-      return "Achievement reward text must be 500 characters or fewer.";
+      return {
+        validationError:
+          "Achievement reward text must be 500 characters or fewer.",
+        validationWarning: null,
+      };
     }
 
-    const definitionErrors = validateGoalDefinition({
+    const definitionIssues = validateGoalDefinition({
       frequencyType: state.frequency_type,
       targetCount: definitionTargetCount,
       startDate: state.start_date,
       endDate: state.end_date || null,
+      asOfDate: toLocalDateString(),
+      capacity: goalCapacityInput ?? undefined,
     });
-    if (definitionErrors.length > 0) {
-      return definitionErrors[0]!.message;
+    const blockingIssue = definitionIssues.find(
+      (issue) => issue.code !== "target_exceeds_capacity"
+    );
+    if (blockingIssue) {
+      return { validationError: blockingIssue.message, validationWarning: null };
     }
-
-    return null;
-  }, [state, parsedTargetCount, definitionTargetCount]);
+    const warningIssue = definitionIssues.find(
+      (issue) => issue.code === "target_exceeds_capacity"
+    );
+    return {
+      validationError: null,
+      validationWarning: warningIssue?.message ?? null,
+    };
+  }, [state, parsedTargetCount, definitionTargetCount, goalCapacityInput]);
   const submitDisabled = saving || validationError !== null;
 
   const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -634,6 +705,11 @@ export function GoalForm({
       </CardHeader>
       <CardContent className="space-y-6">
         <form id={goalFormId} className="space-y-4" onSubmit={onSubmit}>
+          {validationWarning ? (
+            <div className="rounded-md border border-yellow-300 bg-yellow-100 px-3 py-2 text-xs text-orange-900 dark:border-yellow-300 dark:bg-yellow-100 dark:text-orange-900">
+              {validationWarning}
+            </div>
+          ) : null}
           <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
             <div className="space-y-2">
               <Label htmlFor="goal-title">Name</Label>

@@ -64,11 +64,14 @@ export interface PlannerContextPayload {
     stale: boolean;
     reasons: Array<{ code: string }>;
   };
-  prepareWarnings?: Array<{
+  unplaceableGoals?: Array<{
     goalId: string;
-    code: "goal_unplaceable" | "goal_duplicate_date";
-    message: string;
-    issueCodes?: string[];
+    requirementFingerprint: string;
+    policyRevision: number;
+    effectiveSpanEnd: string;
+    unplacedCount: number;
+    reason: "capacity" | "invalid_lock";
+    computedAt?: string;
   }>;
 }
 

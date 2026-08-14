@@ -1,23 +1,57 @@
 import type { GoalFrequencyType } from "@/lib/goals/types";
 import { compareDateStrings } from "@/lib/goals/periods";
 import { MAX_HORIZON_MONTHS } from "@/lib/planner/contracts/bounds";
-import { enumerateMonthsInWindow } from "@/lib/planner/dates";
+import { enumerateDates, enumerateMonthsInWindow, getUtcWeekday } from "@/lib/planner/dates";
 
 export interface GoalDefinitionValidationInput {
   frequencyType: GoalFrequencyType;
   targetCount: number | null;
   startDate: string;
   endDate: string | null;
+  asOfDate?: string;
+  capacity?: GoalCapacityInput;
+}
+
+export interface GoalCapacityInput {
+  restWeekdays: number[];
+  blackoutRanges: Array<{ start: string; end: string }>;
 }
 
 export type GoalDefinitionValidationCode =
   | "missing_end_date"
   | "invalid_date_range"
-  | "horizon_too_long";
+  | "horizon_too_long"
+  | "target_exceeds_capacity";
 
 export interface GoalDefinitionValidationIssue {
   code: GoalDefinitionValidationCode;
   message: string;
+}
+
+export function countAvailableDays(
+  { start, end }: { start: string; end: string },
+  capacity: GoalCapacityInput
+) {
+  if (compareDateStrings(start, end) > 0) {
+    return 0;
+  }
+  const restWeekdays = new Set(capacity.restWeekdays);
+  let available = 0;
+  for (const date of enumerateDates({ start, end })) {
+    if (restWeekdays.has(getUtcWeekday(date))) {
+      continue;
+    }
+    const blocked = capacity.blackoutRanges.some(
+      (range) =>
+        compareDateStrings(date, range.start) >= 0 &&
+        compareDateStrings(date, range.end) <= 0
+    );
+    if (blocked) {
+      continue;
+    }
+    available += 1;
+  }
+  return available;
 }
 
 function isIsoDate(value: string | null): value is string {
@@ -110,6 +144,26 @@ export function validateGoalDefinition(
       code: "horizon_too_long",
       message: `Goal deadlines cannot span more than ${MAX_HORIZON_MONTHS} calendar months.`,
     });
+  }
+  if (
+    input.capacity &&
+    isOrdinalGoalDefinition(input) &&
+    typeof input.targetCount === "number"
+  ) {
+    const windowStart =
+      input.asOfDate && compareDateStrings(input.asOfDate, input.startDate) > 0
+        ? input.asOfDate
+        : input.startDate;
+    const available = countAvailableDays(
+      { start: windowStart, end: normalizedEndDate },
+      input.capacity
+    );
+    if (input.targetCount > available) {
+      issues.push({
+        code: "target_exceeds_capacity",
+        message: `Only ${available} available days before ${normalizedEndDate} with your current rest days and blackout ranges — ${input.targetCount} sessions likely won't all fit. Lower the target, extend the end date, or free up rest days.`,
+      });
+    }
   }
   return issues;
 }
