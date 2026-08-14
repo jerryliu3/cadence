@@ -127,9 +127,9 @@ export function getFrequencySummary(goal: Goal, completionCount: number): string
   if (isTargetedRecurringGoal(goal)) {
     if (goal.end_date) {
       const deadlineLabel = format(parseISO(goal.end_date), "MMM d, yyyy");
-      return `${completionCount}/${goal.target_count} total completions by ${deadlineLabel}`;
+      return `${completionCount}/${goal.target_count} completions by ${deadlineLabel}`;
     }
-    return `${completionCount}/${goal.target_count} total completions`;
+    return `${completionCount}/${goal.target_count} completions`;
   }
 
   const intervalLabel = getRecurringIntervalLabel(goal);

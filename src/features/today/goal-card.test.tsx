@@ -111,7 +111,7 @@ describe("GoalCard", () => {
     expect(screen.getByText("Health")).toBeInTheDocument();
     expect(screen.queryByLabelText(/Goal end date/i)).not.toBeInTheDocument();
     expect(
-      screen.getByText("0/10 total completions by Dec 31, 2026")
+      screen.getByText("0/10 completions by Dec 31, 2026")
     ).toBeInTheDocument();
   });
 

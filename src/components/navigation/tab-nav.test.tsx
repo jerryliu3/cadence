@@ -66,11 +66,12 @@ describe("TabNav", () => {
     expect(tabList).toHaveClass("grid-cols-5");
   });
 
-  it("keeps the mobile nav bar 90% transparent so content shows through", () => {
+  it("keeps the mobile nav bar 80% transparent so content shows through", () => {
     const { container } = render(<TabNav mobile />);
     const tabList = container.querySelector("ul");
-    expect(tabList).toHaveClass("bg-background/10");
-    expect(tabList).toHaveClass("supports-[backdrop-filter]:bg-background/10");
+    expect(tabList).toHaveClass("bg-background/20");
+    expect(tabList).toHaveClass("supports-[backdrop-filter]:bg-background/20");
+    expect(tabList).not.toHaveClass("bg-background/10");
     expect(tabList).not.toHaveClass("bg-background/25");
   });
 

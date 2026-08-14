@@ -7,18 +7,32 @@ describe("DateField", () => {
     cleanup();
   });
 
-  it("shows the weekday inside the field because native date inputs cannot format it", () => {
-    render(<DateField value="2026-08-14" onValueChange={() => undefined} />);
+  it("renders a visible native date picker", () => {
+    render(
+      <DateField
+        value="2026-08-14"
+        onValueChange={() => undefined}
+        aria-label="Checklist date"
+      />
+    );
 
-    expect(screen.getByText("Fri, Aug 14, 2026")).toBeInTheDocument();
-    expect(screen.getByLabelText("Fri, Aug 14, 2026")).toHaveAttribute("type", "date");
+    const input = screen.getByLabelText("Checklist date");
+    expect(input).toHaveAttribute("type", "date");
+    expect(input).toHaveValue("2026-08-14");
+    expect(input).not.toHaveClass("opacity-0");
   });
 
   it("forwards native picker changes", () => {
     const onValueChange = vi.fn();
-    render(<DateField value="2026-08-14" onValueChange={onValueChange} />);
+    render(
+      <DateField
+        value="2026-08-14"
+        onValueChange={onValueChange}
+        aria-label="Checklist date"
+      />
+    );
 
-    fireEvent.change(screen.getByLabelText("Fri, Aug 14, 2026"), {
+    fireEvent.change(screen.getByLabelText("Checklist date"), {
       target: { value: "2026-08-15" },
     });
     expect(onValueChange).toHaveBeenCalledWith("2026-08-15");
