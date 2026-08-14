@@ -1,5 +1,6 @@
 import type { PlannerIssueCode } from "@/lib/planner/solver/types";
 import type { PlannerBaseAssignment } from "@/lib/planner/work-units";
+import type { PlannerDraftCommand } from "@/lib/planner/draft-commands";
 
 export interface PlanDiffEntry {
   kind:
@@ -15,12 +16,6 @@ export interface PlanDiffEntry {
   fromDate: string | null;
   toDate: string | null;
   issueCode: PlannerIssueCode | null;
-}
-
-export interface PlannerDraftVisualAssignment {
-  goalId: string;
-  unitKey: string;
-  scheduledDate: string | null;
 }
 
 export type PlannerDraftVisualKind = "moved_from" | "moved_to" | "new";
@@ -39,13 +34,6 @@ function assignmentIdentityKey(input: {
   unitKey: string;
 }) {
   return `${input.goalId}\u0000${input.requirementFingerprint}\u0000${input.unitKey}`;
-}
-
-function visualAssignmentIdentityKey(input: {
-  goalId: string;
-  unitKey: string;
-}) {
-  return `${input.goalId}\u0000${input.unitKey}`;
 }
 
 export function diffPlannerAssignments({
@@ -161,76 +149,32 @@ export function diffPlannerAssignments({
   return diff;
 }
 
-export function diffPlannerAssignmentsForDraftVisual({
-  baseAssignments,
-  nextAssignments,
-}: {
-  baseAssignments: PlannerDraftVisualAssignment[];
-  nextAssignments: PlannerDraftVisualAssignment[];
-}) {
-  const baseByKey = new Map(
-    baseAssignments.map((assignment) => [
-      visualAssignmentIdentityKey(assignment),
-      assignment,
-    ])
-  );
-  const nextByKey = new Map(
-    nextAssignments.map((assignment) => [
-      visualAssignmentIdentityKey(assignment),
-      assignment,
-    ])
-  );
+export function buildPlannerDraftVisualDiff(
+  commands: readonly PlannerDraftCommand[]
+) {
   const diff: PlannerDraftVisualDiffEntry[] = [];
 
-  for (const key of Array.from(
-    new Set([...baseByKey.keys(), ...nextByKey.keys()])
-  ).sort()) {
-    const base = baseByKey.get(key);
-    const next = nextByKey.get(key);
-    if (!base && next) {
-      if (next.scheduledDate !== null) {
-        diff.push({
-          kind: "new",
-          goalId: next.goalId,
-          unitKey: next.unitKey,
-          date: next.scheduledDate,
-          counterpartDate: null,
-        });
-      }
+  for (const command of commands) {
+    if (
+      command.kind !== "move_item" ||
+      command.scheduledDate === command.sourceDate
+    ) {
       continue;
     }
-    if (base && !next) {
-      if (base.scheduledDate !== null) {
-        diff.push({
-          kind: "moved_from",
-          goalId: base.goalId,
-          unitKey: base.unitKey,
-          date: base.scheduledDate,
-          counterpartDate: null,
-        });
-      }
-      continue;
-    }
-    if (!base || !next || base.scheduledDate === next.scheduledDate) {
-      continue;
-    }
-
-    if (base.scheduledDate !== null) {
+    diff.push({
+      kind: "moved_from",
+      goalId: command.goalId,
+      unitKey: command.unitKey,
+      date: command.sourceDate,
+      counterpartDate: command.scheduledDate,
+    });
+    if (command.scheduledDate !== null) {
       diff.push({
-        kind: "moved_from",
-        goalId: base.goalId,
-        unitKey: base.unitKey,
-        date: base.scheduledDate,
-        counterpartDate: next.scheduledDate,
-      });
-    }
-    if (next.scheduledDate !== null) {
-      diff.push({
-        kind: base.scheduledDate === null ? "new" : "moved_to",
-        goalId: next.goalId,
-        unitKey: next.unitKey,
-        date: next.scheduledDate,
-        counterpartDate: base.scheduledDate,
+        kind: "moved_to",
+        goalId: command.goalId,
+        unitKey: command.unitKey,
+        date: command.scheduledDate,
+        counterpartDate: command.sourceDate,
       });
     }
   }

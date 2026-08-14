@@ -9,7 +9,10 @@ import {
   withPlannerRoute,
 } from "@/lib/planner/api";
 import { createDefaultAssessment, goalAssessmentSchema } from "@/lib/planner/assessment";
-import { loadPlannerCanonicalSnapshot } from "@/lib/planner/context-loader";
+import {
+  loadAllPlannerItems,
+  loadPlannerCanonicalSnapshot,
+} from "@/lib/planner/context-loader";
 import {
   MAX_API_BODY_BYTES,
   PLANNER_ELIGIBILITY_MODES,
@@ -21,6 +24,10 @@ import {
   PlannerDraftEditValidationError,
   buildPlannerPublishPersistencePayload,
 } from "@/lib/planner/publish-payload";
+import {
+  buildDirectDraftPersistence,
+  PlannerDirectDraftValidationError,
+} from "@/lib/planner/direct-draft";
 import { postgresErrorMatches } from "@/lib/planner/postgres-errors";
 import {
   buildDraftPinnedDatesFromCommands,
@@ -284,6 +291,43 @@ export async function handlePlannerSave(request: Request) {
         "Publishing an elapsed window is not supported. Publish a window that includes today or a future date."
       );
     }
+    let persistence: ReturnType<typeof buildPlannerPublishPersistencePayload>;
+    const hasDirectDraftCommands = draftCommands.length > 0;
+    if (hasDirectDraftCommands) {
+      try {
+        const persistedItems = await loadAllPlannerItems(
+          routeContext.supabase,
+          routeContext.userId
+        );
+        const items = buildDirectDraftPersistence({
+          snapshot,
+          commands: draftCommands,
+          asOfDate,
+          persistedItems,
+        });
+        persistence = {
+          items,
+          changeSummary: {
+            draftCommands: draftCommands.length,
+            moved: draftCommands.filter(
+              (command) => command.kind === "move_item"
+            ).length,
+            confirmationRequired: false,
+            publishable: true,
+          },
+        };
+      } catch (error) {
+        if (error instanceof PlannerDirectDraftValidationError) {
+          throw new PlannerRouteError(
+            error.code === "draft_destination_conflict" ? 409 : 422,
+            "validation_failed",
+            error.message,
+            { stage: "direct_move", code: error.code, ...error.details }
+          );
+        }
+        throw error;
+      }
+    } else {
     const activeAssessments = (snapshot.activePlan?.goals ?? []).map((goal) =>
       goalAssessmentSchema.parse(goal.assessment_snapshot)
     );
@@ -377,7 +421,6 @@ export async function handlePlannerSave(request: Request) {
       );
     }
 
-    let persistence: ReturnType<typeof buildPlannerPublishPersistencePayload>;
     try {
       persistence = buildPlannerPublishPersistencePayload({
         kernel,
@@ -398,6 +441,7 @@ export async function handlePlannerSave(request: Request) {
         );
       }
       throw error;
+    }
     }
     const scheduledItems: PlannerSaveScheduledItem[] = persistence.items
       .filter(
