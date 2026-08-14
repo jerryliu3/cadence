@@ -2,21 +2,18 @@
 
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { toast } from "sonner";
 import { buildLoginHref } from "@/lib/auth/login-redirect";
-import { isAbortError, withAbortSignal } from "@/lib/async/abort";
+import { withAbortSignal } from "@/lib/async/abort";
 import { toLocalDateString } from "@/lib/dates/day";
 import {
   fetchProgressContext,
-  isProgressContextAuthenticationError,
-  isProgressContextRequestError,
   type ProgressContextResponse,
 } from "@/lib/goals/progress-context";
-import { reportDuoPartnerFetchFailure } from "@/lib/social/duo/telemetry";
 import type { CompletionDateFact, Goal } from "@/lib/goals/types";
 import { createClient } from "@/lib/supabase/client";
+import { useDuoLaneError } from "@/features/social/duo/use-duo-lane-error";
 import { assertQueriesOk } from "@/lib/supabase/query-error";
-import { progressSubjectUserId, selectViewerVisibleGoals } from "@/lib/goals/visible-goals";
+import { selectViewerVisibleGoals } from "@/lib/goals/visible-goals";
 import { useDuo } from "@/features/social/duo/duo-context";
 
 export interface InsightsData {
@@ -52,7 +49,6 @@ export function useInsightsData({
   const router = useRouter();
   const [state, setState] = useState<InsightsData>(emptyInsights);
   const [loading, setLoading] = useState(true);
-  const [laneError, setLaneError] = useState<string | null>(null);
   const loadRequestIdRef = useRef(0);
   const visibleLoadCountRef = useRef(0);
   const authRedirectStartedRef = useRef(false);
@@ -68,6 +64,15 @@ export function useInsightsData({
         : `${window.location.pathname}${window.location.search}`;
     router.replace(buildLoginHref(nextPath));
   }, [router]);
+
+  const { laneError, clearLaneError, reportLoadError } = useDuoLaneError({
+    surface: "insights",
+    failClosed,
+    redirectToLogin,
+    unavailableMessage: "Partner insights are unavailable.",
+    timeoutMessage: "Insights request timed out. Please try again.",
+    fallbackMessage: "Insights progress could not be loaded.",
+  });
 
   const loadData = useCallback(
     async (
@@ -104,6 +109,13 @@ export function useInsightsData({
           return;
         }
 
+        // PostgREST filter methods mutate and return the same builder, so this is
+        // built fresh per load and only one branch below ever consumes it.
+        const goalsQuery = supabase
+          .from("goals")
+          .select("*")
+          .eq("is_deleted", false)
+          .order("title");
         const yearStart = `${selectedYear}-01-01`;
         const yearEnd = `${selectedYear}-12-31`;
         const targetSubjectUserId = subjectUserId ?? userId;
@@ -111,17 +123,9 @@ export function useInsightsData({
         const [goalsResponse, teamMembersResponse, progress] =
           await withAbortSignal(
             Promise.all([
-              (() => {
-                let query = supabase
-                  .from("goals")
-                  .select("*")
-                  .eq("is_deleted", false)
-                  .order("title");
-                if (!targetIsViewer) {
-                  query = query.eq("owner_id", targetSubjectUserId);
-                }
-                return query;
-              })(),
+              targetIsViewer
+                ? goalsQuery
+                : goalsQuery.eq("owner_id", targetSubjectUserId),
               targetIsViewer
                 ? supabase.from("team_members").select("team_id").eq("user_id", userId)
                 : Promise.resolve({ data: [], error: null }),
@@ -129,10 +133,7 @@ export function useInsightsData({
                 asOfDate: toLocalDateString(),
                 factsFrom: yearStart,
                 factsTo: yearEnd,
-                subjectUserId: progressSubjectUserId({
-                  targetIsViewer,
-                  targetSubjectUserId,
-                }),
+                subjectUserId: targetIsViewer ? undefined : targetSubjectUserId,
                 forceRefresh,
               }),
             ]),
@@ -163,7 +164,7 @@ export function useInsightsData({
           memberTeamIds,
           progress,
         });
-        setLaneError(null);
+        clearLaneError();
       } finally {
         window.clearTimeout(timeoutId);
         if (showLoading) {
@@ -174,7 +175,7 @@ export function useInsightsData({
         }
       }
     },
-    [partnerId, redirectToLogin, selectedYear, subjectUserId, supabase, viewerUserId]
+    [clearLaneError, partnerId, redirectToLogin, selectedYear, subjectUserId, supabase, viewerUserId]
   );
 
   useEffect(() => {
@@ -182,34 +183,12 @@ export function useInsightsData({
       try {
         await loadData();
       } catch (error) {
-        if (isProgressContextAuthenticationError(error)) {
-          redirectToLogin();
-          return;
-        }
-        if (failClosed) {
-          setLaneError("Partner insights are unavailable.");
-          reportDuoPartnerFetchFailure(error, {
-            surface: "insights",
-            code: isProgressContextRequestError(error) ? error.code : undefined,
-            status: isProgressContextRequestError(error) ? error.status : undefined,
-            stalePartner: isProgressContextRequestError(error)
-              ? error.code === "not_team_partner"
-              : false,
-          });
-          return;
-        }
-        toast.error(
-          isAbortError(error)
-            ? "Insights request timed out. Please try again."
-            : error instanceof Error
-              ? error.message
-              : "Insights progress could not be loaded."
-        );
+        reportLoadError(error);
       }
     };
 
     void run();
-  }, [failClosed, loadData, redirectToLogin]);
+  }, [loadData, reportLoadError]);
 
   return {
     state,
