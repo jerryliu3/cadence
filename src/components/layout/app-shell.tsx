@@ -71,10 +71,9 @@ export function AppShell({ children, userId, goalSheet }: AppShellProps) {
             <ViewTransitionWrapper>{mainContent}</ViewTransitionWrapper>
           )}
         </div>
-
-        <div className="md:hidden">
-          <TabNav mobile />
-        </div>
+      </div>
+      <div className="md:hidden">
+        <TabNav mobile />
       </div>
       {goalSheet}
     </XpRewardProvider>

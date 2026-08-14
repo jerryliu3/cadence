@@ -2137,7 +2137,7 @@ export function CalendarSurface({
               focusedThreeDayEndDate,
               "MMM d, yyyy"
             )}`
-        : format(safeFocusedDay, "EEE MMM d");
+        : format(safeFocusedDay, "EEE MMM d, yyyy");
   const fixedViewHeadingWidthCh = Math.max(
     monthLabel.length,
     MAX_MONTH_HEADING_SAMPLE.length,
@@ -2554,14 +2554,6 @@ export function CalendarSurface({
                     : ""}
                 </div>
               ) : null}
-              {eligibilityNotices.scopeOnlyCount > 0 ? (
-                <p className="text-xs text-muted-foreground">
-                  {eligibilityNotices.scopeOnlyCount} goal
-                  {eligibilityNotices.scopeOnlyCount === 1 ? "" : "s"}{" "}
-                  outside this
-                  month&apos;s planning scope.
-                </p>
-              ) : null}
             </div>
             <div className="flex flex-wrap items-center justify-end gap-2">
               {canResetPlan ? (
@@ -2614,6 +2606,70 @@ export function CalendarSurface({
                   Undo all months
                 </Button>
               ) : null}
+              <Button
+                type="button"
+                variant="outline"
+                size="icon-sm"
+                disabled={loading || !canResetViewWindow}
+                aria-label="Go to today"
+                title="Go to today"
+                onClick={resetViewWindow}
+              >
+                <RotateCcw className="size-4" />
+              </Button>
+              {viewMode === "month" ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon-sm"
+                  disabled={loading}
+                  aria-label={expandedMonthRows ? "Compact rows" : "Expand rows"}
+                  title={expandedMonthRows ? "Compact rows" : "Expand rows"}
+                  onClick={() => setExpandedMonthRows((current) => !current)}
+                >
+                  {expandedMonthRows ? (
+                    <Minimize2 className="size-4" />
+                  ) : (
+                    <Maximize2 className="size-4" />
+                  )}
+                </Button>
+              ) : null}
+              <Select
+                value={viewMode}
+                onValueChange={(value) =>
+                  setCalendarViewMode(
+                    value as (typeof PLANNER_VIEW_MODES)[number]["value"]
+                  )
+                }
+              >
+                <SelectTrigger
+                  className="h-8 w-[7.5rem] rounded-md bg-background/90 text-xs"
+                  disabled={loading}
+                  aria-label="Calendar view mode"
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {PLANNER_VIEW_MODES.map((modeOption) => (
+                    <SelectItem key={modeOption.value} value={modeOption.value}>
+                      {modeOption.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {context?.preferences ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon-sm"
+                  aria-label="Settings"
+                  title="Settings"
+                  onClick={() => setSettingsOpen(true)}
+                  disabled={loading}
+                >
+                  <Settings className="size-4" />
+                </Button>
+              ) : null}
             </div>
           </div>
         </div>
@@ -2632,7 +2688,7 @@ export function CalendarSurface({
         <>
           <div className="rounded-xl border bg-card p-4 shadow-sm">
             <div className="mx-auto mb-3 w-full max-w-[56rem] space-y-3">
-              <div className="flex w-full flex-wrap items-center gap-2">
+              <div className="flex w-full justify-center">
                 <PeriodStepper
                   className="shrink-0"
                   onPrevious={() => moveViewWindow(-1)}
@@ -2650,72 +2706,6 @@ export function CalendarSurface({
                     </h3>
                   }
                 />
-                <div className="ml-auto flex items-center justify-end gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon-sm"
-                    disabled={loading || !canResetViewWindow}
-                    aria-label="Go to today"
-                    title="Go to today"
-                    onClick={resetViewWindow}
-                  >
-                    <RotateCcw className="size-4" />
-                  </Button>
-                  {viewMode === "month" ? (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="icon-sm"
-                      disabled={loading}
-                      aria-label={expandedMonthRows ? "Compact rows" : "Expand rows"}
-                      title={expandedMonthRows ? "Compact rows" : "Expand rows"}
-                      onClick={() => setExpandedMonthRows((current) => !current)}
-                    >
-                      {expandedMonthRows ? (
-                        <Minimize2 className="size-4" />
-                      ) : (
-                        <Maximize2 className="size-4" />
-                      )}
-                    </Button>
-                  ) : null}
-                  <Select
-                    value={viewMode}
-                    onValueChange={(value) =>
-                      setCalendarViewMode(
-                        value as (typeof PLANNER_VIEW_MODES)[number]["value"]
-                      )
-                    }
-                  >
-                    <SelectTrigger
-                      className="h-8 w-[7.5rem] rounded-md bg-background/90 text-xs"
-                      disabled={loading}
-                      aria-label="Calendar view mode"
-                    >
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {PLANNER_VIEW_MODES.map((modeOption) => (
-                        <SelectItem key={modeOption.value} value={modeOption.value}>
-                          {modeOption.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {context?.preferences ? (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="icon-sm"
-                      aria-label="Settings"
-                      title="Settings"
-                      onClick={() => setSettingsOpen(true)}
-                      disabled={loading}
-                    >
-                      <Settings className="size-4" />
-                    </Button>
-                  ) : null}
-                </div>
               </div>
               <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                 <p>{viewDescription}</p>
@@ -2745,7 +2735,7 @@ export function CalendarSurface({
                     {rollingWeekStrip}
                     <div className="rounded-md border p-3">
                       <p className="mb-2 text-sm font-medium">
-                        {format(parse(focusedDay, "yyyy-MM-dd", new Date()), "EEE MMM d")}
+                        {format(parse(focusedDay, "yyyy-MM-dd", new Date()), "EEE MMM d, yyyy")}
                       </p>
                       <CalendarDayPreviewList
                         day={focusedDay}

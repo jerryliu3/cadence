@@ -35,7 +35,7 @@ export function TabNav({ mobile = false }: TabNavProps) {
       className={cn(
         "w-full",
         mobile
-          ? "fixed inset-x-0 bottom-[max(calc(env(safe-area-inset-bottom)-0.35rem),0rem)] z-40 flex justify-center px-2"
+          ? "fixed inset-x-0 bottom-0 z-50 flex justify-center px-2 pb-[max(env(safe-area-inset-bottom),0.4rem)]"
           : "mx-auto rounded-2xl border bg-card/90 p-1"
       )}
       aria-label="Main navigation"
@@ -44,7 +44,7 @@ export function TabNav({ mobile = false }: TabNavProps) {
         className={cn(
           "grid w-full gap-1",
           mobile
-            ? `${gridClass} max-w-[22.5rem] rounded-[1.35rem] border border-transparent bg-transparent p-1.5 shadow-none backdrop-blur-none supports-[backdrop-filter]:bg-transparent`
+            ? `${gridClass} max-w-[22.5rem] rounded-[1.35rem] border border-border/60 bg-background/90 p-1.5 shadow-lg shadow-black/10 backdrop-blur-md supports-[backdrop-filter]:bg-background/80`
             : gridClass
         )}
       >
