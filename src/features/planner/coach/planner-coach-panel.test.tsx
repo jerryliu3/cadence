@@ -83,7 +83,6 @@ describe("planner coach panel", () => {
 
   it("wires restore and proposal actions", async () => {
     const coach = buildCoachModel({
-      selectedSavedCoachConversationId: "conversation-1",
       coachMessages: [
         {
           role: "assistant",
@@ -130,7 +129,13 @@ describe("planner coach panel", () => {
 
     render(<PlannerCoachPanel coach={coach} />);
     expect(screen.queryByRole("button", { name: "Restore" })).not.toBeInTheDocument();
-    expect(screen.getByRole("combobox")).toBeInTheDocument();
+    expect(screen.getByLabelText("Saved conversations")).toBeInTheDocument();
+
+    await user.selectOptions(screen.getByLabelText("Saved conversations"), "conversation-1");
+    expect(coach.actions.setSelectedSavedCoachConversationId).toHaveBeenCalledWith(
+      "conversation-1"
+    );
+    expect(coach.actions.restoreSavedCoachConversation).toHaveBeenCalledWith("conversation-1");
 
     await user.click(screen.getByRole("button", { name: "Re-apply changes" }));
     expect(coach.actions.applyCoachProposal).toHaveBeenCalledWith(0);
