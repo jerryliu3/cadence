@@ -1,90 +1,84 @@
 import { describe, expect, it } from "vitest";
-import {
-  diffPlannerAssignmentsForDraftVisual,
-  type PlannerDraftVisualAssignment,
-} from "@/lib/planner/diff";
+import { buildPlannerDraftVisualDiff } from "@/lib/planner/diff";
+import type { PlannerDraftCommand } from "@/lib/planner/draft-commands";
 
-function assignment(
-  goalId: string,
-  unitKey: string,
+const GOAL_ID = "11111111-1111-4111-8111-111111111111";
+
+function moveCommand(
+  sourceDate: string,
   scheduledDate: string | null
-): PlannerDraftVisualAssignment {
-  return { goalId, unitKey, scheduledDate };
+): PlannerDraftCommand {
+  return {
+    id: "22222222-2222-4222-8222-222222222222",
+    sequence: 1,
+    kind: "move_item",
+    goalId: GOAL_ID,
+    unitKey: "total:1",
+    sourceDate,
+    scheduledDate,
+  };
 }
 
 describe("planner draft visual diff", () => {
-  it("emits moved-from and moved-to entries for date changes", () => {
-    const diff = diffPlannerAssignmentsForDraftVisual({
-      baseAssignments: [assignment("goal-a", "total:1", "2026-08-05")],
-      nextAssignments: [assignment("goal-a", "total:1", "2026-08-09")],
-    });
+  it("emits moved-from and moved-to entries from a move command", () => {
+    const diff = buildPlannerDraftVisualDiff([
+      moveCommand("2026-08-05", "2026-09-09"),
+    ]);
 
     expect(diff).toEqual([
       {
         kind: "moved_from",
-        goalId: "goal-a",
+        goalId: GOAL_ID,
         unitKey: "total:1",
         date: "2026-08-05",
-        counterpartDate: "2026-08-09",
+        counterpartDate: "2026-09-09",
       },
       {
         kind: "moved_to",
-        goalId: "goal-a",
+        goalId: GOAL_ID,
         unitKey: "total:1",
-        date: "2026-08-09",
+        date: "2026-09-09",
         counterpartDate: "2026-08-05",
       },
     ]);
   });
 
-  it("emits new entries for draft-only scheduled sessions", () => {
-    const diff = diffPlannerAssignmentsForDraftVisual({
-      baseAssignments: [],
-      nextAssignments: [assignment("goal-b", "total:1", "2026-08-03")],
-    });
-
-    expect(diff).toEqual([
-      {
-        kind: "new",
-        goalId: "goal-b",
-        unitKey: "total:1",
-        date: "2026-08-03",
-        counterpartDate: null,
-      },
+  it("emits only moved-from when a command unschedules an item", () => {
+    const diff = buildPlannerDraftVisualDiff([
+      moveCommand("2026-08-15", null),
     ]);
-  });
-
-  it("treats unscheduled-to-scheduled transitions as new placements", () => {
-    const diff = diffPlannerAssignmentsForDraftVisual({
-      baseAssignments: [assignment("goal-c", "total:2", null)],
-      nextAssignments: [assignment("goal-c", "total:2", "2026-08-10")],
-    });
-
-    expect(diff).toEqual([
-      {
-        kind: "new",
-        goalId: "goal-c",
-        unitKey: "total:2",
-        date: "2026-08-10",
-        counterpartDate: null,
-      },
-    ]);
-  });
-
-  it("emits moved-from entries when draft removes a scheduled date", () => {
-    const diff = diffPlannerAssignmentsForDraftVisual({
-      baseAssignments: [assignment("goal-d", "total:3", "2026-08-15")],
-      nextAssignments: [assignment("goal-d", "total:3", null)],
-    });
 
     expect(diff).toEqual([
       {
         kind: "moved_from",
-        goalId: "goal-d",
-        unitKey: "total:3",
+        goalId: GOAL_ID,
+        unitKey: "total:1",
         date: "2026-08-15",
         counterpartDate: null,
       },
     ]);
+  });
+
+  it("does not infer changes when a command keeps the same date", () => {
+    expect(
+      buildPlannerDraftVisualDiff([
+        moveCommand("2026-08-15", "2026-08-15"),
+      ])
+    ).toEqual([]);
+  });
+
+  it("ignores non-placement draft commands", () => {
+    expect(
+      buildPlannerDraftVisualDiff([
+        {
+          id: "33333333-3333-4333-8333-333333333333",
+          sequence: 1,
+          kind: "rename_item",
+          goalId: GOAL_ID,
+          unitKey: "total:1",
+          label: "Renamed",
+        },
+      ])
+    ).toEqual([]);
   });
 });
