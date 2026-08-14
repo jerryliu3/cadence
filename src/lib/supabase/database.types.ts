@@ -163,6 +163,18 @@ export type Database = {
       }
       planner_json_depth: { Args: { p_value: Json }; Returns: number }
       planner_owner_lock_key: { Args: { p_owner: string }; Returns: number }
+      planner_schedule_item_matches_requirement: {
+        Args: {
+          p_end_date: string
+          p_frequency_type: Database["public"]["Enums"]["goal_frequency_type"]
+          p_recurrence_interval: Database["public"]["Enums"]["recurrence_interval"]
+          p_scheduled_date: string
+          p_start_date: string
+          p_target_count: number
+          p_unit_key: string
+        }
+        Returns: boolean
+      }
       planner_window_is_replay: {
         Args: {
           p_end: string

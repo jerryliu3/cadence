@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions, pg_catalog;
-select plan(34);
+select plan(48);
 
 insert into auth.users (id, email)
 values
@@ -71,6 +71,17 @@ values
     'recurring',
     'weekly',
     5,
+    date_trunc('month', current_date)::date,
+    (date_trunc('month', current_date) + interval '6 month - 1 day')::date
+  ),
+  (
+    'a2000000-0000-4000-8000-000000000005',
+    'a1000000-0000-4000-8000-000000000001',
+    'Planner preparation cadence validation goal',
+    'test',
+    'recurring',
+    'weekly',
+    null,
     date_trunc('month', current_date)::date,
     (date_trunc('month', current_date) + interval '6 month - 1 day')::date
   );
@@ -745,11 +756,462 @@ select results_eq(
   'exact replay performs no writes and returns the current digest'
 );
 
+set local role service_role;
+insert into public.goals (
+  id,
+  owner_id,
+  title,
+  category,
+  frequency_type,
+  recurrence_interval,
+  target_count,
+  start_date,
+  end_date
+)
+values (
+  'a2000000-0000-4000-8000-000000000008',
+  'a1000000-0000-4000-8000-000000000001',
+  'Planner preparation historical-invalid target goal',
+  'test',
+  'recurring',
+  'weekly',
+  2,
+  current_date - 10,
+  (date_trunc('month', current_date) + interval '8 month - 1 day')::date
+);
+
+insert into public.planner_items (
+  owner_id,
+  goal_id,
+  unit_key,
+  scheduled_date,
+  original_scheduled_date,
+  locked
+)
+values (
+  'a1000000-0000-4000-8000-000000000001',
+  'a2000000-0000-4000-8000-000000000008',
+  'total:3',
+  current_date - 1,
+  current_date - 1,
+  false
+);
+reset role;
+set local role authenticated;
+select set_config(
+  'request.jwt.claim.sub',
+  'a1000000-0000-4000-8000-000000000001',
+  true
+);
+select set_config('request.jwt.claim.role', 'authenticated', true);
+
+select lives_ok(
+  $tap$
+  select *
+  from public.prepare_planner_schedule(
+    jsonb_build_array(
+      jsonb_build_object(
+        'start_date', (date_trunc('month', current_date) + interval '7 month')::date,
+        'end_date', (date_trunc('month', current_date) + interval '8 month - 1 day')::date
+      )
+    ),
+    jsonb_build_array(
+      jsonb_build_object(
+        'goal_id', 'a2000000-0000-4000-8000-000000000008',
+        'unit_key', 'total:1',
+        'scheduled_date', (date_trunc('month', current_date) + interval '7 month + 1 day')::date
+      ),
+      jsonb_build_object(
+        'goal_id', 'a2000000-0000-4000-8000-000000000008',
+        'unit_key', 'total:2',
+        'scheduled_date', (date_trunc('month', current_date) + interval '7 month + 2 day')::date
+      )
+    ),
+    public.get_planner_schedule_digest()
+  )
+  $tap$,
+  'invalid historical identities do not consume the current target cap'
+);
+
+select is(
+  (
+    select count(*)::integer
+    from public.planner_items
+    where goal_id = 'a2000000-0000-4000-8000-000000000008'
+      and unit_key = 'total:3'
+  ),
+  1,
+  'invalid historical identities remain preserved outside supplied windows'
+);
+
+select throws_ok(
+  $tap$
+  select *
+  from public.prepare_planner_schedule(
+    jsonb_build_array(
+      jsonb_build_object(
+        'start_date', (date_trunc('month', current_date) + interval '5 month')::date,
+        'end_date', (date_trunc('month', current_date) + interval '6 month - 1 day')::date
+      )
+    ),
+    jsonb_build_array(
+      jsonb_build_object(
+        'goal_id', 'a2000000-0000-4000-8000-000000000005',
+        'unit_key', 'cadence:' || (
+          date_trunc('month', current_date) + interval '5 month + 3 day'
+        )::date::text,
+        'scheduled_date', (
+          date_trunc('month', current_date) + interval '5 month + 3 day'
+        )::date
+      )
+    ),
+    public.get_planner_schedule_digest()
+  )
+  $tap$,
+  '22023',
+  'invalid_goal_unit',
+  'weekly cadence rejects a key anchored as a daily period'
+);
+
+select throws_ok(
+  $tap$
+  select *
+  from public.prepare_planner_schedule(
+    jsonb_build_array(
+      jsonb_build_object(
+        'start_date', (date_trunc('month', current_date) + interval '5 month')::date,
+        'end_date', (date_trunc('month', current_date) + interval '6 month - 1 day')::date
+      )
+    ),
+    jsonb_build_array(
+      jsonb_build_object(
+        'goal_id', 'a2000000-0000-4000-8000-000000000005',
+        'unit_key', 'cadence:' || (
+          date_trunc('month', current_date)::date
+          + (
+            (
+              (
+                date_trunc('month', current_date)
+                + interval '5 month + 1 day'
+              )::date
+              - date_trunc('month', current_date)::date
+            ) / 7
+          ) * 7
+        )::date::text,
+        'scheduled_date', (
+          date_trunc('month', current_date) + interval '5 month + 9 day'
+        )::date
+      )
+    ),
+    public.get_planner_schedule_digest()
+  )
+  $tap$,
+  '22023',
+  'invalid_goal_unit',
+  'cadence rejects a scheduled date outside the represented anchored period'
+);
+
+set local role service_role;
+insert into public.goals (
+  id,
+  owner_id,
+  title,
+  category,
+  frequency_type,
+  recurrence_interval,
+  target_count,
+  start_date,
+  end_date
+)
+values (
+  'a2000000-0000-4000-8000-000000000006',
+  'a1000000-0000-4000-8000-000000000001',
+  'Planner preparation recurrence-change goal',
+  'test',
+  'recurring',
+  'daily',
+  null,
+  (date_trunc('month', current_date) + interval '4 month')::date,
+  (date_trunc('month', current_date) + interval '6 month - 1 day')::date
+);
+
+insert into public.planner_items (
+  owner_id,
+  goal_id,
+  unit_key,
+  scheduled_date,
+  original_scheduled_date,
+  locked
+)
+values (
+  'a1000000-0000-4000-8000-000000000001',
+  'a2000000-0000-4000-8000-000000000006',
+  'cadence:' || (
+    date_trunc('month', current_date) + interval '4 month + 1 day'
+  )::date::text,
+  (date_trunc('month', current_date) + interval '4 month + 1 day')::date,
+  (date_trunc('month', current_date) + interval '4 month + 1 day')::date,
+  false
+);
+
+update public.goals
+set recurrence_interval = 'weekly'
+where id = 'a2000000-0000-4000-8000-000000000006';
+reset role;
+set local role authenticated;
+select set_config(
+  'request.jwt.claim.sub',
+  'a1000000-0000-4000-8000-000000000001',
+  true
+);
+select set_config('request.jwt.claim.role', 'authenticated', true);
+
+select lives_ok(
+  $tap$
+  do $$
+  declare
+    v_before text := public.get_planner_schedule_digest();
+    v_result record;
+  begin
+    select *
+    into v_result
+    from public.prepare_planner_schedule(
+      jsonb_build_array(
+        jsonb_build_object(
+          'start_date', (date_trunc('month', current_date) + interval '5 month')::date,
+          'end_date', (date_trunc('month', current_date) + interval '6 month - 1 day')::date
+        )
+      ),
+      '[]'::jsonb,
+      v_before
+    );
+
+    insert into prepare_results
+    values (
+      'recurrence-prune',
+      v_before,
+      v_result.schedule_digest,
+      v_result.upserted_count,
+      v_result.deleted_count,
+      v_result.replayed
+    );
+  end;
+  $$;
+  $tap$,
+  'preparation prunes a future cadence row invalidated by recurrence change'
+);
+
+select is(
+  (select deleted_count from prepare_results where phase = 'recurrence-prune'),
+  1,
+  'recurrence-change preparation reports the pruned cadence row'
+);
+
+select is(
+  (
+    select count(*)::integer
+    from public.planner_items
+    where goal_id = 'a2000000-0000-4000-8000-000000000006'
+  ),
+  0,
+  'recurrence-change preparation removes the invalid cadence identity'
+);
+
+select lives_ok(
+  $tap$
+  do $$
+  declare
+    v_result record;
+  begin
+    select *
+    into v_result
+    from public.prepare_planner_schedule(
+      jsonb_build_array(
+        jsonb_build_object(
+          'start_date', (date_trunc('month', current_date) + interval '5 month')::date,
+          'end_date', (date_trunc('month', current_date) + interval '6 month - 1 day')::date
+        )
+      ),
+      '[]'::jsonb,
+      (select before_digest from prepare_results where phase = 'recurrence-prune')
+    );
+
+    insert into prepare_results
+    values (
+      'recurrence-replay',
+      null,
+      v_result.schedule_digest,
+      v_result.upserted_count,
+      v_result.deleted_count,
+      v_result.replayed
+    );
+  end;
+  $$;
+  $tap$,
+  'recurrence-change cleanup supports exact stale-digest replay'
+);
+
+select results_eq(
+  $$
+    select replayed, upserted_count, deleted_count
+    from prepare_results
+    where phase = 'recurrence-replay'
+  $$,
+  $$ values (true, 0, 0) $$,
+  'post-prune replay reports no writes'
+);
+
+set local role service_role;
+update public.profiles
+set timezone = 'Pacific/Honolulu'
+where id = 'a1000000-0000-4000-8000-000000000001';
+
+insert into public.goals (
+  id,
+  owner_id,
+  title,
+  category,
+  frequency_type,
+  recurrence_interval,
+  target_count,
+  start_date,
+  end_date
+)
+select
+  'a2000000-0000-4000-8000-000000000007',
+  'a1000000-0000-4000-8000-000000000001',
+  'Planner preparation local-today goal',
+  'test',
+  'fixed_milestones',
+  null,
+  1,
+  private.local_today_for_timezone('Pacific/Honolulu') - 1,
+  private.local_today_for_timezone('Pacific/Honolulu') + 40;
+
+insert into public.planner_items (
+  owner_id,
+  goal_id,
+  unit_key,
+  scheduled_date,
+  original_scheduled_date,
+  locked
+)
+select
+  'a1000000-0000-4000-8000-000000000001',
+  'a2000000-0000-4000-8000-000000000007',
+  'milestone:2',
+  private.local_today_for_timezone('Pacific/Honolulu'),
+  private.local_today_for_timezone('Pacific/Honolulu'),
+  false;
+reset role;
+set local timezone = 'Pacific/Kiritimati';
+set local role authenticated;
+select set_config(
+  'request.jwt.claim.sub',
+  'a1000000-0000-4000-8000-000000000001',
+  true
+);
+select set_config('request.jwt.claim.role', 'authenticated', true);
+
+select lives_ok(
+  $tap$
+  select *
+  from public.prepare_planner_schedule(
+    jsonb_build_array(
+      jsonb_build_object(
+        'start_date', (date_trunc('month', current_date) + interval '5 month')::date,
+        'end_date', (date_trunc('month', current_date) + interval '6 month - 1 day')::date
+      )
+    ),
+    '[]'::jsonb,
+    public.get_planner_schedule_digest()
+  )
+  $tap$,
+  'cleanup uses owner-local today across a database timezone boundary'
+);
+
+select is(
+  (
+    select count(*)::integer
+    from public.planner_items
+    where goal_id = 'a2000000-0000-4000-8000-000000000007'
+  ),
+  0,
+  'owner-local current invalid row is eligible for cleanup'
+);
+
+set local timezone = 'UTC';
+set local role service_role;
+update public.profiles
+set timezone = 'UTC'
+where id = 'a1000000-0000-4000-8000-000000000001';
+reset role;
+set local role authenticated;
+select set_config(
+  'request.jwt.claim.sub',
+  'a1000000-0000-4000-8000-000000000001',
+  true
+);
+select set_config('request.jwt.claim.role', 'authenticated', true);
+
+create temp table relocation_guard (
+  before_digest text not null
+);
+insert into relocation_guard
+values (public.get_planner_schedule_digest());
+
+select throws_ok(
+  $tap$
+  select *
+  from public.prepare_planner_schedule(
+    jsonb_build_array(
+      jsonb_build_object(
+        'start_date', (date_trunc('month', current_date) + interval '1 month')::date,
+        'end_date', (date_trunc('month', current_date) + interval '2 month - 1 day')::date
+      )
+    ),
+    jsonb_build_array(
+      jsonb_build_object(
+        'goal_id', 'a2000000-0000-4000-8000-000000000001',
+        'unit_key', 'total:1',
+        'scheduled_date', (date_trunc('month', current_date) + interval '1 month + 8 day')::date,
+        'original_scheduled_date', (date_trunc('month', current_date) + interval '1 month + 4 day')::date,
+        'scheduled_time', '07:45',
+        'locked', true
+      ),
+      jsonb_build_object(
+        'goal_id', 'a2000000-0000-4000-8000-000000000001',
+        'unit_key', 'total:3',
+        'scheduled_date', (date_trunc('month', current_date) + interval '1 month + 12 day')::date,
+        'locked', false
+      )
+    ),
+    public.get_planner_schedule_digest()
+  )
+  $tap$,
+  'P0001',
+  'schedule_identity_outside_windows',
+  'preparation refuses to relocate an identity stored outside supplied windows'
+);
+
+select is(
+  public.get_planner_schedule_digest(),
+  (select before_digest from relocation_guard),
+  'rejected relocation leaves every planner row unchanged'
+);
+
 select ok(
   pg_get_functiondef(
     'public.prepare_planner_schedule(jsonb,jsonb,text)'::regprocedure
   ) like '%pg_advisory_xact_lock%planner_owner_lock_key(v_owner)%',
   'preparation serializes owner writes with the canonical transaction lock'
+);
+
+select ok(
+  pg_get_functiondef(
+    'public.prepare_planner_schedule(jsonb,jsonb,text)'::regprocedure
+  ) like '%FOR UPDATE%',
+  'preparation locks relevant goal definitions before validation'
 );
 
 select ok(
