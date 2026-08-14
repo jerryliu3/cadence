@@ -20,6 +20,10 @@ export type Database = {
         Args: { p_goal_id: string; p_uid: string }
         Returns: undefined
       }
+      assert_planner_schedule_window: {
+        Args: { p_end: string; p_start: string }
+        Returns: undefined
+      }
       challenge_progress_value: {
         Args: {
           p_from: string
