@@ -130,7 +130,7 @@ import {
 import { shouldUseDirectDraftPersistence } from "@/lib/planner/save-persistence";
 import { withPlannerRefreshTimeout } from "@/lib/planner/refresh-timeout";
 import { captureViewportRect } from "@/lib/xp/events";
-import { mergeCompletionFactMarkers } from "@/features/planner/calendar-partner-overlay";
+import { mergeCompletionFactMarkers } from "@cadence/shared/planner/partner-completion";
 import type {
   CalendarSurfaceProps,
   CompletionControlDisabledReason,

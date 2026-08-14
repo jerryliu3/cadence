@@ -15,7 +15,7 @@ import type { PlannerCompletionFactMarker } from "@/features/planner/calendar-su
 import {
   buildPartnerCompletionMarkersByDate,
   monthGridFactsBounds,
-} from "@/features/planner/calendar-partner-overlay";
+} from "@cadence/shared/planner/partner-completion";
 
 const EMPTY_MARKERS_BY_DATE = new Map<string, PlannerCompletionFactMarker[]>();
 

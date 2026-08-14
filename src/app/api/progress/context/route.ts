@@ -23,7 +23,7 @@ import {
 } from "@/lib/planner/contracts/bounds";
 import { isTargetedRecurringGoal } from "@/lib/planner/requirements";
 import { requireTeamPartner, resolveActiveTeamPartner } from "@/lib/social/team";
-import { selectViewerVisibleGoals } from "@/lib/goals/visible-goals";
+import { selectViewerVisibleGoals } from "@cadence/shared/goals/visible-goals";
 
 export const runtime = "nodejs";
 

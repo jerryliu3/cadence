@@ -1,4 +1,4 @@
-import type { DuoScope } from "@/lib/social/duo/types";
+import type { DuoScope } from "@cadence/shared/social/duo";
 
 export const DUO_SCOPE_COOKIE_NAME = "duo_scope";
 const DUO_SCOPE_COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 90;

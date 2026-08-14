@@ -13,7 +13,7 @@ import type { CompletionDateFact, Goal } from "@/lib/goals/types";
 import { createClient } from "@/lib/supabase/client";
 import { useDuoLaneError } from "@/features/social/duo/use-duo-lane-error";
 import { assertQueriesOk } from "@/lib/supabase/query-error";
-import { selectViewerVisibleGoals } from "@/lib/goals/visible-goals";
+import { selectViewerVisibleGoals } from "@cadence/shared/goals/visible-goals";
 import { useDuo } from "@/features/social/duo/duo-context";
 
 export interface InsightsData {

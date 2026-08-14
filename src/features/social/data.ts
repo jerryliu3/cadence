@@ -1,10 +1,10 @@
 import type {
   LeaderboardSeason,
   LeaderboardStanding,
-  TeamStateRow,
   SocialChallenge,
   SocialFeedEvent,
 } from "@/features/social/types";
+import type { SocialTeamStateResponse } from "@cadence/shared/social/team";
 import {
   invalidateTabDataCacheByPrefix,
   readTabDataCache,
@@ -38,11 +38,6 @@ interface SocialLeaderboardStandingsResponse {
   season: LeaderboardSeason;
   standings: LeaderboardStanding[];
   viewerRank: number | null;
-}
-
-interface SocialTeamStateResponse {
-  schemaVersion: "1";
-  items: TeamStateRow[];
 }
 
 export type FeedReactionKind = "cheer" | "fire" | "clap" | "strong";

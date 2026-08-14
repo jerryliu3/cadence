@@ -10,7 +10,11 @@ import { XpRewardProvider } from "@/components/xp/xp-reward-provider";
 import { DuoProvider } from "@/features/social/duo/duo-context";
 import { DuoScopeToggle } from "@/features/social/duo/duo-scope-toggle";
 import { setTabDataCacheScope } from "@/lib/cache/tab-data-cache";
-import type { DuoAvailability, DuoContextState, DuoScope } from "@/lib/social/duo/types";
+import type {
+  DuoAvailability,
+  DuoContextState,
+  DuoScope,
+} from "@cadence/shared/social/duo";
 
 interface AppShellProps {
   children: ReactNode;

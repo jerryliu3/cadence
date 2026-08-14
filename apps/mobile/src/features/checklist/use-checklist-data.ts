@@ -1,5 +1,6 @@
 import { format } from "date-fns";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { ProgressContextResponse } from "@cadence/shared/goals/progress-context";
 import { api } from "../../lib/api";
 import { supabase } from "../../lib/supabase";
 import { triggerLightPressFeedback } from "../../lib/haptics";
@@ -19,17 +20,6 @@ export interface MobileGoal {
   photo_path: string | null;
   archived_at: string | null;
   is_deleted: boolean;
-}
-
-interface ProgressContextResponse {
-  asOfDate: string;
-  timezone: string;
-  facts: Array<{ goal_id: string; completed_on: string }>;
-  summaries: Array<{
-    goalId: string;
-    creditedCount: number;
-    remainingCount: number;
-  }>;
 }
 
 function todayIso() {

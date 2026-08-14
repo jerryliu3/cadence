@@ -12,7 +12,7 @@ import {
   dissolveSocialTeam,
   fetchSocialTeamState,
 } from "@/features/social/data";
-import type { TeamStateRow } from "@/features/social/types";
+import type { TeamStateRow } from "@cadence/shared/social/team";
 import { NudgeButton } from "@/features/social/team/nudge-button";
 
 export function TeamPanel() {

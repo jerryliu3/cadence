@@ -2,23 +2,17 @@ import { isFeatureEnabled } from "@/lib/feature-flags";
 import { reportError } from "@/lib/observability/report-error";
 import type {
   DuoContextLoadResult,
-  DuoContextState,
-} from "@/lib/social/duo/types";
+} from "@cadence/shared/social/duo";
+import {
+  buildDuoContextStateFromTeamRows,
+  mapTeamStateRpcRow,
+  type TeamStateRpcRow,
+} from "@cadence/shared/social/team";
 import { createClient } from "@/lib/supabase/server";
 
 type ServerSupabaseClient = Awaited<ReturnType<typeof createClient>>;
 
-type TeamStateRpcRow = {
-  team_id: string;
-  status: "pending" | "active" | "closed";
-  partner_id: string;
-  partner_username: string | null;
-  partner_display_name: string | null;
-  partner_avatar_url: string | null;
-  is_incoming: boolean;
-};
-
-const EMPTY_DUO_CONTEXT: DuoContextState = {
+const EMPTY_DUO_CONTEXT = {
   activePartner: null,
   pendingInvite: null,
 };
@@ -38,33 +32,11 @@ export async function loadDuoContext({
       reportError(error, { area: "duo", code: "team_state_unavailable" });
       return { state: EMPTY_DUO_CONTEXT, availability: "unavailable" };
     }
-    const rows = (data ?? []) as TeamStateRpcRow[];
-    const active = rows.find((row) => row.status === "active") ?? null;
-    const pending = rows.find((row) => row.status === "pending") ?? null;
+    const rows = ((data ?? []) as TeamStateRpcRow[]).map(mapTeamStateRpcRow);
 
     return {
       availability: "ready",
-      state: {
-        activePartner: active
-          ? {
-              teamId: active.team_id,
-              partnerId: active.partner_id,
-              partnerUsername: active.partner_username,
-              partnerDisplayName: active.partner_display_name,
-              partnerAvatarUrl: active.partner_avatar_url,
-            }
-          : null,
-        pendingInvite: pending
-          ? {
-              teamId: pending.team_id,
-              partnerId: pending.partner_id,
-              partnerUsername: pending.partner_username,
-              partnerDisplayName: pending.partner_display_name,
-              partnerAvatarUrl: pending.partner_avatar_url,
-              isIncoming: pending.is_incoming,
-            }
-          : null,
-      },
+      state: buildDuoContextStateFromTeamRows(rows),
     };
   } catch (error) {
     reportError(error, { area: "duo", code: "team_state_unavailable" });
