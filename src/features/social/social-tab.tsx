@@ -17,6 +17,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { IntegrationsSettings } from "@/features/settings/integrations-settings";
 import { PlannerPreferencesSettings } from "@/features/settings/planner-preferences-settings";
 import { NotificationsSection } from "@/features/social/notifications-section";
 import { ProfileSection } from "@/features/social/profile-section";
@@ -38,16 +39,22 @@ export function SocialTab() {
     signOut,
   } = useSocialTabData();
   const [settingsSection, setSettingsSection] = useState<
-    "preferences" | "notifications"
+    "preferences" | "notifications" | "integrations"
   >("preferences");
   const [settingsPanelOpen, setSettingsPanelOpen] = useState(false);
 
   const settingsSectionTitle =
-    settingsSection === "preferences" ? "Preferences" : "Notifications";
+    settingsSection === "preferences"
+      ? "Preferences"
+      : settingsSection === "notifications"
+        ? "Notifications"
+        : "Integrations";
   const settingsSectionDescription =
     settingsSection === "preferences"
       ? "Manage planner timezone and start-of-week defaults."
-      : "Configure push access and reminder schedules.";
+      : settingsSection === "notifications"
+        ? "Configure push access and reminder schedules."
+        : "Connect Apple Health or Health Connect and opt into auto-complete.";
   const activePartner = duoState.activePartner;
   const pendingInvite = duoState.pendingInvite;
   const partnerLabel =
@@ -120,13 +127,16 @@ export function SocialTab() {
           {[
             { key: "preferences", label: "Preferences" },
             { key: "notifications", label: "Notifications" },
+            { key: "integrations", label: "Integrations" },
           ].map((item) => (
             <button
               key={item.key}
               type="button"
               className="flex w-full items-center justify-between border-t px-4 py-3 text-left text-base font-medium transition-colors hover:bg-muted/30 first:border-t-0"
               onClick={() => {
-                setSettingsSection(item.key as "preferences" | "notifications");
+                setSettingsSection(
+                  item.key as "preferences" | "notifications" | "integrations"
+                );
                 setSettingsPanelOpen(true);
               }}
             >
@@ -186,6 +196,20 @@ export function SocialTab() {
 
             {settingsSection === "notifications" ? (
               <NotificationsSection />
+            ) : null}
+
+            {settingsSection === "integrations" ? (
+              <Card className="shadow-sm">
+                <CardHeader>
+                  <CardTitle>Integrations</CardTitle>
+                  <CardDescription>
+                    Connect Apple Health or Health Connect and opt into auto-complete.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <IntegrationsSettings goals={state.ownGoals} />
+                </CardContent>
+              </Card>
             ) : null}
           </div>
         </DialogContent>

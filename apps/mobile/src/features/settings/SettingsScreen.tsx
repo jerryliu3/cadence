@@ -13,6 +13,7 @@ import { useSession } from "../../lib/session";
 import { useTheme } from "../../theme";
 import { PrimaryButton } from "../../ui/button";
 import { Screen } from "../../ui/screen";
+import { IntegrationsSection } from "./IntegrationsSection";
 
 interface NotificationSchedule {
   id: string;
@@ -107,6 +108,7 @@ export function SettingsScreen() {
           Push is not configured for this build.
         </Text>
       )}
+      <IntegrationsSection userId={userId} />
       <PrimaryButton
         label="Sign out"
         onPress={async () => {
