@@ -46,7 +46,7 @@ describe("GET /api/admin/social-metadata", () => {
   it("returns 404 for non-admin users", async () => {
     mocks.requireAdminContext.mockResolvedValue(null);
 
-    const response = await GET();
+    const response = await GET(new Request("http://localhost/api/admin/social-metadata"));
 
     expect(response.status).toBe(404);
   });
@@ -72,7 +72,7 @@ describe("GET /api/admin/social-metadata", () => {
       error: null,
     });
 
-    const response = await GET();
+    const response = await GET(new Request("http://localhost/api/admin/social-metadata"));
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toMatchObject({

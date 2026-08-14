@@ -5,10 +5,10 @@ import { createAdminClient } from "@/lib/supabase/admin";
 
 export const runtime = "nodejs";
 
-export async function GET() {
+export async function GET(request: Request) {
   const correlationId = createCorrelationId();
   try {
-    const adminContext = await requireAdminContext("moderator");
+    const adminContext = await requireAdminContext(request, "moderator");
     if (!adminContext) {
       throw new ApiRouteError(404, "not_found", "Resource not found.");
     }
