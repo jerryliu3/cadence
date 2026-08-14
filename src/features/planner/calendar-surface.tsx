@@ -1168,6 +1168,7 @@ export function CalendarSurface({
     }
     return map;
   }, [draftWindowWorkUnits]);
+  const scopeMonth = context?.scopeMonth ?? null;
 
   const queueDraftMoveCommand = useCallback(
     ({
@@ -1179,7 +1180,7 @@ export function CalendarSurface({
       nextDate: string;
       source: "date_input" | "drag_drop" | "coach";
     }) => {
-      if (!context?.scopeMonth) {
+      if (!scopeMonth) {
         return false;
       }
       const normalizedDate = nextDate.trim();
@@ -1190,7 +1191,7 @@ export function CalendarSurface({
       const planned = planDraftMove({
         entry,
         nextDate: normalizedDate,
-        scopeMonth: context.scopeMonth,
+        scopeMonth,
         previewUnit: baselineUnit,
         conflictKeys: moveConflictByGoalDate.get(
           `${entry.originalGoalId}:${normalizedDate}`
@@ -1260,7 +1261,7 @@ export function CalendarSurface({
       draftCommandState,
       draftSaveCommands,
       draftWindowWorkUnits,
-      context?.scopeMonth,
+      scopeMonth,
       dispatchDraftCommand,
       moveConflictByGoalDate,
       moveCompletionConflictByGoalDate,
