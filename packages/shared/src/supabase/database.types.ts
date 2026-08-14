@@ -896,6 +896,184 @@ export type Database = {
           },
         ]
       }
+      health_activities: {
+        Row: {
+          created_at: string
+          ended_at: string | null
+          group_id: string | null
+          id: string
+          is_canonical: boolean
+          local_date: string
+          metric_key: Database["public"]["Enums"]["health_metric_key"]
+          payload: Json
+          provider: Database["public"]["Enums"]["health_provider"]
+          provider_native_id: string
+          source_identifier: string
+          source_name: string | null
+          started_at: string
+          suppressed_reason: string | null
+          unit: string
+          updated_at: string
+          user_id: string
+          utc_offset_minutes: number
+          value_numeric: number
+        }
+        Insert: {
+          created_at?: string
+          ended_at?: string | null
+          group_id?: string | null
+          id?: string
+          is_canonical?: boolean
+          metric_key: Database["public"]["Enums"]["health_metric_key"]
+          payload?: Json
+          provider: Database["public"]["Enums"]["health_provider"]
+          provider_native_id: string
+          source_identifier: string
+          source_name?: string | null
+          started_at: string
+          suppressed_reason?: string | null
+          unit: string
+          updated_at?: string
+          user_id: string
+          utc_offset_minutes: number
+          value_numeric: number
+        }
+        Update: {
+          created_at?: string
+          ended_at?: string | null
+          group_id?: string | null
+          id?: string
+          is_canonical?: boolean
+          metric_key?: Database["public"]["Enums"]["health_metric_key"]
+          payload?: Json
+          provider?: Database["public"]["Enums"]["health_provider"]
+          provider_native_id?: string
+          source_identifier?: string
+          source_name?: string | null
+          started_at?: string
+          suppressed_reason?: string | null
+          unit?: string
+          updated_at?: string
+          user_id?: string
+          utc_offset_minutes?: number
+          value_numeric?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "health_activities_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "health_activity_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "health_activities_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      health_activity_groups: {
+        Row: {
+          created_at: string
+          id: string
+          local_date: string
+          metric_key: Database["public"]["Enums"]["health_metric_key"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          local_date: string
+          metric_key: Database["public"]["Enums"]["health_metric_key"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          local_date?: string
+          metric_key?: Database["public"]["Enums"]["health_metric_key"]
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "health_activity_groups_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      health_daily_metrics: {
+        Row: {
+          canonical_activity_count: number
+          local_date: string
+          metric_key: Database["public"]["Enums"]["health_metric_key"]
+          updated_at: string
+          user_id: string
+          value_numeric: number
+        }
+        Insert: {
+          canonical_activity_count?: number
+          local_date: string
+          metric_key: Database["public"]["Enums"]["health_metric_key"]
+          updated_at?: string
+          user_id: string
+          value_numeric: number
+        }
+        Update: {
+          canonical_activity_count?: number
+          local_date?: string
+          metric_key?: Database["public"]["Enums"]["health_metric_key"]
+          updated_at?: string
+          user_id?: string
+          value_numeric?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "health_daily_metrics_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      health_source_priority: {
+        Row: {
+          metric_key: Database["public"]["Enums"]["health_metric_key"]
+          priority: number
+          source_identifier: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          metric_key: Database["public"]["Enums"]["health_metric_key"]
+          priority: number
+          source_identifier: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          metric_key?: Database["public"]["Enums"]["health_metric_key"]
+          priority?: number
+          source_identifier?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "health_source_priority_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       leaderboard_season_results: {
         Row: {
           display_name: string
@@ -2185,6 +2363,10 @@ export type Database = {
           team_id: string
         }[]
       }
+      health_local_date_from_offset: {
+        Args: { p_started_at: string; p_utc_offset_minutes: number }
+        Returns: string
+      }
       hide_feed_event_service: {
         Args: { p_event_id: string; p_hidden: boolean; p_reason?: string }
         Returns: boolean
@@ -2389,6 +2571,14 @@ export type Database = {
         | "season_result"
         | "team_formed"
       goal_frequency_type: "fixed_milestones" | "recurring"
+      health_metric_key:
+        | "steps"
+        | "active_energy_kcal"
+        | "distance_meters"
+        | "exercise_minutes"
+        | "sleep_asleep_minutes"
+        | "workout_duration_minutes"
+      health_provider: "apple_healthkit" | "android_health_connect"
       leaderboard_rollover:
         | "none"
         | "weekly"
@@ -2575,6 +2765,15 @@ export const Constants = {
         "team_formed",
       ],
       goal_frequency_type: ["fixed_milestones", "recurring"],
+      health_metric_key: [
+        "steps",
+        "active_energy_kcal",
+        "distance_meters",
+        "exercise_minutes",
+        "sleep_asleep_minutes",
+        "workout_duration_minutes",
+      ],
+      health_provider: ["apple_healthkit", "android_health_connect"],
       leaderboard_rollover: [
         "none",
         "weekly",
