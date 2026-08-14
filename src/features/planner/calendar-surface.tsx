@@ -137,6 +137,7 @@ import type {
   PlannerPreferencesPayload,
   PlannerPreviewResponsePayload,
 } from "@/features/planner/calendar-surface.types";
+import { ROLLING_WEEK_GRID_WIDTH_BY_VIEW } from "@/features/planner/calendar-rolling-week-width";
 const DAY_PREVIEW_HOVER_DELAY_MS = 1000;
 const DAY_PREVIEW_CLOSE_DELAY_MS = 250;
 const DAY_PREVIEW_LONG_PRESS_DELAY_MS = 500;
@@ -148,11 +149,6 @@ const ROLLING_WEEK_GRID_LABELS_BASE_CLASS =
   "grid min-w-[calc(7*var(--rolling-week-cell-width))] grid-cols-[repeat(7,minmax(0,var(--rolling-week-cell-width)))] gap-2 text-center text-xs text-muted-foreground";
 const ROLLING_WEEK_GRID_CELLS_BASE_CLASS =
   "mt-2 grid min-w-[calc(7*var(--rolling-week-cell-width))] grid-cols-[repeat(7,minmax(0,var(--rolling-week-cell-width)))] gap-2";
-const ROLLING_WEEK_GRID_WIDTH_BY_VIEW: Record<"day" | "three_day", string> = {
-  day: "[--rolling-week-cell-width:calc((100%-1rem)/2)] md:[--rolling-week-cell-width:calc((100%-1.5rem)/3)] xl:[--rolling-week-cell-width:calc((100%-2rem)/4)]",
-  three_day:
-    "[--rolling-week-cell-width:calc((100%-1rem)/3)] md:[--rolling-week-cell-width:calc((100%-2rem)/5)] xl:[--rolling-week-cell-width:calc((100%-2.5rem)/6)]",
-};
 const SCOPE_ONLY_ELIGIBILITY_REASONS = new Set([
   "end_outside_scope",
   "starts_after_scope",
