@@ -103,7 +103,7 @@ export function AppShell({
             )}
           </div>
         </div>
-        <div className="md:hidden">
+        <div className="md:hidden" style={{ viewTransitionName: "app-mobile-tab-nav" }}>
           <TabNav mobile />
         </div>
         {goalSheet}
