@@ -65,6 +65,12 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Check Expo dependency compatibility
+        run: pnpm --filter @cadence/mobile dependencies:check
+
+      - name: Run shared planner tests
+        run: pnpm test:shared-planner
+
       - name: Typecheck mobile app
         run: pnpm --filter @cadence/mobile typecheck
 
@@ -372,6 +378,7 @@ jobs:
     if: always()
     needs:
       - verify-static
+      - verify-mobile-static
       - verify-pr-smoke
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -379,8 +386,9 @@ jobs:
     steps:
       - name: Assert all verify jobs passed
         run: |
-          if [[ "${{ needs.verify-static.result }}" != "success" || "${{ needs.verify-pr-smoke.result }}" != "success" ]]; then
+          if [[ "${{ needs.verify-static.result }}" != "success" || "${{ needs.verify-mobile-static.result }}" != "success" || "${{ needs.verify-pr-smoke.result }}" != "success" ]]; then
             echo "verify-static result: ${{ needs.verify-static.result }}"
+            echo "verify-mobile-static result: ${{ needs.verify-mobile-static.result }}"
             echo "verify-pr-smoke result: ${{ needs.verify-pr-smoke.result }}"
             exit 1
           fi
