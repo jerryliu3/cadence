@@ -12,7 +12,6 @@ import { createDefaultAssessment, goalAssessmentSchema } from "@/lib/planner/ass
 import {
   loadAllPlannerItems,
   loadPlannerCanonicalSnapshot,
-  loadPlannerItemsForWindow,
 } from "@/lib/planner/context-loader";
 import {
   MAX_API_BODY_BYTES,
@@ -39,17 +38,9 @@ import {
   getWindowState,
   toKernelWindowFromDates,
 } from "@/lib/planner/dates";
-import {
-  buildPreparationWindows,
-} from "@/lib/planner/preparation-windows";
-import {
-  buildPlannedDatesByGoalIdFromPlannerItems,
-  computeLinkedSourceCoverageByGoalId,
-  indexCompletionsByGoalId,
-} from "@/lib/planner/linked-source-coverage";
 import { plannerPolicySchema } from "@/lib/planner/policy";
-import { shouldUseDirectDraftPersistence } from "@/lib/planner/save-persistence";
 import type { Json } from "@/lib/supabase/database.types";
+import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 
@@ -237,7 +228,10 @@ function plannerKernelErrorToRouteError(error: PlannerError) {
 
 export async function handlePlannerSave(request: Request) {
   return withPlannerRoute(async ({ correlationId }) => {
-    const routeContext = await requirePlannerRouteContext(request);
+    const supabase = await createClient();
+    const routeContext = await requirePlannerRouteContext({
+      supabase,
+    });
     const body = await parseBoundedJsonBody(
       request,
       Math.min(MAX_API_BODY_BYTES, 256 * 1024),
@@ -298,11 +292,8 @@ export async function handlePlannerSave(request: Request) {
       );
     }
     let persistence: ReturnType<typeof buildPlannerPublishPersistencePayload>;
-    const useDirectDraftPersistence = shouldUseDirectDraftPersistence({
-      draftCommands,
-      requestedPolicy,
-    });
-    if (useDirectDraftPersistence) {
+    const hasDirectDraftCommands = draftCommands.length > 0;
+    if (hasDirectDraftCommands) {
       try {
         const persistedItems = await loadAllPlannerItems(
           routeContext.supabase,
@@ -337,32 +328,6 @@ export async function handlePlannerSave(request: Request) {
         throw error;
       }
     } else {
-    const preparationWindows = buildPreparationWindows(asOfDate);
-    const preparationStart = preparationWindows[0]?.start ?? body.startDate;
-    const preparationEnd = preparationWindows.at(-1)?.end ?? body.endDate;
-    const preparationItems = await loadPlannerItemsForWindow(
-      routeContext.supabase,
-      routeContext.userId,
-      preparationStart,
-      preparationEnd
-    );
-    const plannedDatesByGoalId =
-      buildPlannedDatesByGoalIdFromPlannerItems(preparationItems);
-    const completionsByGoalId = indexCompletionsByGoalId(snapshot.completions);
-    const { projectedCoverageCountByGoalId } = computeLinkedSourceCoverageByGoalId({
-      goals: snapshot.goals,
-      links: snapshot.links,
-      ownerId: routeContext.userId,
-      asOfDate,
-      preparationStart,
-      preparationEnd,
-      completionsByGoalId,
-      plannedDatesByGoalId,
-    });
-    const precoveredCountByGoalId = Object.fromEntries(
-      Array.from(projectedCoverageCountByGoalId.entries())
-        .filter(([, count]) => count > 0)
-    );
     const activeAssessments = (snapshot.activePlan?.goals ?? []).map((goal) =>
       goalAssessmentSchema.parse(goal.assessment_snapshot)
     );
@@ -390,7 +355,6 @@ export async function handlePlannerSave(request: Request) {
         goals: snapshot.goals,
         completions: snapshot.completions,
         links: snapshot.links,
-        precoveredCountByGoalId,
         assessments,
         policy: effectivePolicy,
         basePlan: snapshot.activePlan?.basePlan ?? null,
