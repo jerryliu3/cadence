@@ -105,14 +105,20 @@ export function buildMobileCalendarOverlayQueryKey({
   viewerUserId,
   partnerUserId,
   month,
+  asOfDate,
+  timezone,
 }: {
   viewerUserId: string | null;
   partnerUserId: string | null;
   month: string;
+  asOfDate: string;
+  timezone: string;
 }) {
   return [
     ...duoQueryKeys.calendarOverlayPrefix(viewerUserId),
     partnerUserId ?? "none",
     month,
+    asOfDate,
+    timezone,
   ] as const;
 }
