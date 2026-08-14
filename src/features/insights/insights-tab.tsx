@@ -475,11 +475,11 @@ export function InsightsTab({
   const saveMilestoneNames = useCallback(
     async (goal: Goal, names: string[]) => {
       if (readOnly) {
-        return;
+        return false;
       }
       if (goal.owner_id !== state.userId) {
         toast.error("Only the goal owner can rename milestones.");
-        return;
+        return false;
       }
 
       setSavingMilestoneNamesGoalId(goal.id);
@@ -491,7 +491,7 @@ export function InsightsTab({
         });
         if (error) {
           toast.error(error.message);
-          return;
+          return false;
         }
 
         toast.success("Milestone names updated.");
@@ -502,14 +502,16 @@ export function InsightsTab({
         requestAnimationFrame(() => {
           window.scrollTo({ top: currentScrollY, behavior: "auto" });
         });
+        return true;
       } catch (error) {
         if (isProgressContextAuthenticationError(error)) {
           redirectToLogin();
-          return;
+          return false;
         }
         toast.error(
           getApiErrorMessage(error, "Milestone names update failed.")
         );
+        return false;
       } finally {
         setSavingMilestoneNamesGoalId(null);
       }
@@ -782,7 +784,6 @@ export function InsightsTab({
                 goal.category,
                 goal.category_key
               );
-              const canRenameMilestones = isMilestone && goal.owner_id === state.userId;
               return (
                 <Card key={goal.id} className="border shadow-none">
                   <CardContent className="space-y-3 py-4">
@@ -808,50 +809,49 @@ export function InsightsTab({
                         </div>
                       </div>
                       <div className="flex flex-wrap items-center justify-end gap-2">
-                        <Badge variant="secondary">
-                          {hasTargetCount ? `${Math.round(percent)}%` : completionCountLabel}
-                        </Badge>
                         {canEditHistory ? (
                           <Button
                             type="button"
                             size="sm"
                             variant={editingHistory ? "secondary" : "outline"}
+                            disabled={savingMilestoneNamesGoalId === goal.id}
                             onClick={() => {
-                              setEditingGoalId((previous) =>
-                                previous === goal.id ? null : goal.id
-                              );
-                              if (!editingHistory && isMilestone) {
-                                setMilestoneNameDrafts((previous) => ({
-                                  ...previous,
-                                  [goal.id]: persistedMilestoneNames,
-                                }));
-                              }
+                              void (async () => {
+                                if (editingHistory) {
+                                  if (isMilestone && milestoneNamesChanged) {
+                                    const saved = await saveMilestoneNames(
+                                      goal,
+                                      buildMilestoneNames(
+                                        milestoneTargetCount,
+                                        draftMilestoneNames
+                                      )
+                                    );
+                                    if (!saved) {
+                                      return;
+                                    }
+                                  }
+                                  setEditingGoalId(null);
+                                  return;
+                                }
+
+                                setEditingGoalId(goal.id);
+                                if (isMilestone) {
+                                  setMilestoneNameDrafts((previous) => ({
+                                    ...previous,
+                                    [goal.id]: persistedMilestoneNames,
+                                  }));
+                                }
+                              })();
                             }}
                           >
                             <PencilLine className="size-3.5" />
                             {editingHistory
-                              ? "Done"
+                              ? savingMilestoneNamesGoalId === goal.id
+                                ? "Saving..."
+                                : "Done"
                               : isRecurring
                                 ? "Edit dates"
                                 : "Edit milestones"}
-                          </Button>
-                        ) : null}
-                        {editingHistory && canRenameMilestones ? (
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            disabled={
-                              savingMilestoneNamesGoalId === goal.id || !milestoneNamesChanged
-                            }
-                            onClick={() =>
-                              void saveMilestoneNames(
-                                goal,
-                                buildMilestoneNames(milestoneTargetCount, draftMilestoneNames)
-                              )
-                            }
-                          >
-                            {savingMilestoneNamesGoalId === goal.id ? "Saving..." : "Save names"}
                           </Button>
                         ) : null}
                       </div>
@@ -935,7 +935,7 @@ export function InsightsTab({
                             />
                           </div>
                         )}
-                        {editingHistory && canRenameMilestones ? (
+                        {editingHistory && isMilestone ? (
                           <div className="space-y-2 rounded-lg border border-border bg-muted/20 p-3">
                             <p className="text-xs text-muted-foreground">Milestone names</p>
                             <div className="grid gap-2 sm:grid-cols-2">
