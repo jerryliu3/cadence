@@ -61,6 +61,7 @@ export function usePlannerCoach({
   hasDraftSession,
   refreshDraftPreview,
   applyPolicyReplanMoves,
+  queueDraftMoveCommand,
   clearDraftMoveCommands,
   applyDraftPolicy,
   coachWindow,
@@ -154,7 +155,47 @@ export function usePlannerCoach({
         policy: priorPolicy,
         patches,
       });
-      if (result.appliedPatchCount === 0) {
+      const sessionMoves = patches.filter(
+        (patch): patch is Extract<CoachPolicyPatch, { kind: "move_session" }> =>
+          patch.kind === "move_session"
+      );
+      const calendarEntries = [...entriesByDate.values()].flat();
+      let queuedSessionMoves = 0;
+      let missingSessionMoves = 0;
+      const queuedMovedEntryKeys: string[] = [];
+      for (const move of sessionMoves) {
+        const entry = calendarEntries.find(
+          (item) =>
+            item.originalGoalId === move.goalId &&
+            item.unitKey === move.unitKey &&
+            !item.draftGhost
+        );
+        if (!entry) {
+          missingSessionMoves += 1;
+          continue;
+        }
+        if (
+          queueDraftMoveCommand({
+            entry,
+            nextDate: move.scheduledDate,
+            source: "coach",
+          })
+        ) {
+          queuedSessionMoves += 1;
+          queuedMovedEntryKeys.push(entry.key);
+        }
+      }
+      if (missingSessionMoves > 0) {
+        toast.error(
+          missingSessionMoves === 1
+            ? "Coach could not move a session that is not on the calendar."
+            : `Coach could not move ${missingSessionMoves} sessions that are not on the calendar.`
+        );
+      }
+      if (result.appliedPatchCount === 0 && queuedSessionMoves === 0) {
+        if (sessionMoves.length > 0) {
+          return { status: "failed", movedEntryKeys: [] };
+        }
         if (result.noOpPatchCount > 0 && result.unsupportedPatchCount === 0) {
           appendCoachContextEvent("Coach proposal already matched current draft");
           toast.success(
@@ -170,9 +211,13 @@ export function usePlannerCoach({
 
       setCoachPolicyApplying(true);
       try {
-        const { moveCount, movedEntryKeys } = await applyPolicyReplanMoves(
-          result.policy
-        );
+        let moveCount = queuedSessionMoves;
+        let movedEntryKeys = queuedMovedEntryKeys;
+        if (result.appliedPatchCount > 0) {
+          const replanned = await applyPolicyReplanMoves(result.policy);
+          moveCount += replanned.moveCount;
+          movedEntryKeys = [...movedEntryKeys, ...replanned.movedEntryKeys];
+        }
         const refreshedPreview = await refreshDraftPreview(result.policy);
         if (!refreshedPreview) {
           throw new Error("Preview refresh returned no planner data.");
@@ -202,16 +247,17 @@ export function usePlannerCoach({
               refreshedPreview
             )}`
           );
-        } else if (assignmentChanges === 0) {
+        } else if (assignmentChanges === 0 && queuedSessionMoves === 0) {
           // Auto-reflect means an unchanged calendar is the only signal the
           // user gets, so say plainly that nothing needed to move.
           toast.success(
             `${lead}. Your preferences changed, but no session needed to move.`
           );
         } else {
+          const movedCount = Math.max(assignmentChanges, queuedSessionMoves);
           toast.success(
-            `${lead}: ${assignmentChanges} session${
-              assignmentChanges === 1 ? "" : "s"
+            `${lead}: ${movedCount} session${
+              movedCount === 1 ? "" : "s"
             } moved. Review the highlighted changes and save when ready.`
           );
         }
@@ -246,8 +292,10 @@ export function usePlannerCoach({
       context,
       effectiveDraftPolicy,
       effectivePreview,
+      entriesByDate,
       getNonPublishablePreviewMessage,
       hasDraftSession,
+      queueDraftMoveCommand,
       refreshDraftPreview,
     ]
   );

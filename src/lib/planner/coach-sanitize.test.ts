@@ -158,4 +158,45 @@ describe("sanitizeCoachTurn", () => {
 
     expect(result.recommendations).toEqual([{ text: "Keep Tuesday light." }]);
   });
+
+  it("compiles known-goal session moves into move_session patches", () => {
+    const goalA = goal();
+    const result = sanitizeCoachTurn({
+      goalsById: new Map([[goalA.id, goalA]]),
+      raw: {
+        schemaVersion: "1",
+        phase: "ready",
+        reply: "Moved that long run to Saturday.",
+        proposal: {
+          calendarIntent: {
+            action: "apply",
+            sessionMoves: [
+              {
+                goalId: goalA.id,
+                unitKey: "total:1",
+                scheduledDate: "2026-09-12",
+              },
+              {
+                goalId: "99999999-9999-4999-8999-999999999999",
+                unitKey: "total:2",
+                scheduledDate: "2026-09-13",
+              },
+            ],
+          },
+        },
+      },
+    });
+
+    expect(result.proposal.policyPatches).toEqual([
+      {
+        kind: "move_session",
+        goalId: goalA.id,
+        unitKey: "total:1",
+        scheduledDate: "2026-09-12",
+      },
+    ]);
+    expect(result.warnings).toContain(
+      "Ignored session move for unknown goal 99999999-9999-4999-8999-999999999999."
+    );
+  });
 });

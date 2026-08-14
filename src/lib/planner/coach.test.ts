@@ -73,6 +73,9 @@ describe("coachResponseJsonSchema", () => {
         global: {
           type: "object",
         },
+        sessionMoves: {
+          type: "array",
+        },
       },
     });
     expect(proposalSchema.required).toEqual(["calendarIntent"]);
