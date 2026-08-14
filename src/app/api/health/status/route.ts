@@ -1,4 +1,3 @@
-import { HEALTH_PROVIDERS } from "@cadence/shared/health/providers";
 import {
   ApiRouteError,
   apiSuccessResponse,
@@ -6,22 +5,20 @@ import {
   withRoute,
 } from "@/lib/api/route";
 import { isFeatureEnabled } from "@/lib/feature-flags";
-import { deriveHealthSyncState } from "@/lib/health/sync-state";
+import { integrationsDisabledError } from "@/lib/health/integrations-disabled";
+import {
+  toHealthAutocompleteRuleStatuses,
+  toHealthProviderStatuses,
+  type HealthAutocompleteRuleRow,
+  type HealthSyncStateRow,
+} from "@/lib/health/status-payload";
 
 export const runtime = "nodejs";
-
-function disabledError() {
-  return new ApiRouteError(
-    503,
-    "integrations_disabled",
-    "Integrations are not enabled."
-  );
-}
 
 export async function GET(request: Request) {
   return withRoute(async ({ correlationId }) => {
     if (!isFeatureEnabled("integrationsEnabled")) {
-      throw disabledError();
+      throw integrationsDisabledError();
     }
 
     const { userId, supabase } = await requireAuthenticatedRequestContext(
@@ -29,14 +26,20 @@ export async function GET(request: Request) {
       { unauthorizedMessage: "Sign in to view health sync status." }
     );
 
-    const stateResponse = await supabase
-      .from("health_sync_state")
-      .select(
-        "provider, permission_prompted_at, last_ingest_at, last_sample_at"
-      )
-      .eq("user_id", userId);
+    const [stateResponse, rulesResponse] = await Promise.all([
+      supabase
+        .from("health_sync_state")
+        .select(
+          "provider, permission_prompted_at, last_ingest_at, last_sample_at, last_error"
+        )
+        .eq("user_id", userId),
+      supabase
+        .from("health_autocomplete_rules")
+        .select("id, goal_id, metric_key, threshold_numeric, enabled")
+        .eq("user_id", userId),
+    ]);
 
-    if (stateResponse.error) {
+    if (stateResponse.error || rulesResponse.error) {
       throw new ApiRouteError(
         500,
         "health_status_unavailable",
@@ -44,25 +47,15 @@ export async function GET(request: Request) {
       );
     }
 
-    const byProvider = new Map(
-      (stateResponse.data ?? []).map((row) => [row.provider, row])
-    );
-
     return apiSuccessResponse(
       {
         schemaVersion: "1" as const,
-        providers: HEALTH_PROVIDERS.map((provider) => {
-          const row = byProvider.get(provider);
-          return {
-            provider,
-            state: deriveHealthSyncState({
-              permissionPromptedAt: row?.permission_prompted_at ?? null,
-              lastSampleAt: row?.last_sample_at ?? null,
-            }),
-            lastIngestAt: row?.last_ingest_at ?? null,
-            lastSampleAt: row?.last_sample_at ?? null,
-          };
-        }),
+        providers: toHealthProviderStatuses(
+          (stateResponse.data ?? []) as HealthSyncStateRow[]
+        ),
+        autocompleteRules: toHealthAutocompleteRuleStatuses(
+          (rulesResponse.data ?? []) as HealthAutocompleteRuleRow[]
+        ),
       },
       correlationId
     );
