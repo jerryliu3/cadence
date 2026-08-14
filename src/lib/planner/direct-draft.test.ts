@@ -160,4 +160,28 @@ describe("buildDirectDraftPersistence", () => {
       })
     );
   });
+
+  it("projects rename_item labels into direct persistence rows", () => {
+    const result = buildDirectDraftPersistence({
+      snapshot,
+      commands: [
+        {
+          id: "77777777-7777-4777-8777-777777777777",
+          sequence: 1,
+          kind: "rename_item",
+          goalId: goal.id,
+          unitKey: "milestone:1",
+          label: "Launch v2",
+        },
+      ],
+      asOfDate: "2026-08-05",
+    });
+
+    expect(
+      result.find((item) => item.unit_key === "milestone:1")
+    ).toMatchObject({
+      label: "Launch v2",
+      scheduled_date: "2026-08-10",
+    });
+  });
 });
