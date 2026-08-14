@@ -36,7 +36,10 @@ import {
 import { Input } from "@/components/ui/input";
 import { LoadingCard } from "@/components/ui/loading-card";
 import { Progress } from "@/components/ui/progress";
-import { InsightsPeriodControls } from "@/features/insights/insights-period-controls";
+import {
+  InsightsPeriodControls,
+  InsightsPeriodStepper,
+} from "@/features/insights/insights-period-controls";
 import { GoalEndMonthBadge } from "@/features/goals/goal-end-month-badge";
 import { MilestonePills } from "@/features/goals/milestone-pills";
 import { GoalListControls } from "@/features/goals/goal-list-controls";
@@ -671,21 +674,37 @@ export function InsightsTab({
 
       <Card className="shadow-sm">
         <CardHeader className="pb-3">
-          <div className="flex items-center gap-2">
-            <CalendarRange className="size-4 text-primary" />
-            <CardTitle>Goal Stats</CardTitle>
+          <div
+            data-title-date-row="true"
+            className="grid w-full grid-cols-[1fr_auto_1fr] items-center gap-2"
+          >
+            <div className="flex min-w-0 items-center gap-2">
+              <CalendarRange className="size-4 shrink-0 text-primary" />
+              <CardTitle>Goal Stats</CardTitle>
+            </div>
+            {sharedPeriod ? null : (
+              <div className="justify-self-center">
+                <InsightsPeriodStepper
+                  monthCursor={monthCursor}
+                  onMonthCursorChange={setMonthCursor}
+                  perGoalViewMode={perGoalViewMode}
+                />
+              </div>
+            )}
           </div>
         </CardHeader>
         <CardContent className="space-y-3">
-          {sharedPeriod ? null : (
-            <InsightsPeriodControls
-              monthCursor={monthCursor}
-              onMonthCursorChange={setMonthCursor}
-              perGoalViewMode={perGoalViewMode}
-              onPerGoalViewModeChange={setPerGoalViewMode}
-            />
-          )}
           <div className="flex flex-wrap items-end gap-3">
+            {sharedPeriod ? null : (
+              <InsightsPeriodControls
+                monthCursor={monthCursor}
+                onMonthCursorChange={setMonthCursor}
+                perGoalViewMode={perGoalViewMode}
+                onPerGoalViewModeChange={setPerGoalViewMode}
+                includeStepper={false}
+                viewModeSelectId="insights-goal-stats-view-mode"
+              />
+            )}
             <GoalListControls
               goals={personalGoals}
               referenceMonth={goalFilterStartMonth}

@@ -40,17 +40,16 @@ export function TodayHeaderCard({
     <Card className="rounded-none border-0 bg-transparent py-0 shadow-none ring-0 sm:rounded-xl sm:bg-card sm:py-4 sm:ring-1 sm:shadow-sm">
       <CardHeader className="pb-3">
         <div className="min-w-0">
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2">
-                <Sparkles className="size-4 text-primary" />
+          <div className="flex w-full flex-col gap-2">
+            <div
+              data-title-date-row="true"
+              className="grid w-full grid-cols-[1fr_auto_1fr] items-center gap-2"
+            >
+              <div className="flex min-w-0 items-center gap-2">
+                <Sparkles className="size-4 shrink-0 text-primary" />
                 <CardTitle className="text-xl">{title}</CardTitle>
               </div>
-            </div>
-          </div>
-          <div className="mt-2 flex w-full flex-col gap-2">
-            <div className="grid w-full grid-cols-[1fr_auto_1fr] items-center">
-              <div className="col-start-2 justify-self-center">
+              <div className="justify-self-center">
                 <PeriodStepper
                   onPrevious={onGoToPreviousDate}
                   onNext={onGoToNextDate}
@@ -64,16 +63,14 @@ export function TodayHeaderCard({
                   nextAriaLabel="Next day"
                 />
               </div>
-              {datePickerControls || !viewingToday ? (
-                <div className="col-start-3 ml-2 flex items-center gap-2 justify-self-start">
-                  {datePickerControls ? <div className="shrink-0">{datePickerControls}</div> : null}
-                  {!viewingToday ? (
-                    <Button type="button" variant="ghost" size="sm" onClick={onResetToToday}>
-                      Today
-                    </Button>
-                  ) : null}
-                </div>
-              ) : null}
+              <div className="flex items-center justify-end gap-2">
+                {datePickerControls ? <div className="shrink-0">{datePickerControls}</div> : null}
+                {!viewingToday ? (
+                  <Button type="button" variant="ghost" size="sm" onClick={onResetToToday}>
+                    Today
+                  </Button>
+                ) : null}
+              </div>
             </div>
             {searchControls ? <div className="w-full">{searchControls}</div> : null}
           </div>

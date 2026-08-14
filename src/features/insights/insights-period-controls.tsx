@@ -5,54 +5,82 @@ import { ChevronDown } from "lucide-react";
 import { PeriodStepper } from "@/components/ui/period-stepper";
 import type { HeatmapViewMode } from "@/features/insights/insights-tab";
 
+export function InsightsPeriodStepper({
+  monthCursor,
+  onMonthCursorChange,
+  perGoalViewMode,
+}: {
+  monthCursor: Date;
+  onMonthCursorChange: (next: Date) => void;
+  perGoalViewMode: HeatmapViewMode;
+}) {
+  return (
+    <PeriodStepper
+      onPrevious={() =>
+        onMonthCursorChange(
+          perGoalViewMode === "month"
+            ? subMonths(monthCursor, 1)
+            : subYears(monthCursor, 1)
+        )
+      }
+      onNext={() =>
+        onMonthCursorChange(
+          perGoalViewMode === "month"
+            ? addMonths(monthCursor, 1)
+            : addYears(monthCursor, 1)
+        )
+      }
+      center={
+        <span className="min-w-[120px] text-center text-sm font-medium text-muted-foreground">
+          {perGoalViewMode === "month"
+            ? format(monthCursor, "MMMM yyyy")
+            : format(monthCursor, "yyyy")}
+        </span>
+      }
+      previousAriaLabel="Previous period"
+      nextAriaLabel="Next period"
+    />
+  );
+}
+
 export function InsightsPeriodControls({
   monthCursor,
   onMonthCursorChange,
   perGoalViewMode,
   onPerGoalViewModeChange,
+  includeStepper = true,
+  viewModeSelectId = "insights-shared-goal-stats-view-mode",
 }: {
   monthCursor: Date;
   onMonthCursorChange: (next: Date) => void;
   perGoalViewMode: HeatmapViewMode;
   onPerGoalViewModeChange: (mode: HeatmapViewMode) => void;
+  includeStepper?: boolean;
+  viewModeSelectId?: string;
 }) {
   return (
-    <div className="flex flex-wrap items-end justify-center gap-3">
-      <PeriodStepper
-        onPrevious={() =>
-          onMonthCursorChange(
-            perGoalViewMode === "month"
-              ? subMonths(monthCursor, 1)
-              : subYears(monthCursor, 1)
-          )
-        }
-        onNext={() =>
-          onMonthCursorChange(
-            perGoalViewMode === "month"
-              ? addMonths(monthCursor, 1)
-              : addYears(monthCursor, 1)
-          )
-        }
-        center={
-          <span className="min-w-[120px] text-center text-sm font-medium text-muted-foreground">
-            {perGoalViewMode === "month"
-              ? format(monthCursor, "MMMM yyyy")
-              : format(monthCursor, "yyyy")}
-          </span>
-        }
-        previousAriaLabel="Previous period"
-        nextAriaLabel="Next period"
-      />
+    <div
+      className={
+        includeStepper ? "flex flex-wrap items-end justify-center gap-3" : undefined
+      }
+    >
+      {includeStepper ? (
+        <InsightsPeriodStepper
+          monthCursor={monthCursor}
+          onMonthCursorChange={onMonthCursorChange}
+          perGoalViewMode={perGoalViewMode}
+        />
+      ) : null}
       <div className="space-y-1">
         <label
-          htmlFor="insights-shared-goal-stats-view-mode"
+          htmlFor={viewModeSelectId}
           className="block text-xs text-muted-foreground"
         >
           View
         </label>
         <div className="relative w-[110px]">
           <select
-            id="insights-shared-goal-stats-view-mode"
+            id={viewModeSelectId}
             value={perGoalViewMode}
             onChange={(event) =>
               onPerGoalViewModeChange(event.target.value as HeatmapViewMode)
