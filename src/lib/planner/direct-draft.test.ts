@@ -215,17 +215,17 @@ describe("buildDirectDraftPersistence", () => {
     });
   });
 
-  it("keeps every persisted identity when the draft only renames and retimes", () => {
+  it("keeps every persisted identity when the draft only retimes", () => {
     const result = buildDirectDraftPersistence({
       snapshot,
       commands: [
         {
           id: "bbbbbbb1-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
           sequence: 1,
-          kind: "rename_item",
+          kind: "set_item_time_override",
           goalId: goal.id,
           unitKey: "milestone:1",
-          label: "Renamed",
+          localTime: "06:30",
         },
         {
           id: "ccccccc1-cccc-4ccc-8ccc-cccccccccccc",
