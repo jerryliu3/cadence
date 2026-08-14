@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { getGoalHorizonEndDate } from "@/lib/goals/definition-validation";
 
 interface GoalDateRangeFieldsProps {
   startDate: string;
@@ -31,6 +31,7 @@ export function GoalDateRangeFields({
   startDateActions,
   endDateActions,
 }: GoalDateRangeFieldsProps) {
+  const maxEndDate = startDate ? getGoalHorizonEndDate(startDate) ?? undefined : undefined;
   return (
     <div className="grid grid-cols-1 gap-3 min-[430px]:grid-cols-2">
       <div className="space-y-2">
@@ -55,6 +56,7 @@ export function GoalDateRangeFields({
           id={endDateId}
           type="date"
           value={endDate}
+          max={maxEndDate}
           onChange={(event) => onEndDateChange(event.target.value)}
           required={requiresEndDate}
           className="h-9 min-w-0"
