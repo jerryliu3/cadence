@@ -686,7 +686,7 @@ export function TodayTab({
             <CardHeader className="pb-3">
               <div className="flex items-start justify-between gap-2">
                 <div>
-                  <CardTitle className="text-xl">Past</CardTitle>
+                  <CardTitle>Past</CardTitle>
                   <CardDescription>Review upcoming, ended, and archived goals.</CardDescription>
                 </div>
                 {hideTabList ? (

@@ -47,14 +47,15 @@ export function TodayHeaderCard({
           <div className="flex w-full flex-col gap-2">
             <div
               data-title-date-row="true"
-              className="grid w-full grid-cols-[1fr_auto_1fr] items-center gap-2"
+              className="grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-1.5 sm:gap-2"
             >
-              <div className="flex min-w-0 items-center gap-2">
+              <div className="flex min-w-0 items-center gap-1.5 sm:gap-2">
                 <Sparkles className="size-4 shrink-0 text-primary" />
-                <CardTitle className="text-xl">{weekdayTitle}</CardTitle>
+                <CardTitle className="whitespace-nowrap">{weekdayTitle}</CardTitle>
               </div>
-              <div className="justify-self-center">
+              <div className="min-w-0 justify-self-center">
                 <PeriodStepper
+                  className="min-w-0 gap-1 sm:gap-2"
                   onPrevious={onGoToPreviousDate}
                   onNext={onGoToNextDate}
                   center={
@@ -62,13 +63,14 @@ export function TodayHeaderCard({
                       value={viewDate}
                       onValueChange={(value) => onViewDateChange(value || todayLocalDate)}
                       aria-label="Checklist date"
+                      className="w-[8.75rem] sm:w-[170px]"
                     />
                   }
                   previousAriaLabel="Previous day"
                   nextAriaLabel="Next day"
                 />
               </div>
-              <div className="flex items-center justify-end gap-2">
+              <div className="flex shrink-0 items-center justify-end gap-1.5 sm:gap-2">
                 {datePickerControls ? <div className="shrink-0">{datePickerControls}</div> : null}
                 {!viewingToday ? (
                   <Button type="button" variant="ghost" size="sm" onClick={onResetToToday}>
