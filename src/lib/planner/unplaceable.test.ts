@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { Goal } from "@/lib/goals/types";
 import { computeRequirementFingerprint } from "@/lib/planner/requirements";
 import {
+  buildPlannerGoalLockSignature,
   isPlannerGoalUnplaceableRecordValid,
   summarizePlannerGoalUnplaceableRecords,
   type PlannerGoalUnplaceableRecord,
@@ -181,5 +182,106 @@ describe("planner unplaceable helpers", () => {
         reason: "invalid_lock",
       }),
     ]);
+  });
+});
+
+describe("buildPlannerGoalLockSignature", () => {
+  // Prepare writes the signature from preparation-horizon items while the
+  // context loader reads it back. If either side narrowed its input set to the
+  // visible window, records would look permanently invalid and the shortfall
+  // banner would never render. These cases pin the horizon-parity contract.
+  const inHorizonEntries = [
+    { unitKey: "milestone:1", scheduledDate: "2026-08-10", locked: false },
+    { unitKey: "milestone:2", scheduledDate: "2026-11-04", locked: false },
+    { unitKey: "milestone:3", scheduledDate: "2027-03-19", locked: false },
+  ];
+
+  it("changes when a lock flips on a session outside the visible month", () => {
+    const before = buildPlannerGoalLockSignature(inHorizonEntries);
+    const after = buildPlannerGoalLockSignature(
+      inHorizonEntries.map((entry) =>
+        entry.unitKey === "milestone:3" ? { ...entry, locked: true } : entry
+      )
+    );
+
+    expect(after).not.toBe(before);
+  });
+
+  it("differs between the full horizon set and a visible-window subset", () => {
+    const visibleOnly = inHorizonEntries.filter((entry) =>
+      entry.scheduledDate.startsWith("2026-08")
+    );
+
+    expect(buildPlannerGoalLockSignature(visibleOnly)).not.toBe(
+      buildPlannerGoalLockSignature(inHorizonEntries)
+    );
+  });
+
+  it("is independent of input ordering", () => {
+    expect(
+      buildPlannerGoalLockSignature([...inHorizonEntries].reverse())
+    ).toBe(buildPlannerGoalLockSignature(inHorizonEntries));
+  });
+
+  it("changes when a session moves, since placement affects solvability", () => {
+    const moved = inHorizonEntries.map((entry) =>
+      entry.unitKey === "milestone:2"
+        ? { ...entry, scheduledDate: "2026-11-05" }
+        : entry
+    );
+
+    expect(buildPlannerGoalLockSignature(moved)).not.toBe(
+      buildPlannerGoalLockSignature(inHorizonEntries)
+    );
+  });
+
+  it("returns a stable value for a goal with no persisted sessions", () => {
+    expect(buildPlannerGoalLockSignature([])).toBe(
+      buildPlannerGoalLockSignature([])
+    );
+  });
+});
+
+describe("record validity under out-of-window lock changes", () => {
+  const entries = [
+    { unitKey: "milestone:1", scheduledDate: "2026-08-10", locked: false },
+    { unitKey: "milestone:9", scheduledDate: "2027-02-11", locked: false },
+  ];
+
+  it("invalidates a record when a lock changes on a far-future session", () => {
+    const plannerGoal = goal();
+    const storedSignature = buildPlannerGoalLockSignature(entries);
+    const stored = record({
+      requirementFingerprint: computeRequirementFingerprint(plannerGoal),
+      lockSignature: storedSignature,
+      effectiveSpanEnd: plannerGoal.end_date ?? "2027-07-31",
+      reason: "invalid_lock",
+    });
+
+    expect(
+      isPlannerGoalUnplaceableRecordValid({
+        record: stored,
+        goal: plannerGoal,
+        policyRevision: stored.policyRevision,
+        lockSignature: storedSignature,
+        preparationEnd: "2028-07-31",
+      })
+    ).toBe(true);
+
+    const afterUnlock = buildPlannerGoalLockSignature(
+      entries.map((entry) =>
+        entry.unitKey === "milestone:9" ? { ...entry, locked: true } : entry
+      )
+    );
+
+    expect(
+      isPlannerGoalUnplaceableRecordValid({
+        record: stored,
+        goal: plannerGoal,
+        policyRevision: stored.policyRevision,
+        lockSignature: afterUnlock,
+        preparationEnd: "2028-07-31",
+      })
+    ).toBe(false);
   });
 });

@@ -160,4 +160,93 @@ describe("buildDirectDraftPersistence", () => {
       })
     );
   });
+
+
+  // The direct path is selected whenever a draft carries any command and no
+  // policy override, so non-move commands have to survive it on their own.
+  it("projects a time override onto a draft with no move commands", () => {
+    const result = buildDirectDraftPersistence({
+      snapshot,
+      commands: [
+        {
+          id: "88888888-8888-4888-8888-888888888888",
+          sequence: 1,
+          kind: "set_item_time_override",
+          goalId: goal.id,
+          unitKey: "milestone:1",
+          localTime: "07:15",
+        },
+      ],
+      asOfDate: "2026-08-05",
+    });
+
+    expect(result.find((item) => item.unit_key === "milestone:1")).toMatchObject({
+      scheduled_time_override: "07:15",
+      scheduled_date: "2026-08-10",
+    });
+  });
+
+  it("clears a time override without disturbing the scheduled date", () => {
+    const result = buildDirectDraftPersistence({
+      snapshot,
+      commands: [
+        {
+          id: "99999999-9999-4999-8999-999999999999",
+          sequence: 1,
+          kind: "set_item_time_override",
+          goalId: goal.id,
+          unitKey: "milestone:1",
+          localTime: "07:15",
+        },
+        {
+          id: "aaaaaaa1-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          sequence: 2,
+          kind: "clear_item_time_override",
+          goalId: goal.id,
+          unitKey: "milestone:1",
+        },
+      ],
+      asOfDate: "2026-08-05",
+    });
+
+    expect(result.find((item) => item.unit_key === "milestone:1")).toMatchObject({
+      scheduled_time_override: null,
+      scheduled_date: "2026-08-10",
+    });
+  });
+
+  it("keeps every persisted identity when the draft only renames and retimes", () => {
+    const result = buildDirectDraftPersistence({
+      snapshot,
+      commands: [
+        {
+          id: "bbbbbbb1-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          sequence: 1,
+          kind: "rename_item",
+          goalId: goal.id,
+          unitKey: "milestone:1",
+          label: "Renamed",
+        },
+        {
+          id: "ccccccc1-cccc-4ccc-8ccc-cccccccccccc",
+          sequence: 2,
+          kind: "set_item_time_override",
+          goalId: goal.id,
+          unitKey: "milestone:2",
+          localTime: "18:00",
+        },
+      ],
+      asOfDate: "2026-08-05",
+    });
+
+    expect(
+      result.map((item) => [item.unit_key, item.scheduled_date])
+    ).toEqual([
+      ["milestone:1", "2026-08-10"],
+      ["milestone:2", "2026-09-10"],
+    ]);
+    expect(result.find((item) => item.unit_key === "milestone:2")).toMatchObject({
+      scheduled_time_override: "18:00",
+    });
+  });
 });

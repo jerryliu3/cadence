@@ -120,7 +120,7 @@ import {
   getScopeDateRange,
   getWindowState,
 } from "@/lib/planner/dates";
-import { buildPlannerConfirmationHash } from "@/lib/planner/publish-payload";
+import { buildPlannerSaveRequestBody } from "@/features/planner/planner-save-request";
 import {
   createDefaultPlannerPolicy,
   type PlannerPolicy,
@@ -1950,28 +1950,19 @@ export function CalendarSurface({
         toast.error(nonPublishablePreviewMessage(savePreview));
         return;
       }
-      const confirmationHash = savePreview.solver.confirmationRequired
-        ? buildPlannerConfirmationHash({
-            previewHash: savePreview.generationInputHash,
-            issueCodes: savePreview.solver.issueCodes,
-          })
-        : null;
+      const saveRequestBody = buildPlannerSaveRequestBody({
+        expectedDigest,
+        saveWindow: draftSaveWindow,
+        preview: savePreview,
+        policy: effectiveDraftPolicy,
+        draftCommands: draftSaveCommands,
+      });
       try {
         payload = await postJson<
           PlannerErrorPayload & {
             replayed?: boolean;
           }
-        >("/api/planner/save", {
-          expectedDigest,
-          startDate: draftSaveWindow.start,
-          endDate: draftSaveWindow.end,
-          previewHash: savePreview.generationInputHash,
-          eligibilityMode: savePreview.eligibilityMode,
-          confirmationHash,
-          policy: effectiveDraftPolicy ?? undefined,
-          preserveExistingAssignments: savePreview.preserveExistingAssignments,
-          draftCommands: draftSaveCommands,
-        });
+        >("/api/planner/save", saveRequestBody);
       } catch (error) {
         if (isApiClientError(error) && error.code === "planner_not_publishable") {
           const issueCodes = Array.isArray(error.details?.issueCodes)
