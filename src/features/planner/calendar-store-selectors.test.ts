@@ -193,6 +193,8 @@ describe("calendar store selectors", () => {
       ]),
       completionFactUnitsByGoalDate: new Map(),
       completionFactMarkersByDate: new Map(),
+      unplaceableGoalSummaries: [],
+      totalUnplacedCount: 0,
     };
 
     const projectionByDay = selectPlannerCalendarDayProjectionsByDay({
@@ -337,5 +339,38 @@ describe("calendar store selectors", () => {
       `[planner] Missing day projection for ${missingDay}. Verify projectionDays includes every rendered/accessed day.`
     );
     warnSpy.mockRestore();
+  });
+
+  it("derives unplaceable summaries from durable planner state", () => {
+    const context = buildContext([
+      unit({ goalId: "goal-a", unitKey: "total:1", scheduledDate: "2026-08-05" }),
+    ]);
+    context.unplaceableGoals = [
+      {
+        goalId: "goal-a",
+        requirementFingerprint: "a".repeat(64),
+        policyRevision: 1,
+        effectiveSpanEnd: "2027-07-31",
+        unplacedCount: 3,
+        reason: "capacity",
+      },
+    ];
+    const projection = selectPlannerCalendarStoreProjection({
+      context,
+      effectivePreview: context.preview,
+      draftCommandState: commandState([]),
+      activeGoalsByPlanGoalId: new Map(),
+      activeGoalsByOriginalGoalId: new Map(),
+    });
+
+    expect(projection.totalUnplacedCount).toBe(3);
+    expect(projection.unplaceableGoalSummaries).toEqual([
+      expect.objectContaining({
+        goalId: "goal-a",
+        title: "Goal A",
+        unplacedCount: 3,
+        reason: "capacity",
+      }),
+    ]);
   });
 });

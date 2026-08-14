@@ -17,6 +17,7 @@ import {
   useRef,
   useState,
 } from "react";
+import Link from "next/link";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { AnchoredPopupCard } from "@/components/ui/anchored-popup-card";
@@ -201,6 +202,7 @@ export function CalendarSurface({
   const [setupLoading, setSetupLoading] = useState(false);
   const [saveLoading, setSaveLoading] = useState(false);
   const [resetLoading, setResetLoading] = useState(false);
+  const [rebuildLoading, setRebuildLoading] = useState(false);
   const [fullResetLoading, setFullResetLoading] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [draftPolicy, setDraftPolicy] = useState<PlannerPolicy | null>(null);
@@ -285,7 +287,6 @@ export function CalendarSurface({
       setLoading(true);
     }
     let contextPayload: PlannerContextPayload;
-    let preparedThisLoad = false;
     try {
       const parsedMonth = parseMonth(month);
       const visibleStart = getScopeDateRange(
@@ -295,7 +296,6 @@ export function CalendarSurface({
         format(addMonths(parsedMonth, 1), "yyyy-MM")
       ).end;
       const shouldPrepare = forcePrepare || !calendarPreparedRef.current;
-      preparedThisLoad = shouldPrepare;
       contextPayload = shouldPrepare
         ? await postJson<PlannerContextPayload>("/api/planner/prepare", {
             scopeMonth: month,
@@ -333,16 +333,6 @@ export function CalendarSurface({
 
     setContext(contextPayload);
     writeTabDataCache(plannerContextCacheKey, contextPayload);
-    if (preparedThisLoad && (contextPayload.prepareWarnings?.length ?? 0) > 0) {
-      const warningGoalTitles = contextPayload.prepareWarnings
-        ?.slice(0, 2)
-        .map((warning) => contextPayload.goalTitles[warning.goalId] ?? warning.goalId)
-        .join(", ");
-      const moreCount = (contextPayload.prepareWarnings?.length ?? 0) - 2;
-      toast(
-        `Some goals could not be fully auto-prepared. Kept existing sessions for ${warningGoalTitles}${moreCount > 0 ? ` and ${moreCount} more` : ""}.`
-      );
-    }
     if (contextPayload.preferences?.timezone) {
       setSetupTimezone(contextPayload.preferences.timezone);
       setSetupWeekStartsOn(
@@ -540,7 +530,13 @@ export function CalendarSurface({
     entriesByDate,
     entryByKey,
     entryDayByKey,
+    unplaceableGoalSummaries,
+    totalUnplacedCount,
   } = calendarStoreProjection;
+  const primaryUnplaceableGoal = unplaceableGoalSummaries[0] ?? null;
+  const invalidLockGoalCount = unplaceableGoalSummaries.filter(
+    (entry) => entry.reason === "invalid_lock"
+  ).length;
   const effectiveSelectedDay = localSelectedDay;
   const dayPreviewDay = dayPreview?.day ?? null;
   const projectionDays = useMemo(() => {
@@ -2145,6 +2141,36 @@ export function CalendarSurface({
     }
   };
 
+  const rebuildSchedule = async () => {
+    if (rebuildLoading) {
+      return;
+    }
+    setRebuildLoading(true);
+    try {
+      handlePlannerMutation();
+      const refreshed = await withPlannerRefreshTimeout({
+        operation: loadContext({
+          showLoading: false,
+          toastOnError: false,
+          forcePrepare: true,
+        }),
+        timeoutMessage:
+          "Schedule rebuild ran, but calendar refresh timed out. Please refresh the page.",
+      });
+      if (!refreshed) {
+        toast.error(
+          "Schedule rebuild ran, but calendar refresh failed. Please refresh the page."
+        );
+        return;
+      }
+      toast.success("Schedule rebuilt.");
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, "Schedule rebuild failed."));
+    } finally {
+      setRebuildLoading(false);
+    }
+  };
+
   const discardDraftChanges = () => {
     if (!hasDraftSession) {
       return;
@@ -2611,6 +2637,17 @@ export function CalendarSurface({
                 <Button
                   type="button"
                   size="sm"
+                  variant="outline"
+                  onClick={rebuildSchedule}
+                  disabled={rebuildLoading || loading}
+                >
+                  {rebuildLoading ? "Rebuilding..." : "Rebuild schedule"}
+                </Button>
+              ) : null}
+              {!plannerReadOnly && canShowSaveAction ? (
+                <Button
+                  type="button"
+                  size="sm"
                   onClick={savePlan}
                   title={draftSaveBlockedMessage ?? undefined}
                   disabled={
@@ -2707,6 +2744,45 @@ export function CalendarSurface({
 
       {partnerOverlayError ? (
         <p className="text-xs text-muted-foreground">{partnerOverlayError}</p>
+      ) : null}
+      {unplaceableGoalSummaries.length > 0 && !showBlockingLoading && !error ? (
+        <div className="rounded-md border border-yellow-300 bg-yellow-100 px-3 py-2 text-xs text-orange-900 dark:border-yellow-300 dark:bg-yellow-100 dark:text-orange-900">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p>
+              {invalidLockGoalCount > 0
+                ? `\u26A0 ${unplaceableGoalSummaries.length} goal${
+                    unplaceableGoalSummaries.length === 1 ? "" : "s"
+                  } need attention (${invalidLockGoalCount} locked conflict${
+                    invalidLockGoalCount === 1 ? "" : "s"
+                  }, ${totalUnplacedCount} unresolved session${
+                    totalUnplacedCount === 1 ? "" : "s"
+                  }).`
+                : `\u26A0 ${unplaceableGoalSummaries.length} goal${
+                    unplaceableGoalSummaries.length === 1 ? "" : "s"
+                  } are not fully scheduled (${totalUnplacedCount} unresolved session${
+                    totalUnplacedCount === 1 ? "" : "s"
+                  }).`}
+            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              {primaryUnplaceableGoal ? (
+                <Button asChild variant="outline" size="sm" className="h-7 text-xs">
+                  <Link href={`/goals/${primaryUnplaceableGoal.goalId}`}>
+                    Edit this goal
+                  </Link>
+                </Button>
+              ) : null}
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-7 text-xs"
+                onClick={() => setSettingsOpen(true)}
+              >
+                Change rest days for all goals
+              </Button>
+            </div>
+          </div>
+        </div>
       ) : null}
       {showBlockingLoading ? (
         <LoadingCard
