@@ -105,4 +105,29 @@ describe("TabNav", () => {
       "aria-current"
     );
   });
+
+  it("follows the real route once pathname catches up after an optimistic click", () => {
+    mockPathname = "/insights";
+    const { rerender } = render(<TabNav mobile />);
+
+    fireEvent.click(screen.getByRole("link", { name: "Checklist" }));
+    mockPathname = "/checklist";
+    rerender(<TabNav mobile />);
+
+    expect(screen.getByRole("link", { name: "Checklist" })).toHaveAttribute(
+      "aria-current",
+      "page"
+    );
+
+    mockPathname = "/social";
+    rerender(<TabNav mobile />);
+
+    expect(screen.getByRole("link", { name: "Challenges" })).toHaveAttribute(
+      "aria-current",
+      "page"
+    );
+    expect(screen.getByRole("link", { name: "Checklist" })).not.toHaveAttribute(
+      "aria-current"
+    );
+  });
 });
