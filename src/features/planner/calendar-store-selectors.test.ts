@@ -101,7 +101,6 @@ describe("calendar store selectors", () => {
 
     const effectiveDraftCommands = selectEffectiveDraftCommands({
       draftCommandState: state,
-      scopeMonth: "2026-08",
       previewWorkUnits: [unit({ goalId: "goal-a", unitKey: "total:1", scheduledDate: "2026-08-05" })],
     });
 
@@ -223,7 +222,6 @@ describe("calendar store selectors", () => {
     const projection = selectPlannerCalendarStoreProjection({
       context,
       effectivePreview: context.preview,
-      currentScopeMonth: "2026-08",
       draftCommandState,
       visibleMonthContexts: {},
       activeGoalsByPlanGoalId: new Map(),

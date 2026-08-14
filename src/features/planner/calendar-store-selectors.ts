@@ -97,11 +97,9 @@ export function selectDraftCommandsForPreviewEntries({
 
 export function selectEffectiveDraftCommands({
   draftCommandState,
-  scopeMonth,
   previewWorkUnits,
 }: {
   draftCommandState: DraftCommandState;
-  scopeMonth: string | null;
   previewWorkUnits: PlannerWorkUnit[] | undefined | null;
 }) {
   return selectDraftCommandsForPreviewEntries({
@@ -148,7 +146,6 @@ export function selectVisibleDraftItemEditsByMonth({
 export function selectPlannerCalendarStoreProjection({
   context,
   effectivePreview,
-  currentScopeMonth,
   draftCommandState,
   visibleMonthContexts,
   activeGoalsByPlanGoalId,
@@ -156,7 +153,6 @@ export function selectPlannerCalendarStoreProjection({
 }: {
   context: PlannerContextPayload | null;
   effectivePreview: PlannerContextPayload["preview"] | null;
-  currentScopeMonth: string | null;
   draftCommandState: DraftCommandState;
   visibleMonthContexts: Record<string, PlannerVisibleMonthContextPayload>;
   activeGoalsByPlanGoalId: Map<string, PlannerActiveGoalSnapshot>;
@@ -164,7 +160,6 @@ export function selectPlannerCalendarStoreProjection({
 }): PlannerCalendarStoreProjection {
   const effectiveDraftCommands = selectEffectiveDraftCommands({
     draftCommandState,
-    scopeMonth: currentScopeMonth,
     previewWorkUnits: effectivePreview?.workUnits,
   });
   const effectiveDraftItemEdits = projectPlannerDraftCommands(
