@@ -214,10 +214,6 @@ export function buildDirectDraftPersistence({
       assignment.scheduledTimeOverride ?? null,
     ])
   );
-  const projectedLabelByKey = new Map<
-    string,
-    string | null
-  >();
 
   for (const command of sortPlannerDraftCommands(commands)) {
     const key = assignmentKey(command);
@@ -272,10 +268,6 @@ export function buildDirectDraftPersistence({
       activeItem.classification === "satisfied_elsewhere" ||
       assignment.scheduledDate === null ||
       assignment.scheduledDate < asOfDate;
-    if (command.kind === "rename_item") {
-      projectedLabelByKey.set(key, command.label);
-      continue;
-    }
     if (command.kind === "set_item_time_override") {
       if (itemIsImmovable) {
         throw new PlannerDirectDraftValidationError(
@@ -396,7 +388,6 @@ export function buildDirectDraftPersistence({
     return {
       goal_id: assignment.goalId,
       unit_key: assignment.unitKey,
-      label: projectedLabelByKey.get(key) ?? null,
       original_scheduled_date:
         activeItemByKey.get(key)?.original_scheduled_date ??
         assignment.scheduledDate,
