@@ -128,7 +128,7 @@ describe("planner context preview route", () => {
     expect(response.status).toBe(500);
     expect(mocks.runPlannerKernel).toHaveBeenCalledWith(
       expect.objectContaining({
-        preserveExistingAssignments: false,
+        preserveExistingAssignments: true,
       })
     );
   });
