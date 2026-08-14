@@ -473,7 +473,6 @@ export function CalendarSurface({
       selectPlannerCalendarStoreProjection({
         context,
         effectivePreview,
-        currentScopeMonth,
         draftCommandState,
         visibleMonthContexts,
         activeGoalsByPlanGoalId,
@@ -483,7 +482,6 @@ export function CalendarSurface({
       activeGoalsByOriginalGoalId,
       activeGoalsByPlanGoalId,
       context,
-      currentScopeMonth,
       draftCommandState,
       effectivePreview,
       visibleMonthContexts,

@@ -592,8 +592,8 @@ export function runPlannerKernel(
       completions,
       asOfDate: rawInput.asOfDate,
       previousCompletionToUnit,
-      // Historical scope re-runs should not anchor credits to month-local
-      // scheduled dates, which can differ between scope-month base plans.
+      // Historical window re-runs should not anchor credits to window-local
+      // scheduled dates, which can differ between date-window base plans.
       allowScheduledDateMatching: scopeState !== "historical",
     });
     const ordinalAllocation =
