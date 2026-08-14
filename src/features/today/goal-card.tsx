@@ -6,7 +6,6 @@ import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { CompletionToggle } from "@/components/ui/completion-toggle";
-import { GoalEndMonthBadge } from "@/features/goals/goal-end-month-badge";
 import { getCategoryBadgeClass, getGoalCategoryLabel } from "@/lib/goals/category";
 import type { GoalProgressSnapshot } from "@/lib/goals/progress";
 import {
@@ -87,20 +86,15 @@ export function GoalCard({
 
       <div className="min-w-0 flex-1 space-y-0.5">
         <div className="flex items-center gap-2">
-          <span
-            className="size-2 rounded-full"
-            style={{ backgroundColor: goal.color ?? "var(--muted-foreground)" }}
-          />
-          <h3 className="truncate text-sm font-semibold">{goal.title}</h3>
-          <GoalEndMonthBadge endDate={goal.end_date} />
           <Badge
             variant="outline"
-            className={`h-5 rounded-md px-1.5 text-[11px] font-semibold ${getCategoryBadgeClass(
+            className={`h-5 shrink-0 rounded-md px-1.5 text-[11px] font-semibold ${getCategoryBadgeClass(
               goal.category_key ?? goal.category
             )}`}
           >
             {goalCategoryLabel}
           </Badge>
+          <h3 className="truncate text-sm font-semibold">{goal.title}</h3>
           {progress?.outcome === "achieved" ? (
             <Badge variant="secondary">Achieved</Badge>
           ) : progress?.outcome === "ended_with_shortfall" ? (

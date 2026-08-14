@@ -1,4 +1,4 @@
-import { isAfter, isBefore, parseISO, startOfDay } from "date-fns";
+import { format, isAfter, isBefore, parseISO, startOfDay } from "date-fns";
 import { toLocalDateString } from "@/lib/dates/day";
 import {
   getAnchoredPeriod,
@@ -125,7 +125,11 @@ export function getFrequencySummary(goal: Goal, completionCount: number): string
   }
 
   if (isTargetedRecurringGoal(goal)) {
-    return `${completionCount}/${goal.target_count} total completions by deadline`;
+    if (goal.end_date) {
+      const deadlineLabel = format(parseISO(goal.end_date), "MMM d, yyyy");
+      return `${completionCount}/${goal.target_count} total completions by ${deadlineLabel}`;
+    }
+    return `${completionCount}/${goal.target_count} total completions`;
   }
 
   const intervalLabel = getRecurringIntervalLabel(goal);

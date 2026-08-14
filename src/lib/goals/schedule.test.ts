@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   getCompletionsForCurrentPeriod,
+  getFrequencySummary,
   isGoalDoneForCurrentPeriod,
   isGoalManuallyArchived,
 } from "@/lib/goals/schedule";
@@ -135,5 +136,25 @@ describe("goal schedule semantics", () => {
     });
 
     expect(isGoalManuallyArchived(goal)).toBe(true);
+  });
+
+  it("uses the deadline date in targeted recurring summaries", () => {
+    const goal = buildGoal({
+      target_count: 10,
+      end_date: "2026-12-31",
+    });
+
+    expect(getFrequencySummary(goal, 3)).toBe(
+      "3/10 total completions by Dec 31, 2026"
+    );
+  });
+
+  it("omits deadline wording when a targeted recurring goal has no end date", () => {
+    const goal = buildGoal({
+      target_count: 10,
+      end_date: null,
+    });
+
+    expect(getFrequencySummary(goal, 3)).toBe("3/10 total completions");
   });
 });
