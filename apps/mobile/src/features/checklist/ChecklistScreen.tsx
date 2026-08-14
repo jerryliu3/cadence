@@ -27,7 +27,6 @@ export function ChecklistScreen() {
       ) : null}
       <FlashList
         data={goals}
-        estimatedItemSize={72}
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => {
           const done = completedToday.has(item.id);
