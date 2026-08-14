@@ -1,10 +1,20 @@
+import { FlashList } from "@shopify/flash-list";
 import { Link } from "expo-router";
+import { useMemo } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useTheme } from "../../theme";
 import { Screen } from "../../ui/screen";
 import { useDuo, useDuoSurfaceScope } from "../duo/DuoProvider";
 import { DuoScopeSegmentedControl } from "../duo/DuoScopeSegmentedControl";
-import { resolveMobileDuoLaneSubjects } from "../duo/lane-subjects";
+import {
+  partnerLaneSubject,
+  resolveMobileDuoLaneSubjects,
+  viewerLaneSubject,
+} from "../duo/lane-subjects";
+import {
+  buildChecklistListItems,
+  type ChecklistListItem,
+} from "./checklist-list-model";
 import { resolvePartnerChecklistStripState } from "./checklist-lane-data";
 import { useChecklistClock, useChecklistLaneData } from "./use-checklist-data";
 
@@ -15,31 +25,21 @@ export function ChecklistScreen() {
   const activePartner = hasActivePartner ? state.activePartner : null;
   const { asOfDate } = useChecklistClock();
   const partnerId = activePartner?.partnerId ?? null;
-  const partnerName =
-    activePartner?.partnerDisplayName ?? activePartner?.partnerUsername ?? "Partner";
-  const partnerSubject = {
-    id: "partner" as const,
-    label: partnerName,
-    userId: partnerId ?? undefined,
-    readOnly: true,
-    avatarUrl: activePartner?.partnerAvatarUrl ?? null,
-  };
+  const partnerSubject = partnerLaneSubject(activePartner);
+  const viewerSubject = viewerLaneSubject();
+  const partnerName = partnerSubject?.label ?? "Partner";
   const viewerLane = useChecklistLaneData({
-    subject: {
-      id: "viewer",
-      label: "Mine",
-      readOnly: false,
-    },
+    subject: viewerSubject,
     partnerId,
     enabled: true,
   });
   const partnerLane = useChecklistLaneData({
-    subject: partnerSubject,
+    subject: partnerSubject ?? viewerSubject,
     partnerId,
     enabled: Boolean(activePartner) && scope !== "me",
   });
   const partnerStripLane = useChecklistLaneData({
-    subject: partnerSubject,
+    subject: partnerSubject ?? viewerSubject,
     partnerId,
     enabled: Boolean(activePartner) && scope === "me",
     includeGoals: false,
@@ -48,6 +48,14 @@ export function ChecklistScreen() {
     scope,
     activePartner,
   });
+  const laneDataById = useMemo(
+    () =>
+      ({
+        viewer: viewerLane,
+        partner: partnerLane,
+      }) as const,
+    [partnerLane, viewerLane]
+  );
   const partnerStripState = resolvePartnerChecklistStripState({
     hasActivePartner: Boolean(activePartner),
     isLoading: partnerStripLane.loading,
@@ -55,17 +63,61 @@ export function ChecklistScreen() {
     progress: partnerStripLane.progress,
     asOfDate,
   });
+  const summaryStrip = useMemo(
+    () =>
+      scope === "me" && activePartner
+        ? partnerStripState.status === "loading"
+          ? ({ status: "loading", partnerName } as const)
+          : partnerStripState.status === "unavailable"
+            ? ({ status: "unavailable", partnerName } as const)
+            : partnerStripState.status === "ready"
+              ? ({
+                  status: "ready",
+                  partnerName,
+                  completionCount: partnerStripState.completionCount,
+                  goalCount: partnerStripState.goalCount,
+                } as const)
+              : null
+        : null,
+    [activePartner, partnerName, partnerStripState, scope]
+  );
+  const listItems = useMemo(
+    () =>
+      buildChecklistListItems({
+        scope,
+        asOfDate,
+        showNewGoalAction: scope !== "partner",
+        summaryStrip,
+        lanes: lanes.map((lane) => ({
+          lane: {
+            id: lane.id,
+            label: lane.label,
+            readOnly: lane.readOnly,
+          },
+          laneData: laneDataById[lane.id],
+        })),
+      }),
+    [asOfDate, laneDataById, lanes, scope, summaryStrip]
+  );
+  const renderItem = ({ item }: { item: ChecklistListItem }) => {
+    if (item.type === "date") {
+      return (
+        <Text style={{ color: theme.colors.mutedForeground }}>
+          {item.asOfDate}
+        </Text>
+      );
+    }
 
-  return (
-    <Screen title="Checklist">
-      <DuoScopeSegmentedControl surface="checklist" />
-      <Text style={{ color: theme.colors.mutedForeground }}>{asOfDate}</Text>
-      {scope !== "partner" ? (
+    if (item.type === "new_goal") {
+      return (
         <Link href="/goals/new" style={{ color: theme.colors.primary, fontWeight: "700" }}>
           New goal
         </Link>
-      ) : null}
-      {scope === "me" && activePartner ? (
+      );
+    }
+
+    if (item.type === "summary_strip") {
+      return (
         <View
           style={[
             styles.summaryStrip,
@@ -74,18 +126,16 @@ export function ChecklistScreen() {
         >
           <View style={styles.summaryCopy}>
             <Text style={{ color: theme.colors.foreground, fontWeight: "700" }}>
-              {partnerName}
+              {item.summary.partnerName}
             </Text>
             <Text style={{ color: theme.colors.mutedForeground }}>
-              {partnerStripState.status === "loading"
+              {item.summary.status === "loading"
                 ? "Loading partner checklist..."
-                : partnerStripState.status === "unavailable"
+                : item.summary.status === "unavailable"
                   ? "Partner checklist is unavailable."
-                  : partnerStripState.status === "ready"
-                    ? `${partnerStripState.completionCount} completion${
-                        partnerStripState.completionCount === 1 ? "" : "s"
-                      } today · ${partnerStripState.goalCount} goals`
-                    : ""}
+                  : `${item.summary.completionCount} completion${
+                      item.summary.completionCount === 1 ? "" : "s"
+                    } today · ${item.summary.goalCount} goals`}
             </Text>
           </View>
           <Pressable
@@ -99,123 +149,129 @@ export function ChecklistScreen() {
             </Text>
           </Pressable>
         </View>
-      ) : null}
-      {lanes.map((lane) => {
-        const laneData = lane.id === "viewer" ? viewerLane : partnerLane;
-        const partnerUnavailable = lane.id === "partner" && laneData.error;
-        return (
-          <View key={lane.id} style={styles.section}>
-            {scope !== "me" ? (
-              <View style={styles.headingRow}>
-                <Text style={{ color: theme.colors.foreground, fontWeight: "700" }}>
-                  {lane.label}
-                </Text>
-                {lane.readOnly ? (
-                  <Text
-                    style={[
-                      styles.readOnlyTag,
-                      {
-                        borderColor: theme.colors.border,
-                        color: theme.colors.mutedForeground,
-                      },
-                    ]}
-                  >
-                    Read-only
-                  </Text>
-                ) : null}
-              </View>
-            ) : null}
-            {laneData.loading ? (
+      );
+    }
+
+    if (item.type === "lane_heading") {
+      return (
+        <View style={styles.headingRow}>
+          <Text style={{ color: theme.colors.foreground, fontWeight: "700" }}>
+            {item.label}
+          </Text>
+          {item.readOnly ? (
+            <Text
+              style={[
+                styles.readOnlyTag,
+                {
+                  borderColor: theme.colors.border,
+                  color: theme.colors.mutedForeground,
+                },
+              ]}
+            >
+              Read-only
+            </Text>
+          ) : null}
+        </View>
+      );
+    }
+
+    if (item.type === "lane_message") {
+      return (
+        <Text
+          style={{
+            color:
+              item.tone === "destructive"
+                ? theme.colors.destructive
+                : theme.colors.mutedForeground,
+          }}
+        >
+          {item.text}
+        </Text>
+      );
+    }
+
+    const laneData = laneDataById[item.laneId];
+    if (item.type === "goal_row") {
+      return (
+        <View
+          style={[
+            styles.row,
+            { borderColor: theme.colors.border, backgroundColor: theme.colors.card },
+          ]}
+        >
+          {item.interactive ? (
+            <Pressable
+              disabled={laneData.toggling}
+              onPress={() => {
+                if (!laneData.toggle) {
+                  return;
+                }
+                void laneData.toggle({
+                  goalId: item.goalId,
+                  desiredFactState: item.done ? "absent" : "present",
+                });
+              }}
+              style={[
+                styles.toggle,
+                {
+                  backgroundColor: item.done ? theme.colors.primary : theme.colors.secondary,
+                },
+              ]}
+            >
+              <Text style={{ color: theme.colors.primaryForeground }}>
+                {item.done ? "✓" : ""}
+              </Text>
+            </Pressable>
+          ) : (
+            <View
+              style={[
+                styles.readOnlyStatus,
+                {
+                  borderColor: theme.colors.border,
+                  backgroundColor: theme.colors.secondary,
+                },
+              ]}
+            >
               <Text style={{ color: theme.colors.mutedForeground }}>
-                Loading {lane.label.toLowerCase()} checklist...
+                {item.done ? "✓" : ""}
               </Text>
-            ) : partnerUnavailable ? (
+            </View>
+          )}
+          {item.interactive ? (
+            <Link href={`/goals/${item.goalId}`} style={styles.titleWrap}>
+              <Text style={{ color: theme.colors.foreground, fontWeight: "600" }}>
+                {item.title}
+              </Text>
               <Text style={{ color: theme.colors.mutedForeground }}>
-                Partner checklist is unavailable.
+                {item.category}
               </Text>
-            ) : laneData.error ? (
-              <Text style={{ color: theme.colors.destructive }}>
-                {laneData.error instanceof Error
-                  ? laneData.error.message
-                  : "Could not load checklist."}
+            </Link>
+          ) : (
+            <View style={styles.titleWrap}>
+              <Text style={{ color: theme.colors.foreground, fontWeight: "600" }}>
+                {item.title}
               </Text>
-            ) : laneData.goals.length === 0 ? (
-              <Text style={{ color: theme.colors.mutedForeground }}>No goals yet.</Text>
-            ) : (
-              laneData.goals.map((goal) => {
-                const done = laneData.completedToday.has(goal.id);
-                return (
-                  <View
-                    key={goal.id}
-                    style={[
-                      styles.row,
-                      { borderColor: theme.colors.border, backgroundColor: theme.colors.card },
-                    ]}
-                  >
-                    {laneData.interactive ? (
-                      <Pressable
-                        disabled={laneData.toggling}
-                        onPress={() => {
-                          if (!laneData.toggle) {
-                            return;
-                          }
-                          void laneData.toggle({
-                            goalId: goal.id,
-                            desiredFactState: done ? "absent" : "present",
-                          });
-                        }}
-                        style={[
-                          styles.toggle,
-                          {
-                            backgroundColor: done ? theme.colors.primary : theme.colors.secondary,
-                          },
-                        ]}
-                      >
-                        <Text style={{ color: theme.colors.primaryForeground }}>
-                          {done ? "✓" : ""}
-                        </Text>
-                      </Pressable>
-                    ) : (
-                      <View
-                        style={[
-                          styles.readOnlyStatus,
-                          {
-                            borderColor: theme.colors.border,
-                            backgroundColor: theme.colors.secondary,
-                          },
-                        ]}
-                      >
-                        <Text style={{ color: theme.colors.mutedForeground }}>
-                          {done ? "✓" : ""}
-                        </Text>
-                      </View>
-                    )}
-                    {laneData.interactive ? (
-                      <Link href={`/goals/${goal.id}`} style={styles.titleWrap}>
-                        <Text style={{ color: theme.colors.foreground, fontWeight: "600" }}>
-                          {goal.title}
-                        </Text>
-                        <Text style={{ color: theme.colors.mutedForeground }}>
-                          {goal.category}
-                        </Text>
-                      </Link>
-                    ) : (
-                      <View style={styles.titleWrap}>
-                        <Text style={{ color: theme.colors.foreground, fontWeight: "600" }}>
-                          {goal.title}
-                        </Text>
-                        <Text style={{ color: theme.colors.mutedForeground }}>
-                          {goal.category}
-                        </Text>
-                      </View>
-                    )}
-                  </View>
-                );
-              })
-            )}
-          </View>
-        );
-      })}
+              <Text style={{ color: theme.colors.mutedForeground }}>
+                {item.category}
+              </Text>
+            </View>
+          )}
+        </View>
+      );
+    }
+
+    return null;
+  };
+
+  return (
+    <Screen title="Checklist" scroll={false}>
+      <DuoScopeSegmentedControl surface="checklist" />
+      <FlashList
+        data={listItems}
+        keyExtractor={(item) => item.key}
+        renderItem={renderItem}
+        contentContainerStyle={styles.listContent}
+      />
     </Screen>
   );
 }
@@ -240,7 +296,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
   },
-  section: { gap: 8 },
+  listContent: { paddingBottom: 12 },
   headingRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   readOnlyTag: {
     borderWidth: 1,

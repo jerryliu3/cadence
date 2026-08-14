@@ -7,8 +7,41 @@ import { useTheme } from "../../theme";
 import { Screen } from "../../ui/screen";
 import { useDuo, useDuoSurfaceScope } from "../duo/DuoProvider";
 import { DuoScopeSegmentedControl } from "../duo/DuoScopeSegmentedControl";
-import { resolveMobileDuoLaneSubjects } from "../duo/lane-subjects";
+import {
+  partnerLaneSubject,
+  resolveMobileDuoLaneSubjects,
+  viewerLaneSubject,
+} from "../duo/lane-subjects";
+import { buildInsightsLaneRenderModel } from "./insights-lane-render-model";
 import { useInsightsLaneData } from "./use-insights-lane-data";
+
+function InsightsLaneHeading({
+  label,
+  readOnly,
+}: {
+  label: string;
+  readOnly: boolean;
+}) {
+  const theme = useTheme();
+  return (
+    <View style={styles.headingRow}>
+      <Text style={{ color: theme.colors.foreground, fontWeight: "700" }}>{label}</Text>
+      {readOnly ? (
+        <Text
+          style={[
+            styles.readOnlyTag,
+            {
+              borderColor: theme.colors.border,
+              color: theme.colors.mutedForeground,
+            },
+          ]}
+        >
+          Read-only
+        </Text>
+      ) : null}
+    </View>
+  );
+}
 
 export function InsightsScreen() {
   const theme = useTheme();
@@ -16,26 +49,15 @@ export function InsightsScreen() {
   const { state } = useDuo();
   const activePartner = hasActivePartner ? state.activePartner : null;
   const [month, setMonth] = useState(format(new Date(), "yyyy-MM"));
-  const partnerName =
-    activePartner?.partnerDisplayName ?? activePartner?.partnerUsername ?? "Partner";
-  const partnerSubject = {
-    id: "partner" as const,
-    label: partnerName,
-    userId: activePartner?.partnerId,
-    readOnly: true,
-    avatarUrl: activePartner?.partnerAvatarUrl ?? null,
-  };
+  const partnerSubject = partnerLaneSubject(activePartner);
+  const viewerSubject = viewerLaneSubject();
   const viewerLane = useInsightsLaneData({
-    subject: {
-      id: "viewer",
-      label: "Mine",
-      readOnly: false,
-    },
+    subject: viewerSubject,
     month,
     enabled: true,
   });
   const partnerLane = useInsightsLaneData({
-    subject: partnerSubject,
+    subject: partnerSubject ?? viewerSubject,
     month,
     enabled: Boolean(activePartner) && scope !== "me",
   });
@@ -74,28 +96,20 @@ export function InsightsScreen() {
       </View>
       {lanes.map((lane) => {
         const laneData = lane.id === "viewer" ? viewerLane : partnerLane;
-        if (laneData.loading) {
+        const renderModel = buildInsightsLaneRenderModel({
+          scope,
+          lane,
+          loading: laneData.loading,
+          error: laneData.error,
+        });
+        if (renderModel.status === "loading") {
           return (
             <View key={lane.id} style={styles.section}>
-              {scope !== "me" ? (
-                <View style={styles.headingRow}>
-                  <Text style={{ color: theme.colors.foreground, fontWeight: "700" }}>
-                    {lane.label}
-                  </Text>
-                  {lane.readOnly ? (
-                    <Text
-                      style={[
-                        styles.readOnlyTag,
-                        {
-                          borderColor: theme.colors.border,
-                          color: theme.colors.mutedForeground,
-                        },
-                      ]}
-                    >
-                      Read-only
-                    </Text>
-                  ) : null}
-                </View>
+              {renderModel.heading ? (
+                <InsightsLaneHeading
+                  label={renderModel.heading.label}
+                  readOnly={renderModel.heading.readOnly}
+                />
               ) : null}
               <Text style={{ color: theme.colors.mutedForeground }}>
                 Loading {lane.label.toLowerCase()} insights...
@@ -104,26 +118,14 @@ export function InsightsScreen() {
           );
         }
 
-        if (lane.id === "partner" && laneData.error) {
+        if (renderModel.status === "partner_unavailable") {
           return (
             <View key={lane.id} style={styles.section}>
-              {scope !== "me" ? (
-                <View style={styles.headingRow}>
-                  <Text style={{ color: theme.colors.foreground, fontWeight: "700" }}>
-                    {lane.label}
-                  </Text>
-                  <Text
-                    style={[
-                      styles.readOnlyTag,
-                      {
-                        borderColor: theme.colors.border,
-                        color: theme.colors.mutedForeground,
-                      },
-                    ]}
-                  >
-                    Read-only
-                  </Text>
-                </View>
+              {renderModel.heading ? (
+                <InsightsLaneHeading
+                  label={renderModel.heading.label}
+                  readOnly={renderModel.heading.readOnly}
+                />
               ) : null}
               <Text style={{ color: theme.colors.mutedForeground }}>
                 Partner insights are unavailable.
@@ -132,9 +134,15 @@ export function InsightsScreen() {
           );
         }
 
-        if (laneData.error) {
+        if (renderModel.status === "error") {
           return (
             <View key={lane.id} style={styles.section}>
+              {renderModel.heading ? (
+                <InsightsLaneHeading
+                  label={renderModel.heading.label}
+                  readOnly={renderModel.heading.readOnly}
+                />
+              ) : null}
               <Text style={{ color: theme.colors.destructive }}>
                 {laneData.error instanceof Error
                   ? laneData.error.message
@@ -148,25 +156,11 @@ export function InsightsScreen() {
         const height = rows * (cell + gap);
         return (
           <View key={lane.id} style={styles.section}>
-            {scope !== "me" ? (
-              <View style={styles.headingRow}>
-                <Text style={{ color: theme.colors.foreground, fontWeight: "700" }}>
-                  {lane.label}
-                </Text>
-                {lane.readOnly ? (
-                  <Text
-                    style={[
-                      styles.readOnlyTag,
-                      {
-                        borderColor: theme.colors.border,
-                        color: theme.colors.mutedForeground,
-                      },
-                    ]}
-                  >
-                    Read-only
-                  </Text>
-                ) : null}
-              </View>
+            {renderModel.heading ? (
+              <InsightsLaneHeading
+                label={renderModel.heading.label}
+                readOnly={renderModel.heading.readOnly}
+              />
             ) : null}
             <Svg width={width} height={height}>
               {laneData.days.map((date, index) => {
