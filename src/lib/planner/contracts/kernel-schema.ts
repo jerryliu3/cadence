@@ -12,7 +12,7 @@ import {
   plannerLocalDateTimeSchema,
   plannerLocalTimeSchema,
 } from "@/lib/planner/schedule-time";
-import { countDateWindowDays } from "@/lib/planner/dates";
+import { countDateWindowDays, isMonthAlignedPlannerWindow } from "@/lib/planner/dates";
 
 const dateSchema = z.iso.date();
 const nullableDateSchema = dateSchema.nullable();
@@ -148,6 +148,14 @@ export const plannerKernelInputSchema = z
       countDateWindowDays({ start: input.startDate, end: input.endDate }) <=
       MAX_PLANNER_WINDOW_DAYS,
     `Planner window cannot exceed ${MAX_PLANNER_WINDOW_DAYS} days.`
+  )
+  .refine(
+    (input) =>
+      isMonthAlignedPlannerWindow({
+        start: input.startDate,
+        end: input.endDate,
+      }),
+    "Planner window must start on day 1 and end on a month end."
   );
 
 const workUnitSchema = z

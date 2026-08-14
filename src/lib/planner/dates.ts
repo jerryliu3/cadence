@@ -26,6 +26,11 @@ export function assertDateWindow(window: DateWindow): DateWindow {
       `Invalid planner window: ${window.start}..${window.end}`
     );
   }
+  if (!isMonthAlignedPlannerWindow(window)) {
+    throw new RangeError(
+      `Planner window must start on day 1 and end on a month end: ${window.start}..${window.end}`
+    );
+  }
   if (countDateWindowDays(window) > MAX_PLANNER_WINDOW_DAYS) {
     throw new RangeError(
       `Planner window exceeds ${MAX_PLANNER_WINDOW_DAYS} days.`
