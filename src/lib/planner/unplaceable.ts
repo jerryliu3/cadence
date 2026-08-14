@@ -16,13 +16,6 @@ export interface PlannerGoalUnplaceableRecord {
   computedAt?: string;
 }
 
-export interface PlannerGoalUnplaceableSummary {
-  goalId: string;
-  title: string;
-  unplacedCount: number;
-  reason: PlannerGoalUnplaceableReason;
-}
-
 interface PlannerGoalLockSignatureInput {
   unitKey: string;
   scheduledDate: string;
