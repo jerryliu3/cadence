@@ -239,6 +239,19 @@ a {
   animation: none;
 }
 
+::view-transition-group(app-mobile-tab-nav) {
+  z-index: 110;
+  animation: none;
+}
+
+::view-transition-old(app-mobile-tab-nav) {
+  display: none;
+}
+
+::view-transition-new(app-mobile-tab-nav) {
+  animation: none;
+}
+
 ::view-transition-old(.app-nav-forward) {
   animation: 180ms ease-in both app-nav-exit-forward;
 }
