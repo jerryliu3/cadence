@@ -26,33 +26,41 @@ import {
   buildDraftPinnedDatesFromCommands,
   plannerDraftCommandSchema,
 } from "@/lib/planner/draft-commands";
-import { toKernelWindow, toPlannerScheduleWindow } from "@/lib/planner/dates";
+import {
+  assertDateWindow,
+  getWindowState,
+  toKernelWindowFromDates,
+} from "@/lib/planner/dates";
 import { plannerPolicySchema } from "@/lib/planner/policy";
 import type { Json } from "@/lib/supabase/database.types";
 import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 
-const publishScopeSchema = z.object({
-  scopeMonth: z
-    .string()
-    .regex(/^\d{4}-\d{2}$/)
-    .refine((month) => {
-      const monthNumber = Number(month.slice(5, 7));
-      return monthNumber >= 1 && monthNumber <= 12;
-    }),
-  previewHash: z.string().regex(/^[a-f0-9]{64}$/),
-  confirmationHash: z.string().regex(/^[a-f0-9]{64}$/).nullable(),
-  policy: z.unknown().optional(),
-  eligibilityMode: z.enum(PLANNER_ELIGIBILITY_MODES).optional(),
-  draftCommands: z.array(plannerDraftCommandSchema).max(4000).default([]),
-  preserveExistingAssignments: z.boolean().optional(),
-});
-
-const publishSchema = z.object({
-  expectedDigest: z.string().regex(/^[a-f0-9]{64}$/),
-  scopes: z.array(publishScopeSchema).min(1).max(12),
-});
+const publishSchema = z
+  .object({
+    expectedDigest: z.string().regex(/^[a-f0-9]{64}$/),
+    startDate: z.iso.date(),
+    endDate: z.iso.date(),
+    previewHash: z.string().regex(/^[a-f0-9]{64}$/),
+    confirmationHash: z.string().regex(/^[a-f0-9]{64}$/).nullable(),
+    policy: z.unknown().optional(),
+    eligibilityMode: z.enum(PLANNER_ELIGIBILITY_MODES).optional(),
+    draftCommands: z.array(plannerDraftCommandSchema).max(4000).default([]),
+    preserveExistingAssignments: z.boolean().optional(),
+  })
+  .superRefine((value, ctx) => {
+    try {
+      assertDateWindow({ start: value.startDate, end: value.endDate });
+    } catch (error) {
+      ctx.addIssue({
+        code: "custom",
+        message:
+          error instanceof Error ? error.message : "Invalid planner window.",
+        path: ["endDate"],
+      });
+    }
+  });
 
 interface PlannerSaveScheduledItem {
   goal_id: string;
@@ -222,218 +230,200 @@ export async function handlePlannerSave(request: Request) {
       Math.min(MAX_API_BODY_BYTES, 256 * 1024),
       publishSchema
     );
-    const allScheduledItems: PlannerSaveScheduledItem[] = [];
-    const scheduleBatches: Array<{
-      start_date: string;
-      end_date: string;
-      items: PlannerSaveScheduledItem[];
-    }> =
-      [];
-    for (const scopePublish of body.scopes) {
-      try {
-        const requestedPolicy = scopePublish.policy
-          ? (() => {
-              const parsed = plannerPolicySchema.safeParse(scopePublish.policy);
-              if (!parsed.success) {
-                throw new PlannerRouteError(
-                  400,
-                  "validation_failed",
-                  "Policy override failed validation.",
-                  { issues: parsed.error.issues }
-                );
-              }
-              return parsed.data;
-            })()
-          : null;
-        const draftCommands = scopePublish.draftCommands ?? [];
-        const draftPinnedDates = buildDraftPinnedDatesFromCommands(draftCommands);
-        const effectiveEligibilityMode =
-          scopePublish.eligibilityMode ?? PLANNER_ELIGIBILITY_MODES[0];
-        const snapshot = await loadPlannerCanonicalSnapshot({
-          supabase: routeContext.supabase,
-          ownerId: routeContext.userId,
-          ...toKernelWindow(scopePublish.scopeMonth),
-        });
-
-        if (!snapshot.preferences) {
-          throw new PlannerRouteError(
-            422,
-            "timezone_confirmation_required",
-            "Confirm planner timezone before publishing a plan."
-          );
-        }
-
-        const effectivePolicy =
-          requestedPolicy ??
-          plannerPolicySchema.parse(snapshot.preferences.default_policy);
-        const asOfDate = resolveCanonicalAsOfDate({
-          timezone: snapshot.preferences.timezone,
-        });
-        if (scopePublish.scopeMonth < asOfDate.slice(0, 7)) {
-          throw new PlannerRouteError(
-            422,
-            "elapsed_scope_month_publish_forbidden",
-            "Publishing an elapsed month is not supported. Publish the current or a future month."
-          );
-        }
-        const activeAssessments = (snapshot.activePlan?.goals ?? []).map((goal) =>
-          goalAssessmentSchema.parse(goal.assessment_snapshot)
-        );
-        const assessmentByGoalId = new Map(
-          activeAssessments.map((assessment) => [assessment.goalId, assessment])
-        );
-        const assessments = snapshot.goals.map((goal) =>
-          assessmentByGoalId.get(goal.id) ?? createDefaultAssessment(goal)
-        );
-        let kernel: ReturnType<typeof runPlannerKernel>;
-        try {
-          kernel = runPlannerKernel({
-            schemaVersion: "1",
-            eligibilityMode: effectiveEligibilityMode,
-            // Publish always solves `stable`. `replan` exists only to generate move
-            // proposals, which reach this route as pinned `move_item` commands.
-            solveIntent: "stable",
-            preserveExistingAssignments:
-              scopePublish.preserveExistingAssignments ?? requestedPolicy === null,
-            draftPinnedDates,
-            ownerId: routeContext.userId,
-            ...toKernelWindow(scopePublish.scopeMonth),
-            asOfDate,
-            timezone: snapshot.preferences.timezone,
-            goals: snapshot.goals,
-            completions: snapshot.completions,
-            links: snapshot.links,
-            assessments,
-            policy: effectivePolicy,
-            basePlan: snapshot.activePlan?.basePlan ?? null,
-          });
-        } catch (error) {
-          if (error instanceof PlannerError) {
-            throw plannerKernelErrorToRouteError(error);
-          }
-          throw error;
-        }
-
-        if (kernel.generationInputHash !== scopePublish.previewHash) {
-          throw new PlannerRouteError(
-            409,
-            "preview_hash_mismatch",
-            "Planner preview hash is stale. Regenerate and publish again."
-          );
-        }
-
-        const { violations: draftPinViolations } = findUnhonoredDraftPins({
-          workUnits: kernel.workUnits,
-          draftPinnedDates,
-        });
-        if (draftPinViolations.length > 0) {
-          throw new PlannerRouteError(
-            422,
-            "draft_pin_unhonored",
-            "One or more moved sessions no longer fit the current planner constraints. Undo those moves or pick different dates, then regenerate.",
-            { violations: draftPinViolations }
-          );
-        }
-
-        if (kernel.solver.confirmationRequired) {
-          const expectedConfirmationHash = buildPlannerConfirmationHash({
-            previewHash: scopePublish.previewHash,
-            issueCodes: kernel.solver.issueCodes,
-          });
-          if (scopePublish.confirmationHash !== expectedConfirmationHash) {
+    const requestedPolicy = body.policy
+      ? (() => {
+          const parsed = plannerPolicySchema.safeParse(body.policy);
+          if (!parsed.success) {
             throw new PlannerRouteError(
-              422,
-              "planner_confirmation_required",
-              "Publish requires explicit confirmation for a partial or constrained plan.",
-              {
-                expectedConfirmationHash,
-                issueCodes: kernel.solver.issueCodes,
-              }
-            );
-          }
-        }
-        if (!kernel.solver.publishable) {
-          const blockedByInvalidLock = kernel.solver.issueCodes.includes("invalid_lock");
-          throw new PlannerRouteError(
-            422,
-            "planner_not_publishable",
-            blockedByInvalidLock
-              ? "Publish is blocked because one or more locked planner items conflict with this preview. Unlock the affected sessions and regenerate."
-              : "Publish is blocked because this preview is not currently publishable.",
-            {
-              issueCodes: kernel.solver.issueCodes,
-              searchStatus: kernel.solver.searchStatus,
-              invalidGoalIds: kernel.solver.invalidGoalIds,
-              confirmationRequired: kernel.solver.confirmationRequired,
-            }
-          );
-        }
-
-        let persistence: ReturnType<typeof buildPlannerPublishPersistencePayload>;
-        try {
-          persistence = buildPlannerPublishPersistencePayload({
-            kernel,
-            snapshot,
-            draftCommands,
-          });
-        } catch (error) {
-          if (error instanceof PlannerDraftEditValidationError) {
-            throw new PlannerRouteError(
-              422,
+              400,
               "validation_failed",
-              error.message,
-              {
-                stage: "draft_edits",
-                code: error.code,
-                ...error.details,
-              }
+              "Policy override failed validation.",
+              { issues: parsed.error.issues }
             );
           }
-          throw error;
-        }
-        const scheduledItems: PlannerSaveScheduledItem[] = persistence.items
-          .filter(
-            (
-              item
-            ): item is (typeof persistence.items)[number] & { scheduled_date: string } =>
-              item.scheduled_date !== null
-          )
-          .map((item) => ({
-            goal_id: item.goal_id,
-            unit_key: item.unit_key,
-            scheduled_date: item.scheduled_date,
-            original_scheduled_date:
-              item.original_scheduled_date ?? item.scheduled_date,
-            scheduled_time:
-              item.scheduled_time_override ??
-              item.effective_scheduled_local_time ??
-              null,
-            locked: item.locked,
-          }));
-        allScheduledItems.push(...scheduledItems);
-        scheduleBatches.push({
-          ...toPlannerScheduleWindow(scopePublish.scopeMonth),
-          items: scheduledItems,
-        });
-      } catch (error) {
-        if (error instanceof PlannerRouteError) {
-          throw new PlannerRouteError(
-            error.status,
-            error.code,
-            error.message,
-            {
-              ...(error.details ?? {}),
-              scopeMonth: scopePublish.scopeMonth,
-            }
-          );
-        }
-        throw error;
+          return parsed.data;
+        })()
+      : null;
+    const draftCommands = body.draftCommands ?? [];
+    const draftPinnedDates = buildDraftPinnedDatesFromCommands(draftCommands);
+    const effectiveEligibilityMode =
+      body.eligibilityMode ?? PLANNER_ELIGIBILITY_MODES[0];
+    const kernelWindow = toKernelWindowFromDates({
+      start: body.startDate,
+      end: body.endDate,
+    });
+    const snapshot = await loadPlannerCanonicalSnapshot({
+      supabase: routeContext.supabase,
+      ownerId: routeContext.userId,
+      ...kernelWindow,
+    });
+
+    if (!snapshot.preferences) {
+      throw new PlannerRouteError(
+        422,
+        "timezone_confirmation_required",
+        "Confirm planner timezone before publishing a plan."
+      );
+    }
+
+    const effectivePolicy =
+      requestedPolicy ??
+      plannerPolicySchema.parse(snapshot.preferences.default_policy);
+    const asOfDate = resolveCanonicalAsOfDate({
+      timezone: snapshot.preferences.timezone,
+    });
+    if (
+      getWindowState(
+        { start: body.startDate, end: body.endDate },
+        asOfDate
+      ) === "historical"
+    ) {
+      throw new PlannerRouteError(
+        422,
+        "elapsed_schedule_window_publish_forbidden",
+        "Publishing an elapsed window is not supported. Publish a window that includes today or a future date."
+      );
+    }
+    const activeAssessments = (snapshot.activePlan?.goals ?? []).map((goal) =>
+      goalAssessmentSchema.parse(goal.assessment_snapshot)
+    );
+    const assessmentByGoalId = new Map(
+      activeAssessments.map((assessment) => [assessment.goalId, assessment])
+    );
+    const assessments = snapshot.goals.map((goal) =>
+      assessmentByGoalId.get(goal.id) ?? createDefaultAssessment(goal)
+    );
+    let kernel: ReturnType<typeof runPlannerKernel>;
+    try {
+      kernel = runPlannerKernel({
+        schemaVersion: "1",
+        eligibilityMode: effectiveEligibilityMode,
+        // Publish always solves `stable`. `replan` exists only to generate move
+        // proposals, which reach this route as pinned `move_item` commands.
+        solveIntent: "stable",
+        preserveExistingAssignments:
+          body.preserveExistingAssignments ?? requestedPolicy === null,
+        draftPinnedDates,
+        ownerId: routeContext.userId,
+        ...kernelWindow,
+        asOfDate,
+        timezone: snapshot.preferences.timezone,
+        goals: snapshot.goals,
+        completions: snapshot.completions,
+        links: snapshot.links,
+        assessments,
+        policy: effectivePolicy,
+        basePlan: snapshot.activePlan?.basePlan ?? null,
+      });
+    } catch (error) {
+      if (error instanceof PlannerError) {
+        throw plannerKernelErrorToRouteError(error);
+      }
+      throw error;
+    }
+
+    if (kernel.generationInputHash !== body.previewHash) {
+      throw new PlannerRouteError(
+        409,
+        "preview_hash_mismatch",
+        "Planner preview hash is stale. Regenerate and publish again."
+      );
+    }
+
+    const { violations: draftPinViolations } = findUnhonoredDraftPins({
+      workUnits: kernel.workUnits,
+      draftPinnedDates,
+    });
+    if (draftPinViolations.length > 0) {
+      throw new PlannerRouteError(
+        422,
+        "draft_pin_unhonored",
+        "One or more moved sessions no longer fit the current planner constraints. Undo those moves or pick different dates, then regenerate.",
+        { violations: draftPinViolations }
+      );
+    }
+
+    if (kernel.solver.confirmationRequired) {
+      const expectedConfirmationHash = buildPlannerConfirmationHash({
+        previewHash: body.previewHash,
+        issueCodes: kernel.solver.issueCodes,
+      });
+      if (body.confirmationHash !== expectedConfirmationHash) {
+        throw new PlannerRouteError(
+          422,
+          "planner_confirmation_required",
+          "Publish requires explicit confirmation for a partial or constrained plan.",
+          {
+            expectedConfirmationHash,
+            issueCodes: kernel.solver.issueCodes,
+          }
+        );
       }
     }
+    if (!kernel.solver.publishable) {
+      const blockedByInvalidLock = kernel.solver.issueCodes.includes("invalid_lock");
+      throw new PlannerRouteError(
+        422,
+        "planner_not_publishable",
+        blockedByInvalidLock
+          ? "Publish is blocked because one or more locked planner items conflict with this preview. Unlock the affected sessions and regenerate."
+          : "Publish is blocked because this preview is not currently publishable.",
+        {
+          issueCodes: kernel.solver.issueCodes,
+          searchStatus: kernel.solver.searchStatus,
+          invalidGoalIds: kernel.solver.invalidGoalIds,
+          confirmationRequired: kernel.solver.confirmationRequired,
+        }
+      );
+    }
+
+    let persistence: ReturnType<typeof buildPlannerPublishPersistencePayload>;
+    try {
+      persistence = buildPlannerPublishPersistencePayload({
+        kernel,
+        snapshot,
+        draftCommands,
+      });
+    } catch (error) {
+      if (error instanceof PlannerDraftEditValidationError) {
+        throw new PlannerRouteError(
+          422,
+          "validation_failed",
+          error.message,
+          {
+            stage: "draft_edits",
+            code: error.code,
+            ...error.details,
+          }
+        );
+      }
+      throw error;
+    }
+    const scheduledItems: PlannerSaveScheduledItem[] = persistence.items
+      .filter(
+        (
+          item
+        ): item is (typeof persistence.items)[number] & { scheduled_date: string } =>
+          item.scheduled_date !== null
+      )
+      .map((item) => ({
+        goal_id: item.goal_id,
+        unit_key: item.unit_key,
+        scheduled_date: item.scheduled_date,
+        original_scheduled_date:
+          item.original_scheduled_date ?? item.scheduled_date,
+        scheduled_time:
+          item.scheduled_time_override ??
+          item.effective_scheduled_local_time ??
+          null,
+        locked: item.locked,
+      }));
     const publishResponse = await routeContext.supabase.rpc(
-      "set_planner_schedule_batch",
+      "set_planner_schedule",
       {
-        p_batches: scheduleBatches as unknown as Json,
+        p_start: body.startDate,
+        p_end: body.endDate,
+        p_items: scheduledItems as unknown as Json,
         p_expected_digest: body.expectedDigest,
       }
     );
@@ -448,7 +438,7 @@ export async function handlePlannerSave(request: Request) {
       if (postgresErrorMatches(publishResponse.error, "P0001", "schedule_conflict")) {
         const diagnostics = await buildScheduleConflictDiagnostics({
           ownerId: routeContext.userId,
-          scheduledItems: allScheduledItems,
+          scheduledItems,
           databaseError: {
             code: publishResponse.error.code,
             message: publishResponse.error.message,
@@ -567,7 +557,10 @@ export async function handlePlannerSave(request: Request) {
           canonicalRevision: 0,
           executionRevision: 0,
         },
-        publishedScopes: body.scopes.map((scope) => scope.scopeMonth),
+        publishedWindow: {
+          startDate: body.startDate,
+          endDate: body.endDate,
+        },
         scheduleDigest:
           typeof publishedRow.schedule_digest === "string"
             ? publishedRow.schedule_digest

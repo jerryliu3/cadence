@@ -19,7 +19,7 @@ import type {
   PlannerWorkUnit,
 } from "@/features/planner/calendar-surface.types";
 import {
-  selectDraftCommandsForScope,
+  selectDraftCommands,
   type DraftCommandState,
 } from "@/features/planner/draft-command-reducer";
 import {
@@ -105,7 +105,7 @@ export function selectEffectiveDraftCommands({
   previewWorkUnits: PlannerWorkUnit[] | undefined | null;
 }) {
   return selectDraftCommandsForPreviewEntries({
-    commands: selectDraftCommandsForScope(draftCommandState, scopeMonth),
+    commands: selectDraftCommands(draftCommandState),
     previewEntryKeys: buildPreviewEntryKeySet(previewWorkUnits),
   });
 }
@@ -117,13 +117,23 @@ export function selectVisibleDraftItemEditsByMonth({
   draftCommandState: DraftCommandState;
   visibleMonthContexts: Record<string, PlannerVisibleMonthContextPayload>;
 }) {
+  const allCommands = selectDraftCommands(draftCommandState);
   const itemEditsByMonth: Record<string, Record<string, DraftItemEdit>> = {};
   for (const [visibleMonth, visibleMonthContext] of Object.entries(
     visibleMonthContexts
   )) {
     const scopedCommands = selectDraftCommandsForPreviewEntries({
-      commands: selectDraftCommandsForScope(draftCommandState, visibleMonth),
-      previewEntryKeys: buildPreviewEntryKeySet(visibleMonthContext.preview?.workUnits),
+      commands: allCommands,
+      previewEntryKeys: new Set([
+        ...buildPreviewEntryKeySet(visibleMonthContext.preview?.workUnits),
+        ...allCommands
+          .filter(
+            (command) =>
+              command.kind === "move_item" &&
+              command.scheduledDate?.startsWith(visibleMonth)
+          )
+          .map((command) => draftCommandEntryKey(command)),
+      ]),
     });
     if (scopedCommands.length === 0) {
       continue;

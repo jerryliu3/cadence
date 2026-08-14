@@ -4,47 +4,37 @@ import {
   type PlannerDraftCommand,
 } from "@/lib/planner/draft-commands";
 
-export interface ScopedPlannerDraftCommand {
-  scopeMonth: string;
-  command: PlannerDraftCommand;
-}
-
 export interface DraftCommandState {
-  commands: ScopedPlannerDraftCommand[];
+  commands: PlannerDraftCommand[];
   nextSequence: number;
 }
 
 export type DraftCommandAction =
   | {
       type: "upsert_move";
-      scopeMonth: string;
       goalId: string;
       unitKey: string;
       scheduledDate: string | null;
     }
   | {
       type: "upsert_rename";
-      scopeMonth: string;
       goalId: string;
       unitKey: string;
       label: string | null;
     }
   | {
       type: "upsert_time_override";
-      scopeMonth: string;
       goalId: string;
       unitKey: string;
       localTime: string;
     }
   | {
       type: "clear_time_override";
-      scopeMonth: string;
       goalId: string;
       unitKey: string;
     }
   | {
       type: "remove_kind";
-      scopeMonth: string;
       kind:
         | "move_item"
         | "rename_item"
@@ -55,12 +45,7 @@ export type DraftCommandAction =
     }
   | {
       type: "remove_entries";
-      scopeMonth: string;
       entries: Array<{ goalId: string; unitKey: string }>;
-    }
-  | {
-      type: "remove_scope";
-      scopeMonth: string;
     }
   | { type: "clear" };
 
@@ -70,18 +55,11 @@ export const initialDraftCommandState: DraftCommandState = {
 };
 
 function commandTargetsEntry(
-  scopedCommand: ScopedPlannerDraftCommand,
-  scopeMonth: string,
+  command: PlannerDraftCommand,
   goalId: string,
   unitKey: string
 ) {
-  const command = scopedCommand.command;
-  return (
-    scopedCommand.scopeMonth === scopeMonth &&
-    command.goalId === goalId &&
-    "unitKey" in command &&
-    command.unitKey === unitKey
-  );
+  return command.goalId === goalId && command.unitKey === unitKey;
 }
 
 export function draftCommandReducer(
@@ -98,13 +76,8 @@ export function draftCommandReducer(
       commands: state.commands.filter(
         (command) =>
           !(
-            command.command.kind === action.kind &&
-            commandTargetsEntry(
-              command,
-              action.scopeMonth,
-              action.goalId,
-              action.unitKey
-            )
+            command.kind === action.kind &&
+            commandTargetsEntry(command, action.goalId, action.unitKey)
           )
       ),
     };
@@ -118,22 +91,8 @@ export function draftCommandReducer(
     }
     return {
       ...state,
-      commands: state.commands.filter((command) => {
-        if (command.scopeMonth !== action.scopeMonth) {
-          return true;
-        }
-        if (!("unitKey" in command.command)) {
-          return true;
-        }
-        return !keys.has(`${command.command.goalId}:${command.command.unitKey}`);
-      }),
-    };
-  }
-  if (action.type === "remove_scope") {
-    return {
-      ...state,
       commands: state.commands.filter(
-        (command) => command.scopeMonth !== action.scopeMonth
+        (command) => !keys.has(`${command.goalId}:${command.unitKey}`)
       ),
     };
   }
@@ -149,18 +108,12 @@ export function draftCommandReducer(
 
   const existingIndex = state.commands.findIndex(
     (command) =>
-      command.command.kind === actionKind &&
-      commandTargetsEntry(
-        command,
-        action.scopeMonth,
-        action.goalId,
-        action.unitKey
-      )
+      command.kind === actionKind &&
+      commandTargetsEntry(command, action.goalId, action.unitKey)
   );
 
   if (existingIndex >= 0) {
-    const existing = state.commands[existingIndex];
-    const existingCommand = existing.command;
+    const existingCommand = state.commands[existingIndex];
     const identity = {
       id: existingCommand.id,
       sequence: existingCommand.sequence,
@@ -176,10 +129,10 @@ export function draftCommandReducer(
           }
         : action.type === "upsert_rename"
           ? {
-            ...identity,
-            kind: "rename_item",
-            label: action.label,
-          }
+              ...identity,
+              kind: "rename_item",
+              label: action.label,
+            }
           : action.type === "upsert_time_override"
             ? {
                 ...identity,
@@ -191,11 +144,7 @@ export function draftCommandReducer(
                 kind: "clear_item_time_override",
               };
     const nextCommands = [...state.commands];
-    nextCommands[existingIndex] = {
-      ...existing,
-      scopeMonth: action.scopeMonth,
-      command: nextCommand,
-    };
+    nextCommands[existingIndex] = nextCommand;
     return {
       ...state,
       commands: nextCommands,
@@ -240,35 +189,18 @@ export function draftCommandReducer(
             };
 
   return {
-    commands: [
-      ...state.commands,
-      {
-        scopeMonth: action.scopeMonth,
-        command: nextCommand,
-      },
-    ],
+    commands: [...state.commands, nextCommand],
     nextSequence,
   };
 }
 
-export function selectDraftCommandsForScope(
-  state: DraftCommandState,
-  scopeMonth: string | null | undefined
-) {
-  if (!scopeMonth) {
-    return [] as PlannerDraftCommand[];
-  }
-  return state.commands
-    .filter((command) => command.scopeMonth === scopeMonth)
-    .map((command) => command.command);
+export function selectDraftCommands(state: DraftCommandState) {
+  return state.commands;
 }
 
-export function selectDraftEntriesForScope(
-  state: DraftCommandState,
-  scopeMonth: string | null | undefined
-) {
+export function selectDraftEntries(state: DraftCommandState) {
   const entriesByKey = new Map<string, { goalId: string; unitKey: string }>();
-  for (const command of selectDraftCommandsForScope(state, scopeMonth)) {
+  for (const command of state.commands) {
     const entryKey = draftCommandEntryKey(command);
     if (!entriesByKey.has(entryKey)) {
       entriesByKey.set(entryKey, {
@@ -279,4 +211,3 @@ export function selectDraftEntriesForScope(
   }
   return Array.from(entriesByKey.values());
 }
-
