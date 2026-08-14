@@ -1261,6 +1261,7 @@ export function CalendarSurface({
       draftSaveCommands,
       draftWindowWorkUnits,
       context?.scopeMonth,
+      dispatchDraftCommand,
       moveConflictByGoalDate,
       moveCompletionConflictByGoalDate,
       draftWindowUnitByEntryKey,
