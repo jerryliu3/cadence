@@ -124,7 +124,7 @@ Expanded `src/app/api/progress/context/route.test.ts` with table-driven assertio
 
 ## Commit(s)
 
-- Pending commit hash insertion after commit.
+- `5ae9232f` — extract shared Duo/team/progress contracts, migrate web/mobile consumers, add audited-route auth and partner-denial tests.
 
 ## Concerns
 
