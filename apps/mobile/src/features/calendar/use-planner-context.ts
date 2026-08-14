@@ -5,6 +5,7 @@ import type {
   PlannerContextPayload,
   PlannerWorkUnit,
 } from "@cadence/shared/planner/context";
+import { buildPlannerVisibleWindow } from "@cadence/shared/planner/visible-window";
 import { api } from "../../lib/api";
 import { useSession } from "../../lib/session";
 import { createMobilePlannerContextLoader } from "./planner-context-loader";
@@ -37,9 +38,12 @@ export function usePlannerContext(month: string | null) {
   useEffect(() => {
     loaderRef.current?.reset();
   }, [userId]);
+  const visibleWindow = month ? buildPlannerVisibleWindow(month) : null;
   const queryKey = buildMobilePlannerContextQueryKey({
     viewerUserId: userId,
     month,
+    visibleStart: visibleWindow?.start ?? null,
+    visibleEnd: visibleWindow?.end ?? null,
   });
   const query = useQuery({
     queryKey,

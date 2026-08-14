@@ -66,14 +66,20 @@ export function buildMobilePlannerContextQueryKey({
   viewerUserId,
   subjectUserId,
   month,
+  visibleStart,
+  visibleEnd,
 }: {
   viewerUserId: string | null;
   subjectUserId?: string | null;
   month: string | null;
+  visibleStart: string | null;
+  visibleEnd: string | null;
 }) {
   return [
     ...duoQueryKeys.plannerPrefix(viewerUserId),
     subjectUserId ?? viewerUserId ?? "viewer",
     month,
+    visibleStart,
+    visibleEnd,
   ] as const;
 }
