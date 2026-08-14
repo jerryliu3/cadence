@@ -3,6 +3,7 @@ import { Redirect, Tabs } from "expo-router";
 import { Text } from "react-native";
 import { useForceUpgradeRequired } from "../../src/lib/runtime-config";
 import { useSession } from "../../src/lib/session";
+import { DuoProvider } from "../../src/features/duo/DuoProvider";
 import { useTheme } from "../../src/theme";
 import { LoadingScreen } from "../../src/ui/screen";
 
@@ -30,30 +31,32 @@ export default function TabsLayout() {
   }
 
   return (
-    <Tabs
-      screenOptions={{
-        headerStyle: { backgroundColor: theme.colors.background },
-        headerTintColor: theme.colors.foreground,
-        tabBarStyle: { backgroundColor: theme.colors.card },
-        tabBarActiveTintColor: theme.colors.primary,
-        tabBarInactiveTintColor: theme.colors.mutedForeground,
-      }}
-    >
-      {APP_TABS.map((tab) => (
-        <Tabs.Screen
-          key={tab.key}
-          name={tab.key}
-          options={{
-            title: tab.label,
-            href: tab.key === "social" && upgrade.flags && !upgrade.flags.socialEnabled
-              ? null
-              : undefined,
-            tabBarIcon: ({ color }) => (
-              <Text style={{ color, fontSize: 16 }}>{TAB_ICONS[tab.key]}</Text>
-            ),
-          }}
-        />
-      ))}
-    </Tabs>
+    <DuoProvider>
+      <Tabs
+        screenOptions={{
+          headerStyle: { backgroundColor: theme.colors.background },
+          headerTintColor: theme.colors.foreground,
+          tabBarStyle: { backgroundColor: theme.colors.card },
+          tabBarActiveTintColor: theme.colors.primary,
+          tabBarInactiveTintColor: theme.colors.mutedForeground,
+        }}
+      >
+        {APP_TABS.map((tab) => (
+          <Tabs.Screen
+            key={tab.key}
+            name={tab.key}
+            options={{
+              title: tab.label,
+              href: tab.key === "social" && upgrade.flags && !upgrade.flags.socialEnabled
+                ? null
+                : undefined,
+              tabBarIcon: ({ color }) => (
+                <Text style={{ color, fontSize: 16 }}>{TAB_ICONS[tab.key]}</Text>
+              ),
+            }}
+          />
+        ))}
+      </Tabs>
+    </DuoProvider>
   );
 }
