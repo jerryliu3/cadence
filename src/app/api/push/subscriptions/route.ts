@@ -112,7 +112,7 @@ export async function POST(request: Request) {
         .delete()
         .eq("user_id", userId)
         .eq("platform", parsed.data.platform)
-        .neq("endpoint", row.endpoint);
+        .neq("endpoint", `native:${parsed.data.platform}:${parsed.data.token}`);
       if (cleanupError) {
         console.error("Failed to replace prior native push token:", cleanupError);
       }
