@@ -5,6 +5,8 @@ import {
 
 export { DUO_SURFACE_DEFAULTS };
 
+// Keep these route prefixes synchronized with DUO_SURFACE_DEFAULTS in the
+// shared package whenever a Duo surface is added or renamed.
 export function resolveDuoSurfaceDefault(pathname: string | null): DuoScope {
   if (pathname?.startsWith("/insights")) {
     return DUO_SURFACE_DEFAULTS.insights;

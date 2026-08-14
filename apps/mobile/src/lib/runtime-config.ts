@@ -8,7 +8,6 @@ export interface MobileRuntimeConfig {
   schemaVersion: "1";
   flags: FeatureFlags;
   minSupportedAppVersion: string | null;
-  correlationId: string;
 }
 
 export function useMobileRuntimeConfig() {

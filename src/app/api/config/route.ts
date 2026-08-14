@@ -15,14 +15,13 @@ function publicMobileFlags() {
 }
 
 export async function GET() {
-  return withRoute(async ({ correlationId }) => {
+  return withRoute(async () => {
     const env = getServerEnv();
     return NextResponse.json(
       {
         schemaVersion: "1",
         flags: publicMobileFlags(),
         minSupportedAppVersion: env.MOBILE_MIN_SUPPORTED_APP_VERSION ?? null,
-        correlationId,
       },
       {
         headers: {
