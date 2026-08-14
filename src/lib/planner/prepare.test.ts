@@ -503,71 +503,69 @@ describe("preparePlannerSchedule", () => {
     await prepare();
 
     expect(mocks.loadPlannerPreparationSnapshot).toHaveBeenCalledTimes(2);
-    expect(mocks.runPlannerKernel).toHaveBeenCalledTimes(4);
+    expect(mocks.runPlannerKernel).toHaveBeenCalledTimes(2);
     expect(mocks.rpc).toHaveBeenCalledTimes(2);
     expect(mocks.rpc.mock.calls[1]?.[1].p_expected_digest).toBe("b".repeat(64));
   });
 
-  it("falls back to set_planner_schedule when prepare RPC is missing from schema cache", async () => {
-    const plannerGoal = goal();
+  it("keeps existing sessions and returns warnings for unplaceable goals", async () => {
+    const blockedGoal = goal();
+    const healthyGoal = goal({
+      id: "99999999-9999-4999-8999-999999999999",
+      title: "Healthy Goal",
+    });
+    const blockedExisting = persistedItem({
+      goal_id: blockedGoal.id,
+      unit_key: "milestone:1",
+      scheduled_date: "2026-08-07",
+    });
     mocks.loadPlannerPreparationSnapshot.mockResolvedValue(
-      preparationSnapshot([plannerGoal])
+      preparationSnapshot([blockedGoal, healthyGoal], [blockedExisting])
     );
-    mocks.runPlannerKernel.mockReturnValue(
-      kernelOutput(plannerGoal.id, [
-        { unitKey: "milestone:1", scheduledDate: "2026-08-12" },
+    mocks.runPlannerKernel.mockImplementation((input) =>
+      input.goals[0].id === blockedGoal.id
+        ? {
+            solver: {
+              issueCodes: ["search_exhausted"],
+              invalidGoalIds: [blockedGoal.id],
+              publishable: false,
+            },
+            workUnits: [],
+          }
+        : kernelOutput(healthyGoal.id, [
+            { unitKey: "milestone:1", scheduledDate: "2026-08-12" },
+          ])
+    );
+    const result = await prepare();
+
+    expect(mocks.rpc).toHaveBeenCalledTimes(1);
+    const prepared = mocks.rpc.mock.calls[0]?.[1].p_items as Array<{
+      goal_id: string;
+      unit_key: string;
+      scheduled_date: string;
+    }>;
+    expect(prepared).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          goal_id: blockedGoal.id,
+          unit_key: blockedExisting.unit_key,
+          scheduled_date: blockedExisting.scheduled_date,
+        }),
+        expect.objectContaining({
+          goal_id: healthyGoal.id,
+          unit_key: "milestone:1",
+          scheduled_date: "2026-08-12",
+        }),
       ])
     );
-    mocks.rpc
-      .mockResolvedValueOnce({
-        data: null,
-        error: {
-          code: "PGRST202",
-          message:
-            "Could not find the function public.prepare_planner_schedule(p_expected_digest, p_items, p_windows) in the schema cache",
-        },
-      })
-      .mockResolvedValueOnce({
-        data: [
-          {
-            schedule_digest: "b".repeat(64),
-            upserted_count: 1,
-            deleted_count: 0,
-            replayed: false,
-          },
-        ],
-        error: null,
-      })
-      .mockResolvedValueOnce({
-        data: [
-          {
-            schedule_digest: "c".repeat(64),
-            upserted_count: 0,
-            deleted_count: 0,
-            replayed: true,
-          },
-        ],
-        error: null,
-      });
-
-    await prepare();
-
-    expect(mocks.rpc).toHaveBeenCalledTimes(3);
-    expect(mocks.rpc.mock.calls[0]?.[0]).toBe("prepare_planner_schedule");
-    expect(mocks.rpc.mock.calls[1]?.[0]).toBe("set_planner_schedule");
-    expect(mocks.rpc.mock.calls[2]?.[0]).toBe("set_planner_schedule");
-    expect(mocks.rpc.mock.calls[1]?.[1]).toEqual(
+    expect(result).toEqual(
       expect.objectContaining({
-        p_start: "2026-08-01",
-        p_end: "2027-07-31",
-        p_expected_digest: DIGEST,
-      })
-    );
-    expect(mocks.rpc.mock.calls[2]?.[1]).toEqual(
-      expect.objectContaining({
-        p_start: "2027-08-01",
-        p_end: "2028-07-31",
-        p_expected_digest: "b".repeat(64),
+        prepareWarnings: [
+          expect.objectContaining({
+            goalId: blockedGoal.id,
+            code: "goal_unplaceable",
+          }),
+        ],
       })
     );
   });

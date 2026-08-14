@@ -42,6 +42,13 @@ interface PreparedItem {
   locked: boolean;
 }
 
+interface PrepareWarning {
+  goalId: string;
+  code: "goal_unplaceable" | "goal_duplicate_date";
+  message: string;
+  issueCodes?: string[];
+}
+
 function addMonths(month: string, count: number) {
   let result = month;
   for (let index = 0; index < count; index += 1) {
@@ -65,22 +72,43 @@ function buildPreparationWindows(asOfDate: string) {
   return windows;
 }
 
-function itemKey(item: { goal_id: string; unit_key: string }) {
-  return `${item.goal_id}\u0000${item.unit_key}`;
+function buildGoalPreparationWindows({
+  goal,
+  asOfDate,
+  preparationStart,
+  preparationEnd,
+}: {
+  goal: Goal;
+  asOfDate: string;
+  preparationStart: string;
+  preparationEnd: string;
+}) {
+  const effectiveStart = [goal.start_date, asOfDate, preparationStart]
+    .sort()
+    .at(-1)!;
+  const effectiveEnd = [goal.end_date ?? preparationEnd, preparationEnd].sort()[0]!;
+  if (effectiveEnd < effectiveStart) {
+    return [] as PreparationWindow[];
+  }
+
+  const firstMonth = effectiveStart.slice(0, 7);
+  const lastMonth = effectiveEnd.slice(0, 7);
+  const windows: PreparationWindow[] = [];
+  let currentMonth = firstMonth;
+  while (currentMonth <= lastMonth) {
+    const maxEndMonth = addMonths(currentMonth, 11);
+    const endMonth = maxEndMonth < lastMonth ? maxEndMonth : lastMonth;
+    windows.push({
+      start: getScopeDateRange(currentMonth).start,
+      end: getScopeDateRange(endMonth).end,
+    });
+    currentMonth = addMonths(endMonth, 1);
+  }
+  return windows;
 }
 
-function isMissingPrepareScheduleRpc(error: {
-  code?: string | null;
-  message?: string | null;
-}) {
-  const code = (error.code ?? "").toUpperCase();
-  const message = (error.message ?? "").toLowerCase();
-  return (
-    code === "42883" ||
-    code === "PGRST202" ||
-    (message.includes("prepare_planner_schedule") &&
-      message.includes("schema cache"))
-  );
+function itemKey(item: { goal_id: string; unit_key: string }) {
+  return `${item.goal_id}\u0000${item.unit_key}`;
 }
 
 function itemMatchesCurrentRequirement({
@@ -114,51 +142,6 @@ function itemMatchesCurrentRequirement({
     { weekStartsOn }
   );
   return item.unit_key === `cadence:${period.periodKey}`;
-}
-
-async function fallbackPrepareWithSetSchedule({
-  supabase,
-  windows,
-  preparedItems,
-  expectedDigest,
-}: {
-  supabase: ServerSupabaseClient;
-  windows: PreparationWindow[];
-  preparedItems: PreparedItem[];
-  expectedDigest: string;
-}) {
-  const itemsByWindow = windows.map((window) =>
-    preparedItems.filter(
-      (item) =>
-        item.scheduled_date >= window.start && item.scheduled_date <= window.end
-    )
-  );
-  let digest = expectedDigest;
-  for (let index = 0; index < windows.length; index += 1) {
-    const window = windows[index]!;
-    const response = await supabase.rpc("set_planner_schedule", {
-      p_start: window.start,
-      p_end: window.end,
-      p_items: itemsByWindow[index]! as unknown as Json,
-      p_expected_digest: digest,
-    });
-    if (response.error) {
-      if (postgresErrorMatches(response.error, "P0001", "stale_schedule")) {
-        return { stale: true as const };
-      }
-      throw new PlannerRouteError(
-        409,
-        "prepare_failed",
-        "Planner calendar could not be prepared.",
-        { cause: response.error.message }
-      );
-    }
-    const row = Array.isArray(response.data) ? response.data[0] : response.data;
-    if (row && typeof row.schedule_digest === "string") {
-      digest = row.schedule_digest;
-    }
-  }
-  return { stale: false as const };
 }
 
 async function prepareOnce({
@@ -205,6 +188,7 @@ async function prepareOnce({
       .map((item) => [itemKey(item), item])
   );
   const completionToUnit = {};
+  const warnings: PrepareWarning[] = [];
   const generatedByKey = new Map<
     string,
     {
@@ -229,7 +213,28 @@ async function prepareOnce({
         locked: item.locked,
         scheduledTimeOverride: item.scheduled_time,
       }));
-    for (const window of windows) {
+    const goalWindows = buildGoalPreparationWindows({
+      goal,
+      asOfDate,
+      preparationStart,
+      preparationEnd,
+    });
+    if (goalWindows.length === 0) {
+      continue;
+    }
+    const generatedForGoal = new Map<
+      string,
+      {
+        goalId: string;
+        unitKey: string;
+        scheduledDate: string;
+        scheduledTimeOverride: string | null;
+        locked: boolean;
+      }
+    >();
+    const goalDates = new Set<string>();
+    let goalBlocked = false;
+    for (const window of goalWindows) {
       const kernel = runPlannerKernel({
         schemaVersion: PLANNER_CONTRACT_VERSION,
         eligibilityMode: PLANNER_ELIGIBILITY_MODES[0],
@@ -258,16 +263,15 @@ async function prepareOnce({
         preserveExistingAssignments: true,
       });
       if (!kernel.solver.publishable) {
-        throw new PlannerRouteError(
-          422,
-          "planner_not_publishable",
-          "Planner preparation could not place every required session.",
-          {
-            goalId: goal.id,
-            issueCodes: kernel.solver.issueCodes,
-            invalidGoalIds: kernel.solver.invalidGoalIds,
-          }
-        );
+        warnings.push({
+          goalId: goal.id,
+          code: "goal_unplaceable",
+          message:
+            "Goal could not be fully auto-prepared in the current constraints. Existing scheduled sessions were kept.",
+          issueCodes: kernel.solver.issueCodes,
+        });
+        goalBlocked = true;
+        break;
       }
       for (const unit of kernel.workUnits) {
         if (
@@ -277,7 +281,19 @@ async function prepareOnce({
         ) {
           continue;
         }
-        generatedByKey.set(
+        const goalDateKey = `${goal.id}\u0000${unit.scheduledDate}`;
+        if (goalDates.has(goalDateKey)) {
+          warnings.push({
+            goalId: goal.id,
+            code: "goal_duplicate_date",
+            message:
+              "Goal produced multiple sessions on one date during auto-prepare. Existing scheduled sessions were kept.",
+          });
+          goalBlocked = true;
+          break;
+        }
+        goalDates.add(goalDateKey);
+        generatedForGoal.set(
           itemKey({ goal_id: unit.originalGoalId, unit_key: unit.unitKey }),
           {
             goalId: unit.originalGoalId,
@@ -288,10 +304,32 @@ async function prepareOnce({
           }
         );
       }
+      if (goalBlocked) {
+        break;
+      }
+    }
+    if (goalBlocked) {
+      continue;
+    }
+    for (const [key, generated] of generatedForGoal.entries()) {
+      generatedByKey.set(key, generated);
     }
   }
 
-  const preparedByKey = new Map<string, PreparedItem>();
+  const preparedByKey = new Map<string, PreparedItem>(
+    Array.from(existingByKey.entries()).map(([key, item]) => [
+      key,
+      {
+        goal_id: item.goal_id,
+        unit_key: item.unit_key,
+        scheduled_date: item.scheduled_date,
+        original_scheduled_date:
+          item.original_scheduled_date ?? item.scheduled_date,
+        scheduled_time: item.scheduled_time,
+        locked: item.locked,
+      },
+    ])
+  );
   for (const [key, generated] of generatedByKey) {
     const existing = existingByKey.get(key);
     preparedByKey.set(
@@ -327,15 +365,12 @@ async function prepareOnce({
   for (const item of preparedItems) {
     const goalDate = `${item.goal_id}\u0000${item.scheduled_date}`;
     if (occupiedGoalDates.has(goalDate)) {
-      throw new PlannerRouteError(
-        422,
-        "planner_not_publishable",
-        "Planner preparation produced two sessions for one goal on the same day.",
-        {
-          goalId: item.goal_id,
-          scheduledDate: item.scheduled_date,
-        }
-      );
+      warnings.push({
+        goalId: item.goal_id,
+        code: "goal_duplicate_date",
+        message:
+          "Goal produced multiple sessions on one date during auto-prepare. Existing scheduled sessions were kept.",
+      });
     }
     occupiedGoalDates.add(goalDate);
   }
@@ -354,15 +389,7 @@ async function prepareOnce({
   });
   if (response.error) {
     if (postgresErrorMatches(response.error, "P0001", "stale_schedule")) {
-      return { stale: true as const };
-    }
-    if (isMissingPrepareScheduleRpc(response.error)) {
-      return fallbackPrepareWithSetSchedule({
-        supabase,
-        windows,
-        preparedItems,
-        expectedDigest,
-      });
+      return { stale: true as const, warnings };
     }
     throw new PlannerRouteError(
       409,
@@ -371,7 +398,7 @@ async function prepareOnce({
       { cause: response.error.message }
     );
   }
-  return { stale: false as const };
+  return { stale: false as const, warnings };
 }
 
 export async function preparePlannerSchedule({
@@ -400,7 +427,7 @@ export async function preparePlannerSchedule({
       "Planner state changed while the calendar was opening. Try again."
     );
   }
-  return loadPlannerContextPayload({
+  const payload = await loadPlannerContextPayload({
     supabase,
     ownerId,
     capabilities,
@@ -409,4 +436,7 @@ export async function preparePlannerSchedule({
     endDate: visibleWindow.end,
     correlationId,
   });
+  return result.warnings.length > 0
+    ? { ...payload, prepareWarnings: result.warnings }
+    : payload;
 }

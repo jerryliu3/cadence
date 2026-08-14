@@ -285,6 +285,7 @@ export function CalendarSurface({
       setLoading(true);
     }
     let contextPayload: PlannerContextPayload;
+    let preparedThisLoad = false;
     try {
       const parsedMonth = parseMonth(month);
       const visibleStart = getScopeDateRange(
@@ -294,6 +295,7 @@ export function CalendarSurface({
         format(addMonths(parsedMonth, 1), "yyyy-MM")
       ).end;
       const shouldPrepare = forcePrepare || !calendarPreparedRef.current;
+      preparedThisLoad = shouldPrepare;
       contextPayload = shouldPrepare
         ? await postJson<PlannerContextPayload>("/api/planner/prepare", {
             scopeMonth: month,
@@ -331,6 +333,16 @@ export function CalendarSurface({
 
     setContext(contextPayload);
     writeTabDataCache(plannerContextCacheKey, contextPayload);
+    if (preparedThisLoad && (contextPayload.prepareWarnings?.length ?? 0) > 0) {
+      const warningGoalTitles = contextPayload.prepareWarnings
+        ?.slice(0, 2)
+        .map((warning) => contextPayload.goalTitles[warning.goalId] ?? warning.goalId)
+        .join(", ");
+      const moreCount = (contextPayload.prepareWarnings?.length ?? 0) - 2;
+      toast(
+        `Some goals could not be fully auto-prepared. Kept existing sessions for ${warningGoalTitles}${moreCount > 0 ? ` and ${moreCount} more` : ""}.`
+      );
+    }
     if (contextPayload.preferences?.timezone) {
       setSetupTimezone(contextPayload.preferences.timezone);
       setSetupWeekStartsOn(
