@@ -34,6 +34,7 @@ import { GET } from "./route";
 
 describe("push dispatch route", () => {
   beforeEach(() => {
+    vi.useRealTimers();
     vi.clearAllMocks();
 
     mocks.getServerEnv.mockReturnValue({
@@ -264,5 +265,42 @@ describe("push dispatch route", () => {
       "last_sent_local_date",
       expect.any(String)
     );
+  });
+
+  it("retries a deferred schedule later on the same local day", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-14T15:00:00.000Z"));
+    mocks.fetchSchedules.mockResolvedValue({
+      data: [
+        {
+          id: "schedule-1",
+          user_id: "user-1",
+          hour: 14,
+          timezone: "UTC",
+          message: "Keep going",
+          last_sent_local_date: null,
+        },
+      ],
+      error: null,
+    });
+    mocks.claimSchedule.mockResolvedValue({
+      data: { id: "schedule-1" },
+      error: null,
+    });
+
+    const response = await GET(
+      new Request("http://localhost/api/push/dispatch", {
+        method: "GET",
+        headers: {
+          authorization: "Bearer cron-secret",
+        },
+      })
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      due: 1,
+    });
+    expect(mocks.sendPushToUser).toHaveBeenCalledTimes(1);
   });
 });

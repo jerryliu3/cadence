@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions, pg_catalog;
-select plan(11);
+select plan(12);
 
 insert into auth.users (id, email)
 values ('9c222222-2222-4222-8222-222222222222', 'native-push@example.com')
@@ -77,6 +77,28 @@ select throws_ok(
   '22023',
   'native_platform_invalid',
   'native rotation rejects a missing platform explicitly'
+);
+
+select throws_ok(
+  $$
+    insert into public.push_subscriptions (
+      user_id,
+      platform,
+      endpoint,
+      p256dh,
+      auth
+    )
+    values (
+      '9c222222-2222-4222-8222-222222222222',
+      'web',
+      'native:web:reserved',
+      'p256dh',
+      'auth'
+    )
+  $$,
+  '23514',
+  null,
+  'web rows cannot enter the reserved native endpoint namespace'
 );
 
 reset role;

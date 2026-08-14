@@ -52,7 +52,7 @@ async function dispatchNotifications(request: Request, correlationId: string) {
         const localSlot = getLocalScheduleSlot(now, schedule.timezone);
 
         if (
-          localSlot.hour !== schedule.hour ||
+          localSlot.hour < schedule.hour ||
           schedule.last_sent_local_date === localSlot.date
         ) {
           return [];
