@@ -15,6 +15,7 @@ export interface OutboxFlushResult {
   claimed: number;
   sent: number;
   failed: number;
+  deferred: number;
   skipped: number;
   removedSubscriptions: number;
 }
@@ -46,6 +47,7 @@ export async function flushNotificationOutbox({
   const rows = (claimedRows ?? []) as ClaimedOutboxRow[];
   let sent = 0;
   let failed = 0;
+  let deferred = 0;
   let skipped = 0;
   let removedSubscriptions = 0;
 
@@ -62,6 +64,16 @@ export async function flushNotificationOutbox({
         },
       });
       removedSubscriptions += result.removedSubscriptions;
+
+      if (result.sent === 0 && result.webConfigurationUnavailable) {
+        deferred += 1;
+        await admin.rpc("resolve_notification_outbox_delivery_service", {
+          p_outbox_id: row.id,
+          p_sent: false,
+          p_error: "web_configuration_unavailable",
+        });
+        continue;
+      }
 
       if (isNoSubscriptionResult(result)) {
         skipped += 1;
@@ -102,6 +114,7 @@ export async function flushNotificationOutbox({
     claimed: rows.length,
     sent,
     failed,
+    deferred,
     skipped,
     removedSubscriptions,
   };

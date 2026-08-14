@@ -116,6 +116,7 @@ describe("sendPushToUser", () => {
       sent: 1,
       removedSubscriptions: 0,
       hadSubscriptions: true,
+      webConfigurationUnavailable: false,
     });
     expect(mocks.setVapidDetails).not.toHaveBeenCalled();
     expect(fetch).toHaveBeenCalledWith(
@@ -204,7 +205,38 @@ describe("sendPushToUser", () => {
     });
 
     expect(result.sent).toBe(1);
+    expect(result.webConfigurationUnavailable).toBe(true);
     expect(mocks.sendNotification).not.toHaveBeenCalled();
     expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("reports unavailable web delivery when VAPID is missing", async () => {
+    mocks.getServerEnv.mockReturnValue({
+      EXPO_ACCESS_TOKEN: "expo-token",
+    });
+    const admin = createAdmin({
+      rows: [
+        {
+          id: "web-1",
+          endpoint: "https://example.test/sub",
+          platform: "web",
+          p256dh: "p256dh",
+          auth: "auth",
+        },
+      ],
+    });
+
+    const result = await sendPushToUser({
+      admin: admin as never,
+      userId: "user-1",
+      payload: { title: "Goalmaxxing", body: "Keep going" },
+    });
+
+    expect(result).toEqual({
+      sent: 0,
+      removedSubscriptions: 0,
+      hadSubscriptions: true,
+      webConfigurationUnavailable: true,
+    });
   });
 });

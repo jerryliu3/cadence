@@ -165,10 +165,12 @@ export async function sendPushToUser({
       sent: 0,
       removedSubscriptions: 0,
       hadSubscriptions: false,
+      webConfigurationUnavailable: false,
     };
   }
 
   let sent = 0;
+  let webConfigurationUnavailable = false;
   const expiredIds = new Set<string>();
   for (const subscription of subscriptions) {
     try {
@@ -189,7 +191,16 @@ export async function sendPushToUser({
         continue;
       }
 
-      if (!tryConfigureWebPush()) {
+      let webPushConfigured = false;
+      try {
+        webPushConfigured = tryConfigureWebPush();
+      } catch (configurationError) {
+        webConfigurationUnavailable = true;
+        console.error("Web push VAPID configuration is invalid.", configurationError);
+        continue;
+      }
+      if (!webPushConfigured) {
+        webConfigurationUnavailable = true;
         console.error(
           "Skipping web push subscription because VAPID keys are not configured."
         );
@@ -249,5 +260,6 @@ export async function sendPushToUser({
     sent,
     removedSubscriptions: expiredIds.size,
     hadSubscriptions: subscriptions.length > 0,
+    webConfigurationUnavailable,
   };
 }

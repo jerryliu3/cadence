@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions, pg_catalog;
-select plan(5);
+select plan(7);
 
 insert into auth.users (id, email)
 values ('9c111111-1111-4111-8111-111111111111', 'outbox-user@example.com')
@@ -95,6 +95,25 @@ select is(
   ),
   'pending'::public.notification_state,
   'failed delivery remains pending for retry before max attempts'
+);
+
+select ok(
+  public.resolve_notification_outbox_delivery_service(
+    (select id from _claimed limit 1),
+    false,
+    'web_configuration_unavailable'
+  ),
+  'configuration outage defers the outbox row'
+);
+
+select is(
+  (
+    select attempts::integer
+    from public.notification_outbox outbox
+    where outbox.id = (select id from _claimed limit 1)
+  ),
+  0,
+  'configuration outage restores the consumed attempt'
 );
 
 select ok(
