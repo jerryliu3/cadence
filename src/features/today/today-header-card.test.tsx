@@ -27,6 +27,8 @@ describe("TodayHeaderCard", () => {
     expect(title.closest("[data-title-date-row]")).toBe(
       dateField.closest("[data-title-date-row]")
     );
+    expect(title).not.toHaveClass("text-xl");
+    expect(title).toHaveClass("whitespace-nowrap");
     expect(dateField).toHaveAttribute("type", "date");
     expect(screen.queryByText("Today")).not.toBeInTheDocument();
     expect(screen.queryByText("Fri Aug 14, 2026")).not.toBeInTheDocument();
