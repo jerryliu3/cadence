@@ -26,6 +26,8 @@ import { useDuo, useDuoSurfaceScope } from "../duo/DuoProvider";
 import { DuoScopeSegmentedControl } from "../duo/DuoScopeSegmentedControl";
 import { useReportMobileDuoScopeViewed } from "../duo/telemetry";
 import {
+  buildCalendarMonthCellAccessibilityLabel,
+  buildCalendarMonthMarkerModel,
   buildPartnerMarkerAccessibilityLabel,
   resolveCalendarReadOnlyState,
 } from "./calendar-duo";
@@ -95,6 +97,8 @@ export function CalendarScreen() {
   const weekStartsOn = normalizeWeekStartsOn(
     planner.data?.preferences?.defaultPolicy.weekStartsOn
   );
+  const overlayActive =
+    Boolean(activePartner) && (scope === "partner" || scope === "both");
   const [moveUnit, setMoveUnit] = useState<PlannerWorkUnit | null>(null);
   const [moveDate, setMoveDate] = useState("");
   const [message, setMessage] = useState<string | null>(null);
@@ -314,55 +318,86 @@ export function CalendarScreen() {
       ) : null}
       {viewMode === "month" ? (
         <View style={styles.grid}>
-          {buildMonthCells(scopeMonth, weekStartsOn).map((cell) => (
-            <MeasureableDay
-              key={cell.date}
-              onRect={(rect) => {
-                dayTargets.current.set(cell.date, {
-                  day: cell.date,
-                  inMonth: cell.inMonth,
-                  rect,
-                });
-              }}
-              style={[
-                styles.cell,
-                {
-                  opacity: cell.inMonth ? 1 : 0.4,
-                  borderColor: theme.colors.border,
-                  backgroundColor:
-                    cell.date === selectedDay ? theme.colors.accent : theme.colors.card,
-                },
-              ]}
-            >
-              <Pressable
-                onPress={() => apply({ day: cell.date, viewMode: "day" })}
-                style={styles.cellPress}
+          {buildMonthCells(scopeMonth, weekStartsOn).map((cell) => {
+            const viewerSessionCount = readOnlyState.showViewerSessions
+              ? (unitsByDate.get(cell.date)?.length ?? 0)
+              : 0;
+            const partnerMarkers = partnerOverlay.markersByDate.get(cell.date) ?? [];
+            const markerModel = buildCalendarMonthMarkerModel({
+              markers: partnerMarkers,
+              maxVisible: 2,
+            });
+            const accessibilityLabel = buildCalendarMonthCellAccessibilityLabel({
+              day: cell.date,
+              includeViewerSessionClause: readOnlyState.showViewerSessions,
+              viewerSessionCount,
+              overlayActive,
+              partnerMarkers: markerModel.visibleMarkers,
+              partnerOverflowCount: markerModel.overflowCount,
+            });
+            return (
+              <MeasureableDay
+                key={cell.date}
+                onRect={(rect) => {
+                  dayTargets.current.set(cell.date, {
+                    day: cell.date,
+                    inMonth: cell.inMonth,
+                    rect,
+                  });
+                }}
+                style={[
+                  styles.cell,
+                  {
+                    opacity: cell.inMonth ? 1 : 0.4,
+                    borderColor: theme.colors.border,
+                    backgroundColor:
+                      cell.date === selectedDay ? theme.colors.accent : theme.colors.card,
+                  },
+                ]}
               >
-                <Text style={{ color: theme.colors.foreground, fontSize: 12 }}>
-                  {cell.date.slice(8)}
-                </Text>
-                {readOnlyState.showViewerSessions ? (
-                  <Text style={{ color: theme.colors.mutedForeground, fontSize: 10 }}>
-                    {unitsByDate.get(cell.date)?.length ?? 0}
+                <Pressable
+                  onPress={() => apply({ day: cell.date, viewMode: "day" })}
+                  style={styles.cellPress}
+                  accessibilityLabel={accessibilityLabel}
+                >
+                  <Text style={{ color: theme.colors.foreground, fontSize: 12 }}>
+                    {cell.date.slice(8)}
                   </Text>
-                ) : null}
-                {(partnerOverlay.markersByDate.get(cell.date) ?? []).slice(0, 2).map((marker) => (
-                  <View
-                    key={marker.key}
-                    accessibilityRole="text"
-                    accessible
-                    accessibilityLabel={buildPartnerMarkerAccessibilityLabel(marker.goalTitle)}
-                    style={[
-                      styles.partnerDot,
-                      {
-                        backgroundColor: theme.colors.primary,
-                      },
-                    ]}
-                  />
-                ))}
-              </Pressable>
-            </MeasureableDay>
-          ))}
+                  {readOnlyState.showViewerSessions ? (
+                    <Text
+                      style={{
+                        color: theme.colors.mutedForeground,
+                        fontSize: 10,
+                      }}
+                    >
+                      {viewerSessionCount}
+                    </Text>
+                  ) : null}
+                  {markerModel.visibleMarkers.map((marker) => (
+                    <View
+                      key={marker.key}
+                      accessible={false}
+                      style={[
+                        styles.partnerDot,
+                        { backgroundColor: theme.colors.primary },
+                      ]}
+                    />
+                  ))}
+                  {markerModel.overflowCount > 0 ? (
+                    <Text
+                      style={{
+                        color: theme.colors.primary,
+                        fontSize: 10,
+                        fontWeight: "700",
+                      }}
+                    >
+                      +{markerModel.overflowCount}
+                    </Text>
+                  ) : null}
+                </Pressable>
+              </MeasureableDay>
+            );
+          })}
         </View>
       ) : (
         visibleDays.map((visibleDay) => (

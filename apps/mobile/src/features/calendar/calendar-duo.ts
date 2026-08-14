@@ -167,21 +167,32 @@ export function buildCalendarMonthMarkerModel({
 
 export function buildCalendarMonthCellAccessibilityLabel({
   day,
+  includeViewerSessionClause,
   viewerSessionCount,
+  overlayActive,
   partnerMarkers,
   partnerOverflowCount,
 }: {
   day: string;
+  includeViewerSessionClause: boolean;
   viewerSessionCount: number;
+  overlayActive: boolean;
   partnerMarkers: PlannerCompletionFactMarker[];
   partnerOverflowCount: number;
 }) {
-  const sessionLabel = `${viewerSessionCount} viewer session${
-    viewerSessionCount === 1 ? "" : "s"
-  }`;
+  const parts = [day];
+  if (includeViewerSessionClause) {
+    parts.push(
+      `${viewerSessionCount} viewer session${viewerSessionCount === 1 ? "" : "s"}`
+    );
+  }
+  if (!overlayActive) {
+    return `${parts.join(". ")}.`;
+  }
   const partnerNames = partnerMarkers.map((marker) => marker.goalTitle);
   if (partnerNames.length === 0 && partnerOverflowCount === 0) {
-    return `${day}. ${sessionLabel}. No partner completions shown.`;
+    parts.push("No partner completions shown");
+    return `${parts.join(". ")}.`;
   }
   const overflowLabel =
     partnerOverflowCount > 0
@@ -189,9 +200,8 @@ export function buildCalendarMonthCellAccessibilityLabel({
           partnerOverflowCount === 1 ? "" : "s"
         }`
       : "";
-  return `${day}. ${sessionLabel}. Partner completions: ${partnerNames.join(
-    ", "
-  )}${overflowLabel}.`;
+  parts.push(`Partner completions: ${partnerNames.join(", ")}${overflowLabel}`);
+  return `${parts.join(". ")}.`;
 }
 
 export function resolveCalendarOverlayState({

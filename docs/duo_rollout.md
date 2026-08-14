@@ -63,7 +63,7 @@ Mobile capture tags are stable across all events:
 - `deviceClass=mobile`
 
 Partner-lane fetch failures capture the underlying error with
-`surface`/`code`/`status`/`stalePartner` extras and no partner UUID tags.
+`surface`/`code`/`status`/`postgrestCode`/`stalePartner` extras and no partner UUID tags.
 Web partner-lane fetch failures also go through `reportError` with `area: "duo"`.
 
 ## Acceptance matrix
