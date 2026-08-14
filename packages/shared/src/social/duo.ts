@@ -34,8 +34,6 @@ export const DUO_SURFACE_DEFAULTS = {
   calendar: "me",
 } as const satisfies Record<string, DuoScope>;
 
-export type DuoSurfaceName = keyof typeof DUO_SURFACE_DEFAULTS;
-
 export function shouldClampDuoScopePreference({
   availability,
   hasActivePartner,
@@ -76,7 +74,6 @@ export interface DuoLaneSubject {
   label: string;
   userId?: string;
   readOnly: boolean;
-  avatarUrl?: string | null;
 }
 
 export function resolveDuoLanes({
