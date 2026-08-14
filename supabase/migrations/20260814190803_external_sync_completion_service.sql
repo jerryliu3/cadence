@@ -177,6 +177,8 @@ begin
     raise exception using errcode = '42501', message = 'not_authorized_for_goal';
   end if;
 
+  perform private.assert_health_local_today(p_local_today);
+
   if p_completed_on <> p_local_today
     and p_completed_on <> (p_local_today - 1)
   then

@@ -2,6 +2,11 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, private, extensions, pg_catalog;
 select plan(21);
+select set_config(
+  'health.today',
+  (pg_catalog.timezone('utc', now()))::date::text,
+  true
+);
 
 insert into auth.users (id, email)
 values
@@ -38,8 +43,8 @@ values
     'recurring',
     'weekly',
     6,
-    date '2026-08-01',
-    date '2026-11-30'
+    current_setting('health.today')::date - 30,
+    current_setting('health.today')::date + 180
   ),
   (
     'e1600000-0000-4000-8000-000000000002',
@@ -50,8 +55,8 @@ values
     'recurring',
     'weekly',
     6,
-    date '2026-08-01',
-    date '2026-11-30'
+    current_setting('health.today')::date - 30,
+    current_setting('health.today')::date + 180
   ),
   (
     'e1600000-0000-4000-8000-000000000003',
@@ -62,8 +67,8 @@ values
     'recurring',
     'weekly',
     6,
-    date '2026-08-01',
-    date '2026-11-30'
+    current_setting('health.today')::date - 30,
+    current_setting('health.today')::date + 180
   ),
   (
     'e1600000-0000-4000-8000-000000000004',
@@ -74,8 +79,8 @@ values
     'recurring',
     'daily',
     null,
-    date '2026-08-01',
-    date '2026-11-30'
+    current_setting('health.today')::date - 30,
+    current_setting('health.today')::date + 180
   ),
   (
     'e1600000-0000-4000-8000-000000000005',
@@ -86,8 +91,8 @@ values
     'recurring',
     'daily',
     null,
-    date '2099-06-01',
-    date '2099-08-31'
+    current_setting('health.today')::date - 30,
+    current_setting('health.today')::date + 180
   );
 
 insert into public.goal_links (
@@ -155,8 +160,8 @@ select throws_ok(
   $$
     select public.apply_external_completion_service(
       'e1600000-0000-4000-8000-000000000004',
-      date '2026-08-14',
-      date '2026-08-14',
+      current_setting('health.today')::date,
+      current_setting('health.today')::date,
       'hk:steps:1'
     )
   $$,
@@ -176,8 +181,8 @@ select set_config(
 select is(
   public.apply_external_completion_service(
     'e1600000-0000-4000-8000-000000000001',
-    date '2026-08-14',
-    date '2026-08-14',
+    current_setting('health.today')::date,
+    current_setting('health.today')::date,
     'hk:cascade:1'
   ),
   true,
@@ -189,7 +194,7 @@ select is(
     select count(*)::integer
     from public.completions
     where user_id = 'e1111111-1111-4111-8111-111111111111'
-      and completed_on = date '2026-08-14'
+      and completed_on = current_setting('health.today')::date
       and goal_id in (
         'e1600000-0000-4000-8000-000000000001',
         'e1600000-0000-4000-8000-000000000002',
@@ -206,7 +211,7 @@ select is(
     from public.completions
     where goal_id = 'e1600000-0000-4000-8000-000000000001'
       and user_id = 'e1111111-1111-4111-8111-111111111111'
-      and completed_on = date '2026-08-14'
+      and completed_on = current_setting('health.today')::date
   ),
   'external_sync',
   'root completion uses external_sync'
@@ -221,7 +226,7 @@ select is(
         'e1600000-0000-4000-8000-000000000003'
       )
       and user_id = 'e1111111-1111-4111-8111-111111111111'
-      and completed_on = date '2026-08-14'
+      and completed_on = current_setting('health.today')::date
   ),
   array['linked_cascade', 'linked_cascade']::text[],
   'linked goals keep linked_cascade source'
@@ -244,8 +249,8 @@ select is(
 select is(
   public.apply_external_completion_service(
     'e1600000-0000-4000-8000-000000000001',
-    date '2026-08-14',
-    date '2026-08-14',
+    current_setting('health.today')::date,
+    current_setting('health.today')::date,
     'hk:cascade:1'
   ),
   false,
@@ -255,8 +260,8 @@ select is(
 select is(
   public.apply_external_completion_service(
     'e1600000-0000-4000-8000-000000000004',
-    date '2026-08-13',
-    date '2026-08-14',
+    current_setting('health.today')::date - 1,
+    current_setting('health.today')::date,
     'hk:window:yesterday'
   ),
   true,
@@ -266,30 +271,33 @@ select is(
 select is(
   public.apply_external_completion_service(
     'e1600000-0000-4000-8000-000000000004',
-    date '2026-08-12',
-    date '2026-08-14',
+    current_setting('health.today')::date - 2,
+    current_setting('health.today')::date,
     'hk:window:older'
   ),
   false,
   'dates older than yesterday are rejected'
 );
 
-select is(
-  public.apply_external_completion_service(
-    'e1600000-0000-4000-8000-000000000005',
-    date '2099-06-15',
-    date '2099-06-15',
-    'hk:window:offset-today'
-  ),
-  true,
-  'p_local_today is used instead of profiles.timezone'
+select throws_ok(
+  $$
+    select public.apply_external_completion_service(
+      'e1600000-0000-4000-8000-000000000005',
+      date '2099-06-15',
+      date '2099-06-15',
+      'hk:window:offset-today'
+    )
+  $$,
+  '22023',
+  'local_today_out_of_range',
+  'p_local_today outside the UTC offset envelope is rejected'
 );
 
 select is(
   public.apply_external_completion_service(
     'e1600000-0000-4000-8000-000000000004',
-    date '2026-08-14',
-    date '2026-08-14',
+    current_setting('health.today')::date,
+    current_setting('health.today')::date,
     'hk:window:today'
   ),
   true,
@@ -298,14 +306,14 @@ select is(
 
 select public.unmark_goal_complete(
   'e1600000-0000-4000-8000-000000000004',
-  date '2026-08-14'
+  current_setting('health.today')::date
 );
 
 select is(
   public.apply_external_completion_service(
     'e1600000-0000-4000-8000-000000000004',
-    date '2026-08-14',
-    date '2026-08-14',
+    current_setting('health.today')::date,
+    current_setting('health.today')::date,
     'hk:window:resurrect'
   ),
   false,
@@ -316,7 +324,7 @@ select lives_ok(
   $tap$
     select public.mark_goal_complete(
       'e1600000-0000-4000-8000-000000000004',
-      date '2026-08-14'
+      current_setting('health.today')::date
     )
   $tap$,
   'manual complete still works after an unmark tombstone'
@@ -332,8 +340,8 @@ select throws_ok(
   $$
     select public.apply_external_completion_service(
       'e1600000-0000-4000-8000-000000000001',
-      date '2026-08-14',
-      date '2026-08-14',
+      current_setting('health.today')::date,
+      current_setting('health.today')::date,
       'hk:other-user'
     )
   $$,
@@ -357,7 +365,7 @@ select throws_ok(
     ) values (
       'e1111111-1111-4111-8111-111111111111',
       'e1600000-0000-4000-8000-000000000004',
-      date '2026-08-10'
+      current_setting('health.today')::date - 4
     )
   $$,
   '42501',
