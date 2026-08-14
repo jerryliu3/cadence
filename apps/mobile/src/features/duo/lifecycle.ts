@@ -39,6 +39,9 @@ async function refreshAfterLifecycleMutation({
     queryCoordinator.invalidateQueries({
       queryKey: duoQueryKeys.plannerPrefix(viewerUserId),
     }),
+    queryCoordinator.invalidateQueries({
+      queryKey: duoQueryKeys.calendarOverlayPrefix(viewerUserId),
+    }),
   ]);
   await queryCoordinator.refetchQueries({
     queryKey: duoQueryKeys.team(viewerUserId),

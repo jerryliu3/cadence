@@ -80,6 +80,9 @@ describe("createDuoLifecycleMutations", () => {
     expect(queryCoordinator.invalidateQueries).toHaveBeenCalledWith({
       queryKey: duoQueryKeys.plannerPrefix("viewer-1"),
     });
+    expect(queryCoordinator.invalidateQueries).toHaveBeenCalledWith({
+      queryKey: duoQueryKeys.calendarOverlayPrefix("viewer-1"),
+    });
 
     expect(queryCoordinator.refetchQueries).toHaveBeenCalledWith({
       queryKey: duoQueryKeys.team("viewer-1"),
