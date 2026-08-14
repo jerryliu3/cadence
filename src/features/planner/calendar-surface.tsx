@@ -1298,7 +1298,9 @@ export function CalendarSurface({
       previewUnitByEntryKey,
     ]
   );
-  queueDraftMoveCommandRef.current = queueDraftMoveCommand;
+  useEffect(() => {
+    queueDraftMoveCommandRef.current = queueDraftMoveCommand;
+  }, [queueDraftMoveCommand]);
 
   const updateDraftLabel = (entry: PlannerDayDetailEntry, label: string) => {
     if (entry.draftGhost) {
