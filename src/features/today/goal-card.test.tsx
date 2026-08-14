@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { GoalCard } from "@/features/today/goal-card";
+import type { GoalProgressSnapshot } from "@/lib/goals/progress";
 import type { Goal } from "@/lib/goals/types";
 
 vi.mock("next/image", () => ({
@@ -112,5 +113,37 @@ describe("GoalCard", () => {
     expect(
       screen.getByText("0/10 total completions by Dec 31, 2026")
     ).toBeInTheDocument();
+  });
+
+  it("uses a light green tile for achieved goals instead of an Achieved badge", () => {
+    const progress: GoalProgressSnapshot = {
+      goalId: goal.id,
+      admissibleCompletionCount: 10,
+      creditedUnitCount: 10,
+      expectedUnitCount: 10,
+      percent: 100,
+      lifecycle: "ended",
+      outcome: "achieved",
+      placementTerminal: true,
+      currentStreak: 0,
+      longestStreak: 0,
+      milestoneDates: [],
+    };
+
+    const { container } = render(
+      <GoalCard
+        goal={{ ...goal, archived_at: null, target_count: 10 }}
+        completions={[]}
+        progress={progress}
+        linkedCount={0}
+        selectedDate="2026-08-13"
+        referenceDate={new Date("2026-08-13T12:00:00")}
+        weeklyAnchor={weeklyAnchor}
+        onToggle={vi.fn()}
+      />
+    );
+
+    expect(screen.queryByText("Achieved")).not.toBeInTheDocument();
+    expect(container.firstChild).toHaveClass("bg-emerald-50");
   });
 });
