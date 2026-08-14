@@ -396,7 +396,7 @@ export function CalendarSurface({
   );
   const draftSaveWindowResult = useMemo(() => {
     if (!currentScopeMonth) {
-      return { ok: false, code: "empty" as const };
+      return { ok: false as const, code: "empty" as const };
     }
     return tryBuildPlannerDraftSaveWindow({
       currentMonth: currentScopeMonth,
@@ -2578,17 +2578,6 @@ export function CalendarSurface({
                   disabled={saveLoading || loading}
                 >
                   Undo changes
-                </Button>
-              ) : null}
-              {hasDraftSession && dirtyScopeMonths.length > 1 ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => discardDraftChanges("all")}
-                  disabled={saveLoading || loading}
-                >
-                  Undo all months
                 </Button>
               ) : null}
               <Button
