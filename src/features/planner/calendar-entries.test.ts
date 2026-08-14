@@ -1,41 +1,79 @@
 import { describe, expect, it } from "vitest";
 import {
-  buildCompletionFactMarkerDayByIdentity,
   buildCompletionFactMarkersByDate,
   buildEntriesByDate,
-  buildEntriesByDateProjection,
-  buildScopeOwnedEntryKeys,
   resolveCalendarDayData,
 } from "./calendar-entries";
 import type {
-  PlannerCompletionFactMarker,
+  PlannerActiveItemSnapshot,
   PlannerWorkUnit,
 } from "./calendar-surface.types";
 
-function unit({
-  goalId,
-  unitKey,
-  scheduledDate,
-}: {
-  goalId: string;
-  unitKey: string;
-  scheduledDate: string | null;
-}): PlannerWorkUnit {
+function unit(scheduledDate: string): PlannerWorkUnit {
   return {
-    originalGoalId: goalId,
-    unitKey,
-    label: null,
+    originalGoalId: "goal-a",
+    unitKey: "total:1",
+    label: "Session",
     scheduledDate,
     classification: "open",
     creditState: "uncredited",
   };
 }
 
-describe("buildEntriesByDate draft visual diff", () => {
-  it("shows moved-from and moved-to markers for coach policy reflow", () => {
+function persistedItem(scheduledDate: string): PlannerActiveItemSnapshot {
+  return {
+    id: "item-a",
+    plan_goal_id: "goal-a",
+    unit_key: "total:1",
+    requirement_kind: "deadline_total",
+    scheduled_date: scheduledDate,
+    original_scheduled_date: scheduledDate,
+    classification: "open",
+    credit_state: "uncredited",
+    locked: false,
+    revision: 0,
+    credited_completion_id: null,
+    credited_completion_date: null,
+  };
+}
+
+describe("planner calendar entries", () => {
+  it("shows moved-from and moved-to markers for a persisted session", () => {
     const entriesByDate = buildEntriesByDate({
-      baselineWorkUnits: [unit({ goalId: "goal-a", unitKey: "total:1", scheduledDate: "2026-08-05" })],
-      workUnits: [unit({ goalId: "goal-a", unitKey: "total:1", scheduledDate: "2026-08-07" })],
+      workUnits: [unit("2026-08-07")],
+      activeItems: [persistedItem("2026-08-05")],
+      activeGoalsByPlanGoalId: new Map(),
+      activeGoalsByOriginalGoalId: new Map(),
+      goalTitles: { "goal-a": "Goal A" },
+      draftItemEdits: {
+        "goal-a:total:1": { scheduledDate: "2026-08-07" },
+      },
+      draftCommands: [
+        {
+          id: "11111111-1111-4111-8111-111111111111",
+          sequence: 1,
+          kind: "move_item",
+          goalId: "goal-a",
+          unitKey: "total:1",
+          sourceDate: "2026-08-05",
+          scheduledDate: "2026-08-07",
+        },
+      ],
+    });
+
+    expect(entriesByDate.get("2026-08-05")?.[0]).toMatchObject({
+      draftGhost: true,
+      draftDiffKind: "moved_from",
+    });
+    expect(entriesByDate.get("2026-08-07")?.[0]).toMatchObject({
+      draftGhost: false,
+      draftDiffKind: "moved_to",
+    });
+  });
+
+  it("never renders a preview-only session", () => {
+    const entriesByDate = buildEntriesByDate({
+      workUnits: [unit("2026-08-07")],
       activeItems: [],
       activeGoalsByPlanGoalId: new Map(),
       activeGoalsByOriginalGoalId: new Map(),
@@ -43,40 +81,32 @@ describe("buildEntriesByDate draft visual diff", () => {
       draftItemEdits: {},
     });
 
-    const movedFrom = (entriesByDate.get("2026-08-05") ?? []).find(
-      (entry) => entry.unitKey === "total:1" && entry.draftDiffKind === "moved_from"
-    );
-    const movedTo = (entriesByDate.get("2026-08-07") ?? []).find(
-      (entry) => entry.unitKey === "total:1" && entry.draftDiffKind === "moved_to"
-    );
-
-    expect(movedFrom).toMatchObject({
-      originalGoalId: "goal-a",
-      unitKey: "total:1",
-      draftGhost: true,
-      draftDiffFromDate: "2026-08-05",
-      draftDiffToDate: "2026-08-07",
-    });
-    expect(movedTo).toMatchObject({
-      originalGoalId: "goal-a",
-      unitKey: "total:1",
-      draftGhost: false,
-      draftDiffFromDate: "2026-08-05",
-      draftDiffToDate: "2026-08-07",
-    });
+    expect(entriesByDate.size).toBe(0);
   });
-});
 
-describe("buildCompletionFactMarkersByDate", () => {
-  it("includes markers outside the current scope month when visible", () => {
-    const markersByDate = buildCompletionFactMarkersByDate({
+  it("returns persisted entries and completion markers from one projection", () => {
+    const marker = {
+      key: "goal-a:total:1:2026-08-06",
+      originalGoalId: "goal-a",
+      unitKey: "total:1",
+      goalTitle: "Goal A",
+      scheduledDate: "2026-08-05",
+    };
+    const result = resolveCalendarDayData({
+      day: "2026-08-06",
+      entriesByDate: new Map(),
+      completionFactMarkersByDate: new Map([["2026-08-06", [marker]]]),
+    });
+
+    expect(result.entries).toEqual([]);
+    expect(result.completionFactMarkers).toEqual([marker]);
+  });
+
+  it("keeps completion facts visible outside the scheduled date", () => {
+    const markers = buildCompletionFactMarkersByDate({
       workUnits: [
         {
-          ...unit({
-            goalId: "goal-a",
-            unitKey: "total:1",
-            scheduledDate: "2026-08-31",
-          }),
+          ...unit("2026-08-31"),
           creditedCompletionDate: "2026-09-01",
           creditState: "completed_elsewhere",
         },
@@ -85,295 +115,9 @@ describe("buildCompletionFactMarkersByDate", () => {
       goalTitles: { "goal-a": "Goal A" },
     });
 
-    expect(markersByDate.get("2026-09-01")).toEqual([
-      {
-        key: "goal-a:total:1:2026-09-01",
-        originalGoalId: "goal-a",
-        unitKey: "total:1",
-        goalTitle: "Goal A",
-        scheduledDate: "2026-08-31",
-      },
-    ]);
-  });
-});
-
-describe("resolveCalendarDayData", () => {
-  it("suppresses supplemental duplicates for canonical units on other days", () => {
-    const currentWorkUnits = [
-      unit({
-        goalId: "goal-a",
-        unitKey: "total:1",
-        scheduledDate: "2026-08-31",
-      }),
-    ];
-    const currentProjection = buildEntriesByDateProjection({
-      baselineWorkUnits: currentWorkUnits,
-      workUnits: currentWorkUnits,
-      activeItems: [],
-      activeGoalsByPlanGoalId: new Map(),
-      activeGoalsByOriginalGoalId: new Map(),
-      goalTitles: { "goal-a": "Goal A" },
-      draftItemEdits: {},
+    expect(markers.get("2026-09-01")?.[0]).toMatchObject({
+      originalGoalId: "goal-a",
+      scheduledDate: "2026-08-31",
     });
-
-    const supplementalWorkUnits = [
-      unit({
-        goalId: "goal-a",
-        unitKey: "total:1",
-        scheduledDate: "2026-09-01",
-      }),
-      unit({
-        goalId: "goal-b",
-        unitKey: "total:1",
-        scheduledDate: "2026-09-01",
-      }),
-    ];
-    const supplementalEntriesByDate = buildEntriesByDate({
-      baselineWorkUnits: supplementalWorkUnits,
-      workUnits: supplementalWorkUnits,
-      activeItems: [],
-      activeGoalsByPlanGoalId: new Map(),
-      activeGoalsByOriginalGoalId: new Map(),
-      goalTitles: { "goal-a": "Goal A", "goal-b": "Goal B" },
-      draftItemEdits: {},
-    });
-
-    const result = resolveCalendarDayData({
-      day: "2026-09-01",
-      entriesByDate: currentProjection.entriesByDate,
-      scopeOwnedEntryKeys: buildScopeOwnedEntryKeys(currentWorkUnits),
-      entryDayByKey: currentProjection.entryDayByKey,
-      completionFactMarkersByDate: new Map<string, PlannerCompletionFactMarker[]>(),
-      completionFactMarkerDayByIdentity: new Map(),
-      visibleMonthCalendarDataByMonth: new Map([
-        [
-          "2026-09",
-          {
-            entriesByDate: supplementalEntriesByDate,
-            completionFactMarkersByDate: new Map(),
-          },
-        ],
-      ]),
-    });
-
-    expect(result.entries.map((entry) => entry.key)).toEqual(["goal-b:total:1"]);
-  });
-
-  it("suppresses supplemental entries for unscheduled canonical units", () => {
-    const currentWorkUnits = [
-      unit({
-        goalId: "goal-a",
-        unitKey: "total:1",
-        scheduledDate: null,
-      }),
-    ];
-    const supplementalWorkUnits = [
-      unit({
-        goalId: "goal-a",
-        unitKey: "total:1",
-        scheduledDate: "2026-09-01",
-      }),
-    ];
-    const supplementalEntriesByDate = buildEntriesByDate({
-      baselineWorkUnits: supplementalWorkUnits,
-      workUnits: supplementalWorkUnits,
-      activeItems: [],
-      activeGoalsByPlanGoalId: new Map(),
-      activeGoalsByOriginalGoalId: new Map(),
-      goalTitles: { "goal-a": "Goal A" },
-      draftItemEdits: {},
-    });
-
-    const result = resolveCalendarDayData({
-      day: "2026-09-01",
-      entriesByDate: new Map(),
-      scopeOwnedEntryKeys: buildScopeOwnedEntryKeys(currentWorkUnits),
-      entryDayByKey: new Map(),
-      completionFactMarkersByDate: new Map(),
-      completionFactMarkerDayByIdentity: new Map(),
-      visibleMonthCalendarDataByMonth: new Map([
-        [
-          "2026-09",
-          {
-            entriesByDate: supplementalEntriesByDate,
-            completionFactMarkersByDate: new Map(),
-          },
-        ],
-      ]),
-    });
-
-    expect(result.entries).toEqual([]);
-  });
-
-  it("suppresses stale spillover entries during pending draft moves", () => {
-    const sourceDay = "2026-09-05";
-    const destinationDay = "2026-09-10";
-    const currentWorkUnits = [
-      unit({
-        goalId: "goal-a",
-        unitKey: "total:1",
-        scheduledDate: sourceDay,
-      }),
-    ];
-    const currentProjection = buildEntriesByDateProjection({
-      baselineWorkUnits: currentWorkUnits,
-      workUnits: currentWorkUnits,
-      activeItems: [],
-      activeGoalsByPlanGoalId: new Map(),
-      activeGoalsByOriginalGoalId: new Map(),
-      goalTitles: { "goal-a": "Goal A" },
-      draftItemEdits: {
-        "goal-a:total:1": {
-          scheduledDate: destinationDay,
-        },
-      },
-    });
-    const supplementalWorkUnits = [
-      unit({
-        goalId: "goal-a",
-        unitKey: "total:1",
-        scheduledDate: sourceDay,
-      }),
-      unit({
-        goalId: "goal-b",
-        unitKey: "total:1",
-        scheduledDate: sourceDay,
-      }),
-    ];
-    const supplementalEntriesByDate = buildEntriesByDate({
-      baselineWorkUnits: supplementalWorkUnits,
-      workUnits: supplementalWorkUnits,
-      activeItems: [],
-      activeGoalsByPlanGoalId: new Map(),
-      activeGoalsByOriginalGoalId: new Map(),
-      goalTitles: { "goal-a": "Goal A", "goal-b": "Goal B" },
-      draftItemEdits: {},
-    });
-
-    const sourceDayResult = resolveCalendarDayData({
-      day: sourceDay,
-      entriesByDate: currentProjection.entriesByDate,
-      scopeOwnedEntryKeys: buildScopeOwnedEntryKeys(currentWorkUnits),
-      entryDayByKey: currentProjection.entryDayByKey,
-      completionFactMarkersByDate: new Map(),
-      completionFactMarkerDayByIdentity: new Map(),
-      visibleMonthCalendarDataByMonth: new Map([
-        [
-          "2026-09",
-          {
-            entriesByDate: supplementalEntriesByDate,
-            completionFactMarkersByDate: new Map(),
-          },
-        ],
-      ]),
-    });
-
-    expect(sourceDayResult.entries.map((entry) => entry.key)).toEqual([
-      `goal-a:total:1:ghost:${sourceDay}`,
-      "goal-b:total:1",
-    ]);
-
-    const destinationDayResult = resolveCalendarDayData({
-      day: destinationDay,
-      entriesByDate: currentProjection.entriesByDate,
-      scopeOwnedEntryKeys: buildScopeOwnedEntryKeys(currentWorkUnits),
-      entryDayByKey: currentProjection.entryDayByKey,
-      completionFactMarkersByDate: new Map(),
-      completionFactMarkerDayByIdentity: new Map(),
-      visibleMonthCalendarDataByMonth: new Map([
-        [
-          "2026-09",
-          {
-            entriesByDate: supplementalEntriesByDate,
-            completionFactMarkersByDate: new Map(),
-          },
-        ],
-      ]),
-    });
-
-    expect(destinationDayResult.entries.map((entry) => entry.key)).toEqual([
-      "goal-a:total:1",
-    ]);
-  });
-
-  it("suppresses supplemental completion markers for canonical units", () => {
-    const currentWorkUnits = [
-      unit({
-        goalId: "goal-a",
-        unitKey: "total:1",
-        scheduledDate: "2026-08-30",
-      }),
-    ];
-    const currentCompletionFactMarkersByDate = new Map<
-      string,
-      PlannerCompletionFactMarker[]
-    >([
-      [
-        "2026-08-31",
-        [
-          {
-            key: "goal-a:total:1:2026-08-31",
-            originalGoalId: "goal-a",
-            unitKey: "total:1",
-            goalTitle: "Goal A",
-            scheduledDate: "2026-08-30",
-          },
-        ],
-      ],
-    ]);
-    const supplementalCompletionFactMarkersByDate = new Map<
-      string,
-      PlannerCompletionFactMarker[]
-    >([
-      [
-        "2026-09-01",
-        [
-          {
-            key: "goal-a:total:1:2026-09-01",
-            originalGoalId: "goal-a",
-            unitKey: "total:1",
-            goalTitle: "Goal A",
-            scheduledDate: "2026-08-30",
-          },
-          {
-            key: "goal-b:total:1:2026-09-01",
-            originalGoalId: "goal-b",
-            unitKey: "total:1",
-            goalTitle: "Goal B",
-            scheduledDate: "2026-09-01",
-          },
-        ],
-      ],
-    ]);
-
-    const result = resolveCalendarDayData({
-      day: "2026-09-01",
-      entriesByDate: new Map(),
-      scopeOwnedEntryKeys: buildScopeOwnedEntryKeys(currentWorkUnits),
-      entryDayByKey: new Map(),
-      completionFactMarkersByDate: currentCompletionFactMarkersByDate,
-      completionFactMarkerDayByIdentity: buildCompletionFactMarkerDayByIdentity(
-        currentCompletionFactMarkersByDate
-      ),
-      visibleMonthCalendarDataByMonth: new Map([
-        [
-          "2026-09",
-          {
-            entriesByDate: new Map(),
-            completionFactMarkersByDate: supplementalCompletionFactMarkersByDate,
-          },
-        ],
-      ]),
-    });
-
-    expect(result.completionFactMarkers).toEqual([
-      {
-        key: "goal-b:total:1:2026-09-01",
-        originalGoalId: "goal-b",
-        unitKey: "total:1",
-        goalTitle: "Goal B",
-        scheduledDate: "2026-09-01",
-      },
-    ]);
   });
 });

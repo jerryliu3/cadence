@@ -13,10 +13,8 @@ import {
 } from "@/features/planner/test-fixtures";
 import {
   readPlannerCalendarDayProjection,
-  selectEffectiveDraftCommands,
   selectPlannerCalendarDayProjectionsByDay,
   selectPlannerCalendarStoreProjection,
-  selectVisibleDraftItemEditsByMonth,
   type PlannerCalendarDayProjection,
   type PlannerCalendarStoreProjection,
 } from "./calendar-store-selectors";
@@ -47,6 +45,7 @@ function buildPreview(workUnits: PlannerWorkUnit[]): NonNullable<PlannerContextP
 }
 
 function buildContext(workUnits: PlannerWorkUnit[]): PlannerContextPayload {
+  const goalIds = Array.from(new Set(workUnits.map((unit) => unit.originalGoalId)));
   return buildPlannerContext({
     workUnits,
     overrides: {
@@ -57,6 +56,36 @@ function buildContext(workUnits: PlannerWorkUnit[]): PlannerContextPayload {
         "goal-c": "Goal C",
       },
       preferences: null,
+      activePlan: {
+        plan: { id: "plan", version: 1, status: "active" },
+        goals: goalIds.map((goalId) => ({
+          id: goalId,
+          goal_id: goalId,
+          original_goal_id: goalId,
+          requirement_fingerprint: "a".repeat(64),
+          title: goalId,
+          category: "Personal",
+          color: null,
+        })),
+        items: workUnits.flatMap((workUnit, index) =>
+          workUnit.scheduledDate
+            ? [{
+                id: `item-${index}`,
+                plan_goal_id: workUnit.originalGoalId,
+                unit_key: workUnit.unitKey,
+                requirement_kind: "deadline_total" as const,
+                scheduled_date: workUnit.scheduledDate,
+                original_scheduled_date: workUnit.scheduledDate,
+                classification: workUnit.classification,
+                credit_state: workUnit.creditState,
+                locked: false,
+                revision: 0,
+                credited_completion_id: null,
+                credited_completion_date: null,
+              }]
+            : []
+        ),
+      },
       preview: buildPreview(workUnits),
       revisions: {
         canonicalRevision: 1,
@@ -77,124 +106,7 @@ function commandState(
 }
 
 describe("calendar store selectors", () => {
-  it("filters scope draft commands to preview entry keys", () => {
-    const state = commandState([
-      {
-        id: "cmd-a",
-        sequence: 1,
-        kind: "move_item",
-        goalId: "goal-a",
-        unitKey: "total:1",
-        scheduledDate: "2026-08-10",
-        sourceDate: "2026-08-05",
-      },
-      {
-        id: "cmd-b",
-        sequence: 2,
-        kind: "move_item",
-        goalId: "goal-z",
-        unitKey: "total:9",
-        scheduledDate: "2026-08-12",
-        sourceDate: "2026-08-12",
-      },
-    ]);
-
-    const effectiveDraftCommands = selectEffectiveDraftCommands({
-      draftCommandState: state,
-      previewWorkUnits: [unit({ goalId: "goal-a", unitKey: "total:1", scheduledDate: "2026-08-05" })],
-    });
-
-    expect(effectiveDraftCommands).toHaveLength(1);
-    expect(effectiveDraftCommands[0]).toMatchObject({
-      goalId: "goal-a",
-      unitKey: "total:1",
-      scheduledDate: "2026-08-10",
-    });
-  });
-
-  it("includes destination-month move commands even when the unit is not in that month preview", () => {
-    const state = commandState([
-      {
-        id: "cmd-a",
-        sequence: 1,
-        kind: "move_item",
-        goalId: "goal-a",
-        unitKey: "total:1",
-        scheduledDate: "2026-09-05",
-        sourceDate: "2026-08-31",
-      },
-    ]);
-
-    const visibleDraftItemEditsByMonth = selectVisibleDraftItemEditsByMonth({
-      draftCommandState: state,
-      visibleMonthContexts: {
-        "2026-09": {
-          scopeMonth: "2026-09",
-          goalTitles: {},
-          activePlan: null,
-          preview: buildPreview([
-            unit({
-              goalId: "goal-b",
-              unitKey: "total:1",
-              scheduledDate: "2026-09-01",
-            }),
-          ]),
-        },
-      },
-    });
-
-    expect(visibleDraftItemEditsByMonth["2026-09"]["goal-a:total:1"]).toEqual({
-      scheduledDate: "2026-09-05",
-    });
-  });
-
-  it("builds visible month item edits only for preview-backed entries", () => {
-    const state = commandState([
-      {
-        id: "cmd-a",
-        sequence: 1,
-        kind: "move_item",
-        goalId: "goal-b",
-        unitKey: "total:1",
-        scheduledDate: "2026-09-10",
-        sourceDate: "2026-09-01",
-      },
-      {
-        id: "cmd-b",
-        sequence: 2,
-        kind: "rename_item",
-        goalId: "goal-c",
-        unitKey: "total:2",
-        label: "Renamed",
-      },
-    ]);
-
-    const visibleDraftItemEditsByMonth = selectVisibleDraftItemEditsByMonth({
-      draftCommandState: state,
-      visibleMonthContexts: {
-        "2026-09": {
-          scopeMonth: "2026-09",
-          goalTitles: {},
-          activePlan: null,
-          preview: buildPreview([
-            unit({
-              goalId: "goal-b",
-              unitKey: "total:1",
-              scheduledDate: "2026-09-01",
-            }),
-          ]),
-        },
-      },
-    });
-
-    expect(visibleDraftItemEditsByMonth["2026-09"]).toEqual({
-      "goal-b:total:1": {
-        scheduledDate: "2026-09-10",
-      },
-    });
-  });
-
-  it("builds planner store projection with filtered draft commands", () => {
+  it("builds planner store projection from persisted rows and explicit commands", () => {
     const context = buildContext([
       unit({ goalId: "goal-a", unitKey: "total:1", scheduledDate: "2026-08-05" }),
     ]);
@@ -223,12 +135,11 @@ describe("calendar store selectors", () => {
       context,
       effectivePreview: context.preview,
       draftCommandState,
-      visibleMonthContexts: {},
       activeGoalsByPlanGoalId: new Map(),
       activeGoalsByOriginalGoalId: new Map(),
     });
 
-    expect(projection.effectiveDraftCommands).toHaveLength(1);
+    expect(projection.effectiveDraftCommands).toHaveLength(2);
     expect(projection.effectiveDraftItemEdits["goal-a:total:1"]).toEqual({
       scheduledDate: "2026-08-07",
     });
@@ -261,8 +172,6 @@ describe("calendar store selectors", () => {
     const storeProjection: PlannerCalendarStoreProjection = {
       effectiveDraftCommands: [],
       effectiveDraftItemEdits: {},
-      visibleDraftItemEditsByMonth: {},
-      visibleMonthCalendarDataByMonth: new Map(),
       entriesByDate: new Map([[day, [entryA, entryB]]]),
       entryByKey: new Map([
         [entryA.key, entryA],
@@ -272,7 +181,6 @@ describe("calendar store selectors", () => {
         [entryA.key, day],
         [entryB.key, day],
       ]),
-      scopeOwnedEntryKeys: new Set([entryA.key, entryB.key]),
       previewUnitByEntryKey: new Map([
         [
           entryA.key,
@@ -285,7 +193,6 @@ describe("calendar store selectors", () => {
       ]),
       completionFactUnitsByGoalDate: new Map(),
       completionFactMarkersByDate: new Map(),
-      completionFactMarkerDayByIdentity: new Map(),
     };
 
     const projectionByDay = selectPlannerCalendarDayProjectionsByDay({
@@ -302,6 +209,122 @@ describe("calendar store selectors", () => {
       entryA.key,
     ]);
     expect(readPlannerCalendarDayProjection(projectionByDay, null).entries).toEqual([]);
+  });
+
+  it("does not mark an untouched loaded month as new when the draft window widens", () => {
+    const augustUnit = unit({
+      goalId: "goal-a",
+      unitKey: "total:1",
+      scheduledDate: "2026-08-10",
+    });
+    const septemberUnit = unit({
+      goalId: "goal-b",
+      unitKey: "total:1",
+      scheduledDate: "2026-09-08",
+    });
+    const context = buildContext([augustUnit, septemberUnit]);
+    const projection = selectPlannerCalendarStoreProjection({
+      context,
+      effectivePreview: buildPreview([augustUnit, septemberUnit]),
+      draftCommandState: commandState([]),
+      activeGoalsByPlanGoalId: new Map(),
+      activeGoalsByOriginalGoalId: new Map(),
+    });
+
+    const septemberEntries = projection.entriesByDate.get("2026-09-08") ?? [];
+    expect(septemberEntries.map((entry) => entry.key)).toEqual(["goal-b:total:1"]);
+    expect(septemberEntries[0]?.draftDiffKind).toBeNull();
+  });
+
+  it("does not cross out a loaded adjacent month during regular viewing", () => {
+    const augustUnit = unit({
+      goalId: "goal-a",
+      unitKey: "total:1",
+      scheduledDate: "2026-08-10",
+    });
+    const septemberUnit = unit({
+      goalId: "goal-b",
+      unitKey: "total:1",
+      scheduledDate: "2026-09-08",
+    });
+    const context = buildContext([augustUnit, septemberUnit]);
+    const projection = selectPlannerCalendarStoreProjection({
+      context,
+      effectivePreview: context.preview,
+      draftCommandState: commandState([]),
+      activeGoalsByPlanGoalId: new Map(),
+      activeGoalsByOriginalGoalId: new Map(),
+    });
+
+    expect(
+      Array.from(projection.entriesByDate.values())
+        .flat()
+        .filter((entry) => entry.draftDiffKind === "moved_from")
+    ).toEqual([]);
+  });
+
+  it("does not infer new markers for an untouched unloaded month", () => {
+    const augustUnit = unit({
+      goalId: "goal-a",
+      unitKey: "total:1",
+      scheduledDate: "2026-08-10",
+    });
+    const novemberUnit = unit({
+      goalId: "goal-c",
+      unitKey: "total:1",
+      scheduledDate: "2026-11-04",
+    });
+    const context = buildContext([augustUnit]);
+    const projection = selectPlannerCalendarStoreProjection({
+      context,
+      effectivePreview: buildPreview([augustUnit, novemberUnit]),
+      draftCommandState: commandState([]),
+      activeGoalsByPlanGoalId: new Map(),
+      activeGoalsByOriginalGoalId: new Map(),
+    });
+
+    const novemberEntries = projection.entriesByDate.get("2026-11-04") ?? [];
+    expect(novemberEntries).toEqual([]);
+  });
+
+  it("marks exactly the source and destination from a cross-month move command", () => {
+    const sourceUnit = unit({
+      goalId: "goal-a",
+      unitKey: "total:1",
+      scheduledDate: "2026-08-10",
+    });
+    const movedUnit = unit({
+      goalId: "goal-a",
+      unitKey: "total:1",
+      scheduledDate: "2026-09-20",
+    });
+    const context = buildContext([sourceUnit]);
+    const projection = selectPlannerCalendarStoreProjection({
+      context,
+      effectivePreview: buildPreview([movedUnit]),
+      draftCommandState: commandState([
+        {
+          id: "cmd-a",
+          sequence: 1,
+          kind: "move_item",
+          goalId: "goal-a",
+          unitKey: "total:1",
+          sourceDate: "2026-08-10",
+          scheduledDate: "2026-09-20",
+        },
+      ]),
+      activeGoalsByPlanGoalId: new Map(),
+      activeGoalsByOriginalGoalId: new Map(),
+    });
+
+    expect(projection.entriesByDate.get("2026-08-10")?.[0]).toMatchObject({
+      key: "goal-a:total:1:ghost:2026-08-10",
+      draftDiffKind: "moved_from",
+    });
+    expect(projection.entriesByDate.get("2026-09-20")?.[0]).toMatchObject({
+      key: "goal-a:total:1",
+      draftDiffKind: "moved_to",
+    });
   });
 
   it("warns in non-production when reading an unprojected day", () => {

@@ -3,21 +3,18 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { CalendarSurface } from "./calendar-surface";
 import type {
   PlannerContextPayload,
-  PlannerVisibleMonthContextPayload,
   PlannerWorkUnit,
 } from "./calendar-surface.types";
 import {
   buildPlannerContext,
   buildPlannerPolicy,
   buildPlannerPreview,
-  buildPlannerVisibleMonthContext,
   buildPlannerWorkUnit,
 } from "@/features/planner/test-fixtures";
 
 const getJsonMock = vi.fn();
 const postJsonMock = vi.fn();
 const putJsonMock = vi.fn();
-const usePlannerVisibleMonthContextsMock = vi.fn();
 const toastSuccessMock = vi.fn();
 const toastErrorMock = vi.fn();
 
@@ -48,11 +45,6 @@ vi.mock("@/features/planner/use-completion-mutation", () => ({
   useCompletionMutation: () => vi.fn(async () => ({ ok: true })),
 }));
 
-vi.mock("@/features/planner/use-planner-visible-month-contexts", () => ({
-  usePlannerVisibleMonthContexts: (...args: unknown[]) =>
-    usePlannerVisibleMonthContextsMock(...args),
-}));
-
 function unit(overrides: Partial<PlannerWorkUnit>): PlannerWorkUnit {
   return buildPlannerWorkUnit({
     originalGoalId: "goal-a",
@@ -66,6 +58,9 @@ function unit(overrides: Partial<PlannerWorkUnit>): PlannerWorkUnit {
 }
 
 function buildContext(workUnits: PlannerWorkUnit[]): PlannerContextPayload {
+  const goalIds = Array.from(
+    new Set(workUnits.map((workUnit) => workUnit.originalGoalId))
+  );
   return buildPlannerContext({
     workUnits,
     overrides: {
@@ -80,6 +75,42 @@ function buildContext(workUnits: PlannerWorkUnit[]): PlannerContextPayload {
         policyRevision: 1,
         defaultPolicy: buildPlannerPolicy({ weekStartsOn: 1 }),
       },
+      activePlan: {
+        plan: {
+          id: "persisted-plan",
+          version: 1,
+          status: "active",
+        },
+        goals: goalIds.map((goalId) => ({
+          id: goalId,
+          goal_id: goalId,
+          original_goal_id: goalId,
+          requirement_fingerprint: "a".repeat(64),
+          title: goalId === "goal-a" ? "Goal A" : "Goal B",
+          category: "Personal",
+          color: null,
+        })),
+        items: workUnits.flatMap((workUnit, index) =>
+          workUnit.scheduledDate
+            ? [
+                {
+                  id: `item-${index}`,
+                  plan_goal_id: workUnit.originalGoalId,
+                  unit_key: workUnit.unitKey,
+                  requirement_kind: "deadline_total" as const,
+                  scheduled_date: workUnit.scheduledDate,
+                  original_scheduled_date: workUnit.scheduledDate,
+                  classification: workUnit.classification,
+                  credit_state: workUnit.creditState,
+                  locked: workUnit.locked ?? false,
+                  revision: 0,
+                  credited_completion_id: null,
+                  credited_completion_date: null,
+                },
+              ]
+            : []
+        ),
+      },
       preview: buildPlannerPreview(workUnits, {
         preserveExistingAssignments: true,
       }),
@@ -92,50 +123,25 @@ function buildContext(workUnits: PlannerWorkUnit[]): PlannerContextPayload {
   });
 }
 
-function buildVisibleMonthContext(
-  workUnits: PlannerWorkUnit[]
-): PlannerVisibleMonthContextPayload {
-  return buildPlannerVisibleMonthContext({
-    workUnits,
-    overrides: {
-      scopeMonth: "2026-09",
-      goalTitles: {
-        "goal-a": "Goal A",
-        "goal-b": "Goal B",
-      },
-      preview: buildPlannerPreview(workUnits, {
-        preserveExistingAssignments: true,
-        generationInputHash: "visible-hash",
-      }),
-    },
-  });
-}
-
 describe("CalendarSurface characterization", () => {
   beforeEach(() => {
     getJsonMock.mockReset();
+    getJsonMock.mockImplementation(
+      () => postJsonMock.mock.results[0]?.value
+    );
     postJsonMock.mockReset();
     putJsonMock.mockReset();
-    usePlannerVisibleMonthContextsMock.mockReset();
     toastSuccessMock.mockReset();
     toastErrorMock.mockReset();
   });
 
-  it("keeps canonical day ownership when merging visible-month supplemental days", async () => {
-    const context = buildContext([
-      unit({
-        originalGoalId: "goal-a",
-        unitKey: "total:1",
-        scheduledDate: "2026-08-31",
-      }),
-    ]);
-    getJsonMock.mockResolvedValue(context);
-    usePlannerVisibleMonthContextsMock.mockReturnValue({
-      "2026-09": buildVisibleMonthContext([
+  it("renders adjacent-month persisted rows from the prepared context", async () => {
+    postJsonMock.mockResolvedValue(
+      buildContext([
         unit({
           originalGoalId: "goal-a",
           unitKey: "total:1",
-          scheduledDate: "2026-09-01",
+          scheduledDate: "2026-08-31",
         }),
         unit({
           originalGoalId: "goal-b",
@@ -143,8 +149,8 @@ describe("CalendarSurface characterization", () => {
           label: "Goal B label",
           scheduledDate: "2026-09-01",
         }),
-      ]),
-    });
+      ])
+    );
 
     render(
       <CalendarSurface
@@ -160,8 +166,10 @@ describe("CalendarSurface characterization", () => {
     );
 
     await waitFor(() => {
-      expect(getJsonMock).toHaveBeenCalledWith("/api/planner/context", {
-        query: { scopeMonth: "2026-08" },
+      expect(postJsonMock).toHaveBeenCalledWith("/api/planner/prepare", {
+        scopeMonth: "2026-08",
+        visibleStart: "2026-07-01",
+        visibleEnd: "2026-09-30",
       });
     });
 
@@ -182,11 +190,10 @@ describe("CalendarSurface characterization", () => {
         scheduledDate: "2026-08-31",
       }),
     ]);
-    getJsonMock.mockResolvedValue({
+    postJsonMock.mockResolvedValue({
       ...context,
       preferences: null,
     });
-    usePlannerVisibleMonthContextsMock.mockReturnValue({});
 
     render(
       <CalendarSurface
@@ -202,9 +209,10 @@ describe("CalendarSurface characterization", () => {
     );
 
     await waitFor(() => {
-      expect(getJsonMock).toHaveBeenCalledWith("/api/planner/context", {
-        query: { scopeMonth: "2026-08" },
-      });
+      expect(postJsonMock).toHaveBeenCalledWith(
+        "/api/planner/prepare",
+        expect.any(Object)
+      );
     });
 
     expect(screen.queryByText("Plan setup")).not.toBeInTheDocument();
@@ -219,8 +227,7 @@ describe("CalendarSurface characterization", () => {
         scheduledDate: "2026-08-31",
       }),
     ]);
-    getJsonMock.mockResolvedValue(context);
-    usePlannerVisibleMonthContextsMock.mockReturnValue({});
+    postJsonMock.mockResolvedValue(context);
 
     render(
       <CalendarSurface
@@ -236,9 +243,10 @@ describe("CalendarSurface characterization", () => {
     );
 
     await waitFor(() => {
-      expect(getJsonMock).toHaveBeenCalledWith("/api/planner/context", {
-        query: { scopeMonth: "2026-08" },
-      });
+      expect(postJsonMock).toHaveBeenCalledWith(
+        "/api/planner/prepare",
+        expect.any(Object)
+      );
     });
 
     const dayCell = await waitFor(() => {
@@ -274,8 +282,7 @@ describe("CalendarSurface characterization", () => {
         scheduledDate: "2026-08-31",
       }),
     ]);
-    getJsonMock.mockResolvedValue(context);
-    usePlannerVisibleMonthContextsMock.mockReturnValue({});
+    postJsonMock.mockResolvedValue(context);
 
     render(
       <CalendarSurface
@@ -291,9 +298,10 @@ describe("CalendarSurface characterization", () => {
     );
 
     await waitFor(() => {
-      expect(getJsonMock).toHaveBeenCalledWith("/api/planner/context", {
-        query: { scopeMonth: "2026-08" },
-      });
+      expect(postJsonMock).toHaveBeenCalledWith(
+        "/api/planner/prepare",
+        expect.any(Object)
+      );
     });
 
     const dayCell = await waitFor(() => {

@@ -115,7 +115,10 @@ import {
   tryBuildPlannerDraftSaveWindow,
   plannerDraftWindowUnavailableMessage,
 } from "@/lib/planner/draft-window";
-import { getScopeDateRange, getWindowState } from "@/lib/planner/dates";
+import {
+  getScopeDateRange,
+  getWindowState,
+} from "@/lib/planner/dates";
 import { buildPlannerConfirmationHash } from "@/lib/planner/publish-payload";
 import {
   createDefaultPlannerPolicy,
@@ -134,7 +137,6 @@ import type {
   PlannerPreferencesPayload,
   PlannerPreviewResponsePayload,
 } from "@/features/planner/calendar-surface.types";
-import { usePlannerVisibleMonthContexts } from "@/features/planner/use-planner-visible-month-contexts";
 const DAY_PREVIEW_HOVER_DELAY_MS = 1000;
 const DAY_PREVIEW_CLOSE_DELAY_MS = 250;
 const DAY_PREVIEW_LONG_PRESS_DELAY_MS = 500;
@@ -151,7 +153,6 @@ const ROLLING_WEEK_GRID_WIDTH_BY_VIEW: Record<"day" | "three_day", string> = {
   three_day:
     "[--rolling-week-cell-width:calc((100%-1rem)/3)] md:[--rolling-week-cell-width:calc((100%-2rem)/5)] xl:[--rolling-week-cell-width:calc((100%-2.5rem)/6)]",
 };
-const DRAFT_MOVE_PREVIEW_REFRESH_DELAY_MS = 200;
 const SCOPE_ONLY_ELIGIBILITY_REASONS = new Set([
   "end_outside_scope",
   "starts_after_scope",
@@ -235,6 +236,7 @@ export function CalendarSurface({
   const longPressTriggeredRef = useRef(false);
   const pointerPressActiveRef = useRef(false);
   const pointerInsideDayPreviewRef = useRef(false);
+  const calendarPreparedRef = useRef(false);
   const dayPreviewRef = useRef<HTMLDivElement | null>(null);
   const rollingWeekStripRef = useRef<HTMLDivElement | null>(null);
   const isDayPreviewSurfaceTarget = (target: Element) =>
@@ -245,9 +247,11 @@ export function CalendarSurface({
     async ({
       showLoading = true,
       toastOnError = false,
+      forcePrepare = false,
     }: {
       showLoading?: boolean;
       toastOnError?: boolean;
+      forcePrepare?: boolean;
     } = {}) => {
     if (activeTab !== "calendar") {
       return false;
@@ -282,9 +286,28 @@ export function CalendarSurface({
     }
     let contextPayload: PlannerContextPayload;
     try {
-      contextPayload = await getJson<PlannerContextPayload>("/api/planner/context", {
-        query: { scopeMonth: month },
-      });
+      const parsedMonth = parseMonth(month);
+      const visibleStart = getScopeDateRange(
+        format(addMonths(parsedMonth, -1), "yyyy-MM")
+      ).start;
+      const visibleEnd = getScopeDateRange(
+        format(addMonths(parsedMonth, 1), "yyyy-MM")
+      ).end;
+      const shouldPrepare = forcePrepare || !calendarPreparedRef.current;
+      contextPayload = shouldPrepare
+        ? await postJson<PlannerContextPayload>("/api/planner/prepare", {
+            scopeMonth: month,
+            visibleStart,
+            visibleEnd,
+          })
+        : await getJson<PlannerContextPayload>("/api/planner/context", {
+            query: {
+              scopeMonth: month,
+              visibleStart,
+              visibleEnd,
+            },
+          });
+      calendarPreparedRef.current = true;
     } catch (error) {
       if (shouldShowLoading) {
         setLoading(false);
@@ -317,6 +340,12 @@ export function CalendarSurface({
     }
     return true;
   }, [activeTab, month, onMonthChange, setupTimezone]);
+
+  useEffect(() => {
+    if (activeTab !== "calendar") {
+      calendarPreparedRef.current = false;
+    }
+  }, [activeTab]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -354,11 +383,6 @@ export function CalendarSurface({
     () => buildWeekdayLabels(weekStartsOn),
     [weekStartsOn]
   );
-  const visibleMonthContexts = usePlannerVisibleMonthContexts({
-    activeTab,
-    scopeMonth: month,
-    visibleDays,
-  });
   const handlePlannerMutation = useCallback(() => {
     invalidatePlannerRelatedTabCaches();
     onPlannerMutation();
@@ -384,15 +408,29 @@ export function CalendarSurface({
     () => [
       ...(context?.preview?.workUnits ?? []),
       ...(effectivePreview?.workUnits ?? []),
-      ...Object.values(visibleMonthContexts).flatMap(
-        (visibleMonthContext) => visibleMonthContext.preview?.workUnits ?? []
-      ),
     ],
     [
       context?.preview?.workUnits,
       effectivePreview?.workUnits,
-      visibleMonthContexts,
     ]
+  );
+  const draftWindowUnitByEntryKey = useMemo(
+    () => {
+      const units = new Map<string, (typeof draftWindowWorkUnits)[number]>();
+      for (const unit of draftWindowWorkUnits) {
+        const key = draftCommandEntryKey({
+          goalId: unit.originalGoalId,
+          unitKey: unit.unitKey,
+        });
+        const existing = units.get(key);
+        if (existing?.scheduledDate && !unit.scheduledDate) {
+          continue;
+        }
+        units.set(key, unit);
+      }
+      return units;
+    },
+    [draftWindowWorkUnits]
   );
   const draftSaveWindowResult = useMemo(() => {
     if (!currentScopeMonth) {
@@ -474,7 +512,6 @@ export function CalendarSurface({
         context,
         effectivePreview,
         draftCommandState,
-        visibleMonthContexts,
         activeGoalsByPlanGoalId,
         activeGoalsByOriginalGoalId,
       }),
@@ -484,17 +521,13 @@ export function CalendarSurface({
       context,
       draftCommandState,
       effectivePreview,
-      visibleMonthContexts,
     ]
   );
   const {
-    effectiveDraftCommands,
     effectiveDraftItemEdits,
     entriesByDate,
     entryByKey,
     entryDayByKey,
-    previewUnitByEntryKey,
-    completionFactUnitsByGoalDate,
   } = calendarStoreProjection;
   const effectiveSelectedDay = localSelectedDay;
   const dayPreviewDay = dayPreview?.day ?? null;
@@ -599,7 +632,7 @@ export function CalendarSurface({
     ? effectiveDraftItemEdits[selectedEventEntry.key]
     : undefined;
   const selectedEventBaselineUnit = selectedEventEntry
-    ? previewUnitByEntryKey.get(selectedEventEntry.key) ?? null
+    ? draftWindowUnitByEntryKey.get(selectedEventEntry.key) ?? null
     : null;
   const getEntryDisplayTitleWithTime = useCallback(
     (entry: PlannerDayDetailEntry) => {
@@ -709,8 +742,6 @@ export function CalendarSurface({
     toast.success("Planner setup saved.");
   };
 
-  const draftMoveRefreshTimerRef = useRef<number | null>(null);
-
   const requestPreviewForWindow = useCallback(
     async ({
       startDate,
@@ -778,15 +809,6 @@ export function CalendarSurface({
   useEffect(() => {
     draftSaveCommandsRef.current = draftSaveCommands;
   }, [draftSaveCommands]);
-  useEffect(
-    () => () => {
-      if (draftMoveRefreshTimerRef.current !== null) {
-        window.clearTimeout(draftMoveRefreshTimerRef.current);
-      }
-    },
-    []
-  );
-
   const refreshDraftPreview = async (nextPolicy: PlannerPolicy) => {
     const preview = await requestPreview(
       nextPolicy,
@@ -804,31 +826,6 @@ export function CalendarSurface({
     }
     return preview;
   };
-
-  /**
-   * Draft pins are part of `generationInputHash`, so the preview on screen goes
-   * stale the moment a move is dispatched and save would reject it. Re-solve to
-   * refresh the hash, and to surface a move the solver cannot honor (outside the
-   * placement window, colliding with a lock) while the user is still looking at
-   * the calendar rather than at publish time.
-   */
-  const draftMoveRefreshRunnerRef = useRef<() => void>(() => {});
-  useEffect(() => {
-    draftMoveRefreshRunnerRef.current = () => {
-      const refreshPolicy =
-        effectiveDraftPolicy ?? context?.preferences?.defaultPolicy ?? null;
-      if (!context?.scopeMonth || !refreshPolicy) {
-        return;
-      }
-      void refreshDraftPreview(refreshPolicy).catch((error: unknown) => {
-        toast.error(
-          error instanceof Error
-            ? error.message
-            : "Preview could not be regenerated for that move."
-        );
-      });
-    };
-  });
 
   /**
    * Ask the solver where things would go under `nextPolicy` when policy cost
@@ -937,16 +934,6 @@ export function CalendarSurface({
       selectDraftCommands(nextState)
     );
   };
-
-  const scheduleDraftMovePreviewRefresh = useCallback(() => {
-    if (draftMoveRefreshTimerRef.current !== null) {
-      window.clearTimeout(draftMoveRefreshTimerRef.current);
-    }
-    draftMoveRefreshTimerRef.current = window.setTimeout(() => {
-      draftMoveRefreshTimerRef.current = null;
-      draftMoveRefreshRunnerRef.current();
-    }, DRAFT_MOVE_PREVIEW_REFRESH_DELAY_MS);
-  }, []);
 
   const nonPublishablePreviewMessage = useCallback(
     (preview: NonNullable<PlannerContextPayload["preview"]>) => {
@@ -1138,19 +1125,36 @@ export function CalendarSurface({
 
   const moveConflictByGoalDate = useMemo(() => {
     const map = new Map<string, Set<string>>();
-    for (const [day, entries] of entriesByDate.entries()) {
-      for (const entry of entries) {
-        if (entry.draftGhost) {
-          continue;
-        }
-        const key = `${entry.originalGoalId}:${day}`;
-        const existing = map.get(key) ?? new Set<string>();
-        existing.add(entry.key);
-        map.set(key, existing);
+    for (const unit of draftWindowWorkUnits) {
+      const entryKey = draftCommandEntryKey({
+        goalId: unit.originalGoalId,
+        unitKey: unit.unitKey,
+      });
+      const editedDate = effectiveDraftItemEdits[entryKey]?.scheduledDate;
+      const day = editedDate === undefined ? unit.scheduledDate : editedDate;
+      if (!day) {
+        continue;
       }
+      const key = `${unit.originalGoalId}:${day}`;
+      const existing = map.get(key) ?? new Set<string>();
+      existing.add(entryKey);
+      map.set(key, existing);
     }
     return map;
-  }, [entriesByDate]);
+  }, [draftWindowWorkUnits, effectiveDraftItemEdits]);
+  const moveCompletionConflictByGoalDate = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const unit of draftWindowWorkUnits) {
+      if (!unit.creditedCompletionDate) {
+        continue;
+      }
+      map.set(
+        `${unit.originalGoalId}:${unit.creditedCompletionDate}`,
+        unit.unitKey
+      );
+    }
+    return map;
+  }, [draftWindowWorkUnits]);
 
   const queueDraftMoveCommand = useCallback(
     ({
@@ -1180,9 +1184,17 @@ export function CalendarSurface({
         );
         return false;
       }
-      const baselineUnit = previewUnitByEntryKey.get(entry.key);
+      if (entry.activeItem?.locked) {
+        toast.error("Unlock this session before moving it.");
+        return false;
+      }
+      const baselineUnit = draftWindowUnitByEntryKey.get(entry.key);
       if (!baselineUnit) {
         toast.error("This session is unavailable in the current preview.");
+        return false;
+      }
+      if (baselineUnit.locked) {
+        toast.error("Unlock this session before moving it.");
         return false;
       }
       const moveWindow = baselineUnit?.draftMoveWindow ?? baselineUnit?.placementWindow;
@@ -1221,20 +1233,13 @@ export function CalendarSurface({
         );
         return false;
       }
-      const completionFactConflict = (
-        completionFactUnitsByGoalDate.get(collisionKey) ?? []
-      ).find((unit) => unit.unitKey !== entry.unitKey);
-      if (completionFactConflict) {
-        if (
-          completionFactConflict.scheduledDate &&
-          completionFactConflict.scheduledDate !== normalized
-        ) {
-          toast.error(
-            `That goal is already marked done on ${normalized} (credited from the ${completionFactConflict.scheduledDate} session).`
-          );
-        } else {
-          toast.error("That date already has a completion fact for this goal.");
-        }
+      const completionConflictUnitKey =
+        moveCompletionConflictByGoalDate.get(collisionKey);
+      if (
+        completionConflictUnitKey &&
+        completionConflictUnitKey !== entry.unitKey
+      ) {
+        toast.error("That date already has a completion fact for this goal.");
         return false;
       }
 
@@ -1280,7 +1285,6 @@ export function CalendarSurface({
         scheduledDate: normalized,
         sourceDate,
       });
-      scheduleDraftMovePreviewRefresh();
       void source;
       return true;
     },
@@ -1289,11 +1293,10 @@ export function CalendarSurface({
       draftCommandState,
       draftSaveCommands,
       draftWindowWorkUnits,
-      scheduleDraftMovePreviewRefresh,
-      completionFactUnitsByGoalDate,
       context?.scopeMonth,
       moveConflictByGoalDate,
-      previewUnitByEntryKey,
+      moveCompletionConflictByGoalDate,
+      draftWindowUnitByEntryKey,
     ]
   );
   useEffect(() => {
@@ -1334,7 +1337,7 @@ export function CalendarSurface({
       return;
     }
     const baselineOverride =
-      previewUnitByEntryKey.get(entry.key)?.scheduledTimeOverride ??
+      draftWindowUnitByEntryKey.get(entry.key)?.scheduledTimeOverride ??
       entry.activeItem?.scheduled_time_override ??
       null;
     const nextPlan = planDraftTimeOverrideUpdate({
@@ -1778,7 +1781,7 @@ export function CalendarSurface({
       }
 
       let draftPreviewRefreshFailed = false;
-      if (hasDraftSession) {
+      if (hasDraftSession && draftSaveCommands.length === 0) {
         const draftPolicyForRefresh =
           effectiveDraftPolicy ?? context.preferences?.defaultPolicy ?? null;
         if (draftPolicyForRefresh) {
@@ -1843,6 +1846,32 @@ export function CalendarSurface({
     try {
       const refreshPolicy =
         effectiveDraftPolicy ?? context.preferences?.defaultPolicy ?? null;
+      const hasDirectMoves = draftSaveCommands.some(
+        (command) => command.kind === "move_item"
+      );
+      if (hasDirectMoves) {
+        try {
+          payload = await postJson<
+            PlannerErrorPayload & {
+              replayed?: boolean;
+            }
+          >("/api/planner/save", {
+            expectedDigest,
+            startDate: draftSaveWindow.start,
+            endDate: draftSaveWindow.end,
+            previewHash:
+              context.preview?.generationInputHash ??
+              "0".repeat(64),
+            eligibilityMode: context.preview?.eligibilityMode,
+            confirmationHash: null,
+            policy: effectiveDraftPolicy ?? undefined,
+            draftCommands: draftSaveCommands,
+          });
+        } catch (error) {
+          toast.error(getApiErrorMessage(error, "Planner save failed."));
+          return;
+        }
+      } else {
       const monthWindow = getScopeDateRange(context.scopeMonth);
       const previewMatchesWriteWindow = (
         preview: NonNullable<PlannerContextPayload["preview"]> | null
@@ -1947,6 +1976,7 @@ export function CalendarSurface({
         toast.error(getApiErrorMessage(error, "Planner save failed."));
         return;
       }
+      }
       try {
         handlePlannerMutation();
         const refreshed = await withPlannerRefreshTimeout({
@@ -2039,7 +2069,7 @@ export function CalendarSurface({
       return;
     }
     const confirmed = window.confirm(
-      "Full reset will clear planner schedules across all months in the planning horizon. Continue?"
+      "Full reset will replace planner schedules across the planning horizon with a fresh default plan. Continue?"
     );
     if (!confirmed) {
       return;
@@ -2072,7 +2102,11 @@ export function CalendarSurface({
       clearDraftSession();
       handlePlannerMutation();
       const refreshed = await withPlannerRefreshTimeout({
-        operation: loadContext({ showLoading: false, toastOnError: false }),
+        operation: loadContext({
+          showLoading: false,
+          toastOnError: false,
+          forcePrepare: true,
+        }),
         timeoutMessage:
           "Full reset ran, but calendar refresh timed out. Please refresh the page.",
       });

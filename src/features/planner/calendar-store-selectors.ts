@@ -1,11 +1,8 @@
 import {
-  buildCompletionFactMarkerDayByIdentity,
   buildCompletionFactMarkersByDate,
   buildCompletionFactUnitsByGoalDate,
   buildEntriesByDateProjection,
   buildPreviewUnitByEntryKey,
-  buildScopeOwnedEntryKeys,
-  buildVisibleMonthCalendarDataByMonth,
   orderEntriesForDay,
   resolveCalendarDayData,
 } from "@/features/planner/calendar-entries";
@@ -15,7 +12,6 @@ import type {
   PlannerCompletionFactMarker,
   PlannerContextPayload,
   PlannerDayDetailEntry,
-  PlannerVisibleMonthContextPayload,
   PlannerWorkUnit,
 } from "@/features/planner/calendar-surface.types";
 import {
@@ -23,29 +19,20 @@ import {
   type DraftCommandState,
 } from "@/features/planner/draft-command-reducer";
 import {
-  draftCommandEntryKey,
   projectPlannerDraftCommands,
   sortPlannerDraftCommands,
   type PlannerDraftCommand,
 } from "@/lib/planner/draft-commands";
 
-export type VisibleMonthCalendarDataByMonth = ReturnType<
-  typeof buildVisibleMonthCalendarDataByMonth
->;
-
 export interface PlannerCalendarStoreProjection {
   effectiveDraftCommands: PlannerDraftCommand[];
   effectiveDraftItemEdits: Record<string, DraftItemEdit>;
-  visibleDraftItemEditsByMonth: Record<string, Record<string, DraftItemEdit>>;
-  visibleMonthCalendarDataByMonth: VisibleMonthCalendarDataByMonth;
   entriesByDate: Map<string, PlannerDayDetailEntry[]>;
   entryByKey: Map<string, PlannerDayDetailEntry>;
   entryDayByKey: Map<string, string>;
-  scopeOwnedEntryKeys: ReadonlySet<string>;
   previewUnitByEntryKey: Map<string, PlannerWorkUnit>;
   completionFactUnitsByGoalDate: Map<string, PlannerWorkUnit[]>;
   completionFactMarkersByDate: Map<string, PlannerCompletionFactMarker[]>;
-  completionFactMarkerDayByIdentity: Map<string, string>;
 }
 
 export interface PlannerCalendarDayProjection {
@@ -67,126 +54,38 @@ export const EMPTY_PLANNER_CALENDAR_DAY_PROJECTION: PlannerCalendarDayProjection
   orderedEntries: EMPTY_DAY_ENTRIES,
 };
 
-export function buildPreviewEntryKeySet(
-  workUnits: PlannerWorkUnit[] | undefined | null
-) {
-  return new Set(
-    (workUnits ?? []).map((unit) =>
-      draftCommandEntryKey({
-        goalId: unit.originalGoalId,
-        unitKey: unit.unitKey,
-      })
-    )
-  );
-}
-
-export function selectDraftCommandsForPreviewEntries({
-  commands,
-  previewEntryKeys,
-}: {
-  commands: PlannerDraftCommand[];
-  previewEntryKeys: Set<string>;
-}) {
-  if (commands.length === 0 || previewEntryKeys.size === 0) {
-    return [] as PlannerDraftCommand[];
-  }
-  return sortPlannerDraftCommands(commands).filter((command) =>
-    previewEntryKeys.has(draftCommandEntryKey(command))
-  );
-}
-
-export function selectEffectiveDraftCommands({
-  draftCommandState,
-  previewWorkUnits,
-}: {
-  draftCommandState: DraftCommandState;
-  previewWorkUnits: PlannerWorkUnit[] | undefined | null;
-}) {
-  return selectDraftCommandsForPreviewEntries({
-    commands: selectDraftCommands(draftCommandState),
-    previewEntryKeys: buildPreviewEntryKeySet(previewWorkUnits),
-  });
-}
-
-export function selectVisibleDraftItemEditsByMonth({
-  draftCommandState,
-  visibleMonthContexts,
-}: {
-  draftCommandState: DraftCommandState;
-  visibleMonthContexts: Record<string, PlannerVisibleMonthContextPayload>;
-}) {
-  const allCommands = selectDraftCommands(draftCommandState);
-  const itemEditsByMonth: Record<string, Record<string, DraftItemEdit>> = {};
-  for (const [visibleMonth, visibleMonthContext] of Object.entries(
-    visibleMonthContexts
-  )) {
-    const scopedCommands = selectDraftCommandsForPreviewEntries({
-      commands: allCommands,
-      previewEntryKeys: new Set([
-        ...buildPreviewEntryKeySet(visibleMonthContext.preview?.workUnits),
-        ...allCommands
-          .filter(
-            (command) =>
-              command.kind === "move_item" &&
-              command.scheduledDate?.startsWith(visibleMonth)
-          )
-          .map((command) => draftCommandEntryKey(command)),
-      ]),
-    });
-    if (scopedCommands.length === 0) {
-      continue;
-    }
-    itemEditsByMonth[visibleMonth] = projectPlannerDraftCommands(
-      scopedCommands
-    ) as Record<string, DraftItemEdit>;
-  }
-  return itemEditsByMonth;
-}
-
 export function selectPlannerCalendarStoreProjection({
   context,
   effectivePreview,
   draftCommandState,
-  visibleMonthContexts,
   activeGoalsByPlanGoalId,
   activeGoalsByOriginalGoalId,
 }: {
   context: PlannerContextPayload | null;
   effectivePreview: PlannerContextPayload["preview"] | null;
   draftCommandState: DraftCommandState;
-  visibleMonthContexts: Record<string, PlannerVisibleMonthContextPayload>;
   activeGoalsByPlanGoalId: Map<string, PlannerActiveGoalSnapshot>;
   activeGoalsByOriginalGoalId: Map<string, PlannerActiveGoalSnapshot>;
 }): PlannerCalendarStoreProjection {
-  const effectiveDraftCommands = selectEffectiveDraftCommands({
-    draftCommandState,
-    previewWorkUnits: effectivePreview?.workUnits,
-  });
+  const effectiveDraftCommands = sortPlannerDraftCommands(
+    selectDraftCommands(draftCommandState)
+  );
   const effectiveDraftItemEdits = projectPlannerDraftCommands(
     effectiveDraftCommands
   ) as Record<string, DraftItemEdit>;
-  const visibleDraftItemEditsByMonth = selectVisibleDraftItemEditsByMonth({
-    draftCommandState,
-    visibleMonthContexts,
-  });
-  const visibleMonthCalendarDataByMonth = buildVisibleMonthCalendarDataByMonth(
-    visibleMonthContexts,
-    visibleDraftItemEditsByMonth
-  );
   const {
     entriesByDate,
     entryByKey,
     entryDayByKey,
   } = buildEntriesByDateProjection({
-    baselineWorkUnits: context?.preview?.workUnits,
     workUnits: effectivePreview?.workUnits,
     activeItems: context?.activePlan?.items,
     activeGoalsByPlanGoalId,
     activeGoalsByOriginalGoalId,
     goalTitles: context?.goalTitles,
     draftItemEdits: effectiveDraftItemEdits,
+    draftCommands: effectiveDraftCommands,
   });
-  const scopeOwnedEntryKeys = buildScopeOwnedEntryKeys(effectivePreview?.workUnits);
   const previewUnitByEntryKey = buildPreviewUnitByEntryKey(effectivePreview?.workUnits);
   const completionFactUnitsByGoalDate = buildCompletionFactUnitsByGoalDate(
     effectivePreview?.workUnits
@@ -196,22 +95,15 @@ export function selectPlannerCalendarStoreProjection({
     activeGoalsByOriginalGoalId,
     goalTitles: context?.goalTitles,
   });
-  const completionFactMarkerDayByIdentity = buildCompletionFactMarkerDayByIdentity(
-    completionFactMarkersByDate
-  );
   return {
     effectiveDraftCommands,
     effectiveDraftItemEdits,
-    visibleDraftItemEditsByMonth,
-    visibleMonthCalendarDataByMonth,
     entriesByDate,
     entryByKey,
     entryDayByKey,
-    scopeOwnedEntryKeys,
     previewUnitByEntryKey,
     completionFactUnitsByGoalDate,
     completionFactMarkersByDate,
-    completionFactMarkerDayByIdentity,
   };
 }
 
@@ -232,12 +124,7 @@ export function selectPlannerCalendarDayProjectionsByDay({
     const dayData = resolveCalendarDayData({
       day,
       entriesByDate: storeProjection.entriesByDate,
-      scopeOwnedEntryKeys: storeProjection.scopeOwnedEntryKeys,
-      entryDayByKey: storeProjection.entryDayByKey,
       completionFactMarkersByDate: storeProjection.completionFactMarkersByDate,
-      completionFactMarkerDayByIdentity:
-        storeProjection.completionFactMarkerDayByIdentity,
-      visibleMonthCalendarDataByMonth: storeProjection.visibleMonthCalendarDataByMonth,
     });
     projectionByDay.set(day, {
       entries: dayData.entries,
