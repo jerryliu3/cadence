@@ -9,6 +9,15 @@ describe("buildCoachPrompt", () => {
       timezone: "UTC",
       asOfDate: "2026-08-05",
       allGoalsCount: 2,
+      sessionRoster: [
+        {
+          sessionRef: "s1",
+          goalId: "12000000-0000-4000-8000-000000000001",
+          goalTitle: "Sleep by 11 PM",
+          unitKey: "cadence:2026-08-05",
+          scheduledDate: "2026-08-05",
+        },
+      ],
       focusGoals: [
         {
           id: "12000000-0000-4000-8000-000000000001",
@@ -30,6 +39,8 @@ describe("buildCoachPrompt", () => {
     expect(prompt).toContain("running and gym");
     expect(prompt).toContain("Focus goal horizon markers:");
     expect(prompt).toContain("12000000-0000-4000-8000-000000000001:2026-08->open-ended");
+    expect(prompt).toContain("Session roster JSON:");
+    expect(prompt).toContain('"sessionRef":"s1"');
     expect(prompt).toContain("cannot exceed 366 days");
     expect(prompt).toContain("the user must save first");
   });
@@ -41,6 +52,7 @@ describe("buildCoachPrompt", () => {
       timezone: "UTC",
       asOfDate: "2026-08-05",
       allGoalsCount: 1,
+      sessionRoster: [],
       focusGoals: [
         {
           id: "12000000-0000-4000-8000-000000000001",
@@ -68,6 +80,7 @@ describe("buildCoachPrompt", () => {
     expect(prompt).toContain("proposal.calendarIntent");
     expect(prompt).toContain("does not clearly map to current focus goals");
     expect(prompt).toContain("sessionMoves");
+    expect(prompt).toContain("Prefer sessionRef for moves");
     expect(prompt).toContain("cannot create goals");
     expect(prompt).toContain("Always include 2-5 concrete recommendations");
   });
@@ -79,6 +92,7 @@ describe("buildCoachPrompt", () => {
       timezone: "UTC",
       asOfDate: "2026-08-05",
       allGoalsCount: 2,
+      sessionRoster: [],
       focusGoals: [
         {
           id: "goal-open",

@@ -1,4 +1,5 @@
 import { MAX_PLANNER_WINDOW_DAYS } from "@/lib/planner/contracts/bounds";
+import type { CoachSessionRosterEntry } from "@/lib/planner/coach";
 
 export interface CoachPromptMessage {
   role: "user" | "assistant";
@@ -22,6 +23,7 @@ export interface BuildCoachPromptInput {
   timezone: string;
   asOfDate: string;
   focusGoals: CoachPromptGoalContext[];
+  sessionRoster: CoachSessionRosterEntry[];
   allGoalsCount: number;
   deterministicSummary?: string;
   messages: CoachPromptMessage[];
@@ -38,6 +40,16 @@ function serializeFocusGoals(goals: CoachPromptGoalContext[]) {
       frequencyType: goal.frequency_type,
       recurrenceInterval: goal.recurrence_interval,
       targetCount: goal.target_count,
+    }))
+  );
+}
+
+function serializeSessionRoster(sessions: CoachSessionRosterEntry[]) {
+  return JSON.stringify(
+    sessions.map((session) => ({
+      sessionRef: session.sessionRef,
+      scheduledDate: session.scheduledDate,
+      goalTitle: session.goalTitle,
     }))
   );
 }
@@ -84,11 +96,13 @@ export function buildCoachPrompt({
   timezone,
   asOfDate,
   focusGoals,
+  sessionRoster,
   allGoalsCount,
   deterministicSummary,
   messages,
 }: BuildCoachPromptInput) {
   const focusGoalsJson = serializeFocusGoals(focusGoals);
+  const sessionRosterJson = serializeSessionRoster(sessionRoster);
   const focusHorizonMarkers = buildFocusGoalHorizonMarkers(focusGoals);
   return [
     "SYSTEM ROLE",
@@ -118,17 +132,18 @@ export function buildCoachPrompt({
     "",
     "OUTPUT CONTRACT (STRICT)",
     "Return only JSON. Never return markdown fences or extra prose.",
-    'Required envelope shape: {"schemaVersion":"1","phase":"discovery|review|ready|explain","reply":"...","proposal":{"calendarIntent":{"action":"none|needs_goal|apply","global":{"restWeekdays":[],"addBlackoutRanges":[{"start":"YYYY-MM-DD","end":"YYYY-MM-DD"}],"removeBlackoutRanges":[{"start":"YYYY-MM-DD","end":"YYYY-MM-DD"}]},"sessionMoves":[{"goalId":"<uuid>","unitKey":"<unit>","scheduledDate":"YYYY-MM-DD"}]},"unresolvedQuestions":[]},"recommendations":[{"text":"..."}]}',
+    'Required envelope shape: {"schemaVersion":"1","phase":"discovery|review|ready|explain","reply":"...","proposal":{"calendarIntent":{"action":"none|needs_goal|apply","global":{"restWeekdays":[],"addBlackoutRanges":[{"start":"YYYY-MM-DD","end":"YYYY-MM-DD"}],"removeBlackoutRanges":[{"start":"YYYY-MM-DD","end":"YYYY-MM-DD"}]},"sessionMoves":[{"scheduledDate":"YYYY-MM-DD","sessionRef":"s12","goalRef":"optional","sourceDate":"YYYY-MM-DD optional","goalId":"optional","unitKey":"optional"}]},"unresolvedQuestions":[]},"recommendations":[{"text":"..."}]}',
     "Calendar intent rules:",
     "- action=none when the user only wants advice.",
     "- action=needs_goal when the requested activity does not clearly map to current focus goals.",
     "- action=apply when the user asks for planner edits as rest weekdays, blackout ranges, or sessionMoves across months.",
     "- For action=apply, global can be omitted/null or include any subset of restWeekdays/addBlackoutRanges/removeBlackoutRanges.",
     "- sessionMoves can target any date in a focus goal credit window, including other months, as long as the resulting draft stays within the 366-day save window.",
+    "- Prefer sessionRef for moves whenever a matching session is listed in Session roster JSON.",
     "- restWeekdays entries are numeric weekdays where 0=Sunday through 6=Saturday.",
     "- blackout range entries use exact YYYY-MM-DD start/end values.",
     "- If the user says not to ask more questions, make conservative assumptions; if no matching goal exists, use action=needs_goal, leave unresolvedQuestions empty, and explain in reply that calendar edits require a matching goal.",
-    "The calendar compiler can move existing sessions when sessionMoves include a matching goalId and unitKey. It still cannot create goals or invent new unit keys.",
+    "The calendar compiler resolves sessionRef deterministically and can also resolve canonical goalId/unitKey pairs. It cannot create goals or invent sessions.",
     "Always include 2-5 concrete recommendations in recommendations[] when possible.",
     "",
     "PLANNER CONTEXT",
@@ -138,6 +153,7 @@ export function buildCoachPrompt({
     `Focus goal horizon markers: ${focusHorizonMarkers}`,
     `Draft save windows are a contiguous span of whole months and cannot exceed ${MAX_PLANNER_WINDOW_DAYS} days. Do not propose session moves that jump farther than that from the current context window in one turn; the user must save first, then move further.`,
     `Total owner goals in context: ${allGoalsCount}`,
+    `Session roster JSON: ${sessionRosterJson}`,
     deterministicSummary
       ? `Deterministic summary: ${deterministicSummary}`
       : null,
