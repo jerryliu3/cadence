@@ -202,7 +202,9 @@ jobs:
 
   verify-full:
     name: verify-full
-    if: always()
+    # always() still runs after job failures; !cancelled() skips superseded
+    # concurrency cancellations so they are not reported as main being red.
+    if: ${{ always() && !cancelled() }}
     needs:
       - verify-static-full
       - verify-integration-full
@@ -220,7 +222,7 @@ jobs:
 
   report-main-status:
     name: report-main-status
-    if: always()
+    if: ${{ always() && !cancelled() }}
     needs:
       - verify-full
     runs-on: ubuntu-latest
@@ -244,6 +246,13 @@ jobs:
             const sha = process.env.SHA;
             const shortSha = sha.slice(0, 7);
             const title = "Post-merge verify failing on main";
+
+            // Cancelled/skipped aggregators are concurrency supersedes, not
+            // a red main. Only success/failure should open or close the alert.
+            if (result === "cancelled" || result === "skipped") {
+              core.info(`Skipping post-merge alert for aggregator result: ${result}`);
+              return;
+            }
 
             let existingIssue;
             try {
