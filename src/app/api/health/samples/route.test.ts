@@ -45,14 +45,19 @@ describe("POST /api/health/samples", () => {
       data: { user: { id: "11111111-1111-4111-8111-111111111111" } },
       error: null,
     });
-    mocks.rpc.mockResolvedValue({
-      data: {
-        ingested_count: 1,
-        canonical_count: 1,
-        suppressed_count: 0,
-        recomputed_days: 1,
-      },
-      error: null,
+    mocks.rpc.mockImplementation(async (name: string) => {
+      if (name === "apply_health_autocomplete_service") {
+        return { data: { applied_count: 1, skipped_count: 0 }, error: null };
+      }
+      return {
+        data: {
+          ingested_count: 1,
+          canonical_count: 1,
+          suppressed_count: 0,
+          recomputed_days: 1,
+        },
+        error: null,
+      };
     });
     mocks.upsert.mockResolvedValue({ error: null });
     mocks.createAdminClient.mockReturnValue({
@@ -132,6 +137,7 @@ describe("POST /api/health/samples", () => {
           utc_offset_minutes: -240,
         }),
       ],
+      p_deleted_native_ids: [],
     });
     const rpcArgs = mocks.rpc.mock.calls[0]?.[1] as { p_samples: unknown[] };
     expect(JSON.stringify(rpcArgs)).not.toContain("secret");
@@ -141,5 +147,48 @@ describe("POST /api/health/samples", () => {
       ingestedCount: 1,
       canonicalCount: 1,
     });
+  });
+
+  it("applies auto-complete after ingest when localToday is provided", async () => {
+    const localToday = new Date().toISOString().slice(0, 10);
+    const response = await POST(
+      new Request("http://localhost/api/health/samples", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          provider: "apple_healthkit",
+          localToday,
+          samples: [sample],
+        }),
+      })
+    );
+    expect(response.status).toBe(200);
+    expect(mocks.rpc).toHaveBeenCalledWith("apply_health_autocomplete_service", {
+      p_local_today: localToday,
+    });
+    await expect(response.json()).resolves.toMatchObject({
+      autocompleteAppliedCount: 1,
+      autocompleteSkippedCount: 0,
+      skippedCount: 0,
+    });
+  });
+
+  it("rejects localToday outside the UTC offset envelope", async () => {
+    const response = await POST(
+      new Request("http://localhost/api/health/samples", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          provider: "apple_healthkit",
+          localToday: "2099-06-15",
+          samples: [sample],
+        }),
+      })
+    );
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "local_today_out_of_range",
+    });
+    expect(mocks.rpc).not.toHaveBeenCalled();
   });
 });
