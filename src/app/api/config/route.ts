@@ -11,6 +11,7 @@ function publicMobileFlags() {
     crossMonthMovesEnabled: flags.crossMonthMovesEnabled,
     xpEnabled: flags.xpEnabled,
     socialEnabled: flags.socialEnabled,
+    integrationsEnabled: flags.integrationsEnabled,
   };
 }
 

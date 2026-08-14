@@ -37,6 +37,9 @@ describe("env schema", () => {
     resetEnvCacheForTests();
     const env = getServerEnv();
     expect(env.FEATURE_CROSS_MONTH_MOVES).toBe(false);
+    expect(env.XP_ENABLED).toBe(false);
+    expect(env.SOCIAL_ENABLED).toBe(false);
+    expect(env.INTEGRATIONS_ENABLED).toBe(false);
   });
 
   it("requires core secrets in hosted production", () => {

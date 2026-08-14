@@ -14,4 +14,9 @@ export interface FeatureFlags {
    * Default: off until social rollout is explicitly enabled.
    */
   socialEnabled: boolean;
+  /**
+   * Health integrations (HealthKit / Health Connect ingest APIs).
+   * Default: off until Wave 1 device gates pass.
+   */
+  integrationsEnabled: boolean;
 }

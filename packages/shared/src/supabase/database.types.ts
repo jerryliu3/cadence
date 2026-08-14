@@ -1139,6 +1139,44 @@ export type Database = {
           },
         ]
       }
+      health_sync_state: {
+        Row: {
+          last_error: string | null
+          last_ingest_at: string | null
+          last_sample_at: string | null
+          permission_prompted_at: string | null
+          provider: Database["public"]["Enums"]["health_provider"]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          last_error?: string | null
+          last_ingest_at?: string | null
+          last_sample_at?: string | null
+          permission_prompted_at?: string | null
+          provider: Database["public"]["Enums"]["health_provider"]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          last_error?: string | null
+          last_ingest_at?: string | null
+          last_sample_at?: string | null
+          permission_prompted_at?: string | null
+          provider?: Database["public"]["Enums"]["health_provider"]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "health_sync_state_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       leaderboard_season_results: {
         Row: {
           display_name: string
