@@ -11,6 +11,7 @@
     "./cache/tab-data-cache": "./src/cache/tab-data-cache.ts",
     "./feedback/haptics": "./src/feedback/haptics.ts",
     "./planner/calendar-state": "./src/planner/calendar-state.ts",
+    "./planner/visible-window": "./src/planner/visible-window.ts",
     "./supabase/database.types": "./src/supabase/database.types.ts",
     "./xp/events": "./src/xp/events.ts",
     "./tokens": "./src/tokens.ts"

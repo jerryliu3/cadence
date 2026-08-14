@@ -1,41 +1,15 @@
 import { addDays, addMonths, endOfMonth, format, getDay, parse, startOfMonth } from "date-fns";
+import { useEffect, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../../lib/api";
+import { useSession } from "../../lib/session";
+import {
+  createMobilePlannerContextLoader,
+  type MobilePlannerContext,
+  type MobilePlannerWorkUnit,
+} from "./planner-context-loader";
 
-export interface MobilePlannerWorkUnit {
-  originalGoalId: string;
-  unitKey: string;
-  scheduledDate: string | null;
-  label: string | null;
-  classification: string;
-  creditState: string;
-}
-
-export interface MobilePlannerContext {
-  scopeMonth: string;
-  asOfDate: string;
-  timezone: string;
-  goalTitles: Record<string, string>;
-  preview: {
-    generationInputHash?: string;
-    solver?: { publishable?: boolean; issueCodes?: string[] };
-    workUnits: MobilePlannerWorkUnit[];
-  } | null;
-  activePlan: {
-    plan: { id: string; version: number; status: string };
-    items: Array<{
-      id: string;
-      unit_key: string;
-      locked: boolean;
-    }>;
-  } | null;
-  revisions: {
-    scheduleDigest?: string | null;
-  };
-  preferences: {
-    defaultPolicy: unknown;
-  } | null;
-}
+export type { MobilePlannerContext, MobilePlannerWorkUnit };
 
 function parseMonth(month: string) {
   return parse(`${month}-01`, "yyyy-MM-dd", new Date());
@@ -56,19 +30,42 @@ export function buildMonthCells(month: string, weekStartsOn = 1) {
 }
 
 export function usePlannerContext(month: string | null) {
+  const { userId } = useSession();
   const queryClient = useQueryClient();
+  const loaderRef = useRef<ReturnType<
+    typeof createMobilePlannerContextLoader
+  > | null>(null);
+  if (!loaderRef.current) {
+    loaderRef.current = createMobilePlannerContextLoader({
+      postJson: (path, body) =>
+        api.postJson<MobilePlannerContext>(path, body),
+      getJson: (path, options) =>
+        api.getJson<MobilePlannerContext>(path, options),
+    });
+  }
+  useEffect(() => {
+    loaderRef.current?.reset();
+  }, [userId]);
+  const queryKey = ["mobile-planner-context", userId, month] as const;
   const query = useQuery({
-    queryKey: ["mobile-planner-context", month],
-    enabled: Boolean(month),
-    queryFn: () =>
-      api.getJson<MobilePlannerContext>("/api/planner/context", {
-        query: { scopeMonth: month ?? "" },
-      }),
+    queryKey,
+    enabled: Boolean(month) && Boolean(userId),
+    queryFn: () => loaderRef.current!.load(month ?? ""),
   });
   return {
     ...query,
     refresh: () =>
-      queryClient.invalidateQueries({ queryKey: ["mobile-planner-context"] }),
+      queryClient.invalidateQueries({
+        queryKey: ["mobile-planner-context", userId],
+      }),
+    forcePrepare: async () => {
+      if (!month || !userId) {
+        return undefined;
+      }
+      const context = await loaderRef.current!.forcePrepare(month);
+      queryClient.setQueryData(queryKey, context);
+      return context;
+    },
   };
 }
 
