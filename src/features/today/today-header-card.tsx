@@ -9,7 +9,6 @@ import { DateField } from "@/components/ui/date-field";
 import { PeriodStepper } from "@/components/ui/period-stepper";
 
 interface TodayHeaderCardProps {
-  title?: string;
   viewDate: string;
   todayLocalDate: string;
   viewingToday: boolean;
@@ -24,7 +23,6 @@ interface TodayHeaderCardProps {
 }
 
 export function TodayHeaderCard({
-  title = "Today",
   viewDate,
   todayLocalDate,
   viewingToday,
@@ -38,9 +36,9 @@ export function TodayHeaderCard({
   children,
 }: TodayHeaderCardProps) {
   const parsedViewDate = parseISO(viewDate);
-  const viewDateLabel = isValid(parsedViewDate)
-    ? format(parsedViewDate, "EEE MMM d, yyyy")
-    : viewDate;
+  const weekdayTitle = isValid(parsedViewDate)
+    ? format(parsedViewDate, "EEEE")
+    : "Today";
 
   return (
     <Card className="rounded-none border-0 bg-transparent py-0 shadow-none ring-0 sm:rounded-xl sm:bg-card sm:py-4 sm:ring-1 sm:shadow-sm">
@@ -53,7 +51,7 @@ export function TodayHeaderCard({
             >
               <div className="flex min-w-0 items-center gap-2">
                 <Sparkles className="size-4 shrink-0 text-primary" />
-                <CardTitle className="text-xl">{title}</CardTitle>
+                <CardTitle className="text-xl">{weekdayTitle}</CardTitle>
               </div>
               <div className="justify-self-center">
                 <PeriodStepper
@@ -79,9 +77,6 @@ export function TodayHeaderCard({
                 ) : null}
               </div>
             </div>
-            <p className="text-center text-xs font-medium text-muted-foreground">
-              {viewDateLabel}
-            </p>
             {searchControls ? <div className="w-full">{searchControls}</div> : null}
           </div>
           {quickFilterControls ? (
