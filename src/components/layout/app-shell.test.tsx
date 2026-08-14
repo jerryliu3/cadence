@@ -1,4 +1,5 @@
 import { cleanup, render, screen } from "@testing-library/react";
+import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AppShell } from "@/components/layout/app-shell";
 
@@ -22,6 +23,18 @@ vi.mock("@/components/navigation/tab-nav", () => ({
 
 vi.mock("@/components/xp/xp-level-badge", () => ({
   XpLevelBadge: () => <span>XP Badge</span>,
+}));
+
+vi.mock("@/components/xp/xp-progress-bar", () => ({
+  XpProgressBar: () => <span>XP Progress</span>,
+}));
+
+vi.mock("@/components/xp/altitude-backdrop", () => ({
+  AltitudeBackdrop: () => <div data-testid="altitude-backdrop" />,
+}));
+
+vi.mock("@/components/xp/xp-profile-provider", () => ({
+  XpProfileProvider: ({ children }: { children: ReactNode }) => children,
 }));
 
 vi.mock("@/lib/cache/tab-data-cache", () => ({
