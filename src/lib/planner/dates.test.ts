@@ -6,6 +6,7 @@ import {
 } from "@/lib/planner/contracts/bounds";
 import {
   assertDateWindow,
+  expandToMonthAlignedWindow,
   getScopeDateRange,
   isMonthAlignedPlannerWindow,
   toPlannerScheduleWindow,
@@ -71,5 +72,19 @@ describe("assertDateWindow", () => {
     expect(() =>
       assertDateWindow({ start: "2026-09-10", end: "2026-09-20" })
     ).toThrow(/must start on day 1/);
+  });
+});
+
+describe("expandToMonthAlignedWindow", () => {
+  it("expands arbitrary visible dates to whole-month boundaries", () => {
+    expect(
+      expandToMonthAlignedWindow({
+        start: "2026-01-31",
+        end: "2026-02-02",
+      })
+    ).toEqual({
+      start: "2026-01-01",
+      end: "2026-02-28",
+    });
   });
 });

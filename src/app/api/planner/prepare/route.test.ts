@@ -1,6 +1,7 @@
 // @vitest-environment node
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { MAX_PLANNER_WINDOW_DAYS } from "@/lib/planner/contracts/bounds";
 
 const mocks = vi.hoisted(() => ({
   parseBoundedJsonBody: vi.fn(),
@@ -68,5 +69,24 @@ describe("planner prepare route", () => {
         },
       })
     );
+  });
+
+  it("rejects visible windows whose month-expanded solve span exceeds bounds", async () => {
+    mocks.parseBoundedJsonBody.mockResolvedValueOnce({
+      scopeMonth: "2026-08",
+      visibleStart: "2026-01-31",
+      visibleEnd: "2027-01-30",
+    });
+
+    const response = await POST(
+      new Request("http://localhost/api/planner/prepare", { method: "POST" })
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "validation_failed",
+      message: `Planner window exceeds ${MAX_PLANNER_WINDOW_DAYS} days.`,
+    });
+    expect(mocks.preparePlannerSchedule).not.toHaveBeenCalled();
   });
 });

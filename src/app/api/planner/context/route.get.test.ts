@@ -3,6 +3,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createDefaultPlannerPolicy } from "@/lib/planner/policy";
 import { PlannerError } from "@/lib/planner/kernel";
+import { MAX_PLANNER_WINDOW_DAYS } from "@/lib/planner/contracts/bounds";
 
 const mocks = vi.hoisted(() => ({
   requirePlannerRouteContext: vi.fn(),
@@ -103,5 +104,34 @@ describe("planner context GET route", () => {
         scopeMonth: "2026-08",
       })
     );
+  });
+  it("rejects visible windows wider than the planner span bound", async () => {
+    const response = await GET(
+      new Request(
+        "http://localhost/api/planner/context?scopeMonth=2026-08&visibleStart=2026-01-01&visibleEnd=2027-02-01"
+      )
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "validation_failed",
+      message: `Provide both visible planner dates in ascending order and within ${MAX_PLANNER_WINDOW_DAYS} days.`,
+    });
+    expect(mocks.loadPlannerContextPayload).not.toHaveBeenCalled();
+  });
+
+  it("rejects visible windows whose month-expanded solve span exceeds bounds", async () => {
+    const response = await GET(
+      new Request(
+        "http://localhost/api/planner/context?scopeMonth=2026-08&visibleStart=2026-01-31&visibleEnd=2027-01-30"
+      )
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "validation_failed",
+      message: `Planner window exceeds ${MAX_PLANNER_WINDOW_DAYS} days.`,
+    });
+    expect(mocks.loadPlannerContextPayload).not.toHaveBeenCalled();
   });
 });

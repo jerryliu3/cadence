@@ -81,6 +81,13 @@ export function toKernelWindow(scopeMonth: string) {
   };
 }
 
+export function expandToMonthAlignedWindow(window: DateWindow): DateWindow {
+  return {
+    start: getScopeDateRange(monthFromDate(window.start)).start,
+    end: getScopeDateRange(monthFromDate(window.end)).end,
+  };
+}
+
 export function toKernelWindowFromDates(window: DateWindow) {
   const next = assertDateWindow(window);
   return {

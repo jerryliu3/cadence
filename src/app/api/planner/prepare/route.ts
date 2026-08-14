@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import {
+  MAX_PLANNER_WINDOW_DAYS,
   MAX_API_BODY_BYTES,
 } from "@/lib/planner/contracts/bounds";
 import {
@@ -9,7 +10,11 @@ import {
   requirePlannerRouteContext,
   withPlannerRoute,
 } from "@/lib/planner/api";
-import { countDateWindowDays } from "@/lib/planner/dates";
+import {
+  assertDateWindow,
+  countDateWindowDays,
+  expandToMonthAlignedWindow,
+} from "@/lib/planner/dates";
 import { PlannerError } from "@/lib/planner/kernel";
 import { preparePlannerSchedule } from "@/lib/planner/prepare";
 import { createClient } from "@/lib/supabase/server";
@@ -34,7 +39,7 @@ const prepareRequestSchema = z
       countDateWindowDays({
         start: value.visibleStart,
         end: value.visibleEnd,
-      }) > 366
+      }) > MAX_PLANNER_WINDOW_DAYS
     ) {
       context.addIssue({
         code: "custom",
@@ -53,6 +58,20 @@ export async function POST(request: Request) {
       Math.min(MAX_API_BODY_BYTES, 64 * 1024),
       prepareRequestSchema
     );
+    try {
+      assertDateWindow(
+        expandToMonthAlignedWindow({
+          start: body.visibleStart,
+          end: body.visibleEnd,
+        })
+      );
+    } catch (error) {
+      throw new PlannerRouteError(
+        400,
+        "validation_failed",
+        error instanceof Error ? error.message : "Invalid planner window."
+      );
+    }
     let payload: Awaited<ReturnType<typeof preparePlannerSchedule>>;
     try {
       payload = await preparePlannerSchedule({
