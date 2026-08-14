@@ -72,8 +72,8 @@ export function GoalFormScreen({ goalId }: { goalId?: string }) {
             p_id: savedGoalId,
             p_title: title.trim(),
             p_category: "General",
-            p_frequency_type: "recurring",
-            p_recurrence_interval: "daily",
+            p_frequency_type: "recurring" as const,
+            p_recurrence_interval: "daily" as const,
             p_start_date: format(new Date(), "yyyy-MM-dd"),
             p_is_group: false,
           };
