@@ -17,7 +17,6 @@ import {
 } from "@/lib/planner/dates";
 import { PlannerError } from "@/lib/planner/kernel";
 import { preparePlannerSchedule } from "@/lib/planner/prepare";
-import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 
@@ -51,8 +50,7 @@ const prepareRequestSchema = z
 
 export async function POST(request: Request) {
   return withPlannerRoute(async ({ correlationId }) => {
-    const supabase = await createClient();
-    const routeContext = await requirePlannerRouteContext({ supabase });
+    const routeContext = await requirePlannerRouteContext(request);
     const body = await parseBoundedJsonBody(
       request,
       Math.min(MAX_API_BODY_BYTES, 64 * 1024),
