@@ -83,38 +83,45 @@ select throws_ok(
   $$
     insert into public.push_subscriptions (
       user_id,
-<<<<<<< HEAD
       platform,
       endpoint,
-=======
-      endpoint,
-      platform,
-      native_token,
->>>>>>> 1104ca53 (Move generated DB types into shared and collapse the XP event bus.)
       p256dh,
       auth
     )
     values (
       '9c222222-2222-4222-8222-222222222222',
-<<<<<<< HEAD
       'web',
       'native:web:reserved',
       'p256dh',
       'auth'
-=======
+    )
+  $$,
+  '23514',
+  null,
+  'web rows cannot enter the reserved native endpoint namespace'
+);
+
+select throws_ok(
+  $$
+    insert into public.push_subscriptions (
+      user_id,
+      endpoint,
+      platform,
+      native_token,
+      p256dh,
+      auth
+    )
+    values (
+      '9c222222-2222-4222-8222-222222222222',
       'native:ios:short',
       'ios',
       'short',
       null,
       null
->>>>>>> 1104ca53 (Move generated DB types into shared and collapse the XP event bus.)
     )
   $$,
   '23514',
   null,
-<<<<<<< HEAD
-  'web rows cannot enter the reserved native endpoint namespace'
-=======
   'native tokens shorter than 8 characters are rejected'
 );
 
@@ -140,7 +147,6 @@ select throws_ok(
   '23514',
   null,
   'web rows still require p256dh and auth'
->>>>>>> 1104ca53 (Move generated DB types into shared and collapse the XP event bus.)
 );
 
 reset role;
