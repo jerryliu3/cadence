@@ -1,15 +1,17 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { getApiErrorMessage } from "@cadence/shared/api-client";
 import { api } from "../../lib/api";
 import { getMobileTheme } from "../../theme";
 import { PrimaryButton } from "../../ui/button";
 import {
-  applyCoachPolicyPatches,
-  buildCoachDeterministicSummary,
   type CoachPolicyPatch,
-  type MobilePlannerPolicy,
 } from "./coach-policy";
+import {
+  applyMobileCoachPatches,
+  buildMobileCoachRequest,
+} from "./mobile-coach";
+import type { MobilePlannerDraftState } from "./mobile-planner-draft";
 import type { MobilePlannerContext } from "./use-planner-context";
 
 interface CoachMessage {
@@ -34,10 +36,14 @@ interface SavedConversation {
 
 export function CoachPanel({
   context,
-  onApplied,
+  currentMonth,
+  draft,
+  onDraftChange,
 }: {
   context: MobilePlannerContext;
-  onApplied: () => Promise<unknown>;
+  currentMonth: string;
+  draft: MobilePlannerDraftState;
+  onDraftChange: (state: MobilePlannerDraftState) => void;
 }) {
   const theme = getMobileTheme();
   const [input, setInput] = useState("");
@@ -45,18 +51,6 @@ export function CoachPanel({
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [saved, setSaved] = useState<SavedConversation[]>([]);
-
-  const summary = useMemo(
-    () =>
-      buildCoachDeterministicSummary({
-        scopeMonth: context.scopeMonth,
-        timezone: context.timezone,
-        asOfDate: context.asOfDate,
-        workUnits: context.preview?.workUnits ?? [],
-        goalTitles: context.goalTitles,
-      }),
-    [context]
-  );
 
   const send = async () => {
     const content = input.trim();
@@ -71,17 +65,18 @@ export function CoachPanel({
     setBusy(true);
     setStatus(null);
     try {
+      const request = buildMobileCoachRequest({
+        context,
+        currentMonth,
+        state: draft,
+        messages: nextMessages.map((message) => ({
+          role: message.role,
+          content: message.content,
+        })),
+      });
       const payload = await api.postJson<CoachResponsePayload>(
         "/api/planner/coach",
-        {
-          scopeMonth: context.scopeMonth,
-          messages: nextMessages.map((message) => ({
-            role: message.role,
-            content: message.content,
-          })),
-          focusGoalIds: [],
-          deterministicSummary: summary,
-        },
+        request,
         { timeoutMs: 65_000 }
       );
       setMessages([
@@ -105,39 +100,49 @@ export function CoachPanel({
   };
 
   const applyPatches = async (patches: CoachPolicyPatch[]) => {
-    const currentPolicy = context.preferences?.defaultPolicy as
-      | MobilePlannerPolicy
-      | undefined;
-    if (!currentPolicy) {
-      setStatus("Confirm planner timezone on web before applying coach edits.");
-      return;
-    }
-    const { policy, appliedPatchCount } = applyCoachPolicyPatches({
-      policy: currentPolicy,
-      patches,
-    });
-    if (appliedPatchCount === 0) {
-      setStatus("No calendar policy changes to apply.");
-      return;
-    }
     setBusy(true);
     try {
-      await api.putJson("/api/planner/context", {
-        timezone: context.timezone,
-        defaultPolicy: policy,
+      const result = await applyMobileCoachPatches({
+        client: {
+          postJson: (path, body) => api.postJson(path, body),
+          putJson: (path, body) => api.putJson(path, body),
+        },
+        context,
+        currentMonth,
+        state: draft,
+        patches,
       });
-      await api.postJson("/api/planner/context", {
-        scopeMonth: context.scopeMonth,
-        timezone: context.timezone,
-        policy,
-        source: context.activePlan ? "update" : "manual",
-        solveIntent: "replan",
-        draftCommands: [],
-      });
-      await onApplied();
-      setStatus("Coach proposal applied and preview regenerated.");
+      if (
+        result.appliedPolicyPatchCount === 0 &&
+        result.queuedSessionMoves === 0
+      ) {
+        setStatus(
+          result.missingSessionMoves > 0
+            ? "Coach suggested a session that is not available in this draft."
+            : "No calendar changes were available to apply."
+        );
+        return;
+      }
+      onDraftChange(result.state);
+      const moveCount =
+        result.queuedSessionMoves + result.policyReplanMoves;
+      const missingSuffix =
+        result.missingSessionMoves > 0
+          ? ` ${result.missingSessionMoves} session reference${
+              result.missingSessionMoves === 1 ? "" : "s"
+            } could not be applied.`
+          : "";
+      setStatus(
+        `Coach changes are in your draft${
+          moveCount > 0
+            ? ` with ${moveCount} session move${moveCount === 1 ? "" : "s"}`
+            : ""
+        }. Review and save when ready.${missingSuffix}`
+      );
     } catch (error) {
-      setStatus(getApiErrorMessage(error, "Could not apply coach proposal."));
+      setStatus(
+        getApiErrorMessage(error, "Could not add the coach proposal to the draft.")
+      );
     } finally {
       setBusy(false);
     }
@@ -207,8 +212,8 @@ export function CoachPanel({
     <View style={[styles.card, { borderColor: theme.colors.border }]}>
       <Text style={{ color: theme.colors.foreground, fontWeight: "700" }}>AI Coach</Text>
       <Text style={{ color: theme.colors.mutedForeground }}>
-        Ask for habit and training guidance for {context.scopeMonth}. Proposals can update rest
-        days and blackout ranges, then replan.
+        Ask for guidance across the current planner window. Proposals can update
+        rest days, blackout ranges, and existing session dates.
       </Text>
       <ScrollView style={styles.transcript}>
         {messages.length === 0 ? (

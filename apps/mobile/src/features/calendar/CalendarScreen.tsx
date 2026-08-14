@@ -403,7 +403,12 @@ export function CalendarScreen() {
       </View>
       {message ? <Text style={{ color: theme.colors.foreground }}>{message}</Text> : null}
       {planner.data ? (
-        <CoachPanel context={planner.data} onApplied={() => planner.refresh()} />
+        <CoachPanel
+          context={planner.data}
+          currentMonth={scopeMonth}
+          draft={draft}
+          onDraftChange={setDraft}
+        />
       ) : null}
       <Text style={{ color: theme.colors.mutedForeground }}>
         Long-press a session to drag it onto another day, or tap it to use the Move-to
