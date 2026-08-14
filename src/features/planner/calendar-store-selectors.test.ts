@@ -1,8 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type {
-  DraftCommandState,
-  ScopedPlannerDraftCommand,
-} from "@/features/planner/draft-command-reducer";
+import type { DraftCommandState } from "@/features/planner/draft-command-reducer";
 import type {
   PlannerContextPayload,
   PlannerDayDetailEntry,
@@ -70,7 +67,9 @@ function buildContext(workUnits: PlannerWorkUnit[]): PlannerContextPayload {
   });
 }
 
-function commandState(commands: ScopedPlannerDraftCommand[]): DraftCommandState {
+function commandState(
+  commands: DraftCommandState["commands"]
+): DraftCommandState {
   return {
     commands,
     nextSequence: commands.length,
@@ -81,26 +80,20 @@ describe("calendar store selectors", () => {
   it("filters scope draft commands to preview entry keys", () => {
     const state = commandState([
       {
-        scopeMonth: "2026-08",
-        command: {
-          id: "cmd-a",
-          sequence: 1,
-          kind: "move_item",
-          goalId: "goal-a",
-          unitKey: "total:1",
-          scheduledDate: "2026-08-10",
-        },
+        id: "cmd-a",
+        sequence: 1,
+        kind: "move_item",
+        goalId: "goal-a",
+        unitKey: "total:1",
+        scheduledDate: "2026-08-10",
       },
       {
-        scopeMonth: "2026-08",
-        command: {
-          id: "cmd-b",
-          sequence: 2,
-          kind: "move_item",
-          goalId: "goal-z",
-          unitKey: "total:9",
-          scheduledDate: "2026-08-12",
-        },
+        id: "cmd-b",
+        sequence: 2,
+        kind: "move_item",
+        goalId: "goal-z",
+        unitKey: "total:9",
+        scheduledDate: "2026-08-12",
       },
     ]);
 
@@ -118,29 +111,58 @@ describe("calendar store selectors", () => {
     });
   });
 
+  it("includes destination-month move commands even when the unit is not in that month preview", () => {
+    const state = commandState([
+      {
+        id: "cmd-a",
+        sequence: 1,
+        kind: "move_item",
+        goalId: "goal-a",
+        unitKey: "total:1",
+        scheduledDate: "2026-09-05",
+      },
+    ]);
+
+    const visibleDraftItemEditsByMonth = selectVisibleDraftItemEditsByMonth({
+      draftCommandState: state,
+      visibleMonthContexts: {
+        "2026-09": {
+          scopeMonth: "2026-09",
+          goalTitles: {},
+          activePlan: null,
+          preview: buildPreview([
+            unit({
+              goalId: "goal-b",
+              unitKey: "total:1",
+              scheduledDate: "2026-09-01",
+            }),
+          ]),
+        },
+      },
+    });
+
+    expect(visibleDraftItemEditsByMonth["2026-09"]["goal-a:total:1"]).toEqual({
+      scheduledDate: "2026-09-05",
+    });
+  });
+
   it("builds visible month item edits only for preview-backed entries", () => {
     const state = commandState([
       {
-        scopeMonth: "2026-09",
-        command: {
-          id: "cmd-a",
-          sequence: 1,
-          kind: "move_item",
-          goalId: "goal-b",
-          unitKey: "total:1",
-          scheduledDate: "2026-09-10",
-        },
+        id: "cmd-a",
+        sequence: 1,
+        kind: "move_item",
+        goalId: "goal-b",
+        unitKey: "total:1",
+        scheduledDate: "2026-09-10",
       },
       {
-        scopeMonth: "2026-09",
-        command: {
-          id: "cmd-b",
-          sequence: 2,
-          kind: "rename_item",
-          goalId: "goal-c",
-          unitKey: "total:2",
-          label: "Renamed",
-        },
+        id: "cmd-b",
+        sequence: 2,
+        kind: "rename_item",
+        goalId: "goal-c",
+        unitKey: "total:2",
+        label: "Renamed",
       },
     ]);
 
@@ -175,26 +197,20 @@ describe("calendar store selectors", () => {
     ]);
     const draftCommandState = commandState([
       {
-        scopeMonth: "2026-08",
-        command: {
-          id: "cmd-a",
-          sequence: 1,
-          kind: "move_item",
-          goalId: "goal-a",
-          unitKey: "total:1",
-          scheduledDate: "2026-08-07",
-        },
+        id: "cmd-a",
+        sequence: 1,
+        kind: "move_item",
+        goalId: "goal-a",
+        unitKey: "total:1",
+        scheduledDate: "2026-08-07",
       },
       {
-        scopeMonth: "2026-08",
-        command: {
-          id: "cmd-b",
-          sequence: 2,
-          kind: "move_item",
-          goalId: "goal-z",
-          unitKey: "total:9",
-          scheduledDate: "2026-08-09",
-        },
+        id: "cmd-b",
+        sequence: 2,
+        kind: "move_item",
+        goalId: "goal-z",
+        unitKey: "total:9",
+        scheduledDate: "2026-08-09",
       },
     ]);
 

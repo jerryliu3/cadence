@@ -68,7 +68,7 @@ import { useCompletionMutation } from "@/features/planner/use-completion-mutatio
 import {
   draftCommandReducer,
   initialDraftCommandState,
-  selectDraftCommandsForScope,
+  selectDraftCommands,
 } from "@/features/planner/draft-command-reducer";
 import { planDraftTimeOverrideUpdate } from "@/features/planner/draft-time-override";
 import { computeDayPreviewPosition } from "@/features/planner/day-preview-popup";
@@ -110,6 +110,8 @@ import {
   sortPlannerDraftCommands,
   type PlannerDraftCommand,
 } from "@/lib/planner/draft-commands";
+import { buildPlannerDraftSaveWindow } from "@/lib/planner/draft-window";
+import { getWindowState } from "@/lib/planner/dates";
 import { buildPlannerConfirmationHash } from "@/lib/planner/publish-payload";
 import {
   createDefaultPlannerPolicy,
@@ -196,12 +198,10 @@ export function CalendarSurface({
   const [resetLoading, setResetLoading] = useState(false);
   const [fullResetLoading, setFullResetLoading] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [draftPolicyByScope, setDraftPolicyByScope] = useState<
-    Record<string, PlannerPolicy>
-  >({});
-  const [draftPreviewByScope, setDraftPreviewByScope] = useState<
-    Record<string, NonNullable<PlannerContextPayload["preview"]>>
-  >({});
+  const [draftPolicy, setDraftPolicy] = useState<PlannerPolicy | null>(null);
+  const [draftPreview, setDraftPreview] = useState<
+    NonNullable<PlannerContextPayload["preview"]> | null
+  >(null);
   const [draftCommandState, dispatchDraftCommand] = useReducer(
     draftCommandReducer,
     initialDraftCommandState
@@ -356,119 +356,43 @@ export function CalendarSurface({
     onPlannerMutation();
   }, [onPlannerMutation]);
   const currentScopeMonth = month ?? context?.scopeMonth ?? null;
-  const setDraftPolicyForScope = useCallback(
-    (scopeMonth: string, policy: PlannerPolicy | null) => {
-      setDraftPolicyByScope((previous) => {
-        if (policy === null) {
-          if (!(scopeMonth in previous)) {
-            return previous;
-          }
-          const next = { ...previous };
-          delete next[scopeMonth];
-          return next;
-        }
-        if (previous[scopeMonth] === policy) {
-          return previous;
-        }
-        return {
-          ...previous,
-          [scopeMonth]: policy,
-        };
-      });
-    },
-    []
+  const clearDraftSession = useCallback(() => {
+    setDraftPolicy(null);
+    setDraftPreview(null);
+    dispatchDraftCommand({
+      type: "clear",
+    });
+  }, []);
+  const effectiveDraftPolicy = draftPolicy;
+  const effectivePreview = draftPreview ?? context?.preview ?? null;
+  const draftSaveCommands = useMemo(
+    () => sortPlannerDraftCommands(selectDraftCommands(draftCommandState)),
+    [draftCommandState]
   );
-  const setDraftPreviewForScope = useCallback(
-    (
-      scopeMonth: string,
-      preview: NonNullable<PlannerContextPayload["preview"]> | null
-    ) => {
-      setDraftPreviewByScope((previous) => {
-        if (preview === null) {
-          if (!(scopeMonth in previous)) {
-            return previous;
-          }
-          const next = { ...previous };
-          delete next[scopeMonth];
-          return next;
-        }
-        return {
-          ...previous,
-          [scopeMonth]: preview,
-        };
-      });
-    },
-    []
-  );
-  const clearDraftScopeSession = useCallback(
-    (scopeMonth: string) => {
-      setDraftPolicyForScope(scopeMonth, null);
-      setDraftPreviewForScope(scopeMonth, null);
-      dispatchDraftCommand({
-        type: "remove_scope",
-        scopeMonth,
-      });
-    },
-    [setDraftPolicyForScope, setDraftPreviewForScope]
-  );
-  const effectiveDraftPolicy = currentScopeMonth
-    ? draftPolicyByScope[currentScopeMonth] ?? null
-    : null;
-  const effectiveDraftPreview = currentScopeMonth
-    ? draftPreviewByScope[currentScopeMonth] ?? null
-    : null;
-  const effectivePreview = effectiveDraftPreview ?? context?.preview ?? null;
-  const dirtyScopeMonths = useMemo(() => {
-    const scopeSet = new Set<string>();
-    for (const [scopeMonth, draftPolicy] of Object.entries(draftPolicyByScope)) {
-      if (draftPolicy) {
-        scopeSet.add(scopeMonth);
-      }
+  const hasDraftSession =
+    draftSaveCommands.length > 0 || effectiveDraftPolicy !== null;
+  const draftSaveWindow = useMemo(() => {
+    if (!currentScopeMonth) {
+      return null;
     }
-    for (const scopedCommand of draftCommandState.commands) {
-      scopeSet.add(scopedCommand.scopeMonth);
-    }
-    return Array.from(scopeSet).sort((left, right) => left.localeCompare(right));
-  }, [draftCommandState.commands, draftPolicyByScope]);
-  const draftCommandsForSaveByScope = useMemo(() => {
-    const commandsByScope: Record<string, PlannerDraftCommand[]> = {};
-    for (const scopeMonth of dirtyScopeMonths) {
-      const scopedCommands = sortPlannerDraftCommands(
-        selectDraftCommandsForScope(draftCommandState, scopeMonth)
-      );
-      const previewForScope =
-        scopeMonth === currentScopeMonth
-          ? effectivePreview
-          : draftPreviewByScope[scopeMonth] ?? visibleMonthContexts[scopeMonth]?.preview;
-      if (!previewForScope) {
-        commandsByScope[scopeMonth] = scopedCommands;
-        continue;
-      }
-      const previewEntryKeys = new Set(
-        (previewForScope.workUnits ?? []).map((unit) =>
-          draftCommandEntryKey({
-            goalId: unit.originalGoalId,
-            unitKey: unit.unitKey,
-          })
-        )
-      );
-      commandsByScope[scopeMonth] = scopedCommands.filter((command) =>
-        previewEntryKeys.has(draftCommandEntryKey(command))
-      );
-    }
-    return commandsByScope;
+    return buildPlannerDraftSaveWindow({
+      currentMonth: currentScopeMonth,
+      commands: draftSaveCommands,
+      workUnits: [
+        ...(context?.preview?.workUnits ?? []),
+        ...(effectivePreview?.workUnits ?? []),
+        ...Object.values(visibleMonthContexts).flatMap(
+          (visibleMonthContext) => visibleMonthContext.preview?.workUnits ?? []
+        ),
+      ],
+    });
   }, [
+    context?.preview?.workUnits,
     currentScopeMonth,
-    dirtyScopeMonths,
-    draftCommandState,
-    draftPreviewByScope,
-    effectivePreview,
+    draftSaveCommands,
+    effectivePreview?.workUnits,
     visibleMonthContexts,
   ]);
-  const currentScopeHasDraftSession = currentScopeMonth
-    ? dirtyScopeMonths.includes(currentScopeMonth)
-    : false;
-  const hasDraftSession = dirtyScopeMonths.length > 0;
   const horizonCounter = useMemo(() => {
     const summary = effectivePreview?.horizonSummary ?? [];
     if (summary.length === 0) {
@@ -478,15 +402,15 @@ export function CalendarSurface({
     if (total <= 0) {
       return null;
     }
-    const thisMonth = summary.reduce(
-      (count, goal) => count + goal.scopeMonthPlannedCount,
+    const thisWindow = summary.reduce(
+      (count, goal) => count + goal.windowPlannedCount,
       0
     );
     const remaining = summary.reduce(
       (count, goal) => count + goal.remainingCount,
       0
     );
-    return { thisMonth, total, remaining };
+    return { thisWindow, total, remaining };
   }, [effectivePreview?.horizonSummary]);
   const eligibilityNotices = useMemo(() => {
     const eligibilityEntries = effectivePreview?.eligibility ?? [];
@@ -758,8 +682,8 @@ export function CalendarSurface({
     setSetupLoading(false);
 
     handlePlannerMutation();
-    setDraftPolicyByScope({});
-    setDraftPreviewByScope({});
+    setDraftPolicy(null);
+    setDraftPreview(null);
     dispatchDraftCommand({ type: "clear" });
     setSettingsOpen(false);
     if (!month) {
@@ -771,19 +695,17 @@ export function CalendarSurface({
   };
 
   const draftMoveRefreshTimerRef = useRef<number | null>(null);
-  const draftSaveCommands = useMemo(
-    () => effectiveDraftCommands,
-    [effectiveDraftCommands]
-  );
 
-  const requestPreviewForScope = useCallback(
+  const requestPreviewForWindow = useCallback(
     async ({
-      scopeMonth,
+      startDate,
+      endDate,
       nextPolicy,
       solveIntent,
       draftCommands,
     }: {
-      scopeMonth: string;
+      startDate: string;
+      endDate: string;
       nextPolicy: PlannerPolicy;
       solveIntent: "stable" | "replan";
       draftCommands: PlannerDraftCommand[];
@@ -795,7 +717,8 @@ export function CalendarSurface({
         const previewPayload = await postJson<PlannerPreviewResponsePayload>(
           "/api/planner/context",
           {
-            scopeMonth,
+            startDate,
+            endDate,
             timezone: context.timezone,
             policy: nextPolicy,
             source: context.activePlan ? "update" : "manual",
@@ -816,11 +739,13 @@ export function CalendarSurface({
     solveIntent: "stable" | "replan",
     draftCommands: PlannerDraftCommand[]
   ) => {
-    if (!context?.scopeMonth) {
+    const window = draftSaveWindow;
+    if (!window) {
       throw new Error("Planner context is unavailable.");
     }
-    return requestPreviewForScope({
-      scopeMonth: context.scopeMonth,
+    return requestPreviewForWindow({
+      startDate: window.start,
+      endDate: window.end,
       nextPolicy,
       solveIntent,
       draftCommands,
@@ -851,8 +776,8 @@ export function CalendarSurface({
       "stable",
       draftSaveCommandsRef.current
     );
-    if (context?.scopeMonth) {
-      setDraftPreviewForScope(context.scopeMonth, preview);
+    if (preview) {
+      setDraftPreview(preview);
     }
     return preview;
   };
@@ -897,7 +822,6 @@ export function CalendarSurface({
     if (!context?.scopeMonth || !effectivePreview) {
       return { moveCount: 0, movedEntryKeys: [] as string[] };
     }
-    const scopeMonth = context.scopeMonth;
     const priorCommands = draftSaveCommandsRef.current;
     const proposal = await requestPreview(nextPolicy, "replan", priorCommands);
     if (!proposal) {
@@ -926,7 +850,6 @@ export function CalendarSurface({
       }
       const action = {
         type: "upsert_move",
-        scopeMonth,
         goalId: unit.originalGoalId,
         unitKey: unit.unitKey,
         scheduledDate: nextDate,
@@ -939,7 +862,7 @@ export function CalendarSurface({
     // Keep the ref ahead of the reducer so the stable refresh that follows
     // sends the pins we just created rather than the previous render's list.
     draftSaveCommandsRef.current = sortPlannerDraftCommands(
-      selectDraftCommandsForScope(nextState, scopeMonth)
+      selectDraftCommands(nextState)
     );
     return { moveCount: movedEntryKeys.length, movedEntryKeys };
   };
@@ -948,13 +871,11 @@ export function CalendarSurface({
     if (!context?.scopeMonth || entryKeys.length === 0) {
       return;
     }
-    const scopeMonth = context.scopeMonth;
     let nextState = draftCommandState;
     for (const entryKey of entryKeys) {
       const separatorIndex = entryKey.indexOf(":");
       const action = {
         type: "remove_kind",
-        scopeMonth,
         kind: "move_item",
         goalId: entryKey.slice(0, separatorIndex),
         unitKey: entryKey.slice(separatorIndex + 1),
@@ -963,7 +884,7 @@ export function CalendarSurface({
       nextState = draftCommandReducer(nextState, action);
     }
     draftSaveCommandsRef.current = sortPlannerDraftCommands(
-      selectDraftCommandsForScope(nextState, scopeMonth)
+      selectDraftCommands(nextState)
     );
   };
 
@@ -978,12 +899,13 @@ export function CalendarSurface({
   }, []);
 
   const nonPublishablePreviewMessage = useCallback(
-    (
-      preview: NonNullable<PlannerContextPayload["preview"]>,
-      scopeMonth: string | null = context?.scopeMonth ?? null
-    ) => {
-      if (context && scopeMonth && scopeMonth < context.asOfDate.slice(0, 7)) {
-        return "Publishing an elapsed month is not supported. Publish the current or a future month.";
+    (preview: NonNullable<PlannerContextPayload["preview"]>) => {
+      if (
+        context &&
+        draftSaveWindow &&
+        getWindowState(draftSaveWindow, context.asOfDate) === "historical"
+      ) {
+        return "Publishing an elapsed window is not supported. Publish a window that includes today or a future date.";
       }
       if (preview.solver.issueCodes.includes("invalid_lock")) {
         const affectedGoals = preview.solver.invalidGoalIds
@@ -1002,7 +924,7 @@ export function CalendarSurface({
       }
       return "This preview is not savable yet. Regenerate and resolve planner issues before saving.";
     },
-    [context]
+    [context, draftSaveWindow]
   );
   const runCompletionMutation = useCompletionMutation();
   const coach = usePlannerCoach({
@@ -1015,8 +937,8 @@ export function CalendarSurface({
     refreshDraftPreview,
     applyPolicyReplanMoves,
     clearDraftMoveCommands,
-    applyDraftPolicy: (scopeMonth, policy) => {
-      setDraftPolicyForScope(scopeMonth, policy);
+    applyDraftPolicy: (_scopeMonth, policy) => {
+      setDraftPolicy(policy);
     },
     getNonPublishablePreviewMessage: nonPublishablePreviewMessage,
   });
@@ -1257,10 +1179,8 @@ export function CalendarSurface({
         return false;
       }
 
-      const scopeMonth = context.scopeMonth;
       dispatchDraftCommand({
         type: "upsert_move",
-        scopeMonth,
         goalId: entry.originalGoalId,
         unitKey: entry.unitKey,
         scheduledDate: normalized,
@@ -1285,13 +1205,11 @@ export function CalendarSurface({
     if (!context?.scopeMonth) {
       return;
     }
-    const scopeMonth = context.scopeMonth;
     const baselineTitle =
       entry.activeGoal?.title ?? context?.goalTitles?.[entry.originalGoalId] ?? null;
     if (!label || label === baselineTitle) {
       dispatchDraftCommand({
         type: "remove_kind",
-        scopeMonth,
         kind: "rename_item",
         goalId: entry.originalGoalId,
         unitKey: entry.unitKey,
@@ -1300,7 +1218,6 @@ export function CalendarSurface({
     }
     dispatchDraftCommand({
       type: "upsert_rename",
-      scopeMonth,
       goalId: entry.originalGoalId,
       unitKey: entry.unitKey,
       label,
@@ -1314,13 +1231,11 @@ export function CalendarSurface({
     if (!context?.scopeMonth) {
       return;
     }
-    const scopeMonth = context.scopeMonth;
     const baselineOverride =
       previewUnitByEntryKey.get(entry.key)?.scheduledTimeOverride ??
       entry.activeItem?.scheduled_time_override ??
       null;
     const nextPlan = planDraftTimeOverrideUpdate({
-      scopeMonth,
       entry,
       localTimeInput: localTime,
       baselineOverride,
@@ -1806,7 +1721,7 @@ export function CalendarSurface({
   };
 
   const savePlan = async () => {
-    if (!context) {
+    if (!context || !draftSaveWindow) {
       return;
     }
     const expectedDigest = context.revisions.scheduleDigest;
@@ -1814,99 +1729,69 @@ export function CalendarSurface({
       toast.error("Planner state is stale. Refresh and regenerate the preview.");
       return;
     }
-    const scopeMonthsToPublish = hasDraftSession
-      ? dirtyScopeMonths
-      : context.scopeMonth
-        ? [context.scopeMonth]
-        : [];
-    if (scopeMonthsToPublish.length === 0) {
-      return;
-    }
 
     setSaveLoading(true);
     let payload: PlannerErrorPayload & {
       replayed?: boolean;
-      publishedScopes?: string[];
     };
     try {
-      const scopePayloads: Array<{
-        scopeMonth: string;
-        previewHash: string;
-        confirmationHash: string | null;
-        policy?: PlannerPolicy;
-        eligibilityMode: string;
-        draftCommands: PlannerDraftCommand[];
-        preserveExistingAssignments: boolean;
-      }> = [];
-      for (const scopeMonth of scopeMonthsToPublish) {
-        const scopeDraftCommands = draftCommandsForSaveByScope[scopeMonth] ?? [];
-        const scopeDraftPolicy = draftPolicyByScope[scopeMonth] ?? null;
-        let scopePreview =
-          scopeMonth === context.scopeMonth
-            ? effectivePreview
-            : draftPreviewByScope[scopeMonth] ??
-              visibleMonthContexts[scopeMonth]?.preview ??
-              null;
-        if (!scopePreview) {
-          const refreshPolicy =
-            scopeDraftPolicy ?? context.preferences?.defaultPolicy ?? null;
-          if (!refreshPolicy) {
-            toast.error(
-              `Preview for ${scopeMonth} is unavailable. Open that month and regenerate before saving.`
-            );
-            return;
-          }
-          scopePreview = await requestPreviewForScope({
-            scopeMonth,
-            nextPolicy: refreshPolicy,
-            solveIntent: "stable",
-            draftCommands: scopeDraftCommands,
-          });
-          setDraftPreviewForScope(scopeMonth, scopePreview);
-        }
-        if (!scopePreview) {
+      let savePreview =
+        draftPreview ??
+        (draftSaveCommands.length === 0 && !effectiveDraftPolicy
+          ? context.preview
+          : null);
+      const refreshPolicy =
+        effectiveDraftPolicy ?? context.preferences?.defaultPolicy ?? null;
+      if (!savePreview) {
+        if (!refreshPolicy) {
           toast.error(
-            `Preview for ${scopeMonth} is unavailable. Open that month and regenerate before saving.`
+            "Preview is unavailable. Regenerate before saving."
           );
           return;
         }
-        const publishBlockedByElapsedMonth =
-          scopeMonth < context.asOfDate.slice(0, 7);
-        if (publishBlockedByElapsedMonth || !scopePreview.solver.publishable) {
-          toast.error(
-            `${scopeMonth}: ${nonPublishablePreviewMessage(scopePreview, scopeMonth)}`
-          );
-          return;
-        }
-        const confirmationHash = scopePreview.solver.confirmationRequired
-          ? buildPlannerConfirmationHash({
-              previewHash: scopePreview.generationInputHash,
-              issueCodes: scopePreview.solver.issueCodes,
-            })
-          : null;
-        scopePayloads.push({
-          scopeMonth,
-          previewHash: scopePreview.generationInputHash,
-          eligibilityMode: scopePreview.eligibilityMode,
-          confirmationHash,
-          policy: scopeDraftPolicy ?? undefined,
-          preserveExistingAssignments: scopePreview.preserveExistingAssignments,
-          draftCommands: scopeDraftCommands,
+        savePreview = await requestPreviewForWindow({
+          startDate: draftSaveWindow.start,
+          endDate: draftSaveWindow.end,
+          nextPolicy: refreshPolicy,
+          solveIntent: "stable",
+          draftCommands: draftSaveCommands,
         });
+        if (savePreview) {
+          setDraftPreview(savePreview);
+        }
       }
+      if (!savePreview) {
+        toast.error("Preview is unavailable. Regenerate before saving.");
+        return;
+      }
+      const publishBlockedByElapsedWindow =
+        getWindowState(draftSaveWindow, context.asOfDate) === "historical";
+      if (publishBlockedByElapsedWindow || !savePreview.solver.publishable) {
+        toast.error(nonPublishablePreviewMessage(savePreview));
+        return;
+      }
+      const confirmationHash = savePreview.solver.confirmationRequired
+        ? buildPlannerConfirmationHash({
+            previewHash: savePreview.generationInputHash,
+            issueCodes: savePreview.solver.issueCodes,
+          })
+        : null;
       try {
         payload = await postJson<
           PlannerErrorPayload & {
             replayed?: boolean;
-            publishedScopes?: string[];
           }
-        >(
-          "/api/planner/save",
-          {
-            expectedDigest,
-            scopes: scopePayloads,
-          }
-        );
+        >("/api/planner/save", {
+          expectedDigest,
+          startDate: draftSaveWindow.start,
+          endDate: draftSaveWindow.end,
+          previewHash: savePreview.generationInputHash,
+          eligibilityMode: savePreview.eligibilityMode,
+          confirmationHash,
+          policy: effectiveDraftPolicy ?? undefined,
+          preserveExistingAssignments: savePreview.preserveExistingAssignments,
+          draftCommands: draftSaveCommands,
+        });
       } catch (error) {
         if (isApiClientError(error) && error.code === "planner_not_publishable") {
           const issueCodes = Array.isArray(error.details?.issueCodes)
@@ -1916,14 +1801,8 @@ export function CalendarSurface({
             : [];
           const detailSuffix =
             issueCodes.length > 0 ? ` (${issueCodes.join(", ")})` : "";
-          const scopedPrefix =
-            typeof error.details?.scopeMonth === "string"
-              ? `${error.details.scopeMonth}: `
-              : "";
           toast.error(
-            `${scopedPrefix}${
-              error.message ?? "Planner save is currently blocked."
-            }${detailSuffix}`
+            `${error.message ?? "Planner save is currently blocked."}${detailSuffix}`
           );
           return;
         }
@@ -1946,20 +1825,9 @@ export function CalendarSurface({
           );
           return;
         }
-        for (const scopeMonth of scopeMonthsToPublish) {
-          clearDraftScopeSession(scopeMonth);
-        }
+        clearDraftSession();
         coach.actions.resetForPlannerStateReset();
-        const publishedScopeCount = scopeMonthsToPublish.length;
-        if (publishedScopeCount > 1) {
-          toast.success(
-            payload.replayed
-              ? `Save replayed across ${publishedScopeCount} months.`
-              : `Saved ${publishedScopeCount} months.`
-          );
-        } else {
-          toast.success(payload.replayed ? "Save replayed." : "Plan saved.");
-        }
+        toast.success(payload.replayed ? "Save replayed." : "Plan saved.");
       } catch (error) {
         toast.error(
           error instanceof Error
@@ -1993,7 +1861,7 @@ export function CalendarSurface({
         return;
       }
       try {
-        clearDraftScopeSession(context.scopeMonth);
+        clearDraftSession();
         handlePlannerMutation();
         const refreshed = await withPlannerRefreshTimeout({
           operation: loadContext({
@@ -2044,7 +1912,6 @@ export function CalendarSurface({
     const scopeMonthsToProcess = new Set<string>([
       context.scopeMonth,
       ...(month ? [month] : []),
-      ...dirtyScopeMonths,
     ]);
     for (let monthOffset = 0; monthOffset < 24; monthOffset += 1) {
       scopeMonthsToProcess.add(
@@ -2064,9 +1931,7 @@ export function CalendarSurface({
         scopeMonths,
       });
 
-      for (const scopeMonth of scopeMonths) {
-        clearDraftScopeSession(scopeMonth);
-      }
+      clearDraftSession();
       handlePlannerMutation();
       const refreshed = await withPlannerRefreshTimeout({
         operation: loadContext({ showLoading: false, toastOnError: false }),
@@ -2096,25 +1961,13 @@ export function CalendarSurface({
     }
   };
 
-  const discardDraftChanges = (mode: "current" | "all" = "current") => {
-    const scopesToClear =
-      mode === "all"
-        ? dirtyScopeMonths
-        : context?.scopeMonth
-          ? [context.scopeMonth]
-          : [];
-    if (scopesToClear.length === 0) {
+  const discardDraftChanges = () => {
+    if (!hasDraftSession) {
       return;
     }
-    for (const scopeMonth of scopesToClear) {
-      clearDraftScopeSession(scopeMonth);
-    }
+    clearDraftSession();
     coach.actions.onDraftDiscarded();
-    toast.success(
-      scopesToClear.length > 1
-        ? `Reverted preview changes for ${scopesToClear.length} months.`
-        : "Preview changes reverted to the saved baseline."
-    );
+    toast.success("Preview changes reverted to the saved baseline.");
   };
 
   const showBlockingLoading = loading && context === null;
@@ -2272,40 +2125,16 @@ export function CalendarSurface({
       window.removeEventListener("resize", alignRollingWeekStripToFocusedDay);
     };
   }, [alignRollingWeekStripToFocusedDay, viewMode]);
-  const scopeMonthsForSaveAction =
-    hasDraftSession && dirtyScopeMonths.length > 0
-      ? dirtyScopeMonths
-      : context?.scopeMonth
-        ? [context.scopeMonth]
-        : [];
-  const blockedSaveScope = (() => {
-    if (!context) {
-      return null;
-    }
-    for (const scopeMonth of scopeMonthsForSaveAction) {
-      const previewForScope =
-        scopeMonth === context.scopeMonth
-          ? effectivePreview
-          : draftPreviewByScope[scopeMonth] ?? visibleMonthContexts[scopeMonth]?.preview;
-      if (!previewForScope) {
-        continue;
-      }
-      if (
-        scopeMonth < context.asOfDate.slice(0, 7) ||
-        !previewForScope.solver.publishable
-      ) {
-        return {
-          scopeMonth,
-          message: nonPublishablePreviewMessage(previewForScope, scopeMonth),
-        };
-      }
-    }
-    return null;
-  })();
-  const draftSaveBlocked = blockedSaveScope !== null;
-  const draftSaveBlockedMessage = blockedSaveScope
-    ? `${blockedSaveScope.scopeMonth}: ${blockedSaveScope.message}`
-    : null;
+  const blockedSave =
+    context &&
+    effectivePreview &&
+    (getWindowState(draftSaveWindow ?? { start: context.asOfDate, end: context.asOfDate }, context.asOfDate) ===
+      "historical" ||
+      !effectivePreview.solver.publishable)
+      ? nonPublishablePreviewMessage(effectivePreview)
+      : null;
+  const draftSaveBlocked = blockedSave !== null;
+  const draftSaveBlockedMessage = blockedSave;
   const hasLockedPlanItems = Boolean(
     context?.activePlan?.items.some((item) => item.locked)
   );
@@ -2560,7 +2389,7 @@ export function CalendarSurface({
               </div>
               {horizonCounter ? (
                 <p className="text-xs text-muted-foreground">
-                  {horizonCounter.thisMonth} this month / {horizonCounter.total} total{" "}
+                  {horizonCounter.thisWindow} planned / {horizonCounter.total} total{" "}
                   {horizonCounter.remaining > 0
                     ? `· ${horizonCounter.remaining} remaining`
                     : "· all credited"}
@@ -2603,7 +2432,7 @@ export function CalendarSurface({
                     saveLoading ||
                     loading ||
                     !context ||
-                    scopeMonthsForSaveAction.length === 0 ||
+                    !draftSaveWindow ||
                     !hasUnsavedPlannerChanges ||
                     draftSaveBlocked
                   }
@@ -2611,12 +2440,12 @@ export function CalendarSurface({
                   {saveButtonLabel}
                 </Button>
               ) : null}
-              {currentScopeHasDraftSession ? (
+              {hasDraftSession ? (
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
-                  onClick={() => discardDraftChanges("current")}
+                  onClick={discardDraftChanges}
                   disabled={saveLoading || loading}
                 >
                   Undo changes

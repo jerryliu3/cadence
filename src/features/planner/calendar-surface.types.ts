@@ -109,7 +109,7 @@ export interface PlannerGoalHorizonSummary {
   totalCount: number;
   creditedCount: number;
   remainingCount: number;
-  scopeMonthPlannedCount: number;
+  windowPlannedCount: number;
   months: Array<{
     month: string;
     plannedCount: number;
