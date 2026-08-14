@@ -2,18 +2,9 @@ import type { Goal } from "@/lib/goals/types";
 import { isOrdinalGoalDefinition } from "@/lib/goals/definition-validation";
 import { enumerateMonthsInWindow, type DateWindow } from "@/lib/planner/dates";
 import { MAX_HORIZON_MONTHS } from "@/lib/planner/contracts/bounds";
+import type { EligibilityReason } from "@cadence/shared/planner/context";
 
-export type EligibilityReason =
-  | "eligible"
-  | "not_owner"
-  | "deleted"
-  | "archived"
-  | "linked"
-  | "missing_end_date"
-  | "invalid_date_range"
-  | "end_outside_scope"
-  | "starts_after_scope"
-  | "horizon_too_long";
+export type { EligibilityReason } from "@cadence/shared/planner/context";
 
 export interface EligibilityGoal {
   ownedByViewer: boolean;
