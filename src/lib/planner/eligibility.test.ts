@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import eligibilityFixtureJson from "../../../test/fixtures/planner-contracts/eligibility.v1.json";
+import type { Goal } from "@/lib/goals/types";
 import { eligibilityFixtureSchema } from "@/lib/planner/contracts/fixture-schema";
 import { getScopeDateRange } from "@/lib/planner/dates";
 import {
@@ -67,7 +68,7 @@ describe("overlap-v1 eligibility", () => {
 });
 
 describe("goal-level eligibility guards", () => {
-  const cadenceGoal: EligibilityGoal = {
+  const cadenceGoal: Goal = {
     id: "goal-cadence-open",
     owner_id: "owner-a",
     title: "Open cadence goal",
@@ -138,7 +139,7 @@ describe("goal-level eligibility guards", () => {
   });
 
   it("marks ordinal goals with overlong horizons as ineligible", () => {
-    const longHorizonGoal: EligibilityGoal = {
+    const longHorizonGoal: Goal = {
       id: "goal-long",
       owner_id: "owner-a",
       title: "Long horizon goal",
