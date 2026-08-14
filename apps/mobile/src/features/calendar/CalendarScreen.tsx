@@ -1,5 +1,5 @@
 import { addDays, format, parseISO } from "date-fns";
-import { useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   Modal,
   Pressable,
@@ -108,6 +108,17 @@ export function CalendarScreen() {
   const [draft, setDraft] = useState(createEmptyMobilePlannerDraft);
   const dayTargets = useRef<Map<string, DayDropTarget>>(new Map());
   const sessionTargets = useRef<Map<string, SessionDropTarget>>(new Map());
+  const previousScope = useRef(scope);
+  useEffect(() => {
+    if (scope === "partner" && previousScope.current !== "partner") {
+      setMoveUnit(null);
+      setMoveDate("");
+      setOrderByDay({});
+      dayTargets.current.clear();
+      sessionTargets.current.clear();
+    }
+    previousScope.current = scope;
+  }, [scope]);
   const effectivePreview = draft.preview ?? planner.data?.preview ?? null;
   const confirmationRequired =
     draft.preview?.solver?.confirmationRequired === true;
@@ -268,17 +279,7 @@ export function CalendarScreen() {
 
   return (
     <Screen title="Calendar">
-      <DuoScopeSegmentedControl
-        surface="calendar"
-        onScopeChange={(nextScope) => {
-          if (nextScope !== "partner") {
-            return;
-          }
-          setMoveUnit(null);
-          setMoveDate("");
-          setOrderByDay({});
-        }}
-      />
+      <DuoScopeSegmentedControl surface="calendar" />
       {readOnlyState.banner && (readOnlyState.allowMutations || viewMode === "month") ? (
         <View
           style={[
