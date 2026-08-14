@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions, pg_catalog;
-select plan(48);
+select plan(58);
 
 insert into auth.users (id, email)
 values
@@ -858,7 +858,7 @@ select throws_ok(
       jsonb_build_object(
         'goal_id', 'a2000000-0000-4000-8000-000000000005',
         'unit_key', 'cadence:' || (
-          date_trunc('month', current_date) + interval '5 month + 3 day'
+          date_trunc('month', current_date) + interval '5 month + 4 day'
         )::date::text,
         'scheduled_date', (
           date_trunc('month', current_date) + interval '5 month + 3 day'
@@ -955,7 +955,7 @@ values (
 );
 
 update public.goals
-set recurrence_interval = 'weekly'
+set recurrence_interval = 'monthly'
 where id = 'a2000000-0000-4000-8000-000000000006';
 reset role;
 set local role authenticated;
@@ -1059,6 +1059,335 @@ select results_eq(
   $$,
   $$ values (true, 0, 0) $$,
   'post-prune replay reports no writes'
+);
+
+set local role service_role;
+update public.profiles
+set week_starts_on = 3
+where id = 'a1000000-0000-4000-8000-000000000001';
+
+do $$
+declare
+  v_month date := (date_trunc('month', current_date) + interval '9 month')::date;
+  v_wednesday date;
+begin
+  v_wednesday := v_month + (
+    (3 - extract(dow from v_month)::integer + 7) % 7
+  );
+
+  insert into public.goals (
+    id,
+    owner_id,
+    title,
+    category,
+    frequency_type,
+    recurrence_interval,
+    target_count,
+    start_date,
+    end_date
+  )
+  values
+    (
+      'a2000000-0000-4000-8000-000000000009',
+      'a1000000-0000-4000-8000-000000000001',
+      'Planner preparation non-default weekly goal',
+      'test',
+      'recurring',
+      'weekly',
+      null,
+      v_wednesday + 2,
+      (v_month + interval '2 month - 1 day')::date
+    ),
+    (
+      'a2000000-0000-4000-8000-000000000010',
+      'a1000000-0000-4000-8000-000000000001',
+      'Planner preparation mid-month monthly goal',
+      'test',
+      'recurring',
+      'monthly',
+      null,
+      v_month + 14,
+      (v_month + interval '2 month - 1 day')::date
+    );
+end;
+$$;
+reset role;
+set local role authenticated;
+select set_config(
+  'request.jwt.claim.sub',
+  'a1000000-0000-4000-8000-000000000001',
+  true
+);
+select set_config('request.jwt.claim.role', 'authenticated', true);
+
+select throws_ok(
+  $tap$
+  select *
+  from public.prepare_planner_schedule(
+    jsonb_build_array(
+      jsonb_build_object(
+        'start_date', (date_trunc('month', current_date) + interval '9 month')::date,
+        'end_date', (date_trunc('month', current_date) + interval '10 month - 1 day')::date
+      )
+    ),
+    (
+      select jsonb_build_array(
+        jsonb_build_object(
+          'goal_id', goal.id,
+          'unit_key', 'cadence:' || goal.start_date::text,
+          'scheduled_date', goal.start_date
+        )
+      )
+      from public.goals goal
+      where goal.id = 'a2000000-0000-4000-8000-000000000009'
+    ),
+    public.get_planner_schedule_digest()
+  )
+  $tap$,
+  '22023',
+  'invalid_goal_unit',
+  'planner weekly cadence rejects XP-style goal-start anchors'
+);
+
+select throws_ok(
+  $tap$
+  select *
+  from public.prepare_planner_schedule(
+    jsonb_build_array(
+      jsonb_build_object(
+        'start_date', (date_trunc('month', current_date) + interval '9 month')::date,
+        'end_date', (date_trunc('month', current_date) + interval '10 month - 1 day')::date
+      )
+    ),
+    (
+      select jsonb_build_array(
+        jsonb_build_object(
+          'goal_id', goal.id,
+          'unit_key', 'cadence:' || goal.start_date::text,
+          'scheduled_date', goal.start_date + 5
+        )
+      )
+      from public.goals goal
+      where goal.id = 'a2000000-0000-4000-8000-000000000010'
+    ),
+    public.get_planner_schedule_digest()
+  )
+  $tap$,
+  '22023',
+  'invalid_goal_unit',
+  'planner monthly cadence rejects XP-style day-of-month anchors'
+);
+
+select lives_ok(
+  $tap$
+  do $$
+  declare
+    v_before text := public.get_planner_schedule_digest();
+    v_result record;
+  begin
+    select *
+    into v_result
+    from public.prepare_planner_schedule(
+      jsonb_build_array(
+        jsonb_build_object(
+          'start_date', (date_trunc('month', current_date) + interval '9 month')::date,
+          'end_date', (date_trunc('month', current_date) + interval '10 month - 1 day')::date
+        )
+      ),
+      (
+        select jsonb_build_array(
+          jsonb_build_object(
+            'goal_id', weekly.id,
+            'unit_key', 'cadence:' || (
+              weekly.start_date - (
+                (
+                  extract(dow from weekly.start_date)::integer - 3 + 7
+                ) % 7
+              )
+            )::text,
+            'scheduled_date', weekly.start_date
+          ),
+          jsonb_build_object(
+            'goal_id', monthly.id,
+            'unit_key', 'cadence:' || date_trunc(
+              'month',
+              monthly.start_date
+            )::date::text,
+            'scheduled_date', monthly.start_date + 5
+          )
+        )
+        from public.goals weekly
+        cross join public.goals monthly
+        where weekly.id = 'a2000000-0000-4000-8000-000000000009'
+          and monthly.id = 'a2000000-0000-4000-8000-000000000010'
+      ),
+      v_before
+    );
+
+    insert into prepare_results
+    values (
+      'planner-cadence-write',
+      v_before,
+      v_result.schedule_digest,
+      v_result.upserted_count,
+      v_result.deleted_count,
+      v_result.replayed
+    );
+  end;
+  $$;
+  $tap$,
+  'planner cadence accepts non-default weekly and calendar-month keys'
+);
+
+select ok(
+  (
+    select substring(item.unit_key from '^cadence:(.*)$')::date < goal.start_date
+    from public.planner_items item
+    join public.goals goal on goal.id = item.goal_id
+    where item.goal_id = 'a2000000-0000-4000-8000-000000000009'
+  ),
+  'first weekly period key may precede the goal lifetime'
+);
+
+select is(
+  (
+    select substring(item.unit_key from '^cadence:(.*)$')::date
+    from public.planner_items item
+    where item.goal_id = 'a2000000-0000-4000-8000-000000000010'
+  ),
+  (date_trunc('month', current_date) + interval '9 month')::date,
+  'monthly planner cadence uses calendar month-start as its key'
+);
+
+select lives_ok(
+  $tap$
+  do $$
+  declare
+    v_result record;
+  begin
+    select *
+    into v_result
+    from public.prepare_planner_schedule(
+      jsonb_build_array(
+        jsonb_build_object(
+          'start_date', (date_trunc('month', current_date) + interval '9 month')::date,
+          'end_date', (date_trunc('month', current_date) + interval '10 month - 1 day')::date
+        )
+      ),
+      (
+        select jsonb_agg(
+          jsonb_build_object(
+            'goal_id', item.goal_id,
+            'unit_key', item.unit_key,
+            'scheduled_date', item.scheduled_date,
+            'original_scheduled_date', item.original_scheduled_date,
+            'scheduled_time', item.scheduled_time,
+            'locked', item.locked
+          )
+          order by item.goal_id, item.unit_key
+        )
+        from public.planner_items item
+        where item.owner_id = 'a1000000-0000-4000-8000-000000000001'
+          and item.scheduled_date >= (
+            date_trunc('month', current_date) + interval '9 month'
+          )::date
+          and item.scheduled_date <= (
+            date_trunc('month', current_date) + interval '10 month - 1 day'
+          )::date
+      ),
+      (
+        select before_digest
+        from prepare_results
+        where phase = 'planner-cadence-write'
+      )
+    );
+
+    insert into prepare_results
+    values (
+      'planner-cadence-replay',
+      null,
+      v_result.schedule_digest,
+      v_result.upserted_count,
+      v_result.deleted_count,
+      v_result.replayed
+    );
+  end;
+  $$;
+  $tap$,
+  'planner cadence snapshot supports stale-digest exact replay'
+);
+
+select results_eq(
+  $$
+    select replayed, upserted_count, deleted_count
+    from prepare_results
+    where phase = 'planner-cadence-replay'
+  $$,
+  $$ values (true, 0, 0) $$,
+  'planner cadence replay performs no writes'
+);
+
+set local role service_role;
+update public.profiles
+set week_starts_on = 1
+where id = 'a1000000-0000-4000-8000-000000000001';
+reset role;
+set local role authenticated;
+select set_config(
+  'request.jwt.claim.sub',
+  'a1000000-0000-4000-8000-000000000001',
+  true
+);
+select set_config('request.jwt.claim.role', 'authenticated', true);
+
+select lives_ok(
+  $tap$
+  do $$
+  declare
+    v_result record;
+  begin
+    select *
+    into v_result
+    from public.prepare_planner_schedule(
+      jsonb_build_array(
+        jsonb_build_object(
+          'start_date', (date_trunc('month', current_date) + interval '11 month')::date,
+          'end_date', (date_trunc('month', current_date) + interval '12 month - 1 day')::date
+        )
+      ),
+      '[]'::jsonb,
+      public.get_planner_schedule_digest()
+    );
+
+    insert into prepare_results
+    values (
+      'week-start-prune',
+      null,
+      v_result.schedule_digest,
+      v_result.upserted_count,
+      v_result.deleted_count,
+      v_result.replayed
+    );
+  end;
+  $$;
+  $tap$,
+  'changing week start prunes cadence identities from the prior week anchor'
+);
+
+select is(
+  (select deleted_count from prepare_results where phase = 'week-start-prune'),
+  1,
+  'week-start cleanup reports only the invalid weekly cadence row'
+);
+
+select is(
+  (
+    select count(*)::integer
+    from public.planner_items
+    where goal_id = 'a2000000-0000-4000-8000-000000000009'
+  ),
+  0,
+  'week-start cleanup removes the prior weekly identity'
 );
 
 set local role service_role;
