@@ -16,18 +16,24 @@ import type { PlannerPolicy } from "@/lib/planner/policy";
 const PLANNER_COACH_REQUEST_TIMEOUT_MS = 65_000;
 
 export async function requestPlannerCoachReply({
+  startDate,
+  endDate,
   scopeMonth,
   messages,
   focusGoalIds,
   deterministicSummary,
 }: {
-  scopeMonth: string;
+  startDate: string;
+  endDate: string;
+  scopeMonth?: string;
   messages: CoachMessage[];
   focusGoalIds: string[];
   deterministicSummary: string;
 }): Promise<CoachResponsePayload> {
   try {
     return await postJson<CoachResponsePayload>("/api/planner/coach", {
+      startDate,
+      endDate,
       scopeMonth,
       messages: messages.map((message) => ({
         role: message.role,

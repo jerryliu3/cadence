@@ -47,7 +47,8 @@ describe.skipIf(!RUN_LIVE_TESTS)("live Gemini coach integration", () => {
       }
 
       const prompt = buildCoachPrompt({
-        scopeMonth: "2026-08",
+        startDate: "2026-08-01",
+        endDate: "2026-08-31",
         timezone: "America/New_York",
         asOfDate: "2026-08-05",
         allGoalsCount: 1,

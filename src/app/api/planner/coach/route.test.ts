@@ -164,7 +164,8 @@ describe("planner coach route", () => {
     });
     const response = await POST(
       request({
-        scopeMonth: "2026-01",
+        startDate: "2026-01-01",
+        endDate: "2026-01-31",
         focusGoalIds: ["12000000-0000-4000-8000-000000000001"],
         messages: [{ role: "user", content: "Help me plan this month." }],
       })
@@ -179,7 +180,8 @@ describe("planner coach route", () => {
   it("sanitizes coach output into executable proposals", async () => {
     const response = await POST(
       request({
-        scopeMonth: "2026-01",
+        startDate: "2026-01-01",
+        endDate: "2026-01-31",
         focusGoalIds: ["12000000-0000-4000-8000-000000000001"],
         messages: [{ role: "user", content: "Help me plan this month." }],
       })
@@ -220,7 +222,8 @@ describe("planner coach route", () => {
 
     const response = await POST(
       request({
-        scopeMonth: "2026-01",
+        startDate: "2026-01-01",
+        endDate: "2026-01-31",
         focusGoalIds: ["12000000-0000-4000-8000-000000000001"],
         messages: [{ role: "user", content: "Help me plan this month." }],
       })
@@ -249,7 +252,8 @@ describe("planner coach route", () => {
 
     const response = await POST(
       request({
-        scopeMonth: "2026-01",
+        startDate: "2026-01-01",
+        endDate: "2026-01-31",
         focusGoalIds: ["12000000-0000-4000-8000-000000000001"],
         messages: [{ role: "user", content: "Help me plan this month." }],
       })
@@ -286,7 +290,8 @@ describe("planner coach route", () => {
 
     const response = await POST(
       request({
-        scopeMonth: "2026-01",
+        startDate: "2026-01-01",
+        endDate: "2026-01-31",
         focusGoalIds: ["12000000-0000-4000-8000-000000000001"],
         messages: [{ role: "user", content: "Make this apply-able." }],
       })
@@ -339,7 +344,8 @@ describe("planner coach route", () => {
 
     const response = await POST(
       request({
-        scopeMonth: "2026-01",
+        startDate: "2026-01-01",
+        endDate: "2026-01-31",
         focusGoalIds: ["12000000-0000-4000-8000-000000000001"],
         messages: [{ role: "user", content: "Make weekends rest days." }],
       })
@@ -381,7 +387,8 @@ describe("planner coach route", () => {
 
     const response = await POST(
       request({
-        scopeMonth: "2026-01",
+        startDate: "2026-01-01",
+        endDate: "2026-01-31",
         focusGoalIds: ["12000000-0000-4000-8000-000000000001"],
         messages: [{ role: "user", content: "Apply this as concrete edits." }],
       })

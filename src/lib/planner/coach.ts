@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { assertDateWindow, monthFromDate } from "@/lib/planner/dates";
 import type { Goal } from "@/lib/goals/types";
 import type { GoalAssessment } from "@/lib/planner/assessment";
 
@@ -9,13 +10,16 @@ export const MAX_COACH_REPLY_CHARS = 12_000;
 
 export const coachRequestSchema = z
   .object({
+    startDate: z.iso.date(),
+    endDate: z.iso.date(),
     scopeMonth: z
       .string()
       .regex(/^\d{4}-\d{2}$/)
       .refine((month) => {
         const monthNumber = Number(month.slice(5, 7));
         return monthNumber >= 1 && monthNumber <= 12;
-      }),
+      })
+      .optional(),
     messages: z
       .array(
         z
@@ -30,7 +34,23 @@ export const coachRequestSchema = z
     focusGoalIds: z.array(z.uuid()).max(MAX_COACH_FOCUS_GOALS).default([]),
     deterministicSummary: z.string().trim().max(4000).optional(),
   })
-  .strict();
+  .strict()
+  .superRefine((value, ctx) => {
+    try {
+      assertDateWindow({ start: value.startDate, end: value.endDate });
+    } catch (error) {
+      ctx.addIssue({
+        code: "custom",
+        message:
+          error instanceof Error ? error.message : "Invalid planner window.",
+        path: ["endDate"],
+      });
+    }
+  })
+  .transform((value) => ({
+    ...value,
+    scopeMonth: value.scopeMonth ?? monthFromDate(value.startDate),
+  }));
 
 const coachRecommendationPayloadSchema = z
   .object({
