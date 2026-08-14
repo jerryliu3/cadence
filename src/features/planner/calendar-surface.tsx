@@ -534,6 +534,8 @@ export function CalendarSurface({
     totalUnplacedCount,
   } = calendarStoreProjection;
   const primaryUnplaceableGoal = unplaceableGoalSummaries[0] ?? null;
+  const unplaceablePrimaryActionLabel =
+    unplaceableGoalSummaries.length > 1 ? "Review goals" : "Edit this goal";
   const invalidLockGoalCount = unplaceableGoalSummaries.filter(
     (entry) => entry.reason === "invalid_lock"
   ).length;
@@ -2592,7 +2594,7 @@ export function CalendarSurface({
                 {hasDraftSession ? (
                   <Badge
                     data-testid="planner-preview-mode-badge"
-                    className="h-7 border-yellow-300 bg-yellow-100 px-3 text-sm font-semibold text-orange-900 dark:border-yellow-300 dark:bg-yellow-100 dark:text-orange-900"
+                    className="h-7 border-yellow-300 bg-yellow-100 px-3 text-sm font-semibold text-orange-900 dark:border-amber-500/40 dark:bg-amber-500/20 dark:text-amber-100"
                   >
                     Planning Mode
                   </Badge>
@@ -2607,7 +2609,7 @@ export function CalendarSurface({
                 </p>
               ) : null}
               {eligibilityNotices.hardIneligible.length > 0 ? (
-                <div className="rounded-md border border-yellow-300 bg-yellow-100 px-3 py-2 text-xs text-orange-900 dark:border-yellow-300 dark:bg-yellow-100 dark:text-orange-900">
+                <div className="rounded-md border border-yellow-300 bg-yellow-100 px-3 py-2 text-xs text-orange-900 dark:border-amber-500/40 dark:bg-amber-500/20 dark:text-amber-100">
                   {eligibilityNotices.hardIneligible
                     .slice(0, 4)
                     .map((item) => `${item.goalTitle}: ${item.reasonCopy}`)
@@ -2746,7 +2748,7 @@ export function CalendarSurface({
         <p className="text-xs text-muted-foreground">{partnerOverlayError}</p>
       ) : null}
       {unplaceableGoalSummaries.length > 0 && !showBlockingLoading && !error ? (
-        <div className="rounded-md border border-yellow-300 bg-yellow-100 px-3 py-2 text-xs text-orange-900 dark:border-yellow-300 dark:bg-yellow-100 dark:text-orange-900">
+        <div className="rounded-md border border-yellow-300 bg-yellow-100 px-3 py-2 text-xs text-orange-900 dark:border-amber-500/40 dark:bg-amber-500/20 dark:text-amber-100">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p>
               {invalidLockGoalCount > 0
@@ -2767,7 +2769,7 @@ export function CalendarSurface({
               {primaryUnplaceableGoal ? (
                 <Button asChild variant="outline" size="sm" className="h-7 text-xs">
                   <Link href={`/goals/${primaryUnplaceableGoal.goalId}`}>
-                    Edit this goal
+                    {unplaceablePrimaryActionLabel}
                   </Link>
                 </Button>
               ) : null}
