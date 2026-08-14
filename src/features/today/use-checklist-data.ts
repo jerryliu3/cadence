@@ -2,26 +2,23 @@
 
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { toast } from "sonner";
 import { buildLoginHref } from "@/lib/auth/login-redirect";
-import { isAbortError, withAbortSignal } from "@/lib/async/abort";
+import { withAbortSignal } from "@/lib/async/abort";
 import { toLocalDateString } from "@/lib/dates/day";
 import {
   fetchProgressContext,
-  isProgressContextAuthenticationError,
-  isProgressContextRequestError,
   type ProgressContextResponse,
 } from "@/lib/goals/progress-context";
-import { reportDuoPartnerFetchFailure } from "@/lib/social/duo/telemetry";
 import type {
   CompletionDateFact,
   Goal,
   GoalLink,
 } from "@/lib/goals/types";
 import { createClient } from "@/lib/supabase/client";
+import { useDuoLaneError } from "@/features/social/duo/use-duo-lane-error";
 import { assertQueriesOk } from "@/lib/supabase/query-error";
 import { useDuo } from "@/features/social/duo/duo-context";
-import { progressSubjectUserId, selectViewerVisibleGoals } from "@/lib/goals/visible-goals";
+import { selectViewerVisibleGoals } from "@/lib/goals/visible-goals";
 
 export interface TodayData {
   userId: string;
@@ -64,7 +61,6 @@ export function useChecklistData({
   const router = useRouter();
   const [data, setData] = useState<TodayData>(emptyTodayData);
   const [loading, setLoading] = useState(true);
-  const [laneError, setLaneError] = useState<string | null>(null);
   const loadRequestIdRef = useRef(0);
   const viewDateProgressRequestIdRef = useRef(0);
   const visibleLoadCountRef = useRef(0);
@@ -91,31 +87,14 @@ export function useChecklistData({
     router.replace(buildLoginHref(nextPath));
   }, [router]);
 
-  const reportLoadError = useCallback((error: unknown) => {
-    if (isProgressContextAuthenticationError(error)) {
-      redirectToLogin();
-      return;
-    }
-    if (failClosed) {
-      setLaneError("Partner checklist is unavailable.");
-      reportDuoPartnerFetchFailure(error, {
-        surface: "checklist",
-        code: isProgressContextRequestError(error) ? error.code : undefined,
-        status: isProgressContextRequestError(error) ? error.status : undefined,
-        stalePartner: isProgressContextRequestError(error)
-          ? error.code === "not_team_partner"
-          : false,
-      });
-      return;
-    }
-    toast.error(
-      isAbortError(error)
-        ? "Today goals request timed out. Please try again."
-        : error instanceof Error
-          ? error.message
-          : "Goal progress could not be loaded."
-    );
-  }, [failClosed, redirectToLogin]);
+  const { laneError, clearLaneError, reportLoadError } = useDuoLaneError({
+    surface: "checklist",
+    failClosed,
+    redirectToLogin,
+    unavailableMessage: "Partner checklist is unavailable.",
+    timeoutMessage: "Today goals request timed out. Please try again.",
+    fallbackMessage: "Goal progress could not be loaded.",
+  });
 
   const loadData = useCallback(
     async (
@@ -152,22 +131,21 @@ export function useChecklistData({
           return;
         }
 
+        // PostgREST filter methods mutate and return the same builder, so this is
+        // built fresh per load and only one branch below ever consumes it.
+        const goalsQuery = supabase
+          .from("goals")
+          .select("*")
+          .eq("is_deleted", false)
+          .order("created_at", { ascending: false });
         const targetSubjectUserId = subjectUserId ?? userId;
         const targetIsViewer = targetSubjectUserId === userId;
         const [goalsResponse, teamMembersResponse, linksResponse, progress] =
           await withAbortSignal(
             Promise.all([
-              (() => {
-                let query = supabase
-                  .from("goals")
-                  .select("*")
-                  .eq("is_deleted", false)
-                  .order("created_at", { ascending: false });
-                if (!targetIsViewer) {
-                  query = query.eq("owner_id", targetSubjectUserId);
-                }
-                return query;
-              })(),
+              targetIsViewer
+                ? goalsQuery
+                : goalsQuery.eq("owner_id", targetSubjectUserId),
               targetIsViewer
                 ? supabase.from("team_members").select("team_id").eq("user_id", userId)
                 : Promise.resolve({ data: [], error: null }),
@@ -177,10 +155,7 @@ export function useChecklistData({
               fetchProgressContext({
                 asOfDate: todayLocalDate,
                 viewDate: currentViewDateRef.current,
-                subjectUserId: progressSubjectUserId({
-                  targetIsViewer,
-                  targetSubjectUserId,
-                }),
+                subjectUserId: targetIsViewer ? undefined : targetSubjectUserId,
                 forceRefresh,
               }),
             ]),
@@ -236,7 +211,7 @@ export function useChecklistData({
           photoUrls,
           progress,
         });
-        setLaneError(null);
+        clearLaneError();
       } finally {
         window.clearTimeout(timeoutId);
         if (showLoading) {
@@ -247,7 +222,7 @@ export function useChecklistData({
         }
       }
     },
-    [partnerId, redirectToLogin, subjectUserId, supabase, todayLocalDate, viewerUserId]
+    [clearLaneError, partnerId, redirectToLogin, subjectUserId, supabase, todayLocalDate, viewerUserId]
   );
 
   useEffect(() => {

@@ -9,7 +9,6 @@ export interface DuoLaneSubject {
   label: string;
   userId?: string;
   readOnly: boolean;
-  avatarUrl?: string | null;
 }
 
 export function DuoLanes({
@@ -25,15 +24,14 @@ export function DuoLanes({
   renderLane: (subject: DuoLaneSubject) => ReactNode;
   className?: string;
 }): ReactNode {
-  const lanes =
-    scope === "partner"
-      ? partner
-        ? [partner]
-        : [viewer]
+  // Without a partner every scope collapses to the viewer, so the partner-less
+  // cases never need their own branch.
+  const lanes = !partner
+    ? [viewer]
+    : scope === "partner"
+      ? [partner]
       : scope === "both"
-        ? partner
-          ? [viewer, partner]
-          : [viewer]
+        ? [viewer, partner]
         : [viewer];
 
   return (
