@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions, pg_catalog;
-select plan(59);
+select plan(60);
 
 insert into auth.users (id, email)
 values
@@ -1531,14 +1531,14 @@ select is(
 
 select ok(
   pg_get_functiondef(
-    'public.prepare_planner_schedule(jsonb,jsonb,text)'::regprocedure
+    'public.prepare_planner_schedule_core(jsonb,jsonb,text)'::regprocedure
   ) like '%pg_advisory_xact_lock%planner_owner_lock_key(v_owner)%',
   'preparation serializes owner writes with the canonical transaction lock'
 );
 
 select ok(
   pg_get_functiondef(
-    'public.prepare_planner_schedule(jsonb,jsonb,text)'::regprocedure
+    'public.prepare_planner_schedule_core(jsonb,jsonb,text)'::regprocedure
   ) like '%FOR UPDATE%',
   'preparation locks relevant goal definitions before validation'
 );
@@ -1547,7 +1547,7 @@ select ok(
   (
     with definition as (
       select pg_get_functiondef(
-        'public.prepare_planner_schedule(jsonb,jsonb,text)'::regprocedure
+        'public.prepare_planner_schedule_core(jsonb,jsonb,text)'::regprocedure
       ) as source
     )
     select
@@ -1566,7 +1566,7 @@ select ok(
 select ok(
   not has_function_privilege(
     'public',
-    'public.prepare_planner_schedule(jsonb,jsonb,text)',
+    'public.prepare_planner_schedule(jsonb,jsonb,text,jsonb)',
     'EXECUTE'
   ),
   'PUBLIC cannot execute preparation'
@@ -1575,7 +1575,7 @@ select ok(
 select ok(
   not has_function_privilege(
     'anon',
-    'public.prepare_planner_schedule(jsonb,jsonb,text)',
+    'public.prepare_planner_schedule(jsonb,jsonb,text,jsonb)',
     'EXECUTE'
   ),
   'anon cannot execute preparation'
@@ -1584,16 +1584,25 @@ select ok(
 select ok(
   has_function_privilege(
     'authenticated',
-    'public.prepare_planner_schedule(jsonb,jsonb,text)',
+    'public.prepare_planner_schedule(jsonb,jsonb,text,jsonb)',
     'EXECUTE'
   ),
   'authenticated owners can execute preparation'
 );
 
 select ok(
+  not has_function_privilege(
+    'authenticated',
+    'public.prepare_planner_schedule_core(jsonb,jsonb,text)',
+    'EXECUTE'
+  ),
+  'authenticated cannot execute internal core preparation function'
+);
+
+select ok(
   has_function_privilege(
     'service_role',
-    'public.prepare_planner_schedule(jsonb,jsonb,text)',
+    'public.prepare_planner_schedule(jsonb,jsonb,text,jsonb)',
     'EXECUTE'
   ),
   'service_role can execute preparation'

@@ -2201,7 +2201,7 @@ export type Database = {
         Args: {
           p_expected_digest: string
           p_items: Json
-          p_unplaceable: Json
+          p_unplaceable?: Json
           p_windows: Json
         }
         Returns: {
