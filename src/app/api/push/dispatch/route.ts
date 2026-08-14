@@ -66,7 +66,10 @@ async function dispatchNotifications(request: Request, correlationId: string) {
     });
 
     if (dueCandidates.length === 0) {
-      return apiSuccessResponse({ due: 0, sent: 0, removedSubscriptions: 0 }, correlationId);
+      return apiSuccessResponse(
+        { due: 0, sent: 0, deferred: 0, removedSubscriptions: 0 },
+        correlationId
+      );
     }
 
     const claimedSchedules = await Promise.all(
@@ -95,10 +98,14 @@ async function dispatchNotifications(request: Request, correlationId: string) {
     );
 
     if (dueSchedules.length === 0) {
-      return apiSuccessResponse({ due: 0, sent: 0, removedSubscriptions: 0 }, correlationId);
+      return apiSuccessResponse(
+        { due: 0, sent: 0, deferred: 0, removedSubscriptions: 0 },
+        correlationId
+      );
     }
 
     let sent = 0;
+    let deferred = 0;
     let removedSubscriptions = 0;
 
     await Promise.all(
@@ -116,6 +123,20 @@ async function dispatchNotifications(request: Request, correlationId: string) {
           });
           sent += result.sent;
           removedSubscriptions += result.removedSubscriptions;
+          if (result.sent === 0 && result.webConfigurationUnavailable) {
+            const { error: releaseError } = await admin
+              .from("notification_schedules")
+              .update({
+                last_sent_local_date: schedule.last_sent_local_date,
+                updated_at: new Date().toISOString(),
+              })
+              .eq("id", schedule.id)
+              .eq("last_sent_local_date", localDate);
+            if (releaseError) {
+              throw releaseError;
+            }
+            deferred += 1;
+          }
         } catch (error) {
           console.error(`Failed to send schedule ${schedule.id}:`, error);
         }
@@ -126,6 +147,7 @@ async function dispatchNotifications(request: Request, correlationId: string) {
       {
         due: dueSchedules.length,
         sent,
+        deferred,
         removedSubscriptions,
       },
       correlationId

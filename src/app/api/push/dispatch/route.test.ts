@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   getServerEnv: vi.fn(),
   fetchSchedules: vi.fn(),
   claimSchedule: vi.fn(),
+  releaseSchedule: vi.fn(),
   from: vi.fn(),
   reportError: vi.fn(),
   sendPushToUser: vi.fn(),
@@ -42,6 +43,7 @@ describe("push dispatch route", () => {
       sent: 0,
       removedSubscriptions: 0,
       hadSubscriptions: true,
+      webConfigurationUnavailable: false,
     });
     mocks.fetchSchedules.mockResolvedValue({
       data: [],
@@ -51,20 +53,29 @@ describe("push dispatch route", () => {
       data: null,
       error: null,
     });
+    mocks.releaseSchedule.mockResolvedValue({
+      data: null,
+      error: null,
+    });
     mocks.from.mockImplementation((table: string) => {
       if (table === "notification_schedules") {
         return {
           select: () => ({
             eq: mocks.fetchSchedules,
           }),
-          update: () => ({
-            eq: () => ({
-              or: () => ({
-                select: () => ({
-                  maybeSingle: mocks.claimSchedule,
-                }),
-              }),
-            }),
+          update: (values: { last_sent_local_date?: string | null }) => ({
+            eq: () =>
+              values.last_sent_local_date === null
+                ? {
+                    eq: mocks.releaseSchedule,
+                  }
+                : {
+                    or: () => ({
+                      select: () => ({
+                        maybeSingle: mocks.claimSchedule,
+                      }),
+                    }),
+                  },
           }),
         };
       }
@@ -178,6 +189,7 @@ describe("push dispatch route", () => {
       sent: 0,
       removedSubscriptions: 0,
       hadSubscriptions: true,
+      webConfigurationUnavailable: false,
     });
 
     const response = await GET(
@@ -205,5 +217,52 @@ describe("push dispatch route", () => {
       })
     );
     expect(mocks.reportError).not.toHaveBeenCalled();
+  });
+
+  it("releases a claimed web-only schedule when VAPID is unavailable", async () => {
+    const currentUtcHour = new Date().getUTCHours();
+    mocks.fetchSchedules.mockResolvedValue({
+      data: [
+        {
+          id: "schedule-1",
+          user_id: "user-1",
+          hour: currentUtcHour,
+          timezone: "UTC",
+          message: "Keep going",
+          last_sent_local_date: null,
+        },
+      ],
+      error: null,
+    });
+    mocks.claimSchedule.mockResolvedValue({
+      data: { id: "schedule-1" },
+      error: null,
+    });
+    mocks.sendPushToUser.mockResolvedValue({
+      sent: 0,
+      removedSubscriptions: 0,
+      hadSubscriptions: true,
+      webConfigurationUnavailable: true,
+    });
+
+    const response = await GET(
+      new Request("http://localhost/api/push/dispatch", {
+        method: "GET",
+        headers: {
+          authorization: "Bearer cron-secret",
+        },
+      })
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      due: 1,
+      sent: 0,
+      deferred: 1,
+    });
+    expect(mocks.releaseSchedule).toHaveBeenCalledWith(
+      "last_sent_local_date",
+      expect.any(String)
+    );
   });
 });
