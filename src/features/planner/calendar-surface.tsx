@@ -535,7 +535,7 @@ export function CalendarSurface({
   } = calendarStoreProjection;
   const primaryUnplaceableGoal = unplaceableGoalSummaries[0] ?? null;
   const unplaceablePrimaryActionLabel =
-    unplaceableGoalSummaries.length > 1 ? "Review goals" : "Edit this goal";
+    unplaceableGoalSummaries.length > 1 ? "Review first goal" : "Edit this goal";
   const invalidLockGoalCount = unplaceableGoalSummaries.filter(
     (entry) => entry.reason === "invalid_lock"
   ).length;
@@ -2788,7 +2788,7 @@ export function CalendarSurface({
       ) : null}
       {showBlockingLoading ? (
         <LoadingCard
-          title="Loading planner month context..."
+          title="Loading planner context..."
           description="Preparing your schedule and completion state."
         />
       ) : error ? (
