@@ -5,6 +5,7 @@ import {
   MAX_WORK_UNITS,
 } from "@/lib/planner/contracts/bounds";
 import {
+  assertDateWindow,
   getScopeDateRange,
   isMonthAlignedPlannerWindow,
   toPlannerScheduleWindow,
@@ -55,5 +56,20 @@ describe("isMonthAlignedPlannerWindow", () => {
     expect(
       isMonthAlignedPlannerWindow({ start: "2026-08-01", end: "2026-09-15" })
     ).toBe(false);
+  });
+});
+
+describe("assertDateWindow", () => {
+  it("accepts a whole-month span within the 366-day cap", () => {
+    expect(assertDateWindow({ start: "2026-08-01", end: "2026-09-30" })).toEqual({
+      start: "2026-08-01",
+      end: "2026-09-30",
+    });
+  });
+
+  it("rejects mid-month ranges before the day-count cap", () => {
+    expect(() =>
+      assertDateWindow({ start: "2026-09-10", end: "2026-09-20" })
+    ).toThrow(/must start on day 1/);
   });
 });
