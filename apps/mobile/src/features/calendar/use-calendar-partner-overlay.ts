@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
 import { api } from "../../lib/api";
 import { useSession } from "../../lib/session";
+import { sanitizeMobileSupabaseError } from "../../lib/supabase-error";
 import { supabase } from "../../lib/supabase";
 import {
   extractMobileDuoPartnerFailureContext,
@@ -12,8 +13,8 @@ import {
 import {
   buildCalendarPartnerOverlayPayload,
   buildCalendarOverlayQueryModel,
+  PARTNER_CALENDAR_UNAVAILABLE_MESSAGE,
   resolveCalendarOverlayState,
-  sanitizeCalendarPartnerTitleQueryFailure,
   type CalendarPartnerGoalTitleRow,
   type CalendarOverlayPayload,
 } from "./calendar-duo";
@@ -66,7 +67,10 @@ export function useCalendarPartnerOverlay({
           .eq("owner_id", partnerId),
       ]);
       if (goalsResponse.error) {
-        throw sanitizeCalendarPartnerTitleQueryFailure(goalsResponse.error);
+        throw sanitizeMobileSupabaseError({
+          error: goalsResponse.error,
+          userMessage: PARTNER_CALENDAR_UNAVAILABLE_MESSAGE,
+        });
       }
       return buildCalendarPartnerOverlayPayload({
         partnerId,
