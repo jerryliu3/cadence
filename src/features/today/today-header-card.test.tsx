@@ -23,9 +23,12 @@ describe("TodayHeaderCard", () => {
     );
 
     const title = screen.getByText("Today");
-    const dateField = screen.getByLabelText("Fri, Aug 14, 2026");
+    const dateField = screen.getByLabelText("Checklist date");
     expect(title.closest("[data-title-date-row]")).toBe(
       dateField.closest("[data-title-date-row]")
     );
+    expect(dateField).toHaveAttribute("type", "date");
+    expect(screen.getByText("Fri Aug 14, 2026")).toBeInTheDocument();
+    expect(screen.getByText("Fri Aug 14, 2026").closest("[data-title-date-row]")).toBeNull();
   });
 });
