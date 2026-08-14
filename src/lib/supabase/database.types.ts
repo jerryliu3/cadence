@@ -2081,6 +2081,15 @@ export type Database = {
         }
         Returns: number
       }
+      apply_external_completion_service: {
+        Args: {
+          p_completed_on: string
+          p_external_key?: string
+          p_goal_id: string
+          p_provider: string
+        }
+        Returns: boolean
+      }
       can_administer_goal: {
         Args: { p_goal_id: string; p_uid: string }
         Returns: boolean
@@ -2490,7 +2499,7 @@ export type Database = {
         | "max_streak_days"
       challenge_status: "draft" | "scheduled" | "active" | "closed" | "archived"
       cohort_member_role: "member" | "manager"
-      completion_source: "manual" | "linked_cascade"
+      completion_source: "manual" | "linked_cascade" | "external_sync"
       feed_event_type:
         | "xp_earned"
         | "level_up"
@@ -2675,7 +2684,7 @@ export const Constants = {
       ],
       challenge_status: ["draft", "scheduled", "active", "closed", "archived"],
       cohort_member_role: ["member", "manager"],
-      completion_source: ["manual", "linked_cascade"],
+      completion_source: ["manual", "linked_cascade", "external_sync"],
       feed_event_type: [
         "xp_earned",
         "level_up",

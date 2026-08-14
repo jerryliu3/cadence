@@ -1,6 +1,6 @@
 export type GoalFrequencyType = "fixed_milestones" | "recurring";
 export type RecurrenceInterval = "daily" | "weekly" | "monthly";
-export type CompletionSource = "manual" | "linked_cascade";
+export type CompletionSource = "manual" | "linked_cascade" | "external_sync";
 
 export interface Goal {
   id: string;
