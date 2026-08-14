@@ -6,5 +6,6 @@ allowBuilds:
   '@sentry/cli': false
   esbuild: true
   msw: true
+  react-native-nitro-modules: true
   sharp: true
   unrs-resolver: true

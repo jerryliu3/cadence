@@ -20,6 +20,14 @@
         {
           "sounds": []
         }
+      ],
+      [
+        "@kingstinct/react-native-healthkit",
+        {
+          "NSHealthShareUsageDescription": "Cadence reads workouts, steps, energy, distance, exercise time, and sleep from Apple Health so we can schedule and complete your goals.",
+          "NSHealthUpdateUsageDescription": "Cadence does not write health samples to Apple Health.",
+          "background": true
+        }
       ]
     ],
     "experiments": {
@@ -27,7 +35,14 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.cadence.mobile"
+      "bundleIdentifier": "com.cadence.mobile",
+      "infoPlist": {
+        "UIBackgroundModes": ["fetch", "processing"]
+      },
+      "entitlements": {
+        "com.apple.developer.healthkit": true,
+        "com.apple.developer.healthkit.background-delivery": true
+      }
     },
     "android": {
       "package": "com.cadence.mobile"
