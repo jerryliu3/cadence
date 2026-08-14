@@ -127,9 +127,12 @@ describe("calendar surface extracted components", () => {
       />
     );
 
-    await user.click(
-      within(view.container).getByRole("button", { name: "Mark session done" })
-    );
+    const toggle = within(view.container).getByRole("button", {
+      name: "Mark session done",
+    });
+    expect(toggle.parentElement?.firstElementChild).toBe(toggle);
+
+    await user.click(toggle);
     expect(onToggleCompletion).toHaveBeenCalledTimes(1);
 
     await user.click(within(view.container).getByText("Run"));
