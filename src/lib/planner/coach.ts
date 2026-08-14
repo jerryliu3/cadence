@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { assertDateWindow, monthFromDate } from "@/lib/planner/dates";
+import { assertDateWindow } from "@/lib/planner/dates";
 import type { Goal } from "@/lib/goals/types";
 import type { GoalAssessment } from "@/lib/planner/assessment";
 
@@ -46,11 +46,7 @@ export const coachRequestSchema = z
         path: ["endDate"],
       });
     }
-  })
-  .transform((value) => ({
-    ...value,
-    scopeMonth: value.scopeMonth ?? monthFromDate(value.startDate),
-  }));
+  });
 
 const coachRecommendationPayloadSchema = z
   .object({
