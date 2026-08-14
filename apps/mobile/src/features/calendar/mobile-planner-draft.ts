@@ -2,6 +2,7 @@ import {
   plannerDraftWindowUnavailableMessage,
   tryBuildPlannerDraftSaveWindow,
 } from "@cadence/shared/planner/draft-window";
+import { buildPlannerConfirmationHash } from "@cadence/shared/planner/confirmation";
 import {
   createMoveItemDraftCommand,
   type PlannerMoveItemDraftCommand,
@@ -216,28 +217,43 @@ export async function publishMobilePlannerDraft({
   client,
   context,
   state,
+  confirmationApproved = false,
 }: {
   client: MobilePlannerDraftApiClient;
   context: MobilePlannerContext;
   state: MobilePlannerDraftState;
+  confirmationApproved?: boolean;
 }) {
   const expectedDigest = context.revisions.scheduleDigest;
-  const previewHash = state.preview?.generationInputHash;
+  const preview = state.preview;
+  const previewHash = preview?.generationInputHash;
   if (!expectedDigest || !previewHash || !state.previewWindow) {
     throw new MobilePlannerDraftError(
       "Refresh the planner preview before saving."
     );
   }
+  const confirmationRequired = preview.solver?.confirmationRequired === true;
+  if (confirmationRequired && !confirmationApproved) {
+    throw new MobilePlannerDraftError(
+      "Confirm the partial planner preview before saving."
+    );
+  }
+  const confirmationHash = confirmationRequired
+    ? buildPlannerConfirmationHash({
+        previewHash,
+        issueCodes: preview.solver?.issueCodes ?? [],
+      })
+    : null;
   return client.postJson("/api/planner/save", {
     expectedDigest,
     startDate: state.previewWindow.start,
     endDate: state.previewWindow.end,
     previewHash,
-    eligibilityMode: state.preview?.eligibilityMode,
-    confirmationHash: null,
+    eligibilityMode: preview.eligibilityMode,
+    confirmationHash,
     policy: state.policy ?? context.preferences?.defaultPolicy,
     preserveExistingAssignments:
-      state.preview?.preserveExistingAssignments,
+      preview.preserveExistingAssignments,
     draftCommands: state.commands,
   });
 }
