@@ -239,4 +239,30 @@ describe("sendPushToUser", () => {
       webConfigurationUnavailable: true,
     });
   });
+
+  it("reports unavailable web delivery when the push service rejects VAPID auth", async () => {
+    mocks.sendNotification.mockRejectedValue(
+      Object.assign(new Error("Unauthorized"), { statusCode: 401 })
+    );
+    const admin = createAdmin({
+      rows: [
+        {
+          id: "web-1",
+          endpoint: "https://example.test/sub",
+          platform: "web",
+          p256dh: "p256dh",
+          auth: "auth",
+        },
+      ],
+    });
+
+    const result = await sendPushToUser({
+      admin: admin as never,
+      userId: "user-1",
+      payload: { title: "Goalmaxxing", body: "Keep going" },
+    });
+
+    expect(result.sent).toBe(0);
+    expect(result.webConfigurationUnavailable).toBe(true);
+  });
 });

@@ -2259,6 +2259,17 @@ export type Database = {
         Args: { p_source_goal_id: string; p_target_goal_id?: string }
         Returns: undefined
       }
+      replace_native_push_subscription_service: {
+        Args: {
+          p_endpoint: string
+          p_native_token: string
+          p_platform: string
+          p_updated_at?: string
+          p_user_agent?: string
+          p_user_id: string
+        }
+        Returns: boolean
+      }
       resolve_notification_outbox_delivery_service: {
         Args: { p_error?: string; p_outbox_id: string; p_sent: boolean }
         Returns: boolean

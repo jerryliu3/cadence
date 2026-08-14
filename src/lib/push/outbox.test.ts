@@ -68,4 +68,39 @@ describe("flushNotificationOutbox", () => {
       }
     );
   });
+
+  it("fails the flush when configuration deferral cannot be persisted", async () => {
+    mocks.sendPushToUser.mockResolvedValue({
+      sent: 0,
+      removedSubscriptions: 0,
+      hadSubscriptions: true,
+      webConfigurationUnavailable: true,
+    });
+    mocks.rpc.mockImplementation(async (name: string) => {
+      if (name === "claim_notification_outbox_service") {
+        return {
+          data: [
+            {
+              id: "outbox-1",
+              user_id: "user-1",
+              kind: "nudge",
+              title: "New nudge",
+              body: "Keep going",
+              url: "/social",
+              attempts: 1,
+            },
+          ],
+          error: null,
+        };
+      }
+      return {
+        data: null,
+        error: { message: "resolver unavailable" },
+      };
+    });
+
+    await expect(flushNotificationOutbox()).rejects.toMatchObject({
+      message: "resolver unavailable",
+    });
+  });
 });

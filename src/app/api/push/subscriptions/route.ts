@@ -68,19 +68,14 @@ export async function POST(request: Request) {
     const updatedAt = new Date().toISOString();
     const { error } =
       "token" in parsed.data
-        ? await admin.from("push_subscriptions").upsert(
-            {
-              user_id: userId,
-              platform: parsed.data.platform,
-              native_token: parsed.data.token,
-              endpoint: `native:${parsed.data.platform}:${parsed.data.token}`,
-              p256dh: null,
-              auth: null,
-              user_agent: userAgent,
-              updated_at: updatedAt,
-            },
-            { onConflict: "endpoint" }
-          )
+        ? await admin.rpc("replace_native_push_subscription_service", {
+            p_user_id: userId,
+            p_platform: parsed.data.platform,
+            p_native_token: parsed.data.token,
+            p_endpoint: `native:${parsed.data.platform}:${parsed.data.token}`,
+            p_user_agent: userAgent ?? undefined,
+            p_updated_at: updatedAt,
+          })
         : await admin.from("push_subscriptions").upsert(
             {
               user_id: userId,
@@ -104,18 +99,6 @@ export async function POST(request: Request) {
         undefined,
         error
       );
-    }
-
-    if (parsed.data.platform === "ios" || parsed.data.platform === "android") {
-      const { error: cleanupError } = await admin
-        .from("push_subscriptions")
-        .delete()
-        .eq("user_id", userId)
-        .eq("platform", parsed.data.platform)
-        .neq("endpoint", `native:${parsed.data.platform}:${parsed.data.token}`);
-      if (cleanupError) {
-        console.error("Failed to replace prior native push token:", cleanupError);
-      }
     }
 
     return apiSuccessResponse({ success: true }, correlationId);
