@@ -103,10 +103,6 @@ import {
   invalidatePlannerRelatedTabCaches,
   PLANNER_CONTEXT_CACHE_PREFIX,
 } from "@/lib/cache/planner-tab-cache";
-import {
-  type CompletionDispatchDecision,
-  resolveCompletionDispatch,
-} from "@/lib/planner/completion-dispatch";
 import type { EligibilityReason } from "@/lib/planner/eligibility";
 import {
   draftCommandEntryKey,
