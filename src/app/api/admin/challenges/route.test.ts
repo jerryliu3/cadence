@@ -38,7 +38,7 @@ describe("GET /api/admin/challenges", () => {
 
   it("returns 404 for non-admin users", async () => {
     mocks.requireAdminContext.mockResolvedValue(null);
-    const response = await GET();
+    const response = await GET(new Request("http://localhost/api/admin/challenges"));
     expect(response.status).toBe(404);
     await expect(response.json()).resolves.toMatchObject({
       code: "not_found",
@@ -76,7 +76,7 @@ describe("GET /api/admin/challenges", () => {
       error: null,
     });
 
-    const response = await GET();
+    const response = await GET(new Request("http://localhost/api/admin/challenges"));
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toMatchObject({
       schemaVersion: "1",

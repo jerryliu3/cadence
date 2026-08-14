@@ -28,7 +28,7 @@ function mapDeclineTeamInviteError(error: RpcErrorLike) {
 }
 
 export async function POST(
-  _request: Request,
+  request: Request,
   context: { params: Promise<{ teamId: string }> | { teamId: string } }
 ) {
   const correlationId = createCorrelationId();
