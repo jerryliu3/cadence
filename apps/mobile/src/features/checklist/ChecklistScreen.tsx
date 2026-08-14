@@ -199,6 +199,7 @@ export function ChecklistScreen() {
           category={item.category}
           done={item.done}
           interactive={item.interactive}
+          readOnlyReason={item.readOnlyReason}
           href={item.interactive ? `/goals/${item.goalId}` : undefined}
           toggling={laneData.toggling}
           onToggle={() => {
@@ -220,6 +221,7 @@ export function ChecklistScreen() {
       <FlashList
         data={listItems}
         keyExtractor={(item) => item.key}
+        getItemType={(item) => item.type}
         renderItem={renderItem}
         contentContainerStyle={styles.listContent}
       />

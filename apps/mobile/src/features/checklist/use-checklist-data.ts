@@ -4,6 +4,7 @@ import type { ProgressContextResponse } from "@cadence/shared/goals/progress-con
 import type { DuoLaneSubject } from "@cadence/shared/social/duo";
 import { useState } from "react";
 import { api } from "../../lib/api";
+import { sanitizeMobileSupabaseError } from "../../lib/supabase-error";
 import { supabase } from "../../lib/supabase";
 import { triggerLightPressFeedback } from "../../lib/haptics";
 import { useSession } from "../../lib/session";
@@ -15,10 +16,12 @@ import {
 } from "../duo/query-keys";
 import {
   CHECKLIST_COMPLETION_ERROR_MESSAGE,
+  MOBILE_CHECKLIST_GOALS_SELECT,
   buildChecklistProgressQuery,
   countChecklistCompletionsForDate,
   isChecklistLaneInteractive,
   resolveChecklistCompletableGoalIds,
+  resolveTeamMembershipIds,
   selectChecklistGoalsForSubject,
   type MobileGoal,
 } from "./checklist-lane-data";
@@ -84,7 +87,7 @@ export function useChecklistLaneData({
     enabled: goalsEnabled,
     queryFn: async () => {
       let goalsLoadQuery = supabase.from("goals").select(
-          "id,owner_id,title,description,category,frequency_type,recurrence_interval,target_count,start_date,end_date,photo_path,archived_at,is_deleted"
+          MOBILE_CHECKLIST_GOALS_SELECT
         );
       if (subject.id === "partner" && partnerId) {
         goalsLoadQuery = goalsLoadQuery.eq("owner_id", partnerId);
@@ -93,7 +96,10 @@ export function useChecklistLaneData({
         .eq("is_deleted", false)
         .order("created_at", { ascending: false });
       if (error) {
-        throw error;
+        throw sanitizeMobileSupabaseError({
+          error,
+          userMessage: "Checklist goals could not be loaded.",
+        });
       }
       return selectChecklistGoalsForSubject({
         goals: (data ?? []) as MobileGoal[],
@@ -116,10 +122,10 @@ export function useChecklistLaneData({
         .from("team_members")
         .select("team_id")
         .eq("user_id", userId);
-      if (error) {
-        throw error;
-      }
-      return ((data ?? []) as Array<{ team_id: string }>).map((row) => row.team_id);
+      return resolveTeamMembershipIds({
+        rows: (data ?? null) as Array<{ team_id: string }> | null,
+        hasError: Boolean(error),
+      });
     },
   });
 

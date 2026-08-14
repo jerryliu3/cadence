@@ -62,4 +62,36 @@ describe("ChecklistGoalRow partner boundary", () => {
     expect(pressables).toHaveLength(0);
     expect(links).toHaveLength(0);
   });
+
+  it("renders mutation and edit affordances for interactive rows", () => {
+    const onToggle = vi.fn();
+    let root!: ReactTestRenderer;
+    act(() => {
+      root = create(
+        <ChecklistGoalRow
+          title="Viewer goal"
+          category="Health"
+          done={false}
+          interactive
+          href="/goals/goal-1"
+          onToggle={onToggle}
+        />
+      );
+    });
+
+    const pressables = root.root.findAll(
+      (node: ReactTestInstance) => String(node.type) === "pressable"
+    );
+    const links = root.root.findAll(
+      (node: ReactTestInstance) => String(node.type) === "link"
+    );
+
+    expect(pressables).toHaveLength(1);
+    expect(links).toHaveLength(1);
+
+    act(() => {
+      pressables[0]?.props.onPress();
+    });
+    expect(onToggle).toHaveBeenCalledTimes(1);
+  });
 });
