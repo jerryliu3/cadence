@@ -2,6 +2,7 @@ import { format } from "date-fns";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ProgressContextResponse } from "@cadence/shared/goals/progress-context";
 import type { DuoLaneSubject } from "@cadence/shared/social/duo";
+import { useState } from "react";
 import { api } from "../../lib/api";
 import { supabase } from "../../lib/supabase";
 import { triggerLightPressFeedback } from "../../lib/haptics";
@@ -9,12 +10,15 @@ import { useSession } from "../../lib/session";
 import {
   buildMobileGoalsQueryKey,
   buildMobileProgressQueryKey,
+  buildMobileTeamMembershipQueryKey,
   duoQueryKeys,
 } from "../duo/query-keys";
 import {
+  CHECKLIST_COMPLETION_ERROR_MESSAGE,
   buildChecklistProgressQuery,
   countChecklistCompletionsForDate,
   isChecklistLaneInteractive,
+  resolveChecklistCompletableGoalIds,
   selectChecklistGoalsForSubject,
   type MobileGoal,
 } from "./checklist-lane-data";
@@ -36,7 +40,10 @@ export interface ChecklistLaneData {
   completionCount: number;
   goalCount: number;
   interactive: boolean;
-  toggle: ((input: { goalId: string; desiredFactState: "present" | "absent" }) => Promise<unknown>) | null;
+  completableGoalIds: Set<string>;
+  completionErrorMessage: string | null;
+  canToggleGoal: (goalId: string) => boolean;
+  toggle: ((input: { goalId: string; desiredFactState: "present" | "absent" }) => void) | null;
   toggling: boolean;
   refresh: () => void;
   progress: ProgressContextResponse | null;
@@ -62,6 +69,7 @@ export function useChecklistLaneData({
 }): ChecklistLaneData {
   const { userId } = useSession();
   const queryClient = useQueryClient();
+  const [completionErrorMessage, setCompletionErrorMessage] = useState<string | null>(null);
   const { asOfDate, timezone } = useChecklistClock();
   const interactive = isChecklistLaneInteractive(subject);
   const subjectReady = subject.id === "viewer" ? Boolean(userId) : Boolean(subject.userId);
@@ -94,6 +102,26 @@ export function useChecklistLaneData({
       });
     },
   });
+  const teamMembershipQuery = useQuery({
+    queryKey: buildMobileTeamMembershipQueryKey({
+      viewerUserId: userId,
+      subjectUserId: subject.userId,
+    }),
+    enabled: laneEnabled && subject.id === "viewer",
+    queryFn: async () => {
+      if (!userId) {
+        return [] as string[];
+      }
+      const { data, error } = await supabase
+        .from("team_members")
+        .select("team_id")
+        .eq("user_id", userId);
+      if (error) {
+        throw error;
+      }
+      return ((data ?? []) as Array<{ team_id: string }>).map((row) => row.team_id);
+    },
+  });
 
   const progressQuery = useQuery({
     queryKey: buildMobileProgressQueryKey({
@@ -116,6 +144,9 @@ export function useChecklistLaneData({
   });
 
   const toggleMutation = useMutation({
+    onMutate: () => {
+      setCompletionErrorMessage(null);
+    },
     mutationFn: async (input: {
       goalId: string;
       desiredFactState: "present" | "absent";
@@ -135,19 +166,35 @@ export function useChecklistLaneData({
       await queryClient.invalidateQueries({
         queryKey: duoQueryKeys.progressPrefix(userId),
       });
+      setCompletionErrorMessage(null);
+    },
+    onError: () => {
+      setCompletionErrorMessage(CHECKLIST_COMPLETION_ERROR_MESSAGE);
     },
   });
 
+  const goals = goalsQuery.data ?? [];
+  const completableGoalIds = resolveChecklistCompletableGoalIds({
+    goals,
+    subject,
+    viewerUserId: userId,
+    memberTeamIds: teamMembershipQuery.data ?? [],
+  });
   const facts = progressQuery.data?.facts ?? [];
   const completedToday = new Set(
     facts.filter((fact) => fact.completed_on === asOfDate).map((fact) => fact.goal_id)
   );
+  const canToggleGoal = (goalId: string) =>
+    interactive && completableGoalIds.has(goalId);
 
   return {
     subject,
-    loading: (goalsEnabled && goalsQuery.isLoading) || progressQuery.isLoading,
-    error: goalsQuery.error ?? progressQuery.error,
-    goals: goalsQuery.data ?? [],
+    loading:
+      (goalsEnabled && goalsQuery.isLoading) ||
+      (interactive && teamMembershipQuery.isLoading) ||
+      progressQuery.isLoading,
+    error: goalsQuery.error ?? teamMembershipQuery.error ?? progressQuery.error,
+    goals,
     completedToday,
     completionCount: countChecklistCompletionsForDate({
       asOfDate,
@@ -155,11 +202,24 @@ export function useChecklistLaneData({
     }),
     goalCount: progressQuery.data?.summaries.length ?? 0,
     interactive,
-    toggle: interactive ? toggleMutation.mutateAsync : null,
+    completableGoalIds,
+    completionErrorMessage,
+    canToggleGoal,
+    toggle: interactive
+      ? (input) => {
+          if (!canToggleGoal(input.goalId)) {
+            return;
+          }
+          toggleMutation.mutate(input);
+        }
+      : null,
     toggling: interactive && toggleMutation.isPending,
     refresh: () => {
       if (goalsEnabled) {
         void goalsQuery.refetch();
+      }
+      if (interactive) {
+        void teamMembershipQuery.refetch();
       }
       void progressQuery.refetch();
     },

@@ -8,6 +8,8 @@ function buildLaneData(input: {
   loading?: boolean;
   error?: unknown;
   interactive?: boolean;
+  completableGoalIds?: string[];
+  completionErrorMessage?: string | null;
   goals?: Array<{ id: string; title: string; category: string }>;
   completedIds?: string[];
 }): ChecklistLaneData {
@@ -24,6 +26,7 @@ function buildLaneData(input: {
       target_count: 1,
       start_date: "2026-01-01",
       end_date: null,
+      team_id: null,
       photo_path: null,
       archived_at: null,
       is_deleted: false,
@@ -32,6 +35,10 @@ function buildLaneData(input: {
     completionCount: 0,
     goalCount: 0,
     interactive: input.interactive ?? false,
+    completableGoalIds: new Set(input.completableGoalIds ?? []),
+    completionErrorMessage: input.completionErrorMessage ?? null,
+    canToggleGoal: (goalId: string) =>
+      Boolean(input.interactive) && new Set(input.completableGoalIds ?? []).has(goalId),
     toggle: null,
     toggling: false,
     refresh: () => undefined,
@@ -44,6 +51,7 @@ describe("buildChecklistListItems", () => {
     const viewerLane = buildLaneData({
       subject: { id: "viewer", label: "Mine", readOnly: false },
       interactive: true,
+      completableGoalIds: ["viewer-goal"],
       goals: [{ id: "viewer-goal", title: "Viewer goal", category: "Health" }],
       completedIds: ["viewer-goal"],
     });
@@ -129,6 +137,57 @@ describe("buildChecklistListItems", () => {
       laneId: "partner",
       tone: "muted",
       text: "Partner checklist is unavailable.",
+    });
+  });
+
+  it("marks non-completable viewer-visible goals as read-only rows", () => {
+    const viewerLane = buildLaneData({
+      subject: { id: "viewer", label: "Mine", readOnly: false },
+      interactive: true,
+      completableGoalIds: [],
+      goals: [{ id: "shared-goal", title: "Shared goal", category: "Team" }],
+      completedIds: [],
+    });
+
+    const items = buildChecklistListItems({
+      scope: "me",
+      asOfDate: "2026-08-14",
+      showNewGoalAction: true,
+      summaryStrip: null,
+      lanes: [{ lane: viewerLane.subject, laneData: viewerLane }],
+    });
+    const row = items.find((item) => item.type === "goal_row");
+
+    expect(row).toMatchObject({
+      type: "goal_row",
+      laneId: "viewer",
+      interactive: false,
+    });
+  });
+
+  it("surfaces lane mutation failures as destructive list messages", () => {
+    const viewerLane = buildLaneData({
+      subject: { id: "viewer", label: "Mine", readOnly: false },
+      interactive: true,
+      completableGoalIds: ["viewer-goal"],
+      completionErrorMessage: "Could not update completion. Try again.",
+      goals: [{ id: "viewer-goal", title: "Viewer goal", category: "Health" }],
+      completedIds: [],
+    });
+
+    const items = buildChecklistListItems({
+      scope: "me",
+      asOfDate: "2026-08-14",
+      showNewGoalAction: true,
+      summaryStrip: null,
+      lanes: [{ lane: viewerLane.subject, laneData: viewerLane }],
+    });
+
+    expect(items.map((item) => item.type)).toContain("lane_message");
+    expect(items.find((item) => item.type === "lane_message")).toMatchObject({
+      laneId: "viewer",
+      tone: "destructive",
+      text: "Could not update completion. Try again.",
     });
   });
 });
