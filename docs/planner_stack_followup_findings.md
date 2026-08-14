@@ -46,6 +46,7 @@ After each base-branch edit, descendants were restacked in stack order:
 
 - No findings were deferred; all accepted correctness and simplification items were implemented in-stack.
 - Type strictness drift discovered during final verification (fixture payload shape + lock signature typing) was fixed at tip to keep stack and CI gates coherent.
+- Deliberate product/contract deferral: context reads remain solve-bounded to month-aligned windows. Relaxing reads to accept arbitrary visible ranges would require splitting persisted-item loading from preview solve semantics, plus revisiting the client assumption that preview coverage matches the visible window.
 
 ## Verification Evidence
 

@@ -10,7 +10,10 @@ import {
   PLANNER_CONTRACT_VERSION,
 } from "@/lib/planner/contracts/bounds";
 import { plannerCompletionSchema, plannerGoalSchema } from "@/lib/planner/contracts/kernel-schema";
-import { toKernelWindowFromDates } from "@/lib/planner/dates";
+import {
+  expandToMonthAlignedWindow,
+  toKernelWindowFromDates,
+} from "@/lib/planner/dates";
 import type { PlannerCanonicalLink } from "@/lib/planner/fingerprint";
 import { runPlannerKernel } from "@/lib/planner/kernel";
 import {
@@ -693,16 +696,9 @@ export async function loadPlannerContextPayload({
   endDate: string;
   correlationId?: string;
 }) {
-  const kernelWindow = toKernelWindowFromDates({
-    start: `${startDate.slice(0, 7)}-01`,
-    end: (() => {
-      const endMonth = endDate.slice(0, 7);
-      const nextMonthStart = new Date(`${endMonth}-01T00:00:00.000Z`);
-      nextMonthStart.setUTCMonth(nextMonthStart.getUTCMonth() + 1);
-      nextMonthStart.setUTCDate(0);
-      return nextMonthStart.toISOString().slice(0, 10);
-    })(),
-  });
+  const kernelWindow = toKernelWindowFromDates(
+    expandToMonthAlignedWindow({ start: startDate, end: endDate })
+  );
   const snapshot = await loadPlannerCanonicalSnapshot({
     supabase,
     ownerId,
