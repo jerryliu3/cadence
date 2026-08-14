@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import type { ComponentProps } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { TabNav } from "@/components/navigation/tab-nav";
@@ -88,6 +88,21 @@ describe("TabNav", () => {
     expect(screen.getByRole("link", { name: "Profile" })).toHaveAttribute(
       "data-transition-types",
       "nav-forward"
+    );
+  });
+
+  it("updates the checklist highlight immediately on click even if the route lags", () => {
+    mockPathname = "/insights";
+    render(<TabNav mobile />);
+
+    fireEvent.click(screen.getByRole("link", { name: "Checklist" }));
+
+    expect(screen.getByRole("link", { name: "Checklist" })).toHaveAttribute(
+      "aria-current",
+      "page"
+    );
+    expect(screen.getByRole("link", { name: "Insights" })).not.toHaveAttribute(
+      "aria-current"
     );
   });
 });

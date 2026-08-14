@@ -92,4 +92,16 @@ describe("AppShell", () => {
 
     expect(screen.getByText("Child content")).toBeInTheDocument();
   });
+
+  it("keeps the mobile tab bar out of the page view-transition snapshot", () => {
+    render(
+      <AppShell userId="user-1" {...emptyDuoProps}>
+        <div>Child content</div>
+      </AppShell>
+    );
+
+    expect(screen.getByTestId("tab-nav-mobile").parentElement).toHaveStyle({
+      viewTransitionName: "app-mobile-tab-nav",
+    });
+  });
 });
