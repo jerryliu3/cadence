@@ -345,52 +345,6 @@ describe("planner save route", () => {
     );
   });
 
-  it("runs the kernel save path when policy override and move commands are both present", async () => {
-    mocks.parseBoundedJsonBody.mockResolvedValueOnce({
-      expectedDigest:
-        "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
-      startDate: "2026-08-01",
-      endDate: "2026-08-31",
-      previewHash:
-        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-      confirmationHash: null,
-      policy: createDefaultPlannerPolicy("UTC", "2026-08-01T00:00:00.000Z"),
-      draftCommands: [
-        {
-          id: "33333333-3333-4333-8333-333333333333",
-          sequence: 1,
-          kind: "move_item",
-          goalId: "22222222-2222-4222-8222-222222222222",
-          unitKey: "milestone:1",
-          sourceDate: "2026-08-10",
-          scheduledDate: "2026-08-20",
-        },
-      ],
-    });
-    mocks.runPlannerKernel.mockImplementationOnce(() => {
-      throw new PlannerError(
-        "validation_failed",
-        400,
-        "Planner policy failed validation."
-      );
-    });
-
-    const response = await POST(
-      new Request("http://localhost/api/planner/save", {
-        method: "POST",
-      })
-    );
-
-    expect(response.status).toBe(400);
-    await expect(response.json()).resolves.toMatchObject({
-      code: "validation_failed",
-      message: "Planner policy failed validation.",
-      correlationId: expect.any(String),
-    });
-    expect(mocks.runPlannerKernel).toHaveBeenCalledTimes(1);
-    expect(mocks.loadAllPlannerItems).not.toHaveBeenCalled();
-  });
-
   it("uses direct persistence for a draft whose only command is a time override", async () => {
     const goalId = "22222222-2222-4222-8222-222222222222";
     const goal = {
@@ -643,5 +597,80 @@ describe("planner save route", () => {
       message: "Planner publish payload failed validation.",
       correlationId: expect.any(String),
     });
+  });
+
+  // A mixed policy + move payload must never reach direct persistence: the
+  // direct path applies moves without re-solving, so the policy the preview
+  // reflected would be silently dropped from the saved schedule.
+  it("routes a mixed policy and move payload through the kernel, not direct persistence", async () => {
+    mocks.parseBoundedJsonBody.mockResolvedValueOnce({
+      expectedDigest:
+        "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      startDate: "2026-08-01",
+      endDate: "2026-08-31",
+      previewHash:
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      confirmationHash: null,
+      policy: createDefaultPlannerPolicy("UTC", "2026-08-01T00:00:00.000Z"),
+      draftCommands: [
+        {
+          id: "33333333-3333-4333-8333-333333333333",
+          sequence: 1,
+          kind: "move_item",
+          goalId: "22222222-2222-4222-8222-222222222222",
+          unitKey: "milestone:1",
+          sourceDate: "2026-08-10",
+          scheduledDate: "2026-08-20",
+        },
+      ],
+    });
+    mocks.runPlannerKernel.mockImplementationOnce(() => {
+      throw new PlannerError(
+        "validation_failed",
+        400,
+        "Planner policy failed validation."
+      );
+    });
+
+    const response = await POST(
+      new Request("http://localhost/api/planner/save", { method: "POST" })
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "validation_failed",
+      message: "Planner policy failed validation.",
+      correlationId: expect.any(String),
+    });
+    expect(mocks.runPlannerKernel).toHaveBeenCalledTimes(1);
+    expect(mocks.loadAllPlannerItems).not.toHaveBeenCalled();
+  });
+
+  it("keeps a move-only payload on the direct path so no solve runs", async () => {
+    mocks.parseBoundedJsonBody.mockResolvedValueOnce({
+      expectedDigest:
+        "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      startDate: "2026-08-01",
+      endDate: "2026-08-31",
+      previewHash:
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      confirmationHash: null,
+      draftCommands: [
+        {
+          id: "33333333-3333-4333-8333-333333333333",
+          sequence: 1,
+          kind: "move_item",
+          goalId: "22222222-2222-4222-8222-222222222222",
+          unitKey: "milestone:1",
+          sourceDate: "2026-08-10",
+          scheduledDate: "2026-08-20",
+        },
+      ],
+    });
+
+    await POST(new Request("http://localhost/api/planner/save", { method: "POST" }));
+
+    expect(mocks.runPlannerKernel).not.toHaveBeenCalled();
+    expect(mocks.loadAllPlannerItems).toHaveBeenCalled();
   });
 });
