@@ -11,10 +11,8 @@ import {
   normalizeCalendarRoute,
   type PlannerCalendarViewMode,
 } from "@/features/today/checklist-shell-routing";
-import { useDuoScope } from "@/features/social/duo/duo-context";
+import { useDuoSurface } from "@/features/social/duo/use-duo-surface";
 import { useClientSearchParamsUpdater } from "@/lib/navigation/use-client-search-params-updater";
-import { reportDuoTelemetry } from "@/lib/social/duo/telemetry";
-import { DUO_SURFACE_DEFAULTS } from "@/lib/social/duo/surface-defaults";
 import { useMediaQuery } from "@/lib/ui/use-media-query";
 
 export function CalendarPageShell() {
@@ -22,7 +20,7 @@ export function CalendarPageShell() {
   const { applySearchParams } = useClientSearchParamsUpdater();
   const isMobileViewport = useMediaQuery("(max-width: 767px)");
   const defaultCalendarViewMode: PlannerCalendarViewMode = isMobileViewport ? "week" : "month";
-  const { scope, activePartner } = useDuoScope(DUO_SURFACE_DEFAULTS.calendar);
+  const { scope, activePartner } = useDuoSurface("calendar");
   const overlayEnabled =
     Boolean(activePartner) && (scope === "partner" || scope === "both");
 
@@ -39,14 +37,6 @@ export function CalendarPageShell() {
     partnerId: activePartner?.partnerId,
     month: normalized.month,
   });
-
-  useEffect(() => {
-    reportDuoTelemetry("scope_viewed", {
-      surface: "calendar",
-      scope,
-      hasPartner: Boolean(activePartner),
-    });
-  }, [activePartner, scope]);
 
   useEffect(() => {
     if (!normalized.changed) {

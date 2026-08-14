@@ -19,14 +19,3 @@ export function selectViewerVisibleGoals<TGoal extends { owner_id: string }>({
   }
   return goals.filter((goal) => goal.owner_id !== partnerId);
 }
-
-/** `undefined` keeps the request on the self path; a partner id opts into the partner path. */
-export function progressSubjectUserId({
-  targetIsViewer,
-  targetSubjectUserId,
-}: {
-  targetIsViewer: boolean;
-  targetSubjectUserId: string;
-}): string | undefined {
-  return targetIsViewer ? undefined : targetSubjectUserId;
-}

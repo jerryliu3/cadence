@@ -134,38 +134,43 @@ interface AggregateDrilldownCompletionMarker {
 interface InsightsTabProps {
   subjectUserId?: string;
   readOnly?: boolean;
-  monthCursor?: Date;
-  onMonthCursorChange?: (next: Date) => void;
-  perGoalViewMode?: HeatmapViewMode;
-  onPerGoalViewModeChange?: (mode: HeatmapViewMode) => void;
-  hidePeriodControls?: boolean;
+  /**
+   * Supplied only when the lanes share one period cursor (duo `both` scope).
+   * Presence means "the shell owns and renders the controls", so there is no
+   * separate flag that can contradict the handlers.
+   */
+  sharedPeriod?: {
+    monthCursor: Date;
+    onMonthCursorChange: (next: Date) => void;
+    perGoalViewMode: HeatmapViewMode;
+    onPerGoalViewModeChange: (mode: HeatmapViewMode) => void;
+  };
 }
 
 export function InsightsTab({
   subjectUserId,
   readOnly = false,
-  monthCursor: monthCursorProp,
-  onMonthCursorChange,
-  perGoalViewMode: perGoalViewModeProp,
-  onPerGoalViewModeChange,
-  hidePeriodControls = false,
+  sharedPeriod,
 }: InsightsTabProps = {}) {
   const [internalMonthCursor, setInternalMonthCursor] = useState(new Date());
   const [internalPerGoalViewMode, setInternalPerGoalViewMode] =
     useState<HeatmapViewMode>("month");
-  const monthCursor = monthCursorProp ?? internalMonthCursor;
+  const monthCursor = sharedPeriod?.monthCursor ?? internalMonthCursor;
   const setMonthCursor = useCallback(
     (next: Date | ((previous: Date) => Date)) => {
-      if (onMonthCursorChange) {
-        onMonthCursorChange(typeof next === "function" ? next(monthCursor) : next);
+      if (sharedPeriod) {
+        sharedPeriod.onMonthCursorChange(
+          typeof next === "function" ? next(monthCursor) : next
+        );
         return;
       }
       setInternalMonthCursor(next);
     },
-    [monthCursor, onMonthCursorChange]
+    [monthCursor, sharedPeriod]
   );
-  const perGoalViewMode = perGoalViewModeProp ?? internalPerGoalViewMode;
-  const setPerGoalViewMode = onPerGoalViewModeChange ?? setInternalPerGoalViewMode;
+  const perGoalViewMode = sharedPeriod?.perGoalViewMode ?? internalPerGoalViewMode;
+  const setPerGoalViewMode =
+    sharedPeriod?.onPerGoalViewModeChange ?? setInternalPerGoalViewMode;
   const [goalMonthOverrides, setGoalMonthOverrides] = useState<Record<string, Date>>({});
   const [goalSearchQuery, setGoalSearchQuery] = useState("");
   const [goalEndMonth, setGoalEndMonth] = useState<string | null>(null);
@@ -670,7 +675,7 @@ export function InsightsTab({
           </div>
         </CardHeader>
         <CardContent className="space-y-3">
-          {hidePeriodControls ? null : (
+          {sharedPeriod ? null : (
             <InsightsPeriodControls
               monthCursor={monthCursor}
               onMonthCursorChange={setMonthCursor}
