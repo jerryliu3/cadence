@@ -44,7 +44,7 @@ export function TabNav({ mobile = false }: TabNavProps) {
         className={cn(
           "grid w-full gap-1",
           mobile
-            ? `${gridClass} max-w-[22.5rem] rounded-[1.35rem] border border-border/60 bg-background/90 p-1.5 shadow-lg shadow-black/10 backdrop-blur-md supports-[backdrop-filter]:bg-background/80`
+            ? `${gridClass} max-w-[22.5rem] rounded-[1.35rem] border border-border/50 bg-background/25 p-1.5 shadow-lg shadow-black/15 backdrop-blur-xl supports-[backdrop-filter]:bg-background/15`
             : gridClass
         )}
       >
