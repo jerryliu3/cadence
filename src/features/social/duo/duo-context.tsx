@@ -92,6 +92,13 @@ export function DuoProvider({
       scopePreference: displayedScopePreference,
       setScopePreference,
     }),
+    [
+      availability,
+      displayedScopePreference,
+      initialState,
+      setScopePreference,
+      viewerUserId,
+    ]
   );
 
   return <DuoContext.Provider value={value}>{children}</DuoContext.Provider>;
