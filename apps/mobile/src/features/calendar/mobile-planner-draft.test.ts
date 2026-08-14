@@ -132,4 +132,62 @@ describe("mobile planner draft", () => {
       draftCommands: state.commands,
     });
   });
+
+  it("requires an explicit action before publishing a partial preview", async () => {
+    const postJson = vi.fn();
+    const state = {
+      ...createEmptyMobilePlannerDraft(),
+      preview: {
+        ...preview,
+        solver: {
+          ...preview.solver,
+          confirmationRequired: true,
+          issueCodes: ["placement_shortfall"],
+        },
+      },
+      previewWindow: { start: "2026-08-01", end: "2026-09-30" },
+      dirty: true,
+    };
+
+    await expect(
+      publishMobilePlannerDraft({
+        client: { postJson },
+        context,
+        state,
+      })
+    ).rejects.toThrow("Confirm the partial planner preview before saving.");
+    expect(postJson).not.toHaveBeenCalled();
+  });
+
+  it("publishes a confirmed partial preview with its canonical hash", async () => {
+    const postJson = vi.fn(async () => ({ replayed: false }));
+    const state = {
+      ...createEmptyMobilePlannerDraft(),
+      preview: {
+        ...preview,
+        solver: {
+          ...preview.solver,
+          confirmationRequired: true,
+          issueCodes: ["placement_shortfall"],
+        },
+      },
+      previewWindow: { start: "2026-08-01", end: "2026-09-30" },
+      dirty: true,
+    };
+
+    await publishMobilePlannerDraft({
+      client: { postJson },
+      context,
+      state,
+      confirmationApproved: true,
+    });
+
+    expect(postJson).toHaveBeenCalledWith(
+      "/api/planner/save",
+      expect.objectContaining({
+        confirmationHash:
+          "9e465e548a7d5ebe1f7569d9dc25da76caa22ec2d051260edbf0ef4e2c2bdf93",
+      })
+    );
+  });
 });
