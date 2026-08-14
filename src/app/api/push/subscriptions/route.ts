@@ -64,32 +64,36 @@ export async function POST(request: Request) {
       );
     }
     const admin = requirePushAdminClient();
-    const row =
-      parsed.data.platform === "ios" || parsed.data.platform === "android"
-        ? {
-            user_id: userId,
-            platform: parsed.data.platform,
-            native_token: parsed.data.token,
-            endpoint: `native:${parsed.data.platform}:${parsed.data.token}`,
-            p256dh: null,
-            auth: null,
-            user_agent: request.headers.get("user-agent")?.slice(0, 1000) ?? null,
-            updated_at: new Date().toISOString(),
-          }
-        : {
-            user_id: userId,
-            platform: "web" as const,
-            native_token: null,
-            endpoint: parsed.data.endpoint,
-            p256dh: parsed.data.keys.p256dh,
-            auth: parsed.data.keys.auth,
-            user_agent: request.headers.get("user-agent")?.slice(0, 1000) ?? null,
-            updated_at: new Date().toISOString(),
-          };
-    const { error } = await admin.from("push_subscriptions").upsert(
-      row,
-      { onConflict: "endpoint" }
-    );
+    const userAgent = request.headers.get("user-agent")?.slice(0, 1000) ?? null;
+    const updatedAt = new Date().toISOString();
+    const { error } =
+      "token" in parsed.data
+        ? await admin.from("push_subscriptions").upsert(
+            {
+              user_id: userId,
+              platform: parsed.data.platform,
+              native_token: parsed.data.token,
+              endpoint: `native:${parsed.data.platform}:${parsed.data.token}`,
+              p256dh: null,
+              auth: null,
+              user_agent: userAgent,
+              updated_at: updatedAt,
+            },
+            { onConflict: "endpoint" }
+          )
+        : await admin.from("push_subscriptions").upsert(
+            {
+              user_id: userId,
+              platform: "web",
+              native_token: null,
+              endpoint: parsed.data.endpoint,
+              p256dh: parsed.data.keys.p256dh,
+              auth: parsed.data.keys.auth,
+              user_agent: userAgent,
+              updated_at: updatedAt,
+            },
+            { onConflict: "endpoint" }
+          );
 
     if (error) {
       console.error("Failed to save push subscription:", error);
