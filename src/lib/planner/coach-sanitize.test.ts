@@ -339,7 +339,7 @@ describe("sanitizeCoachTurn", () => {
       "Which existing Ice cream recipe session should move to 2026-08-26?"
     );
     expect(result.warnings).toContain(
-      "Ignored session move because the session reference for Ice cream recipe did not resolve."
+      "Ignored session move because no scheduled Ice cream recipe session matched the provided reference."
     );
   });
 
@@ -384,5 +384,38 @@ describe("sanitizeCoachTurn", () => {
       },
     ]);
     expect(result.warnings).toEqual([]);
+  });
+
+  it("warns clearly when a provided sessionRef is missing from roster", () => {
+    const goalA = goal();
+    const result = sanitizeCoachTurn({
+      goalsById: new Map([[goalA.id, goalA]]),
+      sessionRoster: [],
+      raw: {
+        schemaVersion: "1",
+        phase: "review",
+        reply: "I need one clarification.",
+        proposal: {
+          calendarIntent: {
+            action: "apply",
+            sessionMoves: [
+              {
+                sessionRef: "s404",
+                scheduledDate: "2026-09-01",
+              },
+            ],
+          },
+          unresolvedQuestions: [],
+        },
+      },
+    });
+
+    expect(result.proposal.policyPatches).toEqual([]);
+    expect(result.warnings).toContain(
+      'Ignored session move because sessionRef "s404" is not available in the current calendar window.'
+    );
+    expect(result.proposal.unresolvedQuestions).toContain(
+      "Which listed session should move to 2026-09-01?"
+    );
   });
 });
