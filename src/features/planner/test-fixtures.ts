@@ -1,7 +1,6 @@
 import type {
   PlannerContextPayload,
   PlannerDayDetailEntry,
-  PlannerVisibleMonthContextPayload,
   PlannerWorkUnit,
 } from "@/features/planner/calendar-surface.types";
 import type { PlannerPolicy } from "@/lib/planner/policy";
@@ -137,33 +136,5 @@ export function buildPlannerContext({
       ...(overrides.revisions ?? {}),
     },
     staleness: overrides.staleness ?? base.staleness,
-  };
-}
-
-export function buildPlannerVisibleMonthContext({
-  workUnits = [buildPlannerWorkUnit()],
-  overrides = {},
-}: {
-  workUnits?: PlannerWorkUnit[];
-  overrides?: Partial<PlannerVisibleMonthContextPayload>;
-} = {}): PlannerVisibleMonthContextPayload {
-  const base: PlannerVisibleMonthContextPayload = {
-    scopeMonth: "2026-09",
-    goalTitles: {
-      "goal-1": "Running",
-    },
-    activePlan: null,
-    preview: buildPlannerPreview(workUnits, {
-      preserveExistingAssignments: true,
-      generationInputHash: "visible-hash",
-    }),
-  };
-
-  return {
-    ...base,
-    ...overrides,
-    goalTitles: overrides.goalTitles ?? base.goalTitles,
-    activePlan: overrides.activePlan === undefined ? base.activePlan : overrides.activePlan,
-    preview: overrides.preview === undefined ? base.preview : overrides.preview,
   };
 }

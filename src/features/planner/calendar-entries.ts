@@ -8,11 +8,13 @@ import type {
   PlannerActiveItemSnapshot,
   PlannerCompletionFactMarker,
   PlannerDayDetailEntry,
-  PlannerVisibleMonthContextPayload,
   PlannerWorkUnit,
 } from "@/features/planner/calendar-surface.types";
-import { diffPlannerAssignmentsForDraftVisual } from "@/lib/planner/diff";
-import { draftCommandEntryKey } from "@/lib/planner/draft-commands";
+import { buildPlannerDraftVisualDiff } from "@/lib/planner/diff";
+import {
+  draftCommandEntryKey,
+  type PlannerDraftCommand,
+} from "@/lib/planner/draft-commands";
 import { resolvePlannerEffectiveScheduledTime } from "@/lib/planner/schedule-time";
 
 export function buildActiveGoalIndexes(
@@ -37,27 +39,35 @@ export interface PlannerEntriesByDateProjection {
 }
 
 export function buildEntriesByDateProjection({
-  baselineWorkUnits,
   workUnits,
   activeItems,
   activeGoalsByPlanGoalId,
   activeGoalsByOriginalGoalId,
   goalTitles,
   draftItemEdits,
+  draftCommands = [],
 }: {
-  baselineWorkUnits?: PlannerWorkUnit[];
   workUnits: PlannerWorkUnit[] | undefined;
   activeItems: PlannerActiveItemSnapshot[] | undefined;
   activeGoalsByPlanGoalId: Map<string, PlannerActiveGoalSnapshot>;
   activeGoalsByOriginalGoalId: Map<string, PlannerActiveGoalSnapshot>;
   goalTitles: Record<string, string> | undefined;
   draftItemEdits: Record<string, DraftItemEdit>;
+  draftCommands?: readonly PlannerDraftCommand[];
 }) {
   const byDate = new Map<string, Map<string, PlannerDayDetailEntry>>();
   const entryByKey = new Map<string, PlannerDayDetailEntry>();
   const entryDayByKey = new Map<string, string>();
   const unitByEntryKey = new Map<string, PlannerWorkUnit>();
   const activeItemByEntryKey = new Map<string, PlannerActiveItemSnapshot>();
+  const persistedEntryKeys = new Set(
+    (activeItems ?? []).map((item) => {
+      const activeGoal = activeGoalsByPlanGoalId.get(item.plan_goal_id);
+      return `${
+        activeGoal?.original_goal_id ?? item.plan_goal_id
+      }:${item.unit_key}`;
+    })
+  );
 
   const setEntryOnDay = (day: string, key: string, entry: PlannerDayDetailEntry) => {
     const existingDay = entryDayByKey.get(key);
@@ -132,7 +142,7 @@ export function buildEntriesByDateProjection({
   for (const unit of workUnits ?? []) {
     const key = `${unit.originalGoalId}:${unit.unitKey}`;
     unitByEntryKey.set(key, unit);
-    if (!unit.scheduledDate) {
+    if (!unit.scheduledDate || !persistedEntryKeys.has(key)) {
       continue;
     }
     setEntryOnDay(unit.scheduledDate, key, {
@@ -277,27 +287,7 @@ export function buildEntriesByDateProjection({
     });
   }
 
-  const baseAssignments = (baselineWorkUnits ?? workUnits ?? []).map((unit) => ({
-    goalId: unit.originalGoalId,
-    unitKey: unit.unitKey,
-    scheduledDate: unit.scheduledDate,
-  }));
-  const nextAssignments = (workUnits ?? []).map((unit) => {
-    const entryKey = `${unit.originalGoalId}:${unit.unitKey}`;
-    const draftEdit = draftItemEdits[entryKey];
-    return {
-      goalId: unit.originalGoalId,
-      unitKey: unit.unitKey,
-      scheduledDate:
-        draftEdit?.scheduledDate === undefined
-          ? unit.scheduledDate
-          : draftEdit.scheduledDate ?? null,
-    };
-  });
-  const draftDiff = diffPlannerAssignmentsForDraftVisual({
-    baseAssignments,
-    nextAssignments,
-  });
+  const draftDiff = buildPlannerDraftVisualDiff(draftCommands);
 
   for (const diffEntry of draftDiff) {
     const entryKey = `${diffEntry.goalId}:${diffEntry.unitKey}`;
@@ -377,26 +367,6 @@ export function buildEntriesByDate(
   return buildEntriesByDateProjection(args).entriesByDate;
 }
 
-export function buildScopeOwnedEntryKeys(workUnits: PlannerWorkUnit[] | undefined) {
-  const map = new Set<string>();
-  for (const unit of workUnits ?? []) {
-    map.add(
-      draftCommandEntryKey({
-        goalId: unit.originalGoalId,
-        unitKey: unit.unitKey,
-      })
-    );
-  }
-  return map;
-}
-
-function completionFactIdentityKey(marker: {
-  originalGoalId: string;
-  unitKey: string;
-}) {
-  return `${marker.originalGoalId}:${marker.unitKey}`;
-}
-
 export function buildPreviewUnitByEntryKey(workUnits: PlannerWorkUnit[] | undefined) {
   const map = new Map<string, PlannerWorkUnit>();
   for (const unit of workUnits ?? []) {
@@ -407,18 +377,6 @@ export function buildPreviewUnitByEntryKey(workUnits: PlannerWorkUnit[] | undefi
       }),
       unit
     );
-  }
-  return map;
-}
-
-export function buildCompletionFactMarkerDayByIdentity(
-  completionFactMarkersByDate: Map<string, PlannerCompletionFactMarker[]>
-) {
-  const map = new Map<string, string>();
-  for (const [day, markers] of completionFactMarkersByDate.entries()) {
-    for (const marker of markers) {
-      map.set(completionFactIdentityKey(marker), day);
-    }
   }
   return map;
 }
@@ -478,65 +436,14 @@ export function buildCompletionFactMarkersByDate({
   return map;
 }
 
-export function buildVisibleMonthCalendarDataByMonth(
-  contextsByMonth: Record<string, PlannerVisibleMonthContextPayload>,
-  draftItemEditsByMonth: Record<string, Record<string, DraftItemEdit>> = {}
-) {
-  const monthDataByMonth = new Map<
-    string,
-    {
-      entriesByDate: Map<string, PlannerDayDetailEntry[]>;
-      completionFactMarkersByDate: Map<string, PlannerCompletionFactMarker[]>;
-    }
-  >();
-  for (const [visibleMonth, visibleMonthContext] of Object.entries(contextsByMonth)) {
-    const visibleMonthGoalIndexes = buildActiveGoalIndexes(
-      visibleMonthContext.activePlan?.goals
-    );
-    const entriesByDate = buildEntriesByDate({
-      baselineWorkUnits: visibleMonthContext.preview?.workUnits,
-      workUnits: visibleMonthContext.preview?.workUnits,
-      activeItems: visibleMonthContext.activePlan?.items,
-      activeGoalsByPlanGoalId: visibleMonthGoalIndexes.byPlanGoalId,
-      activeGoalsByOriginalGoalId: visibleMonthGoalIndexes.byOriginalGoalId,
-      goalTitles: visibleMonthContext.goalTitles,
-      draftItemEdits: draftItemEditsByMonth[visibleMonth] ?? {},
-    });
-    const completionFactMarkersByDate = buildCompletionFactMarkersByDate({
-      workUnits: visibleMonthContext.preview?.workUnits,
-      activeGoalsByOriginalGoalId: visibleMonthGoalIndexes.byOriginalGoalId,
-      goalTitles: visibleMonthContext.goalTitles,
-    });
-    monthDataByMonth.set(visibleMonth, {
-      entriesByDate,
-      completionFactMarkersByDate,
-    });
-  }
-  return monthDataByMonth;
-}
-
 export function resolveCalendarDayData({
   day,
   entriesByDate,
-  scopeOwnedEntryKeys,
-  entryDayByKey,
   completionFactMarkersByDate,
-  completionFactMarkerDayByIdentity,
-  visibleMonthCalendarDataByMonth,
 }: {
   day: string | null;
   entriesByDate: Map<string, PlannerDayDetailEntry[]>;
-  scopeOwnedEntryKeys: ReadonlySet<string>;
-  entryDayByKey: Map<string, string>;
   completionFactMarkersByDate: Map<string, PlannerCompletionFactMarker[]>;
-  completionFactMarkerDayByIdentity?: Map<string, string>;
-  visibleMonthCalendarDataByMonth: Map<
-    string,
-    {
-      entriesByDate: Map<string, PlannerDayDetailEntry[]>;
-      completionFactMarkersByDate: Map<string, PlannerCompletionFactMarker[]>;
-    }
-  >;
 }) {
   if (!day) {
     return {
@@ -544,44 +451,9 @@ export function resolveCalendarDayData({
       completionFactMarkers: [] as PlannerCompletionFactMarker[],
     };
   }
-  const currentEntries = entriesByDate.get(day) ?? [];
-  const currentCompletionFactMarkers = completionFactMarkersByDate.get(day) ?? [];
-  const canonicalCompletionFactMarkerDayByIdentity =
-    completionFactMarkerDayByIdentity ??
-    buildCompletionFactMarkerDayByIdentity(completionFactMarkersByDate);
-  const visibleMonthData = visibleMonthCalendarDataByMonth.get(day.slice(0, 7));
-  const supplementalEntries = visibleMonthData?.entriesByDate.get(day) ?? [];
-  const supplementalCompletionFactMarkers =
-    visibleMonthData?.completionFactMarkersByDate.get(day) ?? [];
-  const mergedEntriesByKey = new Map(
-    currentEntries.map((entry) => [entry.key, entry])
-  );
-  for (const entry of supplementalEntries) {
-    const canonicalDay = entryDayByKey.get(entry.key) ?? null;
-    if (scopeOwnedEntryKeys.has(entry.key) && canonicalDay !== day) {
-      continue;
-    }
-    if (!mergedEntriesByKey.has(entry.key)) {
-      mergedEntriesByKey.set(entry.key, entry);
-    }
-  }
-  const mergedCompletionFactMarkersByKey = new Map(
-    currentCompletionFactMarkers.map((marker) => [marker.key, marker])
-  );
-  for (const marker of supplementalCompletionFactMarkers) {
-    const markerIdentityKey = completionFactIdentityKey(marker);
-    const canonicalMarkerDay =
-      canonicalCompletionFactMarkerDayByIdentity.get(markerIdentityKey) ?? null;
-    if (scopeOwnedEntryKeys.has(markerIdentityKey) && canonicalMarkerDay !== day) {
-      continue;
-    }
-    if (!mergedCompletionFactMarkersByKey.has(marker.key)) {
-      mergedCompletionFactMarkersByKey.set(marker.key, marker);
-    }
-  }
   return {
-    entries: Array.from(mergedEntriesByKey.values()),
-    completionFactMarkers: Array.from(mergedCompletionFactMarkersByKey.values()),
+    entries: entriesByDate.get(day) ?? [],
+    completionFactMarkers: completionFactMarkersByDate.get(day) ?? [],
   };
 }
 

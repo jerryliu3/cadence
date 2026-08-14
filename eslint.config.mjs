@@ -14,6 +14,8 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     // Local worktrees created during stacked-PR workflows.
     ".worktrees/**",
+    // Generated Playwright HTML trace assets.
+    "playwright-report/**",
   ]),
 ]);
 
