@@ -74,6 +74,9 @@ jobs:
       - name: Typecheck mobile app
         run: pnpm --filter @cadence/mobile typecheck
 
+      - name: Run mobile unit tests
+        run: pnpm --filter @cadence/mobile test
+
   verify-pr-db:
     name: verify-pr-db
     runs-on: ubuntu-latest
