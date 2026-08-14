@@ -107,6 +107,7 @@ const serverEnvSchema = publicEnvSchema.extend({
   PLANNER_TELEMETRY_HMAC_KEY: optionalNonEmptyString,
   PLANNER_TELEMETRY_HMAC_KEY_VERSION: optionalNonEmptyString,
   CALENDAR_TELEMETRY_COHORT: optionalNonEmptyString,
+  CALENDAR_FEED_HMAC_KEY: optionalNonEmptyString,
 });
 
 export type PublicEnv = z.infer<typeof publicEnvSchema>;
@@ -164,6 +165,7 @@ function readServerEnvInput() {
     PLANNER_TELEMETRY_HMAC_KEY_VERSION:
       process.env.PLANNER_TELEMETRY_HMAC_KEY_VERSION,
     CALENDAR_TELEMETRY_COHORT: process.env.CALENDAR_TELEMETRY_COHORT,
+    CALENDAR_FEED_HMAC_KEY: process.env.CALENDAR_FEED_HMAC_KEY,
   };
 }
 
