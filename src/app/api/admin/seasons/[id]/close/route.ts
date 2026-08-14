@@ -33,7 +33,7 @@ function mapSeasonCloseError(error: DbMutationError) {
 }
 
 export async function POST(
-  _request: Request,
+  request: Request,
   context: { params: Promise<{ id: string }> | { id: string } }
 ) {
   const correlationId = createCorrelationId();

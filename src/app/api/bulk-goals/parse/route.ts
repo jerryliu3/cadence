@@ -224,7 +224,9 @@ function shouldRetryWithoutResponseSchema(error: GeminiRequestError) {
   return INVALID_ARGUMENT_PROVIDER_RE.test(error.message);
 }
 
-async function readCategoryCatalog(supabase: Awaited<ReturnType<typeof createClient>>) {
+async function readCategoryCatalog(
+  supabase: Awaited<ReturnType<typeof requireAuthenticatedRequestContext>>["supabase"]
+) {
   const fallback = DEFAULT_GOAL_CATEGORIES;
   const { data, error } = await supabase
     .from("goal_categories")
