@@ -175,6 +175,7 @@ describe("positional draft moves are kernel-owned", () => {
             goalId: GOAL_ID,
             unitKey: "total:1",
             scheduledDate: "2026-08-20",
+            sourceDate: "2026-08-01",
           },
         ],
       })
@@ -198,6 +199,7 @@ describe("positional draft moves are kernel-owned", () => {
           goalId: GOAL_ID,
           unitKey: "total:1",
           scheduledDate: "2026-08-20",
+          sourceDate: "2026-08-01",
         },
       ],
     });

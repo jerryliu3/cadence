@@ -23,6 +23,7 @@ const moveItemCommandSchema = itemDraftCommandBaseSchema
   .extend({
     kind: z.literal("move_item"),
     scheduledDate: z.iso.date().nullable(),
+    sourceDate: z.iso.date(),
   })
   .strict();
 
@@ -80,6 +81,7 @@ function commandPayloadTiebreak(command: PlannerDraftCommand) {
         goalId: command.goalId,
         unitKey: command.unitKey,
         scheduledDate: command.scheduledDate,
+        sourceDate: command.sourceDate,
       });
     case "rename_item":
       return canonicalHash({
