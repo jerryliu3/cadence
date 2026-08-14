@@ -86,6 +86,7 @@ export function createMobileDuoTelemetry({ sink, random }: MobileDuoTelemetryOpt
       surface: DuoTelemetrySurface;
       code?: string;
       status?: number;
+      postgrestCode?: string;
       stalePartner?: boolean;
     }
   ) => {
@@ -131,6 +132,7 @@ export function reportMobileDuoPartnerFetchFailure(
     surface: DuoTelemetrySurface;
     code?: string;
     status?: number;
+    postgrestCode?: string;
     stalePartner?: boolean;
   }
 ) {
@@ -140,15 +142,23 @@ export function reportMobileDuoPartnerFetchFailure(
 export function extractMobileDuoPartnerFailureContext(error: unknown): {
   code?: string;
   status?: number;
+  postgrestCode?: string;
   stalePartner: boolean;
 } {
-  if (!isApiClientError(error)) {
-    return { stalePartner: false };
+  if (isApiClientError(error)) {
+    return {
+      code: error.code,
+      status: error.status,
+      stalePartner: error.code === "not_team_partner",
+    };
   }
+  const postgrestCode =
+    error && typeof error === "object" && typeof (error as { code?: unknown }).code === "string"
+      ? (error as { code: string }).code
+      : undefined;
   return {
-    code: error.code,
-    status: error.status,
-    stalePartner: error.code === "not_team_partner",
+    postgrestCode,
+    stalePartner: false,
   };
 }
 

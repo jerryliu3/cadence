@@ -1,10 +1,15 @@
 import { buildProgressContextQuery } from "@cadence/shared/goals/progress-context";
 import { progressSubjectUserId } from "@cadence/shared/goals/visible-goals";
 import type { PlannerCompletionFactMarker } from "@cadence/shared/planner/context";
-import { monthGridFactsBounds } from "@cadence/shared/planner/partner-completion";
+import type { ProgressContextFact } from "@cadence/shared/goals/progress-context";
+import {
+  buildPartnerCompletionMarkersByDate,
+  monthGridFactsBounds,
+} from "@cadence/shared/planner/partner-completion";
 import type { DuoScope } from "@cadence/shared/social/duo";
+import { buildMobileCalendarOverlayQueryKey } from "../duo/query-keys";
 
-export const EMPTY_CALENDAR_MARKERS_BY_DATE = new Map<
+const EMPTY_CALENDAR_MARKERS_BY_DATE = new Map<
   string,
   PlannerCompletionFactMarker[]
 >();
@@ -13,6 +18,91 @@ export interface CalendarOverlayPayload {
   partnerId: string;
   month: string;
   markersByDate: Map<string, PlannerCompletionFactMarker[]>;
+}
+
+export interface CalendarPartnerGoalTitleRow {
+  id: string;
+  owner_id: string;
+  title: string;
+}
+
+export function buildCalendarOverlayQueryModel({
+  viewerUserId,
+  enabled,
+  partnerId,
+  month,
+  asOfDate,
+  timezone,
+}: {
+  viewerUserId: string | null;
+  enabled: boolean;
+  partnerId: string | null;
+  month: string;
+  asOfDate: string;
+  timezone: string;
+}) {
+  const progressParams = partnerId
+    ? buildCalendarPartnerProgressQuery({
+        month,
+        asOfDate,
+        timezone,
+        partnerId,
+      })
+    : null;
+
+  return {
+    queryKey: buildMobileCalendarOverlayQueryKey({
+      viewerUserId,
+      partnerUserId: partnerId,
+      month,
+      asOfDate,
+      timezone,
+    }),
+    progressParams,
+    queryEnabled:
+      Boolean(viewerUserId) && enabled && Boolean(partnerId) && Boolean(progressParams),
+  };
+}
+
+export function buildCalendarPartnerTitleMap({
+  rows,
+  partnerId,
+}: {
+  rows: CalendarPartnerGoalTitleRow[];
+  partnerId: string;
+}) {
+  const titleMap: Record<string, string> = {};
+  for (const row of rows) {
+    // Defense in depth: only map partner-owned rows even if upstream filters drift.
+    if (row.owner_id === partnerId) {
+      titleMap[row.id] = row.title;
+    }
+  }
+  return titleMap;
+}
+
+export function buildCalendarPartnerOverlayPayload({
+  partnerId,
+  month,
+  facts,
+  goalRows,
+}: {
+  partnerId: string;
+  month: string;
+  facts: ProgressContextFact[];
+  goalRows: CalendarPartnerGoalTitleRow[];
+}): CalendarOverlayPayload {
+  return {
+    partnerId,
+    month,
+    markersByDate: buildPartnerCompletionMarkersByDate({
+      facts,
+      titles: buildCalendarPartnerTitleMap({
+        rows: goalRows,
+        partnerId,
+      }),
+    }),
+  };
 }
 
 export function buildCalendarPartnerProgressQuery({
@@ -45,14 +135,12 @@ export function buildCalendarPartnerProgressQuery({
 export function resolveCalendarReadOnlyState(scope: DuoScope) {
   if (scope !== "partner") {
     return {
-      readOnly: false,
       showViewerSessions: true,
       allowMutations: true,
       banner: null,
     };
   }
   return {
-    readOnly: true,
     showViewerSessions: false,
     allowMutations: false,
     banner: "Partner completions (read-only)",
@@ -60,7 +148,50 @@ export function resolveCalendarReadOnlyState(scope: DuoScope) {
 }
 
 export function buildPartnerMarkerAccessibilityLabel(goalTitle: string) {
-  return `${goalTitle}. Partner marked it done.`;
+  return `${goalTitle}. Partner marked this done.`;
+}
+
+export function buildCalendarMonthMarkerModel({
+  markers,
+  maxVisible = 2,
+}: {
+  markers: PlannerCompletionFactMarker[];
+  maxVisible?: number;
+}) {
+  const visible = markers.slice(0, maxVisible);
+  return {
+    visibleMarkers: visible,
+    overflowCount: Math.max(markers.length - visible.length, 0),
+  };
+}
+
+export function buildCalendarMonthCellAccessibilityLabel({
+  day,
+  viewerSessionCount,
+  partnerMarkers,
+  partnerOverflowCount,
+}: {
+  day: string;
+  viewerSessionCount: number;
+  partnerMarkers: PlannerCompletionFactMarker[];
+  partnerOverflowCount: number;
+}) {
+  const sessionLabel = `${viewerSessionCount} viewer session${
+    viewerSessionCount === 1 ? "" : "s"
+  }`;
+  const partnerNames = partnerMarkers.map((marker) => marker.goalTitle);
+  if (partnerNames.length === 0 && partnerOverflowCount === 0) {
+    return `${day}. ${sessionLabel}. No partner completions shown.`;
+  }
+  const overflowLabel =
+    partnerOverflowCount > 0
+      ? ` plus ${partnerOverflowCount} more partner completion${
+          partnerOverflowCount === 1 ? "" : "s"
+        }`
+      : "";
+  return `${day}. ${sessionLabel}. Partner completions: ${partnerNames.join(
+    ", "
+  )}${overflowLabel}.`;
 }
 
 export function resolveCalendarOverlayState({

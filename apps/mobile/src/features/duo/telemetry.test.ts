@@ -7,7 +7,10 @@ vi.mock("../../lib/sentry", () => ({
   captureMobileSentryException: vi.fn(),
 }));
 
-import { createMobileDuoTelemetry } from "./telemetry";
+import {
+  createMobileDuoTelemetry,
+  extractMobileDuoPartnerFailureContext,
+} from "./telemetry";
 
 function createSink() {
   return {
@@ -118,5 +121,17 @@ describe("mobile duo telemetry", () => {
     expect(sink.addBreadcrumb).not.toHaveBeenCalled();
     expect(sink.captureMessage).not.toHaveBeenCalled();
     expect(sink.captureException).not.toHaveBeenCalled();
+  });
+
+  it("extracts postgrest error code for non-api failures", () => {
+    expect(
+      extractMobileDuoPartnerFailureContext({
+        code: "PGRST116",
+        message: "boom",
+      })
+    ).toEqual({
+      postgrestCode: "PGRST116",
+      stalePartner: false,
+    });
   });
 });

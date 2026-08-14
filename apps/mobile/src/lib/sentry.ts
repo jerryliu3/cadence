@@ -3,9 +3,13 @@ import * as Sentry from "@sentry/react-native";
 let mobileSentryEnabled = false;
 let mobileSentryInitialized = false;
 
-function readOptionalEnv(name: "EXPO_PUBLIC_SENTRY_DSN" | "EXPO_PUBLIC_SENTRY_ENVIRONMENT") {
-  const raw = process.env[name];
-  const value = typeof raw === "string" ? raw.trim() : "";
+function readOptionalDsnEnv() {
+  const value = process.env.EXPO_PUBLIC_SENTRY_DSN?.trim() ?? "";
+  return value.length > 0 ? value : undefined;
+}
+
+function readOptionalEnvironmentEnv() {
+  const value = process.env.EXPO_PUBLIC_SENTRY_ENVIRONMENT?.trim() ?? "";
   return value.length > 0 ? value : undefined;
 }
 
@@ -15,7 +19,7 @@ export function initMobileSentry() {
   }
   mobileSentryInitialized = true;
 
-  const dsn = readOptionalEnv("EXPO_PUBLIC_SENTRY_DSN");
+  const dsn = readOptionalDsnEnv();
   if (!dsn) {
     mobileSentryEnabled = false;
     return;
@@ -23,7 +27,7 @@ export function initMobileSentry() {
 
   Sentry.init({
     dsn,
-    environment: readOptionalEnv("EXPO_PUBLIC_SENTRY_ENVIRONMENT"),
+    environment: readOptionalEnvironmentEnv(),
   });
   mobileSentryEnabled = true;
 }
