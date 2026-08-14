@@ -10,14 +10,6 @@ function addMonths(month: string, count: number) {
   return result;
 }
 
-export function resolvePreparationHorizonWindow(asOfDate: string) {
-  const firstMonth = asOfDate.slice(0, 7);
-  const start = getScopeDateRange(firstMonth).start;
-  const lastMonth = addMonths(firstMonth, MAX_HORIZON_MONTHS - 1);
-  const end = getScopeDateRange(lastMonth).end;
-  return { start, end };
-}
-
 export function buildPreparationWindows(asOfDate: string) {
   const firstMonth = asOfDate.slice(0, 7);
   const windows: Array<{ start: string; end: string }> = [];
