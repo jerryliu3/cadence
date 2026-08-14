@@ -21,6 +21,7 @@ const paramsSchema = z.object({ id: z.uuid() });
 
 const patchSchema = z
   .object({
+    slug: z.string().trim().min(2).max(63).regex(/^[a-z0-9][a-z0-9_-]{1,62}$/).optional(),
     title: z.string().trim().min(1).max(120).optional(),
     description: z.string().trim().max(2000).nullable().optional(),
     status: z.enum(["draft", "scheduled", "active", "closed", "archived"]).optional(),
@@ -64,6 +65,7 @@ const patchSchema = z
   });
 
 const immutableWhenActive = new Set([
+  "slug",
   "subjectKind",
   "metric",
   "metricTrackKey",
@@ -169,6 +171,7 @@ export async function PATCH(
     }
 
     const updates: Database["public"]["Tables"]["challenges"]["Update"] = {};
+    if (body.slug !== undefined) updates.slug = body.slug;
     if (body.title !== undefined) updates.title = body.title;
     if (body.description !== undefined) updates.description = body.description;
     if (body.status !== undefined) updates.status = body.status;
