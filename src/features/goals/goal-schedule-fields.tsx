@@ -5,6 +5,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { getGoalHorizonEndDate } from "@/lib/goals/definition-validation";
 
+const GOAL_DATE_INPUT_CLASS =
+  "h-8 min-h-8 w-full min-w-0 py-0 text-sm leading-none [&::-webkit-calendar-picker-indicator]:size-3.5 [&::-webkit-datetime-edit]:p-0";
+
 interface GoalDateRangeFieldsProps {
   startDate: string;
   endDate: string;
@@ -43,7 +46,7 @@ export function GoalDateRangeFields({
           value={startDate}
           onChange={(event) => onStartDateChange(event.target.value)}
           required
-          className="h-9 min-w-0"
+          className={GOAL_DATE_INPUT_CLASS}
         />
         {startDateActions ? (
           <div className="flex flex-wrap items-center gap-2 text-xs">{startDateActions}</div>
@@ -60,7 +63,7 @@ export function GoalDateRangeFields({
           max={maxEndDate}
           onChange={(event) => onEndDateChange(event.target.value)}
           required={requiresEndDate}
-          className="h-9 min-w-0"
+          className={GOAL_DATE_INPUT_CLASS}
         />
         {endDateActions ? (
           <div className="flex flex-wrap items-center gap-2 text-xs">{endDateActions}</div>
