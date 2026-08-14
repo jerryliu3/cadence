@@ -2135,6 +2135,15 @@ export type Database = {
         Args: { p_date?: string; p_goal_id: string }
         Returns: undefined
       }
+      prepare_planner_schedule: {
+        Args: { p_expected_digest: string; p_items: Json; p_windows: Json }
+        Returns: {
+          deleted_count: number
+          replayed: boolean
+          schedule_digest: string
+          upserted_count: number
+        }[]
+      }
       recompute_goal_xp_service: {
         Args: { p_force_zero?: boolean; p_goal_id: string; p_user_id: string }
         Returns: number
