@@ -45,6 +45,10 @@ vi.mock("../../lib/runtime-config", () => ({
   }),
 }));
 
+vi.mock("./telemetry", () => ({
+  reportMobileDuoTelemetry: vi.fn(),
+}));
+
 function buildTeamResponse(mode: (typeof state)["teamMode"]): SocialTeamStateResponse {
   if (mode === "ready-active") {
     return {

@@ -22,6 +22,7 @@ import { useTheme } from "../../theme";
 import { PrimaryButton } from "../../ui/button";
 import { LoadingScreen, Screen } from "../../ui/screen";
 import { CoachPanel } from "./CoachPanel";
+import { CalendarPartnerReadOnlySection } from "./CalendarPartnerReadOnlySection";
 import { useDuo, useDuoSurfaceScope } from "../duo/DuoProvider";
 import { DuoScopeSegmentedControl } from "../duo/DuoScopeSegmentedControl";
 import { useReportMobileDuoScopeViewed } from "../duo/telemetry";
@@ -278,7 +279,7 @@ export function CalendarScreen() {
           setOrderByDay({});
         }}
       />
-      {readOnlyState.banner ? (
+      {readOnlyState.banner && (readOnlyState.allowMutations || viewMode === "month") ? (
         <View
           style={[
             styles.readOnlyBanner,
@@ -315,6 +316,11 @@ export function CalendarScreen() {
       </View>
       {partnerOverlay.error ? (
         <Text style={{ color: theme.colors.mutedForeground }}>{partnerOverlay.error}</Text>
+      ) : null}
+      {!readOnlyState.allowMutations && viewMode === "month" && partnerOverlay.loading ? (
+        <Text style={{ color: theme.colors.mutedForeground }}>
+          Loading partner completions...
+        </Text>
       ) : null}
       {viewMode === "month" ? (
         <View style={styles.grid}>
@@ -399,6 +405,12 @@ export function CalendarScreen() {
             );
           })}
         </View>
+      ) : !readOnlyState.allowMutations ? (
+        <CalendarPartnerReadOnlySection
+          visibleDays={visibleDays}
+          markersByDate={partnerOverlay.markersByDate}
+          loading={partnerOverlay.loading}
+        />
       ) : (
         visibleDays.map((visibleDay) => (
           <MeasureableDay

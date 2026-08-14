@@ -13,6 +13,7 @@ import {
   buildCalendarPartnerOverlayPayload,
   buildCalendarOverlayQueryModel,
   resolveCalendarOverlayState,
+  sanitizeCalendarPartnerTitleQueryFailure,
   type CalendarPartnerGoalTitleRow,
   type CalendarOverlayPayload,
 } from "./calendar-duo";
@@ -65,7 +66,7 @@ export function useCalendarPartnerOverlay({
           .eq("owner_id", partnerId),
       ]);
       if (goalsResponse.error) {
-        throw goalsResponse.error;
+        throw sanitizeCalendarPartnerTitleQueryFailure(goalsResponse.error);
       }
       return buildCalendarPartnerOverlayPayload({
         partnerId,
@@ -101,5 +102,6 @@ export function useCalendarPartnerOverlay({
       loading: query.isLoading,
       error: query.error,
     }),
+    loading: query.isLoading,
   };
 }
