@@ -17,15 +17,15 @@ interface SavePlanDraftCommand {
   goalId?: string;
   unitKey?: string;
   scheduledDate?: string | null;
+  sourceDate?: string;
 }
 
 interface SavePlanResult {
   requestPayload: {
     expectedDigest?: string;
-    scopes?: Array<{
-      scopeMonth?: string;
-      draftCommands?: SavePlanDraftCommand[];
-    }>;
+    startDate?: string;
+    endDate?: string;
+    draftCommands?: SavePlanDraftCommand[];
   };
   responseStatus: number;
   responseBody: {
@@ -37,9 +37,7 @@ interface SavePlanResult {
 function collectSaveDraftCommands(
   requestPayload: SavePlanResult["requestPayload"]
 ): SavePlanDraftCommand[] {
-  return (requestPayload.scopes ?? []).flatMap(
-    (scope) => scope.draftCommands ?? []
-  );
+  return requestPayload.draftCommands ?? [];
 }
 
 const COMPLETION_TOGGLE_SELECTOR = [
@@ -512,8 +510,10 @@ test.describe("planner critical rails", () => {
     }
 
     const requestPayload = attempt.saveResult.requestPayload;
-    expect(Array.isArray(requestPayload.scopes)).toBe(true);
-    expect((requestPayload.scopes ?? []).length).toBeGreaterThan(0);
+    expect(typeof requestPayload.startDate).toBe("string");
+    expect(typeof requestPayload.endDate).toBe("string");
+    expect(Array.isArray(requestPayload.draftCommands)).toBe(true);
+    expect((requestPayload.draftCommands ?? []).length).toBeGreaterThan(0);
     const moveCommands = collectMoveCommands(requestPayload);
     expect(moveCommands).toHaveLength(1);
     const moveCommand = moveCommands[0];

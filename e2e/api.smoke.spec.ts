@@ -375,13 +375,14 @@ test("targeted recurring bridge mutates only the requested date", async ({
   });
 });
 
-test("planner save publishes multiple scope months in one request", async ({
+test("planner save publishes a multi-month date window in one request", async ({
   page,
 }) => {
   await page.goto("/");
   const result = await page.evaluate(async () => {
     type Ctx = {
       asOfDate: string;
+      timezone: string;
       revisions: { scheduleDigest: string };
       preview: {
         generationInputHash: string;
@@ -390,11 +391,19 @@ test("planner save publishes multiple scope months in one request", async ({
         solver: { publishable: boolean; confirmationRequired: boolean };
       } | null;
     };
+    type PreviewBody = {
+      preview: Ctx["preview"];
+    };
     const loadContext = async (scopeMonth: string) => {
       const response = await fetch(
         `/api/planner/context?scopeMonth=${scopeMonth}`
       );
       return { status: response.status, body: (await response.json()) as Ctx };
+    };
+    const monthEnd = (month: string) => {
+      const year = Number(month.slice(0, 4));
+      const monthNumber = Number(month.slice(5, 7));
+      return new Date(Date.UTC(year, monthNumber, 0)).toISOString().slice(0, 10);
     };
     const addMonth = (month: string) => {
       const year = Number(month.slice(0, 4));
@@ -402,80 +411,109 @@ test("planner save publishes multiple scope months in one request", async ({
       const rolled = index === 12;
       return `${rolled ? year + 1 : year}-${String(rolled ? 1 : index + 1).padStart(2, "0")}`;
     };
+    const loadWindowPreview = async ({
+      startDate,
+      endDate,
+      timezone,
+    }: {
+      startDate: string;
+      endDate: string;
+      timezone: string;
+    }) => {
+      const response = await fetch("/api/planner/context", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          startDate,
+          endDate,
+          timezone,
+          source: "manual",
+          solveIntent: "stable",
+          draftCommands: [],
+        }),
+      });
+      return {
+        status: response.status,
+        body: (await response.json()) as PreviewBody,
+      };
+    };
 
-    // Anchor both scopes on the server's as-of date so the month pair matches
-    // the planner timezone rather than the runner's local zone.
     const localMonth = new Date().toISOString().slice(0, 7);
     const anchor = await loadContext(localMonth);
     const scopeMonthA = anchor.body.asOfDate.slice(0, 7);
     const scopeMonthB = addMonth(scopeMonthA);
+    const startDate = `${scopeMonthA}-01`;
+    const endDate = monthEnd(scopeMonthB);
+    const timezone = anchor.body.timezone;
 
-    // A stable preview hash across two identical reads is what makes publish
-    // possible at all: the save route rejects a mismatched hash. It is only
-    // stable because the seeded profile has `timezone_confirmed_at` set --
-    // without it the planner policy is synthesized from the current clock on
-    // every request.
-    const firstA = await loadContext(scopeMonthA);
-    const secondA = await loadContext(scopeMonthA);
-    const hashStable =
-      firstA.body.preview?.generationInputHash ===
-      secondA.body.preview?.generationInputHash;
-
-    const contextB = await loadContext(scopeMonthB);
-    const toScope = (scopeMonth: string, context: Ctx) => ({
-      scopeMonth,
-      previewHash: context.preview!.generationInputHash,
-      confirmationHash: null,
-      eligibilityMode: context.preview!.eligibilityMode,
-      preserveExistingAssignments: context.preview!.preserveExistingAssignments,
-      draftCommands: [],
+    const firstPreview = await loadWindowPreview({
+      startDate,
+      endDate,
+      timezone,
     });
+    const secondPreview = await loadWindowPreview({
+      startDate,
+      endDate,
+      timezone,
+    });
+    const hashStable =
+      firstPreview.body.preview?.generationInputHash ===
+      secondPreview.body.preview?.generationInputHash;
 
     type SaveBody = {
-      publishedScopes?: string[];
+      publishedWindow?: { startDate: string; endDate: string };
       upsertedCount?: number;
       replayed?: boolean;
     };
-    const publish = async (a: Ctx, b: Ctx) => {
+    const publish = async (digest: string, preview: NonNullable<Ctx["preview"]>) => {
       const response = await fetch("/api/planner/save", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          expectedDigest: a.revisions.scheduleDigest,
-          scopes: [toScope(scopeMonthA, a), toScope(scopeMonthB, b)],
+          expectedDigest: digest,
+          startDate,
+          endDate,
+          previewHash: preview.generationInputHash,
+          confirmationHash: null,
+          eligibilityMode: preview.eligibilityMode,
+          preserveExistingAssignments: preview.preserveExistingAssignments,
+          draftCommands: [],
         }),
       });
       return { status: response.status, body: (await response.json()) as SaveBody };
     };
 
-    const firstSave = await publish(secondA.body, contextB.body);
+    const digestBeforeFirst = (await loadContext(scopeMonthA)).body.revisions
+      .scheduleDigest;
+    const firstSave = await publish(
+      digestBeforeFirst,
+      secondPreview.body.preview!
+    );
     const digestAfterFirst = (await loadContext(scopeMonthA)).body.revisions
       .scheduleDigest;
 
-    // Re-derive both scopes from the freshly published state and publish again.
-    // The payload now matches stored rows exactly, so the batch must take its
-    // all-replay short-circuit: upsert nothing, leave the digest alone, and
-    // still succeed rather than raising `stale_schedule`.
-    const republishA = await loadContext(scopeMonthA);
-    const republishB = await loadContext(scopeMonthB);
-    const secondSave = await publish(republishA.body, republishB.body);
+    const republishPreview = await loadWindowPreview({
+      startDate,
+      endDate,
+      timezone,
+    });
+    const secondSave = await publish(
+      digestAfterFirst,
+      republishPreview.body.preview!
+    );
     const digestAfterSecond = (await loadContext(scopeMonthA)).body.revisions
       .scheduleDigest;
 
     return {
-      scopeMonthA,
-      scopeMonthB,
+      startDate,
+      endDate,
       hashStable,
       publishable:
-        secondA.body.preview?.solver.publishable === true &&
-        contextB.body.preview?.solver.publishable === true,
+        secondPreview.body.preview?.solver.publishable === true &&
+        republishPreview.body.preview?.solver.publishable === true,
       firstSave,
       secondSave,
-      // A batch that writes moves the owner-wide digest; a batch that replays
-      // must not. Whether the first publish writes depends on what was already
-      // stored, so assert the coupling rather than a fixed count.
-      firstSaveMovedDigest:
-        digestAfterFirst !== secondA.body.revisions.scheduleDigest,
+      firstSaveMovedDigest: digestAfterFirst !== digestBeforeFirst,
       secondSaveMovedDigest: digestAfterSecond !== digestAfterFirst,
     };
   });
@@ -484,19 +522,19 @@ test("planner save publishes multiple scope months in one request", async ({
   expect(result.publishable).toBe(true);
 
   expect(result.firstSave.status).toBe(200);
-  expect(result.firstSave.body.publishedScopes).toEqual([
-    result.scopeMonthA,
-    result.scopeMonthB,
-  ]);
+  expect(result.firstSave.body.publishedWindow).toEqual({
+    startDate: result.startDate,
+    endDate: result.endDate,
+  });
   expect((result.firstSave.body.upsertedCount ?? 0) > 0).toBe(
     result.firstSaveMovedDigest
   );
 
   expect(result.secondSave.status).toBe(200);
-  expect(result.secondSave.body.publishedScopes).toEqual([
-    result.scopeMonthA,
-    result.scopeMonthB,
-  ]);
+  expect(result.secondSave.body.publishedWindow).toEqual({
+    startDate: result.startDate,
+    endDate: result.endDate,
+  });
   expect(result.secondSave.body.upsertedCount).toBe(0);
   expect(result.secondSaveMovedDigest).toBe(false);
 });
