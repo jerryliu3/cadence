@@ -1,4 +1,5 @@
 import type { DuoSurfaceName } from "@cadence/shared/social/duo";
+import { useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useTheme } from "../../theme";
 import { useDuoSurfaceScope } from "./DuoProvider";
@@ -16,6 +17,7 @@ export function DuoScopeSegmentedControl({
 }) {
   const theme = useTheme();
   const { hasActivePartner, scope, setScopePreference } = useDuoSurfaceScope(surface);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   if (!hasActivePartner) {
     return null;
@@ -35,7 +37,13 @@ export function DuoScopeSegmentedControl({
               },
             ]}
             onPress={() => {
-              void setScopePreference(option.value);
+              void setScopePreference(option.value)
+                .then(() => {
+                  setSaveError(null);
+                })
+                .catch(() => {
+                  setSaveError("Could not save scope preference.");
+                });
             }}
           >
             <Text
@@ -51,6 +59,9 @@ export function DuoScopeSegmentedControl({
           </Pressable>
         );
       })}
+      {saveError ? (
+        <Text style={{ color: theme.colors.destructive, fontWeight: "600" }}>{saveError}</Text>
+      ) : null}
     </View>
   );
 }
