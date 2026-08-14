@@ -7,6 +7,7 @@ import { AppQueryProvider } from "../src/lib/query";
 import { NotificationNavigation } from "../src/lib/notification-navigation";
 import { SessionProvider } from "../src/lib/session";
 import { initMobileSentry } from "../src/lib/sentry";
+import { HealthPrivacyIntentHandler } from "../src/features/health/health-privacy-intent-handler";
 
 initMobileSentry();
 
@@ -19,11 +20,13 @@ export default function RootLayout() {
             <SessionProvider>
               <NotificationNavigation />
               <StatusBar style="auto" />
+              <HealthPrivacyIntentHandler />
               <Stack screenOptions={{ headerShown: false }}>
                 <Stack.Screen name="index" />
                 <Stack.Screen name="(auth)" />
                 <Stack.Screen name="(tabs)" />
                 <Stack.Screen name="upgrade" />
+                <Stack.Screen name="privacy" />
                 <Stack.Screen
                   name="goals/new"
                   options={{ presentation: "formSheet", headerShown: true, title: "New goal" }}
