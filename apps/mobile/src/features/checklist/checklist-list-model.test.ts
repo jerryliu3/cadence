@@ -162,6 +162,8 @@ describe("buildChecklistListItems", () => {
       type: "goal_row",
       laneId: "viewer",
       interactive: false,
+      readOnlyReason:
+        "View-only here: only your goals and active-team goals are completable.",
     });
   });
 

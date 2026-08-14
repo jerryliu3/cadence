@@ -7,6 +7,7 @@ export function ChecklistGoalRow({
   category,
   done,
   interactive,
+  readOnlyReason,
   href,
   onToggle,
   toggling = false,
@@ -15,6 +16,7 @@ export function ChecklistGoalRow({
   category: string;
   done: boolean;
   interactive: boolean;
+  readOnlyReason?: string;
   href?: string;
   onToggle: () => void;
   toggling?: boolean;
@@ -63,6 +65,11 @@ export function ChecklistGoalRow({
         <View style={styles.titleWrap}>
           <Text style={{ color: theme.colors.foreground, fontWeight: "600" }}>{title}</Text>
           <Text style={{ color: theme.colors.mutedForeground }}>{category}</Text>
+          {readOnlyReason ? (
+            <Text style={{ color: theme.colors.mutedForeground, fontSize: 12 }}>
+              {readOnlyReason}
+            </Text>
+          ) : null}
         </View>
       )}
     </View>

@@ -38,6 +38,7 @@ export type ChecklistListItem =
       category: string;
       done: boolean;
       interactive: boolean;
+      readOnlyReason?: string;
     };
 
 export function buildChecklistListItems({
@@ -146,6 +147,12 @@ export function buildChecklistListItems({
         category: goal.category,
         done: laneData.completedToday.has(goal.id),
         interactive: laneData.canToggleGoal(goal.id),
+        readOnlyReason:
+          lane.id === "viewer" &&
+          laneData.interactive &&
+          !laneData.canToggleGoal(goal.id)
+            ? "View-only here: only your goals and active-team goals are completable."
+            : undefined,
       });
     }
   }

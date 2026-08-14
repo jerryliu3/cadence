@@ -1,12 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
   CHECKLIST_COMPLETION_ERROR_MESSAGE,
+  MOBILE_CHECKLIST_GOALS_SELECT,
   type MobileGoal,
   buildChecklistProgressQuery,
   countChecklistCompletionsForDate,
   isChecklistLaneInteractive,
   resolveChecklistCompletableGoalIds,
   resolvePartnerChecklistStripState,
+  resolveTeamMembershipIds,
   selectChecklistGoalsForSubject,
 } from "./checklist-lane-data";
 
@@ -221,5 +223,21 @@ describe("checklist lane data helpers", () => {
     expect(CHECKLIST_COMPLETION_ERROR_MESSAGE).toBe(
       "Could not update completion. Try again."
     );
+  });
+
+  it("exports goals projection with team_id for completable gating", () => {
+    expect(MOBILE_CHECKLIST_GOALS_SELECT).toContain("id");
+    expect(MOBILE_CHECKLIST_GOALS_SELECT).toContain("owner_id");
+    expect(MOBILE_CHECKLIST_GOALS_SELECT).toContain("team_id");
+  });
+
+  it("degrades membership lookup failure to empty team ids", () => {
+    expect(resolveTeamMembershipIds({ rows: null, hasError: true })).toEqual([]);
+    expect(
+      resolveTeamMembershipIds({
+        rows: [{ team_id: "team-1" }, { team_id: "team-2" }],
+        hasError: false,
+      })
+    ).toEqual(["team-1", "team-2"]);
   });
 });
