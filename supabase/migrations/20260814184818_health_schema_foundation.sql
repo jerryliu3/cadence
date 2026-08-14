@@ -124,6 +124,10 @@ create table if not exists public.health_activities (
 create unique index if not exists health_activities_provider_native_uidx
   on public.health_activities (user_id, provider, provider_native_id);
 
+-- Per-group canonical uniqueness. PostgreSQL unique indexes allow multiple
+-- NULLs, so ungrouped singletons are unconstrained by design: cumulative
+-- metrics (steps, energy, distance) keep many canonical buckets. Fuzzy
+-- clustering assigns group_id only for workout_duration_minutes duplicates.
 create unique index if not exists health_activities_one_canonical_per_group_uidx
   on public.health_activities (group_id)
   where is_canonical and group_id is not null;
