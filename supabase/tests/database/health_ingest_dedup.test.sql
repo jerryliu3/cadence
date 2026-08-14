@@ -1,7 +1,12 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, private, extensions, pg_catalog;
-select plan(15);
+select plan(19);
+select set_config(
+  'health.today',
+  (pg_catalog.timezone('utc', now()))::date::text,
+  true
+);
 
 insert into auth.users (id, email)
 values
@@ -19,7 +24,7 @@ set timezone = excluded.timezone;
 select has_function(
   'public',
   'ingest_health_activities_service',
-  array['jsonb'],
+  array['jsonb', 'jsonb'],
   'ingest_health_activities_service exists'
 );
 select has_function(
@@ -89,8 +94,8 @@ select is(
           'source_identifier', 'com.apple.health.watch',
           'source_name', 'Apple Watch',
           'metric_key', 'steps',
-          'started_at', '2026-08-14T04:00:00Z',
-          'ended_at', '2026-08-14T04:10:00Z',
+          'started_at', current_setting('health.today') || 'T04:00:00Z',
+          'ended_at', current_setting('health.today') || 'T04:10:00Z',
           'utc_offset_minutes', -240,
           'value_numeric', 1200,
           'unit', 'count'
@@ -101,8 +106,8 @@ select is(
           'source_identifier', 'com.apple.health.phone',
           'source_name', 'iPhone',
           'metric_key', 'steps',
-          'started_at', '2026-08-14T04:01:00Z',
-          'ended_at', '2026-08-14T04:11:00Z',
+          'started_at', current_setting('health.today') || 'T04:01:00Z',
+          'ended_at', current_setting('health.today') || 'T04:11:00Z',
           'utc_offset_minutes', -240,
           'value_numeric', 900,
           'unit', 'count'
@@ -121,7 +126,7 @@ select is(
     where user_id = 'd1111111-1111-4111-8111-111111111111'
       and is_canonical
       and metric_key = 'steps'
-      and local_date = date '2026-08-14'
+      and local_date = current_setting('health.today')::date
   ),
   1,
   'source-priority exclusion keeps one canonical overlapping sample'
@@ -133,7 +138,7 @@ select is(
     from public.health_activities
     where user_id = 'd1111111-1111-4111-8111-111111111111'
       and is_canonical
-      and local_date = date '2026-08-14'
+      and local_date = current_setting('health.today')::date
       and metric_key = 'steps'
   ),
   'watch-steps-1',
@@ -156,7 +161,7 @@ select is(
     select value_numeric::integer
     from public.health_daily_metrics
     where user_id = 'd1111111-1111-4111-8111-111111111111'
-      and local_date = date '2026-08-14'
+      and local_date = current_setting('health.today')::date
       and metric_key = 'steps'
   ),
   1200,
@@ -173,8 +178,8 @@ select is(
           'source_identifier', 'com.apple.health.watch',
           'source_name', 'Apple Watch',
           'metric_key', 'steps',
-          'started_at', '2026-08-14T04:00:00Z',
-          'ended_at', '2026-08-14T04:10:00Z',
+          'started_at', current_setting('health.today') || 'T04:00:00Z',
+          'ended_at', current_setting('health.today') || 'T04:10:00Z',
           'utc_offset_minutes', -240,
           'value_numeric', 1250,
           'unit', 'count'
@@ -204,7 +209,7 @@ select is(
     where provider_native_id = 'watch-steps-1'
       and user_id = 'd1111111-1111-4111-8111-111111111111'
   ),
-  date '2026-08-14',
+  current_setting('health.today')::date,
   'ingest local_date uses per-record offset, not profile timezone'
 );
 
@@ -216,8 +221,8 @@ select public.ingest_health_activities_service(
       'provider_native_id', 'workout-a',
       'source_identifier', 'com.nike.ntc',
       'metric_key', 'workout_duration_minutes',
-      'started_at', '2026-08-14T16:00:00Z',
-      'ended_at', '2026-08-14T16:30:00Z',
+      'started_at', current_setting('health.today') || 'T16:00:00Z',
+      'ended_at', current_setting('health.today') || 'T16:30:00Z',
       'utc_offset_minutes', -240,
       'value_numeric', 30,
       'unit', 'min'
@@ -227,8 +232,8 @@ select public.ingest_health_activities_service(
       'provider_native_id', 'workout-b',
       'source_identifier', 'com.strava',
       'metric_key', 'workout_duration_minutes',
-      'started_at', '2026-08-14T16:02:00Z',
-      'ended_at', '2026-08-14T16:32:00Z',
+      'started_at', current_setting('health.today') || 'T16:02:00Z',
+      'ended_at', current_setting('health.today') || 'T16:32:00Z',
       'utc_offset_minutes', -240,
       'value_numeric', 28,
       'unit', 'min'
@@ -268,7 +273,7 @@ select throws_ok(
           'provider_native_id', 'overflow-' || g.n::text,
           'source_identifier', 'com.apple.health.watch',
           'metric_key', 'steps',
-          'started_at', '2026-08-14T04:00:00Z',
+          'started_at', current_setting('health.today') || 'T04:00:00Z',
           'utc_offset_minutes', -240,
           'value_numeric', 1,
           'unit', 'count'
@@ -280,6 +285,118 @@ select throws_ok(
   '22023',
   'health_sample_batch_too_large',
   'ingest rejects batches larger than 500'
+);
+
+select is(
+  (
+    select (public.ingest_health_activities_service(
+      (
+        select jsonb_agg(jsonb_build_object(
+          'provider', 'apple_healthkit',
+          'provider_native_id', 'steps-bucket-' || g.n::text,
+          'source_identifier', 'com.apple.health.watch',
+          'metric_key', 'distance_meters',
+          'started_at',
+            to_char(
+              (
+                (current_setting('health.today') || 'T12:00:00Z')::timestamptz
+                + (g.n - 1) * interval '15 minutes'
+              ) at time zone 'utc',
+              'YYYY-MM-DD"T"HH24:MI:SS"Z"'
+            ),
+          'ended_at',
+            to_char(
+              (
+                (current_setting('health.today') || 'T12:15:00Z')::timestamptz
+                + (g.n - 1) * interval '15 minutes'
+              ) at time zone 'utc',
+              'YYYY-MM-DD"T"HH24:MI:SS"Z"'
+            ),
+          'utc_offset_minutes', 0,
+          'value_numeric', 150,
+          'unit', 'm'
+        ))
+        from generate_series(1, 5) as g(n)
+      )
+    )->>'ingested_count')::integer
+  ),
+  5,
+  'ingest accepts five contiguous quantity buckets'
+);
+
+select is(
+  (
+    select value_numeric::integer
+    from public.health_daily_metrics
+    where user_id = 'd1111111-1111-4111-8111-111111111111'
+      and local_date = current_setting('health.today')::date
+      and metric_key = 'distance_meters'
+  ),
+  750,
+  'contiguous quantity buckets sum instead of collapsing to one canonical row'
+);
+
+select is(
+  (
+    select (public.ingest_health_activities_service(
+      jsonb_build_array(
+        jsonb_build_object(
+          'provider', 'apple_healthkit',
+          'provider_native_id', 'ancient-steps',
+          'source_identifier', 'com.apple.health.watch',
+          'metric_key', 'steps',
+          'started_at', '2020-01-01T12:00:00Z',
+          'utc_offset_minutes', 0,
+          'value_numeric', 50,
+          'unit', 'count'
+        )
+      )
+    )->>'skipped_count')::integer
+  ),
+  1,
+  'samples older than the ingest envelope are skipped'
+);
+
+select public.ingest_health_activities_service(
+  jsonb_build_array(
+    jsonb_build_object(
+      'provider', 'apple_healthkit',
+      'provider_native_id', 'move-date-1',
+      'source_identifier', 'com.apple.health.watch',
+      'metric_key', 'active_energy_kcal',
+      'started_at', current_setting('health.today') || 'T02:00:00Z',
+      'utc_offset_minutes', -240,
+      'value_numeric', 10,
+      'unit', 'kcal'
+    )
+  )
+);
+
+select public.ingest_health_activities_service(
+  jsonb_build_array(
+    jsonb_build_object(
+      'provider', 'apple_healthkit',
+      'provider_native_id', 'move-date-1',
+      'source_identifier', 'com.apple.health.watch',
+      'metric_key', 'active_energy_kcal',
+      'started_at', current_setting('health.today') || 'T02:00:00Z',
+      'utc_offset_minutes', 0,
+      'value_numeric', 10,
+      'unit', 'kcal'
+    )
+  )
+);
+
+select is(
+  (
+    select count(*)::integer
+    from public.health_daily_metrics
+    where user_id = 'd1111111-1111-4111-8111-111111111111'
+      and metric_key = 'active_energy_kcal'
+      and local_date = current_setting('health.today')::date - 1
+  ),
+  0,
+  'revision that moves local_date recomputes the vacated day'
 );
 
 select * from finish();
