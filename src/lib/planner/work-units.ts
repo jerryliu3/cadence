@@ -67,12 +67,12 @@ export interface PlannerWorkUnit {
   effectiveScheduledAtLocal?: string | null;
 }
 
-export function isCadenceUnitInWindow(window: DateWindow, period: DateWindow) {
+function isCadenceUnitInWindow(window: DateWindow, period: DateWindow) {
   const owningMonthRange = getScopeDateRange(owningMonthForPeriod(period));
   return intersectDateWindows(owningMonthRange, window) !== null;
 }
 
-export function owningMonthForPeriod(period: DateWindow) {
+function owningMonthForPeriod(period: DateWindow) {
   const periodStartMonth = period.start.slice(0, 7);
   const daysByMonth = new Map<string, number>();
   let cursor = period.start;

@@ -39,9 +39,7 @@ export type PlannerDraftSaveWindowInput = {
   extraMonths?: string[];
 };
 
-export function tryWindowCoveringMonths(
-  months: string[]
-): PlannerDraftWindowResult {
+function tryWindowCoveringMonths(months: string[]): PlannerDraftWindowResult {
   if (months.length === 0) {
     return { ok: false, code: "empty" };
   }
@@ -69,20 +67,6 @@ export function tryWindowCoveringMonths(
   } catch {
     return { ok: false, code: "invalid" };
   }
-}
-
-export function windowCoveringMonths(months: string[]): DateWindow {
-  const result = tryWindowCoveringMonths(months);
-  if (!result.ok) {
-    throw new RangeError(
-      result.code === "too_wide"
-        ? `Planner window exceeds ${MAX_PLANNER_WINDOW_DAYS} days.`
-        : result.code === "empty"
-          ? "Planner window requires at least one month."
-          : "Invalid planner window."
-    );
-  }
-  return result.window;
 }
 
 function collectPlannerDraftMonths({
@@ -126,20 +110,4 @@ export function tryBuildPlannerDraftSaveWindow(
   input: PlannerDraftSaveWindowInput
 ): PlannerDraftWindowResult {
   return tryWindowCoveringMonths(collectPlannerDraftMonths(input));
-}
-
-export function buildPlannerDraftSaveWindow(
-  input: PlannerDraftSaveWindowInput
-): DateWindow {
-  const result = tryBuildPlannerDraftSaveWindow(input);
-  if (!result.ok) {
-    throw new RangeError(
-      result.code === "too_wide"
-        ? `Planner window exceeds ${MAX_PLANNER_WINDOW_DAYS} days.`
-        : result.code === "empty"
-          ? "Planner window requires at least one month."
-          : "Invalid planner window."
-    );
-  }
-  return result.window;
 }

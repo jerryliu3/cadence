@@ -4,7 +4,6 @@ import { getScopeDateRange } from "@/lib/planner/dates";
 import { reconcilePlannerCompletions } from "@/lib/planner/reconciliation";
 import { normalizeGoalRequirement } from "@/lib/planner/requirements";
 import {
-  isCadenceUnitInWindow,
   materializeWorkUnits,
   type PlannerBaseAssignment,
 } from "@/lib/planner/work-units";
@@ -111,21 +110,6 @@ describe("planner work units", () => {
       start: "2026-08-31",
       end: "2026-09-06",
     });
-  });
-
-  it("breaks ties toward the period start month", () => {
-    expect(
-      isCadenceUnitInWindow(getScopeDateRange("2026-01"), {
-        start: "2026-01-31",
-        end: "2026-02-01",
-      })
-    ).toBe(true);
-    expect(
-      isCadenceUnitInWindow(getScopeDateRange("2026-02"), {
-        start: "2026-01-31",
-        end: "2026-02-01",
-      })
-    ).toBe(false);
   });
 
   it("avoids month-end one-day weekly stubs under majority ownership", () => {
