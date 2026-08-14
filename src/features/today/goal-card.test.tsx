@@ -93,4 +93,24 @@ describe("GoalCard", () => {
       screen.queryByRole("button", { name: "Mark goal as complete" })
     ).not.toBeInTheDocument();
   });
+
+  it("shows the category badge instead of a color dot and hides the deadline badge", () => {
+    render(
+      <GoalCard
+        goal={{ ...goal, archived_at: null, target_count: 10 }}
+        completions={[]}
+        linkedCount={0}
+        selectedDate="2026-08-13"
+        referenceDate={new Date("2026-08-13T12:00:00")}
+        weeklyAnchor={weeklyAnchor}
+        onToggle={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText("Health")).toBeInTheDocument();
+    expect(screen.queryByLabelText(/Goal end date/i)).not.toBeInTheDocument();
+    expect(
+      screen.getByText("0/10 total completions by Dec 31, 2026")
+    ).toBeInTheDocument();
+  });
 });
