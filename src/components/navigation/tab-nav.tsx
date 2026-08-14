@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion, useReducedMotion } from "motion/react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { APP_TABS } from "@/components/navigation/tabs";
 import { cn } from "@/lib/utils";
 
@@ -27,15 +27,17 @@ interface TabNavProps {
 export function TabNav({ mobile = false }: TabNavProps) {
   const pathname = usePathname();
   const reduceMotion = useReducedMotion();
-  const [pendingHref, setPendingHref] = useState<string | null>(null);
-  const activePath = pendingHref ?? pathname;
+  const [optimisticNav, setOptimisticNav] = useState<{
+    from: string;
+    to: string;
+  } | null>(null);
+  const activePath =
+    optimisticNav && optimisticNav.from === pathname
+      ? optimisticNav.to
+      : pathname;
   const gridClass = GRID_BY_COUNT[APP_TABS.length] ?? "grid-cols-4";
   const currentIndex = APP_TABS.findIndex((tab) => isActive(activePath, tab.href));
   const highlightLayoutId = mobile ? "mobile-tab-highlight" : "desktop-tab-highlight";
-
-  useEffect(() => {
-    setPendingHref(null);
-  }, [pathname]);
 
   return (
     <nav
@@ -64,7 +66,7 @@ export function TabNav({ mobile = false }: TabNavProps) {
                 href={tab.href}
                 onClick={() => {
                   if (!isActive(pathname, tab.href)) {
-                    setPendingHref(tab.href);
+                    setOptimisticNav({ from: pathname, to: tab.href });
                   }
                 }}
                 transitionTypes={
