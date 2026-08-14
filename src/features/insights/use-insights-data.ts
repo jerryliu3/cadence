@@ -109,7 +109,9 @@ export function useInsightsData({
           return;
         }
 
-        const viewerGoalsQuery = supabase
+        // PostgREST filter methods mutate and return the same builder, so this is
+        // built fresh per load and only one branch below ever consumes it.
+        const goalsQuery = supabase
           .from("goals")
           .select("*")
           .eq("is_deleted", false)
@@ -122,8 +124,8 @@ export function useInsightsData({
           await withAbortSignal(
             Promise.all([
               targetIsViewer
-                ? viewerGoalsQuery
-                : viewerGoalsQuery.eq("owner_id", targetSubjectUserId),
+                ? goalsQuery
+                : goalsQuery.eq("owner_id", targetSubjectUserId),
               targetIsViewer
                 ? supabase.from("team_members").select("team_id").eq("user_id", userId)
                 : Promise.resolve({ data: [], error: null }),
