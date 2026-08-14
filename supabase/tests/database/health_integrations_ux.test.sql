@@ -2,6 +2,11 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, private, extensions, pg_catalog;
 select plan(16);
+select set_config(
+  'health.today',
+  (pg_catalog.timezone('utc', now()))::date::text,
+  true
+);
 
 insert into auth.users (id, email)
 values
@@ -35,8 +40,8 @@ values (
   'health',
   'recurring',
   'daily',
-  date '2026-08-01',
-  date '2026-11-30'
+    current_setting('health.today')::date - 30,
+    current_setting('health.today')::date + 180
 );
 
 insert into public.health_source_priority (
@@ -102,8 +107,8 @@ select is(
           'provider_native_id', 'watch-steps-ux',
           'source_identifier', 'com.apple.health.watch',
           'metric_key', 'steps',
-          'started_at', '2026-08-14T04:00:00Z',
-          'ended_at', '2026-08-14T04:10:00Z',
+          'started_at', current_setting('health.today') || 'T04:00:00Z',
+          'ended_at', current_setting('health.today') || 'T04:10:00Z',
           'utc_offset_minutes', -240,
           'value_numeric', 1000,
           'unit', 'count'
@@ -113,8 +118,8 @@ select is(
           'provider_native_id', 'fit-steps-ux',
           'source_identifier', 'com.google.android.apps.fitness',
           'metric_key', 'steps',
-          'started_at', '2026-08-14T04:01:00Z',
-          'ended_at', '2026-08-14T04:11:00Z',
+          'started_at', current_setting('health.today') || 'T04:01:00Z',
+          'ended_at', current_setting('health.today') || 'T04:11:00Z',
           'utc_offset_minutes', -240,
           'value_numeric', 400,
           'unit', 'count'
@@ -186,7 +191,7 @@ select is(
     select value_numeric::integer
     from public.health_daily_metrics
     where user_id = 'f1111111-1111-4111-8111-111111111111'
-      and local_date = date '2026-08-14'
+      and local_date = current_setting('health.today')::date
       and metric_key = 'steps'
   ),
   400,
@@ -208,7 +213,7 @@ select is(
 
 select is(
   (
-    public.apply_health_autocomplete_service(date '2026-08-14')->>'applied_count'
+    public.apply_health_autocomplete_service(current_setting('health.today')::date)->>'applied_count'
   )::integer,
   1,
   'opt-in rule completes the goal from canonical daily totals'
@@ -220,7 +225,7 @@ select is(
     from public.completions
     where goal_id = 'f1600000-0000-4000-8000-000000000001'
       and user_id = 'f1111111-1111-4111-8111-111111111111'
-      and completed_on = date '2026-08-14'
+      and completed_on = current_setting('health.today')::date
   ),
   'external_sync',
   'autocomplete writes an external_sync completion'

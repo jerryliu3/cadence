@@ -5,6 +5,7 @@ import {
 import {
   collectHealthKitSamples,
   enableHealthKitBackgroundDelivery,
+  HEALTHKIT_QUANTITY_TYPES,
   type HealthKitBridge,
 } from "./ios-healthkit";
 import {
@@ -14,7 +15,12 @@ import {
   postHealthSamples,
   saveHealthConnectChangesToken,
   saveHealthKitAnchors,
+  setHealthAutoSyncEnabled,
 } from "./sync-client";
+import {
+  reportMobileHealthSyncFailure,
+  reportMobileHealthTelemetry,
+} from "./telemetry";
 
 export async function reportHealthSyncFailure(
   provider: "apple_healthkit" | "android_health_connect",
@@ -28,6 +34,7 @@ export async function reportHealthSyncFailure(
     lastError: message,
     samples: [],
   });
+  reportMobileHealthSyncFailure(error, { provider });
 }
 
 export async function syncAppleHealth(bridge: HealthKitBridge) {
@@ -39,8 +46,14 @@ export async function syncAppleHealth(bridge: HealthKitBridge) {
     permissionPrompted: true,
     localToday: deviceLocalToday(),
     samples: collected.samples,
+    deletedNativeIds: collected.deletedNativeIds,
   });
   await saveHealthKitAnchors(collected.nextAnchors);
+  await setHealthAutoSyncEnabled(true);
+  reportMobileHealthTelemetry("sync_succeeded", {
+    provider: "apple_healthkit",
+    sampleCount: collected.samples.length,
+  });
 }
 
 export async function syncHealthConnect(bridge: HealthConnectBridge) {
@@ -51,8 +64,28 @@ export async function syncHealthConnect(bridge: HealthConnectBridge) {
     permissionPrompted: true,
     localToday: deviceLocalToday(),
     samples: collected.samples,
+    deletedNativeIds: collected.deletedNativeIds,
   });
   if (collected.nextChangesToken) {
     await saveHealthConnectChangesToken(collected.nextChangesToken);
   }
+  await setHealthAutoSyncEnabled(true);
+  reportMobileHealthTelemetry("sync_succeeded", {
+    provider: "android_health_connect",
+    sampleCount: collected.samples.length,
+  });
+}
+
+export function subscribeHealthKitChanges(
+  bridge: HealthKitBridge,
+  onChange: () => void
+): () => void {
+  const subscriptions = HEALTHKIT_QUANTITY_TYPES.map((type) =>
+    bridge.subscribeToChanges(type, onChange)
+  );
+  return () => {
+    for (const subscription of subscriptions) {
+      subscription.remove();
+    }
+  };
 }

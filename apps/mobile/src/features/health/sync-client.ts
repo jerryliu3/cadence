@@ -1,4 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { HEALTH_INGEST_BATCH_MAX } from "@cadence/shared/health/sync-window";
 import { api } from "../../lib/api";
 import type { HealthKitQuantityType } from "./ios-healthkit";
 import { toIngestSample, utcOffsetMinutesFromInstant } from "./ingest-payload";
@@ -10,6 +11,7 @@ import type {
 
 const ANCHOR_KEY = "cadence.health.healthkit.anchors.v1";
 const HEALTH_CONNECT_TOKEN_KEY = "cadence.health.healthconnect.changes-token.v1";
+const AUTO_SYNC_KEY = "cadence.health.auto-sync.enabled.v1";
 
 export async function loadHealthKitAnchors(): Promise<
   Partial<Record<HealthKitQuantityType, string>>
@@ -48,6 +50,18 @@ export async function clearHealthKitAnchors() {
   await AsyncStorage.removeItem(ANCHOR_KEY);
 }
 
+export async function isHealthAutoSyncEnabled(): Promise<boolean> {
+  return (await AsyncStorage.getItem(AUTO_SYNC_KEY)) === "1";
+}
+
+export async function setHealthAutoSyncEnabled(enabled: boolean) {
+  if (enabled) {
+    await AsyncStorage.setItem(AUTO_SYNC_KEY, "1");
+    return;
+  }
+  await AsyncStorage.removeItem(AUTO_SYNC_KEY);
+}
+
 export function deviceLocalToday(now = new Date()): string {
   return healthLocalDateFromOffset(now, utcOffsetMinutesFromInstant(now));
 }
@@ -58,8 +72,27 @@ export async function postHealthSamples(input: {
   localToday?: string;
   lastError?: string | null;
   samples: ReturnType<typeof toIngestSample>[];
+  deletedNativeIds?: string[];
 }) {
-  return api.postJson("/api/health/samples", input);
+  const { samples, deletedNativeIds, ...rest } = input;
+  if (samples.length === 0) {
+    return api.postJson("/api/health/samples", {
+      ...rest,
+      samples,
+      deletedNativeIds,
+    });
+  }
+
+  let last: unknown;
+  for (let index = 0; index < samples.length; index += HEALTH_INGEST_BATCH_MAX) {
+    const chunk = samples.slice(index, index + HEALTH_INGEST_BATCH_MAX);
+    last = await api.postJson("/api/health/samples", {
+      ...rest,
+      samples: chunk,
+      deletedNativeIds: index === 0 ? deletedNativeIds : undefined,
+    });
+  }
+  return last;
 }
 
 export async function fetchHealthStatus() {
@@ -83,6 +116,7 @@ export async function fetchHealthStatus() {
 
 export async function disconnectHealthProvider(provider: HealthProvider) {
   await api.postJson("/api/health/disconnect", { provider });
+  await setHealthAutoSyncEnabled(false);
   if (provider === "apple_healthkit") {
     await clearHealthKitAnchors();
   } else {
