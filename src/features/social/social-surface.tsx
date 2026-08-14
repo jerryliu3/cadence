@@ -7,10 +7,21 @@ import { TeamPanel } from "@/features/social/team/team-panel";
 import { FeedList } from "@/features/social/feed/feed-list";
 import { LeaderboardsPanel } from "@/features/social/leaderboards/leaderboards-panel";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { GoalSharingSettings } from "@/features/social/goal-sharing-settings";
+import {
+  resolveSocialSurfaceTab,
+  type SocialSurfaceTab,
+} from "@/features/social/social-surface-tab";
 
-export function SocialSurface() {
+export function SocialSurface({
+  initialTab,
+}: {
+  initialTab?: string;
+}) {
+  const defaultTab: SocialSurfaceTab = resolveSocialSurfaceTab(initialTab);
+
   return (
-    <Tabs defaultValue="feed" className="flex flex-col gap-4">
+    <Tabs defaultValue={defaultTab} className="flex flex-col gap-4">
       <TabsList
         variant="line"
         className="grid w-full grid-cols-4 gap-1.5 rounded-2xl bg-transparent p-0"
@@ -57,6 +68,7 @@ export function SocialSurface() {
       </TabsContent>
       <TabsContent value="team" className="space-y-4">
         <TeamPanel />
+        <GoalSharingSettings />
       </TabsContent>
     </Tabs>
   );
