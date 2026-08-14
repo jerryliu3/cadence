@@ -2,15 +2,18 @@ import { describe, expect, it } from "vitest";
 import {
   buildPartnerCompletionMarkersByDate,
   mergeCompletionFactMarkers,
-  monthFactsBounds,
+  monthGridFactsBounds,
 } from "@/features/planner/calendar-partner-overlay";
 
 describe("calendar partner overlay", () => {
   it("builds month-bounded partner markers without mixing into viewer identity keys", () => {
-    expect(monthFactsBounds("2026-08")).toEqual({
-      factsFrom: "2026-08-01",
-      factsTo: "2026-08-31",
+    // 6 days before the 1st through 41 days after covers the widest 42-cell
+    // grid any weekStartsOn can produce, so leading/trailing cells are included.
+    expect(monthGridFactsBounds("2026-08")).toEqual({
+      factsFrom: "2026-07-26",
+      factsTo: "2026-09-11",
     });
+    expect(monthGridFactsBounds("nope")).toBeNull();
     const markers = buildPartnerCompletionMarkersByDate({
       facts: [
         { goal_id: "g1", completed_on: "2026-08-13", source: "manual" },
