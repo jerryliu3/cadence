@@ -3,9 +3,9 @@ import {
   DUO_SURFACE_DEFAULTS,
   resolveDuoLanes,
   resolveEffectiveDuoScope,
-  resolveDuoSurfaceDefault,
   shouldClampDuoScopePreference,
 } from "@cadence/shared/social/duo";
+import { resolveDuoSurfaceDefault } from "@/lib/social/duo/surface-defaults";
 
 describe("duo surface defaults", () => {
   it("keeps calendar on the same me default as checklist", () => {

@@ -3,10 +3,8 @@
 import { usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { useDuoScope } from "@/features/social/duo/duo-context";
-import {
-  resolveDuoSurfaceDefault,
-  type DuoScope,
-} from "@cadence/shared/social/duo";
+import { resolveDuoSurfaceDefault } from "@/lib/social/duo/surface-defaults";
+import type { DuoScope } from "@cadence/shared/social/duo";
 
 const SCOPE_OPTIONS: Array<{ value: DuoScope; label: string }> = [
   { value: "me", label: "Mine" },

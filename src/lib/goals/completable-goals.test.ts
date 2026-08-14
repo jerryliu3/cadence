@@ -3,7 +3,7 @@ import {
   buildCompletableGoalIds,
   filterCompletionsForGoalIds,
   selectCompletableGoals,
-} from "./completable-goals";
+} from "@cadence/shared/goals/completable-goals";
 
 const goals = [
   { id: "goal-owned", owner_id: "user-1", team_id: null },
