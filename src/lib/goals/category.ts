@@ -246,34 +246,34 @@ export function getCategoryBadgeClass(categoryKey: string): string {
   if (normalized === "personal") {
     return cn(
       "border-indigo-200 bg-indigo-100 text-indigo-700",
-      "dark:border-indigo-700/40 dark:bg-indigo-900/30 dark:text-indigo-200"
+      "dark:border-indigo-300 dark:bg-indigo-100 dark:text-indigo-900"
     );
   }
 
   if (normalized === "relationships") {
     return cn(
       "border-rose-200 bg-rose-100 text-rose-700",
-      "dark:border-rose-700/40 dark:bg-rose-900/30 dark:text-rose-200"
+      "dark:border-rose-300 dark:bg-rose-100 dark:text-rose-900"
     );
   }
 
   if (normalized === "health") {
     return cn(
       "border-emerald-200 bg-emerald-100 text-emerald-700",
-      "dark:border-emerald-700/40 dark:bg-emerald-900/30 dark:text-emerald-200"
+      "dark:border-emerald-300 dark:bg-emerald-100 dark:text-emerald-900"
     );
   }
 
   if (normalized === "career") {
     return cn(
       "border-violet-200 bg-violet-100 text-violet-700",
-      "dark:border-violet-700/40 dark:bg-violet-900/30 dark:text-violet-200"
+      "dark:border-violet-300 dark:bg-violet-100 dark:text-violet-900"
     );
   }
 
   return cn(
     "border-slate-200 bg-slate-100 text-slate-700",
-    "dark:border-slate-700/40 dark:bg-slate-800/70 dark:text-slate-200"
+    "dark:border-slate-300 dark:bg-slate-100 dark:text-slate-900"
   );
 }
 

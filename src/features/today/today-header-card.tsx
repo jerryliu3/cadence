@@ -1,5 +1,6 @@
 "use client";
 
+import { format, isValid, parseISO } from "date-fns";
 import { Sparkles } from "lucide-react";
 import type { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
@@ -34,6 +35,11 @@ export function TodayHeaderCard({
   quickFilterControls,
   children,
 }: TodayHeaderCardProps) {
+  const parsedViewDate = parseISO(viewDate);
+  const viewDateLabel = isValid(parsedViewDate)
+    ? format(parsedViewDate, "EEE MMM d, yyyy")
+    : viewDate;
+
   return (
     <Card className="rounded-none border-0 bg-transparent py-0 shadow-none ring-0 sm:rounded-xl sm:bg-card sm:py-4 sm:ring-1 sm:shadow-sm">
       <CardHeader className="pb-3">
@@ -75,6 +81,7 @@ export function TodayHeaderCard({
                 </div>
               ) : null}
             </div>
+            <p className="text-center text-xs font-medium text-muted-foreground">{viewDateLabel}</p>
             {searchControls ? <div className="w-full">{searchControls}</div> : null}
           </div>
           {quickFilterControls ? (
