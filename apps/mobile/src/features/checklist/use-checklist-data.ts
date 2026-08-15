@@ -21,7 +21,9 @@ import {
   buildChecklistProgressQuery,
   countChecklistCompletionsForDate,
   isChecklistLaneInteractive,
+  latestCompletionDateByGoal,
   resolveChecklistCompletableGoalIds,
+  resolveChecklistMutationDate,
   resolveTeamMembershipIds,
   selectChecklistGoalsForSubject,
   shouldReportViewerLaneCompletion,
@@ -46,7 +48,8 @@ export interface ChecklistLaneData {
   loading: boolean;
   error: unknown;
   goals: MobileGoal[];
-  completedToday: Set<string>;
+  completedForView: Set<string>;
+  completionDateByGoal: Map<string, string>;
   completionCount: number;
   goalCount: number;
   interactive: boolean;
@@ -110,11 +113,7 @@ export function useChecklistLaneData({
           userMessage: "Checklist goals could not be loaded.",
         });
       }
-      return selectChecklistGoalsForSubject({
-        goals: (data ?? []) as MobileGoal[],
-        subject,
-        partnerId,
-      });
+      return (data ?? []) as MobileGoal[];
     },
   });
   const teamMembershipQuery = useQuery({
@@ -192,6 +191,17 @@ export function useChecklistLaneData({
     });
   }, [progressQuery.error, progressQuery.errorUpdatedAt, subject.id]);
 
+  const memberTeamIds = teamMembershipQuery.data ?? [];
+  const goals = selectChecklistGoalsForSubject({
+    goals: goalsQuery.data ?? [],
+    subject,
+    partnerId,
+    memberTeamIds,
+  });
+  const facts = progressQuery.data?.facts ?? [];
+  const completedForView = new Set(facts.map((fact) => fact.goal_id));
+  const completionDateByGoal = latestCompletionDateByGoal(facts);
+
   const toggleMutation = useMutation({
     onMutate: () => {
       setCompletionErrorMessage(null);
@@ -206,7 +216,12 @@ export function useChecklistLaneData({
       triggerLightPressFeedback();
       return api.postJson("/api/completions", {
         goalId: input.goalId,
-        date: asOfDate,
+        date: resolveChecklistMutationDate({
+          goalId: input.goalId,
+          desiredFactState: input.desiredFactState,
+          asOfDate,
+          completionDateByGoal,
+        }),
         desiredFactState: input.desiredFactState,
         timezone,
       });
@@ -232,17 +247,12 @@ export function useChecklistLaneData({
     },
   });
 
-  const goals = goalsQuery.data ?? [];
   const completableGoalIds = resolveChecklistCompletableGoalIds({
     goals,
     subject,
     viewerUserId: userId,
-    memberTeamIds: teamMembershipQuery.data ?? [],
+    memberTeamIds,
   });
-  const facts = progressQuery.data?.facts ?? [];
-  const completedToday = new Set(
-    facts.filter((fact) => fact.completed_on === asOfDate).map((fact) => fact.goal_id)
-  );
   const canToggleGoal = (goalId: string) =>
     interactive && completableGoalIds.has(goalId);
 
@@ -254,7 +264,8 @@ export function useChecklistLaneData({
       progressQuery.isLoading,
     error: goalsQuery.error ?? teamMembershipQuery.error ?? progressQuery.error,
     goals,
-    completedToday,
+    completedForView,
+    completionDateByGoal,
     completionCount: countChecklistCompletionsForDate({
       asOfDate,
       facts,

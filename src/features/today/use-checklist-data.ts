@@ -175,6 +175,7 @@ export function useChecklistData({
         const visibleGoals = selectViewerVisibleGoals({
           goals,
           partnerId: targetIsViewer ? partnerId : null,
+          memberTeamIds,
         });
         const links = (linksResponse.data ?? []) as GoalLink[];
 

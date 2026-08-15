@@ -47,21 +47,26 @@ export function selectChecklistGoalsForSubject({
   goals,
   subject,
   partnerId,
+  memberTeamIds = [],
 }: {
   goals: MobileGoal[];
   subject: DuoLaneSubject;
   partnerId: string | null;
+  memberTeamIds?: Iterable<string>;
 }): MobileGoal[] {
   const unarchivedGoals = goals.filter((goal) => !goal.archived_at);
   if (subject.id === "partner") {
     if (!partnerId) {
       return [];
     }
-    return unarchivedGoals.filter((goal) => goal.owner_id === partnerId);
+    return unarchivedGoals.filter(
+      (goal) => goal.owner_id === partnerId && goal.team_id === null
+    );
   }
   return selectViewerVisibleGoals({
     goals: unarchivedGoals,
     partnerId,
+    memberTeamIds,
   });
 }
 
@@ -97,6 +102,33 @@ export function countChecklistCompletionsForDate({
   facts: ProgressContextFact[];
 }) {
   return facts.filter((fact) => fact.completed_on === asOfDate).length;
+}
+
+export function latestCompletionDateByGoal(facts: ProgressContextFact[]) {
+  const latestByGoal = new Map<string, string>();
+  for (const fact of facts) {
+    const current = latestByGoal.get(fact.goal_id);
+    if (!current || fact.completed_on > current) {
+      latestByGoal.set(fact.goal_id, fact.completed_on);
+    }
+  }
+  return latestByGoal;
+}
+
+export function resolveChecklistMutationDate({
+  goalId,
+  desiredFactState,
+  asOfDate,
+  completionDateByGoal,
+}: {
+  goalId: string;
+  desiredFactState: "present" | "absent";
+  asOfDate: string;
+  completionDateByGoal: ReadonlyMap<string, string>;
+}) {
+  return desiredFactState === "absent"
+    ? completionDateByGoal.get(goalId) ?? asOfDate
+    : asOfDate;
 }
 
 export function isChecklistLaneInteractive(subject: DuoLaneSubject) {

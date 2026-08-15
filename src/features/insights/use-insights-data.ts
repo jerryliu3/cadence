@@ -154,7 +154,11 @@ export function useInsightsData({
         }>).map((row) => row.team_id);
         const goals = (goalsResponse.data ?? []) as Goal[];
         const visibleGoals = targetIsViewer
-          ? selectViewerVisibleGoals({ goals, partnerId })
+          ? selectViewerVisibleGoals({
+              goals,
+              partnerId,
+              memberTeamIds,
+            })
           : goals;
 
         setState({
