@@ -7,6 +7,9 @@ export interface MobilePlannerWorkUnit {
   label: string | null;
   classification: string;
   creditState: string;
+  placementWindow?: { start: string; end: string } | null;
+  draftMoveWindow?: { start: string; end: string } | null;
+  creditWindow?: { start: string; end: string };
 }
 
 export interface MobilePlannerContext {
@@ -14,9 +17,18 @@ export interface MobilePlannerContext {
   asOfDate: string;
   timezone: string;
   goalTitles: Record<string, string>;
+  capabilities?: {
+    crossMonthMovesEnabled: boolean;
+  };
   preview: {
     generationInputHash?: string;
-    solver?: { publishable?: boolean; issueCodes?: string[] };
+    eligibilityMode?: "overlap_v1";
+    preserveExistingAssignments?: boolean;
+    solver?: {
+      publishable?: boolean;
+      confirmationRequired?: boolean;
+      issueCodes?: string[];
+    };
     workUnits: MobilePlannerWorkUnit[];
   } | null;
   activePlan: {

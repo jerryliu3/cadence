@@ -174,12 +174,7 @@ export function completionDisabledReasonCopy(reason: CompletionControlDisabledRe
   return "This session cannot be updated from the current planner snapshot.";
 }
 
-export function moveItemInArray<T>(items: T[], fromIndex: number, toIndex: number) {
-  const next = [...items];
-  const [moved] = next.splice(fromIndex, 1);
-  next.splice(toIndex, 0, moved);
-  return next;
-}
+export { moveItemInArray } from "@cadence/shared/planner/reorder-preview-entries";
 
 export function createClientUuid() {
   if (globalThis.crypto?.randomUUID) {
