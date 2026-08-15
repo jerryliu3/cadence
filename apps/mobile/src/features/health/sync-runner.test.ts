@@ -24,11 +24,6 @@ vi.mock("./telemetry", () => ({
   reportMobileHealthSyncFailure: vi.fn(),
 }));
 
-vi.mock("./telemetry", () => ({
-  reportMobileHealthTelemetry: vi.fn(),
-  reportMobileHealthSyncFailure: vi.fn(),
-}));
-
 import type { HealthKitBridge } from "./ios-healthkit";
 import {
   reportHealthSyncFailure,
