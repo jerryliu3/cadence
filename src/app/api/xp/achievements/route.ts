@@ -16,7 +16,6 @@ export const runtime = "nodejs";
 
 const MAX_GOALS = 1_000;
 const MAX_COMPLETIONS = 5_000;
-const MAX_LEDGER_ROWS = 5_000;
 
 function groupCompletionsByGoal(completions: Completion[]) {
   const grouped = new Map<string, Completion[]>();
@@ -68,7 +67,7 @@ export async function GET(request: Request) {
     }
 
     const { userId, supabase } = await requireAuthenticatedRequestContext(request, {
-      unauthorizedMessage: "Sign in to view trophies.",
+      unauthorizedMessage: "Sign in to view achievements.",
     });
 
     const profileResponse = await supabase
@@ -77,7 +76,11 @@ export async function GET(request: Request) {
       .eq("id", userId)
       .maybeSingle();
     if (profileResponse.error) {
-      throw new ApiRouteError(500, "trophies_load_failed", "Trophies could not be loaded.");
+      throw new ApiRouteError(
+        500,
+        "achievements_load_failed",
+        "Achievements could not be loaded."
+      );
     }
     const timezone = resolveUserTimezone(profileResponse.data?.timezone);
     const asOfDate = getDateInTimezone(new Date(), timezone);
@@ -93,8 +96,8 @@ export async function GET(request: Request) {
     if (goalsResponse.error) {
       throw new ApiRouteError(
         500,
-        "trophies_load_failed",
-        "Trophies could not be loaded."
+        "achievements_load_failed",
+        "Achievements could not be loaded."
       );
     }
     const goalRows = (goalsResponse.data ?? []) as Goal[];
@@ -111,8 +114,8 @@ export async function GET(request: Request) {
     if (completionsResponse.error) {
       throw new ApiRouteError(
         500,
-        "trophies_load_failed",
-        "Trophies could not be loaded."
+        "achievements_load_failed",
+        "Achievements could not be loaded."
       );
     }
     const completionRows = (completionsResponse.data ?? []) as Completion[];
@@ -133,50 +136,26 @@ export async function GET(request: Request) {
       .filter((entry) => entry.summary.outcome === "achieved")
       .map((entry) => summarizeAchievedGoal(entry));
 
-    const [systemAwardsResponse, personalRewardsResponse, ledgerResponse] =
-      await Promise.all([
-        supabase
-          .from("user_awards")
-          .select(
-            "id,unlocked_at,acknowledged_at,revoked_at,xp_rewards!inner(level,reward_code,reward_title,reward_description)"
-          )
-          .eq("user_id", userId)
-          .order("unlocked_at", { ascending: false }),
-        supabase
-          .from("user_rewards")
-          .select(
-            "id,title,note,unlock_total_xp,unlocked_at,claimed_at,archived_at,created_at,updated_at"
-          )
-          .eq("user_id", userId)
-          .order("created_at", { ascending: false }),
-        supabase
-          .from("xp_ledger")
-          .select("seq,earned_on,xp_delta,event_type,track_key")
-          .eq("user_id", userId)
-          .order("seq", { ascending: false })
-          .limit(MAX_LEDGER_ROWS + 1),
-      ]);
+    const globalAchievementsResponse = await supabase
+      .from("user_awards")
+      .select(
+        "id,unlocked_at,acknowledged_at,revoked_at,xp_rewards!inner(level,reward_code,reward_title,reward_description)"
+      )
+      .eq("user_id", userId)
+      .order("unlocked_at", { ascending: false });
 
-    if (systemAwardsResponse.error || personalRewardsResponse.error || ledgerResponse.error) {
-      throw new ApiRouteError(500, "trophies_load_failed", "Trophies could not be loaded.");
+    if (globalAchievementsResponse.error) {
+      throw new ApiRouteError(
+        500,
+        "achievements_load_failed",
+        "Achievements could not be loaded."
+      );
     }
-
-    const levelHistoryRows = ledgerResponse.data ?? [];
-    const levelHistoryTruncated = levelHistoryRows.length > MAX_LEDGER_ROWS;
-    const levelHistory = levelHistoryRows.slice(0, MAX_LEDGER_ROWS).map((row) => ({
-      seq: row.seq,
-      earnedOn: row.earned_on,
-      xpDelta: row.xp_delta,
-      eventType: row.event_type,
-      trackKey: row.track_key,
-    }));
 
     return apiSuccessResponse(
       {
-        asOfDate,
-        timezone,
         achievedGoals,
-        systemAwards: (systemAwardsResponse.data ?? []).map((award) => {
+        globalAchievements: (globalAchievementsResponse.data ?? []).map((award) => {
           const reward = Array.isArray(award.xp_rewards)
             ? award.xp_rewards[0]
             : award.xp_rewards;
@@ -191,22 +170,9 @@ export async function GET(request: Request) {
             description: reward?.reward_description ?? null,
           };
         }),
-        personalRewards: (personalRewardsResponse.data ?? []).map((reward) => ({
-          id: reward.id,
-          title: reward.title,
-          note: reward.note,
-          unlockTotalXp: reward.unlock_total_xp,
-          unlockedAt: reward.unlocked_at,
-          claimedAt: reward.claimed_at,
-          archivedAt: reward.archived_at,
-          createdAt: reward.created_at,
-          updatedAt: reward.updated_at,
-        })),
-        levelHistory,
         truncated: {
           goals: goalsTruncated,
           completions: completionsTruncated,
-          levelHistory: levelHistoryTruncated,
         },
       },
       correlationId

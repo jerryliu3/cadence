@@ -36,9 +36,9 @@ export function XpProgressBar() {
 
   return (
     <Link
-      href="/trophies"
+      href="/achievements"
       className="group flex min-w-[12rem] flex-col gap-1 rounded-lg border border-border/70 bg-background/70 px-3 py-2 transition-colors hover:border-primary/40"
-      aria-label="Open trophies and XP details"
+      aria-label="Open achievements and XP details"
     >
       <div className="flex items-center justify-between gap-2">
         <span className="text-xs font-medium text-muted-foreground">{band.name}</span>
