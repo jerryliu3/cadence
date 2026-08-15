@@ -4,17 +4,12 @@ import { describe, expect, it, vi } from "vitest";
 import { ChecklistGoalRow } from "./ChecklistGoalRow";
 
 vi.mock("react-native", () => ({
-  Pressable: ({
-    children,
-    onPress,
-  }: {
-    children: React.ReactNode;
-    onPress: () => void;
-  }) => React.createElement("pressable", { onPress }, children),
+  Pressable: (props: Record<string, unknown>) =>
+    React.createElement("pressable", props),
   Text: ({ children }: { children: React.ReactNode }) =>
     React.createElement("text", null, children),
-  View: ({ children }: { children: React.ReactNode }) =>
-    React.createElement("view", null, children),
+  View: (props: Record<string, unknown>) =>
+    React.createElement("view", props),
   StyleSheet: { create: <T,>(styles: T) => styles },
 }));
 
@@ -61,6 +56,15 @@ describe("ChecklistGoalRow partner boundary", () => {
 
     expect(pressables).toHaveLength(0);
     expect(links).toHaveLength(0);
+    const checkbox = root.root.find(
+      (node: ReactTestInstance) =>
+        node.props.accessibilityRole === "checkbox"
+    );
+    expect(checkbox.props.accessibilityLabel).toBe("Partner goal");
+    expect(checkbox.props.accessibilityState).toEqual({
+      checked: false,
+      disabled: true,
+    });
   });
 
   it("renders mutation and edit affordances for interactive rows", () => {
@@ -88,6 +92,12 @@ describe("ChecklistGoalRow partner boundary", () => {
 
     expect(pressables).toHaveLength(1);
     expect(links).toHaveLength(1);
+    expect(pressables[0]?.props.accessibilityRole).toBe("checkbox");
+    expect(pressables[0]?.props.accessibilityLabel).toBe("Viewer goal");
+    expect(pressables[0]?.props.accessibilityState).toEqual({
+      checked: false,
+      disabled: false,
+    });
 
     act(() => {
       pressables[0]?.props.onPress();

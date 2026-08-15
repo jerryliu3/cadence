@@ -168,11 +168,29 @@ export function extractMobileDuoPartnerFailureContext(error: unknown): {
   };
 }
 
-export function useReportMobileDuoScopeViewed({
+export function buildMobileDuoScopeTelemetryKey({
+  enabled,
   surface,
   scope,
   hasPartner,
 }: {
+  enabled: boolean;
+  surface: DuoTelemetrySurface;
+  scope: DuoScope;
+  hasPartner: boolean;
+}) {
+  return enabled
+    ? `${surface}:${scope}:${hasPartner ? "1" : "0"}`
+    : null;
+}
+
+export function useReportMobileDuoScopeViewed({
+  enabled = true,
+  surface,
+  scope,
+  hasPartner,
+}: {
+  enabled?: boolean;
   surface: DuoTelemetrySurface;
   scope: DuoScope;
   hasPartner: boolean;
@@ -180,8 +198,13 @@ export function useReportMobileDuoScopeViewed({
   const lastKey = useRef<string | null>(null);
 
   useEffect(() => {
-    const nextKey = `${surface}:${scope}:${hasPartner ? "1" : "0"}`;
-    if (lastKey.current === nextKey) {
+    const nextKey = buildMobileDuoScopeTelemetryKey({
+      enabled,
+      surface,
+      scope,
+      hasPartner,
+    });
+    if (!nextKey || lastKey.current === nextKey) {
       return;
     }
     lastKey.current = nextKey;
@@ -190,5 +213,5 @@ export function useReportMobileDuoScopeViewed({
       scope,
       hasPartner,
     });
-  }, [hasPartner, scope, surface]);
+  }, [enabled, hasPartner, scope, surface]);
 }

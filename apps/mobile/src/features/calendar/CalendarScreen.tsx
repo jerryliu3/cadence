@@ -86,7 +86,8 @@ function MeasureableDay({
 export function CalendarScreen() {
   const theme = useTheme();
   const { month, day, viewMode, apply } = useCalendarStore();
-  const { scope, hasActivePartner } = useDuoSurfaceScope("calendar");
+  const { ready, scope, hasActivePartner } =
+    useDuoSurfaceScope("calendar");
   const { state } = useDuo();
   const activePartner = hasActivePartner ? state.activePartner : null;
   const readOnlyState = resolveCalendarReadOnlyState(scope);
@@ -99,6 +100,7 @@ export function CalendarScreen() {
     month: scopeMonth,
   });
   useReportMobileDuoScopeViewed({
+    enabled: ready,
     surface: "calendar",
     scope,
     hasPartner: Boolean(activePartner),
@@ -297,9 +299,10 @@ export function CalendarScreen() {
   };
 
   if (
-    planner.isLoading &&
-    readOnlyState.showViewerSessions &&
-    !draft.preview
+    !ready ||
+    (planner.isLoading &&
+      readOnlyState.showViewerSessions &&
+      !draft.preview)
   ) {
     return <LoadingScreen />;
   }

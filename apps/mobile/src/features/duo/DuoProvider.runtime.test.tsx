@@ -197,15 +197,23 @@ describe("DuoProvider runtime clamp behavior", () => {
 
   it("retains stored partner/both preference when active partner exists", async () => {
     state.teamMode = "ready-active";
+    const surfaceSnapshots: Array<{
+      ready: boolean;
+      scope: "me" | "partner" | "both";
+    }> = [];
 
     const latest: {
       scopePreference: "me" | "partner" | "both" | null;
       hasActivePartner: boolean;
       availability: "ready" | "unavailable";
+      ready: boolean;
+      scope: "me" | "partner" | "both";
     } = {
       scopePreference: null,
       hasActivePartner: false,
       availability: "ready",
+      ready: false,
+      scope: "me",
     };
 
     function Probe() {
@@ -214,6 +222,9 @@ describe("DuoProvider runtime clamp behavior", () => {
       latest.scopePreference = duo.scopePreference;
       latest.hasActivePartner = surface.hasActivePartner;
       latest.availability = duo.availability;
+      latest.ready = surface.ready;
+      latest.scope = surface.scope;
+      surfaceSnapshots.push({ ready: surface.ready, scope: surface.scope });
       return null;
     }
 
@@ -236,7 +247,14 @@ describe("DuoProvider runtime clamp behavior", () => {
       expect(latest.availability).toBe("ready");
       expect(latest.hasActivePartner).toBe(true);
       expect(latest.scopePreference).toBe("both");
+      expect(latest.ready).toBe(true);
+      expect(latest.scope).toBe("both");
       expect(mocks.removeItem).not.toHaveBeenCalled();
+      expect(
+        surfaceSnapshots.some(
+          (snapshot) => snapshot.ready && snapshot.scope === "me"
+        )
+      ).toBe(false);
     });
 
     await act(async () => {

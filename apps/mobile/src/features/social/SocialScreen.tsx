@@ -1,24 +1,51 @@
 import { getApiErrorMessage } from "@cadence/shared/api-client";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { api } from "../../lib/api";
 import { useSession } from "../../lib/session";
+import { supabase } from "../../lib/supabase";
 import { useTheme } from "../../theme";
 import { PrimaryButton } from "../../ui/button";
 import { LoadingScreen, Screen } from "../../ui/screen";
 import { useDuo } from "../duo/DuoProvider";
 import { createDuoLifecycleMutations } from "../duo/lifecycle";
+import {
+  buildDuoInviteInput,
+  searchDuoPartners,
+  type DuoPartnerSearchResult,
+} from "./duo-onboarding";
 
 export function SocialScreen() {
   const theme = useTheme();
   const { userId } = useSession();
   const duo = useDuo();
   const queryClient = useQueryClient();
-  const [partnerIdInput, setPartnerIdInput] = useState("");
+  const [partnerSearchInput, setPartnerSearchInput] = useState("");
+  const [partnerSearchResults, setPartnerSearchResults] = useState<
+    DuoPartnerSearchResult[]
+  >([]);
+  const [selectedPartner, setSelectedPartner] =
+    useState<DuoPartnerSearchResult | null>(null);
   const [inviteMessageInput, setInviteMessageInput] = useState("");
   const [visibilityAcknowledged, setVisibilityAcknowledged] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+
+  const viewerProfile = useQuery({
+    queryKey: ["mobile-social-viewer-profile", userId],
+    enabled: Boolean(userId),
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("username")
+        .eq("id", userId ?? "")
+        .maybeSingle();
+      if (error) {
+        throw error;
+      }
+      return data?.username ?? null;
+    },
+  });
 
   const lifecycle = useMemo(() => {
     if (!userId) {
@@ -34,22 +61,52 @@ export function SocialScreen() {
     });
   }, [queryClient, userId]);
 
+  const searchPartners = useMutation({
+    mutationFn: async () => {
+      if (!userId) {
+        throw new Error("You must be signed in to find a partner.");
+      }
+      return searchDuoPartners({
+        client: supabase,
+        query: partnerSearchInput,
+        viewerUserId: userId,
+      });
+    },
+    onMutate: () => {
+      setPartnerSearchResults([]);
+      setSelectedPartner(null);
+      setStatusMessage(null);
+    },
+    onSuccess: (results) => {
+      setPartnerSearchResults(results);
+      setStatusMessage(
+        results.length === 0 ? "No matching Cadence users found." : null
+      );
+    },
+    onError: (error) => {
+      setPartnerSearchResults([]);
+      setSelectedPartner(null);
+      setStatusMessage(getApiErrorMessage(error, "Partner search failed."));
+    },
+  });
+
   const createInvite = useMutation({
     mutationFn: async () => {
       if (!lifecycle) {
         throw new Error("You must be signed in to invite a partner.");
       }
-      const partnerId = partnerIdInput.trim();
-      if (!partnerId) {
-        throw new Error("Enter your partner's full user id.");
-      }
-      await lifecycle.createInvite({
-        partnerId,
-        message: inviteMessageInput.trim() || undefined,
-      });
+      await lifecycle.createInvite(
+        buildDuoInviteInput({
+          selectedProfile: selectedPartner,
+          viewerUserId: userId ?? "",
+          message: inviteMessageInput,
+        })
+      );
     },
     onSuccess: () => {
-      setPartnerIdInput("");
+      setPartnerSearchInput("");
+      setPartnerSearchResults([]);
+      setSelectedPartner(null);
       setInviteMessageInput("");
       setStatusMessage("Invite sent.");
     },
@@ -136,6 +193,7 @@ export function SocialScreen() {
   });
 
   const busy =
+    searchPartners.isPending ||
     createInvite.isPending ||
     acceptInvite.isPending ||
     declineInvite.isPending ||
@@ -188,6 +246,15 @@ export function SocialScreen() {
 
   return (
     <Screen title="Challenges">
+      <View style={[styles.card, { borderColor: theme.colors.border }]}>
+        <Text style={{ color: theme.colors.foreground, fontWeight: "700" }}>
+          Signed in as{" "}
+          {viewerProfile.data ? `@${viewerProfile.data}` : "Cadence user"}
+        </Text>
+        <Text style={{ color: theme.colors.mutedForeground }}>
+          User id: {userId}
+        </Text>
+      </View>
       {activePartner ? (
         <View style={[styles.card, { borderColor: theme.colors.border }]}>
           <Text style={{ color: theme.colors.foreground, fontWeight: "700" }}>
@@ -222,6 +289,9 @@ export function SocialScreen() {
           <Pressable
             style={styles.ackRow}
             onPress={() => setVisibilityAcknowledged((value) => !value)}
+            accessibilityRole="checkbox"
+            accessibilityLabel="I understand partner progress visibility will be shared."
+            accessibilityState={{ checked: visibilityAcknowledged }}
           >
             <Text style={{ color: theme.colors.foreground }}>
               {visibilityAcknowledged ? "[x]" : "[ ]"}
@@ -260,10 +330,16 @@ export function SocialScreen() {
             Invite a partner
           </Text>
           <TextInput
-            value={partnerIdInput}
-            onChangeText={setPartnerIdInput}
+            value={partnerSearchInput}
+            onChangeText={(value) => {
+              setPartnerSearchInput(value);
+              setPartnerSearchResults([]);
+              setSelectedPartner(null);
+              setStatusMessage(null);
+            }}
+            editable={!searchPartners.isPending}
             autoCapitalize="none"
-            placeholder="Partner UUID"
+            placeholder="Partner username"
             placeholderTextColor={theme.colors.mutedForeground}
             style={[
               styles.input,
@@ -273,6 +349,42 @@ export function SocialScreen() {
               },
             ]}
           />
+          <PrimaryButton
+            label={searchPartners.isPending ? "Searching..." : "Search"}
+            disabled={busy || partnerSearchInput.trim().length === 0}
+            onPress={() => {
+              void searchPartners.mutateAsync();
+            }}
+          />
+          {partnerSearchResults.map((profile) => {
+            const selected = selectedPartner?.id === profile.id;
+            return (
+              <Pressable
+                key={profile.id}
+                accessibilityRole="radio"
+                accessibilityLabel={`Select @${profile.username}`}
+                accessibilityState={{ selected }}
+                onPress={() => setSelectedPartner(profile)}
+                style={[
+                  styles.searchResult,
+                  {
+                    borderColor: selected
+                      ? theme.colors.primary
+                      : theme.colors.border,
+                  },
+                ]}
+              >
+                <Text
+                  style={{ color: theme.colors.foreground, fontWeight: "700" }}
+                >
+                  @{profile.username}
+                </Text>
+                <Text style={{ color: theme.colors.mutedForeground }}>
+                  {profile.display_name}
+                </Text>
+              </Pressable>
+            );
+          })}
           <TextInput
             value={inviteMessageInput}
             onChangeText={setInviteMessageInput}
@@ -289,7 +401,7 @@ export function SocialScreen() {
           />
           <PrimaryButton
             label={createInvite.isPending ? "Sending invite..." : "Send invite"}
-            disabled={busy}
+            disabled={busy || !selectedPartner}
             onPress={() => {
               void createInvite.mutateAsync();
             }}
@@ -327,5 +439,11 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 8,
     alignItems: "flex-start",
+  },
+  searchResult: {
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
   },
 });

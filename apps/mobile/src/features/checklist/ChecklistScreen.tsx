@@ -3,7 +3,7 @@ import { Link } from "expo-router";
 import { useMemo } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useTheme } from "../../theme";
-import { Screen } from "../../ui/screen";
+import { LoadingScreen, Screen } from "../../ui/screen";
 import { useDuo, useDuoSurfaceScope } from "../duo/DuoProvider";
 import { DuoScopeSegmentedControl } from "../duo/DuoScopeSegmentedControl";
 import {
@@ -25,10 +25,12 @@ import { useChecklistClock, useChecklistLaneData } from "./use-checklist-data";
 
 export function ChecklistScreen() {
   const theme = useTheme();
-  const { scope, hasActivePartner, setScopePreference } = useDuoSurfaceScope("checklist");
+  const { ready, scope, hasActivePartner, setScopePreference } =
+    useDuoSurfaceScope("checklist");
   const { state } = useDuo();
   const activePartner = hasActivePartner ? state.activePartner : null;
   useReportMobileDuoScopeViewed({
+    enabled: ready,
     surface: "checklist",
     scope,
     hasPartner: Boolean(activePartner),
@@ -226,6 +228,10 @@ export function ChecklistScreen() {
 
     return null;
   };
+
+  if (!ready) {
+    return <LoadingScreen />;
+  }
 
   return (
     <Screen title="Checklist" scroll={false}>

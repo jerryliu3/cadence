@@ -61,6 +61,9 @@ Router client in `apps/mobile`. Shared contracts live in `packages/shared`.
   (no init and no Duo capture calls).
 - `EXPO_PUBLIC_SENTRY_ENVIRONMENT` is optional and should be set per EAS channel
   (`preview` for preview builds, `production` for production builds) when DSN is enabled.
+- Source-map uploads require `SENTRY_ORG` and `SENTRY_PROJECT` in the EAS/CI
+  build environment, plus `SENTRY_AUTH_TOKEN` as an EAS/CI secret. The auth
+  token must not be committed or exposed through an `EXPO_PUBLIC_*` variable.
 
 ### Native module note
 

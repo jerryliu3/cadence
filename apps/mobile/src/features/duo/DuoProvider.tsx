@@ -202,6 +202,9 @@ export function useDuoSurfaceScope(surface: DuoSurfaceName) {
   const resolved = duo.resolveSurfaceScope(surface);
   return {
     ...resolved,
+    ready:
+      duo.scopePreferenceReady &&
+      (!duo.socialEnabled || !duo.teamLoading),
     scopePreference: duo.scopePreference,
     setScopePreference: duo.setScopePreference,
   };

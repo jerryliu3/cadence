@@ -21,7 +21,10 @@ export function Screen({
   const theme = useTheme();
   const body = (
     <View style={styles.body}>
-      <Text style={[styles.title, { color: theme.colors.foreground }]}>
+      <Text
+        accessibilityRole="header"
+        style={[styles.title, { color: theme.colors.foreground }]}
+      >
         {title}
       </Text>
       {children}
