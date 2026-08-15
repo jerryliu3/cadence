@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { toLocalDateString } from "@/lib/dates/day";
 import { useXpProfile } from "@/components/xp/xp-profile-provider";
 
 export const JOURNEY_INTRO_SEEN_KEY = "cadence.journey_intro_seen.v1";
@@ -13,8 +14,9 @@ export function JourneyIntroOverlay() {
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
-      const seen = window.localStorage.getItem(JOURNEY_INTRO_SEEN_KEY);
-      if (!seen) {
+      const today = toLocalDateString();
+      const lastSeen = window.localStorage.getItem(JOURNEY_INTRO_SEEN_KEY);
+      if (lastSeen !== today) {
         setOpen(true);
       }
     }, 0);
@@ -53,7 +55,10 @@ export function JourneyIntroOverlay() {
             <Button
               type="button"
               onClick={() => {
-                window.localStorage.setItem(JOURNEY_INTRO_SEEN_KEY, "true");
+                window.localStorage.setItem(
+                  JOURNEY_INTRO_SEEN_KEY,
+                  toLocalDateString()
+                );
                 setOpen(false);
               }}
             >
