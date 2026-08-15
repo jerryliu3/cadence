@@ -20,6 +20,10 @@ export type Database = {
         Args: { p_goal_id: string; p_uid: string }
         Returns: undefined
       }
+      assert_health_local_today: {
+        Args: { p_local_today: string }
+        Returns: undefined
+      }
       assert_planner_schedule_window: {
         Args: { p_end: string; p_start: string }
         Returns: undefined
@@ -33,6 +37,14 @@ export type Database = {
           p_user_ids: string[]
         }
         Returns: number
+      }
+      elect_health_activities_for_key: {
+        Args: {
+          p_local_date: string
+          p_metric: Database["public"]["Enums"]["health_metric_key"]
+          p_user_id: string
+        }
+        Returns: undefined
       }
       emit_feed_event: {
         Args: {
@@ -81,6 +93,15 @@ export type Database = {
         }
         Returns: string
       }
+      finalize_health_activity_cluster: {
+        Args: {
+          p_activity_ids: string[]
+          p_local_date: string
+          p_metric: Database["public"]["Enums"]["health_metric_key"]
+          p_user_id: string
+        }
+        Returns: undefined
+      }
       goal_anchored_period_start: {
         Args: {
           p_anchor: string
@@ -108,6 +129,44 @@ export type Database = {
           source_key: string
           track_key: string
           xp_amount: number
+        }[]
+      }
+      health_ingest_lock_key: { Args: { p_user_id: string }; Returns: number }
+      health_metric_uses_fuzzy_cluster: {
+        Args: { p_metric: Database["public"]["Enums"]["health_metric_key"] }
+        Returns: boolean
+      }
+      health_ranges_overlap: {
+        Args: {
+          p_end_a: string
+          p_end_b: string
+          p_start_a: string
+          p_start_b: string
+        }
+        Returns: boolean
+      }
+      health_samples_overlap: {
+        Args: {
+          p_end_a: string
+          p_end_b: string
+          p_start_a: string
+          p_start_b: string
+        }
+        Returns: boolean
+      }
+      health_source_priority_rank: {
+        Args: {
+          p_metric: Database["public"]["Enums"]["health_metric_key"]
+          p_source_identifier: string
+          p_user_id: string
+        }
+        Returns: number
+      }
+      health_utc_offset_envelope_dates: {
+        Args: never
+        Returns: {
+          max_date: string
+          min_date: string
         }[]
       }
       insert_goal_link_validated: {
@@ -196,6 +255,10 @@ export type Database = {
       raise_if_future_completion_date: {
         Args: { p_date: string; p_user_id: string }
         Returns: undefined
+      }
+      recompute_health_daily_metrics_for_user: {
+        Args: { p_from: string; p_to: string; p_user_id: string }
+        Returns: number
       }
       recompute_xp_for_goal_users: {
         Args: { p_goal_id: string }
@@ -2374,7 +2437,7 @@ export type Database = {
         Returns: boolean
       }
       ingest_health_activities_service: {
-        Args: { p_samples: Json }
+        Args: { p_deleted_native_ids?: Json; p_samples: Json }
         Returns: Json
       }
       is_platform_admin: {
