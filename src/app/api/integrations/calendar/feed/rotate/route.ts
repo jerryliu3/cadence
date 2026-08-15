@@ -12,6 +12,10 @@ export const runtime = "nodejs";
 
 export async function POST(request: Request) {
   return withRoute(async ({ correlationId }) => {
+    const { userId } = await requireAuthenticatedRequestContext(request, {
+      unauthorizedMessage: "Sign in to rotate your calendar feed URL.",
+    });
+
     const env = getServerEnv();
     if (!env.CALENDAR_FEED_HMAC_KEY) {
       throw new ApiRouteError(
@@ -20,10 +24,6 @@ export async function POST(request: Request) {
         "Calendar feed is not configured."
       );
     }
-
-    const { userId } = await requireAuthenticatedRequestContext(request, {
-      unauthorizedMessage: "Sign in to rotate your calendar feed URL.",
-    });
 
     const admin = createAdminClient();
     const profileResponse = await admin
