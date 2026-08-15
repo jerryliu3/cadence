@@ -32,6 +32,35 @@ vi.mock("@/lib/push/send", () => ({
 
 import { GET } from "./route";
 
+function prepareDueSchedule() {
+  mocks.fetchSchedules.mockResolvedValue({
+    data: [
+      {
+        id: "schedule-1",
+        user_id: "user-1",
+        hour: new Date().getUTCHours(),
+        timezone: "UTC",
+        message: "Keep going",
+        last_sent_local_date: null,
+      },
+    ],
+    error: null,
+  });
+  mocks.claimSchedule.mockResolvedValue({
+    data: { id: "schedule-1" },
+    error: null,
+  });
+}
+
+function dispatchRequest() {
+  return GET(
+    new Request("http://localhost/api/push/dispatch", {
+      method: "GET",
+      headers: { authorization: "Bearer cron-secret" },
+    })
+  );
+}
+
 describe("push dispatch route", () => {
   beforeEach(() => {
     vi.useRealTimers();
@@ -45,6 +74,7 @@ describe("push dispatch route", () => {
       removedSubscriptions: 0,
       hadSubscriptions: true,
       webConfigurationUnavailable: false,
+      deliveryFailures: 0,
     });
     mocks.fetchSchedules.mockResolvedValue({
       data: [],
@@ -184,7 +214,7 @@ describe("push dispatch route", () => {
     );
   });
 
-  it("keeps dispatch successful when downstream push delivery fails", async () => {
+  it("releases the claim when downstream push delivery fails", async () => {
     const currentUtcHour = new Date().getUTCHours();
     mocks.fetchSchedules.mockResolvedValue({
       data: [
@@ -208,6 +238,7 @@ describe("push dispatch route", () => {
       removedSubscriptions: 0,
       hadSubscriptions: true,
       webConfigurationUnavailable: false,
+      deliveryFailures: 1,
     });
 
     const response = await GET(
@@ -223,6 +254,7 @@ describe("push dispatch route", () => {
     await expect(response.json()).resolves.toMatchObject({
       due: 1,
       sent: 0,
+      deferred: 1,
       removedSubscriptions: 0,
       correlationId: expect.any(String),
     });
@@ -233,6 +265,10 @@ describe("push dispatch route", () => {
           body: "Keep going",
         }),
       })
+    );
+    expect(mocks.releaseSchedule).toHaveBeenCalledWith(
+      "last_sent_local_date",
+      expect.any(String)
     );
     expect(mocks.reportError).not.toHaveBeenCalled();
   });
@@ -261,6 +297,7 @@ describe("push dispatch route", () => {
       removedSubscriptions: 0,
       hadSubscriptions: true,
       webConfigurationUnavailable: true,
+      deliveryFailures: 0,
     });
 
     const response = await GET(
@@ -282,6 +319,83 @@ describe("push dispatch route", () => {
       "last_sent_local_date",
       expect.any(String)
     );
+  });
+
+  it("keeps the claim when the user has no push subscriptions", async () => {
+    prepareDueSchedule();
+    mocks.sendPushToUser.mockResolvedValue({
+      sent: 0,
+      removedSubscriptions: 0,
+      hadSubscriptions: false,
+      webConfigurationUnavailable: false,
+      deliveryFailures: 0,
+    });
+
+    const response = await dispatchRequest();
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      due: 1,
+      sent: 0,
+      deferred: 0,
+    });
+    expect(mocks.releaseSchedule).not.toHaveBeenCalled();
+  });
+
+  it("keeps the claim after at least one delivery succeeds", async () => {
+    prepareDueSchedule();
+    mocks.sendPushToUser.mockResolvedValue({
+      sent: 1,
+      removedSubscriptions: 0,
+      hadSubscriptions: true,
+      webConfigurationUnavailable: false,
+      deliveryFailures: 1,
+    });
+
+    const response = await dispatchRequest();
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      due: 1,
+      sent: 1,
+      deferred: 0,
+    });
+    expect(mocks.releaseSchedule).not.toHaveBeenCalled();
+  });
+
+  it("releases the claim when push delivery throws", async () => {
+    prepareDueSchedule();
+    mocks.sendPushToUser.mockRejectedValue(new Error("expo unavailable"));
+
+    const response = await dispatchRequest();
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      due: 1,
+      sent: 0,
+      deferred: 1,
+    });
+    expect(mocks.releaseSchedule).toHaveBeenCalledWith(
+      "last_sent_local_date",
+      expect.any(String)
+    );
+  });
+
+  it("reports a claim release failure instead of returning false success", async () => {
+    prepareDueSchedule();
+    mocks.sendPushToUser.mockRejectedValue(new Error("expo unavailable"));
+    mocks.releaseSchedule.mockResolvedValue({
+      data: null,
+      error: { message: "release failed" },
+    });
+
+    const response = await dispatchRequest();
+
+    expect(response.status).toBe(500);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "push_dispatch_failed",
+    });
+    expect(mocks.reportError).toHaveBeenCalledTimes(1);
   });
 
   it("retries a deferred schedule later on the same local day", async () => {

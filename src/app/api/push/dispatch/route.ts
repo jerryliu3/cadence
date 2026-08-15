@@ -16,6 +16,27 @@ interface NotificationSchedule {
   last_sent_local_date: string | null;
 }
 
+type AdminClient = ReturnType<typeof createAdminClient>;
+
+async function releaseScheduleClaim({
+  admin,
+  schedule,
+  localDate,
+}: {
+  admin: AdminClient;
+  schedule: NotificationSchedule;
+  localDate: string;
+}) {
+  return admin
+    .from("notification_schedules")
+    .update({
+      last_sent_local_date: schedule.last_sent_local_date,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", schedule.id)
+    .eq("last_sent_local_date", localDate);
+}
+
 async function dispatchNotifications(request: Request, correlationId: string) {
   const cronSecret = getServerEnv().CRON_SECRET;
 
@@ -110,6 +131,7 @@ async function dispatchNotifications(request: Request, correlationId: string) {
 
     await Promise.all(
       dueSchedules.map(async ({ schedule, localDate }) => {
+        let retryableFailure = false;
         try {
           const result = await sendPushToUser({
             admin,
@@ -123,23 +145,28 @@ async function dispatchNotifications(request: Request, correlationId: string) {
           });
           sent += result.sent;
           removedSubscriptions += result.removedSubscriptions;
-          if (result.sent === 0 && result.webConfigurationUnavailable) {
-            const { error: releaseError } = await admin
-              .from("notification_schedules")
-              .update({
-                last_sent_local_date: schedule.last_sent_local_date,
-                updated_at: new Date().toISOString(),
-              })
-              .eq("id", schedule.id)
-              .eq("last_sent_local_date", localDate);
-            if (releaseError) {
-              throw releaseError;
-            }
-            deferred += 1;
-          }
+          retryableFailure =
+            result.sent === 0 &&
+            (result.webConfigurationUnavailable ||
+              result.deliveryFailures > 0);
         } catch (error) {
+          retryableFailure = true;
           console.error(`Failed to send schedule ${schedule.id}:`, error);
         }
+
+        if (!retryableFailure) {
+          return;
+        }
+
+        const { error: releaseError } = await releaseScheduleClaim({
+          admin,
+          schedule,
+          localDate,
+        });
+        if (releaseError) {
+          throw releaseError;
+        }
+        deferred += 1;
       })
     );
 
