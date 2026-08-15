@@ -3,6 +3,10 @@
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+import {
+  getAvatarUrlValidationError,
+  normalizeAvatarUrlDraft,
+} from "@/features/social/avatar-url";
 import { groupCompletionsByGoalId } from "@/lib/goals/completion-grouping";
 import type {
   Completion,
@@ -261,7 +265,7 @@ export function useSocialTabData() {
     () => ({
       username: profileDraft.username.trim().toLowerCase(),
       display_name: profileDraft.display_name.trim() || null,
-      avatar_url: profileDraft.avatar_url.trim() || null,
+      avatar_url: normalizeAvatarUrlDraft(profileDraft.avatar_url),
     }),
     [profileDraft.avatar_url, profileDraft.display_name, profileDraft.username]
   );
@@ -277,7 +281,11 @@ export function useSocialTabData() {
     normalizedProfileDraft.username !== normalizedPersistedProfile.username ||
     normalizedProfileDraft.display_name !== normalizedPersistedProfile.display_name ||
     normalizedProfileDraft.avatar_url !== normalizedPersistedProfile.avatar_url;
-  const canSaveProfile = Boolean(state.userId) && profileDirty;
+  const avatarUrlError = useMemo(
+    () => getAvatarUrlValidationError(normalizedProfileDraft.avatar_url),
+    [normalizedProfileDraft.avatar_url]
+  );
+  const canSaveProfile = Boolean(state.userId) && profileDirty && !avatarUrlError;
 
   const saveProfile = async () => {
     if (!canSaveProfile) {
@@ -410,6 +418,7 @@ export function useSocialTabData() {
     outgoingSharesByGoal,
     sharedByMeGoals,
     completionsByGoal,
+    avatarUrlError,
     canSaveProfile,
     saveProfile,
     shareGoalWithUser,
