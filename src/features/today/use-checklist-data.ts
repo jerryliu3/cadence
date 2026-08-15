@@ -145,7 +145,9 @@ export function useChecklistData({
             Promise.all([
               targetIsViewer
                 ? goalsQuery
-                : goalsQuery.eq("owner_id", targetSubjectUserId),
+                : goalsQuery
+                    .eq("owner_id", targetSubjectUserId)
+                    .is("team_id", null),
               targetIsViewer
                 ? supabase.from("team_members").select("team_id").eq("user_id", userId)
                 : Promise.resolve({ data: [], error: null }),
@@ -175,6 +177,7 @@ export function useChecklistData({
         const visibleGoals = selectViewerVisibleGoals({
           goals,
           partnerId: targetIsViewer ? partnerId : null,
+          memberTeamIds,
         });
         const links = (linksResponse.data ?? []) as GoalLink[];
 

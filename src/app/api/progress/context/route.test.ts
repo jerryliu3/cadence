@@ -219,4 +219,81 @@ describe("bounded progress context route", () => {
     expect(body.summaries[0]?.admissibleCompletionCount).toBe(1_005);
   });
 
+  it("keeps partner-created active-team goals in viewer progress", async () => {
+    mocks.socialEnabled = true;
+    const teamId = "44444444-4444-4444-8444-444444444444";
+    const partnerId = "22222222-2222-4222-8222-222222222222";
+    const goalRows = [
+      {
+        ...goal(),
+        id: "10000000-0000-4000-8000-000000000002",
+        owner_id: partnerId,
+        team_id: null,
+        title: "Partner personal",
+      },
+      {
+        ...goal(),
+        id: "10000000-0000-4000-8000-000000000003",
+        owner_id: partnerId,
+        team_id: teamId,
+        title: "Partner-created team goal",
+      },
+    ];
+    mocks.client = {
+      auth: {
+        getUser: async () => ({
+          data: {
+            user: { id: "11111111-1111-4111-8111-111111111111" },
+          },
+          error: null,
+        }),
+      },
+      rpc: async () => ({
+        data: [
+          {
+            team_id: teamId,
+            status: "active",
+            partner_id: partnerId,
+            partner_username: "partner",
+            partner_display_name: "Partner",
+            partner_avatar_url: null,
+            invite_message: null,
+            invited_at: "2026-08-01T00:00:00Z",
+            accepted_at: "2026-08-01T00:00:00Z",
+            closed_at: null,
+            is_incoming: false,
+          },
+        ],
+        error: null,
+      }),
+      from: (table: string) =>
+        new FakeQuery(
+          table === "goals"
+            ? goalRows
+            : table === "profiles"
+              ? [
+                  {
+                    id: "11111111-1111-4111-8111-111111111111",
+                    week_starts_on: 1,
+                  },
+                ]
+              : []
+        ),
+    };
+
+    const response = await GET(
+      new Request(
+        "http://localhost/api/progress/context?asOfDate=2026-08-14&timezone=UTC"
+      )
+    );
+    const body = (await response.json()) as {
+      summaries: Array<{ goalId: string }>;
+    };
+
+    expect(response.status).toBe(200);
+    expect(body.summaries.map((summary) => summary.goalId)).toEqual([
+      "10000000-0000-4000-8000-000000000003",
+    ]);
+  });
+
 });

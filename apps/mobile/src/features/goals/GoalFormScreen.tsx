@@ -1,4 +1,3 @@
-import { format } from "date-fns";
 import * as ImageManipulator from "expo-image-manipulator";
 import * as ImagePicker from "expo-image-picker";
 import { router } from "expo-router";
@@ -11,6 +10,12 @@ import { useSession } from "../../lib/session";
 import { useTheme } from "../../theme";
 import { PrimaryButton } from "../../ui/button";
 import { Screen } from "../../ui/screen";
+import {
+  MOBILE_GOAL_EDIT_SELECT,
+  buildMobileGoalCreateArgs,
+  buildMobileGoalUpdateArgs,
+  type MobileGoalEditSnapshot,
+} from "./goal-form-model";
 
 async function decodeBase64(base64: string) {
   const binary = globalThis.atob(base64);
@@ -65,6 +70,10 @@ export function GoalFormScreen({ goalId }: { goalId?: string }) {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [pendingPhotoUri, setPendingPhotoUri] = useState<string | null>(null);
+  const [existingGoal, setExistingGoal] =
+    useState<MobileGoalEditSnapshot | null>(null);
+  const [persistedGoalId, setPersistedGoalId] = useState<string | null>(null);
+  const [photoRetryPending, setPhotoRetryPending] = useState(false);
   const isEditing = Boolean(goalId);
 
   useEffect(() => {
@@ -73,10 +82,17 @@ export function GoalFormScreen({ goalId }: { goalId?: string }) {
     }
     void supabase
       .from("goals")
-      .select("title")
+      .select(MOBILE_GOAL_EDIT_SELECT)
       .eq("id", goalId)
       .maybeSingle()
-      .then(({ data }) => {
+      .then(({ data, error }) => {
+        if (error || !data) {
+          setMessage("Goal could not be loaded.");
+          return;
+        }
+        const snapshot = data as MobileGoalEditSnapshot;
+        setExistingGoal(snapshot);
+        setPersistedGoalId(snapshot.id);
         if (data?.title) {
           setTitle(data.title);
         }
@@ -93,24 +109,55 @@ export function GoalFormScreen({ goalId }: { goalId?: string }) {
         style={[styles.input, { color: theme.colors.foreground, borderColor: theme.colors.border }]}
       />
       <PrimaryButton
-        disabled={busy || title.trim().length === 0}
-        label={busy ? "Saving..." : "Save"}
+        disabled={
+          busy ||
+          title.trim().length === 0 ||
+          (isEditing && existingGoal === null)
+        }
+        label={
+          busy ? "Saving..." : photoRetryPending ? "Retry photo" : "Save"
+        }
         onPress={async () => {
           if (!userId) {
             return;
           }
           setBusy(true);
           setMessage(null);
+          if (photoRetryPending && persistedGoalId && pendingPhotoUri) {
+            try {
+              await uploadGoalPhoto({
+                userId,
+                goalId: persistedGoalId,
+                uri: pendingPhotoUri,
+              });
+              setPendingPhotoUri(null);
+              setPhotoRetryPending(false);
+              await queryClient.invalidateQueries({
+                queryKey: ["mobile-goals"],
+              });
+              router.back();
+            } catch (photoError) {
+              setMessage(
+                photoError instanceof Error
+                  ? photoError.message
+                  : "Goal is saved, but the photo could not be uploaded."
+              );
+            } finally {
+              setBusy(false);
+            }
+            return;
+          }
+
           const savedGoalId = goalId ?? createClientUuid();
-          const args = {
-            p_id: savedGoalId,
-            p_title: title.trim(),
-            p_category: "General",
-            p_frequency_type: "recurring" as const,
-            p_recurrence_interval: "daily" as const,
-            p_start_date: format(new Date(), "yyyy-MM-dd"),
-            p_is_private: false,
-          };
+          if (isEditing && !existingGoal) {
+            setBusy(false);
+            setMessage("Goal could not be loaded.");
+            return;
+          }
+          const args =
+            isEditing && existingGoal
+              ? buildMobileGoalUpdateArgs(existingGoal, title)
+              : buildMobileGoalCreateArgs(title, savedGoalId);
           const { error } = isEditing
             ? await supabase.rpc("update_goal", args)
             : await supabase.rpc("create_goal", args);
@@ -119,6 +166,7 @@ export function GoalFormScreen({ goalId }: { goalId?: string }) {
             setMessage(error.message);
             return;
           }
+          setPersistedGoalId(savedGoalId);
           if (pendingPhotoUri) {
             try {
               await uploadGoalPhoto({
@@ -126,8 +174,10 @@ export function GoalFormScreen({ goalId }: { goalId?: string }) {
                 goalId: savedGoalId,
                 uri: pendingPhotoUri,
               });
+              setPendingPhotoUri(null);
             } catch (photoError) {
               setBusy(false);
+              setPhotoRetryPending(true);
               setMessage(
                 photoError instanceof Error
                   ? photoError.message

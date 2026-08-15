@@ -1,8 +1,11 @@
-export interface ProgressContextFact {
-  goal_id: string;
-  completed_on: string;
-  source: "manual" | "linked_cascade";
-}
+import type { Database } from "../supabase/database.types";
+
+type CompletionRow = Database["public"]["Tables"]["completions"]["Row"];
+
+export type ProgressContextFact = Pick<
+  CompletionRow,
+  "goal_id" | "completed_on" | "source"
+>;
 
 export interface ProgressContextSummary {
   goalId: string;

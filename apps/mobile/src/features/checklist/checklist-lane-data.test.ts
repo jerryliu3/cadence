@@ -6,7 +6,9 @@ import {
   buildChecklistProgressQuery,
   countChecklistCompletionsForDate,
   isChecklistLaneInteractive,
+  latestCompletionDateByGoal,
   resolveChecklistCompletableGoalIds,
+  resolveChecklistMutationDate,
   resolvePartnerChecklistStripState,
   resolveTeamMembershipIds,
   selectChecklistGoalsForSubject,
@@ -62,6 +64,22 @@ const goals: MobileGoal[] = [
     archived_at: null,
     is_deleted: false,
   },
+  {
+    id: "partner-team",
+    owner_id: "partner-1",
+    title: "Partner-created team goal",
+    description: null,
+    category: "Team",
+    frequency_type: "recurring",
+    recurrence_interval: "weekly",
+    target_count: 2,
+    start_date: "2026-01-01",
+    end_date: null,
+    team_id: "team-1",
+    photo_path: null,
+    archived_at: null,
+    is_deleted: false,
+  },
 ];
 
 describe("checklist lane data helpers", () => {
@@ -70,9 +88,14 @@ describe("checklist lane data helpers", () => {
       goals,
       subject: { id: "viewer", label: "Mine", readOnly: false, userId: "viewer-1" },
       partnerId: "partner-1",
+      memberTeamIds: ["team-1"],
     });
 
-    expect(selected.map((goal) => goal.id)).toEqual(["viewer-owned", "team-goal"]);
+    expect(selected.map((goal) => goal.id)).toEqual([
+      "viewer-owned",
+      "team-goal",
+      "partner-team",
+    ]);
   });
 
   it("keeps only partner-owned goals in partner lane", () => {
@@ -127,6 +150,42 @@ describe("checklist lane data helpers", () => {
         ],
       })
     ).toBe(2);
+  });
+
+  it("uses server-selected period facts for checked state and uncheck dates", () => {
+    const facts = [
+      {
+        goal_id: "weekly",
+        completed_on: "2026-08-11",
+        source: "manual" as const,
+      },
+      {
+        goal_id: "monthly",
+        completed_on: "2026-08-02",
+        source: "manual" as const,
+      },
+    ];
+    const completionDateByGoal = latestCompletionDateByGoal(facts);
+
+    expect(new Set(facts.map((fact) => fact.goal_id))).toEqual(
+      new Set(["weekly", "monthly"])
+    );
+    expect(
+      resolveChecklistMutationDate({
+        goalId: "weekly",
+        desiredFactState: "absent",
+        asOfDate: "2026-08-14",
+        completionDateByGoal,
+      })
+    ).toBe("2026-08-11");
+    expect(
+      resolveChecklistMutationDate({
+        goalId: "monthly",
+        desiredFactState: "present",
+        asOfDate: "2026-08-14",
+        completionDateByGoal,
+      })
+    ).toBe("2026-08-14");
   });
 
   it("resolves partner strip states without affecting viewer lane data", () => {
@@ -201,7 +260,7 @@ describe("checklist lane data helpers", () => {
         viewerUserId: "viewer-1",
         memberTeamIds: ["team-1"],
       })
-    ).toEqual(new Set(["viewer-owned", "team-goal"]));
+    ).toEqual(new Set(["viewer-owned", "team-goal", "partner-team"]));
   });
 
   it("returns no completable ids for partner lane", () => {
