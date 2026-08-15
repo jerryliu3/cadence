@@ -126,6 +126,12 @@ import {
 import { POST as xpAwardsPost } from "@/app/api/xp/awards/acknowledge/route";
 import { GET as xpProfileGet } from "@/app/api/xp/profile/route";
 import { POST as calendarFeedRotatePost } from "@/app/api/integrations/calendar/feed/rotate/route";
+import { GET as xpTrophiesGet } from "@/app/api/xp/trophies/route";
+import {
+  GET as xpRewardsGet,
+  POST as xpRewardsPost,
+} from "@/app/api/xp/rewards/route";
+import { POST as xpRewardClaimPost } from "@/app/api/xp/rewards/[rewardId]/claim/route";
 
 import {
   GET as plannerContextGet,
@@ -202,6 +208,7 @@ function requestFor(label: string, token: string | null, body?: unknown) {
     .replace("[seasonId]", RESOURCE_ID)
     .replace("[conversationId]", RESOURCE_ID)
     .replace("[teamId]", RESOURCE_ID)
+    .replace("[rewardId]", RESOURCE_ID)
     .replace("[id]", RESOURCE_ID);
   const headers = new Headers();
   if (token) {
@@ -248,6 +255,19 @@ const auditedRouteCases: AuditedRouteCase[] = [
   routeCase("DELETE /api/push/subscriptions", pushSubscriptionsDelete),
   routeCase("POST /api/xp/awards/acknowledge", xpAwardsPost),
   routeCase("GET /api/xp/profile", xpProfileGet),
+  routeCase("GET /api/xp/trophies", xpTrophiesGet),
+  routeCase("GET /api/xp/rewards", xpRewardsGet),
+  routeCase(
+    "POST /api/xp/rewards",
+    xpRewardsPost,
+    undefined,
+    { title: "Reward", unlockTotalXp: 100 }
+  ),
+  routeCase(
+    "POST /api/xp/rewards/[rewardId]/claim",
+    xpRewardClaimPost,
+    { rewardId: RESOURCE_ID }
+  ),
   routeCase("POST /api/integrations/calendar/feed/rotate", calendarFeedRotatePost),
 
   routeCase("GET /api/planner/context", plannerContextGet),
