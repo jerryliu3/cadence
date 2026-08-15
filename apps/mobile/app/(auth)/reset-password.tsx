@@ -35,15 +35,28 @@ export default function ResetPasswordScreen() {
         label={busy ? "Sending..." : "Send reset email"}
         onPress={async () => {
           setBusy(true);
-          const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-            redirectTo: buildPasswordRecoveryRedirect(mobileEnv.apiBaseUrl),
-          });
-          setBusy(false);
-          setMessage(
-            error
-              ? error.message
-              : "Check your email, complete the web form, then return to sign in."
-          );
+          setMessage(null);
+          try {
+            const { error } = await supabase.auth.resetPasswordForEmail(
+              email.trim(),
+              {
+                redirectTo: buildPasswordRecoveryRedirect(mobileEnv.apiBaseUrl),
+              }
+            );
+            setMessage(
+              error
+                ? error.message
+                : "Check your email, complete the web form, then return to sign in."
+            );
+          } catch (error) {
+            setMessage(
+              error instanceof Error
+                ? error.message
+                : "Could not send the reset email."
+            );
+          } finally {
+            setBusy(false);
+          }
         }}
       />
       {message ? <Text style={{ color: theme.colors.foreground }}>{message}</Text> : null}
