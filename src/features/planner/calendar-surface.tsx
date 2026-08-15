@@ -542,6 +542,9 @@ export function CalendarSurface({
     unplaceableGoalSummaries,
     totalUnplacedCount,
   } = calendarStoreProjection;
+  const primaryUnplaceableGoal = unplaceableGoalSummaries[0] ?? null;
+  const unplaceablePrimaryActionLabel =
+    unplaceableGoalSummaries.length > 1 ? "Review a goal" : "Edit this goal";
   const invalidLockGoalCount = unplaceableGoalSummaries.filter(
     (entry) => entry.reason === "invalid_lock"
   ).length;
@@ -2619,8 +2622,31 @@ export function CalendarSurface({
       {hasPlannerWarnings && !warningsDismissed && !showBlockingLoading && !error ? (
         <div className="rounded-md border border-amber-300 bg-amber-100 px-3 py-2 text-xs text-amber-950 dark:border-amber-300 dark:bg-amber-100 dark:text-amber-950">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex flex-wrap items-center gap-1.5">
-              <p>There were some issues generating the full calendar.</p>
+            <p>
+              {unplaceableGoalSummaries.length === 0
+                ? "There were some issues generating the full calendar."
+                : invalidLockGoalCount > 0
+                ? `\u26A0 ${unplaceableGoalSummaries.length} goal${
+                    unplaceableGoalSummaries.length === 1 ? "" : "s"
+                  } need scheduling attention (${invalidLockGoalCount} locked conflict${
+                    invalidLockGoalCount === 1 ? "" : "s"
+                  }, ${totalUnplacedCount} unresolved session${
+                    totalUnplacedCount === 1 ? "" : "s"
+                  }).`
+                : `\u26A0 ${unplaceableGoalSummaries.length} goal${
+                    unplaceableGoalSummaries.length === 1 ? " is" : "s are"
+                  } not fully scheduled (${totalUnplacedCount} unresolved session${
+                    totalUnplacedCount === 1 ? "" : "s"
+                  }).`}
+            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              {primaryUnplaceableGoal ? (
+                <Button asChild variant="outline" size="sm" className="h-7 text-xs">
+                  <Link href={`/goals/${primaryUnplaceableGoal.goalId}`}>
+                    {unplaceablePrimaryActionLabel}
+                  </Link>
+                </Button>
+              ) : null}
               <Button
                 type="button"
                 variant="outline"
@@ -2630,7 +2656,7 @@ export function CalendarSurface({
                   setWarningsOpen(true);
                 }}
               >
-                See warnings
+                Open planner settings
               </Button>
             </div>
             <button
