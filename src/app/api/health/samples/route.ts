@@ -12,11 +12,7 @@ import {
   requireAuthenticatedRequestContext,
   withRoute,
 } from "@/lib/api/route";
-import { reportHealthDiagnostic } from "@/lib/health/diagnostics";
-import {
-  requireIntegrationsAccess,
-  requireIntegrationsFlag,
-} from "@/lib/health/integrations-disabled";
+import { isFeatureEnabled } from "@/lib/feature-flags";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export const runtime = "nodejs";
@@ -50,9 +46,19 @@ function asJsonObject(value: Record<string, unknown> | undefined): Json {
   return JSON.parse(JSON.stringify(value ?? {})) as Json;
 }
 
+function disabledError() {
+  return new ApiRouteError(
+    503,
+    "integrations_disabled",
+    "Integrations are not enabled."
+  );
+}
+
 export async function POST(request: Request) {
   return withRoute(async ({ correlationId }) => {
-    requireIntegrationsFlag();
+    if (!isFeatureEnabled("integrationsEnabled")) {
+      throw disabledError();
+    }
 
     const payload = await parseJsonBody({
       request,
@@ -63,7 +69,6 @@ export async function POST(request: Request) {
       request,
       { unauthorizedMessage: "Sign in to sync health data." }
     );
-    requireIntegrationsAccess(userId);
 
     if (
       payload.localToday !== undefined &&
@@ -90,10 +95,6 @@ export async function POST(request: Request) {
       canonical_count: 0,
       suppressed_count: 0,
       recomputed_days: 0,
-    };
-    let autocompleteResult = {
-      applied_count: 0,
-      skipped_count: 0,
     };
 
     const deletedNativeIds = payload.deletedNativeIds ?? [];
@@ -125,22 +126,6 @@ export async function POST(request: Request) {
         );
       }
       ingestResult = (rpcResponse.data ?? ingestResult) as typeof ingestResult;
-    }
-
-    if (payload.localToday && payload.lastError == null) {
-      const autocompleteResponse = await supabase.rpc(
-        "apply_health_autocomplete_service",
-        { p_local_today: payload.localToday }
-      );
-      if (autocompleteResponse.error) {
-        throw new ApiRouteError(
-          500,
-          "health_autocomplete_failed",
-          "Health auto-complete could not be applied."
-        );
-      }
-      autocompleteResult = (autocompleteResponse.data ??
-        autocompleteResult) as typeof autocompleteResult;
     }
 
     const now = new Date().toISOString();
@@ -175,17 +160,6 @@ export async function POST(request: Request) {
       );
     }
 
-    reportHealthDiagnostic({
-      event: payload.lastError ? "sync_failure" : "ingest",
-      correlationId,
-      provider: payload.provider,
-      ingestedCount: ingestResult.ingested_count ?? payload.samples.length,
-      canonicalCount: ingestResult.canonical_count ?? 0,
-      suppressedCount: ingestResult.suppressed_count ?? 0,
-      autocompleteAppliedCount: autocompleteResult.applied_count ?? 0,
-      lastError: payload.lastError,
-    });
-
     return apiSuccessResponse(
       {
         schemaVersion: "1" as const,
@@ -195,8 +169,6 @@ export async function POST(request: Request) {
         deletedCount: ingestResult.deleted_count ?? deletedNativeIds.length,
         canonicalCount: ingestResult.canonical_count ?? 0,
         suppressedCount: ingestResult.suppressed_count ?? 0,
-        autocompleteAppliedCount: autocompleteResult.applied_count ?? 0,
-        autocompleteSkippedCount: autocompleteResult.skipped_count ?? 0,
       },
       correlationId
     );

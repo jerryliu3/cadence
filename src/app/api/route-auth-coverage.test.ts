@@ -127,6 +127,8 @@ import { POST as xpAwardsPost } from "@/app/api/xp/awards/acknowledge/route";
 import { GET as xpProfileGet } from "@/app/api/xp/profile/route";
 import { POST as calendarFeedRotatePost } from "@/app/api/integrations/calendar/feed/rotate/route";
 import { GET as xpAchievementsGet } from "@/app/api/xp/achievements/route";
+import { GET as healthStatusGet } from "@/app/api/health/status/route";
+import { POST as healthSamplesPost } from "@/app/api/health/samples/route";
 
 import {
   GET as plannerContextGet,
@@ -251,6 +253,13 @@ const auditedRouteCases: AuditedRouteCase[] = [
   routeCase("GET /api/xp/profile", xpProfileGet),
   routeCase("GET /api/xp/achievements", xpAchievementsGet),
   routeCase("POST /api/integrations/calendar/feed/rotate", calendarFeedRotatePost),
+  routeCase("GET /api/health/status", healthStatusGet),
+  routeCase(
+    "POST /api/health/samples",
+    healthSamplesPost,
+    undefined,
+    { provider: "apple_healthkit", samples: [] }
+  ),
 
   routeCase("GET /api/planner/context", plannerContextGet),
   routeCase("POST /api/planner/context", plannerContextPost),
