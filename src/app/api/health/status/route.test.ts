@@ -5,7 +5,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   isFeatureEnabled: vi.fn(),
   getUser: vi.fn(),
-  eq: vi.fn(),
+  eqState: vi.fn(),
+  eqRules: vi.fn(),
 }));
 
 vi.mock("@/lib/feature-flags", () => ({
@@ -15,9 +16,9 @@ vi.mock("@/lib/feature-flags", () => ({
 vi.mock("@/lib/supabase/server", () => ({
   createClient: async () => ({
     auth: { getUser: mocks.getUser },
-    from: () => ({
+    from: (table: string) => ({
       select: () => ({
-        eq: mocks.eq,
+        eq: table === "health_autocomplete_rules" ? mocks.eqRules : mocks.eqState,
       }),
     }),
   }),
@@ -35,7 +36,8 @@ describe("GET /api/health/status", () => {
       data: { user: { id: "11111111-1111-4111-8111-111111111111" } },
       error: null,
     });
-    mocks.eq.mockResolvedValue({ data: [], error: null });
+    mocks.eqState.mockResolvedValue({ data: [], error: null });
+    mocks.eqRules.mockResolvedValue({ data: [], error: null });
   });
 
   afterEach(() => {
@@ -51,13 +53,26 @@ describe("GET /api/health/status", () => {
   });
 
   it("returns evidence states without raw health values", async () => {
-    mocks.eq.mockResolvedValue({
+    mocks.eqState.mockResolvedValue({
       data: [
         {
           provider: "apple_healthkit",
           permission_prompted_at: "2026-08-14T12:00:00.000Z",
           last_ingest_at: "2026-08-14T17:00:00.000Z",
           last_sample_at: "2026-08-14T17:00:00.000Z",
+          last_error: "token expired",
+        },
+      ],
+      error: null,
+    });
+    mocks.eqRules.mockResolvedValue({
+      data: [
+        {
+          id: "rule-1",
+          goal_id: "goal-1",
+          metric_key: "steps",
+          threshold_numeric: 8000,
+          enabled: true,
         },
       ],
       error: null,
@@ -71,12 +86,20 @@ describe("GET /api/health/status", () => {
       expect.objectContaining({
         provider: "apple_healthkit",
         state: "receiving_data",
+        lastError: "token expired",
       }),
       expect.objectContaining({
         provider: "android_health_connect",
         state: "never_asked",
       }),
     ]);
-    expect(JSON.stringify(payload)).not.toMatch(/steps|kcal|heart/i);
+    expect(payload.autocompleteRules).toEqual([
+      expect.objectContaining({
+        goalId: "goal-1",
+        metricKey: "steps",
+        thresholdNumeric: 8000,
+      }),
+    ]);
+    expect(JSON.stringify(payload)).not.toMatch(/value_numeric|heart/i);
   });
 });

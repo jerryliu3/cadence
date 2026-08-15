@@ -160,6 +160,26 @@ export async function POST(request: Request) {
       );
     }
 
+    let autocompleteResult = {
+      applied_count: 0,
+      skipped_count: 0,
+    };
+    if (payload.localToday && payload.lastError == null) {
+      const autocompleteResponse = await supabase.rpc(
+        "apply_health_autocomplete_service",
+        { p_local_today: payload.localToday }
+      );
+      if (autocompleteResponse.error) {
+        throw new ApiRouteError(
+          500,
+          "health_autocomplete_failed",
+          "Health auto-complete could not be applied."
+        );
+      }
+      autocompleteResult = (autocompleteResponse.data ??
+        autocompleteResult) as typeof autocompleteResult;
+    }
+
     return apiSuccessResponse(
       {
         schemaVersion: "1" as const,
@@ -169,6 +189,8 @@ export async function POST(request: Request) {
         deletedCount: ingestResult.deleted_count ?? deletedNativeIds.length,
         canonicalCount: ingestResult.canonical_count ?? 0,
         suppressedCount: ingestResult.suppressed_count ?? 0,
+        autocompleteAppliedCount: autocompleteResult.applied_count ?? 0,
+        autocompleteSkippedCount: autocompleteResult.skipped_count ?? 0,
       },
       correlationId
     );
