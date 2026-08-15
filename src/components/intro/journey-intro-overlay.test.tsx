@@ -1,6 +1,10 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { JourneyIntroOverlay, JOURNEY_INTRO_SEEN_KEY } from "@/components/intro/journey-intro-overlay";
+import {
+  JourneyIntroOverlay,
+  JOURNEY_INTRO_OPEN_EVENT,
+  JOURNEY_INTRO_SEEN_KEY,
+} from "@/components/intro/journey-intro-overlay";
 import { toLocalDateString } from "@/lib/dates/day";
 
 const useXpProfileMock = vi.hoisted(() => vi.fn());
@@ -46,6 +50,18 @@ describe("JourneyIntroOverlay", () => {
   it("shows intro again on a new calendar day", async () => {
     window.localStorage.setItem(JOURNEY_INTRO_SEEN_KEY, "2026-01-01");
     render(<JourneyIntroOverlay />);
+    expect(
+      await screen.findByRole("dialog", { name: "Welcome to your climb" })
+    ).toBeInTheDocument();
+  });
+
+  it("reopens intro when settings triggers the revisit event", async () => {
+    window.localStorage.setItem(JOURNEY_INTRO_SEEN_KEY, toLocalDateString());
+    render(<JourneyIntroOverlay />);
+    expect(screen.queryByRole("dialog", { name: "Welcome to your climb" })).toBeNull();
+
+    window.dispatchEvent(new Event(JOURNEY_INTRO_OPEN_EVENT));
+
     expect(
       await screen.findByRole("dialog", { name: "Welcome to your climb" })
     ).toBeInTheDocument();

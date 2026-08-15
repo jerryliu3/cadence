@@ -17,6 +17,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { requestJourneyIntroOpen } from "@/components/intro/journey-intro-overlay";
 import { IntegrationsSettings } from "@/features/settings/integrations-settings";
 import { PlannerPreferencesSettings } from "@/features/settings/planner-preferences-settings";
 import { NotificationsSection } from "@/features/social/notifications-section";
@@ -190,6 +191,19 @@ export function SocialTab() {
                 </CardHeader>
                 <CardContent>
                   <PlannerPreferencesSettings />
+                  <div className="mt-4 border-t pt-4">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setSettingsPanelOpen(false);
+                        requestJourneyIntroOpen();
+                      }}
+                    >
+                      Replay welcome intro
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
             ) : null}
