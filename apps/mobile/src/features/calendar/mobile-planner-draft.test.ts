@@ -125,7 +125,13 @@ describe("mobile planner draft", () => {
   });
 
   it("publishes the same window, preview hash, and draft commands", async () => {
-    const postJson = vi.fn(async () => ({ replayed: false }));
+    const postJson = vi.fn(
+      async (path: string, body: Record<string, unknown>) => {
+        void path;
+        void body;
+        return { replayed: false };
+      }
+    );
     const state = await previewMobilePlannerDraft({
       client: { postJson: vi.fn(async () => ({ preview })) },
       context,
@@ -150,10 +156,11 @@ describe("mobile planner draft", () => {
       previewHash: "a".repeat(64),
       eligibilityMode: "overlap_v1",
       confirmationHash: null,
-      policy: context.preferences?.defaultPolicy,
       preserveExistingAssignments: true,
       draftCommands: state.commands,
     });
+    expect(postJson.mock.calls[0]?.[1]).not.toHaveProperty("policy");
+    expect(state.commands[0]?.sourceDate).toBe("2026-08-31");
   });
 
   it("requires an explicit action before publishing a partial preview", async () => {
