@@ -331,7 +331,7 @@ export async function joinSocialCohort(joinCode: string) {
     body: JSON.stringify({ joinCode }),
   });
   if (!response.ok) {
-    await parseApiError(response, "Failed to join cohort.");
+    await parseApiError(response, "Failed to join group.");
   }
   const payload = (await response.json()) as { schemaVersion: "1"; cohortId: string };
   invalidateSocialAndPlannerCaches();

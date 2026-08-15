@@ -16,9 +16,9 @@ const requestSchema = z.object({
 
 function mapJoinCohortError(message: string) {
   if (message === "cohort_join_code_invalid") {
-    return new ApiRouteError(400, "cohort_join_code_invalid", "Cohort join code is invalid.");
+    return new ApiRouteError(400, "cohort_join_code_invalid", "Group join code is invalid.");
   }
-  return new ApiRouteError(500, "cohort_join_failed", "Cohort join failed.", {
+  return new ApiRouteError(500, "cohort_join_failed", "Group join failed.", {
     cause: message,
   });
 }
@@ -64,7 +64,7 @@ export async function POST(request: Request) {
       );
     }
     return apiErrorResponse(
-      new ApiRouteError(500, "internal_error", "Cohort join request failed unexpectedly."),
+      new ApiRouteError(500, "internal_error", "Group join request failed unexpectedly."),
       correlationId
     );
   }

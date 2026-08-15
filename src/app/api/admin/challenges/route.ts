@@ -50,7 +50,7 @@ const createSchema = z
     if (value.audienceKind === "cohort" && !value.cohortId) {
       context.addIssue({
         code: "custom",
-        message: "cohortId is required for cohort-scoped challenges.",
+        message: "cohortId is required for group-scoped challenges.",
         path: ["cohortId"],
       });
     }
@@ -112,7 +112,7 @@ function mapChallengeMutationError(error: DbMutationError, fallbackCode: string,
     return new ApiRouteError(400, "metric_track_key_unknown", "metricTrackKey does not match a known track.");
   }
   if (error.code === "23503" && error.message.includes("challenges_cohort_id_fkey")) {
-    return new ApiRouteError(400, "cohort_not_found", "Cohort id is invalid.");
+    return new ApiRouteError(400, "cohort_not_found", "Group id is invalid.");
   }
   return new ApiRouteError(500, fallbackCode, fallbackMessage, {
     cause: error.message,
