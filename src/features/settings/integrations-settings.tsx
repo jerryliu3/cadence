@@ -48,7 +48,9 @@ export function IntegrationsSettings({ goals }: { goals: Goal[] }) {
   const [loading, setLoading] = useState(true);
   const [providers, setProviders] = useState<HealthProviderStatus[]>([]);
   const [rules, setRules] = useState<HealthAutocompleteRuleStatus[]>([]);
-  const [goalId, setGoalId] = useState(goals[0]?.id ?? "");
+  const firstGoalId = goals[0]?.id ?? "";
+  const [goalIdOverride, setGoalIdOverride] = useState<string | null>(null);
+  const goalId = goalIdOverride ?? firstGoalId;
   const [metricKey, setMetricKey] = useState<HealthMetricKey>("steps");
   const [threshold, setThreshold] = useState("8000");
   const [saving, setSaving] = useState(false);
@@ -85,12 +87,6 @@ export function IntegrationsSettings({ goals }: { goals: Goal[] }) {
     };
     void load();
   }, []);
-
-  useEffect(() => {
-    if (!goalId && goals[0]?.id) {
-      setGoalId(goals[0].id);
-    }
-  }, [goalId, goals]);
 
   if (loading || enabled === null) {
     return (
@@ -212,7 +208,7 @@ export function IntegrationsSettings({ goals }: { goals: Goal[] }) {
         <div className="grid gap-3 sm:grid-cols-3">
           <div className="space-y-1.5">
             <Label htmlFor="health-rule-goal">Goal</Label>
-            <Select value={goalId} onValueChange={setGoalId}>
+            <Select value={goalId} onValueChange={setGoalIdOverride}>
               <SelectTrigger id="health-rule-goal">
                 <SelectValue placeholder="Select a goal" />
               </SelectTrigger>
