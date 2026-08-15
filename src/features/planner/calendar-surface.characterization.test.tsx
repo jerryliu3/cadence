@@ -645,6 +645,49 @@ describe("CalendarSurface characterization", () => {
     ).toBe(true);
   });
 
+  it("updates rest day checkboxes when coach applies a draft policy", async () => {
+    const context = buildContext([
+      unit({
+        originalGoalId: "goal-a",
+        unitKey: "total:1",
+        scheduledDate: "2026-08-31",
+      }),
+    ]);
+    postJsonMock.mockResolvedValue(context);
+
+    render(
+      <CalendarSurface
+        activeTab="calendar"
+        month="2026-08"
+        selectedDay={null}
+        viewMode="month"
+        onMonthChange={vi.fn()}
+        onViewModeChange={vi.fn()}
+        onSelectedDayChange={vi.fn()}
+        onPlannerMutation={vi.fn()}
+      />
+    );
+
+    await waitFor(() => {
+      expect(postJsonMock).toHaveBeenCalledWith(
+        "/api/planner/prepare",
+        expect.any(Object)
+      );
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+    const tuesdayCheckbox = await screen.findByLabelText("Tue");
+    expect(tuesdayCheckbox).not.toBeChecked();
+
+    await act(async () => {
+      coachHookMock.latestArgs?.applyDraftPolicy(
+        buildPlannerPolicy({ restWeekdays: [2] })
+      );
+    });
+
+    expect(await screen.findByLabelText("Tue")).toBeChecked();
+  });
+
   it("forces prepare refresh after toggling a lock", async () => {
     const context = buildContext([
       unit({
