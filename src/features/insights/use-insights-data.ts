@@ -4,6 +4,8 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { buildLoginHref } from "@/lib/auth/login-redirect";
 import { withAbortSignal } from "@/lib/async/abort";
+import { INSIGHTS_DATA_CACHE_PREFIX } from "@/lib/cache/planner-tab-cache";
+import { readTabDataCache, writeTabDataCache } from "@/lib/cache/tab-data-cache";
 import { toLocalDateString } from "@/lib/dates/day";
 import {
   fetchProgressContext,
@@ -128,6 +130,16 @@ export function useInsightsData({
         const targetSubjectUserId = subjectUserId ?? userId;
         const targetIsViewer = targetSubjectUserId === userId;
         const [goalsResponse, teamMembersResponse, progress, insightsStats] =
+        const asOfDate = toLocalDateString();
+        const insightsDataCacheKey = `${INSIGHTS_DATA_CACHE_PREFIX}${targetSubjectUserId}:${selectedYear}:${asOfDate}`;
+        if (!forceRefresh) {
+          const cachedState = readTabDataCache<InsightsData>(insightsDataCacheKey);
+          if (cachedState) {
+            setState(cachedState);
+            clearLaneError();
+            return;
+          }
+        }
           await withAbortSignal(
             Promise.all([
               targetIsViewer
@@ -139,7 +151,7 @@ export function useInsightsData({
                 ? supabase.from("team_members").select("team_id").eq("user_id", userId)
                 : Promise.resolve({ data: [], error: null }),
               fetchProgressContext({
-                asOfDate: toLocalDateString(),
+                asOfDate,
                 factsFrom: yearStart,
                 factsTo: yearEnd,
                 subjectUserId: targetIsViewer ? undefined : targetSubjectUserId,
@@ -173,7 +185,7 @@ export function useInsightsData({
             })
           : goals;
 
-        setState({
+        const nextState: InsightsData = {
           userId: targetSubjectUserId,
           goals: visibleGoals,
           completions: progress.facts,
@@ -181,6 +193,8 @@ export function useInsightsData({
           progress,
           insightsStats,
         });
+        setState(nextState);
+        writeTabDataCache(insightsDataCacheKey, nextState);
         clearLaneError();
       } finally {
         window.clearTimeout(timeoutId);
