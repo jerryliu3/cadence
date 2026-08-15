@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import Svg, { Rect } from "react-native-svg";
 import { useTheme } from "../../theme";
-import { Screen } from "../../ui/screen";
+import { LoadingScreen, Screen } from "../../ui/screen";
 import { useDuo, useDuoSurfaceScope } from "../duo/DuoProvider";
 import { DuoScopeSegmentedControl } from "../duo/DuoScopeSegmentedControl";
 import { useReportMobileDuoScopeViewed } from "../duo/telemetry";
@@ -19,7 +19,8 @@ import { useInsightsLaneData } from "./use-insights-lane-data";
 
 export function InsightsScreen() {
   const theme = useTheme();
-  const { scope, hasActivePartner } = useDuoSurfaceScope("insights");
+  const { ready, scope, hasActivePartner } =
+    useDuoSurfaceScope("insights");
   const { state } = useDuo();
   const activePartner = hasActivePartner ? state.activePartner : null;
   useReportMobileDuoScopeViewed({
@@ -48,6 +49,10 @@ export function InsightsScreen() {
   const cell = 16;
   const gap = 4;
   const width = 7 * (cell + gap);
+
+  if (!ready) {
+    return <LoadingScreen />;
+  }
 
   return (
     <Screen title="Insights">

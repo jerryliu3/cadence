@@ -34,6 +34,9 @@ export function ChecklistGoalRow({
         <Pressable
           disabled={toggling}
           onPress={onToggle}
+          accessibilityRole="checkbox"
+          accessibilityLabel={title}
+          accessibilityState={{ checked: done, disabled: toggling }}
           style={[
             styles.toggle,
             {
@@ -45,6 +48,10 @@ export function ChecklistGoalRow({
         </Pressable>
       ) : (
         <View
+          accessible
+          accessibilityRole="checkbox"
+          accessibilityLabel={title}
+          accessibilityState={{ checked: done, disabled: true }}
           style={[
             styles.readOnlyStatus,
             {

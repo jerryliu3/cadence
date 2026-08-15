@@ -30,6 +30,9 @@ export function DuoScopeSegmentedControl({
         return (
           <Pressable
             key={option.value}
+            accessibilityRole="tab"
+            accessibilityLabel={option.label}
+            accessibilityState={{ selected }}
             style={[
               styles.segment,
               {
