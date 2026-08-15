@@ -103,10 +103,6 @@ import {
   invalidatePlannerRelatedTabCaches,
   PLANNER_CONTEXT_CACHE_PREFIX,
 } from "@/lib/cache/planner-tab-cache";
-import {
-  type CompletionDispatchDecision,
-  resolveCompletionDispatch,
-} from "@/lib/planner/completion-dispatch";
 import type { EligibilityReason } from "@/lib/planner/eligibility";
 import {
   draftCommandEntryKey,
@@ -130,7 +126,7 @@ import {
 import { shouldUseDirectDraftPersistence } from "@/lib/planner/save-persistence";
 import { withPlannerRefreshTimeout } from "@/lib/planner/refresh-timeout";
 import { captureViewportRect } from "@/lib/xp/events";
-import { mergeCompletionFactMarkers } from "@/features/planner/calendar-partner-overlay";
+import { mergeCompletionFactMarkers } from "@cadence/shared/planner/partner-completion";
 import type {
   CalendarSurfaceProps,
   CompletionControlDisabledReason,

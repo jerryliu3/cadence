@@ -2,14 +2,12 @@
 
 import { type ReactNode } from "react";
 import { cn } from "@/lib/utils";
-import type { DuoScope } from "@/lib/social/duo/types";
-
-export interface DuoLaneSubject {
-  id: "viewer" | "partner";
-  label: string;
-  userId?: string;
-  readOnly: boolean;
-}
+import {
+  resolveDuoLanes,
+  type DuoLaneSubject,
+  type DuoScope,
+} from "@cadence/shared/social/duo";
+export type { DuoLaneSubject, DuoScope } from "@cadence/shared/social/duo";
 
 export function DuoLanes({
   scope,
@@ -24,15 +22,11 @@ export function DuoLanes({
   renderLane: (subject: DuoLaneSubject) => ReactNode;
   className?: string;
 }): ReactNode {
-  // Without a partner every scope collapses to the viewer, so the partner-less
-  // cases never need their own branch.
-  const lanes = !partner
-    ? [viewer]
-    : scope === "partner"
-      ? [partner]
-      : scope === "both"
-        ? [viewer, partner]
-        : [viewer];
+  const lanes = resolveDuoLanes({
+    scope,
+    viewer,
+    partner,
+  });
 
   return (
     <div

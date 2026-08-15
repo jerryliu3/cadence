@@ -1,10 +1,10 @@
-interface GoalIdentity {
+export interface GoalIdentity {
   id: string;
   owner_id: string;
   team_id?: string | null;
 }
 
-interface GoalScopedCompletion {
+export interface GoalScopedCompletion {
   goal_id: string;
 }
 

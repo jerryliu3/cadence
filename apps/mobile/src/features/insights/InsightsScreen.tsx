@@ -1,4 +1,5 @@
 import { getHeatmapScaleHex } from "@cadence/shared/goals/heatmap";
+import type { ProgressContextResponse } from "@cadence/shared/goals/progress-context";
 import { endOfMonth, format, startOfMonth } from "date-fns";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
@@ -7,10 +8,6 @@ import Svg, { Rect } from "react-native-svg";
 import { api } from "../../lib/api";
 import { useTheme } from "../../theme";
 import { LoadingScreen, Screen } from "../../ui/screen";
-
-interface ProgressContextResponse {
-  facts: Array<{ completed_on: string }>;
-}
 
 function timezoneName() {
   return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";

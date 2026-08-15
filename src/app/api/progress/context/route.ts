@@ -14,7 +14,6 @@ import {
 } from "@/lib/goals/periods";
 import {
   getGoalProgressSnapshot,
-  type GoalProgressSnapshot,
 } from "@/lib/goals/progress";
 import type { Completion, Goal } from "@/lib/goals/types";
 import {
@@ -23,7 +22,8 @@ import {
 } from "@/lib/planner/contracts/bounds";
 import { isTargetedRecurringGoal } from "@/lib/planner/requirements";
 import { requireTeamPartner, resolveActiveTeamPartner } from "@/lib/social/team";
-import { selectViewerVisibleGoals } from "@/lib/goals/visible-goals";
+import type { ProgressContextSummary } from "@cadence/shared/goals/progress-context";
+import { selectViewerVisibleGoals } from "@cadence/shared/goals/visible-goals";
 
 export const runtime = "nodejs";
 
@@ -300,14 +300,14 @@ export async function GET(request: Request) {
 
     const completionsByGoal = groupCompletions(completions);
     const visibleGoalIds = new Set(goals.map((goal) => goal.id));
-    const summaries: GoalProgressSnapshot[] = goals.map((goal) =>
+    const summaries = goals.map((goal) =>
       getGoalProgressSnapshot(
         goal,
         completionsByGoal.get(goal.id) ?? [],
         parsedQuery.data.asOfDate,
         { weeklyAnchor }
       )
-    );
+    ) satisfies ProgressContextSummary[];
 
     let facts: Completion[] = [];
     if (parsedQuery.data.viewDate) {

@@ -8,6 +8,7 @@ import { runAfterResponse } from "@/lib/api/after";
 import { flushNotificationOutbox } from "@/lib/push/outbox";
 import { requireSocialRouteContext } from "@/lib/social/api";
 import { mapTeamStateError } from "@/lib/social/team";
+import { mapTeamStateRpcRow } from "@cadence/shared/social/team";
 
 export const runtime = "nodejs";
 
@@ -24,34 +25,6 @@ function mapDissolveTeamError(error: RpcErrorLike) {
   });
 }
 
-function toTeamDto(row: {
-  team_id: string;
-  status: "pending" | "active" | "closed";
-  partner_id: string;
-  partner_username: string | null;
-  partner_display_name: string | null;
-  partner_avatar_url: string | null;
-  invite_message: string | null;
-  invited_at: string;
-  accepted_at: string | null;
-  closed_at: string | null;
-  is_incoming: boolean;
-}) {
-  return {
-    teamId: row.team_id,
-    status: row.status,
-    partnerId: row.partner_id,
-    partnerUsername: row.partner_username,
-    partnerDisplayName: row.partner_display_name,
-    partnerAvatarUrl: row.partner_avatar_url,
-    inviteMessage: row.invite_message,
-    invitedAt: row.invited_at,
-    acceptedAt: row.accepted_at,
-    closedAt: row.closed_at,
-    isIncoming: row.is_incoming,
-  };
-}
-
 export async function GET(request: Request) {
   const correlationId = createCorrelationId();
   try {
@@ -66,7 +39,7 @@ export async function GET(request: Request) {
       {
         schemaVersion: "1",
         correlationId,
-        items: (data ?? []).map(toTeamDto),
+        items: (data ?? []).map(mapTeamStateRpcRow),
       },
       { headers: { "Cache-Control": "no-store" } }
     );

@@ -15,7 +15,11 @@ import type {
   DuoAvailability,
   DuoContextState,
   DuoScope,
-} from "@/lib/social/duo/types";
+} from "@cadence/shared/social/duo";
+import {
+  resolveEffectiveDuoScope,
+  shouldClampDuoScopePreference,
+} from "@cadence/shared/social/duo";
 
 interface DuoContextValue {
   viewerUserId: string;
@@ -66,11 +70,11 @@ export function DuoProvider({
   // redundant and only cost an extra render. Gate on availability so a failed
   // team-state load is never mistaken for "no partner". The effect keeps the
   // two real side effects -- telemetry and clearing the persisted cookie.
-  const shouldClampScope =
-    availability === "ready" &&
-    initialState.activePartner === null &&
-    scopePreference !== null &&
-    scopePreference !== "me";
+  const shouldClampScope = shouldClampDuoScopePreference({
+    availability,
+    hasActivePartner: initialState.activePartner !== null,
+    scopePreference,
+  });
   const displayedScopePreference = shouldClampScope ? null : scopePreference;
 
   useEffect(() => {
@@ -110,14 +114,17 @@ export function useDuo() {
 
 export function useDuoScope(surfaceDefault: DuoScope) {
   const { state, availability, scopePreference, setScopePreference } = useDuo();
-  const hasActivePartner =
-    availability === "ready" && state.activePartner !== null;
-  const scope = hasActivePartner ? (scopePreference ?? surfaceDefault) : "me";
+  const effectiveScope = resolveEffectiveDuoScope({
+    availability,
+    hasActivePartner: state.activePartner !== null,
+    scopePreference,
+    surfaceDefault,
+  });
 
   return {
-    scope,
-    hasActivePartner,
-    activePartner: hasActivePartner ? state.activePartner : null,
+    scope: effectiveScope.scope,
+    hasActivePartner: effectiveScope.hasActivePartner,
+    activePartner: effectiveScope.hasActivePartner ? state.activePartner : null,
     pendingInvite: availability === "ready" ? state.pendingInvite : null,
     scopePreference,
     setScopePreference,

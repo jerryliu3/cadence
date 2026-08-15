@@ -1,4 +1,5 @@
 import { toLocalDateString } from "@/lib/dates/day";
+import type { ProgressContextSummary } from "@cadence/shared/goals/progress-context";
 import {
   getAdmissibleCompletions,
   getCreditedUnitCount,
@@ -6,8 +7,6 @@ import {
 } from "@/lib/goals/admissible";
 import {
   getGoalLifecycleOutcome,
-  type GoalLifecycle,
-  type GoalOutcome,
 } from "@/lib/goals/lifecycle";
 import {
   compareDateStrings,
@@ -20,19 +19,7 @@ import {
   isTargetedRecurringGoal,
 } from "@/lib/planner/requirements";
 
-export interface GoalProgressSnapshot {
-  goalId: string;
-  admissibleCompletionCount: number;
-  creditedUnitCount: number;
-  expectedUnitCount: number;
-  percent: number;
-  lifecycle: GoalLifecycle;
-  outcome: GoalOutcome;
-  placementTerminal: boolean;
-  currentStreak: number;
-  longestStreak: number;
-  milestoneDates: string[];
-}
+export type GoalProgressSnapshot = ProgressContextSummary;
 
 interface GoalWeeklyAnchorOptions {
   weeklyAnchor?: WeeklyAnchorContext | null;

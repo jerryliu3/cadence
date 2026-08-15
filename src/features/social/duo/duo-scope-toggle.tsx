@@ -4,7 +4,7 @@ import { usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { useDuoScope } from "@/features/social/duo/duo-context";
 import { resolveDuoSurfaceDefault } from "@/lib/social/duo/surface-defaults";
-import type { DuoScope } from "@/lib/social/duo/types";
+import type { DuoScope } from "@cadence/shared/social/duo";
 
 const SCOPE_OPTIONS: Array<{ value: DuoScope; label: string }> = [
   { value: "me", label: "Mine" },

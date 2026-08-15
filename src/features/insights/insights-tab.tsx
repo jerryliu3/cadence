@@ -69,7 +69,7 @@ import {
   buildCompletableGoalIds,
   filterCompletionsForGoalIds,
   selectCompletableGoals,
-} from "@/lib/goals/completable-goals";
+} from "@cadence/shared/goals/completable-goals";
 import { resolveSelectedDateState, toLocalDateString } from "@/lib/dates/day";
 import {
   resolveEffectiveEndMonth,

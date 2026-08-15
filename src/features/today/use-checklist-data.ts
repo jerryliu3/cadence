@@ -18,7 +18,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useDuoLaneError } from "@/features/social/duo/use-duo-lane-error";
 import { assertQueriesOk } from "@/lib/supabase/query-error";
 import { useDuo } from "@/features/social/duo/duo-context";
-import { selectViewerVisibleGoals } from "@/lib/goals/visible-goals";
+import { selectViewerVisibleGoals } from "@cadence/shared/goals/visible-goals";
 
 export interface TodayData {
   userId: string;

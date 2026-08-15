@@ -5,6 +5,7 @@ import type { Completion, Goal } from "@/lib/goals/types";
 
 const mocks = vi.hoisted(() => ({
   client: null as unknown,
+  socialEnabled: true,
 }));
 
 vi.mock("@/lib/supabase/server", () => ({
@@ -12,7 +13,7 @@ vi.mock("@/lib/supabase/server", () => ({
 }));
 
 vi.mock("@/lib/feature-flags", () => ({
-  isFeatureEnabled: () => true,
+  isFeatureEnabled: (flag: string) => flag === "socialEnabled" && mocks.socialEnabled,
 }));
 
 import { GET } from "./route";
@@ -110,7 +111,67 @@ function completions(count: number): Completion[] {
 }
 
 describe("bounded progress context route", () => {
+  it.each([
+    {
+      label: "social is disabled",
+      socialEnabled: false,
+      teamStateRows: [] as Array<Record<string, unknown>>,
+    },
+    {
+      label: "viewer has no active team",
+      socialEnabled: true,
+      teamStateRows: [] as Array<Record<string, unknown>>,
+    },
+    {
+      label: "subject is not the active partner",
+      socialEnabled: true,
+      teamStateRows: [
+        {
+          team_id: "44444444-4444-4444-8444-444444444444",
+          status: "active",
+          partner_id: "99999999-9999-4999-8999-999999999999",
+          partner_username: "other-partner",
+          partner_display_name: "Other Partner",
+          partner_avatar_url: null,
+          invite_message: null,
+          invited_at: "2026-08-01T00:00:00Z",
+          accepted_at: "2026-08-01T00:00:00Z",
+          closed_at: null,
+          is_incoming: false,
+        },
+      ],
+    },
+  ])(
+    "returns not_team_partner when $label",
+    async ({ socialEnabled, teamStateRows }) => {
+      mocks.socialEnabled = socialEnabled;
+      mocks.client = {
+        auth: {
+          getUser: async () => ({
+            data: {
+              user: { id: "11111111-1111-4111-8111-111111111111" },
+            },
+            error: null,
+          }),
+        },
+        rpc: async () => ({ data: teamStateRows, error: null }),
+        from: () => new FakeQuery([]),
+      };
+
+      const response = await GET(
+        new Request(
+          "http://localhost/api/progress/context?asOfDate=2026-08-01&timezone=UTC&subjectUserId=22222222-2222-4222-8222-222222222222"
+        )
+      );
+      const body = (await response.json()) as { code: string };
+
+      expect(response.status).toBe(403);
+      expect(body.code).toBe("not_team_partner");
+    }
+  );
+
   it("keyset-pages beyond the PostgREST 1000-row ceiling", async () => {
+    mocks.socialEnabled = true;
     const goalRows = [goal()];
     const completionRows = completions(1_005);
     const profileRows = [
@@ -158,28 +219,4 @@ describe("bounded progress context route", () => {
     expect(body.summaries[0]?.admissibleCompletionCount).toBe(1_005);
   });
 
-  it("rejects subjectUserId that is not the active team partner", async () => {
-    mocks.client = {
-      auth: {
-        getUser: async () => ({
-          data: {
-            user: { id: "11111111-1111-4111-8111-111111111111" },
-          },
-          error: null,
-        }),
-      },
-      rpc: async () => ({ data: [], error: null }),
-      from: () => new FakeQuery([]),
-    };
-
-    const response = await GET(
-      new Request(
-        "http://localhost/api/progress/context?asOfDate=2026-08-01&timezone=UTC&subjectUserId=22222222-2222-4222-8222-222222222222"
-      )
-    );
-    const body = (await response.json()) as { code: string };
-
-    expect(response.status).toBe(403);
-    expect(body.code).toBe("not_team_partner");
-  });
 });
