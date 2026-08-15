@@ -100,6 +100,7 @@ export function CalendarScreen() {
     month: scopeMonth,
   });
   useReportMobileDuoScopeViewed({
+    enabled: ready,
     surface: "calendar",
     scope,
     hasPartner: Boolean(activePartner),

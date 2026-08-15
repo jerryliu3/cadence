@@ -1,6 +1,6 @@
 import { getApiErrorMessage } from "@cadence/shared/api-client";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMemo, useState } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { api } from "../../lib/api";
 import { useSession } from "../../lib/session";
@@ -21,7 +21,6 @@ export function SocialScreen() {
   const { userId } = useSession();
   const duo = useDuo();
   const queryClient = useQueryClient();
-  const [viewerUsername, setViewerUsername] = useState<string | null>(null);
   const [partnerSearchInput, setPartnerSearchInput] = useState("");
   const [partnerSearchResults, setPartnerSearchResults] = useState<
     DuoPartnerSearchResult[]
@@ -32,25 +31,21 @@ export function SocialScreen() {
   const [visibilityAcknowledged, setVisibilityAcknowledged] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!userId) {
-      return;
-    }
-    let cancelled = false;
-    void supabase
-      .from("profiles")
-      .select("username")
-      .eq("id", userId)
-      .maybeSingle()
-      .then(({ data }) => {
-        if (!cancelled) {
-          setViewerUsername(data?.username ?? null);
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [userId]);
+  const viewerProfile = useQuery({
+    queryKey: ["mobile-social-viewer-profile", userId],
+    enabled: Boolean(userId),
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("username")
+        .eq("id", userId ?? "")
+        .maybeSingle();
+      if (error) {
+        throw error;
+      }
+      return data?.username ?? null;
+    },
+  });
 
   const lifecycle = useMemo(() => {
     if (!userId) {
@@ -77,9 +72,13 @@ export function SocialScreen() {
         viewerUserId: userId,
       });
     },
+    onMutate: () => {
+      setPartnerSearchResults([]);
+      setSelectedPartner(null);
+      setStatusMessage(null);
+    },
     onSuccess: (results) => {
       setPartnerSearchResults(results);
-      setSelectedPartner(null);
       setStatusMessage(
         results.length === 0 ? "No matching Cadence users found." : null
       );
@@ -194,6 +193,7 @@ export function SocialScreen() {
   });
 
   const busy =
+    searchPartners.isPending ||
     createInvite.isPending ||
     acceptInvite.isPending ||
     declineInvite.isPending ||
@@ -248,7 +248,8 @@ export function SocialScreen() {
     <Screen title="Challenges">
       <View style={[styles.card, { borderColor: theme.colors.border }]}>
         <Text style={{ color: theme.colors.foreground, fontWeight: "700" }}>
-          Signed in as {viewerUsername ? `@${viewerUsername}` : "Cadence user"}
+          Signed in as{" "}
+          {viewerProfile.data ? `@${viewerProfile.data}` : "Cadence user"}
         </Text>
         <Text style={{ color: theme.colors.mutedForeground }}>
           User id: {userId}
@@ -332,8 +333,11 @@ export function SocialScreen() {
             value={partnerSearchInput}
             onChangeText={(value) => {
               setPartnerSearchInput(value);
+              setPartnerSearchResults([]);
               setSelectedPartner(null);
+              setStatusMessage(null);
             }}
+            editable={!searchPartners.isPending}
             autoCapitalize="none"
             placeholder="Partner username"
             placeholderTextColor={theme.colors.mutedForeground}
@@ -347,7 +351,7 @@ export function SocialScreen() {
           />
           <PrimaryButton
             label={searchPartners.isPending ? "Searching..." : "Search"}
-            disabled={busy || searchPartners.isPending}
+            disabled={busy || partnerSearchInput.trim().length === 0}
             onPress={() => {
               void searchPartners.mutateAsync();
             }}
@@ -358,6 +362,7 @@ export function SocialScreen() {
               <Pressable
                 key={profile.id}
                 accessibilityRole="radio"
+                accessibilityLabel={`Select @${profile.username}`}
                 accessibilityState={{ selected }}
                 onPress={() => setSelectedPartner(profile)}
                 style={[

@@ -30,6 +30,7 @@ export function ChecklistScreen() {
   const { state } = useDuo();
   const activePartner = hasActivePartner ? state.activePartner : null;
   useReportMobileDuoScopeViewed({
+    enabled: ready,
     surface: "checklist",
     scope,
     hasPartner: Boolean(activePartner),
