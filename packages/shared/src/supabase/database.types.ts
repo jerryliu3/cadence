@@ -629,42 +629,6 @@ export type Database = {
           },
         ]
       }
-      completion_unmark_tombstones: {
-        Row: {
-          completed_on: string
-          created_at: string
-          goal_id: string
-          user_id: string
-        }
-        Insert: {
-          completed_on: string
-          created_at?: string
-          goal_id: string
-          user_id: string
-        }
-        Update: {
-          completed_on?: string
-          created_at?: string
-          goal_id?: string
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "completion_unmark_tombstones_goal_id_fkey"
-            columns: ["goal_id"]
-            isOneToOne: false
-            referencedRelation: "goals"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "completion_unmark_tombstones_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       feed_events: {
         Row: {
           actor_id: string
@@ -1101,93 +1065,6 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "health_activity_groups_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      health_autocomplete_rules: {
-        Row: {
-          created_at: string
-          enabled: boolean
-          goal_id: string
-          id: string
-          metric_key: Database["public"]["Enums"]["health_metric_key"]
-          threshold_numeric: number
-          updated_at: string
-          user_id: string
-        }
-        Insert: {
-          created_at?: string
-          enabled?: boolean
-          goal_id: string
-          id?: string
-          metric_key: Database["public"]["Enums"]["health_metric_key"]
-          threshold_numeric: number
-          updated_at?: string
-          user_id: string
-        }
-        Update: {
-          created_at?: string
-          enabled?: boolean
-          goal_id?: string
-          id?: string
-          metric_key?: Database["public"]["Enums"]["health_metric_key"]
-          threshold_numeric?: number
-          updated_at?: string
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "health_autocomplete_rules_goal_id_fkey"
-            columns: ["goal_id"]
-            isOneToOne: false
-            referencedRelation: "goals"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "health_autocomplete_rules_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      health_completion_links: {
-        Row: {
-          completed_on: string
-          created_at: string
-          external_key: string
-          goal_id: string
-          user_id: string
-        }
-        Insert: {
-          completed_on: string
-          created_at?: string
-          external_key: string
-          goal_id: string
-          user_id: string
-        }
-        Update: {
-          completed_on?: string
-          created_at?: string
-          external_key?: string
-          goal_id?: string
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "health_completion_links_goal_id_fkey"
-            columns: ["goal_id"]
-            isOneToOne: false
-            referencedRelation: "goals"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "health_completion_links_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "profiles"
@@ -2327,19 +2204,6 @@ export type Database = {
         }
         Returns: boolean
       }
-      apply_external_completion_service: {
-        Args: {
-          p_completed_on: string
-          p_external_key: string
-          p_goal_id: string
-          p_local_today: string
-        }
-        Returns: boolean
-      }
-      apply_health_autocomplete_service: {
-        Args: { p_local_today: string }
-        Returns: Json
-      }
       award_social_xp_service: {
         Args: {
           p_event_type: string
@@ -2433,14 +2297,6 @@ export type Database = {
       decline_team_invite_service: {
         Args: { p_team_id: string }
         Returns: boolean
-      }
-      delete_health_autocomplete_rule_service: {
-        Args: { p_rule_id: string }
-        Returns: boolean
-      }
-      disconnect_health_provider_service: {
-        Args: { p_provider: Database["public"]["Enums"]["health_provider"] }
-        Returns: Json
       }
       dissolve_team_service: { Args: never; Returns: boolean }
       find_profile_by_username: {
@@ -2805,15 +2661,6 @@ export type Database = {
         }
         Returns: undefined
       }
-      upsert_health_autocomplete_rule_service: {
-        Args: {
-          p_enabled?: boolean
-          p_goal_id: string
-          p_metric_key: Database["public"]["Enums"]["health_metric_key"]
-          p_threshold_numeric: number
-        }
-        Returns: Json
-      }
       username_is_available: { Args: { p_username: string }; Returns: boolean }
     }
     Enums: {
@@ -2826,7 +2673,7 @@ export type Database = {
         | "max_streak_days"
       challenge_status: "draft" | "scheduled" | "active" | "closed" | "archived"
       cohort_member_role: "member" | "manager"
-      completion_source: "manual" | "linked_cascade" | "external_sync"
+      completion_source: "manual" | "linked_cascade"
       feed_event_type:
         | "xp_earned"
         | "level_up"
@@ -3019,7 +2866,7 @@ export const Constants = {
       ],
       challenge_status: ["draft", "scheduled", "active", "closed", "archived"],
       cohort_member_role: ["member", "manager"],
-      completion_source: ["manual", "linked_cascade", "external_sync"],
+      completion_source: ["manual", "linked_cascade"],
       feed_event_type: [
         "xp_earned",
         "level_up",
