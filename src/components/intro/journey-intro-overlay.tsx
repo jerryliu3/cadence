@@ -12,13 +12,15 @@ export function JourneyIntroOverlay() {
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
-    const seen = window.localStorage.getItem(INTRO_SEEN_KEY);
-    if (!seen) {
-      setOpen(true);
-    }
+    const timeoutId = window.setTimeout(() => {
+      const seen = window.localStorage.getItem(INTRO_SEEN_KEY);
+      if (!seen) {
+        setOpen(true);
+      }
+    }, 0);
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
   }, []);
 
   if (!open) {
