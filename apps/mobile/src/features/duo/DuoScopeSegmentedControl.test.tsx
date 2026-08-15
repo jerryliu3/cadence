@@ -8,13 +8,8 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("react-native", () => ({
-  Pressable: ({
-    children,
-    onPress,
-  }: {
-    children: React.ReactNode;
-    onPress: () => void;
-  }) => React.createElement("pressable", { onPress }, children),
+  Pressable: (props: Record<string, unknown>) =>
+    React.createElement("pressable", props),
   Text: ({ children }: { children: React.ReactNode }) =>
     React.createElement("text", null, children),
   View: ({ children }: { children: React.ReactNode }) =>
@@ -55,6 +50,13 @@ describe("DuoScopeSegmentedControl", () => {
     const pressables = root.root.findAll(
       (node: ReactTestInstance) => String(node.type) === "pressable"
     );
+    expect(pressables[0]?.props.accessibilityRole).toBe("tab");
+    expect(pressables[0]?.props.accessibilityState).toEqual({
+      selected: true,
+    });
+    expect(pressables[1]?.props.accessibilityState).toEqual({
+      selected: false,
+    });
 
     await act(async () => {
       pressables[1]?.props.onPress();

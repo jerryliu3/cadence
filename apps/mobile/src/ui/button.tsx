@@ -14,6 +14,13 @@ export function PrimaryButton({
   return (
     <Pressable
       {...props}
+      accessibilityRole={props.accessibilityRole ?? "button"}
+      accessibilityLabel={props.accessibilityLabel ?? label}
+      accessibilityState={{
+        ...props.accessibilityState,
+        disabled:
+          props.accessibilityState?.disabled ?? Boolean(props.disabled),
+      }}
       style={({ pressed }) => [
         styles.button,
         { backgroundColor: theme.colors.primary, opacity: pressed || props.disabled ? 0.7 : 1 },
