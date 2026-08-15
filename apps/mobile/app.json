@@ -28,6 +28,17 @@
           "NSHealthUpdateUsageDescription": "Cadence does not write health samples to Apple Health.",
           "background": true
         }
+      ],
+      "react-native-health-connect",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "minSdkVersion": 26,
+            "compileSdkVersion": 36,
+            "targetSdkVersion": 36
+          }
+        }
       ]
     ],
     "experiments": {
@@ -36,16 +47,30 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.cadence.mobile",
-      "infoPlist": {
-        "UIBackgroundModes": ["fetch", "processing"]
-      },
       "entitlements": {
         "com.apple.developer.healthkit": true,
         "com.apple.developer.healthkit.background-delivery": true
       }
     },
     "android": {
-      "package": "com.cadence.mobile"
+      "package": "com.cadence.mobile",
+      "permissions": [
+        "android.permission.health.READ_STEPS",
+        "android.permission.health.READ_ACTIVE_CALORIES_BURNED",
+        "android.permission.health.READ_DISTANCE",
+        "android.permission.health.READ_EXERCISE",
+        "android.permission.health.READ_SLEEP"
+      ],
+      "intentFilters": [
+        {
+          "action": "androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE",
+          "category": ["android.intent.category.DEFAULT"]
+        },
+        {
+          "action": "android.intent.action.VIEW_PERMISSION_USAGE",
+          "category": ["android.intent.category.HEALTH_PERMISSIONS"]
+        }
+      ]
     }
   }
 }
