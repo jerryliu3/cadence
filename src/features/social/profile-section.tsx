@@ -1,7 +1,7 @@
 "use client";
 
 import { WandSparkles } from "lucide-react";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -21,6 +21,7 @@ interface ProfileSectionProps {
   saving: boolean;
   canSaveProfile: boolean;
   setProfileDraft: (updater: (previous: ProfileDraft) => ProfileDraft) => void;
+  avatarUrlError: string | null;
   onSaveProfile: () => Promise<void>;
 }
 
@@ -38,8 +39,11 @@ export function ProfileSection({
   saving,
   canSaveProfile,
   setProfileDraft,
+  avatarUrlError,
   onSaveProfile,
 }: ProfileSectionProps) {
+  const avatarPreviewUrl = profileDraft.avatar_url.trim();
+
   return (
     <Card className="overflow-visible shadow-sm">
       <CardHeader>
@@ -49,6 +53,9 @@ export function ProfileSection({
       <CardContent className="space-y-4">
         <div className="flex items-center gap-3">
           <Avatar>
+            {avatarPreviewUrl && !avatarUrlError ? (
+              <AvatarImage src={avatarPreviewUrl} alt="Profile avatar preview" />
+            ) : null}
             <AvatarFallback>{getInitials(profile)}</AvatarFallback>
           </Avatar>
           <div className="text-sm text-muted-foreground">
@@ -95,10 +102,19 @@ export function ProfileSection({
           <Input
             id="profile-avatar-url"
             value={profileDraft.avatar_url}
+            placeholder="https://example.com/avatar.png"
+            autoComplete="url"
             onChange={(event) =>
               setProfileDraft((prev) => ({ ...prev, avatar_url: event.target.value }))
             }
           />
+          {avatarUrlError ? (
+            <p className="text-xs text-destructive">{avatarUrlError}</p>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              Paste a direct public image URL. Leave blank to use initials.
+            </p>
+          )}
         </div>
         <Button
           type="button"

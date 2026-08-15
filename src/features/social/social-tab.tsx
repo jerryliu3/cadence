@@ -35,6 +35,7 @@ export function SocialTab() {
     authEmail,
     profileDraft,
     setProfileDraft,
+    avatarUrlError,
     canSaveProfile,
     saveProfile,
     signOut,
@@ -85,6 +86,7 @@ export function SocialTab() {
         saving={saving}
         canSaveProfile={canSaveProfile}
         setProfileDraft={setProfileDraft}
+        avatarUrlError={avatarUrlError}
         onSaveProfile={saveProfile}
       />
 
