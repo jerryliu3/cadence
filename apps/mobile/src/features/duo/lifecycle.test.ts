@@ -39,7 +39,7 @@ describe("createDuoLifecycleMutations", () => {
     });
 
     await mutation.createInvite({
-      partnerId: "11111111-1111-4111-8111-111111111111",
+      partnerUsername: "partner_user",
       message: "hi",
     });
     await mutation.acceptIncomingInvite("22222222-2222-4222-8222-222222222222");
@@ -48,7 +48,7 @@ describe("createDuoLifecycleMutations", () => {
     await mutation.sendCheerToActivePartner("44444444-4444-4444-8444-444444444444");
 
     expect(api.postJson).toHaveBeenCalledWith("/api/social/team/invites", {
-      partnerId: "11111111-1111-4111-8111-111111111111",
+      partnerUsername: "partner_user",
       message: "hi",
     });
     expect(api.postJson).toHaveBeenCalledWith(
@@ -103,7 +103,7 @@ describe("createDuoLifecycleMutations", () => {
 
     await expect(
       mutation.createInvite({
-        partnerId: "11111111-1111-4111-8111-111111111111",
+        partnerUsername: "partner_user",
       })
     ).rejects.toThrow("boom");
 

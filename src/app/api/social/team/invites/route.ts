@@ -16,8 +16,15 @@ type RpcErrorLike = {
   message: string;
 };
 
+type UsernameLookupRow = {
+  id: string;
+  username: string | null;
+};
+
+const USERNAME_PATTERN = /^[a-z0-9_]{3,32}$/;
+
 const requestSchema = z.object({
-  partnerId: z.uuid(),
+  partnerUsername: z.string().trim().min(1).max(32),
   message: z.string().trim().max(400).optional(),
 });
 
@@ -26,7 +33,7 @@ function mapCreateTeamInviteError(error: RpcErrorLike) {
     return new ApiRouteError(401, "authentication_required", "You must be signed in.");
   }
   if (error.message === "invalid_partner") {
-    return new ApiRouteError(400, "invalid_partner", "Partner id is invalid.");
+    return new ApiRouteError(400, "invalid_partner", "Partner username is invalid.");
   }
   if (error.message === "team_already_active" || error.message === "partner_already_active") {
     return new ApiRouteError(409, error.message, "A team is already active for one of these users.");
@@ -39,14 +46,53 @@ function mapCreateTeamInviteError(error: RpcErrorLike) {
   });
 }
 
+function normalizeUsername(username: string) {
+  return username.trim().replace(/^@/, "").toLowerCase();
+}
+
+async function resolvePartnerIdByUsername({
+  supabase,
+  partnerUsername,
+}: {
+  supabase: Awaited<ReturnType<typeof requireSocialRouteContext>>["supabase"];
+  partnerUsername: string;
+}) {
+  const normalizedUsername = normalizeUsername(partnerUsername);
+  if (!USERNAME_PATTERN.test(normalizedUsername)) {
+    throw new ApiRouteError(400, "invalid_partner", "Partner username is invalid.");
+  }
+
+  const { data, error } = await supabase.rpc("find_profile_by_username", {
+    p_query: normalizedUsername,
+    p_limit: 10,
+  });
+  if (error) {
+    throw new ApiRouteError(500, "team_invite_failed", "Could not create team invite.", {
+      cause: error.message,
+    });
+  }
+
+  const partner = ((data ?? []) as UsernameLookupRow[]).find(
+    (profile) => profile.username?.toLowerCase() === normalizedUsername
+  );
+  if (!partner?.id) {
+    throw new ApiRouteError(400, "invalid_partner", "Partner username is invalid.");
+  }
+  return partner.id;
+}
+
 export async function POST(request: Request) {
   const correlationId = createCorrelationId();
   try {
     const context = await requireSocialRouteContext(request);
     const body = await parseJsonBody({ request: request, maxBytes: 32 * 1024, schema: requestSchema });
+    const partnerId = await resolvePartnerIdByUsername({
+      supabase: context.supabase,
+      partnerUsername: body.partnerUsername,
+    });
 
     const { data, error } = await context.supabase.rpc("create_team_invite_service", {
-      p_partner_id: body.partnerId,
+      p_partner_id: partnerId,
       p_message: body.message ?? undefined,
     });
     if (error) {

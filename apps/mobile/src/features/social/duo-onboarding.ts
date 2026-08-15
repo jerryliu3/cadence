@@ -49,7 +49,7 @@ export function buildDuoInviteInput({
     throw new Error("Select another Cadence user to invite.");
   }
   return {
-    partnerId: selectedProfile.id,
+    partnerUsername: selectedProfile.username,
     message: message.trim() || undefined,
   };
 }

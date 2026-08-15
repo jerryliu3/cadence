@@ -60,14 +60,14 @@ export function createDuoLifecycleMutations({
 }) {
   return {
     async createInvite({
-      partnerId,
+      partnerUsername,
       message,
     }: {
-      partnerId: string;
+      partnerUsername: string;
       message?: string;
     }) {
       await api.postJson("/api/social/team/invites", {
-        partnerId,
+        partnerUsername,
         message,
       });
       await refreshAfterLifecycleMutation({ queryCoordinator, viewerUserId });
