@@ -1,13 +1,12 @@
 import {
   ApiRouteError,
   apiSuccessResponse,
-  requireAuthenticatedRouteContext,
+  requireAuthenticatedRequestContext,
   withRoute,
 } from "@/lib/api/route";
 import { getServerEnv } from "@/lib/env";
 import { createCalendarFeedToken } from "@/lib/integrations/calendar/feed-token";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 
@@ -22,9 +21,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const supabase = await createClient();
-    const { userId } = await requireAuthenticatedRouteContext({
-      supabase,
+    const { userId } = await requireAuthenticatedRequestContext(request, {
       unauthorizedMessage: "Sign in to rotate your calendar feed URL.",
     });
 
