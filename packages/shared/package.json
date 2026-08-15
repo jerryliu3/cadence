@@ -8,6 +8,7 @@
     "./api-client": "./src/api-client/index.ts",
     "./async/abort": "./src/async/abort.ts",
     "./navigation/tabs": "./src/navigation/tabs.ts",
+    "./health/local-date": "./src/health/local-date.ts",
     "./goals/completable-goals": "./src/goals/completable-goals.ts",
     "./goals/heatmap": "./src/goals/heatmap.ts",
     "./dates/week-start": "./src/dates/week-start.ts",
