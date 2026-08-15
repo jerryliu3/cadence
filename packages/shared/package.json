@@ -11,6 +11,7 @@
     "./cache/tab-data-cache": "./src/cache/tab-data-cache.ts",
     "./goals/heatmap": "./src/goals/heatmap.ts",
     "./feedback/haptics": "./src/feedback/haptics.ts",
+    "./ids": "./src/ids.ts",
     "./planner/calendar-state": "./src/planner/calendar-state.ts",
     "./planner/canonical": "./src/planner/canonical.ts",
     "./planner/coach-context": "./src/planner/coach-context.ts",

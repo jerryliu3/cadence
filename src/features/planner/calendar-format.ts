@@ -175,15 +175,5 @@ export function completionDisabledReasonCopy(reason: CompletionControlDisabledRe
 }
 
 export { moveItemInArray } from "@cadence/shared/planner/reorder-preview-entries";
-
-export function createClientUuid() {
-  if (globalThis.crypto?.randomUUID) {
-    return globalThis.crypto.randomUUID();
-  }
-  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (char) => {
-    const random = Math.floor(Math.random() * 16);
-    const value = char === "x" ? random : (random & 0x3) | 0x8;
-    return value.toString(16);
-  });
-}
+export { createClientUuid } from "@cadence/shared/ids";
 

@@ -5,15 +5,12 @@ import { router } from "expo-router";
 import { useEffect, useState } from "react";
 import { StyleSheet, Text, TextInput, View } from "react-native";
 import { useQueryClient } from "@tanstack/react-query";
+import { createClientUuid } from "@cadence/shared/ids";
 import { supabase } from "../../lib/supabase";
 import { useSession } from "../../lib/session";
 import { getMobileTheme } from "../../theme";
 import { PrimaryButton } from "../../ui/button";
 import { Screen } from "../../ui/screen";
-
-function randomId() {
-  return globalThis.crypto?.randomUUID?.() ?? `${Date.now()}`;
-}
 
 async function decodeBase64(base64: string) {
   const binary = globalThis.atob(base64);
@@ -24,6 +21,42 @@ async function decodeBase64(base64: string) {
   return bytes.buffer;
 }
 
+async function uploadGoalPhoto({
+  userId,
+  goalId,
+  uri,
+}: {
+  userId: string;
+  goalId: string;
+  uri: string;
+}) {
+  const manipulated = await ImageManipulator.manipulateAsync(
+    uri,
+    [{ resize: { width: 1600 } }],
+    { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG, base64: true }
+  );
+  if (!manipulated.base64) {
+    throw new Error("Could not read the photo.");
+  }
+  const objectPath = `${userId}/${goalId}/${Date.now()}.jpg`;
+  const { error: uploadError } = await supabase.storage
+    .from("goal-photos")
+    .upload(objectPath, await decodeBase64(manipulated.base64), {
+      contentType: "image/jpeg",
+      upsert: true,
+    });
+  if (uploadError) {
+    throw uploadError;
+  }
+  const { error: photoError } = await supabase.rpc("set_goal_photo_path", {
+    p_goal_id: goalId,
+    p_photo_path: objectPath,
+  });
+  if (photoError) {
+    throw photoError;
+  }
+}
+
 export function GoalFormScreen({ goalId }: { goalId?: string }) {
   const theme = getMobileTheme();
   const { userId } = useSession();
@@ -31,6 +64,7 @@ export function GoalFormScreen({ goalId }: { goalId?: string }) {
   const [title, setTitle] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [pendingPhotoUri, setPendingPhotoUri] = useState<string | null>(null);
   const isEditing = Boolean(goalId);
 
   useEffect(() => {
@@ -67,7 +101,7 @@ export function GoalFormScreen({ goalId }: { goalId?: string }) {
           }
           setBusy(true);
           setMessage(null);
-          const savedGoalId = goalId ?? randomId();
+          const savedGoalId = goalId ?? createClientUuid();
           const args = {
             p_id: savedGoalId,
             p_title: title.trim(),
@@ -84,6 +118,24 @@ export function GoalFormScreen({ goalId }: { goalId?: string }) {
             setBusy(false);
             setMessage(error.message);
             return;
+          }
+          if (pendingPhotoUri) {
+            try {
+              await uploadGoalPhoto({
+                userId,
+                goalId: savedGoalId,
+                uri: pendingPhotoUri,
+              });
+            } catch (photoError) {
+              setBusy(false);
+              setMessage(
+                photoError instanceof Error
+                  ? photoError.message
+                  : "Goal saved, but the photo could not be uploaded."
+              );
+              await queryClient.invalidateQueries({ queryKey: ["mobile-goals"] });
+              return;
+            }
           }
           await queryClient.invalidateQueries({ queryKey: ["mobile-goals"] });
           setBusy(false);
@@ -136,13 +188,9 @@ export function GoalFormScreen({ goalId }: { goalId?: string }) {
         </View>
       ) : null}
       <PrimaryButton
-        disabled={busy || !goalId}
-        label="Add photo"
+        disabled={busy}
+        label={pendingPhotoUri ? "Photo selected" : "Add photo"}
         onPress={async () => {
-          if (!userId || !goalId) {
-            setMessage("Save the goal before attaching a photo.");
-            return;
-          }
           const picked = await ImagePicker.launchImageLibraryAsync({
             mediaTypes: ["images"],
             quality: 1,
@@ -151,31 +199,24 @@ export function GoalFormScreen({ goalId }: { goalId?: string }) {
           if (picked.canceled || !picked.assets[0]) {
             return;
           }
-          const manipulated = await ImageManipulator.manipulateAsync(
-            picked.assets[0].uri,
-            [{ resize: { width: 1600 } }],
-            { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG, base64: true }
-          );
-          if (!manipulated.base64) {
-            setMessage("Could not read the photo.");
+          const uri = picked.assets[0].uri;
+          if (!isEditing || !userId || !goalId) {
+            setPendingPhotoUri(uri);
+            setMessage("Photo will upload when you save.");
             return;
           }
-          const objectPath = `${userId}/${goalId}/${Date.now()}.jpg`;
-          const { error: uploadError } = await supabase.storage
-            .from("goal-photos")
-            .upload(objectPath, await decodeBase64(manipulated.base64), {
-              contentType: "image/jpeg",
-              upsert: true,
-            });
-          if (uploadError) {
-            setMessage(uploadError.message);
-            return;
+          setBusy(true);
+          try {
+            await uploadGoalPhoto({ userId, goalId, uri });
+            setPendingPhotoUri(null);
+            setMessage("Photo saved.");
+          } catch (photoError) {
+            setMessage(
+              photoError instanceof Error ? photoError.message : "Could not save the photo."
+            );
+          } finally {
+            setBusy(false);
           }
-          const { error: photoError } = await supabase.rpc("set_goal_photo_path", {
-            p_goal_id: goalId,
-            p_photo_path: objectPath,
-          });
-          setMessage(photoError ? photoError.message : "Photo saved.");
         }}
       />
       {message ? <Text style={{ color: theme.colors.foreground }}>{message}</Text> : null}

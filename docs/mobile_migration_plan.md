@@ -37,5 +37,5 @@ Router client in `apps/mobile`. Shared contracts live in `packages/shared`.
 
 - Local static gate: `pnpm --filter @cadence/mobile typecheck`
 - iOS/Android binaries: EAS cloud builds (`apps/mobile/eas.json`)
-- Updates: EAS Update channels `development`, `preview`, `production`
+- Updates: EAS Update channels `development`, `preview`, `production` (disabled in `app.json` until a real EAS project id replaces the placeholder URL)
 - Force upgrade: `MOBILE_MIN_SUPPORTED_APP_VERSION` on `/api/config`

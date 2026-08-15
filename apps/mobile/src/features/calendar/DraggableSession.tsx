@@ -1,4 +1,5 @@
 import { unitEntryKey } from "@cadence/shared/planner/reorder-preview-entries";
+import { useRef } from "react";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
   runOnJS,
@@ -6,8 +7,10 @@ import Animated, {
   useSharedValue,
   withSpring,
 } from "react-native-reanimated";
-import { Pressable, StyleSheet, Text } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { getMobileTheme } from "../../theme";
+import type { LayoutRect } from "./drop-targets";
+import { measureNodeInWindow } from "./drop-targets";
 import type { MobilePlannerWorkUnit } from "./use-planner-context";
 
 const TOUCH_PRESS_TO_DRAG_DELAY_MS = 180;
@@ -30,14 +33,10 @@ export function DraggableSession({
     x: number;
     y: number;
   }) => void;
-  onLayoutWindow: (entryKey: string, day: string, rect: {
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-  }) => void;
+  onLayoutWindow: (entryKey: string, day: string, rect: LayoutRect) => void;
 }) {
   const theme = getMobileTheme();
+  const viewRef = useRef<View>(null);
   const translateX = useSharedValue(0);
   const translateY = useSharedValue(0);
   const scale = useSharedValue(1);
@@ -83,15 +82,11 @@ export function DraggableSession({
   return (
     <GestureDetector gesture={pan}>
       <Animated.View
+        ref={viewRef}
         style={animatedStyle}
-        onLayout={(event) => {
-          const node = event.target as unknown as {
-            measureInWindow?: (
-              callback: (x: number, y: number, width: number, height: number) => void
-            ) => void;
-          };
-          node.measureInWindow?.((x, y, width, height) => {
-            onLayoutWindow(unitEntryKey(unit), day, { x, y, width, height });
+        onLayout={() => {
+          measureNodeInWindow(viewRef.current, (rect) => {
+            onLayoutWindow(unitEntryKey(unit), day, rect);
           });
         }}
       >
