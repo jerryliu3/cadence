@@ -74,3 +74,13 @@ export function markMobileCoachProposalApplied(
       : message
   );
 }
+
+export function isMobileCoachProposalActionable(
+  proposal: CoachMessageProposal<CoachPolicyPatch>
+) {
+  return (
+    proposal.policyPatches.length > 0 &&
+    (proposal.applyStatus === "not_applied" ||
+      proposal.applyStatus === "undone")
+  );
+}
