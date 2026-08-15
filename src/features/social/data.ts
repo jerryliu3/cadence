@@ -182,17 +182,17 @@ export async function fetchSocialTeamState() {
 }
 
 export async function createSocialTeamInvite({
-  partnerId,
+  partnerUsername,
   message,
 }: {
-  partnerId: string;
+  partnerUsername: string;
   message?: string;
 }) {
   const response = await fetch("/api/social/team/invites", {
     method: "POST",
     credentials: "include",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ partnerId, message }),
+    body: JSON.stringify({ partnerUsername, message }),
   });
   if (!response.ok) {
     await parseApiError(response, "Failed to send team invite.");
