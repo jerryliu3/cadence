@@ -3,12 +3,11 @@ import {
   ApiRouteError,
   apiSuccessResponse,
   parseJsonBody,
-  requireAuthenticatedRouteContext,
+  requireAuthenticatedRequestContext,
   withRoute,
 } from "@/lib/api/route";
 import { isFeatureEnabled } from "@/lib/feature-flags";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createClient } from "@/lib/supabase/server";
 
 const createRewardSchema = z.object({
   title: z.string().trim().min(1).max(120),
@@ -42,15 +41,13 @@ function normalizeRewardRow(row: {
 
 export const runtime = "nodejs";
 
-export async function GET() {
+export async function GET(request: Request) {
   return withRoute(async ({ correlationId }) => {
     if (!isFeatureEnabled("xpEnabled")) {
       throw new ApiRouteError(503, "xp_disabled", "XP is not enabled.");
     }
 
-    const supabase = await createClient();
-    const { userId } = await requireAuthenticatedRouteContext({
-      supabase,
+    const { userId, supabase } = await requireAuthenticatedRequestContext(request, {
       unauthorizedMessage: "Sign in to view your rewards.",
     });
 
@@ -92,9 +89,7 @@ export async function POST(request: Request) {
       maxBytes: 8 * 1024,
     });
 
-    const supabase = await createClient();
-    const { userId } = await requireAuthenticatedRouteContext({
-      supabase,
+    const { userId, supabase } = await requireAuthenticatedRequestContext(request, {
       unauthorizedMessage: "Sign in to create rewards.",
     });
 

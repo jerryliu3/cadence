@@ -116,7 +116,7 @@ describe("xp rewards routes", () => {
   });
 
   it("lists personal rewards", async () => {
-    const response = await GET();
+    const response = await GET(new Request("http://localhost/api/xp/rewards"));
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toMatchObject({
       rewards: [{ id: "r1", unlockTotalXp: 1000 }],

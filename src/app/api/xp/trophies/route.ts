@@ -1,7 +1,7 @@
 import {
   ApiRouteError,
   apiSuccessResponse,
-  requireAuthenticatedRouteContext,
+  requireAuthenticatedRequestContext,
   withRoute,
 } from "@/lib/api/route";
 import { getDateInTimezone, resolveUserTimezone } from "@/lib/dates/timezone";
@@ -11,7 +11,6 @@ import {
   type GoalProgressSnapshot,
 } from "@/lib/goals/progress";
 import type { Completion, Goal } from "@/lib/goals/types";
-import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 
@@ -62,15 +61,13 @@ function summarizeAchievedGoal({
   };
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   return withRoute(async ({ correlationId }) => {
     if (!isFeatureEnabled("xpEnabled")) {
       throw new ApiRouteError(503, "xp_disabled", "XP is not enabled.");
     }
 
-    const supabase = await createClient();
-    const { userId } = await requireAuthenticatedRouteContext({
-      supabase,
+    const { userId, supabase } = await requireAuthenticatedRequestContext(request, {
       unauthorizedMessage: "Sign in to view trophies.",
     });
 

@@ -2,12 +2,11 @@ import { z } from "zod";
 import {
   ApiRouteError,
   apiSuccessResponse,
-  requireAuthenticatedRouteContext,
+  requireAuthenticatedRequestContext,
   withRoute,
 } from "@/lib/api/route";
 import { isFeatureEnabled } from "@/lib/feature-flags";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createClient } from "@/lib/supabase/server";
 
 const paramsSchema = z.object({
   rewardId: z.uuid(),
@@ -16,7 +15,7 @@ const paramsSchema = z.object({
 export const runtime = "nodejs";
 
 export async function POST(
-  _request: Request,
+  request: Request,
   context: { params: Promise<{ rewardId: string }> | { rewardId: string } }
 ) {
   return withRoute(async ({ correlationId }) => {
@@ -25,9 +24,7 @@ export async function POST(
     }
 
     const params = paramsSchema.parse(await context.params);
-    const supabase = await createClient();
-    const { userId } = await requireAuthenticatedRouteContext({
-      supabase,
+    const { userId } = await requireAuthenticatedRequestContext(request, {
       unauthorizedMessage: "Sign in to claim rewards.",
     });
 
