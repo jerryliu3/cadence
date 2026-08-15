@@ -164,7 +164,7 @@ describe("SocialScreen Duo onboarding", () => {
     });
 
     expect(mocks.createInvite).toHaveBeenCalledWith({
-      partnerId: "partner-1",
+      partnerUsername: "alex",
       message: "Let's team up",
     });
     act(() => renderer.unmount());

@@ -18,7 +18,7 @@ import { NudgeButton } from "@/features/social/team/nudge-button";
 export function TeamPanel() {
   const router = useRouter();
   const [rows, setRows] = useState<TeamStateRow[]>([]);
-  const [partnerId, setPartnerId] = useState("");
+  const [partnerUsername, setPartnerUsername] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState<string | null>(null);
 
@@ -51,8 +51,8 @@ export function TeamPanel() {
   async function sendInvite() {
     setError(null);
     try {
-      await createSocialTeamInvite({ partnerId, message });
-      setPartnerId("");
+      await createSocialTeamInvite({ partnerUsername, message });
+      setPartnerUsername("");
       setMessage("");
       await load();
     } catch (inviteError) {
@@ -99,14 +99,14 @@ export function TeamPanel() {
         <CardHeader>
           <CardTitle>Team invites</CardTitle>
           <CardDescription>
-            Send an invite by partner id while rollout routes are dark-launched.
+            Send an invite by partner username while rollout routes are dark-launched.
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-2 md:grid-cols-3">
           <Input
-            value={partnerId}
-            onChange={(event) => setPartnerId(event.target.value)}
-            placeholder="Partner user id"
+            value={partnerUsername}
+            onChange={(event) => setPartnerUsername(event.target.value)}
+            placeholder="Partner username"
           />
           <Input
             value={message}
@@ -116,7 +116,7 @@ export function TeamPanel() {
           <Button
             type="button"
             onClick={() => void sendInvite()}
-            disabled={partnerId.trim().length < 10}
+            disabled={partnerUsername.trim().replace(/^@/, "").length < 3}
           >
             Send invite
           </Button>

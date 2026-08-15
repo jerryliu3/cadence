@@ -54,7 +54,7 @@ describe("Duo onboarding", () => {
         message: " Let's team up ",
       })
     ).toEqual({
-      partnerId: "partner-1",
+      partnerUsername: "alex",
       message: "Let's team up",
     });
     expect(() =>
