@@ -200,7 +200,12 @@ export async function replanMobilePlannerDraftPolicy({
     const baseline = baselineByKey.get(
       `${unit.originalGoalId}:${unit.unitKey}`
     );
-    if (!baseline || baseline.scheduledDate === unit.scheduledDate) {
+    const baselineDate = baseline?.scheduledDate ?? null;
+    if (
+      !baseline ||
+      baselineDate === null ||
+      baselineDate === unit.scheduledDate
+    ) {
       continue;
     }
     nextState = upsertMobilePlannerDraftMove({
@@ -251,7 +256,7 @@ export async function publishMobilePlannerDraft({
     previewHash,
     eligibilityMode: preview.eligibilityMode,
     confirmationHash,
-    policy: state.policy ?? context.preferences?.defaultPolicy,
+    ...(state.policy !== null ? { policy: state.policy } : {}),
     preserveExistingAssignments:
       preview.preserveExistingAssignments,
     draftCommands: state.commands,

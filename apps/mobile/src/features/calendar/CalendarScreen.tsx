@@ -1,5 +1,12 @@
 import { addDays, format, parseISO } from "date-fns";
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import {
   Modal,
   Pressable,
@@ -49,6 +56,7 @@ import {
 } from "./mobile-planner-draft";
 import { useCalendarPartnerOverlay } from "./use-calendar-partner-overlay";
 import { shiftMonth, usePlannerContext } from "./use-planner-context";
+import { resolveActivePlanItem } from "./resolve-active-plan-item";
 
 const VIEW_MODES = ["month", "week", "three_day", "day"] as const;
 
@@ -108,6 +116,9 @@ export function CalendarScreen() {
   const [draft, setDraft] = useState(createEmptyMobilePlannerDraft);
   const dayTargets = useRef<Map<string, DayDropTarget>>(new Map());
   const sessionTargets = useRef<Map<string, SessionDropTarget>>(new Map());
+  const removeSessionTarget = useCallback((entryKey: string) => {
+    sessionTargets.current.delete(entryKey);
+  }, []);
   const previousScope = useRef(scope);
   useEffect(() => {
     if (scope === "partner" && previousScope.current !== "partner") {
@@ -170,6 +181,23 @@ export function CalendarScreen() {
       .filter((cell) => cell.inMonth)
       .map((cell) => cell.date);
   }, [scopeMonth, selectedDay, viewMode, weekStartsOn]);
+  const geometryScopeKey = [
+    viewMode,
+    scopeMonth,
+    visibleDays.join(","),
+  ].join("|");
+  useEffect(() => {
+    for (const [date, target] of dayTargets.current) {
+      if (target.surfaceKey !== geometryScopeKey) {
+        dayTargets.current.delete(date);
+      }
+    }
+    for (const [entryKey, target] of sessionTargets.current) {
+      if (target.surfaceKey !== geometryScopeKey) {
+        sessionTargets.current.delete(entryKey);
+      }
+    }
+  }, [geometryScopeKey]);
 
   const digest = planner.data?.revisions.scheduleDigest ?? null;
 
@@ -234,6 +262,8 @@ export function CalendarScreen() {
       y,
       days: Array.from(dayTargets.current.values()),
       sessions: Array.from(sessionTargets.current.values()),
+      surfaceKey: geometryScopeKey,
+      visibleDays,
     });
     if (!hit) {
       return;
@@ -347,6 +377,7 @@ export function CalendarScreen() {
                 key={cell.date}
                 onRect={(rect) => {
                   dayTargets.current.set(cell.date, {
+                    surfaceKey: geometryScopeKey,
                     day: cell.date,
                     inMonth: cell.inMonth,
                     rect,
@@ -418,6 +449,7 @@ export function CalendarScreen() {
             key={visibleDay}
             onRect={(rect) => {
               dayTargets.current.set(visibleDay, {
+                surfaceKey: geometryScopeKey,
                 day: visibleDay,
                 inMonth: visibleDay.slice(0, 7) === scopeMonth,
                 rect,
@@ -442,11 +474,13 @@ export function CalendarScreen() {
                     onDrop={handleDrop}
                     onLayoutWindow={(entryKey, sessionDay, rect) => {
                       sessionTargets.current.set(entryKey, {
+                        surfaceKey: geometryScopeKey,
                         day: sessionDay,
                         entryKey,
                         rect,
                       });
                     }}
+                    onUnmount={removeSessionTarget}
                   />
                 ))
               : null}
@@ -505,7 +539,6 @@ export function CalendarScreen() {
                     confirmationApproved: confirmationRequired,
                   });
                   setDraft(createEmptyMobilePlannerDraft());
-                  setOrderByDay({});
                   await planner.forcePrepare();
                   setMessage("Planner draft saved.");
                 } catch (error) {
@@ -524,7 +557,6 @@ export function CalendarScreen() {
               label="Discard draft"
               onPress={() => {
                 setDraft(createEmptyMobilePlannerDraft());
-                setOrderByDay({});
                 setMessage("Planner draft discarded.");
               }}
             />
@@ -602,9 +634,12 @@ export function CalendarScreen() {
               disabled={busy || !moveUnit || draft.dirty}
               label="Toggle lock"
               onPress={async () => {
-                const item = planner.data?.activePlan?.items.find(
-                  (candidate) => candidate.unit_key === moveUnit?.unitKey
-                );
+                const item = moveUnit
+                  ? resolveActivePlanItem(
+                      planner.data?.activePlan ?? null,
+                      moveUnit
+                    )
+                  : null;
                 if (!item || !digest) {
                   setMessage("Lock needs an active plan item and digest.");
                   return;

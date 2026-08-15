@@ -6,12 +6,14 @@ export interface LayoutRect {
 }
 
 export interface SessionDropTarget {
+  surfaceKey: string;
   day: string;
   entryKey: string;
   rect: LayoutRect;
 }
 
 export interface DayDropTarget {
+  surfaceKey: string;
   day: string;
   inMonth: boolean;
   rect: LayoutRect;
@@ -22,16 +24,25 @@ export function hitTestDropTarget({
   y,
   days,
   sessions,
+  surfaceKey,
+  visibleDays,
 }: {
   x: number;
   y: number;
   days: DayDropTarget[];
   sessions: SessionDropTarget[];
+  surfaceKey: string;
+  visibleDays: Iterable<string>;
 }):
   | { type: "session"; day: string; entryKey: string }
   | { type: "day"; day: string; inMonth: boolean }
   | null {
-  const sessionHit = sessions.find((target) => containsPoint(target.rect, x, y));
+  const visibleDaySet = new Set(visibleDays);
+  const matchesSurface = (target: { surfaceKey: string; day: string }) =>
+    target.surfaceKey === surfaceKey && visibleDaySet.has(target.day);
+  const sessionHit = sessions.find(
+    (target) => matchesSurface(target) && containsPoint(target.rect, x, y)
+  );
   if (sessionHit) {
     return {
       type: "session",
@@ -39,7 +50,9 @@ export function hitTestDropTarget({
       entryKey: sessionHit.entryKey,
     };
   }
-  const dayHit = days.find((target) => containsPoint(target.rect, x, y));
+  const dayHit = days.find(
+    (target) => matchesSurface(target) && containsPoint(target.rect, x, y)
+  );
   if (dayHit) {
     return { type: "day", day: dayHit.day, inMonth: dayHit.inMonth };
   }

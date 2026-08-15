@@ -6,20 +6,22 @@ import { useTheme } from "../../theme";
 import { PrimaryButton } from "../../ui/button";
 import {
   type CoachPolicyPatch,
+  type MobilePlannerPolicy,
 } from "./coach-policy";
+import {
+  buildMobileCoachProposal,
+  isMobileCoachProposalActionable,
+  markMobileCoachProposalApplied,
+  restoreMobileCoachMessages,
+  serializeMobileCoachMessages,
+  type MobileCoachMessage,
+} from "./coach-conversation";
 import {
   applyMobileCoachPatches,
   buildMobileCoachRequest,
 } from "./mobile-coach";
 import type { MobilePlannerDraftState } from "./mobile-planner-draft";
 import type { PlannerContextPayload } from "@cadence/shared/planner/context";
-
-interface CoachMessage {
-  role: "user" | "assistant";
-  content: string;
-  createdAt: number;
-  policyPatches?: CoachPolicyPatch[];
-}
 
 interface CoachResponsePayload {
   reply: string;
@@ -47,7 +49,7 @@ export function CoachPanel({
 }) {
   const theme = useTheme();
   const [input, setInput] = useState("");
-  const [messages, setMessages] = useState<CoachMessage[]>([]);
+  const [messages, setMessages] = useState<MobileCoachMessage[]>([]);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [saved, setSaved] = useState<SavedConversation[]>([]);
@@ -57,7 +59,7 @@ export function CoachPanel({
     if (!content) {
       return;
     }
-    const nextMessages: CoachMessage[] = [
+    const nextMessages: MobileCoachMessage[] = [
       ...messages,
       { role: "user", content, createdAt: Date.now() },
     ];
@@ -85,7 +87,15 @@ export function CoachPanel({
           role: "assistant",
           content: payload.reply,
           createdAt: Date.now(),
-          policyPatches: payload.proposal?.policyPatches,
+          proposal: buildMobileCoachProposal({
+            policyPatches: payload.proposal?.policyPatches ?? [],
+            unresolvedQuestions:
+              payload.proposal?.unresolvedQuestions ?? [],
+            baselinePolicy:
+              (draft.policy as MobilePlannerPolicy | null) ??
+              context.preferences?.defaultPolicy ??
+              null,
+          }),
         },
       ]);
       if (payload.warnings?.length) {
@@ -99,7 +109,10 @@ export function CoachPanel({
     }
   };
 
-  const applyPatches = async (patches: CoachPolicyPatch[]) => {
+  const applyPatches = async (
+    patches: CoachPolicyPatch[],
+    messageIndex: number
+  ) => {
     setBusy(true);
     try {
       const result = await applyMobileCoachPatches({
@@ -124,6 +137,9 @@ export function CoachPanel({
         return;
       }
       onDraftChange(result.state);
+      setMessages((current) =>
+        markMobileCoachProposalApplied(current, messageIndex)
+      );
       const moveCount =
         result.queuedSessionMoves + result.policyReplanMoves;
       const missingSuffix =
@@ -172,11 +188,7 @@ export function CoachPanel({
       await api.postJson("/api/planner/coach/conversations", {
         scopeMonth: context.scopeMonth,
         timezone: context.timezone,
-        messages: messages.map((message) => ({
-          role: message.role,
-          content: message.content,
-          createdAt: message.createdAt,
-        })),
+        messages: serializeMobileCoachMessages(messages),
       });
       setStatus("Conversation saved.");
       await loadSaved();
@@ -191,15 +203,9 @@ export function CoachPanel({
     setBusy(true);
     try {
       const payload = await api.getJson<{
-        messages: Array<{ role: "user" | "assistant"; content: string; createdAt?: number }>;
+        messages: Parameters<typeof restoreMobileCoachMessages>[0];
       }>(`/api/planner/coach/conversations/${conversationId}`);
-      setMessages(
-        (payload.messages ?? []).map((message) => ({
-          role: message.role,
-          content: message.content,
-          createdAt: message.createdAt ?? Date.now(),
-        }))
-      );
+      setMessages(restoreMobileCoachMessages(payload.messages ?? []));
       setStatus("Conversation restored.");
     } catch (error) {
       setStatus(getApiErrorMessage(error, "Saved conversation could not be restored."));
@@ -236,9 +242,20 @@ export function CoachPanel({
                 {message.role === "user" ? "You" : "Coach"}
               </Text>
               <Text style={{ color: theme.colors.foreground }}>{message.content}</Text>
-              {message.policyPatches && message.policyPatches.length > 0 ? (
+              {message.proposal?.applyStatus === "manually_applied" ||
+              message.proposal?.applyStatus === "auto_applied" ? (
+                <Text style={{ color: theme.colors.mutedForeground }}>
+                  Calendar proposal applied
+                </Text>
+              ) : message.proposal &&
+                isMobileCoachProposalActionable(message.proposal) ? (
                 <Pressable
-                  onPress={() => void applyPatches(message.policyPatches ?? [])}
+                  onPress={() =>
+                    void applyPatches(
+                      message.proposal?.policyPatches ?? [],
+                      index
+                    )
+                  }
                   disabled={busy}
                 >
                   <Text style={{ color: theme.colors.primary, fontWeight: "700" }}>

@@ -18,6 +18,7 @@
     "./planner/calendar-state": "./src/planner/calendar-state.ts",
     "./planner/canonical": "./src/planner/canonical.ts",
     "./planner/coach-context": "./src/planner/coach-context.ts",
+    "./planner/coach-proposal": "./src/planner/coach-proposal.ts",
     "./planner/confirmation": "./src/planner/confirmation.ts",
     "./planner/context": "./src/planner/context.ts",
     "./planner/draft-window": "./src/planner/draft-window.ts",
