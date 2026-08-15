@@ -1,11 +1,17 @@
 "use client";
 
 import { type ReactNode, type RefObject } from "react";
+import Link from "next/link";
 import CalendarHeatmap from "react-calendar-heatmap";
 import "react-calendar-heatmap/dist/styles.css";
 import { Layers3 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
+import {
+  CountTrendInline,
+  InsightsLabelWithTooltip,
+} from "@/features/insights/insights-stats-ui";
+import type { InsightsStatsGroup } from "@/lib/insights/types";
 
 const aggregateWeekdayLabels: [string, string, string, string, string, string, string] = [
   "Su",
@@ -23,6 +29,7 @@ export function InsightsOverallStatsCard({
   selectedYearEnd,
   values,
   overallCompletion,
+  overallStats,
   classForValue,
   titleForValue,
   onDayClick,
@@ -33,6 +40,7 @@ export function InsightsOverallStatsCard({
   selectedYearEnd: Date;
   values: Array<{ date: string; count: number }>;
   overallCompletion: number;
+  overallStats?: InsightsStatsGroup | null;
   classForValue: (value?: { date?: string; count?: number }) => string;
   titleForValue: (value?: { date?: string; count?: number }) => string;
   onDayClick: (value?: { date?: string; count?: number }) => void;
@@ -88,11 +96,99 @@ export function InsightsOverallStatsCard({
             </div>
           )}
         </div>
-        <div className="flex items-center justify-between text-sm">
-          <span className="text-muted-foreground">Overall completion</span>
-          <span>{Math.round(overallCompletion)}%</span>
-        </div>
-        <Progress value={overallCompletion} />
+        {overallStats ? (
+          <>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="rounded-lg border bg-muted/20 p-3">
+                <p className="text-xs">
+                  <InsightsLabelWithTooltip
+                    label="Total Activities"
+                    tooltip="Numerator: every completion event ever logged. Denominator: not applicable."
+                  />
+                </p>
+                <p className="mt-1 text-xl font-semibold">
+                  {overallStats.totalActivities.toLocaleString()}
+                </p>
+              </div>
+              <div className="rounded-lg border bg-muted/20 p-3">
+                <p className="text-xs">
+                  <InsightsLabelWithTooltip
+                    label="Total Goals Completed"
+                    tooltip="Numerator: unique goals in achieved outcome. Denominator: not applicable."
+                  />
+                </p>
+                <p className="mt-1 text-xl font-semibold">
+                  {overallStats.totalGoalsCompleted.toLocaleString()}
+                </p>
+              </div>
+              <div className="rounded-lg border bg-muted/20 p-3">
+                <p className="text-xs">
+                  <InsightsLabelWithTooltip
+                    label="Current Month Activities"
+                    tooltip="Numerator: completion events in the current month. Denominator: not applicable."
+                  />
+                </p>
+                <p className="mt-1 text-xl font-semibold">
+                  {overallStats.currentMonthActivities.current.toLocaleString()}
+                </p>
+                <CountTrendInline
+                  trend={overallStats.currentMonthActivities}
+                  compareLabel="last month window"
+                />
+              </div>
+              <div className="rounded-lg border bg-muted/20 p-3">
+                <p className="text-xs">
+                  <InsightsLabelWithTooltip
+                    label="Current Week Activities"
+                    tooltip="Numerator: completion events in the current week. Denominator: not applicable."
+                  />
+                </p>
+                <p className="mt-1 text-xl font-semibold">
+                  {overallStats.currentWeekActivities.current.toLocaleString()}
+                </p>
+                <CountTrendInline
+                  trend={overallStats.currentWeekActivities}
+                  compareLabel="last week"
+                />
+              </div>
+              <div className="rounded-lg border bg-muted/20 p-3">
+                <p className="text-xs">
+                  <InsightsLabelWithTooltip
+                    label="Today's Activities"
+                    tooltip="Numerator: completion events on today's date. Denominator: not applicable."
+                  />
+                </p>
+                <p className="mt-1 text-xl font-semibold">
+                  {overallStats.todayActivities.toLocaleString()}
+                </p>
+              </div>
+              <div className="rounded-lg border bg-muted/20 p-3">
+                <p className="text-xs">
+                  <InsightsLabelWithTooltip
+                    label="Active Streak"
+                    tooltip="Numerator: consecutive days ending today with more than zero completions. Denominator: not applicable."
+                  />
+                </p>
+                <p className="mt-1 text-xl font-semibold">
+                  {overallStats.activeStreakDays.toLocaleString()} days
+                </p>
+              </div>
+            </div>
+            <div className="text-right text-sm">
+              <Link href="/insights/more" className="font-medium text-primary hover:underline">
+                View more -&gt;
+              </Link>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">Overall completion</span>
+              <span>{Math.round(overallCompletion)}%</span>
+            </div>
+            <Progress value={overallCompletion} />
+          </>
+        )}
       </CardContent>
     </Card>
   );
