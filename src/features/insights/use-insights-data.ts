@@ -125,7 +125,9 @@ export function useInsightsData({
             Promise.all([
               targetIsViewer
                 ? goalsQuery
-                : goalsQuery.eq("owner_id", targetSubjectUserId),
+                : goalsQuery
+                    .eq("owner_id", targetSubjectUserId)
+                    .is("team_id", null),
               targetIsViewer
                 ? supabase.from("team_members").select("team_id").eq("user_id", userId)
                 : Promise.resolve({ data: [], error: null }),
