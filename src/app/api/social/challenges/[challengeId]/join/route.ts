@@ -33,7 +33,7 @@ function mapJoinRpcError(message: string) {
     return new ApiRouteError(409, "team_required", "An active team is required for this challenge.");
   }
   if (message === "cohort_membership_required") {
-    return new ApiRouteError(403, "cohort_membership_required", "Cohort membership is required.");
+    return new ApiRouteError(403, "cohort_membership_required", "Group membership is required.");
   }
   if (message === "challenge_subject_not_supported") {
     return new ApiRouteError(409, "challenge_subject_not_supported", "Challenge subject is unsupported.");
