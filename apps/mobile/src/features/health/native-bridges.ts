@@ -29,7 +29,7 @@ export async function createNativeHealthKitBridge(): Promise<HealthKitBridge | n
         healthkit.enableBackgroundDelivery(type, frequency),
       subscribeToChanges: (type, onChange) =>
         healthkit.subscribeToChanges(type, onChange),
-    } as HealthKitBridge;
+    } as unknown as HealthKitBridge;
   } catch {
     return null;
   }
@@ -48,7 +48,7 @@ export async function createNativeHealthConnectBridge(): Promise<HealthConnectBr
       getChanges: (input) => healthConnect.getChanges(input),
       readRecords: (recordType, options) =>
         healthConnect.readRecords(recordType, options),
-    } as HealthConnectBridge;
+    } as unknown as HealthConnectBridge;
   } catch {
     return null;
   }
