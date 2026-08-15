@@ -246,7 +246,7 @@ export async function GET(request: Request) {
         ? selectViewerVisibleGoals({
             goals: page,
             partnerId: activePartner?.partnerId ?? null,
-              memberTeamIds: activePartner?.teamId ? [activePartner.teamId] : [],
+            memberTeamIds: activePartner?.teamId ? [activePartner.teamId] : [],
           })
         : page;
       goals.push(...visiblePage);

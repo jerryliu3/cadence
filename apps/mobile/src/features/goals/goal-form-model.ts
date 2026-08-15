@@ -5,28 +5,47 @@ type GoalRow = Database["public"]["Tables"]["goals"]["Row"];
 type CreateGoalArgs = Database["public"]["Functions"]["create_goal"]["Args"];
 type UpdateGoalArgs = Database["public"]["Functions"]["update_goal"]["Args"];
 
+type JoinedColumns<TColumns extends readonly string[]> =
+  TColumns extends readonly [
+    infer TFirst extends string,
+    ...infer TRest extends readonly string[],
+  ]
+    ? TRest["length"] extends 0
+      ? TFirst
+      : `${TFirst},${JoinedColumns<TRest>}`
+    : "";
+
+function joinColumns<const TColumns extends readonly string[]>(
+  columns: TColumns
+): JoinedColumns<TColumns> {
+  return columns.join(",") as JoinedColumns<TColumns>;
+}
+
+const MOBILE_GOAL_EDIT_COLUMNS = [
+  "id",
+  "title",
+  "description",
+  "reward_text",
+  "category",
+  "category_key",
+  "color",
+  "frequency_type",
+  "recurrence_interval",
+  "target_count",
+  "milestone_names",
+  "start_date",
+  "end_date",
+  "default_local_time",
+  "team_id",
+  "is_private",
+] as const satisfies readonly (keyof GoalRow)[];
+
 export type MobileGoalEditSnapshot = Pick<
   GoalRow,
-  | "id"
-  | "title"
-  | "description"
-  | "reward_text"
-  | "category"
-  | "category_key"
-  | "color"
-  | "frequency_type"
-  | "recurrence_interval"
-  | "target_count"
-  | "milestone_names"
-  | "start_date"
-  | "end_date"
-  | "default_local_time"
-  | "team_id"
-  | "is_private"
+  (typeof MOBILE_GOAL_EDIT_COLUMNS)[number]
 >;
 
-export const MOBILE_GOAL_EDIT_SELECT =
-  "id,title,description,reward_text,category,category_key,color,frequency_type,recurrence_interval,target_count,milestone_names,start_date,end_date,default_local_time,team_id,is_private";
+export const MOBILE_GOAL_EDIT_SELECT = joinColumns(MOBILE_GOAL_EDIT_COLUMNS);
 
 export function buildMobileGoalCreateArgs(
   title: string,
