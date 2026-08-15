@@ -24,6 +24,7 @@ export function InsightsScreen() {
   const { state } = useDuo();
   const activePartner = hasActivePartner ? state.activePartner : null;
   useReportMobileDuoScopeViewed({
+    enabled: ready,
     surface: "insights",
     scope,
     hasPartner: Boolean(activePartner),

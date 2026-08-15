@@ -8,6 +8,7 @@ vi.mock("../../lib/sentry", () => ({
 }));
 
 import {
+  buildMobileDuoScopeTelemetryKey,
   createMobileDuoTelemetry,
   extractMobileDuoPartnerFailureContext,
 } from "./telemetry";
@@ -22,6 +23,25 @@ function createSink() {
 }
 
 describe("mobile duo telemetry", () => {
+  it("waits for Duo hydration before identifying a viewed scope", () => {
+    expect(
+      buildMobileDuoScopeTelemetryKey({
+        enabled: false,
+        surface: "calendar",
+        scope: "me",
+        hasPartner: false,
+      })
+    ).toBeNull();
+    expect(
+      buildMobileDuoScopeTelemetryKey({
+        enabled: true,
+        surface: "calendar",
+        scope: "both",
+        hasPartner: true,
+      })
+    ).toBe("calendar:both:1");
+  });
+
   it("always records breadcrumbs and samples scope_viewed captures", () => {
     const sink = createSink();
     const telemetry = createMobileDuoTelemetry({
