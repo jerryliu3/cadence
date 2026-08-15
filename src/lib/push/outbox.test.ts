@@ -49,6 +49,7 @@ describe("flushNotificationOutbox", () => {
       removedSubscriptions: 0,
       hadSubscriptions: true,
       webConfigurationUnavailable: true,
+      deliveryFailures: 0,
     });
 
     const result = await flushNotificationOutbox();
@@ -75,6 +76,7 @@ describe("flushNotificationOutbox", () => {
       removedSubscriptions: 0,
       hadSubscriptions: true,
       webConfigurationUnavailable: true,
+      deliveryFailures: 0,
     });
     let resolveAttempts = 0;
     mocks.rpc.mockImplementation(async (name: string) => {
@@ -107,5 +109,31 @@ describe("flushNotificationOutbox", () => {
       message: "resolver unavailable",
     });
     expect(resolveAttempts).toBe(1);
+  });
+
+  it("records remote delivery failures as normal failed attempts", async () => {
+    mocks.sendPushToUser.mockResolvedValue({
+      sent: 0,
+      removedSubscriptions: 0,
+      hadSubscriptions: true,
+      webConfigurationUnavailable: false,
+      deliveryFailures: 1,
+    });
+
+    const result = await flushNotificationOutbox();
+
+    expect(result).toMatchObject({
+      claimed: 1,
+      failed: 1,
+      deferred: 0,
+    });
+    expect(mocks.rpc).toHaveBeenCalledWith(
+      "resolve_notification_outbox_delivery_service",
+      {
+        p_outbox_id: "outbox-1",
+        p_sent: false,
+        p_error: "send_failed",
+      }
+    );
   });
 });

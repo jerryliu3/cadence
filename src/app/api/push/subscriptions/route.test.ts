@@ -103,6 +103,25 @@ describe("push subscriptions route", () => {
     });
   });
 
+  it.each([
+    ["POST", POST],
+    ["DELETE", DELETE],
+  ] as const)("rejects oversized %s request bodies", async (method, handler) => {
+    const response = await handler(
+      new Request("http://localhost/api/push/subscriptions", {
+        method,
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ endpoint: `https://example.test/${"x".repeat(17_000)}` }),
+      })
+    );
+
+    expect(response.status).toBe(413);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "request_too_large",
+    });
+    expect(mocks.createAdminClient).not.toHaveBeenCalled();
+  });
+
   it("rejects web subscriptions that use the reserved native endpoint scheme", async () => {
     const response = await POST(
       new Request("http://localhost/api/push/subscriptions", {

@@ -2,6 +2,7 @@ import { z } from "zod";
 import {
   ApiRouteError,
   apiSuccessResponse,
+  parseJsonBody,
   requireAuthenticatedRequestContext,
   withRoute,
 } from "@/lib/api/route";
@@ -61,26 +62,21 @@ export async function POST(request: Request) {
     const { userId } = await requireAuthenticatedRequestContext(request, {
       unauthorizedMessage: "Unauthorized.",
     });
-    const parsed = subscriptionSchema.safeParse(
-      await request.json().catch(() => null)
-    );
-    if (!parsed.success) {
-      throw new ApiRouteError(
-        400,
-        "validation_failed",
-        "Invalid push subscription."
-      );
-    }
+    const parsed = await parseJsonBody({
+      request,
+      schema: subscriptionSchema,
+      maxBytes: 16 * 1024,
+    });
     const admin = requirePushAdminClient();
     const userAgent = request.headers.get("user-agent")?.slice(0, 1000) ?? null;
     const updatedAt = new Date().toISOString();
     const { error } =
-      "token" in parsed.data
+      "token" in parsed
         ? await admin.rpc("replace_native_push_subscription_service", {
             p_user_id: userId,
-            p_platform: parsed.data.platform,
-            p_native_token: parsed.data.token,
-            p_endpoint: `native:${parsed.data.platform}:${parsed.data.token}`,
+            p_platform: parsed.platform,
+            p_native_token: parsed.token,
+            p_endpoint: `native:${parsed.platform}:${parsed.token}`,
             p_user_agent: userAgent ?? undefined,
             p_updated_at: updatedAt,
           })
@@ -89,9 +85,9 @@ export async function POST(request: Request) {
               user_id: userId,
               platform: "web",
               native_token: null,
-              endpoint: parsed.data.endpoint,
-              p256dh: parsed.data.keys.p256dh,
-              auth: parsed.data.keys.auth,
+              endpoint: parsed.endpoint,
+              p256dh: parsed.keys.p256dh,
+              auth: parsed.keys.auth,
               user_agent: userAgent,
               updated_at: updatedAt,
             },
@@ -118,21 +114,16 @@ export async function DELETE(request: Request) {
     const { userId } = await requireAuthenticatedRequestContext(request, {
       unauthorizedMessage: "Unauthorized.",
     });
-    const parsed = unsubscribeSchema.safeParse(
-      await request.json().catch(() => null)
-    );
-    if (!parsed.success) {
-      throw new ApiRouteError(
-        400,
-        "validation_failed",
-        "Invalid push subscription."
-      );
-    }
+    const parsed = await parseJsonBody({
+      request,
+      schema: unsubscribeSchema,
+      maxBytes: 16 * 1024,
+    });
     const admin = requirePushAdminClient();
     const endpoint =
-      "endpoint" in parsed.data
-        ? parsed.data.endpoint
-        : `native:${parsed.data.platform}:${parsed.data.token}`;
+      "endpoint" in parsed
+        ? parsed.endpoint
+        : `native:${parsed.platform}:${parsed.token}`;
     const { error } = await admin
       .from("push_subscriptions")
       .delete()

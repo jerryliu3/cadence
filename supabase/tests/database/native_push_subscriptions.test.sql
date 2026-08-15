@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions, pg_catalog;
-select plan(14);
+select plan(15);
 
 insert into auth.users (id, email)
 values ('9c222222-2222-4222-8222-222222222222', 'native-push@example.com')
@@ -147,6 +147,30 @@ select throws_ok(
   '23514',
   null,
   'web rows still require p256dh and auth'
+);
+
+select throws_ok(
+  $$
+    insert into public.push_subscriptions (
+      user_id,
+      endpoint,
+      platform,
+      native_token,
+      p256dh,
+      auth
+    )
+    values (
+      '9c222222-2222-4222-8222-222222222222',
+      'native:ios:different',
+      'ios',
+      'ExponentPushToken[canonical]',
+      null,
+      null
+    )
+  $$,
+  '23514',
+  null,
+  'native rows require an endpoint derived from platform and token'
 );
 
 reset role;

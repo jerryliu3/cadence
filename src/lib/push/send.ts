@@ -30,16 +30,7 @@ function isExpiredSubscriptionError(error: unknown): boolean {
   }
 
   const statusCode = (error as { statusCode?: unknown }).statusCode;
-  return statusCode === 404 || statusCode === 410;
-}
-
-function isWebPushConfigurationError(error: unknown): boolean {
-  if (!error || typeof error !== "object" || !("statusCode" in error)) {
-    return false;
-  }
-
-  const statusCode = (error as { statusCode?: unknown }).statusCode;
-  return statusCode === 401 || statusCode === 403;
+  return statusCode === 403 || statusCode === 404 || statusCode === 410;
 }
 
 function tryConfigureWebPush() {
@@ -122,6 +113,7 @@ async function sendNativePush(token: string, payload: PushPayload) {
         url: payload.url ?? "/checklist",
       },
     }),
+    signal: AbortSignal.timeout(10_000),
   });
 
   if (response.status === 404 || response.status === 410) {
@@ -175,11 +167,13 @@ export async function sendPushToUser({
       removedSubscriptions: 0,
       hadSubscriptions: false,
       webConfigurationUnavailable: false,
+      deliveryFailures: 0,
     };
   }
 
   let sent = 0;
   let webConfigurationUnavailable = false;
+  let deliveryFailures = 0;
   const expiredIds = new Set<string>();
   for (const subscription of subscriptions) {
     try {
@@ -244,16 +238,11 @@ export async function sendPushToUser({
       );
       sent += 1;
     } catch (sendError) {
-      if (
-        subscription.platform === "web" &&
-        isWebPushConfigurationError(sendError)
-      ) {
-        webConfigurationUnavailable = true;
-      }
       if (isExpiredSubscriptionError(sendError)) {
         expiredIds.add(subscription.id);
         continue;
       }
+      deliveryFailures += 1;
       console.error(
         `Failed to send push to subscription ${subscription.id}:`,
         sendError
@@ -276,5 +265,6 @@ export async function sendPushToUser({
     removedSubscriptions: expiredIds.size,
     hadSubscriptions: subscriptions.length > 0,
     webConfigurationUnavailable,
+    deliveryFailures,
   };
 }
