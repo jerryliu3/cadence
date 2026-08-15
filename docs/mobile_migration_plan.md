@@ -11,7 +11,7 @@ Router client in `apps/mobile`. Shared contracts live in `packages/shared`.
 - **C3 / C5e** Shared API client + `createApiClient()` with one 401 retry.
 - **C4** `GET /api/config` for flags and `minSupportedAppVersion`.
 - **C5** Tokens, tab metadata, calendar state, cache/XP/haptics seams, planner helper extraction.
-- **C6** Auth stack, tabs, form-sheet goals, config/upgrade gate, `cadence://` redirects.
+- **C6** Auth stack, tabs, form-sheet goals, config/upgrade gate, and app navigation scheme.
 - **C7** Checklist completions, goal CRUD, ArrayBuffer photo upload.
 - **C8** Store-backed calendar, sheet moves, drag/reorder, coach, and cross-month drops.
 - **C9** Insights SVG heatmap, social flag gate, native push schema + Expo send path.
@@ -19,8 +19,8 @@ Router client in `apps/mobile`. Shared contracts live in `packages/shared`.
 
 ## Unresolved blockers
 
-- Hosted Supabase Auth additional redirect URLs must include `cadence://` in production, not only `supabase/config.toml`.
 - APNs / FCM / EAS credentials and `EXPO_TOKEN` are operator setup, not in git.
+- Native push registration remains hidden until a real EAS project ID is configured.
 - Native push requires a physical device and a migrated `push_subscriptions` table.
 - Calendar save/publish hash confirmation is thinner on mobile than web.
 

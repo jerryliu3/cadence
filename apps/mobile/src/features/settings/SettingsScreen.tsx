@@ -1,9 +1,14 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { router, type Href } from "expo-router";
-import { useEffect, useState } from "react";
+import { router } from "expo-router";
+import { useState } from "react";
 import { Text, TextInput } from "react-native";
 import { supabase } from "../../lib/supabase";
-import { registerNativePush, subscribeNotificationOpens } from "../../lib/push";
+import {
+  isNativePushConfigured,
+  registerNativePush,
+  unregisterNativePush,
+} from "../../lib/push";
+import { captureMobileSentryException } from "../../lib/sentry";
 import { useSession } from "../../lib/session";
 import { useTheme } from "../../theme";
 import { PrimaryButton } from "../../ui/button";
@@ -23,12 +28,6 @@ export function SettingsScreen() {
   const queryClient = useQueryClient();
   const [hour, setHour] = useState("18");
   const [message, setMessage] = useState<string | null>(null);
-
-  useEffect(() => {
-    return subscribeNotificationOpens((url) => {
-      router.push((url.startsWith("/") ? url : `/${url}`) as Href);
-    });
-  }, []);
 
   const schedules = useQuery({
     queryKey: ["mobile-notification-schedules", userId],
@@ -87,20 +86,35 @@ export function SettingsScreen() {
           {schedule.hour}:00 · {schedule.timezone}
         </Text>
       ))}
-      <PrimaryButton
-        label="Enable push"
-        onPress={async () => {
-          try {
-            await registerNativePush();
-            setMessage("This device is registered for push.");
-          } catch (error) {
-            setMessage(error instanceof Error ? error.message : "Push registration failed.");
-          }
-        }}
-      />
+      {isNativePushConfigured() ? (
+        <PrimaryButton
+          label="Enable push"
+          onPress={async () => {
+            try {
+              await registerNativePush();
+              setMessage("This device is registered for push.");
+            } catch (error) {
+              setMessage(
+                error instanceof Error
+                  ? error.message
+                  : "Push registration failed."
+              );
+            }
+          }}
+        />
+      ) : (
+        <Text style={{ color: theme.colors.mutedForeground }}>
+          Push is not configured for this build.
+        </Text>
+      )}
       <PrimaryButton
         label="Sign out"
         onPress={async () => {
+          try {
+            await unregisterNativePush();
+          } catch (error) {
+            captureMobileSentryException(error);
+          }
           await supabase.auth.signOut();
           router.replace("/(auth)/login");
         }}

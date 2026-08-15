@@ -1,6 +1,8 @@
 import { Link } from "expo-router";
 import { useState } from "react";
 import { StyleSheet, Text, TextInput } from "react-native";
+import { mobileEnv } from "../../src/config/env";
+import { buildPasswordRecoveryRedirect } from "../../src/lib/password-recovery";
 import { supabase } from "../../src/lib/supabase";
 import { useTheme } from "../../src/theme";
 import { PrimaryButton } from "../../src/ui/button";
@@ -15,7 +17,8 @@ export default function ResetPasswordScreen() {
   return (
     <Screen title="Reset password">
       <Text style={{ color: theme.colors.mutedForeground }}>
-        We will email a reset link. Deep links use the cadence:// scheme.
+        We will email a link to the secure web password form. Return here to
+        sign in after changing your password.
       </Text>
       <TextInput
         autoCapitalize="none"
@@ -33,10 +36,14 @@ export default function ResetPasswordScreen() {
         onPress={async () => {
           setBusy(true);
           const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-            redirectTo: "cadence://reset-password",
+            redirectTo: buildPasswordRecoveryRedirect(mobileEnv.apiBaseUrl),
           });
           setBusy(false);
-          setMessage(error ? error.message : "Check your email for a reset link.");
+          setMessage(
+            error
+              ? error.message
+              : "Check your email, complete the web form, then return to sign in."
+          );
         }}
       />
       {message ? <Text style={{ color: theme.colors.foreground }}>{message}</Text> : null}
