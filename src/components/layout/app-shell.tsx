@@ -6,7 +6,6 @@ import { Fragment, type ReactNode, ViewTransition } from "react";
 import { TabNav } from "@/components/navigation/tab-nav";
 import { Button } from "@/components/ui/button";
 import { AltitudeBackdrop } from "@/components/xp/altitude-backdrop";
-import { XpLevelBadge } from "@/components/xp/xp-level-badge";
 import { XpProfileProvider } from "@/components/xp/xp-profile-provider";
 import { XpProgressBar } from "@/components/xp/xp-progress-bar";
 import { XpRewardProvider } from "@/components/xp/xp-reward-provider";
@@ -70,7 +69,6 @@ export function AppShell({
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex flex-wrap items-center gap-3">
                     <h1 className="text-2xl font-semibold tracking-tight">Goalmaxxing</h1>
-                    <XpLevelBadge />
                     <XpProgressBar />
                   </div>
                   <div className="flex items-center gap-2">

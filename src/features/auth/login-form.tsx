@@ -10,6 +10,40 @@ import { Label } from "@/components/ui/label";
 import { resolveSafePostLoginPath } from "@/lib/auth/login-redirect";
 import { createClient } from "@/lib/supabase/client";
 
+function parseAuthErrorMessage(error: unknown): string {
+  const fallbackMessage = "Sign in failed. Please try again.";
+
+  if (error instanceof Error) {
+    const message = error.message?.trim();
+    if (!message || message === "{}") {
+      return fallbackMessage;
+    }
+
+    if (message.startsWith("{") && message.endsWith("}")) {
+      try {
+        const parsed = JSON.parse(message) as { message?: unknown };
+        if (typeof parsed.message === "string" && parsed.message.trim().length > 0) {
+          return parsed.message;
+        }
+      } catch {
+        // Keep the original message when it's not valid JSON.
+      }
+    }
+
+    if (message.toLowerCase().includes("upstream server")) {
+      return "Authentication is temporarily unavailable. Please try again in a few seconds.";
+    }
+
+    return message;
+  }
+
+  if (typeof error === "string" && error.trim().length > 0) {
+    return error;
+  }
+
+  return fallbackMessage;
+}
+
 export function LoginForm() {
   const supabase = useMemo(() => createClient(), []);
   const router = useRouter();
@@ -23,18 +57,22 @@ export function LoginForm() {
     event.preventDefault();
     setIsSubmitting(true);
 
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    try {
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) {
+        toast.error(parseAuthErrorMessage(error));
+        return;
+      }
 
-    if (error) {
-      toast.error(error.message);
+      toast.success("Welcome back.");
+      router.replace(resolveSafePostLoginPath(searchParams.get("next")));
+      router.refresh();
+    } catch (error) {
+      console.error("Login failed", error);
+      toast.error(parseAuthErrorMessage(error));
+    } finally {
       setIsSubmitting(false);
-      return;
     }
-
-    toast.success("Welcome back.");
-    router.replace(resolveSafePostLoginPath(searchParams.get("next")));
-    router.refresh();
-    setIsSubmitting(false);
   };
 
   return (
