@@ -388,6 +388,7 @@ describe("CalendarSurface characterization", () => {
       (count, summary) => count + summary.unplacedCount,
       0
     );
+    const expectedGoalVerb = expectedGoalCount === 1 ? "is" : "are";
 
     render(
       <CalendarSurface
@@ -406,10 +407,13 @@ describe("CalendarSurface characterization", () => {
       expect(
         screen.getByText(
           new RegExp(
-            `${expectedGoalCount} goal${expectedGoalCount === 1 ? "" : "s"} are not fully scheduled \\(${expectedUnitCount} unresolved session${expectedUnitCount === 1 ? "" : "s"}\\)\\.`,
+            `${expectedGoalCount} goal${expectedGoalCount === 1 ? "" : "s"} ${expectedGoalVerb} not fully scheduled \\(${expectedUnitCount} unresolved session${expectedUnitCount === 1 ? "" : "s"}\\)\\.`,
             "i"
           )
         )
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: "Open planner settings" })
       ).toBeInTheDocument();
     });
   });

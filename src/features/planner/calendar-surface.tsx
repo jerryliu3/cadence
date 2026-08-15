@@ -530,7 +530,7 @@ export function CalendarSurface({
   } = calendarStoreProjection;
   const primaryUnplaceableGoal = unplaceableGoalSummaries[0] ?? null;
   const unplaceablePrimaryActionLabel =
-    unplaceableGoalSummaries.length > 1 ? "Review first goal" : "Edit this goal";
+    unplaceableGoalSummaries.length > 1 ? "Review a goal" : "Edit this goal";
   const invalidLockGoalCount = unplaceableGoalSummaries.filter(
     (entry) => entry.reason === "invalid_lock"
   ).length;
@@ -2639,14 +2639,14 @@ export function CalendarSurface({
               {invalidLockGoalCount > 0
                 ? `\u26A0 ${unplaceableGoalSummaries.length} goal${
                     unplaceableGoalSummaries.length === 1 ? "" : "s"
-                  } need attention (${invalidLockGoalCount} locked conflict${
+                  } need scheduling attention (${invalidLockGoalCount} locked conflict${
                     invalidLockGoalCount === 1 ? "" : "s"
                   }, ${totalUnplacedCount} unresolved session${
                     totalUnplacedCount === 1 ? "" : "s"
                   }).`
                 : `\u26A0 ${unplaceableGoalSummaries.length} goal${
-                    unplaceableGoalSummaries.length === 1 ? "" : "s"
-                  } are not fully scheduled (${totalUnplacedCount} unresolved session${
+                    unplaceableGoalSummaries.length === 1 ? " is" : "s are"
+                  } not fully scheduled (${totalUnplacedCount} unresolved session${
                     totalUnplacedCount === 1 ? "" : "s"
                   }).`}
             </p>
@@ -2665,7 +2665,7 @@ export function CalendarSurface({
                 className="h-7 text-xs"
                 onClick={() => setSettingsOpen(true)}
               >
-                Change rest days for all goals
+                Open planner settings
               </Button>
             </div>
           </div>
