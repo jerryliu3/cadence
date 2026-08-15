@@ -1,6 +1,7 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { JourneyIntroOverlay, JOURNEY_INTRO_SEEN_KEY } from "@/components/intro/journey-intro-overlay";
+import { toLocalDateString } from "@/lib/dates/day";
 
 const useXpProfileMock = vi.hoisted(() => vi.fn());
 
@@ -37,8 +38,16 @@ describe("JourneyIntroOverlay", () => {
   });
 
   it("stays hidden once acknowledged", () => {
-    window.localStorage.setItem(JOURNEY_INTRO_SEEN_KEY, "true");
+    window.localStorage.setItem(JOURNEY_INTRO_SEEN_KEY, toLocalDateString());
     const { container } = render(<JourneyIntroOverlay />);
     expect(container).toBeEmptyDOMElement();
+  });
+
+  it("shows intro again on a new calendar day", async () => {
+    window.localStorage.setItem(JOURNEY_INTRO_SEEN_KEY, "2026-01-01");
+    render(<JourneyIntroOverlay />);
+    expect(
+      await screen.findByRole("dialog", { name: "Welcome to your climb" })
+    ).toBeInTheDocument();
   });
 });
