@@ -7,6 +7,7 @@ import { useTheme } from "../../theme";
 import { Screen } from "../../ui/screen";
 import { useDuo, useDuoSurfaceScope } from "../duo/DuoProvider";
 import { DuoScopeSegmentedControl } from "../duo/DuoScopeSegmentedControl";
+import { useReportMobileDuoScopeViewed } from "../duo/telemetry";
 import {
   partnerLaneSubject,
   resolveMobileDuoLaneSubjects,
@@ -21,6 +22,11 @@ export function InsightsScreen() {
   const { scope, hasActivePartner } = useDuoSurfaceScope("insights");
   const { state } = useDuo();
   const activePartner = hasActivePartner ? state.activePartner : null;
+  useReportMobileDuoScopeViewed({
+    surface: "insights",
+    scope,
+    hasPartner: Boolean(activePartner),
+  });
   const [month, setMonth] = useState(format(new Date(), "yyyy-MM"));
   const partnerSubject = partnerLaneSubject(activePartner);
   const viewerSubject = viewerLaneSubject();

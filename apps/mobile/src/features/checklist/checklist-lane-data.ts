@@ -124,6 +124,16 @@ export function resolveChecklistCompletableGoalIds({
   });
 }
 
+export function shouldReportViewerLaneCompletion({
+  interactive,
+  desiredFactState,
+}: {
+  interactive: boolean;
+  desiredFactState: "present" | "absent";
+}) {
+  return interactive && desiredFactState === "present";
+}
+
 export type PartnerChecklistStripState =
   | { status: "hidden" }
   | { status: "loading" }

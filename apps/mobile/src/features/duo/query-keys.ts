@@ -11,6 +11,8 @@ export const duoQueryKeys = {
     ["mobile-team-memberships", viewerUserId ?? "anonymous"] as const,
   plannerPrefix: (viewerUserId: string | null) =>
     ["mobile-planner-context", viewerUserId ?? "anonymous"] as const,
+  calendarOverlayPrefix: (viewerUserId: string | null) =>
+    ["mobile-calendar-overlay", viewerUserId ?? "anonymous"] as const,
 };
 
 export function buildMobileProgressQueryKey({
@@ -96,5 +98,27 @@ export function buildMobilePlannerContextQueryKey({
     month,
     visibleStart,
     visibleEnd,
+  ] as const;
+}
+
+export function buildMobileCalendarOverlayQueryKey({
+  viewerUserId,
+  partnerUserId,
+  month,
+  asOfDate,
+  timezone,
+}: {
+  viewerUserId: string | null;
+  partnerUserId: string | null;
+  month: string;
+  asOfDate: string;
+  timezone: string;
+}) {
+  return [
+    ...duoQueryKeys.calendarOverlayPrefix(viewerUserId),
+    partnerUserId ?? "none",
+    month,
+    asOfDate,
+    timezone,
   ] as const;
 }

@@ -42,9 +42,11 @@ the target environment:
 
 ## Telemetry (Sentry)
 
-Emitted only when `NEXT_PUBLIC_SENTRY_DSN` is set. Breadcrumbs are always
-recorded. `scope_viewed` `captureMessage` is sampled at 10% so usage mix is
-visible without an event per surface visit. Other duo events always capture.
+Web telemetry emits only when `NEXT_PUBLIC_SENTRY_DSN` is set. Mobile telemetry
+emits only when `EXPO_PUBLIC_SENTRY_DSN` is non-empty. Breadcrumbs are always
+recorded when telemetry is enabled. `scope_viewed` `captureMessage` is sampled
+at 10% so usage mix is visible without an event per surface visit. Other duo
+events always capture.
 
 | Event | Meaning |
 | --- | --- |
@@ -54,7 +56,33 @@ visible without an event per surface visit. Other duo events always capture.
 | `partner_strip_open` | User opened partner checklist from the me-scope strip |
 | `post_dissolution_scope_clamp` | Cookie scope was partner/both after the team dissolved |
 
-Partner-lane fetch failures also go through `reportError` with `area: "duo"`.
+Mobile capture tags are stable across all events:
+
+- `area=duo`
+- `duoEvent=<event name>`
+- `deviceClass=mobile`
+
+Partner-lane fetch failures capture the underlying error with
+`surface`/`code`/`status`/`postgrestCode`/`stalePartner` extras and no partner UUID tags.
+Web partner-lane fetch failures also go through `reportError` with `area: "duo"`.
+
+## Acceptance matrix
+
+| Surface | Scope `me` | Scope `both` | Scope `partner` |
+| --- | --- | --- | --- |
+| Checklist | Viewer lane interactive; optional partner strip | Viewer + partner lanes; partner lane read-only | Partner lane only; read-only |
+| Insights | Viewer heatmap | Viewer + partner heatmaps | Partner heatmap only |
+| Calendar | Viewer sessions and planner controls | Viewer sessions plus partner completion markers | Partner completion markers only; read-only banner and no planner mutations |
+
+### Team availability unavailable (manual acceptance)
+
+When Duo team state load resolves `availability: unavailable`, each surface must
+fail closed with concise unavailable treatment and no partner mutations:
+
+- Checklist: keep viewer lane usable; partner lane/strip show unavailable copy.
+- Insights: keep viewer lane visible; partner lane shows unavailable copy.
+- Calendar: in `both`, keep viewer sessions usable and show partner unavailable
+  message; in `partner`, show read-only shell plus unavailable/loading treatment.
 
 ## Out of scope
 

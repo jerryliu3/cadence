@@ -7,6 +7,10 @@ import { Screen } from "../../ui/screen";
 import { useDuo, useDuoSurfaceScope } from "../duo/DuoProvider";
 import { DuoScopeSegmentedControl } from "../duo/DuoScopeSegmentedControl";
 import {
+  reportMobileDuoTelemetry,
+  useReportMobileDuoScopeViewed,
+} from "../duo/telemetry";
+import {
   partnerLaneSubject,
   resolveMobileDuoLaneSubjects,
   viewerLaneSubject,
@@ -24,6 +28,11 @@ export function ChecklistScreen() {
   const { scope, hasActivePartner, setScopePreference } = useDuoSurfaceScope("checklist");
   const { state } = useDuo();
   const activePartner = hasActivePartner ? state.activePartner : null;
+  useReportMobileDuoScopeViewed({
+    surface: "checklist",
+    scope,
+    hasPartner: Boolean(activePartner),
+  });
   const { asOfDate } = useChecklistClock();
   const partnerId = activePartner?.partnerId ?? null;
   const partnerSubject = partnerLaneSubject(activePartner);
@@ -142,6 +151,9 @@ export function ChecklistScreen() {
           <Pressable
             style={[styles.summaryAction, { borderColor: theme.colors.border }]}
             onPress={() => {
+              reportMobileDuoTelemetry("partner_strip_open", {
+                surface: "checklist",
+              });
               void setScopePreference("partner");
             }}
           >

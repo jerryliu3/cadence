@@ -1,5 +1,5 @@
 import { addDays, format, parseISO } from "date-fns";
-import { useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   Modal,
   Pressable,
@@ -22,7 +22,16 @@ import { useTheme } from "../../theme";
 import { PrimaryButton } from "../../ui/button";
 import { LoadingScreen, Screen } from "../../ui/screen";
 import { CoachPanel } from "./CoachPanel";
+import { CalendarPartnerReadOnlySection } from "./CalendarPartnerReadOnlySection";
+import { useDuo, useDuoSurfaceScope } from "../duo/DuoProvider";
 import { DuoScopeSegmentedControl } from "../duo/DuoScopeSegmentedControl";
+import { useReportMobileDuoScopeViewed } from "../duo/telemetry";
+import {
+  buildCalendarMonthCellAccessibilityLabel,
+  buildCalendarMonthMarkerModel,
+  buildPartnerMarkerAccessibilityLabel,
+  resolveCalendarReadOnlyState,
+} from "./calendar-duo";
 import { DraftMoveError, planMobileDraftMove } from "./draft-moves";
 import { DraggableSession } from "./DraggableSession";
 import {
@@ -38,6 +47,7 @@ import {
   previewMobilePlannerDraft,
   publishMobilePlannerDraft,
 } from "./mobile-planner-draft";
+import { useCalendarPartnerOverlay } from "./use-calendar-partner-overlay";
 import { shiftMonth, usePlannerContext } from "./use-planner-context";
 
 const VIEW_MODES = ["month", "week", "three_day", "day"] as const;
@@ -68,12 +78,28 @@ function MeasureableDay({
 export function CalendarScreen() {
   const theme = useTheme();
   const { month, day, viewMode, apply } = useCalendarStore();
+  const { scope, hasActivePartner } = useDuoSurfaceScope("calendar");
+  const { state } = useDuo();
+  const activePartner = hasActivePartner ? state.activePartner : null;
+  const readOnlyState = resolveCalendarReadOnlyState(scope);
   const scopeMonth = month ?? format(new Date(), "yyyy-MM");
   const selectedDay = day ?? `${scopeMonth}-01`;
   const planner = usePlannerContext(scopeMonth);
+  const partnerOverlay = useCalendarPartnerOverlay({
+    enabled: Boolean(activePartner) && (scope === "partner" || scope === "both"),
+    partnerId: activePartner?.partnerId ?? null,
+    month: scopeMonth,
+  });
+  useReportMobileDuoScopeViewed({
+    surface: "calendar",
+    scope,
+    hasPartner: Boolean(activePartner),
+  });
   const weekStartsOn = normalizeWeekStartsOn(
     planner.data?.preferences?.defaultPolicy.weekStartsOn
   );
+  const overlayActive =
+    Boolean(activePartner) && (scope === "partner" || scope === "both");
   const [moveUnit, setMoveUnit] = useState<PlannerWorkUnit | null>(null);
   const [moveDate, setMoveDate] = useState("");
   const [message, setMessage] = useState<string | null>(null);
@@ -82,6 +108,17 @@ export function CalendarScreen() {
   const [draft, setDraft] = useState(createEmptyMobilePlannerDraft);
   const dayTargets = useRef<Map<string, DayDropTarget>>(new Map());
   const sessionTargets = useRef<Map<string, SessionDropTarget>>(new Map());
+  const previousScope = useRef(scope);
+  useEffect(() => {
+    if (scope === "partner" && previousScope.current !== "partner") {
+      setMoveUnit(null);
+      setMoveDate("");
+      setOrderByDay({});
+      dayTargets.current.clear();
+      sessionTargets.current.clear();
+    }
+    previousScope.current = scope;
+  }, [scope]);
   const effectivePreview = draft.preview ?? planner.data?.preview ?? null;
   const confirmationRequired =
     draft.preview?.solver?.confirmationRequired === true;
@@ -229,7 +266,11 @@ export function CalendarScreen() {
     void applyMove(unit, targetDay);
   };
 
-  if (planner.isLoading && !draft.preview) {
+  if (
+    planner.isLoading &&
+    readOnlyState.showViewerSessions &&
+    !draft.preview
+  ) {
     return <LoadingScreen />;
   }
 
@@ -239,6 +280,18 @@ export function CalendarScreen() {
   return (
     <Screen title="Calendar">
       <DuoScopeSegmentedControl surface="calendar" />
+      {readOnlyState.banner && (readOnlyState.allowMutations || viewMode === "month") ? (
+        <View
+          style={[
+            styles.readOnlyBanner,
+            { borderColor: theme.colors.border, backgroundColor: theme.colors.card },
+          ]}
+        >
+          <Text style={{ color: theme.colors.foreground, fontWeight: "700" }}>
+            {readOnlyState.banner}
+          </Text>
+        </View>
+      ) : null}
       <View style={styles.row}>
         <Pressable onPress={() => apply({ month: shiftMonth(scopeMonth, -1) })}>
           <Text style={{ color: theme.colors.primary }}>Prev</Text>
@@ -262,42 +315,103 @@ export function CalendarScreen() {
           </Pressable>
         ))}
       </View>
+      {partnerOverlay.error ? (
+        <Text style={{ color: theme.colors.mutedForeground }}>{partnerOverlay.error}</Text>
+      ) : null}
+      {!readOnlyState.allowMutations && viewMode === "month" && partnerOverlay.loading ? (
+        <Text style={{ color: theme.colors.mutedForeground }}>
+          Loading partner completions...
+        </Text>
+      ) : null}
       {viewMode === "month" ? (
         <View style={styles.grid}>
-          {buildMonthCells(scopeMonth, weekStartsOn).map((cell) => (
-            <MeasureableDay
-              key={cell.date}
-              onRect={(rect) => {
-                dayTargets.current.set(cell.date, {
-                  day: cell.date,
-                  inMonth: cell.inMonth,
-                  rect,
-                });
-              }}
-              style={[
-                styles.cell,
-                {
-                  opacity: cell.inMonth ? 1 : 0.4,
-                  borderColor: theme.colors.border,
-                  backgroundColor:
-                    cell.date === selectedDay ? theme.colors.accent : theme.colors.card,
-                },
-              ]}
-            >
-              <Pressable
-                onPress={() => apply({ day: cell.date, viewMode: "day" })}
-                style={styles.cellPress}
+          {buildMonthCells(scopeMonth, weekStartsOn).map((cell) => {
+            const viewerSessionCount = readOnlyState.showViewerSessions
+              ? (unitsByDate.get(cell.date)?.length ?? 0)
+              : 0;
+            const partnerMarkers = partnerOverlay.markersByDate.get(cell.date) ?? [];
+            const markerModel = buildCalendarMonthMarkerModel({
+              markers: partnerMarkers,
+              maxVisible: 2,
+            });
+            const accessibilityLabel = buildCalendarMonthCellAccessibilityLabel({
+              day: cell.date,
+              includeViewerSessionClause: readOnlyState.showViewerSessions,
+              viewerSessionCount,
+              overlayActive,
+              partnerMarkers: markerModel.visibleMarkers,
+              partnerOverflowCount: markerModel.overflowCount,
+            });
+            return (
+              <MeasureableDay
+                key={cell.date}
+                onRect={(rect) => {
+                  dayTargets.current.set(cell.date, {
+                    day: cell.date,
+                    inMonth: cell.inMonth,
+                    rect,
+                  });
+                }}
+                style={[
+                  styles.cell,
+                  {
+                    opacity: cell.inMonth ? 1 : 0.4,
+                    borderColor: theme.colors.border,
+                    backgroundColor:
+                      cell.date === selectedDay ? theme.colors.accent : theme.colors.card,
+                  },
+                ]}
               >
-                <Text style={{ color: theme.colors.foreground, fontSize: 12 }}>
-                  {cell.date.slice(8)}
-                </Text>
-                <Text style={{ color: theme.colors.mutedForeground, fontSize: 10 }}>
-                  {unitsByDate.get(cell.date)?.length ?? 0}
-                </Text>
-              </Pressable>
-            </MeasureableDay>
-          ))}
+                <Pressable
+                  onPress={() => apply({ day: cell.date, viewMode: "day" })}
+                  style={styles.cellPress}
+                  accessibilityLabel={accessibilityLabel}
+                >
+                  <Text style={{ color: theme.colors.foreground, fontSize: 12 }}>
+                    {cell.date.slice(8)}
+                  </Text>
+                  {readOnlyState.showViewerSessions ? (
+                    <Text
+                      style={{
+                        color: theme.colors.mutedForeground,
+                        fontSize: 10,
+                      }}
+                    >
+                      {viewerSessionCount}
+                    </Text>
+                  ) : null}
+                  {markerModel.visibleMarkers.map((marker) => (
+                    <View
+                      key={marker.key}
+                      accessible={false}
+                      style={[
+                        styles.partnerDot,
+                        { backgroundColor: theme.colors.primary },
+                      ]}
+                    />
+                  ))}
+                  {markerModel.overflowCount > 0 ? (
+                    <Text
+                      style={{
+                        color: theme.colors.primary,
+                        fontSize: 10,
+                        fontWeight: "700",
+                      }}
+                    >
+                      +{markerModel.overflowCount}
+                    </Text>
+                  ) : null}
+                </Pressable>
+              </MeasureableDay>
+            );
+          })}
         </View>
+      ) : !readOnlyState.allowMutations ? (
+        <CalendarPartnerReadOnlySection
+          visibleDays={visibleDays}
+          markersByDate={partnerOverlay.markersByDate}
+          loading={partnerOverlay.loading}
+        />
       ) : (
         visibleDays.map((visibleDay) => (
           <MeasureableDay
@@ -314,30 +428,51 @@ export function CalendarScreen() {
             <Text style={{ color: theme.colors.foreground, fontWeight: "700" }}>
               {visibleDay}
             </Text>
-            {(unitsByDate.get(visibleDay) ?? []).map((unit) => (
-              <DraggableSession
-                key={unitEntryKey(unit)}
-                unit={unit}
-                day={visibleDay}
-                label={sessionLabel(unit)}
-                onPress={() => {
-                  setMoveUnit(unit);
-                  setMoveDate(visibleDay);
-                }}
-                onDrop={handleDrop}
-                onLayoutWindow={(entryKey, sessionDay, rect) => {
-                  sessionTargets.current.set(entryKey, {
-                    day: sessionDay,
-                    entryKey,
-                    rect,
-                  });
-                }}
-              />
+            {readOnlyState.showViewerSessions
+              ? (unitsByDate.get(visibleDay) ?? []).map((unit) => (
+                  <DraggableSession
+                    key={unitEntryKey(unit)}
+                    unit={unit}
+                    day={visibleDay}
+                    label={sessionLabel(unit)}
+                    onPress={() => {
+                      setMoveUnit(unit);
+                      setMoveDate(visibleDay);
+                    }}
+                    onDrop={handleDrop}
+                    onLayoutWindow={(entryKey, sessionDay, rect) => {
+                      sessionTargets.current.set(entryKey, {
+                        day: sessionDay,
+                        entryKey,
+                        rect,
+                      });
+                    }}
+                  />
+                ))
+              : null}
+            {(partnerOverlay.markersByDate.get(visibleDay) ?? []).map((marker) => (
+              <View
+                key={marker.key}
+                accessible
+                accessibilityRole="text"
+                accessibilityLabel={buildPartnerMarkerAccessibilityLabel(marker.goalTitle)}
+                style={[
+                  styles.partnerMarker,
+                  {
+                    borderColor: theme.colors.border,
+                    backgroundColor: theme.colors.secondary,
+                  },
+                ]}
+              >
+                <Text style={{ color: theme.colors.foreground, fontWeight: "600" }}>
+                  Partner done: {marker.goalTitle}
+                </Text>
+              </View>
             ))}
           </MeasureableDay>
         ))
       )}
-      {draft.dirty ? (
+      {readOnlyState.allowMutations && draft.dirty ? (
         <>
           <Text style={{ color: theme.colors.mutedForeground }}>
             Draft window: {draft.previewWindow?.start ?? "refresh required"} to{" "}
@@ -396,32 +531,34 @@ export function CalendarScreen() {
           </View>
         </>
       ) : null}
-      <View style={styles.row}>
-        <PrimaryButton
-          disabled={busy || !digest || draft.dirty}
-          label="Reset locks"
-          onPress={async () => {
-            if (!digest) {
-              return;
-            }
-            setBusy(true);
-            try {
-              await api.postJson("/api/planner/reset", {
-                scopeMonth,
-                expectedDigest: digest,
-              });
-              await planner.refresh();
-              setMessage("Reset complete.");
-            } catch (error) {
-              setMessage(getApiErrorMessage(error, "Reset failed."));
-            } finally {
-              setBusy(false);
-            }
-          }}
-        />
-      </View>
+      {readOnlyState.allowMutations ? (
+        <View style={styles.row}>
+          <PrimaryButton
+            disabled={busy || !digest || draft.dirty}
+            label="Reset locks"
+            onPress={async () => {
+              if (!digest) {
+                return;
+              }
+              setBusy(true);
+              try {
+                await api.postJson("/api/planner/reset", {
+                  scopeMonth,
+                  expectedDigest: digest,
+                });
+                await planner.refresh();
+                setMessage("Reset complete.");
+              } catch (error) {
+                setMessage(getApiErrorMessage(error, "Reset failed."));
+              } finally {
+                setBusy(false);
+              }
+            }}
+          />
+        </View>
+      ) : null}
       {message ? <Text style={{ color: theme.colors.foreground }}>{message}</Text> : null}
-      {planner.data ? (
+      {readOnlyState.allowMutations && planner.data ? (
         <CoachPanel
           context={planner.data}
           currentMonth={scopeMonth}
@@ -429,11 +566,18 @@ export function CalendarScreen() {
           onDraftChange={setDraft}
         />
       ) : null}
-      <Text style={{ color: theme.colors.mutedForeground }}>
-        Long-press a session to drag it onto another day, or tap it to use the Move-to
-        sheet. Cross-month moves stay in one draft until you save or discard it.
-      </Text>
-      <Modal visible={Boolean(moveUnit)} animationType="slide" transparent>
+      {readOnlyState.allowMutations ? (
+        <Text style={{ color: theme.colors.mutedForeground }}>
+          Long-press a session to drag it onto another day, or tap it to use the
+          Move-to sheet. Cross-month moves stay in one draft until you save or
+          discard it.
+        </Text>
+      ) : null}
+      <Modal
+        visible={readOnlyState.allowMutations && Boolean(moveUnit)}
+        animationType="slide"
+        transparent
+      >
         <View style={styles.sheetBackdrop}>
           <View style={[styles.sheet, { backgroundColor: theme.colors.card }]}>
             <Text style={{ color: theme.colors.foreground, fontWeight: "700" }}>Move to…</Text>
@@ -493,6 +637,12 @@ export function CalendarScreen() {
 
 const styles = StyleSheet.create({
   row: { flexDirection: "row", justifyContent: "space-between", gap: 8, alignItems: "center" },
+  readOnlyBanner: {
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
   grid: { flexDirection: "row", flexWrap: "wrap" },
   cell: {
     width: "14.28%",
@@ -501,7 +651,19 @@ const styles = StyleSheet.create({
     padding: 4,
   },
   cellPress: { flex: 1 },
+  partnerDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 99,
+    marginTop: 4,
+  },
   dayCard: { borderWidth: 1, borderRadius: 12, padding: 12, gap: 6 },
+  partnerMarker: {
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
   sheetBackdrop: {
     flex: 1,
     justifyContent: "flex-end",
