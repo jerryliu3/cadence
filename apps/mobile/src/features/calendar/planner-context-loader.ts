@@ -1,60 +1,11 @@
+import type {
+  PlannerContextPayload,
+  PlannerWorkUnit,
+} from "@cadence/shared/planner/context";
 import { buildPlannerVisibleWindow } from "@cadence/shared/planner/visible-window";
 
-export interface MobilePlannerWorkUnit {
-  originalGoalId: string;
-  unitKey: string;
-  scheduledDate: string | null;
-  label: string | null;
-  classification: string;
-  creditState: string;
-  placementWindow?: { start: string; end: string } | null;
-  draftMoveWindow?: { start: string; end: string } | null;
-  creditWindow?: { start: string; end: string };
-}
-
-export interface MobilePlannerContext {
-  scopeMonth: string;
-  asOfDate: string;
-  timezone: string;
-  goalTitles: Record<string, string>;
-  capabilities?: {
-    crossMonthMovesEnabled: boolean;
-  };
-  preview: {
-    generationInputHash?: string;
-    eligibilityMode?: "overlap_v1";
-    preserveExistingAssignments?: boolean;
-    solver?: {
-      publishable?: boolean;
-      confirmationRequired?: boolean;
-      issueCodes?: string[];
-    };
-    workUnits: MobilePlannerWorkUnit[];
-  } | null;
-  activePlan: {
-    plan: { id: string; version: number; status: string };
-    items: Array<{
-      id: string;
-      unit_key: string;
-      locked: boolean;
-    }>;
-  } | null;
-  revisions: {
-    scheduleDigest?: string | null;
-  };
-  preferences: {
-    defaultPolicy: unknown;
-  } | null;
-  unplaceableGoals?: Array<{
-    goalId: string;
-    requirementFingerprint: string;
-    policyRevision: number;
-    effectiveSpanEnd: string;
-    unplacedCount: number;
-    reason: "capacity" | "invalid_lock";
-    computedAt?: string;
-  }>;
-}
+export type MobilePlannerContext = PlannerContextPayload;
+export type MobilePlannerWorkUnit = PlannerWorkUnit;
 
 interface MobilePlannerApiClient {
   postJson(

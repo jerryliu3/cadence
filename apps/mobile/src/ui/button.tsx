@@ -4,13 +4,13 @@ import {
   Text,
   type PressableProps,
 } from "react-native";
-import { getMobileTheme } from "../theme";
+import { useTheme } from "../theme";
 
 export function PrimaryButton({
   label,
   ...props
 }: PressableProps & { label: string }) {
-  const theme = getMobileTheme();
+  const theme = useTheme();
   return (
     <Pressable
       {...props}

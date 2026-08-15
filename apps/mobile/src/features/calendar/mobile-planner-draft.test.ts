@@ -25,25 +25,48 @@ const preview = {
   eligibilityMode: "overlap_v1" as const,
   preserveExistingAssignments: true,
   solver: {
+    placementStatus: "complete" as const,
+    searchStatus: "all_units_placed" as const,
+    capacityStatus: "unverified" as const,
     publishable: true,
     confirmationRequired: false,
     issueCodes: [],
+    invalidGoalIds: [],
   },
   workUnits: [unit],
 };
 
 const context: MobilePlannerContext = {
+  schemaVersion: "1",
   scopeMonth: "2026-08",
   asOfDate: "2026-08-14",
   timezone: "America/New_York",
   goalTitles: { [unit.originalGoalId]: "Run" },
+  capabilities: { crossMonthMovesEnabled: true },
   preview,
   activePlan: {
     plan: { id: "plan-1", version: 1, status: "active" },
+    goals: [],
     items: [],
   },
-  revisions: { scheduleDigest: "b".repeat(64) },
-  preferences: { defaultPolicy: { schemaVersion: "1" } },
+  revisions: {
+    canonicalRevision: 1,
+    executionRevision: 1,
+    scheduleDigest: "b".repeat(64),
+  },
+  preferences: {
+    timezone: "America/New_York",
+    timezoneConfirmedAt: "2026-08-01T00:00:00.000Z",
+    policyRevision: 1,
+    defaultPolicy: {
+      schemaVersion: "1",
+      timezone: "America/New_York",
+      timezoneConfirmedAt: "2026-08-01T00:00:00.000Z",
+      restWeekdays: [],
+      blackoutRanges: [],
+    },
+  },
+  staleness: { stale: false, reasons: [] },
   unplaceableGoals: [],
 };
 

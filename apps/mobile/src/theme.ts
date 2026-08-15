@@ -1,14 +1,20 @@
 import { darkTheme, lightTheme, motionDurations, radius } from "@cadence/shared/tokens";
-import { Appearance } from "react-native";
+import { useColorScheme } from "react-native";
 
-export function getMobileTheme() {
-  const scheme = Appearance.getColorScheme();
-  const colors = scheme === "light" ? lightTheme : darkTheme;
-  return {
-    colors: Object.fromEntries(
-      Object.entries(colors).map(([key, token]) => [key, token.hex])
-    ) as Record<keyof typeof darkTheme, string>,
+const themes = {
+  light: {
+    colors: lightTheme,
     radius,
     motionDurations,
-  };
+  },
+  dark: {
+    colors: darkTheme,
+    radius,
+    motionDurations,
+  },
+} as const;
+
+export function useTheme() {
+  const scheme = useColorScheme();
+  return themes[scheme === "light" ? "light" : "dark"];
 }

@@ -1,9 +1,9 @@
 import { isValidDate } from "@cadence/shared/planner/calendar-state";
+import type { PlannerWorkUnit } from "@cadence/shared/planner/context";
 import {
   upsertMobilePlannerDraftMove,
   type MobilePlannerDraftState,
 } from "./mobile-planner-draft";
-import type { MobilePlannerWorkUnit } from "./use-planner-context";
 
 export class DraftMoveError extends Error {
   constructor(message: string) {
@@ -20,7 +20,7 @@ export function planMobileDraftMove({
 }: {
   state: MobilePlannerDraftState;
   currentMonth: string;
-  unit: MobilePlannerWorkUnit;
+  unit: PlannerWorkUnit;
   nextDate: string;
 }) {
   const normalized = nextDate.trim();

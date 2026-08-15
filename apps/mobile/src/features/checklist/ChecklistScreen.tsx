@@ -1,12 +1,12 @@
 import { FlashList } from "@shopify/flash-list";
 import { Link } from "expo-router";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import { getMobileTheme } from "../../theme";
+import { useTheme } from "../../theme";
 import { LoadingScreen, Screen } from "../../ui/screen";
 import { useChecklistData } from "./use-checklist-data";
 
 export function ChecklistScreen() {
-  const theme = getMobileTheme();
+  const theme = useTheme();
   const { loading, error, goals, completedToday, toggle, asOfDate } =
     useChecklistData();
 

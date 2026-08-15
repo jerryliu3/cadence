@@ -8,6 +8,8 @@ describe("applyCoachPatchesToMobileDraft", () => {
       state: createEmptyMobilePlannerDraft(),
       policy: {
         schemaVersion: "1",
+        timezone: "America/New_York",
+        timezoneConfirmedAt: "2026-08-01T00:00:00.000Z",
         restWeekdays: [],
         blackoutRanges: [],
       },
@@ -49,6 +51,8 @@ describe("applyCoachPatchesToMobileDraft", () => {
       state: createEmptyMobilePlannerDraft(),
       policy: {
         schemaVersion: "1",
+        timezone: "America/New_York",
+        timezoneConfirmedAt: "2026-08-01T00:00:00.000Z",
         restWeekdays: [],
         blackoutRanges: [],
       },
