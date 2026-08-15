@@ -21,7 +21,7 @@ export function useMobileRuntimeConfig() {
 
 export function useForceUpgradeRequired() {
   const config = useMobileRuntimeConfig();
-  const currentVersion = Constants.expoConfig?.version ?? "1.0.0";
+  const currentVersion = Constants.expoConfig?.version;
   return {
     loading: config.isLoading,
     required: isAppVersionBelowFloor(
