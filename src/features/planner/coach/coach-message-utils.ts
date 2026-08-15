@@ -1,8 +1,12 @@
 import type { CoachMessageProposal } from "@/features/planner/calendar-surface.types";
 import type { CoachPolicyPatch } from "@/lib/planner/coach";
-import { canonicalHash } from "@/lib/planner/canonical";
 import type { PlannerPolicy } from "@/lib/planner/policy";
 import { dedupeWeekdays, weekStartOptions } from "@/lib/dates/weekday-options";
+import {
+  buildCoachBaselineSnapshotToken,
+  buildCoachMessageProposal as buildSharedCoachMessageProposal,
+  buildCoachProposalSignature,
+} from "@cadence/shared/planner/coach-proposal";
 
 const MAX_COACH_MESSAGE_CHARACTERS = 12_000;
 const WEEKDAY_NAMES = weekStartOptions.map((option) => option.shortLabel);
@@ -42,11 +46,11 @@ function clampAssistantMessage(content: string) {
 }
 
 export function buildProposalSignature(patches: CoachPolicyPatch[]) {
-  return canonicalHash({ policyPatches: patches });
+  return buildCoachProposalSignature(patches);
 }
 
 export function buildBaselineSnapshotToken(policy: PlannerPolicy) {
-  return `policy:${canonicalHash(policy)}`;
+  return buildCoachBaselineSnapshotToken(policy);
 }
 
 export function buildDurableApplyToastDetail({
@@ -84,23 +88,13 @@ export function buildCoachMessageProposal({
   autoApplyStatus: CoachProposalAutoApplyStatus;
   autoAppliedEntryKeys: string[];
 }): CoachMessageProposal | null {
-  if (policyPatches.length === 0) {
-    return null;
-  }
-
-  const patchSignature = buildProposalSignature(policyPatches);
-  return {
-    schemaVersion: "1",
-    applyStatus: mapAutoApplyStatusToProposalStatus(autoApplyStatus),
-    patchSignature,
-    baselineSnapshotToken: baselinePolicy
-      ? buildBaselineSnapshotToken(baselinePolicy)
-      : `missing:${patchSignature.slice(0, 32)}`,
+  return buildSharedCoachMessageProposal({
     baselinePolicy,
     policyPatches,
-    appliedMoveEntryKeys: autoAppliedEntryKeys,
     unresolvedQuestions,
-  };
+    applyStatus: mapAutoApplyStatusToProposalStatus(autoApplyStatus),
+    appliedMoveEntryKeys: autoAppliedEntryKeys,
+  }) as CoachMessageProposal | null;
 }
 
 export function buildAssistantMessage({
