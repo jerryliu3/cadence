@@ -1011,6 +1011,7 @@ export function CalendarSurface({
     clearDraftMoveCommands,
     applyDraftPolicy: (policy) => {
       setDraftPolicy(policy);
+      setSetupRestWeekdays([...policy.restWeekdays].sort((left, right) => left - right));
     },
     coachWindow: draftSaveWindow,
     getNonPublishablePreviewMessage: nonPublishablePreviewMessage,
