@@ -1,4 +1,4 @@
-import { Link } from "expo-router";
+import { Link, type Href } from "expo-router";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useTheme } from "../../theme";
 
@@ -17,7 +17,7 @@ export function ChecklistGoalRow({
   done: boolean;
   interactive: boolean;
   readOnlyReason?: string;
-  href?: string;
+  href?: Href;
   onToggle: () => void;
   toggling?: boolean;
 }) {

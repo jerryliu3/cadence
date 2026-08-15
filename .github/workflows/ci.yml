@@ -68,8 +68,14 @@ jobs:
       - name: Check Expo dependency compatibility
         run: pnpm --filter @cadence/mobile dependencies:check
 
-      - name: Run shared planner tests
-        run: pnpm test:shared-planner
+      - name: Run shared tests
+        run: pnpm test:shared
+
+      - name: Typecheck shared package
+        run: pnpm typecheck:shared
+
+      - name: Generate Expo Router types
+        run: pnpm --filter @cadence/mobile types:routes
 
       - name: Typecheck mobile app
         run: pnpm --filter @cadence/mobile typecheck

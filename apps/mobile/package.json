@@ -9,6 +9,7 @@
     "android": "expo run:android",
     "dependencies:check": "expo install --check",
     "test": "vitest run",
+    "types:routes": "node ../../scripts/generate-expo-types.mjs .",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

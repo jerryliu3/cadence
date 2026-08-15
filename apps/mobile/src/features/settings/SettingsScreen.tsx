@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { router } from "expo-router";
+import { router, type Href } from "expo-router";
 import { useEffect, useState } from "react";
 import { Text, TextInput } from "react-native";
 import { supabase } from "../../lib/supabase";
@@ -26,7 +26,7 @@ export function SettingsScreen() {
 
   useEffect(() => {
     return subscribeNotificationOpens((url) => {
-      router.push(url.startsWith("/") ? url : `/${url}`);
+      router.push((url.startsWith("/") ? url : `/${url}`) as Href);
     });
   }, []);
 

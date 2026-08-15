@@ -3,9 +3,9 @@ import {
   buildPartnerCompletionMarkersByDate,
   mergeCompletionFactMarkers,
   monthGridFactsBounds,
-} from "@cadence/shared/planner/partner-completion";
+} from "./partner-completion";
 
-describe("calendar partner overlay", () => {
+describe("partner completion", () => {
   it("builds month-bounded partner markers without mixing into viewer identity keys", () => {
     // 6 days before the 1st through 41 days after covers the widest 42-cell
     // grid any weekStartsOn can produce, so leading/trailing cells are included.
@@ -22,9 +22,14 @@ describe("calendar partner overlay", () => {
       titles: { g1: "Run" },
     });
     const dayMarkers = markers.get("2026-08-13") ?? [];
-    expect(dayMarkers.map((marker) => marker.goalTitle)).toEqual(["Completed", "Run"]);
+    expect(dayMarkers.map((marker) => marker.goalTitle)).toEqual([
+      "Completed",
+      "Run",
+    ]);
     expect(dayMarkers.every((marker) => marker.owner === "partner")).toBe(true);
-    expect(dayMarkers.every((marker) => marker.key.startsWith("partner:"))).toBe(true);
+    expect(
+      dayMarkers.every((marker) => marker.key.startsWith("partner:"))
+    ).toBe(true);
   });
 
   it("merges partner markers after viewer markers", () => {
@@ -50,6 +55,9 @@ describe("calendar partner overlay", () => {
         },
       ]
     );
-    expect(merged.map((marker) => marker.owner)).toEqual(["viewer", "partner"]);
+    expect(merged.map((marker) => marker.owner)).toEqual([
+      "viewer",
+      "partner",
+    ]);
   });
 });

@@ -4,10 +4,7 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   test: {
     environment: "node",
-    include: [
-      "packages/shared/src/planner/**/*.test.ts",
-      "apps/mobile/src/features/calendar/**/*.test.ts",
-    ],
+    include: ["packages/shared/src/**/*.test.ts"],
   },
   resolve: {
     alias: {
