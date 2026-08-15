@@ -903,7 +903,7 @@ export type Database = {
           group_id: string | null
           id: string
           is_canonical: boolean
-          local_date: string
+          local_date: string | null
           metric_key: Database["public"]["Enums"]["health_metric_key"]
           payload: Json
           provider: Database["public"]["Enums"]["health_provider"]
@@ -924,6 +924,7 @@ export type Database = {
           group_id?: string | null
           id?: string
           is_canonical?: boolean
+          local_date?: string | null
           metric_key: Database["public"]["Enums"]["health_metric_key"]
           payload?: Json
           provider: Database["public"]["Enums"]["health_provider"]
@@ -944,6 +945,7 @@ export type Database = {
           group_id?: string | null
           id?: string
           is_canonical?: boolean
+          local_date?: string | null
           metric_key?: Database["public"]["Enums"]["health_metric_key"]
           payload?: Json
           provider?: Database["public"]["Enums"]["health_provider"]
