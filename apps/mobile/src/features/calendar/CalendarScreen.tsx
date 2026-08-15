@@ -18,6 +18,7 @@ import { useCalendarStore } from "../../store/calendar-state";
 import { getMobileTheme } from "../../theme";
 import { PrimaryButton } from "../../ui/button";
 import { LoadingScreen, Screen } from "../../ui/screen";
+import { CoachPanel } from "./CoachPanel";
 import { DraftMoveError, planMobileDraftMove } from "./draft-moves";
 import { DraggableSession } from "./DraggableSession";
 import {
@@ -55,6 +56,8 @@ export function CalendarScreen() {
   const dayTargets = useRef<Map<string, DayDropTarget>>(new Map());
   const sessionTargets = useRef<Map<string, SessionDropTarget>>(new Map());
   const effectivePreview = draft.preview ?? planner.data?.preview ?? null;
+  const confirmationRequired =
+    draft.preview?.solver?.confirmationRequired === true;
 
   const unitsByDate = useMemo(() => {
     const map = new Map<string, MobilePlannerWorkUnit[]>();
@@ -332,10 +335,18 @@ export function CalendarScreen() {
             Draft window: {draft.previewWindow?.start ?? "refresh required"} to{" "}
             {draft.previewWindow?.end ?? "refresh required"}
           </Text>
+          {confirmationRequired ? (
+            <Text style={{ color: theme.colors.foreground }}>
+              This preview could not place every session. Confirm to save the
+              partial plan.
+            </Text>
+          ) : null}
           <View style={styles.row}>
             <PrimaryButton
               disabled={busy || !planner.data || !draft.preview}
-              label="Save draft"
+              label={
+                confirmationRequired ? "Confirm partial plan" : "Save draft"
+              }
               onPress={async () => {
                 if (!planner.data) {
                   return;
@@ -348,6 +359,7 @@ export function CalendarScreen() {
                     },
                     context: planner.data,
                     state: draft,
+                    confirmationApproved: confirmationRequired,
                   });
                   setDraft(createEmptyMobilePlannerDraft());
                   setOrderByDay({});
@@ -401,6 +413,14 @@ export function CalendarScreen() {
         />
       </View>
       {message ? <Text style={{ color: theme.colors.foreground }}>{message}</Text> : null}
+      {planner.data ? (
+        <CoachPanel
+          context={planner.data}
+          currentMonth={scopeMonth}
+          draft={draft}
+          onDraftChange={setDraft}
+        />
+      ) : null}
       <Text style={{ color: theme.colors.mutedForeground }}>
         Long-press a session to drag it onto another day, or tap it to use the Move-to
         sheet. Cross-month moves stay in one draft until you save or discard it.

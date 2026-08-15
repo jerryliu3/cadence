@@ -1,4 +1,3 @@
-import { canonicalHash } from "@/lib/planner/canonical";
 import type { PlannerCanonicalSnapshot } from "@/lib/planner/context-loader";
 import type { PlannerKernelOutput } from "@/lib/planner/kernel";
 import {
@@ -7,6 +6,8 @@ import {
   type PlannerDraftCommand,
 } from "@/lib/planner/draft-commands";
 import { resolvePlannerEffectiveScheduledTime } from "@/lib/planner/schedule-time";
+
+export { buildPlannerConfirmationHash } from "@cadence/shared/planner/confirmation";
 
 export interface PlannerDraftItemEdit {
   goalId: string;
@@ -220,19 +221,6 @@ function applyValidatedDraftItemEdits({
   }
 
   return { workUnits, draftRelabeledCount, draftRetimedCount };
-}
-
-export function buildPlannerConfirmationHash({
-  previewHash,
-  issueCodes,
-}: {
-  previewHash: string;
-  issueCodes: string[];
-}) {
-  return canonicalHash({
-    previewHash,
-    issueCodes: [...issueCodes].sort(),
-  });
 }
 
 export function buildPlannerPublishPersistencePayload({
