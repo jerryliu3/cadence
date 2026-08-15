@@ -16,7 +16,6 @@ import {
   type DragCancelEvent,
   type DraggableAttributes,
   type DraggableSyntheticListeners,
-  type UniqueIdentifier,
 } from "@dnd-kit/core";
 import { sortableKeyboardCoordinates } from "@dnd-kit/sortable";
 import {
@@ -25,95 +24,28 @@ import {
   type CSSProperties,
   type ReactNode,
 } from "react";
+import {
+  parsePlannerDragTarget,
+  parsePlannerEntryDragId,
+  plannerDayDropId,
+  plannerEntryDragId,
+  plannerPreviewEntryDragId,
+  plannerPreviewEntryDropId,
+  type PlannerDragTarget,
+} from "@/features/planner/planner-drag-target";
 
-const ENTRY_ID_PREFIX = "planner-entry:";
-const PREVIEW_ENTRY_DRAG_ID_PREFIX = "planner-entry-preview:";
-const DAY_ID_PREFIX = "planner-day:";
-const PREVIEW_ENTRY_DROP_ID_PREFIX = "planner-preview-entry:";
+export {
+  plannerDayDropId,
+  plannerEntryDragId,
+  plannerPreviewEntryDragId,
+  plannerPreviewEntryDropId,
+  type PlannerDragTarget,
+};
+
 const MOUSE_PRESS_TO_DRAG_DELAY_MS = 120;
 const MOUSE_PRESS_TO_DRAG_TOLERANCE_PX = 24;
 const TOUCH_PRESS_TO_DRAG_DELAY_MS = 180;
 const TOUCH_PRESS_TO_DRAG_TOLERANCE_PX = 10;
-
-export function plannerEntryDragId(entryKey: string) {
-  return `${ENTRY_ID_PREFIX}${entryKey}`;
-}
-
-export function plannerPreviewEntryDragId(day: string, entryKey: string) {
-  return `${PREVIEW_ENTRY_DRAG_ID_PREFIX}${day}::${entryKey}`;
-}
-
-export function plannerDayDropId(day: string) {
-  return `${DAY_ID_PREFIX}${day}`;
-}
-
-export function plannerPreviewEntryDropId(day: string, entryKey: string) {
-  return `${PREVIEW_ENTRY_DROP_ID_PREFIX}${day}::${entryKey}`;
-}
-
-function parsePlannerEntryDragId(id: UniqueIdentifier) {
-  if (typeof id !== "string") {
-    return null;
-  }
-  if (id.startsWith(ENTRY_ID_PREFIX)) {
-    return id.slice(ENTRY_ID_PREFIX.length);
-  }
-  if (id.startsWith(PREVIEW_ENTRY_DRAG_ID_PREFIX)) {
-    const parsed = id.slice(PREVIEW_ENTRY_DRAG_ID_PREFIX.length);
-    const separatorIndex = parsed.indexOf("::");
-    if (separatorIndex < 0) {
-      return null;
-    }
-    return parsed.slice(separatorIndex + 2);
-  }
-  return null;
-}
-
-function parsePlannerDayDropId(id: UniqueIdentifier) {
-  if (typeof id !== "string" || !id.startsWith(DAY_ID_PREFIX)) {
-    return null;
-  }
-  return id.slice(DAY_ID_PREFIX.length);
-}
-
-function parsePlannerPreviewEntryDropId(id: UniqueIdentifier) {
-  if (
-    typeof id !== "string" ||
-    !id.startsWith(PREVIEW_ENTRY_DROP_ID_PREFIX)
-  ) {
-    return null;
-  }
-  const parsed = id.slice(PREVIEW_ENTRY_DROP_ID_PREFIX.length);
-  const separatorIndex = parsed.indexOf("::");
-  if (separatorIndex < 0) {
-    return null;
-  }
-  return {
-    day: parsed.slice(0, separatorIndex),
-    entryKey: parsed.slice(separatorIndex + 2),
-  };
-}
-
-export type PlannerDragTarget =
-  | { type: "day"; day: string }
-  | { type: "preview_entry"; day: string; entryKey: string }
-  | null;
-
-function parsePlannerDragTarget(id: UniqueIdentifier): PlannerDragTarget {
-  const day = parsePlannerDayDropId(id);
-  if (day) {
-    return { type: "day", day };
-  }
-  const previewEntry = parsePlannerPreviewEntryDropId(id);
-  if (previewEntry) {
-    return {
-      type: "preview_entry",
-      day: previewEntry.day,
-      entryKey: previewEntry.entryKey,
-    };
-  }
-  return null;
-}
 
 interface PlannerDndProviderProps {
   children: ReactNode;
