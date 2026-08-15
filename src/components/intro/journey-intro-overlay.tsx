@@ -7,6 +7,14 @@ import { toLocalDateString } from "@/lib/dates/day";
 import { useXpProfile } from "@/components/xp/xp-profile-provider";
 
 export const JOURNEY_INTRO_SEEN_KEY = "cadence.journey_intro_seen.v1";
+export const JOURNEY_INTRO_OPEN_EVENT = "cadence.journey_intro.open";
+
+export function requestJourneyIntroOpen() {
+  if (typeof window === "undefined") {
+    return;
+  }
+  window.dispatchEvent(new Event(JOURNEY_INTRO_OPEN_EVENT));
+}
 
 export function JourneyIntroOverlay() {
   const { profile, band } = useXpProfile();
@@ -22,6 +30,16 @@ export function JourneyIntroOverlay() {
     }, 0);
     return () => {
       window.clearTimeout(timeoutId);
+    };
+  }, []);
+
+  useEffect(() => {
+    const handleOpenRequest = () => {
+      setOpen(true);
+    };
+    window.addEventListener(JOURNEY_INTRO_OPEN_EVENT, handleOpenRequest);
+    return () => {
+      window.removeEventListener(JOURNEY_INTRO_OPEN_EVENT, handleOpenRequest);
     };
   }, []);
 
