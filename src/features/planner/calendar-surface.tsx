@@ -2477,7 +2477,7 @@ export function CalendarSurface({
                 {hasDraftSession ? (
                   <Badge
                     data-testid="planner-preview-mode-badge"
-                    className="h-7 border-yellow-300 bg-yellow-100 px-3 text-sm font-semibold text-orange-900 dark:border-amber-500/40 dark:bg-amber-500/20 dark:text-amber-100"
+                    className="h-7 border-amber-300 bg-amber-100 px-3 text-sm font-semibold text-amber-950 dark:border-amber-300 dark:bg-amber-100 dark:text-amber-950"
                   >
                     Planning Mode
                   </Badge>
@@ -2492,7 +2492,7 @@ export function CalendarSurface({
                 </p>
               ) : null}
               {eligibilityNotices.hardIneligible.length > 0 ? (
-                <div className="rounded-md border border-yellow-300 bg-yellow-100 px-3 py-2 text-xs text-orange-900 dark:border-amber-500/40 dark:bg-amber-500/20 dark:text-amber-100">
+                <div className="rounded-md border border-amber-300 bg-amber-100 px-3 py-2 text-xs text-amber-950 dark:border-amber-300 dark:bg-amber-100 dark:text-amber-950">
                   {eligibilityNotices.hardIneligible
                     .slice(0, 4)
                     .map((item) => `${item.goalTitle}: ${item.reasonCopy}`)
@@ -2632,7 +2632,7 @@ export function CalendarSurface({
         <p className="text-xs text-muted-foreground">{partnerOverlayError}</p>
       ) : null}
       {unplaceableGoalSummaries.length > 0 && !showBlockingLoading && !error ? (
-        <div className="rounded-md border border-yellow-300 bg-yellow-100 px-3 py-2 text-xs text-orange-900 dark:border-amber-500/40 dark:bg-amber-500/20 dark:text-amber-100">
+        <div className="rounded-md border border-amber-300 bg-amber-100 px-3 py-2 text-xs text-amber-950 dark:border-amber-300 dark:bg-amber-100 dark:text-amber-950">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p>
               {invalidLockGoalCount > 0
@@ -2812,9 +2812,9 @@ export function CalendarSurface({
                   </div>
                 )}
                 {draftSaveBlockedMessage ? (
-                  <div className="mt-3 rounded-md border border-amber-400/40 bg-amber-500/10 p-2 text-xs">
+                  <div className="mt-3 rounded-md border border-amber-300 bg-amber-100 p-2 text-xs text-amber-950 dark:border-amber-300 dark:bg-amber-100 dark:text-amber-950">
                     <p className="font-medium">Preview save is currently blocked.</p>
-                    <p className="mt-1 text-muted-foreground">
+                    <p className="mt-1 text-amber-900">
                       {draftSaveBlockedMessage}
                     </p>
                   </div>
