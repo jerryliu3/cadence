@@ -80,7 +80,7 @@ export function ChallengeDetail({
           </p>
           {challenge.audienceKind === "cohort" ? (
             <p>
-              Audience: <span className="font-medium">Cohort</span>
+              Audience: <span className="font-medium">Group</span>
             </p>
           ) : null}
           <p>

@@ -149,7 +149,7 @@ function buildPayload(form: SeasonFormState): { payload: Record<string, unknown>
     return { error: "Metric track is required for category_xp metrics." };
   }
   if (form.scope === "cohort" && (!cohortId || cohortId.length === 0)) {
-    return { error: "Cohort is required for cohort-scoped seasons." };
+    return { error: "Group is required for group-scoped seasons." };
   }
 
   return {
@@ -546,7 +546,7 @@ export function AdminSeasonsManager() {
               </Select>
             </div>
             <div className="space-y-1">
-              <p className="text-xs font-medium">Cohort</p>
+              <p className="text-xs font-medium">Group</p>
               <Select
                 value={createForm.cohortId || NONE_VALUE}
                 onValueChange={(value) =>
@@ -819,7 +819,7 @@ export function AdminSeasonsManager() {
                       </Select>
                     </div>
                     <div className="space-y-1">
-                      <p className="text-xs font-medium">Cohort</p>
+                      <p className="text-xs font-medium">Group</p>
                       <Select
                         value={form.cohortId || NONE_VALUE}
                         onValueChange={(value) =>
