@@ -19,7 +19,7 @@
     "test:tz": "node scripts/run-timezone-tests.mjs",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
-    "types:supabase": "supabase gen types --local --schema public --schema private > src/lib/supabase/database.types.ts",
+    "types:supabase": "supabase gen types --local --schema public --schema private > packages/shared/src/supabase/database.types.ts",
     "supabase:start": "supabase start",
     "supabase:stop": "supabase stop",
     "supabase:status": "supabase status",

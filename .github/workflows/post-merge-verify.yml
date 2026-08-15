@@ -117,7 +117,7 @@ jobs:
       - name: Check generated database types
         run: |
           pnpm types:supabase
-          git diff --exit-code -- src/lib/supabase/database.types.ts
+          git diff --exit-code -- packages/shared/src/supabase/database.types.ts
 
       - name: Lint and advise local database
         run: |
