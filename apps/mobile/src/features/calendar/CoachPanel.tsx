@@ -214,6 +214,12 @@ export function CoachPanel({
     }
   };
 
+  const startNewConversation = () => {
+    setMessages([]);
+    setInput("");
+    setStatus("Started a new conversation.");
+  };
+
   return (
     <View style={[styles.card, { borderColor: theme.colors.border }]}>
       <Text style={{ color: theme.colors.foreground, fontWeight: "700" }}>AI Coach</Text>
@@ -274,13 +280,23 @@ export function CoachPanel({
         placeholderTextColor={theme.colors.mutedForeground}
         style={[styles.input, { color: theme.colors.foreground, borderColor: theme.colors.border }]}
       />
-      <PrimaryButton disabled={busy || input.trim().length === 0} label={busy ? "Working..." : "Send"} onPress={() => void send()} />
+      <PrimaryButton
+        disabled={busy || input.trim().length === 0}
+        label={busy ? "Working..." : "Send"}
+        onPress={() => void send()}
+      />
       <View style={styles.row}>
-        <Pressable disabled={busy || messages.length === 0} onPress={() => void saveConversation()}>
-          <Text style={{ color: theme.colors.primary }}>Save</Text>
+        <Pressable
+          disabled={busy || messages.length === 0}
+          onPress={() => void saveConversation()}
+        >
+          <Text style={{ color: theme.colors.primary }}>Save conversation</Text>
+        </Pressable>
+        <Pressable disabled={busy} onPress={startNewConversation}>
+          <Text style={{ color: theme.colors.primary }}>New conversation</Text>
         </Pressable>
         <Pressable disabled={busy} onPress={() => void loadSaved()}>
-          <Text style={{ color: theme.colors.primary }}>Load saved</Text>
+          <Text style={{ color: theme.colors.primary }}>Refresh saved</Text>
         </Pressable>
       </View>
       {saved.map((conversation) => (
@@ -301,5 +317,5 @@ const styles = StyleSheet.create({
   transcript: { maxHeight: 220 },
   bubble: { borderRadius: 8, padding: 8, marginBottom: 8, gap: 4 },
   input: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10 },
-  row: { flexDirection: "row", justifyContent: "space-between" },
+  row: { flexDirection: "row", flexWrap: "wrap", gap: 12, alignItems: "center" },
 });
