@@ -12,7 +12,11 @@ import {
   requireAuthenticatedRequestContext,
   withRoute,
 } from "@/lib/api/route";
-import { isFeatureEnabled } from "@/lib/feature-flags";
+import { reportHealthDiagnostic } from "@/lib/health/diagnostics";
+import {
+  requireIntegrationsAccess,
+  requireIntegrationsFlag,
+} from "@/lib/health/integrations-disabled";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export const runtime = "nodejs";
@@ -46,19 +50,9 @@ function asJsonObject(value: Record<string, unknown> | undefined): Json {
   return JSON.parse(JSON.stringify(value ?? {})) as Json;
 }
 
-function disabledError() {
-  return new ApiRouteError(
-    503,
-    "integrations_disabled",
-    "Integrations are not enabled."
-  );
-}
-
 export async function POST(request: Request) {
   return withRoute(async ({ correlationId }) => {
-    if (!isFeatureEnabled("integrationsEnabled")) {
-      throw disabledError();
-    }
+    requireIntegrationsFlag();
 
     const payload = await parseJsonBody({
       request,
@@ -69,6 +63,7 @@ export async function POST(request: Request) {
       request,
       { unauthorizedMessage: "Sign in to sync health data." }
     );
+    requireIntegrationsAccess(userId);
 
     if (
       payload.localToday !== undefined &&
@@ -179,6 +174,17 @@ export async function POST(request: Request) {
       autocompleteResult = (autocompleteResponse.data ??
         autocompleteResult) as typeof autocompleteResult;
     }
+
+    reportHealthDiagnostic({
+      event: payload.lastError ? "sync_failure" : "ingest",
+      correlationId,
+      provider: payload.provider,
+      ingestedCount: ingestResult.ingested_count ?? payload.samples.length,
+      canonicalCount: ingestResult.canonical_count ?? 0,
+      suppressedCount: ingestResult.suppressed_count ?? 0,
+      autocompleteAppliedCount: autocompleteResult.applied_count ?? 0,
+      lastError: payload.lastError,
+    });
 
     return apiSuccessResponse(
       {
