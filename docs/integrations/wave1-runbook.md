@@ -33,7 +33,8 @@ paste raw health values into tickets, Slack, or Sentry notes.
 - Rules are opt-in per goal/metric/threshold.
 - Completions use `external_sync` for today and yesterday only, keyed by
   `health:{metric}:{local_date}:{goal_id}`.
-- Unmark writes a tombstone; auto-complete will not resurrect that day.
+- Unmark does not block future auto-complete for that date. If the user does
+  not want an external completion retained, they must unmark after sync runs.
 
 ## Disconnect
 
