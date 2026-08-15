@@ -129,6 +129,11 @@ import { POST as calendarFeedRotatePost } from "@/app/api/integrations/calendar/
 import { GET as xpAchievementsGet } from "@/app/api/xp/achievements/route";
 import { GET as healthStatusGet } from "@/app/api/health/status/route";
 import { POST as healthSamplesPost } from "@/app/api/health/samples/route";
+import {
+  DELETE as healthAutocompleteDelete,
+  PUT as healthAutocompletePut,
+} from "@/app/api/health/autocomplete-rules/route";
+import { POST as healthDisconnectPost } from "@/app/api/health/disconnect/route";
 
 import {
   GET as plannerContextGet,
@@ -259,6 +264,31 @@ const auditedRouteCases: AuditedRouteCase[] = [
     healthSamplesPost,
     undefined,
     { provider: "apple_healthkit", samples: [] }
+  ),
+  routeCase(
+    "PUT /api/health/autocomplete-rules",
+    healthAutocompletePut,
+    undefined,
+    {
+      goalId: RESOURCE_ID,
+      metricKey: "steps",
+      thresholdNumeric: 8000,
+    }
+  ),
+  {
+    label: "DELETE /api/health/autocomplete-rules",
+    invoke: (token) => {
+      const request = requestFor("DELETE /api/health/autocomplete-rules", token);
+      const url = new URL(request.url);
+      url.searchParams.set("id", RESOURCE_ID);
+      return healthAutocompleteDelete(new Request(url, request));
+    },
+  },
+  routeCase(
+    "POST /api/health/disconnect",
+    healthDisconnectPost,
+    undefined,
+    { provider: "apple_healthkit" }
   ),
 
   routeCase("GET /api/planner/context", plannerContextGet),
