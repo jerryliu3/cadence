@@ -1,8 +1,16 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Platform } from "react-native";
 import Constants from "expo-constants";
 import * as Device from "expo-device";
 import * as Notifications from "expo-notifications";
 import { api } from "./api";
+
+const NATIVE_PUSH_REGISTRATION_KEY = "cadence.native-push-registration";
+
+interface StoredNativePushRegistration {
+  platform: "ios" | "android";
+  token: string;
+}
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -14,11 +22,17 @@ Notifications.setNotificationHandler({
 });
 
 function readExpoProjectId() {
-  return (
+  const projectId =
     Constants.easConfig?.projectId ??
     Constants.expoConfig?.extra?.eas?.projectId ??
-    null
-  );
+    null;
+  return typeof projectId === "string" && projectId.trim().length > 0
+    ? projectId.trim()
+    : null;
+}
+
+export function isNativePushConfigured() {
+  return readExpoProjectId() !== null;
 }
 
 async function ensureAndroidNotificationChannel() {
@@ -34,6 +48,10 @@ async function ensureAndroidNotificationChannel() {
 }
 
 export async function registerNativePush() {
+  const projectId = readExpoProjectId();
+  if (!projectId) {
+    throw new Error("Push is not configured for this build.");
+  }
   if (!Device.isDevice) {
     throw new Error("Push requires a physical device.");
   }
@@ -42,31 +60,73 @@ export async function registerNativePush() {
     throw new Error("Notification permission was not granted.");
   }
   await ensureAndroidNotificationChannel();
-  const projectId = readExpoProjectId();
-  if (!projectId) {
-    throw new Error(
-      "Set extra.eas.projectId (EAS project id) before registering push."
-    );
-  }
   const token = await Notifications.getExpoPushTokenAsync({ projectId });
   const platform = Platform.OS === "ios" ? "ios" : "android";
   await api.postJson("/api/push/subscriptions", {
     platform,
     token: token.data,
   });
+  await AsyncStorage.setItem(
+    NATIVE_PUSH_REGISTRATION_KEY,
+    JSON.stringify({ platform, token: token.data })
+  );
   return token.data;
 }
 
-export function subscribeNotificationOpens(
-  onUrl: (url: string) => void
-) {
-  const subscription = Notifications.addNotificationResponseReceivedListener(
-    (response) => {
-      const url = response.notification.request.content.data?.url;
-      if (typeof url === "string" && url.length > 0) {
-        onUrl(url);
-      }
+async function readStoredNativePushRegistration() {
+  const value = await AsyncStorage.getItem(NATIVE_PUSH_REGISTRATION_KEY);
+  if (!value) {
+    return null;
+  }
+  try {
+    const parsed = JSON.parse(value) as Partial<StoredNativePushRegistration>;
+    if (
+      (parsed.platform === "ios" || parsed.platform === "android") &&
+      typeof parsed.token === "string" &&
+      parsed.token.length > 0
+    ) {
+      return parsed as StoredNativePushRegistration;
     }
-  );
-  return () => subscription.remove();
+  } catch {
+    // Invalid local state is cleared by unregisterNativePush.
+  }
+  return null;
+}
+
+export async function unregisterNativePush() {
+  let cleanupFailed = false;
+  let registration: StoredNativePushRegistration | null = null;
+  try {
+    registration = await readStoredNativePushRegistration();
+  } catch {
+    cleanupFailed = true;
+  }
+
+  if (registration) {
+    try {
+      await api.requestJson({
+        path: "/api/push/subscriptions",
+        method: "DELETE",
+        body: registration,
+      });
+    } catch {
+      cleanupFailed = true;
+    }
+  }
+
+  try {
+    await Notifications.unregisterForNotificationsAsync();
+  } catch {
+    cleanupFailed = true;
+  }
+
+  try {
+    await AsyncStorage.removeItem(NATIVE_PUSH_REGISTRATION_KEY);
+  } catch {
+    cleanupFailed = true;
+  }
+
+  if (cleanupFailed) {
+    throw new Error("Could not fully unregister push notifications.");
+  }
 }
