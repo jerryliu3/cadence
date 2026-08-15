@@ -170,6 +170,54 @@ describe("SocialScreen Duo onboarding", () => {
     act(() => renderer.unmount());
   });
 
+  it("clears stale partner results and selection when the search changes", async () => {
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    let renderer!: ReactTestRenderer;
+    await act(async () => {
+      renderer = create(
+        <QueryClientProvider client={client}>
+          <SocialScreen />
+        </QueryClientProvider>
+      );
+    });
+    const partnerInput = findHost(renderer.root, "TextInput").find(
+      (input) => input.props.placeholder === "Partner username"
+    );
+
+    act(() => partnerInput?.props.onChangeText("alex"));
+    await act(async () => {
+      await findHost(renderer.root, "PrimaryButton")
+        .find((button) => button.props.label === "Search")
+        ?.props.onPress();
+    });
+    act(() => {
+      findHost(renderer.root, "Pressable")
+        .find((result) => result.props.accessibilityRole === "radio")
+        ?.props.onPress();
+    });
+    expect(
+      findHost(renderer.root, "PrimaryButton").find(
+        (button) => button.props.label === "Send invite"
+      )?.props.disabled
+    ).toBe(false);
+
+    act(() => partnerInput?.props.onChangeText("different-user"));
+
+    expect(
+      findHost(renderer.root, "Pressable").filter(
+        (result) => result.props.accessibilityRole === "radio"
+      )
+    ).toHaveLength(0);
+    expect(
+      findHost(renderer.root, "PrimaryButton").find(
+        (button) => button.props.label === "Send invite"
+      )?.props.disabled
+    ).toBe(true);
+    act(() => renderer.unmount());
+  });
+
   it("exposes the visibility acknowledgement as a checkbox", async () => {
     mocks.pendingInvite = {
       teamId: "team-1",
