@@ -1,23 +1,33 @@
 /**
  * A teamed viewer can read their partner's personal goals through
  * `public.can_view_goal`, but those belong in the partner lane rather than the
- * viewer's own lists and summaries.
+ * viewer's own lists and summaries. Goals attached to one of the viewer's
+ * teams remain actionable in the viewer lane regardless of which member
+ * created them.
  *
- * Excluding by owner is deliberate. Allow-listing what the viewer may see
- * (owned, shared, team-owned, ...) silently drops any category the list
- * forgets; excluding the one owner we know to be the partner cannot.
+ * Excluding only the partner's personal goals avoids silently dropping other
+ * visible goal categories.
  */
-export function selectViewerVisibleGoals<TGoal extends { owner_id: string }>({
+export function selectViewerVisibleGoals<
+  TGoal extends { owner_id: string; team_id?: string | null },
+>({
   goals,
   partnerId,
+  memberTeamIds = [],
 }: {
   goals: TGoal[];
   partnerId?: string | null;
+  memberTeamIds?: Iterable<string>;
 }): TGoal[] {
   if (!partnerId) {
     return goals;
   }
-  return goals.filter((goal) => goal.owner_id !== partnerId);
+  const teams = new Set(memberTeamIds);
+  return goals.filter(
+    (goal) =>
+      goal.owner_id !== partnerId ||
+      (goal.team_id != null && teams.has(goal.team_id))
+  );
 }
 
 /** `undefined` keeps the request on the self path; a partner id opts into the partner path. */

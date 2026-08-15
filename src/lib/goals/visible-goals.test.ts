@@ -27,6 +27,25 @@ describe("selectViewerVisibleGoals", () => {
     ).toEqual(["owned", "shared"]);
   });
 
+  it("keeps partner-created goals for an active viewer team", () => {
+    const goals = [
+      { id: "partner-personal", owner_id: "partner", team_id: null },
+      {
+        id: "partner-team",
+        owner_id: "partner",
+        team_id: "active-team",
+      },
+    ];
+
+    expect(
+      selectViewerVisibleGoals({
+        goals,
+        partnerId: "partner",
+        memberTeamIds: ["active-team"],
+      }).map((goal) => goal.id)
+    ).toEqual(["partner-team"]);
+  });
+
   it("omits subjectUserId for self progress reads", () => {
     expect(
       progressSubjectUserId({

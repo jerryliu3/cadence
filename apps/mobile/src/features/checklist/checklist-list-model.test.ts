@@ -31,7 +31,10 @@ function buildLaneData(input: {
       archived_at: null,
       is_deleted: false,
     })),
-    completedToday: new Set(input.completedIds ?? []),
+    completedForView: new Set(input.completedIds ?? []),
+    completionDateByGoal: new Map(
+      (input.completedIds ?? []).map((goalId) => [goalId, "2026-08-11"])
+    ),
     completionCount: 0,
     goalCount: 0,
     interactive: input.interactive ?? false,

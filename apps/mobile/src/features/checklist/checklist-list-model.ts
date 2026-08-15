@@ -145,7 +145,7 @@ export function buildChecklistListItems({
         goalId: goal.id,
         title: goal.title,
         category: goal.category,
-        done: laneData.completedToday.has(goal.id),
+        done: laneData.completedForView.has(goal.id),
         interactive: laneData.canToggleGoal(goal.id),
         readOnlyReason:
           lane.id === "viewer" &&
