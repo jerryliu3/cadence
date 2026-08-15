@@ -35,7 +35,7 @@ export function usePlannerContext(month: string | null) {
   const loaderRef = useRef<ReturnType<
     typeof createMobilePlannerContextLoader
   > | null>(null);
-  if (!loaderRef.current) {
+  if (loaderRef.current == null) {
     loaderRef.current = createMobilePlannerContextLoader({
       postJson: (path, body) =>
         api.postJson<MobilePlannerContext>(path, body),
