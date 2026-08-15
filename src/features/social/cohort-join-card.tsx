@@ -18,10 +18,10 @@ export function CohortJoinCard() {
     setMessage(null);
     try {
       await joinSocialCohort(joinCode);
-      setMessage("Joined the cohort.");
+      setMessage("Joined the group.");
       setJoinCode("");
     } catch (joinError) {
-      setError(joinError instanceof Error ? joinError.message : "Could not join cohort.");
+      setError(joinError instanceof Error ? joinError.message : "Could not join group.");
     } finally {
       setIsPending(false);
     }
@@ -30,9 +30,9 @@ export function CohortJoinCard() {
   return (
     <Card className="shadow-sm">
       <CardHeader>
-        <CardTitle>Join a cohort</CardTitle>
+        <CardTitle>Join a group</CardTitle>
         <CardDescription>
-          Cohorts are private groups that scope challenges and leaderboards. Enter a join code from your organizer.
+          Groups are private spaces that scope challenges and leaderboards. Enter a join code from your organizer.
         </CardDescription>
       </CardHeader>
       <CardContent className="grid gap-2 md:grid-cols-[minmax(0,1fr)_auto]">

@@ -26,7 +26,7 @@ export async function GET(request: Request) {
       });
     }
     if (cohortError) {
-      throw new ApiRouteError(500, "admin_metadata_unavailable", "Cohort metadata is unavailable.", {
+      throw new ApiRouteError(500, "admin_metadata_unavailable", "Group metadata is unavailable.", {
         cause: cohortError.message,
       });
     }

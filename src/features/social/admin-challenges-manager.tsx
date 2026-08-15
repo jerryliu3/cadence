@@ -162,7 +162,7 @@ function buildPayload(form: ChallengeFormState): { payload: Record<string, unkno
     return { error: "Metric track is required for category_xp metrics." };
   }
   if (form.audienceKind === "cohort" && (!cohortId || cohortId.length === 0)) {
-    return { error: "Cohort is required for cohort-scoped challenges." };
+    return { error: "Group is required for group-scoped challenges." };
   }
 
   return {
@@ -558,7 +558,7 @@ export function AdminChallengesManager() {
               </Select>
             </div>
             <div className="space-y-1">
-              <p className="text-xs font-medium">Cohort</p>
+              <p className="text-xs font-medium">Group</p>
               <Select
                 value={createForm.cohortId || NONE_VALUE}
                 onValueChange={(value) =>
@@ -867,7 +867,7 @@ export function AdminChallengesManager() {
                       </Select>
                     </div>
                     <div className="space-y-1">
-                      <p className="text-xs font-medium">Cohort</p>
+                      <p className="text-xs font-medium">Group</p>
                       <Select
                         value={form.cohortId || NONE_VALUE}
                         onValueChange={(value) =>
