@@ -18,6 +18,8 @@ const eslintConfig = defineConfig([
     "playwright-report/**",
     // Expo Metro config is CommonJS by convention.
     "apps/mobile/metro.config.js",
+    // Expo Router type generation writes declarations here before mobile typecheck.
+    "apps/mobile/.expo/**",
   ]),
   {
     files: ["packages/shared/**/*.ts"],
