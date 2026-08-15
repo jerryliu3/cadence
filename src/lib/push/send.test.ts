@@ -117,12 +117,14 @@ describe("sendPushToUser", () => {
       removedSubscriptions: 0,
       hadSubscriptions: true,
       webConfigurationUnavailable: false,
+      deliveryFailures: 0,
     });
     expect(mocks.setVapidDetails).not.toHaveBeenCalled();
     expect(fetch).toHaveBeenCalledWith(
       "https://exp.host/--/api/v2/push/send",
       expect.objectContaining({
         method: "POST",
+        signal: expect.any(AbortSignal),
       })
     );
   });
@@ -237,10 +239,11 @@ describe("sendPushToUser", () => {
       removedSubscriptions: 0,
       hadSubscriptions: true,
       webConfigurationUnavailable: true,
+      deliveryFailures: 0,
     });
   });
 
-  it("reports unavailable web delivery when the push service rejects VAPID auth", async () => {
+  it("counts remote web-push 401 responses as delivery failures", async () => {
     mocks.sendNotification.mockRejectedValue(
       Object.assign(new Error("Unauthorized"), { statusCode: 401 })
     );
@@ -263,6 +266,68 @@ describe("sendPushToUser", () => {
     });
 
     expect(result.sent).toBe(0);
-    expect(result.webConfigurationUnavailable).toBe(true);
+    expect(result.webConfigurationUnavailable).toBe(false);
+    expect(result.deliveryFailures).toBe(1);
+  });
+
+  it("removes web subscriptions rejected with 403", async () => {
+    mocks.sendNotification.mockRejectedValue(
+      Object.assign(new Error("Forbidden"), { statusCode: 403 })
+    );
+    const admin = createAdmin({
+      rows: [
+        {
+          id: "web-1",
+          endpoint: "https://example.test/sub",
+          platform: "web",
+          p256dh: "p256dh",
+          auth: "auth",
+        },
+      ],
+    });
+
+    const result = await sendPushToUser({
+      admin: admin as never,
+      userId: "user-1",
+      payload: { title: "Goalmaxxing", body: "Keep going" },
+    });
+
+    expect(result.webConfigurationUnavailable).toBe(false);
+    expect(result.deliveryFailures).toBe(0);
+    expect(result.removedSubscriptions).toBe(1);
+    expect(admin.deletedIds).toEqual([["web-1"]]);
+  });
+
+  it("counts Expo timeouts without removing the native token", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockRejectedValue(
+        Object.assign(new Error("The operation timed out"), {
+          name: "TimeoutError",
+        })
+      )
+    );
+    const admin = createAdmin({
+      rows: [
+        {
+          id: "native-1",
+          endpoint: "native:ios:token-1",
+          platform: "ios",
+          native_token: "ExponentPushToken[abc]",
+          p256dh: null,
+          auth: null,
+        },
+      ],
+    });
+
+    const result = await sendPushToUser({
+      admin: admin as never,
+      userId: "user-1",
+      payload: { title: "Goalmaxxing", body: "Keep going" },
+    });
+
+    expect(result.deliveryFailures).toBe(1);
+    expect(result.removedSubscriptions).toBe(0);
+    expect(admin.deletedIds).toEqual([]);
   });
 });
