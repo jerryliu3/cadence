@@ -587,42 +587,6 @@ export type Database = {
           },
         ]
       }
-      completion_unmark_tombstones: {
-        Row: {
-          completed_on: string
-          created_at: string
-          goal_id: string
-          user_id: string
-        }
-        Insert: {
-          completed_on: string
-          created_at?: string
-          goal_id: string
-          user_id: string
-        }
-        Update: {
-          completed_on?: string
-          created_at?: string
-          goal_id?: string
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "completion_unmark_tombstones_goal_id_fkey"
-            columns: ["goal_id"]
-            isOneToOne: false
-            referencedRelation: "goals"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "completion_unmark_tombstones_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       completions: {
         Row: {
           completed_on: string

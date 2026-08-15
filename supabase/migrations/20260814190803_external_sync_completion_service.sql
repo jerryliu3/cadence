@@ -1,14 +1,6 @@
 -- File 2 of the split external_sync migration. Depends on the enum value
 -- from 20260814190802_completion_source_external_sync_enum.sql.
 
-create table if not exists public.completion_unmark_tombstones (
-  user_id uuid not null references public.profiles(id) on delete cascade,
-  goal_id uuid not null references public.goals(id) on delete cascade,
-  completed_on date not null,
-  created_at timestamptz not null default pg_catalog.timezone('utc', now()),
-  primary key (user_id, goal_id, completed_on)
-);
-
 create table if not exists public.health_completion_links (
   user_id uuid not null references public.profiles(id) on delete cascade,
   goal_id uuid not null references public.goals(id) on delete cascade,
@@ -21,16 +13,7 @@ create table if not exists public.health_completion_links (
   )
 );
 
-alter table public.completion_unmark_tombstones enable row level security;
 alter table public.health_completion_links enable row level security;
-
-drop policy if exists completion_unmark_tombstones_select_self
-  on public.completion_unmark_tombstones;
-create policy completion_unmark_tombstones_select_self
-on public.completion_unmark_tombstones
-for select
-to authenticated
-using (user_id = (select auth.uid()));
 
 drop policy if exists health_completion_links_select_self
   on public.health_completion_links;
@@ -40,9 +23,7 @@ for select
 to authenticated
 using (user_id = (select auth.uid()));
 
-revoke all on table public.completion_unmark_tombstones from anon, authenticated;
 revoke all on table public.health_completion_links from anon, authenticated;
-grant select on table public.completion_unmark_tombstones to authenticated;
 grant select on table public.health_completion_links to authenticated;
 
 create or replace function private.xp_points_for_completion_source(
@@ -115,14 +96,6 @@ begin
       and user_id = v_uid
       and completed_on = p_date;
 
-    insert into public.completion_unmark_tombstones (
-      user_id,
-      goal_id,
-      completed_on
-    )
-    values (v_uid, v_current, p_date)
-    on conflict (user_id, goal_id, completed_on) do nothing;
-
     perform public.recompute_goal_xp_service(v_uid, v_current);
 
     v_queue := v_queue || coalesce(
@@ -184,16 +157,9 @@ begin
   then
     return false;
   end if;
-
-  if exists (
-    select 1
-    from public.completion_unmark_tombstones as tombstone
-    where tombstone.user_id = v_uid
-      and tombstone.goal_id = p_goal_id
-      and tombstone.completed_on = p_completed_on
-  ) then
-    return false;
-  end if;
+  -- Product policy: unmarking does not permanently opt a date out of future
+  -- external_sync completion writes. If users do not want a synced completion
+  -- retained, they should unmark after the sync has applied for that day.
 
   if exists (
     select 1
@@ -216,16 +182,6 @@ begin
     end if;
 
     v_visited := array_append(v_visited, v_current);
-
-    if exists (
-      select 1
-      from public.completion_unmark_tombstones as tombstone
-      where tombstone.user_id = v_uid
-        and tombstone.goal_id = v_current
-        and tombstone.completed_on = p_completed_on
-    ) then
-      continue;
-    end if;
 
     insert into public.completions (goal_id, user_id, completed_on, source)
     values (

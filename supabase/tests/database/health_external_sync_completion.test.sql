@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, private, extensions, pg_catalog;
-select plan(21);
+select plan(18);
 select set_config(
   'health.today',
   (pg_catalog.timezone('utc', now()))::date::text,
@@ -115,11 +115,6 @@ values
     'e1600000-0000-4000-8000-000000000003'
   );
 
-select has_table(
-  'public',
-  'completion_unmark_tombstones',
-  'completion_unmark_tombstones exists'
-);
 select has_table(
   'public',
   'health_completion_links',
@@ -316,18 +311,8 @@ select is(
     current_setting('health.today')::date,
     'hk:window:resurrect'
   ),
-  false,
-  'manually unmarked days are not resurrected'
-);
-
-select lives_ok(
-  $tap$
-    select public.mark_goal_complete(
-      'e1600000-0000-4000-8000-000000000004',
-      current_setting('health.today')::date
-    )
-  $tap$,
-  'manual complete still works after an unmark tombstone'
+  true,
+  'manually unmarked days can be re-applied by external sync'
 );
 
 select set_config(
@@ -354,23 +339,6 @@ select set_config(
   'request.jwt.claim.sub',
   'e1111111-1111-4111-8111-111111111111',
   true
-);
-
-select throws_ok(
-  $$
-    insert into public.completion_unmark_tombstones (
-      user_id,
-      goal_id,
-      completed_on
-    ) values (
-      'e1111111-1111-4111-8111-111111111111',
-      'e1600000-0000-4000-8000-000000000004',
-      current_setting('health.today')::date - 4
-    )
-  $$,
-  '42501',
-  'permission denied for table completion_unmark_tombstones',
-  'authenticated clients cannot write unmark tombstones directly'
 );
 
 select * from finish();
