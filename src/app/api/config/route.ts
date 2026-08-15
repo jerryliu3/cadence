@@ -1,29 +1,34 @@
 import { NextResponse } from "next/server";
-import { createCorrelationId } from "@/lib/api/route";
+import { withRoute } from "@/lib/api/route";
+import { getServerEnv } from "@/lib/env";
 import { getFeatureFlags } from "@/lib/feature-flags";
 
 export const runtime = "nodejs";
 
-function readMinSupportedAppVersion() {
-  const value = process.env.MOBILE_MIN_SUPPORTED_APP_VERSION?.trim();
-  return value && value.length > 0 ? value : null;
+function publicMobileFlags() {
+  const flags = getFeatureFlags();
+  return {
+    crossMonthMovesEnabled: flags.crossMonthMovesEnabled,
+    xpEnabled: flags.xpEnabled,
+    socialEnabled: flags.socialEnabled,
+  };
 }
 
 export async function GET() {
-  const correlationId = createCorrelationId();
-  const flags = getFeatureFlags();
-
-  return NextResponse.json(
-    {
-      schemaVersion: "1",
-      flags,
-      minSupportedAppVersion: readMinSupportedAppVersion(),
-      correlationId,
-    },
-    {
-      headers: {
-        "Cache-Control": "public, max-age=60",
+  return withRoute(async ({ correlationId }) => {
+    const env = getServerEnv();
+    return NextResponse.json(
+      {
+        schemaVersion: "1",
+        flags: publicMobileFlags(),
+        minSupportedAppVersion: env.MOBILE_MIN_SUPPORTED_APP_VERSION ?? null,
+        correlationId,
       },
-    }
-  );
+      {
+        headers: {
+          "Cache-Control": "public, max-age=60",
+        },
+      }
+    );
+  });
 }
