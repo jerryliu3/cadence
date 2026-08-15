@@ -4,6 +4,7 @@ import { StatusBar } from "expo-status-bar";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AppQueryProvider } from "../src/lib/query";
+import { NotificationNavigation } from "../src/lib/notification-navigation";
 import { SessionProvider } from "../src/lib/session";
 import { initMobileSentry } from "../src/lib/sentry";
 
@@ -16,6 +17,7 @@ export default function RootLayout() {
         <BottomSheetModalProvider>
           <AppQueryProvider>
             <SessionProvider>
+              <NotificationNavigation />
               <StatusBar style="auto" />
               <Stack screenOptions={{ headerShown: false }}>
                 <Stack.Screen name="index" />
