@@ -1,4 +1,5 @@
 import webpush from "web-push";
+import { getServerEnv } from "@/lib/env";
 import type { createAdminClient } from "@/lib/supabase/admin";
 
 type AdminClient = ReturnType<typeof createAdminClient>;
@@ -32,23 +33,117 @@ function isExpiredSubscriptionError(error: unknown): boolean {
   return statusCode === 404 || statusCode === 410;
 }
 
-export function configureWebPush() {
-  if (isVapidConfigured) {
-    return;
+function isWebPushConfigurationError(error: unknown): boolean {
+  if (!error || typeof error !== "object" || !("statusCode" in error)) {
+    return false;
   }
 
-  const subject = process.env.VAPID_SUBJECT?.trim();
-  const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY?.trim();
-  const privateKey = process.env.VAPID_PRIVATE_KEY?.trim();
+  const statusCode = (error as { statusCode?: unknown }).statusCode;
+  return statusCode === 401 || statusCode === 403;
+}
+
+function tryConfigureWebPush() {
+  if (isVapidConfigured) {
+    return true;
+  }
+
+  const env = getServerEnv();
+  const subject = env.VAPID_SUBJECT?.trim();
+  const publicKey = env.NEXT_PUBLIC_VAPID_PUBLIC_KEY?.trim();
+  const privateKey = env.VAPID_PRIVATE_KEY?.trim();
 
   if (!subject || !publicKey || !privateKey) {
-    throw new Error(
-      "VAPID_SUBJECT, NEXT_PUBLIC_VAPID_PUBLIC_KEY, and VAPID_PRIVATE_KEY are required."
-    );
+    return false;
   }
 
   webpush.setVapidDetails(subject, publicKey, privateKey);
   isVapidConfigured = true;
+  return true;
+}
+
+export function configureWebPush() {
+  if (!tryConfigureWebPush()) {
+    throw new Error(
+      "VAPID_SUBJECT, NEXT_PUBLIC_VAPID_PUBLIC_KEY, and VAPID_PRIVATE_KEY are required."
+    );
+  }
+}
+
+export function resetWebPushConfigurationForTests() {
+  isVapidConfigured = false;
+}
+
+interface ExpoPushTicket {
+  status?: string;
+  message?: string;
+  details?: { error?: string };
+}
+
+export function readExpoPushTickets(payload: unknown): ExpoPushTicket[] {
+  if (!payload || typeof payload !== "object") {
+    return [];
+  }
+  const data = (payload as { data?: unknown }).data;
+  if (Array.isArray(data)) {
+    return data.filter(
+      (ticket): ticket is ExpoPushTicket =>
+        Boolean(ticket) && typeof ticket === "object"
+    );
+  }
+  if (data && typeof data === "object") {
+    return [data as ExpoPushTicket];
+  }
+  return [];
+}
+
+export function isExpiredExpoPushTicket(ticket: ExpoPushTicket) {
+  return (
+    ticket.status === "error" && ticket.details?.error === "DeviceNotRegistered"
+  );
+}
+
+async function sendNativePush(token: string, payload: PushPayload) {
+  const env = getServerEnv();
+  const response = await fetch("https://exp.host/--/api/v2/push/send", {
+    method: "POST",
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+      ...(env.EXPO_ACCESS_TOKEN
+        ? { Authorization: `Bearer ${env.EXPO_ACCESS_TOKEN}` }
+        : {}),
+    },
+    body: JSON.stringify({
+      to: token,
+      title: payload.title,
+      body: payload.body,
+      sound: "default",
+      data: {
+        url: payload.url ?? "/checklist",
+      },
+    }),
+  });
+
+  if (response.status === 404 || response.status === 410) {
+    return { sent: false, expired: true };
+  }
+
+  const body = await response.json().catch(() => null);
+  const tickets = readExpoPushTickets(body);
+  if (tickets.some(isExpiredExpoPushTicket)) {
+    return { sent: false, expired: true };
+  }
+  if (!response.ok) {
+    throw new Error(`Expo push failed with status ${response.status}.`);
+  }
+  if (tickets.some((ticket) => ticket.status === "error")) {
+    const message = tickets
+      .map((ticket) => ticket.message)
+      .filter((value): value is string => Boolean(value))
+      .join("; ");
+    throw new Error(message || "Expo push ticket returned an error.");
+  }
+  return { sent: true, expired: false };
 }
 
 export async function sendPushToUser({
@@ -79,10 +174,12 @@ export async function sendPushToUser({
       sent: 0,
       removedSubscriptions: 0,
       hadSubscriptions: false,
+      webConfigurationUnavailable: false,
     };
   }
 
   let sent = 0;
+  let webConfigurationUnavailable = false;
   const expiredIds = new Set<string>();
   for (const subscription of subscriptions) {
     try {
@@ -92,33 +189,30 @@ export async function sendPushToUser({
           expiredIds.add(subscription.id);
           continue;
         }
-        const response = await fetch("https://exp.host/--/api/v2/push/send", {
-          method: "POST",
-          headers: {
-            Accept: "application/json",
-            "Content-Type": "application/json",
-            ...(process.env.EXPO_ACCESS_TOKEN
-              ? { Authorization: `Bearer ${process.env.EXPO_ACCESS_TOKEN}` }
-              : {}),
-          },
-          body: JSON.stringify({
-            to: token,
-            title: payload.title,
-            body: payload.body,
-            sound: "default",
-            data: {
-              url: payload.url ?? "/checklist",
-            },
-          }),
-        });
-        if (response.status === 404 || response.status === 410) {
+        const result = await sendNativePush(token, payload);
+        if (result.expired) {
           expiredIds.add(subscription.id);
           continue;
         }
-        if (!response.ok) {
-          throw new Error(`Expo push failed with status ${response.status}.`);
+        if (result.sent) {
+          sent += 1;
         }
-        sent += 1;
+        continue;
+      }
+
+      let webPushConfigured = false;
+      try {
+        webPushConfigured = tryConfigureWebPush();
+      } catch (configurationError) {
+        webConfigurationUnavailable = true;
+        console.error("Web push VAPID configuration is invalid.", configurationError);
+        continue;
+      }
+      if (!webPushConfigured) {
+        webConfigurationUnavailable = true;
+        console.error(
+          "Skipping web push subscription because VAPID keys are not configured."
+        );
         continue;
       }
 
@@ -150,11 +244,20 @@ export async function sendPushToUser({
       );
       sent += 1;
     } catch (sendError) {
+      if (
+        subscription.platform === "web" &&
+        isWebPushConfigurationError(sendError)
+      ) {
+        webConfigurationUnavailable = true;
+      }
       if (isExpiredSubscriptionError(sendError)) {
         expiredIds.add(subscription.id);
-      } else {
-        throw sendError;
+        continue;
       }
+      console.error(
+        `Failed to send push to subscription ${subscription.id}:`,
+        sendError
+      );
     }
   }
 
@@ -172,5 +275,6 @@ export async function sendPushToUser({
     sent,
     removedSubscriptions: expiredIds.size,
     hadSubscriptions: subscriptions.length > 0,
+    webConfigurationUnavailable,
   };
 }

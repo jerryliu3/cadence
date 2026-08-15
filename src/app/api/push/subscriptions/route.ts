@@ -7,9 +7,17 @@ import {
 } from "@/lib/api/route";
 import { createAdminClient } from "@/lib/supabase/admin";
 
+const webPushEndpointSchema = z
+  .string()
+  .url()
+  .max(4096)
+  .refine((endpoint) => new URL(endpoint).protocol === "https:", {
+    message: "Web push endpoints must use HTTPS.",
+  });
+
 const webSubscriptionSchema = z.object({
   platform: z.literal("web").optional(),
-  endpoint: z.string().url().max(4096),
+  endpoint: webPushEndpointSchema,
   keys: z.object({
     p256dh: z.string().min(1).max(512),
     auth: z.string().min(1).max(512),
@@ -27,7 +35,7 @@ const subscriptionSchema = z.union([
 ]);
 
 const unsubscribeSchema = z.union([
-  z.object({ endpoint: z.string().url().max(4096) }),
+  z.object({ endpoint: webPushEndpointSchema }),
   z.object({
     platform: z.enum(["ios", "android"]),
     token: z.string().trim().min(8).max(4096),
@@ -68,19 +76,14 @@ export async function POST(request: Request) {
     const updatedAt = new Date().toISOString();
     const { error } =
       "token" in parsed.data
-        ? await admin.from("push_subscriptions").upsert(
-            {
-              user_id: userId,
-              platform: parsed.data.platform,
-              native_token: parsed.data.token,
-              endpoint: `native:${parsed.data.platform}:${parsed.data.token}`,
-              p256dh: null,
-              auth: null,
-              user_agent: userAgent,
-              updated_at: updatedAt,
-            },
-            { onConflict: "endpoint" }
-          )
+        ? await admin.rpc("replace_native_push_subscription_service", {
+            p_user_id: userId,
+            p_platform: parsed.data.platform,
+            p_native_token: parsed.data.token,
+            p_endpoint: `native:${parsed.data.platform}:${parsed.data.token}`,
+            p_user_agent: userAgent ?? undefined,
+            p_updated_at: updatedAt,
+          })
         : await admin.from("push_subscriptions").upsert(
             {
               user_id: userId,

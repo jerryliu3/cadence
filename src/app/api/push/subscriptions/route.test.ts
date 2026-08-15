@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   getUser: vi.fn(),
   createAdminClient: vi.fn(),
+  rpc: vi.fn(),
   upsert: vi.fn(),
   deleteRows: vi.fn(),
   deleteEqUser: vi.fn(),
@@ -46,25 +47,43 @@ describe("push subscriptions route", () => {
     });
 
     mocks.upsert.mockResolvedValue({ error: null });
+    mocks.rpc.mockResolvedValue({ data: true, error: null });
     mocks.deleteRows.mockResolvedValue({ error: null });
-    mocks.deleteEqEndpoint.mockImplementation(() => mocks.deleteRows());
-    mocks.deleteEqUser.mockReturnValue({
-      eq: mocks.deleteEqEndpoint,
-    });
+    mocks.deleteEqUser.mockReset();
+    mocks.deleteEqEndpoint.mockReset();
 
     mocks.from.mockImplementation((table: string) => {
       if (table !== "push_subscriptions") {
         throw new Error(`Unexpected table ${table}`);
       }
+      const chain = {
+        eq(column: string, value: string) {
+          if (column === "endpoint") {
+            mocks.deleteEqEndpoint(column, value);
+          } else {
+            mocks.deleteEqUser(column, value);
+          }
+          return chain;
+        },
+        neq(column: string, value: string) {
+          mocks.deleteEqEndpoint(column, value);
+          return chain;
+        },
+        then(
+          resolve: (value: unknown) => unknown,
+          reject: (reason: unknown) => unknown
+        ) {
+          return Promise.resolve(mocks.deleteRows()).then(resolve, reject);
+        },
+      };
       return {
         upsert: mocks.upsert,
-        delete: () => ({
-          eq: mocks.deleteEqUser,
-        }),
+        delete: () => chain,
       };
     });
     mocks.createAdminClient.mockReturnValue({
       from: mocks.from,
+      rpc: mocks.rpc,
     });
   });
 
@@ -82,6 +101,28 @@ describe("push subscriptions route", () => {
       code: "validation_failed",
       correlationId: expect.any(String),
     });
+  });
+
+  it("rejects web subscriptions that use the reserved native endpoint scheme", async () => {
+    const response = await POST(
+      new Request("http://localhost/api/push/subscriptions", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          endpoint: "native:ios:ExponentPushToken[known]",
+          keys: {
+            p256dh: "key",
+            auth: "auth",
+          },
+        }),
+      })
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "validation_failed",
+    });
+    expect(mocks.upsert).not.toHaveBeenCalled();
   });
 
   it("returns authentication_required before validation for unauthenticated users", async () => {
@@ -196,6 +237,77 @@ describe("push subscriptions route", () => {
     expect(mocks.deleteEqEndpoint).toHaveBeenCalledWith(
       "endpoint",
       "https://example.test/subscription"
+    );
+  });
+
+  it("rejects web unsubscribe requests that use the native endpoint scheme", async () => {
+    const response = await DELETE(
+      new Request("http://localhost/api/push/subscriptions", {
+        method: "DELETE",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          endpoint: "native:ios:ExponentPushToken[known]",
+        }),
+      })
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "validation_failed",
+    });
+    expect(mocks.deleteRows).not.toHaveBeenCalled();
+  });
+
+  it("stores native tokens and replaces prior rows for the same platform", async () => {
+    const response = await POST(
+      new Request("http://localhost/api/push/subscriptions", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          platform: "ios",
+          token: "ExponentPushToken[rotated]",
+        }),
+      })
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.rpc).toHaveBeenCalledWith(
+      "replace_native_push_subscription_service",
+      {
+        p_endpoint: "native:ios:ExponentPushToken[rotated]",
+        p_native_token: "ExponentPushToken[rotated]",
+        p_platform: "ios",
+        p_updated_at: expect.any(String),
+        p_user_agent: undefined,
+        p_user_id: "11111111-1111-4111-8111-111111111111",
+      }
+    );
+    expect(mocks.upsert).not.toHaveBeenCalled();
+    expect(mocks.deleteRows).not.toHaveBeenCalled();
+  });
+
+  it("deletes native subscriptions by platform token", async () => {
+    const response = await DELETE(
+      new Request("http://localhost/api/push/subscriptions", {
+        method: "DELETE",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          platform: "android",
+          token: "ExponentPushToken[gone]",
+        }),
+      })
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.deleteEqUser).toHaveBeenCalledWith(
+      "user_id",
+      "11111111-1111-4111-8111-111111111111"
+    );
+    expect(mocks.deleteEqEndpoint).toHaveBeenCalledWith(
+      "endpoint",
+      "native:android:ExponentPushToken[gone]"
     );
   });
 
