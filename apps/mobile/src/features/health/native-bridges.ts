@@ -20,7 +20,7 @@ export async function createNativeHealthKitBridge(): Promise<HealthKitBridge | n
     return null;
   }
   try {
-    const healthkit = await import("@kingstinct/react-native-healthkit");
+    const healthkit = (await import("@kingstinct/react-native-healthkit")) as unknown as HealthKitBridge;
     return {
       requestAuthorization: (input) => healthkit.requestAuthorization(input),
       queryQuantitySamplesWithAnchor: (type, options) =>
@@ -29,7 +29,7 @@ export async function createNativeHealthKitBridge(): Promise<HealthKitBridge | n
         healthkit.enableBackgroundDelivery(type, frequency),
       subscribeToChanges: (type, onChange) =>
         healthkit.subscribeToChanges(type, onChange),
-    } as unknown as HealthKitBridge;
+    };
   } catch {
     return null;
   }
@@ -40,7 +40,7 @@ export async function createNativeHealthConnectBridge(): Promise<HealthConnectBr
     return null;
   }
   try {
-    const healthConnect = await import("react-native-health-connect");
+    const healthConnect = (await import("react-native-health-connect")) as unknown as HealthConnectBridge;
     return {
       initialize: () => healthConnect.initialize(),
       requestPermission: (permissions) =>
@@ -48,7 +48,7 @@ export async function createNativeHealthConnectBridge(): Promise<HealthConnectBr
       getChanges: (input) => healthConnect.getChanges(input),
       readRecords: (recordType, options) =>
         healthConnect.readRecords(recordType, options),
-    } as unknown as HealthConnectBridge;
+    };
   } catch {
     return null;
   }
