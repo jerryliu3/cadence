@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useXpProfile } from "@/components/xp/xp-profile-provider";
 
-const INTRO_SEEN_KEY = "cadence.journey_intro_seen.v1";
+export const JOURNEY_INTRO_SEEN_KEY = "cadence.journey_intro_seen.v1";
 
 export function JourneyIntroOverlay() {
   const { profile, band } = useXpProfile();
@@ -13,7 +13,7 @@ export function JourneyIntroOverlay() {
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
-      const seen = window.localStorage.getItem(INTRO_SEEN_KEY);
+      const seen = window.localStorage.getItem(JOURNEY_INTRO_SEEN_KEY);
       if (!seen) {
         setOpen(true);
       }
@@ -31,10 +31,15 @@ export function JourneyIntroOverlay() {
   const totalXp = profile?.totalXp ?? 0;
 
   return (
-    <div className="fixed inset-0 z-[70] flex items-end justify-center bg-background/70 p-4 backdrop-blur-sm sm:items-center">
+    <div
+      className="fixed inset-0 z-[70] flex items-end justify-center bg-background/70 p-4 backdrop-blur-sm sm:items-center"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="journey-intro-title"
+    >
       <Card className="w-full max-w-lg">
         <CardHeader>
-          <CardTitle>Welcome to your climb</CardTitle>
+          <CardTitle id="journey-intro-title">Welcome to your climb</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3 text-sm">
           <p className="text-muted-foreground">
@@ -48,7 +53,7 @@ export function JourneyIntroOverlay() {
             <Button
               type="button"
               onClick={() => {
-                window.localStorage.setItem(INTRO_SEEN_KEY, "true");
+                window.localStorage.setItem(JOURNEY_INTRO_SEEN_KEY, "true");
                 setOpen(false);
               }}
             >

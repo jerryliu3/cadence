@@ -1,6 +1,6 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { JourneyIntroOverlay } from "@/components/intro/journey-intro-overlay";
+import { JourneyIntroOverlay, JOURNEY_INTRO_SEEN_KEY } from "@/components/intro/journey-intro-overlay";
 
 const useXpProfileMock = vi.hoisted(() => vi.fn());
 
@@ -24,11 +24,11 @@ describe("JourneyIntroOverlay", () => {
 
   it("shows intro when unseen", async () => {
     render(<JourneyIntroOverlay />);
-    expect(await screen.findByText("Welcome to your climb")).toBeInTheDocument();
+    expect(await screen.findByRole("dialog", { name: "Welcome to your climb" })).toBeInTheDocument();
   });
 
   it("stays hidden once acknowledged", () => {
-    window.localStorage.setItem("cadence.journey_intro_seen.v1", "true");
+    window.localStorage.setItem(JOURNEY_INTRO_SEEN_KEY, "true");
     const { container } = render(<JourneyIntroOverlay />);
     expect(container).toBeEmptyDOMElement();
   });

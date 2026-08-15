@@ -26,6 +26,14 @@ setup("authenticate seeded Alice account", async ({ page }) => {
     page.getByRole("navigation", { name: "Main navigation" })
   ).toBeVisible();
 
+  await page.evaluate(() => {
+    window.localStorage.setItem("cadence.journey_intro_seen.v1", "true");
+  });
+  const startJourney = page.getByRole("button", { name: "Start journey" });
+  if (await startJourney.isVisible()) {
+    await startJourney.click();
+  }
+
   await mkdir(path.dirname(authStatePath), { recursive: true });
   await page.context().storageState({ path: authStatePath });
 });
