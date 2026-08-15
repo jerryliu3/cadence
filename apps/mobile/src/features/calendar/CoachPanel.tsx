@@ -10,6 +10,7 @@ import {
 } from "./coach-policy";
 import {
   buildMobileCoachProposal,
+  isMobileCoachProposalActionable,
   markMobileCoachProposalApplied,
   restoreMobileCoachMessages,
   serializeMobileCoachMessages,
@@ -241,11 +242,13 @@ export function CoachPanel({
                 {message.role === "user" ? "You" : "Coach"}
               </Text>
               <Text style={{ color: theme.colors.foreground }}>{message.content}</Text>
-              {message.proposal?.applyStatus === "manually_applied" ? (
+              {message.proposal?.applyStatus === "manually_applied" ||
+              message.proposal?.applyStatus === "auto_applied" ? (
                 <Text style={{ color: theme.colors.mutedForeground }}>
                   Calendar proposal applied
                 </Text>
-              ) : message.proposal?.policyPatches.length ? (
+              ) : message.proposal &&
+                isMobileCoachProposalActionable(message.proposal) ? (
                 <Pressable
                   onPress={() =>
                     void applyPatches(

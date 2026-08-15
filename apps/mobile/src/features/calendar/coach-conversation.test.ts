@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildMobileCoachProposal,
+  isMobileCoachProposalActionable,
   markMobileCoachProposalApplied,
   restoreMobileCoachMessages,
   serializeMobileCoachMessages,
@@ -76,5 +77,39 @@ describe("mobile coach conversations", () => {
 
     expect(applied[0]).toBe(messages[0]);
     expect(applied[1]?.proposal?.applyStatus).toBe("manually_applied");
+  });
+
+  it("does not offer to reapply proposals that are already applied", () => {
+    const proposal = buildMobileCoachProposal({
+      baselinePolicy,
+      policyPatches: [
+        { kind: "set_rest_weekdays", restWeekdays: [0] },
+      ],
+      unresolvedQuestions: [],
+    });
+    expect(proposal).not.toBeNull();
+    if (!proposal) {
+      return;
+    }
+
+    expect(isMobileCoachProposalActionable(proposal)).toBe(true);
+    expect(
+      isMobileCoachProposalActionable({
+        ...proposal,
+        applyStatus: "auto_applied",
+      })
+    ).toBe(false);
+    expect(
+      isMobileCoachProposalActionable({
+        ...proposal,
+        applyStatus: "manually_applied",
+      })
+    ).toBe(false);
+    expect(
+      isMobileCoachProposalActionable({
+        ...proposal,
+        applyStatus: "undone",
+      })
+    ).toBe(true);
   });
 });
