@@ -6,8 +6,10 @@ type AdminClient = ReturnType<typeof createAdminClient>;
 interface PushSubscriptionRow {
   id: string;
   endpoint: string;
-  p256dh: string;
-  auth: string;
+  p256dh: string | null;
+  auth: string | null;
+  platform?: "web" | "ios" | "android" | null;
+  native_token?: string | null;
 }
 
 export interface PushPayload {
@@ -64,7 +66,7 @@ export async function sendPushToUser({
 }) {
   const { data, error } = await admin
     .from("push_subscriptions")
-    .select("id,endpoint,p256dh,auth")
+    .select("id,endpoint,p256dh,auth,platform,native_token")
     .eq("user_id", userId);
 
   if (error) {
@@ -84,6 +86,47 @@ export async function sendPushToUser({
   const expiredIds = new Set<string>();
   for (const subscription of subscriptions) {
     try {
+      if (subscription.platform === "ios" || subscription.platform === "android") {
+        const token = subscription.native_token?.trim();
+        if (!token) {
+          expiredIds.add(subscription.id);
+          continue;
+        }
+        const response = await fetch("https://exp.host/--/api/v2/push/send", {
+          method: "POST",
+          headers: {
+            Accept: "application/json",
+            "Content-Type": "application/json",
+            ...(process.env.EXPO_ACCESS_TOKEN
+              ? { Authorization: `Bearer ${process.env.EXPO_ACCESS_TOKEN}` }
+              : {}),
+          },
+          body: JSON.stringify({
+            to: token,
+            title: payload.title,
+            body: payload.body,
+            sound: "default",
+            data: {
+              url: payload.url ?? "/checklist",
+            },
+          }),
+        });
+        if (response.status === 404 || response.status === 410) {
+          expiredIds.add(subscription.id);
+          continue;
+        }
+        if (!response.ok) {
+          throw new Error(`Expo push failed with status ${response.status}.`);
+        }
+        sent += 1;
+        continue;
+      }
+
+      if (!subscription.p256dh || !subscription.auth) {
+        expiredIds.add(subscription.id);
+        continue;
+      }
+
       await webpush.sendNotification(
         {
           endpoint: subscription.endpoint,
