@@ -6,8 +6,11 @@ import { useMemo, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import Svg, { Rect } from "react-native-svg";
 import { api } from "../../lib/api";
+import { useSession } from "../../lib/session";
 import { useTheme } from "../../theme";
 import { LoadingScreen, Screen } from "../../ui/screen";
+import { DuoScopeSegmentedControl } from "../duo/DuoScopeSegmentedControl";
+import { buildMobileInsightsQueryKey } from "../duo/query-keys";
 
 function timezoneName() {
   return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
@@ -15,6 +18,7 @@ function timezoneName() {
 
 export function InsightsScreen() {
   const theme = useTheme();
+  const { userId } = useSession();
   const [month, setMonth] = useState(format(new Date(), "yyyy-MM"));
   const monthDate = useMemo(() => new Date(`${month}-01T00:00:00`), [month]);
   const factsFrom = format(startOfMonth(monthDate), "yyyy-MM-dd");
@@ -22,7 +26,12 @@ export function InsightsScreen() {
   const asOfDate = format(new Date(), "yyyy-MM-dd");
 
   const query = useQuery({
-    queryKey: ["mobile-insights", factsFrom, factsTo],
+    queryKey: buildMobileInsightsQueryKey({
+      viewerUserId: userId,
+      factsFrom,
+      factsTo,
+    }),
+    enabled: Boolean(userId),
     queryFn: () =>
       api.getJson<ProgressContextResponse>("/api/progress/context", {
         query: {
@@ -69,6 +78,7 @@ export function InsightsScreen() {
 
   return (
     <Screen title="Insights">
+      <DuoScopeSegmentedControl surface="insights" />
       <View style={styles.row}>
         <Pressable
           onPress={() => {
