@@ -16,6 +16,7 @@ export function getFeatureFlags(): FeatureFlags {
     crossMonthMovesEnabled: env.FEATURE_CROSS_MONTH_MOVES,
     xpEnabled: env.XP_ENABLED,
     socialEnabled: env.SOCIAL_ENABLED,
+    integrationsEnabled: env.INTEGRATIONS_ENABLED,
   };
 }
 
