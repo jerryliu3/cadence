@@ -1,5 +1,5 @@
 import { unitEntryKey } from "@cadence/shared/planner/reorder-preview-entries";
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
   runOnJS,
@@ -22,6 +22,7 @@ export function DraggableSession({
   onPress,
   onDrop,
   onLayoutWindow,
+  onUnmount,
 }: {
   unit: PlannerWorkUnit;
   day: string;
@@ -34,6 +35,7 @@ export function DraggableSession({
     y: number;
   }) => void;
   onLayoutWindow: (entryKey: string, day: string, rect: LayoutRect) => void;
+  onUnmount: (entryKey: string) => void;
 }) {
   const theme = useTheme();
   const viewRef = useRef<View>(null);
@@ -41,6 +43,14 @@ export function DraggableSession({
   const translateY = useSharedValue(0);
   const scale = useSharedValue(1);
   const zIndex = useSharedValue(0);
+  const entryKey = unitEntryKey(unit);
+
+  useEffect(
+    () => () => {
+      onUnmount(entryKey);
+    },
+    [entryKey, onUnmount]
+  );
 
   const finishDrop = (x: number, y: number) => {
     onDrop({ unit, sourceDay: day, x, y });
@@ -86,7 +96,7 @@ export function DraggableSession({
         style={animatedStyle}
         onLayout={() => {
           measureNodeInWindow(viewRef.current, (rect) => {
-            onLayoutWindow(unitEntryKey(unit), day, rect);
+            onLayoutWindow(entryKey, day, rect);
           });
         }}
       >
