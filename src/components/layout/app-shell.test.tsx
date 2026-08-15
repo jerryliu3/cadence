@@ -40,7 +40,6 @@ vi.mock("@/components/xp/xp-profile-provider", () => ({
 vi.mock("@/components/intro/journey-intro-overlay", () => ({
   JourneyIntroOverlay: () => <div data-testid="journey-intro-overlay" />,
 }));
-
 vi.mock("@/lib/cache/tab-data-cache", () => ({
   setTabDataCacheScope: (scope: string) => cacheScopeMock.setScope(scope),
 }));
