@@ -178,4 +178,47 @@ describe("applyMobileCoachPatches", () => {
     expect(result.queuedSessionMoves).toBe(1);
     expect(result.policyReplanMoves).toBe(1);
   });
+
+  it("does not create a move command when replanning first places a unit", async () => {
+    const unscheduledUnit = {
+      ...workUnits[0],
+      originalGoalId: "goal-c",
+      unitKey: "total:2",
+      scheduledDate: null,
+    };
+    const scheduledUnit = {
+      ...unscheduledUnit,
+      scheduledDate: "2026-08-25",
+    };
+    const baselineContext: MobilePlannerContext = {
+      ...context,
+      goalTitles: { ...context.goalTitles, "goal-c": "Swim" },
+      preview: {
+        ...preview,
+        workUnits: [...workUnits, unscheduledUnit],
+      },
+    };
+    const nextPreview = {
+      ...preview,
+      workUnits: [...workUnits, scheduledUnit],
+    };
+    const postJson = vi
+      .fn()
+      .mockResolvedValueOnce({ preview: nextPreview })
+      .mockResolvedValueOnce({ preview: nextPreview });
+
+    const result = await applyMobileCoachPatches({
+      client: { postJson, putJson: vi.fn(async () => ({})) },
+      context: baselineContext,
+      currentMonth: "2026-08",
+      state: createEmptyMobilePlannerDraft(),
+      patches: [{ kind: "set_rest_weekdays", restWeekdays: [0] }],
+    });
+
+    expect(result.state.commands).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ goalId: "goal-c", unitKey: "total:2" }),
+      ])
+    );
+  });
 });
