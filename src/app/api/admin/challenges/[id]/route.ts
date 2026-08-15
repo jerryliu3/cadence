@@ -137,7 +137,7 @@ export async function PATCH(
   const correlationId = createCorrelationId();
   try {
     const params = paramsSchema.parse(await context.params);
-    const adminContext = await requireAdminContext("admin");
+    const adminContext = await requireAdminContext(request, "admin");
     if (!adminContext) {
       throw new ApiRouteError(404, "not_found", "Resource not found.");
     }
@@ -228,13 +228,13 @@ export async function PATCH(
 }
 
 export async function DELETE(
-  _request: Request,
+  request: Request,
   context: { params: Promise<{ id: string }> | { id: string } }
 ) {
   const correlationId = createCorrelationId();
   try {
     const params = paramsSchema.parse(await context.params);
-    const adminContext = await requireAdminContext("admin");
+    const adminContext = await requireAdminContext(request, "admin");
     if (!adminContext) {
       throw new ApiRouteError(404, "not_found", "Resource not found.");
     }

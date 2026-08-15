@@ -32,7 +32,6 @@ import {
   parsePlannerProfilePreferencesRow,
   resolvePlannerPreferencesSnapshot,
 } from "@/lib/planner/preferences-snapshot";
-import { createClient } from "@/lib/supabase/server";
 import {
   assertDateWindow,
   expandToMonthAlignedWindow,
@@ -245,10 +244,7 @@ function resolvePlannerPreview({
 
 export async function GET(request: Request) {
   return withPlannerRoute(async ({ correlationId }) => {
-    const supabase = await createClient();
-    const routeContext = await requirePlannerRouteContext({
-      supabase,
-    });
+    const routeContext = await requirePlannerRouteContext(request);
 
     const url = new URL(request.url);
     const parsedQuery = contextQuerySchema.safeParse({
@@ -341,10 +337,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   return withPlannerRoute(async ({ correlationId }) => {
-    const supabase = await createClient();
-    const routeContext = await requirePlannerRouteContext({
-      supabase,
-    });
+    const routeContext = await requirePlannerRouteContext(request);
 
     const body = await parseBoundedJsonBody(
       request,
@@ -422,10 +415,7 @@ export async function POST(request: Request) {
 
 export async function PUT(request: Request) {
   return withPlannerRoute(async ({ correlationId }) => {
-    const supabase = await createClient();
-    const routeContext = await requirePlannerRouteContext({
-      supabase,
-    });
+    const routeContext = await requirePlannerRouteContext(request);
 
     const body = await parseBoundedJsonBody(
       request,

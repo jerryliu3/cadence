@@ -6,7 +6,6 @@ import {
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireSocialRouteContext } from "@/lib/social/api";
-import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 
@@ -29,14 +28,13 @@ function mapDeclineTeamInviteError(error: RpcErrorLike) {
 }
 
 export async function POST(
-  _request: Request,
+  request: Request,
   context: { params: Promise<{ teamId: string }> | { teamId: string } }
 ) {
   const correlationId = createCorrelationId();
   try {
     const params = paramsSchema.parse(await context.params);
-    const supabase = await createClient();
-    const socialContext = await requireSocialRouteContext({ supabase });
+    const socialContext = await requireSocialRouteContext(request);
 
     const { data, error } = await socialContext.supabase.rpc("decline_team_invite_service", {
       p_team_id: params.teamId,

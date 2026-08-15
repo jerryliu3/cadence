@@ -9,10 +9,6 @@ const mocks = vi.hoisted(() => ({
   preparePlannerSchedule: vi.fn(),
 }));
 
-vi.mock("@/lib/supabase/server", () => ({
-  createClient: async () => ({ auth: { getUser: vi.fn() } }),
-}));
-
 vi.mock("@/lib/planner/api", async () => {
   const actual =
     await vi.importActual<typeof import("@/lib/planner/api")>(
@@ -54,11 +50,13 @@ describe("planner prepare route", () => {
   });
 
   it("prepares and returns one canonical visible context", async () => {
-    const response = await POST(
-      new Request("http://localhost/api/planner/prepare", { method: "POST" })
-    );
+    const request = new Request("http://localhost/api/planner/prepare", {
+      method: "POST",
+    });
+    const response = await POST(request);
 
     expect(response.status).toBe(200);
+    expect(mocks.requirePlannerRouteContext).toHaveBeenCalledWith(request);
     expect(mocks.preparePlannerSchedule).toHaveBeenCalledWith(
       expect.objectContaining({
         ownerId: "11111111-1111-4111-8111-111111111111",

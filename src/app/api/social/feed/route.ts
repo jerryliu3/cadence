@@ -6,15 +6,13 @@ import {
 import { NextResponse } from "next/server";
 import { decodeSocialFeedCursor, encodeSocialFeedCursor } from "@/lib/social/feed/cursor";
 import { requireSocialRouteContext } from "@/lib/social/api";
-import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 
 export async function GET(request: Request) {
   const correlationId = createCorrelationId();
   try {
-    const supabase = await createClient();
-    const context = await requireSocialRouteContext({ supabase });
+    const context = await requireSocialRouteContext(request);
 
     const url = new URL(request.url);
     const scope = url.searchParams.get("scope") ?? "global";

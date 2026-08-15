@@ -5,7 +5,7 @@ import { checkRateLimit } from "@/lib/api/rate-limit";
 import {
   ApiRouteError,
   parseJsonBody,
-  requireAuthenticatedRouteContext,
+  requireAuthenticatedRequestContext,
   withRoute,
 } from "@/lib/api/route";
 import { getDateInTimezone, isValidIanaTimezone } from "@/lib/dates/timezone";
@@ -17,7 +17,6 @@ import {
   readBulkParserQuotaLimit,
 } from "@/lib/planner/ai-quota";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 
@@ -225,7 +224,9 @@ function shouldRetryWithoutResponseSchema(error: GeminiRequestError) {
   return INVALID_ARGUMENT_PROVIDER_RE.test(error.message);
 }
 
-async function readCategoryCatalog(supabase: Awaited<ReturnType<typeof createClient>>) {
+async function readCategoryCatalog(
+  supabase: Awaited<ReturnType<typeof requireAuthenticatedRequestContext>>["supabase"]
+) {
   const fallback = DEFAULT_GOAL_CATEGORIES;
   const { data, error } = await supabase
     .from("goal_categories")
@@ -245,9 +246,7 @@ async function readCategoryCatalog(supabase: Awaited<ReturnType<typeof createCli
 
 export async function POST(request: Request) {
   return withRoute(async ({ correlationId }) => {
-    const supabase = await createClient();
-    const { userId } = await requireAuthenticatedRouteContext({
-      supabase,
+    const { supabase, userId } = await requireAuthenticatedRequestContext(request, {
       unauthorizedMessage: "Sign in to generate goal drafts.",
     });
 

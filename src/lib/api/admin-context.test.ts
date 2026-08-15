@@ -3,10 +3,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const getUser = vi.fn();
 const rpc = vi.fn();
 
-vi.mock("@/lib/supabase/server", () => ({
-  createClient: vi.fn(async () => ({
-    auth: { getUser },
-    rpc,
+vi.mock("@/lib/api/route", () => ({
+  requireAuthenticatedRequestContext: vi.fn(async () => ({
+    userId: "user-1",
+    supabase: {
+      auth: { getUser },
+      rpc,
+    },
   })),
 }));
 
@@ -28,7 +31,7 @@ describe("requireAdminContext", () => {
       error: null,
     });
 
-    const result = await requireAdminContext("moderator");
+    const result = await requireAdminContext(new Request("http://localhost"), "moderator");
     expect(result).toBeNull();
     expect(rpc).toHaveBeenCalledWith("is_platform_admin", {
       p_min_role: "moderator",
@@ -45,8 +48,8 @@ describe("requireAdminContext", () => {
       error: null,
     });
 
-    const result = await requireAdminContext("admin");
+    const result = await requireAdminContext(new Request("http://localhost"), "admin");
     expect(result).not.toBeNull();
-    expect(result?.userId).toBe("admin-1");
+    expect(result?.userId).toBe("user-1");
   });
 });

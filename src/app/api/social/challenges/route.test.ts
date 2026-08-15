@@ -61,7 +61,7 @@ describe("GET /api/social/challenges", () => {
   it("returns 503 when social is disabled", async () => {
     vi.stubEnv("SOCIAL_ENABLED", "false");
     resetEnvCacheForTests();
-    const response = await GET();
+    const response = await GET(new Request("http://localhost/api/social/challenges"));
     expect(response.status).toBe(503);
     await expect(response.json()).resolves.toMatchObject({
       code: "social_disabled",
@@ -69,7 +69,7 @@ describe("GET /api/social/challenges", () => {
   });
 
   it("returns challenge list for authenticated users", async () => {
-    const response = await GET();
+    const response = await GET(new Request("http://localhost/api/social/challenges"));
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toMatchObject({
       schemaVersion: "1",

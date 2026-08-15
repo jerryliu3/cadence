@@ -7,7 +7,6 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireSocialRouteContext } from "@/lib/social/api";
 import { toChallengeDto } from "@/lib/social/dto";
-import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 
@@ -31,14 +30,13 @@ function mapChallengeDetailRpcError(message: string) {
 }
 
 export async function GET(
-  _request: Request,
+  request: Request,
   context: { params: Promise<{ challengeId: string }> | { challengeId: string } }
 ) {
   const correlationId = createCorrelationId();
   try {
     const params = paramsSchema.parse(await context.params);
-    const supabase = await createClient();
-    const socialContext = await requireSocialRouteContext({ supabase });
+    const socialContext = await requireSocialRouteContext(request);
 
     const { data, error } = await socialContext.supabase.rpc("get_challenge_detail", {
       p_challenge_id: params.challengeId,

@@ -6,15 +6,13 @@ import {
 import { NextResponse } from "next/server";
 import { requireSocialRouteContext } from "@/lib/social/api";
 import { toSeasonDto } from "@/lib/social/dto";
-import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 
-export async function GET() {
+export async function GET(request: Request) {
   const correlationId = createCorrelationId();
   try {
-    const supabase = await createClient();
-    const context = await requireSocialRouteContext({ supabase });
+    const context = await requireSocialRouteContext(request);
 
     const { data, error } = await context.supabase.rpc("get_social_leaderboards");
     if (error) {
