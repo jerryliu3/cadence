@@ -22,6 +22,7 @@ describe("GET /api/config", () => {
     vi.clearAllMocks();
     mocks.getServerEnv.mockReturnValue({
       MOBILE_MIN_SUPPORTED_APP_VERSION: "1.0.0",
+      INTEGRATIONS_ROLLOUT_STAGE: "internal",
     });
     mocks.getFeatureFlags.mockReturnValue({
       crossMonthMovesEnabled: true,
@@ -39,6 +40,7 @@ describe("GET /api/config", () => {
     expect(payload).toMatchObject({
       schemaVersion: "1",
       minSupportedAppVersion: "1.0.0",
+      integrationsRolloutStage: "internal",
       flags: {
         crossMonthMovesEnabled: true,
         xpEnabled: false,

@@ -4,8 +4,10 @@ import {
   requireAuthenticatedRequestContext,
   withRoute,
 } from "@/lib/api/route";
-import { isFeatureEnabled } from "@/lib/feature-flags";
-import { integrationsDisabledError } from "@/lib/health/integrations-disabled";
+import {
+  requireIntegrationsAccess,
+  requireIntegrationsFlag,
+} from "@/lib/health/integrations-disabled";
 import {
   toHealthAutocompleteRuleStatuses,
   toHealthProviderStatuses,
@@ -17,14 +19,13 @@ export const runtime = "nodejs";
 
 export async function GET(request: Request) {
   return withRoute(async ({ correlationId }) => {
-    if (!isFeatureEnabled("integrationsEnabled")) {
-      throw integrationsDisabledError();
-    }
+    requireIntegrationsFlag();
 
     const { userId, supabase } = await requireAuthenticatedRequestContext(
       request,
       { unauthorizedMessage: "Sign in to view health sync status." }
     );
+    requireIntegrationsAccess(userId);
 
     const [stateResponse, rulesResponse] = await Promise.all([
       supabase
