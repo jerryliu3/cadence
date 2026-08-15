@@ -15,6 +15,14 @@ const TAB_ICONS: Record<string, string> = {
   settings: "☺",
 };
 
+function withHexAlpha(color: string, alpha: number) {
+  if (!color.startsWith("#") || color.length !== 7) {
+    return color;
+  }
+  const channel = Math.max(0, Math.min(255, Math.round(alpha * 255)));
+  return `${color}${channel.toString(16).padStart(2, "0")}`;
+}
+
 export default function TabsLayout() {
   const { ready, session } = useSession();
   const upgrade = useForceUpgradeRequired();
@@ -36,7 +44,7 @@ export default function TabsLayout() {
         screenOptions={{
           headerStyle: { backgroundColor: theme.colors.background },
           headerTintColor: theme.colors.foreground,
-          tabBarStyle: { backgroundColor: theme.colors.card },
+          tabBarStyle: { backgroundColor: withHexAlpha(theme.colors.card, 0.5) },
           tabBarActiveTintColor: theme.colors.primary,
           tabBarInactiveTintColor: theme.colors.mutedForeground,
         }}
