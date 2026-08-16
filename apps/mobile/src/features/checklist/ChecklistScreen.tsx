@@ -1,7 +1,15 @@
 import { FlashList } from "@shopify/flash-list";
 import { Link } from "expo-router";
 import { type ReactNode, useMemo, useState } from "react";
-import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
+import {
+  Modal,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+  useWindowDimensions,
+} from "react-native";
 import { useTheme } from "../../theme";
 import { LoadingScreen, Screen } from "../../ui/screen";
 import { useDuo, useDuoSurfaceScope } from "../duo/DuoProvider";
@@ -14,6 +22,11 @@ import {
   resolveMobileDuoLaneSubjects,
   viewerLaneSubject,
 } from "../duo/lane-subjects";
+import {
+  resolveLanePageSnapInterval,
+  resolveLanePageWidth,
+  shouldUseLanePager,
+} from "../duo/lane-pager";
 import {
   buildChecklistListItems,
   type ChecklistListItem,
@@ -39,6 +52,7 @@ export function ChecklistScreen({
     showArchivedGoals: false,
     showCompletedGoals: false,
   });
+  const { width: viewportWidth } = useWindowDimensions();
   const { ready, scope, hasActivePartner } =
     useDuoSurfaceScope("checklist");
   const { state } = useDuo();
@@ -67,6 +81,9 @@ export function ChecklistScreen({
     scope,
     activePartner,
   });
+  const useLanePager = shouldUseLanePager(lanes.length);
+  const lanePageWidth = resolveLanePageWidth(viewportWidth);
+  const lanePageSnapInterval = resolveLanePageSnapInterval(lanePageWidth);
   const laneDataById = useMemo(
     () =>
       ({
@@ -137,6 +154,29 @@ export function ChecklistScreen({
         })),
       }),
     [asOfDate, lanes, scope, visibleLaneDataById]
+  );
+  const lanePagedItems = useMemo(
+    () =>
+      lanes.map((lane) => ({
+        laneId: lane.id,
+        items: buildChecklistListItems({
+          scope,
+          asOfDate,
+          showNewGoalAction: lane.id === "viewer" && scope !== "partner",
+          summaryStrip: null,
+          lanes: [
+            {
+              lane: {
+                id: lane.id,
+                label: lane.label,
+                readOnly: lane.readOnly,
+              },
+              laneData: laneDataById[lane.id],
+            },
+          ],
+        }),
+      })),
+    [asOfDate, laneDataById, lanes, scope]
   );
   const renderItem = ({ item }: { item: ChecklistListItem }) => {
     if (item.type === "date") {
@@ -342,13 +382,37 @@ export function ChecklistScreen({
           </View>
         </Pressable>
       </Modal>
-      <FlashList
-        data={listItems}
-        keyExtractor={(item) => item.key}
-        getItemType={(item) => item.type}
-        renderItem={renderItem}
-        contentContainerStyle={styles.listContent}
-      />
+      {useLanePager ? (
+        <ScrollView
+          horizontal
+          snapToInterval={lanePageSnapInterval}
+          snapToAlignment="start"
+          disableIntervalMomentum
+          decelerationRate="fast"
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.lanePagerContent}
+        >
+          {lanePagedItems.map((page) => (
+            <View key={page.laneId} style={[styles.lanePage, { width: lanePageWidth }]}>
+              <FlashList
+                data={page.items}
+                keyExtractor={(item) => item.key}
+                getItemType={(item) => item.type}
+                renderItem={renderItem}
+                contentContainerStyle={styles.listContent}
+              />
+            </View>
+          ))}
+        </ScrollView>
+      ) : (
+        <FlashList
+          data={listItems}
+          keyExtractor={(item) => item.key}
+          getItemType={(item) => item.type}
+          renderItem={renderItem}
+          contentContainerStyle={styles.listContent}
+        />
+      )}
     </Screen>
   );
 }
@@ -399,6 +463,13 @@ const styles = StyleSheet.create({
     height: 16,
     borderWidth: 1,
     borderRadius: 4,
+  },
+  lanePagerContent: {
+    paddingRight: 12,
+    gap: 12,
+  },
+  lanePage: {
+    flexShrink: 0,
   },
   headingRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   readOnlyTag: {
