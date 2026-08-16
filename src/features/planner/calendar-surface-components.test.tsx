@@ -69,6 +69,7 @@ describe("calendar surface extracted components", () => {
         isEntryImmovableForDraft={() => false}
         onEntryClick={onEntryClick}
         onCellClick={onCellClick}
+        onCellDoubleClick={() => {}}
         onCellMouseEnter={() => {}}
         onCellMouseLeave={() => {}}
         onCellPointerDown={onCellPointerDown}
@@ -162,6 +163,7 @@ describe("calendar surface extracted components", () => {
         isEntryImmovableForDraft={() => false}
         onEntryClick={() => {}}
         onCellClick={() => {}}
+        onCellDoubleClick={() => {}}
         onCellMouseEnter={() => {}}
         onCellMouseLeave={() => {}}
         onCellPointerDown={() => {}}
