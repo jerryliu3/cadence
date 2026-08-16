@@ -63,9 +63,31 @@ No native wrapper is justified solely by the current visual effects.
 - Keep direct-manipulation feedback under 220 ms.
 - Keep reward flights under 700 ms and at five particles.
 - Avoid continuous animation, canvas, video, layout measurement loops, and
-  per-card animation providers.
+  per-card animation providers by default.
 - Collapsible height is the only intentional layout animation; it is bounded
   to one user-opened panel.
+
+### Journey visual exception (controlled rollout)
+
+The mountain journey backdrop is the only approved ambient-motion exception, and
+must follow strict guardrails:
+
+- Poster-first: planner/checklist render remains usable before any media loads.
+- One renderer owner per surface (web app shell, mobile tab shell); no duplicate
+  player stacks.
+- Reduced/still compliance from first render:
+  - `prefers-reduced-motion` and explicit still mode must disable continuous
+    background animation.
+  - low-power mode can downgrade to reduced/still automatically.
+- Lifecycle pause:
+  - pause background media when app/tab is not active.
+  - keep at most one active media player in steady-state.
+- Failure safety:
+  - invalid manifests, asset failures, and decoder failures must fall back to
+    a static poster with readable UI.
+- Canonical state safety:
+  - journey visuals are decorative only and cannot mutate completion/XP/plan
+    state.
 
 ## Verification
 

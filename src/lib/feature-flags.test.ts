@@ -14,11 +14,17 @@ describe("feature flags", () => {
       xpEnabled: false,
       socialEnabled: false,
       integrationsEnabled: false,
+      journeyEnabled: false,
+      journeyVideoEnabled: false,
+      journeyRiveEnabled: false,
+      journeySocialOverlayEnabled: false,
+      journeyAssetManifestVersion: "v1",
     });
     expect(isFeatureEnabled("crossMonthMovesEnabled")).toBe(false);
     expect(isFeatureEnabled("xpEnabled")).toBe(false);
     expect(isFeatureEnabled("socialEnabled")).toBe(false);
     expect(isFeatureEnabled("integrationsEnabled")).toBe(false);
+    expect(isFeatureEnabled("journeyEnabled")).toBe(false);
   });
 
   it("reads the cross-month moves kill switch from env", () => {
@@ -29,6 +35,11 @@ describe("feature flags", () => {
       xpEnabled: false,
       socialEnabled: false,
       integrationsEnabled: false,
+      journeyEnabled: false,
+      journeyVideoEnabled: false,
+      journeyRiveEnabled: false,
+      journeySocialOverlayEnabled: false,
+      journeyAssetManifestVersion: "v1",
     });
   });
 
@@ -40,6 +51,11 @@ describe("feature flags", () => {
       xpEnabled: true,
       socialEnabled: false,
       integrationsEnabled: false,
+      journeyEnabled: false,
+      journeyVideoEnabled: false,
+      journeyRiveEnabled: false,
+      journeySocialOverlayEnabled: false,
+      journeyAssetManifestVersion: "v1",
     });
   });
 
@@ -51,6 +67,11 @@ describe("feature flags", () => {
       xpEnabled: false,
       socialEnabled: true,
       integrationsEnabled: false,
+      journeyEnabled: false,
+      journeyVideoEnabled: false,
+      journeyRiveEnabled: false,
+      journeySocialOverlayEnabled: false,
+      journeyAssetManifestVersion: "v1",
     });
   });
 
@@ -62,6 +83,31 @@ describe("feature flags", () => {
       xpEnabled: false,
       socialEnabled: false,
       integrationsEnabled: true,
+      journeyEnabled: false,
+      journeyVideoEnabled: false,
+      journeyRiveEnabled: false,
+      journeySocialOverlayEnabled: false,
+      journeyAssetManifestVersion: "v1",
+    });
+  });
+
+  it("reads journey visual feature flags from env", () => {
+    vi.stubEnv("JOURNEY_ENABLED", "true");
+    vi.stubEnv("JOURNEY_VIDEO_ENABLED", "true");
+    vi.stubEnv("JOURNEY_RIVE_ENABLED", "true");
+    vi.stubEnv("JOURNEY_SOCIAL_OVERLAY_ENABLED", "true");
+    vi.stubEnv("JOURNEY_ASSET_MANIFEST_VERSION", "winter-v2");
+    resetEnvCacheForTests();
+    expect(getFeatureFlags()).toEqual({
+      crossMonthMovesEnabled: false,
+      xpEnabled: false,
+      socialEnabled: false,
+      integrationsEnabled: false,
+      journeyEnabled: true,
+      journeyVideoEnabled: true,
+      journeyRiveEnabled: true,
+      journeySocialOverlayEnabled: true,
+      journeyAssetManifestVersion: "winter-v2",
     });
   });
 });

@@ -12,6 +12,11 @@ function publicMobileFlags() {
     xpEnabled: flags.xpEnabled,
     socialEnabled: flags.socialEnabled,
     integrationsEnabled: flags.integrationsEnabled,
+    journeyEnabled: flags.journeyEnabled,
+    journeyVideoEnabled: flags.journeyVideoEnabled,
+    journeyRiveEnabled: flags.journeyRiveEnabled,
+    journeySocialOverlayEnabled: flags.journeySocialOverlayEnabled,
+    journeyAssetManifestVersion: flags.journeyAssetManifestVersion,
   };
 }
 

@@ -40,6 +40,11 @@ describe("env schema", () => {
     expect(env.XP_ENABLED).toBe(false);
     expect(env.SOCIAL_ENABLED).toBe(false);
     expect(env.INTEGRATIONS_ENABLED).toBe(false);
+    expect(env.JOURNEY_ENABLED).toBe(false);
+    expect(env.JOURNEY_VIDEO_ENABLED).toBe(false);
+    expect(env.JOURNEY_RIVE_ENABLED).toBe(false);
+    expect(env.JOURNEY_SOCIAL_OVERLAY_ENABLED).toBe(false);
+    expect(env.JOURNEY_ASSET_MANIFEST_VERSION).toBe("v1");
     expect(env.INTEGRATIONS_ROLLOUT_STAGE).toBe("off");
   });
 
