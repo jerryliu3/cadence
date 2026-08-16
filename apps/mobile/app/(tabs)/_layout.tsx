@@ -11,8 +11,8 @@ import { LoadingScreen } from "../../src/ui/screen";
 const TAB_ICONS: Record<string, string> = {
   insights: "◉",
   checklist: "☑",
-  calendar: "▦",
-  social: "⚑",
+  calendar: "🛣️",
+  social: "🌐",
   settings: "☺",
 };
 
@@ -52,21 +52,25 @@ export default function TabsLayout() {
           tabBarInactiveTintColor: theme.colors.mutedForeground,
         }}
       >
-        {tabs.map((tab) => (
-          <Tabs.Screen
-            key={tab.key}
-            name={tab.key}
-            options={{
-              title: tab.label,
-              href: tab.key === "social" && upgrade.flags && !upgrade.flags.socialEnabled
-                ? null
-                : undefined,
-              tabBarIcon: ({ color }) => (
-                <Text style={{ color, fontSize: 16 }}>{TAB_ICONS[tab.key]}</Text>
-              ),
-            }}
-          />
-        ))}
+        {tabs.map((tab) => {
+          const tabLabel = tab.key === "social" ? "Community" : tab.label;
+          return (
+            <Tabs.Screen
+              key={tab.key}
+              name={tab.key}
+              options={{
+                title: tabLabel,
+                tabBarLabel: tabLabel,
+                href: tab.key === "social" && upgrade.flags && !upgrade.flags.socialEnabled
+                  ? null
+                  : undefined,
+                tabBarIcon: ({ color }) => (
+                  <Text style={{ color, fontSize: 16 }}>{TAB_ICONS[tab.key]}</Text>
+                ),
+              }}
+            />
+          );
+        })}
         <Tabs.Screen name="checklist" options={{ href: null }} />
       </Tabs>
     </DuoProvider>

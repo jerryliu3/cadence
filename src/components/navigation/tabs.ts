@@ -1,4 +1,4 @@
-import { BarChart3, CalendarDays, Trophy, User } from "lucide-react";
+import { BarChart3, Globe, Route, User } from "lucide-react";
 import type { ComponentType } from "react";
 import {
   APP_TABS as SHARED_APP_TABS,
@@ -13,8 +13,8 @@ const WEB_TAB_ICONS: Record<
   ComponentType<{ className?: string }>
 > = {
   insights: BarChart3,
-  calendar: CalendarDays,
-  social: Trophy,
+  calendar: Route,
+  social: Globe,
   settings: User,
 };
 

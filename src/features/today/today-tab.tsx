@@ -769,8 +769,8 @@ export function TodayTab({
       {showGoalSections && !readOnly ? (
         <div className="pt-3">
           <PlannerTasksPanel
-            title="To-Do for this day"
-            description="Quick tasks for this checklist day."
+            title="Tasks for this day"
+            description="Simple one-time tasks for this day (separate from long-term or recurring goals)."
             scheduledDate={viewDate}
           />
         </div>

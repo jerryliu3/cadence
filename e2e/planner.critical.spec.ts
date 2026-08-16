@@ -74,8 +74,8 @@ function shiftScopeMonth(scopeMonth: string, delta: number) {
 
 async function openCalendar(page: Page, scopeMonth?: string) {
   const query = scopeMonth
-    ? `/calendar?view=month&month=${scopeMonth}`
-    : "/calendar?view=month";
+    ? `/calendar?surface=calendar&view=month&month=${scopeMonth}`
+    : "/calendar?surface=calendar&view=month";
   await page.goto(query);
   await expect(page).toHaveURL(/\/calendar/);
   await waitForCalendarReady(page);

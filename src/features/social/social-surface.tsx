@@ -1,6 +1,7 @@
 "use client";
 
 import { Flag, Newspaper, Trophy, Users } from "lucide-react";
+import { useState } from "react";
 import { ChallengeList } from "@/features/social/challenges/challenge-list";
 import { GroupJoinCard } from "@/features/social/group-join-card";
 import { TeamPanel } from "@/features/social/team/team-panel";
@@ -13,21 +14,17 @@ import {
 } from "@/features/social/social-surface-tab";
 import { cn } from "@/lib/utils";
 
-type SocialSurfaceTabTone = "feed" | "challenges" | "leaderboards" | "team";
-
 const socialSurfaceTriggerBaseClass =
-  "h-10 min-w-0 flex-col gap-0.5 rounded-xl px-1.5 py-1 text-[10px] font-semibold leading-tight transition-[transform,box-shadow] duration-150 hover:-translate-y-0.5 active:translate-y-[3px] active:shadow-[inset_0_2px_6px_rgba(15,23,42,0.24)] data-[state=active]:translate-y-[3px] data-[state=active]:shadow-[inset_0_2px_6px_rgba(15,23,42,0.24)] data-[state=active]:hover:translate-y-[3px] data-[state=active]:cursor-default after:hidden";
+  "h-10 min-w-0 flex-col gap-0.5 rounded-xl px-1.5 py-1 text-[10px] font-semibold leading-tight transition-[transform,box-shadow,border-color,background-color] duration-150 hover:-translate-y-0.5 active:translate-y-[3px] data-[state=active]:translate-y-[3px] data-[state=active]:hover:translate-y-[3px] data-[state=active]:cursor-default after:hidden";
 
-const socialSurfaceTriggerToneClasses: Record<SocialSurfaceTabTone, string> = {
-  feed:
-    "border border-sky-300/70 bg-gradient-to-b from-sky-100/95 to-sky-50/90 text-sky-900 shadow-[0_3px_0_rgba(14,116,144,0.28)] data-[state=active]:border-sky-500 data-[state=active]:from-sky-200 data-[state=active]:to-sky-100 dark:border-sky-500/50 dark:from-sky-900/80 dark:to-sky-800/70 dark:text-sky-100 dark:data-[state=active]:border-sky-300 dark:data-[state=active]:from-sky-700/80 dark:data-[state=active]:to-sky-600/70",
-  challenges:
-    "border border-amber-300/70 bg-gradient-to-b from-amber-100/95 to-amber-50/90 text-amber-900 shadow-[0_3px_0_rgba(180,83,9,0.28)] data-[state=active]:border-amber-500 data-[state=active]:from-amber-200 data-[state=active]:to-amber-100 dark:border-amber-500/50 dark:from-amber-900/80 dark:to-amber-800/70 dark:text-amber-100 dark:data-[state=active]:border-amber-300 dark:data-[state=active]:from-amber-700/80 dark:data-[state=active]:to-amber-600/70",
-  leaderboards:
-    "border border-violet-300/70 bg-gradient-to-b from-violet-100/95 to-violet-50/90 text-violet-900 shadow-[0_3px_0_rgba(109,40,217,0.28)] data-[state=active]:border-violet-500 data-[state=active]:from-violet-200 data-[state=active]:to-violet-100 dark:border-violet-500/50 dark:from-violet-900/80 dark:to-violet-800/70 dark:text-violet-100 dark:data-[state=active]:border-violet-300 dark:data-[state=active]:from-violet-700/80 dark:data-[state=active]:to-violet-600/70",
-  team:
-    "border border-emerald-300/70 bg-gradient-to-b from-emerald-100/95 to-emerald-50/90 text-emerald-900 shadow-[0_3px_0_rgba(5,150,105,0.28)] data-[state=active]:border-emerald-500 data-[state=active]:from-emerald-200 data-[state=active]:to-emerald-100 dark:border-emerald-500/50 dark:from-emerald-900/80 dark:to-emerald-800/70 dark:text-emerald-100 dark:data-[state=active]:border-emerald-300 dark:data-[state=active]:from-emerald-700/80 dark:data-[state=active]:to-emerald-600/70",
-};
+// Saved alternate (former Leaderboards): indigo-300 border, an
+// indigo-200/blue-100/blue-50 gradient, and indigo-300/blue-200/blue-100
+// when selected, with a rgba(79, 70, 229, 0.22) raised shadow.
+const socialSurfaceTriggerToneClass =
+  "border border-sky-300/80 bg-gradient-to-bl from-sky-200/95 via-blue-100/95 to-sky-50/90 text-sky-950 shadow-[0_3px_0_rgba(2,132,199,0.22)] data-[state=active]:border-sky-500 data-[state=active]:from-sky-300/95 data-[state=active]:via-blue-200/95 data-[state=active]:to-sky-100";
+
+const selectedChipShadow =
+  "inset 0 4px 7px rgba(15, 23, 42, 0.3), inset 2px 0 4px rgba(15, 23, 42, 0.16), inset -1px 0 0 rgba(255, 255, 255, 0.42), inset 0 -2px 1px rgba(255, 255, 255, 0.72)";
 
 export function SocialSurface({
   initialTab,
@@ -35,9 +32,14 @@ export function SocialSurface({
   initialTab?: string;
 }) {
   const defaultTab: SocialSurfaceTab = resolveSocialSurfaceTab(initialTab);
+  const [activeTab, setActiveTab] = useState<SocialSurfaceTab>(defaultTab);
 
   return (
-    <Tabs defaultValue={defaultTab} className="flex flex-col gap-4">
+    <Tabs
+      value={activeTab}
+      onValueChange={(value) => setActiveTab(value as SocialSurfaceTab)}
+      className="flex flex-col gap-4"
+    >
       <TabsList
         variant="line"
         className="grid w-full grid-cols-4 gap-1.5 rounded-2xl bg-transparent p-0"
@@ -46,8 +48,11 @@ export function SocialSurface({
           value="feed"
           className={cn(
             socialSurfaceTriggerBaseClass,
-            socialSurfaceTriggerToneClasses.feed
+            socialSurfaceTriggerToneClass
           )}
+          style={
+            activeTab === "feed" ? { boxShadow: selectedChipShadow } : undefined
+          }
         >
           <Newspaper className="size-3.5" />
           <span className="truncate">Feed</span>
@@ -56,8 +61,13 @@ export function SocialSurface({
           value="challenges"
           className={cn(
             socialSurfaceTriggerBaseClass,
-            socialSurfaceTriggerToneClasses.challenges
+            socialSurfaceTriggerToneClass
           )}
+          style={
+            activeTab === "challenges"
+              ? { boxShadow: selectedChipShadow }
+              : undefined
+          }
         >
           <Trophy className="size-3.5" />
           <span className="truncate">Challenges</span>
@@ -66,8 +76,13 @@ export function SocialSurface({
           value="leaderboards"
           className={cn(
             socialSurfaceTriggerBaseClass,
-            socialSurfaceTriggerToneClasses.leaderboards
+            socialSurfaceTriggerToneClass
           )}
+          style={
+            activeTab === "leaderboards"
+              ? { boxShadow: selectedChipShadow }
+              : undefined
+          }
         >
           <Flag className="size-3.5" />
           <span className="truncate">Leaderboards</span>
@@ -76,8 +91,11 @@ export function SocialSurface({
           value="team"
           className={cn(
             socialSurfaceTriggerBaseClass,
-            socialSurfaceTriggerToneClasses.team
+            socialSurfaceTriggerToneClass
           )}
+          style={
+            activeTab === "team" ? { boxShadow: selectedChipShadow } : undefined
+          }
         >
           <Users className="size-3.5" />
           <span className="truncate">Team</span>
