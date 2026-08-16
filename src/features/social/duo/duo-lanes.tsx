@@ -44,14 +44,14 @@ export function DuoLanes({
         <section
           key={subject.id}
           className={cn(
-            "space-y-2",
+            "space-y-2 content-start",
             swipeColumns
               ? "w-[85vw] max-w-[30rem] shrink-0 snap-center md:w-auto md:max-w-none md:shrink"
               : undefined
           )}
         >
           {scope !== "me" ? (
-            <div className="flex items-center gap-2 px-1">
+            <div className="flex min-h-6 items-center gap-2 px-1">
               <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                 {subject.label}
               </span>

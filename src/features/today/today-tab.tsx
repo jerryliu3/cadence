@@ -84,13 +84,37 @@ import {
 import { useCompletionMutation } from "@/features/planner/use-completion-mutation";
 import { reportDuoTelemetry } from "@/lib/social/duo/telemetry";
 
-const allCategoriesFilterValue = "__all_categories__";
+export const ALL_CATEGORIES_FILTER_VALUE = "__all_categories__";
+
+export interface ChecklistSharedFilters {
+  viewDate: string;
+  setViewDate: (value: string) => void;
+  showPastGoals: boolean;
+  setShowPastGoals: (value: boolean) => void;
+  showUpcomingGoals: boolean;
+  setShowUpcomingGoals: (value: boolean) => void;
+  showArchivedGoals: boolean;
+  setShowArchivedGoals: (value: boolean) => void;
+  showCompletedGoals: boolean;
+  setShowCompletedGoals: (value: boolean) => void;
+  categoryFilter: string;
+  setCategoryFilter: (value: string) => void;
+  recurrenceFilter: RecurrenceFilter;
+  setRecurrenceFilter: (value: RecurrenceFilter) => void;
+  todayGoalSearchQuery: string;
+  setTodayGoalSearchQuery: (value: string) => void;
+  todayEndMonth: string | null;
+  setTodayEndMonth: (value: string | null) => void;
+  todaySort: GoalDateSort;
+  setTodaySort: (value: GoalDateSort) => void;
+}
 
 interface TodayTabProps {
   isActive?: boolean;
   refreshToken?: number;
   subjectUserId?: string;
   readOnly?: boolean;
+  sharedFilters?: ChecklistSharedFilters;
 }
 
 export function TodayTab({
@@ -98,6 +122,7 @@ export function TodayTab({
   refreshToken = 0,
   subjectUserId,
   readOnly = false,
+  sharedFilters,
 }: TodayTabProps = {}) {
   const [savingGoalId, setSavingGoalId] = useState<string | null>(null);
   const [expandedGroups, setExpandedGroups] =
@@ -105,17 +130,47 @@ export function TodayTab({
   const [upcomingOpen, setUpcomingOpen] = useState(true);
   const [completedOpen, setCompletedOpen] = useState(false);
   const [archiveOpen, setArchiveOpen] = useState(false);
-  const [showPastGoals, setShowPastGoals] = useState(false);
-  const [showUpcomingGoals, setShowUpcomingGoals] = useState(false);
-  const [showArchivedGoals, setShowArchivedGoals] = useState(false);
-  const [showCompletedGoals, setShowCompletedGoals] = useState(false);
-  const [categoryFilter, setCategoryFilter] = useState(allCategoriesFilterValue);
-  const [recurrenceFilter, setRecurrenceFilter] = useState<RecurrenceFilter>("all");
-  const [todayGoalSearchQuery, setTodayGoalSearchQuery] = useState("");
+  const [internalShowPastGoals, setInternalShowPastGoals] = useState(false);
+  const [internalShowUpcomingGoals, setInternalShowUpcomingGoals] = useState(false);
+  const [internalShowArchivedGoals, setInternalShowArchivedGoals] = useState(false);
+  const [internalShowCompletedGoals, setInternalShowCompletedGoals] = useState(false);
+  const [internalCategoryFilter, setInternalCategoryFilter] = useState(
+    ALL_CATEGORIES_FILTER_VALUE
+  );
+  const [internalRecurrenceFilter, setInternalRecurrenceFilter] =
+    useState<RecurrenceFilter>("all");
+  const [internalTodayGoalSearchQuery, setInternalTodayGoalSearchQuery] = useState("");
   const [todayFiltersOpen, setTodayFiltersOpen] = useState(false);
-  const [viewDate, setViewDate] = useState(toLocalDateString());
-  const [todayEndMonth, setTodayEndMonth] = useState<string | null>(null);
-  const [todaySort, setTodaySort] = useState<GoalDateSort>("earliest_end");
+  const [internalViewDate, setInternalViewDate] = useState(toLocalDateString());
+  const [internalTodayEndMonth, setInternalTodayEndMonth] = useState<string | null>(null);
+  const [internalTodaySort, setInternalTodaySort] = useState<GoalDateSort>("earliest_end");
+  const showPastGoals = sharedFilters?.showPastGoals ?? internalShowPastGoals;
+  const setShowPastGoals = sharedFilters?.setShowPastGoals ?? setInternalShowPastGoals;
+  const showUpcomingGoals = sharedFilters?.showUpcomingGoals ?? internalShowUpcomingGoals;
+  const setShowUpcomingGoals =
+    sharedFilters?.setShowUpcomingGoals ?? setInternalShowUpcomingGoals;
+  const showArchivedGoals = sharedFilters?.showArchivedGoals ?? internalShowArchivedGoals;
+  const setShowArchivedGoals =
+    sharedFilters?.setShowArchivedGoals ?? setInternalShowArchivedGoals;
+  const showCompletedGoals =
+    sharedFilters?.showCompletedGoals ?? internalShowCompletedGoals;
+  const setShowCompletedGoals =
+    sharedFilters?.setShowCompletedGoals ?? setInternalShowCompletedGoals;
+  const categoryFilter = sharedFilters?.categoryFilter ?? internalCategoryFilter;
+  const setCategoryFilter = sharedFilters?.setCategoryFilter ?? setInternalCategoryFilter;
+  const recurrenceFilter = sharedFilters?.recurrenceFilter ?? internalRecurrenceFilter;
+  const setRecurrenceFilter =
+    sharedFilters?.setRecurrenceFilter ?? setInternalRecurrenceFilter;
+  const todayGoalSearchQuery =
+    sharedFilters?.todayGoalSearchQuery ?? internalTodayGoalSearchQuery;
+  const setTodayGoalSearchQuery =
+    sharedFilters?.setTodayGoalSearchQuery ?? setInternalTodayGoalSearchQuery;
+  const viewDate = sharedFilters?.viewDate ?? internalViewDate;
+  const setViewDate = sharedFilters?.setViewDate ?? setInternalViewDate;
+  const todayEndMonth = sharedFilters?.todayEndMonth ?? internalTodayEndMonth;
+  const setTodayEndMonth = sharedFilters?.setTodayEndMonth ?? setInternalTodayEndMonth;
+  const todaySort = sharedFilters?.todaySort ?? internalTodaySort;
+  const setTodaySort = sharedFilters?.setTodaySort ?? setInternalTodaySort;
   const runCompletionMutation = useCompletionMutation();
   const { data, loading, laneError, loadData, redirectToLogin, todayLocalDate } = useChecklistData({
     subjectUserId,
@@ -228,7 +283,7 @@ export function TodayTab({
         activeGoals,
         todayDate,
         categoryFilter,
-        allCategoriesFilterValue,
+        allCategoriesFilterValue: ALL_CATEGORIES_FILTER_VALUE,
         recurrenceFilter,
         searchQuery: todayGoalSearchQuery,
         endMonth: effectiveTodayEndMonth,
@@ -529,7 +584,7 @@ export function TodayTab({
                           <SelectValue placeholder="Category" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value={allCategoriesFilterValue}>
+                          <SelectItem value={ALL_CATEGORIES_FILTER_VALUE}>
                             All categories
                           </SelectItem>
                           {availableCategories.map((category) => (
@@ -653,8 +708,10 @@ export function TodayTab({
                 size="sm"
                 className="h-8 shrink-0 rounded-full px-3 text-xs"
                 onClick={() =>
-                  setCategoryFilter((previous) =>
-                    previous === category.key ? allCategoriesFilterValue : category.key
+                  setCategoryFilter(
+                    categoryFilter === category.key
+                      ? ALL_CATEGORIES_FILTER_VALUE
+                      : category.key
                   )
                 }
               >
