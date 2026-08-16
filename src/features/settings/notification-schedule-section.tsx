@@ -64,24 +64,36 @@ export function NotificationScheduleSection({
           timezone. Disable it below or add more reminders. New reminders use {timezone}.
         </p>
       </div>
-      <div className="grid gap-3 rounded-xl border p-3 sm:grid-cols-[160px_1fr_auto] sm:items-end">
-        <div className="space-y-1.5">
-          <Label htmlFor="notification-hour">Time</Label>
-          <Select value={hour} onValueChange={onHourChange}>
-            <SelectTrigger id="notification-hour" className="w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {Array.from({ length: 24 }, (_, value) => (
-                <SelectItem key={value} value={String(value)}>
-                  {formatHour(value)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+      <div className="min-w-0 space-y-3 rounded-xl border p-3">
+        <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-end gap-3">
+          <div className="min-w-0 space-y-1.5">
+            <Label htmlFor="notification-hour">Time</Label>
+            <Select value={hour} onValueChange={onHourChange}>
+              <SelectTrigger id="notification-hour" className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {Array.from({ length: 24 }, (_, value) => (
+                  <SelectItem key={value} value={String(value)}>
+                    {formatHour(value)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <Button
+            type="button"
+            className="shrink-0"
+            onClick={onAddSchedule}
+            disabled={savingSchedule || !canAddSchedule}
+          >
+            {savingSchedule ? <LoaderCircle className="animate-spin" /> : <Plus />}
+            Add
+          </Button>
         </div>
 
-        <div className="space-y-1.5">
+        <div className="min-w-0 space-y-1.5">
           <Label htmlFor="notification-message">Message</Label>
           <Input
             id="notification-message"
@@ -91,11 +103,6 @@ export function NotificationScheduleSection({
             placeholder={defaultMessage}
           />
         </div>
-
-        <Button type="button" onClick={onAddSchedule} disabled={savingSchedule || !canAddSchedule}>
-          {savingSchedule ? <LoaderCircle className="animate-spin" /> : <Plus />}
-          Add
-        </Button>
       </div>
 
       {loadingSchedules ? (
@@ -115,7 +122,7 @@ export function NotificationScheduleSection({
             return (
               <div
                 key={schedule.id}
-                className="flex flex-col gap-3 rounded-xl border p-3 sm:flex-row sm:items-center"
+                className="flex min-w-0 flex-col gap-3 rounded-xl border p-3 sm:flex-row sm:items-center"
               >
                 <div className="min-w-28">
                   <div className="flex items-center gap-2">
@@ -129,17 +136,18 @@ export function NotificationScheduleSection({
                   <p className="text-xs text-muted-foreground">{schedule.timezone}</p>
                 </div>
                 <p
-                  className={`flex-1 text-sm ${
+                  className={`min-w-0 flex-1 break-words text-sm ${
                     schedule.enabled ? "" : "text-muted-foreground line-through"
                   }`}
                 >
                   {schedule.message}
                 </p>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap items-center gap-2 sm:justify-end">
                   <Button
                     type="button"
                     variant="outline"
                     size="sm"
+                    className="w-full sm:w-auto"
                     onClick={() => onToggleSchedule(schedule)}
                     disabled={pending}
                   >
