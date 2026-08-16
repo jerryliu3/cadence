@@ -57,6 +57,7 @@ export function NotificationSettings() {
     preferences,
     loadingPreferences,
     hasLoadedPreferences,
+    loadErrorMessage,
     savingPreferenceKey,
     loadPreferences,
     togglePreference,
@@ -102,7 +103,9 @@ export function NotificationSettings() {
         preferences={preferences}
         loadingPreferences={loadingPreferences}
         hasLoadedPreferences={hasLoadedPreferences}
+        loadErrorMessage={loadErrorMessage}
         savingPreferenceKey={savingPreferenceKey}
+        onRetryLoad={() => void loadPreferences()}
         onTogglePreference={togglePreference}
       />
     </div>

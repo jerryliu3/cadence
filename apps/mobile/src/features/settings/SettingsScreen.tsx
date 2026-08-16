@@ -67,9 +67,11 @@ export function SettingsScreen() {
     },
   });
 
+  const fetchNotificationPreferences = async () =>
+    api.getJson<NotificationPreferencesPayload>("/api/notifications/preferences");
+
   useEffect(() => {
     let cancelled = false;
-
     const loadNotificationPreferences = async () => {
       if (!userId) {
         if (!cancelled) {
@@ -82,9 +84,7 @@ export function SettingsScreen() {
       setLoadingNotificationPreferences(true);
 
       try {
-        const response = await api.getJson<NotificationPreferencesPayload>(
-          "/api/notifications/preferences"
-        );
+        const response = await fetchNotificationPreferences();
         if (!cancelled) {
           setNotificationPreferences(
             normalizeNotificationPreferences(response.notificationPreferences)
@@ -222,55 +222,89 @@ export function SettingsScreen() {
           Choose which categories can trigger push notifications.
         </Text>
       </View>
-      {notificationPreferenceCategories.map((category) => {
-        const checked = notificationPreferences[category.key];
-        const disabled =
-          !userId ||
-          !hasLoadedNotificationPreferences ||
-          loadingNotificationPreferences ||
-          savingPreferenceKey !== null;
+      {loadingNotificationPreferences ? (
+        <Text style={{ color: theme.colors.mutedForeground }}>
+          Loading notification categories...
+        </Text>
+      ) : !hasLoadedNotificationPreferences ? (
+        <View style={styles.preferenceUnavailable}>
+          <Text style={{ color: theme.colors.mutedForeground }}>
+            Notification categories are unavailable. Retry to load your saved settings.
+          </Text>
+          <PrimaryButton
+            label="Retry categories"
+            onPress={async () => {
+              if (!userId) {
+                return;
+              }
+              setLoadingNotificationPreferences(true);
+              try {
+                const response = await fetchNotificationPreferences();
+                setNotificationPreferences(
+                  normalizeNotificationPreferences(response.notificationPreferences)
+                );
+                setHasLoadedNotificationPreferences(true);
+              } catch (error) {
+                setHasLoadedNotificationPreferences(false);
+                setMessage(
+                  getApiErrorMessage(
+                    error,
+                    "Notification category preferences could not be loaded."
+                  )
+                );
+              } finally {
+                setLoadingNotificationPreferences(false);
+              }
+            }}
+          />
+        </View>
+      ) : (
+        notificationPreferenceCategories.map((category) => {
+          const checked = notificationPreferences[category.key];
+          const disabled = !userId || savingPreferenceKey !== null;
 
-        return (
-          <Pressable
-            key={category.key}
-            accessibilityRole="checkbox"
-            accessibilityLabel={category.label}
-            accessibilityState={{ checked, disabled }}
-            disabled={disabled}
-            onPress={() => void toggleNotificationPreference(category.key)}
-            style={[
-              styles.preferenceRow,
-              {
-                borderColor: theme.colors.border,
-                backgroundColor: theme.colors.card,
-                opacity: disabled ? 0.6 : 1,
-              },
-            ]}
-          >
-            <View
+          return (
+            <Pressable
+              key={category.key}
+              accessibilityRole="checkbox"
+              accessibilityLabel={category.label}
+              accessibilityState={{ checked, disabled }}
+              disabled={disabled}
+              onPress={() => void toggleNotificationPreference(category.key)}
               style={[
-                styles.preferenceCheckbox,
+                styles.preferenceRow,
                 {
                   borderColor: theme.colors.border,
-                  backgroundColor: checked ? theme.colors.primary : theme.colors.card,
+                  backgroundColor: theme.colors.card,
+                  opacity: disabled ? 0.6 : 1,
                 },
               ]}
             >
-              <Text style={{ color: theme.colors.primaryForeground }}>
-                {checked ? "✓" : ""}
-              </Text>
-            </View>
-            <View style={styles.preferenceCopy}>
-              <Text style={{ color: theme.colors.foreground, fontWeight: "600" }}>
-                {category.label}
-              </Text>
-              <Text style={{ color: theme.colors.mutedForeground }}>
-                {category.description}
-              </Text>
-            </View>
-          </Pressable>
-        );
-      })}
+              <View
+                style={[
+                  styles.preferenceCheckbox,
+                  {
+                    borderColor: theme.colors.border,
+                    backgroundColor: checked ? theme.colors.primary : theme.colors.card,
+                  },
+                ]}
+              >
+                <Text style={{ color: theme.colors.primaryForeground }}>
+                  {checked ? "✓" : ""}
+                </Text>
+              </View>
+              <View style={styles.preferenceCopy}>
+                <Text style={{ color: theme.colors.foreground, fontWeight: "600" }}>
+                  {category.label}
+                </Text>
+                <Text style={{ color: theme.colors.mutedForeground }}>
+                  {category.description}
+                </Text>
+              </View>
+            </Pressable>
+          );
+        })
+      )}
       <IntegrationsSection userId={userId} />
       <PrimaryButton
         label="Sign out"
@@ -300,6 +334,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: 12,
     padding: 12,
+  },
+  preferenceUnavailable: {
+    gap: 12,
   },
   preferenceCheckbox: {
     width: 24,

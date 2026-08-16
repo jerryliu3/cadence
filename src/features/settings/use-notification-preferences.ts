@@ -23,6 +23,7 @@ export function useNotificationPreferences() {
   const [savingPreferenceKey, setSavingPreferenceKey] =
     useState<NotificationPreferenceKey | null>(null);
   const [hasLoadedPreferences, setHasLoadedPreferences] = useState(false);
+  const [loadErrorMessage, setLoadErrorMessage] = useState<string | null>(null);
 
   const loadPreferences = useCallback(async () => {
     setLoadingPreferences(true);
@@ -34,14 +35,15 @@ export function useNotificationPreferences() {
         normalizeNotificationPreferences(response.notificationPreferences)
       );
       setHasLoadedPreferences(true);
+      setLoadErrorMessage(null);
     } catch (error) {
-      setHasLoadedPreferences(false);
-      toast.error(
-        getApiErrorMessage(
-          error,
-          "Notification category preferences could not be loaded."
-        )
+      const message = getApiErrorMessage(
+        error,
+        "Notification category preferences could not be loaded."
       );
+      setHasLoadedPreferences(false);
+      setLoadErrorMessage(message);
+      toast.error(message);
     } finally {
       setLoadingPreferences(false);
     }
@@ -91,6 +93,7 @@ export function useNotificationPreferences() {
     loadingPreferences,
     savingPreferenceKey,
     hasLoadedPreferences,
+    loadErrorMessage,
     loadPreferences,
     togglePreference,
   };
