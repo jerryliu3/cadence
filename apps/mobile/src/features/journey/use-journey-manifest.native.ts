@@ -87,6 +87,5 @@ export function useJourneyManifest(assetVersion: string): ManifestResolution {
       source: "bundled",
     };
   }
-
   return resolution;
 }

@@ -9,7 +9,7 @@ import type {
 interface RiveJourneyOverlayProps {
   progress: JourneyProgressState;
   policy: JourneyRenderPolicy;
-  latestEffectEvent?: JourneyEffectEvent | null;
+  latestEffectEvent: JourneyEffectEvent | null;
 }
 
 export function RiveJourneyOverlay({
@@ -28,7 +28,8 @@ export function RiveJourneyOverlay({
       data-journey-layer="rive-overlay"
       data-biome={progress.biome}
       data-checkpoint={progress.checkpointIndex}
-      data-effect-kind={latestEffectEvent?.kind ?? ""}
+      data-effect-id={latestEffectEvent?.id ?? ""}
+      data-effect-kind={latestEffectEvent?.kind ?? "none"}
     />
   );
 }

@@ -6,7 +6,14 @@ import { StaticJourneyPoster } from "./StaticJourneyPoster.native";
 import { useJourney } from "./journey-context.native";
 
 export function JourneyBackdrop() {
-  const { progressState, renderPolicy, scene, presentation } = useJourney();
+  const {
+    progressState,
+    renderPolicy,
+    scene,
+    latestEffectEvent,
+    manifestSource,
+    presentation,
+  } = useJourney();
   const [videoReady, setVideoReady] = useState(false);
 
   const posterSource =
@@ -50,7 +57,12 @@ export function JourneyBackdrop() {
           },
         ]}
       />
-      <RiveJourneyOverlay progress={progressState} policy={renderPolicy} />
+      <RiveJourneyOverlay
+        progress={progressState}
+        policy={renderPolicy}
+        latestEffectEvent={latestEffectEvent}
+      />
+      <View testID={`journey-manifest-source-${manifestSource}`} />
     </View>
   );
 }

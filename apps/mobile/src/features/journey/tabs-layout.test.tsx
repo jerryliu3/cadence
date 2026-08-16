@@ -113,6 +113,8 @@ vi.mock("./JourneyProvider.native", () => ({
       loopDurationMs: 12000,
       fallbackSceneId: null,
     },
+    latestEffectEvent: null,
+    manifestSource: "bundled",
     presentation: {
       visible: true,
       contrast: "default",
