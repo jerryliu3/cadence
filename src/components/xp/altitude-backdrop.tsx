@@ -1,6 +1,8 @@
 "use client";
 
 import { useMemo } from "react";
+import { JourneyBackdrop } from "@/components/journey/journey-backdrop.web";
+import type { JourneyFeatureFlags } from "@/components/journey/types";
 import { useXpProfile } from "@/components/xp/xp-profile-provider";
 
 const nearRidgePath =
@@ -8,7 +10,19 @@ const nearRidgePath =
 const farRidgePath =
   "M0,210 C180,166 320,196 460,188 C620,178 740,116 920,130 C1060,140 1200,186 1440,160 L1440,320 L0,320 Z";
 
-export function AltitudeBackdrop() {
+interface AltitudeBackdropProps {
+  journeyFlags: JourneyFeatureFlags;
+}
+
+export function AltitudeBackdrop({ journeyFlags }: AltitudeBackdropProps) {
+  if (journeyFlags.journeyEnabled) {
+    return <JourneyBackdrop flags={journeyFlags} />;
+  }
+
+  return <LegacyAltitudeBackdrop />;
+}
+
+function LegacyAltitudeBackdrop() {
   const { band } = useXpProfile();
 
   const skyStyle = useMemo(

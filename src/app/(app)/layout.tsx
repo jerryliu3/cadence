@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
 import { normalizePlannerPrimaryTabPreference } from "@cadence/shared/navigation/tabs";
 import { AppShell } from "@/components/layout/app-shell";
+import { getFeatureFlags } from "@/lib/feature-flags";
 import { parseDuoScopeCookieValue, DUO_SCOPE_COOKIE_NAME } from "@/lib/social/duo/scope-cookie";
 import { loadDuoContext } from "@/lib/social/duo/load-duo-context";
 import { createClient } from "@/lib/supabase/server";
@@ -60,6 +61,14 @@ export default async function AuthenticatedLayout({
     emailLocalPart ||
     "You";
   const duo = await loadDuoContext({ supabase });
+  const flags = getFeatureFlags();
+  const journeyFlags = {
+    journeyEnabled: flags.journeyEnabled,
+    journeyVideoEnabled: flags.journeyVideoEnabled,
+    journeyRiveEnabled: flags.journeyRiveEnabled,
+    journeySocialOverlayEnabled: flags.journeySocialOverlayEnabled,
+    journeyAssetManifestVersion: flags.journeyAssetManifestVersion,
+  } as const;
   const initialDuoScopePreference = parseDuoScopeCookieValue(
     cookieStore.get(DUO_SCOPE_COOKIE_NAME)?.value
   );
@@ -74,6 +83,7 @@ export default async function AuthenticatedLayout({
       initialDuoScopePreference={initialDuoScopePreference}
       plannerPrimaryTabPreference={plannerPrimaryTabPreference}
       viewerAvatarUrl={viewerAvatarUrl}
+      journeyFlags={journeyFlags}
     >
       {children}
     </AppShell>
