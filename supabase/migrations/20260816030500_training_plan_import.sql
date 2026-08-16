@@ -11,8 +11,11 @@ security definer
 set search_path = ''
 as $$
 declare
+  c_max_goal_count integer := 60;
+  c_max_sessions_per_goal integer := 366;
   v_owner uuid := auth.uid();
   v_goal jsonb;
+  v_goal_sessions jsonb;
   v_session jsonb;
   v_goal_id uuid;
   v_goal_count integer := 0;
@@ -39,6 +42,9 @@ begin
   end if;
   if p_goals is null or jsonb_typeof(p_goals) <> 'array' then
     raise exception using errcode = '22023', message = 'invalid_training_plan_payload';
+  end if;
+  if jsonb_array_length(p_goals) > c_max_goal_count then
+    raise exception using errcode = '22023', message = 'training_plan_goals_limit_exceeded';
   end if;
 
   perform pg_catalog.pg_advisory_xact_lock(
@@ -173,15 +179,17 @@ begin
     end if;
     v_goal_count := v_goal_count + 1;
 
-    if v_goal ? 'sessions'
-      and jsonb_typeof(v_goal->'sessions') <> 'array'
-    then
+    if v_goal ? 'sessions' and jsonb_typeof(v_goal->'sessions') <> 'array' then
       raise exception using errcode = '22023', message = 'invalid_training_plan_payload';
+    end if;
+    v_goal_sessions := coalesce(v_goal->'sessions', '[]'::jsonb);
+    if jsonb_array_length(v_goal_sessions) > c_max_sessions_per_goal then
+      raise exception using errcode = '22023', message = 'training_plan_sessions_limit_exceeded';
     end if;
 
     for v_session in
       select value
-      from jsonb_array_elements(coalesce(v_goal->'sessions', '[]'::jsonb))
+      from jsonb_array_elements(v_goal_sessions)
     loop
       v_session_date := nullif(v_session->>'scheduled_date', '')::date;
       if v_session_date is null then

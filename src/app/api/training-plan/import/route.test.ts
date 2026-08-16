@@ -160,4 +160,18 @@ describe("training plan import route", () => {
       correlationId: "corr-id",
     });
   });
+
+  it("maps database constraint validation failures to 400", async () => {
+    mocks.rpc.mockResolvedValue({
+      data: null,
+      error: { code: "23514", message: "check constraint failed" },
+    });
+
+    const response = await POST(createRequest());
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "validation_failed",
+      correlationId: "corr-id",
+    });
+  });
 });

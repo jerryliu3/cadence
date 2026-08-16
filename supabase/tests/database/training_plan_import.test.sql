@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions, pg_catalog;
-select plan(5);
+select plan(7);
 
 insert into auth.users (id, email)
 values (
@@ -118,6 +118,61 @@ select is(
   ),
   0,
   'conflicted imports rollback goal creation'
+);
+
+select throws_ok(
+  $tap$
+  select *
+  from public.import_training_plan(
+    (
+      select jsonb_agg(
+        jsonb_build_object(
+          'title', 'Limit goal ' || g::text,
+          'category', 'Health',
+          'frequency_type', 'recurring',
+          'recurrence_interval', 'weekly',
+          'start_date', (current_date + 1)::text,
+          'end_date', (current_date + 14)::text,
+          'sessions', '[]'::jsonb
+        )
+      )
+      from generate_series(1, 61) as s(g)
+    )
+  );
+  $tap$,
+  '22023'::character(5),
+  'training_plan_goals_limit_exceeded',
+  'imports reject payloads with more than 60 goals'
+);
+
+select throws_ok(
+  $tap$
+  select *
+  from public.import_training_plan(
+    jsonb_build_array(
+      jsonb_build_object(
+        'title', 'Too many sessions',
+        'category', 'Health',
+        'frequency_type', 'recurring',
+        'recurrence_interval', 'weekly',
+        'start_date', current_date::text,
+        'end_date', (current_date + 400)::text,
+        'sessions', (
+          select jsonb_agg(
+            jsonb_build_object(
+              'scheduled_date',
+              (current_date + g)::text
+            )
+          )
+          from generate_series(1, 367) as s(g)
+        )
+      )
+    )
+  );
+  $tap$,
+  '22023'::character(5),
+  'training_plan_sessions_limit_exceeded',
+  'imports reject goals with more than 366 dated sessions'
 );
 
 reset role;

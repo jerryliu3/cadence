@@ -52,11 +52,14 @@ export function TrainingPlanImportEntry({ onExit }: TrainingPlanImportEntryProps
   const [importing, setImporting] = useState(false);
   const [goals, setGoals] = useState<TrainingPlanGoalDraft[]>([]);
   const [warnings, setWarnings] = useState<string[]>([]);
+  const [lastParsedPlanText, setLastParsedPlanText] = useState<string | null>(null);
 
   const sessionCount = useMemo(
     () => goals.reduce((total, goal) => total + goal.sessions.length, 0),
     [goals]
   );
+  const hasUnparsedChanges =
+    lastParsedPlanText !== null && planText.trim() !== lastParsedPlanText;
 
   const parsePlan = async () => {
     const trimmed = planText.trim();
@@ -64,6 +67,9 @@ export function TrainingPlanImportEntry({ onExit }: TrainingPlanImportEntryProps
       toast.error("Paste training-plan text first.");
       return;
     }
+    setGoals([]);
+    setWarnings([]);
+    setLastParsedPlanText(null);
     setParsing(true);
     try {
       const payload = await postJson<{
@@ -75,15 +81,22 @@ export function TrainingPlanImportEntry({ onExit }: TrainingPlanImportEntryProps
       });
       const nextGoals = payload.goals ?? [];
       if (nextGoals.length === 0) {
+        setGoals([]);
+        setWarnings([]);
+        setLastParsedPlanText(null);
         toast.error("No training-plan goals were detected. Add more detail and try again.");
         return;
       }
       setGoals(nextGoals);
       setWarnings(payload.warnings ?? []);
+      setLastParsedPlanText(trimmed);
       toast.success(
         `Parsed ${nextGoals.length} goal${nextGoals.length === 1 ? "" : "s"}.`
       );
     } catch (error) {
+      setGoals([]);
+      setWarnings([]);
+      setLastParsedPlanText(null);
       toast.error(getApiErrorMessage(error, "Could not parse training-plan text."));
     } finally {
       setParsing(false);
@@ -91,6 +104,10 @@ export function TrainingPlanImportEntry({ onExit }: TrainingPlanImportEntryProps
   };
 
   const importPlan = async () => {
+    if (hasUnparsedChanges) {
+      toast.error("Training-plan text changed. Parse again before importing.");
+      return;
+    }
     if (goals.length === 0) {
       toast.error("Parse a training plan before importing.");
       return;
@@ -167,7 +184,7 @@ export function TrainingPlanImportEntry({ onExit }: TrainingPlanImportEntryProps
               <Button
                 type="button"
                 onClick={importPlan}
-                disabled={importing || goals.length === 0}
+                disabled={importing || parsing || hasUnparsedChanges || goals.length === 0}
               >
                 {importing ? (
                   <LoaderCircle className="size-4 animate-spin" />
@@ -180,6 +197,11 @@ export function TrainingPlanImportEntry({ onExit }: TrainingPlanImportEntryProps
           </div>
         </CardHeader>
         <CardContent className="space-y-3">
+          {hasUnparsedChanges ? (
+            <p className="text-xs text-amber-700">
+              Re-parse before import so the preview matches your latest text.
+            </p>
+          ) : null}
           {warnings.length > 0 ? (
             <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
               <p className="font-medium">

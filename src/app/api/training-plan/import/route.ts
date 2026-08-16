@@ -56,6 +56,18 @@ export async function POST(request: Request) {
       p_goals: body.goals as unknown as Json,
     });
     if (response.error) {
+      if (
+        response.error.code === "22023" ||
+        response.error.code === "22P02" ||
+        response.error.code === "22001" ||
+        response.error.code === "23514"
+      ) {
+        throw new PlannerRouteError(
+          400,
+          "validation_failed",
+          "Training-plan payload failed validation."
+        );
+      }
       if (postgresErrorMatches(response.error, "P0001", "schedule_conflict")) {
         throw new PlannerRouteError(
           409,
