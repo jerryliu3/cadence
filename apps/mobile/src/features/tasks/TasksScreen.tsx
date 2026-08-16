@@ -2,6 +2,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { supabase } from "../../lib/supabase";
+import { useSession } from "../../lib/session";
 import { useTheme } from "../../theme";
 import { PrimaryButton } from "../../ui/button";
 import { Screen } from "../../ui/screen";
@@ -15,6 +16,7 @@ interface PlannerTaskRow {
 
 export function TasksScreen() {
   const theme = useTheme();
+  const { userId } = useSession();
   const queryClient = useQueryClient();
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [saving, setSaving] = useState(false);
@@ -22,8 +24,12 @@ export function TasksScreen() {
   const [message, setMessage] = useState<string | null>(null);
 
   const tasksQuery = useQuery({
-    queryKey: ["mobile-planner-tasks"],
+    queryKey: ["mobile-planner-tasks", userId],
+    enabled: Boolean(userId),
     queryFn: async () => {
+      if (!userId) {
+        return [];
+      }
       const { data, error } = await supabase.rpc("list_planner_tasks", {
         p_for_date: undefined,
       });
@@ -35,6 +41,10 @@ export function TasksScreen() {
   });
 
   const tasks = useMemo(() => tasksQuery.data ?? [], [tasksQuery.data]);
+  const tasksErrorMessage =
+    tasksQuery.error instanceof Error
+      ? tasksQuery.error.message
+      : "Could not load tasks.";
 
   return (
     <Screen title="To-Do">
@@ -62,6 +72,10 @@ export function TasksScreen() {
         label={saving ? "Adding..." : "Add task"}
         disabled={saving}
         onPress={async () => {
+          if (!userId) {
+            setMessage("Sign in to manage tasks.");
+            return;
+          }
           const title = newTaskTitle.trim();
           if (!title) {
             setMessage("Task title is required.");
@@ -77,13 +91,19 @@ export function TasksScreen() {
           } else {
             setNewTaskTitle("");
             setMessage("Task added.");
-            await queryClient.invalidateQueries({ queryKey: ["mobile-planner-tasks"] });
+            await queryClient.invalidateQueries({
+              queryKey: ["mobile-planner-tasks", userId],
+            });
           }
           setSaving(false);
         }}
       />
       {tasksQuery.isLoading ? (
         <Text style={{ color: theme.colors.mutedForeground }}>Loading tasks...</Text>
+      ) : tasksQuery.isError ? (
+        <Text style={{ color: theme.colors.foreground }}>
+          Could not load tasks. {tasksErrorMessage}
+        </Text>
       ) : tasks.length === 0 ? (
         <Text style={{ color: theme.colors.mutedForeground }}>
           No tasks yet. Add one above.
@@ -100,6 +120,10 @@ export function TasksScreen() {
                 { borderColor: theme.colors.border, backgroundColor: theme.colors.card },
               ]}
               onPress={async () => {
+                if (!userId) {
+                  setMessage("Sign in to manage tasks.");
+                  return;
+                }
                 setTogglingTaskId(task.task_id);
                 const { error } = await supabase.rpc("set_planner_task_completion", {
                   p_task_id: task.task_id,
@@ -109,7 +133,7 @@ export function TasksScreen() {
                   setMessage(error.message);
                 } else {
                   await queryClient.invalidateQueries({
-                    queryKey: ["mobile-planner-tasks"],
+                    queryKey: ["mobile-planner-tasks", userId],
                   });
                 }
                 setTogglingTaskId(null);

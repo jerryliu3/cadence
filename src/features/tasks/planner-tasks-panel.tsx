@@ -1,7 +1,7 @@
 "use client";
 
 import { CheckCircle2, Circle, Loader2, Plus } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -37,12 +37,18 @@ export function PlannerTasksPanel({
   const [adding, setAdding] = useState(false);
   const [togglingTaskId, setTogglingTaskId] = useState<string | null>(null);
   const [newTaskTitle, setNewTaskTitle] = useState("");
+  const scheduledDateRef = useRef<string | null>(scheduledDate);
+  const requestVersionRef = useRef(0);
 
-  const loadTasks = useCallback(async () => {
+  const loadTasks = useCallback(async (forDate: string | null = scheduledDateRef.current) => {
+    const requestVersion = ++requestVersionRef.current;
     setLoading(true);
     const { data, error } = await supabase.rpc("list_planner_tasks", {
-      p_for_date: scheduledDate ?? undefined,
+      p_for_date: forDate ?? undefined,
     });
+    if (requestVersion !== requestVersionRef.current) {
+      return;
+    }
     if (error) {
       toast.error(error.message || "Could not load tasks.");
       setLoading(false);
@@ -50,11 +56,19 @@ export function PlannerTasksPanel({
     }
     setTasks((data ?? []) as PlannerTaskRow[]);
     setLoading(false);
-  }, [scheduledDate, supabase]);
+  }, [supabase]);
 
   useEffect(() => {
-    void loadTasks();
-  }, [loadTasks]);
+    scheduledDateRef.current = scheduledDate;
+    void loadTasks(scheduledDate);
+  }, [loadTasks, scheduledDate]);
+
+  useEffect(
+    () => () => {
+      requestVersionRef.current += 1;
+    },
+    []
+  );
 
   const addTask = useCallback(async () => {
     const title = newTaskTitle.trim();
@@ -62,46 +76,38 @@ export function PlannerTasksPanel({
       return;
     }
     setAdding(true);
-    const { data, error } = await supabase.rpc("create_planner_task", {
-      p_title: title,
-      p_scheduled_date: scheduledDate ?? undefined,
-    });
-    if (error) {
-      toast.error(error.message || "Task could not be created.");
+    try {
+      const { error } = await supabase.rpc("create_planner_task", {
+        p_title: title,
+        p_scheduled_date: scheduledDateRef.current ?? undefined,
+      });
+      if (error) {
+        toast.error(error.message || "Task could not be created.");
+        return;
+      }
+      setNewTaskTitle("");
+      await loadTasks(scheduledDateRef.current);
+    } finally {
       setAdding(false);
-      return;
     }
-    const created = (data?.[0] ?? null) as PlannerTaskRow | null;
-    if (created) {
-      setTasks((previous) => [...previous, created]);
-    } else {
-      await loadTasks();
-    }
-    setNewTaskTitle("");
-    setAdding(false);
-  }, [loadTasks, newTaskTitle, scheduledDate, supabase]);
+  }, [loadTasks, newTaskTitle, supabase]);
 
   const toggleTask = useCallback(
     async (task: PlannerTaskRow) => {
       setTogglingTaskId(task.task_id);
-      const { data, error } = await supabase.rpc("set_planner_task_completion", {
-        p_task_id: task.task_id,
-        p_completed: task.completed_at == null,
-      });
-      if (error) {
-        toast.error(error.message || "Task completion could not be updated.");
+      try {
+        const { error } = await supabase.rpc("set_planner_task_completion", {
+          p_task_id: task.task_id,
+          p_completed: task.completed_at == null,
+        });
+        if (error) {
+          toast.error(error.message || "Task completion could not be updated.");
+          return;
+        }
+        await loadTasks(scheduledDateRef.current);
+      } finally {
         setTogglingTaskId(null);
-        return;
       }
-      const updated = (data?.[0] ?? null) as PlannerTaskRow | null;
-      if (updated) {
-        setTasks((previous) =>
-          previous.map((row) => (row.task_id === task.task_id ? updated : row))
-        );
-      } else {
-        await loadTasks();
-      }
-      setTogglingTaskId(null);
     },
     [loadTasks, supabase]
   );
