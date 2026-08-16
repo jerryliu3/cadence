@@ -70,12 +70,13 @@ describe("planner coach panel", () => {
     const user = userEvent.setup();
 
     render(<PlannerCoachPanel coach={coach} />);
-    await user.click(screen.getByRole("button", { name: "Save conversation" }));
+    await user.click(screen.getByRole("button", { name: "Save" }));
     expect(coach.actions.saveCoachConversation).toHaveBeenCalledTimes(1);
 
-    expect(screen.getByRole("button", { name: "Save conversation" }).parentElement).toBe(
-      screen.getByRole("button", { name: "New conversation" }).parentElement
+    expect(screen.getByRole("button", { name: "Save" }).parentElement).toBe(
+      screen.getByRole("button", { name: "New convo" }).parentElement
     );
+    expect(screen.getByRole("option", { name: "Load convo" })).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Send to coach" }));
     expect(coach.actions.sendCoachMessage).toHaveBeenCalledTimes(1);
