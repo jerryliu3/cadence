@@ -9,6 +9,7 @@ import {
   Star,
   Target,
 } from "lucide-react";
+import { getCategorySwatchColor, resolveCategoryKey } from "@/lib/goals/category";
 
 const GOAL_ICONS: readonly LucideIcon[] = [
   Target,
@@ -37,6 +38,7 @@ const HEX_COLOR_REGEX = /^#?[0-9a-f]{6}$/i;
 export interface GoalVisualInput {
   goalId: string;
   color: string | null;
+  category: string | null;
 }
 
 export interface GoalVisual {
@@ -66,8 +68,15 @@ export function normalizeGoalColor(color: string | null) {
 
 export function getGoalVisual(input: GoalVisualInput): GoalVisual {
   const hash = stableHash(input.goalId);
+  const categoryColor =
+    input.category && input.category.trim().length > 0
+      ? getCategorySwatchColor(resolveCategoryKey(input.category))
+      : null;
   return {
     Icon: GOAL_ICONS[hash % GOAL_ICONS.length],
-    color: normalizeGoalColor(input.color) ?? FALLBACK_COLORS[hash % FALLBACK_COLORS.length],
+    color:
+      categoryColor ??
+      normalizeGoalColor(input.color) ??
+      FALLBACK_COLORS[hash % FALLBACK_COLORS.length],
   };
 }
