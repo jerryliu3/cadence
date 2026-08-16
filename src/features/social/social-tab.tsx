@@ -44,8 +44,13 @@ export function SocialTab() {
     authEmail,
     profileDraft,
     setProfileDraft,
+    plannerPreferencesLoading,
+    plannerPreferencesDraft,
+    setPlannerPreferencesDraft,
     canSaveProfile,
+    canSavePreferences,
     saveProfile,
+    savePreferences,
     signOut,
   } = useSocialTabData();
   const [settingsSection, setSettingsSection] = useState<
@@ -155,16 +160,26 @@ export function SocialTab() {
             </button>
           ))}
           <div className="border-t p-4">
-            <Button
-              type="button"
-              variant="outline"
-              className="w-full justify-start"
-              onClick={() => void signOut()}
-              disabled={signingOut}
-            >
-              <LogOut className="size-4" />
-              {signingOut ? "Signing out..." : "Sign out"}
-            </Button>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={requestJourneyIntroOpen}
+              >
+                Replay onboarding
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => void signOut()}
+                disabled={signingOut}
+              >
+                <LogOut className="size-4" />
+                {signingOut ? "Signing out..." : "Sign out"}
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -199,7 +214,11 @@ export function SocialTab() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <PlannerPreferencesSettings />
+                  <PlannerPreferencesSettings
+                    value={plannerPreferencesDraft}
+                    onChange={setPlannerPreferencesDraft}
+                    disabled={plannerPreferencesLoading || saving}
+                  />
                   <div className="mt-4 space-y-3 border-t pt-4">
                     <div className="space-y-1">
                       <Label htmlFor="preferences-planner-primary-tab">
@@ -229,23 +248,14 @@ export function SocialTab() {
                     <Button
                       type="button"
                       size="sm"
-                      onClick={() => void saveProfile()}
-                      disabled={saving || !canSaveProfile}
+                      onClick={() => void savePreferences()}
+                      disabled={
+                        saving ||
+                        plannerPreferencesLoading ||
+                        !canSavePreferences
+                      }
                     >
-                      {saving ? "Saving..." : "Save account preferences"}
-                    </Button>
-                  </div>
-                  <div className="mt-4 border-t pt-4">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        setSettingsPanelOpen(false);
-                        requestJourneyIntroOpen();
-                      }}
-                    >
-                      Replay onboarding
+                      {saving ? "Saving..." : "Save preferences"}
                     </Button>
                   </div>
                 </CardContent>
