@@ -518,7 +518,7 @@ create function public.update_goal(
   p_default_local_time text default null,
   p_team_id uuid default null,
   p_is_private boolean default false,
-  p_difficulty public.goal_difficulty default 'medium'
+  p_difficulty public.goal_difficulty default null
 )
 returns void
 language plpgsql
