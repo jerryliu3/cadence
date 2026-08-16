@@ -128,6 +128,7 @@ import { GET as xpProfileGet } from "@/app/api/xp/profile/route";
 import { POST as calendarFeedRotatePost } from "@/app/api/integrations/calendar/feed/rotate/route";
 import { GET as xpAchievementsGet } from "@/app/api/xp/achievements/route";
 import { GET as healthStatusGet } from "@/app/api/health/status/route";
+import { GET as insightsStatsGet } from "@/app/api/insights/stats/route";
 import { POST as healthSamplesPost } from "@/app/api/health/samples/route";
 import {
   DELETE as healthAutocompleteDelete,
@@ -257,6 +258,7 @@ const auditedRouteCases: AuditedRouteCase[] = [
   routeCase("POST /api/xp/awards/acknowledge", xpAwardsPost),
   routeCase("GET /api/xp/profile", xpProfileGet),
   routeCase("GET /api/xp/achievements", xpAchievementsGet),
+  routeCase("GET /api/insights/stats", insightsStatsGet),
   routeCase("POST /api/integrations/calendar/feed/rotate", calendarFeedRotatePost),
   routeCase("GET /api/health/status", healthStatusGet),
   routeCase(
