@@ -1,4 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getNotificationPreferenceKeyForOutboxKind } from "@cadence/shared/notifications/preferences";
+import { loadNotificationPreferencesByUserIds } from "@/lib/push/notification-preferences";
 import { sendPushToUser } from "@/lib/push/send";
 
 interface ClaimedOutboxRow {
@@ -69,6 +71,10 @@ export async function flushNotificationOutbox({
     }
   };
   const rows = (claimedRows ?? []) as ClaimedOutboxRow[];
+  const preferencesByUserId = await loadNotificationPreferencesByUserIds({
+    admin,
+    userIds: rows.map((row) => row.user_id),
+  });
   let sent = 0;
   let failed = 0;
   let deferred = 0;
@@ -76,6 +82,20 @@ export async function flushNotificationOutbox({
   let removedSubscriptions = 0;
 
   for (const row of rows) {
+    const preferenceKey = getNotificationPreferenceKeyForOutboxKind(row.kind);
+    if (preferenceKey) {
+      const preferences = preferencesByUserId.get(row.user_id);
+      if (preferences && !preferences[preferenceKey]) {
+        skipped += 1;
+        await resolveDelivery({
+          outboxId: row.id,
+          sent: false,
+          error: "disabled_by_user_preference",
+        });
+        continue;
+      }
+    }
+
     let result: Awaited<ReturnType<typeof sendPushToUser>>;
     try {
       result = await sendPushToUser({
