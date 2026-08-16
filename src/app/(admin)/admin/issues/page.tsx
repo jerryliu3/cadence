@@ -17,22 +17,6 @@ interface IssueReportRow {
   created_at: string;
 }
 
-interface IssueReportAdminClient {
-  from: (table: "issue_reports") => {
-    select: (columns: string) => {
-      order: (
-        column: "created_at",
-        options: { ascending: boolean }
-      ) => {
-        limit: (value: number) => Promise<{
-          data: IssueReportRow[] | null;
-          error: { message: string } | null;
-        }>;
-      };
-    };
-  };
-}
-
 function toRelativeTime(value: string) {
   const parsed = parseISO(value);
   if (Number.isNaN(parsed.getTime())) {
@@ -43,14 +27,13 @@ function toRelativeTime(value: string) {
 
 export default async function AdminIssueReportsPage() {
   const admin = createAdminClient();
-  const issueReportsClient = admin as unknown as IssueReportAdminClient;
-  const { data, error } = await issueReportsClient
+  const { data, error } = await admin
     .from("issue_reports")
     .select("id, reporter_id, title, description, status, created_at")
     .order("created_at", { ascending: false })
     .limit(200);
 
-  const rows = (data ?? []).map((row) => ({
+  const rows = ((data ?? []) as IssueReportRow[]).map((row) => ({
     ...row,
     title: row.title.trim(),
     description: row.description.trim(),

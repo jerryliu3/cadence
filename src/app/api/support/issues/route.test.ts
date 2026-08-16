@@ -27,6 +27,7 @@ vi.mock("@/lib/observability/report-error", () => ({
 }));
 
 import { POST } from "./route";
+import { ApiRouteError } from "@/lib/api/route";
 
 function createSupabaseInsertMock() {
   const single = vi.fn();
@@ -83,6 +84,83 @@ describe("POST /api/support/issues", () => {
       title: "Calendar day card overflows",
       description: "Open calendar and rotate to landscape.",
     });
+  });
+
+  it("returns 401 when authentication is missing", async () => {
+    mocks.requireAuthenticatedRequestContext.mockRejectedValue(
+      new ApiRouteError(401, "authentication_required", "Sign in first.")
+    );
+
+    const response = await POST(
+      new Request("http://localhost/api/support/issues", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: "Need auth",
+          description: "Should fail before insert.",
+        }),
+      })
+    );
+    const payload = await response.json();
+
+    expect(response.status).toBe(401);
+    expect(payload.code).toBe("authentication_required");
+  });
+
+  it("returns 400 for invalid payloads", async () => {
+    const supabaseMock = createSupabaseInsertMock();
+    mocks.requireAuthenticatedRequestContext.mockResolvedValue({
+      userId: "viewer-1",
+      supabase: { from: supabaseMock.from },
+    });
+
+    const response = await POST(
+      new Request("http://localhost/api/support/issues", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: "",
+          description: "Missing title should fail validation.",
+        }),
+      })
+    );
+    const payload = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(payload.code).toBe("validation_failed");
+    expect(supabaseMock.insert).not.toHaveBeenCalled();
+  });
+
+  it("returns 500 when issue persistence fails", async () => {
+    const supabaseMock = createSupabaseInsertMock();
+    supabaseMock.single.mockResolvedValue({
+      data: null,
+      error: { message: "insert failed" },
+    });
+    mocks.requireAuthenticatedRequestContext.mockResolvedValue({
+      userId: "viewer-1",
+      supabase: { from: supabaseMock.from },
+    });
+    mocks.getServerEnv.mockReturnValue({
+      RESEND_API_KEY: undefined,
+      REPORT_ISSUES_FROM_EMAIL: undefined,
+      REPORT_ISSUES_TO_EMAIL: undefined,
+    });
+
+    const response = await POST(
+      new Request("http://localhost/api/support/issues", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: "Persistence failure",
+          description: "DB insert path should surface a typed error.",
+        }),
+      })
+    );
+    const payload = await response.json();
+
+    expect(response.status).toBe(500);
+    expect(payload.code).toBe("issue_report_create_failed");
   });
 
   it("sends an email through Resend when configured", async () => {

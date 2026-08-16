@@ -22,27 +22,6 @@ const reportIssueSchema = z.object({
 
 type EmailDelivery = "sent" | "not_configured" | "failed";
 
-interface IssueReportInsertRow {
-  id: string;
-}
-
-interface IssueReportInsertClient {
-  from: (table: "issue_reports") => {
-    insert: (value: {
-      reporter_id: string;
-      title: string;
-      description: string;
-    }) => {
-      select: (columns: string) => {
-        single: () => Promise<{
-          data: IssueReportInsertRow | null;
-          error: { message: string } | null;
-        }>;
-      };
-    };
-  };
-}
-
 async function sendIssueEmail({
   title,
   description,
@@ -116,8 +95,7 @@ export async function POST(request: Request) {
       schema: reportIssueSchema,
     });
 
-    const issueReportsClient = supabase as unknown as IssueReportInsertClient;
-    const { data, error } = await issueReportsClient
+    const { data, error } = await supabase
       .from("issue_reports")
       .insert({
         reporter_id: userId,
