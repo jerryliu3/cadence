@@ -6,9 +6,11 @@ import { sendTeamNudge } from "@/features/social/data";
 
 export function NudgeButton({
   partnerId,
+  optionalMessage,
   onSent,
 }: {
   partnerId: string;
+  optionalMessage?: string;
   onSent?: () => void;
 }) {
   const [isPending, setIsPending] = useState(false);
@@ -18,7 +20,15 @@ export function NudgeButton({
     setIsPending(true);
     setError(null);
     try {
-      await sendTeamNudge({ toUserId: partnerId, kind: "cheer" });
+      const trimmedOptional = optionalMessage?.trim() ?? "";
+      await sendTeamNudge({
+        toUserId: partnerId,
+        kind: trimmedOptional.length > 0 ? "custom" : "cheer",
+        message:
+          trimmedOptional.length > 0
+            ? `Your partner sent a nudge to keep momentum going. ${trimmedOptional}`
+            : undefined,
+      });
       onSent?.();
     } catch (nudgeError) {
       setError(nudgeError instanceof Error ? nudgeError.message : "Could not send nudge.");

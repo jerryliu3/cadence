@@ -20,6 +20,7 @@ export function TeamPanel() {
   const [rows, setRows] = useState<TeamStateRow[]>([]);
   const [partnerUsername, setPartnerUsername] = useState("");
   const [message, setMessage] = useState("");
+  const [nudgeMessage, setNudgeMessage] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   const activeTeam = useMemo(
@@ -83,47 +84,24 @@ export function TeamPanel() {
   }
 
   async function dissolveActiveTeam() {
+    const confirmed = window.confirm(
+      "Leave team? You and your partner will no longer share duo progress until a new team is active."
+    );
+    if (!confirmed) {
+      return;
+    }
     setError(null);
     try {
       await dissolveSocialTeam();
       await load();
       router.refresh();
     } catch (dissolveError) {
-      setError(dissolveError instanceof Error ? dissolveError.message : "Could not dissolve team.");
+      setError(dissolveError instanceof Error ? dissolveError.message : "Could not leave team.");
     }
   }
 
   return (
     <div className="space-y-4">
-      <Card className="shadow-sm">
-        <CardHeader>
-          <CardTitle>Team invites</CardTitle>
-          <CardDescription>
-            Send an invite by partner username while rollout routes are dark-launched.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-2 md:grid-cols-3">
-          <Input
-            value={partnerUsername}
-            onChange={(event) => setPartnerUsername(event.target.value)}
-            placeholder="Partner username"
-          />
-          <Input
-            value={message}
-            onChange={(event) => setMessage(event.target.value)}
-            placeholder="Invite message (optional)"
-          />
-          <Button
-            type="button"
-            onClick={() => void sendInvite()}
-            disabled={partnerUsername.trim().replace(/^@/, "").length < 3}
-          >
-            Send invite
-          </Button>
-          {error ? <p className="text-xs text-destructive md:col-span-3">{error}</p> : null}
-        </CardContent>
-      </Card>
-
       <Card className="shadow-sm">
         <CardHeader>
           <CardTitle>Current team</CardTitle>
@@ -135,15 +113,22 @@ export function TeamPanel() {
         </CardHeader>
         <CardContent>
           {activeTeam ? (
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="space-y-2">
+              <Input
+                value={nudgeMessage}
+                onChange={(event) => setNudgeMessage(event.target.value)}
+                placeholder="Optional nudge message"
+                maxLength={100}
+              />
               <NudgeButton
                 partnerId={activeTeam.partnerId}
+                optionalMessage={nudgeMessage}
                 onSent={() => {
                   void load();
                 }}
               />
-              <Button type="button" variant="outline" onClick={() => void dissolveActiveTeam()}>
-                Dissolve team
+              <Button type="button" variant="destructive" onClick={() => void dissolveActiveTeam()}>
+                Leave team
               </Button>
             </div>
           ) : (
@@ -152,42 +137,76 @@ export function TeamPanel() {
         </CardContent>
       </Card>
 
-      <Card className="shadow-sm">
-        <CardHeader>
-          <CardTitle>Pending invites</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2 text-sm">
-          {pendingInvites.length === 0 ? (
-            <p className="text-muted-foreground">No pending invites.</p>
-          ) : (
-            pendingInvites.map((invite) => (
-              <div key={invite.teamId} className="rounded border p-3">
-                <p className="font-medium">
-                  {invite.partnerDisplayName ?? invite.partnerUsername ?? invite.partnerId}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {invite.isIncoming ? "Incoming" : "Outgoing"}
-                </p>
-                {invite.isIncoming ? (
-                  <div className="mt-2 flex gap-2">
-                    <Button type="button" size="sm" onClick={() => void acceptInvite(invite.teamId)}>
-                      Accept
-                    </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      onClick={() => void declineInvite(invite.teamId)}
-                    >
-                      Decline
-                    </Button>
+      {!activeTeam ? (
+        <>
+          <Card className="shadow-sm">
+            <CardHeader>
+              <CardTitle>Team invites</CardTitle>
+              <CardDescription>
+                Send an invite by partner username while rollout routes are dark-launched.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-2 md:grid-cols-3">
+              <Input
+                value={partnerUsername}
+                onChange={(event) => setPartnerUsername(event.target.value)}
+                placeholder="Partner username"
+              />
+              <Input
+                value={message}
+                onChange={(event) => setMessage(event.target.value)}
+                placeholder="Invite message (optional)"
+              />
+              <Button
+                type="button"
+                onClick={() => void sendInvite()}
+                disabled={partnerUsername.trim().replace(/^@/, "").length < 3}
+              >
+                Send invite
+              </Button>
+              {error ? <p className="text-xs text-destructive md:col-span-3">{error}</p> : null}
+            </CardContent>
+          </Card>
+
+          <Card className="shadow-sm">
+            <CardHeader>
+              <CardTitle>Pending invites</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2 text-sm">
+              {pendingInvites.length === 0 ? (
+                <p className="text-muted-foreground">No pending invites.</p>
+              ) : (
+                pendingInvites.map((invite) => (
+                  <div key={invite.teamId} className="rounded border p-3">
+                    <p className="font-medium">
+                      {invite.partnerDisplayName ?? invite.partnerUsername ?? invite.partnerId}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {invite.isIncoming ? "Incoming" : "Outgoing"}
+                    </p>
+                    {invite.isIncoming ? (
+                      <div className="mt-2 flex gap-2">
+                        <Button type="button" size="sm" onClick={() => void acceptInvite(invite.teamId)}>
+                          Accept
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => void declineInvite(invite.teamId)}
+                        >
+                          Decline
+                        </Button>
+                      </div>
+                    ) : null}
                   </div>
-                ) : null}
-              </div>
-            ))
-          )}
-        </CardContent>
-      </Card>
+                ))
+              )}
+            </CardContent>
+          </Card>
+        </>
+      ) : null}
+      {activeTeam && error ? <p className="text-xs text-destructive">{error}</p> : null}
     </div>
   );
 }

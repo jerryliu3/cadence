@@ -7,7 +7,6 @@ import { TeamPanel } from "@/features/social/team/team-panel";
 import { FeedList } from "@/features/social/feed/feed-list";
 import { LeaderboardsPanel } from "@/features/social/leaderboards/leaderboards-panel";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { GoalSharingSettings } from "@/features/social/goal-sharing-settings";
 import {
   resolveSocialSurfaceTab,
   type SocialSurfaceTab,
@@ -68,7 +67,6 @@ export function SocialSurface({
       </TabsContent>
       <TabsContent value="team" className="space-y-4">
         <TeamPanel />
-        <GoalSharingSettings />
       </TabsContent>
     </Tabs>
   );
