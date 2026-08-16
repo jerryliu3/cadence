@@ -43,8 +43,8 @@ function mapLeaderboardRpcError(message: string, isSeasonLookup = false) {
   if (message.includes("season_not_found")) {
     return new ApiRouteError(404, "season_not_found", "Leaderboard season was not found.");
   }
-  if (message.includes("cohort_membership_required")) {
-    return new ApiRouteError(403, "cohort_membership_required", "Group membership is required.");
+  if (message.includes("cohort_membership_required") || message.includes("group_membership_required")) {
+    return new ApiRouteError(403, "group_membership_required", "Group membership is required.");
   }
   return new ApiRouteError(
     500,
