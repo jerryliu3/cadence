@@ -419,13 +419,12 @@ export function useSocialTabData() {
     setSaving(true);
     try {
       if (plannerPrimaryTabDirty) {
-        const { error } = await supabase.from("profiles").upsert(
-          {
-            id: state.userId,
+        const { error } = await supabase
+          .from("profiles")
+          .update({
             planner_primary_tab: normalizedProfileDraft.planner_primary_tab,
-          },
-          { onConflict: "id" }
-        );
+          })
+          .eq("id", state.userId);
         if (error) {
           toast.error(error.message);
           return;
