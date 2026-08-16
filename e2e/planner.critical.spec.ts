@@ -275,105 +275,117 @@ async function moveFirstMovableEntry(
   page: Page,
   sourceEntrySelector = MOVABLE_ENTRY_SELECTOR
 ): Promise<boolean> {
-  const sourceEntry = page.locator(sourceEntrySelector).first();
-  await expect(sourceEntry).toBeVisible();
-
-  const sourceDay = await sourceEntry.evaluate((element) =>
-    element.closest('[data-day-cell="true"]')?.getAttribute("data-day")
-  );
-  if (!sourceDay) {
-    throw new Error("Could not resolve source day for draggable planner entry.");
+  const sourceEntries = page.locator(sourceEntrySelector);
+  const sourceEntryCount = await sourceEntries.count();
+  if (sourceEntryCount === 0) {
+    throw new Error("Could not find a draggable planner entry.");
   }
 
-  // Weekly fixture sessions only accept drops inside a short credit window.
-  // Prefer nearby same-month days first so we don't "succeed" a rejected far drop.
-  const candidateTargetDays = await page.evaluate(({ currentDay }) => {
-    const scopeMonth = currentDay.slice(0, 7);
-    const sourceMs = Date.parse(`${currentDay}T00:00:00Z`);
-    const dayMs = (value: string) => Date.parse(`${value}T00:00:00Z`);
-    const candidates = Array.from(
-      document.querySelectorAll<HTMLElement>('[data-day-cell="true"][data-day]')
-    )
-      .map((cell) => {
-        const value = cell.getAttribute("data-day");
-        if (
-          typeof value !== "string" ||
-          !value.startsWith(scopeMonth) ||
-          value === currentDay
-        ) {
-          return null;
-        }
-        return value;
-      })
-      .filter((value): value is string => typeof value === "string");
+  const maxSourceEntriesToTry = Math.min(sourceEntryCount, 12);
+  for (let sourceIndex = 0; sourceIndex < maxSourceEntriesToTry; sourceIndex += 1) {
+    const sourceEntry = sourceEntries.nth(sourceIndex);
+    await expect(sourceEntry).toBeVisible();
 
-    const byDistance = (left: string, right: string) =>
-      Math.abs(dayMs(left) - sourceMs) - Math.abs(dayMs(right) - sourceMs);
-    const near = candidates
-      .filter((candidate) => Math.abs(dayMs(candidate) - sourceMs) <= 3 * 86_400_000)
-      .sort(byDistance);
-    const far = candidates
-      .filter((candidate) => Math.abs(dayMs(candidate) - sourceMs) > 3 * 86_400_000)
-      .sort(byDistance);
-    return [...near, ...far];
-  }, { currentDay: sourceDay });
-  if (candidateTargetDays.length === 0) {
-    throw new Error("Could not find a valid planner day-cell drop target.");
-  }
-
-  const tryCandidates = async (): Promise<boolean> => {
-    for (const targetDay of candidateTargetDays.slice(0, 20)) {
-      const currentSourceEntry = page.locator(sourceEntrySelector).first();
-      await expect(currentSourceEntry).toBeVisible();
-      const targetCell = page
-        .locator(`[data-day-cell="true"][data-day="${targetDay}"]`)
-        .first();
-      await expect(targetCell).toBeVisible();
-      await currentSourceEntry.scrollIntoViewIfNeeded();
-      await targetCell.scrollIntoViewIfNeeded();
-
-      const sourceBox = await currentSourceEntry.boundingBox();
-      const targetBox = await targetCell.boundingBox();
-      if (!sourceBox || !targetBox) {
-        continue;
-      }
-
-      const sourceX = sourceBox.x + sourceBox.width / 2;
-      const sourceY = sourceBox.y + sourceBox.height / 2;
-      const targetX = targetBox.x + targetBox.width / 2;
-      const targetY = targetBox.y + Math.max(8, Math.min(targetBox.height / 2, 28));
-
-      await page.mouse.move(sourceX, sourceY);
-      await page.waitForTimeout(50);
-      await page.mouse.down();
-      // Match dnd-kit MouseSensor activation delay in calendar-dnd.tsx (+ buffer).
-      await page.waitForTimeout(
-        MOUSE_DND_ACTIVATION_DELAY_MS + MOUSE_DND_ACTIVATION_BUFFER_MS
-      );
-      // Multi-step path: activate near source, then travel to target.
-      await page.mouse.move(sourceX + 8, sourceY + 4, { steps: 6 });
-      await page.mouse.move(targetX, targetY, { steps: 24 });
-      await page.waitForTimeout(50);
-      await page.mouse.up();
-      await page.waitForTimeout(200);
-
-      if (await isPlannerDraftReady(page)) {
-        return true;
-      }
-      await dismissPlannerMoveErrorToast(page);
-      // Clear any stuck drag before trying the next drop target.
-      await clearStuckDrag(page);
+    const sourceDay = await sourceEntry.evaluate((element) =>
+      element.closest('[data-day-cell="true"]')?.getAttribute("data-day")
+    );
+    if (!sourceDay) {
+      continue;
     }
-    return false;
-  };
 
-  if (await tryCandidates()) {
-    return true;
+    // Weekly fixture sessions only accept drops inside a short credit window.
+    // Prefer nearby same-month days first so we don't "succeed" a rejected far drop.
+    const candidateTargetDays = await page.evaluate(({ currentDay }) => {
+      const scopeMonth = currentDay.slice(0, 7);
+      const sourceMs = Date.parse(`${currentDay}T00:00:00Z`);
+      const dayMs = (value: string) => Date.parse(`${value}T00:00:00Z`);
+      const candidates = Array.from(
+        document.querySelectorAll<HTMLElement>('[data-day-cell="true"][data-day]')
+      )
+        .map((cell) => {
+          const value = cell.getAttribute("data-day");
+          if (
+            typeof value !== "string" ||
+            !value.startsWith(scopeMonth) ||
+            value === currentDay
+          ) {
+            return null;
+          }
+          return value;
+        })
+        .filter((value): value is string => typeof value === "string");
+
+      const byDistance = (left: string, right: string) =>
+        Math.abs(dayMs(left) - sourceMs) - Math.abs(dayMs(right) - sourceMs);
+      const near = candidates
+        .filter((candidate) => Math.abs(dayMs(candidate) - sourceMs) <= 3 * 86_400_000)
+        .sort(byDistance);
+      const far = candidates
+        .filter((candidate) => Math.abs(dayMs(candidate) - sourceMs) > 3 * 86_400_000)
+        .sort(byDistance);
+      return [...near, ...far];
+    }, { currentDay: sourceDay });
+    if (candidateTargetDays.length === 0) {
+      continue;
+    }
+
+    const tryCandidatesForSource = async (): Promise<boolean> => {
+      for (const targetDay of candidateTargetDays.slice(0, 20)) {
+        const currentSourceEntry = sourceEntries.nth(sourceIndex);
+        await expect(currentSourceEntry).toBeVisible();
+        const targetCell = page
+          .locator(`[data-day-cell="true"][data-day="${targetDay}"]`)
+          .first();
+        await expect(targetCell).toBeVisible();
+        await currentSourceEntry.scrollIntoViewIfNeeded();
+        await targetCell.scrollIntoViewIfNeeded();
+
+        const sourceBox = await currentSourceEntry.boundingBox();
+        const targetBox = await targetCell.boundingBox();
+        if (!sourceBox || !targetBox) {
+          continue;
+        }
+
+        const sourceX = sourceBox.x + sourceBox.width / 2;
+        const sourceY = sourceBox.y + sourceBox.height / 2;
+        const targetX = targetBox.x + targetBox.width / 2;
+        const targetY = targetBox.y + Math.max(8, Math.min(targetBox.height / 2, 28));
+
+        await page.mouse.move(sourceX, sourceY);
+        await page.waitForTimeout(50);
+        await page.mouse.down();
+        // Match dnd-kit MouseSensor activation delay in calendar-dnd.tsx (+ buffer).
+        await page.waitForTimeout(
+          MOUSE_DND_ACTIVATION_DELAY_MS + MOUSE_DND_ACTIVATION_BUFFER_MS
+        );
+        // Multi-step path: activate near source, then travel to target.
+        await page.mouse.move(sourceX + 8, sourceY + 4, { steps: 6 });
+        await page.mouse.move(targetX, targetY, { steps: 24 });
+        await page.waitForTimeout(50);
+        await page.mouse.up();
+        await page.waitForTimeout(200);
+
+        if (await isPlannerDraftReady(page)) {
+          return true;
+        }
+        await dismissPlannerMoveErrorToast(page);
+        // Clear any stuck drag before trying the next drop target.
+        await clearStuckDrag(page);
+      }
+      return false;
+    };
+
+    if (await tryCandidatesForSource()) {
+      return true;
+    }
+    // Outer retry of the full candidate pass after a short settle.
+    await clearStuckDrag(page);
+    await page.waitForTimeout(300);
+    if (await tryCandidatesForSource()) {
+      return true;
+    }
   }
-  // Outer retry of the full candidate pass after a short settle.
-  await clearStuckDrag(page);
-  await page.waitForTimeout(300);
-  return tryCandidates();
+  return false;
 }
 
 async function runCompletionToggleAction(
