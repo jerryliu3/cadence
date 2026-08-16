@@ -231,6 +231,7 @@ export function CalendarSurface({
   const [setupTimezone, setSetupTimezone] = useState(resolveUserTimezone());
   const [setupWeekStartsOn, setSetupWeekStartsOn] = useState(1);
   const [setupRestWeekdays, setSetupRestWeekdays] = useState<number[]>([]);
+  const draftPolicyRef = useRef<PlannerPolicy | null>(null);
   const hoverPreviewTimerRef = useRef<number | null>(null);
   const hoverPreviewCloseTimerRef = useRef<number | null>(null);
   const longPressTimerRef = useRef<number | null>(null);
@@ -243,6 +244,10 @@ export function CalendarSurface({
   const isDayPreviewSurfaceTarget = (target: Element) =>
     Boolean(target.closest('[data-day-cell="true"]')) ||
     Boolean(dayPreviewRef.current?.contains(target));
+
+  useEffect(() => {
+    draftPolicyRef.current = draftPolicy;
+  }, [draftPolicy]);
 
   const loadContext = useCallback(
     async ({
@@ -273,11 +278,13 @@ export function CalendarSurface({
     if (cachedContextPayload) {
       setContext(cachedContextPayload);
       if (cachedContextPayload.preferences?.timezone) {
+        const policyForSetup =
+          draftPolicyRef.current ?? cachedContextPayload.preferences.defaultPolicy;
         setSetupTimezone(cachedContextPayload.preferences.timezone);
         setSetupWeekStartsOn(
-          normalizeWeekStartsOn(cachedContextPayload.preferences.defaultPolicy.weekStartsOn)
+          normalizeWeekStartsOn(policyForSetup.weekStartsOn)
         );
-        setSetupRestWeekdays(cachedContextPayload.preferences.defaultPolicy.restWeekdays);
+        setSetupRestWeekdays(policyForSetup.restWeekdays);
       }
       shouldShowLoading = false;
     }
@@ -333,11 +340,13 @@ export function CalendarSurface({
     setContext(contextPayload);
     writeTabDataCache(plannerContextCacheKey, contextPayload);
     if (contextPayload.preferences?.timezone) {
+      const policyForSetup =
+        draftPolicyRef.current ?? contextPayload.preferences.defaultPolicy;
       setSetupTimezone(contextPayload.preferences.timezone);
       setSetupWeekStartsOn(
-        normalizeWeekStartsOn(contextPayload.preferences.defaultPolicy.weekStartsOn)
+        normalizeWeekStartsOn(policyForSetup.weekStartsOn)
       );
-      setSetupRestWeekdays(contextPayload.preferences.defaultPolicy.restWeekdays);
+      setSetupRestWeekdays(policyForSetup.restWeekdays);
     }
     return true;
   }, [activeTab, month, onMonthChange, setupTimezone]);
