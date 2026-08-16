@@ -29,6 +29,7 @@
     "./planner/partner-completion": "./src/planner/partner-completion.ts",
     "./planner/reorder-preview-entries": "./src/planner/reorder-preview-entries.ts",
     "./planner/visible-window": "./src/planner/visible-window.ts",
+    "./notifications/preferences": "./src/notifications/preferences.ts",
     "./social/duo": "./src/social/duo.ts",
     "./social/team": "./src/social/team.ts",
     "./supabase/database.types": "./src/supabase/database.types.ts",
