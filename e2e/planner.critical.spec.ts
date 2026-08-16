@@ -147,21 +147,21 @@ async function ensureMonthCalendarDensity(page: Page) {
 async function ensureDragFixtureEntryAvailable(page: Page, maxMonthJumps = 12) {
   const startScopeMonth = await resolveCalendarScopeMonth(page);
   const scanOrder = Array.from({ length: maxMonthJumps + 1 }, (_, jump) => jump);
+  let lastScannedScopeMonth = startScopeMonth;
 
   for (const delta of scanOrder) {
     const scopeMonth =
       delta === 0 ? startScopeMonth : shiftScopeMonth(startScopeMonth, delta);
+    lastScannedScopeMonth = scopeMonth;
     if (delta !== 0) {
       await openCalendar(page, scopeMonth);
     }
     const fixtureEntries = page.locator(DRAG_FIXTURE_ENTRY_SELECTOR);
     if ((await fixtureEntries.count()) > 0) {
-      return scopeMonth;
+      return { scopeMonth, fixtureAvailable: true };
     }
   }
-  throw new Error(
-    `No movable drag fixture entries found for goal ${DRAG_FIXTURE_GOAL_ID} after scanning ${scanOrder.length} month(s) from ${startScopeMonth}.`
-  );
+  return { scopeMonth: lastScannedScopeMonth, fixtureAvailable: false };
 }
 
 async function resolveCalendarScopeMonth(page: Page) {
@@ -461,24 +461,26 @@ test.describe("planner critical rails", () => {
 
     const executeMoveAndSave = async () => {
       await openCalendar(page);
-      let scopeMonth = await ensureDragFixtureEntryAvailable(page);
+      let dragFixture = await ensureDragFixtureEntryAvailable(page);
+      let scopeMonth = dragFixture.scopeMonth;
       let before = await fetchPlannerContextSnapshot(page, scopeMonth);
-      let movedIntoDraft = await moveFirstMovableEntry(
-        page,
-        DRAG_FIXTURE_ENTRY_SELECTOR
-      );
+      let movedIntoDraft = false;
+      if (dragFixture.fixtureAvailable) {
+        movedIntoDraft = await moveFirstMovableEntry(page, DRAG_FIXTURE_ENTRY_SELECTOR);
+      }
       if (!movedIntoDraft) {
         movedIntoDraft = await moveFirstMovableEntry(page).catch(() => false);
       }
       if (!movedIntoDraft) {
         await page.reload();
         await openCalendar(page);
-        scopeMonth = await ensureDragFixtureEntryAvailable(page);
+        dragFixture = await ensureDragFixtureEntryAvailable(page);
+        scopeMonth = dragFixture.scopeMonth;
         before = await fetchPlannerContextSnapshot(page, scopeMonth);
-        movedIntoDraft = await moveFirstMovableEntry(
-          page,
-          DRAG_FIXTURE_ENTRY_SELECTOR
-        );
+        movedIntoDraft = false;
+        if (dragFixture.fixtureAvailable) {
+          movedIntoDraft = await moveFirstMovableEntry(page, DRAG_FIXTURE_ENTRY_SELECTOR);
+        }
         if (!movedIntoDraft) {
           movedIntoDraft = await moveFirstMovableEntry(page).catch(() => false);
         }

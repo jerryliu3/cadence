@@ -144,6 +144,8 @@ describe("SocialScreen Duo onboarding", () => {
       partnerDisplayName: "Alex",
       partnerUsername: "alex",
       partnerAvatarUrl: null,
+      teamXp: 0,
+      teamXpSince: "2026-08-01",
     };
     const client = new QueryClient({
       defaultOptions: {
