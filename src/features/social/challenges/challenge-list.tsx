@@ -109,7 +109,7 @@ export function ChallengeList() {
                 <p className="font-medium">{item.title}</p>
                 <p className="text-xs text-muted-foreground">
                   {item.status} · {item.subjectKind}
-                  {item.audienceKind === "cohort" ? " · group" : ""} · {item.viewerProgress ?? 0}/
+                  {item.audienceKind === "group" ? " · group" : ""} · {item.viewerProgress ?? 0}/
                   {item.targetValue}
                 </p>
               </button>

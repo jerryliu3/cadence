@@ -14,7 +14,7 @@ export async function GET(request: Request) {
     }
 
     const admin = createAdminClient();
-    const [{ data: categoryRows, error: categoryError }, { data: cohortRows, error: cohortError }] =
+    const [{ data: categoryRows, error: categoryError }, { data: groupRows, error: groupError }] =
       await Promise.all([
         admin.from("goal_categories").select("key,label").order("sort_order", { ascending: true }),
         admin.from("cohorts").select("id,slug,title,is_active").order("title", { ascending: true }),
@@ -25,9 +25,9 @@ export async function GET(request: Request) {
         cause: categoryError.message,
       });
     }
-    if (cohortError) {
+    if (groupError) {
       throw new ApiRouteError(500, "admin_metadata_unavailable", "Group metadata is unavailable.", {
-        cause: cohortError.message,
+        cause: groupError.message,
       });
     }
 
@@ -39,7 +39,7 @@ export async function GET(request: Request) {
           key: row.key,
           label: row.label,
         })),
-        cohorts: (cohortRows ?? []).map((row) => ({
+        groups: (groupRows ?? []).map((row) => ({
           id: row.id,
           slug: row.slug,
           title: row.title,

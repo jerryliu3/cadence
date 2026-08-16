@@ -47,7 +47,7 @@ export async function POST(request: Request) {
       {
         schemaVersion: "1",
         correlationId,
-        cohortId: data,
+        groupId: data,
       },
       { headers: { "Cache-Control": "no-store" } }
     );

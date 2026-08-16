@@ -11,7 +11,6 @@ import {
   writeTabDataCache,
 } from "@/lib/cache/tab-data-cache";
 import { invalidatePlannerRelatedTabCaches } from "@/lib/cache/planner-tab-cache";
-import { invalidateProgressContextCache } from "@/lib/goals/progress-context";
 
 interface SocialFeedResponse {
   schemaVersion: "1";
@@ -233,7 +232,6 @@ export async function declineSocialTeamInvite(teamId: string) {
   }
   const payload = (await response.json()) as { schemaVersion: "1"; declined: boolean };
   invalidateSocialAndPlannerCaches();
-  invalidateProgressContextCache();
   return payload;
 }
 
@@ -247,7 +245,6 @@ export async function dissolveSocialTeam() {
   }
   const payload = (await response.json()) as { schemaVersion: "1"; dissolved: boolean };
   invalidateSocialAndPlannerCaches();
-  invalidateProgressContextCache();
   return payload;
 }
 
@@ -323,7 +320,7 @@ export async function sendTeamNudge({
   return payload;
 }
 
-export async function joinSocialCohort(joinCode: string) {
+export async function joinSocialGroup(joinCode: string) {
   const response = await fetch("/api/social/cohorts/join", {
     method: "POST",
     credentials: "include",
@@ -333,7 +330,7 @@ export async function joinSocialCohort(joinCode: string) {
   if (!response.ok) {
     await parseApiError(response, "Failed to join group.");
   }
-  const payload = (await response.json()) as { schemaVersion: "1"; cohortId: string };
+  const payload = (await response.json()) as { schemaVersion: "1"; groupId: string };
   invalidateSocialAndPlannerCaches();
   return payload;
 }
