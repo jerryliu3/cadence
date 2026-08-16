@@ -92,7 +92,7 @@ function toChallengeDto(row: Record<string, unknown>) {
     endsAt: row.ends_at,
     rewardXp: row.reward_xp,
     maxParticipants: row.max_participants,
-    audienceKind: row.audience_kind === "cohort" ? "group" : "global",
+    audienceKind: row.audience_kind === "global" ? "global" : "group",
     groupId: row.cohort_id,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -184,7 +184,7 @@ export async function PATCH(
     if (body.rewardXp !== undefined) updates.reward_xp = body.rewardXp;
     if (body.maxParticipants !== undefined) updates.max_participants = body.maxParticipants;
     if (body.audienceKind !== undefined) {
-      updates.audience_kind = body.audienceKind === "group" ? "cohort" : "global";
+      updates.audience_kind = body.audienceKind === "group" ? "group" : "global";
     }
     if (body.groupId !== undefined) updates.cohort_id = body.groupId;
 
