@@ -82,6 +82,7 @@ import { reorderPreviewEntryKeys } from "@/features/planner/reorder-preview-entr
 import { computeDayPreviewPosition } from "@/features/planner/day-preview-popup";
 import { getGoalVisual } from "@/features/planner/goal-visuals";
 import {
+  applyCalendarCompletionMarkerFilters,
   buildCalendarCategoryFilterOptions,
   goalPassesCalendarFilters,
 } from "@/features/planner/calendar-filters";
@@ -140,12 +141,10 @@ import {
 import { shouldUseDirectDraftPersistence } from "@/lib/planner/save-persistence";
 import { withPlannerRefreshTimeout } from "@/lib/planner/refresh-timeout";
 import { captureViewportRect } from "@/lib/xp/events";
-import { mergeCompletionFactMarkers } from "@cadence/shared/planner/partner-completion";
 import type {
   CalendarSurfaceProps,
   CompletionControlDisabledReason,
   DayPreviewState,
-  PlannerCompletionFactMarker,
   PlannerContextPayload,
   PlannerDayDetailEntry,
   PlannerErrorPayload,
@@ -646,11 +645,6 @@ export function CalendarSurface({
       entries.filter((entry) => goalPassesFilters(entry.originalGoalId)),
     [goalPassesFilters]
   );
-  const filterMarkers = useCallback(
-    (markers: PlannerCompletionFactMarker[]) =>
-      markers.filter((marker) => goalPassesFilters(marker.originalGoalId)),
-    [goalPassesFilters]
-  );
   const getEntriesForDay = useCallback(
     (day: string | null) => {
       if (hideViewerPlan) {
@@ -664,20 +658,21 @@ export function CalendarSurface({
     (day: string | null) => {
       const viewerMarkers = hideViewerPlan
         ? []
-        : filterMarkers(getCalendarDayProjection(day).completionFactMarkers);
+        : getCalendarDayProjection(day).completionFactMarkers;
       const partnerMarkers =
         day && (duoScope === "partner" || duoScope === "both")
           ? partnerCompletionMarkersByDate?.get(day) ?? []
           : [];
-      return mergeCompletionFactMarkers(
+      return applyCalendarCompletionMarkerFilters({
         viewerMarkers,
-        filterMarkers(partnerMarkers)
-      );
+        partnerMarkers,
+        goalPassesFilters,
+      });
     },
     [
       duoScope,
-      filterMarkers,
       getCalendarDayProjection,
+      goalPassesFilters,
       hideViewerPlan,
       partnerCompletionMarkersByDate,
     ]
@@ -1404,7 +1399,7 @@ export function CalendarSurface({
         toast.error("Time must be in 24-hour HH:MM format.");
       } else {
         toast.error(
-          "Completed or historical sessions cannot change time overrides in preview mode. Clear completion in the saved plan first."
+          "Completed or otherwise non-editable sessions cannot change time overrides in preview mode."
         );
       }
       return;

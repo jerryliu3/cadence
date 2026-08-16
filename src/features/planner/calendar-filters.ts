@@ -1,4 +1,6 @@
 import type { GoalCategoryFilterOption } from "@/features/goals/goal-filters";
+import type { PlannerCompletionFactMarker } from "@/features/planner/calendar-surface.types";
+import { mergeCompletionFactMarkers } from "@cadence/shared/planner/partner-completion";
 
 interface CalendarFilterGoalSnapshot {
   category: string;
@@ -49,5 +51,23 @@ export function goalPassesCalendarFilters({
     return goal.end_date?.slice(0, 7) === endMonthFilter;
   }
   return true;
+}
+
+export function applyCalendarCompletionMarkerFilters({
+  viewerMarkers,
+  partnerMarkers,
+  goalPassesFilters,
+}: {
+  viewerMarkers: PlannerCompletionFactMarker[];
+  partnerMarkers: PlannerCompletionFactMarker[];
+  goalPassesFilters: (goalId: string) => boolean;
+}) {
+  const filteredViewerMarkers = viewerMarkers.filter((marker) =>
+    goalPassesFilters(marker.originalGoalId)
+  );
+  // TODO(partner-filter-parity): Keep partner markers visible for now. Expand this
+  // to full partner-aware filtering once we ship a parity UX that includes partner
+  // goal metadata and explicit mixed-owner filter semantics.
+  return mergeCompletionFactMarkers(filteredViewerMarkers, partnerMarkers);
 }
 

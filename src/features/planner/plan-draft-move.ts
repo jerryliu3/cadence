@@ -10,6 +10,10 @@ export type PlanDraftMoveResult =
   | { ok: true; scheduledDate: string }
   | { ok: false; message: string };
 
+/**
+ * `date_input` and `drag_drop` represent direct/manual user intent.
+ * `coach` represents automated move proposals and must not recover past sessions.
+ */
 export type DraftMoveSource = "date_input" | "drag_drop" | "coach";
 
 export function planDraftMove({
@@ -24,6 +28,12 @@ export function planDraftMove({
   entry: PlannerDayDetailEntry;
   nextDate: string;
   scopeMonth: string | null;
+  /**
+   * Keep this aligned with intent:
+   * - Use `date_input` / `drag_drop` for explicit user actions.
+   * - Use `coach` for automated proposal flows.
+   * Historical recovery is intentionally manual-only right now.
+   */
   source?: DraftMoveSource;
   previewUnit: PlannerWorkUnit | undefined;
   conflictKeys: Set<string> | undefined;
