@@ -96,9 +96,7 @@ export function isEntryImmovableForDraft(entry: PlannerDayDetailEntry) {
   return (
     isEntryCredited(entry) ||
     entry.draftGhost ||
-    entry.classification === "satisfied_elsewhere" ||
-    entry.classification === "historical_miss" ||
-    entry.classification === "historical_shortfall"
+    entry.classification === "satisfied_elsewhere"
   );
 }
 

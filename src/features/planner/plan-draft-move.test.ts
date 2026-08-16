@@ -13,6 +13,28 @@ const validMove = {
 };
 
 describe("planDraftMove", () => {
+  it("allows manually moving historical sessions when a draft move window exists", () => {
+    const result = planDraftMove({
+      ...validMove,
+      entry: buildPlannerDayEntry({
+        classification: "historical_shortfall",
+        creditState: "uncredited",
+      }),
+      previewUnit: buildPlannerWorkUnit({
+        draftMoveWindow: {
+          start: "2026-08-01",
+          end: "2026-08-31",
+        },
+        placementWindow: null,
+      }),
+    });
+
+    expect(result).toEqual({
+      ok: true,
+      scheduledDate: "2026-08-02",
+    });
+  });
+
   it("rejects moves for an active item locked by the planner", () => {
     const result = planDraftMove({
       ...validMove,

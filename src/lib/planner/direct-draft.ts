@@ -263,16 +263,13 @@ export function buildDirectDraftPersistence({
       assignment.locked ||
       completedUnitKeys.has(key) ||
       activeItem.credit_state !== "uncredited" ||
-      activeItem.classification === "historical_miss" ||
-      activeItem.classification === "historical_shortfall" ||
       activeItem.classification === "satisfied_elsewhere" ||
-      assignment.scheduledDate === null ||
-      assignment.scheduledDate < asOfDate;
+      assignment.scheduledDate === null;
     if (command.kind === "set_item_time_override") {
       if (itemIsImmovable) {
         throw new PlannerDirectDraftValidationError(
           "draft_item_unmovable",
-          "Completed, historical, or locked sessions cannot be changed.",
+          "Completed or locked sessions cannot be changed.",
           { goalId: command.goalId, unitKey: command.unitKey }
         );
       }
@@ -283,7 +280,7 @@ export function buildDirectDraftPersistence({
       if (itemIsImmovable) {
         throw new PlannerDirectDraftValidationError(
           "draft_item_unmovable",
-          "Completed, historical, or locked sessions cannot be changed.",
+          "Completed or locked sessions cannot be changed.",
           { goalId: command.goalId, unitKey: command.unitKey }
         );
       }
@@ -307,7 +304,7 @@ export function buildDirectDraftPersistence({
     ) {
       throw new PlannerDirectDraftValidationError(
         "draft_item_unmovable",
-        "Completed, historical, or locked sessions cannot be moved.",
+        "Completed or locked sessions cannot be moved.",
         { goalId: command.goalId, unitKey: command.unitKey }
       );
     }

@@ -43,7 +43,7 @@ export function planDraftMove({
     return {
       ok: false,
       message:
-        "Completed or historical sessions cannot move in preview mode. Clear completion in the saved plan first.",
+        "Completed sessions cannot move in preview mode. Clear completion in the saved plan first.",
     };
   }
   if (entry.activeItem?.locked) {
