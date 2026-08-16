@@ -126,6 +126,10 @@ import {
   DELETE as pushSubscriptionsDelete,
   POST as pushSubscriptionsPost,
 } from "@/app/api/push/subscriptions/route";
+import {
+  GET as notificationPreferencesGet,
+  PUT as notificationPreferencesPut,
+} from "@/app/api/notifications/preferences/route";
 import { POST as xpAwardsPost } from "@/app/api/xp/awards/acknowledge/route";
 import { GET as xpProfileGet } from "@/app/api/xp/profile/route";
 import { POST as calendarFeedRotatePost } from "@/app/api/integrations/calendar/feed/rotate/route";
@@ -261,6 +265,14 @@ const auditedRouteCases: AuditedRouteCase[] = [
   routeCase("GET /api/progress/context", progressContextGet),
   routeCase("POST /api/push/subscriptions", pushSubscriptionsPost),
   routeCase("DELETE /api/push/subscriptions", pushSubscriptionsDelete),
+  routeCase(
+    "GET /api/notifications/preferences",
+    notificationPreferencesGet
+  ),
+  routeCase(
+    "PUT /api/notifications/preferences",
+    notificationPreferencesPut
+  ),
   routeCase("POST /api/xp/awards/acknowledge", xpAwardsPost),
   routeCase("GET /api/xp/profile", xpProfileGet),
   routeCase("GET /api/xp/achievements", xpAchievementsGet),
