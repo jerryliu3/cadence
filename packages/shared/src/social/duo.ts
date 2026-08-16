@@ -29,7 +29,7 @@ export interface DuoContextLoadResult {
 }
 
 export const DUO_SURFACE_DEFAULTS = {
-  insights: "both",
+  insights: "me",
   checklist: "me",
   calendar: "me",
 } as const satisfies Record<string, DuoScope>;

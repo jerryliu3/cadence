@@ -30,7 +30,7 @@ export function useDuoSurface(surface: DuoLaneSurface) {
   }, [activePartner, scope, surface]);
 
   const viewer = useMemo<DuoLaneSubject>(
-    () => ({ id: "viewer", label: "Mine", readOnly: false }),
+    () => ({ id: "viewer", label: "Solo", readOnly: false }),
     []
   );
 

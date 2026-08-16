@@ -7,7 +7,7 @@ import {
 
 const VIEWER_LANE: DuoLaneSubject = {
   id: "viewer",
-  label: "Mine",
+  label: "Solo",
   readOnly: false,
 };
 
