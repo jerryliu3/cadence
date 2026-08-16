@@ -273,8 +273,7 @@ async function dismissPlannerMoveErrorToast(page: Page) {
 
 async function moveFirstMovableEntry(
   page: Page,
-  sourceEntrySelector = MOVABLE_ENTRY_SELECTOR,
-  targetGoalId?: string
+  sourceEntrySelector = MOVABLE_ENTRY_SELECTOR
 ): Promise<boolean> {
   const sourceEntry = page.locator(sourceEntrySelector).first();
   await expect(sourceEntry).toBeVisible();
@@ -288,7 +287,7 @@ async function moveFirstMovableEntry(
 
   // Weekly fixture sessions only accept drops inside a short credit window.
   // Prefer nearby same-month days first so we don't "succeed" a rejected far drop.
-  const candidateTargetDays = await page.evaluate(({ currentDay, goalId }) => {
+  const candidateTargetDays = await page.evaluate(({ currentDay }) => {
     const scopeMonth = currentDay.slice(0, 7);
     const sourceMs = Date.parse(`${currentDay}T00:00:00Z`);
     const dayMs = (value: string) => Date.parse(`${value}T00:00:00Z`);
@@ -304,14 +303,6 @@ async function moveFirstMovableEntry(
         ) {
           return null;
         }
-        if (typeof goalId === "string" && goalId.length > 0) {
-          const hasSameGoalEntry = cell.querySelector(
-            `[data-calendar-day-entry="true"][data-planner-goal-id="${goalId}"]`
-          );
-          if (hasSameGoalEntry) {
-            return null;
-          }
-        }
         return value;
       })
       .filter((value): value is string => typeof value === "string");
@@ -325,13 +316,13 @@ async function moveFirstMovableEntry(
       .filter((candidate) => Math.abs(dayMs(candidate) - sourceMs) > 3 * 86_400_000)
       .sort(byDistance);
     return [...near, ...far];
-  }, { currentDay: sourceDay, goalId: targetGoalId });
+  }, { currentDay: sourceDay });
   if (candidateTargetDays.length === 0) {
     throw new Error("Could not find a valid planner day-cell drop target.");
   }
 
   const tryCandidates = async (): Promise<boolean> => {
-    for (const targetDay of candidateTargetDays.slice(0, 12)) {
+    for (const targetDay of candidateTargetDays.slice(0, 20)) {
       const currentSourceEntry = page.locator(sourceEntrySelector).first();
       await expect(currentSourceEntry).toBeVisible();
       const targetCell = page
@@ -474,8 +465,7 @@ test.describe("planner critical rails", () => {
       let before = await fetchPlannerContextSnapshot(page, scopeMonth);
       let movedIntoDraft = await moveFirstMovableEntry(
         page,
-        DRAG_FIXTURE_ENTRY_SELECTOR,
-        DRAG_FIXTURE_GOAL_ID
+        DRAG_FIXTURE_ENTRY_SELECTOR
       );
       if (!movedIntoDraft) {
         await page.reload();
@@ -484,8 +474,7 @@ test.describe("planner critical rails", () => {
         before = await fetchPlannerContextSnapshot(page, scopeMonth);
         movedIntoDraft = await moveFirstMovableEntry(
           page,
-          DRAG_FIXTURE_ENTRY_SELECTOR,
-          DRAG_FIXTURE_GOAL_ID
+          DRAG_FIXTURE_ENTRY_SELECTOR
         );
       }
       expect(movedIntoDraft).toBe(true);
@@ -622,8 +611,7 @@ test.describe("planner critical rails", () => {
       await ensureDragFixtureEntryAvailable(page);
       movedIntoDraft = await moveFirstMovableEntry(
         page,
-        DRAG_FIXTURE_ENTRY_SELECTOR,
-        DRAG_FIXTURE_GOAL_ID
+        DRAG_FIXTURE_ENTRY_SELECTOR
       );
       if (movedIntoDraft && (await isPlannerDraftReady(page))) {
         break;
