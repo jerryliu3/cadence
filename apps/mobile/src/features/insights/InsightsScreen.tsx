@@ -22,6 +22,61 @@ import { buildInsightsLaneRenderModel } from "./insights-lane-render-model";
 import { InsightsLaneSection } from "./InsightsLaneSection";
 import { useInsightsLaneData } from "./use-insights-lane-data";
 
+function InsightsActivitySummaryRow({
+  totalActivities,
+  activeDays,
+  peakDayActivities,
+}: {
+  totalActivities: number;
+  activeDays: number;
+  peakDayActivities: number;
+}) {
+  const theme = useTheme();
+  return (
+    <View style={styles.summaryRow}>
+      <View
+        style={[
+          styles.summaryCard,
+          { borderColor: theme.colors.border, backgroundColor: theme.colors.card },
+        ]}
+      >
+        <Text style={{ color: theme.colors.mutedForeground, fontSize: 12 }}>
+          Activities
+        </Text>
+        <Text style={{ color: theme.colors.foreground, fontWeight: "700" }}>
+          {totalActivities}
+        </Text>
+      </View>
+      <View
+        style={[
+          styles.summaryCard,
+          { borderColor: theme.colors.border, backgroundColor: theme.colors.card },
+        ]}
+      >
+        <Text style={{ color: theme.colors.mutedForeground, fontSize: 12 }}>
+          Active days
+        </Text>
+        <Text style={{ color: theme.colors.foreground, fontWeight: "700" }}>
+          {activeDays}
+        </Text>
+      </View>
+      <View
+        style={[
+          styles.summaryCard,
+          { borderColor: theme.colors.border, backgroundColor: theme.colors.card },
+        ]}
+      >
+        <Text style={{ color: theme.colors.mutedForeground, fontSize: 12 }}>
+          Best day
+        </Text>
+        <Text style={{ color: theme.colors.foreground, fontWeight: "700" }}>
+          {peakDayActivities}
+        </Text>
+      </View>
+    </View>
+  );
+}
+
 export function InsightsScreen() {
   const theme = useTheme();
   const { width: viewportWidth } = useWindowDimensions();
@@ -161,6 +216,11 @@ export function InsightsScreen() {
                   headingLabel={renderModel.heading?.label ?? lane.label}
                   readOnly={Boolean(renderModel.heading?.readOnly)}
                 >
+                  <InsightsActivitySummaryRow
+                    totalActivities={laneData.monthSummary.totalActivities}
+                    activeDays={laneData.monthSummary.activeDays}
+                    peakDayActivities={laneData.monthSummary.peakDayActivities}
+                  />
                   <Svg width={width} height={height}>
                     {laneData.days.map((date, index) => {
                       const x = ((laneData.offset + index) % 7) * (cell + gap);
@@ -244,6 +304,11 @@ export function InsightsScreen() {
               headingLabel={renderModel.heading?.label ?? lane.label}
               readOnly={Boolean(renderModel.heading?.readOnly)}
             >
+              <InsightsActivitySummaryRow
+                totalActivities={laneData.monthSummary.totalActivities}
+                activeDays={laneData.monthSummary.activeDays}
+                peakDayActivities={laneData.monthSummary.peakDayActivities}
+              />
               <Svg width={width} height={height}>
                 {laneData.days.map((date, index) => {
                   const x = ((laneData.offset + index) % 7) * (cell + gap);
@@ -271,6 +336,18 @@ export function InsightsScreen() {
 
 const styles = StyleSheet.create({
   row: { flexDirection: "row", justifyContent: "space-between" },
+  summaryRow: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  summaryCard: {
+    flex: 1,
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    gap: 2,
+  },
   lanePagerContent: {
     paddingRight: 12,
     gap: 12,

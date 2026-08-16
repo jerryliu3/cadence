@@ -66,3 +66,32 @@ export function countInsightsFactsByDay(facts: ProgressContextFact[]) {
   }
   return map;
 }
+
+export interface InsightsMonthSummary {
+  totalActivities: number;
+  activeDays: number;
+  peakDayActivities: number;
+}
+
+export function summarizeInsightsMonth(
+  factsByDay: Record<string, number>
+): InsightsMonthSummary {
+  let totalActivities = 0;
+  let activeDays = 0;
+  let peakDayActivities = 0;
+  for (const count of Object.values(factsByDay)) {
+    if (count <= 0) {
+      continue;
+    }
+    totalActivities += count;
+    activeDays += 1;
+    if (count > peakDayActivities) {
+      peakDayActivities = count;
+    }
+  }
+  return {
+    totalActivities,
+    activeDays,
+    peakDayActivities,
+  };
+}
