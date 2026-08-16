@@ -1,5 +1,7 @@
 import { ApiRouteError, apiSuccessResponse, withRoute } from "@/lib/api/route";
 import { getServerEnv } from "@/lib/env";
+import { defaultNotificationPreferences } from "@cadence/shared/notifications/preferences";
+import { loadNotificationPreferencesByUserIds } from "@/lib/push/notification-preferences";
 import { sendPushToUser } from "@/lib/push/send";
 import { getLocalScheduleSlot } from "@/lib/push/schedule";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -88,13 +90,42 @@ async function dispatchNotifications(request: Request, correlationId: string) {
 
     if (dueCandidates.length === 0) {
       return apiSuccessResponse(
-        { due: 0, sent: 0, deferred: 0, removedSubscriptions: 0 },
+        { due: 0, sent: 0, deferred: 0, skipped: 0, removedSubscriptions: 0 },
+        correlationId
+      );
+    }
+
+    let skipped = 0;
+    let preferenceFilteredCandidates = dueCandidates;
+    try {
+      const preferencesByUserId = await loadNotificationPreferencesByUserIds({
+        admin,
+        userIds: dueCandidates.map(({ schedule }) => schedule.user_id),
+      });
+      preferenceFilteredCandidates = dueCandidates.filter(({ schedule }) => {
+        const preferences =
+          preferencesByUserId.get(schedule.user_id) ??
+          defaultNotificationPreferences;
+        if (preferences.daily_reminders) {
+          return true;
+        }
+        skipped += 1;
+        return false;
+      });
+    } catch (error) {
+      // Fail open here: claiming already-due reminders is safer than dropping a day.
+      console.error("Failed to load reminder preferences before dispatch:", error);
+    }
+
+    if (preferenceFilteredCandidates.length === 0) {
+      return apiSuccessResponse(
+        { due: 0, sent: 0, deferred: 0, skipped, removedSubscriptions: 0 },
         correlationId
       );
     }
 
     const claimedSchedules = await Promise.all(
-      dueCandidates.map(async ({ schedule, localDate }) => {
+      preferenceFilteredCandidates.map(async ({ schedule, localDate }) => {
         const { data: claimed, error: claimError } = await admin
           .from("notification_schedules")
           .update({
@@ -120,7 +151,7 @@ async function dispatchNotifications(request: Request, correlationId: string) {
 
     if (dueSchedules.length === 0) {
       return apiSuccessResponse(
-        { due: 0, sent: 0, deferred: 0, removedSubscriptions: 0 },
+        { due: 0, sent: 0, deferred: 0, skipped, removedSubscriptions: 0 },
         correlationId
       );
     }
@@ -175,6 +206,7 @@ async function dispatchNotifications(request: Request, correlationId: string) {
         due: dueSchedules.length,
         sent,
         deferred,
+        skipped,
         removedSubscriptions,
       },
       correlationId

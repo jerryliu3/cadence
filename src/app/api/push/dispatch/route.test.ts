@@ -8,6 +8,11 @@ const mocks = vi.hoisted(() => ({
   claimSchedule: vi.fn(),
   releaseSchedule: vi.fn(),
   from: vi.fn(),
+  profileRows: [] as Array<{
+    id: string;
+    notification_preferences: Record<string, unknown>;
+  }>,
+  profileLookupError: null as null | { message: string },
   reportError: vi.fn(),
   sendPushToUser: vi.fn(),
 }));
@@ -88,6 +93,17 @@ describe("push dispatch route", () => {
       data: null,
       error: null,
     });
+    mocks.profileRows = [
+      {
+        id: "user-1",
+        notification_preferences: {
+          daily_reminders: true,
+          team_updates: true,
+          partner_activity: true,
+        },
+      },
+    ];
+    mocks.profileLookupError = null;
     mocks.from.mockImplementation((table: string) => {
       if (table === "notification_schedules") {
         return {
@@ -107,6 +123,16 @@ describe("push dispatch route", () => {
                       }),
                     }),
                   },
+          }),
+        };
+      }
+      if (table === "profiles") {
+        return {
+          select: () => ({
+            in: async () => ({
+              data: mocks.profileLookupError ? null : mocks.profileRows,
+              error: mocks.profileLookupError,
+            }),
           }),
         };
       }
@@ -340,6 +366,55 @@ describe("push dispatch route", () => {
       deferred: 0,
     });
     expect(mocks.releaseSchedule).not.toHaveBeenCalled();
+  });
+
+  it("skips due reminders when daily reminder category is disabled", async () => {
+    prepareDueSchedule();
+    mocks.profileRows = [
+      {
+        id: "user-1",
+        notification_preferences: {
+          daily_reminders: false,
+          team_updates: true,
+          partner_activity: true,
+        },
+      },
+    ];
+
+    const response = await dispatchRequest();
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      due: 0,
+      sent: 0,
+      deferred: 0,
+      skipped: 1,
+    });
+    expect(mocks.sendPushToUser).not.toHaveBeenCalled();
+    expect(mocks.releaseSchedule).not.toHaveBeenCalled();
+  });
+
+  it("fails open when reminder preference lookup errors before claiming", async () => {
+    prepareDueSchedule();
+    mocks.profileLookupError = { message: "profile lookup unavailable" };
+    mocks.sendPushToUser.mockResolvedValue({
+      sent: 1,
+      removedSubscriptions: 0,
+      hadSubscriptions: true,
+      webConfigurationUnavailable: false,
+      deliveryFailures: 0,
+    });
+
+    const response = await dispatchRequest();
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      due: 1,
+      sent: 1,
+      deferred: 0,
+      skipped: 0,
+    });
+    expect(mocks.sendPushToUser).toHaveBeenCalledTimes(1);
   });
 
   it("keeps the claim after at least one delivery succeeds", async () => {
