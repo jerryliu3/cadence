@@ -17,7 +17,6 @@ import {
   useRef,
   useState,
 } from "react";
-import Link from "next/link";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { AnchoredPopupCard } from "@/components/ui/anchored-popup-card";
@@ -216,6 +215,8 @@ export function CalendarSurface({
     null
   );
   const [dayPreview, setDayPreview] = useState<DayPreviewState | null>(null);
+  const [warningsOpen, setWarningsOpen] = useState(false);
+  const [warningsDismissed, setWarningsDismissed] = useState(false);
   const [draggingEntryKey, setDraggingEntryKey] = useState<string | null>(null);
   const [localSelectedDay, setLocalSelectedDay] = useState<string | null>(null);
   const [expandedMonthRows, setExpandedMonthRows] = useState(false);
@@ -529,12 +530,12 @@ export function CalendarSurface({
     unplaceableGoalSummaries,
     totalUnplacedCount,
   } = calendarStoreProjection;
-  const primaryUnplaceableGoal = unplaceableGoalSummaries[0] ?? null;
-  const unplaceablePrimaryActionLabel =
-    unplaceableGoalSummaries.length > 1 ? "Review first goal" : "Edit this goal";
   const invalidLockGoalCount = unplaceableGoalSummaries.filter(
     (entry) => entry.reason === "invalid_lock"
   ).length;
+  const hasPlannerWarnings =
+    unplaceableGoalSummaries.length > 0 ||
+    eligibilityNotices.hardIneligible.length > 0;
   const effectiveSelectedDay = localSelectedDay;
   const dayPreviewDay = dayPreview?.day ?? null;
   const projectionDays = useMemo(() => {
@@ -2596,42 +2597,33 @@ export function CalendarSurface({
       {partnerOverlayError ? (
         <p className="text-xs text-muted-foreground">{partnerOverlayError}</p>
       ) : null}
-      {unplaceableGoalSummaries.length > 0 && !showBlockingLoading && !error ? (
+      {hasPlannerWarnings &&
+      !warningsDismissed &&
+      !showBlockingLoading &&
+      !error ? (
         <div className="rounded-md border border-amber-300 bg-amber-100 px-3 py-2 text-xs text-amber-950 dark:border-amber-300 dark:bg-amber-100 dark:text-amber-950">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <p>
-              {invalidLockGoalCount > 0
-                ? `\u26A0 ${unplaceableGoalSummaries.length} goal${
-                    unplaceableGoalSummaries.length === 1 ? "" : "s"
-                  } need attention (${invalidLockGoalCount} locked conflict${
-                    invalidLockGoalCount === 1 ? "" : "s"
-                  }, ${totalUnplacedCount} unresolved session${
-                    totalUnplacedCount === 1 ? "" : "s"
-                  }).`
-                : `\u26A0 ${unplaceableGoalSummaries.length} goal${
-                    unplaceableGoalSummaries.length === 1 ? "" : "s"
-                  } are not fully scheduled (${totalUnplacedCount} unresolved session${
-                    totalUnplacedCount === 1 ? "" : "s"
-                  }).`}
-            </p>
-            <div className="flex flex-wrap items-center gap-2">
-              {primaryUnplaceableGoal ? (
-                <Button asChild variant="outline" size="sm" className="h-7 text-xs">
-                  <Link href={`/goals/${primaryUnplaceableGoal.goalId}`}>
-                    {unplaceablePrimaryActionLabel}
-                  </Link>
-                </Button>
-              ) : null}
+            <div className="flex flex-wrap items-center gap-1.5">
+              <p>There were some issues generating the full calendar.</p>
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
                 className="h-7 text-xs"
-                onClick={() => setSettingsOpen(true)}
+                onClick={() => {
+                  setWarningsOpen(true);
+                }}
               >
-                Change rest days for all goals
+                See warnings
               </Button>
             </div>
+            <button
+              type="button"
+              className="text-xs font-medium underline-offset-2 hover:underline"
+              onClick={() => setWarningsDismissed(true)}
+            >
+              Dismiss
+            </button>
           </div>
         </div>
       ) : null}
@@ -3135,6 +3127,94 @@ export function CalendarSurface({
                   )}
                 </div>
               ) : null}
+            </DialogContent>
+          </Dialog>
+
+          <Dialog open={warningsOpen} onOpenChange={setWarningsOpen}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Planner warnings</DialogTitle>
+                <DialogDescription>
+                  {unplaceableGoalSummaries.length > 0 && invalidLockGoalCount > 0
+                    ? `${unplaceableGoalSummaries.length} goal${
+                        unplaceableGoalSummaries.length === 1 ? "" : "s"
+                      } need attention (${invalidLockGoalCount} locked conflict${
+                        invalidLockGoalCount === 1 ? "" : "s"
+                      }, ${totalUnplacedCount} unresolved session${
+                        totalUnplacedCount === 1 ? "" : "s"
+                      }).`
+                    : unplaceableGoalSummaries.length > 0
+                      ? `${unplaceableGoalSummaries.length} goal${
+                          unplaceableGoalSummaries.length === 1 ? "" : "s"
+                        } are not fully scheduled (${totalUnplacedCount} unresolved session${
+                          totalUnplacedCount === 1 ? "" : "s"
+                        }).`
+                      : `${eligibilityNotices.hardIneligible.length} linked goal${
+                          eligibilityNotices.hardIneligible.length === 1 ? "" : "s"
+                        } need source-goal review before they can be fully planned.`}
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-3 text-sm">
+                {unplaceableGoalSummaries.length > 0 ? (
+                  <div className="space-y-2">
+                    <p className="text-xs font-medium text-muted-foreground">
+                      Not fully scheduled goals
+                    </p>
+                    <div
+                      className={`space-y-2 ${
+                        unplaceableGoalSummaries.length > 5
+                          ? "max-h-[17.5rem] overflow-y-auto pr-1"
+                          : ""
+                      }`}
+                    >
+                      {unplaceableGoalSummaries.map((warning) => (
+                        <div
+                          key={`warning-${warning.goalId}`}
+                          className="rounded-md border p-2"
+                        >
+                          <p className="font-medium">{warning.title}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {warning.unplacedCount} unresolved session
+                            {warning.unplacedCount === 1 ? "" : "s"} (
+                            {warning.reason === "invalid_lock"
+                              ? "locked conflict"
+                              : "capacity shortfall"}
+                            )
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+                {eligibilityNotices.hardIneligible.length > 0 ? (
+                  <div className="space-y-2">
+                    <p className="text-xs font-medium text-muted-foreground">
+                      Linked goal planning notes
+                    </p>
+                    <div
+                      className={`space-y-1 rounded-md border bg-muted/20 p-2 text-xs text-muted-foreground ${
+                        eligibilityNotices.hardIneligible.length > 5
+                          ? "max-h-36 overflow-y-auto pr-1"
+                          : ""
+                      }`}
+                    >
+                      {eligibilityNotices.hardIneligible.map((item) => (
+                        <p key={`linked-warning-${item.goalId}`}>
+                          {item.goalTitle}: {item.reasonCopy}
+                        </p>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setWarningsOpen(false)}
+                >
+                  Back to calendar
+                </Button>
+              </div>
             </DialogContent>
           </Dialog>
         </>
