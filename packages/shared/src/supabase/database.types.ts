@@ -2643,10 +2643,6 @@ export type Database = {
         Args: { p_event_id: string; p_hidden: boolean; p_reason?: string }
         Returns: boolean
       }
-      ingest_health_activities_service: {
-        Args: { p_deleted_native_ids?: Json; p_samples: Json }
-        Returns: Json
-      }
       import_training_plan: {
         Args: { p_expected_digest: string; p_goals: Json }
         Returns: {
@@ -2654,6 +2650,10 @@ export type Database = {
           schedule_digest: string
           session_count: number
         }[]
+      }
+      ingest_health_activities_service: {
+        Args: { p_deleted_native_ids?: Json; p_samples: Json }
+        Returns: Json
       }
       is_platform_admin: {
         Args: { p_min_role?: Database["public"]["Enums"]["admin_role"] }
