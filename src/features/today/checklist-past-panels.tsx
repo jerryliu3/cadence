@@ -7,66 +7,78 @@ import type { Goal } from "@/lib/goals/types";
 
 export function ChecklistPastPanels({
   upcoming,
-  completedGoals,
+  pastGoals,
   archivedGoals,
+  showUpcoming,
+  showPast,
+  showArchived,
   upcomingOpen,
-  completedOpen,
+  pastOpen,
   archiveOpen,
   onUpcomingOpenChange,
-  onCompletedOpenChange,
+  onPastOpenChange,
   onArchiveOpenChange,
   renderGoal,
 }: {
   upcoming: Goal[];
-  completedGoals: Goal[];
+  pastGoals: Goal[];
   archivedGoals: Goal[];
+  showUpcoming: boolean;
+  showPast: boolean;
+  showArchived: boolean;
   upcomingOpen: boolean;
-  completedOpen: boolean;
+  pastOpen: boolean;
   archiveOpen: boolean;
   onUpcomingOpenChange: (open: boolean) => void;
-  onCompletedOpenChange: (open: boolean) => void;
+  onPastOpenChange: (open: boolean) => void;
   onArchiveOpenChange: (open: boolean) => void;
   renderGoal: (goal: Goal, options?: { archived?: boolean; key?: string }) => ReactNode;
 }) {
   return (
     <>
-      <CollapsibleGoalSection
-        open={upcomingOpen}
-        onOpenChange={onUpcomingOpenChange}
-        title="Upcoming"
-        count={upcoming.length}
-        icon={<CalendarClock className="size-4 text-muted-foreground" />}
-        emptyMessage="No future goals yet."
-      >
-        {upcoming.map((goal) => renderGoal(goal, { key: goal.id }))}
-      </CollapsibleGoalSection>
+      {showUpcoming ? (
+        <CollapsibleGoalSection
+          open={upcomingOpen}
+          onOpenChange={onUpcomingOpenChange}
+          title="Upcoming"
+          count={upcoming.length}
+          icon={<CalendarClock className="size-4 text-muted-foreground" />}
+          emptyMessage="No future goals yet."
+        >
+          {upcoming.map((goal) => renderGoal(goal, { key: goal.id }))}
+        </CollapsibleGoalSection>
+      ) : null}
 
-      <CollapsibleGoalSection
-        open={completedOpen}
-        onOpenChange={onCompletedOpenChange}
-        title="Ended"
-        count={completedGoals.length}
-        icon={<CheckCircle2 className="size-4 text-muted-foreground" />}
-        emptyMessage="No ended goals yet."
-      >
-        {completedGoals.map((goal) => renderGoal(goal, { key: goal.id }))}
-      </CollapsibleGoalSection>
+      {showPast ? (
+        <CollapsibleGoalSection
+          open={pastOpen}
+          onOpenChange={onPastOpenChange}
+          title="Past"
+          count={pastGoals.length}
+          icon={<CheckCircle2 className="size-4 text-muted-foreground" />}
+          emptyMessage="No past goals yet."
+        >
+          {pastGoals.map((goal) => renderGoal(goal, { key: goal.id }))}
+        </CollapsibleGoalSection>
+      ) : null}
 
-      <CollapsibleGoalSection
-        open={archiveOpen}
-        onOpenChange={onArchiveOpenChange}
-        title="Archived"
-        count={archivedGoals.length}
-        icon={<Archive className="size-4 text-muted-foreground" />}
-        emptyMessage="No archived goals yet."
-      >
-        {archivedGoals.map((goal) =>
-          renderGoal(goal, {
-            key: goal.id,
-            archived: true,
-          })
-        )}
-      </CollapsibleGoalSection>
+      {showArchived ? (
+        <CollapsibleGoalSection
+          open={archiveOpen}
+          onOpenChange={onArchiveOpenChange}
+          title="Archived"
+          count={archivedGoals.length}
+          icon={<Archive className="size-4 text-muted-foreground" />}
+          emptyMessage="No archived goals yet."
+        >
+          {archivedGoals.map((goal) =>
+            renderGoal(goal, {
+              key: goal.id,
+              archived: true,
+            })
+          )}
+        </CollapsibleGoalSection>
+      ) : null}
     </>
   );
 }

@@ -204,32 +204,28 @@ export function CalendarDayPreviewList<
               </PlannerDraggablePreviewEntry>
             );
           })}
-          {completionFactMarkers.map((marker) => (
-            <div
-              key={`preview-completion-fact-${marker.key}`}
-              className={`rounded-md ${
-                marker.owner === "partner"
-                  ? "border-2 border-sky-500 bg-transparent text-sky-700 dark:text-sky-300"
-                  : "border border-emerald-300 bg-emerald-100 text-emerald-950 dark:border-emerald-300 dark:bg-emerald-100 dark:text-emerald-950"
-              } ${expanded ? "p-2" : "p-1.5"}`}
-              aria-label={`${marker.goalTitle}. ${
-                marker.owner === "partner"
-                  ? "Partner marked this done."
-                  : marker.scheduledDate && marker.scheduledDate !== day
-                    ? `Marked done here; credited from the ${marker.scheduledDate} scheduled session.`
-                    : "Marked done."
-              }`}
-            >
-              <p className="truncate font-medium">{marker.goalTitle}</p>
-              <p className="truncate text-[11px]">
-                {marker.owner === "partner"
-                  ? "Partner marked this done."
-                  : marker.scheduledDate && marker.scheduledDate !== day
-                    ? `Marked done here; credited from the ${marker.scheduledDate} scheduled session.`
-                    : "Marked done."}
-              </p>
-            </div>
-          ))}
+          {completionFactMarkers.map((marker) => {
+            const detail =
+              marker.owner === "partner"
+                ? "Partner marked this done."
+                : marker.scheduledDate && marker.scheduledDate !== day
+                  ? `Marked done here; credited from the ${marker.scheduledDate} scheduled session.`
+                  : null;
+            return (
+              <div
+                key={`preview-completion-fact-${marker.key}`}
+                className={`rounded-md ${
+                  marker.owner === "partner"
+                    ? "border-2 border-sky-500 bg-transparent text-sky-700 dark:text-sky-300"
+                    : "border border-emerald-300 bg-emerald-100 text-emerald-950 dark:border-emerald-300 dark:bg-emerald-100 dark:text-emerald-950"
+                } ${expanded ? "p-2" : "p-1.5"}`}
+                aria-label={detail ? `${marker.goalTitle}. ${detail}` : marker.goalTitle}
+              >
+                <p className="truncate font-medium">{marker.goalTitle}</p>
+                {detail ? <p className="truncate text-[11px]">{detail}</p> : null}
+              </div>
+            );
+          })}
         </>
       )}
     </div>

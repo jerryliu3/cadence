@@ -146,11 +146,11 @@ export function buildChecklistListItems({
         title: goal.title,
         category: goal.category,
         done: laneData.completedForView.has(goal.id),
-        interactive: laneData.canToggleGoal(goal.id),
+        interactive: !goal.archived_at && laneData.canToggleGoal(goal.id),
         readOnlyReason:
           lane.id === "viewer" &&
           laneData.interactive &&
-          !laneData.canToggleGoal(goal.id)
+          (!laneData.canToggleGoal(goal.id) || Boolean(goal.archived_at))
             ? "View-only here: only your goals and active-team goals are completable."
             : undefined,
       });

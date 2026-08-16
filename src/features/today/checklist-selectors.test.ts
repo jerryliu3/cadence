@@ -60,5 +60,19 @@ describe("checklist selectors", () => {
         endMonth: null,
       }).map((row) => row.id)
     ).toEqual(["daily", "weekly"]);
+
+    expect(
+      selectFilteredTodayGoals({
+        activeGoals: goals,
+        todayDate: "2026-08-13",
+        categoryFilter: "__all_categories__",
+        allCategoriesFilterValue: "__all_categories__",
+        recurrenceFilter: "all",
+        searchQuery: "run",
+        endMonth: null,
+        completedGoalIds: new Set(["daily"]),
+        showCompletedGoals: false,
+      }).map((row) => row.id)
+    ).toEqual(["weekly"]);
   });
 });
