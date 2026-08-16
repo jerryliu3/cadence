@@ -129,7 +129,7 @@ returns table (
   xp_amount integer
 )
 language plpgsql
-stable
+volatile
 security definer
 set search_path = ''
 as $$
