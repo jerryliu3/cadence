@@ -2,6 +2,7 @@
 
 import { format, isValid, parse } from "date-fns";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
   DialogContent,
@@ -9,7 +10,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -18,26 +18,18 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-export interface MoveGoalOption {
-  goalId: string;
-  title: string;
-}
-
 export interface MoveSourceOption {
   entryKey: string;
   sourceDay: string;
+  sourceLabel: string;
 }
 
 interface MoveSessionDialogProps {
   open: boolean;
   targetDate: string;
-  selectedGoalId: string;
   selectedSourceEntryKey: string;
-  goalOptions: MoveGoalOption[];
   sourceOptions: MoveSourceOption[];
   onOpenChange: (open: boolean) => void;
-  onTargetDateChange: (value: string) => void;
-  onGoalChange: (goalId: string) => void;
   onSourceChange: (entryKey: string) => void;
   onCancel: () => void;
   onSubmit: () => void;
@@ -55,64 +47,39 @@ function isValidIsoDate(value: string) {
 export function MoveSessionDialog({
   open,
   targetDate,
-  selectedGoalId,
   selectedSourceEntryKey,
-  goalOptions,
   sourceOptions,
   onOpenChange,
-  onTargetDateChange,
-  onGoalChange,
   onSourceChange,
   onCancel,
   onSubmit,
   submitDisabled,
 }: MoveSessionDialogProps) {
+  const targetDateLabel =
+    targetDate && isValidIsoDate(targetDate)
+      ? format(parse(targetDate, "yyyy-MM-dd", new Date()), "EEE, MMM d")
+      : null;
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>
             Move session here
-            {targetDate && isValidIsoDate(targetDate)
-              ? ` - ${format(parse(targetDate, "yyyy-MM-dd", new Date()), "EEE, MMM d")}`
-              : ""}
+            {targetDateLabel ? ` - ${targetDateLabel}` : ""}
           </DialogTitle>
           <DialogDescription>
-            Pick a goal that is valid for this day and not already scheduled here, then
-            pick which existing scheduled date for that goal should be moved to this day.
+            Choose which existing session to move to this day.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-3 text-sm">
-          <div className="space-y-1.5">
-            <p className="text-xs font-medium text-muted-foreground">Goal</p>
-            <Select value={selectedGoalId} onValueChange={onGoalChange}>
-              <SelectTrigger className="h-9">
-                <SelectValue
-                  placeholder={
-                    goalOptions.length > 0
-                      ? "Select goal"
-                      : "No eligible goals for this day"
-                  }
-                />
-              </SelectTrigger>
-              <SelectContent>
-                {goalOptions.map((goal) => (
-                  <SelectItem key={goal.goalId} value={goal.goalId}>
-                    {goal.title}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1.5">
-            <p className="text-xs font-medium text-muted-foreground">Move to date</p>
-            <Input
-              type="date"
-              value={targetDate}
-              onChange={(event) => onTargetDateChange(event.target.value)}
-              className="h-9"
-            />
-          </div>
+          {targetDateLabel ? (
+            <div className="space-y-1.5">
+              <p className="text-xs font-medium text-muted-foreground">Move to</p>
+              <Badge variant="outline" className="h-7 rounded-md px-2 text-xs font-medium">
+                {targetDateLabel}
+              </Badge>
+            </div>
+          ) : null}
           <div className="space-y-1.5">
             <p className="text-xs font-medium text-muted-foreground">Move from date</p>
             <Select
@@ -132,16 +99,16 @@ export function MoveSessionDialog({
               <SelectContent>
                 {sourceOptions.map((option) => (
                   <SelectItem key={option.entryKey} value={option.entryKey}>
-                    {format(parse(option.sourceDay, "yyyy-MM-dd", new Date()), "EEE, MMM d")}
+                    {format(parse(option.sourceDay, "yyyy-MM-dd", new Date()), "EEE, MMM d")} -{" "}
+                    {option.sourceLabel}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
-          {goalOptions.length === 0 ? (
+          {sourceOptions.length === 0 ? (
             <p className="text-xs text-muted-foreground">
-              No remaining goals are eligible for this day. Try another date or remove an
-              existing session first.
+              No movable sessions are eligible for this day.
             </p>
           ) : null}
           <div className="flex items-center justify-end gap-2 pt-1">

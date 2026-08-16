@@ -64,7 +64,6 @@ import { CalendarDayPreviewList } from "@/features/planner/calendar-day-preview-
 import { CalendarMonthDayCell } from "@/features/planner/calendar-month-day-cell";
 import {
   MoveSessionDialog,
-  type MoveGoalOption,
   type MoveSourceOption,
 } from "@/features/planner/move-session-dialog";
 import { PlannerCoachPanel } from "@/features/planner/coach/planner-coach-panel";
@@ -224,8 +223,6 @@ export function CalendarSurface({
   const [dayPreview, setDayPreview] = useState<DayPreviewState | null>(null);
   const [expandedPreviewDay, setExpandedPreviewDay] = useState<string | null>(null);
   const [moveDialogDay, setMoveDialogDay] = useState<string | null>(null);
-  const [moveDialogTargetDate, setMoveDialogTargetDate] = useState<string>("");
-  const [moveDialogGoalId, setMoveDialogGoalId] = useState<string>("");
   const [moveDialogSourceEntryKey, setMoveDialogSourceEntryKey] = useState<string>("");
   const [warningsOpen, setWarningsOpen] = useState(false);
   const [warningsDismissed, setWarningsDismissed] = useState(false);
@@ -689,25 +686,14 @@ export function CalendarSurface({
     [expandedPreviewDay, getCompletionFactMarkersForDay]
   );
   const moveDialogEntriesForTargetDay = useMemo(
-    () => getOrderedEntriesForDay(moveDialogTargetDate || moveDialogDay),
-    [getOrderedEntriesForDay, moveDialogDay, moveDialogTargetDate]
+    () => getOrderedEntriesForDay(moveDialogDay),
+    [getOrderedEntriesForDay, moveDialogDay]
   );
-  const eligibilityByGoalId = useMemo(() => {
-    const map = new Map<
-      string,
-      { eligible: boolean; reason: EligibilityReason }
-    >();
-    for (const entry of effectivePreview?.eligibility ?? []) {
-      map.set(entry.goalId, {
-        eligible: entry.eligible,
-        reason: entry.reason,
-      });
-    }
-    return map;
-  }, [effectivePreview?.eligibility]);
-  const moveDialogGoalOptions = useMemo<MoveGoalOption[]>(() => {
-    const targetDay = moveDialogTargetDate || moveDialogDay;
-    if (!targetDay || !context?.activePlan) {
+  const scopeMonth = context?.scopeMonth ?? null;
+
+  const moveDialogSourceOptions = useMemo<MoveSourceOption[]>(() => {
+    const targetDay = moveDialogDay;
+    if (!targetDay || !scopeMonth) {
       return [];
     }
     const scheduledGoalIds = new Set(
@@ -715,53 +701,10 @@ export function CalendarSurface({
         .filter((entry) => !entry.draftGhost)
         .map((entry) => entry.originalGoalId)
     );
-    const sourceCountByGoalId = new Map<string, number>();
-    for (const [day, entries] of entriesByDate.entries()) {
-      if (day === targetDay) {
-        continue;
-      }
-      for (const entry of entries) {
-        if (
-          entry.draftGhost ||
-          !entry.activeItem ||
-          !canMutateEntryOnDay(entry, day)
-        ) {
-          continue;
-        }
-        sourceCountByGoalId.set(
-          entry.originalGoalId,
-          (sourceCountByGoalId.get(entry.originalGoalId) ?? 0) + 1
-        );
-      }
-    }
-    return context.activePlan.goals
-      .map((goal) => ({
-        goalId: goal.original_goal_id,
-        title: goal.title,
-        sourceCount: sourceCountByGoalId.get(goal.original_goal_id) ?? 0,
-      }))
-      .filter((goal) => !scheduledGoalIds.has(goal.goalId))
-      .filter((goal) => eligibilityByGoalId.get(goal.goalId)?.eligible !== false)
-      .filter((goal) => goal.sourceCount > 0)
-      .sort((left, right) => left.title.localeCompare(right.title));
-  }, [
-    canMutateEntryOnDay,
-    context?.activePlan,
-    entriesByDate,
-    eligibilityByGoalId,
-    moveDialogDay,
-    moveDialogEntriesForTargetDay,
-    moveDialogTargetDate,
-  ]);
-
-  const moveDialogSourceOptions = useMemo<MoveSourceOption[]>(() => {
-    const targetDay = moveDialogTargetDate || moveDialogDay;
-    if (!targetDay || !moveDialogGoalId) {
-      return [];
-    }
     const options: Array<{
       entryKey: string;
       sourceDay: string;
+      sourceLabel: string;
       entry: PlannerDayDetailEntry;
     }> = [];
     for (const [day, entries] of entriesByDate.entries()) {
@@ -770,47 +713,52 @@ export function CalendarSurface({
       }
       for (const entry of entries) {
         if (
-          entry.originalGoalId !== moveDialogGoalId ||
           entry.draftGhost ||
           !entry.activeItem ||
-          !canMutateEntryOnDay(entry, day)
+          !canMutateEntryOnDay(entry, day) ||
+          scheduledGoalIds.has(entry.originalGoalId)
         ) {
+          continue;
+        }
+        const previewUnit = draftWindowUnitByEntryKey.get(entry.key);
+        if (!previewUnit) {
+          continue;
+        }
+        const planned = planDraftMove({
+          entry,
+          nextDate: targetDay,
+          scopeMonth,
+          previewUnit,
+          conflictKeys: undefined,
+          completionFactConflict: undefined,
+        });
+        if (!planned.ok) {
           continue;
         }
         options.push({
           entryKey: entry.key,
           sourceDay: day,
+          sourceLabel: getEntryDisplayTitleWithTime(entry),
           entry,
         });
       }
     }
-    return options.sort((left, right) => left.sourceDay.localeCompare(right.sourceDay));
+    return options.sort((left, right) => {
+      const dayCompare = left.sourceDay.localeCompare(right.sourceDay);
+      if (dayCompare !== 0) {
+        return dayCompare;
+      }
+      return left.sourceLabel.localeCompare(right.sourceLabel);
+    });
   }, [
     canMutateEntryOnDay,
+    draftWindowUnitByEntryKey,
     entriesByDate,
+    getEntryDisplayTitleWithTime,
     moveDialogDay,
-    moveDialogGoalId,
-    moveDialogTargetDate,
+    moveDialogEntriesForTargetDay,
+    scopeMonth,
   ]);
-
-  useEffect(() => {
-    if (!moveDialogDay) {
-      setMoveDialogGoalId("");
-      setMoveDialogSourceEntryKey("");
-      return;
-    }
-    if (
-      moveDialogGoalOptions.length > 0 &&
-      !moveDialogGoalOptions.some((goal) => goal.goalId === moveDialogGoalId)
-    ) {
-      setMoveDialogGoalId(moveDialogGoalOptions[0]!.goalId);
-      return;
-    }
-    if (moveDialogGoalOptions.length === 0 && moveDialogGoalId) {
-      setMoveDialogGoalId("");
-      setMoveDialogSourceEntryKey("");
-    }
-  }, [moveDialogDay, moveDialogGoalId, moveDialogGoalOptions]);
 
   useEffect(() => {
     if (moveDialogSourceOptions.length === 0) {
@@ -1256,8 +1204,6 @@ export function CalendarSurface({
     setExpandedPreviewDay(null);
     setDayPreview(null);
     setMoveDialogDay(day);
-    setMoveDialogTargetDate(day);
-    setMoveDialogGoalId("");
     setMoveDialogSourceEntryKey("");
   }, []);
 
@@ -1369,7 +1315,6 @@ export function CalendarSurface({
     }
     return map;
   }, [draftWindowWorkUnits]);
-  const scopeMonth = context?.scopeMonth ?? null;
 
   const queueDraftMoveCommand = useCallback(
     ({
@@ -1802,17 +1747,11 @@ export function CalendarSurface({
 
   const closeMoveDialog = () => {
     setMoveDialogDay(null);
-    setMoveDialogTargetDate("");
-    setMoveDialogGoalId("");
     setMoveDialogSourceEntryKey("");
   };
 
   const submitMoveDialog = () => {
-    if (!moveDialogGoalId) {
-      toast.error("Select a goal to move.");
-      return;
-    }
-    if (!moveDialogTargetDate || !isValidIsoDate(moveDialogTargetDate)) {
+    if (!moveDialogDay || !isValidIsoDate(moveDialogDay)) {
       toast.error("Select a valid destination date.");
       return;
     }
@@ -1829,7 +1768,7 @@ export function CalendarSurface({
     }
     const moved = queueDraftMoveCommand({
       entry: sourceOption.entry,
-      nextDate: moveDialogTargetDate,
+      nextDate: moveDialogDay,
       source: "date_input",
     });
     if (!moved) {
@@ -3342,30 +3281,18 @@ export function CalendarSurface({
 
           <MoveSessionDialog
             open={Boolean(moveDialogDay)}
-            targetDate={moveDialogTargetDate}
-            selectedGoalId={moveDialogGoalId}
+            targetDate={moveDialogDay ?? ""}
             selectedSourceEntryKey={moveDialogSourceEntryKey}
-            goalOptions={moveDialogGoalOptions}
             sourceOptions={moveDialogSourceOptions}
             onOpenChange={(open) => {
               if (!open) {
                 closeMoveDialog();
               }
             }}
-            onTargetDateChange={setMoveDialogTargetDate}
-            onGoalChange={(goalId) => {
-              setMoveDialogGoalId(goalId);
-              setMoveDialogSourceEntryKey("");
-            }}
             onSourceChange={setMoveDialogSourceEntryKey}
             onCancel={closeMoveDialog}
             onSubmit={submitMoveDialog}
-            submitDisabled={
-              !moveDialogGoalId ||
-              !moveDialogTargetDate ||
-              !isValidIsoDate(moveDialogTargetDate) ||
-              !moveDialogSourceEntryKey
-            }
+            submitDisabled={!moveDialogSourceEntryKey}
           />
 
           <Dialog
