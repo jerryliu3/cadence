@@ -6,8 +6,8 @@ export function TasksTab() {
   return (
     <div className="space-y-5">
       <PlannerTasksPanel
-        title="To-Do"
-        description="Create tasks, mark them done, and hard-delete tasks you no longer need."
+        title="Tasks"
+        description="Simple one-time tasks. Create, complete, and remove them without turning them into recurring goals."
         showScheduledDate
         allowDelete
       />

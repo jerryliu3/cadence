@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import {
   ArrowLeft,
   ChevronRight,
@@ -32,11 +31,9 @@ import { PlannerPreferencesSettings } from "@/features/settings/planner-preferen
 import { ReportIssueSettings } from "@/features/settings/report-issue-settings";
 import { NotificationsSection } from "@/features/social/notifications-section";
 import { ProfileSection } from "@/features/social/profile-section";
-import { useDuo } from "@/features/social/duo/duo-context";
 import { useSocialTabData } from "@/features/social/use-social-tab-data";
 
 export function SocialTab() {
-  const { state: duoState, scopePreference } = useDuo();
   const {
     state,
     loading,
@@ -75,16 +72,6 @@ export function SocialTab() {
         : settingsSection === "integrations"
           ? "Connect Apple Health or Health Connect and opt into auto-complete."
           : "Send product bugs or UX friction details directly to support.";
-  const activePartner = duoState.activePartner;
-  const pendingInvite = duoState.pendingInvite;
-  const partnerLabel =
-    activePartner?.partnerDisplayName ??
-    activePartner?.partnerUsername ??
-    "your partner";
-  const pendingPartnerLabel =
-    pendingInvite?.partnerDisplayName ??
-    pendingInvite?.partnerUsername ??
-    "your pending partner";
 
   if (loading) {
     return (
@@ -106,41 +93,6 @@ export function SocialTab() {
         setProfileDraft={setProfileDraft}
         onSaveProfile={saveProfile}
       />
-
-      <Card className="shadow-sm">
-        <CardHeader>
-          <CardTitle>User mode</CardTitle>
-          <CardDescription>
-            {activePartner
-              ? `Duo mode is active with ${partnerLabel}.`
-              : "Solo mode is active until you have an active partner."}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {!activePartner && pendingInvite ? (
-            <p className="text-sm text-muted-foreground">
-              {pendingInvite.isIncoming
-                ? `Incoming duo invite from ${pendingPartnerLabel}.`
-                : `Pending duo invite sent to ${pendingPartnerLabel}.`}
-            </p>
-          ) : null}
-          {!activePartner && !pendingInvite && (
-            <p className="text-sm text-muted-foreground">
-              Connect a partner to unlock duo comparisons across Insights and Checklist.
-            </p>
-          )}
-          {!activePartner && (scopePreference === "partner" || scopePreference === "both") ? (
-            <p className="text-sm text-amber-600 dark:text-amber-400">
-              No active partner is available right now, so views are clamped to solo mode.
-            </p>
-          ) : null}
-          <Button asChild variant="outline" size="sm">
-            <Link href="/social?tab=team">
-              {activePartner || pendingInvite ? "Manage team status" : "Connect partner"}
-            </Link>
-          </Button>
-        </CardContent>
-      </Card>
 
       <Card className="shadow-sm">
         <CardHeader>
@@ -202,7 +154,7 @@ export function SocialTab() {
 
       <Dialog modal={false} open={settingsPanelOpen} onOpenChange={setSettingsPanelOpen}>
         <DialogContent
-          className="!top-0 !right-0 !left-auto !translate-x-0 !translate-y-0 inset-y-0 h-dvh w-[min(100vw,64rem)] max-w-none rounded-none border-l p-0"
+          className="!top-0 !right-0 !left-auto !translate-x-0 !translate-y-0 inset-y-0 h-dvh w-[min(100vw,72rem)] max-w-none overflow-hidden rounded-none border-l p-0"
           showCloseButton={false}
         >
           <DialogHeader className="gap-3 border-b px-4 py-3">
@@ -220,7 +172,7 @@ export function SocialTab() {
             </div>
             <DialogDescription>{settingsSectionDescription}</DialogDescription>
           </DialogHeader>
-          <div className="h-[calc(100dvh-5.5rem)] overflow-y-auto p-4">
+          <div className="h-[calc(100dvh-5.5rem)] overflow-y-auto overflow-x-hidden p-4 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
             {settingsSection === "preferences" ? (
               <Card className="shadow-sm">
                 <CardHeader>

@@ -6,7 +6,7 @@ describe("app navigation tabs", () => {
     expect(APP_TABS).toEqual([
       { key: "insights", href: "/insights", label: "Insights" },
       { key: "calendar", href: "/calendar", label: "Planner" },
-      { key: "social", href: "/social", label: "Challenges" },
+      { key: "social", href: "/social", label: "Community" },
       { key: "settings", href: "/settings", label: "Profile" },
     ]);
   });
@@ -15,7 +15,7 @@ describe("app navigation tabs", () => {
     expect(buildAppTabs("calendar")).toEqual([
       { key: "insights", href: "/insights", label: "Insights" },
       { key: "calendar", href: "/calendar", label: "Planner" },
-      { key: "social", href: "/social", label: "Challenges" },
+      { key: "social", href: "/social", label: "Community" },
       { key: "settings", href: "/settings", label: "Profile" },
     ]);
   });

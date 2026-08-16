@@ -12,7 +12,7 @@ export function NotificationsSection() {
           Configure push access and reminder schedules.
         </CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="min-w-0">
         <NotificationSettings />
       </CardContent>
     </Card>
