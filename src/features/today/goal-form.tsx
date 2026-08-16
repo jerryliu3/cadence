@@ -30,6 +30,13 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { LoadingCard } from "@/components/ui/loading-card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { TooltipIcon } from "@/components/ui/tooltip-icon";
 import { Tooltip } from "@/components/ui/tooltip";
@@ -67,7 +74,13 @@ import {
   buildMilestoneNameDrafts,
   normalizeMilestoneNamesForSave,
 } from "@/lib/goals/milestones";
-import type { Goal, GoalFrequencyType, GoalLink, RecurrenceInterval } from "@/lib/goals/types";
+import type {
+  Goal,
+  GoalDifficulty,
+  GoalFrequencyType,
+  GoalLink,
+  RecurrenceInterval,
+} from "@/lib/goals/types";
 import {
   type GoalCapacityInput,
   isOrdinalGoalDefinition,
@@ -93,6 +106,7 @@ interface GoalFormState {
   color: string;
   frequency_type: GoalFrequencyType;
   recurrence_interval: RecurrenceInterval;
+  difficulty: GoalDifficulty;
   target_count: string;
   milestone_names: string[];
   start_date: string;
@@ -111,6 +125,7 @@ const defaultState: GoalFormState = {
   color: getCategorySwatchColor("personal"),
   frequency_type: "recurring",
   recurrence_interval: "daily",
+  difficulty: "medium",
   target_count: "",
   milestone_names: [],
   start_date: toLocalDateString(),
@@ -279,6 +294,7 @@ export function GoalForm({
           color: getCategorySwatchColor(categoryState.selection),
           frequency_type: goal.frequency_type,
           recurrence_interval: goal.recurrence_interval ?? "daily",
+          difficulty: goal.difficulty ?? "medium",
           target_count: goal.target_count?.toString() ?? "",
           milestone_names: buildMilestoneNameDrafts(
             goal.target_count ?? 0,
@@ -524,6 +540,7 @@ export function GoalForm({
       p_frequency_type: state.frequency_type,
       p_recurrence_interval:
         state.frequency_type === "recurring" ? state.recurrence_interval : undefined,
+      p_difficulty: state.difficulty,
       p_target_count:
         state.frequency_type === "fixed_milestones"
           ? parsedTargetCountForSave ?? undefined
@@ -757,7 +774,7 @@ export function GoalForm({
             className={cn(
               "grid items-start gap-3",
               canShowRecurrenceFields
-                ? "grid-cols-2 min-[390px]:grid-cols-3"
+                ? "grid-cols-2 sm:grid-cols-3"
                 : "grid-cols-2"
             )}
           >
@@ -937,6 +954,31 @@ export function GoalForm({
                       setState((previous) => ({ ...previous, default_local_time: "" }))
                     }
                   />
+
+                  <div className="space-y-2">
+                    <Label htmlFor="goal-difficulty" className="inline-flex items-center gap-1">
+                      <span>Difficulty</span>
+                      <TooltipIcon
+                        content="Set the perceived effort level for this goal."
+                        label="Goal difficulty help"
+                      />
+                    </Label>
+                    <Select
+                      value={state.difficulty}
+                      onValueChange={(value: GoalDifficulty) =>
+                        setState((previous) => ({ ...previous, difficulty: value }))
+                      }
+                    >
+                      <SelectTrigger id="goal-difficulty" className="h-8 w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="easy">Easy</SelectItem>
+                        <SelectItem value="medium">Medium</SelectItem>
+                        <SelectItem value="hard">Hard</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
 
                   {fixedMilestoneCount > 0 ? (
                     <Collapsible
