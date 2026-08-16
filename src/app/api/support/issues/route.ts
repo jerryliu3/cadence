@@ -134,3 +134,13 @@ export async function POST(request: Request) {
     );
   });
 }
+
+export async function GET() {
+  return withRoute(async () => {
+    throw new ApiRouteError(
+      405,
+      "method_not_allowed",
+      "Use POST to submit issue reports."
+    );
+  });
+}

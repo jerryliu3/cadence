@@ -26,7 +26,7 @@ vi.mock("@/lib/observability/report-error", () => ({
   reportError: mocks.reportError,
 }));
 
-import { POST } from "./route";
+import { GET, POST } from "./route";
 import { ApiRouteError } from "@/lib/api/route";
 
 function createSupabaseInsertMock() {
@@ -208,5 +208,15 @@ describe("POST /api/support/issues", () => {
         method: "POST",
       })
     );
+  });
+});
+
+describe("GET /api/support/issues", () => {
+  it("returns a typed 405 response", async () => {
+    const response = await GET();
+    const payload = await response.json();
+
+    expect(response.status).toBe(405);
+    expect(payload.code).toBe("method_not_allowed");
   });
 });

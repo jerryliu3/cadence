@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { getApiErrorMessage, postJson } from "@/lib/api/client";
+import { getApiErrorMessage, isApiClientError, postJson } from "@/lib/api/client";
 
 const TITLE_MAX = 120;
 const DESCRIPTION_MAX = 5000;
@@ -53,6 +53,12 @@ export function ReportIssueSettings() {
       setTitle("");
       setDescription("");
     } catch (error) {
+      if (isApiClientError(error) && error.status === 404) {
+        toast.error(
+          "Issue reporting endpoint is unavailable. Restart the app server and try again."
+        );
+        return;
+      }
       toast.error(getApiErrorMessage(error, "Issue could not be submitted."));
     } finally {
       setSubmitting(false);

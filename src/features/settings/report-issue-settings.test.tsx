@@ -4,12 +4,14 @@ import { ReportIssueSettings } from "@/features/settings/report-issue-settings";
 
 const mocks = vi.hoisted(() => ({
   postJson: vi.fn(),
+  isApiClientError: vi.fn(),
   toastSuccess: vi.fn(),
   toastError: vi.fn(),
 }));
 
 vi.mock("@/lib/api/client", () => ({
   getApiErrorMessage: () => "Issue could not be submitted.",
+  isApiClientError: mocks.isApiClientError,
   postJson: mocks.postJson,
 }));
 
@@ -23,6 +25,7 @@ vi.mock("sonner", () => ({
 describe("ReportIssueSettings", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.isApiClientError.mockReturnValue(false);
   });
 
   afterEach(() => {
@@ -78,6 +81,31 @@ describe("ReportIssueSettings", () => {
     await waitFor(() => {
       expect(mocks.toastError).toHaveBeenCalledWith(
         "Issue could not be submitted."
+      );
+    });
+  });
+
+  it("shows a restart hint when the support endpoint returns 404", async () => {
+    const error = { status: 404 };
+    mocks.postJson.mockRejectedValue(error);
+    mocks.isApiClientError.mockImplementation(
+      (candidate: unknown): candidate is { status: number } =>
+        typeof candidate === "object" && candidate !== null && "status" in candidate
+    );
+
+    render(<ReportIssueSettings />);
+
+    fireEvent.change(screen.getByLabelText("Issue title"), {
+      target: { value: "Cannot open report endpoint" },
+    });
+    fireEvent.change(screen.getByLabelText("Issue description"), {
+      target: { value: "Support endpoint returns 404." },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Submit issue" }));
+
+    await waitFor(() => {
+      expect(mocks.toastError).toHaveBeenCalledWith(
+        "Issue reporting endpoint is unavailable. Restart the app server and try again."
       );
     });
   });
