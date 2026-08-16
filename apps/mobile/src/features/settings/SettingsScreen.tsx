@@ -8,7 +8,7 @@ import {
   type NotificationPreferences,
 } from "@cadence/shared/notifications/preferences";
 import { router } from "expo-router";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { api } from "../../lib/api";
 import {
@@ -50,6 +50,7 @@ export function SettingsScreen() {
     useState<NotificationPreferenceKey | null>(null);
   const [hasLoadedNotificationPreferences, setHasLoadedNotificationPreferences] =
     useState(false);
+  const mountedRef = useRef(true);
 
   const schedules = useQuery({
     queryKey: ["mobile-notification-schedules", userId],
@@ -70,50 +71,80 @@ export function SettingsScreen() {
   const fetchNotificationPreferences = async () =>
     api.getJson<NotificationPreferencesPayload>("/api/notifications/preferences");
 
-  useEffect(() => {
-    let cancelled = false;
-    const loadNotificationPreferences = async () => {
+  const applyLoadedNotificationPreferences = useCallback(
+    (payload: NotificationPreferencesPayload) => {
+      setNotificationPreferences(
+        normalizeNotificationPreferences(payload.notificationPreferences)
+      );
+      setHasLoadedNotificationPreferences(true);
+    },
+    []
+  );
+
+  const applyNotificationPreferencesLoadError = useCallback((error: unknown) => {
+    setHasLoadedNotificationPreferences(false);
+    setMessage(
+      getApiErrorMessage(
+        error,
+        "Notification category preferences could not be loaded."
+      )
+    );
+  }, []);
+
+  const loadNotificationPreferences = useCallback(
+    async (shouldSkipUpdate: () => boolean = () => false) => {
       if (!userId) {
-        if (!cancelled) {
+        if (!shouldSkipUpdate()) {
           setLoadingNotificationPreferences(false);
           setHasLoadedNotificationPreferences(false);
         }
         return;
       }
 
-      setLoadingNotificationPreferences(true);
+      if (!shouldSkipUpdate()) {
+        setLoadingNotificationPreferences(true);
+      }
 
       try {
         const response = await fetchNotificationPreferences();
-        if (!cancelled) {
-          setNotificationPreferences(
-            normalizeNotificationPreferences(response.notificationPreferences)
-          );
-          setHasLoadedNotificationPreferences(true);
+        if (shouldSkipUpdate()) {
+          return;
         }
+        applyLoadedNotificationPreferences(response);
       } catch (error) {
-        if (!cancelled) {
-          setHasLoadedNotificationPreferences(false);
-          setMessage(
-            getApiErrorMessage(
-              error,
-              "Notification category preferences could not be loaded."
-            )
-          );
+        if (shouldSkipUpdate()) {
+          return;
         }
+        applyNotificationPreferencesLoadError(error);
       } finally {
-        if (!cancelled) {
+        if (!shouldSkipUpdate()) {
           setLoadingNotificationPreferences(false);
         }
       }
-    };
+    },
+    [
+      applyLoadedNotificationPreferences,
+      applyNotificationPreferencesLoadError,
+      userId,
+    ]
+  );
 
-    void loadNotificationPreferences();
+  useEffect(() => {
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    void loadNotificationPreferences(
+      () => cancelled || !mountedRef.current
+    );
 
     return () => {
       cancelled = true;
     };
-  }, [userId]);
+  }, [loadNotificationPreferences]);
 
   const toggleNotificationPreference = async (key: NotificationPreferenceKey) => {
     if (!userId || !hasLoadedNotificationPreferences || savingPreferenceKey !== null) {
@@ -233,29 +264,9 @@ export function SettingsScreen() {
           </Text>
           <PrimaryButton
             label="Retry categories"
-            onPress={async () => {
-              if (!userId) {
-                return;
-              }
-              setLoadingNotificationPreferences(true);
-              try {
-                const response = await fetchNotificationPreferences();
-                setNotificationPreferences(
-                  normalizeNotificationPreferences(response.notificationPreferences)
-                );
-                setHasLoadedNotificationPreferences(true);
-              } catch (error) {
-                setHasLoadedNotificationPreferences(false);
-                setMessage(
-                  getApiErrorMessage(
-                    error,
-                    "Notification category preferences could not be loaded."
-                  )
-                );
-              } finally {
-                setLoadingNotificationPreferences(false);
-              }
-            }}
+            onPress={() =>
+              void loadNotificationPreferences(() => !mountedRef.current)
+            }
           />
         </View>
       ) : (
