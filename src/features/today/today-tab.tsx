@@ -493,11 +493,11 @@ export function TodayTab({
   );
 
   const goToPreviousDate = () => {
-    setViewDate((previous) => format(subDays(parseISO(previous), 1), "yyyy-MM-dd"));
+    setViewDate(format(subDays(viewDateObj, 1), "yyyy-MM-dd"));
   };
 
   const goToNextDate = () => {
-    setViewDate((previous) => format(addDays(parseISO(previous), 1), "yyyy-MM-dd"));
+    setViewDate(format(addDays(viewDateObj, 1), "yyyy-MM-dd"));
   };
 
   const quickCategoryOptions = useMemo(() => {
