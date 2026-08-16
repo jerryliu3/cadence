@@ -1,4 +1,11 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { CalendarSurface } from "./calendar-surface";
 import type {
@@ -393,6 +400,71 @@ describe("CalendarSurface characterization", () => {
     await waitFor(() => {
       expect(screen.queryByText("Expand")).not.toBeInTheDocument();
     }, { timeout: 300 });
+  });
+
+  it("opens every item for the previewed day in a focused dialog", async () => {
+    postJsonMock.mockResolvedValue(
+      buildContext([
+        unit({
+          originalGoalId: "goal-a",
+          unitKey: "total:1",
+          scheduledDate: "2026-08-31",
+        }),
+        unit({
+          originalGoalId: "goal-b",
+          unitKey: "total:1",
+          label: "Secondary",
+          scheduledDate: "2026-08-31",
+        }),
+      ])
+    );
+    const onSelectedDayChange = vi.fn();
+
+    render(
+      <CalendarSurface
+        activeTab="calendar"
+        month="2026-08"
+        selectedDay={null}
+        viewMode="month"
+        onMonthChange={vi.fn()}
+        onViewModeChange={vi.fn()}
+        onSelectedDayChange={onSelectedDayChange}
+        onPlannerMutation={vi.fn()}
+      />
+    );
+
+    await waitFor(() => {
+      expect(postJsonMock).toHaveBeenCalledWith(
+        "/api/planner/prepare",
+        expect.any(Object)
+      );
+    });
+
+    const dayCell = await waitFor(() => {
+      const match = document.querySelector(
+        '[data-day-cell="true"][data-day="2026-08-31"]'
+      );
+      if (!(match instanceof HTMLButtonElement)) {
+        throw new Error("Expected calendar day cell for 2026-08-31.");
+      }
+      return match;
+    });
+    fireEvent.mouseEnter(dayCell);
+    fireEvent.click(
+      await screen.findByRole(
+        "button",
+        { name: "Expand" },
+        { timeout: 2500 }
+      )
+    );
+
+    const dialog = await screen.findByRole("dialog");
+    expect(
+      within(dialog).getByRole("heading", { name: "Monday, Aug 31" })
+    ).toBeInTheDocument();
+    expect(within(dialog).getByText("Goal A")).toBeInTheDocument();
+    expect(within(dialog).getByText("Goal B")).toBeInTheDocument();
+    expect(onSelectedDayChange).not.toHaveBeenCalled();
   });
 
   it("renders banner counts from the shared unplaceable selector", async () => {

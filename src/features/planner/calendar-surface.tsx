@@ -215,6 +215,9 @@ export function CalendarSurface({
     null
   );
   const [dayPreview, setDayPreview] = useState<DayPreviewState | null>(null);
+  const [expandedPreviewDay, setExpandedPreviewDay] = useState<string | null>(
+    null
+  );
   const [warningsOpen, setWarningsOpen] = useState(false);
   const [warningsDismissed, setWarningsDismissed] = useState(false);
   const [draggingEntryKey, setDraggingEntryKey] = useState<string | null>(null);
@@ -552,8 +555,17 @@ export function CalendarSurface({
     if (dayPreviewDay) {
       days.add(dayPreviewDay);
     }
+    if (expandedPreviewDay) {
+      days.add(expandedPreviewDay);
+    }
     return Array.from(days);
-  }, [dayPreviewDay, effectiveSelectedDay, focusedDay, visibleDays]);
+  }, [
+    dayPreviewDay,
+    effectiveSelectedDay,
+    expandedPreviewDay,
+    focusedDay,
+    visibleDays,
+  ]);
   const dayProjectionByDay = useMemo(
     () =>
       selectPlannerCalendarDayProjectionsByDay({
@@ -658,6 +670,14 @@ export function CalendarSurface({
   const previewDayCompletionFactMarkers = useMemo(
     () => getCompletionFactMarkersForDay(dayPreview?.day ?? null),
     [dayPreview?.day, getCompletionFactMarkersForDay]
+  );
+  const expandedPreviewEntries = useMemo(
+    () => getOrderedEntriesForDay(expandedPreviewDay),
+    [expandedPreviewDay, getOrderedEntriesForDay]
+  );
+  const expandedPreviewCompletionFactMarkers = useMemo(
+    () => getCompletionFactMarkersForDay(expandedPreviewDay),
+    [expandedPreviewDay, getCompletionFactMarkersForDay]
   );
   useEffect(
     () => () => {
@@ -2833,7 +2853,7 @@ export function CalendarSurface({
                           size="sm"
                           className="h-6 px-2 text-xs"
                           onClick={() => {
-                            onSelectedDayChange(dayPreview.day, "push", "day");
+                            setExpandedPreviewDay(dayPreview.day);
                             setDayPreview(null);
                           }}
                         >
@@ -2923,6 +2943,109 @@ export function CalendarSurface({
           </div>
 
           <PlannerCoachPanel coach={coach} />
+
+          <Dialog
+            open={expandedPreviewDay !== null}
+            onOpenChange={(open) => {
+              if (!open) {
+                setExpandedPreviewDay(null);
+              }
+            }}
+          >
+            <DialogContent className="sm:max-w-2xl">
+              <DialogHeader>
+                <DialogTitle>
+                  {expandedPreviewDay
+                    ? format(
+                        parse(expandedPreviewDay, "yyyy-MM-dd", new Date()),
+                        "EEEE, MMM d"
+                      )
+                    : "Day items"}
+                </DialogTitle>
+                <DialogDescription>
+                  {expandedPreviewEntries.length +
+                    expandedPreviewCompletionFactMarkers.length}{" "}
+                  item
+                  {expandedPreviewEntries.length +
+                    expandedPreviewCompletionFactMarkers.length ===
+                  1
+                    ? ""
+                    : "s"}{" "}
+                  on this date.
+                </DialogDescription>
+              </DialogHeader>
+              {expandedPreviewDay ? (
+                <div className="max-h-[65vh] overflow-y-auto pr-1">
+                  <CalendarDayPreviewList
+                    day={expandedPreviewDay}
+                    entries={expandedPreviewEntries}
+                    completionFactMarkers={
+                      expandedPreviewCompletionFactMarkers
+                    }
+                    mutationLoading={Boolean(mutationLoadingKey)}
+                    getEntryDisplayTitle={getEntryDisplayTitleWithTime}
+                    getEntrySubtitle={getEntrySubtitle}
+                    isEntryCredited={isEntryCredited}
+                    isEntryImmovableForDraft={(entry) =>
+                      !canMutateEntryOnDay(entry, expandedPreviewDay) ||
+                      isEntryImmovableForDraft(entry)
+                    }
+                    getCompletionToggleState={(entry, day) => {
+                      if (!canMutateEntryOnDay(entry, day)) {
+                        return {
+                          currentlyCredited: isEntryCredited(entry),
+                          disabledReasonCopy: readOnlyMonthHint,
+                        };
+                      }
+                      const completionDispatch =
+                        getDateFactDispatchForEntry(entry, day);
+                      const disabledReason =
+                        completionControlDisabledReasonForEntry(
+                          entry,
+                          completionDispatch
+                        );
+                      return {
+                        currentlyCredited: Boolean(
+                          completionDispatch?.currentlyCredited
+                        ),
+                        disabledReasonCopy: disabledReason
+                          ? completionDisabledReasonCopy(disabledReason)
+                          : null,
+                      };
+                    }}
+                    onEntryOpen={(entryKey) => {
+                      const entry = expandedPreviewEntries.find(
+                        (candidate) => candidate.key === entryKey
+                      );
+                      if (
+                        !entry ||
+                        !canMutateEntryOnDay(entry, expandedPreviewDay)
+                      ) {
+                        return;
+                      }
+                      setLocalSelectedDay(expandedPreviewDay);
+                      setExpandedPreviewDay(null);
+                      setSelectedEventEntryKey(entry.key);
+                    }}
+                    onToggleCompletion={(entry, day, sourceElement) => {
+                      if (!canMutateEntryOnDay(entry, day)) {
+                        return;
+                      }
+                      void toggleDateFact(entry, day, sourceElement);
+                    }}
+                    onEntryPointerStart={(immovable) => {
+                      void immovable;
+                      pointerPressActiveRef.current = true;
+                    }}
+                    onEntryPointerEnd={() => {
+                      pointerPressActiveRef.current = false;
+                    }}
+                    density="expanded"
+                  />
+                </div>
+              ) : null}
+            </DialogContent>
+          </Dialog>
 
           <Dialog
             open={Boolean(selectedEventEntry)}

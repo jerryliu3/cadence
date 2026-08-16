@@ -65,7 +65,7 @@ export function getEntrySubtitle(
       return `Next: ${entry.label}`;
     }
   }
-  return "Next: +1 completion";
+  return null;
 }
 
 export function getDayStatus(
