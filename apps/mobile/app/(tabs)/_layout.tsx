@@ -1,8 +1,9 @@
-import { APP_TABS } from "@cadence/shared/navigation/tabs";
+import { buildAppTabs } from "@cadence/shared/navigation/tabs";
 import { Redirect, Tabs } from "expo-router";
 import { Text } from "react-native";
 import { useForceUpgradeRequired } from "../../src/lib/runtime-config";
 import { useSession } from "../../src/lib/session";
+import { useProfileNavigationPreferences } from "../../src/lib/navigation-preferences";
 import { DuoProvider } from "../../src/features/duo/DuoProvider";
 import { useTheme } from "../../src/theme";
 import { LoadingScreen } from "../../src/ui/screen";
@@ -27,8 +28,10 @@ export default function TabsLayout() {
   const { ready, session } = useSession();
   const upgrade = useForceUpgradeRequired();
   const theme = useTheme();
+  const preferences = useProfileNavigationPreferences(session?.user.id ?? null);
+  const tabs = buildAppTabs(preferences.plannerPrimaryTabPreference);
 
-  if (!ready || upgrade.loading) {
+  if (!ready || upgrade.loading || (session && preferences.loading)) {
     return <LoadingScreen />;
   }
   if (upgrade.required) {
@@ -49,7 +52,7 @@ export default function TabsLayout() {
           tabBarInactiveTintColor: theme.colors.mutedForeground,
         }}
       >
-        {APP_TABS.map((tab) => (
+        {tabs.map((tab) => (
           <Tabs.Screen
             key={tab.key}
             name={tab.key}

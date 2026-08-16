@@ -46,5 +46,10 @@ export default async function HomePage({
     nextParams.set("month", month);
   }
   const query = nextParams.toString();
-  redirect(query.length > 0 ? `/calendar?${query}` : "/calendar");
+  if (query.length > 0) {
+    redirect(`/calendar?${query}`);
+    return;
+  }
+
+  redirect("/calendar");
 }
