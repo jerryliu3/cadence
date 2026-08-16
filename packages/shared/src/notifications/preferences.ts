@@ -44,8 +44,8 @@ export const notificationPreferenceCategories: readonly NotificationPreferenceCa
   },
   {
     key: "partner_activity",
-    label: "Partner activity",
-    description: "Partner nudges and reactions to your social activity.",
+    label: "Social activity",
+    description: "Nudges and reactions to your social activity.",
   },
 ];
 
