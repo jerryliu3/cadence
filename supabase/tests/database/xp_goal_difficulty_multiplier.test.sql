@@ -136,13 +136,32 @@ select is(
   'hard difficulty goal recompute writes doubled completion XP'
 );
 
-update public.goals
-set difficulty = 'easy'
-where id = 'c9400000-0000-4000-8000-000000000001';
-
-select public.recompute_goal_xp_service(
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config(
+  'request.jwt.claim.sub',
   '11111111-1111-4111-8111-111111111111',
-  'c9400000-0000-4000-8000-000000000001'
+  true
+);
+
+select public.update_goal(
+  'c9400000-0000-4000-8000-000000000001',
+  'XP difficulty integration goal',
+  null,
+  null,
+  'Health',
+  'health',
+  '#10b981',
+  'recurring',
+  'daily',
+  null,
+  null,
+  current_date - 7,
+  null,
+  null,
+  null,
+  false,
+  'easy'
 );
 
 select is(
@@ -153,29 +172,37 @@ select is(
       and goal_id = 'c9400000-0000-4000-8000-000000000001'
       and track_key = 'health'
   ),
-  10,
-  'recompute adjusts existing ledger to easy difficulty totals'
+  40,
+  'updating goal difficulty does not retroactively rewrite earned XP'
 );
 
-update public.goals
-set difficulty = 'medium'
-where id = 'c9400000-0000-4000-8000-000000000001';
-
-select public.recompute_goal_xp_service(
-  '11111111-1111-4111-8111-111111111111',
-  'c9400000-0000-4000-8000-000000000001'
+select public.update_goal(
+  'c9400000-0000-4000-8000-000000000001',
+  'XP difficulty integration goal (renamed)',
+  null,
+  null,
+  'Health',
+  'health',
+  '#10b981',
+  'recurring',
+  'daily',
+  null,
+  null,
+  current_date - 7,
+  null,
+  null,
+  null,
+  false
 );
 
 select is(
   (
-    select coalesce(sum(xp_delta), 0)::integer
-    from public.xp_ledger
-    where user_id = '11111111-1111-4111-8111-111111111111'
-      and goal_id = 'c9400000-0000-4000-8000-000000000001'
-      and track_key = 'health'
+    select difficulty::text
+    from public.goals
+    where id = 'c9400000-0000-4000-8000-000000000001'
   ),
-  20,
-  'recompute adjusts existing ledger to medium difficulty totals'
+  'easy',
+  'update_goal preserves difficulty when older callers omit p_difficulty'
 );
 
 select * from finish();

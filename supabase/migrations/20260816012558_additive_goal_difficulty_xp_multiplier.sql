@@ -37,15 +37,6 @@ as $$
   end;
 $$;
 
-create or replace function private.xp_goal_achievement_points()
-returns integer
-language sql
-immutable
-set search_path = ''
-as $$
-  select private.xp_goal_achievement_points('medium'::public.goal_difficulty);
-$$;
-
 create or replace function private.xp_goal_achievement_points(
   p_difficulty public.goal_difficulty
 )
@@ -63,18 +54,13 @@ as $$
   );
 $$;
 
-create or replace function private.xp_points_for_completion_source(
-  p_source public.completion_source
-)
+create or replace function private.xp_goal_achievement_points()
 returns integer
 language sql
 immutable
 set search_path = ''
 as $$
-  select private.xp_points_for_completion_source(
-    p_source,
-    'medium'::public.goal_difficulty
-  );
+  select private.xp_goal_achievement_points('medium'::public.goal_difficulty);
 $$;
 
 create or replace function private.xp_points_for_completion_source(
@@ -113,6 +99,20 @@ as $$
       )::integer
     )
   end;
+$$;
+
+create or replace function private.xp_points_for_completion_source(
+  p_source public.completion_source
+)
+returns integer
+language sql
+immutable
+set search_path = ''
+as $$
+  select private.xp_points_for_completion_source(
+    p_source,
+    'medium'::public.goal_difficulty
+  );
 $$;
 
 create or replace function private.goal_xp_credited_units(
@@ -399,7 +399,7 @@ create function public.create_goal(
   p_default_local_time text default null,
   p_team_id uuid default null,
   p_is_private boolean default false,
-  p_difficulty public.goal_difficulty default 'medium'
+  p_difficulty public.goal_difficulty default null
 )
 returns uuid
 language plpgsql
@@ -530,10 +530,7 @@ declare
   v_category_key text;
   v_needs_xp boolean := false;
   v_is_private boolean := coalesce(p_is_private, false);
-  v_difficulty public.goal_difficulty := coalesce(
-    p_difficulty,
-    'medium'::public.goal_difficulty
-  );
+  v_difficulty public.goal_difficulty;
 begin
   perform private.assert_goal_owner(p_id, v_uid);
 
@@ -554,14 +551,19 @@ begin
   into v_category, v_category_key
   from private.normalize_goal_category_pair(p_category, p_category_key) n;
 
+  v_difficulty := coalesce(
+    p_difficulty,
+    v_old.difficulty,
+    'medium'::public.goal_difficulty
+  );
+
   v_needs_xp :=
     v_old.target_count is distinct from p_target_count
     or v_old.start_date is distinct from p_start_date
     or v_old.end_date is distinct from p_end_date
     or v_old.frequency_type is distinct from p_frequency_type
     or v_old.recurrence_interval is distinct from p_recurrence_interval
-    or v_old.category_key is distinct from v_category_key
-    or v_old.difficulty is distinct from v_difficulty;
+    or v_old.category_key is distinct from v_category_key;
 
   update public.goals
   set
