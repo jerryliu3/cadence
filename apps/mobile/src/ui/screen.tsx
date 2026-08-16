@@ -7,18 +7,22 @@ import {
   Text,
   View,
 } from "react-native";
+import { useJourneyPresentationPreference } from "../features/journey/useJourneyPresentation.native";
 import { useTheme } from "../theme";
 
 export function Screen({
   title,
   children,
   scroll = true,
+  journeyPresentation = null,
 }: {
   title: string;
   children: ReactNode;
   scroll?: boolean;
+  journeyPresentation?: Parameters<typeof useJourneyPresentationPreference>[0];
 }) {
   const theme = useTheme();
+  useJourneyPresentationPreference(journeyPresentation);
   const body = (
     <View style={styles.body}>
       <Text
