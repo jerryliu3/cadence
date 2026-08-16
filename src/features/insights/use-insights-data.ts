@@ -194,7 +194,7 @@ export function useInsightsData({
           memberTeamIds,
           progress,
           insightsStats,
-        });
+        };
         setState(nextState);
         writeTabDataCache(insightsDataCacheKey, nextState);
         clearLaneError();
