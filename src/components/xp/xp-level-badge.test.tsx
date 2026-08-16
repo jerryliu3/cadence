@@ -37,7 +37,7 @@ describe("XpLevelBadge", () => {
     });
     render(<XpLevelBadge />);
 
-    expect(screen.getByText("Lv 2 · 220 XP")).toBeInTheDocument();
-    expect(screen.getByText("30 XP to Lv 3")).toBeInTheDocument();
+    expect(screen.getByText("Lv 2 · 120 XP")).toBeInTheDocument();
+    expect(screen.getByText("120 / 150 XP to Lv 3")).toBeInTheDocument();
   });
 });
