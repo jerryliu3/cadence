@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions, pg_catalog;
-select plan(2);
+select plan(3);
 
 insert into auth.users (id, email)
 values
@@ -105,6 +105,21 @@ select is(
   ),
   'ac111111-1111-4111-8111-111111111111'::uuid,
   'cohort scope returns the cohort member actor'
+);
+
+select is(
+  (
+    select count(*)::integer
+    from public.get_social_feed(
+      'group',
+      'ac300000-0000-4000-8000-000000000001',
+      null,
+      null,
+      50
+    ) feed
+  ),
+  1,
+  'group scope alias includes only actors in the group'
 );
 
 select * from finish();
