@@ -32,7 +32,7 @@ export function JourneyIntroOverlay() {
 
   return (
     <div
-      className="fixed inset-0 z-[70] flex items-end justify-center bg-background/70 p-4 backdrop-blur-sm sm:items-center"
+      className="fixed inset-0 z-[70] flex items-center justify-center bg-background/70 p-4 backdrop-blur-sm"
       role="dialog"
       aria-modal="true"
       aria-labelledby="journey-intro-title"

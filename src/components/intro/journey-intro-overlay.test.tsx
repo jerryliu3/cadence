@@ -27,6 +27,15 @@ describe("JourneyIntroOverlay", () => {
     expect(await screen.findByRole("dialog", { name: "Welcome to your climb" })).toBeInTheDocument();
   });
 
+  it("keeps the intro modal vertically centered", async () => {
+    render(<JourneyIntroOverlay />);
+    const overlay = await screen.findByRole("dialog", {
+      name: "Welcome to your climb",
+    });
+    expect(overlay).toHaveClass("items-center");
+    expect(overlay).not.toHaveClass("items-end");
+  });
+
   it("stays hidden once acknowledged", () => {
     window.localStorage.setItem(JOURNEY_INTRO_SEEN_KEY, "true");
     const { container } = render(<JourneyIntroOverlay />);
