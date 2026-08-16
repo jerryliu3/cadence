@@ -1,6 +1,5 @@
 export type AppTabKey =
   | "insights"
-  | "checklist"
   | "calendar"
   | "social"
   | "settings";
@@ -13,8 +12,7 @@ export interface AppTabDefinition {
 
 export const APP_TABS: AppTabDefinition[] = [
   { key: "insights", href: "/insights", label: "Insights" },
-  { key: "checklist", href: "/checklist", label: "Checklist" },
-  { key: "calendar", href: "/calendar", label: "Calendar" },
+  { key: "calendar", href: "/calendar", label: "Planner" },
   { key: "social", href: "/social", label: "Challenges" },
   { key: "settings", href: "/settings", label: "Profile" },
 ];

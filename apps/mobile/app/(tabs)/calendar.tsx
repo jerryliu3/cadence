@@ -1,5 +1,5 @@
-import { CalendarScreen } from "../../src/features/calendar/CalendarScreen";
+import { PlannerScreen } from "../../src/features/planner/PlannerScreen";
 
 export default function CalendarRoute() {
-  return <CalendarScreen />;
+  return <PlannerScreen />;
 }

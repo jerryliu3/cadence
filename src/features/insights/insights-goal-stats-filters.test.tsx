@@ -22,16 +22,25 @@ describe("InsightsGoalStatsFilters", () => {
         showPastGoals={false}
         pastGoalCount={3}
         onShowPastGoalsChange={vi.fn()}
+        open
+        onOpenChange={vi.fn()}
       />
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Next month" }));
+    expect(
+      screen.getByTestId("insights-quick-filters")
+    ).toHaveClass("flex", "overflow-x-auto");
+    expect(
+      screen.getByText("Next month").closest("button")
+    ).toHaveClass("h-8", "shrink-0", "rounded-full");
+    expect(screen.queryByText("Filters")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByText("Next month"));
     expect(onEndMonthChange).toHaveBeenCalledWith("2026-09");
 
-    fireEvent.click(screen.getByRole("button", { name: "Year view" }));
+    fireEvent.click(screen.getByText("Year view"));
     expect(onViewModeChange).toHaveBeenCalledWith("year");
 
-    fireEvent.click(screen.getByRole("button", { name: "Filters" }));
     expect(
       screen.getByRole("heading", { name: "Insights filters" })
     ).toBeInTheDocument();

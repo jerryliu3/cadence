@@ -1,5 +1,5 @@
-import { ChecklistScreen } from "../../src/features/checklist/ChecklistScreen";
+import { Redirect } from "expo-router";
 
 export default function ChecklistRoute() {
-  return <ChecklistScreen />;
+  return <Redirect href="/(tabs)/calendar?surface=checklist" />;
 }

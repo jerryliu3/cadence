@@ -1,12 +1,12 @@
 "use client";
 
 import { addMonths, format, parseISO } from "date-fns";
-import { SlidersHorizontal } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -30,6 +30,8 @@ interface InsightsGoalStatsFiltersProps {
   showPastGoals: boolean;
   pastGoalCount: number;
   onShowPastGoalsChange: (show: boolean) => void;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
 }
 
 export function InsightsGoalStatsFilters({
@@ -46,8 +48,9 @@ export function InsightsGoalStatsFilters({
   showPastGoals,
   pastGoalCount,
   onShowPastGoalsChange,
+  open,
+  onOpenChange,
 }: InsightsGoalStatsFiltersProps) {
-  const [open, setOpen] = useState(false);
   const quickEndMonths = useMemo(() => {
     const referenceDate = parseISO(`${referenceMonth}-01`);
     return [
@@ -62,24 +65,17 @@ export function InsightsGoalStatsFilters({
 
   return (
     <>
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-6">
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className="h-8 min-w-0 rounded-full px-3 text-xs"
-          onClick={() => setOpen(true)}
-        >
-          <SlidersHorizontal className="size-3.5" />
-          Filters
-        </Button>
+      <div
+        data-testid="insights-quick-filters"
+        className="flex min-w-0 items-center gap-2 overflow-x-auto pb-1"
+      >
         {quickEndMonths.map((option) => (
           <Button
             key={option.value}
             type="button"
             variant={endMonth === option.value ? "default" : "outline"}
             size="sm"
-            className="h-8 min-w-0 rounded-full px-3 text-xs"
+            className="h-8 shrink-0 rounded-full px-3 text-xs"
             onClick={() =>
               onEndMonthChange(endMonth === option.value ? null : option.value)
             }
@@ -93,7 +89,7 @@ export function InsightsGoalStatsFilters({
             type="button"
             variant={viewMode === mode ? "default" : "outline"}
             size="sm"
-            className="h-8 min-w-0 rounded-full px-3 text-xs"
+            className="h-8 shrink-0 rounded-full px-3 text-xs"
             onClick={() => onViewModeChange(mode)}
           >
             {mode === "month" ? "Month view" : "Year view"}
@@ -101,10 +97,13 @@ export function InsightsGoalStatsFilters({
         ))}
       </div>
 
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="top-auto bottom-0 left-1/2 max-h-[85vh] max-w-[calc(100%-1rem)] -translate-x-1/2 translate-y-0 overflow-y-auto rounded-b-none rounded-t-xl pb-[calc(env(safe-area-inset-bottom)+1rem)] sm:top-1/2 sm:bottom-auto sm:max-w-lg sm:-translate-y-1/2 sm:rounded-b-xl">
           <DialogHeader>
             <DialogTitle>Insights filters</DialogTitle>
+            <DialogDescription>
+              Refine which goal statistics are shown.
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <InsightsPeriodControls

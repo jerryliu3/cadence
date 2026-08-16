@@ -64,6 +64,7 @@ export default function TabsLayout() {
             }}
           />
         ))}
+        <Tabs.Screen name="checklist" options={{ href: null }} />
       </Tabs>
     </DuoProvider>
   );

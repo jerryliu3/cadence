@@ -1,5 +1,5 @@
-import { CalendarPageShell } from "@/features/planner/calendar-page-shell";
+import { PlannerPageShell } from "@/features/planner/planner-page-shell";
 
 export default function CalendarPage() {
-  return <CalendarPageShell />;
+  return <PlannerPageShell />;
 }

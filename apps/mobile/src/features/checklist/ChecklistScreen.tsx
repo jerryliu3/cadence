@@ -1,6 +1,6 @@
 import { FlashList } from "@shopify/flash-list";
 import { Link } from "expo-router";
-import { useMemo, useState } from "react";
+import { type ReactNode, useMemo, useState } from "react";
 import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
 import { useTheme } from "../../theme";
 import { LoadingScreen, Screen } from "../../ui/screen";
@@ -26,7 +26,11 @@ import {
 import { ChecklistGoalRow } from "./ChecklistGoalRow";
 import { useChecklistClock, useChecklistLaneData } from "./use-checklist-data";
 
-export function ChecklistScreen() {
+export function ChecklistScreen({
+  plannerNavigation,
+}: {
+  plannerNavigation?: ReactNode;
+} = {}) {
   const theme = useTheme();
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [filters, setFilters] = useState<ChecklistVisibilityFilters>({
@@ -244,7 +248,8 @@ export function ChecklistScreen() {
   }
 
   return (
-    <Screen title="Checklist" scroll={false}>
+    <Screen title={plannerNavigation ? "Planner" : "Checklist"} scroll={false}>
+      {plannerNavigation}
       <DuoScopeSegmentedControl surface="checklist" />
       <Pressable
         accessibilityRole="button"
