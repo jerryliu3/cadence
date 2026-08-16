@@ -546,7 +546,7 @@ describe("CalendarSurface characterization", () => {
       );
     });
 
-    fireEvent.click(await screen.findByText("Baseline"));
+    fireEvent.click(await screen.findByText("Next: Baseline"));
     fireEvent.change(await screen.findByLabelText("Move to"), {
       target: { value: "2026-08-30" },
     });
@@ -612,7 +612,7 @@ describe("CalendarSurface characterization", () => {
       );
     });
 
-    fireEvent.click(await screen.findByText("Baseline"));
+    fireEvent.click(await screen.findByText("Next: Baseline"));
     fireEvent.click(await screen.findByRole("button", { name: "Lock" }));
 
     await waitFor(() => {
