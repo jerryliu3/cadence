@@ -14,6 +14,7 @@ export function InsightsPeriodStepper({
   onMonthCursorChange: (next: Date) => void;
   perGoalViewMode: HeatmapViewMode;
 }) {
+  const monthPickerValue = format(monthCursor, "yyyy-MM");
   return (
     <PeriodStepper
       onPrevious={() =>
@@ -31,11 +32,31 @@ export function InsightsPeriodStepper({
         )
       }
       center={
-        <span className="min-w-[120px] text-center text-sm font-medium text-muted-foreground">
-          {perGoalViewMode === "month"
-            ? format(monthCursor, "MMMM yyyy")
-            : format(monthCursor, "yyyy")}
-        </span>
+        <label className="relative min-w-[120px] cursor-pointer text-center text-sm font-medium text-muted-foreground">
+          <span>
+            {perGoalViewMode === "month"
+              ? format(monthCursor, "MMMM yyyy")
+              : format(monthCursor, "yyyy")}
+          </span>
+          <input
+            type="month"
+            value={monthPickerValue}
+            onClick={(event) => {
+              event.currentTarget.showPicker?.();
+            }}
+            onChange={(event) => {
+              const [yearText, monthText] = event.target.value.split("-");
+              const year = Number(yearText);
+              const month = Number(monthText);
+              if (!Number.isFinite(year) || !Number.isFinite(month)) {
+                return;
+              }
+              onMonthCursorChange(new Date(year, month - 1, 1));
+            }}
+            aria-label="Choose month and year"
+            className="absolute inset-0 cursor-pointer opacity-0"
+          />
+        </label>
       }
       previousAriaLabel="Previous period"
       nextAriaLabel="Next period"

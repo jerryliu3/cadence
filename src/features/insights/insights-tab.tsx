@@ -15,7 +15,6 @@ import {
 import {
   CalendarRange,
   Flame,
-  Maximize2,
   PencilLine,
   TrendingUp,
   X,
@@ -26,13 +25,6 @@ import { AnchoredPopupCard } from "@/components/ui/anchored-popup-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { LoadingCard } from "@/components/ui/loading-card";
 import { Progress } from "@/components/ui/progress";
@@ -181,7 +173,6 @@ export function InsightsTab({
   const [showHistoricalGoals, setShowHistoricalGoals] = useState(false);
   const [editingGoalId, setEditingGoalId] = useState<string | null>(null);
   const [aggregateDrilldownDate, setAggregateDrilldownDate] = useState<string | null>(null);
-  const [aggregateDrilldownExpanded, setAggregateDrilldownExpanded] = useState(false);
   const [aggregateDrilldownPosition, setAggregateDrilldownPosition] = useState<
     ReturnType<typeof computeDayPreviewPosition> | null
   >(null);
@@ -604,12 +595,11 @@ export function InsightsTab({
   );
   const clearAggregateDrilldown = useCallback(() => {
     setAggregateDrilldownDate(null);
-    setAggregateDrilldownExpanded(false);
     setAggregateDrilldownPosition(null);
   }, []);
 
   useOutsidePointerDismiss({
-    enabled: aggregateDrilldownDate !== null && !aggregateDrilldownExpanded,
+    enabled: aggregateDrilldownDate !== null,
     containerRef: aggregateDrilldownRef,
     onDismiss: clearAggregateDrilldown,
   });
@@ -649,7 +639,6 @@ export function InsightsTab({
         onDayClick={(value) => {
           if (value?.date) {
             setAggregateDrilldownDate(value.date);
-            setAggregateDrilldownExpanded(false);
             const tile = aggregateHeatmapRef.current?.querySelector(
               `.${getAggregateDrilldownDayClass(value.date)}`
             );
@@ -728,7 +717,7 @@ export function InsightsTab({
                 onChange={(event) => setShowHistoricalGoals(event.target.checked)}
                 className="size-4 rounded border-input accent-primary"
               />
-              Show ended goals
+              Show past goals
               <span>({historicalGoals.length})</span>
             </label>
           </div>
@@ -870,9 +859,7 @@ export function InsightsTab({
                               ? savingMilestoneNamesGoalId === goal.id
                                 ? "Saving..."
                                 : "Done"
-                              : isRecurring
-                                ? "Edit dates"
-                                : "Edit milestones"}
+                              : "Edit"}
                           </Button>
                         ) : null}
                       </div>
@@ -1088,7 +1075,7 @@ export function InsightsTab({
         </CardContent>
       </Card>
 
-      {aggregateDrilldownDate && !aggregateDrilldownExpanded ? (
+      {aggregateDrilldownDate ? (
         <AnchoredPopupCard
           popupRef={aggregateDrilldownRef}
           position={aggregateDrilldownPosition}
@@ -1098,16 +1085,6 @@ export function InsightsTab({
           title={`Completions on ${format(parseISO(aggregateDrilldownDate), "MMM d, yyyy")}`}
           actions={
             <>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="h-6 px-2 text-xs"
-                onClick={() => setAggregateDrilldownExpanded(true)}
-              >
-                <Maximize2 className="mr-1 size-3" />
-                Expand
-              </Button>
               <Button
                 type="button"
                 variant="ghost"
@@ -1154,72 +1131,6 @@ export function InsightsTab({
           </div>
         </AnchoredPopupCard>
       ) : null}
-
-      <Dialog
-        open={aggregateDrilldownDate !== null && aggregateDrilldownExpanded}
-        onOpenChange={(open) => {
-          if (!open) {
-            setAggregateDrilldownExpanded(false);
-          }
-        }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>
-              {aggregateDrilldownDate
-                ? `Completions on ${format(parseISO(aggregateDrilldownDate), "MMMM d, yyyy")}`
-                : "Completions"}
-            </DialogTitle>
-            <DialogDescription>
-              {aggregateDrilldownDate
-                ? `${aggregateCountsByDate[aggregateDrilldownDate] ?? 0} completion${
-                    (aggregateCountsByDate[aggregateDrilldownDate] ?? 0) === 1
-                      ? ""
-                      : "s"
-                  }`
-                : "Review completions for a selected heatmap tile."}
-            </DialogDescription>
-          </DialogHeader>
-          {aggregateDrilldownDate ? (
-            <div className="max-h-72 space-y-2 overflow-y-auto pr-1">
-              {aggregateDrilldownItems.length === 0 ? (
-                <p className="text-sm text-muted-foreground">
-                  No completed items on this date.
-                </p>
-              ) : (
-                <CalendarDayPreviewList
-                  day={aggregateDrilldownDate}
-                  entries={[]}
-                  completionFactMarkers={aggregateDrilldownMarkers}
-                  mutationLoading={false}
-                  getEntryDisplayTitle={() => ""}
-                  getEntrySubtitle={() => null}
-                  isEntryCredited={() => false}
-                  isEntryImmovableForDraft={() => true}
-                  getCompletionToggleState={() => ({
-                    currentlyCredited: false,
-                    disabledReasonCopy: "Read-only completion history.",
-                  })}
-                  onEntryOpen={() => undefined}
-                  onToggleCompletion={() => undefined}
-                  onEntryPointerStart={() => undefined}
-                  onEntryPointerEnd={() => undefined}
-                  density="expanded"
-                />
-              )}
-            </div>
-          ) : null}
-        </DialogContent>
-      </Dialog>
-
-      <div className="rounded-xl border bg-muted/30 p-3 text-xs text-muted-foreground">
-        <p className="inline-flex items-center gap-1">
-          <CalendarRange className="size-3" />
-          Cadence goals use completed anchored periods. Goals with a target
-          count use exact-date completions toward the deadline total and do not
-          use streaks.
-        </p>
-      </div>
     </div>
   );
 }
