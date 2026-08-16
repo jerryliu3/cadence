@@ -244,7 +244,7 @@ export function CalendarSurface({
   const pointerPressActiveRef = useRef(false);
   const pointerInsideDayPreviewRef = useRef(false);
   const lastTouchTapRef = useRef<{ day: string; at: number } | null>(null);
-  const suppressDayCellClickRef = useRef<{ day: string; until: number } | null>(null);
+  const suppressDayCellClickRef = useRef<{ day: string; active: boolean } | null>(null);
   const calendarPreparedRef = useRef(false);
   const dayPreviewRef = useRef<HTMLDivElement | null>(null);
   const rollingWeekStripRef = useRef<HTMLDivElement | null>(null);
@@ -760,18 +760,16 @@ export function CalendarSurface({
     scopeMonth,
   ]);
 
-  useEffect(() => {
-    if (moveDialogSourceOptions.length === 0) {
-      setMoveDialogSourceEntryKey("");
-      return;
-    }
+  const effectiveMoveDialogSourceEntryKey = useMemo(() => {
     if (
-      !moveDialogSourceOptions.some(
+      moveDialogSourceEntryKey &&
+      moveDialogSourceOptions.some(
         (option) => option.entryKey === moveDialogSourceEntryKey
       )
     ) {
-      setMoveDialogSourceEntryKey(moveDialogSourceOptions[0]!.entryKey);
+      return moveDialogSourceEntryKey;
     }
+    return moveDialogSourceOptions[0]?.entryKey ?? "";
   }, [moveDialogSourceEntryKey, moveDialogSourceOptions]);
   useEffect(
     () => () => {
@@ -1227,10 +1225,10 @@ export function CalendarSurface({
     if (suppression.day !== day) {
       return false;
     }
-    if (Date.now() <= suppression.until) {
+    if (suppression.active) {
+      suppressDayCellClickRef.current = null;
       return true;
     }
-    suppressDayCellClickRef.current = null;
     return false;
   };
 
@@ -1755,12 +1753,12 @@ export function CalendarSurface({
       toast.error("Select a valid destination date.");
       return;
     }
-    if (!moveDialogSourceEntryKey) {
+    if (!effectiveMoveDialogSourceEntryKey) {
       toast.error("Select a scheduled date to move from.");
       return;
     }
     const sourceOption = moveDialogSourceOptions.find(
-      (option) => option.entryKey === moveDialogSourceEntryKey
+      (option) => option.entryKey === effectiveMoveDialogSourceEntryKey
     );
     if (!sourceOption) {
       toast.error("Selected source session is no longer available.");
@@ -2577,7 +2575,7 @@ export function CalendarSurface({
               longPressTriggeredRef.current = false;
               suppressDayCellClickRef.current = {
                 day: cell.date,
-                until: now + 700,
+                active: true,
               };
               openDayViewForDay(cell.date);
               return;
@@ -3276,9 +3274,13 @@ export function CalendarSurface({
           <MoveSessionDialog
             open={Boolean(moveDialogDay)}
             targetDate={moveDialogDay ?? ""}
-            selectedSourceEntryKey={moveDialogSourceEntryKey}
+            selectedSourceEntryKey={effectiveMoveDialogSourceEntryKey}
             sourceOptions={moveDialogSourceOptions.map(
-              ({ entry: _entry, ...option }) => option
+              (option) => ({
+                entryKey: option.entryKey,
+                sourceDay: option.sourceDay,
+                sourceLabel: option.sourceLabel,
+              })
             )}
             onOpenChange={(open) => {
               if (!open) {
@@ -3288,7 +3290,7 @@ export function CalendarSurface({
             onSourceChange={setMoveDialogSourceEntryKey}
             onCancel={closeMoveDialog}
             onSubmit={submitMoveDialog}
-            submitDisabled={!moveDialogSourceEntryKey}
+            submitDisabled={!effectiveMoveDialogSourceEntryKey}
           />
 
           <Dialog
