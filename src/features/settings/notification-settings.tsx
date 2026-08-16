@@ -56,6 +56,7 @@ export function NotificationSettings() {
   const {
     preferences,
     loadingPreferences,
+    hasLoadedPreferences,
     savingPreferenceKey,
     loadPreferences,
     togglePreference,
@@ -100,6 +101,7 @@ export function NotificationSettings() {
       <NotificationPreferencesSection
         preferences={preferences}
         loadingPreferences={loadingPreferences}
+        hasLoadedPreferences={hasLoadedPreferences}
         savingPreferenceKey={savingPreferenceKey}
         onTogglePreference={togglePreference}
       />

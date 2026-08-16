@@ -22,6 +22,7 @@ export function useNotificationPreferences() {
   const [loadingPreferences, setLoadingPreferences] = useState(true);
   const [savingPreferenceKey, setSavingPreferenceKey] =
     useState<NotificationPreferenceKey | null>(null);
+  const [hasLoadedPreferences, setHasLoadedPreferences] = useState(false);
 
   const loadPreferences = useCallback(async () => {
     setLoadingPreferences(true);
@@ -32,8 +33,9 @@ export function useNotificationPreferences() {
       setPreferences(
         normalizeNotificationPreferences(response.notificationPreferences)
       );
+      setHasLoadedPreferences(true);
     } catch (error) {
-      setPreferences(defaultNotificationPreferences);
+      setHasLoadedPreferences(false);
       toast.error(
         getApiErrorMessage(
           error,
@@ -47,6 +49,10 @@ export function useNotificationPreferences() {
 
   const togglePreference = useCallback(
     async (key: NotificationPreferenceKey, enabled: boolean) => {
+      if (!hasLoadedPreferences || savingPreferenceKey !== null) {
+        return;
+      }
+
       const previous = preferences;
       const next = {
         ...preferences,
@@ -77,13 +83,14 @@ export function useNotificationPreferences() {
         setSavingPreferenceKey(null);
       }
     },
-    [preferences]
+    [hasLoadedPreferences, preferences, savingPreferenceKey]
   );
 
   return {
     preferences,
     loadingPreferences,
     savingPreferenceKey,
+    hasLoadedPreferences,
     loadPreferences,
     togglePreference,
   };

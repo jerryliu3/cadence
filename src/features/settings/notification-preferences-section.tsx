@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 interface NotificationPreferencesSectionProps {
   preferences: NotificationPreferences;
   loadingPreferences: boolean;
+  hasLoadedPreferences: boolean;
   savingPreferenceKey: NotificationPreferenceKey | null;
   onTogglePreference: (key: NotificationPreferenceKey, enabled: boolean) => void;
 }
@@ -17,6 +18,7 @@ interface NotificationPreferencesSectionProps {
 export function NotificationPreferencesSection({
   preferences,
   loadingPreferences,
+  hasLoadedPreferences,
   savingPreferenceKey,
   onTogglePreference,
 }: NotificationPreferencesSectionProps) {
@@ -31,7 +33,9 @@ export function NotificationPreferencesSection({
       <div className="space-y-2">
         {notificationPreferenceCategories.map((category) => {
           const pending =
-            loadingPreferences || savingPreferenceKey === category.key;
+            loadingPreferences ||
+            !hasLoadedPreferences ||
+            savingPreferenceKey !== null;
 
           return (
             <Label

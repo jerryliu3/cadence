@@ -48,6 +48,8 @@ export function SettingsScreen() {
     useState(true);
   const [savingPreferenceKey, setSavingPreferenceKey] =
     useState<NotificationPreferenceKey | null>(null);
+  const [hasLoadedNotificationPreferences, setHasLoadedNotificationPreferences] =
+    useState(false);
 
   const schedules = useQuery({
     queryKey: ["mobile-notification-schedules", userId],
@@ -71,8 +73,8 @@ export function SettingsScreen() {
     const loadNotificationPreferences = async () => {
       if (!userId) {
         if (!cancelled) {
-          setNotificationPreferences(defaultNotificationPreferences);
           setLoadingNotificationPreferences(false);
+          setHasLoadedNotificationPreferences(false);
         }
         return;
       }
@@ -87,10 +89,11 @@ export function SettingsScreen() {
           setNotificationPreferences(
             normalizeNotificationPreferences(response.notificationPreferences)
           );
+          setHasLoadedNotificationPreferences(true);
         }
       } catch (error) {
         if (!cancelled) {
-          setNotificationPreferences(defaultNotificationPreferences);
+          setHasLoadedNotificationPreferences(false);
           setMessage(
             getApiErrorMessage(
               error,
@@ -113,6 +116,10 @@ export function SettingsScreen() {
   }, [userId]);
 
   const toggleNotificationPreference = async (key: NotificationPreferenceKey) => {
+    if (!userId || !hasLoadedNotificationPreferences || savingPreferenceKey !== null) {
+      return;
+    }
+
     const previous = notificationPreferences;
     const next = {
       ...notificationPreferences,
@@ -219,8 +226,9 @@ export function SettingsScreen() {
         const checked = notificationPreferences[category.key];
         const disabled =
           !userId ||
+          !hasLoadedNotificationPreferences ||
           loadingNotificationPreferences ||
-          savingPreferenceKey === category.key;
+          savingPreferenceKey !== null;
 
         return (
           <Pressable
