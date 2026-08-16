@@ -29,7 +29,7 @@ test("loads the seeded authenticated planner shell", async ({ page }, testInfo) 
   }
 });
 
-test("direct calendar URL does not eagerly load checklist context", async ({
+test("explicit Calendar surface does not eagerly load checklist context", async ({
   page,
 }) => {
   let progressContextRequests = 0;
@@ -38,7 +38,7 @@ test("direct calendar URL does not eagerly load checklist context", async ({
     await route.continue();
   });
 
-  await page.goto("/calendar");
+  await page.goto("/calendar?surface=calendar");
   await expect(page.getByRole("navigation", { name: "Main navigation" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Planner" })).toBeVisible();
   await expect(page).toHaveURL(/\/calendar/);
