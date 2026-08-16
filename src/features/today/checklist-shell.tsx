@@ -19,8 +19,7 @@ import { useClientSearchParamsUpdater } from "@/lib/navigation/use-client-search
 export function ChecklistShell() {
   const searchParams = useSearchParams();
   const { applySearchParams } = useClientSearchParamsUpdater();
-  const { scope, activePartner, setScopePreference, viewer, partner } =
-    useDuoSurface("checklist");
+  const { scope, viewer, partner } = useDuoSurface("checklist");
   const swipeStartRef = useRef<{ x: number; y: number } | null>(null);
   const rawTab = searchParams.get("tab");
   const normalizedTab: ChecklistTabValue = useMemo(() => {
@@ -108,10 +107,6 @@ export function ChecklistShell() {
               isActive
               subjectUserId={subject.userId}
               readOnly={subject.readOnly}
-              partnerSummary={
-                subject.id === "viewer" && scope === "me" ? activePartner : null
-              }
-              onOpenPartner={() => setScopePreference("partner")}
             />
           )}
         />

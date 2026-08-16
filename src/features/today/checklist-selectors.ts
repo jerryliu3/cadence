@@ -11,7 +11,7 @@ import type { Goal } from "@/lib/goals/types";
 export type RecurrenceFilter = "all" | "daily" | "weekly" | "monthly" | "fixed";
 export type RecurrenceGroup = "daily" | "weekly" | "monthly" | "fixed";
 
-export const VISIBLE_GOALS_PER_GROUP = 5;
+export const VISIBLE_GOALS_PER_GROUP = 4;
 export const INITIAL_GROUP_EXPANDED: Record<RecurrenceGroup, boolean> = {
   daily: false,
   weekly: false,
