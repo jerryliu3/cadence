@@ -51,15 +51,23 @@ export function InsightsGoalStatsFilters({
   open,
   onOpenChange,
 }: InsightsGoalStatsFiltersProps) {
-  const quickEndMonths = useMemo(() => {
+  const quickEndMonths = useMemo<
+    Array<{ key: string; label: string; value: string | null }>
+  >(() => {
     const referenceDate = parseISO(`${referenceMonth}-01`);
     return [
-      { label: "This month", value: referenceMonth },
+      { key: "all-end-months", label: "All End Months", value: null },
+      { key: "this-month", label: "This month", value: referenceMonth },
       {
+        key: "next-month",
         label: "Next month",
         value: format(addMonths(referenceDate, 1), "yyyy-MM"),
       },
-      { label: "Year end", value: `${referenceMonth.slice(0, 4)}-12` },
+      {
+        key: "year-end",
+        label: "Year end",
+        value: `${referenceMonth.slice(0, 4)}-12`,
+      },
     ];
   }, [referenceMonth]);
 
@@ -71,14 +79,18 @@ export function InsightsGoalStatsFilters({
       >
         {quickEndMonths.map((option) => (
           <Button
-            key={option.value}
+            key={option.key}
             type="button"
             variant={endMonth === option.value ? "default" : "outline"}
             size="sm"
             className="h-8 shrink-0 rounded-full px-3 text-xs"
-            onClick={() =>
-              onEndMonthChange(endMonth === option.value ? null : option.value)
-            }
+            onClick={() => {
+              if (option.value === null) {
+                onEndMonthChange(null);
+                return;
+              }
+              onEndMonthChange(endMonth === option.value ? null : option.value);
+            }}
           >
             {option.label}
           </Button>
