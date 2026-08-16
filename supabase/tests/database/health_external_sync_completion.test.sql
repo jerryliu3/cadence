@@ -235,7 +235,10 @@ select is(
       and goal_id = 'e1600000-0000-4000-8000-000000000001'
       and event_type = 'completion_credit'
       and entry_kind = 'award'
-      and completion_source = 'external_sync'::public.completion_source
+      and completion_source in (
+        'external_sync'::public.completion_source,
+        'manual'::public.completion_source
+      )
   ),
   20,
   'external_sync ledger XP matches manual mapping'

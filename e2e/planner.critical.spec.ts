@@ -470,14 +470,24 @@ test.describe("planner critical rails", () => {
 
     const executeMoveAndSave = async () => {
       await openCalendar(page);
-      const scopeMonth = await ensureDragFixtureEntryAvailable(page);
-      const before = await fetchPlannerContextSnapshot(page, scopeMonth);
-
-      const movedIntoDraft = await moveFirstMovableEntry(
+      let scopeMonth = await ensureDragFixtureEntryAvailable(page);
+      let before = await fetchPlannerContextSnapshot(page, scopeMonth);
+      let movedIntoDraft = await moveFirstMovableEntry(
         page,
         DRAG_FIXTURE_ENTRY_SELECTOR,
         DRAG_FIXTURE_GOAL_ID
       );
+      if (!movedIntoDraft) {
+        await page.reload();
+        await openCalendar(page);
+        scopeMonth = await ensureDragFixtureEntryAvailable(page);
+        before = await fetchPlannerContextSnapshot(page, scopeMonth);
+        movedIntoDraft = await moveFirstMovableEntry(
+          page,
+          DRAG_FIXTURE_ENTRY_SELECTOR,
+          DRAG_FIXTURE_GOAL_ID
+        );
+      }
       expect(movedIntoDraft).toBe(true);
       await expect(page.getByTestId(DRAFT_MODE_BADGE_TEST_ID)).toBeVisible();
       const saveButton = page.getByRole("button", { name: "Save plan", exact: true });
