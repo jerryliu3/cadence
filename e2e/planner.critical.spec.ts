@@ -287,9 +287,10 @@ async function moveFirstMovableEntry(
   }
 
   // Weekly fixture sessions only accept drops inside a short credit window.
-  // Prefer nearby same-month days first so we don't "succeed" a rejected far drop.
+  // Prefer nearby visible days first so we don't "succeed" a rejected far drop.
+  // Keep adjacent-month days eligible because valid move windows can cross a
+  // month boundary near the end/start of the current scope month.
   const candidateTargetDays = await page.evaluate(({ currentDay, goalId }) => {
-    const scopeMonth = currentDay.slice(0, 7);
     const sourceMs = Date.parse(`${currentDay}T00:00:00Z`);
     const dayMs = (value: string) => Date.parse(`${value}T00:00:00Z`);
     const candidates = Array.from(
@@ -299,7 +300,6 @@ async function moveFirstMovableEntry(
         const value = cell.getAttribute("data-day");
         if (
           typeof value !== "string" ||
-          !value.startsWith(scopeMonth) ||
           value === currentDay
         ) {
           return null;
@@ -331,7 +331,7 @@ async function moveFirstMovableEntry(
   }
 
   const tryCandidates = async (): Promise<boolean> => {
-    for (const targetDay of candidateTargetDays.slice(0, 12)) {
+    for (const targetDay of candidateTargetDays) {
       const currentSourceEntry = page.locator(sourceEntrySelector).first();
       await expect(currentSourceEntry).toBeVisible();
       const targetCell = page
