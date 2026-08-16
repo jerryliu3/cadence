@@ -2,6 +2,7 @@
 
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const VIEWER_ID = "11111111-1111-4111-8111-111111111111";
@@ -118,6 +119,8 @@ vi.mock("@/lib/observability/report-error", () => ({
 
 import { POST as completionsPost } from "@/app/api/completions/route";
 import { POST as bulkGoalsParsePost } from "@/app/api/bulk-goals/parse/route";
+import { POST as trainingPlanParsePost } from "@/app/api/training-plan/parse/route";
+import { POST as trainingPlanImportPost } from "@/app/api/training-plan/import/route";
 import { GET as progressContextGet } from "@/app/api/progress/context/route";
 import {
   DELETE as pushSubscriptionsDelete,
@@ -146,6 +149,8 @@ import { POST as plannerPreparePost } from "@/app/api/planner/prepare/route";
 import { POST as plannerResetPost } from "@/app/api/planner/reset/route";
 import { POST as plannerResetAllPost } from "@/app/api/planner/reset-all/route";
 import { POST as plannerLockPost } from "@/app/api/planner/items/lock/route";
+import { POST as plannerManualCreatePost } from "@/app/api/planner/items/manual/route";
+import { POST as plannerManualDeletePost } from "@/app/api/planner/items/manual/delete/route";
 import { POST as plannerCoachPost } from "@/app/api/planner/coach/route";
 import {
   GET as plannerConversationsGet,
@@ -252,6 +257,8 @@ function routeCase(
 const auditedRouteCases: AuditedRouteCase[] = [
   routeCase("POST /api/completions", completionsPost),
   routeCase("POST /api/bulk-goals/parse", bulkGoalsParsePost),
+  routeCase("POST /api/training-plan/parse", trainingPlanParsePost),
+  routeCase("POST /api/training-plan/import", trainingPlanImportPost),
   routeCase("GET /api/progress/context", progressContextGet),
   routeCase("POST /api/push/subscriptions", pushSubscriptionsPost),
   routeCase("DELETE /api/push/subscriptions", pushSubscriptionsDelete),
@@ -301,6 +308,11 @@ const auditedRouteCases: AuditedRouteCase[] = [
   routeCase("POST /api/planner/reset", plannerResetPost),
   routeCase("POST /api/planner/reset-all", plannerResetAllPost),
   routeCase("POST /api/planner/items/lock", plannerLockPost),
+  routeCase("POST /api/planner/items/manual", plannerManualCreatePost),
+  routeCase(
+    "POST /api/planner/items/manual/delete",
+    plannerManualDeletePost
+  ),
   routeCase("POST /api/planner/coach", plannerCoachPost),
   routeCase("GET /api/planner/coach/conversations", plannerConversationsGet),
   routeCase("POST /api/planner/coach/conversations", plannerConversationsPost),
@@ -417,6 +429,8 @@ const unauthenticatedHandlers = new Set([
   "GET /api/integrations/calendar/feed/[token]/cadence.ics",
 ]);
 
+const apiRootFromTestFile = path.dirname(fileURLToPath(import.meta.url));
+
 function collectRouteFiles(directory: string): string[] {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
     const entryPath = path.join(directory, entry.name);
@@ -428,10 +442,9 @@ function collectRouteFiles(directory: string): string[] {
 }
 
 function discoverApiHandlerLabels() {
-  const apiRoot = path.resolve(process.cwd(), "src/app/api");
-  return collectRouteFiles(apiRoot).flatMap((filePath) => {
+  return collectRouteFiles(apiRootFromTestFile).flatMap((filePath) => {
     const routePath = `/api/${path
-      .relative(apiRoot, path.dirname(filePath))
+      .relative(apiRootFromTestFile, path.dirname(filePath))
       .split(path.sep)
       .join("/")}`;
     const source = readFileSync(filePath, "utf8");

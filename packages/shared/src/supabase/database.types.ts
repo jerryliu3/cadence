@@ -2647,6 +2647,14 @@ export type Database = {
         Args: { p_deleted_native_ids?: Json; p_samples: Json }
         Returns: Json
       }
+      import_training_plan: {
+        Args: { p_goals: Json }
+        Returns: {
+          goal_count: number
+          schedule_digest: string
+          session_count: number
+        }[]
+      }
       is_platform_admin: {
         Args: { p_min_role?: Database["public"]["Enums"]["admin_role"] }
         Returns: boolean
