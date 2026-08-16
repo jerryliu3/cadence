@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { sendTeamNudge } from "@/features/social/data";
+import { buildTeamNudgeContent } from "@cadence/shared/social/team";
 
 export function NudgeButton({
   partnerId,
@@ -20,14 +21,10 @@ export function NudgeButton({
     setIsPending(true);
     setError(null);
     try {
-      const trimmedOptional = optionalMessage?.trim() ?? "";
+      const content = buildTeamNudgeContent(optionalMessage);
       await sendTeamNudge({
         toUserId: partnerId,
-        kind: trimmedOptional.length > 0 ? "custom" : "cheer",
-        message:
-          trimmedOptional.length > 0
-            ? `Your partner sent a nudge to keep momentum going. ${trimmedOptional}`
-            : undefined,
+        ...content,
       });
       onSent?.();
     } catch (nudgeError) {

@@ -12,7 +12,10 @@ import {
   dissolveSocialTeam,
   fetchSocialTeamState,
 } from "@/features/social/data";
-import type { TeamStateRow } from "@cadence/shared/social/team";
+import {
+  TEAM_NUDGE_USER_TEXT_MAX_LENGTH,
+  type TeamStateRow,
+} from "@cadence/shared/social/team";
 import { NudgeButton } from "@/features/social/team/nudge-button";
 
 export function TeamPanel() {
@@ -118,7 +121,7 @@ export function TeamPanel() {
                 value={nudgeMessage}
                 onChange={(event) => setNudgeMessage(event.target.value)}
                 placeholder="Optional nudge message"
-                maxLength={100}
+                maxLength={TEAM_NUDGE_USER_TEXT_MAX_LENGTH}
               />
               <NudgeButton
                 partnerId={activeTeam.partnerId}

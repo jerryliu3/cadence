@@ -17,6 +17,13 @@ const mocks = vi.hoisted(() => ({
     partnerDisplayName: string;
     partnerUsername: string;
   },
+  activePartner: null as null | {
+    teamId: string;
+    partnerId: string;
+    partnerDisplayName: string;
+    partnerUsername: string;
+    partnerAvatarUrl: null;
+  },
 }));
 
 vi.mock("react-native", async () => {
@@ -59,7 +66,10 @@ vi.mock("../duo/DuoProvider", () => ({
     availability: "ready",
     teamLoading: false,
     teamRefreshing: false,
-    state: { activePartner: null, pendingInvite: mocks.pendingInvite },
+    state: {
+      activePartner: mocks.activePartner,
+      pendingInvite: mocks.pendingInvite,
+    },
     refreshTeam: vi.fn(),
   }),
 }));
@@ -109,6 +119,7 @@ describe("SocialScreen Duo onboarding", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.pendingInvite = null;
+    mocks.activePartner = null;
     mocks.rpc.mockResolvedValue({
       data: [
         {
@@ -122,6 +133,37 @@ describe("SocialScreen Duo onboarding", () => {
       error: null,
     });
     mocks.createInvite.mockResolvedValue(undefined);
+  });
+
+  it("limits custom nudge text to 90 characters", async () => {
+    mocks.activePartner = {
+      teamId: "team-1",
+      partnerId: "partner-1",
+      partnerDisplayName: "Alex",
+      partnerUsername: "alex",
+      partnerAvatarUrl: null,
+    };
+    const client = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false },
+        mutations: { retry: false },
+      },
+    });
+    let renderer!: ReactTestRenderer;
+
+    await act(async () => {
+      renderer = create(
+        <QueryClientProvider client={client}>
+          <SocialScreen />
+        </QueryClientProvider>
+      );
+    });
+
+    const nudgeInput = findHost(renderer.root, "TextInput").find(
+      (input) => input.props.placeholder === "Optional nudge message"
+    );
+    expect(nudgeInput?.props.maxLength).toBe(90);
+    act(() => renderer.unmount());
   });
 
   it("invites the selected username result instead of raw input", async () => {

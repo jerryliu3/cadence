@@ -1,4 +1,8 @@
 import { getApiErrorMessage } from "@cadence/shared/api-client";
+import {
+  buildTeamNudgeContent,
+  TEAM_NUDGE_USER_TEXT_MAX_LENGTH,
+} from "@cadence/shared/social/team";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { Alert, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
@@ -183,14 +187,9 @@ export function SocialScreen() {
       if (!partnerId) {
         throw new Error("You need an active partner to send a cheer.");
       }
-      const trimmedMessage = nudgeMessageInput.trim();
       await api.postJson("/api/social/team/nudges", {
         toUserId: partnerId,
-        kind: trimmedMessage.length > 0 ? "custom" : "cheer",
-        message:
-          trimmedMessage.length > 0
-            ? `Your partner sent a nudge to keep momentum going. ${trimmedMessage}`
-            : undefined,
+        ...buildTeamNudgeContent(nudgeMessageInput),
       });
     },
     onSuccess: () => {
@@ -278,6 +277,7 @@ export function SocialScreen() {
             autoCapitalize="sentences"
             placeholder="Optional nudge message"
             placeholderTextColor={theme.colors.mutedForeground}
+            maxLength={TEAM_NUDGE_USER_TEXT_MAX_LENGTH}
             style={[
               styles.input,
               {
