@@ -55,12 +55,12 @@ export function NotificationPushSection({
           Enable reminders on each device where you want to receive them.
         </p>
       </div>
-      <div className="flex flex-col gap-3 rounded-xl border bg-muted/30 p-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-start gap-3">
+      <div className="flex min-w-0 flex-col gap-3 rounded-xl border bg-muted/30 p-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex min-w-0 items-start gap-3">
           <Smartphone className="mt-0.5 size-5 shrink-0 text-muted-foreground" />
-          <div>
+          <div className="min-w-0">
             <p className="font-medium">This device</p>
-            <p className="text-sm text-muted-foreground">{pushStatusCopy[pushStatus]}</p>
+            <p className="break-words text-sm text-muted-foreground">{pushStatusCopy[pushStatus]}</p>
           </div>
         </div>
 
@@ -68,6 +68,7 @@ export function NotificationPushSection({
           <Button
             type="button"
             variant="outline"
+            className="w-full sm:w-auto"
             onClick={onDisablePush}
             disabled={changingPushStatus}
           >
@@ -77,6 +78,7 @@ export function NotificationPushSection({
         ) : (
           <Button
             type="button"
+            className="w-full sm:w-auto"
             onClick={onEnablePush}
             disabled={!canEnablePush || changingPushStatus}
           >

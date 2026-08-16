@@ -7,7 +7,6 @@ import {
   Loader2,
   Maximize2,
   Minimize2,
-  RotateCcw,
   Settings,
 } from "lucide-react";
 import {
@@ -2808,6 +2807,43 @@ export function CalendarSurface({
       <Button type="button" onClick={submitSetup} disabled={setupLoading}>
         {setupLoading ? "Saving settings..." : "Save settings"}
       </Button>
+      {!plannerReadOnly ? (
+        <div className="space-y-2 rounded-md border p-3">
+          <p className="text-xs text-muted-foreground">
+            Use these tools to refresh the current calendar projection or clear lock-based
+            blockers.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => void recoverPastSessions()}
+              title="Re-place uncompleted sessions left behind in the past"
+              disabled={recoverLoading || loading || saveLoading || !canRecoverPastSessions}
+            >
+              {recoverLoading ? "Recovering..." : "Recover"}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={resetPlan}
+              title={!canResetPlan ? "No locked goals to unlock." : undefined}
+              disabled={loading || resetLoading || !canResetPlan}
+            >
+              {resetLoading ? "Unlocking..." : "Unlock all goals"}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={rebuildSchedule}
+              title={rebuildBlockedMessage}
+              disabled={rebuildLoading || loading || hasDraftSession || !canShowSaveAction}
+            >
+              {rebuildLoading ? "Refreshing..." : "Refresh calendar"}
+            </Button>
+          </div>
+        </div>
+      ) : null}
       <div className="space-y-2 rounded-md border border-destructive/30 bg-destructive/5 p-3">
         <p className="text-xs text-muted-foreground">
           Full reset clears planner schedule snapshots across the active 24-month horizon.
@@ -2826,6 +2862,35 @@ export function CalendarSurface({
 
   return (
     <div className="space-y-4">
+      {hasPlannerWarnings && !warningsDismissed && !showBlockingLoading && !error ? (
+        <div className="rounded-md border border-amber-300 bg-amber-100 px-3 py-2 text-xs text-amber-950 dark:border-amber-300 dark:bg-amber-100 dark:text-amber-950">
+          <div className="flex items-center justify-between gap-2">
+            <p className="min-w-0 flex-1">
+              There were some issues generating the full calendar.
+            </p>
+            <div className="flex shrink-0 items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-7 text-xs"
+                onClick={() => {
+                  setWarningsOpen(true);
+                }}
+              >
+                See warnings
+              </Button>
+              <button
+                type="button"
+                className="text-xs font-medium underline-offset-2 hover:underline"
+                onClick={() => setWarningsDismissed(true)}
+              >
+                Dismiss
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
       <div className="rounded-xl border bg-card p-4 shadow-sm">
         <div className="space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -2862,43 +2927,10 @@ export function CalendarSurface({
                   {saveButtonLabel}
                 </Button>
               ) : null}
-              {canRecoverPastSessions ? (
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  onClick={() => void recoverPastSessions()}
-                  title="Re-place uncompleted sessions left behind in the past"
-                  disabled={recoverLoading || loading || saveLoading}
-                >
-                  {recoverLoading ? "Recovering..." : "Recover"}
-                </Button>
-              ) : null}
               {plannerReadOnly ? (
                 <span className="text-xs text-muted-foreground">
                   Partner completions (read-only)
                 </span>
-              ) : canResetPlan ? (
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="destructive"
-                  onClick={resetPlan}
-                  disabled={loading || resetLoading}
-                >
-                  {resetLoading ? "Resetting..." : "Reset plan"}
-                </Button>
-              ) : canShowSaveAction ? (
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  onClick={rebuildSchedule}
-                  title={rebuildBlockedMessage}
-                  disabled={rebuildLoading || loading || hasDraftSession}
-                >
-                  {rebuildLoading ? "Refreshing..." : "Refresh schedule"}
-                </Button>
               ) : null}
               {hasDraftSession ? (
                 <Button
@@ -2955,33 +2987,6 @@ export function CalendarSurface({
       {partnerOverlayError ? (
         <p className="text-xs text-muted-foreground">{partnerOverlayError}</p>
       ) : null}
-      {hasPlannerWarnings && !warningsDismissed && !showBlockingLoading && !error ? (
-        <div className="rounded-md border border-amber-300 bg-amber-100 px-3 py-2 text-xs text-amber-950 dark:border-amber-300 dark:bg-amber-100 dark:text-amber-950">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex flex-wrap items-center gap-1.5">
-              <p>There were some issues generating the full calendar.</p>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="h-7 text-xs"
-                onClick={() => {
-                  setWarningsOpen(true);
-                }}
-              >
-                See warnings
-              </Button>
-            </div>
-            <button
-              type="button"
-              className="text-xs font-medium underline-offset-2 hover:underline"
-              onClick={() => setWarningsDismissed(true)}
-            >
-              Dismiss
-            </button>
-          </div>
-        </div>
-      ) : null}
       {showBlockingLoading ? (
         <LoadingCard
           title="Loading planner context..."
@@ -2995,54 +3000,59 @@ export function CalendarSurface({
         <>
           <div className="rounded-xl border bg-card p-4 shadow-sm">
             <div className="mx-auto mb-3 w-full max-w-[56rem] space-y-3">
-              <div className="relative flex w-full justify-center">
-                <PeriodStepper
-                  className="shrink-0"
-                  onPrevious={() => moveViewWindow(-1)}
-                  onNext={() => moveViewWindow(1)}
-                  previousDisabled={loading}
-                  nextDisabled={loading}
-                  previousAriaLabel={previousWindowAriaLabel}
-                  nextAriaLabel={nextWindowAriaLabel}
-                  center={
-                    <h3
-                      className="truncate text-center text-base font-semibold"
-                      style={{ width: `${fixedViewHeadingWidthCh}ch` }}
-                    >
-                      {viewHeading}
-                    </h3>
-                  }
-                />
-                <div className="absolute right-0 top-1/2 flex -translate-y-1/2 items-center gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon-sm"
-                    disabled={loading || !canResetViewWindow}
-                    aria-label="Go to today"
-                    title="Go to today"
-                    onClick={resetViewWindow}
-                  >
-                    <RotateCcw className="size-4" />
-                  </Button>
-                  {viewMode === "month" ? (
+              <div className="space-y-2">
+                <div className="relative flex w-full justify-center">
+                  <PeriodStepper
+                    className="shrink-0"
+                    onPrevious={() => moveViewWindow(-1)}
+                    onNext={() => moveViewWindow(1)}
+                    previousDisabled={loading}
+                    nextDisabled={loading}
+                    previousAriaLabel={previousWindowAriaLabel}
+                    nextAriaLabel={nextWindowAriaLabel}
+                    center={
+                      <h3
+                        className="truncate text-center text-base font-semibold"
+                        style={{ width: `${fixedViewHeadingWidthCh}ch` }}
+                      >
+                        {viewHeading}
+                      </h3>
+                    }
+                  />
+                  <div className="absolute right-0 top-1/2 flex -translate-y-1/2 items-center gap-2">
+                    {viewMode === "month" ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon-sm"
+                        disabled={loading}
+                        aria-label={expandedMonthRows ? "Compact rows" : "Expand rows"}
+                        title={expandedMonthRows ? "Compact rows" : "Expand rows"}
+                        onClick={() => setExpandedMonthRows((current) => !current)}
+                      >
+                        {expandedMonthRows ? (
+                          <Minimize2 className="size-4" />
+                        ) : (
+                          <Maximize2 className="size-4" />
+                        )}
+                      </Button>
+                    ) : null}
+                  </div>
+                </div>
+                {canResetViewWindow ? (
+                  <div className="flex justify-center">
                     <Button
                       type="button"
-                      variant="outline"
-                      size="icon-sm"
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 px-2 text-xs"
                       disabled={loading}
-                      aria-label={expandedMonthRows ? "Compact rows" : "Expand rows"}
-                      title={expandedMonthRows ? "Compact rows" : "Expand rows"}
-                      onClick={() => setExpandedMonthRows((current) => !current)}
+                      onClick={resetViewWindow}
                     >
-                      {expandedMonthRows ? (
-                        <Minimize2 className="size-4" />
-                      ) : (
-                        <Maximize2 className="size-4" />
-                      )}
+                      Today
                     </Button>
-                  ) : null}
-                </div>
+                  </div>
+                ) : null}
               </div>
               <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                 <p>{viewDescription}</p>

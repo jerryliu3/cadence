@@ -246,7 +246,7 @@ describe("CalendarSurface characterization", () => {
     });
 
     expect(screen.queryByText("Plan setup")).not.toBeInTheDocument();
-    expect(await screen.findAllByRole("button", { name: "Go to today" })).not.toHaveLength(0);
+    expect(await screen.findAllByRole("button", { name: "Today" })).not.toHaveLength(0);
   });
 
   it("keeps the centered period and right-aligned calendar actions on one row", async () => {
@@ -280,12 +280,11 @@ describe("CalendarSurface characterization", () => {
       );
     });
 
-    const todayButton = await screen.findByRole("button", { name: "Go to today" });
     const expandButton = screen.getByRole("button", { name: "Expand rows" });
     const heading = screen.getByRole("heading", { name: "August 2026" });
-    const actionGroup = todayButton.parentElement;
+    const actionGroup = expandButton.parentElement;
 
-    expect(actionGroup).toContainElement(expandButton);
+    expect(actionGroup).not.toBeNull();
     expect(actionGroup).toHaveClass("right-0");
     expect(heading).toBeInTheDocument();
   });

@@ -25,6 +25,11 @@ interface AchievementsPayload {
   };
 }
 
+const ACHIEVEMENT_VISIBLE_ROWS = 10.5;
+const ACHIEVEMENT_ROW_HEIGHT_REM = 3.25;
+const ACHIEVEMENT_SECTION_MAX_HEIGHT_REM =
+  ACHIEVEMENT_VISIBLE_ROWS * ACHIEVEMENT_ROW_HEIGHT_REM;
+
 function formatDate(value: string | null) {
   if (!value) {
     return "—";
@@ -109,6 +114,45 @@ export default function AchievementsPage() {
     <div className="space-y-4">
       <Card>
         <CardHeader>
+          <CardTitle>Global Achievements</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2 text-sm">
+          {payload.globalAchievements.length === 0 ? (
+            <p className="text-muted-foreground">No global achievements yet.</p>
+          ) : (
+            <div
+              className="space-y-2 overflow-y-auto pr-1"
+              style={{ maxHeight: `${ACHIEVEMENT_SECTION_MAX_HEIGHT_REM}rem` }}
+            >
+              {payload.globalAchievements.map((achievement) => (
+                <div
+                  key={achievement.id}
+                  className="flex items-center justify-between rounded-md border p-2"
+                >
+                  <div>
+                    <p className="font-medium">{achievement.title ?? "XP achievement"}</p>
+                    <p className="text-xs text-muted-foreground">
+                      Level {achievement.level ?? "?"} ·{" "}
+                      {formatDate(achievement.unlockedAt)}
+                    </p>
+                    {achievement.description ? (
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {achievement.description}
+                      </p>
+                    ) : null}
+                  </div>
+                  {achievement.revokedAt ? (
+                    <Badge variant="secondary">Revoked</Badge>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
           <CardTitle>Goal Achievements</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3 text-sm">
@@ -120,51 +164,22 @@ export default function AchievementsPage() {
           {payload.achievedGoals.length === 0 ? (
             <p className="text-muted-foreground">No achieved goals yet.</p>
           ) : (
-            payload.achievedGoals.slice(0, 20).map((goal) => (
-              <div key={goal.goalId} className="rounded-md border p-2">
-                <p className="font-medium">{goal.title}</p>
-                <p className="text-xs text-muted-foreground">
-                  Achieved {formatDate(goal.achievedOn)}
-                </p>
-                {goal.rewardText ? (
-                  <p className="mt-1 text-xs">{goal.rewardText}</p>
-                ) : null}
-              </div>
-            ))
-          )}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Global Achievements</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2 text-sm">
-          {payload.globalAchievements.length === 0 ? (
-            <p className="text-muted-foreground">No global achievements yet.</p>
-          ) : (
-            payload.globalAchievements.slice(0, 20).map((achievement) => (
-              <div
-                key={achievement.id}
-                className="flex items-center justify-between rounded-md border p-2"
-              >
-                <div>
-                  <p className="font-medium">{achievement.title ?? "XP achievement"}</p>
+            <div
+              className="space-y-3 overflow-y-auto pr-1"
+              style={{ maxHeight: `${ACHIEVEMENT_SECTION_MAX_HEIGHT_REM}rem` }}
+            >
+              {payload.achievedGoals.map((goal) => (
+                <div key={goal.goalId} className="rounded-md border p-2">
+                  <p className="font-medium">{goal.title}</p>
                   <p className="text-xs text-muted-foreground">
-                    Level {achievement.level ?? "?"} ·{" "}
-                    {formatDate(achievement.unlockedAt)}
+                    Achieved {formatDate(goal.achievedOn)}
                   </p>
-                  {achievement.description ? (
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      {achievement.description}
-                    </p>
+                  {goal.rewardText ? (
+                    <p className="mt-1 text-xs">{goal.rewardText}</p>
                   ) : null}
                 </div>
-                {achievement.revokedAt ? (
-                  <Badge variant="secondary">Revoked</Badge>
-                ) : null}
-              </div>
-            ))
+              ))}
+            </div>
           )}
         </CardContent>
       </Card>
