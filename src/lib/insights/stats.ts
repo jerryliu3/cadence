@@ -10,9 +10,26 @@ import {
   writeTabDataCache,
 } from "@/lib/cache/tab-data-cache";
 import type { InsightsStatsResponse } from "@/lib/insights/types";
+import { createClient } from "@/lib/supabase/client";
 
 const INSIGHTS_STATS_CACHE_KEY = "insights-stats:v1";
 const INSIGHTS_STATS_TIMEOUT_MS = 15_000;
+
+async function resolveInsightsStatsCacheKey() {
+  try {
+    const supabase = createClient();
+    const {
+      data: { user },
+      error,
+    } = await supabase.auth.getUser();
+    if (error || !user) {
+      return null;
+    }
+    return `${INSIGHTS_STATS_CACHE_KEY}:${user.id}`;
+  } catch {
+    return null;
+  }
+}
 
 export class InsightsStatsAuthenticationError extends Error {
   readonly code = "authentication_required";
@@ -30,9 +47,12 @@ export async function fetchInsightsStats({
 }: {
   forceRefresh?: boolean;
 } = {}) {
-  const cached = readTabDataCache<InsightsStatsResponse>(INSIGHTS_STATS_CACHE_KEY);
-  if (!forceRefresh && cached) {
-    return cached;
+  const cacheKey = await resolveInsightsStatsCacheKey();
+  if (cacheKey) {
+    const cached = readTabDataCache<InsightsStatsResponse>(cacheKey);
+    if (!forceRefresh && cached) {
+      return cached;
+    }
   }
 
   let payload: InsightsStatsResponse;
@@ -50,6 +70,8 @@ export async function fetchInsightsStats({
     throw new Error(getApiErrorMessage(error, "Insights stats could not be loaded."));
   }
 
-  writeTabDataCache(INSIGHTS_STATS_CACHE_KEY, payload, TAB_DATA_CACHE_TTL_MS);
+  if (cacheKey) {
+    writeTabDataCache(cacheKey, payload, TAB_DATA_CACHE_TTL_MS);
+  }
   return payload;
 }
