@@ -2536,14 +2536,6 @@ export function CalendarSurface({
                   </Badge>
                 ) : null}
               </div>
-              {horizonCounter ? (
-                <p className="text-xs text-muted-foreground">
-                  {horizonCounter.thisWindow} planned / {horizonCounter.total} total{" "}
-                  {horizonCounter.remaining > 0
-                    ? `· ${horizonCounter.remaining} remaining`
-                    : "· all credited"}
-                </p>
-              ) : null}
               {eligibilityNotices.hardIneligible.length > 0 ? (
                 <div className="rounded-md border border-amber-300 bg-amber-100 px-3 py-2 text-xs text-amber-950 dark:border-amber-300 dark:bg-amber-100 dark:text-amber-950">
                   <p className="font-semibold">Planning attention needed</p>
