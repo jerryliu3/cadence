@@ -72,7 +72,7 @@ function toSeasonDto(row: Record<string, unknown>) {
     ends_at: row.ends_at,
     status: row.status,
     rollover: row.rollover,
-    scope: row.scope === "cohort" ? "group" : "global",
+    scope: row.scope === "global" ? "global" : "group",
     groupId: row.cohort_id,
   };
 }
@@ -174,7 +174,7 @@ export async function POST(request: Request) {
         ends_at: body.endsAt ?? null,
         status: body.status,
         rollover: body.rollover,
-        scope: body.scope === "group" ? "cohort" : "global",
+        scope: body.scope === "group" ? "group" : "global",
         cohort_id: body.groupId ?? null,
         created_by: adminContext.userId,
       })

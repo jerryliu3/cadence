@@ -78,7 +78,7 @@ function toChallengeDto(row: Record<string, unknown>) {
     endsAt: row.ends_at,
     rewardXp: row.reward_xp,
     maxParticipants: row.max_participants,
-    audienceKind: row.audience_kind === "cohort" ? "group" : "global",
+    audienceKind: row.audience_kind === "global" ? "global" : "group",
     groupId: row.cohort_id,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -190,7 +190,7 @@ export async function POST(request: Request) {
         ends_at: body.endsAt,
         reward_xp: body.rewardXp,
         max_participants: body.maxParticipants ?? null,
-        audience_kind: body.audienceKind === "group" ? "cohort" : "global",
+        audience_kind: body.audienceKind === "group" ? "group" : "global",
         cohort_id: body.groupId ?? null,
         created_by: adminContext.userId,
       })

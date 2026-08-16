@@ -118,7 +118,7 @@ function toSeasonDto(row: Record<string, unknown>) {
     ends_at: row.ends_at,
     status: row.status,
     rollover: row.rollover,
-    scope: row.scope === "cohort" ? "group" : "global",
+    scope: row.scope === "global" ? "global" : "group",
     groupId: row.cohort_id,
   };
 }
@@ -147,7 +147,7 @@ export async function PATCH(
     if (body.status !== undefined) updates.status = body.status;
     if (body.rollover !== undefined) updates.rollover = body.rollover;
     if (body.scope !== undefined) {
-      updates.scope = body.scope === "group" ? "cohort" : "global";
+      updates.scope = body.scope === "group" ? "group" : "global";
     }
     if (body.scope === "global" && body.groupId === undefined) {
       updates.cohort_id = null;
