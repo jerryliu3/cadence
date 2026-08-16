@@ -271,6 +271,21 @@ export function SocialScreen() {
           <Text style={{ color: theme.colors.mutedForeground }}>
             Partner id: {activePartner.partnerId}
           </Text>
+          <View style={[styles.teamXpSummary, { borderColor: theme.colors.border }]}>
+            <Text style={{ color: theme.colors.mutedForeground }}>Team XP</Text>
+            <Text
+              style={{
+                color: theme.colors.foreground,
+                fontSize: 20,
+                fontWeight: "700",
+              }}
+            >
+              {activePartner.teamXp.toLocaleString()} XP
+            </Text>
+            <Text style={{ color: theme.colors.mutedForeground }}>
+              Earned together since the team formed
+            </Text>
+          </View>
           <TextInput
             value={nudgeMessageInput}
             onChangeText={setNudgeMessageInput}
@@ -473,6 +488,12 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 12,
     gap: 10,
+  },
+  teamXpSummary: {
+    borderWidth: 1,
+    borderRadius: 10,
+    padding: 12,
+    gap: 2,
   },
   input: {
     borderWidth: 1,

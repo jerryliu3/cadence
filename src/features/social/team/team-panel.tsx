@@ -17,6 +17,7 @@ import {
   type TeamStateRow,
 } from "@cadence/shared/social/team";
 import { NudgeButton } from "@/features/social/team/nudge-button";
+import { TeamXpSummary } from "@/features/social/team/team-xp-summary";
 
 export function TeamPanel() {
   const router = useRouter();
@@ -117,6 +118,7 @@ export function TeamPanel() {
         <CardContent>
           {activeTeam ? (
             <div className="space-y-2">
+              <TeamXpSummary totalXp={activeTeam.teamXp ?? 0} />
               <Input
                 value={nudgeMessage}
                 onChange={(event) => setNudgeMessage(event.target.value)}

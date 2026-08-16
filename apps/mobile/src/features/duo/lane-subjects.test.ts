@@ -8,6 +8,8 @@ const activePartner: DuoActivePartner = {
   partnerUsername: "alex",
   partnerDisplayName: "Alex",
   partnerAvatarUrl: null,
+  teamXp: 55,
+  teamXpSince: "2026-01-01T00:01:00.000Z",
 };
 
 describe("resolveMobileDuoLaneSubjects", () => {
