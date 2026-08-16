@@ -60,7 +60,7 @@ describe("insights selectors", () => {
     const hiddenHistorical = selectVisiblePerGoalHeatmaps({
       goals,
       visiblePeriodStart: "2026-08-01",
-      endMonth: null,
+      endMonths: [],
       showHistoricalGoals: false,
       sort: "earliest_end",
     });
@@ -68,7 +68,7 @@ describe("insights selectors", () => {
     const shownHistorical = selectVisiblePerGoalHeatmaps({
       goals,
       visiblePeriodStart: "2026-08-01",
-      endMonth: null,
+      endMonths: [],
       showHistoricalGoals: true,
       sort: "earliest_end",
     });

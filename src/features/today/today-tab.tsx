@@ -9,6 +9,7 @@ import {
 } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { CheckboxDropdown } from "@/components/ui/checkbox-dropdown";
 import {
   Dialog,
   DialogContent,
@@ -18,13 +19,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { LoadingCard } from "@/components/ui/loading-card";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { resolveSelectedDateState, toLocalDateString } from "@/lib/dates/day";
 import { GoalListControls } from "@/features/goals/goal-list-controls";
 import { ChecklistPastPanels } from "@/features/today/checklist-past-panels";
@@ -37,7 +31,6 @@ import {
   selectEndedGoals,
   selectFilteredTodayGoals,
   selectUpcomingGoals,
-  type RecurrenceFilter,
   type RecurrenceGroup,
 } from "@/features/today/checklist-selectors";
 import { ChecklistTodayGroups } from "@/features/today/checklist-today-groups";
@@ -58,8 +51,8 @@ import {
 } from "@/lib/goals/category";
 import { getGoalLifecycle } from "@/lib/goals/lifecycle";
 import {
-  filterGoalsByEndMonth,
-  resolveEffectiveEndMonth,
+  filterGoalsByEndMonths,
+  resolveEffectiveEndMonths,
   sortGoalsByDate,
   type GoalDateSort,
 } from "@/lib/goals/list-view";
@@ -84,8 +77,6 @@ import {
 import { useCompletionMutation } from "@/features/planner/use-completion-mutation";
 import { reportDuoTelemetry } from "@/lib/social/duo/telemetry";
 
-export const ALL_CATEGORIES_FILTER_VALUE = "__all_categories__";
-
 export interface ChecklistSharedFilters {
   viewDate: string;
   setViewDate: (value: string) => void;
@@ -97,17 +88,19 @@ export interface ChecklistSharedFilters {
   setShowArchivedGoals: (value: boolean) => void;
   showCompletedGoals: boolean;
   setShowCompletedGoals: (value: boolean) => void;
-  categoryFilter: string;
-  setCategoryFilter: (value: string) => void;
-  recurrenceFilter: RecurrenceFilter;
-  setRecurrenceFilter: (value: RecurrenceFilter) => void;
+  categoryFilters: string[];
+  setCategoryFilters: (value: string[]) => void;
+  recurrenceFilters: RecurrenceGroup[];
+  setRecurrenceFilters: (value: RecurrenceGroup[]) => void;
   todayGoalSearchQuery: string;
   setTodayGoalSearchQuery: (value: string) => void;
-  todayEndMonth: string | null;
-  setTodayEndMonth: (value: string | null) => void;
+  todayEndMonths: string[];
+  setTodayEndMonths: (value: string[]) => void;
   todaySort: GoalDateSort;
   setTodaySort: (value: GoalDateSort) => void;
 }
+
+export type ChecklistTabContentMode = "full" | "filters-only" | "goals-only";
 
 interface TodayTabProps {
   isActive?: boolean;
@@ -115,6 +108,8 @@ interface TodayTabProps {
   subjectUserId?: string;
   readOnly?: boolean;
   sharedFilters?: ChecklistSharedFilters;
+  showFiltersSection?: boolean;
+  contentMode?: ChecklistTabContentMode;
 }
 
 export function TodayTab({
@@ -123,6 +118,8 @@ export function TodayTab({
   subjectUserId,
   readOnly = false,
   sharedFilters,
+  showFiltersSection = true,
+  contentMode = "full",
 }: TodayTabProps = {}) {
   const [savingGoalId, setSavingGoalId] = useState<string | null>(null);
   const [expandedGroups, setExpandedGroups] =
@@ -134,15 +131,14 @@ export function TodayTab({
   const [internalShowUpcomingGoals, setInternalShowUpcomingGoals] = useState(false);
   const [internalShowArchivedGoals, setInternalShowArchivedGoals] = useState(false);
   const [internalShowCompletedGoals, setInternalShowCompletedGoals] = useState(false);
-  const [internalCategoryFilter, setInternalCategoryFilter] = useState(
-    ALL_CATEGORIES_FILTER_VALUE
-  );
-  const [internalRecurrenceFilter, setInternalRecurrenceFilter] =
-    useState<RecurrenceFilter>("all");
+  const [internalCategoryFilters, setInternalCategoryFilters] = useState<string[]>([]);
+  const [internalRecurrenceFilters, setInternalRecurrenceFilters] = useState<
+    RecurrenceGroup[]
+  >([]);
   const [internalTodayGoalSearchQuery, setInternalTodayGoalSearchQuery] = useState("");
   const [todayFiltersOpen, setTodayFiltersOpen] = useState(false);
   const [internalViewDate, setInternalViewDate] = useState(toLocalDateString());
-  const [internalTodayEndMonth, setInternalTodayEndMonth] = useState<string | null>(null);
+  const [internalTodayEndMonths, setInternalTodayEndMonths] = useState<string[]>([]);
   const [internalTodaySort, setInternalTodaySort] = useState<GoalDateSort>("earliest_end");
   const showPastGoals = sharedFilters?.showPastGoals ?? internalShowPastGoals;
   const setShowPastGoals = sharedFilters?.setShowPastGoals ?? setInternalShowPastGoals;
@@ -156,19 +152,19 @@ export function TodayTab({
     sharedFilters?.showCompletedGoals ?? internalShowCompletedGoals;
   const setShowCompletedGoals =
     sharedFilters?.setShowCompletedGoals ?? setInternalShowCompletedGoals;
-  const categoryFilter = sharedFilters?.categoryFilter ?? internalCategoryFilter;
-  const setCategoryFilter = sharedFilters?.setCategoryFilter ?? setInternalCategoryFilter;
-  const recurrenceFilter = sharedFilters?.recurrenceFilter ?? internalRecurrenceFilter;
-  const setRecurrenceFilter =
-    sharedFilters?.setRecurrenceFilter ?? setInternalRecurrenceFilter;
+  const categoryFilters = sharedFilters?.categoryFilters ?? internalCategoryFilters;
+  const setCategoryFilters = sharedFilters?.setCategoryFilters ?? setInternalCategoryFilters;
+  const recurrenceFilters = sharedFilters?.recurrenceFilters ?? internalRecurrenceFilters;
+  const setRecurrenceFilters =
+    sharedFilters?.setRecurrenceFilters ?? setInternalRecurrenceFilters;
   const todayGoalSearchQuery =
     sharedFilters?.todayGoalSearchQuery ?? internalTodayGoalSearchQuery;
   const setTodayGoalSearchQuery =
     sharedFilters?.setTodayGoalSearchQuery ?? setInternalTodayGoalSearchQuery;
   const viewDate = sharedFilters?.viewDate ?? internalViewDate;
   const setViewDate = sharedFilters?.setViewDate ?? setInternalViewDate;
-  const todayEndMonth = sharedFilters?.todayEndMonth ?? internalTodayEndMonth;
-  const setTodayEndMonth = sharedFilters?.setTodayEndMonth ?? setInternalTodayEndMonth;
+  const todayEndMonths = sharedFilters?.todayEndMonths ?? internalTodayEndMonths;
+  const setTodayEndMonths = sharedFilters?.setTodayEndMonths ?? setInternalTodayEndMonths;
   const todaySort = sharedFilters?.todaySort ?? internalTodaySort;
   const setTodaySort = sharedFilters?.setTodaySort ?? setInternalTodaySort;
   const runCompletionMutation = useCompletionMutation();
@@ -256,8 +252,8 @@ export function TodayTab({
 
   const todayDate = viewDate;
   const checklistFilterStartMonth = viewDate.slice(0, 7);
-  const effectiveTodayEndMonth = resolveEffectiveEndMonth(
-    todayEndMonth,
+  const effectiveTodayEndMonths = resolveEffectiveEndMonths(
+    todayEndMonths,
     checklistFilterStartMonth
   );
   const completedCurrentGoalIds = useMemo(
@@ -282,20 +278,19 @@ export function TodayTab({
       selectFilteredTodayGoals({
         activeGoals,
         todayDate,
-        categoryFilter,
-        allCategoriesFilterValue: ALL_CATEGORIES_FILTER_VALUE,
-        recurrenceFilter,
+        categoryFilters,
+        recurrenceFilters,
         searchQuery: todayGoalSearchQuery,
-        endMonth: effectiveTodayEndMonth,
+        endMonths: effectiveTodayEndMonths,
         completedGoalIds: completedCurrentGoalIds,
         showCompletedGoals,
       }),
     [
       activeGoals,
-      categoryFilter,
+      categoryFilters,
       completedCurrentGoalIds,
-      effectiveTodayEndMonth,
-      recurrenceFilter,
+      effectiveTodayEndMonths,
+      recurrenceFilters,
       showCompletedGoals,
       todayDate,
       todayGoalSearchQuery,
@@ -309,19 +304,19 @@ export function TodayTab({
 
   const groupedTodayGoalsForAll = useMemo(
     () =>
-      recurrenceFilter === "all"
+      recurrenceFilters.length === 0
         ? groupGoalsByRecurrence(filteredTodayGoals, todaySort)
         : [],
-    [filteredTodayGoals, recurrenceFilter, todaySort]
+    [filteredTodayGoals, recurrenceFilters, todaySort]
   );
 
   const prepareSupplementalGoals = useCallback(
     (goals: Goal[]) =>
       sortGoalsByDate(
-        filterGoalsByEndMonth(goals, effectiveTodayEndMonth),
+        filterGoalsByEndMonths(goals, effectiveTodayEndMonths),
         todaySort
       ),
-    [effectiveTodayEndMonth, todaySort]
+    [effectiveTodayEndMonths, todaySort]
   );
 
   const upcoming = useMemo(
@@ -521,9 +516,37 @@ export function TodayTab({
     }
     return picked.slice(0, 4);
   }, [availableCategories, data.goals]);
+  const categoryFilterOptions = availableCategories.map((category) => ({
+    value: category.key,
+    label: category.label,
+  }));
   const recurrenceQuickFilters = recurrenceFilterOptions.filter(
-    (option) => option.value !== "fixed"
+    (option): option is { value: RecurrenceGroup; label: string } =>
+      option.value !== "all"
   );
+  const toggleCategoryFilter = useCallback(
+    (categoryKey: string) => {
+      setCategoryFilters(
+        categoryFilters.includes(categoryKey)
+          ? categoryFilters.filter((key) => key !== categoryKey)
+          : [...categoryFilters, categoryKey]
+      );
+    },
+    [categoryFilters, setCategoryFilters]
+  );
+  const toggleRecurrenceFilter = useCallback(
+    (recurrence: RecurrenceGroup) => {
+      setRecurrenceFilters(
+        recurrenceFilters.includes(recurrence)
+          ? recurrenceFilters.filter((value) => value !== recurrence)
+          : [...recurrenceFilters, recurrence]
+      );
+    },
+    [recurrenceFilters, setRecurrenceFilters]
+  );
+  const showFilterContainer =
+    showFiltersSection && (contentMode === "full" || contentMode === "filters-only");
+  const showGoalSections = contentMode === "full" || contentMode === "goals-only";
 
   if (loading) {
     return (
@@ -544,185 +567,192 @@ export function TodayTab({
 
   return (
     <div className="space-y-5">
-      <TodayHeaderCard
-        viewDate={viewDate}
-        todayLocalDate={todayLocalDate}
-        viewingToday={viewingToday}
-        onViewDateChange={setViewDate}
-        onGoToPreviousDate={goToPreviousDate}
-        onGoToNextDate={goToNextDate}
-        onResetToToday={() => setViewDate(todayLocalDate)}
-        datePickerControls={
-          <>
-            <Button
-              type="button"
-              variant="outline"
-              size="icon-sm"
-              className="h-8 w-8 shrink-0 rounded-full"
-              onClick={() => setTodayFiltersOpen(true)}
-              aria-label="Open checklist filters"
-              title="Open checklist filters"
-            >
-              <SlidersHorizontal className="size-3.5" />
-            </Button>
-            <Dialog open={todayFiltersOpen} onOpenChange={setTodayFiltersOpen}>
-              <DialogContent className="top-auto bottom-0 left-1/2 max-h-[85vh] max-w-[calc(100%-1rem)] -translate-x-1/2 translate-y-0 overflow-y-auto rounded-b-none rounded-t-xl pb-[calc(env(safe-area-inset-bottom)+1rem)] sm:top-1/2 sm:bottom-auto sm:max-w-lg sm:-translate-y-1/2 sm:rounded-b-xl">
-                <DialogHeader>
-                  <DialogTitle>Checklist filters</DialogTitle>
-                </DialogHeader>
-                <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-3">
-                    <label className="block min-w-0 space-y-1">
-                      <Label className="text-xs text-muted-foreground">
-                        Category
-                      </Label>
-                      <Select
-                        value={categoryFilter}
-                        onValueChange={setCategoryFilter}
-                      >
-                        <SelectTrigger className="h-8 w-full rounded-full bg-background/90 text-xs">
-                          <SelectValue placeholder="Category" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value={ALL_CATEGORIES_FILTER_VALUE}>
-                            All categories
-                          </SelectItem>
-                          {availableCategories.map((category) => (
-                            <SelectItem key={category.key} value={category.key}>
-                              {category.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </label>
-                    <label className="block min-w-0 space-y-1">
-                      <Label className="text-xs text-muted-foreground">
-                        Recurrence
-                      </Label>
-                      <Select
-                        value={recurrenceFilter}
-                        onValueChange={(value) =>
-                          setRecurrenceFilter(value as RecurrenceFilter)
-                        }
-                      >
-                        <SelectTrigger className="h-8 w-full rounded-full bg-background/90 text-xs">
-                          <SelectValue placeholder="Recurrence" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {recurrenceFilterOptions.map((option) => (
-                            <SelectItem key={option.value} value={option.value}>
-                              {option.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </label>
-                  </div>
-                  <GoalListControls
-                    goals={completableGoals}
-                    referenceMonth={checklistFilterStartMonth}
-                    endMonth={effectiveTodayEndMonth}
-                    onEndMonthChange={setTodayEndMonth}
-                    sort={todaySort}
-                    onSortChange={setTodaySort}
-                    className="grid grid-cols-2 gap-3 [&>div]:min-w-0 [&>div]:w-full [&_[role=combobox]]:w-full"
-                  />
-                  <div className="grid grid-cols-2 gap-2">
-                    {[
-                      {
-                        label: "Show past goals",
-                        count: pastGoals.length,
-                        checked: showPastGoals,
-                        onChange: setShowPastGoals,
-                      },
-                      {
-                        label: "Show upcoming goals",
-                        count: upcoming.length,
-                        checked: showUpcomingGoals,
-                        onChange: setShowUpcomingGoals,
-                      },
-                      {
-                        label: "Show archived goals",
-                        count: archivedGoals.length,
-                        checked: showArchivedGoals,
-                        onChange: setShowArchivedGoals,
-                      },
-                      {
-                        label: "Show completed goals",
-                        count: completedCurrentGoalIds.size,
-                        checked: showCompletedGoals,
-                        onChange: setShowCompletedGoals,
-                      },
-                    ].map((option) => (
-                      <label
-                        key={option.label}
-                        className="flex min-h-10 min-w-0 items-center gap-2 rounded-lg border px-2.5 py-2 text-xs"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={option.checked}
-                          onChange={(event) =>
-                            option.onChange(event.target.checked)
-                          }
-                          className="size-4 shrink-0 rounded border-input accent-primary"
+      {showFilterContainer ? (
+        <TodayHeaderCard
+          viewDate={viewDate}
+          todayLocalDate={todayLocalDate}
+          viewingToday={viewingToday}
+          onViewDateChange={setViewDate}
+          onGoToPreviousDate={goToPreviousDate}
+          onGoToNextDate={goToNextDate}
+          onResetToToday={() => setViewDate(todayLocalDate)}
+          datePickerControls={
+            <>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon-sm"
+                className="h-8 w-8 shrink-0 rounded-full"
+                onClick={() => setTodayFiltersOpen(true)}
+                aria-label="Open checklist filters"
+                title="Open checklist filters"
+              >
+                <SlidersHorizontal className="size-3.5" />
+              </Button>
+              <Dialog open={todayFiltersOpen} onOpenChange={setTodayFiltersOpen}>
+                <DialogContent className="top-auto bottom-0 left-1/2 max-h-[85vh] max-w-[calc(100%-1rem)] -translate-x-1/2 translate-y-0 overflow-y-auto rounded-b-none rounded-t-xl pb-[calc(env(safe-area-inset-bottom)+1rem)] sm:top-1/2 sm:bottom-auto sm:max-w-lg sm:-translate-y-1/2 sm:rounded-b-xl">
+                  <DialogHeader>
+                    <DialogTitle>Checklist filters</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-2 gap-3">
+                      <label className="block min-w-0 space-y-1">
+                        <Label className="text-xs text-muted-foreground">
+                          Category
+                        </Label>
+                        <CheckboxDropdown
+                          options={categoryFilterOptions}
+                          selectedValues={categoryFilters}
+                          onSelectedValuesChange={setCategoryFilters}
+                          placeholder="All categories"
+                          allLabel="All categories"
+                          triggerClassName="h-8 rounded-full bg-background/90 text-xs"
                         />
-                        <span className="min-w-0 flex-1">{option.label}</span>
-                        <span className="shrink-0 text-muted-foreground">
-                          ({option.count})
-                        </span>
                       </label>
-                    ))}
+                      <label className="block min-w-0 space-y-1">
+                        <Label className="text-xs text-muted-foreground">
+                          Recurrence
+                        </Label>
+                        <CheckboxDropdown
+                          options={recurrenceQuickFilters}
+                          selectedValues={recurrenceFilters}
+                          onSelectedValuesChange={(values) =>
+                            setRecurrenceFilters(values as RecurrenceGroup[])
+                          }
+                          placeholder="All types"
+                          allLabel="All types"
+                          triggerClassName="h-8 rounded-full bg-background/90 text-xs"
+                        />
+                      </label>
+                    </div>
+                    <GoalListControls
+                      goals={completableGoals}
+                      referenceMonth={checklistFilterStartMonth}
+                      endMonths={effectiveTodayEndMonths}
+                      onEndMonthsChange={setTodayEndMonths}
+                      sort={todaySort}
+                      onSortChange={setTodaySort}
+                      className="grid grid-cols-2 gap-3 [&>div]:min-w-0 [&>div]:w-full [&_[role=combobox]]:w-full"
+                    />
+                    <div className="grid grid-cols-2 gap-2">
+                      {[
+                        {
+                          label: "Show past goals",
+                          count: pastGoals.length,
+                          checked: showPastGoals,
+                          onChange: setShowPastGoals,
+                        },
+                        {
+                          label: "Show upcoming goals",
+                          count: upcoming.length,
+                          checked: showUpcomingGoals,
+                          onChange: setShowUpcomingGoals,
+                        },
+                        {
+                          label: "Show archived goals",
+                          count: archivedGoals.length,
+                          checked: showArchivedGoals,
+                          onChange: setShowArchivedGoals,
+                        },
+                        {
+                          label: "Show completed goals",
+                          count: completedCurrentGoalIds.size,
+                          checked: showCompletedGoals,
+                          onChange: setShowCompletedGoals,
+                        },
+                      ].map((option) => (
+                        <label
+                          key={option.label}
+                          className="flex min-h-10 min-w-0 items-center gap-2 px-1.5 py-2 text-xs"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={option.checked}
+                            onChange={(event) =>
+                              option.onChange(event.target.checked)
+                            }
+                            className="size-4 shrink-0 accent-primary"
+                          />
+                          <span className="min-w-0">
+                            {option.label}
+                            <span className="ml-1 text-muted-foreground">
+                              ({option.count})
+                            </span>
+                          </span>
+                        </label>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              </DialogContent>
-            </Dialog>
-          </>
-        }
-        searchControls={
-          <Input
-            value={todayGoalSearchQuery}
-            onChange={(event) => setTodayGoalSearchQuery(event.target.value)}
-            placeholder="Search checklist goals..."
-            className="h-8 w-full"
-          />
-        }
-        quickFilterControls={
-          <div className="flex min-w-0 items-center gap-2 overflow-x-auto pb-1">
-            {recurrenceQuickFilters.map((option) => (
+                </DialogContent>
+              </Dialog>
+            </>
+          }
+          searchControls={
+            <Input
+              value={todayGoalSearchQuery}
+              onChange={(event) => setTodayGoalSearchQuery(event.target.value)}
+              placeholder="Search checklist goals..."
+              className="h-8 w-full"
+            />
+          }
+          quickFilterControls={
+            <div className="flex min-w-0 items-center gap-2 overflow-x-auto pb-1">
               <Button
-                key={`recurrence-quick-${option.value}`}
+                key="recurrence-quick-all"
                 type="button"
-                variant={recurrenceFilter === option.value ? "default" : "outline"}
+                variant={recurrenceFilters.length === 0 ? "default" : "outline"}
                 size="sm"
                 className="h-8 shrink-0 rounded-full px-3 text-xs"
-                onClick={() => setRecurrenceFilter(option.value)}
+                onClick={() => setRecurrenceFilters([])}
               >
-                {option.label}
+                All types
               </Button>
-            ))}
-            {quickCategoryOptions.map((category) => (
+              {recurrenceQuickFilters.map((option) => (
+                <Button
+                  key={`recurrence-quick-${option.value}`}
+                  type="button"
+                  variant={
+                    recurrenceFilters.includes(option.value) ? "default" : "outline"
+                  }
+                  size="sm"
+                  className="h-8 shrink-0 rounded-full px-3 text-xs"
+                  onClick={() => toggleRecurrenceFilter(option.value)}
+                >
+                  {option.label}
+                </Button>
+              ))}
               <Button
-                key={`category-quick-${category.key}`}
+                key="category-quick-all"
                 type="button"
-                variant={categoryFilter === category.key ? "default" : "outline"}
+                variant={categoryFilters.length === 0 ? "default" : "outline"}
                 size="sm"
                 className="h-8 shrink-0 rounded-full px-3 text-xs"
-                onClick={() =>
-                  setCategoryFilter(
-                    categoryFilter === category.key
-                      ? ALL_CATEGORIES_FILTER_VALUE
-                      : category.key
-                  )
-                }
+                onClick={() => setCategoryFilters([])}
               >
-                {category.label}
+                All categories
               </Button>
-            ))}
-          </div>
-        }
-      >
+              {quickCategoryOptions.map((category) => (
+                <Button
+                  key={`category-quick-${category.key}`}
+                  type="button"
+                  variant={
+                    categoryFilters.includes(category.key) ? "default" : "outline"
+                  }
+                  size="sm"
+                  className="h-8 shrink-0 rounded-full px-3 text-xs"
+                  onClick={() => toggleCategoryFilter(category.key)}
+                >
+                  {category.label}
+                </Button>
+              ))}
+            </div>
+          }
+        />
+      ) : null}
+
+      {showGoalSections ? (
         <ChecklistTodayGroups
-          recurrenceFilter={recurrenceFilter}
+          selectedRecurrenceFilters={recurrenceFilters}
           groups={groupedTodayGoalsForAll}
           sortedGoals={todayGoalsSorted}
           expandedGroups={expandedGroups}
@@ -734,18 +764,19 @@ export function TodayTab({
           }
           renderGoal={renderGoalCard}
         />
-        {!readOnly ? (
-          <div className="pt-3">
-            <PlannerTasksPanel
-              title="To-Do for this day"
-              description="Quick tasks for this checklist day."
-              scheduledDate={viewDate}
-            />
-          </div>
-        ) : null}
-      </TodayHeaderCard>
+      ) : null}
 
-      {showUpcomingGoals || showPastGoals || showArchivedGoals ? (
+      {showGoalSections && !readOnly ? (
+        <div className="pt-3">
+          <PlannerTasksPanel
+            title="To-Do for this day"
+            description="Quick tasks for this checklist day."
+            scheduledDate={viewDate}
+          />
+        </div>
+      ) : null}
+
+      {showGoalSections && (showUpcomingGoals || showPastGoals || showArchivedGoals) ? (
         <ChecklistPastPanels
           upcoming={upcoming}
           pastGoals={pastGoals}

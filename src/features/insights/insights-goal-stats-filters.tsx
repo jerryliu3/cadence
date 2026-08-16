@@ -19,8 +19,8 @@ import type { Goal } from "@/lib/goals/types";
 interface InsightsGoalStatsFiltersProps {
   goals: Goal[];
   referenceMonth: string;
-  endMonth: string | null;
-  onEndMonthChange: (month: string | null) => void;
+  endMonths: string[];
+  onEndMonthsChange: (months: string[]) => void;
   sort: GoalDateSort;
   onSortChange: (sort: GoalDateSort) => void;
   monthCursor: Date;
@@ -37,8 +37,8 @@ interface InsightsGoalStatsFiltersProps {
 export function InsightsGoalStatsFilters({
   goals,
   referenceMonth,
-  endMonth,
-  onEndMonthChange,
+  endMonths,
+  onEndMonthsChange,
   sort,
   onSortChange,
   monthCursor,
@@ -81,15 +81,27 @@ export function InsightsGoalStatsFilters({
           <Button
             key={option.key}
             type="button"
-            variant={endMonth === option.value ? "default" : "outline"}
+            variant={
+              option.value === null
+                ? endMonths.length === 0
+                  ? "default"
+                  : "outline"
+                : endMonths.includes(option.value)
+                  ? "default"
+                  : "outline"
+            }
             size="sm"
             className="h-8 shrink-0 rounded-full px-3 text-xs"
             onClick={() => {
               if (option.value === null) {
-                onEndMonthChange(null);
+                onEndMonthsChange([]);
                 return;
               }
-              onEndMonthChange(endMonth === option.value ? null : option.value);
+              onEndMonthsChange(
+                endMonths.includes(option.value)
+                  ? endMonths.filter((month) => month !== option.value)
+                  : [...endMonths, option.value]
+              );
             }}
           >
             {option.label}
@@ -129,8 +141,8 @@ export function InsightsGoalStatsFilters({
             <GoalListControls
               goals={goals}
               referenceMonth={referenceMonth}
-              endMonth={endMonth}
-              onEndMonthChange={onEndMonthChange}
+              endMonths={endMonths}
+              onEndMonthsChange={onEndMonthsChange}
               sort={sort}
               onSortChange={onSortChange}
               className="grid grid-cols-2 gap-3 [&>div]:min-w-0 [&>div]:w-full [&_[role=combobox]]:w-full"

@@ -5,11 +5,10 @@ import { ChecklistSurface } from "@/features/today/checklist-surface";
 import { DuoLanes } from "@/features/social/duo/duo-lanes";
 import { useDuoSurface } from "@/features/social/duo/use-duo-surface";
 import {
-  ALL_CATEGORIES_FILTER_VALUE,
   type ChecklistSharedFilters,
 } from "@/features/today/today-tab";
 import { toLocalDateString } from "@/lib/dates/day";
-import type { RecurrenceFilter } from "@/features/today/checklist-selectors";
+import type { RecurrenceGroup } from "@/features/today/checklist-selectors";
 import type { GoalDateSort } from "@/lib/goals/list-view";
 
 export function ChecklistShell() {
@@ -19,10 +18,10 @@ export function ChecklistShell() {
   const [showUpcomingGoals, setShowUpcomingGoals] = useState(false);
   const [showArchivedGoals, setShowArchivedGoals] = useState(false);
   const [showCompletedGoals, setShowCompletedGoals] = useState(false);
-  const [categoryFilter, setCategoryFilter] = useState(ALL_CATEGORIES_FILTER_VALUE);
-  const [recurrenceFilter, setRecurrenceFilter] = useState<RecurrenceFilter>("all");
+  const [categoryFilters, setCategoryFilters] = useState<string[]>([]);
+  const [recurrenceFilters, setRecurrenceFilters] = useState<RecurrenceGroup[]>([]);
   const [todayGoalSearchQuery, setTodayGoalSearchQuery] = useState("");
-  const [todayEndMonth, setTodayEndMonth] = useState<string | null>(null);
+  const [todayEndMonths, setTodayEndMonths] = useState<string[]>([]);
   const [todaySort, setTodaySort] = useState<GoalDateSort>("earliest_end");
   const shareFilters = scope === "both" && Boolean(activePartner);
   const sharedFilters = useMemo<ChecklistSharedFilters | undefined>(
@@ -39,27 +38,27 @@ export function ChecklistShell() {
             setShowArchivedGoals,
             showCompletedGoals,
             setShowCompletedGoals,
-            categoryFilter,
-            setCategoryFilter,
-            recurrenceFilter,
-            setRecurrenceFilter,
+            categoryFilters,
+            setCategoryFilters,
+            recurrenceFilters,
+            setRecurrenceFilters,
             todayGoalSearchQuery,
             setTodayGoalSearchQuery,
-            todayEndMonth,
-            setTodayEndMonth,
+            todayEndMonths,
+            setTodayEndMonths,
             todaySort,
             setTodaySort,
           }
         : undefined,
     [
-      categoryFilter,
-      recurrenceFilter,
+      categoryFilters,
+      recurrenceFilters,
       shareFilters,
       showArchivedGoals,
       showCompletedGoals,
       showPastGoals,
       showUpcomingGoals,
-      todayEndMonth,
+      todayEndMonths,
       todayGoalSearchQuery,
       todaySort,
       viewDate,
@@ -68,19 +67,46 @@ export function ChecklistShell() {
 
   return (
     <div className="space-y-5">
-      <DuoLanes
-        scope={scope}
-        viewer={viewer}
-        partner={partner}
-        renderLane={(subject) => (
-          <ChecklistSurface
-            isActive
-            subjectUserId={subject.userId}
-            readOnly={subject.readOnly}
-            sharedFilters={sharedFilters}
+      {shareFilters ? (
+        <>
+          <div className="mx-auto w-full md:max-w-3xl">
+            <ChecklistSurface
+              isActive
+              sharedFilters={sharedFilters}
+              contentMode="filters-only"
+            />
+          </div>
+          <DuoLanes
+            scope={scope}
+            viewer={viewer}
+            partner={partner}
+            renderLane={(subject) => (
+              <ChecklistSurface
+                isActive
+                subjectUserId={subject.userId}
+                readOnly={subject.readOnly}
+                sharedFilters={sharedFilters}
+                showFiltersSection={false}
+                contentMode="goals-only"
+              />
+            )}
           />
-        )}
-      />
+        </>
+      ) : (
+        <DuoLanes
+          scope={scope}
+          viewer={viewer}
+          partner={partner}
+          renderLane={(subject) => (
+            <ChecklistSurface
+              isActive
+              subjectUserId={subject.userId}
+              readOnly={subject.readOnly}
+              sharedFilters={sharedFilters}
+            />
+          )}
+        />
+      )}
     </div>
   );
 }

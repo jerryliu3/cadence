@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import {
   ApiRouteError,
   requireAuthenticatedRequestContext,
   withRoute,
 } from "@/lib/api/route";
+import { isFeatureEnabled } from "@/lib/feature-flags";
 import { normalizeWeekStartsOn } from "@/lib/dates/week-start";
 import { toLocalDateString } from "@/lib/dates/day";
 import {
@@ -20,10 +22,14 @@ import type { Completion, Goal } from "@/lib/goals/types";
 import { buildInsightsStatsGroup } from "@/lib/insights/metrics";
 import type { InsightsStatsResponse } from "@/lib/insights/types";
 import { MAX_COMPLETION_FACTS } from "@/lib/planner/contracts/bounds";
+import { requireTeamPartner } from "@/lib/social/team";
 
 export const runtime = "nodejs";
 
 const PAGE_SIZE = 1_000;
+const querySchema = z.object({
+  subjectUserId: z.uuid().optional(),
+});
 
 function toDateOnly(value: string | null | undefined) {
   const candidate = (value ?? "").slice(0, 10);
@@ -59,35 +65,91 @@ export async function GET(request: Request) {
       unauthorizedMessage: "Sign in to view insights stats.",
     });
 
-    const [profileResponse, teamMembersResponse] = await Promise.all([
-      supabase
-        .from("profiles")
-        .select("week_starts_on, created_at")
-        .eq("id", userId)
-        .maybeSingle(),
-      supabase.from("team_members").select("team_id").eq("user_id", userId),
-    ]);
-
-    if (profileResponse.error || !profileResponse.data) {
+    const url = new URL(request.url);
+    const parsedQuery = querySchema.safeParse({
+      subjectUserId: url.searchParams.get("subjectUserId") ?? undefined,
+    });
+    if (!parsedQuery.success) {
       throw new ApiRouteError(
-        500,
-        "insights_stats_load_failed",
-        "Insights stats could not be loaded."
+        400,
+        "validation_failed",
+        "Provide a valid subject user id."
       );
     }
-    if (teamMembersResponse.error) {
-      throw new ApiRouteError(
-        500,
-        "insights_stats_load_failed",
-        "Insights stats could not be loaded."
-      );
+    const subjectUserId = parsedQuery.data.subjectUserId ?? userId;
+    const isViewerSubject = subjectUserId === userId;
+    if (!isViewerSubject) {
+      if (!isFeatureEnabled("socialEnabled")) {
+        throw new ApiRouteError(
+          403,
+          "not_team_partner",
+          "Partner insights are available only for your active team partner."
+        );
+      }
+      await requireTeamPartner({ supabase, subjectUserId });
     }
 
-    const weekStartsOn = normalizeWeekStartsOn(profileResponse.data.week_starts_on);
-    const profileCreatedDate = toDateOnly(profileResponse.data.created_at);
+    let weekStartsOn = normalizeWeekStartsOn(undefined);
+    let profileCreatedDate: string | null = null;
+    let memberTeamIds: string[] = [];
+
+    if (isViewerSubject) {
+      const [profileResponse, teamMembersResponse] = await Promise.all([
+        supabase
+          .from("profiles")
+          .select("week_starts_on, created_at")
+          .eq("id", userId)
+          .maybeSingle(),
+        supabase.from("team_members").select("team_id").eq("user_id", userId),
+      ]);
+
+      if (profileResponse.error || !profileResponse.data) {
+        throw new ApiRouteError(
+          500,
+          "insights_stats_load_failed",
+          "Insights stats could not be loaded."
+        );
+      }
+      if (teamMembersResponse.error) {
+        throw new ApiRouteError(
+          500,
+          "insights_stats_load_failed",
+          "Insights stats could not be loaded."
+        );
+      }
+
+      weekStartsOn = normalizeWeekStartsOn(profileResponse.data.week_starts_on);
+      profileCreatedDate = toDateOnly(profileResponse.data.created_at);
+      memberTeamIds = (teamMembersResponse.data ?? []).map((row) => row.team_id);
+    } else {
+      const partnerProfileResponse = await supabase.rpc("get_partner_profile_service", {
+        p_owner_id: subjectUserId,
+      });
+      if (partnerProfileResponse.error) {
+        throw new ApiRouteError(
+          500,
+          "insights_stats_load_failed",
+          "Insights stats could not be loaded."
+        );
+      }
+      if (!partnerProfileResponse.data || typeof partnerProfileResponse.data !== "object") {
+        throw new ApiRouteError(
+          403,
+          "not_team_partner",
+          "Partner insights are available only for your active team partner."
+        );
+      }
+      const partnerWeekStartsOn = (partnerProfileResponse.data as { week_starts_on?: unknown })
+        .week_starts_on;
+      weekStartsOn = normalizeWeekStartsOn(
+        typeof partnerWeekStartsOn === "number" ? partnerWeekStartsOn : undefined
+      );
+      profileCreatedDate = null;
+      memberTeamIds = [];
+    }
+
     const asOfDate = toLocalDateString();
     const weeklyAnchor: WeeklyAnchorContext = { weekStartsOn };
-    const memberTeamIds = (teamMembersResponse.data ?? []).map((row) => row.team_id);
 
     const goals: Goal[] = [];
     let lastGoalId: string | null = null;
@@ -98,6 +160,9 @@ export async function GET(request: Request) {
         .eq("is_deleted", false)
         .order("id")
         .limit(PAGE_SIZE);
+      if (!isViewerSubject) {
+        query = query.eq("owner_id", subjectUserId).is("team_id", null);
+      }
       if (lastGoalId) {
         query = query.gt("id", lastGoalId);
       }
@@ -123,7 +188,7 @@ export async function GET(request: Request) {
       let query = supabase
         .from("completions")
         .select("*")
-        .eq("user_id", userId)
+        .eq("user_id", subjectUserId)
         .order("id")
         .limit(PAGE_SIZE);
       if (lastCompletionId) {
@@ -154,7 +219,7 @@ export async function GET(request: Request) {
 
     const completableGoalIds = buildCompletableGoalIds({
       goals,
-      userId,
+      userId: subjectUserId,
       memberTeamIds,
     });
     const completableGoals = selectCompletableGoals(goals, completableGoalIds);
@@ -196,31 +261,34 @@ export async function GET(request: Request) {
       accountCreatedDate: resolvedCreatedDate,
     });
 
-    const memberTeamIdSet = new Set(memberTeamIds);
-    const teamGoals = completableGoals.filter(
-      (goal) => goal.team_id && memberTeamIdSet.has(goal.team_id)
-    );
-    const teamGoalIds = new Set(teamGoals.map((goal) => goal.id));
-    const teamCompletions = filterCompletionsForGoalIds(completableCompletions, teamGoalIds);
-    const teamSummaryByGoal = new Map<string, GoalProgressSnapshot>();
-    for (const goal of teamGoals) {
-      const summary = summaryByGoal.get(goal.id);
-      if (summary) {
-        teamSummaryByGoal.set(goal.id, summary);
-      }
-    }
+    const team = isViewerSubject
+      ? (() => {
+          const memberTeamIdSet = new Set(memberTeamIds);
+          const teamGoals = completableGoals.filter(
+            (goal) => goal.team_id && memberTeamIdSet.has(goal.team_id)
+          );
+          const teamGoalIds = new Set(teamGoals.map((goal) => goal.id));
+          const teamCompletions = filterCompletionsForGoalIds(completableCompletions, teamGoalIds);
+          const teamSummaryByGoal = new Map<string, GoalProgressSnapshot>();
+          for (const goal of teamGoals) {
+            const summary = summaryByGoal.get(goal.id);
+            if (summary) {
+              teamSummaryByGoal.set(goal.id, summary);
+            }
+          }
 
-    const team =
-      teamGoals.length > 0
-        ? buildInsightsStatsGroup({
-            goals: teamGoals,
-            completions: teamCompletions,
-            summariesByGoal: teamSummaryByGoal,
-            asOfDate,
-            weekStartsOn,
-            accountCreatedDate: resolvedCreatedDate,
-          })
-        : null;
+          return teamGoals.length > 0
+            ? buildInsightsStatsGroup({
+                goals: teamGoals,
+                completions: teamCompletions,
+                summariesByGoal: teamSummaryByGoal,
+                asOfDate,
+                weekStartsOn,
+                accountCreatedDate: resolvedCreatedDate,
+              })
+            : null;
+        })()
+      : null;
 
     const payload: InsightsStatsResponse = {
       schemaVersion: "1",

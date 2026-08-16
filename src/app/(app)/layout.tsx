@@ -24,15 +24,37 @@ export default async function AuthenticatedLayout({
     redirect("/login");
   }
 
-  const { data: profilePreferences } = await supabase
+  const { data: profile } = await supabase
     .from("profiles")
-    .select("planner_primary_tab")
+    .select("display_name, username, planner_primary_tab")
     .eq("id", user.id)
     .maybeSingle();
-
   const plannerPrimaryTabPreference = normalizePlannerPrimaryTabPreference(
-    profilePreferences?.planner_primary_tab
+    profile?.planner_primary_tab
   );
+  const profileDisplayName =
+    typeof profile?.display_name === "string" ? profile.display_name.trim() : "";
+  const profileUsername =
+    typeof profile?.username === "string" ? profile.username.trim() : "";
+  const metadataDisplayName =
+    typeof user.user_metadata?.display_name === "string"
+      ? user.user_metadata.display_name.trim()
+      : "";
+  const metadataUsername =
+    typeof user.user_metadata?.username === "string"
+      ? user.user_metadata.username.trim()
+      : "";
+  const emailLocalPart =
+    typeof user.email === "string" && user.email.includes("@")
+      ? user.email.split("@")[0]?.trim() ?? ""
+      : "";
+  const viewerLabel =
+    profileDisplayName ||
+    profileUsername ||
+    metadataDisplayName ||
+    metadataUsername ||
+    emailLocalPart ||
+    "You";
   const duo = await loadDuoContext({ supabase });
   const initialDuoScopePreference = parseDuoScopeCookieValue(
     cookieStore.get(DUO_SCOPE_COOKIE_NAME)?.value
@@ -41,6 +63,7 @@ export default async function AuthenticatedLayout({
   return (
     <AppShell
       userId={user.id}
+      viewerLabel={viewerLabel}
       goalSheet={goalSheet}
       duoState={duo.state}
       duoAvailability={duo.availability}

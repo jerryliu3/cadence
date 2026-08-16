@@ -23,6 +23,7 @@ import type { PlannerPrimaryTabPreference } from "@cadence/shared/navigation/tab
 interface AppShellProps {
   children: ReactNode;
   userId: string;
+  viewerLabel?: string | null;
   goalSheet?: ReactNode;
   duoState: DuoContextState;
   duoAvailability: DuoAvailability;
@@ -33,6 +34,7 @@ interface AppShellProps {
 export function AppShell({
   children,
   userId,
+  viewerLabel,
   goalSheet,
   duoState,
   duoAvailability,
@@ -61,6 +63,7 @@ export function AppShell({
         <DuoProvider
           key={`${duoAvailability}:${duoState.activePartner?.partnerId ?? "none"}`}
           viewerUserId={userId}
+          viewerLabel={viewerLabel}
           initialState={duoState}
           availability={duoAvailability}
           initialScopePreference={initialDuoScopePreference}

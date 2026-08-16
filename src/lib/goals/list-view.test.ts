@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 import {
   buildGoalMonthOptions,
   filterGoalsByEndMonth,
+  filterGoalsByEndMonths,
   partitionGoalsByVisibleStart,
   resolveEffectiveEndMonth,
+  resolveEffectiveEndMonths,
   sortGoalsByDate,
   type GoalDateSort,
 } from "@/lib/goals/list-view";
@@ -59,6 +61,18 @@ describe("goal list view helpers", () => {
 
     expect(filterGoalsByEndMonth(endMonthGoals, "2026-07").map((goal) => goal.id)).toEqual(
       ["before", "end-of-month"]
+    );
+  });
+
+  it("keeps goals that match any selected end month", () => {
+    const endMonthGoals = [
+      buildGoal("july", "2026-01-01", "2026-07-01"),
+      buildGoal("august", "2026-01-01", "2026-08-01"),
+      buildGoal("september", "2026-01-01", "2026-09-01"),
+    ];
+
+    expect(filterGoalsByEndMonths(endMonthGoals, ["2026-07", "2026-09"]).map((goal) => goal.id)).toEqual(
+      ["july", "september"]
     );
   });
 
@@ -122,5 +136,14 @@ describe("goal list view helpers", () => {
     expect(resolveEffectiveEndMonth("2026-08", "2026-08")).toBe("2026-08");
     expect(resolveEffectiveEndMonth("2026-07", "2026-08")).toBeNull();
     expect(resolveEffectiveEndMonth(null, "2026-08")).toBeNull();
+  });
+
+  it("keeps only effective end-month selections for multi-select filters", () => {
+    expect(
+      resolveEffectiveEndMonths(
+        ["2026-09", "2026-07", "2026-09", "invalid", "2026-08"],
+        "2026-08"
+      )
+    ).toEqual(["2026-09", "2026-08"]);
   });
 });
