@@ -29,11 +29,15 @@ export function WebJourneyVideo({
   onReady,
   onError,
 }: WebJourneyVideoProps) {
-  const [isMobileViewport, setIsMobileViewport] = useState(false);
+  const [isMobileViewport, setIsMobileViewport] = useState(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
+      return false;
+    }
+    return window.matchMedia("(max-width: 767px)").matches;
+  });
 
   useEffect(() => {
     if (typeof window.matchMedia !== "function") {
-      setIsMobileViewport(false);
       return;
     }
     const media = window.matchMedia("(max-width: 767px)");
