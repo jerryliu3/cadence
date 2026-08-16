@@ -26,6 +26,7 @@ import { createDefaultPlannerPolicy, type PlannerPolicy } from "@/lib/planner/po
 import { unsubscribeCurrentBrowser } from "@/lib/push/client";
 import { createClient } from "@/lib/supabase/client";
 import type { PlannerPreferencesDraft } from "@/features/settings/planner-preferences-settings";
+import { buildProfilePreferencesUpdate } from "@/features/social/profile-preferences";
 
 interface SocialState {
   userId: string;
@@ -107,6 +108,7 @@ export function useSocialTabData() {
     display_name: "",
     avatar_url: "",
     planner_primary_tab: DEFAULT_PLANNER_PRIMARY_TAB_PREFERENCE,
+    social_activity_visible: true,
   });
   const [plannerPreferencesLoading, setPlannerPreferencesLoading] = useState(true);
   const [plannerPreferencesPersisted, setPlannerPreferencesPersisted] =
@@ -173,6 +175,7 @@ export function useSocialTabData() {
       planner_primary_tab: normalizePlannerPrimaryTabPreference(
         profile?.planner_primary_tab
       ),
+      social_activity_visible: profile?.social_activity_visible ?? true,
     });
     const nextPlannerPreferences: PlannerPreferencesState = plannerContext?.preferences
       ? {
@@ -347,11 +350,13 @@ export function useSocialTabData() {
       planner_primary_tab: normalizePlannerPrimaryTabPreference(
         profileDraft.planner_primary_tab
       ),
+      social_activity_visible: profileDraft.social_activity_visible,
     }),
     [
       profileDraft.avatar_url,
       profileDraft.display_name,
       profileDraft.planner_primary_tab,
+      profileDraft.social_activity_visible,
       profileDraft.username,
     ]
   );
@@ -363,11 +368,13 @@ export function useSocialTabData() {
       planner_primary_tab: normalizePlannerPrimaryTabPreference(
         state.profile?.planner_primary_tab
       ),
+      social_activity_visible: state.profile?.social_activity_visible ?? true,
     }),
     [
       state.profile?.avatar_url,
       state.profile?.display_name,
       state.profile?.planner_primary_tab,
+      state.profile?.social_activity_visible,
       state.profile?.username,
     ]
   );
@@ -378,6 +385,9 @@ export function useSocialTabData() {
   const plannerPrimaryTabDirty =
     normalizedProfileDraft.planner_primary_tab !==
     normalizedPersistedProfile.planner_primary_tab;
+  const socialActivityVisibleDirty =
+    normalizedProfileDraft.social_activity_visible !==
+    normalizedPersistedProfile.social_activity_visible;
   const plannerPreferencesDirty =
     plannerPreferencesDraft.timezone !== plannerPreferencesPersisted.timezone ||
     normalizeWeekStartsOn(plannerPreferencesDraft.weekStartsOn) !==
@@ -386,7 +396,7 @@ export function useSocialTabData() {
   const canSavePreferences =
     Boolean(state.userId) &&
     !plannerPreferencesLoading &&
-    (plannerPrimaryTabDirty || plannerPreferencesDirty);
+    (plannerPrimaryTabDirty || socialActivityVisibleDirty || plannerPreferencesDirty);
 
   const saveProfile = async () => {
     if (!canSaveProfile) {
@@ -418,12 +428,17 @@ export function useSocialTabData() {
     }
     setSaving(true);
     try {
-      if (plannerPrimaryTabDirty) {
+      const profilePreferencesUpdate = buildProfilePreferencesUpdate({
+        plannerPrimaryTabDirty,
+        socialActivityVisibleDirty,
+        plannerPrimaryTab: normalizedProfileDraft.planner_primary_tab,
+        socialActivityVisible: normalizedProfileDraft.social_activity_visible,
+      });
+
+      if (profilePreferencesUpdate) {
         const { error } = await supabase
           .from("profiles")
-          .update({
-            planner_primary_tab: normalizedProfileDraft.planner_primary_tab,
-          })
+          .update(profilePreferencesUpdate)
           .eq("id", state.userId);
         if (error) {
           toast.error(error.message);
