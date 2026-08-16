@@ -29,6 +29,11 @@ describe("GET /api/config", () => {
       xpEnabled: false,
       socialEnabled: true,
       integrationsEnabled: true,
+      journeyEnabled: true,
+      journeyVideoEnabled: false,
+      journeyRiveEnabled: false,
+      journeySocialOverlayEnabled: false,
+      journeyAssetManifestVersion: "v1",
       futureInternalOnly: true,
     });
   });
@@ -46,6 +51,11 @@ describe("GET /api/config", () => {
         xpEnabled: false,
         socialEnabled: true,
         integrationsEnabled: true,
+        journeyEnabled: true,
+        journeyVideoEnabled: false,
+        journeyRiveEnabled: false,
+        journeySocialOverlayEnabled: false,
+        journeyAssetManifestVersion: "v1",
       },
     });
     expect(payload.correlationId).toBeUndefined();
