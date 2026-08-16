@@ -5,6 +5,7 @@ import {
   sortPlannerDraftCommands,
   type PlannerDraftCommand,
 } from "@/lib/planner/draft-commands";
+import { isManualPlannerUnitKey } from "@/lib/planner/manual-items";
 import { resolvePlannerEffectiveScheduledTime } from "@/lib/planner/schedule-time";
 
 export { buildPlannerConfirmationHash } from "@cadence/shared/planner/confirmation";
@@ -264,6 +265,43 @@ export function buildPlannerPublishPersistencePayload({
       locked: unit.locked,
     };
   });
+  const activeGoalOriginalIdByPlanGoalId = new Map(
+    (snapshot.activePlan?.goals ?? []).map((goal) => [goal.id, goal.original_goal_id])
+  );
+  const kernelItemKeys = new Set(
+    workUnits.map((unit) => buildDraftEditKey(unit.originalGoalId, unit.unitKey))
+  );
+  const manualItems = (snapshot.activePlan?.items ?? [])
+    .filter(
+      (item) => item.scheduled_date !== null && isManualPlannerUnitKey(item.unit_key)
+    )
+    .flatMap((item) => {
+      const goalId =
+        activeGoalOriginalIdByPlanGoalId.get(item.plan_goal_id) ?? item.plan_goal_id;
+      const itemKey = buildDraftEditKey(goalId, item.unit_key);
+      if (kernelItemKeys.has(itemKey)) {
+        return [];
+      }
+      const resolvedTime = resolvePlannerEffectiveScheduledTime({
+        scheduledDate: item.scheduled_date,
+        goalDefaultLocalTime: goalDefaultLocalTimeByGoalId.get(goalId) ?? null,
+        scheduledTimeOverride: item.scheduled_time_override ?? null,
+      });
+      return [
+        {
+          goal_id: goalId,
+          unit_key: item.unit_key,
+          original_scheduled_date:
+            item.original_scheduled_date ?? item.scheduled_date,
+          scheduled_date: item.scheduled_date,
+          scheduled_time_override: resolvedTime.scheduledTimeOverride ?? null,
+          effective_scheduled_local_time:
+            resolvedTime.effectiveScheduledLocalTime ?? null,
+          effective_scheduled_at_local: resolvedTime.effectiveScheduledAtLocal ?? null,
+          locked: true,
+        },
+      ];
+    });
 
   const added = countByKind(kernel.diff, "added");
   const removed = countByKind(kernel.diff, "removed");
@@ -278,9 +316,10 @@ export function buildPlannerPublishPersistencePayload({
       draftCommands: draftCommands.length,
       draftRelabeled: draftRelabeledCount,
       draftRetimed: draftRetimedCount,
+      persistedManualItems: manualItems.length,
       confirmationRequired: kernel.solver.confirmationRequired,
       publishable: kernel.solver.publishable,
     },
-    items,
+    items: [...items, ...manualItems],
   };
 }

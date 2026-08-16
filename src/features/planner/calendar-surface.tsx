@@ -123,6 +123,7 @@ import {
   type PlannerPolicy,
 } from "@/lib/planner/policy";
 import { shouldUseDirectDraftPersistence } from "@/lib/planner/save-persistence";
+import { isManualPlannerUnitKey } from "@/lib/planner/manual-items";
 import { withPlannerRefreshTimeout } from "@/lib/planner/refresh-timeout";
 import { captureViewportRect } from "@/lib/xp/events";
 import { mergeCompletionFactMarkers } from "@cadence/shared/planner/partner-completion";
@@ -696,6 +697,20 @@ export function CalendarSurface({
   const selectedEventBaselineUnit = selectedEventEntry
     ? draftWindowUnitByEntryKey.get(selectedEventEntry.key) ?? null
     : null;
+  const selectedEventIsManual = selectedEventEntry
+    ? isManualPlannerUnitKey(selectedEventEntry.unitKey)
+    : false;
+  const selectedEventDraftScheduledDate =
+    selectedEventDraftEdit?.scheduledDate ??
+    selectedEventEntry?.activeItem?.scheduled_date ??
+    effectiveSelectedDay ??
+    null;
+  const selectedEventDraftTimeInputValue =
+    selectedEventDraftEdit?.scheduledTimeOverride === null
+      ? ""
+      : selectedEventDraftEdit?.scheduledTimeOverride ??
+        selectedEventBaselineUnit?.scheduledTimeOverride ??
+        "";
   const getEntryDisplayTitleWithTime = useCallback(
     (entry: PlannerDayDetailEntry) => {
       const baseTitle = getEntryDisplayTitle(entry);
@@ -1238,6 +1253,12 @@ export function CalendarSurface({
       nextDate: string;
       source: "date_input" | "drag_drop" | "coach";
     }) => {
+      if (isManualPlannerUnitKey(entry.unitKey)) {
+        toast.error(
+          "Manual sessions cannot move in draft. Delete and recreate them on a new day."
+        );
+        return false;
+      }
       if (!scopeMonth) {
         return false;
       }
@@ -1331,7 +1352,7 @@ export function CalendarSurface({
   }, [queueDraftMoveCommand]);
 
   const updateDraftLabel = (entry: PlannerDayDetailEntry, label: string) => {
-    if (entry.draftGhost) {
+    if (entry.draftGhost || isManualPlannerUnitKey(entry.unitKey)) {
       return;
     }
     if (!context?.scopeMonth) {
@@ -1360,6 +1381,9 @@ export function CalendarSurface({
     entry: PlannerDayDetailEntry,
     localTime: string
   ) => {
+    if (isManualPlannerUnitKey(entry.unitKey)) {
+      return;
+    }
     if (!context?.scopeMonth) {
       return;
     }
@@ -1391,7 +1415,7 @@ export function CalendarSurface({
     entry: PlannerDayDetailEntry,
     date: string
   ) => {
-    if (entry.draftGhost) {
+    if (entry.draftGhost || isManualPlannerUnitKey(entry.unitKey)) {
       return;
     }
     if (!date.trim()) {
@@ -1652,6 +1676,118 @@ export function CalendarSurface({
           getApiErrorMessage(error, "Planner lock update failed.")
         );
       }
+    } finally {
+      setMutationLoadingKey(null);
+    }
+  };
+
+  const createManualSession = async (entry: PlannerDayDetailEntry) => {
+    if (!context) {
+      return;
+    }
+    const expectedDigest = context.revisions.scheduleDigest;
+    if (!expectedDigest) {
+      toast.error("Planner state is stale. Refresh and try again.");
+      return;
+    }
+    const scheduledDate =
+      selectedEventDraftScheduledDate ??
+      entry.activeItem?.scheduled_date ??
+      effectiveSelectedDay;
+    if (!scheduledDate) {
+      toast.error("Choose a valid planner day before adding a manual session.");
+      return;
+    }
+    const scheduledTimeCandidate =
+      selectedEventDraftTimeInputValue.trim().length > 0
+        ? selectedEventDraftTimeInputValue.trim()
+        : entry.effectiveScheduledLocalTime ?? "";
+    const scheduledTime =
+      scheduledTimeCandidate.length > 0 ? scheduledTimeCandidate : null;
+
+    const mutationKey = `manual:create:${entry.originalGoalId}`;
+    setMutationLoadingKey(mutationKey);
+    try {
+      try {
+        await postJson("/api/planner/items/manual", {
+          goalId: entry.originalGoalId,
+          scheduledDate,
+          scheduledTime,
+          expectedDigest,
+        });
+      } catch (error) {
+        if (isApiClientError(error) && error.code === "schedule_conflict") {
+          toast.error("That day already has a manual session for this goal.");
+          return;
+        }
+        toast.error(getApiErrorMessage(error, "Manual session creation failed."));
+        return;
+      }
+
+      handlePlannerMutation();
+      const refreshed = await withPlannerRefreshTimeout({
+        operation: loadContext({
+          showLoading: false,
+          toastOnError: false,
+          forcePrepare: true,
+        }),
+        timeoutMessage:
+          "Manual session added, but calendar refresh timed out. Please refresh the page.",
+      });
+      if (!refreshed) {
+        toast.error(
+          "Manual session added, but calendar refresh failed. Please refresh the page."
+        );
+        return;
+      }
+      toast.success("Manual session added.");
+    } finally {
+      setMutationLoadingKey(null);
+    }
+  };
+
+  const deleteManualSession = async (entry: PlannerDayDetailEntry) => {
+    if (!context || !entry.activeItem || !isManualPlannerUnitKey(entry.unitKey)) {
+      return;
+    }
+    const expectedDigest = context.revisions.scheduleDigest;
+    if (!expectedDigest) {
+      toast.error("Planner state is stale. Refresh and try again.");
+      return;
+    }
+
+    const mutationKey = `manual:delete:${entry.activeItem.id}`;
+    setMutationLoadingKey(mutationKey);
+    try {
+      try {
+        await postJson("/api/planner/items/manual/delete", {
+          itemId: entry.activeItem.id,
+          expectedDigest,
+        });
+      } catch (error) {
+        toast.error(getApiErrorMessage(error, "Manual session removal failed."));
+        return;
+      }
+
+      handlePlannerMutation();
+      const refreshed = await withPlannerRefreshTimeout({
+        operation: loadContext({
+          showLoading: false,
+          toastOnError: false,
+          forcePrepare: true,
+        }),
+        timeoutMessage:
+          "Manual session removed, but calendar refresh timed out. Please refresh the page.",
+      });
+      if (!refreshed) {
+        toast.error(
+          "Manual session removed, but calendar refresh failed. Please refresh the page."
+        );
+        return;
+      }
+      setSelectedEventEntryKey(null);
+      setLocalSelectedDay(null);
+      toast.success("Manual session removed.");
     } finally {
       setMutationLoadingKey(null);
     }
@@ -3150,22 +3286,19 @@ export function CalendarSurface({
                           }
                           placeholder="Goal title"
                           className="h-8 text-xs"
+                          disabled={selectedEventIsManual}
                         />
                       </label>
                       <label className="flex items-center gap-2 text-xs text-muted-foreground">
                         Move to
                         <Input
                           type="date"
-                          value={
-                            selectedEventDraftEdit?.scheduledDate ??
-                            selectedEventEntry.activeItem?.scheduled_date ??
-                            effectiveSelectedDay ??
-                            ""
-                          }
+                          value={selectedEventDraftScheduledDate ?? ""}
                           onChange={(event) =>
                             updateDraftScheduledDate(selectedEventEntry, event.target.value)
                           }
                           className="h-8 text-xs"
+                          disabled={selectedEventIsManual}
                         />
                       </label>
                       <label className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -3173,13 +3306,7 @@ export function CalendarSurface({
                         <Input
                           type="time"
                           step={60}
-                          value={
-                            selectedEventDraftEdit?.scheduledTimeOverride === null
-                              ? ""
-                              : selectedEventDraftEdit?.scheduledTimeOverride ??
-                                selectedEventBaselineUnit?.scheduledTimeOverride ??
-                                ""
-                          }
+                          value={selectedEventDraftTimeInputValue}
                           onChange={(event) =>
                             updateDraftScheduledTimeOverride(
                               selectedEventEntry,
@@ -3187,6 +3314,7 @@ export function CalendarSurface({
                             )
                           }
                           className="h-8 text-xs"
+                          disabled={selectedEventIsManual}
                         />
                         <Button
                           type="button"
@@ -3196,6 +3324,7 @@ export function CalendarSurface({
                           onClick={() =>
                             updateDraftScheduledTimeOverride(selectedEventEntry, "")
                           }
+                          disabled={selectedEventIsManual}
                         >
                           Clear
                         </Button>
@@ -3210,25 +3339,66 @@ export function CalendarSurface({
                           selectedEventBaselineUnit?.effectiveScheduledLocalTime ??
                           "date only"}
                       </p>
+                      {selectedEventIsManual ? (
+                        <p className="text-[11px] text-muted-foreground">
+                          Manual sessions stay locked. Delete and recreate to change
+                          their date or time.
+                        </p>
+                      ) : null}
                       {selectedEventEntry.activeItem ? (
                         <div className="flex flex-wrap gap-2">
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            onClick={() => void toggleItemLock(selectedEventEntry)}
-                            disabled={
-                              Boolean(mutationLoadingKey) ||
-                              !canMutatePlanItems
-                            }
-                          >
-                            {mutationLoadingKey ===
-                            `lock:${selectedEventEntry.activeItem.id}`
-                              ? "Saving..."
-                              : selectedEventEntry.activeItem.locked
-                                ? "Unlock"
-                                : "Lock"}
-                          </Button>
+                          {!selectedEventIsManual ? (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              onClick={() => void toggleItemLock(selectedEventEntry)}
+                              disabled={
+                                Boolean(mutationLoadingKey) ||
+                                !canMutatePlanItems
+                              }
+                            >
+                              {mutationLoadingKey ===
+                              `lock:${selectedEventEntry.activeItem.id}`
+                                ? "Saving..."
+                                : selectedEventEntry.activeItem.locked
+                                  ? "Unlock"
+                                  : "Lock"}
+                            </Button>
+                          ) : null}
+                          {!selectedEventIsManual ? (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="secondary"
+                              onClick={() => void createManualSession(selectedEventEntry)}
+                              disabled={
+                                Boolean(mutationLoadingKey) ||
+                                !canMutatePlanItems
+                              }
+                            >
+                              {mutationLoadingKey ===
+                              `manual:create:${selectedEventEntry.originalGoalId}`
+                                ? "Adding..."
+                                : "Add extra session"}
+                            </Button>
+                          ) : (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="destructive"
+                              onClick={() => void deleteManualSession(selectedEventEntry)}
+                              disabled={
+                                Boolean(mutationLoadingKey) ||
+                                !canMutatePlanItems
+                              }
+                            >
+                              {mutationLoadingKey ===
+                              `manual:delete:${selectedEventEntry.activeItem.id}`
+                                ? "Removing..."
+                                : "Delete manual session"}
+                            </Button>
+                          )}
                           <div className="inline-flex items-center gap-2 rounded-md border px-2 py-1">
                             <CompletionToggle
                               completed={Boolean(
