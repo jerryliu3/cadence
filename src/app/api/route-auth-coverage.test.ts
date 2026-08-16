@@ -149,8 +149,6 @@ import { POST as plannerPreparePost } from "@/app/api/planner/prepare/route";
 import { POST as plannerResetPost } from "@/app/api/planner/reset/route";
 import { POST as plannerResetAllPost } from "@/app/api/planner/reset-all/route";
 import { POST as plannerLockPost } from "@/app/api/planner/items/lock/route";
-import { POST as plannerManualCreatePost } from "@/app/api/planner/items/manual/route";
-import { POST as plannerManualDeletePost } from "@/app/api/planner/items/manual/delete/route";
 import { POST as plannerCoachPost } from "@/app/api/planner/coach/route";
 import {
   GET as plannerConversationsGet,
@@ -308,11 +306,6 @@ const auditedRouteCases: AuditedRouteCase[] = [
   routeCase("POST /api/planner/reset", plannerResetPost),
   routeCase("POST /api/planner/reset-all", plannerResetAllPost),
   routeCase("POST /api/planner/items/lock", plannerLockPost),
-  routeCase("POST /api/planner/items/manual", plannerManualCreatePost),
-  routeCase(
-    "POST /api/planner/items/manual/delete",
-    plannerManualDeletePost
-  ),
   routeCase("POST /api/planner/coach", plannerCoachPost),
   routeCase("GET /api/planner/coach/conversations", plannerConversationsGet),
   routeCase("POST /api/planner/coach/conversations", plannerConversationsPost),
