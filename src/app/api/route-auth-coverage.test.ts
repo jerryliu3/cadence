@@ -133,6 +133,7 @@ import { GET as xpAchievementsGet } from "@/app/api/xp/achievements/route";
 import { GET as healthStatusGet } from "@/app/api/health/status/route";
 import { GET as insightsStatsGet } from "@/app/api/insights/stats/route";
 import { POST as healthSamplesPost } from "@/app/api/health/samples/route";
+import { POST as supportIssuesPost } from "@/app/api/support/issues/route";
 import {
   DELETE as healthAutocompleteDelete,
   PUT as healthAutocompletePut,
@@ -264,6 +265,7 @@ const auditedRouteCases: AuditedRouteCase[] = [
   routeCase("GET /api/xp/profile", xpProfileGet),
   routeCase("GET /api/xp/achievements", xpAchievementsGet),
   routeCase("GET /api/insights/stats", insightsStatsGet),
+  routeCase("POST /api/support/issues", supportIssuesPost),
   routeCase("POST /api/integrations/calendar/feed/rotate", calendarFeedRotatePost),
   routeCase("GET /api/health/status", healthStatusGet),
   routeCase(
@@ -419,6 +421,7 @@ const unauthenticatedHandlers = new Set([
   "GET /api/push/dispatch",
   "POST /api/push/dispatch",
   "POST /api/push/outbox",
+  "GET /api/support/issues",
   "GET /api/integrations/calendar/feed/[token]/cadence.ics",
 ]);
 
