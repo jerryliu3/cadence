@@ -448,16 +448,17 @@ describe("CalendarSurface characterization", () => {
       />
     );
 
-    await waitFor(() => {
-      expect(
-        screen.getByText(
-          new RegExp(
-            `${expectedGoalCount} goal${expectedGoalCount === 1 ? "" : "s"} are not fully scheduled \\(${expectedUnitCount} unresolved session${expectedUnitCount === 1 ? "" : "s"}\\)\\.`,
-            "i"
-          )
+    fireEvent.click(
+      await screen.findByRole("button", { name: "See warnings" })
+    );
+    expect(
+      await screen.findByText(
+        new RegExp(
+          `${expectedGoalCount} goal${expectedGoalCount === 1 ? "" : "s"} are not fully scheduled \\(${expectedUnitCount} unresolved session${expectedUnitCount === 1 ? "" : "s"}\\)\\.`,
+          "i"
         )
-      ).toBeInTheDocument();
-    });
+      )
+    ).toBeInTheDocument();
   });
 
   it("does not render unplaceable banner when no record is present", async () => {
@@ -488,7 +489,7 @@ describe("CalendarSurface characterization", () => {
       expect(postJsonMock).toHaveBeenCalled();
     });
     expect(
-      screen.queryByText(/goal[s]? are not fully scheduled/i)
+      screen.queryByRole("button", { name: "See warnings" })
     ).not.toBeInTheDocument();
   });
 
