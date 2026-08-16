@@ -10,7 +10,6 @@ import {
 import { supabase } from "./supabase";
 
 interface ProfileNavigationPreferencesState {
-  loading: boolean;
   defaultMainPagePreference: DefaultMainPagePreference;
   plannerPrimaryTabPreference: PlannerPrimaryTabPreference;
 }
@@ -21,22 +20,22 @@ const DEFAULT_PREFERENCES: Omit<ProfileNavigationPreferencesState, "loading"> = 
 };
 
 export function useProfileNavigationPreferences(userId: string | null) {
-  const [state, setState] = useState<ProfileNavigationPreferencesState>(() => ({
-    loading: Boolean(userId),
-    ...DEFAULT_PREFERENCES,
+  const [state, setState] = useState<{
+    loadedUserId: string | null;
+    preferences: ProfileNavigationPreferencesState;
+  }>(() => ({
+    loadedUserId: null,
+    preferences: {
+      ...DEFAULT_PREFERENCES,
+    },
   }));
 
   useEffect(() => {
     if (!userId) {
-      setState({
-        loading: false,
-        ...DEFAULT_PREFERENCES,
-      });
       return;
     }
 
     let cancelled = false;
-    setState((previous) => ({ ...previous, loading: true }));
 
     const run = async () => {
       const { data } = await supabase
@@ -50,13 +49,15 @@ export function useProfileNavigationPreferences(userId: string | null) {
       }
 
       setState({
-        loading: false,
-        defaultMainPagePreference: normalizeDefaultMainPagePreference(
-          data?.default_main_page
-        ),
-        plannerPrimaryTabPreference: normalizePlannerPrimaryTabPreference(
-          data?.planner_primary_tab
-        ),
+        loadedUserId: userId,
+        preferences: {
+          defaultMainPagePreference: normalizeDefaultMainPagePreference(
+            data?.default_main_page
+          ),
+          plannerPrimaryTabPreference: normalizePlannerPrimaryTabPreference(
+            data?.planner_primary_tab
+          ),
+        },
       });
     };
 
@@ -67,5 +68,22 @@ export function useProfileNavigationPreferences(userId: string | null) {
     };
   }, [userId]);
 
-  return state;
+  if (!userId) {
+    return {
+      loading: false,
+      ...DEFAULT_PREFERENCES,
+    };
+  }
+
+  if (state.loadedUserId !== userId) {
+    return {
+      loading: true,
+      ...DEFAULT_PREFERENCES,
+    };
+  }
+
+  return {
+    loading: false,
+    ...state.preferences,
+  };
 }
