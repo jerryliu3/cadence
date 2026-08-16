@@ -9,7 +9,12 @@ import {
   fetchProgressContext,
   type ProgressContextResponse,
 } from "@/lib/goals/progress-context";
+import {
+  fetchInsightsStats,
+  InsightsStatsAuthenticationError,
+} from "@/lib/insights/stats";
 import type { CompletionDateFact, Goal } from "@/lib/goals/types";
+import type { InsightsStatsResponse } from "@/lib/insights/types";
 import { createClient } from "@/lib/supabase/client";
 import { useDuoLaneError } from "@/features/social/duo/use-duo-lane-error";
 import { assertQueriesOk } from "@/lib/supabase/query-error";
@@ -22,6 +27,7 @@ export interface InsightsData {
   completions: CompletionDateFact[];
   memberTeamIds: string[];
   progress: ProgressContextResponse | null;
+  insightsStats: InsightsStatsResponse | null;
 }
 
 export const emptyInsights: InsightsData = {
@@ -30,6 +36,7 @@ export const emptyInsights: InsightsData = {
   completions: [],
   memberTeamIds: [],
   progress: null,
+  insightsStats: null,
 };
 
 const INSIGHTS_REQUEST_TIMEOUT_MS = 15_000;
@@ -120,7 +127,7 @@ export function useInsightsData({
         const yearEnd = `${selectedYear}-12-31`;
         const targetSubjectUserId = subjectUserId ?? userId;
         const targetIsViewer = targetSubjectUserId === userId;
-        const [goalsResponse, teamMembersResponse, progress] =
+        const [goalsResponse, teamMembersResponse, progress, insightsStats] =
           await withAbortSignal(
             Promise.all([
               targetIsViewer
@@ -138,6 +145,9 @@ export function useInsightsData({
                 subjectUserId: targetIsViewer ? undefined : targetSubjectUserId,
                 forceRefresh,
               }),
+              targetIsViewer
+                ? fetchInsightsStats({ forceRefresh })
+                : Promise.resolve(null),
             ]),
             controller.signal
           );
@@ -169,6 +179,7 @@ export function useInsightsData({
           completions: progress.facts,
           memberTeamIds,
           progress,
+          insightsStats,
         });
         clearLaneError();
       } finally {
@@ -189,12 +200,16 @@ export function useInsightsData({
       try {
         await loadData();
       } catch (error) {
+        if (error instanceof InsightsStatsAuthenticationError) {
+          redirectToLogin();
+          return;
+        }
         reportLoadError(error);
       }
     };
 
     void run();
-  }, [loadData, reportLoadError]);
+  }, [loadData, redirectToLogin, reportLoadError]);
 
   return {
     state,

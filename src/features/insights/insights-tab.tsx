@@ -302,6 +302,7 @@ export function InsightsTab({
     () => selectOverallCompletionPercent(personalGoals, progressByGoal),
     [personalGoals, progressByGoal]
   );
+  const overallStats = state.insightsStats?.overall ?? null;
 
   const toggleMilestoneDateSelection = useCallback(
     async (
@@ -636,6 +637,7 @@ export function InsightsTab({
         selectedYearEnd={selectedYearEnd}
         values={aggregateHeatmapData}
         overallCompletion={overallCompletion}
+        overallStats={overallStats}
         classForValue={(value) =>
           `${getHeatmapScaleClass(value?.count ?? 0)} cursor-pointer ${getAggregateDrilldownDayClass(value?.date)}`
         }
