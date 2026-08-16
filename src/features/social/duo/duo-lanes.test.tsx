@@ -37,4 +37,19 @@ describe("DuoLanes", () => {
     expect(screen.queryByText("Mine")).not.toBeInTheDocument();
     expect(screen.getByText("content")).toBeInTheDocument();
   });
+
+  it("uses a swipeable lane rail when both lanes are visible", () => {
+    render(
+      <DuoLanes
+        scope="both"
+        viewer={viewer}
+        partner={partner}
+        renderLane={(subject) => <p>{subject.label} content</p>}
+      />
+    );
+
+    expect(screen.getByTestId("duo-lanes-scroll")).toBeInTheDocument();
+    expect(screen.getByText("Mine content")).toBeInTheDocument();
+    expect(screen.getByText("Alex content")).toBeInTheDocument();
+  });
 });
