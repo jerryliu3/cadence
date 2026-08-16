@@ -70,6 +70,7 @@ describe("AppShell", () => {
 
     const newGoalLink = screen.getByRole("link", { name: /new goal \+/i });
     expect(newGoalLink).toHaveAttribute("href", "/goals/new?returnTo=%2F");
+    expect(newGoalLink).toHaveClass("h-8");
   });
 
   it("includes the current route in the new goal returnTo query", () => {
