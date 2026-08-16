@@ -12,6 +12,7 @@ describe("InsightsGoalCardHeader", () => {
         categoryLabel="Health"
         categoryClassName="category-health"
         endDate="2026-10-31"
+        daysRemaining={76}
         action={<Button>Edit</Button>}
       />
     );
@@ -24,6 +25,9 @@ describe("InsightsGoalCardHeader", () => {
     expect(within(titleLine).getByText("Health")).toBeInTheDocument();
     expect(
       within(titleLine).getByLabelText("Goal end date Oct 31, 2026")
+    ).toBeInTheDocument();
+    expect(
+      within(titleLine).getByLabelText("Days remaining 76")
     ).toBeInTheDocument();
     expect(
       within(header).getByRole("button", { name: "Edit" })

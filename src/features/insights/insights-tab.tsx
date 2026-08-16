@@ -137,12 +137,25 @@ interface InsightsTabProps {
     perGoalViewMode: HeatmapViewMode;
     onPerGoalViewModeChange: (mode: HeatmapViewMode) => void;
   };
+  sharedGoalFilters?: InsightsSharedGoalFilters;
+}
+
+export interface InsightsSharedGoalFilters {
+  goalSearchQuery: string;
+  setGoalSearchQuery: (value: string) => void;
+  goalEndMonth: string | null;
+  setGoalEndMonth: (value: string | null) => void;
+  goalSort: GoalDateSort;
+  setGoalSort: (value: GoalDateSort) => void;
+  showHistoricalGoals: boolean;
+  setShowHistoricalGoals: (value: boolean) => void;
 }
 
 export function InsightsTab({
   subjectUserId,
   readOnly = false,
   sharedPeriod,
+  sharedGoalFilters,
 }: InsightsTabProps = {}) {
   const [internalMonthCursor, setInternalMonthCursor] = useState(new Date());
   const [internalPerGoalViewMode, setInternalPerGoalViewMode] =
@@ -164,10 +177,20 @@ export function InsightsTab({
   const setPerGoalViewMode =
     sharedPeriod?.onPerGoalViewModeChange ?? setInternalPerGoalViewMode;
   const [goalMonthOverrides, setGoalMonthOverrides] = useState<Record<string, Date>>({});
-  const [goalSearchQuery, setGoalSearchQuery] = useState("");
-  const [goalEndMonth, setGoalEndMonth] = useState<string | null>(null);
-  const [goalSort, setGoalSort] = useState<GoalDateSort>("earliest_end");
-  const [showHistoricalGoals, setShowHistoricalGoals] = useState(false);
+  const [internalGoalSearchQuery, setInternalGoalSearchQuery] = useState("");
+  const [internalGoalEndMonth, setInternalGoalEndMonth] = useState<string | null>(null);
+  const [internalGoalSort, setInternalGoalSort] = useState<GoalDateSort>("earliest_end");
+  const [internalShowHistoricalGoals, setInternalShowHistoricalGoals] = useState(false);
+  const goalSearchQuery = sharedGoalFilters?.goalSearchQuery ?? internalGoalSearchQuery;
+  const setGoalSearchQuery = sharedGoalFilters?.setGoalSearchQuery ?? setInternalGoalSearchQuery;
+  const goalEndMonth = sharedGoalFilters?.goalEndMonth ?? internalGoalEndMonth;
+  const setGoalEndMonth = sharedGoalFilters?.setGoalEndMonth ?? setInternalGoalEndMonth;
+  const goalSort = sharedGoalFilters?.goalSort ?? internalGoalSort;
+  const setGoalSort = sharedGoalFilters?.setGoalSort ?? setInternalGoalSort;
+  const showHistoricalGoals =
+    sharedGoalFilters?.showHistoricalGoals ?? internalShowHistoricalGoals;
+  const setShowHistoricalGoals =
+    sharedGoalFilters?.setShowHistoricalGoals ?? setInternalShowHistoricalGoals;
   const [goalStatsFiltersOpen, setGoalStatsFiltersOpen] = useState(false);
   const [editingGoalId, setEditingGoalId] = useState<string | null>(null);
   const [aggregateDrilldownDate, setAggregateDrilldownDate] = useState<string | null>(null);
@@ -795,6 +818,7 @@ export function InsightsTab({
                         goal.category_key ?? goal.category
                       )}
                       endDate={goal.end_date}
+                      daysRemaining={daysRemaining}
                       action={
                         canEditHistory ? (
                           <Button
@@ -1029,8 +1053,7 @@ export function InsightsTab({
                       {hasTargetCount ? <Progress value={percent} /> : null}
                     </div>
 
-                    {(goal.frequency_type === "recurring" && !targetedRecurring) ||
-                    daysRemaining !== null ? (
+                    {goal.frequency_type === "recurring" && !targetedRecurring ? (
                       <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                         {goal.frequency_type === "recurring" && !targetedRecurring ? (
                           <>
@@ -1041,7 +1064,6 @@ export function InsightsTab({
                             <span>Longest streak: {streaks.longest}</span>
                           </>
                         ) : null}
-                        {daysRemaining !== null ? <span>Days remaining: {daysRemaining}</span> : null}
                       </div>
                     ) : null}
                   </CardContent>
