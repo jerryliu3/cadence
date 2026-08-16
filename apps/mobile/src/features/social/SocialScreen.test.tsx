@@ -23,6 +23,8 @@ const mocks = vi.hoisted(() => ({
     partnerDisplayName: string;
     partnerUsername: string;
     partnerAvatarUrl: null;
+    teamXp: number;
+    teamXpSince: string;
   },
 }));
 
@@ -209,6 +211,37 @@ describe("SocialScreen Duo onboarding", () => {
       partnerUsername: "alex",
       message: "Let's team up",
     });
+    act(() => renderer.unmount());
+  });
+
+  it("shows accumulated team XP for the active team", async () => {
+    mocks.activePartner = {
+      teamId: "team-1",
+      partnerId: "partner-1",
+      partnerDisplayName: "Alex",
+      partnerUsername: "alex",
+      partnerAvatarUrl: null,
+      teamXp: 55,
+      teamXpSince: "2026-08-12T14:30:00.000Z",
+    };
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    let renderer!: ReactTestRenderer;
+
+    await act(async () => {
+      renderer = create(
+        <QueryClientProvider client={client}>
+          <SocialScreen />
+        </QueryClientProvider>
+      );
+    });
+
+    const text = findHost(renderer.root, "Text").map((node) =>
+      node.children.join("")
+    );
+    expect(text).toContain("Team XP");
+    expect(text).toContain("55 XP");
     act(() => renderer.unmount());
   });
 

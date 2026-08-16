@@ -45,6 +45,7 @@ export interface TeamStateRow {
   acceptedAt: string | null;
   closedAt: string | null;
   isIncoming: boolean;
+  teamXp: number | null;
 }
 
 export interface SocialTeamStateResponse {
@@ -79,6 +80,7 @@ export function mapTeamStateRpcRow(row: TeamStateRpcRow): TeamStateRow {
     acceptedAt: row.accepted_at,
     closedAt: row.closed_at,
     isIncoming: row.is_incoming,
+    teamXp: null,
   };
 }
 
@@ -89,6 +91,8 @@ export function toActiveTeamPartner(row: TeamStateRow): DuoActivePartner {
     partnerUsername: row.partnerUsername,
     partnerDisplayName: row.partnerDisplayName,
     partnerAvatarUrl: row.partnerAvatarUrl,
+    teamXp: row.teamXp ?? 0,
+    teamXpSince: row.acceptedAt,
   };
 }
 
