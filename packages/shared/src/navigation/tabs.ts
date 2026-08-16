@@ -5,7 +5,6 @@ export type AppTabKey =
   | "settings";
 
 export type PlannerPrimaryTabPreference = "calendar" | "checklist";
-export type DefaultMainPagePreference = "calendar" | "checklist" | "insights";
 
 export interface AppTabDefinition {
   key: AppTabKey;
@@ -20,18 +19,8 @@ const TAB_BY_KEY: Record<AppTabKey, AppTabDefinition> = {
   settings: { key: "settings", href: "/settings", label: "Profile" },
 };
 
-export const DEFAULT_MAIN_PAGE_PREFERENCE: DefaultMainPagePreference = "calendar";
 export const DEFAULT_PLANNER_PRIMARY_TAB_PREFERENCE: PlannerPrimaryTabPreference =
   "checklist";
-
-export function normalizeDefaultMainPagePreference(
-  value: string | null | undefined
-): DefaultMainPagePreference {
-  if (value === "calendar" || value === "checklist" || value === "insights") {
-    return value;
-  }
-  return DEFAULT_MAIN_PAGE_PREFERENCE;
-}
 
 export function normalizePlannerPrimaryTabPreference(
   value: string | null | undefined
@@ -53,20 +42,6 @@ export function buildAppTabs(
     "settings",
   ];
   return orderedKeys.map((key) => TAB_BY_KEY[key]);
-}
-
-export function resolveDefaultMainPageHref(
-  preference: DefaultMainPagePreference
-): string {
-  switch (preference) {
-    case "checklist":
-      return "/checklist";
-    case "insights":
-      return "/insights";
-    case "calendar":
-    default:
-      return "/calendar";
-  }
 }
 
 export const APP_TABS: AppTabDefinition[] = buildAppTabs();

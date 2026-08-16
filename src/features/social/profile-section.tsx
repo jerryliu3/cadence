@@ -2,7 +2,6 @@
 
 import { WandSparkles } from "lucide-react";
 import type {
-  DefaultMainPagePreference,
   PlannerPrimaryTabPreference,
 } from "@cadence/shared/navigation/tabs";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -16,7 +15,6 @@ interface ProfileDraft {
   username: string;
   display_name: string;
   avatar_url: string;
-  default_main_page: DefaultMainPagePreference;
   planner_primary_tab: PlannerPrimaryTabPreference;
 }
 

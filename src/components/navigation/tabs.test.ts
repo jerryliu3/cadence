@@ -1,8 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  buildAppTabs,
-  resolveDefaultMainPageHref,
-} from "@/components/navigation/tabs";
+import { buildAppTabs } from "@/components/navigation/tabs";
 
 describe("navigation tab preferences", () => {
   it("keeps planner as a single top-level tab", () => {
@@ -21,11 +18,5 @@ describe("navigation tab preferences", () => {
       "social",
       "settings",
     ]);
-  });
-
-  it("resolves default landing href from profile preference", () => {
-    expect(resolveDefaultMainPageHref("calendar")).toBe("/calendar");
-    expect(resolveDefaultMainPageHref("checklist")).toBe("/checklist");
-    expect(resolveDefaultMainPageHref("insights")).toBe("/insights");
   });
 });

@@ -1,21 +1,16 @@
 import { useEffect, useState } from "react";
 import {
-  DEFAULT_MAIN_PAGE_PREFERENCE,
   DEFAULT_PLANNER_PRIMARY_TAB_PREFERENCE,
-  normalizeDefaultMainPagePreference,
   normalizePlannerPrimaryTabPreference,
-  type DefaultMainPagePreference,
   type PlannerPrimaryTabPreference,
 } from "@cadence/shared/navigation/tabs";
 import { supabase } from "./supabase";
 
 interface ProfileNavigationPreferencesState {
-  defaultMainPagePreference: DefaultMainPagePreference;
   plannerPrimaryTabPreference: PlannerPrimaryTabPreference;
 }
 
 const DEFAULT_PREFERENCES: Omit<ProfileNavigationPreferencesState, "loading"> = {
-  defaultMainPagePreference: DEFAULT_MAIN_PAGE_PREFERENCE,
   plannerPrimaryTabPreference: DEFAULT_PLANNER_PRIMARY_TAB_PREFERENCE,
 };
 
@@ -40,7 +35,7 @@ export function useProfileNavigationPreferences(userId: string | null) {
     const run = async () => {
       const { data } = await supabase
         .from("profiles")
-        .select("default_main_page, planner_primary_tab")
+        .select("planner_primary_tab")
         .eq("id", userId)
         .maybeSingle();
 
@@ -51,9 +46,6 @@ export function useProfileNavigationPreferences(userId: string | null) {
       setState({
         loadedUserId: userId,
         preferences: {
-          defaultMainPagePreference: normalizeDefaultMainPagePreference(
-            data?.default_main_page
-          ),
           plannerPrimaryTabPreference: normalizePlannerPrimaryTabPreference(
             data?.planner_primary_tab
           ),

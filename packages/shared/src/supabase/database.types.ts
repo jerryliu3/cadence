@@ -1901,7 +1901,6 @@ export type Database = {
           blackout_ranges: Json
           calendar_feed_token_version: number
           created_at: string
-          default_main_page: string
           display_name: string | null
           id: string
           planner_primary_tab: string
@@ -1917,7 +1916,6 @@ export type Database = {
           blackout_ranges?: Json
           calendar_feed_token_version?: number
           created_at?: string
-          default_main_page?: string
           display_name?: string | null
           id: string
           planner_primary_tab?: string
@@ -1933,7 +1931,6 @@ export type Database = {
           blackout_ranges?: Json
           calendar_feed_token_version?: number
           created_at?: string
-          default_main_page?: string
           display_name?: string | null
           id?: string
           planner_primary_tab?: string

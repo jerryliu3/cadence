@@ -1,5 +1,4 @@
 import { Redirect } from "expo-router";
-import { resolveMobileDefaultMainPageHref } from "../src/lib/navigation-preference-routes";
 import { useProfileNavigationPreferences } from "../src/lib/navigation-preferences";
 import { useForceUpgradeRequired } from "../src/lib/runtime-config";
 import { useSession } from "../src/lib/session";
@@ -19,9 +18,5 @@ export default function IndexRoute() {
   if (!session) {
     return <Redirect href="/(auth)/login" />;
   }
-  return (
-    <Redirect
-      href={resolveMobileDefaultMainPageHref(preferences.defaultMainPagePreference)}
-    />
-  );
+  return <Redirect href="/(tabs)/calendar" />;
 }
