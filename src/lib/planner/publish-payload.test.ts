@@ -32,8 +32,7 @@ const baseGoal: Goal = {
 
 function createSnapshot(
   completions: Completion[],
-  goalOverrides: Partial<Goal> = {},
-  activePlan: PlannerCanonicalSnapshot["activePlan"] = null
+  goalOverrides: Partial<Goal> = {}
 ): PlannerCanonicalSnapshot {
   return {
     goals: [{ ...baseGoal, ...goalOverrides }],
@@ -41,7 +40,7 @@ function createSnapshot(
     links: [],
     revisions: { canonicalRevision: 0, executionRevision: 0 },
     preferences: null,
-    activePlan,
+    activePlan: null,
   };
 }
 
@@ -125,101 +124,6 @@ describe("buildPlannerPublishPersistencePayload draft edit validation", () => {
       scheduled_time_override: null,
       effective_scheduled_local_time: "07:15",
       effective_scheduled_at_local: "2026-08-10T07:15:00",
-    });
-  });
-
-  it("preserves persisted manual planner items on publish", () => {
-    const snapshot = createSnapshot(
-      [],
-      { default_local_time: "07:15" },
-      {
-        plan: {
-          id: "plan-1",
-          version: 1,
-          status: "active",
-          timezone: "UTC",
-          generation_input_hash: "hash",
-        },
-        policy: {
-          timezone: "UTC",
-          restWeekdays: [],
-          blackouts: [],
-          maxSessionMinutes: 120,
-          minSessionMinutes: 15,
-          weekStartsOn: 1,
-        },
-        goals: [
-          {
-            id: GOAL_ID,
-            goal_id: GOAL_ID,
-            original_goal_id: GOAL_ID,
-            requirement_fingerprint: "a".repeat(64),
-            title: baseGoal.title,
-            category: baseGoal.category,
-            color: baseGoal.color,
-            start_date: baseGoal.start_date,
-            end_date: baseGoal.end_date,
-            assessment_snapshot: {
-              goalId: GOAL_ID,
-              requirementFingerprint: "a".repeat(64),
-              asOfDate: "2026-08-10",
-              status: "on_track",
-              progress: { numerator: 0, denominator: 1 },
-              expectedByNow: 0,
-              delta: 0,
-              projectedFinal: 0,
-              confidence: "low",
-              reasonCode: "healthy",
-            },
-            assessment_input_hash: "b".repeat(64),
-          },
-        ],
-        days: [],
-        items: [
-          {
-            id: "manual-item-1",
-            plan_goal_id: GOAL_ID,
-            unit_key: "manual:11111111-1111-4111-8111-111111111111",
-            requirement_kind: "deadline_total",
-            scheduled_date: "2026-08-20",
-            original_scheduled_date: "2026-08-20",
-            classification: "open",
-            credit_state: "uncredited",
-            locked: true,
-            revision: 0,
-            credited_completion_id: null,
-            credited_completion_date: null,
-            scheduled_time_override: "08:00",
-            effective_scheduled_local_time: "08:00",
-          },
-        ],
-        issues: [],
-        basePlan: {
-          planId: "plan-1",
-          version: 1,
-          assignments: [],
-          completionToUnit: {},
-          issueCodes: [],
-        },
-      } as unknown as PlannerCanonicalSnapshot["activePlan"]
-    );
-    const kernel = createKernel("2026-08-10");
-
-    const payload = buildPlannerPublishPersistencePayload({
-      kernel,
-      snapshot,
-      draftCommands: [],
-    });
-
-    expect(
-      payload.items.find(
-        (item) => item.unit_key === "manual:11111111-1111-4111-8111-111111111111"
-      )
-    ).toMatchObject({
-      goal_id: GOAL_ID,
-      scheduled_date: "2026-08-20",
-      locked: true,
-      scheduled_time_override: "08:00",
     });
   });
 

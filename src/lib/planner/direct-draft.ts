@@ -9,7 +9,6 @@ import {
   sortPlannerDraftCommands,
   type PlannerDraftCommand,
 } from "@/lib/planner/draft-commands";
-import { isManualPlannerUnitKey } from "@/lib/planner/manual-items";
 import { normalizeGoalRequirement } from "@/lib/planner/requirements";
 import { resolvePlannerEffectiveScheduledTime } from "@/lib/planner/schedule-time";
 
@@ -376,73 +375,28 @@ export function buildDirectDraftPersistence({
     projectedDateByKey.set(key, command.scheduledDate);
   }
 
-  const projectedItems = Array.from(canonicalAssignmentByKey.values()).map(
-    (assignment) => {
-      const key = assignmentKey(assignment);
-      const goal = goalById.get(assignment.goalId)!;
-      const scheduledDate = projectedDateByKey.get(key) ?? null;
-      const scheduledTimeOverride = projectedTimeByKey.get(key) ?? null;
-      const resolvedTime = resolvePlannerEffectiveScheduledTime({
-        scheduledDate,
-        goalDefaultLocalTime: goal.default_local_time ?? null,
-        scheduledTimeOverride,
-      });
-      return {
-        goal_id: assignment.goalId,
-        unit_key: assignment.unitKey,
-        original_scheduled_date:
-          activeItemByKey.get(key)?.original_scheduled_date ??
-          assignment.scheduledDate,
-        scheduled_date: scheduledDate,
-        scheduled_time_override: scheduledTimeOverride,
-        effective_scheduled_local_time: resolvedTime.effectiveScheduledLocalTime,
-        effective_scheduled_at_local: resolvedTime.effectiveScheduledAtLocal,
-        locked: assignment.locked,
-      };
-    }
-  );
-  const projectedKeys = new Set(
-    projectedItems.map((item) =>
-      assignmentKey({ goalId: item.goal_id, unitKey: item.unit_key })
-    )
-  );
-  const activeGoalOriginalIdByPlanGoalId = new Map(
-    (snapshot.activePlan?.goals ?? []).map((goal) => [goal.id, goal.original_goal_id])
-  );
-  const manualItems = (snapshot.activePlan?.items ?? [])
-    .filter(
-      (item) => item.scheduled_date !== null && isManualPlannerUnitKey(item.unit_key)
-    )
-    .flatMap((item) => {
-      const goalId =
-        activeGoalOriginalIdByPlanGoalId.get(item.plan_goal_id) ?? item.plan_goal_id;
-      const key = assignmentKey({ goalId, unitKey: item.unit_key });
-      if (projectedKeys.has(key)) {
-        return [];
-      }
-      const goal = goalById.get(goalId);
-      if (!goal) {
-        return [];
-      }
-      const resolvedTime = resolvePlannerEffectiveScheduledTime({
-        scheduledDate: item.scheduled_date,
-        goalDefaultLocalTime: goal.default_local_time ?? null,
-        scheduledTimeOverride: item.scheduled_time_override ?? null,
-      });
-      return [
-        {
-          goal_id: goalId,
-          unit_key: item.unit_key,
-          original_scheduled_date:
-            item.original_scheduled_date ?? item.scheduled_date,
-          scheduled_date: item.scheduled_date,
-          scheduled_time_override: resolvedTime.scheduledTimeOverride,
-          effective_scheduled_local_time:
-            resolvedTime.effectiveScheduledLocalTime,
-          effective_scheduled_at_local: resolvedTime.effectiveScheduledAtLocal,
-          locked: true,
-        },
-      ];
+  return Array.from(canonicalAssignmentByKey.values()).map((assignment) => {
+    const key = assignmentKey(assignment);
+    const goal = goalById.get(assignment.goalId)!;
+    const scheduledDate = projectedDateByKey.get(key) ?? null;
+    const scheduledTimeOverride = projectedTimeByKey.get(key) ?? null;
+    const resolvedTime = resolvePlannerEffectiveScheduledTime({
+      scheduledDate,
+      goalDefaultLocalTime: goal.default_local_time ?? null,
+      scheduledTimeOverride,
     });
-  return [...projectedItems, ...manualItems];
+    return {
+      goal_id: assignment.goalId,
+      unit_key: assignment.unitKey,
+      original_scheduled_date:
+        activeItemByKey.get(key)?.original_scheduled_date ??
+        assignment.scheduledDate,
+      scheduled_date: scheduledDate,
+      scheduled_time_override: scheduledTimeOverride,
+      effective_scheduled_local_time:
+        resolvedTime.effectiveScheduledLocalTime,
+      effective_scheduled_at_local: resolvedTime.effectiveScheduledAtLocal,
+      locked: assignment.locked,
+    };
+  });
 }
