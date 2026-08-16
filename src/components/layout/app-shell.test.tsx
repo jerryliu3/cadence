@@ -52,6 +52,13 @@ const emptyDuoProps = {
   duoAvailability: "ready" as const,
   initialDuoScopePreference: null,
   plannerPrimaryTabPreference: "checklist" as const,
+  journeyFlags: {
+    journeyEnabled: false,
+    journeyVideoEnabled: false,
+    journeyRiveEnabled: false,
+    journeySocialOverlayEnabled: false,
+    journeyAssetManifestVersion: "v1",
+  },
 } as const;
 
 describe("AppShell", () => {
