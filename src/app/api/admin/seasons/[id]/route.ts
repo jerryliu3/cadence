@@ -37,8 +37,8 @@ const patchSchema = z
     endsAt: z.iso.datetime().nullable().optional(),
     status: z.enum(["upcoming", "open", "closed"]).optional(),
     rollover: z.enum(["none", "weekly", "monthly", "quarterly", "yearly"]).optional(),
-    scope: z.enum(["global", "cohort"]).optional(),
-    cohortId: z.uuid().nullable().optional(),
+    scope: z.enum(["global", "group"]).optional(),
+    groupId: z.uuid().nullable().optional(),
   })
   .superRefine((value, context) => {
     if (value.metric === "category_xp" && !value.metricTrackKey) {
@@ -48,18 +48,18 @@ const patchSchema = z
         path: ["metricTrackKey"],
       });
     }
-    if (value.scope === "cohort" && value.cohortId === undefined) {
+    if (value.scope === "group" && value.groupId === undefined) {
       context.addIssue({
         code: "custom",
-        message: "cohortId is required for group-scoped seasons.",
-        path: ["cohortId"],
+        message: "groupId is required for group-scoped seasons.",
+        path: ["groupId"],
       });
     }
-    if (value.scope === "global" && value.cohortId !== undefined && value.cohortId !== null) {
+    if (value.scope === "global" && value.groupId !== undefined && value.groupId !== null) {
       context.addIssue({
         code: "custom",
-        message: "cohortId must be null for global seasons.",
-        path: ["cohortId"],
+        message: "groupId must be null for global seasons.",
+        path: ["groupId"],
       });
     }
   })
@@ -106,6 +106,23 @@ function mapSeasonMutationError(error: DbMutationError, fallbackCode: string, fa
   });
 }
 
+function toSeasonDto(row: Record<string, unknown>) {
+  return {
+    id: row.id,
+    slug: row.slug,
+    title: row.title,
+    subject_kind: row.subject_kind,
+    metric: row.metric,
+    metric_track_key: row.metric_track_key,
+    starts_at: row.starts_at,
+    ends_at: row.ends_at,
+    status: row.status,
+    rollover: row.rollover,
+    scope: row.scope === "cohort" ? "group" : "global",
+    groupId: row.cohort_id,
+  };
+}
+
 export async function PATCH(
   request: Request,
   context: { params: Promise<{ id: string }> | { id: string } }
@@ -129,11 +146,13 @@ export async function PATCH(
     if (body.endsAt !== undefined) updates.ends_at = body.endsAt;
     if (body.status !== undefined) updates.status = body.status;
     if (body.rollover !== undefined) updates.rollover = body.rollover;
-    if (body.scope !== undefined) updates.scope = body.scope;
-    if (body.scope === "global" && body.cohortId === undefined) {
+    if (body.scope !== undefined) {
+      updates.scope = body.scope === "group" ? "cohort" : "global";
+    }
+    if (body.scope === "global" && body.groupId === undefined) {
       updates.cohort_id = null;
     }
-    if (body.cohortId !== undefined) updates.cohort_id = body.cohortId;
+    if (body.groupId !== undefined) updates.cohort_id = body.groupId;
 
     const admin = createAdminClient();
     const { data, error } = await admin
@@ -150,7 +169,7 @@ export async function PATCH(
       {
         schemaVersion: "1",
         correlationId,
-        item: data,
+        item: toSeasonDto(data as Record<string, unknown>),
       },
       { headers: { "Cache-Control": "no-store" } }
     );

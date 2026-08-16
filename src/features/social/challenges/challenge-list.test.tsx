@@ -38,7 +38,7 @@ function makeChallenge(id: string, title: string): SocialChallenge {
     viewerCompletedAt: null,
     viewerAwardedAt: null,
     audienceKind: "global",
-    cohortId: null,
+    groupId: null,
   };
 }
 

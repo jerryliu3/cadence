@@ -53,7 +53,7 @@ describe("POST /api/social/cohorts/join", () => {
     });
   });
 
-  it("joins cohort by code", async () => {
+  it("joins a group by code", async () => {
     const response = await POST(
       new Request("http://localhost/api/social/cohorts/join", {
         method: "POST",
@@ -68,7 +68,7 @@ describe("POST /api/social/cohorts/join", () => {
     });
     await expect(response.json()).resolves.toMatchObject({
       schemaVersion: "1",
-      cohortId: "70000000-0000-4000-8000-000000000001",
+      groupId: "70000000-0000-4000-8000-000000000001",
     });
   });
 });

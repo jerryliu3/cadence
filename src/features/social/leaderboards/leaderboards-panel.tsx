@@ -131,7 +131,7 @@ export function LeaderboardsPanel() {
                 <p className="font-medium">{season.title}</p>
                 <p className="text-xs text-muted-foreground">
                   {season.status} · {season.subjectKind}
-                  {season.scope === "cohort" ? " · group" : ""} · {season.metric}
+                  {season.scope === "group" ? " · group" : ""} · {season.metric}
                 </p>
               </button>
             );

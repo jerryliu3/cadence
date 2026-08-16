@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { joinSocialCohort } from "@/features/social/data";
+import { joinSocialGroup } from "@/features/social/data";
 
 export function CohortJoinCard() {
   const [joinCode, setJoinCode] = useState("");
@@ -17,7 +17,7 @@ export function CohortJoinCard() {
     setError(null);
     setMessage(null);
     try {
-      await joinSocialCohort(joinCode);
+      await joinSocialGroup(joinCode);
       setMessage("Joined the group.");
       setJoinCode("");
     } catch (joinError) {
