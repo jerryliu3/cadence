@@ -774,8 +774,8 @@ export function GoalForm({
             className={cn(
               "grid items-start gap-3",
               canShowRecurrenceFields
-                ? "grid-cols-2 sm:grid-cols-4"
-                : "grid-cols-2 sm:grid-cols-3"
+                ? "grid-cols-2 sm:grid-cols-3"
+                : "grid-cols-2"
             )}
           >
             <div className="min-w-0 space-y-2">
@@ -813,31 +813,6 @@ export function GoalForm({
                 />
               </div>
             ) : null}
-
-            <div className="space-y-2">
-              <Label htmlFor="goal-difficulty" className="inline-flex items-center gap-1">
-                <span>Difficulty</span>
-                <TooltipIcon
-                  content="Difficulty scales completion and achievement XP for this goal."
-                  label="Goal difficulty help"
-                />
-              </Label>
-              <Select
-                value={state.difficulty}
-                onValueChange={(value: GoalDifficulty) =>
-                  setState((previous) => ({ ...previous, difficulty: value }))
-                }
-              >
-                <SelectTrigger id="goal-difficulty" className="h-8 w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="easy">Easy (0.5x XP)</SelectItem>
-                  <SelectItem value="medium">Medium (1.0x XP)</SelectItem>
-                  <SelectItem value="hard">Hard (2.0x XP)</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
 
             {canShowRecurrenceFields ? (
               <div className="min-w-0 space-y-2">
@@ -979,6 +954,31 @@ export function GoalForm({
                       setState((previous) => ({ ...previous, default_local_time: "" }))
                     }
                   />
+
+                  <div className="space-y-2">
+                    <Label htmlFor="goal-difficulty" className="inline-flex items-center gap-1">
+                      <span>Difficulty</span>
+                      <TooltipIcon
+                        content="Set the perceived effort level for this goal."
+                        label="Goal difficulty help"
+                      />
+                    </Label>
+                    <Select
+                      value={state.difficulty}
+                      onValueChange={(value: GoalDifficulty) =>
+                        setState((previous) => ({ ...previous, difficulty: value }))
+                      }
+                    >
+                      <SelectTrigger id="goal-difficulty" className="h-8 w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="easy">Easy</SelectItem>
+                        <SelectItem value="medium">Medium</SelectItem>
+                        <SelectItem value="hard">Hard</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
 
                   {fixedMilestoneCount > 0 ? (
                     <Collapsible
