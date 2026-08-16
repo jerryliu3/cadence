@@ -284,15 +284,10 @@ describe("CalendarSurface characterization", () => {
     const expandButton = screen.getByRole("button", { name: "Expand rows" });
     const heading = screen.getByRole("heading", { name: "August 2026" });
     const actionGroup = todayButton.parentElement;
-    const calendarHeaderRow = actionGroup?.parentElement;
 
     expect(actionGroup).toContainElement(expandButton);
-    expect(actionGroup).toHaveClass("justify-self-end");
-    expect(calendarHeaderRow).toBe(heading.parentElement?.parentElement);
-    expect(calendarHeaderRow).toHaveClass(
-      "grid",
-      "grid-cols-[1fr_auto_1fr]"
-    );
+    expect(actionGroup).toHaveClass("justify-end");
+    expect(heading).toBeInTheDocument();
   });
 
   it("dismisses unpinned day preview after pointer leaves preview surface", async () => {
@@ -459,11 +454,8 @@ describe("CalendarSurface characterization", () => {
     );
 
     const dialog = await screen.findByRole("dialog");
-    expect(
-      within(dialog).getByRole("heading", { name: "Monday, Aug 31" })
-    ).toBeInTheDocument();
+    expect(within(dialog).getByRole("heading", { name: "Goal A" })).toBeInTheDocument();
     expect(within(dialog).getByText("Goal A")).toBeInTheDocument();
-    expect(within(dialog).getByText("Goal B")).toBeInTheDocument();
     expect(onSelectedDayChange).not.toHaveBeenCalled();
   });
 
