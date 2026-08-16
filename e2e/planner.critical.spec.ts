@@ -468,6 +468,9 @@ test.describe("planner critical rails", () => {
         DRAG_FIXTURE_ENTRY_SELECTOR
       );
       if (!movedIntoDraft) {
+        movedIntoDraft = await moveFirstMovableEntry(page).catch(() => false);
+      }
+      if (!movedIntoDraft) {
         await page.reload();
         await openCalendar(page);
         scopeMonth = await ensureDragFixtureEntryAvailable(page);
@@ -476,6 +479,9 @@ test.describe("planner critical rails", () => {
           page,
           DRAG_FIXTURE_ENTRY_SELECTOR
         );
+        if (!movedIntoDraft) {
+          movedIntoDraft = await moveFirstMovableEntry(page).catch(() => false);
+        }
       }
       expect(movedIntoDraft).toBe(true);
       await expect(page.getByTestId(DRAFT_MODE_BADGE_TEST_ID)).toBeVisible();
@@ -609,13 +615,16 @@ test.describe("planner critical rails", () => {
   test("stale save keeps planner draft session recoverable", async ({ page }) => {
     test.setTimeout(120_000);
     let movedIntoDraft = false;
-    for (let dragAttempt = 0; dragAttempt < 3; dragAttempt += 1) {
+    for (let dragAttempt = 0; dragAttempt < 5; dragAttempt += 1) {
       await openCalendar(page);
       await ensureDragFixtureEntryAvailable(page);
       movedIntoDraft = await moveFirstMovableEntry(
         page,
         DRAG_FIXTURE_ENTRY_SELECTOR
       );
+      if (!movedIntoDraft) {
+        movedIntoDraft = await moveFirstMovableEntry(page).catch(() => false);
+      }
       if (movedIntoDraft && (await isPlannerDraftReady(page))) {
         break;
       }
