@@ -22,7 +22,11 @@ import {
   resolveMobileDuoLaneSubjects,
   viewerLaneSubject,
 } from "../duo/lane-subjects";
-import { resolveLanePageWidth, shouldUseLanePager } from "../duo/lane-pager";
+import {
+  resolveLanePageSnapInterval,
+  resolveLanePageWidth,
+  shouldUseLanePager,
+} from "../duo/lane-pager";
 import {
   buildChecklistListItems,
   type ChecklistListItem,
@@ -79,6 +83,7 @@ export function ChecklistScreen({
   });
   const useLanePager = shouldUseLanePager(lanes.length);
   const lanePageWidth = resolveLanePageWidth(viewportWidth);
+  const lanePageSnapInterval = resolveLanePageSnapInterval(lanePageWidth);
   const laneDataById = useMemo(
     () =>
       ({
@@ -380,7 +385,9 @@ export function ChecklistScreen({
       {useLanePager ? (
         <ScrollView
           horizontal
-          pagingEnabled
+          snapToInterval={lanePageSnapInterval}
+          snapToAlignment="start"
+          disableIntervalMomentum
           decelerationRate="fast"
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.lanePagerContent}

@@ -13,7 +13,11 @@ import {
   resolveMobileDuoLaneSubjects,
   viewerLaneSubject,
 } from "../duo/lane-subjects";
-import { resolveLanePageWidth, shouldUseLanePager } from "../duo/lane-pager";
+import {
+  resolveLanePageSnapInterval,
+  resolveLanePageWidth,
+  shouldUseLanePager,
+} from "../duo/lane-pager";
 import { buildInsightsLaneRenderModel } from "./insights-lane-render-model";
 import { InsightsLaneSection } from "./InsightsLaneSection";
 import { useInsightsLaneData } from "./use-insights-lane-data";
@@ -50,6 +54,7 @@ export function InsightsScreen() {
   });
   const useLanePager = shouldUseLanePager(lanes.length);
   const lanePageWidth = resolveLanePageWidth(viewportWidth);
+  const lanePageSnapInterval = resolveLanePageSnapInterval(lanePageWidth);
 
   const cell = 16;
   const gap = 4;
@@ -86,7 +91,9 @@ export function InsightsScreen() {
       {useLanePager ? (
         <ScrollView
           horizontal
-          pagingEnabled
+          snapToInterval={lanePageSnapInterval}
+          snapToAlignment="start"
+          disableIntervalMomentum
           decelerationRate="fast"
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.lanePagerContent}
