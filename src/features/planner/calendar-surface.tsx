@@ -82,6 +82,11 @@ import { reorderPreviewEntryKeys } from "@/features/planner/reorder-preview-entr
 import { computeDayPreviewPosition } from "@/features/planner/day-preview-popup";
 import { getGoalVisual } from "@/features/planner/goal-visuals";
 import {
+  buildCalendarCategoryFilterOptions,
+  goalPassesCalendarFilters,
+} from "@/features/planner/calendar-filters";
+import { shouldBlockAutomatedReplanMoveForEntry } from "@/features/planner/replan-move-guard";
+import {
   readPlannerCalendarDayProjection,
   selectPlannerCalendarDayProjectionsByDay,
   selectPlannerCalendarStoreProjection,
@@ -521,18 +526,10 @@ export function CalendarSurface({
     endMonthFilter,
     filterReferenceMonth
   );
-  const categoryOptions = useMemo(() => {
-    const labels = new Set<string>();
-    for (const goal of activeGoalsByOriginalGoalId.values()) {
-      const trimmed = goal.category.trim();
-      if (trimmed.length > 0) {
-        labels.add(trimmed);
-      }
-    }
-    return Array.from(labels)
-      .sort((left, right) => left.localeCompare(right))
-      .map((label) => ({ value: label, label }));
-  }, [activeGoalsByOriginalGoalId]);
+  const categoryOptions = useMemo(
+    () => buildCalendarCategoryFilterOptions(activeGoalsByOriginalGoalId),
+    [activeGoalsByOriginalGoalId]
+  );
   const endMonthOptions = useMemo(() => {
     const goalEndDates = Array.from(activeGoalsByOriginalGoalId.values()).map(
       (goal) => goal.end_date
@@ -543,30 +540,19 @@ export function CalendarSurface({
       effectiveEndMonthFilter ? [effectiveEndMonthFilter] : []
     );
   }, [activeGoalsByOriginalGoalId, effectiveEndMonthFilter, filterReferenceMonth]);
-  const hasActiveFilters =
-    categoryFilter !== allCategoriesValue || effectiveEndMonthFilter !== null;
   const goalPassesFilters = useCallback(
-    (goalId: string) => {
-      const goal = activeGoalsByOriginalGoalId.get(goalId) ?? null;
-      if (!goal) {
-        return !hasActiveFilters;
-      }
-      if (
-        categoryFilter !== allCategoriesValue &&
-        goal.category !== categoryFilter
-      ) {
-        return false;
-      }
-      if (effectiveEndMonthFilter !== null) {
-        return goal.end_date?.slice(0, 7) === effectiveEndMonthFilter;
-      }
-      return true;
-    },
+    (goalId: string) =>
+      goalPassesCalendarFilters({
+        goalId,
+        goalsByOriginalId: activeGoalsByOriginalGoalId,
+        categoryFilter,
+        allCategoriesValue,
+        endMonthFilter: effectiveEndMonthFilter,
+      }),
     [
       activeGoalsByOriginalGoalId,
       categoryFilter,
       effectiveEndMonthFilter,
-      hasActiveFilters,
     ]
   );
   const calendarStoreProjection = useMemo(
@@ -949,6 +935,15 @@ export function CalendarSurface({
         unit.scheduledDate,
       ])
     );
+    const baselineUnitByEntryKey = new Map(
+      effectivePreview.workUnits.map((unit) => [
+        draftCommandEntryKey({
+          goalId: unit.originalGoalId,
+          unitKey: unit.unitKey,
+        }),
+        unit,
+      ])
+    );
 
     let nextState = draftCommandState;
     const pendingActions: Array<{
@@ -966,6 +961,16 @@ export function CalendarSurface({
       });
       const nextDate = unit.scheduledDate;
       if (nextDate === null || baselineDateByEntryKey.get(entryKey) === nextDate) {
+        continue;
+      }
+      const baselineUnit = baselineUnitByEntryKey.get(entryKey);
+      if (
+        shouldBlockAutomatedReplanMoveForEntry({
+          baselineClassification: baselineUnit?.classification,
+          baselineScheduledDate: baselineUnit?.scheduledDate,
+          asOfDate: context.asOfDate,
+        })
+      ) {
         continue;
       }
       const action = {
@@ -1272,6 +1277,7 @@ export function CalendarSurface({
         entry,
         nextDate: normalizedDate,
         scopeMonth,
+        source,
         previewUnit: baselineUnit,
         conflictKeys: moveConflictByGoalDate.get(
           `${entry.originalGoalId}:${normalizedDate}`
@@ -1333,7 +1339,6 @@ export function CalendarSurface({
         scheduledDate: planned.scheduledDate,
         sourceDate,
       });
-      void source;
       return true;
     },
     [

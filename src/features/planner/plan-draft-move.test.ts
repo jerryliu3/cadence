@@ -16,6 +16,7 @@ describe("planDraftMove", () => {
   it("allows manually moving historical sessions when a draft move window exists", () => {
     const result = planDraftMove({
       ...validMove,
+      source: "drag_drop",
       entry: buildPlannerDayEntry({
         classification: "historical_shortfall",
         creditState: "uncredited",
@@ -32,6 +33,29 @@ describe("planDraftMove", () => {
     expect(result).toEqual({
       ok: true,
       scheduledDate: "2026-08-02",
+    });
+  });
+
+  it("blocks coach-driven moves for historical sessions", () => {
+    const result = planDraftMove({
+      ...validMove,
+      source: "coach",
+      entry: buildPlannerDayEntry({
+        classification: "historical_miss",
+        creditState: "uncredited",
+      }),
+      previewUnit: buildPlannerWorkUnit({
+        draftMoveWindow: {
+          start: "2026-08-01",
+          end: "2026-08-31",
+        },
+      }),
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      message:
+        "Past sessions can only be moved manually. Use drag and drop or edit the date directly.",
     });
   });
 

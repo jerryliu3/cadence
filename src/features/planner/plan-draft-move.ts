@@ -1,5 +1,6 @@
 import { isValidDate } from "@cadence/shared/planner/calendar-state";
 import { isEntryImmovableForDraft } from "@/features/planner/calendar-format";
+import { isHistoricalPlannerEntryClassification } from "@/features/planner/replan-move-guard";
 import type {
   PlannerDayDetailEntry,
   PlannerWorkUnit,
@@ -9,10 +10,13 @@ export type PlanDraftMoveResult =
   | { ok: true; scheduledDate: string }
   | { ok: false; message: string };
 
+export type DraftMoveSource = "date_input" | "drag_drop" | "coach";
+
 export function planDraftMove({
   entry,
   nextDate,
   scopeMonth,
+  source = "date_input",
   previewUnit,
   conflictKeys,
   completionFactConflict,
@@ -20,6 +24,7 @@ export function planDraftMove({
   entry: PlannerDayDetailEntry;
   nextDate: string;
   scopeMonth: string | null;
+  source?: DraftMoveSource;
   previewUnit: PlannerWorkUnit | undefined;
   conflictKeys: Set<string> | undefined;
   completionFactConflict:
@@ -44,6 +49,16 @@ export function planDraftMove({
       ok: false,
       message:
         "Completed sessions cannot move in preview mode. Clear completion in the saved plan first.",
+    };
+  }
+  if (
+    source === "coach" &&
+    isHistoricalPlannerEntryClassification(entry.classification)
+  ) {
+    return {
+      ok: false,
+      message:
+        "Past sessions can only be moved manually. Use drag and drop or edit the date directly.",
     };
   }
   if (entry.activeItem?.locked) {
