@@ -14,6 +14,8 @@ import {
   buildInsightsLaneQueryKey,
   buildInsightsProgressQuery,
   countInsightsFactsByDay,
+  summarizeInsightsMonth,
+  type InsightsMonthSummary,
 } from "./insights-lane-data";
 
 function timezoneName() {
@@ -25,6 +27,7 @@ export interface InsightsLaneData {
   loading: boolean;
   error: unknown;
   factsByDay: Record<string, number>;
+  monthSummary: InsightsMonthSummary;
   days: string[];
   offset: number;
   refresh: () => void;
@@ -100,6 +103,10 @@ export function useInsightsLaneData({
     () => countInsightsFactsByDay(query.data?.facts ?? []),
     [query.data?.facts]
   );
+  const monthSummary = useMemo(
+    () => summarizeInsightsMonth(factsByDay),
+    [factsByDay]
+  );
   const cells = useMemo(() => buildMonthCells(month), [month]);
 
   return {
@@ -107,6 +114,7 @@ export function useInsightsLaneData({
     loading: query.isLoading,
     error: query.error,
     factsByDay,
+    monthSummary,
     days: cells.days,
     offset: cells.offset,
     refresh: () => {

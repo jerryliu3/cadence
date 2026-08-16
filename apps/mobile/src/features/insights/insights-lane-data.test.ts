@@ -4,6 +4,7 @@ import {
   buildInsightsMonthWindow,
   buildInsightsProgressQuery,
   countInsightsFactsByDay,
+  summarizeInsightsMonth,
 } from "./insights-lane-data";
 
 describe("insights lane data helpers", () => {
@@ -75,6 +76,28 @@ describe("insights lane data helpers", () => {
     ).toEqual({
       "2026-08-01": 2,
       "2026-08-03": 1,
+    });
+  });
+
+  it("summarizes monthly activity from day counts", () => {
+    expect(
+      summarizeInsightsMonth({
+        "2026-08-01": 2,
+        "2026-08-03": 1,
+        "2026-08-05": 4,
+      })
+    ).toEqual({
+      totalActivities: 7,
+      activeDays: 3,
+      peakDayActivities: 4,
+    });
+  });
+
+  it("returns an empty summary when there are no completions", () => {
+    expect(summarizeInsightsMonth({})).toEqual({
+      totalActivities: 0,
+      activeDays: 0,
+      peakDayActivities: 0,
     });
   });
 });
