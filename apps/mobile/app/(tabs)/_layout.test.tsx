@@ -117,7 +117,12 @@ vi.mock("expo-router", () => {
   const Tabs = ({ children }: { children: ReactNode }) => (
     <View testID="tabs-root">{children}</View>
   );
-  Tabs.Screen = ({ name }: { name: string }) => <View testID={`tab-${name}`} />;
+  Tabs.displayName = "TabsMock";
+  const TabScreenMock = ({ name }: { name: string }) => (
+    <View testID={`tab-${name}`} />
+  );
+  TabScreenMock.displayName = "TabScreenMock";
+  Tabs.Screen = TabScreenMock;
   return {
     Redirect: ({ href }: { href: string }) => <Text testID={`redirect-${href}`}>{href}</Text>,
     Tabs,
