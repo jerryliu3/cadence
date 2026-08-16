@@ -321,7 +321,7 @@ export async function sendTeamNudge({
 }
 
 export async function joinSocialGroup(joinCode: string) {
-  const response = await fetch("/api/social/cohorts/join", {
+  const response = await fetch("/api/social/groups/join", {
     method: "POST",
     credentials: "include",
     headers: { "Content-Type": "application/json" },
