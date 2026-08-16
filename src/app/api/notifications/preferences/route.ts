@@ -8,7 +8,6 @@ import {
 import {
   normalizeNotificationPreferences,
   notificationPreferencesRequestSchema,
-  type NotificationPreferencesResponsePayload,
 } from "@/lib/notifications/preferences";
 
 export const runtime = "nodejs";
@@ -39,13 +38,14 @@ export async function GET(request: Request) {
       throw new ApiRouteError(404, "profile_not_found", "Profile not found.");
     }
 
-    const payload: NotificationPreferencesResponsePayload = {
-      notificationPreferences: normalizeNotificationPreferences(
-        data.notification_preferences
-      ),
-    };
-
-    return apiSuccessResponse(payload, correlationId);
+    return apiSuccessResponse(
+      {
+        notificationPreferences: normalizeNotificationPreferences(
+          data.notification_preferences
+        ),
+      },
+      correlationId
+    );
   });
 }
 
@@ -83,12 +83,13 @@ export async function PUT(request: Request) {
       throw new ApiRouteError(404, "profile_not_found", "Profile not found.");
     }
 
-    const payload: NotificationPreferencesResponsePayload = {
-      notificationPreferences: normalizeNotificationPreferences(
-        data.notification_preferences
-      ),
-    };
-
-    return apiSuccessResponse(payload, correlationId);
+    return apiSuccessResponse(
+      {
+        notificationPreferences: normalizeNotificationPreferences(
+          data.notification_preferences
+        ),
+      },
+      correlationId
+    );
   });
 }

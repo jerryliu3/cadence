@@ -2005,6 +2005,7 @@ export type Database = {
           display_name: string | null
           id: string
           planner_primary_tab: string
+          notification_preferences: Json
           rest_weekdays: number[]
           social_activity_visible: boolean
           timezone: string
@@ -2020,6 +2021,7 @@ export type Database = {
           display_name?: string | null
           id: string
           planner_primary_tab?: string
+          notification_preferences?: Json
           rest_weekdays?: number[]
           social_activity_visible?: boolean
           timezone?: string
@@ -2035,6 +2037,7 @@ export type Database = {
           display_name?: string | null
           id?: string
           planner_primary_tab?: string
+          notification_preferences?: Json
           rest_weekdays?: number[]
           social_activity_visible?: boolean
           timezone?: string
