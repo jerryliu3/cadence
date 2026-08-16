@@ -1,5 +1,6 @@
 create or replace function public.import_training_plan(
-  p_goals jsonb
+  p_goals jsonb,
+  p_expected_digest text
 )
 returns table (
   schedule_digest text,
@@ -36,6 +37,7 @@ declare
   v_session_time text;
   v_difficulty_text text;
   v_has_goal_difficulty boolean := false;
+  v_current_digest text;
 begin
   if v_owner is null then
     raise exception using errcode = '28000', message = 'authentication_required';
@@ -50,6 +52,11 @@ begin
   perform pg_catalog.pg_advisory_xact_lock(
     private.planner_owner_lock_key(v_owner)
   );
+  select public.get_planner_schedule_digest(v_owner)
+  into v_current_digest;
+  if coalesce(p_expected_digest, '') <> coalesce(v_current_digest, '') then
+    raise exception using errcode = 'P0001', message = 'stale_schedule';
+  end if;
   select exists (
     select 1
     from pg_type
@@ -248,5 +255,6 @@ exception
 end;
 $$;
 
-revoke execute on function public.import_training_plan(jsonb) from public, anon;
-grant execute on function public.import_training_plan(jsonb) to authenticated, service_role;
+drop function if exists public.import_training_plan(jsonb);
+revoke execute on function public.import_training_plan(jsonb, text) from public, anon;
+grant execute on function public.import_training_plan(jsonb, text) to authenticated, service_role;

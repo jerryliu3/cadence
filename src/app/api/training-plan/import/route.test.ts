@@ -92,6 +92,18 @@ describe("training plan import route", () => {
         rpc: mocks.rpc,
       },
     });
+    mocks.rpc.mockImplementation((fn: string) => {
+      if (fn === "get_planner_schedule_digest") {
+        return Promise.resolve({
+          data: "d".repeat(64),
+          error: null,
+        });
+      }
+      return Promise.resolve({
+        data: null,
+        error: null,
+      });
+    });
   });
 
   afterEach(() => {
@@ -99,15 +111,23 @@ describe("training plan import route", () => {
   });
 
   it("returns imported goal/session counts and schedule digest", async () => {
-    mocks.rpc.mockResolvedValue({
-      data: [
-        {
-          goal_count: 2,
-          session_count: 14,
-          schedule_digest: "a".repeat(64),
-        },
-      ],
-      error: null,
+    mocks.rpc.mockImplementation((fn: string) => {
+      if (fn === "get_planner_schedule_digest") {
+        return Promise.resolve({
+          data: "d".repeat(64),
+          error: null,
+        });
+      }
+      return Promise.resolve({
+        data: [
+          {
+            goal_count: 2,
+            session_count: 14,
+            schedule_digest: "a".repeat(64),
+          },
+        ],
+        error: null,
+      });
     });
 
     const response = await POST(createRequest());
@@ -119,7 +139,8 @@ describe("training plan import route", () => {
       scheduleDigest: "a".repeat(64),
       correlationId: "corr-id",
     });
-    expect(mocks.rpc).toHaveBeenCalledWith("import_training_plan", {
+    expect(mocks.rpc).toHaveBeenNthCalledWith(1, "get_planner_schedule_digest", {});
+    expect(mocks.rpc).toHaveBeenNthCalledWith(2, "import_training_plan", {
       p_goals: [
         {
           title: "Easy run",
@@ -130,13 +151,22 @@ describe("training plan import route", () => {
           sessions: [{ scheduled_date: "2026-09-02", scheduled_time: "07:00" }],
         },
       ],
+      p_expected_digest: "d".repeat(64),
     });
   });
 
   it("maps schedule conflicts to 409", async () => {
-    mocks.rpc.mockResolvedValue({
-      data: null,
-      error: { code: "P0001", message: "schedule_conflict" },
+    mocks.rpc.mockImplementation((fn: string) => {
+      if (fn === "get_planner_schedule_digest") {
+        return Promise.resolve({
+          data: "d".repeat(64),
+          error: null,
+        });
+      }
+      return Promise.resolve({
+        data: null,
+        error: { code: "P0001", message: "schedule_conflict" },
+      });
     });
 
     const response = await POST(createRequest());
@@ -148,9 +178,17 @@ describe("training plan import route", () => {
   });
 
   it("maps payload validation failures to 400", async () => {
-    mocks.rpc.mockResolvedValue({
-      data: null,
-      error: { code: "22023", message: "invalid_training_plan_payload" },
+    mocks.rpc.mockImplementation((fn: string) => {
+      if (fn === "get_planner_schedule_digest") {
+        return Promise.resolve({
+          data: "d".repeat(64),
+          error: null,
+        });
+      }
+      return Promise.resolve({
+        data: null,
+        error: { code: "22023", message: "invalid_training_plan_payload" },
+      });
     });
 
     const response = await POST(createRequest());
@@ -162,15 +200,45 @@ describe("training plan import route", () => {
   });
 
   it("maps database constraint validation failures to 400", async () => {
-    mocks.rpc.mockResolvedValue({
-      data: null,
-      error: { code: "23514", message: "check constraint failed" },
+    mocks.rpc.mockImplementation((fn: string) => {
+      if (fn === "get_planner_schedule_digest") {
+        return Promise.resolve({
+          data: "d".repeat(64),
+          error: null,
+        });
+      }
+      return Promise.resolve({
+        data: null,
+        error: { code: "23514", message: "check constraint failed" },
+      });
     });
 
     const response = await POST(createRequest());
     expect(response.status).toBe(400);
     await expect(response.json()).resolves.toMatchObject({
       code: "validation_failed",
+      correlationId: "corr-id",
+    });
+  });
+
+  it("maps stale schedule conflicts to 409", async () => {
+    mocks.rpc.mockImplementation((fn: string) => {
+      if (fn === "get_planner_schedule_digest") {
+        return Promise.resolve({
+          data: "d".repeat(64),
+          error: null,
+        });
+      }
+      return Promise.resolve({
+        data: null,
+        error: { code: "P0001", message: "stale_schedule" },
+      });
+    });
+
+    const response = await POST(createRequest());
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "stale_schedule",
       correlationId: "corr-id",
     });
   });

@@ -2648,7 +2648,7 @@ export type Database = {
         Returns: Json
       }
       import_training_plan: {
-        Args: { p_goals: Json }
+        Args: { p_expected_digest: string; p_goals: Json }
         Returns: {
           goal_count: number
           schedule_digest: string

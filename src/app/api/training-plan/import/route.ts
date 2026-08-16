@@ -52,8 +52,30 @@ export async function POST(request: Request) {
       Math.min(MAX_API_BODY_BYTES, 512 * 1024),
       importSchema
     );
+    const digestResponse = await routeContext.supabase.rpc(
+      "get_planner_schedule_digest",
+      {}
+    );
+    if (digestResponse.error) {
+      throw new PlannerRouteError(
+        500,
+        "training_plan_import_failed",
+        "Training-plan import could not be completed.",
+        { cause: digestResponse.error.message }
+      );
+    }
+    const expectedDigest =
+      typeof digestResponse.data === "string" ? digestResponse.data : null;
+    if (!expectedDigest) {
+      throw new PlannerRouteError(
+        500,
+        "training_plan_import_failed",
+        "Training-plan import could not be completed."
+      );
+    }
     const response = await routeContext.supabase.rpc("import_training_plan", {
       p_goals: body.goals as unknown as Json,
+      p_expected_digest: expectedDigest,
     });
     if (response.error) {
       if (
@@ -73,6 +95,13 @@ export async function POST(request: Request) {
           409,
           "schedule_conflict",
           "Training-plan import hit a planner schedule conflict."
+        );
+      }
+      if (postgresErrorMatches(response.error, "P0001", "stale_schedule")) {
+        throw new PlannerRouteError(
+          409,
+          "stale_schedule",
+          "Planner data changed. Refresh and re-import the training plan."
         );
       }
       if (
@@ -108,7 +137,7 @@ export async function POST(request: Request) {
         );
       }
       throw new PlannerRouteError(
-        409,
+        500,
         "training_plan_import_failed",
         "Training-plan import could not be completed.",
         { cause: response.error.message }

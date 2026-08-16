@@ -51,7 +51,8 @@ from public.import_training_plan(
         )
       )
     )
-  )
+  ),
+  public.get_planner_schedule_digest('11111111-1111-4111-8111-111111111111')
 );
 
 select is(
@@ -102,7 +103,8 @@ select throws_ok(
           )
         )
       )
-    )
+    ),
+    public.get_planner_schedule_digest('11111111-1111-4111-8111-111111111111')
   );
   $tap$,
   'P0001'::character(5),
@@ -137,7 +139,8 @@ select throws_ok(
         )
       )
       from generate_series(1, 61) as s(g)
-    )
+    ),
+    public.get_planner_schedule_digest('11111111-1111-4111-8111-111111111111')
   );
   $tap$,
   '22023'::character(5),
@@ -167,7 +170,8 @@ select throws_ok(
           from generate_series(1, 367) as s(g)
         )
       )
-    )
+    ),
+    public.get_planner_schedule_digest('11111111-1111-4111-8111-111111111111')
   );
   $tap$,
   '22023'::character(5),
