@@ -1866,7 +1866,6 @@ export type Database = {
       planner_items: {
         Row: {
           created_at: string
-          goal_date_slot: number | null
           goal_id: string
           id: string
           locked: boolean
@@ -1879,7 +1878,6 @@ export type Database = {
         }
         Insert: {
           created_at?: string
-          goal_date_slot?: number | null
           goal_id: string
           id?: string
           locked?: boolean
@@ -1892,7 +1890,6 @@ export type Database = {
         }
         Update: {
           created_at?: string
-          goal_date_slot?: number | null
           goal_id?: string
           id?: string
           locked?: boolean
@@ -2468,21 +2465,6 @@ export type Database = {
       }
       create_goal_links: { Args: { p_links: Json }; Returns: undefined }
       create_goals: { Args: { p_goals: Json }; Returns: string[] }
-      create_planner_manual_item: {
-        Args: {
-          p_expected_digest: string
-          p_goal_id: string
-          p_scheduled_date: string
-          p_scheduled_time: string
-        }
-        Returns: {
-          item_id: string
-          locked: boolean
-          schedule_digest: string
-          scheduled_date: string
-          unit_key: string
-        }[]
-      }
       create_planner_task: {
         Args: { p_scheduled_date?: string; p_title: string }
         Returns: {
@@ -2505,13 +2487,6 @@ export type Database = {
       delete_health_autocomplete_rule_service: {
         Args: { p_rule_id: string }
         Returns: boolean
-      }
-      delete_planner_manual_item: {
-        Args: { p_expected_digest: string; p_item_id: string }
-        Returns: {
-          item_id: string
-          schedule_digest: string
-        }[]
       }
       delete_planner_task: { Args: { p_task_id: string }; Returns: boolean }
       disconnect_health_provider_service: {
