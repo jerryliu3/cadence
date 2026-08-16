@@ -42,7 +42,9 @@ export function PlannerCoachPanel({ coach }: PlannerCoachPanelProps) {
     <div className="rounded-xl border bg-card p-4 shadow-sm">
       <div className="mb-2 flex items-center gap-2">
         <h3 className="text-base font-semibold">AI Coach</h3>
-        <Badge variant="outline">Experimental</Badge>
+        <Badge className="border-sky-300 bg-sky-100 text-sky-900 dark:border-sky-400 dark:bg-sky-900/40 dark:text-sky-100">
+          Beta
+        </Badge>
       </div>
       <p className="mb-3 text-sm text-muted-foreground">
         Ask for habit and training guidance based on your current monthly scope.
@@ -55,7 +57,7 @@ export function PlannerCoachPanel({ coach }: PlannerCoachPanelProps) {
           onClick={() => void actions.saveCoachConversation()}
           disabled={state.coachConversationSaving || state.coachMessages.length === 0}
         >
-          {state.coachConversationSaving ? "Saving..." : "Save conversation"}
+          {state.coachConversationSaving ? "Saving..." : "Save"}
         </Button>
         <Button
           type="button"
@@ -68,7 +70,7 @@ export function PlannerCoachPanel({ coach }: PlannerCoachPanelProps) {
             !state.hasCoachConversationState
           }
         >
-          New conversation
+          New convo
         </Button>
         <div className="relative min-w-0">
           <select
@@ -88,7 +90,7 @@ export function PlannerCoachPanel({ coach }: PlannerCoachPanelProps) {
             <option value="" disabled>
               {state.coachConversationsLoading
                 ? "Loading saved conversations..."
-                : "Select saved conversation"}
+                : "Load convo"}
             </option>
             {state.savedCoachConversations.map((conversation) => (
               <option key={conversation.id} value={conversation.id}>

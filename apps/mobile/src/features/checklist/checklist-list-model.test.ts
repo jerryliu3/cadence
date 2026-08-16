@@ -10,7 +10,12 @@ function buildLaneData(input: {
   interactive?: boolean;
   completableGoalIds?: string[];
   completionErrorMessage?: string | null;
-  goals?: Array<{ id: string; title: string; category: string }>;
+  goals?: Array<{
+    id: string;
+    title: string;
+    category: string;
+    archived_at?: string | null;
+  }>;
   completedIds?: string[];
 }): ChecklistLaneData {
   return {
@@ -28,7 +33,7 @@ function buildLaneData(input: {
       end_date: null,
       team_id: null,
       photo_path: null,
-      archived_at: null,
+      archived_at: goal.archived_at ?? null,
       is_deleted: false,
     })),
     completedForView: new Set(input.completedIds ?? []),
@@ -167,6 +172,35 @@ describe("buildChecklistListItems", () => {
       interactive: false,
       readOnlyReason:
         "View-only here: only your goals and active-team goals are completable.",
+    });
+  });
+
+  it("keeps archived goals read-only when filters reveal them", () => {
+    const viewerLane = buildLaneData({
+      subject: { id: "viewer", label: "Mine", readOnly: false },
+      interactive: true,
+      completableGoalIds: ["archived-goal"],
+      goals: [
+        {
+          id: "archived-goal",
+          title: "Archived goal",
+          category: "Health",
+          archived_at: "2026-08-01T00:00:00Z",
+        },
+      ],
+    });
+
+    const items = buildChecklistListItems({
+      scope: "me",
+      asOfDate: "2026-08-14",
+      showNewGoalAction: true,
+      summaryStrip: null,
+      lanes: [{ lane: viewerLane.subject, laneData: viewerLane }],
+    });
+
+    expect(items.find((item) => item.type === "goal_row")).toMatchObject({
+      type: "goal_row",
+      interactive: false,
     });
   });
 

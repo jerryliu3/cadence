@@ -17,7 +17,6 @@ import {
   useRef,
   useState,
 } from "react";
-import Link from "next/link";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { AnchoredPopupCard } from "@/components/ui/anchored-popup-card";
@@ -216,6 +215,11 @@ export function CalendarSurface({
     null
   );
   const [dayPreview, setDayPreview] = useState<DayPreviewState | null>(null);
+  const [expandedPreviewDay, setExpandedPreviewDay] = useState<string | null>(
+    null
+  );
+  const [warningsOpen, setWarningsOpen] = useState(false);
+  const [warningsDismissed, setWarningsDismissed] = useState(false);
   const [draggingEntryKey, setDraggingEntryKey] = useState<string | null>(null);
   const [localSelectedDay, setLocalSelectedDay] = useState<string | null>(null);
   const [expandedMonthRows, setExpandedMonthRows] = useState(false);
@@ -362,7 +366,6 @@ export function CalendarSurface({
     focusedDay,
     focusedWeekDays,
     focusedWeekCells,
-    focusedThreeDayDays,
     visibleDays,
   } =
     useMemo(
@@ -444,25 +447,27 @@ export function CalendarSurface({
     : null;
   const draftWindowTooWide =
     !draftSaveWindowResult.ok && draftSaveWindowResult.code === "too_wide";
-  const horizonCounter = useMemo(() => {
-    const summary = effectivePreview?.horizonSummary ?? [];
-    if (summary.length === 0) {
-      return null;
-    }
-    const total = summary.reduce((count, goal) => count + goal.totalCount, 0);
-    if (total <= 0) {
-      return null;
-    }
-    const thisWindow = summary.reduce(
-      (count, goal) => count + goal.windowPlannedCount,
-      0
-    );
-    const remaining = summary.reduce(
-      (count, goal) => count + goal.remainingCount,
-      0
-    );
-    return { thisWindow, total, remaining };
-  }, [effectivePreview?.horizonSummary]);
+  /*
+   * Horizon counts are intentionally hidden for now because "planned" reflects
+   * the planner's preparation window rather than the visible calendar period.
+   * Keep this derivation nearby in case the summary returns with clearer copy.
+   *
+   * const horizonCounter = (() => {
+   *   const summary = effectivePreview?.horizonSummary ?? [];
+   *   if (summary.length === 0) return null;
+   *   const total = summary.reduce((count, goal) => count + goal.totalCount, 0);
+   *   if (total <= 0) return null;
+   *   const thisWindow = summary.reduce(
+   *     (count, goal) => count + goal.windowPlannedCount,
+   *     0
+   *   );
+   *   const remaining = summary.reduce(
+   *     (count, goal) => count + goal.remainingCount,
+   *     0
+   *   );
+   *   return { thisWindow, total, remaining };
+   * })();
+   */
   const eligibilityNotices = useMemo(() => {
     const eligibilityEntries = effectivePreview?.eligibility ?? [];
     if (eligibilityEntries.length === 0) {
@@ -528,12 +533,12 @@ export function CalendarSurface({
     unplaceableGoalSummaries,
     totalUnplacedCount,
   } = calendarStoreProjection;
-  const primaryUnplaceableGoal = unplaceableGoalSummaries[0] ?? null;
-  const unplaceablePrimaryActionLabel =
-    unplaceableGoalSummaries.length > 1 ? "Review first goal" : "Edit this goal";
   const invalidLockGoalCount = unplaceableGoalSummaries.filter(
     (entry) => entry.reason === "invalid_lock"
   ).length;
+  const hasPlannerWarnings =
+    unplaceableGoalSummaries.length > 0 ||
+    eligibilityNotices.hardIneligible.length > 0;
   const effectiveSelectedDay = localSelectedDay;
   const dayPreviewDay = dayPreview?.day ?? null;
   const projectionDays = useMemo(() => {
@@ -550,8 +555,17 @@ export function CalendarSurface({
     if (dayPreviewDay) {
       days.add(dayPreviewDay);
     }
+    if (expandedPreviewDay) {
+      days.add(expandedPreviewDay);
+    }
     return Array.from(days);
-  }, [dayPreviewDay, effectiveSelectedDay, focusedDay, visibleDays]);
+  }, [
+    dayPreviewDay,
+    effectiveSelectedDay,
+    expandedPreviewDay,
+    focusedDay,
+    visibleDays,
+  ]);
   const dayProjectionByDay = useMemo(
     () =>
       selectPlannerCalendarDayProjectionsByDay({
@@ -656,6 +670,14 @@ export function CalendarSurface({
   const previewDayCompletionFactMarkers = useMemo(
     () => getCompletionFactMarkersForDay(dayPreview?.day ?? null),
     [dayPreview?.day, getCompletionFactMarkersForDay]
+  );
+  const expandedPreviewEntries = useMemo(
+    () => getOrderedEntriesForDay(expandedPreviewDay),
+    [expandedPreviewDay, getOrderedEntriesForDay]
+  );
+  const expandedPreviewCompletionFactMarkers = useMemo(
+    () => getCompletionFactMarkersForDay(expandedPreviewDay),
+    [expandedPreviewDay, getCompletionFactMarkersForDay]
   );
   useEffect(
     () => () => {
@@ -2081,16 +2103,6 @@ export function CalendarSurface({
     "yyyy-MM-dd",
     new Date()
   );
-  const focusedThreeDayStartDate = parse(
-    focusedThreeDayDays[0] ?? focusedDay,
-    "yyyy-MM-dd",
-    new Date()
-  );
-  const focusedThreeDayEndDate = parse(
-    focusedThreeDayDays[2] ?? focusedDay,
-    "yyyy-MM-dd",
-    new Date()
-  );
   const viewHeading =
     viewMode === "month"
       ? monthLabel
@@ -2100,8 +2112,8 @@ export function CalendarSurface({
             "MMM d, yyyy"
           )}`
         : viewMode === "three_day"
-          ? `${format(focusedThreeDayStartDate, "MMM d")} - ${format(
-              focusedThreeDayEndDate,
+          ? `${format(focusedWeekStartDate, "MMM d")} - ${format(
+              focusedWeekEndDate,
               "MMM d, yyyy"
             )}`
         : format(safeFocusedDay, "EEE MMM d, yyyy");
@@ -2413,7 +2425,7 @@ export function CalendarSurface({
 
   const restWeekdaysField = (
     <div className="space-y-2 text-sm">
-      <p>Rest weekdays</p>
+      <p>Rest days</p>
       <div className="flex flex-wrap gap-2">
         {restWeekdayOptions.map((option) => (
           <label
@@ -2442,9 +2454,6 @@ export function CalendarSurface({
 
   const plannerSettingsForm = (
     <div className="space-y-4">
-      <p className="text-sm text-muted-foreground">
-        Timezone and first-day-of-week preferences now live in Profile settings.
-      </p>
       {restWeekdaysField}
       <Button type="button" onClick={submitSetup} disabled={setupLoading}>
         {setupLoading ? "Saving settings..." : "Save settings"}
@@ -2483,27 +2492,39 @@ export function CalendarSurface({
                   </Badge>
                 ) : null}
               </div>
-              {horizonCounter ? (
-                <p className="text-xs text-muted-foreground">
-                  {horizonCounter.thisWindow} planned / {horizonCounter.total} total{" "}
-                  {horizonCounter.remaining > 0
-                    ? `· ${horizonCounter.remaining} remaining`
-                    : "· all credited"}
-                </p>
-              ) : null}
-              {eligibilityNotices.hardIneligible.length > 0 ? (
-                <div className="rounded-md border border-amber-300 bg-amber-100 px-3 py-2 text-xs text-amber-950 dark:border-amber-300 dark:bg-amber-100 dark:text-amber-950">
-                  {eligibilityNotices.hardIneligible
-                    .slice(0, 4)
-                    .map((item) => `${item.goalTitle}: ${item.reasonCopy}`)
-                    .join(" · ")}
-                  {eligibilityNotices.hardIneligible.length > 4
-                    ? ` · +${eligibilityNotices.hardIneligible.length - 4} more`
-                    : ""}
-                </div>
-              ) : null}
+              {/*
+               * Horizon summary intentionally hidden. See the commented
+               * derivation above before restoring this UI.
+               *
+               * {horizonCounter ? (
+               *   <p className="text-xs text-muted-foreground">
+               *     {horizonCounter.thisWindow} planned / {horizonCounter.total} total{" "}
+               *     {horizonCounter.remaining > 0
+               *       ? `· ${horizonCounter.remaining} remaining`
+               *       : "· all credited"}
+               *   </p>
+               * ) : null}
+               */}
             </div>
             <div className="flex flex-wrap items-center justify-end gap-2">
+              {!plannerReadOnly && canShowSaveAction ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={savePlan}
+                  title={draftSaveBlockedMessage ?? undefined}
+                  disabled={
+                    saveLoading ||
+                    loading ||
+                    !context ||
+                    !draftSaveWindow ||
+                    !hasUnsavedPlannerChanges ||
+                    draftSaveBlocked
+                  }
+                >
+                  {saveButtonLabel}
+                </Button>
+              ) : null}
               {plannerReadOnly ? (
                 <span className="text-xs text-muted-foreground">
                   Partner completions (read-only)
@@ -2527,25 +2548,7 @@ export function CalendarSurface({
                   title={rebuildBlockedMessage}
                   disabled={rebuildLoading || loading || hasDraftSession}
                 >
-                  {rebuildLoading ? "Rebuilding..." : "Rebuild schedule"}
-                </Button>
-              ) : null}
-              {!plannerReadOnly && canShowSaveAction ? (
-                <Button
-                  type="button"
-                  size="sm"
-                  onClick={savePlan}
-                  title={draftSaveBlockedMessage ?? undefined}
-                  disabled={
-                    saveLoading ||
-                    loading ||
-                    !context ||
-                    !draftSaveWindow ||
-                    !hasUnsavedPlannerChanges ||
-                    draftSaveBlocked
-                  }
-                >
-                  {saveButtonLabel}
+                  {rebuildLoading ? "Refreshing..." : "Refresh calendar"}
                 </Button>
               ) : null}
               {hasDraftSession ? (
@@ -2559,34 +2562,6 @@ export function CalendarSurface({
                   Undo changes
                 </Button>
               ) : null}
-              <Button
-                type="button"
-                variant="outline"
-                size="icon-sm"
-                disabled={loading || !canResetViewWindow}
-                aria-label="Go to today"
-                title="Go to today"
-                onClick={resetViewWindow}
-              >
-                <RotateCcw className="size-4" />
-              </Button>
-              {viewMode === "month" ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon-sm"
-                  disabled={loading}
-                  aria-label={expandedMonthRows ? "Compact rows" : "Expand rows"}
-                  title={expandedMonthRows ? "Compact rows" : "Expand rows"}
-                  onClick={() => setExpandedMonthRows((current) => !current)}
-                >
-                  {expandedMonthRows ? (
-                    <Minimize2 className="size-4" />
-                  ) : (
-                    <Maximize2 className="size-4" />
-                  )}
-                </Button>
-              ) : null}
               <Select
                 value={viewMode}
                 onValueChange={(value) =>
@@ -2596,7 +2571,7 @@ export function CalendarSurface({
                 }
               >
                 <SelectTrigger
-                  className="h-8 w-[7.5rem] rounded-md bg-background/90 text-xs"
+                  className="h-8 rounded-md bg-background/90 text-xs"
                   disabled={loading}
                   aria-label="Calendar view mode"
                 >
@@ -2631,42 +2606,30 @@ export function CalendarSurface({
       {partnerOverlayError ? (
         <p className="text-xs text-muted-foreground">{partnerOverlayError}</p>
       ) : null}
-      {unplaceableGoalSummaries.length > 0 && !showBlockingLoading && !error ? (
+      {hasPlannerWarnings && !warningsDismissed && !showBlockingLoading && !error ? (
         <div className="rounded-md border border-amber-300 bg-amber-100 px-3 py-2 text-xs text-amber-950 dark:border-amber-300 dark:bg-amber-100 dark:text-amber-950">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <p>
-              {invalidLockGoalCount > 0
-                ? `\u26A0 ${unplaceableGoalSummaries.length} goal${
-                    unplaceableGoalSummaries.length === 1 ? "" : "s"
-                  } need attention (${invalidLockGoalCount} locked conflict${
-                    invalidLockGoalCount === 1 ? "" : "s"
-                  }, ${totalUnplacedCount} unresolved session${
-                    totalUnplacedCount === 1 ? "" : "s"
-                  }).`
-                : `\u26A0 ${unplaceableGoalSummaries.length} goal${
-                    unplaceableGoalSummaries.length === 1 ? "" : "s"
-                  } are not fully scheduled (${totalUnplacedCount} unresolved session${
-                    totalUnplacedCount === 1 ? "" : "s"
-                  }).`}
-            </p>
-            <div className="flex flex-wrap items-center gap-2">
-              {primaryUnplaceableGoal ? (
-                <Button asChild variant="outline" size="sm" className="h-7 text-xs">
-                  <Link href={`/goals/${primaryUnplaceableGoal.goalId}`}>
-                    {unplaceablePrimaryActionLabel}
-                  </Link>
-                </Button>
-              ) : null}
+            <div className="flex flex-wrap items-center gap-1.5">
+              <p>There were some issues generating the full calendar.</p>
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
                 className="h-7 text-xs"
-                onClick={() => setSettingsOpen(true)}
+                onClick={() => {
+                  setWarningsOpen(true);
+                }}
               >
-                Change rest days for all goals
+                See warnings
               </Button>
             </div>
+            <button
+              type="button"
+              className="text-xs font-medium underline-offset-2 hover:underline"
+              onClick={() => setWarningsDismissed(true)}
+            >
+              Dismiss
+            </button>
           </div>
         </div>
       ) : null}
@@ -2683,9 +2646,10 @@ export function CalendarSurface({
         <>
           <div className="rounded-xl border bg-card p-4 shadow-sm">
             <div className="mx-auto mb-3 w-full max-w-[56rem] space-y-3">
-              <div className="flex w-full justify-center">
+              <div className="grid w-full grid-cols-[1fr_auto_1fr] items-center gap-2">
+                <span aria-hidden />
                 <PeriodStepper
-                  className="shrink-0"
+                  className="min-w-0 shrink justify-self-center"
                   onPrevious={() => moveViewWindow(-1)}
                   onNext={() => moveViewWindow(1)}
                   previousDisabled={loading}
@@ -2695,12 +2659,44 @@ export function CalendarSurface({
                   center={
                     <h3
                       className="truncate text-center text-base font-semibold"
-                      style={{ width: `${fixedViewHeadingWidthCh}ch` }}
+                      style={{
+                        width: `min(${fixedViewHeadingWidthCh}ch, 22vw)`,
+                      }}
                     >
                       {viewHeading}
                     </h3>
                   }
                 />
+                <div className="flex items-center justify-self-end gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon-sm"
+                    disabled={loading || !canResetViewWindow}
+                    aria-label="Go to today"
+                    title="Go to today"
+                    onClick={resetViewWindow}
+                  >
+                    <RotateCcw className="size-4" />
+                  </Button>
+                  {viewMode === "month" ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon-sm"
+                      disabled={loading}
+                      aria-label={expandedMonthRows ? "Compact rows" : "Expand rows"}
+                      title={expandedMonthRows ? "Compact rows" : "Expand rows"}
+                      onClick={() => setExpandedMonthRows((current) => !current)}
+                    >
+                      {expandedMonthRows ? (
+                        <Minimize2 className="size-4" />
+                      ) : (
+                        <Maximize2 className="size-4" />
+                      )}
+                    </Button>
+                  ) : null}
+                </div>
               </div>
               <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                 <p>{viewDescription}</p>
@@ -2856,14 +2852,9 @@ export function CalendarSurface({
                           variant="outline"
                           size="sm"
                           className="h-6 px-2 text-xs"
-                          disabled={previewDayEntries.length === 0}
                           onClick={() => {
-                            const firstEntry = previewDayEntries[0];
-                            if (!firstEntry) {
-                              return;
-                            }
-                            setLocalSelectedDay(dayPreview.day);
-                            setSelectedEventEntryKey(firstEntry.key);
+                            setExpandedPreviewDay(dayPreview.day);
+                            setDayPreview(null);
                           }}
                         >
                           <Maximize2 className="mr-1 size-3" />
@@ -2952,6 +2943,109 @@ export function CalendarSurface({
           </div>
 
           <PlannerCoachPanel coach={coach} />
+
+          <Dialog
+            open={expandedPreviewDay !== null}
+            onOpenChange={(open) => {
+              if (!open) {
+                setExpandedPreviewDay(null);
+              }
+            }}
+          >
+            <DialogContent className="sm:max-w-2xl">
+              <DialogHeader>
+                <DialogTitle>
+                  {expandedPreviewDay
+                    ? format(
+                        parse(expandedPreviewDay, "yyyy-MM-dd", new Date()),
+                        "EEEE, MMM d"
+                      )
+                    : "Day items"}
+                </DialogTitle>
+                <DialogDescription>
+                  {expandedPreviewEntries.length +
+                    expandedPreviewCompletionFactMarkers.length}{" "}
+                  item
+                  {expandedPreviewEntries.length +
+                    expandedPreviewCompletionFactMarkers.length ===
+                  1
+                    ? ""
+                    : "s"}{" "}
+                  on this date.
+                </DialogDescription>
+              </DialogHeader>
+              {expandedPreviewDay ? (
+                <div className="max-h-[65vh] overflow-y-auto pr-1">
+                  <CalendarDayPreviewList
+                    day={expandedPreviewDay}
+                    entries={expandedPreviewEntries}
+                    completionFactMarkers={
+                      expandedPreviewCompletionFactMarkers
+                    }
+                    mutationLoading={Boolean(mutationLoadingKey)}
+                    getEntryDisplayTitle={getEntryDisplayTitleWithTime}
+                    getEntrySubtitle={getEntrySubtitle}
+                    isEntryCredited={isEntryCredited}
+                    isEntryImmovableForDraft={(entry) =>
+                      !canMutateEntryOnDay(entry, expandedPreviewDay) ||
+                      isEntryImmovableForDraft(entry)
+                    }
+                    getCompletionToggleState={(entry, day) => {
+                      if (!canMutateEntryOnDay(entry, day)) {
+                        return {
+                          currentlyCredited: isEntryCredited(entry),
+                          disabledReasonCopy: readOnlyMonthHint,
+                        };
+                      }
+                      const completionDispatch =
+                        getDateFactDispatchForEntry(entry, day);
+                      const disabledReason =
+                        completionControlDisabledReasonForEntry(
+                          entry,
+                          completionDispatch
+                        );
+                      return {
+                        currentlyCredited: Boolean(
+                          completionDispatch?.currentlyCredited
+                        ),
+                        disabledReasonCopy: disabledReason
+                          ? completionDisabledReasonCopy(disabledReason)
+                          : null,
+                      };
+                    }}
+                    onEntryOpen={(entryKey) => {
+                      const entry = expandedPreviewEntries.find(
+                        (candidate) => candidate.key === entryKey
+                      );
+                      if (
+                        !entry ||
+                        !canMutateEntryOnDay(entry, expandedPreviewDay)
+                      ) {
+                        return;
+                      }
+                      setLocalSelectedDay(expandedPreviewDay);
+                      setExpandedPreviewDay(null);
+                      setSelectedEventEntryKey(entry.key);
+                    }}
+                    onToggleCompletion={(entry, day, sourceElement) => {
+                      if (!canMutateEntryOnDay(entry, day)) {
+                        return;
+                      }
+                      void toggleDateFact(entry, day, sourceElement);
+                    }}
+                    onEntryPointerStart={(immovable) => {
+                      void immovable;
+                      pointerPressActiveRef.current = true;
+                    }}
+                    onEntryPointerEnd={() => {
+                      pointerPressActiveRef.current = false;
+                    }}
+                    density="expanded"
+                  />
+                </div>
+              ) : null}
+            </DialogContent>
+          </Dialog>
 
           <Dialog
             open={Boolean(selectedEventEntry)}
@@ -3139,6 +3233,91 @@ export function CalendarSurface({
               ) : null}
             </DialogContent>
           </Dialog>
+
+          <Dialog open={warningsOpen} onOpenChange={setWarningsOpen}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Planner warnings</DialogTitle>
+                <DialogDescription>
+                  {unplaceableGoalSummaries.length > 0 && invalidLockGoalCount > 0
+                    ? `${unplaceableGoalSummaries.length} goal${
+                        unplaceableGoalSummaries.length === 1 ? "" : "s"
+                      } need attention (${invalidLockGoalCount} locked conflict${
+                        invalidLockGoalCount === 1 ? "" : "s"
+                      }, ${totalUnplacedCount} unresolved session${
+                        totalUnplacedCount === 1 ? "" : "s"
+                      }).`
+                    : unplaceableGoalSummaries.length > 0
+                      ? `${unplaceableGoalSummaries.length} goal${
+                        unplaceableGoalSummaries.length === 1 ? "" : "s"
+                      } are not fully scheduled (${totalUnplacedCount} unresolved session${
+                        totalUnplacedCount === 1 ? "" : "s"
+                      }).`
+                      : `${eligibilityNotices.hardIneligible.length} linked goal${
+                          eligibilityNotices.hardIneligible.length === 1 ? "" : "s"
+                        } need source-goal review before they can be fully planned.`}
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-3 text-sm">
+                {unplaceableGoalSummaries.length > 0 ? (
+                  <div className="space-y-2">
+                    <p className="text-xs font-medium text-muted-foreground">
+                      Not fully scheduled goals
+                    </p>
+                    <div
+                      className={`space-y-2 ${
+                        unplaceableGoalSummaries.length > 5
+                          ? "max-h-[17.5rem] overflow-y-auto pr-1"
+                          : ""
+                      }`}
+                    >
+                      {unplaceableGoalSummaries.map((warning) => (
+                        <div key={`warning-${warning.goalId}`} className="rounded-md border p-2">
+                          <p className="font-medium">{warning.title}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {warning.unplacedCount} unresolved session
+                            {warning.unplacedCount === 1 ? "" : "s"} (
+                            {warning.reason === "invalid_lock"
+                              ? "locked conflict"
+                              : "capacity shortfall"}
+                            )
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+                {eligibilityNotices.hardIneligible.length > 0 ? (
+                  <div className="space-y-2">
+                    <p className="text-xs font-medium text-muted-foreground">
+                      Linked goal planning notes
+                    </p>
+                    <div
+                      className={`space-y-1 rounded-md border bg-muted/20 p-2 text-xs text-muted-foreground ${
+                        eligibilityNotices.hardIneligible.length > 5
+                          ? "max-h-36 overflow-y-auto pr-1"
+                          : ""
+                      }`}
+                    >
+                      {eligibilityNotices.hardIneligible.map((item) => (
+                        <p key={`linked-warning-${item.goalId}`}>
+                          {item.goalTitle}: {item.reasonCopy}
+                        </p>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setWarningsOpen(false)}
+                >
+                  Back to calendar
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
         </>
       ) : null}
 
@@ -3147,7 +3326,7 @@ export function CalendarSurface({
           <DialogHeader>
             <DialogTitle>Planner settings</DialogTitle>
             <DialogDescription>
-              Update rest weekdays used by planner default policy.
+              Update rest days used by planner default policy.
             </DialogDescription>
           </DialogHeader>
           {plannerSettingsForm}

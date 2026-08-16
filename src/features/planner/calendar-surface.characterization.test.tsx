@@ -1,4 +1,11 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { CalendarSurface } from "./calendar-surface";
 import type {
@@ -242,6 +249,52 @@ describe("CalendarSurface characterization", () => {
     expect(await screen.findAllByRole("button", { name: "Go to today" })).not.toHaveLength(0);
   });
 
+  it("keeps the centered period and right-aligned calendar actions on one row", async () => {
+    postJsonMock.mockResolvedValue(
+      buildContext([
+        unit({
+          originalGoalId: "goal-a",
+          unitKey: "total:1",
+          scheduledDate: "2026-08-31",
+        }),
+      ])
+    );
+
+    render(
+      <CalendarSurface
+        activeTab="calendar"
+        month="2026-08"
+        selectedDay={null}
+        viewMode="month"
+        onMonthChange={vi.fn()}
+        onViewModeChange={vi.fn()}
+        onSelectedDayChange={vi.fn()}
+        onPlannerMutation={vi.fn()}
+      />
+    );
+
+    await waitFor(() => {
+      expect(postJsonMock).toHaveBeenCalledWith(
+        "/api/planner/prepare",
+        expect.any(Object)
+      );
+    });
+
+    const todayButton = await screen.findByRole("button", { name: "Go to today" });
+    const expandButton = screen.getByRole("button", { name: "Expand rows" });
+    const heading = screen.getByRole("heading", { name: "August 2026" });
+    const actionGroup = todayButton.parentElement;
+    const calendarHeaderRow = actionGroup?.parentElement;
+
+    expect(actionGroup).toContainElement(expandButton);
+    expect(actionGroup).toHaveClass("justify-self-end");
+    expect(calendarHeaderRow).toBe(heading.parentElement?.parentElement);
+    expect(calendarHeaderRow).toHaveClass(
+      "grid",
+      "grid-cols-[1fr_auto_1fr]"
+    );
+  });
+
   it("dismisses unpinned day preview after pointer leaves preview surface", async () => {
     const context = buildContext([
       unit({
@@ -349,6 +402,71 @@ describe("CalendarSurface characterization", () => {
     }, { timeout: 300 });
   });
 
+  it("opens every item for the previewed day in a focused dialog", async () => {
+    postJsonMock.mockResolvedValue(
+      buildContext([
+        unit({
+          originalGoalId: "goal-a",
+          unitKey: "total:1",
+          scheduledDate: "2026-08-31",
+        }),
+        unit({
+          originalGoalId: "goal-b",
+          unitKey: "total:1",
+          label: "Secondary",
+          scheduledDate: "2026-08-31",
+        }),
+      ])
+    );
+    const onSelectedDayChange = vi.fn();
+
+    render(
+      <CalendarSurface
+        activeTab="calendar"
+        month="2026-08"
+        selectedDay={null}
+        viewMode="month"
+        onMonthChange={vi.fn()}
+        onViewModeChange={vi.fn()}
+        onSelectedDayChange={onSelectedDayChange}
+        onPlannerMutation={vi.fn()}
+      />
+    );
+
+    await waitFor(() => {
+      expect(postJsonMock).toHaveBeenCalledWith(
+        "/api/planner/prepare",
+        expect.any(Object)
+      );
+    });
+
+    const dayCell = await waitFor(() => {
+      const match = document.querySelector(
+        '[data-day-cell="true"][data-day="2026-08-31"]'
+      );
+      if (!(match instanceof HTMLButtonElement)) {
+        throw new Error("Expected calendar day cell for 2026-08-31.");
+      }
+      return match;
+    });
+    fireEvent.mouseEnter(dayCell);
+    fireEvent.click(
+      await screen.findByRole(
+        "button",
+        { name: "Expand" },
+        { timeout: 2500 }
+      )
+    );
+
+    const dialog = await screen.findByRole("dialog");
+    expect(
+      within(dialog).getByRole("heading", { name: "Monday, Aug 31" })
+    ).toBeInTheDocument();
+    expect(within(dialog).getByText("Goal A")).toBeInTheDocument();
+    expect(within(dialog).getByText("Goal B")).toBeInTheDocument();
+    expect(onSelectedDayChange).not.toHaveBeenCalled();
+  });
+
   it("renders banner counts from the shared unplaceable selector", async () => {
     const context = buildContext([
       unit({
@@ -402,16 +520,17 @@ describe("CalendarSurface characterization", () => {
       />
     );
 
-    await waitFor(() => {
-      expect(
-        screen.getByText(
-          new RegExp(
-            `${expectedGoalCount} goal${expectedGoalCount === 1 ? "" : "s"} are not fully scheduled \\(${expectedUnitCount} unresolved session${expectedUnitCount === 1 ? "" : "s"}\\)\\.`,
-            "i"
-          )
+    fireEvent.click(
+      await screen.findByRole("button", { name: "See warnings" })
+    );
+    expect(
+      await screen.findByText(
+        new RegExp(
+          `${expectedGoalCount} goal${expectedGoalCount === 1 ? "" : "s"} are not fully scheduled \\(${expectedUnitCount} unresolved session${expectedUnitCount === 1 ? "" : "s"}\\)\\.`,
+          "i"
         )
-      ).toBeInTheDocument();
-    });
+      )
+    ).toBeInTheDocument();
   });
 
   it("does not render unplaceable banner when no record is present", async () => {
@@ -442,7 +561,7 @@ describe("CalendarSurface characterization", () => {
       expect(postJsonMock).toHaveBeenCalled();
     });
     expect(
-      screen.queryByText(/goal[s]? are not fully scheduled/i)
+      screen.queryByRole("button", { name: "See warnings" })
     ).not.toBeInTheDocument();
   });
 
@@ -499,7 +618,7 @@ describe("CalendarSurface characterization", () => {
       );
     });
 
-    fireEvent.click(await screen.findByText("Baseline"));
+    fireEvent.click(await screen.findByText("Next: Baseline"));
     fireEvent.change(await screen.findByLabelText("Move to"), {
       target: { value: "2026-08-30" },
     });
@@ -565,7 +684,7 @@ describe("CalendarSurface characterization", () => {
       );
     });
 
-    fireEvent.click(await screen.findByText("Baseline"));
+    fireEvent.click(await screen.findByText("Next: Baseline"));
     fireEvent.click(await screen.findByRole("button", { name: "Lock" }));
 
     await waitFor(() => {

@@ -3,12 +3,15 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { sendTeamNudge } from "@/features/social/data";
+import { buildTeamNudgeContent } from "@cadence/shared/social/team";
 
 export function NudgeButton({
   partnerId,
+  optionalMessage,
   onSent,
 }: {
   partnerId: string;
+  optionalMessage?: string;
   onSent?: () => void;
 }) {
   const [isPending, setIsPending] = useState(false);
@@ -18,7 +21,11 @@ export function NudgeButton({
     setIsPending(true);
     setError(null);
     try {
-      await sendTeamNudge({ toUserId: partnerId, kind: "cheer" });
+      const content = buildTeamNudgeContent(optionalMessage);
+      await sendTeamNudge({
+        toUserId: partnerId,
+        ...content,
+      });
       onSent?.();
     } catch (nudgeError) {
       setError(nudgeError instanceof Error ? nudgeError.message : "Could not send nudge.");

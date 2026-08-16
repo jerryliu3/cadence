@@ -10,7 +10,7 @@ export function HealthPrivacyIntentHandler() {
   useEffect(() => {
     const openPolicy = (url: string) => {
       if (shouldOpenHealthPrivacyPolicy(url)) {
-        router.replace(HEALTH_PRIVACY_PATH);
+        router.replace(HEALTH_PRIVACY_PATH as Parameters<typeof router.replace>[0]);
       }
     };
 

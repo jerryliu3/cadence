@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildWeekdayLabels,
+  getEntrySubtitle,
   normalizeWeekStartsOn,
 } from "@/features/planner/calendar-format";
 
@@ -31,5 +32,25 @@ describe("calendar format week start helpers", () => {
       "Fri",
       "Sat",
     ]);
+  });
+});
+
+describe("calendar entry subtitles", () => {
+  it("omits subtitles for recurring completion units", () => {
+    expect(
+      getEntrySubtitle({
+        goalTitle: "Run",
+        label: "total:2",
+      })
+    ).toBeNull();
+  });
+
+  it("keeps the next named milestone subtitle", () => {
+    expect(
+      getEntrySubtitle({
+        goalTitle: "Launch",
+        label: "Publish beta",
+      })
+    ).toBe("Next: Publish beta");
   });
 });

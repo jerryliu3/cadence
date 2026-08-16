@@ -6,6 +6,23 @@ import type {
 
 export type TeamStatus = "pending" | "active" | "closed";
 
+export const TEAM_NUDGE_USER_TEXT_MAX_LENGTH = 90;
+
+export function buildTeamNudgeContent(message?: string) {
+  const userText = (message ?? "")
+    .trim()
+    .slice(0, TEAM_NUDGE_USER_TEXT_MAX_LENGTH);
+  return userText.length > 0
+    ? {
+        kind: "custom" as const,
+        message: `Your partner sent a nudge to keep momentum going. ${userText}`,
+      }
+    : {
+        kind: "cheer" as const,
+        message: undefined,
+      };
+}
+
 /**
  * DUO_CAP(private.max_team_size): duo-shaped view of a team.
  *
@@ -28,6 +45,7 @@ export interface TeamStateRow {
   acceptedAt: string | null;
   closedAt: string | null;
   isIncoming: boolean;
+  teamXp: number | null;
 }
 
 export interface SocialTeamStateResponse {
@@ -62,6 +80,7 @@ export function mapTeamStateRpcRow(row: TeamStateRpcRow): TeamStateRow {
     acceptedAt: row.accepted_at,
     closedAt: row.closed_at,
     isIncoming: row.is_incoming,
+    teamXp: null,
   };
 }
 
@@ -72,6 +91,8 @@ export function toActiveTeamPartner(row: TeamStateRow): DuoActivePartner {
     partnerUsername: row.partnerUsername,
     partnerDisplayName: row.partnerDisplayName,
     partnerAvatarUrl: row.partnerAvatarUrl,
+    teamXp: row.teamXp ?? 0,
+    teamXpSince: row.acceptedAt,
   };
 }
 

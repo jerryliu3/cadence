@@ -107,7 +107,7 @@ export function CalendarDayPreviewList<
                   <div
                     ref={setNodeRef}
                     style={style}
-                    className={`flex items-start gap-2 rounded-md border transition-colors ${pillToneClasses} ${
+                    className={`flex items-center gap-2 rounded-md border transition-colors ${pillToneClasses} ${
                       expanded ? "p-2" : "p-1.5"
                     } ${
                       entry.draftGhost ? "opacity-75" : ""
@@ -144,7 +144,6 @@ export function CalendarDayPreviewList<
                         completed={completionToggleState.currentlyCredited}
                         pending={mutationLoading}
                         size="sm"
-                        className="mt-0.5"
                         onPointerDown={(event) => {
                           event.stopPropagation();
                         }}
@@ -169,13 +168,13 @@ export function CalendarDayPreviewList<
                     ) : null}
                     <button
                       type="button"
-                      className="flex min-w-0 flex-1 items-start gap-2 text-left"
+                      className="flex min-w-0 flex-1 items-center gap-2 text-left"
                       onClick={() => {
                         onEntryOpen(entry.key);
                       }}
                     >
                       <span
-                        className="mt-0.5 inline-flex size-4 items-center justify-center rounded-full"
+                        className="inline-flex size-4 items-center justify-center rounded-full"
                         style={{ backgroundColor: visual.color }}
                       >
                         <Icon className="size-2.5 text-white" />
@@ -205,32 +204,28 @@ export function CalendarDayPreviewList<
               </PlannerDraggablePreviewEntry>
             );
           })}
-          {completionFactMarkers.map((marker) => (
-            <div
-              key={`preview-completion-fact-${marker.key}`}
-              className={`rounded-md ${
-                marker.owner === "partner"
-                  ? "border-2 border-sky-500 bg-transparent text-sky-700 dark:text-sky-300"
-                  : "border border-emerald-300 bg-emerald-100 text-emerald-950 dark:border-emerald-300 dark:bg-emerald-100 dark:text-emerald-950"
-              } ${expanded ? "p-2" : "p-1.5"}`}
-              aria-label={`${marker.goalTitle}. ${
-                marker.owner === "partner"
-                  ? "Partner marked this done."
-                  : marker.scheduledDate && marker.scheduledDate !== day
-                    ? `Marked done here; credited from the ${marker.scheduledDate} scheduled session.`
-                    : "Marked done on this date."
-              }`}
-            >
-              <p className="truncate font-medium">{marker.goalTitle}</p>
-              <p className="truncate text-[11px]">
-                {marker.owner === "partner"
-                  ? "Partner marked this done."
-                  : marker.scheduledDate && marker.scheduledDate !== day
-                    ? `Marked done here; credited from the ${marker.scheduledDate} scheduled session.`
-                    : "Marked done on this date."}
-              </p>
-            </div>
-          ))}
+          {completionFactMarkers.map((marker) => {
+            const detail =
+              marker.owner === "partner"
+                ? "Partner marked this done."
+                : marker.scheduledDate && marker.scheduledDate !== day
+                  ? `Marked done here; credited from the ${marker.scheduledDate} scheduled session.`
+                  : null;
+            return (
+              <div
+                key={`preview-completion-fact-${marker.key}`}
+                className={`rounded-md ${
+                  marker.owner === "partner"
+                    ? "border-2 border-sky-500 bg-transparent text-sky-700 dark:text-sky-300"
+                    : "border border-emerald-300 bg-emerald-100 text-emerald-950 dark:border-emerald-300 dark:bg-emerald-100 dark:text-emerald-950"
+                } ${expanded ? "p-2" : "p-1.5"}`}
+                aria-label={detail ? `${marker.goalTitle}. ${detail}` : marker.goalTitle}
+              >
+                <p className="truncate font-medium">{marker.goalTitle}</p>
+                {detail ? <p className="truncate text-[11px]">{detail}</p> : null}
+              </div>
+            );
+          })}
         </>
       )}
     </div>

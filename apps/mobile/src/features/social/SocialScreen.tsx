@@ -1,7 +1,11 @@
 import { getApiErrorMessage } from "@cadence/shared/api-client";
+import {
+  buildTeamNudgeContent,
+  TEAM_NUDGE_USER_TEXT_MAX_LENGTH,
+} from "@cadence/shared/social/team";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { Alert, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { api } from "../../lib/api";
 import { useSession } from "../../lib/session";
 import { supabase } from "../../lib/supabase";
@@ -28,6 +32,7 @@ export function SocialScreen() {
   const [selectedPartner, setSelectedPartner] =
     useState<DuoPartnerSearchResult | null>(null);
   const [inviteMessageInput, setInviteMessageInput] = useState("");
+  const [nudgeMessageInput, setNudgeMessageInput] = useState("");
   const [visibilityAcknowledged, setVisibilityAcknowledged] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
@@ -166,7 +171,7 @@ export function SocialScreen() {
       await lifecycle.dissolveActiveTeam();
     },
     onSuccess: () => {
-      setStatusMessage("Team dissolved.");
+      setStatusMessage("Left team.");
     },
     onError: (error) => {
       setStatusMessage(getApiErrorMessage(error, "Could not dissolve team."));
@@ -182,7 +187,10 @@ export function SocialScreen() {
       if (!partnerId) {
         throw new Error("You need an active partner to send a cheer.");
       }
-      await lifecycle.sendCheerToActivePartner(partnerId);
+      await api.postJson("/api/social/team/nudges", {
+        toUserId: partnerId,
+        ...buildTeamNudgeContent(nudgeMessageInput),
+      });
     },
     onSuccess: () => {
       setStatusMessage("Cheer sent.");
@@ -263,6 +271,36 @@ export function SocialScreen() {
           <Text style={{ color: theme.colors.mutedForeground }}>
             Partner id: {activePartner.partnerId}
           </Text>
+          <View style={[styles.teamXpSummary, { borderColor: theme.colors.border }]}>
+            <Text style={{ color: theme.colors.mutedForeground }}>Team XP</Text>
+            <Text
+              style={{
+                color: theme.colors.foreground,
+                fontSize: 20,
+                fontWeight: "700",
+              }}
+            >
+              {activePartner.teamXp.toLocaleString()} XP
+            </Text>
+            <Text style={{ color: theme.colors.mutedForeground }}>
+              Earned together since the team formed
+            </Text>
+          </View>
+          <TextInput
+            value={nudgeMessageInput}
+            onChangeText={setNudgeMessageInput}
+            autoCapitalize="sentences"
+            placeholder="Optional nudge message"
+            placeholderTextColor={theme.colors.mutedForeground}
+            maxLength={TEAM_NUDGE_USER_TEXT_MAX_LENGTH}
+            style={[
+              styles.input,
+              {
+                color: theme.colors.foreground,
+                borderColor: theme.colors.border,
+              },
+            ]}
+          />
           <PrimaryButton
             label={sendCheer.isPending ? "Sending cheer..." : "Send cheer"}
             disabled={busy}
@@ -270,13 +308,35 @@ export function SocialScreen() {
               void sendCheer.mutateAsync();
             }}
           />
-          <PrimaryButton
-            label={dissolveTeam.isPending ? "Dissolving..." : "Dissolve team"}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={dissolveTeam.isPending ? "Leaving..." : "Leave team"}
             disabled={busy}
+            style={[
+              styles.leaveButton,
+              { borderColor: theme.colors.destructive, opacity: busy ? 0.7 : 1 },
+            ]}
             onPress={() => {
-              void dissolveTeam.mutateAsync();
+              Alert.alert(
+                "Leave team?",
+                "You and your partner will no longer share duo progress until a new team is active.",
+                [
+                  { text: "Cancel", style: "cancel" },
+                  {
+                    text: "Leave team",
+                    style: "destructive",
+                    onPress: () => {
+                      void dissolveTeam.mutateAsync();
+                    },
+                  },
+                ]
+              );
             }}
-          />
+          >
+            <Text style={{ color: theme.colors.destructive, fontWeight: "700", textAlign: "center" }}>
+              {dissolveTeam.isPending ? "Leaving..." : "Leave team"}
+            </Text>
+          </Pressable>
         </View>
       ) : incomingInvite ? (
         <View style={[styles.card, { borderColor: theme.colors.border }]}>
@@ -429,6 +489,12 @@ const styles = StyleSheet.create({
     padding: 12,
     gap: 10,
   },
+  teamXpSummary: {
+    borderWidth: 1,
+    borderRadius: 10,
+    padding: 12,
+    gap: 2,
+  },
   input: {
     borderWidth: 1,
     borderRadius: 10,
@@ -445,5 +511,11 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 10,
+  },
+  leaveButton: {
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
   },
 });

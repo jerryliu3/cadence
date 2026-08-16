@@ -16,25 +16,22 @@ import {
   CalendarRange,
   Flame,
   PencilLine,
+  SlidersHorizontal,
   TrendingUp,
   X,
 } from "lucide-react";
 import { type TouchEventHandler, useCallback, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { AnchoredPopupCard } from "@/components/ui/anchored-popup-card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { LoadingCard } from "@/components/ui/loading-card";
 import { Progress } from "@/components/ui/progress";
-import {
-  InsightsPeriodControls,
-  InsightsPeriodStepper,
-} from "@/features/insights/insights-period-controls";
-import { GoalEndMonthBadge } from "@/features/goals/goal-end-month-badge";
+import { InsightsGoalCardHeader } from "@/features/insights/insights-goal-card-header";
+import { InsightsPeriodStepper } from "@/features/insights/insights-period-controls";
+import { InsightsGoalStatsFilters } from "@/features/insights/insights-goal-stats-filters";
 import { MilestonePills } from "@/features/goals/milestone-pills";
-import { GoalListControls } from "@/features/goals/goal-list-controls";
 import { InsightsOverallStatsCard } from "@/features/insights/insights-overall-stats-card";
 import {
   selectOverallCompletionPercent,
@@ -171,6 +168,7 @@ export function InsightsTab({
   const [goalEndMonth, setGoalEndMonth] = useState<string | null>(null);
   const [goalSort, setGoalSort] = useState<GoalDateSort>("earliest_end");
   const [showHistoricalGoals, setShowHistoricalGoals] = useState(false);
+  const [goalStatsFiltersOpen, setGoalStatsFiltersOpen] = useState(false);
   const [editingGoalId, setEditingGoalId] = useState<string | null>(null);
   const [aggregateDrilldownDate, setAggregateDrilldownDate] = useState<string | null>(null);
   const [aggregateDrilldownPosition, setAggregateDrilldownPosition] = useState<
@@ -673,54 +671,46 @@ export function InsightsTab({
               <CalendarRange className="size-4 shrink-0 text-primary" />
               <CardTitle>Goal Stats</CardTitle>
             </div>
-            {sharedPeriod ? null : (
-              <div className="justify-self-center">
+            <div className="flex items-center gap-2 justify-self-center">
+              {sharedPeriod ? null : (
                 <InsightsPeriodStepper
                   monthCursor={monthCursor}
                   onMonthCursorChange={setMonthCursor}
                   perGoalViewMode={perGoalViewMode}
                 />
-              </div>
-            )}
+              )}
+              <Button
+                type="button"
+                variant="outline"
+                size="icon-sm"
+                className="h-8 w-8 shrink-0 rounded-full"
+                aria-label="Open Insights filters"
+                title="Open Insights filters"
+                onClick={() => setGoalStatsFiltersOpen(true)}
+              >
+                <SlidersHorizontal className="size-3.5" />
+              </Button>
+            </div>
           </div>
         </CardHeader>
         <CardContent className="space-y-3">
-          <div className="flex flex-wrap items-end gap-3">
-            {sharedPeriod ? null : (
-              <InsightsPeriodControls
-                monthCursor={monthCursor}
-                onMonthCursorChange={setMonthCursor}
-                perGoalViewMode={perGoalViewMode}
-                onPerGoalViewModeChange={setPerGoalViewMode}
-                includeStepper={false}
-                viewModeSelectId="insights-goal-stats-view-mode"
-              />
-            )}
-            <GoalListControls
-              goals={personalGoals}
-              referenceMonth={goalFilterStartMonth}
-              endMonth={effectiveGoalEndMonth}
-              onEndMonthChange={setGoalEndMonth}
-              sort={goalSort}
-              onSortChange={setGoalSort}
-              mode="native"
-            />
-            <label
-              className={`flex h-8 w-fit items-center gap-2 text-xs text-muted-foreground ${
-                historicalGoals.length === 0 ? "opacity-60" : ""
-              }`}
-            >
-              <input
-                type="checkbox"
-                checked={showHistoricalGoals}
-                disabled={historicalGoals.length === 0}
-                onChange={(event) => setShowHistoricalGoals(event.target.checked)}
-                className="size-4 rounded border-input accent-primary"
-              />
-              Show past goals
-              <span>({historicalGoals.length})</span>
-            </label>
-          </div>
+          <InsightsGoalStatsFilters
+            goals={personalGoals}
+            referenceMonth={goalFilterStartMonth}
+            endMonth={effectiveGoalEndMonth}
+            onEndMonthChange={setGoalEndMonth}
+            sort={goalSort}
+            onSortChange={setGoalSort}
+            monthCursor={monthCursor}
+            onMonthCursorChange={setMonthCursor}
+            viewMode={perGoalViewMode}
+            onViewModeChange={setPerGoalViewMode}
+            showPastGoals={showHistoricalGoals}
+            pastGoalCount={historicalGoals.length}
+            onShowPastGoalsChange={setShowHistoricalGoals}
+            open={goalStatsFiltersOpen}
+            onOpenChange={setGoalStatsFiltersOpen}
+          />
           <Input
             value={goalSearchQuery}
             onChange={(event) => setGoalSearchQuery(event.target.value)}
@@ -797,29 +787,16 @@ export function InsightsTab({
               return (
                 <Card key={goal.id} className="border shadow-none">
                   <CardContent className="space-y-3 py-4">
-                    <div className="flex flex-wrap items-start justify-between gap-2">
-                      <div className="min-w-0 flex-1 space-y-1">
-                        <div className="flex min-w-0 items-start gap-2">
-                          <span
-                            className="mt-1 size-2 shrink-0 rounded-full"
-                            style={{ backgroundColor: goal.color ?? "var(--muted-foreground)" }}
-                          />
-                          <p className="text-sm font-semibold leading-tight break-words [overflow-wrap:anywhere]">
-                            {goal.title}
-                          </p>
-                        </div>
-                        <div className="flex flex-wrap items-center gap-1.5">
-                          <Badge
-                            variant="outline"
-                            className={`w-fit ${getCategoryBadgeClass(goal.category_key ?? goal.category)}`}
-                          >
-                            {goalCategoryLabel}
-                          </Badge>
-                          <GoalEndMonthBadge endDate={goal.end_date} />
-                        </div>
-                      </div>
-                      <div className="flex flex-wrap items-center justify-end gap-2">
-                        {canEditHistory ? (
+                    <InsightsGoalCardHeader
+                      title={goal.title}
+                      color={goal.color ?? "var(--muted-foreground)"}
+                      categoryLabel={goalCategoryLabel}
+                      categoryClassName={getCategoryBadgeClass(
+                        goal.category_key ?? goal.category
+                      )}
+                      endDate={goal.end_date}
+                      action={
+                        canEditHistory ? (
                           <Button
                             type="button"
                             size="sm"
@@ -861,9 +838,9 @@ export function InsightsTab({
                                 : "Done"
                               : "Edit"}
                           </Button>
-                        ) : null}
-                      </div>
-                    </div>
+                        ) : undefined
+                      }
+                    />
 
                     {isMilestone ? (
                       <>

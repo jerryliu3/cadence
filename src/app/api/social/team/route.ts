@@ -8,6 +8,7 @@ import { runAfterResponse } from "@/lib/api/after";
 import { flushNotificationOutbox } from "@/lib/push/outbox";
 import { requireSocialRouteContext } from "@/lib/social/api";
 import { mapTeamStateError } from "@/lib/social/team";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { mapTeamStateRpcRow } from "@cadence/shared/social/team";
 
 export const runtime = "nodejs";
@@ -15,6 +16,47 @@ export const runtime = "nodejs";
 type RpcErrorLike = {
   message: string;
 };
+
+const XP_LEDGER_PAGE_SIZE = 1_000;
+
+async function readTeamXp({
+  acceptedAt,
+  userIds,
+}: {
+  acceptedAt: string;
+  userIds: [string, string];
+}) {
+  const admin = createAdminClient();
+  let totalXp = 0;
+  let offset = 0;
+
+  while (true) {
+    const { data, error } = await admin
+      .from("xp_ledger")
+      .select("seq,xp_delta")
+      .in("user_id", userIds)
+      .eq("track_key", "global")
+      .gte("created_at", acceptedAt)
+      .order("seq", { ascending: true })
+      .range(offset, offset + XP_LEDGER_PAGE_SIZE - 1);
+
+    if (error) {
+      throw new ApiRouteError(
+        500,
+        "team_xp_unavailable",
+        "Team XP is unavailable.",
+        { cause: error.message }
+      );
+    }
+
+    const rows = data ?? [];
+    totalXp += rows.reduce((sum, row) => sum + row.xp_delta, 0);
+    if (rows.length < XP_LEDGER_PAGE_SIZE) {
+      return totalXp;
+    }
+    offset += XP_LEDGER_PAGE_SIZE;
+  }
+}
 
 function mapDissolveTeamError(error: RpcErrorLike) {
   if (error.message === "authentication_required") {
@@ -35,11 +77,22 @@ export async function GET(request: Request) {
       throw mapTeamStateError(error);
     }
 
+    const items = (data ?? []).map(mapTeamStateRpcRow);
+    const activeTeam = items.find(
+      (item) => item.status === "active" && item.acceptedAt
+    );
+    if (activeTeam?.acceptedAt) {
+      activeTeam.teamXp = await readTeamXp({
+        acceptedAt: activeTeam.acceptedAt,
+        userIds: [context.userId, activeTeam.partnerId],
+      });
+    }
+
     return NextResponse.json(
       {
         schemaVersion: "1",
         correlationId,
-        items: (data ?? []).map(mapTeamStateRpcRow),
+        items,
       },
       { headers: { "Cache-Control": "no-store" } }
     );
