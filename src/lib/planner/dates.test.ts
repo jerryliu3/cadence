@@ -9,6 +9,7 @@ import {
   expandToMonthAlignedWindow,
   getScopeDateRange,
   isMonthAlignedPlannerWindow,
+  shiftMonth,
   toPlannerScheduleWindow,
 } from "@/lib/planner/dates";
 
@@ -86,5 +87,23 @@ describe("expandToMonthAlignedWindow", () => {
       start: "2026-01-01",
       end: "2026-02-28",
     });
+  });
+});
+
+describe("shiftMonth", () => {
+  it("shifts forward and backward across year boundaries", () => {
+    expect(shiftMonth("2026-08", 0)).toBe("2026-08");
+    expect(shiftMonth("2026-08", 6)).toBe("2027-02");
+    expect(shiftMonth("2026-08", -6)).toBe("2026-02");
+    expect(shiftMonth("2026-01", -1)).toBe("2025-12");
+    expect(shiftMonth("2026-12", 1)).toBe("2027-01");
+    expect(shiftMonth("2026-06", -30)).toBe("2023-12");
+  });
+
+  it("rejects malformed months and non-integer offsets", () => {
+    expect(() => shiftMonth("2026-13", 1)).toThrow(RangeError);
+    expect(() => shiftMonth("2026-00", 1)).toThrow(RangeError);
+    expect(() => shiftMonth("not-a-month", 1)).toThrow(RangeError);
+    expect(() => shiftMonth("2026-08", 1.5)).toThrow(RangeError);
   });
 });

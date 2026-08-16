@@ -154,6 +154,28 @@ export function nextMonth(month: string) {
   return `${String(nextYear).padStart(4, "0")}-${String(nextMonthNumber).padStart(2, "0")}`;
 }
 
+export function shiftMonth(month: string, offset: number) {
+  const year = Number(month.slice(0, 4));
+  const monthIndex = Number(month.slice(5, 7));
+  if (
+    !/^\d{4}-\d{2}$/.test(month) ||
+    !Number.isInteger(year) ||
+    !Number.isInteger(monthIndex) ||
+    monthIndex < 1 ||
+    monthIndex > 12 ||
+    !Number.isInteger(offset)
+  ) {
+    throw new RangeError(`Invalid month shift: ${month} by ${offset}`);
+  }
+  const absoluteMonth = year * 12 + (monthIndex - 1) + offset;
+  if (absoluteMonth < 0) {
+    throw new RangeError(`Month shift underflows the calendar: ${month}`);
+  }
+  const nextYear = Math.floor(absoluteMonth / 12);
+  const nextMonthNumber = (absoluteMonth % 12) + 1;
+  return `${String(nextYear).padStart(4, "0")}-${String(nextMonthNumber).padStart(2, "0")}`;
+}
+
 export function enumerateMonthsInWindow(window: DateWindow) {
   const startMonth = monthFromDate(window.start);
   const endMonth = monthFromDate(window.end);

@@ -96,6 +96,17 @@ export interface PlannerKernelInput {
   eligibilityMode: PlannerEligibilityMode;
   solveIntent?: SolverSolveIntent;
   preserveExistingAssignments?: boolean;
+  /**
+   * Recovery mode: let the solver re-place uncredited units whose saved date
+   * has already passed, instead of holding them at that stale date.
+   *
+   * Read-only planning only. The recover flow turns the resulting differences
+   * into `move_item` draft commands, so publish still runs a plain preserve
+   * solve over pinned dates and this never reaches a write path. It is
+   * deliberately absent from `computeGenerationInputHash` for that reason: the
+   * pins it produces are hashed, the flag itself never spans preview/save.
+   */
+  recoverPastPlacements?: boolean;
   draftPinnedDates?: Record<string, string>;
   ownerId: string;
   startDate: string;
@@ -703,6 +714,7 @@ export function runPlannerKernel(
     completionDatesByGoal,
     preserveExistingAssignments:
       rawInput.preserveExistingAssignments === true,
+    recoverPastPlacements: rawInput.recoverPastPlacements === true,
     draftPinnedDates: rawInput.draftPinnedDates ?? {},
     idealDateContextByGoal: new Map(
       eligibleGoals.flatMap((goal) => {

@@ -1519,6 +1519,159 @@ describe("solve intent and draft pins", () => {
     expect(moved[0].scheduledDate).toBe("2026-08-20");
   });
 
+  describe("recoverPastPlacements", () => {
+    const milestoneGoal = goal({
+      id: "goal-milestone",
+      frequency_type: "fixed_milestones",
+      recurrence_interval: null,
+      target_count: 3,
+      milestone_names: ["One", "Two", "Three"],
+      start_date: "2026-08-01",
+      end_date: "2026-09-30",
+    });
+    const strandedMilestone = (scheduledDate: string) => ({
+      goalId: milestoneGoal.id,
+      requirementFingerprint: computeRequirementFingerprint(milestoneGoal),
+      unitKey: "milestone:1",
+      scheduledDate,
+      locked: false,
+    });
+    const milestoneInput = (
+      overrides: Partial<PlannerKernelInput> = {}
+    ): PlannerKernelInput =>
+      input({
+        startDate: "2026-08-01",
+        endDate: "2026-09-30",
+        asOfDate: "2026-08-20",
+        goals: [milestoneGoal],
+        preserveExistingAssignments: true,
+        basePlan: {
+          planId: "plan-a",
+          version: 1,
+          assignments: [strandedMilestone("2026-08-04")],
+        },
+        ...overrides,
+      });
+
+    const readMilestoneDate = (output: ReturnType<typeof runPlannerKernel>) =>
+      output.workUnits.find((unit) => unit.unitKey === "milestone:1")
+        ?.scheduledDate ?? null;
+
+    it("holds an elapsed placement in place by default", () => {
+      expect(readMilestoneDate(runPlannerKernel(milestoneInput()))).toBe(
+        "2026-08-04"
+      );
+    });
+
+    it("re-places an elapsed placement on or after today when recovering", () => {
+      const recovered = readMilestoneDate(
+        runPlannerKernel(milestoneInput({ recoverPastPlacements: true }))
+      );
+      expect(recovered).not.toBeNull();
+      expect(recovered! >= "2026-08-20").toBe(true);
+      expect(recovered! <= "2026-09-30").toBe(true);
+    });
+
+    it("is deterministic across runs", () => {
+      expect(
+        readMilestoneDate(
+          runPlannerKernel(milestoneInput({ recoverPastPlacements: true }))
+        )
+      ).toBe(
+        readMilestoneDate(
+          runPlannerKernel(milestoneInput({ recoverPastPlacements: true }))
+        )
+      );
+    });
+
+    it("keeps every milestone on a distinct date after recovery", () => {
+      const output = runPlannerKernel(
+        milestoneInput({ recoverPastPlacements: true })
+      );
+      const dates = output.workUnits
+        .map((unit) => unit.scheduledDate)
+        .filter((date): date is string => date !== null);
+      expect(dates).toHaveLength(3);
+      expect(new Set(dates).size).toBe(3);
+      expect(output.validation.valid).toBe(true);
+    });
+
+    it("leaves a credited elapsed placement where it was completed", () => {
+      const output = runPlannerKernel(
+        milestoneInput({
+          recoverPastPlacements: true,
+          completions: [
+            {
+              id: "completion-1",
+              goal_id: milestoneGoal.id,
+              user_id: "owner-a",
+              completed_on: "2026-08-04",
+              source: "manual",
+              created_at: "2026-08-04T00:00:00Z",
+            },
+          ] satisfies Completion[],
+        })
+      );
+      expect(readMilestoneDate(output)).toBe("2026-08-04");
+    });
+
+    it("leaves a lapsed cadence period missed instead of rolling it forward", () => {
+      const cadenceGoal = goal({
+        id: "goal-cadence",
+        frequency_type: "recurring",
+        recurrence_interval: "weekly",
+        target_count: null,
+        start_date: "2026-08-01",
+        end_date: "2026-09-30",
+      });
+      const output = runPlannerKernel(
+        input({
+          startDate: "2026-08-01",
+          endDate: "2026-09-30",
+          asOfDate: "2026-08-20",
+          goals: [cadenceGoal],
+          preserveExistingAssignments: true,
+          recoverPastPlacements: true,
+          basePlan: {
+            planId: "plan-a",
+            version: 1,
+            assignments: [
+              {
+                goalId: cadenceGoal.id,
+                requirementFingerprint:
+                  computeRequirementFingerprint(cadenceGoal),
+                unitKey: "cadence:2026-08-03",
+                scheduledDate: "2026-08-05",
+                locked: false,
+              },
+            ],
+          },
+        })
+      );
+      const lapsed = output.workUnits.find(
+        (unit) => unit.unitKey === "cadence:2026-08-03"
+      );
+      expect(lapsed?.classification).toBe("historical_miss");
+      expect(lapsed?.scheduledDate).toBe("2026-08-05");
+    });
+
+    it("keeps a locked elapsed placement pinned", () => {
+      const output = runPlannerKernel(
+        milestoneInput({
+          recoverPastPlacements: true,
+          basePlan: {
+            planId: "plan-a",
+            version: 1,
+            assignments: [
+              { ...strandedMilestone("2026-08-04"), locked: true },
+            ],
+          },
+        })
+      );
+      expect(readMilestoneDate(output)).toBe("2026-08-04");
+    });
+  });
+
   it("hashes pins, intent, and preserve mode as solver inputs", () => {
     const base = runPlannerKernel(input()).generationInputHash;
 

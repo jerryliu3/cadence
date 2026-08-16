@@ -78,6 +78,11 @@ import { getDateFactDispatchForEntry as resolveDateFactDispatchForEntry } from "
 import { planDraftMove } from "@/features/planner/plan-draft-move";
 import { planDraftTimeOverrideUpdate } from "@/features/planner/draft-time-override";
 import { reorderPreviewEntryKeys } from "@/features/planner/reorder-preview-entries";
+import {
+  buildPlannerRecoveryPlan,
+  buildPlannerRecoveryWindow,
+  describePlannerRecoveryOutcome,
+} from "@/lib/planner/recovery";
 import { computeDayPreviewPosition } from "@/features/planner/day-preview-popup";
 import { getGoalVisual } from "@/features/planner/goal-visuals";
 import {
@@ -202,6 +207,7 @@ export function CalendarSurface({
   const [saveLoading, setSaveLoading] = useState(false);
   const [resetLoading, setResetLoading] = useState(false);
   const [rebuildLoading, setRebuildLoading] = useState(false);
+  const [recoverLoading, setRecoverLoading] = useState(false);
   const [fullResetLoading, setFullResetLoading] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [draftPolicy, setDraftPolicy] = useState<PlannerPolicy | null>(null);
@@ -868,12 +874,14 @@ export function CalendarSurface({
       nextPolicy,
       solveIntent,
       draftCommands,
+      recoverPastPlacements = false,
     }: {
       startDate: string;
       endDate: string;
       nextPolicy: PlannerPolicy;
       solveIntent: "stable" | "replan";
       draftCommands: PlannerDraftCommand[];
+      recoverPastPlacements?: boolean;
     }) => {
       if (!context?.timezone) {
         throw new Error("Planner context is unavailable.");
@@ -889,6 +897,7 @@ export function CalendarSurface({
             source: context.activePlan ? "update" : "manual",
             solveIntent,
             draftCommands,
+            recoverPastPlacements,
           }
         );
         return previewPayload.preview;
@@ -1031,6 +1040,112 @@ export function CalendarSurface({
       selectDraftCommands(nextState)
     );
     return { moveCount: movedEntryKeys.length, movedEntryKeys };
+  };
+
+  /**
+   * Ask the solver where uncredited sessions whose date has already passed
+   * would go if it were free to re-place them, then record the differences as
+   * `move_item` commands so the user reviews and saves them like any other
+   * draft change.
+   *
+   * Two solves over the same window: a plain one for the baseline, and the
+   * recovery one. Diffing them is what identifies a session as recovered rather
+   * than merely late, and it keeps the flow on the existing preview/save path
+   * instead of introducing a second write surface for past dates.
+   */
+  const recoverPastSessions = async () => {
+    if (recoverLoading) {
+      return;
+    }
+    if (!context?.scopeMonth || !context.asOfDate) {
+      toast.error("Planner context is unavailable.");
+      return;
+    }
+    const policy = effectiveDraftPolicy ?? context.preferences?.defaultPolicy ?? null;
+    if (!policy) {
+      toast.error("Confirm planner settings before recovering past sessions.");
+      return;
+    }
+
+    setRecoverLoading(true);
+    try {
+      const window = buildPlannerRecoveryWindow(context.asOfDate);
+      const priorCommands = draftSaveCommandsRef.current;
+      const [baseline, recovered] = await Promise.all([
+        requestPreviewForWindow({
+          startDate: window.start,
+          endDate: window.end,
+          nextPolicy: policy,
+          solveIntent: "stable",
+          draftCommands: priorCommands,
+        }),
+        requestPreviewForWindow({
+          startDate: window.start,
+          endDate: window.end,
+          nextPolicy: policy,
+          solveIntent: "stable",
+          draftCommands: priorCommands,
+          recoverPastPlacements: true,
+        }),
+      ]);
+      if (!baseline || !recovered) {
+        toast.error("Recovery preview returned no planner data.");
+        return;
+      }
+
+      const plan = buildPlannerRecoveryPlan({
+        baselineUnits: baseline.workUnits,
+        recoveredUnits: recovered.workUnits,
+        asOfDate: context.asOfDate,
+      });
+      if (plan.moves.length === 0) {
+        toast(describePlannerRecoveryOutcome(plan));
+        return;
+      }
+
+      let nextState = draftCommandState;
+      const pendingActions = plan.moves.map((move) => ({
+        type: "upsert_move" as const,
+        goalId: move.goalId,
+        unitKey: move.unitKey,
+        scheduledDate: move.scheduledDate,
+        sourceDate: move.sourceDate,
+      }));
+      for (const action of pendingActions) {
+        nextState = draftCommandReducer(nextState, action);
+      }
+
+      const prospectiveWindow = tryBuildPlannerDraftSaveWindow({
+        currentMonth: context.scopeMonth,
+        commands: selectDraftCommands(nextState),
+        workUnits: draftWindowWorkUnits,
+      });
+      if (!prospectiveWindow.ok) {
+        toast.error(
+          prospectiveWindow.code === "too_wide"
+            ? PLANNER_DRAFT_WINDOW_TOO_WIDE_MESSAGE
+            : "Those recovered sessions cannot fit in a single draft window."
+        );
+        return;
+      }
+
+      for (const action of pendingActions) {
+        dispatchDraftCommand(action);
+      }
+      // Keep the ref ahead of the reducer so the stable refresh below sends the
+      // pins we just created rather than the previous render's list.
+      draftSaveCommandsRef.current = sortPlannerDraftCommands(
+        selectDraftCommands(nextState)
+      );
+      await refreshDraftPreview(policy);
+      toast.success(describePlannerRecoveryOutcome(plan));
+    } catch (error) {
+      toast.error(
+        getApiErrorMessage(error, "Past sessions could not be recovered.")
+      );
+    } finally {
+      setRecoverLoading(false);
+    }
   };
 
   const clearDraftMoveCommands = (entryKeys: string[]) => {
@@ -2441,6 +2556,18 @@ export function CalendarSurface({
   const canResetPlan = Boolean(
     !hasDraftSession && hasLockedPlanItems
   );
+  /**
+   * `overdue_item` is the planner's own signal for an uncredited session whose
+   * date has passed. Gating on it keeps Recover out of the toolbar for a
+   * calendar that is up to date, and the outcome toast explains the cases that
+   * are past recovering (a lapsed cadence period, a passed goal deadline).
+   */
+  const hasOverduePlannerItems = Boolean(
+    context?.staleness.reasons.some((reason) => reason.code === "overdue_item")
+  );
+  const canRecoverPastSessions = Boolean(
+    !plannerReadOnly && context?.activePlan && hasOverduePlannerItems
+  );
   const hasUnsavedPlannerChanges = Boolean(
     hasDraftSession || !context?.activePlan
   );
@@ -2733,6 +2860,18 @@ export function CalendarSurface({
                   }
                 >
                   {saveButtonLabel}
+                </Button>
+              ) : null}
+              {canRecoverPastSessions ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => void recoverPastSessions()}
+                  title="Re-place uncompleted sessions left behind in the past"
+                  disabled={recoverLoading || loading || saveLoading}
+                >
+                  {recoverLoading ? "Recovering..." : "Recover"}
                 </Button>
               ) : null}
               {plannerReadOnly ? (
