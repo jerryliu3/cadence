@@ -1,12 +1,16 @@
 import { NextResponse } from "next/server";
-import { ApiRouteError, requireAuthenticatedRouteContext, withRoute } from "@/lib/api/route";
+import {
+  ApiRouteError,
+  requireAuthenticatedRequestContext,
+  withRoute,
+} from "@/lib/api/route";
 import { normalizeWeekStartsOn } from "@/lib/dates/week-start";
 import { toLocalDateString } from "@/lib/dates/day";
 import {
   buildCompletableGoalIds,
   filterCompletionsForGoalIds,
   selectCompletableGoals,
-} from "@/lib/goals/completable-goals";
+} from "@cadence/shared/goals/completable-goals";
 import {
   getGoalProgressSnapshot,
   type GoalProgressSnapshot,
@@ -16,7 +20,6 @@ import type { Completion, Goal } from "@/lib/goals/types";
 import { buildInsightsStatsGroup } from "@/lib/insights/metrics";
 import type { InsightsStatsResponse } from "@/lib/insights/types";
 import { MAX_COMPLETION_FACTS } from "@/lib/planner/contracts/bounds";
-import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 
@@ -32,11 +35,9 @@ function groupCompletionsByGoal(completions: Completion[]) {
   return grouped;
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   return withRoute(async ({ correlationId }) => {
-    const supabase = await createClient();
-    const { userId } = await requireAuthenticatedRouteContext({
-      supabase,
+    const { supabase, userId } = await requireAuthenticatedRequestContext(request, {
       unauthorizedMessage: "Sign in to view insights stats.",
     });
 
