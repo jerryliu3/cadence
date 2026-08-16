@@ -298,6 +298,10 @@ export type Database = {
         Args: { p_cohort_id: string; p_team_id: string }
         Returns: boolean
       }
+      team_in_group: {
+        Args: { p_group_id: string; p_team_id: string }
+        Returns: boolean
+      }
       team_partner_id: {
         Args: { p_team_id: string; p_user_id: string }
         Returns: string
@@ -313,6 +317,10 @@ export type Database = {
       }
       viewer_in_cohort: {
         Args: { p_cohort_id: string; p_uid: string }
+        Returns: boolean
+      }
+      viewer_in_group: {
+        Args: { p_group_id: string; p_uid: string }
         Returns: boolean
       }
       xp_cascade_multiplier: { Args: never; Returns: number }
@@ -2595,6 +2603,10 @@ export type Database = {
         Returns: boolean
       }
       join_cohort_with_code_service: {
+        Args: { p_join_code: string }
+        Returns: string
+      }
+      join_group_with_code_service: {
         Args: { p_join_code: string }
         Returns: string
       }
