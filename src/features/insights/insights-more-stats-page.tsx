@@ -227,7 +227,7 @@ export function InsightsMoreStatsPage() {
     let cancelled = false;
     const run = async () => {
       try {
-        const payload = await fetchInsightsStats({ forceRefresh: true });
+        const payload = await fetchInsightsStats();
         if (cancelled) {
           return;
         }
