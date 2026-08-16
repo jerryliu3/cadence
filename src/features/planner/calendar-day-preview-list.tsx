@@ -107,7 +107,7 @@ export function CalendarDayPreviewList<
                   <div
                     ref={setNodeRef}
                     style={style}
-                    className={`flex items-start gap-2 rounded-md border transition-colors ${pillToneClasses} ${
+                    className={`flex items-center gap-2 rounded-md border transition-colors ${pillToneClasses} ${
                       expanded ? "p-2" : "p-1.5"
                     } ${
                       entry.draftGhost ? "opacity-75" : ""
@@ -144,7 +144,6 @@ export function CalendarDayPreviewList<
                         completed={completionToggleState.currentlyCredited}
                         pending={mutationLoading}
                         size="sm"
-                        className="mt-0.5"
                         onPointerDown={(event) => {
                           event.stopPropagation();
                         }}
@@ -169,13 +168,13 @@ export function CalendarDayPreviewList<
                     ) : null}
                     <button
                       type="button"
-                      className="flex min-w-0 flex-1 items-start gap-2 text-left"
+                      className="flex min-w-0 flex-1 items-center gap-2 text-left"
                       onClick={() => {
                         onEntryOpen(entry.key);
                       }}
                     >
                       <span
-                        className="mt-0.5 inline-flex size-4 items-center justify-center rounded-full"
+                        className="inline-flex size-4 items-center justify-center rounded-full"
                         style={{ backgroundColor: visual.color }}
                       >
                         <Icon className="size-2.5 text-white" />
@@ -218,7 +217,7 @@ export function CalendarDayPreviewList<
                   ? "Partner marked this done."
                   : marker.scheduledDate && marker.scheduledDate !== day
                     ? `Marked done here; credited from the ${marker.scheduledDate} scheduled session.`
-                    : "Marked done on this date."
+                    : "Marked done."
               }`}
             >
               <p className="truncate font-medium">{marker.goalTitle}</p>
@@ -227,7 +226,7 @@ export function CalendarDayPreviewList<
                   ? "Partner marked this done."
                   : marker.scheduledDate && marker.scheduledDate !== day
                     ? `Marked done here; credited from the ${marker.scheduledDate} scheduled session.`
-                    : "Marked done on this date."}
+                    : "Marked done."}
               </p>
             </div>
           ))}

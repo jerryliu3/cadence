@@ -215,6 +215,9 @@ export function CalendarSurface({
     null
   );
   const [dayPreview, setDayPreview] = useState<DayPreviewState | null>(null);
+  const [expandedPreviewDay, setExpandedPreviewDay] = useState<string | null>(
+    null
+  );
   const [warningsOpen, setWarningsOpen] = useState(false);
   const [warningsDismissed, setWarningsDismissed] = useState(false);
   const [draggingEntryKey, setDraggingEntryKey] = useState<string | null>(null);
@@ -552,8 +555,17 @@ export function CalendarSurface({
     if (dayPreviewDay) {
       days.add(dayPreviewDay);
     }
+    if (expandedPreviewDay) {
+      days.add(expandedPreviewDay);
+    }
     return Array.from(days);
-  }, [dayPreviewDay, effectiveSelectedDay, focusedDay, visibleDays]);
+  }, [
+    dayPreviewDay,
+    effectiveSelectedDay,
+    expandedPreviewDay,
+    focusedDay,
+    visibleDays,
+  ]);
   const dayProjectionByDay = useMemo(
     () =>
       selectPlannerCalendarDayProjectionsByDay({
@@ -658,6 +670,14 @@ export function CalendarSurface({
   const previewDayCompletionFactMarkers = useMemo(
     () => getCompletionFactMarkersForDay(dayPreview?.day ?? null),
     [dayPreview?.day, getCompletionFactMarkersForDay]
+  );
+  const expandedPreviewEntries = useMemo(
+    () => getOrderedEntriesForDay(expandedPreviewDay),
+    [expandedPreviewDay, getOrderedEntriesForDay]
+  );
+  const expandedPreviewCompletionFactMarkers = useMemo(
+    () => getCompletionFactMarkersForDay(expandedPreviewDay),
+    [expandedPreviewDay, getCompletionFactMarkersForDay]
   );
   useEffect(
     () => () => {
@@ -2485,17 +2505,6 @@ export function CalendarSurface({
                *   </p>
                * ) : null}
                */}
-              {eligibilityNotices.hardIneligible.length > 0 ? (
-                <div className="rounded-md border border-amber-300 bg-amber-100 px-3 py-2 text-xs text-amber-950 dark:border-amber-300 dark:bg-amber-100 dark:text-amber-950">
-                  {eligibilityNotices.hardIneligible
-                    .slice(0, 4)
-                    .map((item) => `${item.goalTitle}: ${item.reasonCopy}`)
-                    .join(" · ")}
-                  {eligibilityNotices.hardIneligible.length > 4
-                    ? ` · +${eligibilityNotices.hardIneligible.length - 4} more`
-                    : ""}
-                </div>
-              ) : null}
             </div>
             <div className="flex flex-wrap items-center justify-end gap-2">
               {!plannerReadOnly && canShowSaveAction ? (
@@ -2562,7 +2571,7 @@ export function CalendarSurface({
                 }
               >
                 <SelectTrigger
-                  className="h-8 w-[7.5rem] rounded-md bg-background/90 text-xs"
+                  className="h-8 rounded-md bg-background/90 text-xs"
                   disabled={loading}
                   aria-label="Calendar view mode"
                 >
@@ -2597,10 +2606,7 @@ export function CalendarSurface({
       {partnerOverlayError ? (
         <p className="text-xs text-muted-foreground">{partnerOverlayError}</p>
       ) : null}
-      {hasPlannerWarnings &&
-      !warningsDismissed &&
-      !showBlockingLoading &&
-      !error ? (
+      {hasPlannerWarnings && !warningsDismissed && !showBlockingLoading && !error ? (
         <div className="rounded-md border border-amber-300 bg-amber-100 px-3 py-2 text-xs text-amber-950 dark:border-amber-300 dark:bg-amber-100 dark:text-amber-950">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex flex-wrap items-center gap-1.5">
@@ -2846,14 +2852,9 @@ export function CalendarSurface({
                           variant="outline"
                           size="sm"
                           className="h-6 px-2 text-xs"
-                          disabled={previewDayEntries.length === 0}
                           onClick={() => {
-                            const firstEntry = previewDayEntries[0];
-                            if (!firstEntry) {
-                              return;
-                            }
-                            setLocalSelectedDay(dayPreview.day);
-                            setSelectedEventEntryKey(firstEntry.key);
+                            setExpandedPreviewDay(dayPreview.day);
+                            setDayPreview(null);
                           }}
                         >
                           <Maximize2 className="mr-1 size-3" />
@@ -2942,6 +2943,109 @@ export function CalendarSurface({
           </div>
 
           <PlannerCoachPanel coach={coach} />
+
+          <Dialog
+            open={expandedPreviewDay !== null}
+            onOpenChange={(open) => {
+              if (!open) {
+                setExpandedPreviewDay(null);
+              }
+            }}
+          >
+            <DialogContent className="sm:max-w-2xl">
+              <DialogHeader>
+                <DialogTitle>
+                  {expandedPreviewDay
+                    ? format(
+                        parse(expandedPreviewDay, "yyyy-MM-dd", new Date()),
+                        "EEEE, MMM d"
+                      )
+                    : "Day items"}
+                </DialogTitle>
+                <DialogDescription>
+                  {expandedPreviewEntries.length +
+                    expandedPreviewCompletionFactMarkers.length}{" "}
+                  item
+                  {expandedPreviewEntries.length +
+                    expandedPreviewCompletionFactMarkers.length ===
+                  1
+                    ? ""
+                    : "s"}{" "}
+                  on this date.
+                </DialogDescription>
+              </DialogHeader>
+              {expandedPreviewDay ? (
+                <div className="max-h-[65vh] overflow-y-auto pr-1">
+                  <CalendarDayPreviewList
+                    day={expandedPreviewDay}
+                    entries={expandedPreviewEntries}
+                    completionFactMarkers={
+                      expandedPreviewCompletionFactMarkers
+                    }
+                    mutationLoading={Boolean(mutationLoadingKey)}
+                    getEntryDisplayTitle={getEntryDisplayTitleWithTime}
+                    getEntrySubtitle={getEntrySubtitle}
+                    isEntryCredited={isEntryCredited}
+                    isEntryImmovableForDraft={(entry) =>
+                      !canMutateEntryOnDay(entry, expandedPreviewDay) ||
+                      isEntryImmovableForDraft(entry)
+                    }
+                    getCompletionToggleState={(entry, day) => {
+                      if (!canMutateEntryOnDay(entry, day)) {
+                        return {
+                          currentlyCredited: isEntryCredited(entry),
+                          disabledReasonCopy: readOnlyMonthHint,
+                        };
+                      }
+                      const completionDispatch =
+                        getDateFactDispatchForEntry(entry, day);
+                      const disabledReason =
+                        completionControlDisabledReasonForEntry(
+                          entry,
+                          completionDispatch
+                        );
+                      return {
+                        currentlyCredited: Boolean(
+                          completionDispatch?.currentlyCredited
+                        ),
+                        disabledReasonCopy: disabledReason
+                          ? completionDisabledReasonCopy(disabledReason)
+                          : null,
+                      };
+                    }}
+                    onEntryOpen={(entryKey) => {
+                      const entry = expandedPreviewEntries.find(
+                        (candidate) => candidate.key === entryKey
+                      );
+                      if (
+                        !entry ||
+                        !canMutateEntryOnDay(entry, expandedPreviewDay)
+                      ) {
+                        return;
+                      }
+                      setLocalSelectedDay(expandedPreviewDay);
+                      setExpandedPreviewDay(null);
+                      setSelectedEventEntryKey(entry.key);
+                    }}
+                    onToggleCompletion={(entry, day, sourceElement) => {
+                      if (!canMutateEntryOnDay(entry, day)) {
+                        return;
+                      }
+                      void toggleDateFact(entry, day, sourceElement);
+                    }}
+                    onEntryPointerStart={(immovable) => {
+                      void immovable;
+                      pointerPressActiveRef.current = true;
+                    }}
+                    onEntryPointerEnd={() => {
+                      pointerPressActiveRef.current = false;
+                    }}
+                    density="expanded"
+                  />
+                </div>
+              ) : null}
+            </DialogContent>
+          </Dialog>
 
           <Dialog
             open={Boolean(selectedEventEntry)}
@@ -3145,10 +3249,10 @@ export function CalendarSurface({
                       }).`
                     : unplaceableGoalSummaries.length > 0
                       ? `${unplaceableGoalSummaries.length} goal${
-                          unplaceableGoalSummaries.length === 1 ? "" : "s"
-                        } are not fully scheduled (${totalUnplacedCount} unresolved session${
-                          totalUnplacedCount === 1 ? "" : "s"
-                        }).`
+                        unplaceableGoalSummaries.length === 1 ? "" : "s"
+                      } are not fully scheduled (${totalUnplacedCount} unresolved session${
+                        totalUnplacedCount === 1 ? "" : "s"
+                      }).`
                       : `${eligibilityNotices.hardIneligible.length} linked goal${
                           eligibilityNotices.hardIneligible.length === 1 ? "" : "s"
                         } need source-goal review before they can be fully planned.`}
@@ -3168,10 +3272,7 @@ export function CalendarSurface({
                       }`}
                     >
                       {unplaceableGoalSummaries.map((warning) => (
-                        <div
-                          key={`warning-${warning.goalId}`}
-                          className="rounded-md border p-2"
-                        >
+                        <div key={`warning-${warning.goalId}`} className="rounded-md border p-2">
                           <p className="font-medium">{warning.title}</p>
                           <p className="text-xs text-muted-foreground">
                             {warning.unplacedCount} unresolved session
