@@ -2,9 +2,13 @@
 
 import { useEffect, useMemo } from "react";
 import {
+  NotificationPreferencesSection,
+} from "@/features/settings/notification-preferences-section";
+import {
   NotificationPushSection,
 } from "@/features/settings/notification-push-section";
 import { NotificationScheduleSection } from "@/features/settings/notification-schedule-section";
+import { useNotificationPreferences } from "@/features/settings/use-notification-preferences";
 import { useNotificationPush } from "@/features/settings/use-notification-push";
 import { useNotificationSchedules } from "@/features/settings/use-notification-schedules";
 import { createClient } from "@/lib/supabase/client";
@@ -49,11 +53,19 @@ export function NotificationSettings() {
     vapidPublicKey: VAPID_PUBLIC_KEY,
     onDetectedTimezone: setTimezone,
   });
+  const {
+    preferences,
+    loadingPreferences,
+    savingPreferenceKey,
+    loadPreferences,
+    togglePreference,
+  } = useNotificationPreferences();
 
   useEffect(() => {
     void initializePush();
     void loadSchedules();
-  }, [initializePush, loadSchedules]);
+    void loadPreferences();
+  }, [initializePush, loadPreferences, loadSchedules]);
 
   return (
     <div className="space-y-6 border-t pt-5">
@@ -83,6 +95,13 @@ export function NotificationSettings() {
         onDeleteSchedule={deleteSchedule}
         defaultNotificationHour={DEFAULT_NOTIFICATION_HOUR}
         defaultMessage={DEFAULT_MESSAGE}
+      />
+
+      <NotificationPreferencesSection
+        preferences={preferences}
+        loadingPreferences={loadingPreferences}
+        savingPreferenceKey={savingPreferenceKey}
+        onTogglePreference={togglePreference}
       />
     </div>
   );
