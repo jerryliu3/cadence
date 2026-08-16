@@ -24,9 +24,11 @@ describe("TodayHeaderCard", () => {
 
     const title = screen.getByText("Friday");
     const dateField = screen.getByLabelText("Checklist date");
+    const shellCard = screen.getByTestId("today-shell-card");
     expect(title.closest("[data-title-date-row]")).toBe(
       dateField.closest("[data-title-date-row]")
     );
+    expect(shellCard).toHaveClass("overflow-hidden");
     expect(title).not.toHaveClass("text-xl");
     expect(title).toHaveClass("whitespace-nowrap");
     expect(dateField).toHaveAttribute("type", "date");
