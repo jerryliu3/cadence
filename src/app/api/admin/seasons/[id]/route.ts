@@ -99,7 +99,7 @@ function mapSeasonMutationError(error: DbMutationError, fallbackCode: string, fa
     return new ApiRouteError(400, "metric_track_key_unknown", "metricTrackKey does not match a known track.");
   }
   if (error.code === "23503" && error.message.includes("leaderboard_seasons_cohort_id_fkey")) {
-    return new ApiRouteError(400, "cohort_not_found", "Group id is invalid.");
+    return new ApiRouteError(400, "group_not_found", "Group id is invalid.");
   }
   return new ApiRouteError(500, fallbackCode, fallbackMessage, {
     cause: error.message,

@@ -14,11 +14,11 @@ const requestSchema = z.object({
   joinCode: z.string().trim().min(1).max(64),
 });
 
-function mapJoinCohortError(message: string) {
-  if (message === "cohort_join_code_invalid") {
-    return new ApiRouteError(400, "cohort_join_code_invalid", "Group join code is invalid.");
+function mapJoinGroupError(message: string) {
+  if (message === "cohort_join_code_invalid" || message === "group_join_code_invalid") {
+    return new ApiRouteError(400, "group_join_code_invalid", "Group join code is invalid.");
   }
-  return new ApiRouteError(500, "cohort_join_failed", "Group join failed.", {
+  return new ApiRouteError(500, "group_join_failed", "Group join failed.", {
     cause: message,
   });
 }
@@ -40,7 +40,7 @@ export async function POST(request: Request) {
       }
     );
     if (error) {
-      throw mapJoinCohortError(error.message);
+      throw mapJoinGroupError(error.message);
     }
 
     return NextResponse.json(
