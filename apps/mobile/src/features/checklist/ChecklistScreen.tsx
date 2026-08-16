@@ -132,8 +132,8 @@ export function ChecklistScreen() {
       );
     }
 
-    const laneData = laneDataById[item.laneId];
     if (item.type === "goal_row") {
+      const laneData = laneDataById[item.laneId];
       return (
         <ChecklistGoalRow
           title={item.title}
