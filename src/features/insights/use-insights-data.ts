@@ -9,7 +9,10 @@ import {
   fetchProgressContext,
   type ProgressContextResponse,
 } from "@/lib/goals/progress-context";
-import { fetchInsightsStats } from "@/lib/insights/stats";
+import {
+  fetchInsightsStats,
+  InsightsStatsAuthenticationError,
+} from "@/lib/insights/stats";
 import type { CompletionDateFact, Goal } from "@/lib/goals/types";
 import type { InsightsStatsResponse } from "@/lib/insights/types";
 import { createClient } from "@/lib/supabase/client";
@@ -197,12 +200,16 @@ export function useInsightsData({
       try {
         await loadData();
       } catch (error) {
+        if (error instanceof InsightsStatsAuthenticationError) {
+          redirectToLogin();
+          return;
+        }
         reportLoadError(error);
       }
     };
 
     void run();
-  }, [loadData, reportLoadError]);
+  }, [loadData, redirectToLogin, reportLoadError]);
 
   return {
     state,
