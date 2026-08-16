@@ -30,6 +30,7 @@ import { GoalListControls } from "@/features/goals/goal-list-controls";
 import { ChecklistPastPanels } from "@/features/today/checklist-past-panels";
 import {
   INITIAL_GROUP_EXPANDED,
+  getGoalFacetCategoryKey,
   groupGoalsByRecurrence,
   recurrenceFilterOptions,
   selectActiveGoals,
@@ -52,10 +53,7 @@ import {
 } from "@cadence/shared/goals/completable-goals";
 import { resolveUserTimezone } from "@/lib/dates/timezone";
 import { normalizeWeekStartsOn } from "@/lib/dates/week-start";
-import {
-  DEFAULT_GOAL_CATEGORIES,
-  resolveCategoryKey,
-} from "@/lib/goals/category";
+import { DEFAULT_GOAL_CATEGORIES } from "@/lib/goals/category";
 import { getGoalLifecycle } from "@/lib/goals/lifecycle";
 import {
   filterGoalsByEndMonth,
@@ -452,7 +450,7 @@ export function TodayTab({
 
   const quickCategoryOptions = useMemo(() => {
     const userKeys = new Set(
-      data.goals.map((goal) => resolveCategoryKey(goal.category_key ?? goal.category))
+      data.goals.map((goal) => getGoalFacetCategoryKey(goal))
     );
     const fromUser = availableCategories.filter((category) => userKeys.has(category.key));
     const picked = [...fromUser];

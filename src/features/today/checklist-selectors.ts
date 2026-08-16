@@ -1,4 +1,4 @@
-import { getGoalCategoryLabel } from "@/lib/goals/category";
+import { resolveCategoryKey } from "@/lib/goals/category";
 import { getGoalLifecycle } from "@/lib/goals/lifecycle";
 import {
   filterGoalsByEndMonth,
@@ -57,6 +57,17 @@ export function getRecurrenceGroup(goal: Goal): RecurrenceGroup {
   return "daily";
 }
 
+/**
+ * Category facets are addressed by catalog key everywhere in the checklist UI
+ * (filter dialog options, quick chips, and the availability scan), so matching
+ * has to resolve the goal to a key too. Goals persist `category` as the display
+ * label ("Health") and `category_key` as the key ("health"), so comparing a
+ * facet value against the label never matched and emptied the list instead.
+ */
+export function getGoalFacetCategoryKey(goal: Goal): string {
+  return resolveCategoryKey(goal.category_key ?? goal.category);
+}
+
 export function matchesTodayFacetFilters({
   goal,
   categoryFilter,
@@ -68,10 +79,9 @@ export function matchesTodayFacetFilters({
   allCategoriesFilterValue: string;
   recurrenceFilter: RecurrenceFilter;
 }): boolean {
-  const goalCategory = getGoalCategoryLabel(goal.category, goal.category_key);
   if (
     categoryFilter !== allCategoriesFilterValue &&
-    goalCategory !== categoryFilter
+    getGoalFacetCategoryKey(goal) !== categoryFilter
   ) {
     return false;
   }
