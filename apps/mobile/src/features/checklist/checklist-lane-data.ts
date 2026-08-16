@@ -54,17 +54,16 @@ export function selectChecklistGoalsForSubject({
   partnerId: string | null;
   memberTeamIds?: Iterable<string>;
 }): MobileGoal[] {
-  const unarchivedGoals = goals.filter((goal) => !goal.archived_at);
   if (subject.id === "partner") {
     if (!partnerId) {
       return [];
     }
-    return unarchivedGoals.filter(
+    return goals.filter(
       (goal) => goal.owner_id === partnerId && goal.team_id === null
     );
   }
   return selectViewerVisibleGoals({
-    goals: unarchivedGoals,
+    goals,
     partnerId,
     memberTeamIds,
   });

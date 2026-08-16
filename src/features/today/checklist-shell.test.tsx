@@ -1,20 +1,10 @@
 import { cleanup, render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ChecklistShell } from "./checklist-shell";
 
 let mockSearch = "?tab=today";
 const checklistSurfaceMock = vi.fn(
-  (props: { activeTab: "today" | "not-today"; onActiveTabChange: (tab: "today" | "not-today") => void }) => (
-    <div data-testid="checklist-surface" data-active-tab={props.activeTab}>
-      <button type="button" onClick={() => props.onActiveTabChange("today")}>
-        Switch Today
-      </button>
-      <button type="button" onClick={() => props.onActiveTabChange("not-today")}>
-        Switch Past
-      </button>
-    </div>
-  )
+  () => <div data-testid="checklist-surface" />
 );
 
 vi.mock("next/navigation", () => ({
@@ -27,10 +17,7 @@ vi.mock("@/lib/social/duo/telemetry", () => ({
 }));
 
 vi.mock("@/features/today/checklist-surface", () => ({
-  ChecklistSurface: (props: {
-    activeTab: "today" | "not-today";
-    onActiveTabChange: (tab: "today" | "not-today") => void;
-  }) => checklistSurfaceMock(props),
+  ChecklistSurface: () => checklistSurfaceMock(),
 }));
 
 describe("ChecklistShell", () => {
@@ -46,43 +33,20 @@ describe("ChecklistShell", () => {
     cleanup();
   });
 
-  it("renders the Today surface by default", () => {
+  it("renders one checklist surface without separate today and past tabs", () => {
     render(<ChecklistShell />);
 
-    expect(screen.getByTestId("checklist-surface")).toHaveAttribute(
-      "data-active-tab",
-      "today"
-    );
+    expect(screen.getByTestId("checklist-surface")).toBeInTheDocument();
+    expect(checklistSurfaceMock).toHaveBeenCalledTimes(1);
   });
 
-  it("normalizes legacy past tab aliases", () => {
+  it("ignores legacy past tab aliases without rewriting the URL", () => {
     mockSearch = "?tab=past";
     const replaceStateSpy = vi.spyOn(window.history, "replaceState");
 
     render(<ChecklistShell />);
 
-    expect(screen.getByTestId("checklist-surface")).toHaveAttribute(
-      "data-active-tab",
-      "not-today"
-    );
-    expect(replaceStateSpy).toHaveBeenCalled();
-  });
-
-  it("pushes tab changes into URL history", async () => {
-    const user = userEvent.setup();
-    render(<ChecklistShell />);
-    const pushStateSpy = vi
-      .spyOn(window.history, "pushState")
-      .mockImplementation((_state, _unused, url) => {
-        if (typeof url === "string") {
-          const queryIndex = url.indexOf("?");
-          mockSearch = queryIndex >= 0 ? url.slice(queryIndex) : "";
-        }
-      });
-
-    await user.click(screen.getByRole("button", { name: "Switch Past" }));
-
-    const finalUrl = pushStateSpy.mock.calls.at(-1)?.[2];
-    expect(finalUrl).toContain("tab=not-today");
+    expect(screen.getByTestId("checklist-surface")).toBeInTheDocument();
+    expect(replaceStateSpy).not.toHaveBeenCalled();
   });
 });
