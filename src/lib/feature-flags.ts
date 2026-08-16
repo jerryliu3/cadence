@@ -3,6 +3,10 @@ import type { FeatureFlags } from "@cadence/shared/feature-flags";
 
 export type { FeatureFlags } from "@cadence/shared/feature-flags";
 
+type BooleanFeatureFlagKey = {
+  [K in keyof FeatureFlags]: FeatureFlags[K] extends boolean ? K : never;
+}[keyof FeatureFlags];
+
 /**
  * Server-side feature flags for uncertain launches.
  *
@@ -25,6 +29,8 @@ export function getFeatureFlags(): FeatureFlags {
   };
 }
 
-export function isFeatureEnabled<K extends keyof FeatureFlags>(flag: K): boolean {
+export function isFeatureEnabled<K extends BooleanFeatureFlagKey>(
+  flag: K
+): boolean {
   return getFeatureFlags()[flag];
 }
