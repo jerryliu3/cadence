@@ -164,6 +164,28 @@ async function ensureDragFixtureEntryAvailable(page: Page, maxMonthJumps = 12) {
   return { scopeMonth: lastScannedScopeMonth, fixtureAvailable: false };
 }
 
+async function ensureMovableEntryAvailable(
+  page: Page,
+  startScopeMonth: string,
+  maxMonthJumps = 12
+) {
+  const scanOrder = Array.from({ length: maxMonthJumps + 1 }, (_, jump) => jump);
+  let lastScannedScopeMonth = startScopeMonth;
+  for (const delta of scanOrder) {
+    const scopeMonth =
+      delta === 0 ? startScopeMonth : shiftScopeMonth(startScopeMonth, delta);
+    lastScannedScopeMonth = scopeMonth;
+    if (delta !== 0) {
+      await openCalendar(page, scopeMonth);
+    }
+    const movableEntries = page.locator(MOVABLE_ENTRY_SELECTOR);
+    if ((await movableEntries.count()) > 0) {
+      return { scopeMonth, hasMovableEntry: true };
+    }
+  }
+  return { scopeMonth: lastScannedScopeMonth, hasMovableEntry: false };
+}
+
 async function resolveCalendarScopeMonth(page: Page) {
   for (let attempt = 0; attempt < 30; attempt += 1) {
     const fromUrl = new URL(page.url()).searchParams.get("month");
@@ -473,23 +495,22 @@ test.describe("planner critical rails", () => {
 
     const executeMoveAndSave = async () => {
       await openCalendar(page);
-      let dragFixture = await ensureDragFixtureEntryAvailable(page);
-      let scopeMonth = dragFixture.scopeMonth;
+      let scopeMonth = await resolveCalendarScopeMonth(page);
       let before = await fetchPlannerContextSnapshot(page, scopeMonth);
       let movedIntoDraft = false;
-      if (dragFixture.fixtureAvailable) {
-        movedIntoDraft = await moveFirstMovableEntry(page, DRAG_FIXTURE_ENTRY_SELECTOR);
-      }
-      if (!movedIntoDraft) {
-        movedIntoDraft = await moveFirstMovableEntry(page).catch(() => false);
-      }
-      if (!movedIntoDraft) {
-        await page.reload();
-        await openCalendar(page);
-        dragFixture = await ensureDragFixtureEntryAvailable(page);
+
+      for (let attempt = 0; attempt < 3 && !movedIntoDraft; attempt += 1) {
+        if (attempt > 0) {
+          await page.reload();
+          await openCalendar(page, scopeMonth);
+        }
+        const dragFixture = await ensureDragFixtureEntryAvailable(page);
         scopeMonth = dragFixture.scopeMonth;
+        if (!dragFixture.fixtureAvailable) {
+          const movableScope = await ensureMovableEntryAvailable(page, scopeMonth);
+          scopeMonth = movableScope.scopeMonth;
+        }
         before = await fetchPlannerContextSnapshot(page, scopeMonth);
-        movedIntoDraft = false;
         if (dragFixture.fixtureAvailable) {
           movedIntoDraft = await moveFirstMovableEntry(page, DRAG_FIXTURE_ENTRY_SELECTOR);
         }
