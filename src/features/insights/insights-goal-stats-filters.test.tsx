@@ -31,12 +31,21 @@ describe("InsightsGoalStatsFilters", () => {
       screen.getByTestId("insights-quick-filters")
     ).toHaveClass("flex", "overflow-x-auto");
     expect(
+      screen.getByText("All End Months").closest("button")
+    ).toHaveClass("h-8", "shrink-0", "rounded-full");
+    expect(
+      screen.getByText("All End Months").closest("button")
+    ).toHaveClass("bg-primary");
+    expect(
       screen.getByText("Next month").closest("button")
     ).toHaveClass("h-8", "shrink-0", "rounded-full");
     expect(screen.queryByText("Filters")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByText("Next month"));
     expect(onEndMonthChange).toHaveBeenCalledWith("2026-09");
+
+    fireEvent.click(screen.getByText("All End Months"));
+    expect(onEndMonthChange).toHaveBeenCalledWith(null);
 
     fireEvent.click(screen.getByText("Year view"));
     expect(onViewModeChange).toHaveBeenCalledWith("year");
