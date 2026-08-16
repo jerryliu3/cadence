@@ -37,4 +37,14 @@ describe("goal visuals", () => {
       }).color
     ).toBe("#10b981");
   });
+
+  it("keeps goal-level color for custom categories", () => {
+    expect(
+      getGoalVisual({
+        goalId: "12000000-0000-4000-8000-000000000004",
+        color: "#112233",
+        category: "Outdoor Adventure",
+      }).color
+    ).toBe("#112233");
+  });
 });
