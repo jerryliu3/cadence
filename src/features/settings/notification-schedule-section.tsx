@@ -64,21 +64,33 @@ export function NotificationScheduleSection({
           timezone. Disable it below or add more reminders. New reminders use {timezone}.
         </p>
       </div>
-      <div className="grid min-w-0 gap-3 rounded-xl border p-3 sm:grid-cols-[minmax(0,10rem)_minmax(0,1fr)_auto] sm:items-end">
-        <div className="min-w-0 space-y-1.5">
-          <Label htmlFor="notification-hour">Time</Label>
-          <Select value={hour} onValueChange={onHourChange}>
-            <SelectTrigger id="notification-hour" className="w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {Array.from({ length: 24 }, (_, value) => (
-                <SelectItem key={value} value={String(value)}>
-                  {formatHour(value)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+      <div className="min-w-0 space-y-3 rounded-xl border p-3">
+        <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-end gap-3">
+          <div className="min-w-0 space-y-1.5">
+            <Label htmlFor="notification-hour">Time</Label>
+            <Select value={hour} onValueChange={onHourChange}>
+              <SelectTrigger id="notification-hour" className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {Array.from({ length: 24 }, (_, value) => (
+                  <SelectItem key={value} value={String(value)}>
+                    {formatHour(value)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <Button
+            type="button"
+            className="shrink-0"
+            onClick={onAddSchedule}
+            disabled={savingSchedule || !canAddSchedule}
+          >
+            {savingSchedule ? <LoaderCircle className="animate-spin" /> : <Plus />}
+            Add
+          </Button>
         </div>
 
         <div className="min-w-0 space-y-1.5">
@@ -91,16 +103,6 @@ export function NotificationScheduleSection({
             placeholder={defaultMessage}
           />
         </div>
-
-        <Button
-          type="button"
-          className="w-full sm:w-auto"
-          onClick={onAddSchedule}
-          disabled={savingSchedule || !canAddSchedule}
-        >
-          {savingSchedule ? <LoaderCircle className="animate-spin" /> : <Plus />}
-          Add
-        </Button>
       </div>
 
       {loadingSchedules ? (
