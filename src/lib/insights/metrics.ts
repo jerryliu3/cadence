@@ -31,6 +31,12 @@ function toDateString(value: Date) {
   return format(value, "yyyy-MM-dd");
 }
 
+function minDateString(...values: string[]) {
+  return values.reduce((current, candidate) =>
+    compareDateStrings(candidate, current) < 0 ? candidate : current
+  );
+}
+
 function getDateRange(startDate: string, endDate: string): string[] {
   if (compareDateStrings(startDate, endDate) > 0) {
     return [];
@@ -338,10 +344,16 @@ export function buildInsightsStatsGroup({
 
   const allDaysFromAccount = getDateRange(accountCreatedDate, asOfDate);
   const rolling30Days = getDateRange(rolling30Start, asOfDate);
-  const previousRolling30Days = getDateRange(previousRolling30Start, previousRolling30End);
+  const analysisStart = minDateString(
+    previousWeekStart,
+    previousMonthStart,
+    previousRolling30Start
+  );
+  const analysisDays = getDateRange(analysisStart, asOfDate);
+
   const dayRates = buildDayRates({
     goals,
-    days: [...allDaysFromAccount, ...previousRolling30Days],
+    days: analysisDays,
     uniqueGoalIdsByDate,
     rawCountByDate,
   });
