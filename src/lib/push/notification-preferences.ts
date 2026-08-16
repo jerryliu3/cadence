@@ -1,5 +1,4 @@
 import {
-  defaultNotificationPreferences,
   normalizeNotificationPreferences,
   type NotificationPreferences,
 } from "@cadence/shared/notifications/preferences";
@@ -17,15 +16,12 @@ export async function loadNotificationPreferencesByUserIds({
   const uniqueUserIds = Array.from(
     new Set(userIds.filter((userId) => userId.length > 0))
   );
-  const preferencesByUserId = new Map<string, NotificationPreferences>();
-
-  for (const userId of uniqueUserIds) {
-    preferencesByUserId.set(userId, defaultNotificationPreferences);
-  }
 
   if (uniqueUserIds.length === 0) {
-    return preferencesByUserId;
+    return new Map<string, NotificationPreferences>();
   }
+
+  const preferencesByUserId = new Map<string, NotificationPreferences>();
 
   const { data, error } = await admin
     .from("profiles")

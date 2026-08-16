@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
     id: string;
     notification_preferences: Record<string, unknown>;
   }>,
+  profileSelectError: null as { message: string } | null,
 }));
 
 vi.mock("@/lib/supabase/admin", () => ({
@@ -22,7 +23,7 @@ vi.mock("@/lib/supabase/admin", () => ({
         select: () => ({
           in: async () => ({
             data: mocks.profileRows,
-            error: null,
+            error: mocks.profileSelectError,
           }),
         }),
       };
@@ -39,6 +40,7 @@ import { flushNotificationOutbox } from "./outbox";
 describe("flushNotificationOutbox", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.profileSelectError = null;
     mocks.profileRows = [
       {
         id: "user-1",
@@ -100,6 +102,28 @@ describe("flushNotificationOutbox", () => {
         p_error: "disabled_by_user_preference",
       }
     );
+  });
+
+  it("fails open when profile preference lookup fails", async () => {
+    mocks.profileSelectError = { message: "profiles lookup unavailable" };
+    mocks.sendPushToUser.mockResolvedValue({
+      sent: 1,
+      removedSubscriptions: 0,
+      hadSubscriptions: true,
+      webConfigurationUnavailable: false,
+      deliveryFailures: 0,
+    });
+
+    const result = await flushNotificationOutbox();
+
+    expect(result).toMatchObject({
+      claimed: 1,
+      sent: 1,
+      skipped: 0,
+      failed: 0,
+      deferred: 0,
+    });
+    expect(mocks.sendPushToUser).toHaveBeenCalledTimes(1);
   });
 
   it("defers unavailable web delivery without using a terminal failure code", async () => {

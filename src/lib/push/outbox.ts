@@ -1,5 +1,9 @@
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getNotificationPreferenceKeyForOutboxKind } from "@cadence/shared/notifications/preferences";
+import {
+  defaultNotificationPreferences,
+  getNotificationPreferenceKeyForOutboxKind,
+  type NotificationPreferences,
+} from "@cadence/shared/notifications/preferences";
 import { loadNotificationPreferencesByUserIds } from "@/lib/push/notification-preferences";
 import { sendPushToUser } from "@/lib/push/send";
 
@@ -71,10 +75,17 @@ export async function flushNotificationOutbox({
     }
   };
   const rows = (claimedRows ?? []) as ClaimedOutboxRow[];
-  const preferencesByUserId = await loadNotificationPreferencesByUserIds({
-    admin,
-    userIds: rows.map((row) => row.user_id),
-  });
+  let preferencesByUserId = new Map<string, NotificationPreferences>();
+  try {
+    preferencesByUserId = await loadNotificationPreferencesByUserIds({
+      admin,
+      userIds: rows.map((row) => row.user_id),
+    });
+  } catch (error) {
+    console.error("Failed to load notification preferences for outbox flush", {
+      error: error instanceof Error ? error.message : "unknown_error",
+    });
+  }
   let sent = 0;
   let failed = 0;
   let deferred = 0;
@@ -84,8 +95,9 @@ export async function flushNotificationOutbox({
   for (const row of rows) {
     const preferenceKey = getNotificationPreferenceKeyForOutboxKind(row.kind);
     if (preferenceKey) {
-      const preferences = preferencesByUserId.get(row.user_id);
-      if (preferences && !preferences[preferenceKey]) {
+      const preferences =
+        preferencesByUserId.get(row.user_id) ?? defaultNotificationPreferences;
+      if (!preferences[preferenceKey]) {
         skipped += 1;
         await resolveDelivery({
           outboxId: row.id,
