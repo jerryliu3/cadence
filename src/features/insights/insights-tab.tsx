@@ -28,13 +28,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { LoadingCard } from "@/components/ui/loading-card";
 import { Progress } from "@/components/ui/progress";
-import {
-  InsightsPeriodControls,
-  InsightsPeriodStepper,
-} from "@/features/insights/insights-period-controls";
+import { InsightsPeriodStepper } from "@/features/insights/insights-period-controls";
+import { InsightsGoalStatsFilters } from "@/features/insights/insights-goal-stats-filters";
 import { GoalEndMonthBadge } from "@/features/goals/goal-end-month-badge";
 import { MilestonePills } from "@/features/goals/milestone-pills";
-import { GoalListControls } from "@/features/goals/goal-list-controls";
 import { InsightsOverallStatsCard } from "@/features/insights/insights-overall-stats-card";
 import {
   selectOverallCompletionPercent,
@@ -685,42 +682,21 @@ export function InsightsTab({
           </div>
         </CardHeader>
         <CardContent className="space-y-3">
-          <div className="flex flex-wrap items-end gap-3">
-            {sharedPeriod ? null : (
-              <InsightsPeriodControls
-                monthCursor={monthCursor}
-                onMonthCursorChange={setMonthCursor}
-                perGoalViewMode={perGoalViewMode}
-                onPerGoalViewModeChange={setPerGoalViewMode}
-                includeStepper={false}
-                viewModeSelectId="insights-goal-stats-view-mode"
-              />
-            )}
-            <GoalListControls
-              goals={personalGoals}
-              referenceMonth={goalFilterStartMonth}
-              endMonth={effectiveGoalEndMonth}
-              onEndMonthChange={setGoalEndMonth}
-              sort={goalSort}
-              onSortChange={setGoalSort}
-              mode="native"
-            />
-            <label
-              className={`flex h-8 w-fit items-center gap-2 text-xs text-muted-foreground ${
-                historicalGoals.length === 0 ? "opacity-60" : ""
-              }`}
-            >
-              <input
-                type="checkbox"
-                checked={showHistoricalGoals}
-                disabled={historicalGoals.length === 0}
-                onChange={(event) => setShowHistoricalGoals(event.target.checked)}
-                className="size-4 rounded border-input accent-primary"
-              />
-              Show past goals
-              <span>({historicalGoals.length})</span>
-            </label>
-          </div>
+          <InsightsGoalStatsFilters
+            goals={personalGoals}
+            referenceMonth={goalFilterStartMonth}
+            endMonth={effectiveGoalEndMonth}
+            onEndMonthChange={setGoalEndMonth}
+            sort={goalSort}
+            onSortChange={setGoalSort}
+            monthCursor={monthCursor}
+            onMonthCursorChange={setMonthCursor}
+            viewMode={perGoalViewMode}
+            onViewModeChange={setPerGoalViewMode}
+            showPastGoals={showHistoricalGoals}
+            pastGoalCount={historicalGoals.length}
+            onShowPastGoalsChange={setShowHistoricalGoals}
+          />
           <Input
             value={goalSearchQuery}
             onChange={(event) => setGoalSearchQuery(event.target.value)}
