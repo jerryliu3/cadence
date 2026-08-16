@@ -8,6 +8,7 @@ import {
   Minimize2,
   RotateCcw,
   Settings,
+  SlidersHorizontal,
 } from "lucide-react";
 import {
   useCallback,
@@ -40,6 +41,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  GoalFilters,
+  allCategoriesValue,
+} from "@/features/goals/goal-filters";
 import { buildActiveGoalIndexes } from "@/features/planner/calendar-entries";
 import {
   buildWeekdayLabels,
@@ -118,6 +123,10 @@ import {
   getScopeDateRange,
   getWindowState,
 } from "@/lib/planner/dates";
+import {
+  buildGoalEndMonthOptions,
+  resolveEffectiveEndMonth,
+} from "@/lib/goals/list-view";
 import { buildPlannerSaveRequestBody } from "@/features/planner/planner-save-request";
 import {
   createDefaultPlannerPolicy,
@@ -131,6 +140,7 @@ import type {
   CalendarSurfaceProps,
   CompletionControlDisabledReason,
   DayPreviewState,
+  PlannerCompletionFactMarker,
   PlannerContextPayload,
   PlannerDayDetailEntry,
   PlannerErrorPayload,
@@ -200,6 +210,9 @@ export function CalendarSurface({
   const [rebuildLoading, setRebuildLoading] = useState(false);
   const [fullResetLoading, setFullResetLoading] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [categoryFilter, setCategoryFilter] = useState(allCategoriesValue);
+  const [endMonthFilter, setEndMonthFilter] = useState<string | null>(null);
   const [draftPolicy, setDraftPolicy] = useState<PlannerPolicy | null>(null);
   const [draftPreview, setDraftPreview] = useState<
     NonNullable<PlannerContextPayload["preview"]> | null
@@ -503,6 +516,59 @@ export function CalendarSurface({
   );
   const activeGoalsByPlanGoalId = activeGoalIndexes.byPlanGoalId;
   const activeGoalsByOriginalGoalId = activeGoalIndexes.byOriginalGoalId;
+  const filterReferenceMonth = currentScopeMonth ?? calendarToday.slice(0, 7);
+  const effectiveEndMonthFilter = resolveEffectiveEndMonth(
+    endMonthFilter,
+    filterReferenceMonth
+  );
+  const categoryOptions = useMemo(() => {
+    const labels = new Set<string>();
+    for (const goal of activeGoalsByOriginalGoalId.values()) {
+      const trimmed = goal.category.trim();
+      if (trimmed.length > 0) {
+        labels.add(trimmed);
+      }
+    }
+    return Array.from(labels)
+      .sort((left, right) => left.localeCompare(right))
+      .map((label) => ({ value: label, label }));
+  }, [activeGoalsByOriginalGoalId]);
+  const endMonthOptions = useMemo(() => {
+    const goalEndDates = Array.from(activeGoalsByOriginalGoalId.values()).map(
+      (goal) => goal.end_date
+    );
+    return buildGoalEndMonthOptions(
+      goalEndDates,
+      filterReferenceMonth,
+      effectiveEndMonthFilter ? [effectiveEndMonthFilter] : []
+    );
+  }, [activeGoalsByOriginalGoalId, effectiveEndMonthFilter, filterReferenceMonth]);
+  const hasActiveFilters =
+    categoryFilter !== allCategoriesValue || effectiveEndMonthFilter !== null;
+  const goalPassesFilters = useCallback(
+    (goalId: string) => {
+      const goal = activeGoalsByOriginalGoalId.get(goalId) ?? null;
+      if (!goal) {
+        return !hasActiveFilters;
+      }
+      if (
+        categoryFilter !== allCategoriesValue &&
+        goal.category !== categoryFilter
+      ) {
+        return false;
+      }
+      if (effectiveEndMonthFilter !== null) {
+        return goal.end_date?.slice(0, 7) === effectiveEndMonthFilter;
+      }
+      return true;
+    },
+    [
+      activeGoalsByOriginalGoalId,
+      categoryFilter,
+      effectiveEndMonthFilter,
+      hasActiveFilters,
+    ]
+  );
   const calendarStoreProjection = useMemo(
     () =>
       selectPlannerCalendarStoreProjection({
@@ -589,33 +655,55 @@ export function CalendarSurface({
   );
   const hideViewerPlan = duoScope === "partner";
   const plannerReadOnly = duoScope === "partner";
+  const filterEntries = useCallback(
+    (entries: PlannerDayDetailEntry[]) =>
+      entries.filter((entry) => goalPassesFilters(entry.originalGoalId)),
+    [goalPassesFilters]
+  );
+  const filterMarkers = useCallback(
+    (markers: PlannerCompletionFactMarker[]) =>
+      markers.filter((marker) => goalPassesFilters(marker.originalGoalId)),
+    [goalPassesFilters]
+  );
   const getEntriesForDay = useCallback(
-    (day: string | null) =>
-      hideViewerPlan ? [] : getCalendarDayProjection(day).entries,
-    [getCalendarDayProjection, hideViewerPlan]
+    (day: string | null) => {
+      if (hideViewerPlan) {
+        return [];
+      }
+      return filterEntries(getCalendarDayProjection(day).entries);
+    },
+    [filterEntries, getCalendarDayProjection, hideViewerPlan]
   );
   const getCompletionFactMarkersForDay = useCallback(
     (day: string | null) => {
       const viewerMarkers = hideViewerPlan
         ? []
-        : getCalendarDayProjection(day).completionFactMarkers;
+        : filterMarkers(getCalendarDayProjection(day).completionFactMarkers);
       const partnerMarkers =
         day && (duoScope === "partner" || duoScope === "both")
           ? partnerCompletionMarkersByDate?.get(day) ?? []
           : [];
-      return mergeCompletionFactMarkers(viewerMarkers, partnerMarkers);
+      return mergeCompletionFactMarkers(
+        viewerMarkers,
+        filterMarkers(partnerMarkers)
+      );
     },
     [
       duoScope,
+      filterMarkers,
       getCalendarDayProjection,
       hideViewerPlan,
       partnerCompletionMarkersByDate,
     ]
   );
   const getOrderedEntriesForDay = useCallback(
-    (day: string | null) =>
-      hideViewerPlan ? [] : getCalendarDayProjection(day).orderedEntries,
-    [getCalendarDayProjection, hideViewerPlan]
+    (day: string | null) => {
+      if (hideViewerPlan) {
+        return [];
+      }
+      return filterEntries(getCalendarDayProjection(day).orderedEntries);
+    },
+    [filterEntries, getCalendarDayProjection, hideViewerPlan]
   );
 
   const focusedDayEntries = useMemo(
@@ -2610,6 +2698,17 @@ export function CalendarSurface({
                   ))}
                 </SelectContent>
               </Select>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon-sm"
+                aria-label="Filters"
+                title="Filters"
+                onClick={() => setFiltersOpen(true)}
+                disabled={loading}
+              >
+                <SlidersHorizontal className="size-4" />
+              </Button>
               {context?.preferences ? (
                 <Button
                   type="button"
@@ -3141,6 +3240,27 @@ export function CalendarSurface({
           </Dialog>
         </>
       ) : null}
+
+      <Dialog open={filtersOpen} onOpenChange={setFiltersOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Calendar filters</DialogTitle>
+            <DialogDescription>
+              Filter the currently visible calendar entries.
+            </DialogDescription>
+          </DialogHeader>
+          <GoalFilters
+            categoryFilterEnabled
+            endMonthFilterEnabled
+            categoryFilter={categoryFilter}
+            onCategoryFilterChange={setCategoryFilter}
+            categoryOptions={categoryOptions}
+            endMonthFilter={effectiveEndMonthFilter}
+            onEndMonthFilterChange={setEndMonthFilter}
+            endMonthOptions={endMonthOptions}
+          />
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
         <DialogContent>

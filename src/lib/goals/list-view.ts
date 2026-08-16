@@ -12,6 +12,31 @@ export interface GoalMonthOption {
   value: string;
 }
 
+function buildMonthOptionsFromValues(
+  monthValues: string[],
+  startMonth: string
+): GoalMonthOption[] {
+  if (!/^\d{4}-\d{2}$/.test(startMonth)) {
+    return [];
+  }
+
+  const validMonths = monthValues.filter(
+    (month) => /^\d{4}-\d{2}$/.test(month) && month >= startMonth
+  );
+  const lastMonth = validMonths.reduce(
+    (latest, month) => (month > latest ? month : latest),
+    startMonth
+  );
+
+  return eachMonthOfInterval({
+    start: startOfMonth(parseISO(`${startMonth}-01`)),
+    end: startOfMonth(parseISO(`${lastMonth}-01`)),
+  }).map((date) => ({
+    label: format(date, "MMMM yyyy"),
+    value: format(date, "yyyy-MM"),
+  }));
+}
+
 export const goalDateSortOptions: Array<{ label: string; value: GoalDateSort }> = [
   { label: "Earliest end date", value: "earliest_end" },
   { label: "Latest end date", value: "latest_end" },
@@ -125,24 +150,25 @@ export function buildGoalMonthOptions(
   startMonth: string,
   upperBoundMonths: string[] = []
 ): GoalMonthOption[] {
-  if (!/^\d{4}-\d{2}$/.test(startMonth)) {
-    return [];
-  }
-
-  const monthValues = [
-    ...goals.flatMap((goal) => (goal.end_date ? [goal.end_date.slice(0, 7)] : [])),
-    ...upperBoundMonths,
-  ].filter((month) => /^\d{4}-\d{2}$/.test(month) && month >= startMonth);
-  const lastMonth = monthValues.reduce(
-    (latest, month) => (month > latest ? month : latest),
+  return buildMonthOptionsFromValues(
+    [
+      ...goals.flatMap((goal) => (goal.end_date ? [goal.end_date.slice(0, 7)] : [])),
+      ...upperBoundMonths,
+    ],
     startMonth
   );
+}
 
-  return eachMonthOfInterval({
-    start: startOfMonth(parseISO(`${startMonth}-01`)),
-    end: startOfMonth(parseISO(`${lastMonth}-01`)),
-  }).map((date) => ({
-    label: format(date, "MMMM yyyy"),
-    value: format(date, "yyyy-MM"),
-  }));
+export function buildGoalEndMonthOptions(
+  endDates: Array<string | null | undefined>,
+  startMonth: string,
+  upperBoundMonths: string[] = []
+): GoalMonthOption[] {
+  return buildMonthOptionsFromValues(
+    [
+      ...endDates.flatMap((endDate) => (endDate ? [endDate.slice(0, 7)] : [])),
+      ...upperBoundMonths,
+    ],
+    startMonth
+  );
 }
