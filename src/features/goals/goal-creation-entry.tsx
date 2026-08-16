@@ -1,19 +1,24 @@
 "use client";
 
-import { CalendarPlus, ListPlus, Plus } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useMemo } from "react";
-import { Button } from "@/components/ui/button";
 import { TrainingPlanImportEntry } from "@/features/goals/training-plan-import-entry";
 import { BulkGoalForm } from "@/features/today/bulk-goal-form";
 import { GoalForm } from "@/features/today/goal-form";
+import { cn } from "@/lib/utils";
 
 type CreationMode = "single" | "multi" | "training";
 
 interface GoalCreationEntryProps {
   onExit?: () => void;
 }
+
+const CREATION_MODE_TABS: Array<{ key: CreationMode; label: string }> = [
+  { key: "single", label: "Single" },
+  { key: "multi", label: "Multi" },
+  { key: "training", label: "Training Plan" },
+];
 
 function resolveMode(rawMode: string | null): CreationMode {
   if (rawMode === "multi") {
@@ -47,73 +52,43 @@ export function GoalCreationEntry({ onExit }: GoalCreationEntryProps) {
     return query.length > 0 ? `${pathname}?${query}` : pathname;
   };
 
-  const singleGoalHref = modeHref("single");
-  const multiGoalHref = modeHref("multi");
-  const trainingImportHref = modeHref("training");
-
   return (
     <div className="mx-auto w-full max-w-5xl">
+      <div className="mb-4">
+        <div className="mx-auto flex w-full max-w-xl items-end border-b border-border/70">
+          {CREATION_MODE_TABS.map((tab) => {
+            const selected = mode === tab.key;
+            return (
+              <Link
+                key={tab.key}
+                href={modeHref(tab.key)}
+                replace
+                aria-current={selected ? "page" : undefined}
+                className={cn(
+                  "relative flex-1 py-2 text-center text-sm font-medium text-muted-foreground transition-colors hover:text-foreground",
+                  selected ? "text-foreground" : ""
+                )}
+              >
+                {tab.label}
+                <span
+                  aria-hidden="true"
+                  className={cn(
+                    "pointer-events-none absolute inset-x-1 -bottom-px h-1 rounded-full bg-primary transition-opacity",
+                    selected ? "opacity-100" : "opacity-0"
+                  )}
+                />
+              </Link>
+            );
+          })}
+        </div>
+      </div>
       <div className="w-full">
         {mode === "single" ? (
-          <GoalForm
-            showBackButton={false}
-            onExit={onExit}
-            modeSwitchControl={
-              <div className="flex flex-wrap items-center gap-2">
-                <Button type="button" size="sm" variant="outline" asChild>
-                  <Link href={multiGoalHref} replace>
-                    <ListPlus className="size-4" />
-                    Multiple goals
-                  </Link>
-                </Button>
-                <Button type="button" size="sm" variant="outline" asChild>
-                  <Link href={trainingImportHref} replace>
-                    <CalendarPlus className="size-4" />
-                    Training plan
-                  </Link>
-                </Button>
-              </div>
-            }
-          />
+          <GoalForm showBackButton={false} onExit={onExit} />
         ) : mode === "multi" ? (
-          <BulkGoalForm
-            showBackButton={false}
-            onExit={onExit}
-            modeSwitchControl={
-              <div className="flex flex-wrap items-center gap-2">
-                <Button type="button" size="sm" variant="outline" asChild>
-                  <Link href={singleGoalHref} replace>
-                    <Plus className="size-4" />
-                    New goal
-                  </Link>
-                </Button>
-                <Button type="button" size="sm" variant="outline" asChild>
-                  <Link href={trainingImportHref} replace>
-                    <CalendarPlus className="size-4" />
-                    Training plan
-                  </Link>
-                </Button>
-              </div>
-            }
-          />
+          <BulkGoalForm showBackButton={false} onExit={onExit} />
         ) : (
-          <div className="space-y-4">
-            <div className="flex flex-wrap items-center gap-2">
-              <Button type="button" size="sm" variant="outline" asChild>
-                <Link href={singleGoalHref} replace>
-                  <Plus className="size-4" />
-                  New goal
-                </Link>
-              </Button>
-              <Button type="button" size="sm" variant="outline" asChild>
-                <Link href={multiGoalHref} replace>
-                  <ListPlus className="size-4" />
-                  Multiple goals
-                </Link>
-              </Button>
-            </div>
-            <TrainingPlanImportEntry onExit={onExit} />
-          </div>
+          <TrainingPlanImportEntry onExit={onExit} />
         )}
       </div>
     </div>
