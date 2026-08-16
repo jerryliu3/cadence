@@ -15,7 +15,8 @@ export async function GET(request: Request) {
     const context = await requireSocialRouteContext(request);
 
     const url = new URL(request.url);
-    const scope = url.searchParams.get("scope") ?? "global";
+    const scopeParam = url.searchParams.get("scope") ?? "global";
+    const scope = scopeParam === "group" ? "cohort" : scopeParam;
     const scopeId = url.searchParams.get("scopeId");
     const cursor = url.searchParams.get("cursor");
     const limit = Number.parseInt(url.searchParams.get("limit") ?? "30", 10);

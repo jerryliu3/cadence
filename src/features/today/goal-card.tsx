@@ -57,6 +57,7 @@ export function GoalCard({
   const totalCompletionCount =
     progress?.admissibleCompletionCount ?? completions.length;
   const displayCompletionCount = totalCompletionCount;
+  const hasNoEndDate = goal.end_date === null;
   const targetedRecurring = isTargetedRecurringGoal(goal);
   const doneForCurrentPeriod = isGoalDoneForCurrentPeriod(
     goal,
@@ -96,6 +97,11 @@ export function GoalCard({
             {goalCategoryLabel}
           </Badge>
           <h3 className="truncate text-sm font-semibold">{goal.title}</h3>
+          {hasNoEndDate ? (
+            <Badge variant="outline" className="h-4 px-1 text-[10px]">
+              No end date
+            </Badge>
+          ) : null}
           {progress?.outcome === "ended_with_shortfall" ? (
             <Badge variant="outline">Shortfall</Badge>
           ) : null}
@@ -103,9 +109,12 @@ export function GoalCard({
         <div className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
           <p className="truncate">{getFrequencySummary(goal, displayCompletionCount)}</p>
           {linkedCount > 0 ? (
-            <span className="inline-flex shrink-0 items-center gap-1">
+            <span
+              className="inline-flex shrink-0 items-center gap-1"
+              aria-label={`${linkedCount} linked goals`}
+            >
               <Link2 className="size-3" />
-              {linkedCount} linked
+              {`Linked ${linkedCount}`}
             </span>
           ) : null}
           {completionSourceForSelectedDate === "linked_cascade" ? (

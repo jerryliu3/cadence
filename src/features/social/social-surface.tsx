@@ -2,7 +2,7 @@
 
 import { Flag, Newspaper, Trophy, Users } from "lucide-react";
 import { ChallengeList } from "@/features/social/challenges/challenge-list";
-import { CohortJoinCard } from "@/features/social/cohort-join-card";
+import { GroupJoinCard } from "@/features/social/group-join-card";
 import { TeamPanel } from "@/features/social/team/team-panel";
 import { FeedList } from "@/features/social/feed/feed-list";
 import { LeaderboardsPanel } from "@/features/social/leaderboards/leaderboards-panel";
@@ -59,7 +59,7 @@ export function SocialSurface({
         <FeedList />
       </TabsContent>
       <TabsContent value="challenges" className="space-y-4">
-        <CohortJoinCard />
+        <GroupJoinCard />
         <ChallengeList />
       </TabsContent>
       <TabsContent value="leaderboards" className="space-y-4">

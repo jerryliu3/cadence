@@ -31,6 +31,7 @@ const MOBILE_GOAL_EDIT_COLUMNS = [
   "color",
   "frequency_type",
   "recurrence_interval",
+  "difficulty",
   "target_count",
   "milestone_names",
   "start_date",
@@ -57,6 +58,7 @@ export function buildMobileGoalCreateArgs(
     p_category: "General",
     p_frequency_type: "recurring",
     p_recurrence_interval: "daily",
+    p_difficulty: "medium",
     p_start_date: format(new Date(), "yyyy-MM-dd"),
     p_is_private: false,
   };
@@ -76,6 +78,7 @@ export function buildMobileGoalUpdateArgs(
     p_color: existingGoal.color ?? undefined,
     p_frequency_type: existingGoal.frequency_type,
     p_recurrence_interval: existingGoal.recurrence_interval ?? undefined,
+    p_difficulty: existingGoal.difficulty ?? "medium",
     p_target_count: existingGoal.target_count ?? undefined,
     p_milestone_names: existingGoal.milestone_names ?? undefined,
     p_start_date: existingGoal.start_date,

@@ -18,6 +18,7 @@ import type {
   DuoContextState,
   DuoScope,
 } from "@cadence/shared/social/duo";
+import type { PlannerPrimaryTabPreference } from "@cadence/shared/navigation/tabs";
 
 interface AppShellProps {
   children: ReactNode;
@@ -26,6 +27,7 @@ interface AppShellProps {
   duoState: DuoContextState;
   duoAvailability: DuoAvailability;
   initialDuoScopePreference: DuoScope | null;
+  plannerPrimaryTabPreference: PlannerPrimaryTabPreference;
 }
 
 export function AppShell({
@@ -35,6 +37,7 @@ export function AppShell({
   duoState,
   duoAvailability,
   initialDuoScopePreference,
+  plannerPrimaryTabPreference,
 }: AppShellProps) {
   setTabDataCacheScope(userId);
   const pathname = usePathname();
@@ -83,7 +86,7 @@ export function AppShell({
                   </div>
                 </div>
                 <div className="mt-4 hidden md:block">
-                  <TabNav />
+                  <TabNav plannerPrimaryTabPreference={plannerPrimaryTabPreference} />
                 </div>
               </header>
 
@@ -110,7 +113,10 @@ export function AppShell({
             </div>
           </div>
           <div className="md:hidden" style={{ viewTransitionName: "app-mobile-tab-nav" }}>
-            <TabNav mobile />
+            <TabNav
+              mobile
+              plannerPrimaryTabPreference={plannerPrimaryTabPreference}
+            />
           </div>
           {goalSheet}
         </DuoProvider>

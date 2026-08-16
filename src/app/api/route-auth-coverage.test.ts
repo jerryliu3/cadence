@@ -167,7 +167,7 @@ import {
   DELETE as challengeJoinDelete,
   POST as challengeJoinPost,
 } from "@/app/api/social/challenges/[challengeId]/join/route";
-import { POST as cohortJoinPost } from "@/app/api/social/cohorts/join/route";
+import { POST as groupJoinPost } from "@/app/api/social/groups/join/route";
 import { GET as feedGet } from "@/app/api/social/feed/route";
 import {
   DELETE as reactionDelete,
@@ -347,8 +347,8 @@ const auditedRouteCases: AuditedRouteCase[] = [
     { challengeId: RESOURCE_ID }
   ),
   routeCase(
-    "POST /api/social/cohorts/join",
-    cohortJoinPost,
+    "POST /api/social/groups/join",
+    groupJoinPost,
     undefined,
     { joinCode: "test-code" }
   ),
