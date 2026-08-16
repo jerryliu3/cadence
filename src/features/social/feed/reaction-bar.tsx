@@ -4,15 +4,18 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { addSocialFeedReaction, removeSocialFeedReaction } from "@/features/social/data";
 import type { FeedReactionKind } from "@/features/social/data";
+import { cn } from "@/lib/utils";
 
 export function ReactionBar({
   eventId,
   initialCount,
   initiallyReacted,
+  className,
 }: {
   eventId: string;
   initialCount: number;
   initiallyReacted: boolean;
+  className?: string;
 }) {
   const [count, setCount] = useState(initialCount);
   const [reacted, setReacted] = useState(initiallyReacted);
@@ -40,7 +43,7 @@ export function ReactionBar({
   }
 
   return (
-    <div className="space-y-1">
+    <div className={cn("space-y-1", className)}>
       <Button
         type="button"
         size="sm"
