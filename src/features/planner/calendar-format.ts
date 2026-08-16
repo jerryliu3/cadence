@@ -60,13 +60,12 @@ export function getEntryDisplayTitle(
 export function getEntrySubtitle(
   entry: Pick<PlannerDayDetailEntry, "goalTitle" | "label">
 ) {
-  if (!entry.label || isDerivedCounterLabel(entry.label)) {
-    return null;
+  if (entry.label && !isDerivedCounterLabel(entry.label)) {
+    if (!entry.goalTitle || entry.label !== entry.goalTitle) {
+      return `Next: ${entry.label}`;
+    }
   }
-  if (entry.goalTitle && entry.label === entry.goalTitle) {
-    return null;
-  }
-  return entry.label;
+  return null;
 }
 
 export function getDayStatus(

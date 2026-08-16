@@ -6,6 +6,23 @@ import type {
 
 export type TeamStatus = "pending" | "active" | "closed";
 
+export const TEAM_NUDGE_USER_TEXT_MAX_LENGTH = 90;
+
+export function buildTeamNudgeContent(message?: string) {
+  const userText = (message ?? "")
+    .trim()
+    .slice(0, TEAM_NUDGE_USER_TEXT_MAX_LENGTH);
+  return userText.length > 0
+    ? {
+        kind: "custom" as const,
+        message: `Your partner sent a nudge to keep momentum going. ${userText}`,
+      }
+    : {
+        kind: "cheer" as const,
+        message: undefined,
+      };
+}
+
 /**
  * DUO_CAP(private.max_team_size): duo-shaped view of a team.
  *
