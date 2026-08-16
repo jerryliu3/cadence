@@ -1,6 +1,9 @@
 "use client";
 
 import { WandSparkles } from "lucide-react";
+import type {
+  PlannerPrimaryTabPreference,
+} from "@cadence/shared/navigation/tabs";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,6 +15,7 @@ interface ProfileDraft {
   username: string;
   display_name: string;
   avatar_url: string;
+  planner_primary_tab: PlannerPrimaryTabPreference;
 }
 
 interface ProfileSectionProps {
@@ -21,7 +25,6 @@ interface ProfileSectionProps {
   saving: boolean;
   canSaveProfile: boolean;
   setProfileDraft: (updater: (previous: ProfileDraft) => ProfileDraft) => void;
-  avatarUrlError: string | null;
   onSaveProfile: () => Promise<void>;
 }
 
@@ -39,7 +42,6 @@ export function ProfileSection({
   saving,
   canSaveProfile,
   setProfileDraft,
-  avatarUrlError,
   onSaveProfile,
 }: ProfileSectionProps) {
   const avatarPreviewUrl = profileDraft.avatar_url.trim();
@@ -53,7 +55,7 @@ export function ProfileSection({
       <CardContent className="space-y-4">
         <div className="flex items-center gap-3">
           <Avatar>
-            {avatarPreviewUrl && !avatarUrlError ? (
+            {avatarPreviewUrl ? (
               <AvatarImage src={avatarPreviewUrl} alt="Profile avatar preview" />
             ) : null}
             <AvatarFallback>{getInitials(profile)}</AvatarFallback>
@@ -96,25 +98,6 @@ export function ProfileSection({
               className="bg-muted/30 text-muted-foreground"
             />
           </div>
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="profile-avatar-url">Avatar URL (optional)</Label>
-          <Input
-            id="profile-avatar-url"
-            value={profileDraft.avatar_url}
-            placeholder="https://example.com/avatar.png"
-            autoComplete="url"
-            onChange={(event) =>
-              setProfileDraft((prev) => ({ ...prev, avatar_url: event.target.value }))
-            }
-          />
-          {avatarUrlError ? (
-            <p className="text-xs text-destructive">{avatarUrlError}</p>
-          ) : (
-            <p className="text-xs text-muted-foreground">
-              Paste a direct public image URL. Leave blank to use initials.
-            </p>
-          )}
         </div>
         <Button
           type="button"
