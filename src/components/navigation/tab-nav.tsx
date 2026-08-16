@@ -12,6 +12,7 @@ const GRID_BY_COUNT: Record<number, string> = {
   3: "grid-cols-3",
   4: "grid-cols-4",
   5: "grid-cols-5",
+  6: "grid-cols-6",
 };
 
 function isActive(pathname: string, href: string) {
@@ -62,7 +63,7 @@ export function TabNav({
         className={cn(
           "grid w-full gap-1",
           mobile
-            ? `${gridClass} max-w-[22.5rem] rounded-[1.35rem] border border-border/20 bg-background/50 p-1.5 shadow-sm shadow-black/5 backdrop-blur-md supports-[backdrop-filter]:bg-background/50`
+            ? `${gridClass} max-w-[27rem] rounded-[1.35rem] border border-border/20 bg-background/50 p-1.5 shadow-sm shadow-black/5 backdrop-blur-md supports-[backdrop-filter]:bg-background/50`
             : gridClass
         )}
       >

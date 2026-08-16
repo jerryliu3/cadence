@@ -45,6 +45,7 @@ import { TodayHeaderCard } from "@/features/today/today-header-card";
 import { GoalCard } from "@/features/today/goal-card";
 import { useChecklistData } from "@/features/today/use-checklist-data";
 import { captureViewportRect } from "@/lib/xp/events";
+import { PlannerTasksPanel } from "@/features/tasks/planner-tasks-panel";
 import {
   buildCompletableGoalIds,
   selectCompletableGoals,
@@ -663,19 +664,28 @@ export function TodayTab({
           </div>
         }
       >
-          <ChecklistTodayGroups
-            recurrenceFilter={recurrenceFilter}
-            groups={groupedTodayGoalsForAll}
-            sortedGoals={todayGoalsSorted}
-            expandedGroups={expandedGroups}
-            onToggleGroup={(group) =>
-              setExpandedGroups((previous) => ({
-                ...previous,
-                [group]: !previous[group],
-              }))
-            }
-            renderGoal={renderGoalCard}
-          />
+        <ChecklistTodayGroups
+          recurrenceFilter={recurrenceFilter}
+          groups={groupedTodayGoalsForAll}
+          sortedGoals={todayGoalsSorted}
+          expandedGroups={expandedGroups}
+          onToggleGroup={(group) =>
+            setExpandedGroups((previous) => ({
+              ...previous,
+              [group]: !previous[group],
+            }))
+          }
+          renderGoal={renderGoalCard}
+        />
+        {!readOnly ? (
+          <div className="pt-3">
+            <PlannerTasksPanel
+              title="To-Do for this day"
+              description="Quick tasks for this checklist day."
+              scheduledDate={viewDate}
+            />
+          </div>
+        ) : null}
       </TodayHeaderCard>
 
       {showUpcomingGoals || showPastGoals || showArchivedGoals ? (
