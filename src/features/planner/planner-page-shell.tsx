@@ -19,6 +19,8 @@ const plannerSurfaceTriggerToneClasses: Record<PlannerSurface, string> = {
     "border border-sky-300/70 bg-gradient-to-b from-sky-100/95 to-sky-50/90 text-sky-900 shadow-[0_3px_0_rgba(14,116,144,0.28)] data-[state=active]:border-sky-500 data-[state=active]:from-sky-200 data-[state=active]:to-sky-100 dark:border-sky-500/50 dark:from-sky-900/80 dark:to-sky-800/70 dark:text-sky-100 dark:data-[state=active]:border-sky-300 dark:data-[state=active]:from-sky-700/80 dark:data-[state=active]:to-sky-600/70",
   checklist:
     "border border-emerald-300/70 bg-gradient-to-b from-emerald-100/95 to-emerald-50/90 text-emerald-900 shadow-[0_3px_0_rgba(5,150,105,0.28)] data-[state=active]:border-emerald-500 data-[state=active]:from-emerald-200 data-[state=active]:to-emerald-100 dark:border-emerald-500/50 dark:from-emerald-900/80 dark:to-emerald-800/70 dark:text-emerald-100 dark:data-[state=active]:border-emerald-300 dark:data-[state=active]:from-emerald-700/80 dark:data-[state=active]:to-emerald-600/70",
+  tasks:
+    "border border-amber-300/70 bg-gradient-to-b from-amber-100/95 to-amber-50/90 text-amber-900 shadow-[0_3px_0_rgba(180,83,9,0.28)] data-[state=active]:border-amber-500 data-[state=active]:from-amber-200 data-[state=active]:to-amber-100 dark:border-amber-500/50 dark:from-amber-900/80 dark:to-amber-800/70 dark:text-amber-100 dark:data-[state=active]:border-amber-300 dark:data-[state=active]:from-amber-700/80 dark:data-[state=active]:to-amber-600/70",
 };
 
 export function PlannerPageShell() {
@@ -81,7 +83,10 @@ export function PlannerPageShell() {
         </TabsTrigger>
         <TabsTrigger
           value="tasks"
-          className="h-11 min-w-0 flex-row gap-2 rounded-xl border border-amber-300/70 bg-gradient-to-b from-amber-100/95 to-amber-50/90 px-3 text-sm font-semibold text-amber-900 shadow-[0_3px_0_rgba(180,83,9,0.28)] transition-[transform,box-shadow] duration-150 hover:-translate-y-0.5 active:translate-y-[2px] active:shadow-[0_1px_0_rgba(180,83,9,0.22)] data-active:translate-y-[2px] data-active:border-amber-500 data-active:from-amber-200 data-active:to-amber-100 data-active:shadow-[0_1px_0_rgba(180,83,9,0.24)] dark:border-amber-500/50 dark:from-amber-900/80 dark:to-amber-800/70 dark:text-amber-100 dark:data-active:border-amber-300 dark:data-active:from-amber-700/80 dark:data-active:to-amber-600/70 after:hidden"
+          className={cn(
+            plannerSurfaceTriggerBaseClass,
+            plannerSurfaceTriggerToneClasses.tasks
+          )}
         >
           <NotebookPen className="size-4" />
           To-Do
