@@ -66,6 +66,7 @@ function buildTeamResponse(mode: (typeof state)["teamMode"]): SocialTeamStateRes
           acceptedAt: "2026-01-01T00:01:00.000Z",
           closedAt: null,
           isIncoming: false,
+          teamXp: 55,
         },
       ],
     };

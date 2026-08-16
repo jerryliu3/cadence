@@ -7,6 +7,8 @@ export interface DuoActivePartner {
   partnerUsername: string | null;
   partnerDisplayName: string | null;
   partnerAvatarUrl: string | null;
+  teamXp: number;
+  teamXpSince: string | null;
 }
 
 export interface DuoPendingInvite {

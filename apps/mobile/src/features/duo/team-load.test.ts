@@ -32,6 +32,7 @@ describe("resolveDuoTeamLoadResult", () => {
           acceptedAt: "2026-01-01T00:01:00.000Z",
           closedAt: null,
           isIncoming: false,
+          teamXp: 55,
         },
       ],
     };
@@ -51,6 +52,8 @@ describe("resolveDuoTeamLoadResult", () => {
           partnerUsername: "alex",
           partnerDisplayName: "Alex",
           partnerAvatarUrl: null,
+          teamXp: 55,
+          teamXpSince: "2026-01-01T00:01:00.000Z",
         },
         pendingInvite: null,
       },
