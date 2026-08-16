@@ -11,6 +11,7 @@ export function StaticJourneyPoster({
 }: StaticJourneyPosterProps) {
   return (
     <Image
+      alt=""
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants"
       source={{ uri: sourceUri }}
