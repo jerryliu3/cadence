@@ -1,1 +1,2 @@
-export { POST, runtime } from "@/app/api/social/groups/join/route";
+export const runtime = "nodejs";
+export { POST } from "@/app/api/social/groups/join/route";
