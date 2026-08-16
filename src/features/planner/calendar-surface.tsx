@@ -68,7 +68,6 @@ import {
 } from "@/features/planner/move-session-dialog";
 import { PlannerCoachPanel } from "@/features/planner/coach/planner-coach-panel";
 import { usePlannerCoach } from "@/features/planner/coach/use-planner-coach";
-import { PlannerTasksPanel } from "@/features/tasks/planner-tasks-panel";
 import { useCompletionMutation } from "@/features/planner/use-completion-mutation";
 import {
   draftCommandReducer,
@@ -690,8 +689,9 @@ export function CalendarSurface({
     [getOrderedEntriesForDay, moveDialogDay]
   );
   const scopeMonth = context?.scopeMonth ?? null;
+  type MoveSourceCandidate = MoveSourceOption & { entry: PlannerDayDetailEntry };
 
-  const moveDialogSourceOptions = useMemo<MoveSourceOption[]>(() => {
+  const moveDialogSourceOptions = useMemo<MoveSourceCandidate[]>(() => {
     const targetDay = moveDialogDay;
     if (!targetDay || !scopeMonth) {
       return [];
@@ -2996,12 +2996,6 @@ export function CalendarSurface({
                         density="expanded"
                       />
                     </div>
-                    <PlannerTasksPanel
-                      title="To-Do for selected day"
-                      description="Open tasks carry forward to future planner days until completed or deleted."
-                      scheduledDate={focusedDay}
-                      allowCreate={false}
-                    />
                   </div>
                 ) : viewMode === "three_day" ? (
                   rollingWeekStrip
@@ -3283,7 +3277,9 @@ export function CalendarSurface({
             open={Boolean(moveDialogDay)}
             targetDate={moveDialogDay ?? ""}
             selectedSourceEntryKey={moveDialogSourceEntryKey}
-            sourceOptions={moveDialogSourceOptions}
+            sourceOptions={moveDialogSourceOptions.map(
+              ({ entry: _entry, ...option }) => option
+            )}
             onOpenChange={(open) => {
               if (!open) {
                 closeMoveDialog();
