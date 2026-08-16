@@ -129,7 +129,6 @@ export function useInsightsData({
         const yearEnd = `${selectedYear}-12-31`;
         const targetSubjectUserId = subjectUserId ?? userId;
         const targetIsViewer = targetSubjectUserId === userId;
-        const [goalsResponse, teamMembersResponse, progress, insightsStats] =
         const asOfDate = toLocalDateString();
         const partnerCacheScope =
           targetIsViewer && partnerId ? `partner:${partnerId}` : "partner:none";
@@ -142,6 +141,7 @@ export function useInsightsData({
             return;
           }
         }
+        const [goalsResponse, teamMembersResponse, progress, insightsStats] =
           await withAbortSignal(
             Promise.all([
               targetIsViewer
