@@ -57,6 +57,7 @@ interface CalendarMonthDayCellProps<
     target: EventTarget & HTMLElement
   ) => void;
   onCellClick: (target: EventTarget & HTMLElement) => void;
+  onCellDoubleClick: (target: EventTarget & HTMLElement) => void;
   onCellMouseEnter: (target: EventTarget & HTMLElement) => void;
   onCellMouseLeave: () => void;
   onCellPointerDown: (
@@ -90,6 +91,7 @@ export function CalendarMonthDayCell<
   isEntryImmovableForDraft,
   onEntryClick,
   onCellClick,
+  onCellDoubleClick,
   onCellMouseEnter,
   onCellMouseLeave,
   onCellPointerDown,
@@ -201,6 +203,9 @@ export function CalendarMonthDayCell<
           ref={setNodeRef}
           type="button"
           onClick={(event) => onCellClick(event.currentTarget)}
+          onDoubleClick={(event) => {
+            onCellDoubleClick(event.currentTarget);
+          }}
           onMouseEnter={(event) => onCellMouseEnter(event.currentTarget)}
           onMouseLeave={onCellMouseLeave}
           onPointerDown={(event) => {

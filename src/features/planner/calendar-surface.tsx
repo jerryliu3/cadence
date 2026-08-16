@@ -2,6 +2,7 @@
 
 import { addDays, addMonths, format, isValid, parse } from "date-fns";
 import {
+  ArrowRightLeft,
   CalendarDays,
   Loader2,
   Maximize2,
@@ -61,6 +62,10 @@ import {
 } from "@/features/planner/calendar-dnd";
 import { CalendarDayPreviewList } from "@/features/planner/calendar-day-preview-list";
 import { CalendarMonthDayCell } from "@/features/planner/calendar-month-day-cell";
+import {
+  MoveSessionDialog,
+  type MoveSourceOption,
+} from "@/features/planner/move-session-dialog";
 import { PlannerCoachPanel } from "@/features/planner/coach/planner-coach-panel";
 import { usePlannerCoach } from "@/features/planner/coach/use-planner-coach";
 import { useCompletionMutation } from "@/features/planner/use-completion-mutation";
@@ -166,21 +171,6 @@ const ELIGIBILITY_REASON_LABELS: Record<EligibilityReason, string> = {
   horizon_too_long:
     "This goal deadline exceeds the 24-month planning horizon limit.",
 };
-const ELIGIBILITY_ACTION_HINTS: Partial<Record<EligibilityReason, string>> = {
-  missing_end_date: "Add an end date in Goal details to include targeted goals.",
-  linked: "Linked goals inherit their source goal schedule.",
-  invalid_date_range: "Fix the goal date range so the start date is on or before the end date.",
-  horizon_too_long: "Shorten the goal horizon to fit within the 24-month planning window.",
-};
-const HARD_ELIGIBILITY_REASON_ORDER: EligibilityReason[] = [
-  "missing_end_date",
-  "linked",
-  "invalid_date_range",
-  "horizon_too_long",
-  "not_owner",
-  "deleted",
-  "archived",
-];
 
 function getEligibilityReasonLabel(reason: EligibilityReason) {
   return ELIGIBILITY_REASON_LABELS[reason];
@@ -230,9 +220,9 @@ export function CalendarSurface({
     null
   );
   const [dayPreview, setDayPreview] = useState<DayPreviewState | null>(null);
-  const [expandedPreviewDay, setExpandedPreviewDay] = useState<string | null>(
-    null
-  );
+  const [expandedPreviewDay, setExpandedPreviewDay] = useState<string | null>(null);
+  const [moveDialogDay, setMoveDialogDay] = useState<string | null>(null);
+  const [moveDialogSourceEntryKey, setMoveDialogSourceEntryKey] = useState<string>("");
   const [warningsOpen, setWarningsOpen] = useState(false);
   const [warningsDismissed, setWarningsDismissed] = useState(false);
   const [draggingEntryKey, setDraggingEntryKey] = useState<string | null>(null);
@@ -253,6 +243,8 @@ export function CalendarSurface({
   const longPressTriggeredRef = useRef(false);
   const pointerPressActiveRef = useRef(false);
   const pointerInsideDayPreviewRef = useRef(false);
+  const lastTouchTapRef = useRef<{ day: string; at: number } | null>(null);
+  const suppressDayCellClickRef = useRef<{ day: string; active: boolean } | null>(null);
   const calendarPreparedRef = useRef(false);
   const dayPreviewRef = useRef<HTMLDivElement | null>(null);
   const rollingWeekStripRef = useRef<HTMLDivElement | null>(null);
@@ -390,6 +382,7 @@ export function CalendarSurface({
     focusedDay,
     focusedWeekDays,
     focusedWeekCells,
+    focusedThreeDayDays,
     visibleDays,
   } =
     useMemo(
@@ -471,27 +464,6 @@ export function CalendarSurface({
     : null;
   const draftWindowTooWide =
     !draftSaveWindowResult.ok && draftSaveWindowResult.code === "too_wide";
-  /*
-   * Horizon counts are intentionally hidden for now because "planned" reflects
-   * the planner's preparation window rather than the visible calendar period.
-   * Keep this derivation nearby in case the summary returns with clearer copy.
-   *
-   * const horizonCounter = (() => {
-   *   const summary = effectivePreview?.horizonSummary ?? [];
-   *   if (summary.length === 0) return null;
-   *   const total = summary.reduce((count, goal) => count + goal.totalCount, 0);
-   *   if (total <= 0) return null;
-   *   const thisWindow = summary.reduce(
-   *     (count, goal) => count + goal.windowPlannedCount,
-   *     0
-   *   );
-   *   const remaining = summary.reduce(
-   *     (count, goal) => count + goal.remainingCount,
-   *     0
-   *   );
-   *   return { thisWindow, total, remaining };
-   * })();
-   */
   const eligibilityNotices = useMemo(() => {
     const eligibilityEntries = effectivePreview?.eligibility ?? [];
     if (eligibilityEntries.length === 0) {
@@ -499,18 +471,15 @@ export function CalendarSurface({
         hardIneligible: [] as Array<{
           goalId: string;
           goalTitle: string;
-          reason: EligibilityReason;
           reasonCopy: string;
         }>,
         scopeOnlyCount: 0,
-        actionHints: [] as string[],
       };
     }
 
     const hardIneligible: Array<{
       goalId: string;
       goalTitle: string;
-      reason: EligibilityReason;
       reasonCopy: string;
     }> = [];
     let scopeOnlyCount = 0;
@@ -527,7 +496,6 @@ export function CalendarSurface({
         goalId: eligibilityEntry.goalId,
         goalTitle:
           context?.goalTitles?.[eligibilityEntry.goalId] ?? eligibilityEntry.goalId,
-        reason: eligibilityEntry.reason,
         reasonCopy: getEligibilityReasonLabel(eligibilityEntry.reason),
       });
     }
@@ -535,15 +503,7 @@ export function CalendarSurface({
     hardIneligible.sort((left, right) =>
       left.goalTitle.localeCompare(right.goalTitle)
     );
-    const hardReasonSet = new Set(hardIneligible.map((item) => item.reason));
-    const orderedReasons = HARD_ELIGIBILITY_REASON_ORDER.filter((reason) =>
-      hardReasonSet.has(reason)
-    );
-    const actionHints = orderedReasons
-      .map((reason) => ELIGIBILITY_ACTION_HINTS[reason])
-      .filter((hint): hint is string => typeof hint === "string");
-
-    return { hardIneligible, scopeOnlyCount, actionHints };
+    return { hardIneligible, scopeOnlyCount };
   }, [context?.goalTitles, effectivePreview?.eligibility]);
   const activeGoalIndexes = useMemo(
     () => buildActiveGoalIndexes(context?.activePlan?.goals),
@@ -598,17 +558,8 @@ export function CalendarSurface({
     if (dayPreviewDay) {
       days.add(dayPreviewDay);
     }
-    if (expandedPreviewDay) {
-      days.add(expandedPreviewDay);
-    }
     return Array.from(days);
-  }, [
-    dayPreviewDay,
-    effectiveSelectedDay,
-    expandedPreviewDay,
-    focusedDay,
-    visibleDays,
-  ]);
+  }, [dayPreviewDay, effectiveSelectedDay, focusedDay, visibleDays]);
   const dayProjectionByDay = useMemo(
     () =>
       selectPlannerCalendarDayProjectionsByDay({
@@ -696,6 +647,17 @@ export function CalendarSurface({
   const selectedEventBaselineUnit = selectedEventEntry
     ? draftWindowUnitByEntryKey.get(selectedEventEntry.key) ?? null
     : null;
+  const selectedEventDraftScheduledDate =
+    selectedEventDraftEdit?.scheduledDate ??
+    selectedEventEntry?.activeItem?.scheduled_date ??
+    effectiveSelectedDay ??
+    null;
+  const selectedEventDraftTimeInputValue =
+    selectedEventDraftEdit?.scheduledTimeOverride === null
+      ? ""
+      : selectedEventDraftEdit?.scheduledTimeOverride ??
+        selectedEventBaselineUnit?.scheduledTimeOverride ??
+        "";
   const getEntryDisplayTitleWithTime = useCallback(
     (entry: PlannerDayDetailEntry) => {
       const baseTitle = getEntryDisplayTitle(entry);
@@ -722,6 +684,93 @@ export function CalendarSurface({
     () => getCompletionFactMarkersForDay(expandedPreviewDay),
     [expandedPreviewDay, getCompletionFactMarkersForDay]
   );
+  const moveDialogEntriesForTargetDay = useMemo(
+    () => getOrderedEntriesForDay(moveDialogDay),
+    [getOrderedEntriesForDay, moveDialogDay]
+  );
+  const scopeMonth = context?.scopeMonth ?? null;
+  type MoveSourceCandidate = MoveSourceOption & { entry: PlannerDayDetailEntry };
+
+  const moveDialogSourceOptions = useMemo<MoveSourceCandidate[]>(() => {
+    const targetDay = moveDialogDay;
+    if (!targetDay || !scopeMonth) {
+      return [];
+    }
+    const scheduledGoalIds = new Set(
+      moveDialogEntriesForTargetDay
+        .filter((entry) => !entry.draftGhost)
+        .map((entry) => entry.originalGoalId)
+    );
+    const options: Array<{
+      entryKey: string;
+      sourceDay: string;
+      sourceLabel: string;
+      entry: PlannerDayDetailEntry;
+    }> = [];
+    for (const [day, entries] of entriesByDate.entries()) {
+      if (day === targetDay) {
+        continue;
+      }
+      for (const entry of entries) {
+        if (
+          entry.draftGhost ||
+          !entry.activeItem ||
+          !canMutateEntryOnDay(entry, day) ||
+          scheduledGoalIds.has(entry.originalGoalId)
+        ) {
+          continue;
+        }
+        const previewUnit = draftWindowUnitByEntryKey.get(entry.key);
+        if (!previewUnit) {
+          continue;
+        }
+        const planned = planDraftMove({
+          entry,
+          nextDate: targetDay,
+          scopeMonth,
+          previewUnit,
+          conflictKeys: undefined,
+          completionFactConflict: undefined,
+        });
+        if (!planned.ok) {
+          continue;
+        }
+        options.push({
+          entryKey: entry.key,
+          sourceDay: day,
+          sourceLabel: getEntryDisplayTitleWithTime(entry),
+          entry,
+        });
+      }
+    }
+    return options.sort((left, right) => {
+      const dayCompare = left.sourceDay.localeCompare(right.sourceDay);
+      if (dayCompare !== 0) {
+        return dayCompare;
+      }
+      return left.sourceLabel.localeCompare(right.sourceLabel);
+    });
+  }, [
+    canMutateEntryOnDay,
+    draftWindowUnitByEntryKey,
+    entriesByDate,
+    getEntryDisplayTitleWithTime,
+    moveDialogDay,
+    moveDialogEntriesForTargetDay,
+    scopeMonth,
+  ]);
+
+  const effectiveMoveDialogSourceEntryKey = useMemo(() => {
+    if (
+      moveDialogSourceEntryKey &&
+      moveDialogSourceOptions.some(
+        (option) => option.entryKey === moveDialogSourceEntryKey
+      )
+    ) {
+      return moveDialogSourceEntryKey;
+    }
+    return moveDialogSourceOptions[0]?.entryKey ?? "";
+  }, [moveDialogSourceEntryKey, moveDialogSourceOptions]);
   useEffect(
     () => () => {
       if (hoverPreviewTimerRef.current) {
@@ -1149,6 +1198,40 @@ export function CalendarSurface({
     setDayPreview({ day, position, pinned });
   };
 
+  const openMoveDialogForDay = useCallback((day: string) => {
+    setExpandedPreviewDay(null);
+    setDayPreview(null);
+    setMoveDialogDay(day);
+    setMoveDialogSourceEntryKey("");
+  }, []);
+
+  const openDayViewForDay = useCallback(
+    (day: string) => {
+      setExpandedPreviewDay(null);
+      setMoveDialogDay(null);
+      setSelectedEventEntryKey(null);
+      setLocalSelectedDay(day);
+      onSelectedDayChange(day, "push", "day");
+      setDayPreview(null);
+    },
+    [onSelectedDayChange]
+  );
+
+  const shouldSuppressDayCellClick = (day: string) => {
+    const suppression = suppressDayCellClickRef.current;
+    if (!suppression) {
+      return false;
+    }
+    if (suppression.day !== day) {
+      return false;
+    }
+    if (suppression.active) {
+      suppressDayCellClickRef.current = null;
+      return true;
+    }
+    return false;
+  };
+
   const scheduleHoverPreview = (
     day: string,
     target: EventTarget & HTMLElement
@@ -1170,6 +1253,10 @@ export function CalendarSurface({
     day: string,
     target: EventTarget & HTMLElement
   ) => {
+    if (shouldSuppressDayCellClick(day)) {
+      suppressDayCellClickRef.current = null;
+      return;
+    }
     if (longPressTriggeredRef.current) {
       longPressTriggeredRef.current = false;
       return;
@@ -1226,7 +1313,6 @@ export function CalendarSurface({
     }
     return map;
   }, [draftWindowWorkUnits]);
-  const scopeMonth = context?.scopeMonth ?? null;
 
   const queueDraftMoveCommand = useCallback(
     ({
@@ -1655,6 +1741,57 @@ export function CalendarSurface({
     } finally {
       setMutationLoadingKey(null);
     }
+  };
+
+  const closeMoveDialog = () => {
+    setMoveDialogDay(null);
+    setMoveDialogSourceEntryKey("");
+  };
+
+  const submitMoveDialog = () => {
+    if (!moveDialogDay || !isValidIsoDate(moveDialogDay)) {
+      toast.error("Select a valid destination date.");
+      return;
+    }
+    if (!effectiveMoveDialogSourceEntryKey) {
+      toast.error("Select a scheduled date to move from.");
+      return;
+    }
+    const sourceOption = moveDialogSourceOptions.find(
+      (option) => option.entryKey === effectiveMoveDialogSourceEntryKey
+    );
+    if (!sourceOption) {
+      toast.error("Selected source session is no longer available.");
+      return;
+    }
+    const moved = queueDraftMoveCommand({
+      entry: sourceOption.entry,
+      nextDate: moveDialogDay,
+      source: "date_input",
+    });
+    if (!moved) {
+      return;
+    }
+    closeMoveDialog();
+    toast.success("Move staged. Save plan to persist.");
+  };
+
+  const contractExpandedPreview = () => {
+    if (!expandedPreviewDay) {
+      return;
+    }
+    const day = expandedPreviewDay;
+    const dayCell = document.querySelector(
+      `[data-day-cell="true"][data-day="${day}"]`
+    );
+    if (dayCell instanceof HTMLElement) {
+      openDayPreview({
+        day,
+        pinned: true,
+        target: dayCell,
+      });
+    }
+    setExpandedPreviewDay(null);
   };
 
   const toggleDateFact = async (
@@ -2147,6 +2284,16 @@ export function CalendarSurface({
     "yyyy-MM-dd",
     new Date()
   );
+  const focusedThreeDayStartDate = parse(
+    focusedThreeDayDays[0] ?? focusedDay,
+    "yyyy-MM-dd",
+    new Date()
+  );
+  const focusedThreeDayEndDate = parse(
+    focusedThreeDayDays[2] ?? focusedDay,
+    "yyyy-MM-dd",
+    new Date()
+  );
   const viewHeading =
     viewMode === "month"
       ? monthLabel
@@ -2156,8 +2303,8 @@ export function CalendarSurface({
             "MMM d, yyyy"
           )}`
         : viewMode === "three_day"
-          ? `${format(focusedWeekStartDate, "MMM d")} - ${format(
-              focusedWeekEndDate,
+          ? `${format(focusedThreeDayStartDate, "MMM d")} - ${format(
+              focusedThreeDayEndDate,
               "MMM d, yyyy"
             )}`
         : format(safeFocusedDay, "EEE MMM d, yyyy");
@@ -2386,6 +2533,17 @@ export function CalendarSurface({
           }
           handleDayCellClick(cell.date, target);
         }}
+        onCellDoubleClick={(target) => {
+          void target;
+          if (draggingEntryKey) {
+            return;
+          }
+          clearHoverPreviewTimer();
+          clearHoverPreviewCloseTimer();
+          clearLongPressTimer();
+          longPressTriggeredRef.current = false;
+          openDayViewForDay(cell.date);
+        }}
         onCellMouseEnter={(target) => {
           if (viewMode === "day") {
             return;
@@ -2406,6 +2564,23 @@ export function CalendarSurface({
           pointerPressActiveRef.current = true;
           clearHoverPreviewTimer();
           if (pointerType === "touch") {
+            const now = Date.now();
+            const lastTouchTap = lastTouchTapRef.current;
+            if (
+              lastTouchTap &&
+              lastTouchTap.day === cell.date &&
+              now - lastTouchTap.at < 350
+            ) {
+              clearLongPressTimer();
+              longPressTriggeredRef.current = false;
+              suppressDayCellClickRef.current = {
+                day: cell.date,
+                active: true,
+              };
+              openDayViewForDay(cell.date);
+              return;
+            }
+            lastTouchTapRef.current = { day: cell.date, at: now };
             startLongPressPreview(cell.date, target);
           }
         }}
@@ -2469,7 +2644,7 @@ export function CalendarSurface({
 
   const restWeekdaysField = (
     <div className="space-y-2 text-sm">
-      <p>Rest days</p>
+      <p>Rest weekdays</p>
       <div className="flex flex-wrap gap-2">
         {restWeekdayOptions.map((option) => (
           <label
@@ -2498,6 +2673,9 @@ export function CalendarSurface({
 
   const plannerSettingsForm = (
     <div className="space-y-4">
+      <p className="text-sm text-muted-foreground">
+        Timezone and first-day-of-week preferences now live in Profile settings.
+      </p>
       {restWeekdaysField}
       <Button type="button" onClick={submitSetup} disabled={setupLoading}>
         {setupLoading ? "Saving settings..." : "Save settings"}
@@ -2536,27 +2714,6 @@ export function CalendarSurface({
                   </Badge>
                 ) : null}
               </div>
-              {eligibilityNotices.hardIneligible.length > 0 ? (
-                <div className="rounded-md border border-amber-300 bg-amber-100 px-3 py-2 text-xs text-amber-950 dark:border-amber-300 dark:bg-amber-100 dark:text-amber-950">
-                  <p className="font-semibold">Planning attention needed</p>
-                  <p className="mt-1">
-                    {eligibilityNotices.hardIneligible
-                      .slice(0, 4)
-                      .map((item) => `${item.goalTitle}: ${item.reasonCopy}`)
-                      .join(" · ")}
-                    {eligibilityNotices.hardIneligible.length > 4
-                      ? ` · +${eligibilityNotices.hardIneligible.length - 4} more`
-                      : ""}
-                  </p>
-                  {eligibilityNotices.actionHints.length > 0 ? (
-                    <ul className="mt-1 list-disc pl-4">
-                      {eligibilityNotices.actionHints.map((hint) => (
-                        <li key={hint}>{hint}</li>
-                      ))}
-                    </ul>
-                  ) : null}
-                </div>
-              ) : null}
             </div>
             <div className="flex flex-wrap items-center justify-end gap-2">
               {!plannerReadOnly && canShowSaveAction ? (
@@ -2600,7 +2757,7 @@ export function CalendarSurface({
                   title={rebuildBlockedMessage}
                   disabled={rebuildLoading || loading || hasDraftSession}
                 >
-                  {rebuildLoading ? "Refreshing..." : "Refresh calendar"}
+                  {rebuildLoading ? "Refreshing..." : "Refresh schedule"}
                 </Button>
               ) : null}
               {hasDraftSession ? (
@@ -2623,7 +2780,7 @@ export function CalendarSurface({
                 }
               >
                 <SelectTrigger
-                  className="h-8 rounded-md bg-background/90 text-xs"
+                  className="h-8 w-[7.5rem] rounded-md bg-background/90 text-xs"
                   disabled={loading}
                   aria-label="Calendar view mode"
                 >
@@ -2698,10 +2855,9 @@ export function CalendarSurface({
         <>
           <div className="rounded-xl border bg-card p-4 shadow-sm">
             <div className="mx-auto mb-3 w-full max-w-[56rem] space-y-3">
-              <div className="grid w-full grid-cols-[1fr_auto_1fr] items-center gap-2">
-                <span aria-hidden />
+              <div className="relative flex w-full justify-center">
                 <PeriodStepper
-                  className="min-w-0 shrink justify-self-center"
+                  className="shrink-0"
                   onPrevious={() => moveViewWindow(-1)}
                   onNext={() => moveViewWindow(1)}
                   previousDisabled={loading}
@@ -2711,15 +2867,13 @@ export function CalendarSurface({
                   center={
                     <h3
                       className="truncate text-center text-base font-semibold"
-                      style={{
-                        width: `min(${fixedViewHeadingWidthCh}ch, 22vw)`,
-                      }}
+                      style={{ width: `${fixedViewHeadingWidthCh}ch` }}
                     >
                       {viewHeading}
                     </h3>
                   }
                 />
-                <div className="flex items-center justify-self-end gap-2">
+                <div className="absolute right-0 top-1/2 flex -translate-y-1/2 items-center gap-2">
                   <Button
                     type="button"
                     variant="outline"
@@ -2895,7 +3049,7 @@ export function CalendarSurface({
                     }}
                     title={format(
                       parse(dayPreview.day, "yyyy-MM-dd", new Date()),
-                      "EEEE, MMM d"
+                      "EEE, MMM d"
                     )}
                     actions={
                       <>
@@ -2905,12 +3059,24 @@ export function CalendarSurface({
                           size="sm"
                           className="h-6 px-2 text-xs"
                           onClick={() => {
+                            openMoveDialogForDay(dayPreview.day);
+                          }}
+                        >
+                          <ArrowRightLeft className="mr-1 size-3" />
+                          Move
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon-sm"
+                          aria-label="Expand day details"
+                          title="Expand day details"
+                          onClick={() => {
                             setExpandedPreviewDay(dayPreview.day);
                             setDayPreview(null);
                           }}
                         >
-                          <Maximize2 className="mr-1 size-3" />
-                          Expand
+                          <Maximize2 className="size-3.5" />
                         </Button>
                         {dayPreview.pinned ? (
                           <Button
@@ -2997,7 +3163,7 @@ export function CalendarSurface({
           <PlannerCoachPanel coach={coach} />
 
           <Dialog
-            open={expandedPreviewDay !== null}
+            open={Boolean(expandedPreviewDay)}
             onOpenChange={(open) => {
               if (!open) {
                 setExpandedPreviewDay(null);
@@ -3005,35 +3171,48 @@ export function CalendarSurface({
             }}
           >
             <DialogContent className="sm:max-w-2xl">
+              {expandedPreviewDay ? (
+                <div className="absolute top-2 right-10 z-10 flex items-center gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      openMoveDialogForDay(expandedPreviewDay);
+                    }}
+                  >
+                    <ArrowRightLeft className="size-4" />
+                    Move
+                  </Button>
+                  <Button
+                    type="button"
+                    size="icon-sm"
+                    variant="outline"
+                    aria-label="Contract to day popup"
+                    title="Contract to day popup"
+                    onClick={contractExpandedPreview}
+                  >
+                    <Minimize2 className="size-4" />
+                  </Button>
+                </div>
+              ) : null}
               <DialogHeader>
                 <DialogTitle>
                   {expandedPreviewDay
-                    ? format(
-                        parse(expandedPreviewDay, "yyyy-MM-dd", new Date()),
-                        "EEEE, MMM d"
-                      )
-                    : "Day items"}
+                    ? format(parse(expandedPreviewDay, "yyyy-MM-dd", new Date()), "EEE, MMM d")
+                    : "Expanded day preview"}
                 </DialogTitle>
                 <DialogDescription>
-                  {expandedPreviewEntries.length +
-                    expandedPreviewCompletionFactMarkers.length}{" "}
-                  item
-                  {expandedPreviewEntries.length +
-                    expandedPreviewCompletionFactMarkers.length ===
-                  1
-                    ? ""
-                    : "s"}{" "}
-                  on this date.
+                  Review all sessions for this day. Use Move to stage taking one existing
+                  scheduled session and relocating it to this date.
                 </DialogDescription>
               </DialogHeader>
               {expandedPreviewDay ? (
-                <div className="max-h-[65vh] overflow-y-auto pr-1">
+                <div className="space-y-3">
                   <CalendarDayPreviewList
                     day={expandedPreviewDay}
                     entries={expandedPreviewEntries}
-                    completionFactMarkers={
-                      expandedPreviewCompletionFactMarkers
-                    }
+                    completionFactMarkers={expandedPreviewCompletionFactMarkers}
                     mutationLoading={Boolean(mutationLoadingKey)}
                     getEntryDisplayTitle={getEntryDisplayTitleWithTime}
                     getEntrySubtitle={getEntrySubtitle}
@@ -3049,19 +3228,15 @@ export function CalendarSurface({
                           disabledReasonCopy: readOnlyMonthHint,
                         };
                       }
-                      const completionDispatch =
-                        getDateFactDispatchForEntry(entry, day);
-                      const disabledReason =
-                        completionControlDisabledReasonForEntry(
-                          entry,
-                          completionDispatch
-                        );
+                      const dayCompletionDispatch = getDateFactDispatchForEntry(entry, day);
+                      const dayCompletionDisabledReason = completionControlDisabledReasonForEntry(
+                        entry,
+                        dayCompletionDispatch
+                      );
                       return {
-                        currentlyCredited: Boolean(
-                          completionDispatch?.currentlyCredited
-                        ),
-                        disabledReasonCopy: disabledReason
-                          ? completionDisabledReasonCopy(disabledReason)
+                        currentlyCredited: Boolean(dayCompletionDispatch?.currentlyCredited),
+                        disabledReasonCopy: dayCompletionDisabledReason
+                          ? completionDisabledReasonCopy(dayCompletionDisabledReason)
                           : null,
                       };
                     }}
@@ -3069,14 +3244,11 @@ export function CalendarSurface({
                       const entry = expandedPreviewEntries.find(
                         (candidate) => candidate.key === entryKey
                       );
-                      if (
-                        !entry ||
-                        !canMutateEntryOnDay(entry, expandedPreviewDay)
-                      ) {
+                      if (!entry || !canMutateEntryOnDay(entry, expandedPreviewDay)) {
                         return;
                       }
-                      setLocalSelectedDay(expandedPreviewDay);
                       setExpandedPreviewDay(null);
+                      setLocalSelectedDay(expandedPreviewDay);
                       setSelectedEventEntryKey(entry.key);
                     }}
                     onToggleCompletion={(entry, day, sourceElement) => {
@@ -3098,6 +3270,28 @@ export function CalendarSurface({
               ) : null}
             </DialogContent>
           </Dialog>
+
+          <MoveSessionDialog
+            open={Boolean(moveDialogDay)}
+            targetDate={moveDialogDay ?? ""}
+            selectedSourceEntryKey={effectiveMoveDialogSourceEntryKey}
+            sourceOptions={moveDialogSourceOptions.map(
+              (option) => ({
+                entryKey: option.entryKey,
+                sourceDay: option.sourceDay,
+                sourceLabel: option.sourceLabel,
+              })
+            )}
+            onOpenChange={(open) => {
+              if (!open) {
+                closeMoveDialog();
+              }
+            }}
+            onSourceChange={setMoveDialogSourceEntryKey}
+            onCancel={closeMoveDialog}
+            onSubmit={submitMoveDialog}
+            submitDisabled={!effectiveMoveDialogSourceEntryKey}
+          />
 
           <Dialog
             open={Boolean(selectedEventEntry)}
@@ -3156,12 +3350,7 @@ export function CalendarSurface({
                         Move to
                         <Input
                           type="date"
-                          value={
-                            selectedEventDraftEdit?.scheduledDate ??
-                            selectedEventEntry.activeItem?.scheduled_date ??
-                            effectiveSelectedDay ??
-                            ""
-                          }
+                          value={selectedEventDraftScheduledDate ?? ""}
                           onChange={(event) =>
                             updateDraftScheduledDate(selectedEventEntry, event.target.value)
                           }
@@ -3173,13 +3362,7 @@ export function CalendarSurface({
                         <Input
                           type="time"
                           step={60}
-                          value={
-                            selectedEventDraftEdit?.scheduledTimeOverride === null
-                              ? ""
-                              : selectedEventDraftEdit?.scheduledTimeOverride ??
-                                selectedEventBaselineUnit?.scheduledTimeOverride ??
-                                ""
-                          }
+                          value={selectedEventDraftTimeInputValue}
                           onChange={(event) =>
                             updateDraftScheduledTimeOverride(
                               selectedEventEntry,
@@ -3301,10 +3484,10 @@ export function CalendarSurface({
                       }).`
                     : unplaceableGoalSummaries.length > 0
                       ? `${unplaceableGoalSummaries.length} goal${
-                        unplaceableGoalSummaries.length === 1 ? "" : "s"
-                      } are not fully scheduled (${totalUnplacedCount} unresolved session${
-                        totalUnplacedCount === 1 ? "" : "s"
-                      }).`
+                          unplaceableGoalSummaries.length === 1 ? "" : "s"
+                        } are not fully scheduled (${totalUnplacedCount} unresolved session${
+                          totalUnplacedCount === 1 ? "" : "s"
+                        }).`
                       : `${eligibilityNotices.hardIneligible.length} linked goal${
                           eligibilityNotices.hardIneligible.length === 1 ? "" : "s"
                         } need source-goal review before they can be fully planned.`}
@@ -3378,7 +3561,7 @@ export function CalendarSurface({
           <DialogHeader>
             <DialogTitle>Planner settings</DialogTitle>
             <DialogDescription>
-              Update rest days used by planner default policy.
+              Update rest weekdays used by planner default policy.
             </DialogDescription>
           </DialogHeader>
           {plannerSettingsForm}

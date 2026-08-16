@@ -284,15 +284,10 @@ describe("CalendarSurface characterization", () => {
     const expandButton = screen.getByRole("button", { name: "Expand rows" });
     const heading = screen.getByRole("heading", { name: "August 2026" });
     const actionGroup = todayButton.parentElement;
-    const calendarHeaderRow = actionGroup?.parentElement;
 
     expect(actionGroup).toContainElement(expandButton);
-    expect(actionGroup).toHaveClass("justify-self-end");
-    expect(calendarHeaderRow).toBe(heading.parentElement?.parentElement);
-    expect(calendarHeaderRow).toHaveClass(
-      "grid",
-      "grid-cols-[1fr_auto_1fr]"
-    );
+    expect(actionGroup).toHaveClass("right-0");
+    expect(heading).toBeInTheDocument();
   });
 
   it("dismisses unpinned day preview after pointer leaves preview surface", async () => {
@@ -334,7 +329,11 @@ describe("CalendarSurface characterization", () => {
     });
     fireEvent.mouseEnter(dayCell);
 
-    const expandAction = await screen.findByText("Expand", {}, { timeout: 2500 });
+    const expandAction = await screen.findByRole(
+      "button",
+      { name: "Expand day details" },
+      { timeout: 2500 }
+    );
     expect(expandAction).toBeInTheDocument();
 
     const popup = document.querySelector('[data-no-swipe="true"].fixed');
@@ -346,7 +345,9 @@ describe("CalendarSurface characterization", () => {
     fireEvent.pointerMove(document.body);
 
     await waitFor(() => {
-      expect(screen.queryByText("Expand")).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: "Expand day details" })
+      ).not.toBeInTheDocument();
     }, { timeout: 2500 });
   });
 
@@ -389,7 +390,11 @@ describe("CalendarSurface characterization", () => {
     });
     fireEvent.mouseEnter(dayCell);
 
-    const expandAction = await screen.findByText("Expand", {}, { timeout: 2500 });
+    const expandAction = await screen.findByRole(
+      "button",
+      { name: "Expand day details" },
+      { timeout: 2500 }
+    );
     expect(expandAction).toBeInTheDocument();
 
     const popup = document.querySelector('[data-no-swipe="true"].fixed');
@@ -398,7 +403,9 @@ describe("CalendarSurface characterization", () => {
     fireEvent.mouseLeave(popup as Element);
 
     await waitFor(() => {
-      expect(screen.queryByText("Expand")).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: "Expand day details" })
+      ).not.toBeInTheDocument();
     }, { timeout: 300 });
   });
 
@@ -453,14 +460,14 @@ describe("CalendarSurface characterization", () => {
     fireEvent.click(
       await screen.findByRole(
         "button",
-        { name: "Expand" },
+        { name: "Expand day details" },
         { timeout: 2500 }
       )
     );
 
     const dialog = await screen.findByRole("dialog");
     expect(
-      within(dialog).getByRole("heading", { name: "Monday, Aug 31" })
+      within(dialog).getByRole("heading", { name: "Mon, Aug 31" })
     ).toBeInTheDocument();
     expect(within(dialog).getByText("Goal A")).toBeInTheDocument();
     expect(within(dialog).getByText("Goal B")).toBeInTheDocument();
@@ -501,12 +508,6 @@ describe("CalendarSurface characterization", () => {
       records: context.unplaceableGoals,
       goalTitles: context.goalTitles,
     });
-    const expectedGoalCount = expectedSummaries.length;
-    const expectedUnitCount = expectedSummaries.reduce(
-      (count, summary) => count + summary.unplacedCount,
-      0
-    );
-
     render(
       <CalendarSurface
         activeTab="calendar"
@@ -520,17 +521,18 @@ describe("CalendarSurface characterization", () => {
       />
     );
 
-    fireEvent.click(
-      await screen.findByRole("button", { name: "See warnings" })
-    );
-    expect(
-      await screen.findByText(
-        new RegExp(
-          `${expectedGoalCount} goal${expectedGoalCount === 1 ? "" : "s"} are not fully scheduled \\(${expectedUnitCount} unresolved session${expectedUnitCount === 1 ? "" : "s"}\\)\\.`,
-          "i"
-        )
-      )
-    ).toBeInTheDocument();
+    await waitFor(() => {
+      expect(
+        screen.getByText("There were some issues generating the full calendar.")
+      ).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "See warnings" })).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "See warnings" }));
+    const dialog = await screen.findByRole("dialog");
+    for (const expected of expectedSummaries) {
+      expect(within(dialog).getByText(expected.title)).toBeInTheDocument();
+    }
   });
 
   it("does not render unplaceable banner when no record is present", async () => {
@@ -599,19 +601,19 @@ describe("CalendarSurface characterization", () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText("Planning attention needed")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "See warnings" })).toBeInTheDocument();
     });
+    fireEvent.click(screen.getByRole("button", { name: "See warnings" }));
+    const dialog = await screen.findByRole("dialog");
     expect(
-      screen.getByText(/Goal A: This goal needs a deadline before it can be planned in Calendar\./i)
+      within(dialog).getByText(
+        /Goal A: This goal needs a deadline before it can be planned in Calendar\./i
+      )
     ).toBeInTheDocument();
     expect(
-      screen.getByText(/Goal B: Linked goals are managed by their source relationship\./i)
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText("Add an end date in Goal details to include targeted goals.")
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText("Linked goals inherit their source goal schedule.")
+      within(dialog).getByText(
+        /Goal B: Linked goals are managed by their source relationship\./i
+      )
     ).toBeInTheDocument();
   });
 
