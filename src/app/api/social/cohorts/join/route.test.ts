@@ -63,12 +63,40 @@ describe("POST /api/social/cohorts/join", () => {
     );
 
     expect(response.status).toBe(200);
-    expect(mocks.rpc).toHaveBeenCalledWith("join_cohort_with_code_service", {
+    expect(mocks.rpc).toHaveBeenCalledWith("join_group_with_code_service", {
       p_join_code: "ALPHA1",
     });
     await expect(response.json()).resolves.toMatchObject({
       schemaVersion: "1",
       groupId: "70000000-0000-4000-8000-000000000001",
+    });
+  });
+
+  it("falls back to legacy cohort RPC while migration rolls out", async () => {
+    mocks.rpc
+      .mockResolvedValueOnce({
+        data: null,
+        error: { message: "function public.join_group_with_code_service does not exist", code: "42883" },
+      })
+      .mockResolvedValueOnce({
+        data: "70000000-0000-4000-8000-000000000001",
+        error: null,
+      });
+
+    const response = await POST(
+      new Request("http://localhost/api/social/cohorts/join", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ joinCode: "ALPHA1" }),
+      })
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.rpc).toHaveBeenNthCalledWith(1, "join_group_with_code_service", {
+      p_join_code: "ALPHA1",
+    });
+    expect(mocks.rpc).toHaveBeenNthCalledWith(2, "join_cohort_with_code_service", {
+      p_join_code: "ALPHA1",
     });
   });
 });

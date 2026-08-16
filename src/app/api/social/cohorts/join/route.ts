@@ -23,6 +23,13 @@ function mapJoinGroupError(message: string) {
   });
 }
 
+function isMissingJoinGroupFunction(message: string, code?: string): boolean {
+  if (code === "42883") {
+    return true;
+  }
+  return message.includes("join_group_with_code_service") && message.includes("does not exist");
+}
+
 export async function POST(request: Request) {
   const correlationId = createCorrelationId();
   try {
@@ -33,12 +40,16 @@ export async function POST(request: Request) {
     });
     const socialContext = await requireSocialRouteContext(request);
 
-    const { data, error } = await socialContext.supabase.rpc(
-      "join_cohort_with_code_service",
-      {
-        p_join_code: body.joinCode,
-      }
-    );
+    const rpcArgs = { p_join_code: body.joinCode };
+    const primary = await socialContext.supabase.rpc("join_group_with_code_service", rpcArgs);
+
+    let data = primary.data;
+    let error = primary.error;
+    if (error && isMissingJoinGroupFunction(error.message, (error as { code?: string }).code)) {
+      const legacy = await socialContext.supabase.rpc("join_cohort_with_code_service", rpcArgs);
+      data = legacy.data;
+      error = legacy.error;
+    }
     if (error) {
       throw mapJoinGroupError(error.message);
     }
