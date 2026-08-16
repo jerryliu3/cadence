@@ -11,13 +11,13 @@ const activePartner: DuoActivePartner = {
 };
 
 describe("resolveMobileDuoLaneSubjects", () => {
-  it("returns only the viewer lane in Mine scope", () => {
+  it("returns only the viewer lane in Solo scope", () => {
     expect(
       resolveMobileDuoLaneSubjects({
         scope: "me",
         activePartner,
       })
-    ).toEqual([{ id: "viewer", label: "Mine", readOnly: false }]);
+    ).toEqual([{ id: "viewer", label: "Solo", readOnly: false }]);
   });
 
   it("returns only the partner lane in Partner scope", () => {
@@ -44,7 +44,7 @@ describe("resolveMobileDuoLaneSubjects", () => {
         activePartner,
       })
     ).toEqual([
-      { id: "viewer", label: "Mine", readOnly: false },
+      { id: "viewer", label: "Solo", readOnly: false },
       {
         id: "partner",
         label: "Alex",
@@ -61,6 +61,6 @@ describe("resolveMobileDuoLaneSubjects", () => {
         scope: "partner",
         activePartner: null,
       })
-    ).toEqual([{ id: "viewer", label: "Mine", readOnly: false }]);
+    ).toEqual([{ id: "viewer", label: "Solo", readOnly: false }]);
   });
 });

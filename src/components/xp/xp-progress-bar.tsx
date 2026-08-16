@@ -32,7 +32,9 @@ export function XpProgressBar() {
   const progressLabel =
     nextLevelMin === null
       ? "Top level unlocked"
-      : `${formatNumber(profile.totalXp)} / ${formatNumber(nextLevelMin)} XP`;
+      : `${formatNumber(profile.totalXp - currentLevelMin)} / ${formatNumber(
+          nextLevelMin - currentLevelMin
+        )} XP to Lv ${profile.nextLevel}`;
 
   return (
     <Link
@@ -42,7 +44,9 @@ export function XpProgressBar() {
     >
       <div className="flex items-center justify-between gap-2">
         <span className="text-xs font-medium text-muted-foreground">{band.name}</span>
-        <span className="text-xs text-muted-foreground">{`Lv ${profile.currentLevel}`}</span>
+        <span className="text-xs text-muted-foreground">{`Lv ${profile.currentLevel} · ${formatNumber(
+          profile.totalXp - currentLevelMin
+        )} XP`}</span>
       </div>
       <motion.div
         key={rewardSequence}

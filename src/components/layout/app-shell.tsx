@@ -73,13 +73,13 @@ export function AppShell({
                     <h1 className="text-2xl font-semibold tracking-tight">Goalmaxxing</h1>
                     <XpProgressBar />
                   </div>
-                  <div className="flex items-center gap-2">
-                    <DuoScopeToggle />
-                    <Button asChild size="sm" title="New Goal +">
+                  <div className="flex flex-col items-end gap-2">
+                    <Button asChild size="sm" className="h-8" title="New Goal +">
                       <Link href={newGoalHref}>
                         New Goal +
                       </Link>
                     </Button>
+                    <DuoScopeToggle />
                   </div>
                 </div>
                 <div className="mt-4 hidden md:block">

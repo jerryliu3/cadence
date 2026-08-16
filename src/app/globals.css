@@ -84,11 +84,25 @@
 html {
   min-height: 100%;
   overflow-y: scroll;
+  overflow-x: clip;
   scrollbar-gutter: stable both-edges;
 }
 
 body {
   min-height: 100%;
+  overflow-x: clip;
+}
+
+/*
+ * Radix Select always mounts react-remove-scroll, which adds a scrollbar-width
+ * margin to body[data-scroll-locked]. The html element already reserves a
+ * stable scrollbar gutter, so that second compensation shifts the centered app.
+ * Keep the scroll lock itself, but neutralize only its geometry compensation.
+ */
+html body[data-scroll-locked] {
+  margin-right: 0 !important;
+  padding-right: 0 !important;
+  --removed-body-scroll-bar-size: 0px !important;
 }
 
 body {

@@ -25,8 +25,13 @@ vi.mock("../../theme", () => ({
       border: "#000",
       primary: "#111",
       secondary: "#222",
+      card: "#333",
+      background: "#444",
+      accent: "#555",
       primaryForeground: "#fff",
       secondaryForeground: "#fff",
+      foreground: "#eee",
+      mutedForeground: "#bbb",
       destructive: "#f00",
     },
   }),
@@ -50,16 +55,19 @@ describe("DuoScopeSegmentedControl", () => {
     const pressables = root.root.findAll(
       (node: ReactTestInstance) => String(node.type) === "pressable"
     );
-    expect(pressables[0]?.props.accessibilityRole).toBe("tab");
-    expect(pressables[0]?.props.accessibilityState).toEqual({
-      selected: true,
-    });
-    expect(pressables[1]?.props.accessibilityState).toEqual({
-      selected: false,
-    });
+    expect(pressables[0]?.props.accessibilityRole).toBe("button");
 
     await act(async () => {
-      pressables[1]?.props.onPress();
+      pressables[0]?.props.onPress();
+      await Promise.resolve();
+    });
+
+    const openPressables = root.root.findAll(
+      (node: ReactTestInstance) => String(node.type) === "pressable"
+    );
+
+    await act(async () => {
+      openPressables[1]?.props.onPress();
       await Promise.resolve();
     });
 

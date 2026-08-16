@@ -1,15 +1,21 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useDuoScope } from "@/features/social/duo/duo-context";
 import { resolveDuoSurfaceDefault } from "@/lib/social/duo/surface-defaults";
 import type { DuoScope } from "@cadence/shared/social/duo";
 
 const SCOPE_OPTIONS: Array<{ value: DuoScope; label: string }> = [
-  { value: "me", label: "Mine" },
+  { value: "me", label: "Solo" },
   { value: "partner", label: "Partner" },
-  { value: "both", label: "Both" },
+  { value: "both", label: "Duo" },
 ];
 
 export function DuoScopeToggle() {
@@ -21,29 +27,35 @@ export function DuoScopeToggle() {
     return null;
   }
 
+  const selectedScope = SCOPE_OPTIONS.find((option) => option.value === scope);
+
   return (
-    <div
-      className="flex items-center gap-1 rounded-full border border-border/80 bg-background p-1"
-      role="radiogroup"
-      aria-label="Duo scope"
-    >
-      {SCOPE_OPTIONS.map((option) => {
-        const active = option.value === scope;
-        return (
-          <Button
-            key={option.value}
-            type="button"
-            role="radio"
-            aria-checked={active}
-            variant={active ? "default" : "outline"}
-            size="sm"
-            className="h-8 rounded-full px-3 text-xs"
-            onClick={() => setScopePreference(option.value)}
-          >
-            {option.label}
-          </Button>
-        );
-      })}
+    <div className="w-auto">
+      <label htmlFor="duo-scope-toggle" className="sr-only">
+        Duo scope
+      </label>
+      <Select
+        value={scope}
+        onValueChange={(value) => setScopePreference(value as DuoScope)}
+      >
+        <SelectTrigger
+          id="duo-scope-toggle"
+          aria-label="Duo scope"
+          className="h-8 rounded-full bg-background/90 text-xs"
+        >
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {SCOPE_OPTIONS.map((option) => (
+            <SelectItem key={option.value} value={option.value}>
+              {option.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <span className="sr-only" aria-live="polite">
+        {selectedScope?.label ?? "Solo"} view selected
+      </span>
     </div>
   );
 }

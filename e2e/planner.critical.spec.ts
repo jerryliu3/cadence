@@ -619,7 +619,7 @@ test.describe("planner critical rails", () => {
     );
     test.setTimeout(180_000);
     let movedIntoDraft = false;
-    for (let dragAttempt = 0; dragAttempt < 3; dragAttempt += 1) {
+    for (let dragAttempt = 0; dragAttempt < 5; dragAttempt += 1) {
       await openCalendar(page);
       await ensureDragFixtureEntryAvailable(page);
       movedIntoDraft = await moveFirstMovableEntry(

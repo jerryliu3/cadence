@@ -10,12 +10,18 @@ export function XpLevelBadge() {
     return null;
   }
 
+  const xpInCurrentLevel = Math.max(profile.totalXp - profile.currentLevelMinXp, 0);
+  const xpNeededForNextLevel =
+    profile.nextLevelMinXp !== null
+      ? Math.max(profile.nextLevelMinXp - profile.currentLevelMinXp, 0)
+      : null;
+
   return (
     <div className="flex flex-col items-start gap-1" data-motion="xp-level-badge" aria-live="polite">
-      <Badge variant="secondary">{`Lv ${profile.currentLevel} · ${profile.totalXp} XP`}</Badge>
+      <Badge variant="secondary">{`Lv ${profile.currentLevel} · ${xpInCurrentLevel} XP`}</Badge>
       <p className="text-xs text-muted-foreground">
-        {profile.nextLevel !== null && profile.xpToNextLevel !== null
-          ? `${profile.xpToNextLevel} XP to Lv ${profile.nextLevel}`
+        {profile.nextLevel !== null && xpNeededForNextLevel !== null
+          ? `${xpInCurrentLevel} / ${xpNeededForNextLevel} XP to Lv ${profile.nextLevel}`
           : "Top level unlocked"}
       </p>
     </div>
