@@ -1261,6 +1261,18 @@ export function CalendarSurface({
     setMoveDialogSourceEntryKey("");
   }, []);
 
+  const openDayViewForDay = useCallback(
+    (day: string) => {
+      setExpandedPreviewDay(null);
+      setMoveDialogDay(null);
+      setSelectedEventEntryKey(null);
+      setLocalSelectedDay(day);
+      onSelectedDayChange(day, "push", "day");
+      setDayPreview(null);
+    },
+    [onSelectedDayChange]
+  );
+
   const shouldSuppressDayCellClick = (day: string) => {
     const suppression = suppressDayCellClickRef.current;
     if (!suppression) {
@@ -2593,7 +2605,7 @@ export function CalendarSurface({
           clearHoverPreviewCloseTimer();
           clearLongPressTimer();
           longPressTriggeredRef.current = false;
-          openMoveDialogForDay(cell.date);
+          openDayViewForDay(cell.date);
         }}
         onCellMouseEnter={(target) => {
           if (viewMode === "day") {
@@ -2628,7 +2640,7 @@ export function CalendarSurface({
                 day: cell.date,
                 until: now + 700,
               };
-              openMoveDialogForDay(cell.date);
+              openDayViewForDay(cell.date);
               return;
             }
             lastTouchTapRef.current = { day: cell.date, at: now };
