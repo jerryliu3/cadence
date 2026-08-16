@@ -131,7 +131,9 @@ export function useInsightsData({
         const targetIsViewer = targetSubjectUserId === userId;
         const [goalsResponse, teamMembersResponse, progress, insightsStats] =
         const asOfDate = toLocalDateString();
-        const insightsDataCacheKey = `${INSIGHTS_DATA_CACHE_PREFIX}${targetSubjectUserId}:${selectedYear}:${asOfDate}`;
+        const partnerCacheScope =
+          targetIsViewer && partnerId ? `partner:${partnerId}` : "partner:none";
+        const insightsDataCacheKey = `${INSIGHTS_DATA_CACHE_PREFIX}${targetSubjectUserId}:${selectedYear}:${asOfDate}:${partnerCacheScope}`;
         if (!forceRefresh) {
           const cachedState = readTabDataCache<InsightsData>(insightsDataCacheKey);
           if (cachedState) {

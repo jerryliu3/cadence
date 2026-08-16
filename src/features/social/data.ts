@@ -10,6 +10,7 @@ import {
   readTabDataCache,
   writeTabDataCache,
 } from "@/lib/cache/tab-data-cache";
+import { invalidatePlannerRelatedTabCaches } from "@/lib/cache/planner-tab-cache";
 import { invalidateProgressContextCache } from "@/lib/goals/progress-context";
 
 interface SocialFeedResponse {
@@ -54,6 +55,11 @@ async function parseApiError(response: Response, fallbackMessage: string) {
 
 export function invalidateSocialTabCache() {
   invalidateTabDataCacheByPrefix(SOCIAL_TAB_CACHE_PREFIX);
+}
+
+function invalidateSocialAndPlannerCaches() {
+  invalidateSocialTabCache();
+  invalidatePlannerRelatedTabCaches();
 }
 
 async function fetchSocialCachedJson<TPayload>({
@@ -213,7 +219,7 @@ export async function acceptSocialTeamInvite(teamId: string) {
     await parseApiError(response, "Failed to accept team invite.");
   }
   const payload = (await response.json()) as { schemaVersion: "1"; accepted: boolean };
-  invalidateSocialTabCache();
+  invalidateSocialAndPlannerCaches();
   return payload;
 }
 
@@ -226,7 +232,7 @@ export async function declineSocialTeamInvite(teamId: string) {
     await parseApiError(response, "Failed to decline team invite.");
   }
   const payload = (await response.json()) as { schemaVersion: "1"; declined: boolean };
-  invalidateSocialTabCache();
+  invalidateSocialAndPlannerCaches();
   invalidateProgressContextCache();
   return payload;
 }
@@ -240,7 +246,7 @@ export async function dissolveSocialTeam() {
     await parseApiError(response, "Failed to dissolve team.");
   }
   const payload = (await response.json()) as { schemaVersion: "1"; dissolved: boolean };
-  invalidateSocialTabCache();
+  invalidateSocialAndPlannerCaches();
   invalidateProgressContextCache();
   return payload;
 }
@@ -328,6 +334,6 @@ export async function joinSocialCohort(joinCode: string) {
     await parseApiError(response, "Failed to join cohort.");
   }
   const payload = (await response.json()) as { schemaVersion: "1"; cohortId: string };
-  invalidateSocialTabCache();
+  invalidateSocialAndPlannerCaches();
   return payload;
 }

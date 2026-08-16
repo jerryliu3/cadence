@@ -142,7 +142,9 @@ export function useChecklistData({
           .order("created_at", { ascending: false });
         const targetSubjectUserId = subjectUserId ?? userId;
         const targetIsViewer = targetSubjectUserId === userId;
-        const todayDataCacheKey = `${CHECKLIST_DATA_CACHE_PREFIX}${targetSubjectUserId}:${currentViewDateRef.current}:${todayLocalDate}`;
+        const partnerCacheScope =
+          targetIsViewer && partnerId ? `partner:${partnerId}` : "partner:none";
+        const todayDataCacheKey = `${CHECKLIST_DATA_CACHE_PREFIX}${targetSubjectUserId}:${currentViewDateRef.current}:${todayLocalDate}:${partnerCacheScope}`;
         if (!forceRefresh) {
           const cachedData = readTabDataCache<TodayData>(todayDataCacheKey);
           if (cachedData) {
