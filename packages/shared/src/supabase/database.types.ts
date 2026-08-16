@@ -298,6 +298,10 @@ export type Database = {
         Args: { p_cohort_id: string; p_team_id: string }
         Returns: boolean
       }
+      team_in_group: {
+        Args: { p_group_id: string; p_team_id: string }
+        Returns: boolean
+      }
       team_partner_id: {
         Args: { p_team_id: string; p_user_id: string }
         Returns: string
@@ -315,16 +319,39 @@ export type Database = {
         Args: { p_cohort_id: string; p_uid: string }
         Returns: boolean
       }
+      viewer_in_group: {
+        Args: { p_group_id: string; p_uid: string }
+        Returns: boolean
+      }
       xp_cascade_multiplier: { Args: never; Returns: number }
-      xp_goal_achievement_points: { Args: never; Returns: number }
+      xp_goal_achievement_points:
+        | { Args: never; Returns: number }
+        | {
+            Args: {
+              p_difficulty: Database["public"]["Enums"]["goal_difficulty"]
+            }
+            Returns: number
+          }
+      xp_goal_difficulty_multiplier: {
+        Args: { p_difficulty: Database["public"]["Enums"]["goal_difficulty"] }
+        Returns: number
+      }
       xp_level_for_total: { Args: { p_total_xp: number }; Returns: number }
       xp_lock_key: { Args: { p_scope: string }; Returns: number }
       xp_manual_completion_points: { Args: never; Returns: number }
       xp_min_total_for_level: { Args: { p_level: number }; Returns: number }
-      xp_points_for_completion_source: {
-        Args: { p_source: Database["public"]["Enums"]["completion_source"] }
-        Returns: number
-      }
+      xp_points_for_completion_source:
+        | {
+            Args: { p_source: Database["public"]["Enums"]["completion_source"] }
+            Returns: number
+          }
+        | {
+            Args: {
+              p_difficulty: Database["public"]["Enums"]["goal_difficulty"]
+              p_source: Database["public"]["Enums"]["completion_source"]
+            }
+            Returns: number
+          }
       xp_skip_for_profile_delete: {
         Args: { p_user_id: string }
         Returns: boolean
@@ -865,6 +892,7 @@ export type Database = {
           created_at: string
           default_local_time: string | null
           description: string | null
+          difficulty: Database["public"]["Enums"]["goal_difficulty"]
           end_date: string | null
           frequency_type: Database["public"]["Enums"]["goal_frequency_type"]
           id: string
@@ -891,6 +919,7 @@ export type Database = {
           created_at?: string
           default_local_time?: string | null
           description?: string | null
+          difficulty?: Database["public"]["Enums"]["goal_difficulty"]
           end_date?: string | null
           frequency_type: Database["public"]["Enums"]["goal_frequency_type"]
           id?: string
@@ -917,6 +946,7 @@ export type Database = {
           created_at?: string
           default_local_time?: string | null
           description?: string | null
+          difficulty?: Database["public"]["Enums"]["goal_difficulty"]
           end_date?: string | null
           frequency_type?: Database["public"]["Enums"]["goal_frequency_type"]
           id?: string
@@ -1895,6 +1925,7 @@ export type Database = {
           created_at: string
           display_name: string | null
           id: string
+          planner_primary_tab: string
           rest_weekdays: number[]
           social_activity_visible: boolean
           timezone: string
@@ -1909,6 +1940,7 @@ export type Database = {
           created_at?: string
           display_name?: string | null
           id: string
+          planner_primary_tab?: string
           rest_weekdays?: number[]
           social_activity_visible?: boolean
           timezone?: string
@@ -1923,6 +1955,7 @@ export type Database = {
           created_at?: string
           display_name?: string | null
           id?: string
+          planner_primary_tab?: string
           rest_weekdays?: number[]
           social_activity_visible?: boolean
           timezone?: string
@@ -2374,6 +2407,7 @@ export type Database = {
           p_color?: string
           p_default_local_time?: string
           p_description?: string
+          p_difficulty?: Database["public"]["Enums"]["goal_difficulty"]
           p_end_date?: string
           p_frequency_type?: Database["public"]["Enums"]["goal_frequency_type"]
           p_id: string
@@ -2515,6 +2549,33 @@ export type Database = {
           xp_delta: number
         }[]
       }
+      get_social_feed_legacy: {
+        Args: {
+          p_before_at?: string
+          p_before_id?: string
+          p_limit?: number
+          p_scope?: string
+          p_scope_id?: string
+        }
+        Returns: {
+          actor_avatar_url: string
+          actor_display_name: string
+          actor_id: string
+          actor_username: string
+          category_label: string
+          created_at: string
+          event_type: Database["public"]["Enums"]["feed_event_type"]
+          goal_title: string
+          hidden_at: string
+          id: string
+          occurrence_count: number
+          payload: Json
+          reaction_count: number
+          track_key: string
+          viewer_reacted: boolean
+          xp_delta: number
+        }[]
+      }
       get_social_leaderboard_season: {
         Args: { p_season_id: string }
         Returns: {
@@ -2595,6 +2656,10 @@ export type Database = {
         Returns: boolean
       }
       join_cohort_with_code_service: {
+        Args: { p_join_code: string }
+        Returns: string
+      }
+      join_group_with_code_service: {
         Args: { p_join_code: string }
         Returns: string
       }
@@ -2755,6 +2820,7 @@ export type Database = {
           p_color?: string
           p_default_local_time?: string
           p_description?: string
+          p_difficulty?: Database["public"]["Enums"]["goal_difficulty"]
           p_end_date?: string
           p_frequency_type?: Database["public"]["Enums"]["goal_frequency_type"]
           p_id: string
@@ -2798,6 +2864,7 @@ export type Database = {
         | "challenge_completed"
         | "season_result"
         | "team_formed"
+      goal_difficulty: "easy" | "medium" | "hard"
       goal_frequency_type: "fixed_milestones" | "recurring"
       health_metric_key:
         | "steps"
@@ -2813,7 +2880,7 @@ export type Database = {
         | "monthly"
         | "quarterly"
         | "yearly"
-      leaderboard_scope_kind: "global" | "cohort"
+      leaderboard_scope_kind: "global" | "cohort" | "group"
       leaderboard_season_status: "upcoming" | "open" | "closed"
       moderation_action:
         | "hide"
@@ -2840,7 +2907,7 @@ export type Database = {
       nudge_kind: "cheer" | "remind" | "custom"
       reaction_kind: "cheer" | "fire" | "clap" | "strong"
       recurrence_interval: "daily" | "weekly" | "monthly"
-      social_audience_kind: "global" | "cohort"
+      social_audience_kind: "global" | "cohort" | "group"
       social_subject_kind: "user" | "team"
       team_status: "pending" | "active" | "closed"
     }
@@ -2992,6 +3059,7 @@ export const Constants = {
         "season_result",
         "team_formed",
       ],
+      goal_difficulty: ["easy", "medium", "hard"],
       goal_frequency_type: ["fixed_milestones", "recurring"],
       health_metric_key: [
         "steps",
@@ -3009,7 +3077,7 @@ export const Constants = {
         "quarterly",
         "yearly",
       ],
-      leaderboard_scope_kind: ["global", "cohort"],
+      leaderboard_scope_kind: ["global", "cohort", "group"],
       leaderboard_season_status: ["upcoming", "open", "closed"],
       moderation_action: [
         "hide",
@@ -3038,7 +3106,7 @@ export const Constants = {
       nudge_kind: ["cheer", "remind", "custom"],
       reaction_kind: ["cheer", "fire", "clap", "strong"],
       recurrence_interval: ["daily", "weekly", "monthly"],
-      social_audience_kind: ["global", "cohort"],
+      social_audience_kind: ["global", "cohort", "group"],
       social_subject_kind: ["user", "team"],
       team_status: ["pending", "active", "closed"],
     },

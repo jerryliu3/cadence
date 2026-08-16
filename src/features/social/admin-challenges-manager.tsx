@@ -26,7 +26,7 @@ interface AdminChallengeResponse {
 interface AdminMetadataResponse {
   schemaVersion: "1";
   goalCategories?: Array<{ key: string; label: string }>;
-  cohorts?: Array<{ id: string; slug: string; title: string; isActive: boolean }>;
+  groups?: Array<{ id: string; slug: string; title: string; isActive: boolean }>;
 }
 
 interface ChallengeFormState {
@@ -42,8 +42,8 @@ interface ChallengeFormState {
   endsAt: string;
   rewardXp: string;
   maxParticipants: string;
-  audienceKind: "global" | "cohort";
-  cohortId: string;
+  audienceKind: "global" | "group";
+  groupId: string;
 }
 
 const NONE_VALUE = "__none__";
@@ -56,7 +56,7 @@ const METRIC_OPTIONS: ChallengeMetric[] = [
   "distinct_active_days",
   "max_streak_days",
 ];
-const AUDIENCE_OPTIONS: Array<"global" | "cohort"> = ["global", "cohort"];
+const AUDIENCE_OPTIONS: Array<"global" | "group"> = ["global", "group"];
 
 function readJsonErrorMessage(payload: unknown, fallback: string): string {
   if (payload && typeof payload === "object" && "message" in payload) {
@@ -106,7 +106,7 @@ function buildDefaultForm(): ChallengeFormState {
     rewardXp: "0",
     maxParticipants: "",
     audienceKind: "global",
-    cohortId: "",
+    groupId: "",
   };
 }
 
@@ -125,7 +125,7 @@ function toFormState(challenge: SocialChallenge): ChallengeFormState {
     rewardXp: String(challenge.rewardXp),
     maxParticipants: challenge.maxParticipants == null ? "" : String(challenge.maxParticipants),
     audienceKind: challenge.audienceKind,
-    cohortId: challenge.cohortId ?? "",
+    groupId: challenge.groupId ?? "",
   };
 }
 
@@ -141,7 +141,7 @@ function buildPayload(form: ChallengeFormState): { payload: Record<string, unkno
     form.maxParticipants.trim().length === 0 ? null : Number(form.maxParticipants.trim());
   const metricTrackKey =
     form.metric === "category_xp" ? form.metricTrackKey.trim() : null;
-  const cohortId = form.audienceKind === "cohort" ? form.cohortId.trim() : null;
+  const groupId = form.audienceKind === "group" ? form.groupId.trim() : null;
 
   if (slug.length < 2) return { error: "Slug must be at least 2 characters." };
   if (title.length === 0) return { error: "Title is required." };
@@ -161,7 +161,7 @@ function buildPayload(form: ChallengeFormState): { payload: Record<string, unkno
   if (form.metric === "category_xp" && (!metricTrackKey || metricTrackKey.length === 0)) {
     return { error: "Metric track is required for category_xp metrics." };
   }
-  if (form.audienceKind === "cohort" && (!cohortId || cohortId.length === 0)) {
+  if (form.audienceKind === "group" && (!groupId || groupId.length === 0)) {
     return { error: "Group is required for group-scoped challenges." };
   }
 
@@ -180,7 +180,7 @@ function buildPayload(form: ChallengeFormState): { payload: Record<string, unkno
       rewardXp,
       maxParticipants,
       audienceKind: form.audienceKind,
-      cohortId,
+      groupId,
     },
   };
 }
@@ -188,7 +188,7 @@ function buildPayload(form: ChallengeFormState): { payload: Record<string, unkno
 export function AdminChallengesManager() {
   const [items, setItems] = useState<SocialChallenge[]>([]);
   const [goalCategories, setGoalCategories] = useState<Array<{ key: string; label: string }>>([]);
-  const [cohorts, setCohorts] = useState<Array<{ id: string; slug: string; title: string; isActive: boolean }>>(
+  const [groups, setGroups] = useState<Array<{ id: string; slug: string; title: string; isActive: boolean }>>(
     []
   );
   const [createForm, setCreateForm] = useState<ChallengeFormState>(() => buildDefaultForm());
@@ -199,7 +199,7 @@ export function AdminChallengesManager() {
   const [isCreating, setIsCreating] = useState(false);
   const [rowActionId, setRowActionId] = useState<string | null>(null);
 
-  const cohortOptions = useMemo(() => cohorts, [cohorts]);
+  const groupOptions = useMemo(() => groups, [groups]);
 
   const load = useCallback(async () => {
     setError(null);
@@ -231,7 +231,7 @@ export function AdminChallengesManager() {
 
       setItems(nextItems);
       setGoalCategories(metadataPayload.goalCategories ?? []);
-      setCohorts(metadataPayload.cohorts ?? []);
+      setGroups(metadataPayload.groups ?? []);
       setEditForms(
         nextItems.reduce<Record<string, ChallengeFormState>>((accumulator, challenge) => {
           accumulator[challenge.id] = toFormState(challenge);
@@ -540,8 +540,8 @@ export function AdminChallengesManager() {
                 onValueChange={(value) =>
                   setCreateForm((current) => ({
                     ...current,
-                    audienceKind: value as "global" | "cohort",
-                    cohortId: value === "cohort" ? current.cohortId : "",
+                    audienceKind: value as "global" | "group",
+                    groupId: value === "group" ? current.groupId : "",
                   }))
                 }
               >
@@ -560,11 +560,11 @@ export function AdminChallengesManager() {
             <div className="space-y-1">
               <p className="text-xs font-medium">Group</p>
               <Select
-                value={createForm.cohortId || NONE_VALUE}
+                value={createForm.groupId || NONE_VALUE}
                 onValueChange={(value) =>
                   setCreateForm((current) => ({
                     ...current,
-                    cohortId: value === NONE_VALUE ? "" : value,
+                    groupId: value === NONE_VALUE ? "" : value,
                   }))
                 }
               >
@@ -573,9 +573,9 @@ export function AdminChallengesManager() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value={NONE_VALUE}>None</SelectItem>
-                  {cohortOptions.map((cohort) => (
-                    <SelectItem key={cohort.id} value={cohort.id}>
-                      {cohort.title} ({cohort.slug}){cohort.isActive ? "" : " [inactive]"}
+                  {groupOptions.map((group) => (
+                    <SelectItem key={group.id} value={group.id}>
+                      {group.title} ({group.slug}){group.isActive ? "" : " [inactive]"}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -848,8 +848,8 @@ export function AdminChallengesManager() {
                             ...current,
                             [item.id]: {
                               ...current[item.id],
-                              audienceKind: value as "global" | "cohort",
-                              cohortId: value === "cohort" ? current[item.id].cohortId : "",
+                              audienceKind: value as "global" | "group",
+                              groupId: value === "group" ? current[item.id].groupId : "",
                             },
                           }))
                         }
@@ -869,13 +869,13 @@ export function AdminChallengesManager() {
                     <div className="space-y-1">
                       <p className="text-xs font-medium">Group</p>
                       <Select
-                        value={form.cohortId || NONE_VALUE}
+                        value={form.groupId || NONE_VALUE}
                         onValueChange={(value) =>
                           setEditForms((current) => ({
                             ...current,
                             [item.id]: {
                               ...current[item.id],
-                              cohortId: value === NONE_VALUE ? "" : value,
+                              groupId: value === NONE_VALUE ? "" : value,
                             },
                           }))
                         }
@@ -885,9 +885,9 @@ export function AdminChallengesManager() {
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value={NONE_VALUE}>None</SelectItem>
-                          {cohortOptions.map((cohort) => (
-                            <SelectItem key={cohort.id} value={cohort.id}>
-                              {cohort.title} ({cohort.slug}){cohort.isActive ? "" : " [inactive]"}
+                          {groupOptions.map((group) => (
+                            <SelectItem key={group.id} value={group.id}>
+                              {group.title} ({group.slug}){group.isActive ? "" : " [inactive]"}
                             </SelectItem>
                           ))}
                         </SelectContent>

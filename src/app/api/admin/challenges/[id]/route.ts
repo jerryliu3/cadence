@@ -41,22 +41,22 @@ const patchSchema = z
     endsAt: z.iso.datetime().optional(),
     rewardXp: z.number().int().nonnegative().optional(),
     maxParticipants: z.number().int().positive().nullable().optional(),
-    audienceKind: z.enum(["global", "cohort"]).optional(),
-    cohortId: z.uuid().nullable().optional(),
+    audienceKind: z.enum(["global", "group"]).optional(),
+    groupId: z.uuid().nullable().optional(),
   })
   .superRefine((value, context) => {
-    if (value.audienceKind === "cohort" && value.cohortId === undefined) {
+    if (value.audienceKind === "group" && value.groupId === undefined) {
       context.addIssue({
         code: "custom",
-        message: "cohortId is required when audienceKind is group.",
-        path: ["cohortId"],
+        message: "groupId is required when audienceKind is group.",
+        path: ["groupId"],
       });
     }
-    if (value.audienceKind === "global" && value.cohortId !== undefined && value.cohortId !== null) {
+    if (value.audienceKind === "global" && value.groupId !== undefined && value.groupId !== null) {
       context.addIssue({
         code: "custom",
-        message: "cohortId must be null when audienceKind is global.",
-        path: ["cohortId"],
+        message: "groupId must be null when audienceKind is global.",
+        path: ["groupId"],
       });
     }
   })
@@ -74,7 +74,7 @@ const immutableWhenActive = new Set([
   "endsAt",
   "maxParticipants",
   "audienceKind",
-  "cohortId",
+  "groupId",
 ]);
 
 function toChallengeDto(row: Record<string, unknown>) {
@@ -92,8 +92,8 @@ function toChallengeDto(row: Record<string, unknown>) {
     endsAt: row.ends_at,
     rewardXp: row.reward_xp,
     maxParticipants: row.max_participants,
-    audienceKind: row.audience_kind,
-    cohortId: row.cohort_id,
+    audienceKind: row.audience_kind === "global" ? "global" : "group",
+    groupId: row.cohort_id,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -123,7 +123,7 @@ function mapChallengeMutationError(error: DbMutationError, fallbackCode: string,
     return new ApiRouteError(400, "metric_track_key_unknown", "metricTrackKey does not match a known track.");
   }
   if (error.code === "23503" && error.message.includes("challenges_cohort_id_fkey")) {
-    return new ApiRouteError(400, "cohort_not_found", "Group id is invalid.");
+    return new ApiRouteError(400, "group_not_found", "Group id is invalid.");
   }
   return new ApiRouteError(500, fallbackCode, fallbackMessage, {
     cause: error.message,
@@ -183,8 +183,10 @@ export async function PATCH(
     if (body.endsAt !== undefined) updates.ends_at = body.endsAt;
     if (body.rewardXp !== undefined) updates.reward_xp = body.rewardXp;
     if (body.maxParticipants !== undefined) updates.max_participants = body.maxParticipants;
-    if (body.audienceKind !== undefined) updates.audience_kind = body.audienceKind;
-    if (body.cohortId !== undefined) updates.cohort_id = body.cohortId;
+    if (body.audienceKind !== undefined) {
+      updates.audience_kind = body.audienceKind === "group" ? "group" : "global";
+    }
+    if (body.groupId !== undefined) updates.cohort_id = body.groupId;
 
     const { data, error } = await admin
       .from("challenges")

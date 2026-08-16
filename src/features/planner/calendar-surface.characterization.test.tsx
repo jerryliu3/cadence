@@ -565,6 +565,56 @@ describe("CalendarSurface characterization", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("shows actionable guidance for missing end date and linked-goal ineligibility", async () => {
+    const context = buildContext([
+      unit({
+        originalGoalId: "goal-a",
+        unitKey: "total:1",
+        scheduledDate: "2026-08-31",
+      }),
+    ]);
+    if (!context.preview) {
+      throw new Error("Expected preview payload.");
+    }
+    context.preview = {
+      ...context.preview,
+      eligibility: [
+        { goalId: "goal-a", eligible: false, reason: "missing_end_date" },
+        { goalId: "goal-b", eligible: false, reason: "linked" },
+      ],
+    };
+    postJsonMock.mockResolvedValue(context);
+
+    render(
+      <CalendarSurface
+        activeTab="calendar"
+        month="2026-08"
+        selectedDay={null}
+        viewMode="month"
+        onMonthChange={vi.fn()}
+        onViewModeChange={vi.fn()}
+        onSelectedDayChange={vi.fn()}
+        onPlannerMutation={vi.fn()}
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("Planning attention needed")).toBeInTheDocument();
+    });
+    expect(
+      screen.getByText(/Goal A: This goal needs a deadline before it can be planned in Calendar\./i)
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/Goal B: Linked goals are managed by their source relationship\./i)
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Add an end date in Goal details to include targeted goals.")
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Linked goals inherit their source goal schedule.")
+    ).toBeInTheDocument();
+  });
+
   it("uses preview-backed save payload for mixed policy and move drafts", async () => {
     const context = buildContext([
       unit({

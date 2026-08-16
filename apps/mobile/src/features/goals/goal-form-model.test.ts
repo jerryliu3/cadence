@@ -1,10 +1,24 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildMobileGoalCreateArgs,
   buildMobileGoalUpdateArgs,
   type MobileGoalEditSnapshot,
 } from "./goal-form-model";
 
 describe("mobile goal form model", () => {
+  it("creates mobile goals with medium difficulty by default", () => {
+    expect(
+      buildMobileGoalCreateArgs(
+        "  New mobile goal  ",
+        "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      )
+    ).toMatchObject({
+      p_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      p_title: "New mobile goal",
+      p_difficulty: "medium",
+    });
+  });
+
   it("changes only the title when updating a complete goal snapshot", () => {
     const existingGoal = {
       id: "11111111-1111-4111-8111-111111111111",
@@ -23,6 +37,7 @@ describe("mobile goal form model", () => {
       default_local_time: "07:30:00",
       team_id: "22222222-2222-4222-8222-222222222222",
       is_private: false,
+      difficulty: "hard",
     } satisfies MobileGoalEditSnapshot;
 
     expect(buildMobileGoalUpdateArgs(existingGoal, "New title")).toEqual({
@@ -42,6 +57,7 @@ describe("mobile goal form model", () => {
       p_default_local_time: existingGoal.default_local_time,
       p_team_id: existingGoal.team_id,
       p_is_private: existingGoal.is_private,
+      p_difficulty: existingGoal.difficulty,
     });
   });
 });

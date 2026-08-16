@@ -3,8 +3,9 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion, useReducedMotion } from "motion/react";
-import { useState } from "react";
-import { APP_TABS } from "@/components/navigation/tabs";
+import { useMemo, useState } from "react";
+import type { PlannerPrimaryTabPreference } from "@cadence/shared/navigation/tabs";
+import { buildAppTabs } from "@/components/navigation/tabs";
 import { cn } from "@/lib/utils";
 
 const GRID_BY_COUNT: Record<number, string> = {
@@ -22,11 +23,19 @@ function isActive(pathname: string, href: string) {
 
 interface TabNavProps {
   mobile?: boolean;
+  plannerPrimaryTabPreference?: PlannerPrimaryTabPreference;
 }
 
-export function TabNav({ mobile = false }: TabNavProps) {
+export function TabNav({
+  mobile = false,
+  plannerPrimaryTabPreference,
+}: TabNavProps) {
   const pathname = usePathname();
   const reduceMotion = useReducedMotion();
+  const tabs = useMemo(
+    () => buildAppTabs(plannerPrimaryTabPreference),
+    [plannerPrimaryTabPreference]
+  );
   const [optimisticNav, setOptimisticNav] = useState<{
     from: string;
     to: string;
@@ -35,8 +44,8 @@ export function TabNav({ mobile = false }: TabNavProps) {
     optimisticNav && optimisticNav.from === pathname
       ? optimisticNav.to
       : pathname;
-  const gridClass = GRID_BY_COUNT[APP_TABS.length] ?? "grid-cols-4";
-  const currentIndex = APP_TABS.findIndex((tab) => isActive(activePath, tab.href));
+  const gridClass = GRID_BY_COUNT[tabs.length] ?? "grid-cols-4";
+  const currentIndex = tabs.findIndex((tab) => isActive(activePath, tab.href));
   const highlightLayoutId = mobile ? "mobile-tab-highlight" : "desktop-tab-highlight";
 
   return (
@@ -57,7 +66,7 @@ export function TabNav({ mobile = false }: TabNavProps) {
             : gridClass
         )}
       >
-        {APP_TABS.map((tab, targetIndex) => {
+        {tabs.map((tab, targetIndex) => {
           const active = isActive(activePath, tab.href);
           const Icon = tab.icon;
           return (

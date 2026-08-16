@@ -33,8 +33,8 @@ const createSchema = z
     endsAt: z.iso.datetime().nullable().optional(),
     status: z.enum(["upcoming", "open", "closed"]).default("upcoming"),
     rollover: z.enum(["none", "weekly", "monthly", "quarterly", "yearly"]).default("none"),
-    scope: z.enum(["global", "cohort"]).default("global"),
-    cohortId: z.uuid().nullable().optional(),
+    scope: z.enum(["global", "group"]).default("global"),
+    groupId: z.uuid().nullable().optional(),
   })
   .superRefine((value, context) => {
     if (value.metric === "category_xp" && !value.metricTrackKey) {
@@ -44,21 +44,38 @@ const createSchema = z
         path: ["metricTrackKey"],
       });
     }
-    if (value.scope === "cohort" && !value.cohortId) {
+    if (value.scope === "group" && !value.groupId) {
       context.addIssue({
         code: "custom",
-        message: "cohortId is required for group-scoped seasons.",
-        path: ["cohortId"],
+        message: "groupId is required for group-scoped seasons.",
+        path: ["groupId"],
       });
     }
-    if (value.scope === "global" && value.cohortId) {
+    if (value.scope === "global" && value.groupId) {
       context.addIssue({
         code: "custom",
-        message: "cohortId must be null for global seasons.",
-        path: ["cohortId"],
+        message: "groupId must be null for global seasons.",
+        path: ["groupId"],
       });
     }
   });
+
+function toSeasonDto(row: Record<string, unknown>) {
+  return {
+    id: row.id,
+    slug: row.slug,
+    title: row.title,
+    subject_kind: row.subject_kind,
+    metric: row.metric,
+    metric_track_key: row.metric_track_key,
+    starts_at: row.starts_at,
+    ends_at: row.ends_at,
+    status: row.status,
+    rollover: row.rollover,
+    scope: row.scope === "global" ? "global" : "group",
+    groupId: row.cohort_id,
+  };
+}
 
 function mapSeasonMutationError(error: DbMutationError, fallbackCode: string, fallbackMessage: string) {
   if (error.code === "23505" && error.message.includes("leaderboard_seasons_slug_key")) {
@@ -92,7 +109,7 @@ function mapSeasonMutationError(error: DbMutationError, fallbackCode: string, fa
     return new ApiRouteError(400, "metric_track_key_unknown", "metricTrackKey does not match a known track.");
   }
   if (error.code === "23503" && error.message.includes("leaderboard_seasons_cohort_id_fkey")) {
-    return new ApiRouteError(400, "cohort_not_found", "Group id is invalid.");
+    return new ApiRouteError(400, "group_not_found", "Group id is invalid.");
   }
   return new ApiRouteError(500, fallbackCode, fallbackMessage, {
     cause: error.message,
@@ -122,7 +139,7 @@ export async function GET(request: Request) {
       {
         schemaVersion: "1",
         correlationId,
-        items: data ?? [],
+        items: (data ?? []).map((row) => toSeasonDto(row as Record<string, unknown>)),
       },
       { headers: { "Cache-Control": "no-store" } }
     );
@@ -157,8 +174,8 @@ export async function POST(request: Request) {
         ends_at: body.endsAt ?? null,
         status: body.status,
         rollover: body.rollover,
-        scope: body.scope,
-        cohort_id: body.cohortId ?? null,
+        scope: body.scope === "group" ? "group" : "global",
+        cohort_id: body.groupId ?? null,
         created_by: adminContext.userId,
       })
       .select("*")
@@ -171,7 +188,7 @@ export async function POST(request: Request) {
       {
         schemaVersion: "1",
         correlationId,
-        item: data,
+        item: toSeasonDto(data as Record<string, unknown>),
       },
       { status: 201, headers: { "Cache-Control": "no-store" } }
     );
