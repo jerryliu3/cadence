@@ -35,13 +35,12 @@ describe("TabNav", () => {
     mockPathname = "/";
   });
 
-  it("renders five app tabs and marks the active tab", () => {
+  it("renders four app tabs and marks the active tab", () => {
     mockPathname = "/social";
     const { container } = render(<TabNav />);
 
     expect(screen.getByRole("link", { name: /Insights/i })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Checklist/i })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Calendar/i })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Planner/i })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Challenges/i })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Profile/i })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Challenges/i })).toHaveAttribute(
@@ -51,19 +50,19 @@ describe("TabNav", () => {
     expect(container.querySelectorAll("[data-motion='tab-nav-highlight']")).toHaveLength(1);
   });
 
-  it("routes the checklist tab to checklist path", () => {
+  it("routes the planner tab to calendar path", () => {
     render(<TabNav />);
 
-    expect(screen.getByRole("link", { name: /Checklist/i })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: /Planner/i })).toHaveAttribute(
       "href",
-      "/checklist"
+      "/calendar"
     );
   });
 
-  it("uses the five-column grid class when five tabs are present", () => {
+  it("uses the four-column grid class when four tabs are present", () => {
     const { container } = render(<TabNav />);
     const tabList = container.querySelector("ul");
-    expect(tabList).toHaveClass("grid-cols-5");
+    expect(tabList).toHaveClass("grid-cols-4");
   });
 
   it("keeps the mobile nav bar 50% transparent so content shows through", () => {
@@ -77,14 +76,14 @@ describe("TabNav", () => {
   });
 
   it("marks tab navigation with directional transition types", () => {
-    mockPathname = "/checklist";
+    mockPathname = "/calendar";
     render(<TabNav />);
 
     expect(screen.getByRole("link", { name: "Insights" })).toHaveAttribute(
       "data-transition-types",
       "nav-back"
     );
-    expect(screen.getByRole("link", { name: "Checklist" })).not.toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Planner" })).not.toHaveAttribute(
       "data-transition-types"
     );
     expect(screen.getByRole("link", { name: "Profile" })).toHaveAttribute(
@@ -93,13 +92,13 @@ describe("TabNav", () => {
     );
   });
 
-  it("updates the checklist highlight immediately on click even if the route lags", () => {
+  it("updates the planner highlight immediately on click even if the route lags", () => {
     mockPathname = "/insights";
     render(<TabNav mobile />);
 
-    fireEvent.click(screen.getByRole("link", { name: "Checklist" }));
+    fireEvent.click(screen.getByRole("link", { name: "Planner" }));
 
-    expect(screen.getByRole("link", { name: "Checklist" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Planner" })).toHaveAttribute(
       "aria-current",
       "page"
     );
@@ -112,11 +111,11 @@ describe("TabNav", () => {
     mockPathname = "/insights";
     const { rerender } = render(<TabNav mobile />);
 
-    fireEvent.click(screen.getByRole("link", { name: "Checklist" }));
-    mockPathname = "/checklist";
+    fireEvent.click(screen.getByRole("link", { name: "Planner" }));
+    mockPathname = "/calendar";
     rerender(<TabNav mobile />);
 
-    expect(screen.getByRole("link", { name: "Checklist" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Planner" })).toHaveAttribute(
       "aria-current",
       "page"
     );
@@ -128,7 +127,7 @@ describe("TabNav", () => {
       "aria-current",
       "page"
     );
-    expect(screen.getByRole("link", { name: "Checklist" })).not.toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Planner" })).not.toHaveAttribute(
       "aria-current"
     );
   });
