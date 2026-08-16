@@ -115,6 +115,38 @@ describe("GoalCard", () => {
     ).toBeInTheDocument();
   });
 
+  it("shows an explicit badge when a goal has no end date", () => {
+    render(
+      <GoalCard
+        goal={{ ...goal, archived_at: null, end_date: null }}
+        completions={[]}
+        linkedCount={0}
+        selectedDate="2026-08-13"
+        referenceDate={new Date("2026-08-13T12:00:00")}
+        weeklyAnchor={weeklyAnchor}
+        onToggle={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText("No end date")).toBeInTheDocument();
+  });
+
+  it("labels linked-goal relationships explicitly", () => {
+    render(
+      <GoalCard
+        goal={{ ...goal, archived_at: null }}
+        completions={[]}
+        linkedCount={3}
+        selectedDate="2026-08-13"
+        referenceDate={new Date("2026-08-13T12:00:00")}
+        weeklyAnchor={weeklyAnchor}
+        onToggle={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText("Linked 3")).toBeInTheDocument();
+  });
+
   it("uses a light green tile for achieved goals instead of an Achieved badge", () => {
     const progress: GoalProgressSnapshot = {
       goalId: goal.id,

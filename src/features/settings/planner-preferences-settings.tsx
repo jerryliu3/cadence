@@ -1,9 +1,6 @@
 "use client";
 
-import { format } from "date-fns";
-import { useEffect, useMemo, useState } from "react";
-import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
+import { useMemo } from "react";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -12,98 +9,44 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { getApiErrorMessage, getJson, putJson } from "@/lib/api/client";
-import { invalidatePlannerRelatedTabCaches } from "@/lib/cache/planner-tab-cache";
-import { resolveUserTimezone } from "@/lib/dates/timezone";
 import { buildTimezoneOptions } from "@/lib/dates/timezone-options";
 import { weekStartOptions } from "@/lib/dates/weekday-options";
 import { normalizeWeekStartsOn } from "@/lib/dates/week-start";
-import { createDefaultPlannerPolicy, type PlannerPolicy } from "@/lib/planner/policy";
 
-interface PlannerPreferencesContextPayload {
-  preferences: {
-    timezone: string;
-    defaultPolicy: {
-      weekStartsOn: number;
-      restWeekdays: number[];
-    };
-  } | null;
+export interface PlannerPreferencesDraft {
+  timezone: string;
+  weekStartsOn: number;
 }
 
-export function PlannerPreferencesSettings() {
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [timezone, setTimezone] = useState(resolveUserTimezone());
-  const [weekStartsOn, setWeekStartsOn] = useState(1);
-  const [restWeekdays, setRestWeekdays] = useState<number[]>([]);
+interface PlannerPreferencesSettingsProps {
+  value: PlannerPreferencesDraft;
+  onChange: (next: PlannerPreferencesDraft) => void;
+  disabled?: boolean;
+}
 
+export function PlannerPreferencesSettings({
+  value,
+  onChange,
+  disabled = false,
+}: PlannerPreferencesSettingsProps) {
   const timezoneOptions = useMemo(
-    () => buildTimezoneOptions(timezone),
-    [timezone]
+    () => buildTimezoneOptions(value.timezone),
+    [value.timezone]
   );
-
-  useEffect(() => {
-    const loadPreferences = async () => {
-      setLoading(true);
-      const scopeMonth = format(new Date(), "yyyy-MM");
-      try {
-        const context = await getJson<PlannerPreferencesContextPayload>(
-          "/api/planner/context",
-          { query: { scopeMonth } }
-        );
-        if (context.preferences) {
-          setTimezone(context.preferences.timezone);
-          setWeekStartsOn(
-            normalizeWeekStartsOn(context.preferences.defaultPolicy.weekStartsOn)
-          );
-          setRestWeekdays(context.preferences.defaultPolicy.restWeekdays ?? []);
-        }
-      } catch (error) {
-        toast.error(
-          getApiErrorMessage(error, "Planner preferences could not be loaded.")
-        );
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    void loadPreferences();
-  }, []);
-
-  const savePreferences = async () => {
-    setSaving(true);
-    const defaultPolicy: PlannerPolicy = createDefaultPlannerPolicy(
-      timezone,
-      new Date().toISOString()
-    );
-    defaultPolicy.weekStartsOn = normalizeWeekStartsOn(weekStartsOn);
-    // Rest weekdays remain owned by planner settings; preserve current value.
-    defaultPolicy.restWeekdays = [...restWeekdays].sort((left, right) => left - right);
-
-    try {
-      await putJson("/api/planner/context", {
-        timezone,
-        defaultPolicy,
-      });
-      invalidatePlannerRelatedTabCaches();
-      toast.success("Preferences updated.");
-    } catch (error) {
-      toast.error(
-        getApiErrorMessage(error, "Planner preferences could not be saved.")
-      );
-    } finally {
-      setSaving(false);
-    }
-  };
 
   return (
     <div className="space-y-4">
       <label className="block space-y-1">
         <Label className="text-xs text-muted-foreground">Timezone</Label>
         <Select
-          value={timezone}
-          onValueChange={setTimezone}
-          disabled={loading || saving}
+          value={value.timezone}
+          onValueChange={(nextTimezone) =>
+            onChange({
+              ...value,
+              timezone: nextTimezone,
+            })
+          }
+          disabled={disabled}
         >
           <SelectTrigger>
             <SelectValue placeholder="Select timezone" />
@@ -121,11 +64,16 @@ export function PlannerPreferencesSettings() {
       <label className="block space-y-1">
         <Label className="text-xs text-muted-foreground">First day of week</Label>
         <Select
-          value={`${weekStartsOn}`}
-          onValueChange={(value) =>
-            setWeekStartsOn(normalizeWeekStartsOn(Number.parseInt(value, 10)))
+          value={`${value.weekStartsOn}`}
+          onValueChange={(nextValue) =>
+            onChange({
+              ...value,
+              weekStartsOn: normalizeWeekStartsOn(
+                Number.parseInt(nextValue, 10)
+              ),
+            })
           }
-          disabled={loading || saving}
+          disabled={disabled}
         >
           <SelectTrigger>
             <SelectValue />
@@ -139,14 +87,6 @@ export function PlannerPreferencesSettings() {
           </SelectContent>
         </Select>
       </label>
-
-      <Button
-        type="button"
-        onClick={savePreferences}
-        disabled={loading || saving}
-      >
-        {saving ? "Saving..." : "Save preferences"}
-      </Button>
     </div>
   );
 }

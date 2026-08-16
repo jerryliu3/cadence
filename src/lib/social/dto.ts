@@ -29,8 +29,8 @@ export function toChallengeDto(row: SocialChallengeRow): SocialChallenge {
       row.viewer_progress === null ? null : Number(row.viewer_progress),
     viewerCompletedAt: row.viewer_completed_at,
     viewerAwardedAt: row.viewer_awarded_at,
-    audienceKind: row.audience_kind,
-    cohortId: row.cohort_id,
+    audienceKind: row.audience_kind === "global" ? "global" : "group",
+    groupId: row.cohort_id,
   };
 }
 
@@ -46,7 +46,7 @@ export function toSeasonDto(row: SocialSeasonRow): LeaderboardSeason {
     endsAt: row.ends_at,
     status: row.status,
     rollover: row.rollover,
-    scope: row.scope,
-    cohortId: row.cohort_id,
+    scope: row.scope === "global" ? "global" : "group",
+    groupId: row.cohort_id,
   };
 }

@@ -1,8 +1,20 @@
 "use client";
 
+import { format } from "date-fns";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+import {
+  DEFAULT_PLANNER_PRIMARY_TAB_PREFERENCE,
+  normalizePlannerPrimaryTabPreference,
+} from "@cadence/shared/navigation/tabs";
+import {
+  normalizeAvatarUrlDraft,
+} from "@/features/social/avatar-url";
+import { getApiErrorMessage, getJson, putJson } from "@/lib/api/client";
+import { invalidatePlannerRelatedTabCaches } from "@/lib/cache/planner-tab-cache";
+import { resolveUserTimezone } from "@/lib/dates/timezone";
+import { normalizeWeekStartsOn } from "@/lib/dates/week-start";
 import { groupCompletionsByGoalId } from "@/lib/goals/completion-grouping";
 import type {
   Completion,
@@ -10,8 +22,10 @@ import type {
   GoalShare,
   Profile,
 } from "@/lib/goals/types";
+import { createDefaultPlannerPolicy, type PlannerPolicy } from "@/lib/planner/policy";
 import { unsubscribeCurrentBrowser } from "@/lib/push/client";
 import { createClient } from "@/lib/supabase/client";
+import type { PlannerPreferencesDraft } from "@/features/settings/planner-preferences-settings";
 
 interface SocialState {
   userId: string;
@@ -33,6 +47,20 @@ export interface ShareMenuPosition {
   bottom?: number;
 }
 
+interface PlannerPreferencesContextPayload {
+  preferences: {
+    timezone: string;
+    defaultPolicy: {
+      weekStartsOn: number;
+      restWeekdays: number[];
+    };
+  } | null;
+}
+
+interface PlannerPreferencesState extends PlannerPreferencesDraft {
+  restWeekdays: number[];
+}
+
 const initialState: SocialState = {
   userId: "",
   profile: null,
@@ -43,6 +71,12 @@ const initialState: SocialState = {
   sharedOwners: {},
   completions: [],
   profileDirectory: {},
+};
+
+const defaultPlannerPreferencesState: PlannerPreferencesState = {
+  timezone: resolveUserTimezone(),
+  weekStartsOn: 1,
+  restWeekdays: [],
 };
 
 export function useSocialTabData() {
@@ -72,10 +106,20 @@ export function useSocialTabData() {
     username: "",
     display_name: "",
     avatar_url: "",
+    planner_primary_tab: DEFAULT_PLANNER_PRIMARY_TAB_PREFERENCE,
   });
+  const [plannerPreferencesLoading, setPlannerPreferencesLoading] = useState(true);
+  const [plannerPreferencesPersisted, setPlannerPreferencesPersisted] =
+    useState<PlannerPreferencesState>(defaultPlannerPreferencesState);
+  const [plannerPreferencesDraft, setPlannerPreferencesDraft] =
+    useState<PlannerPreferencesDraft>({
+      timezone: defaultPlannerPreferencesState.timezone,
+      weekStartsOn: defaultPlannerPreferencesState.weekStartsOn,
+    });
 
   const loadData = useCallback(async () => {
     setLoading(true);
+    setPlannerPreferencesLoading(true);
 
     const {
       data: { user },
@@ -84,21 +128,39 @@ export function useSocialTabData() {
     if (!user) {
       setState(initialState);
       setAuthEmail("");
+      setPlannerPreferencesPersisted(defaultPlannerPreferencesState);
+      setPlannerPreferencesDraft({
+        timezone: defaultPlannerPreferencesState.timezone,
+        weekStartsOn: defaultPlannerPreferencesState.weekStartsOn,
+      });
+      setPlannerPreferencesLoading(false);
       setLoading(false);
       return;
     }
     setAuthEmail(user.email ?? "");
+    const scopeMonth = format(new Date(), "yyyy-MM");
+    const plannerContextPromise = getJson<PlannerPreferencesContextPayload>(
+      "/api/planner/context",
+      { query: { scopeMonth } }
+    ).catch((error: unknown) => {
+      toast.error(
+        getApiErrorMessage(error, "Planner preferences could not be loaded.")
+      );
+      return null;
+    });
 
-    const [profileResponse, ownGoalsResponse, sharesResponse] = await Promise.all([
-      supabase.from("profiles").select("*").eq("id", user.id).maybeSingle(),
-      supabase
-        .from("goals")
-        .select("*")
-        .eq("owner_id", user.id)
-        .eq("is_deleted", false)
-        .order("created_at", { ascending: false }),
-      supabase.from("goal_shares").select("*").eq("shared_with", user.id),
-    ]);
+    const [profileResponse, ownGoalsResponse, sharesResponse, plannerContext] =
+      await Promise.all([
+        supabase.from("profiles").select("*").eq("id", user.id).maybeSingle(),
+        supabase
+          .from("goals")
+          .select("*")
+          .eq("owner_id", user.id)
+          .eq("is_deleted", false)
+          .order("created_at", { ascending: false }),
+        supabase.from("goal_shares").select("*").eq("shared_with", user.id),
+        plannerContextPromise,
+      ]);
 
     const profile = (profileResponse.data ?? null) as Profile | null;
     const ownGoals = (ownGoalsResponse.data ?? []) as Goal[];
@@ -108,7 +170,27 @@ export function useSocialTabData() {
       username: profile?.username ?? "",
       display_name: profile?.display_name ?? "",
       avatar_url: profile?.avatar_url ?? "",
+      planner_primary_tab: normalizePlannerPrimaryTabPreference(
+        profile?.planner_primary_tab
+      ),
     });
+    const nextPlannerPreferences: PlannerPreferencesState = plannerContext?.preferences
+      ? {
+          timezone: plannerContext.preferences.timezone,
+          weekStartsOn: normalizeWeekStartsOn(
+            plannerContext.preferences.defaultPolicy.weekStartsOn
+          ),
+          restWeekdays: [
+            ...(plannerContext.preferences.defaultPolicy.restWeekdays ?? []),
+          ].sort((left, right) => left - right),
+        }
+      : defaultPlannerPreferencesState;
+    setPlannerPreferencesPersisted(nextPlannerPreferences);
+    setPlannerPreferencesDraft({
+      timezone: nextPlannerPreferences.timezone,
+      weekStartsOn: nextPlannerPreferences.weekStartsOn,
+    });
+    setPlannerPreferencesLoading(false);
 
     const sharedGoalIds = sharedEntries.map((entry) => entry.goal_id);
     const ownShareableGoalIds = ownGoals
@@ -261,23 +343,50 @@ export function useSocialTabData() {
     () => ({
       username: profileDraft.username.trim().toLowerCase(),
       display_name: profileDraft.display_name.trim() || null,
-      avatar_url: profileDraft.avatar_url.trim() || null,
+      avatar_url: normalizeAvatarUrlDraft(profileDraft.avatar_url),
+      planner_primary_tab: normalizePlannerPrimaryTabPreference(
+        profileDraft.planner_primary_tab
+      ),
     }),
-    [profileDraft.avatar_url, profileDraft.display_name, profileDraft.username]
+    [
+      profileDraft.avatar_url,
+      profileDraft.display_name,
+      profileDraft.planner_primary_tab,
+      profileDraft.username,
+    ]
   );
   const normalizedPersistedProfile = useMemo(
     () => ({
       username: state.profile?.username?.trim().toLowerCase() ?? "",
       display_name: state.profile?.display_name?.trim() || null,
       avatar_url: state.profile?.avatar_url?.trim() || null,
+      planner_primary_tab: normalizePlannerPrimaryTabPreference(
+        state.profile?.planner_primary_tab
+      ),
     }),
-    [state.profile?.avatar_url, state.profile?.display_name, state.profile?.username]
+    [
+      state.profile?.avatar_url,
+      state.profile?.display_name,
+      state.profile?.planner_primary_tab,
+      state.profile?.username,
+    ]
   );
   const profileDirty =
     normalizedProfileDraft.username !== normalizedPersistedProfile.username ||
     normalizedProfileDraft.display_name !== normalizedPersistedProfile.display_name ||
     normalizedProfileDraft.avatar_url !== normalizedPersistedProfile.avatar_url;
+  const plannerPrimaryTabDirty =
+    normalizedProfileDraft.planner_primary_tab !==
+    normalizedPersistedProfile.planner_primary_tab;
+  const plannerPreferencesDirty =
+    plannerPreferencesDraft.timezone !== plannerPreferencesPersisted.timezone ||
+    normalizeWeekStartsOn(plannerPreferencesDraft.weekStartsOn) !==
+      normalizeWeekStartsOn(plannerPreferencesPersisted.weekStartsOn);
   const canSaveProfile = Boolean(state.userId) && profileDirty;
+  const canSavePreferences =
+    Boolean(state.userId) &&
+    !plannerPreferencesLoading &&
+    (plannerPrimaryTabDirty || plannerPreferencesDirty);
 
   const saveProfile = async () => {
     if (!canSaveProfile) {
@@ -301,6 +410,52 @@ export function useSocialTabData() {
       await loadData();
     }
     setSaving(false);
+  };
+
+  const savePreferences = async () => {
+    if (!canSavePreferences) {
+      return;
+    }
+    setSaving(true);
+    try {
+      if (plannerPrimaryTabDirty) {
+        const { error } = await supabase
+          .from("profiles")
+          .update({
+            planner_primary_tab: normalizedProfileDraft.planner_primary_tab,
+          })
+          .eq("id", state.userId);
+        if (error) {
+          toast.error(error.message);
+          return;
+        }
+      }
+
+      if (plannerPreferencesDirty) {
+        const defaultPolicy: PlannerPolicy = createDefaultPlannerPolicy(
+          plannerPreferencesDraft.timezone,
+          new Date().toISOString()
+        );
+        defaultPolicy.weekStartsOn = normalizeWeekStartsOn(
+          plannerPreferencesDraft.weekStartsOn
+        );
+        defaultPolicy.restWeekdays = [...plannerPreferencesPersisted.restWeekdays];
+        await putJson("/api/planner/context", {
+          timezone: plannerPreferencesDraft.timezone,
+          defaultPolicy,
+        });
+        invalidatePlannerRelatedTabCaches();
+      }
+
+      toast.success("Preferences updated.");
+      await loadData();
+    } catch (error) {
+      toast.error(
+        getApiErrorMessage(error, "Planner preferences could not be saved.")
+      );
+    } finally {
+      setSaving(false);
+    }
   };
 
   const shareGoalWithUser = async (targetUserId: string) => {
@@ -403,6 +558,9 @@ export function useSocialTabData() {
     setSharedMonthCursor,
     profileDraft,
     setProfileDraft,
+    plannerPreferencesLoading,
+    plannerPreferencesDraft,
+    setPlannerPreferencesDraft,
     visibleSearchResults,
     shareableGoals,
     activeSelectedShareGoalIds,
@@ -411,7 +569,9 @@ export function useSocialTabData() {
     sharedByMeGoals,
     completionsByGoal,
     canSaveProfile,
+    canSavePreferences,
     saveProfile,
+    savePreferences,
     shareGoalWithUser,
     revokeGoalShare,
     removeSharedGoalForMe,

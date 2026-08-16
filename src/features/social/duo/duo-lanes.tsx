@@ -27,17 +27,29 @@ export function DuoLanes({
     viewer,
     partner,
   });
+  const swipeColumns = lanes.length > 1;
 
   return (
     <div
+      data-testid={swipeColumns ? "duo-lanes-scroll" : undefined}
       className={cn(
-        "grid gap-4",
-        lanes.length > 1 ? "md:grid-cols-2" : "grid-cols-1",
+        "gap-4",
+        swipeColumns
+          ? "flex snap-x snap-mandatory overflow-x-auto pb-1 md:grid md:snap-none md:overflow-visible md:pb-0 md:grid-cols-2"
+          : "grid grid-cols-1",
         className
       )}
     >
       {lanes.map((subject) => (
-        <section key={subject.id} className="space-y-2">
+        <section
+          key={subject.id}
+          className={cn(
+            "space-y-2",
+            swipeColumns
+              ? "w-[85vw] max-w-[30rem] shrink-0 snap-center md:w-auto md:max-w-none md:shrink"
+              : undefined
+          )}
+        >
           {scope !== "me" ? (
             <div className="flex items-center gap-2 px-1">
               <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
