@@ -34,6 +34,8 @@ export const JourneyContext = createContext<JourneyContextValue>({
     manifest: defaultJourneyAssetManifest,
     biome: "basecamp",
   }),
+  latestEffectEvent: null,
+  manifestSource: "bundled",
   presentation: defaultJourneyPresentation,
   setPresentation: () => undefined,
   resetPresentation: () => undefined,

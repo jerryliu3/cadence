@@ -1,4 +1,5 @@
 import type {
+  JourneyEffectEvent,
   JourneyProgressState,
   JourneyRenderPolicy,
   JourneySceneAsset,
@@ -20,6 +21,8 @@ export interface JourneyContextValue {
   progressState: JourneyProgressState;
   renderPolicy: JourneyRenderPolicy;
   scene: JourneySceneAsset;
+  latestEffectEvent: JourneyEffectEvent | null;
+  manifestSource: "bundled" | "remote" | "lkg";
   presentation: JourneyPresentationPreferences;
   setPresentation: (next: Partial<JourneyPresentationPreferences>) => void;
   resetPresentation: () => void;

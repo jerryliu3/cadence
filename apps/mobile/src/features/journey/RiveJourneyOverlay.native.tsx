@@ -1,12 +1,21 @@
 import { StyleSheet, View } from "react-native";
-import type { JourneyProgressState, JourneyRenderPolicy } from "@cadence/shared/journey";
+import type {
+  JourneyEffectEvent,
+  JourneyProgressState,
+  JourneyRenderPolicy,
+} from "@cadence/shared/journey";
 
 interface RiveJourneyOverlayProps {
   progress: JourneyProgressState;
   policy: JourneyRenderPolicy;
+  latestEffectEvent: JourneyEffectEvent | null;
 }
 
-export function RiveJourneyOverlay({ progress, policy }: RiveJourneyOverlayProps) {
+export function RiveJourneyOverlay({
+  progress,
+  policy,
+  latestEffectEvent,
+}: RiveJourneyOverlayProps) {
   if (!policy.riveEnabled || policy.lifecyclePaused) {
     return null;
   }
@@ -17,7 +26,7 @@ export function RiveJourneyOverlay({ progress, policy }: RiveJourneyOverlayProps
       importantForAccessibility="no-hide-descendants"
       pointerEvents="none"
       style={StyleSheet.absoluteFill}
-      testID={`journey-overlay-${progress.biome}`}
+      testID={`journey-overlay-${progress.biome}-${latestEffectEvent?.kind ?? "none"}`}
     />
   );
 }
