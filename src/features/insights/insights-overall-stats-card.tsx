@@ -103,7 +103,7 @@ export function InsightsOverallStatsCard({
                 <p className="text-xs">
                   <InsightsLabelWithTooltip
                     label="Total Activities"
-                    tooltip="Numerator: every completion event ever logged. Denominator: not applicable."
+                    tooltip="Numerator: every completion event ever logged."
                   />
                 </p>
                 <p className="mt-1 text-xl font-semibold">
@@ -114,7 +114,7 @@ export function InsightsOverallStatsCard({
                 <p className="text-xs">
                   <InsightsLabelWithTooltip
                     label="Total Goals Completed"
-                    tooltip="Numerator: unique goals in achieved outcome. Denominator: not applicable."
+                    tooltip="Numerator: unique goals in achieved outcome."
                   />
                 </p>
                 <p className="mt-1 text-xl font-semibold">
@@ -125,7 +125,7 @@ export function InsightsOverallStatsCard({
                 <p className="text-xs">
                   <InsightsLabelWithTooltip
                     label="Current Month Activities"
-                    tooltip="Numerator: completion events in the current month. Denominator: not applicable."
+                    tooltip="Numerator: completion events in the current month."
                   />
                 </p>
                 <p className="mt-1 text-xl font-semibold">
@@ -140,7 +140,7 @@ export function InsightsOverallStatsCard({
                 <p className="text-xs">
                   <InsightsLabelWithTooltip
                     label="Current Week Activities"
-                    tooltip="Numerator: completion events in the current week. Denominator: not applicable."
+                    tooltip="Numerator: completion events in the current week."
                   />
                 </p>
                 <p className="mt-1 text-xl font-semibold">
@@ -155,7 +155,7 @@ export function InsightsOverallStatsCard({
                 <p className="text-xs">
                   <InsightsLabelWithTooltip
                     label="Today's Activities"
-                    tooltip="Numerator: completion events on today's date. Denominator: not applicable."
+                    tooltip="Numerator: completion events on today's date."
                   />
                 </p>
                 <p className="mt-1 text-xl font-semibold">
@@ -166,7 +166,7 @@ export function InsightsOverallStatsCard({
                 <p className="text-xs">
                   <InsightsLabelWithTooltip
                     label="Active Streak"
-                    tooltip="Numerator: consecutive days ending today with more than zero completions. Denominator: not applicable."
+                    tooltip="Numerator: consecutive days ending today with more than zero completions."
                   />
                 </p>
                 <p className="mt-1 text-xl font-semibold">
