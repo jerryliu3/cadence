@@ -362,7 +362,6 @@ export function CalendarSurface({
     focusedDay,
     focusedWeekDays,
     focusedWeekCells,
-    focusedThreeDayDays,
     visibleDays,
   } =
     useMemo(
@@ -444,25 +443,27 @@ export function CalendarSurface({
     : null;
   const draftWindowTooWide =
     !draftSaveWindowResult.ok && draftSaveWindowResult.code === "too_wide";
-  const horizonCounter = useMemo(() => {
-    const summary = effectivePreview?.horizonSummary ?? [];
-    if (summary.length === 0) {
-      return null;
-    }
-    const total = summary.reduce((count, goal) => count + goal.totalCount, 0);
-    if (total <= 0) {
-      return null;
-    }
-    const thisWindow = summary.reduce(
-      (count, goal) => count + goal.windowPlannedCount,
-      0
-    );
-    const remaining = summary.reduce(
-      (count, goal) => count + goal.remainingCount,
-      0
-    );
-    return { thisWindow, total, remaining };
-  }, [effectivePreview?.horizonSummary]);
+  /*
+   * Horizon counts are intentionally hidden for now because "planned" reflects
+   * the planner's preparation window rather than the visible calendar period.
+   * Keep this derivation nearby in case the summary returns with clearer copy.
+   *
+   * const horizonCounter = (() => {
+   *   const summary = effectivePreview?.horizonSummary ?? [];
+   *   if (summary.length === 0) return null;
+   *   const total = summary.reduce((count, goal) => count + goal.totalCount, 0);
+   *   if (total <= 0) return null;
+   *   const thisWindow = summary.reduce(
+   *     (count, goal) => count + goal.windowPlannedCount,
+   *     0
+   *   );
+   *   const remaining = summary.reduce(
+   *     (count, goal) => count + goal.remainingCount,
+   *     0
+   *   );
+   *   return { thisWindow, total, remaining };
+   * })();
+   */
   const eligibilityNotices = useMemo(() => {
     const eligibilityEntries = effectivePreview?.eligibility ?? [];
     if (eligibilityEntries.length === 0) {
@@ -2081,16 +2082,6 @@ export function CalendarSurface({
     "yyyy-MM-dd",
     new Date()
   );
-  const focusedThreeDayStartDate = parse(
-    focusedThreeDayDays[0] ?? focusedDay,
-    "yyyy-MM-dd",
-    new Date()
-  );
-  const focusedThreeDayEndDate = parse(
-    focusedThreeDayDays[2] ?? focusedDay,
-    "yyyy-MM-dd",
-    new Date()
-  );
   const viewHeading =
     viewMode === "month"
       ? monthLabel
@@ -2100,8 +2091,8 @@ export function CalendarSurface({
             "MMM d, yyyy"
           )}`
         : viewMode === "three_day"
-          ? `${format(focusedThreeDayStartDate, "MMM d")} - ${format(
-              focusedThreeDayEndDate,
+          ? `${format(focusedWeekStartDate, "MMM d")} - ${format(
+              focusedWeekEndDate,
               "MMM d, yyyy"
             )}`
         : format(safeFocusedDay, "EEE MMM d, yyyy");
@@ -2413,7 +2404,7 @@ export function CalendarSurface({
 
   const restWeekdaysField = (
     <div className="space-y-2 text-sm">
-      <p>Rest weekdays</p>
+      <p>Rest days</p>
       <div className="flex flex-wrap gap-2">
         {restWeekdayOptions.map((option) => (
           <label
@@ -2442,9 +2433,6 @@ export function CalendarSurface({
 
   const plannerSettingsForm = (
     <div className="space-y-4">
-      <p className="text-sm text-muted-foreground">
-        Timezone and first-day-of-week preferences now live in Profile settings.
-      </p>
       {restWeekdaysField}
       <Button type="button" onClick={submitSetup} disabled={setupLoading}>
         {setupLoading ? "Saving settings..." : "Save settings"}
@@ -2483,14 +2471,19 @@ export function CalendarSurface({
                   </Badge>
                 ) : null}
               </div>
-              {horizonCounter ? (
-                <p className="text-xs text-muted-foreground">
-                  {horizonCounter.thisWindow} planned / {horizonCounter.total} total{" "}
-                  {horizonCounter.remaining > 0
-                    ? `· ${horizonCounter.remaining} remaining`
-                    : "· all credited"}
-                </p>
-              ) : null}
+              {/*
+               * Horizon summary intentionally hidden. See the commented
+               * derivation above before restoring this UI.
+               *
+               * {horizonCounter ? (
+               *   <p className="text-xs text-muted-foreground">
+               *     {horizonCounter.thisWindow} planned / {horizonCounter.total} total{" "}
+               *     {horizonCounter.remaining > 0
+               *       ? `· ${horizonCounter.remaining} remaining`
+               *       : "· all credited"}
+               *   </p>
+               * ) : null}
+               */}
               {eligibilityNotices.hardIneligible.length > 0 ? (
                 <div className="rounded-md border border-amber-300 bg-amber-100 px-3 py-2 text-xs text-amber-950 dark:border-amber-300 dark:bg-amber-100 dark:text-amber-950">
                   {eligibilityNotices.hardIneligible
@@ -2504,6 +2497,24 @@ export function CalendarSurface({
               ) : null}
             </div>
             <div className="flex flex-wrap items-center justify-end gap-2">
+              {!plannerReadOnly && canShowSaveAction ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={savePlan}
+                  title={draftSaveBlockedMessage ?? undefined}
+                  disabled={
+                    saveLoading ||
+                    loading ||
+                    !context ||
+                    !draftSaveWindow ||
+                    !hasUnsavedPlannerChanges ||
+                    draftSaveBlocked
+                  }
+                >
+                  {saveButtonLabel}
+                </Button>
+              ) : null}
               {plannerReadOnly ? (
                 <span className="text-xs text-muted-foreground">
                   Partner completions (read-only)
@@ -2527,25 +2538,7 @@ export function CalendarSurface({
                   title={rebuildBlockedMessage}
                   disabled={rebuildLoading || loading || hasDraftSession}
                 >
-                  {rebuildLoading ? "Rebuilding..." : "Rebuild schedule"}
-                </Button>
-              ) : null}
-              {!plannerReadOnly && canShowSaveAction ? (
-                <Button
-                  type="button"
-                  size="sm"
-                  onClick={savePlan}
-                  title={draftSaveBlockedMessage ?? undefined}
-                  disabled={
-                    saveLoading ||
-                    loading ||
-                    !context ||
-                    !draftSaveWindow ||
-                    !hasUnsavedPlannerChanges ||
-                    draftSaveBlocked
-                  }
-                >
-                  {saveButtonLabel}
+                  {rebuildLoading ? "Refreshing..." : "Refresh calendar"}
                 </Button>
               ) : null}
               {hasDraftSession ? (
@@ -2557,34 +2550,6 @@ export function CalendarSurface({
                   disabled={saveLoading || loading}
                 >
                   Undo changes
-                </Button>
-              ) : null}
-              <Button
-                type="button"
-                variant="outline"
-                size="icon-sm"
-                disabled={loading || !canResetViewWindow}
-                aria-label="Go to today"
-                title="Go to today"
-                onClick={resetViewWindow}
-              >
-                <RotateCcw className="size-4" />
-              </Button>
-              {viewMode === "month" ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon-sm"
-                  disabled={loading}
-                  aria-label={expandedMonthRows ? "Compact rows" : "Expand rows"}
-                  title={expandedMonthRows ? "Compact rows" : "Expand rows"}
-                  onClick={() => setExpandedMonthRows((current) => !current)}
-                >
-                  {expandedMonthRows ? (
-                    <Minimize2 className="size-4" />
-                  ) : (
-                    <Maximize2 className="size-4" />
-                  )}
                 </Button>
               ) : null}
               <Select
@@ -2683,9 +2648,10 @@ export function CalendarSurface({
         <>
           <div className="rounded-xl border bg-card p-4 shadow-sm">
             <div className="mx-auto mb-3 w-full max-w-[56rem] space-y-3">
-              <div className="flex w-full justify-center">
+              <div className="grid w-full grid-cols-[1fr_auto_1fr] items-center gap-2">
+                <span aria-hidden />
                 <PeriodStepper
-                  className="shrink-0"
+                  className="min-w-0 shrink justify-self-center"
                   onPrevious={() => moveViewWindow(-1)}
                   onNext={() => moveViewWindow(1)}
                   previousDisabled={loading}
@@ -2695,12 +2661,44 @@ export function CalendarSurface({
                   center={
                     <h3
                       className="truncate text-center text-base font-semibold"
-                      style={{ width: `${fixedViewHeadingWidthCh}ch` }}
+                      style={{
+                        width: `min(${fixedViewHeadingWidthCh}ch, 22vw)`,
+                      }}
                     >
                       {viewHeading}
                     </h3>
                   }
                 />
+                <div className="flex items-center justify-self-end gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon-sm"
+                    disabled={loading || !canResetViewWindow}
+                    aria-label="Go to today"
+                    title="Go to today"
+                    onClick={resetViewWindow}
+                  >
+                    <RotateCcw className="size-4" />
+                  </Button>
+                  {viewMode === "month" ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon-sm"
+                      disabled={loading}
+                      aria-label={expandedMonthRows ? "Compact rows" : "Expand rows"}
+                      title={expandedMonthRows ? "Compact rows" : "Expand rows"}
+                      onClick={() => setExpandedMonthRows((current) => !current)}
+                    >
+                      {expandedMonthRows ? (
+                        <Minimize2 className="size-4" />
+                      ) : (
+                        <Maximize2 className="size-4" />
+                      )}
+                    </Button>
+                  ) : null}
+                </div>
               </div>
               <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                 <p>{viewDescription}</p>
@@ -3147,7 +3145,7 @@ export function CalendarSurface({
           <DialogHeader>
             <DialogTitle>Planner settings</DialogTitle>
             <DialogDescription>
-              Update rest weekdays used by planner default policy.
+              Update rest days used by planner default policy.
             </DialogDescription>
           </DialogHeader>
           {plannerSettingsForm}

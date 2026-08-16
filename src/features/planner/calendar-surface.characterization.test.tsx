@@ -242,6 +242,52 @@ describe("CalendarSurface characterization", () => {
     expect(await screen.findAllByRole("button", { name: "Go to today" })).not.toHaveLength(0);
   });
 
+  it("keeps the centered period and right-aligned calendar actions on one row", async () => {
+    postJsonMock.mockResolvedValue(
+      buildContext([
+        unit({
+          originalGoalId: "goal-a",
+          unitKey: "total:1",
+          scheduledDate: "2026-08-31",
+        }),
+      ])
+    );
+
+    render(
+      <CalendarSurface
+        activeTab="calendar"
+        month="2026-08"
+        selectedDay={null}
+        viewMode="month"
+        onMonthChange={vi.fn()}
+        onViewModeChange={vi.fn()}
+        onSelectedDayChange={vi.fn()}
+        onPlannerMutation={vi.fn()}
+      />
+    );
+
+    await waitFor(() => {
+      expect(postJsonMock).toHaveBeenCalledWith(
+        "/api/planner/prepare",
+        expect.any(Object)
+      );
+    });
+
+    const todayButton = await screen.findByRole("button", { name: "Go to today" });
+    const expandButton = screen.getByRole("button", { name: "Expand rows" });
+    const heading = screen.getByRole("heading", { name: "August 2026" });
+    const actionGroup = todayButton.parentElement;
+    const calendarHeaderRow = actionGroup?.parentElement;
+
+    expect(actionGroup).toContainElement(expandButton);
+    expect(actionGroup).toHaveClass("justify-self-end");
+    expect(calendarHeaderRow).toBe(heading.parentElement?.parentElement);
+    expect(calendarHeaderRow).toHaveClass(
+      "grid",
+      "grid-cols-[1fr_auto_1fr]"
+    );
+  });
+
   it("dismisses unpinned day preview after pointer leaves preview surface", async () => {
     const context = buildContext([
       unit({
