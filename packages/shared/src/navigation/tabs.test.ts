@@ -2,10 +2,11 @@ import { describe, expect, it } from "vitest";
 import { APP_TABS, buildAppTabs } from "./tabs";
 
 describe("app navigation tabs", () => {
-  it("nests Checklist under the renamed Planner tab", () => {
+  it("keeps Planner as a single top-level tab", () => {
     expect(APP_TABS).toEqual([
       { key: "insights", href: "/insights", label: "Insights" },
       { key: "calendar", href: "/calendar", label: "Planner" },
+      { key: "tasks", href: "/tasks", label: "To-Do" },
       { key: "social", href: "/social", label: "Challenges" },
       { key: "settings", href: "/settings", label: "Profile" },
     ]);
@@ -15,6 +16,7 @@ describe("app navigation tabs", () => {
     expect(buildAppTabs("calendar")).toEqual([
       { key: "insights", href: "/insights", label: "Insights" },
       { key: "calendar", href: "/calendar", label: "Planner" },
+      { key: "tasks", href: "/tasks", label: "To-Do" },
       { key: "social", href: "/social", label: "Challenges" },
       { key: "settings", href: "/settings", label: "Profile" },
     ]);
