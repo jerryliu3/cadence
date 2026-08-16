@@ -47,8 +47,6 @@ import { TodayHeaderCard } from "@/features/today/today-header-card";
 import { GoalCard } from "@/features/today/goal-card";
 import { useChecklistData } from "@/features/today/use-checklist-data";
 import { captureViewportRect } from "@/lib/xp/events";
-import { PartnerChecklistStrip } from "@/features/social/duo/partner-checklist-strip";
-import type { DuoActivePartner } from "@cadence/shared/social/duo";
 import {
   buildCompletableGoalIds,
   selectCompletableGoals,
@@ -98,8 +96,6 @@ interface TodayTabProps {
   refreshToken?: number;
   subjectUserId?: string;
   readOnly?: boolean;
-  partnerSummary?: DuoActivePartner | null;
-  onOpenPartner?: () => void;
 }
 
 export function TodayTab({
@@ -110,8 +106,6 @@ export function TodayTab({
   refreshToken = 0,
   subjectUserId,
   readOnly = false,
-  partnerSummary = null,
-  onOpenPartner,
 }: TodayTabProps = {}) {
   const [savingGoalId, setSavingGoalId] = useState<string | null>(null);
   const [expandedGroups, setExpandedGroups] =
@@ -478,13 +472,6 @@ export function TodayTab({
   if (loading) {
     return (
       <div className="space-y-5">
-        {partnerSummary && onOpenPartner ? (
-          <PartnerChecklistStrip
-            partner={partnerSummary}
-            viewDate={viewDate}
-            onOpenPartner={onOpenPartner}
-          />
-        ) : null}
         <LoadingCard
           title="Loading your goals..."
           description="Pulling your latest status."
@@ -501,13 +488,6 @@ export function TodayTab({
 
   return (
     <div className="space-y-5">
-      {partnerSummary && onOpenPartner ? (
-        <PartnerChecklistStrip
-          partner={partnerSummary}
-          viewDate={viewDate}
-          onOpenPartner={onOpenPartner}
-        />
-      ) : null}
       <Tabs
         value={effectiveChecklistTab}
         onValueChange={(value) => {
@@ -564,7 +544,7 @@ export function TodayTab({
                 <Dialog open={todayFiltersOpen} onOpenChange={setTodayFiltersOpen}>
                   <DialogContent className="top-auto bottom-0 left-1/2 max-h-[85vh] max-w-[calc(100%-1rem)] -translate-x-1/2 translate-y-0 overflow-y-auto rounded-b-none rounded-t-xl pb-[calc(env(safe-area-inset-bottom)+1rem)] sm:top-1/2 sm:bottom-auto sm:max-w-lg sm:-translate-y-1/2 sm:rounded-b-xl">
                     <DialogHeader>
-                      <DialogTitle>Today filters</DialogTitle>
+                      <DialogTitle>Checklist filters</DialogTitle>
                     </DialogHeader>
                     <div className="space-y-4">
                       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
