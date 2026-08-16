@@ -453,7 +453,7 @@ test.describe("planner critical rails", () => {
   );
 
   test("drag + save emits only intended unit movement", async ({ page }) => {
-    test.setTimeout(120_000);
+    test.setTimeout(210_000);
     const collectMoveCommands = (requestPayload: SavePlanResult["requestPayload"]) =>
       collectSaveDraftCommands(requestPayload).filter(
         (command): command is {

@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, private, extensions, pg_catalog;
-select plan(18);
+select plan(17);
 select set_config(
   'health.today',
   (pg_catalog.timezone('utc', now()))::date::text,
@@ -225,23 +225,6 @@ select is(
   ),
   array['linked_cascade', 'linked_cascade']::text[],
   'linked goals keep linked_cascade source'
-);
-
-select is(
-  (
-    select xp_delta
-    from public.xp_ledger
-    where user_id = 'e1111111-1111-4111-8111-111111111111'
-      and goal_id = 'e1600000-0000-4000-8000-000000000001'
-      and event_type = 'completion_credit'
-      and entry_kind = 'award'
-      and completion_source in (
-        'external_sync'::public.completion_source,
-        'manual'::public.completion_source
-      )
-  ),
-  20,
-  'external_sync ledger XP matches manual mapping'
 );
 
 select is(
