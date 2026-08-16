@@ -29,6 +29,7 @@ import {
 import { requestJourneyIntroOpen } from "@/components/intro/journey-intro-overlay";
 import { IntegrationsSettings } from "@/features/settings/integrations-settings";
 import { PlannerPreferencesSettings } from "@/features/settings/planner-preferences-settings";
+import { ReportIssueSettings } from "@/features/settings/report-issue-settings";
 import { NotificationsSection } from "@/features/social/notifications-section";
 import { ProfileSection } from "@/features/social/profile-section";
 import { useDuo } from "@/features/social/duo/duo-context";
@@ -54,7 +55,7 @@ export function SocialTab() {
     signOut,
   } = useSocialTabData();
   const [settingsSection, setSettingsSection] = useState<
-    "preferences" | "notifications" | "integrations"
+    "preferences" | "notifications" | "integrations" | "report-issue"
   >("preferences");
   const [settingsPanelOpen, setSettingsPanelOpen] = useState(false);
 
@@ -63,13 +64,17 @@ export function SocialTab() {
       ? "Preferences"
       : settingsSection === "notifications"
         ? "Notifications"
-        : "Integrations";
+        : settingsSection === "integrations"
+          ? "Integrations"
+          : "Report an issue";
   const settingsSectionDescription =
     settingsSection === "preferences"
       ? "Manage planner defaults and checklist/calendar ordering."
       : settingsSection === "notifications"
         ? "Configure push access and reminder schedules."
-        : "Connect Apple Health or Health Connect and opt into auto-complete.";
+        : settingsSection === "integrations"
+          ? "Connect Apple Health or Health Connect and opt into auto-complete."
+          : "Send product bugs or UX friction details directly to support.";
   const activePartner = duoState.activePartner;
   const pendingInvite = duoState.pendingInvite;
   const partnerLabel =
@@ -138,11 +143,18 @@ export function SocialTab() {
       </Card>
 
       <Card className="shadow-sm">
+        <CardHeader>
+          <CardTitle>Settings</CardTitle>
+          <CardDescription>
+            Manage preferences, notifications, integrations, and support options.
+          </CardDescription>
+        </CardHeader>
         <CardContent className="space-y-0 p-0">
           {[
             { key: "preferences", label: "Preferences" },
             { key: "notifications", label: "Notifications" },
             { key: "integrations", label: "Integrations" },
+            { key: "report-issue", label: "Report an issue" },
           ].map((item) => (
             <button
               key={item.key}
@@ -150,7 +162,11 @@ export function SocialTab() {
               className="flex w-full items-center justify-between border-t px-4 py-3 text-left text-base font-medium transition-colors hover:bg-muted/30 first:border-t-0"
               onClick={() => {
                 setSettingsSection(
-                  item.key as "preferences" | "notifications" | "integrations"
+                  item.key as
+                    | "preferences"
+                    | "notifications"
+                    | "integrations"
+                    | "report-issue"
                 );
                 setSettingsPanelOpen(true);
               }}
@@ -276,6 +292,21 @@ export function SocialTab() {
                 </CardHeader>
                 <CardContent>
                   <IntegrationsSettings goals={state.ownGoals} />
+                </CardContent>
+              </Card>
+            ) : null}
+
+            {settingsSection === "report-issue" ? (
+              <Card className="shadow-sm">
+                <CardHeader>
+                  <CardTitle>Report an issue</CardTitle>
+                  <CardDescription>
+                    Submit an issue title and description. We will save every report and
+                    email support when delivery is configured.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <ReportIssueSettings />
                 </CardContent>
               </Card>
             ) : null}

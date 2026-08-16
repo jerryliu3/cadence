@@ -28,6 +28,11 @@ export default function AdminDashboardPage() {
               Moderation
             </Link>
           </li>
+          <li>
+            <Link className="text-primary hover:underline" href="/admin/issues">
+              Issue reports
+            </Link>
+          </li>
         </ul>
       </CardContent>
     </Card>
