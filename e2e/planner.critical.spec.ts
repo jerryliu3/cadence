@@ -331,7 +331,7 @@ async function moveFirstMovableEntry(
   }
 
   const tryCandidates = async (): Promise<boolean> => {
-    for (const targetDay of candidateTargetDays) {
+    for (const targetDay of candidateTargetDays.slice(0, 12)) {
       const currentSourceEntry = page.locator(sourceEntrySelector).first();
       await expect(currentSourceEntry).toBeVisible();
       const targetCell = page
