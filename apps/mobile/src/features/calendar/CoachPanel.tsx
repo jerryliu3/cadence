@@ -222,7 +222,14 @@ export function CoachPanel({
 
   return (
     <View style={[styles.card, { borderColor: theme.colors.border }]}>
-      <Text style={{ color: theme.colors.foreground, fontWeight: "700" }}>AI Coach</Text>
+      <View style={styles.headerRow}>
+        <Text style={{ color: theme.colors.foreground, fontWeight: "700" }}>AI Coach</Text>
+        <View style={[styles.betaBadge, { borderColor: theme.colors.primary, backgroundColor: theme.colors.secondary }]}>
+          <Text style={{ color: theme.colors.foreground, fontSize: 11, fontWeight: "700" }}>
+            Beta
+          </Text>
+        </View>
+      </View>
       <Text style={{ color: theme.colors.mutedForeground }}>
         Ask for guidance across the current planner window. Proposals can update
         rest days, blackout ranges, and existing session dates.
@@ -290,13 +297,13 @@ export function CoachPanel({
           disabled={busy || messages.length === 0}
           onPress={() => void saveConversation()}
         >
-          <Text style={{ color: theme.colors.primary }}>Save conversation</Text>
+          <Text style={{ color: theme.colors.primary }}>Save</Text>
         </Pressable>
         <Pressable disabled={busy} onPress={startNewConversation}>
-          <Text style={{ color: theme.colors.primary }}>New conversation</Text>
+          <Text style={{ color: theme.colors.primary }}>New convo</Text>
         </Pressable>
         <Pressable disabled={busy} onPress={() => void loadSaved()}>
-          <Text style={{ color: theme.colors.primary }}>Refresh saved</Text>
+          <Text style={{ color: theme.colors.primary }}>Load convo</Text>
         </Pressable>
       </View>
       {saved.map((conversation) => (
@@ -314,6 +321,13 @@ export function CoachPanel({
 
 const styles = StyleSheet.create({
   card: { borderWidth: 1, borderRadius: 12, padding: 12, gap: 8 },
+  headerRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  betaBadge: {
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
   transcript: { maxHeight: 220 },
   bubble: { borderRadius: 8, padding: 8, marginBottom: 8, gap: 4 },
   input: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10 },

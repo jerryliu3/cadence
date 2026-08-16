@@ -41,7 +41,7 @@ export function TodayHeaderCard({
     : "Today";
 
   return (
-    <Card className="rounded-none border-0 bg-transparent py-0 shadow-none ring-0 sm:rounded-xl sm:bg-card sm:py-4 sm:ring-1 sm:shadow-sm">
+    <Card className="rounded-xl border bg-card py-3 shadow-sm sm:py-4 sm:ring-1">
       <CardHeader className="pb-3">
         <div className="min-w-0">
           <div className="flex w-full flex-col gap-2">

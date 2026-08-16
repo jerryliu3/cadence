@@ -105,7 +105,7 @@ export function GoalCard({
           {linkedCount > 0 ? (
             <span className="inline-flex shrink-0 items-center gap-1">
               <Link2 className="size-3" />
-              {linkedCount}
+              {linkedCount} linked
             </span>
           ) : null}
           {completionSourceForSelectedDate === "linked_cascade" ? (
