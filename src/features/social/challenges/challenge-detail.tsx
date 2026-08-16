@@ -78,9 +78,9 @@ export function ChallengeDetail({
           <p>
             Status: <span className="font-medium">{challenge.status}</span>
           </p>
-          {challenge.audienceKind === "cohort" ? (
+          {challenge.audienceKind === "group" ? (
             <p>
-              Audience: <span className="font-medium">Cohort</span>
+              Audience: <span className="font-medium">Group</span>
             </p>
           ) : null}
           <p>

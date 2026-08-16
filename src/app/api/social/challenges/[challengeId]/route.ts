@@ -21,8 +21,8 @@ function mapChallengeDetailRpcError(message: string) {
   if (message === "challenge_not_found") {
     return new ApiRouteError(404, "challenge_not_found", "Challenge was not found.");
   }
-  if (message === "cohort_membership_required") {
-    return new ApiRouteError(403, "cohort_membership_required", "Cohort membership is required.");
+  if (message === "cohort_membership_required" || message === "group_membership_required") {
+    return new ApiRouteError(403, "group_membership_required", "Group membership is required.");
   }
   return new ApiRouteError(500, "social_challenge_unavailable", "Challenge details are unavailable.", {
     cause: message,

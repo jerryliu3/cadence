@@ -36,8 +36,8 @@ const createSchema = z
     endsAt: z.iso.datetime(),
     rewardXp: z.number().int().nonnegative().default(0),
     maxParticipants: z.number().int().positive().nullable().optional(),
-    audienceKind: z.enum(["global", "cohort"]).default("global"),
-    cohortId: z.uuid().nullable().optional(),
+    audienceKind: z.enum(["global", "group"]).default("global"),
+    groupId: z.uuid().nullable().optional(),
   })
   .superRefine((value, context) => {
     if (value.metric === "category_xp" && !value.metricTrackKey) {
@@ -47,18 +47,18 @@ const createSchema = z
         path: ["metricTrackKey"],
       });
     }
-    if (value.audienceKind === "cohort" && !value.cohortId) {
+    if (value.audienceKind === "group" && !value.groupId) {
       context.addIssue({
         code: "custom",
-        message: "cohortId is required for cohort-scoped challenges.",
-        path: ["cohortId"],
+        message: "groupId is required for group-scoped challenges.",
+        path: ["groupId"],
       });
     }
-    if (value.audienceKind === "global" && value.cohortId) {
+    if (value.audienceKind === "global" && value.groupId) {
       context.addIssue({
         code: "custom",
-        message: "cohortId must be null for global challenges.",
-        path: ["cohortId"],
+        message: "groupId must be null for global challenges.",
+        path: ["groupId"],
       });
     }
   });
@@ -78,8 +78,8 @@ function toChallengeDto(row: Record<string, unknown>) {
     endsAt: row.ends_at,
     rewardXp: row.reward_xp,
     maxParticipants: row.max_participants,
-    audienceKind: row.audience_kind,
-    cohortId: row.cohort_id,
+    audienceKind: row.audience_kind === "global" ? "global" : "group",
+    groupId: row.cohort_id,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -112,7 +112,7 @@ function mapChallengeMutationError(error: DbMutationError, fallbackCode: string,
     return new ApiRouteError(400, "metric_track_key_unknown", "metricTrackKey does not match a known track.");
   }
   if (error.code === "23503" && error.message.includes("challenges_cohort_id_fkey")) {
-    return new ApiRouteError(400, "cohort_not_found", "Cohort id is invalid.");
+    return new ApiRouteError(400, "group_not_found", "Group id is invalid.");
   }
   return new ApiRouteError(500, fallbackCode, fallbackMessage, {
     cause: error.message,
@@ -190,8 +190,8 @@ export async function POST(request: Request) {
         ends_at: body.endsAt,
         reward_xp: body.rewardXp,
         max_participants: body.maxParticipants ?? null,
-        audience_kind: body.audienceKind,
-        cohort_id: body.cohortId ?? null,
+        audience_kind: body.audienceKind === "group" ? "group" : "global",
+        cohort_id: body.groupId ?? null,
         created_by: adminContext.userId,
       })
       .select("*")

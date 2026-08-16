@@ -166,6 +166,21 @@ const ELIGIBILITY_REASON_LABELS: Record<EligibilityReason, string> = {
   horizon_too_long:
     "This goal deadline exceeds the 24-month planning horizon limit.",
 };
+const ELIGIBILITY_ACTION_HINTS: Partial<Record<EligibilityReason, string>> = {
+  missing_end_date: "Add an end date in Goal details to include targeted goals.",
+  linked: "Linked goals inherit their source goal schedule.",
+  invalid_date_range: "Fix the goal date range so the start date is on or before the end date.",
+  horizon_too_long: "Shorten the goal horizon to fit within the 24-month planning window.",
+};
+const HARD_ELIGIBILITY_REASON_ORDER: EligibilityReason[] = [
+  "missing_end_date",
+  "linked",
+  "invalid_date_range",
+  "horizon_too_long",
+  "not_owner",
+  "deleted",
+  "archived",
+];
 
 function getEligibilityReasonLabel(reason: EligibilityReason) {
   return ELIGIBILITY_REASON_LABELS[reason];
@@ -480,12 +495,22 @@ export function CalendarSurface({
   const eligibilityNotices = useMemo(() => {
     const eligibilityEntries = effectivePreview?.eligibility ?? [];
     if (eligibilityEntries.length === 0) {
-      return { hardIneligible: [] as Array<{ goalId: string; goalTitle: string; reasonCopy: string }>, scopeOnlyCount: 0 };
+      return {
+        hardIneligible: [] as Array<{
+          goalId: string;
+          goalTitle: string;
+          reason: EligibilityReason;
+          reasonCopy: string;
+        }>,
+        scopeOnlyCount: 0,
+        actionHints: [] as string[],
+      };
     }
 
     const hardIneligible: Array<{
       goalId: string;
       goalTitle: string;
+      reason: EligibilityReason;
       reasonCopy: string;
     }> = [];
     let scopeOnlyCount = 0;
@@ -502,6 +527,7 @@ export function CalendarSurface({
         goalId: eligibilityEntry.goalId,
         goalTitle:
           context?.goalTitles?.[eligibilityEntry.goalId] ?? eligibilityEntry.goalId,
+        reason: eligibilityEntry.reason,
         reasonCopy: getEligibilityReasonLabel(eligibilityEntry.reason),
       });
     }
@@ -509,7 +535,15 @@ export function CalendarSurface({
     hardIneligible.sort((left, right) =>
       left.goalTitle.localeCompare(right.goalTitle)
     );
-    return { hardIneligible, scopeOnlyCount };
+    const hardReasonSet = new Set(hardIneligible.map((item) => item.reason));
+    const orderedReasons = HARD_ELIGIBILITY_REASON_ORDER.filter((reason) =>
+      hardReasonSet.has(reason)
+    );
+    const actionHints = orderedReasons
+      .map((reason) => ELIGIBILITY_ACTION_HINTS[reason])
+      .filter((hint): hint is string => typeof hint === "string");
+
+    return { hardIneligible, scopeOnlyCount, actionHints };
   }, [context?.goalTitles, effectivePreview?.eligibility]);
   const activeGoalIndexes = useMemo(
     () => buildActiveGoalIndexes(context?.activePlan?.goals),
@@ -2502,19 +2536,27 @@ export function CalendarSurface({
                   </Badge>
                 ) : null}
               </div>
-              {/*
-               * Horizon summary intentionally hidden. See the commented
-               * derivation above before restoring this UI.
-               *
-               * {horizonCounter ? (
-               *   <p className="text-xs text-muted-foreground">
-               *     {horizonCounter.thisWindow} planned / {horizonCounter.total} total{" "}
-               *     {horizonCounter.remaining > 0
-               *       ? `· ${horizonCounter.remaining} remaining`
-               *       : "· all credited"}
-               *   </p>
-               * ) : null}
-               */}
+              {eligibilityNotices.hardIneligible.length > 0 ? (
+                <div className="rounded-md border border-amber-300 bg-amber-100 px-3 py-2 text-xs text-amber-950 dark:border-amber-300 dark:bg-amber-100 dark:text-amber-950">
+                  <p className="font-semibold">Planning attention needed</p>
+                  <p className="mt-1">
+                    {eligibilityNotices.hardIneligible
+                      .slice(0, 4)
+                      .map((item) => `${item.goalTitle}: ${item.reasonCopy}`)
+                      .join(" · ")}
+                    {eligibilityNotices.hardIneligible.length > 4
+                      ? ` · +${eligibilityNotices.hardIneligible.length - 4} more`
+                      : ""}
+                  </p>
+                  {eligibilityNotices.actionHints.length > 0 ? (
+                    <ul className="mt-1 list-disc pl-4">
+                      {eligibilityNotices.actionHints.map((hint) => (
+                        <li key={hint}>{hint}</li>
+                      ))}
+                    </ul>
+                  ) : null}
+                </div>
+              ) : null}
             </div>
             <div className="flex flex-wrap items-center justify-end gap-2">
               {!plannerReadOnly && canShowSaveAction ? (

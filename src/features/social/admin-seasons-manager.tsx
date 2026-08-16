@@ -27,8 +27,8 @@ interface SeasonRow {
   subject_kind: "user" | "team";
   metric_track_key: string | null;
   rollover: "none" | "weekly" | "monthly" | "quarterly" | "yearly";
-  scope: "global" | "cohort";
-  cohort_id: string | null;
+  scope: "global" | "group";
+  groupId: string | null;
   starts_at: string;
   ends_at: string | null;
 }
@@ -36,7 +36,7 @@ interface SeasonRow {
 interface AdminMetadataResponse {
   schemaVersion: "1";
   goalCategories?: Array<{ key: string; label: string }>;
-  cohorts?: Array<{ id: string; slug: string; title: string; isActive: boolean }>;
+  groups?: Array<{ id: string; slug: string; title: string; isActive: boolean }>;
 }
 
 interface SeasonFormState {
@@ -49,8 +49,8 @@ interface SeasonFormState {
   endsAt: string;
   status: LeaderboardSeasonStatus;
   rollover: LeaderboardRollover;
-  scope: "global" | "cohort";
-  cohortId: string;
+  scope: "global" | "group";
+  groupId: string;
 }
 
 const NONE_VALUE = "__none__";
@@ -64,7 +64,7 @@ const METRIC_OPTIONS: ChallengeMetric[] = [
   "distinct_active_days",
   "max_streak_days",
 ];
-const SCOPE_OPTIONS: Array<"global" | "cohort"> = ["global", "cohort"];
+const SCOPE_OPTIONS: Array<"global" | "group"> = ["global", "group"];
 
 function readJsonErrorMessage(payload: unknown, fallback: string): string {
   if (payload && typeof payload === "object" && "message" in payload) {
@@ -114,7 +114,7 @@ function buildDefaultForm(): SeasonFormState {
     status: "upcoming",
     rollover: "none",
     scope: "global",
-    cohortId: "",
+    groupId: "",
   };
 }
 
@@ -130,7 +130,7 @@ function toFormState(season: SeasonRow): SeasonFormState {
     status: season.status,
     rollover: season.rollover,
     scope: season.scope,
-    cohortId: season.cohort_id ?? "",
+    groupId: season.groupId ?? "",
   };
 }
 
@@ -140,7 +140,7 @@ function buildPayload(form: SeasonFormState): { payload: Record<string, unknown>
   const startsAt = toIso(form.startsAt);
   const endsAt = toIso(form.endsAt);
   const metricTrackKey = form.metric === "category_xp" ? form.metricTrackKey.trim() : null;
-  const cohortId = form.scope === "cohort" ? form.cohortId.trim() : null;
+  const groupId = form.scope === "group" ? form.groupId.trim() : null;
 
   if (slug.length < 2) return { error: "Slug must be at least 2 characters." };
   if (title.length === 0) return { error: "Title is required." };
@@ -148,8 +148,8 @@ function buildPayload(form: SeasonFormState): { payload: Record<string, unknown>
   if (form.metric === "category_xp" && (!metricTrackKey || metricTrackKey.length === 0)) {
     return { error: "Metric track is required for category_xp metrics." };
   }
-  if (form.scope === "cohort" && (!cohortId || cohortId.length === 0)) {
-    return { error: "Cohort is required for cohort-scoped seasons." };
+  if (form.scope === "group" && (!groupId || groupId.length === 0)) {
+    return { error: "Group is required for group-scoped seasons." };
   }
 
   return {
@@ -164,7 +164,7 @@ function buildPayload(form: SeasonFormState): { payload: Record<string, unknown>
       status: form.status,
       rollover: form.rollover,
       scope: form.scope,
-      cohortId,
+      groupId,
     },
   };
 }
@@ -172,7 +172,7 @@ function buildPayload(form: SeasonFormState): { payload: Record<string, unknown>
 export function AdminSeasonsManager() {
   const [items, setItems] = useState<SeasonRow[]>([]);
   const [goalCategories, setGoalCategories] = useState<Array<{ key: string; label: string }>>([]);
-  const [cohorts, setCohorts] = useState<Array<{ id: string; slug: string; title: string; isActive: boolean }>>(
+  const [groups, setGroups] = useState<Array<{ id: string; slug: string; title: string; isActive: boolean }>>(
     []
   );
   const [createForm, setCreateForm] = useState<SeasonFormState>(() => buildDefaultForm());
@@ -183,7 +183,7 @@ export function AdminSeasonsManager() {
   const [isCreating, setIsCreating] = useState(false);
   const [rowActionId, setRowActionId] = useState<string | null>(null);
 
-  const cohortOptions = useMemo(() => cohorts, [cohorts]);
+  const groupOptions = useMemo(() => groups, [groups]);
   const load = useCallback(async () => {
     setError(null);
     setSuccess(null);
@@ -214,7 +214,7 @@ export function AdminSeasonsManager() {
 
       setItems(nextItems);
       setGoalCategories(metadataPayload.goalCategories ?? []);
-      setCohorts(metadataPayload.cohorts ?? []);
+      setGroups(metadataPayload.groups ?? []);
       setEditForms(
         nextItems.reduce<Record<string, SeasonFormState>>((accumulator, season) => {
           accumulator[season.id] = toFormState(season);
@@ -528,8 +528,8 @@ export function AdminSeasonsManager() {
                 onValueChange={(value) =>
                   setCreateForm((current) => ({
                     ...current,
-                    scope: value as "global" | "cohort",
-                    cohortId: value === "cohort" ? current.cohortId : "",
+                    scope: value as "global" | "group",
+                    groupId: value === "group" ? current.groupId : "",
                   }))
                 }
               >
@@ -546,13 +546,13 @@ export function AdminSeasonsManager() {
               </Select>
             </div>
             <div className="space-y-1">
-              <p className="text-xs font-medium">Cohort</p>
+              <p className="text-xs font-medium">Group</p>
               <Select
-                value={createForm.cohortId || NONE_VALUE}
+                value={createForm.groupId || NONE_VALUE}
                 onValueChange={(value) =>
                   setCreateForm((current) => ({
                     ...current,
-                    cohortId: value === NONE_VALUE ? "" : value,
+                    groupId: value === NONE_VALUE ? "" : value,
                   }))
                 }
               >
@@ -561,9 +561,9 @@ export function AdminSeasonsManager() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value={NONE_VALUE}>None</SelectItem>
-                  {cohortOptions.map((cohort) => (
-                    <SelectItem key={cohort.id} value={cohort.id}>
-                      {cohort.title} ({cohort.slug}){cohort.isActive ? "" : " [inactive]"}
+                  {groupOptions.map((group) => (
+                    <SelectItem key={group.id} value={group.id}>
+                      {group.title} ({group.slug}){group.isActive ? "" : " [inactive]"}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -800,8 +800,8 @@ export function AdminSeasonsManager() {
                             ...current,
                             [item.id]: {
                               ...current[item.id],
-                              scope: value as "global" | "cohort",
-                              cohortId: value === "cohort" ? current[item.id].cohortId : "",
+                              scope: value as "global" | "group",
+                              groupId: value === "group" ? current[item.id].groupId : "",
                             },
                           }))
                         }
@@ -819,15 +819,15 @@ export function AdminSeasonsManager() {
                       </Select>
                     </div>
                     <div className="space-y-1">
-                      <p className="text-xs font-medium">Cohort</p>
+                      <p className="text-xs font-medium">Group</p>
                       <Select
-                        value={form.cohortId || NONE_VALUE}
+                        value={form.groupId || NONE_VALUE}
                         onValueChange={(value) =>
                           setEditForms((current) => ({
                             ...current,
                             [item.id]: {
                               ...current[item.id],
-                              cohortId: value === NONE_VALUE ? "" : value,
+                              groupId: value === NONE_VALUE ? "" : value,
                             },
                           }))
                         }
@@ -837,9 +837,9 @@ export function AdminSeasonsManager() {
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value={NONE_VALUE}>None</SelectItem>
-                          {cohortOptions.map((cohort) => (
-                            <SelectItem key={cohort.id} value={cohort.id}>
-                              {cohort.title} ({cohort.slug}){cohort.isActive ? "" : " [inactive]"}
+                          {groupOptions.map((group) => (
+                            <SelectItem key={group.id} value={group.id}>
+                              {group.title} ({group.slug}){group.isActive ? "" : " [inactive]"}
                             </SelectItem>
                           ))}
                         </SelectContent>

@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   requireAdminContext: vi.fn(),
   categoriesOrder: vi.fn(),
-  cohortsOrder: vi.fn(),
+  groupsOrder: vi.fn(),
 }));
 
 vi.mock("@/lib/api/admin-context", () => ({
@@ -25,7 +25,7 @@ vi.mock("@/lib/supabase/admin", () => ({
       if (table === "cohorts") {
         return {
           select: () => ({
-            order: mocks.cohortsOrder,
+            order: mocks.groupsOrder,
           }),
         };
       }
@@ -40,7 +40,7 @@ describe("GET /api/admin/social-metadata", () => {
   beforeEach(() => {
     mocks.requireAdminContext.mockReset();
     mocks.categoriesOrder.mockReset();
-    mocks.cohortsOrder.mockReset();
+    mocks.groupsOrder.mockReset();
   });
 
   it("returns 404 for non-admin users", async () => {
@@ -51,7 +51,7 @@ describe("GET /api/admin/social-metadata", () => {
     expect(response.status).toBe(404);
   });
 
-  it("returns category and cohort metadata for admins", async () => {
+  it("returns category and group metadata for admins", async () => {
     mocks.requireAdminContext.mockResolvedValue({
       userId: "admin-1",
       supabase: {},
@@ -60,7 +60,7 @@ describe("GET /api/admin/social-metadata", () => {
       data: [{ key: "health", label: "Health" }],
       error: null,
     });
-    mocks.cohortsOrder.mockResolvedValue({
+    mocks.groupsOrder.mockResolvedValue({
       data: [
         {
           id: "11111111-1111-4111-8111-111111111111",
@@ -77,7 +77,7 @@ describe("GET /api/admin/social-metadata", () => {
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toMatchObject({
       goalCategories: [{ key: "health", label: "Health" }],
-      cohorts: [{ slug: "beta-testers", isActive: true }],
+      groups: [{ slug: "beta-testers", isActive: true }],
     });
   });
 });

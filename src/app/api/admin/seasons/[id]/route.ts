@@ -37,8 +37,8 @@ const patchSchema = z
     endsAt: z.iso.datetime().nullable().optional(),
     status: z.enum(["upcoming", "open", "closed"]).optional(),
     rollover: z.enum(["none", "weekly", "monthly", "quarterly", "yearly"]).optional(),
-    scope: z.enum(["global", "cohort"]).optional(),
-    cohortId: z.uuid().nullable().optional(),
+    scope: z.enum(["global", "group"]).optional(),
+    groupId: z.uuid().nullable().optional(),
   })
   .superRefine((value, context) => {
     if (value.metric === "category_xp" && !value.metricTrackKey) {
@@ -48,18 +48,18 @@ const patchSchema = z
         path: ["metricTrackKey"],
       });
     }
-    if (value.scope === "cohort" && value.cohortId === undefined) {
+    if (value.scope === "group" && value.groupId === undefined) {
       context.addIssue({
         code: "custom",
-        message: "cohortId is required for cohort-scoped seasons.",
-        path: ["cohortId"],
+        message: "groupId is required for group-scoped seasons.",
+        path: ["groupId"],
       });
     }
-    if (value.scope === "global" && value.cohortId !== undefined && value.cohortId !== null) {
+    if (value.scope === "global" && value.groupId !== undefined && value.groupId !== null) {
       context.addIssue({
         code: "custom",
-        message: "cohortId must be null for global seasons.",
-        path: ["cohortId"],
+        message: "groupId must be null for global seasons.",
+        path: ["groupId"],
       });
     }
   })
@@ -99,11 +99,28 @@ function mapSeasonMutationError(error: DbMutationError, fallbackCode: string, fa
     return new ApiRouteError(400, "metric_track_key_unknown", "metricTrackKey does not match a known track.");
   }
   if (error.code === "23503" && error.message.includes("leaderboard_seasons_cohort_id_fkey")) {
-    return new ApiRouteError(400, "cohort_not_found", "Cohort id is invalid.");
+    return new ApiRouteError(400, "group_not_found", "Group id is invalid.");
   }
   return new ApiRouteError(500, fallbackCode, fallbackMessage, {
     cause: error.message,
   });
+}
+
+function toSeasonDto(row: Record<string, unknown>) {
+  return {
+    id: row.id,
+    slug: row.slug,
+    title: row.title,
+    subject_kind: row.subject_kind,
+    metric: row.metric,
+    metric_track_key: row.metric_track_key,
+    starts_at: row.starts_at,
+    ends_at: row.ends_at,
+    status: row.status,
+    rollover: row.rollover,
+    scope: row.scope === "global" ? "global" : "group",
+    groupId: row.cohort_id,
+  };
 }
 
 export async function PATCH(
@@ -129,11 +146,13 @@ export async function PATCH(
     if (body.endsAt !== undefined) updates.ends_at = body.endsAt;
     if (body.status !== undefined) updates.status = body.status;
     if (body.rollover !== undefined) updates.rollover = body.rollover;
-    if (body.scope !== undefined) updates.scope = body.scope;
-    if (body.scope === "global" && body.cohortId === undefined) {
+    if (body.scope !== undefined) {
+      updates.scope = body.scope === "group" ? "group" : "global";
+    }
+    if (body.scope === "global" && body.groupId === undefined) {
       updates.cohort_id = null;
     }
-    if (body.cohortId !== undefined) updates.cohort_id = body.cohortId;
+    if (body.groupId !== undefined) updates.cohort_id = body.groupId;
 
     const admin = createAdminClient();
     const { data, error } = await admin
@@ -150,7 +169,7 @@ export async function PATCH(
       {
         schemaVersion: "1",
         correlationId,
-        item: data,
+        item: toSeasonDto(data as Record<string, unknown>),
       },
       { headers: { "Cache-Control": "no-store" } }
     );
