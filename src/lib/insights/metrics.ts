@@ -323,6 +323,8 @@ export function buildInsightsStatsGroup({
   weekStartsOn: number;
   accountCreatedDate: string;
 }): InsightsStatsGroup {
+  const normalizedAccountCreatedDate =
+    compareDateStrings(accountCreatedDate, asOfDate) > 0 ? asOfDate : accountCreatedDate;
   const { rawCountByDate, uniqueGoalIdsByDate } = buildCompletionIndices(completions);
 
   const weekStart = toDateString(
@@ -342,7 +344,7 @@ export function buildInsightsStatsGroup({
   const previousMonthStart = toDateString(addDays(parseISO(monthStart), -monthLength));
   const previousMonthEnd = toDateString(addDays(parseISO(monthStart), -1));
 
-  const allDaysFromAccount = getDateRange(accountCreatedDate, asOfDate);
+  const allDaysFromAccount = getDateRange(normalizedAccountCreatedDate, asOfDate);
   const rolling30Days = getDateRange(rolling30Start, asOfDate);
   const analysisStart = minDateString(
     previousWeekStart,
@@ -406,7 +408,11 @@ export function buildInsightsStatsGroup({
     previousRolling30End
   );
 
-  const activeDays = countDistinctActiveDaysInRange(rawCountByDate, accountCreatedDate, asOfDate);
+  const activeDays = countDistinctActiveDaysInRange(
+    rawCountByDate,
+    normalizedAccountCreatedDate,
+    asOfDate
+  );
   const totalDays = allDaysFromAccount.length;
 
   return {

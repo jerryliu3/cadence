@@ -15,7 +15,7 @@ import {
   getGoalProgressSnapshot,
   type GoalProgressSnapshot,
 } from "@/lib/goals/progress";
-import type { WeeklyAnchorContext } from "@/lib/goals/periods";
+import { compareDateStrings, type WeeklyAnchorContext } from "@/lib/goals/periods";
 import type { Completion, Goal } from "@/lib/goals/types";
 import { buildInsightsStatsGroup } from "@/lib/insights/metrics";
 import type { InsightsStatsResponse } from "@/lib/insights/types";
@@ -24,6 +24,24 @@ import { MAX_COMPLETION_FACTS } from "@/lib/planner/contracts/bounds";
 export const runtime = "nodejs";
 
 const PAGE_SIZE = 1_000;
+
+function toDateOnly(value: string | null | undefined) {
+  const candidate = (value ?? "").slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(candidate) ? candidate : null;
+}
+
+function getEarliestDate(candidates: Array<string | null>) {
+  let earliest: string | null = null;
+  for (const candidate of candidates) {
+    if (!candidate) {
+      continue;
+    }
+    if (!earliest || compareDateStrings(candidate, earliest) < 0) {
+      earliest = candidate;
+    }
+  }
+  return earliest;
+}
 
 function groupCompletionsByGoal(completions: Completion[]) {
   const grouped = new Map<string, Completion[]>();
@@ -66,7 +84,7 @@ export async function GET(request: Request) {
     }
 
     const weekStartsOn = normalizeWeekStartsOn(profileResponse.data.week_starts_on);
-    const accountCreatedDate = (profileResponse.data.created_at ?? "").slice(0, 10);
+    const profileCreatedDate = toDateOnly(profileResponse.data.created_at);
     const asOfDate = toLocalDateString();
     const weeklyAnchor: WeeklyAnchorContext = { weekStartsOn };
     const memberTeamIds = (teamMembersResponse.data ?? []).map((row) => row.team_id);
@@ -156,10 +174,18 @@ export async function GET(request: Request) {
       );
     }
 
+    const earliestGoalStart = getEarliestDate(
+      completableGoals.map((goal) => goal.start_date)
+    );
+    const earliestCompletionDate = getEarliestDate(
+      completableCompletions.map((completion) => completion.completed_on)
+    );
+    const fallbackCreatedDate =
+      getEarliestDate([asOfDate, earliestGoalStart, earliestCompletionDate]) ?? asOfDate;
     const resolvedCreatedDate =
-      accountCreatedDate && accountCreatedDate.length === 10
-        ? accountCreatedDate
-        : asOfDate;
+      profileCreatedDate && compareDateStrings(profileCreatedDate, asOfDate) <= 0
+        ? profileCreatedDate
+        : fallbackCreatedDate;
 
     const overall = buildInsightsStatsGroup({
       goals: completableGoals,

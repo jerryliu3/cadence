@@ -33,6 +33,17 @@ interface StatsSectionProps {
   stats: InsightsStatsGroup;
 }
 
+const CHART_COLORS = {
+  primary: "#16a34a",
+  secondary: "#0f766e",
+  accent: "#84cc16",
+  highlight: "#eab308",
+  grid: "rgba(148, 163, 184, 0.25)",
+  axis: "#64748b",
+  tooltipBg: "rgba(15, 23, 42, 0.95)",
+  tooltipText: "#e2e8f0",
+} as const;
+
 function formatPercent(value: number) {
   return `${Math.round(value)}%`;
 }
@@ -42,6 +53,21 @@ function tooltipPercentFormatter(
 ) {
   const resolved = Array.isArray(value) ? value[0] : value;
   return `${Math.round(Number(resolved ?? 0))}%`;
+}
+
+function tooltipCountFormatter(
+  value: number | string | ReadonlyArray<number | string> | undefined
+) {
+  const resolved = Array.isArray(value) ? value[0] : value;
+  return Number(resolved ?? 0).toLocaleString();
+}
+
+function EmptyChartState({ copy }: { copy: string }) {
+  return (
+    <div className="flex h-full items-center justify-center rounded-md border border-dashed border-muted-foreground/30 bg-muted/20 px-4 text-center text-sm text-muted-foreground">
+      {copy}
+    </div>
+  );
 }
 
 function StatsSection({ title, stats }: StatsSectionProps) {
@@ -63,6 +89,13 @@ function StatsSection({ title, stats }: StatsSectionProps) {
     [stats.completionsPerDay]
   );
 
+  const hasWeekdayData = stats.completionByWeekday.some((point) => point.denominator > 0);
+  const hasRateLineData = stats.completionRateByDay.some(
+    (point) => point.denominator > 0 || point.numerator > 0
+  );
+  const hasCompletionsLineData = stats.completionsPerDay.some((point) => point.value > 0);
+  const hasCategoryData = stats.completionRateByCategory.some((point) => point.denominator > 0);
+
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-2">
@@ -70,7 +103,7 @@ function StatsSection({ title, stats }: StatsSectionProps) {
         <h2 className="text-base font-semibold">{title}</h2>
       </div>
 
-      <Card className="shadow-sm">
+      <Card className="overflow-hidden border-border/70 shadow-sm">
         <CardHeader>
           <CardTitle className="text-sm">Summary percentages</CardTitle>
         </CardHeader>
@@ -125,7 +158,7 @@ function StatsSection({ title, stats }: StatsSectionProps) {
         </CardContent>
       </Card>
 
-      <Card className="shadow-sm">
+      <Card className="overflow-hidden border-border/70 shadow-sm">
         <CardHeader className="space-y-1">
           <CardTitle className="text-sm">
             <InsightsLabelWithTooltip
@@ -135,19 +168,32 @@ function StatsSection({ title, stats }: StatsSectionProps) {
           </CardTitle>
         </CardHeader>
         <CardContent className="h-64">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={stats.completionByWeekday}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="weekdayLabel" />
-              <YAxis domain={[0, 100]} />
-              <Tooltip formatter={tooltipPercentFormatter} />
-              <Bar dataKey="percent" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
+          {hasWeekdayData ? (
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={stats.completionByWeekday}>
+                <CartesianGrid stroke={CHART_COLORS.grid} vertical={false} />
+                <XAxis dataKey="weekdayLabel" tick={{ fill: CHART_COLORS.axis, fontSize: 12 }} />
+                <YAxis domain={[0, 100]} tick={{ fill: CHART_COLORS.axis, fontSize: 12 }} />
+                <Tooltip
+                  formatter={tooltipPercentFormatter}
+                  contentStyle={{
+                    background: CHART_COLORS.tooltipBg,
+                    border: "1px solid rgba(148, 163, 184, 0.35)",
+                    borderRadius: "8px",
+                    color: CHART_COLORS.tooltipText,
+                  }}
+                  cursor={{ fill: "rgba(148, 163, 184, 0.12)" }}
+                />
+                <Bar dataKey="percent" fill={CHART_COLORS.primary} radius={[6, 6, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <EmptyChartState copy="No completion-rate data yet for weekday breakdown." />
+          )}
         </CardContent>
       </Card>
 
-      <Card className="shadow-sm">
+      <Card className="overflow-hidden border-border/70 shadow-sm">
         <CardHeader className="space-y-1">
           <CardTitle className="text-sm">
             <InsightsLabelWithTooltip
@@ -158,19 +204,43 @@ function StatsSection({ title, stats }: StatsSectionProps) {
           <RateTrendInline trend={stats.rolling30DaysCompletion} compareLabel="previous 30 days" />
         </CardHeader>
         <CardContent className="h-64">
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={rateLineData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="date" minTickGap={20} />
-              <YAxis domain={[0, 100]} />
-              <Tooltip formatter={tooltipPercentFormatter} />
-              <Line type="monotone" dataKey="percent" stroke="hsl(var(--primary))" dot={false} />
-            </LineChart>
-          </ResponsiveContainer>
+          {hasRateLineData ? (
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={rateLineData}>
+                <CartesianGrid stroke={CHART_COLORS.grid} vertical={false} />
+                <XAxis
+                  dataKey="date"
+                  minTickGap={20}
+                  tick={{ fill: CHART_COLORS.axis, fontSize: 12 }}
+                />
+                <YAxis domain={[0, 100]} tick={{ fill: CHART_COLORS.axis, fontSize: 12 }} />
+                <Tooltip
+                  formatter={tooltipPercentFormatter}
+                  contentStyle={{
+                    background: CHART_COLORS.tooltipBg,
+                    border: "1px solid rgba(148, 163, 184, 0.35)",
+                    borderRadius: "8px",
+                    color: CHART_COLORS.tooltipText,
+                  }}
+                  cursor={{ stroke: CHART_COLORS.accent, strokeWidth: 1 }}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="percent"
+                  stroke={CHART_COLORS.secondary}
+                  strokeWidth={2.5}
+                  dot={{ r: 2, fill: CHART_COLORS.accent, strokeWidth: 0 }}
+                  activeDot={{ r: 4, fill: CHART_COLORS.highlight, strokeWidth: 0 }}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          ) : (
+            <EmptyChartState copy="No completion-rate data yet for daily trend." />
+          )}
         </CardContent>
       </Card>
 
-      <Card className="shadow-sm">
+      <Card className="overflow-hidden border-border/70 shadow-sm">
         <CardHeader className="space-y-1">
           <CardTitle className="text-sm">
             <InsightsLabelWithTooltip
@@ -181,19 +251,43 @@ function StatsSection({ title, stats }: StatsSectionProps) {
           <CountTrendInline trend={stats.rolling30DaysActivities} compareLabel="previous 30 days" />
         </CardHeader>
         <CardContent className="h-64">
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={completionsLineData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="date" minTickGap={20} />
-              <YAxis />
-              <Tooltip />
-              <Line type="monotone" dataKey="value" stroke="hsl(var(--primary))" dot={false} />
-            </LineChart>
-          </ResponsiveContainer>
+          {hasCompletionsLineData ? (
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={completionsLineData}>
+                <CartesianGrid stroke={CHART_COLORS.grid} vertical={false} />
+                <XAxis
+                  dataKey="date"
+                  minTickGap={20}
+                  tick={{ fill: CHART_COLORS.axis, fontSize: 12 }}
+                />
+                <YAxis tick={{ fill: CHART_COLORS.axis, fontSize: 12 }} />
+                <Tooltip
+                  formatter={tooltipCountFormatter}
+                  contentStyle={{
+                    background: CHART_COLORS.tooltipBg,
+                    border: "1px solid rgba(148, 163, 184, 0.35)",
+                    borderRadius: "8px",
+                    color: CHART_COLORS.tooltipText,
+                  }}
+                  cursor={{ stroke: CHART_COLORS.secondary, strokeWidth: 1 }}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="value"
+                  stroke={CHART_COLORS.primary}
+                  strokeWidth={2.5}
+                  dot={{ r: 2, fill: CHART_COLORS.accent, strokeWidth: 0 }}
+                  activeDot={{ r: 4, fill: CHART_COLORS.highlight, strokeWidth: 0 }}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          ) : (
+            <EmptyChartState copy="No completion events yet for daily activity trend." />
+          )}
         </CardContent>
       </Card>
 
-      <Card className="shadow-sm">
+      <Card className="overflow-hidden border-border/70 shadow-sm">
         <CardHeader className="space-y-1">
           <CardTitle className="text-sm">
             <InsightsLabelWithTooltip
@@ -203,15 +297,35 @@ function StatsSection({ title, stats }: StatsSectionProps) {
           </CardTitle>
         </CardHeader>
         <CardContent className="h-64">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={stats.completionRateByCategory}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="categoryLabel" interval={0} angle={-20} textAnchor="end" height={60} />
-              <YAxis domain={[0, 100]} />
-              <Tooltip formatter={tooltipPercentFormatter} />
-              <Bar dataKey="percent" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
+          {hasCategoryData ? (
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={stats.completionRateByCategory}>
+                <CartesianGrid stroke={CHART_COLORS.grid} vertical={false} />
+                <XAxis
+                  dataKey="categoryLabel"
+                  interval={0}
+                  angle={-20}
+                  textAnchor="end"
+                  height={60}
+                  tick={{ fill: CHART_COLORS.axis, fontSize: 12 }}
+                />
+                <YAxis domain={[0, 100]} tick={{ fill: CHART_COLORS.axis, fontSize: 12 }} />
+                <Tooltip
+                  formatter={tooltipPercentFormatter}
+                  contentStyle={{
+                    background: CHART_COLORS.tooltipBg,
+                    border: "1px solid rgba(148, 163, 184, 0.35)",
+                    borderRadius: "8px",
+                    color: CHART_COLORS.tooltipText,
+                  }}
+                  cursor={{ fill: "rgba(148, 163, 184, 0.12)" }}
+                />
+                <Bar dataKey="percent" fill={CHART_COLORS.accent} radius={[6, 6, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <EmptyChartState copy="No category completion-rate data yet." />
+          )}
         </CardContent>
       </Card>
     </div>
