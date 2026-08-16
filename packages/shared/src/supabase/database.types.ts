@@ -2006,7 +2006,6 @@ export type Database = {
           id: string
           notification_preferences: Json
           planner_primary_tab: string
-          notification_preferences: Json
           rest_weekdays: number[]
           social_activity_visible: boolean
           timezone: string
@@ -2023,7 +2022,6 @@ export type Database = {
           id: string
           notification_preferences?: Json
           planner_primary_tab?: string
-          notification_preferences?: Json
           rest_weekdays?: number[]
           social_activity_visible?: boolean
           timezone?: string
@@ -2040,7 +2038,6 @@ export type Database = {
           id?: string
           notification_preferences?: Json
           planner_primary_tab?: string
-          notification_preferences?: Json
           rest_weekdays?: number[]
           social_activity_visible?: boolean
           timezone?: string
