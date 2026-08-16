@@ -10,6 +10,7 @@ import {
 const CACHE_KEY_PREFIX = "journey.manifest.lkg.";
 
 interface ManifestResolution {
+  assetVersion: string;
   manifest: JourneyAssetManifest;
   source: "bundled" | "remote" | "lkg";
 }
@@ -20,6 +21,7 @@ function cacheKey(assetVersion: string) {
 
 export function useJourneyManifest(assetVersion: string): ManifestResolution {
   const [resolution, setResolution] = useState<ManifestResolution>({
+    assetVersion,
     manifest: defaultJourneyAssetManifest,
     source: "bundled",
   });
@@ -28,17 +30,16 @@ export function useJourneyManifest(assetVersion: string): ManifestResolution {
     const key = cacheKey(assetVersion);
     let cancelled = false;
 
-    setResolution({
-      manifest: defaultJourneyAssetManifest,
-      source: "bundled",
-    });
-
-    const lkgRaw = window.localStorage.getItem(key);
-    if (lkgRaw) {
+    queueMicrotask(() => {
+      const lkgRaw = window.localStorage.getItem(key);
+      if (!lkgRaw || cancelled) {
+        return;
+      }
       try {
         const parsed = parseJourneyAssetManifest(JSON.parse(lkgRaw));
         if (parsed) {
           setResolution({
+            assetVersion,
             manifest: parsed,
             source: "lkg",
           });
@@ -46,7 +47,7 @@ export function useJourneyManifest(assetVersion: string): ManifestResolution {
       } catch {
         // Ignore corrupted cached payloads.
       }
-    }
+    });
 
     void fetch(`/journey-assets/${assetVersion}/manifest.json`, {
       method: "GET",
@@ -65,6 +66,7 @@ export function useJourneyManifest(assetVersion: string): ManifestResolution {
         }
         window.localStorage.setItem(key, JSON.stringify(parsed));
         setResolution({
+          assetVersion,
           manifest: parsed,
           source: "remote",
         });
@@ -77,6 +79,14 @@ export function useJourneyManifest(assetVersion: string): ManifestResolution {
       cancelled = true;
     };
   }, [assetVersion]);
+
+  if (resolution.assetVersion !== assetVersion) {
+    return {
+      assetVersion,
+      manifest: defaultJourneyAssetManifest,
+      source: "bundled",
+    };
+  }
 
   return resolution;
 }
