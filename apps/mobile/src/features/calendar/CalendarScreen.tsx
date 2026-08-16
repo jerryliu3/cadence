@@ -83,7 +83,11 @@ function MeasureableDay({
   );
 }
 
-export function CalendarScreen() {
+export function CalendarScreen({
+  plannerNavigation,
+}: {
+  plannerNavigation?: ReactNode;
+} = {}) {
   const theme = useTheme();
   const { month, day, viewMode, apply } = useCalendarStore();
   const { ready, scope, hasActivePartner } =
@@ -311,7 +315,8 @@ export function CalendarScreen() {
     planner.data?.goalTitles[unit.originalGoalId] ?? unit.label ?? unit.unitKey;
 
   return (
-    <Screen title="Calendar">
+    <Screen title={plannerNavigation ? "Planner" : "Calendar"}>
+      {plannerNavigation}
       <DuoScopeSegmentedControl surface="calendar" />
       {readOnlyState.banner && (readOnlyState.allowMutations || viewMode === "month") ? (
         <View
