@@ -1,7 +1,7 @@
 import { FlashList } from "@shopify/flash-list";
 import { Link } from "expo-router";
 import { useMemo } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 import { useTheme } from "../../theme";
 import { LoadingScreen, Screen } from "../../ui/screen";
 import { useDuo, useDuoSurfaceScope } from "../duo/DuoProvider";
