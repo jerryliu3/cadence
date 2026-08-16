@@ -1866,8 +1866,8 @@ export type Database = {
       planner_items: {
         Row: {
           created_at: string
+          goal_date_slot: number | null
           goal_id: string
-          goal_date_slot: number
           id: string
           locked: boolean
           original_scheduled_date: string | null
@@ -1879,8 +1879,8 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          goal_date_slot?: number | null
           goal_id: string
-          goal_date_slot?: number
           id?: string
           locked?: boolean
           original_scheduled_date?: string | null
@@ -1892,8 +1892,8 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          goal_date_slot?: number | null
           goal_id?: string
-          goal_date_slot?: number
           id?: string
           locked?: boolean
           original_scheduled_date?: string | null
@@ -2473,7 +2473,7 @@ export type Database = {
           p_expected_digest: string
           p_goal_id: string
           p_scheduled_date: string
-          p_scheduled_time: string | null
+          p_scheduled_time: string
         }
         Returns: {
           item_id: string
@@ -2486,7 +2486,7 @@ export type Database = {
       create_planner_task: {
         Args: { p_scheduled_date?: string; p_title: string }
         Returns: {
-          completed_at: string | null
+          completed_at: string
           created_at: string
           scheduled_date: string
           task_id: string
@@ -2513,10 +2513,7 @@ export type Database = {
           schedule_digest: string
         }[]
       }
-      delete_planner_task: {
-        Args: { p_task_id: string }
-        Returns: boolean
-      }
+      delete_planner_task: { Args: { p_task_id: string }; Returns: boolean }
       disconnect_health_provider_service: {
         Args: { p_provider: Database["public"]["Enums"]["health_provider"] }
         Returns: Json
@@ -2759,7 +2756,7 @@ export type Database = {
       list_planner_tasks: {
         Args: { p_for_date?: string }
         Returns: {
-          completed_at: string | null
+          completed_at: string
           created_at: string
           scheduled_date: string
           task_id: string
@@ -2911,7 +2908,7 @@ export type Database = {
       set_planner_task_completion: {
         Args: { p_completed?: boolean; p_task_id: string }
         Returns: {
-          completed_at: string | null
+          completed_at: string
           created_at: string
           scheduled_date: string
           task_id: string
