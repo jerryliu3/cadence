@@ -20,6 +20,7 @@ export function projectWorkUnitsToSolver({
   assessments,
   completionDatesByGoal = new Map(),
   preserveExistingAssignments = false,
+  recoverPastPlacements = false,
   draftPinnedDates = {},
   idealDateContextByGoal = new Map(),
 }: {
@@ -28,12 +29,31 @@ export function projectWorkUnitsToSolver({
   assessments: Map<string, GoalAssessment>;
   completionDatesByGoal?: Map<string, Set<string>>;
   preserveExistingAssignments?: boolean;
+  recoverPastPlacements?: boolean;
   draftPinnedDates?: Record<string, string>;
   idealDateContextByGoal?: Map<
     string,
     { targetCount: number; remainingLifetime: DateWindow }
   >;
 }): SolverUnit[] {
+  const hasDraftPin = (unit: PlannerWorkUnit) =>
+    draftPinnedDates[`${unit.originalGoalId}:${unit.unitKey}`] !== undefined;
+  const sitsBeforePlacementWindow = (unit: PlannerWorkUnit) =>
+    unit.scheduledDate !== null &&
+    unit.placementWindow !== null &&
+    compareDateStrings(unit.scheduledDate, unit.placementWindow.start) < 0;
+  /**
+   * Recovery releases a stale placement so the solver can re-place it. Only an
+   * uncredited, unlocked, unpinned unit that still has a placement window
+   * qualifies: a lapsed cadence period or a passed goal deadline leaves no
+   * window, so those stay where they are and remain missed.
+   */
+  const isRecoverablePastPlacement = (unit: PlannerWorkUnit) =>
+    recoverPastPlacements &&
+    !unit.locked &&
+    !hasDraftPin(unit) &&
+    unit.creditState === "uncredited" &&
+    sitsBeforePlacementWindow(unit);
   const resolveLockedDate = (unit: PlannerWorkUnit) => {
     if (unit.locked) {
       return unit.scheduledDate;
@@ -41,6 +61,9 @@ export function projectWorkUnitsToSolver({
     const pinnedDate = draftPinnedDates[`${unit.originalGoalId}:${unit.unitKey}`];
     if (pinnedDate !== undefined) {
       return pinnedDate;
+    }
+    if (isRecoverablePastPlacement(unit)) {
+      return null;
     }
     return preserveExistingAssignments ? unit.scheduledDate : null;
   };
@@ -51,16 +74,10 @@ export function projectWorkUnitsToSolver({
     if (!preserveExistingAssignments || unit.locked) {
       return false;
     }
-    if (
-      draftPinnedDates[`${unit.originalGoalId}:${unit.unitKey}`] !== undefined
-    ) {
+    if (hasDraftPin(unit) || isRecoverablePastPlacement(unit)) {
       return false;
     }
-    return (
-      unit.scheduledDate !== null &&
-      unit.placementWindow !== null &&
-      compareDateStrings(unit.scheduledDate, unit.placementWindow.start) < 0
-    );
+    return sitsBeforePlacementWindow(unit);
   };
   const isProjectable = (unit: PlannerWorkUnit) =>
     (unit.classification === "open" ||

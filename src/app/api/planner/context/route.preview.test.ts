@@ -172,6 +172,57 @@ describe("planner context preview route", () => {
     );
   });
 
+  it("threads the recovery flag into the kernel while preserving assignments", async () => {
+    mocks.parseBoundedJsonBody.mockResolvedValueOnce({
+      startDate: "2026-02-01",
+      endDate: "2027-01-31",
+      source: "update",
+      timezone: "UTC",
+      solveIntent: "stable",
+      recoverPastPlacements: true,
+      policy: createDefaultPlannerPolicy("UTC", "2026-08-01T00:00:00.000Z"),
+      draftCommands: [],
+    });
+    mocks.runPlannerKernel.mockImplementationOnce(() => {
+      throw new Error("forced");
+    });
+
+    await POST(
+      new Request("http://localhost/api/planner/context", { method: "POST" })
+    );
+
+    expect(mocks.runPlannerKernel).toHaveBeenCalledWith(
+      expect.objectContaining({
+        solveIntent: "stable",
+        recoverPastPlacements: true,
+        preserveExistingAssignments: true,
+      })
+    );
+  });
+
+  it("defaults the recovery flag off so ordinary previews are unchanged", async () => {
+    mocks.parseBoundedJsonBody.mockResolvedValueOnce({
+      startDate: "2026-08-01",
+      endDate: "2026-08-31",
+      source: "manual",
+      timezone: "UTC",
+      policy: createDefaultPlannerPolicy("UTC", "2026-08-01T00:00:00.000Z"),
+    });
+    mocks.runPlannerKernel.mockImplementationOnce(() => {
+      throw new Error("forced");
+    });
+
+    await POST(
+      new Request("http://localhost/api/planner/context", { method: "POST" })
+    );
+
+    expect(mocks.runPlannerKernel).toHaveBeenCalledWith(
+      expect.objectContaining({
+        recoverPastPlacements: false,
+      })
+    );
+  });
+
   it("rejects a preview that did not honor a draft pin", async () => {
     mocks.parseBoundedJsonBody.mockResolvedValueOnce({
       startDate: "2026-08-01",

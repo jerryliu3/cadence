@@ -197,6 +197,156 @@ describe("projectWorkUnitsToSolver", () => {
     expect(result[0]?.candidateDates).not.toContain("2026-08-05");
   });
 
+  it("releases a preserved pre-window assignment when recovering", () => {
+    const result = projectWorkUnitsToSolver({
+      workUnits: [
+        createWorkUnit({
+          scheduledDate: "2026-08-05",
+        }),
+      ],
+      compiledPolicy,
+      assessments,
+      preserveExistingAssignments: true,
+      recoverPastPlacements: true,
+    });
+
+    expect(result).toHaveLength(1);
+    expect(result[0]?.lockedDate).toBeNull();
+    expect(result[0]?.candidateDates).toEqual([
+      "2026-08-20",
+      "2026-08-21",
+      "2026-08-22",
+      "2026-08-23",
+      "2026-08-24",
+      "2026-08-25",
+      "2026-08-26",
+      "2026-08-27",
+      "2026-08-28",
+      "2026-08-29",
+      "2026-08-30",
+      "2026-08-31",
+    ]);
+    // The stale date stops reserving capacity once the unit is back in play.
+    expect(result[0]?.candidateDates).not.toContain("2026-08-05");
+    expect(result[0]?.previousDate).toBe("2026-08-05");
+  });
+
+  it("stops reserving the released date against siblings when recovering", () => {
+    const result = projectWorkUnitsToSolver({
+      workUnits: [
+        createWorkUnit({
+          unitKey: "total:1",
+          ordinal: 1,
+          scheduledDate: "2026-08-05",
+        }),
+        createWorkUnit({
+          unitKey: "total:2",
+          ordinal: 2,
+          scheduledDate: null,
+          placementWindow: { start: "2026-08-05", end: "2026-08-06" },
+          draftMoveWindow: { start: "2026-08-05", end: "2026-08-06" },
+        }),
+      ],
+      compiledPolicy,
+      assessments,
+      preserveExistingAssignments: true,
+      recoverPastPlacements: true,
+    });
+
+    expect(result.map((unit) => unit.unitKey)).toEqual(["total:1", "total:2"]);
+    expect(result[1]?.candidateDates).toEqual(["2026-08-05", "2026-08-06"]);
+  });
+
+  it("leaves a credited pre-window assignment fixed when recovering", () => {
+    const result = projectWorkUnitsToSolver({
+      workUnits: [
+        createWorkUnit({
+          scheduledDate: "2026-08-05",
+          creditState: "completed_as_scheduled",
+        }),
+      ],
+      compiledPolicy,
+      assessments,
+      preserveExistingAssignments: true,
+      recoverPastPlacements: true,
+    });
+
+    expect(result).toEqual([]);
+  });
+
+  it("leaves a locked pre-window assignment hard-locked when recovering", () => {
+    const result = projectWorkUnitsToSolver({
+      workUnits: [
+        createWorkUnit({
+          scheduledDate: "2026-08-05",
+          locked: true,
+        }),
+      ],
+      compiledPolicy,
+      assessments,
+      preserveExistingAssignments: true,
+      recoverPastPlacements: true,
+    });
+
+    expect(result).toHaveLength(1);
+    expect(result[0]?.lockedDate).toBe("2026-08-05");
+  });
+
+  it("keeps a draft pin authoritative over recovery", () => {
+    const result = projectWorkUnitsToSolver({
+      workUnits: [
+        createWorkUnit({
+          scheduledDate: "2026-08-05",
+        }),
+      ],
+      compiledPolicy,
+      assessments,
+      preserveExistingAssignments: true,
+      recoverPastPlacements: true,
+      draftPinnedDates: { "goal-a:total:1": "2026-08-25" },
+    });
+
+    expect(result).toHaveLength(1);
+    expect(result[0]?.lockedDate).toBe("2026-08-25");
+  });
+
+  it("leaves a lapsed unit with no placement window alone when recovering", () => {
+    const result = projectWorkUnitsToSolver({
+      workUnits: [
+        createWorkUnit({
+          kind: "cadence",
+          unitKey: "cadence:2026-W31",
+          periodKey: "2026-W31",
+          missPolicy: "remain_missed",
+          creditWindow: { start: "2026-07-27", end: "2026-08-02" },
+          placementWindow: null,
+          draftMoveWindow: null,
+          classification: "historical_miss",
+          scheduledDate: "2026-08-01",
+        }),
+      ],
+      compiledPolicy,
+      assessments,
+      preserveExistingAssignments: true,
+      recoverPastPlacements: true,
+    });
+
+    expect(result).toEqual([]);
+  });
+
+  it("does not change projection when recovery is off", () => {
+    const workUnits = [createWorkUnit({ scheduledDate: "2026-08-05" })];
+    expect(
+      projectWorkUnitsToSolver({
+        workUnits,
+        compiledPolicy,
+        assessments,
+        preserveExistingAssignments: true,
+        recoverPastPlacements: false,
+      })
+    ).toEqual([]);
+  });
+
   it("projects a valid deterministic ideal date for ordinal work", () => {
     const result = projectWorkUnitsToSolver({
       workUnits: [

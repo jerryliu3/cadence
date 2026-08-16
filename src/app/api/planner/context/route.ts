@@ -83,6 +83,14 @@ const previewRequestSchema = z
      * always solves `stable`, so its hash would not match.
      */
     solveIntent: z.enum(["stable", "replan"]).default("stable"),
+    /**
+     * Recovery is the same proposal shape as `replan`, for a different question:
+     * where would uncredited sessions whose saved date has already passed go if
+     * the solver were free to re-place them? The caller diffs it against a plain
+     * preview over the same window and pins the differences. Never stored as the
+     * draft, never sent to save.
+     */
+    recoverPastPlacements: z.boolean().default(false),
     draftCommands: z.array(plannerDraftCommandSchema).max(4000).default([]),
   })
   .superRefine((value, ctx) => {
@@ -139,6 +147,7 @@ function resolvePlannerPreview({
   requireExplicitTimezone,
   includeKernel = true,
   preserveExistingAssignments = false,
+  recoverPastPlacements = false,
   solveIntent = "stable",
   draftPinnedDates = {},
 }: {
@@ -153,6 +162,7 @@ function resolvePlannerPreview({
   requireExplicitTimezone: boolean;
   includeKernel?: boolean;
   preserveExistingAssignments?: boolean;
+  recoverPastPlacements?: boolean;
   solveIntent?: "stable" | "replan";
   draftPinnedDates?: Record<string, string>;
 }) {
@@ -214,6 +224,7 @@ function resolvePlannerPreview({
         policy: effectivePolicy,
         basePlan: snapshot.activePlan?.basePlan ?? null,
         preserveExistingAssignments,
+        recoverPastPlacements,
         solveIntent,
         draftPinnedDates,
       })
@@ -365,6 +376,7 @@ export async function POST(request: Request) {
         snapshot,
         requireExplicitTimezone: true,
         preserveExistingAssignments: (body.solveIntent ?? "stable") !== "replan",
+        recoverPastPlacements: body.recoverPastPlacements ?? false,
         solveIntent: body.solveIntent ?? "stable",
         draftPinnedDates: buildDraftPinnedDatesFromCommands(
           body.draftCommands ?? []
