@@ -4,6 +4,8 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { buildLoginHref } from "@/lib/auth/login-redirect";
 import { withAbortSignal } from "@/lib/async/abort";
+import { CHECKLIST_DATA_CACHE_PREFIX } from "@/lib/cache/planner-tab-cache";
+import { readTabDataCache, writeTabDataCache } from "@/lib/cache/tab-data-cache";
 import { toLocalDateString } from "@/lib/dates/day";
 import {
   fetchProgressContext,
@@ -140,6 +142,17 @@ export function useChecklistData({
           .order("created_at", { ascending: false });
         const targetSubjectUserId = subjectUserId ?? userId;
         const targetIsViewer = targetSubjectUserId === userId;
+        const partnerCacheScope =
+          targetIsViewer && partnerId ? `partner:${partnerId}` : "partner:none";
+        const todayDataCacheKey = `${CHECKLIST_DATA_CACHE_PREFIX}${targetSubjectUserId}:${currentViewDateRef.current}:${todayLocalDate}:${partnerCacheScope}`;
+        if (!forceRefresh) {
+          const cachedData = readTabDataCache<TodayData>(todayDataCacheKey);
+          if (cachedData) {
+            setData(cachedData);
+            clearLaneError();
+            return;
+          }
+        }
         const [goalsResponse, teamMembersResponse, linksResponse, progress] =
           await withAbortSignal(
             Promise.all([
@@ -205,7 +218,7 @@ export function useChecklistData({
           return;
         }
 
-        setData({
+        const nextData: TodayData = {
           userId: targetSubjectUserId,
           goals: visibleGoals,
           completions,
@@ -213,7 +226,9 @@ export function useChecklistData({
           links,
           photoUrls,
           progress,
-        });
+        };
+        setData(nextData);
+        writeTabDataCache(todayDataCacheKey, nextData);
         clearLaneError();
       } finally {
         window.clearTimeout(timeoutId);
