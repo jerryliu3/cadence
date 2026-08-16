@@ -10,7 +10,7 @@ const globalsCss = readFileSync(
 describe("overlay scroll locking", () => {
   it("neutralizes body width compensation while preserving scroll lock", () => {
     expect(globalsCss).toMatch(
-      /html body\[data-scroll-locked\]\s*\{[^}]*margin-right:\s*0\s*!important;[^}]*padding-right:\s*0\s*!important;[^}]*--removed-body-scroll-bar-size:\s*0px\s*!important;[^}]*\}/s
+      /html body\[data-scroll-locked\]\s*\{[^}]*overflow:\s*visible\s*!important;[^}]*margin-right:\s*0\s*!important;[^}]*padding-right:\s*0\s*!important;[^}]*--removed-body-scroll-bar-size:\s*0px\s*!important;[^}]*\}/s
     );
   });
 });

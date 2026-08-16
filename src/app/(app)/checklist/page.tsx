@@ -1,5 +1,5 @@
-import { ChecklistShell } from "@/features/today/checklist-shell";
+import { redirect } from "next/navigation";
 
 export default function ChecklistPage() {
-  return <ChecklistShell />;
+  redirect("/calendar?surface=checklist");
 }
