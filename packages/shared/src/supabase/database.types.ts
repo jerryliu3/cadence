@@ -2523,6 +2523,33 @@ export type Database = {
           xp_delta: number
         }[]
       }
+      get_social_feed_legacy: {
+        Args: {
+          p_before_at?: string
+          p_before_id?: string
+          p_limit?: number
+          p_scope?: string
+          p_scope_id?: string
+        }
+        Returns: {
+          actor_avatar_url: string
+          actor_display_name: string
+          actor_id: string
+          actor_username: string
+          category_label: string
+          created_at: string
+          event_type: Database["public"]["Enums"]["feed_event_type"]
+          goal_title: string
+          hidden_at: string
+          id: string
+          occurrence_count: number
+          payload: Json
+          reaction_count: number
+          track_key: string
+          viewer_reacted: boolean
+          xp_delta: number
+        }[]
+      }
       get_social_leaderboard_season: {
         Args: { p_season_id: string }
         Returns: {
