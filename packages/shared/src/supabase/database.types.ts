@@ -2825,7 +2825,7 @@ export type Database = {
         | "monthly"
         | "quarterly"
         | "yearly"
-      leaderboard_scope_kind: "global" | "cohort"
+      leaderboard_scope_kind: "global" | "cohort" | "group"
       leaderboard_season_status: "upcoming" | "open" | "closed"
       moderation_action:
         | "hide"
@@ -2852,7 +2852,7 @@ export type Database = {
       nudge_kind: "cheer" | "remind" | "custom"
       reaction_kind: "cheer" | "fire" | "clap" | "strong"
       recurrence_interval: "daily" | "weekly" | "monthly"
-      social_audience_kind: "global" | "cohort"
+      social_audience_kind: "global" | "cohort" | "group"
       social_subject_kind: "user" | "team"
       team_status: "pending" | "active" | "closed"
     }
@@ -3021,7 +3021,7 @@ export const Constants = {
         "quarterly",
         "yearly",
       ],
-      leaderboard_scope_kind: ["global", "cohort"],
+      leaderboard_scope_kind: ["global", "cohort", "group"],
       leaderboard_season_status: ["upcoming", "open", "closed"],
       moderation_action: [
         "hide",
@@ -3050,7 +3050,7 @@ export const Constants = {
       nudge_kind: ["cheer", "remind", "custom"],
       reaction_kind: ["cheer", "fire", "clap", "strong"],
       recurrence_interval: ["daily", "weekly", "monthly"],
-      social_audience_kind: ["global", "cohort"],
+      social_audience_kind: ["global", "cohort", "group"],
       social_subject_kind: ["user", "team"],
       team_status: ["pending", "active", "closed"],
     },
