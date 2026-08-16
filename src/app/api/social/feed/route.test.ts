@@ -98,4 +98,19 @@ describe("GET /api/social/feed", () => {
       ],
     });
   });
+
+  it("maps canonical group scope to legacy cohort RPC scope during rollout", async () => {
+    const response = await GET(
+      new Request("http://localhost/api/social/feed?scope=group&scopeId=group-1")
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.rpc).toHaveBeenCalledWith("get_social_feed", {
+      p_scope: "cohort",
+      p_scope_id: "group-1",
+      p_before_at: undefined,
+      p_before_id: undefined,
+      p_limit: 30,
+    });
+  });
 });
