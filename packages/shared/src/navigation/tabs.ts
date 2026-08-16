@@ -1,8 +1,12 @@
 export type AppTabKey =
   | "insights"
+  | "checklist"
   | "calendar"
   | "social"
   | "settings";
+
+export type PlannerPrimaryTabPreference = "calendar" | "checklist";
+export type DefaultMainPagePreference = "calendar" | "checklist" | "insights";
 
 export interface AppTabDefinition {
   key: AppTabKey;
@@ -10,11 +14,66 @@ export interface AppTabDefinition {
   label: string;
 }
 
-export const APP_TABS: AppTabDefinition[] = [
-  { key: "insights", href: "/insights", label: "Insights" },
-  { key: "calendar", href: "/calendar", label: "Planner" },
-  { key: "social", href: "/social", label: "Challenges" },
-  { key: "settings", href: "/settings", label: "Profile" },
-];
+const TAB_BY_KEY: Record<AppTabKey, AppTabDefinition> = {
+  insights: { key: "insights", href: "/insights", label: "Insights" },
+  checklist: { key: "checklist", href: "/checklist", label: "Checklist" },
+  calendar: { key: "calendar", href: "/calendar", label: "Calendar" },
+  social: { key: "social", href: "/social", label: "Challenges" },
+  settings: { key: "settings", href: "/settings", label: "Profile" },
+};
+
+export const DEFAULT_MAIN_PAGE_PREFERENCE: DefaultMainPagePreference = "calendar";
+export const DEFAULT_PLANNER_PRIMARY_TAB_PREFERENCE: PlannerPrimaryTabPreference =
+  "checklist";
+
+export function normalizeDefaultMainPagePreference(
+  value: string | null | undefined
+): DefaultMainPagePreference {
+  if (value === "calendar" || value === "checklist" || value === "insights") {
+    return value;
+  }
+  return DEFAULT_MAIN_PAGE_PREFERENCE;
+}
+
+export function normalizePlannerPrimaryTabPreference(
+  value: string | null | undefined
+): PlannerPrimaryTabPreference {
+  if (value === "calendar" || value === "checklist") {
+    return value;
+  }
+  return DEFAULT_PLANNER_PRIMARY_TAB_PREFERENCE;
+}
+
+export function buildAppTabs(
+  plannerPrimaryTab: PlannerPrimaryTabPreference = DEFAULT_PLANNER_PRIMARY_TAB_PREFERENCE
+): AppTabDefinition[] {
+  const plannerTabs: AppTabKey[] =
+    plannerPrimaryTab === "calendar"
+      ? ["calendar", "checklist"]
+      : ["checklist", "calendar"];
+  const orderedKeys: AppTabKey[] = [
+    "insights",
+    ...plannerTabs,
+    "social",
+    "settings",
+  ];
+  return orderedKeys.map((key) => TAB_BY_KEY[key]);
+}
+
+export function resolveDefaultMainPageHref(
+  preference: DefaultMainPagePreference
+): string {
+  switch (preference) {
+    case "checklist":
+      return "/checklist";
+    case "insights":
+      return "/insights";
+    case "calendar":
+    default:
+      return "/calendar";
+  }
+}
+
+export const APP_TABS: AppTabDefinition[] = buildAppTabs();
 
 export const TAB_ORDER = APP_TABS.map((tab) => tab.href);

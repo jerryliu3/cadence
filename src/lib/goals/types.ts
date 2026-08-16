@@ -1,6 +1,8 @@
 export type GoalFrequencyType = "fixed_milestones" | "recurring";
 export type RecurrenceInterval = "daily" | "weekly" | "monthly";
 export type CompletionSource = "manual" | "linked_cascade" | "external_sync";
+export type DefaultMainPagePreference = "calendar" | "checklist" | "insights";
+export type PlannerPrimaryTabPreference = "calendar" | "checklist";
 
 export interface Goal {
   id: string;
@@ -61,6 +63,8 @@ export interface Profile {
   username: string;
   display_name: string | null;
   avatar_url: string | null;
+  default_main_page?: DefaultMainPagePreference | null;
+  planner_primary_tab?: PlannerPrimaryTabPreference | null;
   week_starts_on?: number;
   social_activity_visible?: boolean;
   created_at: string;

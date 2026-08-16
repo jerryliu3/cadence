@@ -1,9 +1,14 @@
 import { redirect } from "next/navigation";
 import {
+  normalizeDefaultMainPagePreference,
+  resolveDefaultMainPageHref,
+} from "@cadence/shared/navigation/tabs";
+import {
   isValidCalendarViewMode,
   isValidDate,
   isValidMonth,
 } from "@/features/today/checklist-shell-routing";
+import { createClient } from "@/lib/supabase/server";
 
 function firstParam(value: string | string[] | undefined) {
   if (Array.isArray(value)) {
@@ -46,5 +51,29 @@ export default async function HomePage({
     nextParams.set("month", month);
   }
   const query = nextParams.toString();
-  redirect(query.length > 0 ? `/calendar?${query}` : "/calendar");
+  if (query.length > 0) {
+    redirect(`/calendar?${query}`);
+    return;
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect("/login");
+    return;
+  }
+
+  const { data: profilePreferences } = await supabase
+    .from("profiles")
+    .select("default_main_page")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  const defaultMainPage = normalizeDefaultMainPagePreference(
+    profilePreferences?.default_main_page
+  );
+  redirect(resolveDefaultMainPageHref(defaultMainPage));
 }

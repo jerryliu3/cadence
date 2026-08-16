@@ -4,6 +4,12 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
+  DEFAULT_MAIN_PAGE_PREFERENCE,
+  DEFAULT_PLANNER_PRIMARY_TAB_PREFERENCE,
+  normalizeDefaultMainPagePreference,
+  normalizePlannerPrimaryTabPreference,
+} from "@cadence/shared/navigation/tabs";
+import {
   getAvatarUrlValidationError,
   normalizeAvatarUrlDraft,
 } from "@/features/social/avatar-url";
@@ -76,6 +82,8 @@ export function useSocialTabData() {
     username: "",
     display_name: "",
     avatar_url: "",
+    default_main_page: DEFAULT_MAIN_PAGE_PREFERENCE,
+    planner_primary_tab: DEFAULT_PLANNER_PRIMARY_TAB_PREFERENCE,
   });
 
   const loadData = useCallback(async () => {
@@ -112,6 +120,12 @@ export function useSocialTabData() {
       username: profile?.username ?? "",
       display_name: profile?.display_name ?? "",
       avatar_url: profile?.avatar_url ?? "",
+      default_main_page: normalizeDefaultMainPagePreference(
+        profile?.default_main_page
+      ),
+      planner_primary_tab: normalizePlannerPrimaryTabPreference(
+        profile?.planner_primary_tab
+      ),
     });
 
     const sharedGoalIds = sharedEntries.map((entry) => entry.goal_id);
@@ -266,21 +280,49 @@ export function useSocialTabData() {
       username: profileDraft.username.trim().toLowerCase(),
       display_name: profileDraft.display_name.trim() || null,
       avatar_url: normalizeAvatarUrlDraft(profileDraft.avatar_url),
+      default_main_page: normalizeDefaultMainPagePreference(
+        profileDraft.default_main_page
+      ),
+      planner_primary_tab: normalizePlannerPrimaryTabPreference(
+        profileDraft.planner_primary_tab
+      ),
     }),
-    [profileDraft.avatar_url, profileDraft.display_name, profileDraft.username]
+    [
+      profileDraft.avatar_url,
+      profileDraft.default_main_page,
+      profileDraft.display_name,
+      profileDraft.planner_primary_tab,
+      profileDraft.username,
+    ]
   );
   const normalizedPersistedProfile = useMemo(
     () => ({
       username: state.profile?.username?.trim().toLowerCase() ?? "",
       display_name: state.profile?.display_name?.trim() || null,
       avatar_url: state.profile?.avatar_url?.trim() || null,
+      default_main_page: normalizeDefaultMainPagePreference(
+        state.profile?.default_main_page
+      ),
+      planner_primary_tab: normalizePlannerPrimaryTabPreference(
+        state.profile?.planner_primary_tab
+      ),
     }),
-    [state.profile?.avatar_url, state.profile?.display_name, state.profile?.username]
+    [
+      state.profile?.avatar_url,
+      state.profile?.default_main_page,
+      state.profile?.display_name,
+      state.profile?.planner_primary_tab,
+      state.profile?.username,
+    ]
   );
   const profileDirty =
     normalizedProfileDraft.username !== normalizedPersistedProfile.username ||
     normalizedProfileDraft.display_name !== normalizedPersistedProfile.display_name ||
-    normalizedProfileDraft.avatar_url !== normalizedPersistedProfile.avatar_url;
+    normalizedProfileDraft.avatar_url !== normalizedPersistedProfile.avatar_url ||
+    normalizedProfileDraft.default_main_page !==
+      normalizedPersistedProfile.default_main_page ||
+    normalizedProfileDraft.planner_primary_tab !==
+      normalizedPersistedProfile.planner_primary_tab;
   const avatarUrlError = useMemo(
     () => getAvatarUrlValidationError(normalizedProfileDraft.avatar_url),
     [normalizedProfileDraft.avatar_url]
@@ -297,6 +339,8 @@ export function useSocialTabData() {
       username: normalizedProfileDraft.username,
       display_name: normalizedProfileDraft.display_name,
       avatar_url: normalizedProfileDraft.avatar_url,
+      default_main_page: normalizedProfileDraft.default_main_page,
+      planner_primary_tab: normalizedProfileDraft.planner_primary_tab,
     };
 
     const { error } = await supabase.from("profiles").upsert(payload, {

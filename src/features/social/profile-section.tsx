@@ -1,17 +1,30 @@
 "use client";
 
 import { WandSparkles } from "lucide-react";
+import type {
+  DefaultMainPagePreference,
+  PlannerPrimaryTabPreference,
+} from "@cadence/shared/navigation/tabs";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import type { Profile } from "@/lib/goals/types";
 
 interface ProfileDraft {
   username: string;
   display_name: string;
   avatar_url: string;
+  default_main_page: DefaultMainPagePreference;
+  planner_primary_tab: PlannerPrimaryTabPreference;
 }
 
 interface ProfileSectionProps {
@@ -85,6 +98,41 @@ export function ProfileSection({
                 setProfileDraft((prev) => ({ ...prev, display_name: event.target.value }))
               }
             />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="profile-default-main-page">Default landing page</Label>
+            <Select
+              value={profileDraft.default_main_page}
+              onValueChange={(value: DefaultMainPagePreference) =>
+                setProfileDraft((prev) => ({ ...prev, default_main_page: value }))
+              }
+            >
+              <SelectTrigger id="profile-default-main-page" className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="calendar">Calendar</SelectItem>
+                <SelectItem value="checklist">Checklist</SelectItem>
+                <SelectItem value="insights">Insights</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="profile-planner-primary-tab">Primary planner tab</Label>
+            <Select
+              value={profileDraft.planner_primary_tab}
+              onValueChange={(value: PlannerPrimaryTabPreference) =>
+                setProfileDraft((prev) => ({ ...prev, planner_primary_tab: value }))
+              }
+            >
+              <SelectTrigger id="profile-planner-primary-tab" className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="checklist">Checklist first</SelectItem>
+                <SelectItem value="calendar">Calendar first</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
           <div className="space-y-2 sm:col-span-2">
             <Label htmlFor="profile-email">Email</Label>

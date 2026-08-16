@@ -2,7 +2,11 @@ import { BarChart3, CalendarDays, Trophy, User } from "lucide-react";
 import type { ComponentType } from "react";
 import {
   APP_TABS as SHARED_APP_TABS,
+  buildAppTabs as buildSharedAppTabs,
+  resolveDefaultMainPageHref as resolveSharedDefaultMainPageHref,
   TAB_ORDER as SHARED_TAB_ORDER,
+  type DefaultMainPagePreference,
+  type PlannerPrimaryTabPreference,
   type AppTabDefinition,
 } from "@cadence/shared/navigation/tabs";
 
@@ -20,9 +24,22 @@ export type AppTab = AppTabDefinition & {
   icon: ComponentType<{ className?: string }>;
 };
 
-export const APP_TABS: AppTab[] = SHARED_APP_TABS.map((tab) => ({
-  ...tab,
-  icon: WEB_TAB_ICONS[tab.key],
-}));
+function withIcon(tab: AppTabDefinition): AppTab {
+  return { ...tab, icon: WEB_TAB_ICONS[tab.key] };
+}
+
+export function buildAppTabs(
+  plannerPrimaryTab?: PlannerPrimaryTabPreference
+): AppTab[] {
+  return buildSharedAppTabs(plannerPrimaryTab).map(withIcon);
+}
+
+export function resolveDefaultMainPageHref(
+  preference: DefaultMainPagePreference
+): string {
+  return resolveSharedDefaultMainPageHref(preference);
+}
+
+export const APP_TABS: AppTab[] = SHARED_APP_TABS.map(withIcon);
 
 export const TAB_ORDER = SHARED_TAB_ORDER;
