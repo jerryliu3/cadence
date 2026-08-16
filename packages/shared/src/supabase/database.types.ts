@@ -324,13 +324,23 @@ export type Database = {
         Returns: boolean
       }
       xp_cascade_multiplier: { Args: never; Returns: number }
-      xp_goal_achievement_points: { Args: never; Returns: number }
+      xp_goal_achievement_points: {
+        Args: { p_difficulty?: Database["public"]["Enums"]["goal_difficulty"] }
+        Returns: number
+      }
+      xp_goal_difficulty_multiplier: {
+        Args: { p_difficulty: Database["public"]["Enums"]["goal_difficulty"] }
+        Returns: number
+      }
       xp_level_for_total: { Args: { p_total_xp: number }; Returns: number }
       xp_lock_key: { Args: { p_scope: string }; Returns: number }
       xp_manual_completion_points: { Args: never; Returns: number }
       xp_min_total_for_level: { Args: { p_level: number }; Returns: number }
       xp_points_for_completion_source: {
-        Args: { p_source: Database["public"]["Enums"]["completion_source"] }
+        Args: {
+          p_difficulty?: Database["public"]["Enums"]["goal_difficulty"]
+          p_source: Database["public"]["Enums"]["completion_source"]
+        }
         Returns: number
       }
       xp_skip_for_profile_delete: {
@@ -873,6 +883,7 @@ export type Database = {
           created_at: string
           default_local_time: string | null
           description: string | null
+          difficulty: Database["public"]["Enums"]["goal_difficulty"]
           end_date: string | null
           frequency_type: Database["public"]["Enums"]["goal_frequency_type"]
           id: string
@@ -899,6 +910,7 @@ export type Database = {
           created_at?: string
           default_local_time?: string | null
           description?: string | null
+          difficulty?: Database["public"]["Enums"]["goal_difficulty"]
           end_date?: string | null
           frequency_type: Database["public"]["Enums"]["goal_frequency_type"]
           id?: string
@@ -925,6 +937,7 @@ export type Database = {
           created_at?: string
           default_local_time?: string | null
           description?: string | null
+          difficulty?: Database["public"]["Enums"]["goal_difficulty"]
           end_date?: string | null
           frequency_type?: Database["public"]["Enums"]["goal_frequency_type"]
           id?: string
@@ -2385,6 +2398,7 @@ export type Database = {
           p_color?: string
           p_default_local_time?: string
           p_description?: string
+          p_difficulty?: Database["public"]["Enums"]["goal_difficulty"]
           p_end_date?: string
           p_frequency_type?: Database["public"]["Enums"]["goal_frequency_type"]
           p_id: string
@@ -2797,6 +2811,7 @@ export type Database = {
           p_color?: string
           p_default_local_time?: string
           p_description?: string
+          p_difficulty?: Database["public"]["Enums"]["goal_difficulty"]
           p_end_date?: string
           p_frequency_type?: Database["public"]["Enums"]["goal_frequency_type"]
           p_id: string
@@ -2840,6 +2855,7 @@ export type Database = {
         | "challenge_completed"
         | "season_result"
         | "team_formed"
+      goal_difficulty: "easy" | "medium" | "hard"
       goal_frequency_type: "fixed_milestones" | "recurring"
       health_metric_key:
         | "steps"
@@ -3034,6 +3050,7 @@ export const Constants = {
         "season_result",
         "team_formed",
       ],
+      goal_difficulty: ["easy", "medium", "hard"],
       goal_frequency_type: ["fixed_milestones", "recurring"],
       health_metric_key: [
         "steps",

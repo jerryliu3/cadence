@@ -1,6 +1,7 @@
 export type GoalFrequencyType = "fixed_milestones" | "recurring";
 export type RecurrenceInterval = "daily" | "weekly" | "monthly";
 export type CompletionSource = "manual" | "linked_cascade" | "external_sync";
+export type GoalDifficulty = "easy" | "medium" | "hard";
 export type PlannerPrimaryTabPreference = "calendar" | "checklist";
 
 export interface Goal {
@@ -14,6 +15,7 @@ export interface Goal {
   color: string | null;
   frequency_type: GoalFrequencyType;
   recurrence_interval: RecurrenceInterval | null;
+  difficulty?: GoalDifficulty;
   target_count: number | null;
   milestone_names: string[] | null;
   start_date: string;
