@@ -4,15 +4,15 @@ import { InsightsGoalStatsFilters } from "./insights-goal-stats-filters";
 
 describe("InsightsGoalStatsFilters", () => {
   it("keeps quick period controls visible and moves full controls into a sheet", () => {
-    const onEndMonthChange = vi.fn();
+    const onEndMonthsChange = vi.fn();
     const onViewModeChange = vi.fn();
 
     render(
       <InsightsGoalStatsFilters
         goals={[]}
         referenceMonth="2026-08"
-        endMonth={null}
-        onEndMonthChange={onEndMonthChange}
+          endMonths={[]}
+          onEndMonthsChange={onEndMonthsChange}
         sort="earliest_end"
         onSortChange={vi.fn()}
         monthCursor={new Date(2026, 7, 1)}
@@ -42,10 +42,10 @@ describe("InsightsGoalStatsFilters", () => {
     expect(screen.queryByText("Filters")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByText("Next month"));
-    expect(onEndMonthChange).toHaveBeenCalledWith("2026-09");
+    expect(onEndMonthsChange).toHaveBeenCalledWith(["2026-09"]);
 
     fireEvent.click(screen.getByText("All End Months"));
-    expect(onEndMonthChange).toHaveBeenCalledWith(null);
+    expect(onEndMonthsChange).toHaveBeenCalledWith([]);
 
     fireEvent.click(screen.getByText("Year view"));
     expect(onViewModeChange).toHaveBeenCalledWith("year");

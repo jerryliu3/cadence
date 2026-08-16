@@ -5,7 +5,7 @@ import {
   startOfYear,
 } from "date-fns";
 import {
-  filterGoalsByEndMonth,
+  filterGoalsByEndMonths,
   partitionGoalsByVisibleStart,
   sortGoalsByDate,
   type GoalDateSort,
@@ -25,13 +25,13 @@ export function selectSearchedGoals(goals: Goal[], query: string): Goal[] {
 export function selectVisiblePerGoalHeatmaps({
   goals,
   visiblePeriodStart,
-  endMonth,
+  endMonths,
   showHistoricalGoals,
   sort,
 }: {
   goals: Goal[];
   visiblePeriodStart: string;
-  endMonth: string | null;
+  endMonths: string[];
   showHistoricalGoals: boolean;
   sort: GoalDateSort;
 }): {
@@ -39,7 +39,7 @@ export function selectVisiblePerGoalHeatmaps({
   historicalGoals: Goal[];
   visiblePerGoalHeatmaps: Goal[];
 } {
-  const filteredGoals = filterGoalsByEndMonth(goals, endMonth);
+  const filteredGoals = filterGoalsByEndMonths(goals, endMonths);
   const partitioned = partitionGoalsByVisibleStart(
     filteredGoals,
     visiblePeriodStart

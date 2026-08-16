@@ -11,6 +11,23 @@ import {
   resolveSocialSurfaceTab,
   type SocialSurfaceTab,
 } from "@/features/social/social-surface-tab";
+import { cn } from "@/lib/utils";
+
+type SocialSurfaceTabTone = "feed" | "challenges" | "leaderboards" | "team";
+
+const socialSurfaceTriggerBaseClass =
+  "h-10 min-w-0 flex-col gap-0.5 rounded-xl px-1.5 py-1 text-[10px] font-semibold leading-tight transition-[transform,box-shadow] duration-150 hover:-translate-y-0.5 active:translate-y-[3px] active:shadow-[inset_0_2px_6px_rgba(15,23,42,0.24)] data-[state=active]:translate-y-[3px] data-[state=active]:shadow-[inset_0_2px_6px_rgba(15,23,42,0.24)] data-[state=active]:hover:translate-y-[3px] data-[state=active]:cursor-default after:hidden";
+
+const socialSurfaceTriggerToneClasses: Record<SocialSurfaceTabTone, string> = {
+  feed:
+    "border border-sky-300/70 bg-gradient-to-b from-sky-100/95 to-sky-50/90 text-sky-900 shadow-[0_3px_0_rgba(14,116,144,0.28)] data-[state=active]:border-sky-500 data-[state=active]:from-sky-200 data-[state=active]:to-sky-100 dark:border-sky-500/50 dark:from-sky-900/80 dark:to-sky-800/70 dark:text-sky-100 dark:data-[state=active]:border-sky-300 dark:data-[state=active]:from-sky-700/80 dark:data-[state=active]:to-sky-600/70",
+  challenges:
+    "border border-amber-300/70 bg-gradient-to-b from-amber-100/95 to-amber-50/90 text-amber-900 shadow-[0_3px_0_rgba(180,83,9,0.28)] data-[state=active]:border-amber-500 data-[state=active]:from-amber-200 data-[state=active]:to-amber-100 dark:border-amber-500/50 dark:from-amber-900/80 dark:to-amber-800/70 dark:text-amber-100 dark:data-[state=active]:border-amber-300 dark:data-[state=active]:from-amber-700/80 dark:data-[state=active]:to-amber-600/70",
+  leaderboards:
+    "border border-violet-300/70 bg-gradient-to-b from-violet-100/95 to-violet-50/90 text-violet-900 shadow-[0_3px_0_rgba(109,40,217,0.28)] data-[state=active]:border-violet-500 data-[state=active]:from-violet-200 data-[state=active]:to-violet-100 dark:border-violet-500/50 dark:from-violet-900/80 dark:to-violet-800/70 dark:text-violet-100 dark:data-[state=active]:border-violet-300 dark:data-[state=active]:from-violet-700/80 dark:data-[state=active]:to-violet-600/70",
+  team:
+    "border border-emerald-300/70 bg-gradient-to-b from-emerald-100/95 to-emerald-50/90 text-emerald-900 shadow-[0_3px_0_rgba(5,150,105,0.28)] data-[state=active]:border-emerald-500 data-[state=active]:from-emerald-200 data-[state=active]:to-emerald-100 dark:border-emerald-500/50 dark:from-emerald-900/80 dark:to-emerald-800/70 dark:text-emerald-100 dark:data-[state=active]:border-emerald-300 dark:data-[state=active]:from-emerald-700/80 dark:data-[state=active]:to-emerald-600/70",
+};
 
 export function SocialSurface({
   initialTab,
@@ -27,28 +44,40 @@ export function SocialSurface({
       >
         <TabsTrigger
           value="feed"
-          className="h-10 min-w-0 flex-col gap-0.5 rounded-xl border border-sky-300/70 bg-gradient-to-b from-sky-100/95 to-sky-50/90 px-1.5 py-1 text-[10px] font-semibold leading-tight text-sky-900 shadow-[0_3px_0_rgba(14,116,144,0.28)] transition-[transform,box-shadow] duration-150 hover:-translate-y-0.5 active:translate-y-[2px] active:shadow-[0_1px_0_rgba(14,116,144,0.22)] data-active:translate-y-[2px] data-active:border-sky-500 data-active:from-sky-200 data-active:to-sky-100 data-active:shadow-[0_1px_0_rgba(14,116,144,0.24)] dark:border-sky-500/50 dark:from-sky-900/80 dark:to-sky-800/70 dark:text-sky-100 dark:shadow-[0_3px_0_rgba(3,7,18,0.6)] dark:data-active:border-sky-300 dark:data-active:from-sky-700/80 dark:data-active:to-sky-600/70 after:hidden"
+          className={cn(
+            socialSurfaceTriggerBaseClass,
+            socialSurfaceTriggerToneClasses.feed
+          )}
         >
           <Newspaper className="size-3.5" />
           <span className="truncate">Feed</span>
         </TabsTrigger>
         <TabsTrigger
           value="challenges"
-          className="h-10 min-w-0 flex-col gap-0.5 rounded-xl border border-amber-300/70 bg-gradient-to-b from-amber-100/95 to-amber-50/90 px-1.5 py-1 text-[10px] font-semibold leading-tight text-amber-900 shadow-[0_3px_0_rgba(180,83,9,0.28)] transition-[transform,box-shadow] duration-150 hover:-translate-y-0.5 active:translate-y-[2px] active:shadow-[0_1px_0_rgba(180,83,9,0.22)] data-active:translate-y-[2px] data-active:border-amber-500 data-active:from-amber-200 data-active:to-amber-100 data-active:shadow-[0_1px_0_rgba(180,83,9,0.24)] dark:border-amber-500/50 dark:from-amber-900/80 dark:to-amber-800/70 dark:text-amber-100 dark:shadow-[0_3px_0_rgba(3,7,18,0.6)] dark:data-active:border-amber-300 dark:data-active:from-amber-700/80 dark:data-active:to-amber-600/70 after:hidden"
+          className={cn(
+            socialSurfaceTriggerBaseClass,
+            socialSurfaceTriggerToneClasses.challenges
+          )}
         >
           <Trophy className="size-3.5" />
           <span className="truncate">Challenges</span>
         </TabsTrigger>
         <TabsTrigger
           value="leaderboards"
-          className="h-10 min-w-0 flex-col gap-0.5 rounded-xl border border-violet-300/70 bg-gradient-to-b from-violet-100/95 to-violet-50/90 px-1.5 py-1 text-[10px] font-semibold leading-tight text-violet-900 shadow-[0_3px_0_rgba(109,40,217,0.28)] transition-[transform,box-shadow] duration-150 hover:-translate-y-0.5 active:translate-y-[2px] active:shadow-[0_1px_0_rgba(109,40,217,0.22)] data-active:translate-y-[2px] data-active:border-violet-500 data-active:from-violet-200 data-active:to-violet-100 data-active:shadow-[0_1px_0_rgba(109,40,217,0.24)] dark:border-violet-500/50 dark:from-violet-900/80 dark:to-violet-800/70 dark:text-violet-100 dark:shadow-[0_3px_0_rgba(3,7,18,0.6)] dark:data-active:border-violet-300 dark:data-active:from-violet-700/80 dark:data-active:to-violet-600/70 after:hidden"
+          className={cn(
+            socialSurfaceTriggerBaseClass,
+            socialSurfaceTriggerToneClasses.leaderboards
+          )}
         >
           <Flag className="size-3.5" />
           <span className="truncate">Leaderboards</span>
         </TabsTrigger>
         <TabsTrigger
           value="team"
-          className="h-10 min-w-0 flex-col gap-0.5 rounded-xl border border-emerald-300/70 bg-gradient-to-b from-emerald-100/95 to-emerald-50/90 px-1.5 py-1 text-[10px] font-semibold leading-tight text-emerald-900 shadow-[0_3px_0_rgba(5,150,105,0.28)] transition-[transform,box-shadow] duration-150 hover:-translate-y-0.5 active:translate-y-[2px] active:shadow-[0_1px_0_rgba(5,150,105,0.22)] data-active:translate-y-[2px] data-active:border-emerald-500 data-active:from-emerald-200 data-active:to-emerald-100 data-active:shadow-[0_1px_0_rgba(5,150,105,0.24)] dark:border-emerald-500/50 dark:from-emerald-900/80 dark:to-emerald-800/70 dark:text-emerald-100 dark:shadow-[0_3px_0_rgba(3,7,18,0.6)] dark:data-active:border-emerald-300 dark:data-active:from-emerald-700/80 dark:data-active:to-emerald-600/70 after:hidden"
+          className={cn(
+            socialSurfaceTriggerBaseClass,
+            socialSurfaceTriggerToneClasses.team
+          )}
         >
           <Users className="size-3.5" />
           <span className="truncate">Team</span>

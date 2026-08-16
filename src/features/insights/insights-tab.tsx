@@ -64,7 +64,7 @@ import {
 } from "@cadence/shared/goals/completable-goals";
 import { resolveSelectedDateState, toLocalDateString } from "@/lib/dates/day";
 import {
-  resolveEffectiveEndMonth,
+  resolveEffectiveEndMonths,
   type GoalDateSort,
 } from "@/lib/goals/list-view";
 import {
@@ -92,6 +92,11 @@ import { captureViewportRect } from "@/lib/xp/events";
 import { createClient } from "@/lib/supabase/client";
 
 export type HeatmapViewMode = "month" | "year";
+export type InsightsTabContentMode =
+  | "full"
+  | "overall-only"
+  | "goal-stats-only"
+  | "goals-only";
 
 const MAX_VISIBLE_MILESTONES = 5;
 const AGGREGATE_DRILLDOWN_DAY_CLASS_PREFIX = "aggregate-drilldown-day-";
@@ -138,13 +143,14 @@ interface InsightsTabProps {
     onPerGoalViewModeChange: (mode: HeatmapViewMode) => void;
   };
   sharedGoalFilters?: InsightsSharedGoalFilters;
+  contentMode?: InsightsTabContentMode;
 }
 
 export interface InsightsSharedGoalFilters {
   goalSearchQuery: string;
   setGoalSearchQuery: (value: string) => void;
-  goalEndMonth: string | null;
-  setGoalEndMonth: (value: string | null) => void;
+  goalEndMonths: string[];
+  setGoalEndMonths: (value: string[]) => void;
   goalSort: GoalDateSort;
   setGoalSort: (value: GoalDateSort) => void;
   showHistoricalGoals: boolean;
@@ -156,6 +162,7 @@ export function InsightsTab({
   readOnly = false,
   sharedPeriod,
   sharedGoalFilters,
+  contentMode = "full",
 }: InsightsTabProps = {}) {
   const [internalMonthCursor, setInternalMonthCursor] = useState(new Date());
   const [internalPerGoalViewMode, setInternalPerGoalViewMode] =
@@ -178,13 +185,13 @@ export function InsightsTab({
     sharedPeriod?.onPerGoalViewModeChange ?? setInternalPerGoalViewMode;
   const [goalMonthOverrides, setGoalMonthOverrides] = useState<Record<string, Date>>({});
   const [internalGoalSearchQuery, setInternalGoalSearchQuery] = useState("");
-  const [internalGoalEndMonth, setInternalGoalEndMonth] = useState<string | null>(null);
+  const [internalGoalEndMonths, setInternalGoalEndMonths] = useState<string[]>([]);
   const [internalGoalSort, setInternalGoalSort] = useState<GoalDateSort>("earliest_end");
   const [internalShowHistoricalGoals, setInternalShowHistoricalGoals] = useState(false);
   const goalSearchQuery = sharedGoalFilters?.goalSearchQuery ?? internalGoalSearchQuery;
   const setGoalSearchQuery = sharedGoalFilters?.setGoalSearchQuery ?? setInternalGoalSearchQuery;
-  const goalEndMonth = sharedGoalFilters?.goalEndMonth ?? internalGoalEndMonth;
-  const setGoalEndMonth = sharedGoalFilters?.setGoalEndMonth ?? setInternalGoalEndMonth;
+  const goalEndMonths = sharedGoalFilters?.goalEndMonths ?? internalGoalEndMonths;
+  const setGoalEndMonths = sharedGoalFilters?.setGoalEndMonths ?? setInternalGoalEndMonths;
   const goalSort = sharedGoalFilters?.goalSort ?? internalGoalSort;
   const setGoalSort = sharedGoalFilters?.setGoalSort ?? setInternalGoalSort;
   const showHistoricalGoals =
@@ -284,8 +291,8 @@ export function InsightsTab({
     [monthCursor, perGoalViewMode]
   );
   const goalFilterStartMonth = visiblePeriodStart.slice(0, 7);
-  const effectiveGoalEndMonth = resolveEffectiveEndMonth(
-    goalEndMonth,
+  const effectiveGoalEndMonths = resolveEffectiveEndMonths(
+    goalEndMonths,
     goalFilterStartMonth
   );
   const searchedPersonalGoals = useMemo(
@@ -297,12 +304,12 @@ export function InsightsTab({
       selectVisiblePerGoalHeatmaps({
         goals: searchedPersonalGoals,
         visiblePeriodStart,
-        endMonth: effectiveGoalEndMonth,
+        endMonths: effectiveGoalEndMonths,
         showHistoricalGoals,
         sort: goalSort,
       }),
     [
-      effectiveGoalEndMonth,
+      effectiveGoalEndMonths,
       goalSort,
       searchedPersonalGoals,
       showHistoricalGoals,
@@ -624,6 +631,13 @@ export function InsightsTab({
     containerRef: aggregateDrilldownRef,
     onDismiss: clearAggregateDrilldown,
   });
+  const showOverallStatsCard =
+    contentMode === "full" || contentMode === "overall-only";
+  const showGoalStatsSection =
+    contentMode === "full" || contentMode === "goal-stats-only";
+  const showGoalsSection =
+    contentMode === "full" || contentMode === "goals-only";
+  const showGoalStatsStepper = !sharedPeriod || contentMode === "goal-stats-only";
 
   if (loading) {
     return (
@@ -642,118 +656,123 @@ export function InsightsTab({
 
   return (
     <div className="space-y-5">
-      <InsightsOverallStatsCard
-        heatmapRef={aggregateHeatmapRef}
-        selectedYearStart={selectedYearStart}
-        selectedYearEnd={selectedYearEnd}
-        values={aggregateHeatmapData}
-        overallCompletion={overallCompletion}
-        overallStats={overallStats}
-        classForValue={(value) =>
-          `${getHeatmapScaleClass(value?.count ?? 0)} cursor-pointer ${getAggregateDrilldownDayClass(value?.date)}`
-        }
-        titleForValue={(value) =>
-          `${value?.date ?? "N/A"}: ${value?.count ?? 0} completion${
-            (value?.count ?? 0) === 1 ? "" : "s"
-          }`
-        }
-        onDayClick={(value) => {
-          if (value?.date) {
-            setAggregateDrilldownDate(value.date);
-            const tile = aggregateHeatmapRef.current?.querySelector(
-              `.${getAggregateDrilldownDayClass(value.date)}`
-            );
-            if (tile instanceof Element) {
-              const rect = tile.getBoundingClientRect();
-              setAggregateDrilldownPosition(
-                computeDayPreviewPosition({
-                  rect: {
-                    top: rect.top,
-                    left: rect.left,
-                    width: rect.width,
-                    height: rect.height,
-                  },
-                  viewportWidth: window.innerWidth,
-                  viewportHeight: window.innerHeight,
-                })
-              );
-            } else {
-              setAggregateDrilldownPosition(null);
-            }
+      {showOverallStatsCard ? (
+        <InsightsOverallStatsCard
+          heatmapRef={aggregateHeatmapRef}
+          selectedYearStart={selectedYearStart}
+          selectedYearEnd={selectedYearEnd}
+          values={aggregateHeatmapData}
+          overallCompletion={overallCompletion}
+          overallStats={overallStats}
+          classForValue={(value) =>
+            `${getHeatmapScaleClass(value?.count ?? 0)} cursor-pointer ${getAggregateDrilldownDayClass(value?.date)}`
           }
-        }}
-      />
+          titleForValue={(value) =>
+            `${value?.date ?? "N/A"}: ${value?.count ?? 0} completion${
+              (value?.count ?? 0) === 1 ? "" : "s"
+            }`
+          }
+          onDayClick={(value) => {
+            if (value?.date) {
+              setAggregateDrilldownDate(value.date);
+              const tile = aggregateHeatmapRef.current?.querySelector(
+                `.${getAggregateDrilldownDayClass(value.date)}`
+              );
+              if (tile instanceof Element) {
+                const rect = tile.getBoundingClientRect();
+                setAggregateDrilldownPosition(
+                  computeDayPreviewPosition({
+                    rect: {
+                      top: rect.top,
+                      left: rect.left,
+                      width: rect.width,
+                      height: rect.height,
+                    },
+                    viewportWidth: window.innerWidth,
+                    viewportHeight: window.innerHeight,
+                  })
+                );
+              } else {
+                setAggregateDrilldownPosition(null);
+              }
+            }
+          }}
+        />
+      ) : null}
 
-      <Card className="shadow-sm">
-        <CardHeader className="pb-3">
-          <div
-            data-title-date-row="true"
-            className="grid w-full grid-cols-[1fr_auto_1fr] items-center gap-2"
+      {showGoalStatsSection ? (
+        <Card className="shadow-sm">
+          <CardHeader className="pb-3">
+            <div
+              data-title-date-row="true"
+              className="grid w-full grid-cols-[1fr_auto_1fr] items-center gap-2"
+            >
+              <div className="flex min-w-0 items-center gap-2">
+                <CalendarRange className="size-4 shrink-0 text-primary" />
+                <CardTitle>Goal Stats</CardTitle>
+              </div>
+              <div className="flex items-center gap-2 justify-self-center">
+                {showGoalStatsStepper ? (
+                  <InsightsPeriodStepper
+                    monthCursor={monthCursor}
+                    onMonthCursorChange={setMonthCursor}
+                    perGoalViewMode={perGoalViewMode}
+                  />
+                ) : null}
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon-sm"
+                  className="h-8 w-8 shrink-0 rounded-full"
+                  aria-label="Open Insights filters"
+                  title="Open Insights filters"
+                  onClick={() => setGoalStatsFiltersOpen(true)}
+                >
+                  <SlidersHorizontal className="size-3.5" />
+                </Button>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <InsightsGoalStatsFilters
+              goals={personalGoals}
+              referenceMonth={goalFilterStartMonth}
+              endMonths={effectiveGoalEndMonths}
+              onEndMonthsChange={setGoalEndMonths}
+              sort={goalSort}
+              onSortChange={setGoalSort}
+              monthCursor={monthCursor}
+              onMonthCursorChange={setMonthCursor}
+              viewMode={perGoalViewMode}
+              onViewModeChange={setPerGoalViewMode}
+              showPastGoals={showHistoricalGoals}
+              pastGoalCount={historicalGoals.length}
+              onShowPastGoalsChange={setShowHistoricalGoals}
+              open={goalStatsFiltersOpen}
+              onOpenChange={setGoalStatsFiltersOpen}
+            />
+            <Input
+              value={goalSearchQuery}
+              onChange={(event) => setGoalSearchQuery(event.target.value)}
+              placeholder="Search goals..."
+              className="h-8"
+            />
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {showGoalsSection ? (
+        <Card className="border-0 bg-transparent py-0 shadow-none ring-0">
+          <CardContent
+            className="space-y-3 px-0"
+            data-no-swipe="true"
+            onTouchStart={perGoalViewMode === "month" ? onMonthSectionTouchStart : undefined}
+            onTouchEnd={perGoalViewMode === "month" ? onMonthSectionTouchEnd : undefined}
           >
-            <div className="flex min-w-0 items-center gap-2">
-              <CalendarRange className="size-4 shrink-0 text-primary" />
-              <CardTitle>Goal Stats</CardTitle>
-            </div>
-            <div className="flex items-center gap-2 justify-self-center">
-              {sharedPeriod ? null : (
-                <InsightsPeriodStepper
-                  monthCursor={monthCursor}
-                  onMonthCursorChange={setMonthCursor}
-                  perGoalViewMode={perGoalViewMode}
-                />
-              )}
-              <Button
-                type="button"
-                variant="outline"
-                size="icon-sm"
-                className="h-8 w-8 shrink-0 rounded-full"
-                aria-label="Open Insights filters"
-                title="Open Insights filters"
-                onClick={() => setGoalStatsFiltersOpen(true)}
-              >
-                <SlidersHorizontal className="size-3.5" />
-              </Button>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <InsightsGoalStatsFilters
-            goals={personalGoals}
-            referenceMonth={goalFilterStartMonth}
-            endMonth={effectiveGoalEndMonth}
-            onEndMonthChange={setGoalEndMonth}
-            sort={goalSort}
-            onSortChange={setGoalSort}
-            monthCursor={monthCursor}
-            onMonthCursorChange={setMonthCursor}
-            viewMode={perGoalViewMode}
-            onViewModeChange={setPerGoalViewMode}
-            showPastGoals={showHistoricalGoals}
-            pastGoalCount={historicalGoals.length}
-            onShowPastGoalsChange={setShowHistoricalGoals}
-            open={goalStatsFiltersOpen}
-            onOpenChange={setGoalStatsFiltersOpen}
-          />
-          <Input
-            value={goalSearchQuery}
-            onChange={(event) => setGoalSearchQuery(event.target.value)}
-            placeholder="Search goals..."
-            className="h-8"
-          />
-        </CardContent>
-      </Card>
-
-      <Card className="border-0 bg-transparent py-0 shadow-none ring-0">
-        <CardContent
-          className="space-y-3 px-0"
-          data-no-swipe="true"
-          onTouchStart={perGoalViewMode === "month" ? onMonthSectionTouchStart : undefined}
-          onTouchEnd={perGoalViewMode === "month" ? onMonthSectionTouchEnd : undefined}
-        >
-          {visiblePerGoalHeatmaps.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No goals match these controls.</p>
-          ) : (
-            visiblePerGoalHeatmaps.map((goal) => {
+            {visiblePerGoalHeatmaps.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No goals match these controls.</p>
+            ) : (
+              visiblePerGoalHeatmaps.map((goal) => {
               const goalMonthCursor = goalMonthOverrides[goal.id] ?? monthCursor;
               const completions = completionsByGoal.get(goal.id) ?? [];
               const progress = progressByGoal.get(goal.id);
@@ -1069,12 +1088,13 @@ export function InsightsTab({
                   </CardContent>
                 </Card>
               );
-            })
-          )}
-        </CardContent>
-      </Card>
+              })
+            )}
+          </CardContent>
+        </Card>
+      ) : null}
 
-      {aggregateDrilldownDate ? (
+      {showOverallStatsCard && aggregateDrilldownDate ? (
         <AnchoredPopupCard
           popupRef={aggregateDrilldownRef}
           position={aggregateDrilldownPosition}

@@ -82,23 +82,38 @@ export function sortGoalsByDate(goals: Goal[], sort: GoalDateSort): Goal[] {
 }
 
 export function filterGoalsByEndMonth(goals: Goal[], endMonth: string | null): Goal[] {
-  if (endMonth === null) {
-    return goals;
-  }
-
-  return goals.filter(
-    (goal) => goal.end_date !== null && goal.end_date.slice(0, 7) === endMonth
-  );
+  return filterGoalsByEndMonths(goals, endMonth === null ? [] : [endMonth]);
 }
 
 export function resolveEffectiveEndMonth(
   endMonth: string | null,
   referenceMonth: string
 ): string | null {
-  if (endMonth === null) {
-    return null;
+  return resolveEffectiveEndMonths(
+    endMonth === null ? [] : [endMonth],
+    referenceMonth
+  )[0] ?? null;
+}
+
+export function filterGoalsByEndMonths(goals: Goal[], endMonths: string[]): Goal[] {
+  if (endMonths.length === 0) {
+    return goals;
   }
-  return endMonth >= referenceMonth ? endMonth : null;
+
+  const allowedMonths = new Set(endMonths);
+  return goals.filter(
+    (goal) => goal.end_date !== null && allowedMonths.has(goal.end_date.slice(0, 7))
+  );
+}
+
+export function resolveEffectiveEndMonths(
+  endMonths: string[],
+  referenceMonth: string
+): string[] {
+  const validMonths = endMonths.filter(
+    (endMonth) => /^\d{4}-\d{2}$/.test(endMonth) && endMonth >= referenceMonth
+  );
+  return Array.from(new Set(validMonths));
 }
 
 export function partitionGoalsByVisibleStart(

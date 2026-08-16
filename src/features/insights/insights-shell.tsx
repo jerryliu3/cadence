@@ -3,7 +3,6 @@
 import { useMemo, useState } from "react";
 import { DuoLanes } from "@/features/social/duo/duo-lanes";
 import { useDuoSurface } from "@/features/social/duo/use-duo-surface";
-import { InsightsPeriodControls } from "@/features/insights/insights-period-controls";
 import {
   InsightsTab,
   type InsightsSharedGoalFilters,
@@ -16,7 +15,7 @@ export function InsightsShell() {
   const [monthCursor, setMonthCursor] = useState(new Date());
   const [perGoalViewMode, setPerGoalViewMode] = useState<HeatmapViewMode>("month");
   const [goalSearchQuery, setGoalSearchQuery] = useState("");
-  const [goalEndMonth, setGoalEndMonth] = useState<string | null>(null);
+  const [goalEndMonths, setGoalEndMonths] = useState<string[]>([]);
   const [goalSort, setGoalSort] = useState<GoalDateSort>("earliest_end");
   const [showHistoricalGoals, setShowHistoricalGoals] = useState(false);
   const sharePeriodControls = scope === "both" && Boolean(activePartner);
@@ -43,8 +42,8 @@ export function InsightsShell() {
         ? {
             goalSearchQuery,
             setGoalSearchQuery,
-            goalEndMonth,
-            setGoalEndMonth,
+            goalEndMonths,
+            setGoalEndMonths,
             goalSort,
             setGoalSort,
             showHistoricalGoals,
@@ -52,7 +51,7 @@ export function InsightsShell() {
           }
         : undefined,
     [
-      goalEndMonth,
+      goalEndMonths,
       goalSearchQuery,
       goalSort,
       shareGoalFilters,
@@ -63,26 +62,58 @@ export function InsightsShell() {
   return (
     <div className="space-y-4">
       {sharePeriodControls ? (
-        <InsightsPeriodControls
-          monthCursor={monthCursor}
-          onMonthCursorChange={setMonthCursor}
-          perGoalViewMode={perGoalViewMode}
-          onPerGoalViewModeChange={setPerGoalViewMode}
-        />
-      ) : null}
-      <DuoLanes
-        scope={scope}
-        viewer={viewer}
-        partner={partner}
-        renderLane={(subject) => (
-          <InsightsTab
-            subjectUserId={subject.userId}
-            readOnly={subject.readOnly}
-            sharedPeriod={sharedPeriod}
-            sharedGoalFilters={sharedGoalFilters}
+        <>
+          <DuoLanes
+            scope={scope}
+            viewer={viewer}
+            partner={partner}
+            renderLane={(subject) => (
+              <InsightsTab
+                subjectUserId={subject.userId}
+                readOnly={subject.readOnly}
+                sharedPeriod={sharedPeriod}
+                sharedGoalFilters={sharedGoalFilters}
+                contentMode="overall-only"
+              />
+            )}
           />
-        )}
-      />
+          <div className="mx-auto w-full md:max-w-3xl">
+            <InsightsTab
+              sharedPeriod={sharedPeriod}
+              sharedGoalFilters={sharedGoalFilters}
+              contentMode="goal-stats-only"
+            />
+          </div>
+          <DuoLanes
+            scope={scope}
+            viewer={viewer}
+            partner={partner}
+            renderLane={(subject) => (
+              <InsightsTab
+                subjectUserId={subject.userId}
+                readOnly={subject.readOnly}
+                sharedPeriod={sharedPeriod}
+                sharedGoalFilters={sharedGoalFilters}
+                contentMode="goals-only"
+              />
+            )}
+          />
+        </>
+      ) : (
+        <DuoLanes
+          scope={scope}
+          viewer={viewer}
+          partner={partner}
+          renderLane={(subject) => (
+            <InsightsTab
+              subjectUserId={subject.userId}
+              readOnly={subject.readOnly}
+              sharedPeriod={sharedPeriod}
+              sharedGoalFilters={sharedGoalFilters}
+            />
+          )}
+        />
+      )}
     </div>
   );
 }

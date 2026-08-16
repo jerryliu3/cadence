@@ -24,7 +24,7 @@ export function InsightsGoalCardHeader({
   return (
     <div
       data-testid="insights-goal-card-header"
-      className="flex flex-wrap items-start justify-between gap-2"
+      className="flex items-center justify-between gap-2"
     >
       <div
         data-testid="insights-goal-card-title-line"
@@ -34,7 +34,7 @@ export function InsightsGoalCardHeader({
           className="size-2 shrink-0 rounded-full"
           style={{ backgroundColor: color }}
         />
-        <p className="text-sm font-semibold leading-tight break-words [overflow-wrap:anywhere]">
+        <p className="min-w-0 flex-1 break-words text-sm font-semibold leading-tight">
           {title}
         </p>
         <Badge

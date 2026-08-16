@@ -159,9 +159,10 @@ export function useInsightsData({
                 subjectUserId: targetIsViewer ? undefined : targetSubjectUserId,
                 forceRefresh,
               }),
-              targetIsViewer
-                ? fetchInsightsStats({ forceRefresh })
-                : Promise.resolve(null),
+              fetchInsightsStats({
+                forceRefresh,
+                subjectUserId: targetIsViewer ? undefined : targetSubjectUserId,
+              }),
             ]),
             controller.signal
           );

@@ -19,7 +19,7 @@ interface TodayHeaderCardProps {
   datePickerControls?: ReactNode;
   searchControls?: ReactNode;
   quickFilterControls?: ReactNode;
-  children: ReactNode;
+  children?: ReactNode;
 }
 
 export function TodayHeaderCard({
@@ -86,7 +86,7 @@ export function TodayHeaderCard({
           ) : null}
         </div>
       </CardHeader>
-      <CardContent className="space-y-3 pt-0">{children}</CardContent>
+      {children ? <CardContent className="space-y-3 pt-0">{children}</CardContent> : null}
     </Card>
   );
 }

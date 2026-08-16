@@ -5,20 +5,19 @@ import { Card, CardContent } from "@/components/ui/card";
 import { GoalLoopScroller } from "@/features/today/goal-loop-scroller";
 import {
   VISIBLE_GOALS_PER_GROUP,
-  type RecurrenceFilter,
   type RecurrenceGroup,
 } from "@/features/today/checklist-selectors";
 import type { Goal } from "@/lib/goals/types";
 
 export function ChecklistTodayGroups({
-  recurrenceFilter,
+  selectedRecurrenceFilters,
   groups,
   sortedGoals,
   expandedGroups,
   onToggleGroup,
   renderGoal,
 }: {
-  recurrenceFilter: RecurrenceFilter;
+  selectedRecurrenceFilters: RecurrenceGroup[];
   groups: Array<{ key: RecurrenceGroup; label: string; goals: Goal[] }>;
   sortedGoals: Goal[];
   expandedGroups: Record<RecurrenceGroup, boolean>;
@@ -35,7 +34,7 @@ export function ChecklistTodayGroups({
     );
   }
 
-  if (recurrenceFilter !== "all") {
+  if (selectedRecurrenceFilters.length > 0) {
     return (
       <div className="space-y-3">
         {sortedGoals.map((goal) => renderGoal(goal, { key: goal.id }))}
