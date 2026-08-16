@@ -1,6 +1,5 @@
 export type AppTabKey =
   | "insights"
-  | "checklist"
   | "calendar"
   | "social"
   | "settings";
@@ -16,8 +15,7 @@ export interface AppTabDefinition {
 
 const TAB_BY_KEY: Record<AppTabKey, AppTabDefinition> = {
   insights: { key: "insights", href: "/insights", label: "Insights" },
-  checklist: { key: "checklist", href: "/checklist", label: "Checklist" },
-  calendar: { key: "calendar", href: "/calendar", label: "Calendar" },
+  calendar: { key: "calendar", href: "/calendar", label: "Planner" },
   social: { key: "social", href: "/social", label: "Challenges" },
   settings: { key: "settings", href: "/settings", label: "Profile" },
 };
@@ -47,13 +45,10 @@ export function normalizePlannerPrimaryTabPreference(
 export function buildAppTabs(
   plannerPrimaryTab: PlannerPrimaryTabPreference = DEFAULT_PLANNER_PRIMARY_TAB_PREFERENCE
 ): AppTabDefinition[] {
-  const plannerTabs: AppTabKey[] =
-    plannerPrimaryTab === "calendar"
-      ? ["calendar", "checklist"]
-      : ["checklist", "calendar"];
+  void plannerPrimaryTab;
   const orderedKeys: AppTabKey[] = [
     "insights",
-    ...plannerTabs,
+    "calendar",
     "social",
     "settings",
   ];

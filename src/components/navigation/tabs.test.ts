@@ -5,20 +5,18 @@ import {
 } from "@/components/navigation/tabs";
 
 describe("navigation tab preferences", () => {
-  it("orders planner tabs based on the preferred primary planner tab", () => {
+  it("keeps planner as a single top-level tab", () => {
     const calendarFirst = buildAppTabs("calendar");
     const checklistFirst = buildAppTabs("checklist");
 
     expect(calendarFirst.map((tab) => tab.key)).toEqual([
       "insights",
       "calendar",
-      "checklist",
       "social",
       "settings",
     ]);
     expect(checklistFirst.map((tab) => tab.key)).toEqual([
       "insights",
-      "checklist",
       "calendar",
       "social",
       "settings",
