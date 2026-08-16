@@ -135,13 +135,31 @@ async function ensureMonthCalendarDensity(page: Page) {
     await monthViewButton.click();
   }
 
+  const compactRowsButton = page.getByRole("button", { name: "Compact rows", exact: true });
   const expandRowsButton = page.getByRole("button", { name: "Expand rows", exact: true });
+  if (await compactRowsButton.isVisible().catch(() => false)) {
+    return;
+  }
+
+  await expect
+    .poll(
+      async () => {
+        if (await compactRowsButton.isVisible().catch(() => false)) {
+          return "compact";
+        }
+        if (await expandRowsButton.isVisible().catch(() => false)) {
+          return "expand";
+        }
+        return "pending";
+      },
+      { timeout: 10_000 }
+    )
+    .not.toBe("pending");
+
   if (await expandRowsButton.isVisible().catch(() => false)) {
     await expandRowsButton.click();
-    await expect(
-      page.getByRole("button", { name: "Compact rows", exact: true })
-    ).toBeVisible();
   }
+  await expect(compactRowsButton).toBeVisible();
 }
 
 async function ensureDragFixtureEntryAvailable(page: Page, maxMonthJumps = 12) {
@@ -316,9 +334,9 @@ async function moveFirstMovableEntry(
     }
 
     // Weekly fixture sessions only accept drops inside a short credit window.
-    // Prefer nearby same-month days first so we don't "succeed" a rejected far drop.
+    // Rank by absolute day distance so adjacent-month neighbors are considered
+    // before far-in-month days when source entries sit near month boundaries.
     const candidateTargetDays = await page.evaluate(({ currentDay }) => {
-      const scopeMonth = currentDay.slice(0, 7);
       const sourceMs = Date.parse(`${currentDay}T00:00:00Z`);
       const dayMs = (value: string) => Date.parse(`${value}T00:00:00Z`);
       const candidates = Array.from(
@@ -328,7 +346,6 @@ async function moveFirstMovableEntry(
           const value = cell.getAttribute("data-day");
           if (
             typeof value !== "string" ||
-            !value.startsWith(scopeMonth) ||
             value === currentDay
           ) {
             return null;
