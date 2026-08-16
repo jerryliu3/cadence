@@ -70,6 +70,7 @@ create or replace function private.xp_points_for_completion_source(
 returns integer
 language sql
 immutable
+security definer
 set search_path = ''
 as $$
   with multiplier as (
@@ -107,6 +108,7 @@ create or replace function private.xp_points_for_completion_source(
 returns integer
 language sql
 immutable
+security definer
 set search_path = ''
 as $$
   select private.xp_points_for_completion_source(
