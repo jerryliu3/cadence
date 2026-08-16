@@ -28,7 +28,8 @@ describe("XpProgressBar", () => {
 
     const { container } = render(<XpProgressBar />);
     expect(screen.getByText("Foothills")).toBeInTheDocument();
-    expect(screen.getByText("320 / 500 XP")).toBeInTheDocument();
+    expect(screen.getByText("Lv 2 · 220 XP")).toBeInTheDocument();
+    expect(screen.getByText("220 / 400 XP to Lv 3")).toBeInTheDocument();
     expect(
       screen.getByRole("link", { name: "Open achievements and XP details" })
     ).toHaveAttribute("href", "/achievements");
