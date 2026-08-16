@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useMemo } from "react";
+import { Badge } from "@/components/ui/badge";
 import { TrainingPlanImportEntry } from "@/features/goals/training-plan-import-entry";
 import { BulkGoalForm } from "@/features/today/bulk-goal-form";
 import { GoalForm } from "@/features/today/goal-form";
@@ -20,11 +21,14 @@ const CREATION_MODE_TABS: Array<{ key: CreationMode; label: string }> = [
   { key: "training", label: "Training Plan" },
 ];
 
-function resolveMode(rawMode: string | null): CreationMode {
+function resolveMode(
+  rawMode: string | null,
+  allowTrainingPlan: boolean
+): CreationMode {
   if (rawMode === "multi") {
     return "multi";
   }
-  if (rawMode === "training") {
+  if (rawMode === "training" && allowTrainingPlan) {
     return "training";
   }
   return "single";
@@ -33,10 +37,11 @@ function resolveMode(rawMode: string | null): CreationMode {
 export function GoalCreationEntry({ onExit }: GoalCreationEntryProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const allowTrainingPlan = process.env.NODE_ENV !== "production";
 
   const mode = useMemo(
-    () => resolveMode(searchParams.get("mode")),
-    [searchParams]
+    () => resolveMode(searchParams.get("mode"), allowTrainingPlan),
+    [allowTrainingPlan, searchParams]
   );
 
   const modeHref = (nextMode: CreationMode) => {
@@ -58,6 +63,21 @@ export function GoalCreationEntry({ onExit }: GoalCreationEntryProps) {
         <div className="mx-auto flex w-full max-w-xl items-end border-b border-border/70">
           {CREATION_MODE_TABS.map((tab) => {
             const selected = mode === tab.key;
+            const trainingTabLocked = tab.key === "training" && !allowTrainingPlan;
+            if (trainingTabLocked) {
+              return (
+                <span
+                  key={tab.key}
+                  aria-disabled="true"
+                  className="relative flex flex-1 cursor-not-allowed items-center justify-center gap-2 py-2 text-center text-sm font-medium text-muted-foreground/70"
+                >
+                  <span>{tab.label}</span>
+                  <Badge variant="outline" className="h-5 px-1.5 text-[10px] uppercase">
+                    Coming soon
+                  </Badge>
+                </span>
+              );
+            }
             return (
               <Link
                 key={tab.key}
