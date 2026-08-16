@@ -9,14 +9,12 @@ describe("navigation tab preferences", () => {
     expect(calendarFirst.map((tab) => tab.key)).toEqual([
       "insights",
       "calendar",
-      "tasks",
       "social",
       "settings",
     ]);
     expect(checklistFirst.map((tab) => tab.key)).toEqual([
       "insights",
       "calendar",
-      "tasks",
       "social",
       "settings",
     ]);

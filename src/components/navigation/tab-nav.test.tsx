@@ -35,13 +35,12 @@ describe("TabNav", () => {
     mockPathname = "/";
   });
 
-  it("renders five app tabs and marks the active tab", () => {
+  it("renders four app tabs and marks the active tab", () => {
     mockPathname = "/social";
     const { container } = render(<TabNav />);
 
     expect(screen.getByRole("link", { name: /Insights/i })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Planner/i })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /To-Do/i })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Challenges/i })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Profile/i })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Challenges/i })).toHaveAttribute(
@@ -60,10 +59,10 @@ describe("TabNav", () => {
     );
   });
 
-  it("uses the five-column grid class when five tabs are present", () => {
+  it("uses the four-column grid class when four tabs are present", () => {
     const { container } = render(<TabNav />);
     const tabList = container.querySelector("ul");
-    expect(tabList).toHaveClass("grid-cols-5");
+    expect(tabList).toHaveClass("grid-cols-4");
   });
 
   it("keeps the mobile nav bar 50% transparent so content shows through", () => {

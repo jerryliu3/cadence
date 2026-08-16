@@ -1,5 +1,5 @@
-import { TasksTab } from "@/features/tasks/tasks-tab";
+import { redirect } from "next/navigation";
 
 export default function TasksPage() {
-  return <TasksTab />;
+  redirect("/calendar?surface=tasks");
 }

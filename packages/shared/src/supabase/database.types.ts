@@ -1867,6 +1867,7 @@ export type Database = {
         Row: {
           created_at: string
           goal_id: string
+          goal_date_slot: number
           id: string
           locked: boolean
           original_scheduled_date: string | null
@@ -1879,6 +1880,7 @@ export type Database = {
         Insert: {
           created_at?: string
           goal_id: string
+          goal_date_slot?: number
           id?: string
           locked?: boolean
           original_scheduled_date?: string | null
@@ -1891,6 +1893,7 @@ export type Database = {
         Update: {
           created_at?: string
           goal_id?: string
+          goal_date_slot?: number
           id?: string
           locked?: boolean
           original_scheduled_date?: string | null
@@ -1910,6 +1913,47 @@ export type Database = {
           },
           {
             foreignKeyName: "planner_items_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      planner_tasks: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          id: string
+          is_deleted: boolean
+          owner_id: string
+          scheduled_date: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          is_deleted?: boolean
+          owner_id: string
+          scheduled_date?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          is_deleted?: boolean
+          owner_id?: string
+          scheduled_date?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "planner_tasks_owner_id_fkey"
             columns: ["owner_id"]
             isOneToOne: false
             referencedRelation: "profiles"
@@ -2424,6 +2468,32 @@ export type Database = {
       }
       create_goal_links: { Args: { p_links: Json }; Returns: undefined }
       create_goals: { Args: { p_goals: Json }; Returns: string[] }
+      create_planner_manual_item: {
+        Args: {
+          p_expected_digest: string
+          p_goal_id: string
+          p_scheduled_date: string
+          p_scheduled_time: string | null
+        }
+        Returns: {
+          item_id: string
+          locked: boolean
+          schedule_digest: string
+          scheduled_date: string
+          unit_key: string
+        }[]
+      }
+      create_planner_task: {
+        Args: { p_scheduled_date?: string; p_title: string }
+        Returns: {
+          completed_at: string | null
+          created_at: string
+          scheduled_date: string
+          task_id: string
+          title: string
+          updated_at: string
+        }[]
+      }
       create_team_invite_service: {
         Args: { p_message?: string; p_partner_id: string }
         Returns: string
@@ -2434,6 +2504,17 @@ export type Database = {
       }
       delete_health_autocomplete_rule_service: {
         Args: { p_rule_id: string }
+        Returns: boolean
+      }
+      delete_planner_manual_item: {
+        Args: { p_expected_digest: string; p_item_id: string }
+        Returns: {
+          item_id: string
+          schedule_digest: string
+        }[]
+      }
+      delete_planner_task: {
+        Args: { p_task_id: string }
         Returns: boolean
       }
       disconnect_health_provider_service: {
@@ -2675,6 +2756,17 @@ export type Database = {
         Args: { p_challenge_id: string }
         Returns: boolean
       }
+      list_planner_tasks: {
+        Args: { p_for_date?: string }
+        Returns: {
+          completed_at: string | null
+          created_at: string
+          scheduled_date: string
+          task_id: string
+          title: string
+          updated_at: string
+        }[]
+      }
       mark_goal_complete: {
         Args: { p_date?: string; p_goal_id: string }
         Returns: undefined
@@ -2814,6 +2906,17 @@ export type Database = {
         Returns: {
           schedule_digest: string
           upserted_count: number
+        }[]
+      }
+      set_planner_task_completion: {
+        Args: { p_completed?: boolean; p_task_id: string }
+        Returns: {
+          completed_at: string | null
+          created_at: string
+          scheduled_date: string
+          task_id: string
+          title: string
+          updated_at: string
         }[]
       }
       soft_delete_goal: { Args: { p_goal_id: string }; Returns: undefined }

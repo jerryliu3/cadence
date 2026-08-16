@@ -1,4 +1,4 @@
-import { BarChart3, CalendarDays, NotebookPen, Trophy, User } from "lucide-react";
+import { BarChart3, CalendarDays, Trophy, User } from "lucide-react";
 import type { ComponentType } from "react";
 import {
   APP_TABS as SHARED_APP_TABS,
@@ -14,7 +14,6 @@ const WEB_TAB_ICONS: Record<
 > = {
   insights: BarChart3,
   calendar: CalendarDays,
-  tasks: NotebookPen,
   social: Trophy,
   settings: User,
 };

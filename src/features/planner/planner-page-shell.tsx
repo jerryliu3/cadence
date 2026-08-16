@@ -1,32 +1,44 @@
 "use client";
 
-import { CalendarDays, ListChecks } from "lucide-react";
+import { CalendarDays, ListChecks, NotebookPen } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { CalendarPageShell } from "@/features/planner/calendar-page-shell";
 import { ChecklistShell } from "@/features/today/checklist-shell";
+import { TasksTab } from "@/features/tasks/tasks-tab";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useClientSearchParamsUpdater } from "@/lib/navigation/use-client-search-params-updater";
 
-type PlannerSurface = "calendar" | "checklist";
+type PlannerSurface = "calendar" | "checklist" | "tasks";
 
 export function PlannerPageShell() {
   const searchParams = useSearchParams();
   const { applySearchParams } = useClientSearchParamsUpdater();
+  const surfaceParam = searchParams.get("surface");
   const surface: PlannerSurface =
-    searchParams.get("surface") === "checklist" ? "checklist" : "calendar";
+    surfaceParam === "checklist"
+      ? "checklist"
+      : surfaceParam === "tasks"
+        ? "tasks"
+        : "calendar";
 
   return (
     <Tabs
       value={surface}
       onValueChange={(value) => {
         const nextSurface: PlannerSurface =
-          value === "checklist" ? "checklist" : "calendar";
+          value === "checklist"
+            ? "checklist"
+            : value === "tasks"
+              ? "tasks"
+              : "calendar";
         applySearchParams((params) => {
           params.delete("tab");
-          if (nextSurface === "checklist") {
+          if (nextSurface === "calendar") {
+            params.delete("surface");
+          } else if (nextSurface === "checklist") {
             params.set("surface", "checklist");
           } else {
-            params.delete("surface");
+            params.set("surface", "tasks");
           }
         }, "push");
       }}
@@ -34,7 +46,7 @@ export function PlannerPageShell() {
     >
       <TabsList
         variant="line"
-        className="grid w-full grid-cols-2 gap-2 rounded-2xl bg-transparent p-0"
+        className="grid w-full grid-cols-3 gap-2 rounded-2xl bg-transparent p-0"
       >
         <TabsTrigger
           value="calendar"
@@ -50,6 +62,13 @@ export function PlannerPageShell() {
           <ListChecks className="size-4" />
           Checklist
         </TabsTrigger>
+        <TabsTrigger
+          value="tasks"
+          className="h-11 min-w-0 flex-row gap-2 rounded-xl border border-amber-300/70 bg-gradient-to-b from-amber-100/95 to-amber-50/90 px-3 text-sm font-semibold text-amber-900 shadow-[0_3px_0_rgba(180,83,9,0.28)] transition-[transform,box-shadow] duration-150 hover:-translate-y-0.5 active:translate-y-[2px] active:shadow-[0_1px_0_rgba(180,83,9,0.22)] data-active:translate-y-[2px] data-active:border-amber-500 data-active:from-amber-200 data-active:to-amber-100 data-active:shadow-[0_1px_0_rgba(180,83,9,0.24)] dark:border-amber-500/50 dark:from-amber-900/80 dark:to-amber-800/70 dark:text-amber-100 dark:data-active:border-amber-300 dark:data-active:from-amber-700/80 dark:data-active:to-amber-600/70 after:hidden"
+        >
+          <NotebookPen className="size-4" />
+          To-Do
+        </TabsTrigger>
       </TabsList>
 
       <TabsContent value="calendar">
@@ -57,6 +76,9 @@ export function PlannerPageShell() {
       </TabsContent>
       <TabsContent value="checklist">
         <ChecklistShell />
+      </TabsContent>
+      <TabsContent value="tasks">
+        <TasksTab />
       </TabsContent>
     </Tabs>
   );

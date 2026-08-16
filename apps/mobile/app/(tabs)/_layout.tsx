@@ -12,7 +12,6 @@ const TAB_ICONS: Record<string, string> = {
   insights: "◉",
   checklist: "☑",
   calendar: "▦",
-  tasks: "✎",
   social: "⚑",
   settings: "☺",
 };

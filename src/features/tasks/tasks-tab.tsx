@@ -7,8 +7,9 @@ export function TasksTab() {
     <div className="space-y-5">
       <PlannerTasksPanel
         title="To-Do"
-        description="Create tasks, mark them done, and keep completed tasks visible only through today."
+        description="Create tasks, mark them done, and hard-delete tasks you no longer need."
         showScheduledDate
+        allowDelete
       />
     </div>
   );
