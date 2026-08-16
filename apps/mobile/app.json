@@ -39,7 +39,8 @@
             "targetSdkVersion": 36
           }
         }
-      ]
+      ],
+      "expo-video"
     ],
     "experiments": {
       "typedRoutes": true
@@ -64,11 +65,15 @@
       "intentFilters": [
         {
           "action": "androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE",
-          "category": ["android.intent.category.DEFAULT"]
+          "category": [
+            "android.intent.category.DEFAULT"
+          ]
         },
         {
           "action": "android.intent.action.VIEW_PERMISSION_USAGE",
-          "category": ["android.intent.category.HEALTH_PERMISSIONS"]
+          "category": [
+            "android.intent.category.HEALTH_PERMISSIONS"
+          ]
         }
       ]
     }
