@@ -95,8 +95,37 @@ async function dispatchNotifications(request: Request, correlationId: string) {
       );
     }
 
+    let skipped = 0;
+    let preferenceFilteredCandidates = dueCandidates;
+    try {
+      const preferencesByUserId = await loadNotificationPreferencesByUserIds({
+        admin,
+        userIds: dueCandidates.map(({ schedule }) => schedule.user_id),
+      });
+      preferenceFilteredCandidates = dueCandidates.filter(({ schedule }) => {
+        const preferences =
+          preferencesByUserId.get(schedule.user_id) ??
+          defaultNotificationPreferences;
+        if (preferences.daily_reminders) {
+          return true;
+        }
+        skipped += 1;
+        return false;
+      });
+    } catch (error) {
+      // Fail open here: claiming already-due reminders is safer than dropping a day.
+      console.error("Failed to load reminder preferences before dispatch:", error);
+    }
+
+    if (preferenceFilteredCandidates.length === 0) {
+      return apiSuccessResponse(
+        { due: 0, sent: 0, deferred: 0, skipped, removedSubscriptions: 0 },
+        correlationId
+      );
+    }
+
     const claimedSchedules = await Promise.all(
-      dueCandidates.map(async ({ schedule, localDate }) => {
+      preferenceFilteredCandidates.map(async ({ schedule, localDate }) => {
         const { data: claimed, error: claimError } = await admin
           .from("notification_schedules")
           .update({
@@ -122,31 +151,17 @@ async function dispatchNotifications(request: Request, correlationId: string) {
 
     if (dueSchedules.length === 0) {
       return apiSuccessResponse(
-        { due: 0, sent: 0, deferred: 0, skipped: 0, removedSubscriptions: 0 },
+        { due: 0, sent: 0, deferred: 0, skipped, removedSubscriptions: 0 },
         correlationId
       );
     }
 
-    const preferencesByUserId = await loadNotificationPreferencesByUserIds({
-      admin,
-      userIds: dueSchedules.map(({ schedule }) => schedule.user_id),
-    });
-
     let sent = 0;
     let deferred = 0;
-    let skipped = 0;
     let removedSubscriptions = 0;
 
     await Promise.all(
       dueSchedules.map(async ({ schedule, localDate }) => {
-        const preferences =
-          preferencesByUserId.get(schedule.user_id) ??
-          defaultNotificationPreferences;
-        if (!preferences.daily_reminders) {
-          skipped += 1;
-          return;
-        }
-
         let retryableFailure = false;
         try {
           const result = await sendPushToUser({

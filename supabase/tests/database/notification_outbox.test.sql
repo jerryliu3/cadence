@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions, pg_catalog;
-select plan(7);
+select plan(10);
 
 insert into auth.users (id, email)
 values ('9c111111-1111-4111-8111-111111111111', 'outbox-user@example.com')
@@ -123,6 +123,74 @@ select ok(
     null
   ),
   'successful delivery marks outbox row as sent'
+);
+
+insert into public.notification_outbox (
+  user_id,
+  kind,
+  title,
+  body,
+  url,
+  dedupe_key
+)
+values (
+  '9c111111-1111-4111-8111-111111111111',
+  'reaction'::public.notification_kind,
+  'Outbox title',
+  'Outbox body',
+  '/social',
+  'outbox-disabled-by-pref'
+)
+on conflict (user_id, dedupe_key)
+where dedupe_key is not null
+do nothing;
+
+create temporary table _claimed_disabled as
+select *
+from public.claim_notification_outbox_service(10);
+
+select ok(
+  public.resolve_notification_outbox_delivery_service(
+    (
+      select id
+      from _claimed_disabled
+      where kind = 'reaction'::public.notification_kind
+      limit 1
+    ),
+    false,
+    'disabled_by_user_preference'
+  ),
+  'disabled preference transitions outbox row to skipped'
+);
+
+select is(
+  (
+    select state
+    from public.notification_outbox outbox
+    where outbox.id = (
+      select id
+      from _claimed_disabled
+      where kind = 'reaction'::public.notification_kind
+      limit 1
+    )
+  ),
+  'skipped'::public.notification_state,
+  'disabled preference marks state as skipped'
+);
+
+select is(
+  (
+    select last_error
+    from public.notification_outbox outbox
+    where outbox.id = (
+      select id
+      from _claimed_disabled
+      where kind = 'reaction'::public.notification_kind
+      limit 1
+    )
+  ),
+  'disabled_by_user_preference',
+  'disabled preference captures explicit skip reason'
 );
 
 select * from finish();

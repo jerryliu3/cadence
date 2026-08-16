@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
     id: string;
     notification_preferences: Record<string, unknown>;
   }>,
+  profileLookupError: null as null | { message: string },
   reportError: vi.fn(),
   sendPushToUser: vi.fn(),
 }));
@@ -102,6 +103,7 @@ describe("push dispatch route", () => {
         },
       },
     ];
+    mocks.profileLookupError = null;
     mocks.from.mockImplementation((table: string) => {
       if (table === "notification_schedules") {
         return {
@@ -128,8 +130,8 @@ describe("push dispatch route", () => {
         return {
           select: () => ({
             in: async () => ({
-              data: mocks.profileRows,
-              error: null,
+              data: mocks.profileLookupError ? null : mocks.profileRows,
+              error: mocks.profileLookupError,
             }),
           }),
         };
@@ -383,13 +385,36 @@ describe("push dispatch route", () => {
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toMatchObject({
-      due: 1,
+      due: 0,
       sent: 0,
       deferred: 0,
       skipped: 1,
     });
     expect(mocks.sendPushToUser).not.toHaveBeenCalled();
     expect(mocks.releaseSchedule).not.toHaveBeenCalled();
+  });
+
+  it("fails open when reminder preference lookup errors before claiming", async () => {
+    prepareDueSchedule();
+    mocks.profileLookupError = { message: "profile lookup unavailable" };
+    mocks.sendPushToUser.mockResolvedValue({
+      sent: 1,
+      removedSubscriptions: 0,
+      hadSubscriptions: true,
+      webConfigurationUnavailable: false,
+      deliveryFailures: 0,
+    });
+
+    const response = await dispatchRequest();
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      due: 1,
+      sent: 1,
+      deferred: 0,
+      skipped: 0,
+    });
+    expect(mocks.sendPushToUser).toHaveBeenCalledTimes(1);
   });
 
   it("keeps the claim after at least one delivery succeeds", async () => {
