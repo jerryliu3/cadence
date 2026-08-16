@@ -15,7 +15,7 @@ export interface AppTabDefinition {
 const TAB_BY_KEY: Record<AppTabKey, AppTabDefinition> = {
   insights: { key: "insights", href: "/insights", label: "Insights" },
   calendar: { key: "calendar", href: "/calendar", label: "Planner" },
-  social: { key: "social", href: "/social", label: "Challenges" },
+  social: { key: "social", href: "/social", label: "Community" },
   settings: { key: "settings", href: "/settings", label: "Profile" },
 };
 

@@ -36,8 +36,8 @@ interface PlannerTasksPanelProps {
 }
 
 export function PlannerTasksPanel({
-  title = "To-Do",
-  description = "Track one-off tasks alongside your planner schedule.",
+  title = "Tasks",
+  description = "Track simple one-time tasks separately from recurring goals.",
   scheduledDate = null,
   showScheduledDate = false,
   allowCreate = true,

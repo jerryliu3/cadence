@@ -12,44 +12,48 @@ import { cn } from "@/lib/utils";
 type PlannerSurface = "calendar" | "checklist" | "tasks";
 
 const plannerSurfaceTriggerBaseClass =
-  "h-11 min-w-0 flex-row gap-2 rounded-xl px-3 text-sm font-semibold transition-[transform,box-shadow] duration-150 hover:-translate-y-0.5 active:translate-y-[3px] active:shadow-[inset_0_2px_6px_rgba(15,23,42,0.22)] data-[state=active]:translate-y-[3px] data-[state=active]:shadow-[inset_0_2px_6px_rgba(15,23,42,0.22)] data-[state=active]:hover:translate-y-[3px] data-[state=active]:cursor-default after:hidden";
+  "h-10 min-w-0 flex-col gap-0.5 rounded-xl px-1.5 py-1 text-[10px] font-semibold leading-tight transition-[transform,box-shadow] duration-150 hover:-translate-y-0.5 active:translate-y-[3px] data-[state=active]:translate-y-[3px] data-[state=active]:hover:translate-y-[3px] data-[state=active]:cursor-default after:hidden";
 
-const plannerSurfaceTriggerToneClasses: Record<PlannerSurface, string> = {
-  calendar:
-    "border border-sky-300/70 bg-gradient-to-b from-sky-100/95 to-sky-50/90 text-sky-900 shadow-[0_3px_0_rgba(14,116,144,0.28)] data-[state=active]:border-sky-500 data-[state=active]:from-sky-200 data-[state=active]:to-sky-100 dark:border-sky-500/50 dark:from-sky-900/80 dark:to-sky-800/70 dark:text-sky-100 dark:data-[state=active]:border-sky-300 dark:data-[state=active]:from-sky-700/80 dark:data-[state=active]:to-sky-600/70",
-  checklist:
-    "border border-emerald-300/70 bg-gradient-to-b from-emerald-100/95 to-emerald-50/90 text-emerald-900 shadow-[0_3px_0_rgba(5,150,105,0.28)] data-[state=active]:border-emerald-500 data-[state=active]:from-emerald-200 data-[state=active]:to-emerald-100 dark:border-emerald-500/50 dark:from-emerald-900/80 dark:to-emerald-800/70 dark:text-emerald-100 dark:data-[state=active]:border-emerald-300 dark:data-[state=active]:from-emerald-700/80 dark:data-[state=active]:to-emerald-600/70",
-  tasks:
-    "border border-amber-300/70 bg-gradient-to-b from-amber-100/95 to-amber-50/90 text-amber-900 shadow-[0_3px_0_rgba(180,83,9,0.28)] data-[state=active]:border-amber-500 data-[state=active]:from-amber-200 data-[state=active]:to-amber-100 dark:border-amber-500/50 dark:from-amber-900/80 dark:to-amber-800/70 dark:text-amber-100 dark:data-[state=active]:border-amber-300 dark:data-[state=active]:from-amber-700/80 dark:data-[state=active]:to-amber-600/70",
-};
+// Saved alternate (former Calendar): blue-300 border, a blue-100/blue-50
+// gradient, and blue-300/blue-100 when selected, with a
+// rgba(37, 99, 235, 0.28) raised shadow.
+const plannerSurfaceTriggerToneClass =
+  "border border-blue-300/80 bg-gradient-to-b from-blue-200/95 via-blue-100/95 to-blue-50/90 text-blue-900 shadow-[0_3px_0_rgba(37,99,235,0.24)] data-[state=active]:border-blue-500 data-[state=active]:from-blue-300/95 data-[state=active]:via-blue-200/95 data-[state=active]:to-blue-100";
+
+const selectedChipShadow =
+  "inset 0 4px 7px rgba(15, 23, 42, 0.3), inset 2px 0 4px rgba(15, 23, 42, 0.16), inset -1px 0 0 rgba(255, 255, 255, 0.42), inset 0 -2px 1px rgba(255, 255, 255, 0.72)";
 
 export function PlannerPageShell() {
   const searchParams = useSearchParams();
   const { applySearchParams } = useClientSearchParamsUpdater();
   const surfaceParam = searchParams.get("surface");
   const surface: PlannerSurface =
-    surfaceParam === "checklist"
+    surfaceParam === "calendar"
+      ? "calendar"
+      : surfaceParam === "checklist"
       ? "checklist"
       : surfaceParam === "tasks"
         ? "tasks"
-        : "calendar";
+        : "checklist";
 
   return (
     <Tabs
       value={surface}
       onValueChange={(value) => {
         const nextSurface: PlannerSurface =
-          value === "checklist"
+          value === "calendar"
+            ? "calendar"
+            : value === "checklist"
             ? "checklist"
             : value === "tasks"
               ? "tasks"
-              : "calendar";
+              : "checklist";
         applySearchParams((params) => {
           params.delete("tab");
-          if (nextSurface === "calendar") {
+          if (nextSurface === "checklist") {
             params.delete("surface");
-          } else if (nextSurface === "checklist") {
-            params.set("surface", "checklist");
+          } else if (nextSurface === "calendar") {
+            params.set("surface", "calendar");
           } else {
             params.set("surface", "tasks");
           }
@@ -59,37 +63,48 @@ export function PlannerPageShell() {
     >
       <TabsList
         variant="line"
-        className="grid w-full grid-cols-3 gap-2 rounded-2xl bg-transparent p-0"
+        className="grid w-full grid-cols-3 gap-1.5 rounded-2xl bg-transparent p-0"
       >
         <TabsTrigger
           value="calendar"
           className={cn(
             plannerSurfaceTriggerBaseClass,
-            plannerSurfaceTriggerToneClasses.calendar
+            plannerSurfaceTriggerToneClass
           )}
+          style={
+            surface === "calendar" ? { boxShadow: selectedChipShadow } : undefined
+          }
         >
-          <CalendarDays className="size-4" />
-          Calendar
+          <CalendarDays className="size-3.5" />
+          <span className="truncate">Calendar</span>
         </TabsTrigger>
         <TabsTrigger
           value="checklist"
           className={cn(
             plannerSurfaceTriggerBaseClass,
-            plannerSurfaceTriggerToneClasses.checklist
+            plannerSurfaceTriggerToneClass
           )}
+          style={
+            surface === "checklist"
+              ? { boxShadow: selectedChipShadow }
+              : undefined
+          }
         >
-          <ListChecks className="size-4" />
-          Checklist
+          <ListChecks className="size-3.5" />
+          <span className="truncate">Checklist</span>
         </TabsTrigger>
         <TabsTrigger
           value="tasks"
           className={cn(
             plannerSurfaceTriggerBaseClass,
-            plannerSurfaceTriggerToneClasses.tasks
+            plannerSurfaceTriggerToneClass
           )}
+          style={
+            surface === "tasks" ? { boxShadow: selectedChipShadow } : undefined
+          }
         >
-          <NotebookPen className="size-4" />
-          To-Do
+          <NotebookPen className="size-3.5" />
+          <span className="truncate">Tasks</span>
         </TabsTrigger>
       </TabsList>
 

@@ -211,7 +211,7 @@ export function SocialScreen() {
 
   if (!duo.socialEnabled) {
     return (
-      <Screen title="Challenges">
+      <Screen title="Community">
         <Text style={{ color: theme.colors.mutedForeground }}>
           Social is disabled for this environment.
         </Text>
@@ -225,7 +225,7 @@ export function SocialScreen() {
 
   if (duo.availability === "unavailable") {
     return (
-      <Screen title="Challenges">
+      <Screen title="Community">
         <Text style={{ color: theme.colors.destructive }}>
           Team status is temporarily unavailable. Retry to continue team actions.
         </Text>
@@ -253,7 +253,7 @@ export function SocialScreen() {
     pendingInvite?.partnerDisplayName ?? pendingInvite?.partnerUsername ?? "Partner";
 
   return (
-    <Screen title="Challenges">
+    <Screen title="Community">
       <View style={[styles.card, { borderColor: theme.colors.border }]}>
         <Text style={{ color: theme.colors.foreground, fontWeight: "700" }}>
           Signed in as{" "}

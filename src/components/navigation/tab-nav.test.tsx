@@ -41,9 +41,9 @@ describe("TabNav", () => {
 
     expect(screen.getByRole("link", { name: /Insights/i })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Planner/i })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Challenges/i })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Community/i })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Profile/i })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Challenges/i })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: /Community/i })).toHaveAttribute(
       "aria-current",
       "page"
     );
@@ -123,7 +123,7 @@ describe("TabNav", () => {
     mockPathname = "/social";
     rerender(<TabNav mobile />);
 
-    expect(screen.getByRole("link", { name: "Challenges" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Community" })).toHaveAttribute(
       "aria-current",
       "page"
     );
