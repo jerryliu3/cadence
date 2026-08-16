@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { Database } from "../supabase/database.types";
 
 export const notificationPreferenceKeys = [
   "daily_reminders",
@@ -48,15 +49,24 @@ export const notificationPreferenceCategories: readonly NotificationPreferenceCa
   },
 ];
 
-const managedOutboxNotificationKindToPreferenceKey = {
+type NotificationKind = Database["public"]["Enums"]["notification_kind"];
+
+const notificationKindToPreferenceKey: Record<
+  NotificationKind,
+  NotificationPreferenceKey | null
+> = {
   team_invite: "team_updates",
   team_accepted: "team_updates",
   team_dissolved: "team_updates",
   nudge: "partner_activity",
   reaction: "partner_activity",
-} as const;
-
-type ManagedOutboxNotificationKind = keyof typeof managedOutboxNotificationKindToPreferenceKey;
+  challenge_joined: null,
+  challenge_completed: null,
+  challenge_ending_soon: null,
+  season_closed: null,
+  planner_proposal: null,
+  planner_proposal_decided: null,
+};
 
 function readBooleanOrDefault(
   value: unknown,
@@ -93,9 +103,9 @@ export function normalizeNotificationPreferences(value: unknown): NotificationPr
 export function getNotificationPreferenceKeyForOutboxKind(
   kind: string
 ): NotificationPreferenceKey | null {
-  return (
-    managedOutboxNotificationKindToPreferenceKey[
-      kind as ManagedOutboxNotificationKind
-    ] ?? null
-  );
+  if (!(kind in notificationKindToPreferenceKey)) {
+    return null;
+  }
+
+  return notificationKindToPreferenceKey[kind as NotificationKind];
 }
