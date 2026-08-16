@@ -6,10 +6,12 @@ describe("goal visuals", () => {
     const first = getGoalVisual({
       goalId: "12000000-0000-4000-8000-000000000001",
       color: null,
+      category: null,
     });
     const second = getGoalVisual({
       goalId: "12000000-0000-4000-8000-000000000001",
       color: null,
+      category: null,
     });
     expect(first.Icon).toBe(second.Icon);
     expect(first.color).toBe(second.color);
@@ -21,7 +23,28 @@ describe("goal visuals", () => {
       getGoalVisual({
         goalId: "12000000-0000-4000-8000-000000000002",
         color: "0A0B0C",
+        category: null,
       }).color
     ).toBe("#0A0B0C");
+  });
+
+  it("uses category swatch colors for planner icon chips", () => {
+    expect(
+      getGoalVisual({
+        goalId: "12000000-0000-4000-8000-000000000003",
+        color: "0A0B0C",
+        category: "Health",
+      }).color
+    ).toBe("#10b981");
+  });
+
+  it("keeps goal-level color for custom categories", () => {
+    expect(
+      getGoalVisual({
+        goalId: "12000000-0000-4000-8000-000000000004",
+        color: "#112233",
+        category: "Outdoor Adventure",
+      }).color
+    ).toBe("#112233");
   });
 });

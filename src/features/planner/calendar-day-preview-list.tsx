@@ -77,6 +77,7 @@ export function CalendarDayPreviewList<
             const visual = getGoalVisual({
               goalId: entry.originalGoalId,
               color: entry.activeGoal?.color ?? null,
+              category: entry.activeGoal?.category ?? null,
             });
             const Icon = visual.Icon;
             const displayTitle = getEntryDisplayTitle(entry);

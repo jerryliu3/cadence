@@ -20,7 +20,7 @@ export interface CalendarMonthCellEntryBase {
   label: string | null;
   classification: string;
   creditState: string;
-  activeGoal: { color: string | null } | null;
+  activeGoal: { color: string | null; category?: string | null } | null;
   activeItem: { credited_completion_id: string | null } | null;
   draftDiffKind: "moved_from" | "moved_to" | "new" | null;
   draftDiffFromDate: string | null;
@@ -125,6 +125,7 @@ export function CalendarMonthDayCell<
     const visual = getGoalVisual({
       goalId: entry.originalGoalId,
       color: entry.activeGoal?.color ?? null,
+      category: entry.activeGoal?.category ?? null,
     });
     const Icon = visual.Icon;
     const compactTitle = getEntryDisplayTitle(entry);
