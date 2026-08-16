@@ -10,7 +10,6 @@ import {
   normalizePlannerPrimaryTabPreference,
 } from "@cadence/shared/navigation/tabs";
 import {
-  getAvatarUrlValidationError,
   normalizeAvatarUrlDraft,
 } from "@/features/social/avatar-url";
 import { groupCompletionsByGoalId } from "@/lib/goals/completion-grouping";
@@ -323,11 +322,7 @@ export function useSocialTabData() {
       normalizedPersistedProfile.default_main_page ||
     normalizedProfileDraft.planner_primary_tab !==
       normalizedPersistedProfile.planner_primary_tab;
-  const avatarUrlError = useMemo(
-    () => getAvatarUrlValidationError(normalizedProfileDraft.avatar_url),
-    [normalizedProfileDraft.avatar_url]
-  );
-  const canSaveProfile = Boolean(state.userId) && profileDirty && !avatarUrlError;
+  const canSaveProfile = Boolean(state.userId) && profileDirty;
 
   const saveProfile = async () => {
     if (!canSaveProfile) {
@@ -462,7 +457,6 @@ export function useSocialTabData() {
     outgoingSharesByGoal,
     sharedByMeGoals,
     completionsByGoal,
-    avatarUrlError,
     canSaveProfile,
     saveProfile,
     shareGoalWithUser,

@@ -6,10 +6,19 @@ import {
   ChevronRight,
   LogOut,
 } from "lucide-react";
+import type { PlannerPrimaryTabPreference } from "@cadence/shared/navigation/tabs";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { LoadingCard } from "@/components/ui/loading-card";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -35,7 +44,6 @@ export function SocialTab() {
     authEmail,
     profileDraft,
     setProfileDraft,
-    avatarUrlError,
     canSaveProfile,
     saveProfile,
     signOut,
@@ -53,7 +61,7 @@ export function SocialTab() {
         : "Integrations";
   const settingsSectionDescription =
     settingsSection === "preferences"
-      ? "Manage planner timezone and start-of-week defaults."
+      ? "Manage planner defaults and checklist/calendar ordering."
       : settingsSection === "notifications"
         ? "Configure push access and reminder schedules."
         : "Connect Apple Health or Health Connect and opt into auto-complete.";
@@ -86,7 +94,6 @@ export function SocialTab() {
         saving={saving}
         canSaveProfile={canSaveProfile}
         setProfileDraft={setProfileDraft}
-        avatarUrlError={avatarUrlError}
         onSaveProfile={saveProfile}
       />
 
@@ -188,11 +195,46 @@ export function SocialTab() {
                 <CardHeader>
                   <CardTitle>Preferences</CardTitle>
                   <CardDescription>
-                    Manage planner timezone and start-of-week defaults.
+                    Manage planner defaults and checklist/calendar ordering.
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
                   <PlannerPreferencesSettings />
+                  <div className="mt-4 space-y-3 border-t pt-4">
+                    <div className="space-y-1">
+                      <Label htmlFor="preferences-planner-primary-tab">
+                        Primary planner tab
+                      </Label>
+                      <p className="text-xs text-muted-foreground">
+                        Choose whether Checklist or Calendar appears first in planner navigation.
+                      </p>
+                    </div>
+                    <Select
+                      value={profileDraft.planner_primary_tab}
+                      onValueChange={(value: PlannerPrimaryTabPreference) =>
+                        setProfileDraft((prev) => ({ ...prev, planner_primary_tab: value }))
+                      }
+                    >
+                      <SelectTrigger
+                        id="preferences-planner-primary-tab"
+                        className="w-full sm:w-72"
+                      >
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="checklist">Checklist first</SelectItem>
+                        <SelectItem value="calendar">Calendar first</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() => void saveProfile()}
+                      disabled={saving || !canSaveProfile}
+                    >
+                      {saving ? "Saving..." : "Save account preferences"}
+                    </Button>
+                  </div>
                   <div className="mt-4 border-t pt-4">
                     <Button
                       type="button"
@@ -203,7 +245,7 @@ export function SocialTab() {
                         requestJourneyIntroOpen();
                       }}
                     >
-                      Replay welcome intro
+                      Replay onboarding
                     </Button>
                   </div>
                 </CardContent>
