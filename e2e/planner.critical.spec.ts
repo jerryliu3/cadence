@@ -273,8 +273,7 @@ async function dismissPlannerMoveErrorToast(page: Page) {
 
 async function moveFirstMovableEntry(
   page: Page,
-  sourceEntrySelector = MOVABLE_ENTRY_SELECTOR,
-  targetGoalId?: string
+  sourceEntrySelector = MOVABLE_ENTRY_SELECTOR
 ): Promise<boolean> {
   const sourceEntry = page.locator(sourceEntrySelector).first();
   await expect(sourceEntry).toBeVisible();
@@ -290,7 +289,7 @@ async function moveFirstMovableEntry(
   // Prefer nearby visible days first so we don't "succeed" a rejected far drop.
   // Keep adjacent-month days eligible because valid move windows can cross a
   // month boundary near the end/start of the current scope month.
-  const candidateTargetDays = await page.evaluate(({ currentDay, goalId }) => {
+  const candidateTargetDays = await page.evaluate(({ currentDay }) => {
     const sourceMs = Date.parse(`${currentDay}T00:00:00Z`);
     const dayMs = (value: string) => Date.parse(`${value}T00:00:00Z`);
     const candidates = Array.from(
@@ -303,14 +302,6 @@ async function moveFirstMovableEntry(
           value === currentDay
         ) {
           return null;
-        }
-        if (typeof goalId === "string" && goalId.length > 0) {
-          const hasSameGoalEntry = cell.querySelector(
-            `[data-calendar-day-entry="true"][data-planner-goal-id="${goalId}"]`
-          );
-          if (hasSameGoalEntry) {
-            return null;
-          }
         }
         return value;
       })
@@ -325,13 +316,13 @@ async function moveFirstMovableEntry(
       .filter((candidate) => Math.abs(dayMs(candidate) - sourceMs) > 3 * 86_400_000)
       .sort(byDistance);
     return [...near, ...far];
-  }, { currentDay: sourceDay, goalId: targetGoalId });
+  }, { currentDay: sourceDay });
   if (candidateTargetDays.length === 0) {
     throw new Error("Could not find a valid planner day-cell drop target.");
   }
 
   const tryCandidates = async (): Promise<boolean> => {
-    for (const targetDay of candidateTargetDays.slice(0, 12)) {
+    for (const targetDay of candidateTargetDays.slice(0, 20)) {
       const currentSourceEntry = page.locator(sourceEntrySelector).first();
       await expect(currentSourceEntry).toBeVisible();
       const targetCell = page
@@ -475,8 +466,7 @@ test.describe("planner critical rails", () => {
 
       const movedIntoDraft = await moveFirstMovableEntry(
         page,
-        DRAG_FIXTURE_ENTRY_SELECTOR,
-        DRAG_FIXTURE_GOAL_ID
+        DRAG_FIXTURE_ENTRY_SELECTOR
       );
       expect(movedIntoDraft).toBe(true);
       await expect(page.getByTestId(DRAFT_MODE_BADGE_TEST_ID)).toBeVisible();
@@ -612,8 +602,7 @@ test.describe("planner critical rails", () => {
       await ensureDragFixtureEntryAvailable(page);
       movedIntoDraft = await moveFirstMovableEntry(
         page,
-        DRAG_FIXTURE_ENTRY_SELECTOR,
-        DRAG_FIXTURE_GOAL_ID
+        DRAG_FIXTURE_ENTRY_SELECTOR
       );
       if (movedIntoDraft && (await isPlannerDraftReady(page))) {
         break;
