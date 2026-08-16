@@ -8,6 +8,10 @@ const mocks = vi.hoisted(() => ({
   claimSchedule: vi.fn(),
   releaseSchedule: vi.fn(),
   from: vi.fn(),
+  profileRows: [] as Array<{
+    id: string;
+    notification_preferences: Record<string, unknown>;
+  }>,
   reportError: vi.fn(),
   sendPushToUser: vi.fn(),
 }));
@@ -88,6 +92,16 @@ describe("push dispatch route", () => {
       data: null,
       error: null,
     });
+    mocks.profileRows = [
+      {
+        id: "user-1",
+        notification_preferences: {
+          daily_reminders: true,
+          team_updates: true,
+          partner_activity: true,
+        },
+      },
+    ];
     mocks.from.mockImplementation((table: string) => {
       if (table === "notification_schedules") {
         return {
@@ -107,6 +121,16 @@ describe("push dispatch route", () => {
                       }),
                     }),
                   },
+          }),
+        };
+      }
+      if (table === "profiles") {
+        return {
+          select: () => ({
+            in: async () => ({
+              data: mocks.profileRows,
+              error: null,
+            }),
           }),
         };
       }
@@ -339,6 +363,32 @@ describe("push dispatch route", () => {
       sent: 0,
       deferred: 0,
     });
+    expect(mocks.releaseSchedule).not.toHaveBeenCalled();
+  });
+
+  it("skips due reminders when daily reminder category is disabled", async () => {
+    prepareDueSchedule();
+    mocks.profileRows = [
+      {
+        id: "user-1",
+        notification_preferences: {
+          daily_reminders: false,
+          team_updates: true,
+          partner_activity: true,
+        },
+      },
+    ];
+
+    const response = await dispatchRequest();
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      due: 1,
+      sent: 0,
+      deferred: 0,
+      skipped: 1,
+    });
+    expect(mocks.sendPushToUser).not.toHaveBeenCalled();
     expect(mocks.releaseSchedule).not.toHaveBeenCalled();
   });
 

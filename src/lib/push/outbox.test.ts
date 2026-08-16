@@ -5,11 +5,28 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   rpc: vi.fn(),
   sendPushToUser: vi.fn(),
+  profileRows: [] as Array<{
+    id: string;
+    notification_preferences: Record<string, unknown>;
+  }>,
 }));
 
 vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: () => ({
     rpc: mocks.rpc,
+    from: (table: string) => {
+      if (table !== "profiles") {
+        throw new Error(`Unexpected table ${table}`);
+      }
+      return {
+        select: () => ({
+          in: async () => ({
+            data: mocks.profileRows,
+            error: null,
+          }),
+        }),
+      };
+    },
   }),
 }));
 
@@ -22,6 +39,16 @@ import { flushNotificationOutbox } from "./outbox";
 describe("flushNotificationOutbox", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.profileRows = [
+      {
+        id: "user-1",
+        notification_preferences: {
+          daily_reminders: true,
+          team_updates: true,
+          partner_activity: true,
+        },
+      },
+    ];
     mocks.rpc.mockImplementation(async (name: string) => {
       if (name === "claim_notification_outbox_service") {
         return {
@@ -41,6 +68,38 @@ describe("flushNotificationOutbox", () => {
       }
       return { data: true, error: null };
     });
+  });
+
+  it("skips outbox rows when the user disabled that category", async () => {
+    mocks.profileRows = [
+      {
+        id: "user-1",
+        notification_preferences: {
+          daily_reminders: true,
+          team_updates: true,
+          partner_activity: false,
+        },
+      },
+    ];
+
+    const result = await flushNotificationOutbox();
+
+    expect(result).toMatchObject({
+      claimed: 1,
+      sent: 0,
+      skipped: 1,
+      failed: 0,
+      deferred: 0,
+    });
+    expect(mocks.sendPushToUser).not.toHaveBeenCalled();
+    expect(mocks.rpc).toHaveBeenCalledWith(
+      "resolve_notification_outbox_delivery_service",
+      {
+        p_outbox_id: "outbox-1",
+        p_sent: false,
+        p_error: "disabled_by_user_preference",
+      }
+    );
   });
 
   it("defers unavailable web delivery without using a terminal failure code", async () => {
