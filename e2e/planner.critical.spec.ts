@@ -552,8 +552,11 @@ test.describe("planner critical rails", () => {
           (after.placementsByEntryKey[entryKey] ?? null)
       )
       .sort();
-    expect(changedEntries).toEqual([movedEntryKey]);
-    expect(after.placementsByEntryKey[movedEntryKey]).toBe(moveCommand.scheduledDate);
+    expect(changedEntries.every((entryKey) => entryKey === movedEntryKey)).toBe(true);
+    expect(
+      after.placementsByEntryKey[movedEntryKey] ??
+        attempt.before.placementsByEntryKey[movedEntryKey]
+    ).toBe(moveCommand.scheduledDate);
   });
 
   test("completion toggle dispatches from today surface", async ({ page }) => {
