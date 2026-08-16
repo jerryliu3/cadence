@@ -2485,17 +2485,6 @@ export function CalendarSurface({
                *   </p>
                * ) : null}
                */}
-              {eligibilityNotices.hardIneligible.length > 0 ? (
-                <div className="rounded-md border border-amber-300 bg-amber-100 px-3 py-2 text-xs text-amber-950 dark:border-amber-300 dark:bg-amber-100 dark:text-amber-950">
-                  {eligibilityNotices.hardIneligible
-                    .slice(0, 4)
-                    .map((item) => `${item.goalTitle}: ${item.reasonCopy}`)
-                    .join(" · ")}
-                  {eligibilityNotices.hardIneligible.length > 4
-                    ? ` · +${eligibilityNotices.hardIneligible.length - 4} more`
-                    : ""}
-                </div>
-              ) : null}
             </div>
             <div className="flex flex-wrap items-center justify-end gap-2">
               {!plannerReadOnly && canShowSaveAction ? (
@@ -2562,7 +2551,7 @@ export function CalendarSurface({
                 }
               >
                 <SelectTrigger
-                  className="h-8 w-[7.5rem] rounded-md bg-background/90 text-xs"
+                  className="h-8 rounded-md bg-background/90 text-xs"
                   disabled={loading}
                   aria-label="Calendar view mode"
                 >
@@ -2597,10 +2586,7 @@ export function CalendarSurface({
       {partnerOverlayError ? (
         <p className="text-xs text-muted-foreground">{partnerOverlayError}</p>
       ) : null}
-      {hasPlannerWarnings &&
-      !warningsDismissed &&
-      !showBlockingLoading &&
-      !error ? (
+      {hasPlannerWarnings && !warningsDismissed && !showBlockingLoading && !error ? (
         <div className="rounded-md border border-amber-300 bg-amber-100 px-3 py-2 text-xs text-amber-950 dark:border-amber-300 dark:bg-amber-100 dark:text-amber-950">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex flex-wrap items-center gap-1.5">
@@ -2846,14 +2832,9 @@ export function CalendarSurface({
                           variant="outline"
                           size="sm"
                           className="h-6 px-2 text-xs"
-                          disabled={previewDayEntries.length === 0}
                           onClick={() => {
-                            const firstEntry = previewDayEntries[0];
-                            if (!firstEntry) {
-                              return;
-                            }
-                            setLocalSelectedDay(dayPreview.day);
-                            setSelectedEventEntryKey(firstEntry.key);
+                            onSelectedDayChange(dayPreview.day, "push", "day");
+                            setDayPreview(null);
                           }}
                         >
                           <Maximize2 className="mr-1 size-3" />
@@ -3145,10 +3126,10 @@ export function CalendarSurface({
                       }).`
                     : unplaceableGoalSummaries.length > 0
                       ? `${unplaceableGoalSummaries.length} goal${
-                          unplaceableGoalSummaries.length === 1 ? "" : "s"
-                        } are not fully scheduled (${totalUnplacedCount} unresolved session${
-                          totalUnplacedCount === 1 ? "" : "s"
-                        }).`
+                        unplaceableGoalSummaries.length === 1 ? "" : "s"
+                      } are not fully scheduled (${totalUnplacedCount} unresolved session${
+                        totalUnplacedCount === 1 ? "" : "s"
+                      }).`
                       : `${eligibilityNotices.hardIneligible.length} linked goal${
                           eligibilityNotices.hardIneligible.length === 1 ? "" : "s"
                         } need source-goal review before they can be fully planned.`}
@@ -3168,10 +3149,7 @@ export function CalendarSurface({
                       }`}
                     >
                       {unplaceableGoalSummaries.map((warning) => (
-                        <div
-                          key={`warning-${warning.goalId}`}
-                          className="rounded-md border p-2"
-                        >
+                        <div key={`warning-${warning.goalId}`} className="rounded-md border p-2">
                           <p className="font-medium">{warning.title}</p>
                           <p className="text-xs text-muted-foreground">
                             {warning.unplacedCount} unresolved session
