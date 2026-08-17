@@ -2,6 +2,7 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { usePlannerCoach } from "@/features/planner/coach/use-planner-coach";
 import type { UsePlannerCoachArgs } from "@/features/planner/coach/coach-types";
+import { isCoachPolicyProposal } from "@/features/planner/coach/coach-message-state";
 import type {
   PlannerContextPayload,
   PlannerDayDetailEntry,
@@ -255,8 +256,11 @@ describe("usePlannerCoach", () => {
         },
       ],
     });
-    expect(proposal?.patchSignature).toHaveLength(64);
-    expect(proposal?.baselineSnapshotToken.startsWith("policy:")).toBe(true);
+    if (!proposal || !isCoachPolicyProposal(proposal)) {
+      throw new Error("Expected a policy proposal");
+    }
+    expect(proposal.patchSignature).toHaveLength(64);
+    expect(proposal.baselineSnapshotToken.startsWith("policy:")).toBe(true);
     expect(applyCoachPolicyPatchesMock).toHaveBeenCalled();
     expect(persistPlannerDefaultPolicyMock).not.toHaveBeenCalled();
     expect(saveCoachSessionMock).toHaveBeenCalled();
@@ -520,9 +524,12 @@ describe("usePlannerCoach", () => {
     );
     expect(proposalIndex).toBeGreaterThanOrEqual(0);
     await waitFor(() => {
+      const proposal =
+        result.current.state.coachMessages[proposalIndex]?.proposal;
       expect(
-        result.current.state.coachMessages[proposalIndex]?.proposal?.policyPatches
-          .length
+        proposal && isCoachPolicyProposal(proposal)
+          ? proposal.policyPatches.length
+          : 0
       ).toBe(1);
     });
     await act(async () => {

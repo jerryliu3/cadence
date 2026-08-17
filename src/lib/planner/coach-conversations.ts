@@ -10,7 +10,7 @@ const scopeMonthPattern = /^\d{4}-(0[1-9]|1[0-2])$/;
 const hashPattern = /^[0-9a-f]{64}$/;
 const snapshotTokenPattern = /^[a-z0-9:_-]{16,128}$/;
 
-export const coachConversationProposalSchema = z
+const coachConversationPolicyProposalSchema = z
   .object({
     schemaVersion: z.literal("1"),
     applyStatus: z.enum([
@@ -30,6 +30,20 @@ export const coachConversationProposalSchema = z
     unresolvedQuestions: z.array(z.string().trim().min(1).max(500)).max(20),
   })
   .strict();
+
+const coachConversationGoalDraftProposalSchema = z
+  .object({
+    schemaVersion: z.literal("1"),
+    kind: z.literal("goal_draft"),
+    parserPrompt: z.string().trim().min(1).max(2000),
+    creationStatus: z.enum(["not_created", "created"]),
+  })
+  .strict();
+
+export const coachConversationProposalSchema = z.union([
+  coachConversationPolicyProposalSchema,
+  coachConversationGoalDraftProposalSchema,
+]);
 
 export const coachConversationMessageSchema = z
   .object({

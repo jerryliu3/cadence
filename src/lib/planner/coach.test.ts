@@ -76,6 +76,9 @@ describe("coachResponseJsonSchema", () => {
         sessionMoves: {
           type: "array",
         },
+        goalDraftPrompt: {
+          type: "string",
+        },
       },
     });
     expect(proposalSchema.required).toEqual(["calendarIntent"]);

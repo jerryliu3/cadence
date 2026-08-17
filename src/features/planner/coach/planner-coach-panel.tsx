@@ -5,6 +5,7 @@ import { ChevronDown } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { isCoachPolicyProposal } from "@/features/planner/coach/coach-message-state";
 import type { PlannerCoachModel } from "@/features/planner/coach/coach-types";
 
 interface PlannerCoachPanelProps {
@@ -114,7 +115,12 @@ export function PlannerCoachPanel({ coach }: PlannerCoachPanelProps) {
           </p>
         ) : (
           state.coachMessages.map((message, index) => {
-            const proposal = message.proposal;
+            const proposal =
+              message.role === "assistant" &&
+              message.proposal &&
+              isCoachPolicyProposal(message.proposal)
+                ? message.proposal
+                : null;
             const proposalPolicyPatches = Array.isArray(proposal?.policyPatches)
               ? proposal.policyPatches
               : [];
@@ -139,7 +145,7 @@ export function PlannerCoachPanel({ coach }: PlannerCoachPanelProps) {
                   {message.role === "user" ? "You" : "Coach"}
                 </p>
                 <p className="whitespace-pre-wrap">{message.content}</p>
-                {message.role === "assistant" && proposal ? (
+                {proposal ? (
                   <div className="mt-2 rounded border bg-background/70 p-2">
                     <p className="text-xs font-medium text-foreground/90">
                       Proposal status:{" "}
