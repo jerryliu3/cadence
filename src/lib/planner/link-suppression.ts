@@ -61,13 +61,12 @@ export function resolveLinkSuppression({
 
   const visited = new Set<string>([goalId]);
   const queue = [goalId];
+  let queueIndex = 0;
   let latestSuppressionEnd: string | null = null;
 
-  while (queue.length > 0) {
-    const currentTargetId = queue.shift();
-    if (!currentTargetId) {
-      continue;
-    }
+  while (queueIndex < queue.length) {
+    const currentTargetId = queue[queueIndex]!;
+    queueIndex += 1;
     const sourceIds = inboundSourceIdsByTargetId.get(currentTargetId);
     if (!sourceIds) {
       continue;

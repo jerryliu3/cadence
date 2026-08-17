@@ -100,6 +100,17 @@ interface GoalLinkRow {
 const GOAL_LINK_SOURCE_SELECT =
   "source_goal_id, target_goal_id, source:goals!goal_links_source_goal_id_fkey(id, owner_id, start_date, end_date, frequency_type, target_count, is_deleted, archived_at)";
 
+type SuppressionGraphLoadResult =
+  | {
+      ok: true;
+      links: Array<{ sourceGoalId: string; targetGoalId: string }>;
+      sourcesById: Map<string, LinkSuppressionSource>;
+    }
+  | {
+      ok: false;
+      failure: PlannerExactDateDispatchFailure;
+    };
+
 function dispatchFailure(
   status: number,
   code: string,
@@ -125,13 +136,7 @@ async function loadSuppressionGraphForGoal({
   supabase: ExactDateClient;
   ownerId: string;
   goalId: string;
-}): Promise<
-  | {
-      links: Array<{ sourceGoalId: string; targetGoalId: string }>;
-      sourcesById: Map<string, LinkSuppressionSource>;
-    }
-  | PlannerExactDateDispatchFailure
-> {
+}): Promise<SuppressionGraphLoadResult> {
   const links: Array<{ sourceGoalId: string; targetGoalId: string }> = [];
   const sourcesById = new Map<string, LinkSuppressionSource>();
   const visitedTargets = new Set<string>([goalId]);
@@ -145,11 +150,14 @@ async function loadSuppressionGraphForGoal({
       .eq("owner_id", ownerId);
 
     if (targetLinksResponse.error) {
-      return dispatchFailure(
-        503,
-        "planner_goal_lookup_failed",
-        "Planner goal state could not be loaded."
-      );
+      return {
+        ok: false,
+        failure: dispatchFailure(
+          503,
+          "planner_goal_lookup_failed",
+          "Planner goal state could not be loaded."
+        ),
+      };
     }
 
     const linkRows = (targetLinksResponse.data ?? []) as GoalLinkRow[];
@@ -186,7 +194,11 @@ async function loadSuppressionGraphForGoal({
     frontierTargetGoalIds = Array.from(nextFrontierTargetGoalIds);
   }
 
-  return { links, sourcesById };
+  return {
+    ok: true,
+    links,
+    sourcesById,
+  };
 }
 
 async function ensureExpectedDigest({
@@ -361,8 +373,8 @@ export async function applyPlannerGoalDateFact({
     ownerId,
     goalId,
   });
-  if ("ok" in suppressionGraph) {
-    return suppressionGraph;
+  if (!suppressionGraph.ok) {
+    return suppressionGraph.failure;
   }
   const suppression = resolveLinkSuppression({
     goalId,
