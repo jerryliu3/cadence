@@ -1,5 +1,10 @@
 import { z } from "zod";
 import { getDateInTimezone, isValidIanaTimezone } from "@/lib/dates/timezone";
+import {
+  isSuppressedOnDate,
+  resolveLinkSuppression,
+  type LinkSuppressionSource,
+} from "@/lib/planner/link-suppression";
 import type { createClient as createServerClient } from "@/lib/supabase/server";
 
 const digestSchema = z.string().regex(/^[a-f0-9]{64}$/);
@@ -234,6 +239,7 @@ export async function applyPlannerItemDateFact({
 
 export async function applyPlannerGoalDateFact({
   supabase,
+  ownerId,
   goalId,
   date,
   desiredFactState,
@@ -242,6 +248,7 @@ export async function applyPlannerGoalDateFact({
   expectation,
 }: {
   supabase: ExactDateClient;
+  ownerId: string;
   goalId: string;
   date: string;
   desiredFactState: "present" | "absent";
@@ -256,12 +263,15 @@ export async function applyPlannerGoalDateFact({
   if (digestFailure) {
     return digestFailure;
   }
+  const localToday = getDateInTimezone(new Date(), timezone);
 
   const targetLinksResponse = await supabase
     .from("goal_links")
-    .select("id")
+    .select(
+      "id, source_goal_id, source:goals!goal_links_source_goal_id_fkey(id, owner_id, start_date, end_date, frequency_type, target_count, is_deleted, archived_at)"
+    )
     .eq("target_goal_id", goalId)
-    .limit(1);
+    .eq("owner_id", ownerId);
 
   if (targetLinksResponse.error) {
     return dispatchFailure(
@@ -270,7 +280,61 @@ export async function applyPlannerGoalDateFact({
       "Planner goal state could not be loaded."
     );
   }
-  if ((targetLinksResponse.data ?? []).length > 0) {
+  const linkRows = (targetLinksResponse.data ?? []) as Array<{
+    source_goal_id: string;
+    source:
+      | {
+          id: string;
+          owner_id: string;
+          start_date: string;
+          end_date: string | null;
+          frequency_type: "fixed_milestones" | "recurring";
+          target_count: number | null;
+          is_deleted: boolean;
+          archived_at: string | null;
+        }
+      | Array<{
+          id: string;
+          owner_id: string;
+          start_date: string;
+          end_date: string | null;
+          frequency_type: "fixed_milestones" | "recurring";
+          target_count: number | null;
+          is_deleted: boolean;
+          archived_at: string | null;
+        }>
+      | null;
+  }>;
+  const suppressionSourcesById = new Map<string, LinkSuppressionSource>();
+  for (const linkRow of linkRows) {
+    const sourceRecord = Array.isArray(linkRow.source)
+      ? (linkRow.source[0] ?? null)
+      : linkRow.source;
+    if (!sourceRecord) {
+      continue;
+    }
+    suppressionSourcesById.set(sourceRecord.id, {
+      id: sourceRecord.id,
+      ownerId: sourceRecord.owner_id,
+      isDeleted: sourceRecord.is_deleted,
+      archivedAt: sourceRecord.archived_at,
+      startDate: sourceRecord.start_date,
+      endDate: sourceRecord.end_date,
+      frequencyType: sourceRecord.frequency_type,
+      targetCount: sourceRecord.target_count,
+    });
+  }
+  const suppression = resolveLinkSuppression({
+    goalId,
+    links: linkRows.map((linkRow) => ({
+      sourceGoalId: linkRow.source_goal_id,
+      targetGoalId: goalId,
+    })),
+    sourcesById: suppressionSourcesById,
+    ownerId,
+    asOfDate: localToday,
+  });
+  if (isSuppressedOnDate(suppression, date)) {
     return dispatchFailure(
       422,
       "linked_goal_disallowed",
@@ -279,7 +343,6 @@ export async function applyPlannerGoalDateFact({
   }
 
   if (desiredFactState === "present") {
-    const localToday = getDateInTimezone(new Date(), timezone);
     if (date > localToday) {
       return dispatchFailure(
         422,
