@@ -297,6 +297,7 @@ export const plannerKernelOutputSchema = z
             "deleted",
             "archived",
             "linked",
+            "linked_target",
             "missing_end_date",
             "invalid_date_range",
             "end_outside_scope",
