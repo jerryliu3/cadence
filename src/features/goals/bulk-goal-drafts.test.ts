@@ -101,6 +101,26 @@ describe("bulk goal drafts", () => {
     expect(paddedDraft.milestone_names).toEqual(["One", "Two", ""]);
   });
 
+  it("derives fixed milestone target count from names when parser omits it", () => {
+    const [draft] = buildBulkGoalDraftsFromLlmGoals([
+      {
+        title: "Progressive running block",
+        frequency_type: "fixed_milestones",
+        start_date: "2026-08-17",
+        end_date: "2026-09-13",
+        milestone_names: ["Easy run", "Tempo run", "Long run", "Recovery run"],
+      },
+    ]);
+
+    expect(draft.target_count).toBe("4");
+    expect(draft.milestone_names).toEqual([
+      "Easy run",
+      "Tempo run",
+      "Long run",
+      "Recovery run",
+    ]);
+  });
+
   it("formats the schedule summary used by both review surfaces", () => {
     const [draft] = buildBulkGoalDraftsFromLlmGoals([
       {
