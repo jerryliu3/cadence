@@ -455,6 +455,9 @@ describe("bulk goal parser route", () => {
     };
     const promptText = firstBody.contents?.[0]?.parts?.[0]?.text ?? "";
     expect(promptText).toContain(
+      "Think briefly about plan structure before responding"
+    );
+    expect(promptText).toContain(
       'Choose "fixed_milestones" for ordered programs where sessions differ over time'
     );
     expect(promptText).toContain(

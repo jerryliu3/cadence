@@ -158,6 +158,7 @@ function buildPrompt(userPrompt: string, today: string, categoryKeys: string[]):
     "",
     "Rules:",
     `- If start date is missing, use ${today}.`,
+    "- Think briefly about plan structure before responding: choose the smallest goal set that still captures distinct sessions.",
     '- Choose "fixed_milestones" for ordered programs where sessions differ over time (for example easy run -> tempo -> long run progression).',
     '- Choose "recurring" only when sessions are genuinely repetitive and interchangeable.',
     "- Never create one goal per workout, session, or date. Consolidate into 1-5 goals.",

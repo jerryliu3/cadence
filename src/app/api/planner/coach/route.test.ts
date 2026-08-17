@@ -199,6 +199,12 @@ describe("planner coach route", () => {
         ),
       })
     );
+    expect(mocks.generateGeminiJson).toHaveBeenCalledWith(
+      expect.objectContaining({
+        maxOutputTokens: 8_192,
+        totalTimeoutMs: 45_000,
+      })
+    );
     await expect(response.json()).resolves.toMatchObject({
       schemaVersion: "1",
       phase: "review",
@@ -213,6 +219,29 @@ describe("planner coach route", () => {
       },
       warnings: [],
     });
+  });
+
+  it("honors timeout env override for coach generation", async () => {
+    vi.stubEnv("CALENDAR_COACH_TIMEOUT_MS", "55000");
+    resetEnvCacheForTests();
+    mocks.generateGeminiJson.mockClear();
+
+    const response = await POST(
+      request({
+        startDate: "2026-01-01",
+        endDate: "2026-01-31",
+        focusGoalIds: ["12000000-0000-4000-8000-000000000001"],
+        messages: [{ role: "user", content: "Help me plan this month." }],
+      })
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.generateGeminiJson).toHaveBeenCalledWith(
+      expect.objectContaining({
+        totalTimeoutMs: 55_000,
+        maxOutputTokens: 8_192,
+      })
+    );
   });
 
   it("bypasses quota RPC when local quota disable flag is enabled", async () => {

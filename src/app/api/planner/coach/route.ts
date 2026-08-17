@@ -34,8 +34,8 @@ import { MAX_API_BODY_BYTES } from "@/lib/planner/contracts/bounds";
 export const runtime = "nodejs";
 
 const MAX_RESPONSE_BYTES = 256 * 1024;
-const DEFAULT_COACH_TIMEOUT_MS = 30_000;
-const COACH_MAX_OUTPUT_TOKENS = 4_096;
+const DEFAULT_COACH_TIMEOUT_MS = 45_000;
+const COACH_MAX_OUTPUT_TOKENS = 8_192;
 const MAX_DEBUG_TEXT_LENGTH = 500;
 const LOCAL_BYPASS_QUOTA_REMAINING = 999_999;
 const COACH_RATE_LIMIT_PER_MINUTE = 30;
