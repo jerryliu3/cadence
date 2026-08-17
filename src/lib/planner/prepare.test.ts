@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Completion, Goal } from "@/lib/goals/types";
 import { getAnchoredPeriod } from "@/lib/goals/periods";
+import { canonicalHash } from "@/lib/planner/canonical";
 import { createDefaultPlannerPolicy } from "@/lib/planner/policy";
 import {
   computeRequirementFingerprint,
@@ -15,6 +16,11 @@ import {
 
 const OWNER_ID = "11111111-1111-4111-8111-111111111111";
 const DIGEST = "a".repeat(64);
+const DEFAULT_POLICY = createDefaultPlannerPolicy(
+  "UTC",
+  "2026-08-01T00:00:00.000Z"
+);
+const DEFAULT_POLICY_FINGERPRINT = canonicalHash(DEFAULT_POLICY);
 
 const mocks = vi.hoisted(() => ({
   loadPlannerPreparationSnapshot: vi.fn(),
@@ -138,10 +144,7 @@ function preparationSnapshot(
         timezone: "UTC",
         timezone_confirmed_at: "2026-08-01T00:00:00.000Z",
         policy_revision: 1,
-        default_policy: createDefaultPlannerPolicy(
-          "UTC",
-          "2026-08-01T00:00:00.000Z"
-        ),
+        default_policy: DEFAULT_POLICY,
       },
       activePlan: null,
       unplaceableGoals,
@@ -158,6 +161,7 @@ function unplaceableRecord(
     goalId: input.goalId ?? goal().id,
     requirementFingerprint:
       input.requirementFingerprint ?? computeRequirementFingerprint(goal()),
+    policyFingerprint: input.policyFingerprint ?? DEFAULT_POLICY_FINGERPRINT,
     policyRevision: input.policyRevision ?? 1,
     lockSignature: input.lockSignature ?? "lock-signature",
     effectiveSpanEnd: input.effectiveSpanEnd ?? "2028-07-31",
@@ -899,6 +903,52 @@ describe("preparePlannerSchedule", () => {
             goal_id: plannerGoal.id,
             unplaced_count: 1,
             reason: "capacity",
+          }),
+        ]),
+      })
+    );
+  });
+
+  it("re-solves preserved capacity rows when policy shape changes", async () => {
+    const plannerGoal = goal({ target_count: 2 });
+    const existing = persistedItem({ unit_key: "milestone:1", locked: false });
+    mocks.loadPlannerPreparationSnapshot.mockResolvedValue(
+      preparationSnapshot([plannerGoal], [existing], [
+        unplaceableRecord({
+          goalId: plannerGoal.id,
+          requirementFingerprint: computeRequirementFingerprint(plannerGoal),
+          lockSignature: buildPlannerGoalLockSignature([
+            {
+              unitKey: existing.unit_key,
+              scheduledDate: existing.scheduled_date,
+              locked: existing.locked,
+            },
+          ]),
+          effectiveSpanEnd: plannerGoal.end_date ?? "2026-09-30",
+          unplacedCount: 1,
+          reason: "capacity",
+          policyFingerprint: "stale-policy-fingerprint",
+        }),
+      ])
+    );
+    mocks.runPlannerKernel.mockReturnValue(
+      kernelOutput(plannerGoal.id, [
+        { unitKey: "milestone:1", scheduledDate: existing.scheduled_date },
+        { unitKey: "milestone:2", scheduledDate: "2026-09-18" },
+      ])
+    );
+
+    await prepare();
+
+    expect(mocks.runPlannerKernel).toHaveBeenCalledTimes(1);
+    expect(mocks.rpc).toHaveBeenCalledWith(
+      "prepare_planner_schedule",
+      expect.objectContaining({
+        p_unplaceable: expect.arrayContaining([
+          expect.objectContaining({
+            goal_id: plannerGoal.id,
+            policy_fingerprint: DEFAULT_POLICY_FINGERPRINT,
+            unplaced_count: 0,
           }),
         ]),
       })

@@ -440,6 +440,7 @@ async function loadPlannerGoalUnplaceableRecords(
       return [{
         goalId: row.goal_id,
         requirementFingerprint: row.requirement_fingerprint,
+        policyFingerprint: row.policy_fingerprint ?? "",
         policyRevision: row.policy_revision,
         lockSignature: row.lock_signature,
         effectiveSpanEnd: row.effective_span_end,
@@ -772,6 +773,7 @@ export async function loadPlannerContextPayload({
     snapshot.preferences?.default_policy ??
       createDefaultPlannerPolicy(effectiveTimezone, new Date().toISOString())
   );
+  const policyFingerprint = canonicalHash(effectivePolicy);
   const policyRevision = snapshot.preferences?.policy_revision ?? 0;
   const goalById = new Map(snapshot.goals.map((goal) => [goal.id, goal]));
   const lockSignatureByGoalId = new Map<string, string>();
@@ -802,6 +804,7 @@ export async function loadPlannerContextPayload({
     return isPlannerGoalUnplaceableRecordValid({
       record,
       goal,
+      policyFingerprint,
       policyRevision,
       lockSignature: lockSignatureByGoalId.get(goal.id) ?? "",
       preparationEnd,
@@ -864,7 +867,7 @@ export async function loadPlannerContextPayload({
         },
         current: {
           timezone: effectiveTimezone,
-          policyFingerprint: canonicalHash(effectivePolicy),
+          policyFingerprint,
           goals: currentGoals,
           linkedGoalIds: Array.from(
             new Set(

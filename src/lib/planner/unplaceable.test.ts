@@ -41,6 +41,7 @@ function record(
     goalId: input.goalId ?? baselineGoal.id,
     requirementFingerprint:
       input.requirementFingerprint ?? computeRequirementFingerprint(baselineGoal),
+    policyFingerprint: input.policyFingerprint ?? "policy-fingerprint",
     policyRevision: input.policyRevision ?? 2,
     lockSignature: input.lockSignature ?? "lock-signature",
     effectiveSpanEnd: input.effectiveSpanEnd ?? "2027-07-31",
@@ -51,7 +52,7 @@ function record(
 }
 
 describe("planner unplaceable helpers", () => {
-  it("accepts a record when fingerprint, policy revision, and span end match", () => {
+  it("accepts a record when fingerprint, policy fingerprint, policy revision, and span end match", () => {
     const plannerGoal = goal();
     const unplaceable = record({
       goalId: plannerGoal.id,
@@ -63,6 +64,7 @@ describe("planner unplaceable helpers", () => {
       isPlannerGoalUnplaceableRecordValid({
         record: unplaceable,
         goal: plannerGoal,
+        policyFingerprint: "policy-fingerprint",
         policyRevision: 3,
         lockSignature: "lock-signature",
         preparationEnd: "2027-07-31",
@@ -79,6 +81,7 @@ describe("planner unplaceable helpers", () => {
           requirementFingerprint: "b".repeat(64),
         }),
         goal: plannerGoal,
+        policyFingerprint: "policy-fingerprint",
         policyRevision: 2,
         lockSignature: "lock-signature",
         preparationEnd: "2027-07-31",
@@ -92,6 +95,24 @@ describe("planner unplaceable helpers", () => {
       isPlannerGoalUnplaceableRecordValid({
         record: record({ goalId: plannerGoal.id, policyRevision: 4 }),
         goal: plannerGoal,
+        policyFingerprint: "policy-fingerprint",
+        policyRevision: 2,
+        lockSignature: "lock-signature",
+        preparationEnd: "2027-07-31",
+      })
+    ).toBe(false);
+  });
+
+  it("invalidates when policy fingerprint mismatches", () => {
+    const plannerGoal = goal();
+    expect(
+      isPlannerGoalUnplaceableRecordValid({
+        record: record({
+          goalId: plannerGoal.id,
+          policyFingerprint: "stale-policy-fingerprint",
+        }),
+        goal: plannerGoal,
+        policyFingerprint: "current-policy-fingerprint",
         policyRevision: 2,
         lockSignature: "lock-signature",
         preparationEnd: "2027-07-31",
@@ -109,6 +130,7 @@ describe("planner unplaceable helpers", () => {
           effectiveSpanEnd: "2027-08-31",
         }),
         goal: plannerGoal,
+        policyFingerprint: "policy-fingerprint",
         policyRevision: 2,
         lockSignature: "lock-signature",
         preparationEnd: "2027-09-30",
@@ -126,6 +148,7 @@ describe("planner unplaceable helpers", () => {
           effectiveSpanEnd: "2027-07-31",
         }),
         goal: plannerGoal,
+        policyFingerprint: "policy-fingerprint",
         policyRevision: 2,
         lockSignature: "lock-signature",
         preparationEnd: "2027-07-31",
@@ -142,6 +165,7 @@ describe("planner unplaceable helpers", () => {
           lockSignature: "prior-lock-signature",
         }),
         goal: plannerGoal,
+        policyFingerprint: "policy-fingerprint",
         policyRevision: 2,
         lockSignature: "next-lock-signature",
         preparationEnd: "2027-07-31",
@@ -262,6 +286,7 @@ describe("record validity under out-of-window lock changes", () => {
       isPlannerGoalUnplaceableRecordValid({
         record: stored,
         goal: plannerGoal,
+        policyFingerprint: stored.policyFingerprint,
         policyRevision: stored.policyRevision,
         lockSignature: storedSignature,
         preparationEnd: "2028-07-31",
@@ -278,6 +303,7 @@ describe("record validity under out-of-window lock changes", () => {
       isPlannerGoalUnplaceableRecordValid({
         record: stored,
         goal: plannerGoal,
+        policyFingerprint: stored.policyFingerprint,
         policyRevision: stored.policyRevision,
         lockSignature: afterUnlock,
         preparationEnd: "2028-07-31",
