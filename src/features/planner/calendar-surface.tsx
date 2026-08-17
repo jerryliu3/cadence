@@ -175,6 +175,17 @@ const SCOPE_ONLY_ELIGIBILITY_REASONS = new Set([
   "end_outside_scope",
   "starts_after_scope",
 ]);
+const NON_ACTIONABLE_ELIGIBILITY_REASONS = new Set([
+  "not_owner",
+  "deleted",
+  "archived",
+]);
+const ELIGIBILITY_REASON_GROUP_LABELS: Partial<Record<EligibilityReason, string>> = {
+  linked: "Linked goals",
+  missing_end_date: "Goals missing deadlines",
+  invalid_date_range: "Goals with invalid date ranges",
+  horizon_too_long: "Goals beyond the planning horizon",
+};
 const ELIGIBILITY_REASON_LABELS: Record<EligibilityReason, string> = {
   eligible: "This goal can be planned.",
   not_owner: "Only goals you own can be planned here.",
@@ -493,8 +504,20 @@ export function CalendarSurface({
         hardIneligible: [] as Array<{
           goalId: string;
           goalTitle: string;
+          reason: EligibilityReason;
           reasonCopy: string;
         }>,
+        groupedHardIneligible: [] as Array<{
+          reason: EligibilityReason;
+          heading: string;
+          entries: Array<{
+            goalId: string;
+            goalTitle: string;
+            reason: EligibilityReason;
+            reasonCopy: string;
+          }>;
+        }>,
+        hiddenCount: 0,
         scopeOnlyCount: 0,
       };
     }
@@ -502,8 +525,10 @@ export function CalendarSurface({
     const hardIneligible: Array<{
       goalId: string;
       goalTitle: string;
+      reason: EligibilityReason;
       reasonCopy: string;
     }> = [];
+    let hiddenCount = 0;
     let scopeOnlyCount = 0;
 
     for (const eligibilityEntry of eligibilityEntries) {
@@ -514,10 +539,15 @@ export function CalendarSurface({
         scopeOnlyCount += 1;
         continue;
       }
+      if (NON_ACTIONABLE_ELIGIBILITY_REASONS.has(eligibilityEntry.reason)) {
+        hiddenCount += 1;
+        continue;
+      }
       hardIneligible.push({
         goalId: eligibilityEntry.goalId,
         goalTitle:
           context?.goalTitles?.[eligibilityEntry.goalId] ?? eligibilityEntry.goalId,
+        reason: eligibilityEntry.reason,
         reasonCopy: getEligibilityReasonLabel(eligibilityEntry.reason),
       });
     }
@@ -525,7 +555,25 @@ export function CalendarSurface({
     hardIneligible.sort((left, right) =>
       left.goalTitle.localeCompare(right.goalTitle)
     );
-    return { hardIneligible, scopeOnlyCount };
+    const groupedHardIneligible = Array.from(
+      hardIneligible.reduce(
+        (accumulator, item) => {
+          const existing = accumulator.get(item.reason) ?? [];
+          existing.push(item);
+          accumulator.set(item.reason, existing);
+          return accumulator;
+        },
+        new Map<EligibilityReason, typeof hardIneligible>()
+      ).entries()
+    )
+      .map(([reason, entries]) => ({
+        reason,
+        heading:
+          ELIGIBILITY_REASON_GROUP_LABELS[reason] ?? "Goals needing updates",
+        entries,
+      }))
+      .sort((left, right) => left.heading.localeCompare(right.heading));
+    return { hardIneligible, groupedHardIneligible, hiddenCount, scopeOnlyCount };
   }, [context?.goalTitles, effectivePreview?.eligibility]);
   const activeGoalIndexes = useMemo(
     () => buildActiveGoalIndexes(context?.activePlan?.goals),
@@ -595,6 +643,12 @@ export function CalendarSurface({
   const invalidLockGoalCount = unplaceableGoalSummaries.filter(
     (entry) => entry.reason === "invalid_lock"
   ).length;
+  const capacityWarningGoalCount = unplaceableGoalSummaries.filter(
+    (entry) => entry.reason === "capacity"
+  ).length;
+  const previewSuggestedRelaxations = Array.from(
+    new Set(effectivePreview?.suggestedRelaxations ?? [])
+  );
   const hasPlannerWarnings =
     unplaceableGoalSummaries.length > 0 ||
     eligibilityNotices.hardIneligible.length > 0;
@@ -2954,7 +3008,7 @@ export function CalendarSurface({
         <div className="rounded-md border border-amber-300 bg-amber-100 px-3 py-2 text-xs text-amber-950 dark:border-amber-300 dark:bg-amber-100 dark:text-amber-950">
           <div className="flex items-center justify-between gap-2">
             <p className="min-w-0 flex-1">
-              There were some issues generating the full calendar.
+              Some goals need updates before the calendar can be fully scheduled.
             </p>
             <div className="flex shrink-0 items-center gap-2">
               <Button
@@ -3737,9 +3791,9 @@ export function CalendarSurface({
                         } are not fully scheduled (${totalUnplacedCount} unresolved session${
                           totalUnplacedCount === 1 ? "" : "s"
                         }).`
-                      : `${eligibilityNotices.hardIneligible.length} linked goal${
+                    : `${eligibilityNotices.hardIneligible.length} goal${
                           eligibilityNotices.hardIneligible.length === 1 ? "" : "s"
-                        } need source-goal review before they can be fully planned.`}
+                        } need updates before they can be fully planned.`}
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-3 text-sm">
@@ -3769,26 +3823,90 @@ export function CalendarSurface({
                         </div>
                       ))}
                     </div>
+                    {previewSuggestedRelaxations.length > 0 ? (
+                      <div className="rounded-md border bg-muted/20 p-2">
+                        <p className="text-xs font-medium text-muted-foreground">
+                          Suggested next steps
+                        </p>
+                        <ul className="mt-1 list-disc space-y-1 pl-4 text-xs text-muted-foreground">
+                          {previewSuggestedRelaxations.map((suggestion) => (
+                            <li key={suggestion}>{suggestion}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : null}
                   </div>
                 ) : null}
                 {eligibilityNotices.hardIneligible.length > 0 ? (
                   <div className="space-y-2">
                     <p className="text-xs font-medium text-muted-foreground">
-                      Linked goal planning notes
+                      Eligibility blockers
                     </p>
-                    <div
-                      className={`space-y-1 rounded-md border bg-muted/20 p-2 text-xs text-muted-foreground ${
-                        eligibilityNotices.hardIneligible.length > 5
-                          ? "max-h-36 overflow-y-auto pr-1"
-                          : ""
-                      }`}
-                    >
-                      {eligibilityNotices.hardIneligible.map((item) => (
-                        <p key={`linked-warning-${item.goalId}`}>
-                          {item.goalTitle}: {item.reasonCopy}
-                        </p>
-                      ))}
-                    </div>
+                    {eligibilityNotices.groupedHardIneligible.map((group) => (
+                      <div
+                        key={`eligibility-group-${group.reason}`}
+                        className={`space-y-1 rounded-md border bg-muted/20 p-2 text-xs text-muted-foreground ${
+                          group.entries.length > 5
+                            ? "max-h-36 overflow-y-auto pr-1"
+                            : ""
+                        }`}
+                      >
+                        <p className="font-medium text-foreground">{group.heading}</p>
+                        {group.entries.map((item) => (
+                          <p key={`eligibility-warning-${item.goalId}`}>
+                            {item.goalTitle}: {item.reasonCopy}
+                          </p>
+                        ))}
+                      </div>
+                    ))}
+                    {eligibilityNotices.hiddenCount > 0 ? (
+                      <p className="text-xs text-muted-foreground">
+                        {eligibilityNotices.hiddenCount} additional goal
+                        {eligibilityNotices.hiddenCount === 1 ? "" : "s"}{" "}
+                        {eligibilityNotices.hiddenCount === 1 ? "is" : "are"} excluded
+                        automatically and{" "}
+                        {eligibilityNotices.hiddenCount === 1 ? "does" : "do"} not
+                        require action.
+                      </p>
+                    ) : null}
+                    {eligibilityNotices.scopeOnlyCount > 0 ? (
+                      <p className="text-xs text-muted-foreground">
+                        {eligibilityNotices.scopeOnlyCount} goal
+                        {eligibilityNotices.scopeOnlyCount === 1 ? "" : "s"} fall
+                        outside this visible month and are omitted from this warning list.
+                      </p>
+                    ) : null}
+                  </div>
+                ) : null}
+                {(invalidLockGoalCount > 0 || capacityWarningGoalCount > 0) && !plannerReadOnly ? (
+                  <div className="flex flex-wrap gap-2">
+                    {invalidLockGoalCount > 0 ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={resetLoading || loading || !canResetPlan}
+                        onClick={() => {
+                          setWarningsOpen(false);
+                          void resetPlan();
+                        }}
+                      >
+                        {resetLoading ? "Unlocking..." : "Unlock all goals"}
+                      </Button>
+                    ) : null}
+                    {capacityWarningGoalCount > 0 ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setWarningsOpen(false);
+                          setSettingsOpen(true);
+                        }}
+                      >
+                        Open planner settings
+                      </Button>
+                    ) : null}
                   </div>
                 ) : null}
                 <Button
