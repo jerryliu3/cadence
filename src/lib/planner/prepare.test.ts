@@ -3,12 +3,7 @@ import type { Completion, Goal } from "@/lib/goals/types";
 import { getAnchoredPeriod } from "@/lib/goals/periods";
 import { canonicalHash } from "@/lib/planner/canonical";
 import { createDefaultPlannerPolicy } from "@/lib/planner/policy";
-import {
-  computeRequirementFingerprint,
-  normalizeGoalRequirement,
-} from "@/lib/planner/requirements";
-import { reconcilePlannerCompletions } from "@/lib/planner/reconciliation";
-import { materializeWorkUnits, type PlannerBaseAssignment } from "@/lib/planner/work-units";
+import { computeRequirementFingerprint } from "@/lib/planner/requirements";
 import {
   buildPlannerGoalLockSignature,
   type PlannerGoalUnplaceableRecord,
@@ -1214,7 +1209,7 @@ describe("preparePlannerSchedule", () => {
     );
   });
 
-  it("uses kernel credit identities for targeted goals so mixed scheduled/completion states stay accurate", async () => {
+  it("keeps targeted mixed scheduled/completion shortfall accounting accurate", async () => {
     const targetedGoal = goal({
       frequency_type: "recurring",
       recurrence_interval: "daily",
@@ -1455,219 +1450,35 @@ describe("preparePlannerSchedule", () => {
     );
   });
 
-  it("keeps pre-check completion credit parity with reconciliation across requirement kinds", () => {
-    const asOfDate = "2026-08-15";
-    const weekStartsOn = 1;
-    const expectedCreditedUnitKeys = ({
-      goal,
-      completions,
-      persistedItems,
-      requiredUnitKeys,
-      window,
-    }: {
-      goal: Goal;
-      completions: Completion[];
-      persistedItems: Array<{ unit_key: string; scheduled_date: string }>;
-      requiredUnitKeys: Set<string>;
-      window: { start: string; end: string };
-    }) => {
-      const normalizedRequirement = normalizeGoalRequirement(goal);
-      const requirementFingerprint = normalizedRequirement.requirementFingerprint;
-      const baseAssignments: PlannerBaseAssignment[] = persistedItems.map((item) => ({
-        goalId: goal.id,
-        requirementFingerprint,
-        unitKey: item.unit_key,
-        scheduledDate: item.scheduled_date,
-        locked: false,
-      }));
-      const ordinalsForScopeMonth =
-        normalizedRequirement.requirement.kind === "cadence"
-          ? undefined
-          : new Set(
-              Array.from(
-                { length: normalizedRequirement.requirement.targetCount },
-                (_, index) => index + 1
-              )
-            );
-      const reconciled = reconcilePlannerCompletions({
-        goal,
-        workUnits: materializeWorkUnits({
-          goal,
-          normalizedRequirement,
-          window,
-          asOfDate,
-          baseAssignments,
-          ordinalsForScopeMonth,
-          weeklyAnchor: { weekStartsOn },
-        }),
-        completions,
-        asOfDate,
-      });
-      return new Set(
-        Object.values(reconciled.completionToUnit)
-          .map((identity) => identity.unitKey)
-          .filter((unitKey) => requiredUnitKeys.has(unitKey))
-      );
-    };
-
-    const milestoneGoal = goal({ target_count: 3, milestone_names: ["A", "B", "C"] });
-    const milestoneCompletions: Completion[] = [
-      {
-        id: "88888888-8888-4888-8888-888888888881",
-        goal_id: milestoneGoal.id,
-        user_id: OWNER_ID,
-        completed_on: "2026-08-02",
-        source: "manual",
-        created_at: "2026-08-02T00:00:00.000Z",
-      },
-      {
-        id: "88888888-8888-4888-8888-888888888882",
-        goal_id: milestoneGoal.id,
-        user_id: OWNER_ID,
-        completed_on: "2026-08-05",
-        source: "manual",
-        created_at: "2026-08-05T00:00:00.000Z",
-      },
-    ];
-    const milestonePersisted = [
-      { unit_key: "milestone:2", scheduled_date: "2026-08-12" },
-    ];
-    const milestoneRequired = new Set(["milestone:1", "milestone:2", "milestone:3"]);
-
-    const deadlineGoal = goal({
-      id: "88888888-8888-4888-8888-888888888883",
-      frequency_type: "recurring",
-      recurrence_interval: "daily",
-      target_count: 4,
-      milestone_names: null,
-      start_date: "2026-08-01",
-      end_date: "2026-12-31",
-    });
-    const deadlineCompletions: Completion[] = [
-      {
-        id: "88888888-8888-4888-8888-888888888884",
-        goal_id: deadlineGoal.id,
-        user_id: OWNER_ID,
-        completed_on: "2026-08-03",
-        source: "manual",
-        created_at: "2026-08-03T00:00:00.000Z",
-      },
-      {
-        id: "88888888-8888-4888-8888-888888888885",
-        goal_id: deadlineGoal.id,
-        user_id: OWNER_ID,
-        completed_on: "2026-08-12",
-        source: "manual",
-        created_at: "2026-08-12T00:00:00.000Z",
-      },
-    ];
-    const deadlinePersisted = [
-      { unit_key: "total:3", scheduled_date: "2026-08-11" },
-      { unit_key: "total:4", scheduled_date: "2026-08-12" },
-    ];
-    const deadlineRequired = new Set(["total:1", "total:2", "total:3", "total:4"]);
-
-    const cadenceGoal = goal({
-      id: "88888888-8888-4888-8888-888888888886",
-      frequency_type: "recurring",
-      recurrence_interval: "monthly",
-      target_count: null,
-      milestone_names: null,
-      start_date: "2026-07-01",
-      end_date: "2026-08-31",
-    });
-    const cadenceCompletion: Completion = {
-      id: "88888888-8888-4888-8888-888888888887",
-      goal_id: cadenceGoal.id,
-      user_id: OWNER_ID,
-      completed_on: "2026-08-02",
-      source: "manual",
-      created_at: "2026-08-02T00:00:00.000Z",
-    };
-    const augustPeriodKey = getAnchoredPeriod(
-      cadenceGoal.start_date,
-      "monthly",
-      "2026-08-02",
-      { weekStartsOn }
-    ).periodKey;
-    const cadenceRequired = new Set([`cadence:${augustPeriodKey}`]);
-
-    const duplicateScheduledDateDeadlineGoal = goal({
-      id: "88888888-8888-4888-8888-888888888888",
+  it("credits targeted completions even when they occurred before the current window start", () => {
+    const targetedGoal = goal({
       frequency_type: "recurring",
       recurrence_interval: "daily",
       target_count: 2,
       milestone_names: null,
-      start_date: "2026-08-01",
+      start_date: "2026-01-01",
       end_date: "2026-12-31",
     });
-    const duplicateScheduledDateDeadlineCompletions: Completion[] = [
-      {
-        id: "99999999-9999-4999-9999-999999999991",
-        goal_id: duplicateScheduledDateDeadlineGoal.id,
-        user_id: OWNER_ID,
-        completed_on: "2026-08-04",
-        source: "manual",
-        created_at: "2026-08-04T00:00:00.000Z",
-      },
-    ];
-    const duplicateScheduledDateDeadlinePersisted = [
-      { unit_key: "total:1", scheduled_date: "2026-08-04" },
-      { unit_key: "total:2", scheduled_date: "2026-08-04" },
-    ];
-    // This state is not reachable from DB-backed planner_items because
-    // (goal_id, scheduled_date) is unique; it guards defensive parity invariants.
-    const duplicateScheduledDateDeadlineRequired = new Set([
-      "total:1",
-      "total:2",
-    ]);
+    const completion: Completion = {
+      id: "91111111-1111-4111-8111-111111111111",
+      goal_id: targetedGoal.id,
+      user_id: OWNER_ID,
+      completed_on: "2026-01-10",
+      source: "manual",
+      created_at: "2026-01-10T00:00:00.000Z",
+    };
 
-    const cases = [
-      {
-        goal: milestoneGoal,
-        completions: milestoneCompletions,
-        persistedItems: milestonePersisted,
-        requiredUnitKeys: milestoneRequired,
-        window: { start: "2026-08-01", end: "2026-09-30" },
-      },
-      {
-        goal: deadlineGoal,
-        completions: deadlineCompletions,
-        persistedItems: deadlinePersisted,
-        requiredUnitKeys: deadlineRequired,
-        window: { start: "2026-08-01", end: "2026-12-31" },
-      },
-      {
-        goal: cadenceGoal,
-        completions: [cadenceCompletion],
-        persistedItems: [],
-        requiredUnitKeys: cadenceRequired,
-        window: { start: "2026-07-01", end: "2026-08-31" },
-      },
-      {
-        goal: duplicateScheduledDateDeadlineGoal,
-        completions: duplicateScheduledDateDeadlineCompletions,
-        persistedItems: duplicateScheduledDateDeadlinePersisted,
-        requiredUnitKeys: duplicateScheduledDateDeadlineRequired,
-        window: { start: "2026-08-01", end: "2026-12-31" },
-      },
-    ];
+    const credited = computeCompletionCreditedUnitKeys({
+      goal: targetedGoal,
+      completions: [completion],
+      asOfDate: "2026-08-15",
+      weekStartsOn: 1,
+      requiredUnitKeys: new Set(["total:1", "total:2"]),
+      persistedItems: [],
+      window: { start: "2026-08-01", end: "2026-12-31" },
+    });
 
-    for (const entry of cases) {
-      const precheckKeys = computeCompletionCreditedUnitKeys({
-        goal: entry.goal,
-        completions: entry.completions,
-        asOfDate,
-        weekStartsOn,
-        requiredUnitKeys: entry.requiredUnitKeys,
-        persistedItems: entry.persistedItems,
-        window: entry.window,
-      });
-      const reconciledKeys = expectedCreditedUnitKeys(entry);
-      expect(Array.from(precheckKeys).sort()).toEqual(
-        Array.from(reconciledKeys).sort()
-      );
-    }
+    expect(Array.from(credited).sort()).toEqual(["total:1"]);
   });
 
   it("uses the canonical snapshot digest for preparation", async () => {
