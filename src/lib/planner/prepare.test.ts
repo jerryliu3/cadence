@@ -1405,6 +1405,56 @@ describe("preparePlannerSchedule", () => {
     );
   });
 
+  it("does not double-count a single completion when scoped kernel and lifetime credit ordinals diverge", async () => {
+    const targetedGoal = goal({
+      frequency_type: "recurring",
+      recurrence_interval: "daily",
+      target_count: 2,
+      milestone_names: null,
+      start_date: "2026-08-01",
+      end_date: "2026-12-31",
+    });
+    const completion: Completion = {
+      id: "8f111111-1111-4111-8111-111111111111",
+      goal_id: targetedGoal.id,
+      user_id: OWNER_ID,
+      completed_on: "2026-08-03",
+      source: "manual",
+      created_at: "2026-08-03T00:00:00.000Z",
+    };
+    mocks.loadPlannerPreparationSnapshot.mockResolvedValue(
+      preparationSnapshot([targetedGoal], [], [], [completion])
+    );
+    // Simulate a scoped kernel run that credits the same completion against a
+    // different ordinal than lifetime credit identity resolution.
+    mocks.runPlannerKernel.mockReturnValue(
+      kernelOutput(targetedGoal.id, [
+        {
+          unitKey: "total:2",
+          scheduledDate: null,
+          creditedCompletionId: completion.id,
+          creditedCompletionDate: completion.completed_on,
+        },
+      ])
+    );
+
+    await prepare();
+
+    expect(mocks.runPlannerKernel).toHaveBeenCalledTimes(1);
+    expect(mocks.rpc).toHaveBeenCalledWith(
+      "prepare_planner_schedule",
+      expect.objectContaining({
+        p_unplaceable: expect.arrayContaining([
+          expect.objectContaining({
+            goal_id: targetedGoal.id,
+            reason: "capacity",
+            unplaced_count: 1,
+          }),
+        ]),
+      })
+    );
+  });
+
   it("keeps pre-check completion credit parity with reconciliation across requirement kinds", () => {
     const asOfDate = "2026-08-15";
     const weekStartsOn = 1;
@@ -1611,6 +1661,7 @@ describe("preparePlannerSchedule", () => {
         weekStartsOn,
         requiredUnitKeys: entry.requiredUnitKeys,
         persistedItems: entry.persistedItems,
+        window: entry.window,
       });
       const reconciledKeys = expectedCreditedUnitKeys(entry);
       expect(Array.from(precheckKeys).sort()).toEqual(

@@ -1,5 +1,4 @@
 import { compareDateStrings, getAnchoredPeriod } from "@/lib/goals/periods";
-import { getAdmissibleCompletions } from "@/lib/goals/admissible";
 import type { Completion, Goal } from "@/lib/goals/types";
 import { reportError } from "@/lib/observability/report-error";
 import { createDefaultAssessment } from "@/lib/planner/assessment";
@@ -38,6 +37,7 @@ import {
 import {
   evaluateGoalEligibility,
 } from "@/lib/planner/eligibility";
+import { reconcilePlannerCompletions } from "@/lib/planner/reconciliation";
 import { normalizeGoalRequirement } from "@/lib/planner/requirements";
 import {
   buildPlannerGoalLockSignature,
@@ -46,6 +46,10 @@ import {
   type PlannerGoalUnplaceableRecord,
   type PlannerGoalUnplaceableReason,
 } from "@/lib/planner/unplaceable";
+import {
+  materializeWorkUnits,
+  type PlannerBaseAssignment,
+} from "@/lib/planner/work-units";
 import type { Json } from "@/lib/supabase/database.types";
 import type { createClient as createServerClient } from "@/lib/supabase/server";
 
@@ -169,6 +173,7 @@ export function computeCompletionCreditedUnitKeys({
   weekStartsOn,
   requiredUnitKeys,
   persistedItems,
+  window,
 }: {
   goal: Goal;
   completions: Completion[];
@@ -176,96 +181,50 @@ export function computeCompletionCreditedUnitKeys({
   weekStartsOn: number;
   requiredUnitKeys: Set<string>;
   persistedItems: PersistedCompletionCreditItem[];
+  window: PreparationWindow;
 }) {
-  if (requiredUnitKeys.size === 0 || completions.length === 0) {
+  if (
+    requiredUnitKeys.size === 0 ||
+    completions.length === 0 ||
+    window.end < window.start
+  ) {
     return new Set<string>();
   }
-
-  const admissible = getAdmissibleCompletions(goal, completions, {
+  const normalizedRequirement = normalizeGoalRequirement(goal);
+  const baseAssignments: PlannerBaseAssignment[] = persistedItems.map((item) => ({
+    goalId: goal.id,
+    requirementFingerprint: normalizedRequirement.requirementFingerprint,
+    unitKey: item.unit_key,
+    scheduledDate: item.scheduled_date,
+    locked: false,
+  }));
+  const ordinalsForScopeMonth =
+    normalizedRequirement.requirement.kind === "cadence"
+      ? undefined
+      : new Set(
+          Array.from(
+            { length: normalizedRequirement.requirement.targetCount },
+            (_, index) => index + 1
+          )
+        );
+  const reconciled = reconcilePlannerCompletions({
+    goal,
+    workUnits: materializeWorkUnits({
+      goal,
+      normalizedRequirement,
+      window,
+      asOfDate,
+      baseAssignments,
+      ordinalsForScopeMonth,
+      weeklyAnchor: { weekStartsOn },
+    }),
+    completions,
     asOfDate,
   });
-  if (admissible.length === 0) {
-    return new Set<string>();
-  }
-
-  const requirement = normalizeGoalRequirement(goal).requirement;
-  if (requirement.kind === "cadence") {
-    const creditedCadenceUnits = new Set<string>();
-    for (const completion of admissible) {
-      const period = getAnchoredPeriod(
-        goal.start_date,
-        requirement.interval,
-        completion.completed_on,
-        { weekStartsOn }
-      );
-      const unitKey = `cadence:${period.periodKey}`;
-      if (requiredUnitKeys.has(unitKey)) {
-        creditedCadenceUnits.add(unitKey);
-      }
-    }
-    return creditedCadenceUnits;
-  }
-
-  if (requirement.kind === "deadline_total") {
-    // Mirror reconciliation's deadline-total credit ordering:
-    // scheduled-date matches first, then chronological fallback.
-    const usedCompletionIds = new Set<string>();
-    const creditedUnitKeys = new Set<string>();
-    const admissibleByDate = new Map<string, Completion>();
-    for (const completion of admissible) {
-      admissibleByDate.set(completion.completed_on, completion);
-    }
-    const scheduledDateByUnitKey = new Map(
-      persistedItems.map((item) => [item.unit_key, item.scheduled_date] as const)
-    );
-    const orderedUnitKeys = Array.from(
-      { length: requirement.targetCount },
-      (_, index) => `total:${index + 1}`
-    );
-
-    for (const unitKey of orderedUnitKeys) {
-      if (!requiredUnitKeys.has(unitKey)) {
-        continue;
-      }
-      const scheduledDate = scheduledDateByUnitKey.get(unitKey);
-      if (!scheduledDate) {
-        continue;
-      }
-      const available = admissibleByDate.get(scheduledDate);
-      if (available && !usedCompletionIds.has(available.id)) {
-        usedCompletionIds.add(available.id);
-        creditedUnitKeys.add(unitKey);
-      }
-    }
-
-    let admissibleIndex = 0;
-    for (const unitKey of orderedUnitKeys) {
-      if (!requiredUnitKeys.has(unitKey) || creditedUnitKeys.has(unitKey)) {
-        continue;
-      }
-      while (
-        admissibleIndex < admissible.length &&
-        usedCompletionIds.has(admissible[admissibleIndex]!.id)
-      ) {
-        admissibleIndex += 1;
-      }
-      const nextCompletion = admissible[admissibleIndex];
-      if (!nextCompletion) {
-        break;
-      }
-      usedCompletionIds.add(nextCompletion.id);
-      creditedUnitKeys.add(unitKey);
-      admissibleIndex += 1;
-    }
-
-    return creditedUnitKeys;
-  }
-
-  const creditedCount = Math.min(admissible.length, requirement.targetCount);
   return new Set(
-    Array.from({ length: creditedCount }, (_, index) => `milestone:${index + 1}`).filter(
-      (unitKey) => requiredUnitKeys.has(unitKey)
-    )
+    Object.values(reconciled.completionToUnit)
+      .map((identity) => identity.unitKey)
+      .filter((unitKey) => requiredUnitKeys.has(unitKey))
   );
 }
 
@@ -379,8 +338,6 @@ async function prepareOnce({
   >();
   const goalOutcomeByGoalId = new Map<string, GoalUnplaceablePayload>();
   const precheckCompletionCreditedUnitKeysByGoalId = new Map<string, Set<string>>();
-  const kernelCompletionCreditedUnitKeysByGoalId = new Map<string, Set<string>>();
-  const kernelResolvedGoalIds = new Set<string>();
   const eligibleGoalIds = new Set<string>();
   const preserveRecordedOutcomeGoalIds = new Set<string>();
   const goalPreparationStartByGoalId = new Map<string, string>();
@@ -508,6 +465,10 @@ async function prepareOnce({
       weekStartsOn: policy.weekStartsOn ?? 1,
       requiredUnitKeys,
       persistedItems: persistedItemsValidByGoalId.get(goal.id) ?? [],
+      window: {
+        start: goalWindowsState.effectiveStart,
+        end: goalWindowsState.effectiveEnd,
+      },
     });
     precheckCompletionCreditedUnitKeysByGoalId.set(goal.id, completionCreditedUnitKeys);
     const persistedUnitKeys = new Set(
@@ -676,12 +637,6 @@ async function prepareOnce({
         }
       }
       for (const unit of kernel.workUnits) {
-        if (typeof unit.creditedCompletionDate === "string") {
-          const creditedUnitKeys =
-            kernelCompletionCreditedUnitKeysByGoalId.get(goal.id) ?? new Set<string>();
-          creditedUnitKeys.add(unit.unitKey);
-          kernelCompletionCreditedUnitKeysByGoalId.set(goal.id, creditedUnitKeys);
-        }
         if (unit.scheduledDate !== null) {
           const goalDateKey = `${goal.id}\u0000${unit.scheduledDate}`;
           if (goalDates.has(goalDateKey)) {
@@ -718,7 +673,6 @@ async function prepareOnce({
       }
     }
     if (!blockedByInvalidLock) {
-      kernelResolvedGoalIds.add(goal.id);
       for (const [key, generated] of generatedForGoal.entries()) {
         generatedByKey.set(key, generated);
       }
@@ -835,17 +789,10 @@ async function prepareOnce({
         scheduledUnitKeys.add(item.unit_key);
       }
     }
-    // Keep lifetime completion credit from pre-check so goals completed in
-    // earlier months still clear stale shortfall rows when the scoped kernel
-    // solve carries no credited units for the current window.
-    const completionCreditedUnitKeys = new Set(
-      precheckCompletionCreditedUnitKeysByGoalId.get(goal.id) ?? []
-    );
-    if (kernelResolvedGoalIds.has(goal.id)) {
-      for (const unitKey of kernelCompletionCreditedUnitKeysByGoalId.get(goal.id) ?? []) {
-        completionCreditedUnitKeys.add(unitKey);
-      }
-    }
+    // Use canonical lifetime completion claims for shortfall accounting; the
+    // scoped kernel run is only for placement generation in this window.
+    const completionCreditedUnitKeys =
+      precheckCompletionCreditedUnitKeysByGoalId.get(goal.id) ?? new Set<string>();
     for (const unitKey of completionCreditedUnitKeys) {
       scheduledUnitKeys.add(unitKey);
     }
