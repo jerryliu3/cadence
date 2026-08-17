@@ -92,16 +92,4 @@ describe("getLinkedTargetScopeStatus", () => {
       resumeDate: null,
     });
   });
-
-  it("falls back to source planned end date when server metadata is absent", () => {
-    expect(
-      getLinkedTargetScopeStatus({
-        scopeMonth: "2026-08",
-        sourcePlannedEndDate: "2026-07-31",
-      })
-    ).toEqual({
-      state: "visible",
-      resumeDate: null,
-    });
-  });
 });

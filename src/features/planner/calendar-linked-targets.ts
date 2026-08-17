@@ -1,7 +1,4 @@
-import {
-  addDaysToDateString,
-  compareDateStrings,
-} from "@/lib/goals/periods";
+import { compareDateStrings } from "@/lib/goals/periods";
 import { getScopeDateRange } from "@/lib/planner/dates";
 import type { PlannerGoalLinkSummary } from "@cadence/shared/planner/context";
 
@@ -57,12 +54,10 @@ export function getLinkedTargetScopeStatus({
   scopeMonth,
   targetSuppressionKind,
   targetResumesOn,
-  sourcePlannedEndDate,
 }: {
   scopeMonth: string;
-  targetSuppressionKind?: PlannerGoalLinkSummary["targetSuppressionKind"];
-  targetResumesOn?: string | null;
-  sourcePlannedEndDate?: string | null;
+  targetSuppressionKind: PlannerGoalLinkSummary["targetSuppressionKind"];
+  targetResumesOn: string | null;
 }): PlannerLinkedTargetScopeStatus {
   if (targetSuppressionKind === "indefinite") {
     return {
@@ -77,9 +72,7 @@ export function getLinkedTargetScopeStatus({
     };
   }
   if (targetSuppressionKind === "until") {
-    const resumeDate =
-      targetResumesOn ??
-      (sourcePlannedEndDate ? addDaysToDateString(sourcePlannedEndDate, 1) : null);
+    const resumeDate = targetResumesOn;
     const scopeStart = getScopeDateRange(scopeMonth).start;
     if (resumeDate && compareDateStrings(resumeDate, scopeStart) <= 0) {
       return {
@@ -90,19 +83,6 @@ export function getLinkedTargetScopeStatus({
     return {
       state: "suppressed",
       resumeDate,
-    };
-  }
-  if (sourcePlannedEndDate === null || sourcePlannedEndDate === undefined) {
-    return {
-      state: "indefinite",
-      resumeDate: null,
-    };
-  }
-  const scopeStart = getScopeDateRange(scopeMonth).start;
-  if (compareDateStrings(sourcePlannedEndDate, scopeStart) >= 0) {
-    return {
-      state: "suppressed",
-      resumeDate: addDaysToDateString(sourcePlannedEndDate, 1),
     };
   }
   return {

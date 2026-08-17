@@ -166,9 +166,9 @@ export interface PlannerContextPayload {
 export interface PlannerGoalLinkSummary {
   sourceGoalId: string;
   targetGoalId: string;
-  sourcePlannedEndDate?: string | null;
-  targetSuppressionKind?: "none" | "until" | "indefinite";
-  targetResumesOn?: string | null;
+  sourcePlannedEndDate: string | null;
+  targetSuppressionKind: "none" | "until" | "indefinite";
+  targetResumesOn: string | null;
 }
 
 export interface PlannerVisibleMonthContextPayload {
