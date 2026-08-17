@@ -21,5 +21,9 @@ export function getAvatarUrlValidationError(
     return "Avatar URL must start with http:// or https://.";
   }
 
+  if (!parsed.pathname.startsWith("/storage/v1/object/public/avatars/")) {
+    return "Avatar URL must point to the public avatars storage path.";
+  }
+
   return null;
 }

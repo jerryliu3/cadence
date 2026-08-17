@@ -8,6 +8,7 @@ import {
   type NotificationPreferences,
 } from "@cadence/shared/notifications/preferences";
 import { router } from "expo-router";
+import * as ImagePicker from "expo-image-picker";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { api } from "../../lib/api";
@@ -22,7 +23,12 @@ import { supabase } from "../../lib/supabase";
 import { useTheme } from "../../theme";
 import { PrimaryButton } from "../../ui/button";
 import { Screen } from "../../ui/screen";
+import { UserAvatar } from "../../ui/user-avatar";
 import { IntegrationsSection } from "./IntegrationsSection";
+import {
+  getMobileAvatarValidationError,
+  uploadMobileProfileAvatar,
+} from "../../lib/profile/avatar-upload";
 
 interface NotificationSchedule {
   id: string;
@@ -50,7 +56,24 @@ export function SettingsScreen() {
     useState<NotificationPreferenceKey | null>(null);
   const [hasLoadedNotificationPreferences, setHasLoadedNotificationPreferences] =
     useState(false);
+  const [avatarBusy, setAvatarBusy] = useState(false);
   const mountedRef = useRef(true);
+
+  const profile = useQuery({
+    queryKey: ["mobile-profile", userId],
+    enabled: Boolean(userId),
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("id,username,display_name,avatar_url")
+        .eq("id", userId ?? "")
+        .maybeSingle();
+      if (error) {
+        throw error;
+      }
+      return data ?? null;
+    },
+  });
 
   const schedules = useQuery({
     queryKey: ["mobile-notification-schedules", userId],
@@ -185,6 +208,118 @@ export function SettingsScreen() {
 
   return (
     <Screen title="Profile">
+      <View style={[styles.profileCard, { borderColor: theme.colors.border }]}>
+        <View style={styles.profileSummaryRow}>
+          <UserAvatar
+            avatarUrl={profile.data?.avatar_url ?? null}
+            displayName={profile.data?.display_name ?? null}
+            username={profile.data?.username ?? null}
+            size={48}
+          />
+          <View style={{ gap: 2, flex: 1 }}>
+            <Text style={{ color: theme.colors.foreground, fontWeight: "700" }}>
+              {profile.data?.display_name ?? profile.data?.username ?? "Cadence user"}
+            </Text>
+            {profile.data?.username ? (
+              <Text style={{ color: theme.colors.mutedForeground }}>
+                @{profile.data.username}
+              </Text>
+            ) : null}
+          </View>
+        </View>
+        <View style={{ gap: 8 }}>
+          <PrimaryButton
+            label={avatarBusy ? "Uploading photo..." : "Upload photo"}
+            disabled={!userId || avatarBusy}
+            onPress={async () => {
+              if (!userId) {
+                return;
+              }
+              const picked = await ImagePicker.launchImageLibraryAsync({
+                mediaTypes: ["images"],
+                quality: 1,
+                base64: false,
+              });
+              if (picked.canceled || !picked.assets[0]) {
+                return;
+              }
+
+              const validationError = getMobileAvatarValidationError(
+                picked.assets[0]
+              );
+              if (validationError) {
+                setMessage(validationError);
+                return;
+              }
+
+              setAvatarBusy(true);
+              try {
+                const avatarUrl = await uploadMobileProfileAvatar({
+                  userId,
+                  asset: picked.assets[0],
+                });
+                const { error } = await supabase
+                  .from("profiles")
+                  .update({ avatar_url: avatarUrl })
+                  .eq("id", userId);
+                if (error) {
+                  throw error;
+                }
+                setMessage("Profile photo updated.");
+                await queryClient.invalidateQueries({
+                  queryKey: ["mobile-profile", userId],
+                });
+              } catch (error) {
+                setMessage(getApiErrorMessage(error, "Profile photo upload failed."));
+              } finally {
+                setAvatarBusy(false);
+              }
+            }}
+          />
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Remove profile photo"
+            disabled={!userId || avatarBusy || !profile.data?.avatar_url}
+            style={[
+              styles.removePhotoButton,
+              {
+                borderColor: theme.colors.border,
+                opacity:
+                  !userId || avatarBusy || !profile.data?.avatar_url ? 0.6 : 1,
+              },
+            ]}
+            onPress={() => {
+              if (!userId) {
+                return;
+              }
+              const removeAvatar = async () => {
+                setAvatarBusy(true);
+                try {
+                  const { error } = await supabase
+                    .from("profiles")
+                    .update({ avatar_url: null })
+                    .eq("id", userId);
+                  if (error) {
+                    setMessage(error.message);
+                    return;
+                  }
+                  setMessage("Profile photo removed.");
+                  await queryClient.invalidateQueries({
+                    queryKey: ["mobile-profile", userId],
+                  });
+                } finally {
+                  setAvatarBusy(false);
+                }
+              };
+              void removeAvatar();
+            }}
+          >
+            <Text style={{ color: theme.colors.foreground, fontWeight: "700" }}>
+              Remove photo
+            </Text>
+          </Pressable>
+        </View>
+      </View>
       <Text style={{ color: theme.colors.foreground }}>{session?.user.email}</Text>
       <Text style={{ color: theme.colors.mutedForeground }}>Reminder hour (0-23)</Text>
       <TextInput
@@ -335,6 +470,23 @@ export function SettingsScreen() {
 }
 
 const styles = StyleSheet.create({
+  profileCard: {
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 12,
+    gap: 12,
+  },
+  profileSummaryRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  removePhotoButton: {
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingVertical: 12,
+    alignItems: "center",
+  },
   preferenceHeader: {
     gap: 4,
   },
