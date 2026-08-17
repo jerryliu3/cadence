@@ -136,22 +136,6 @@ async function convertImageToJpegBlob(file: File): Promise<Blob> {
   });
 }
 
-function buildAvatarDeletePaths({
-  userId,
-  avatarUrl,
-}: {
-  userId: string;
-  avatarUrl: string | null;
-}) {
-  const paths = new Set<string>();
-  paths.add(getCanonicalAvatarObjectPath(userId));
-  const parsedPath = resolveAvatarObjectPathFromPublicUrl(avatarUrl);
-  if (parsedPath && parsedPath.startsWith(`${userId}/`)) {
-    paths.add(parsedPath);
-  }
-  return Array.from(paths);
-}
-
 export async function uploadProfileAvatar({
   supabase,
   userId,
@@ -184,14 +168,14 @@ export async function uploadProfileAvatar({
 
 export async function deleteProfileAvatar({
   supabase,
-  userId,
-  avatarUrl,
+  objectPaths,
 }: {
   supabase: SupabaseClient<Database>;
-  userId: string;
-  avatarUrl: string | null;
+  objectPaths: string[];
 }) {
-  const deletePaths = buildAvatarDeletePaths({ userId, avatarUrl });
+  const deletePaths = Array.from(
+    new Set(objectPaths.map((path) => path.trim()).filter((path) => path.length > 0))
+  );
   if (deletePaths.length === 0) {
     return;
   }
