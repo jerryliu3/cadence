@@ -1353,6 +1353,17 @@ export function CalendarSurface({
       source: "date_input" | "drag_drop" | "coach";
     }) => boolean
   >(() => false);
+  const handleCoachGoalsCreated = useCallback(async () => {
+    handlePlannerMutation();
+    const refreshed = await loadContext({
+      showLoading: false,
+      toastOnError: true,
+      forcePrepare: true,
+    });
+    if (!refreshed) {
+      throw new Error("Planner preparation did not complete.");
+    }
+  }, [handlePlannerMutation, loadContext]);
   const coach = usePlannerCoach({
     activeTab,
     context,
@@ -1368,6 +1379,7 @@ export function CalendarSurface({
       setDraftPolicy(policy);
       setSetupRestWeekdays([...policy.restWeekdays].sort((left, right) => left - right));
     },
+    onGoalsCreated: handleCoachGoalsCreated,
     coachWindow: draftSaveWindow,
     getNonPublishablePreviewMessage: nonPublishablePreviewMessage,
   });

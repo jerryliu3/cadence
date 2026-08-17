@@ -29,6 +29,7 @@ const toastErrorMock = vi.fn();
 const coachHookMock = vi.hoisted(() => ({
   latestArgs: null as null | {
     applyDraftPolicy: (policy: ReturnType<typeof buildPlannerPolicy>) => void;
+    onGoalsCreated: () => Promise<void>;
   },
   actions: {
     resetForPlannerStateReset: vi.fn(),
@@ -55,6 +56,7 @@ vi.mock("@/features/planner/coach/use-planner-coach", () => ({
   usePlannerCoach: (args: unknown) => {
     coachHookMock.latestArgs = args as {
       applyDraftPolicy: (policy: ReturnType<typeof buildPlannerPolicy>) => void;
+      onGoalsCreated: () => Promise<void>;
     };
     return {
       actions: coachHookMock.actions,
@@ -209,6 +211,44 @@ describe("CalendarSurface characterization", () => {
     expect(dayCell).toHaveAccessibleName(expect.stringContaining("1 planned item"));
     expect(dayCell).not.toHaveAccessibleName(
       expect.stringContaining("2 planned items")
+    );
+  });
+
+  it("force-prepares planner context after coach goals are created", async () => {
+    postJsonMock.mockResolvedValue(
+      buildContext([
+        unit({
+          originalGoalId: "goal-a",
+          unitKey: "total:1",
+          scheduledDate: "2026-08-31",
+        }),
+      ])
+    );
+    const onPlannerMutation = vi.fn();
+
+    render(
+      <CalendarSurface
+        activeTab="calendar"
+        month="2026-08"
+        selectedDay={null}
+        viewMode="month"
+        onMonthChange={vi.fn()}
+        onViewModeChange={vi.fn()}
+        onSelectedDayChange={vi.fn()}
+        onPlannerMutation={onPlannerMutation}
+      />
+    );
+    await waitFor(() => expect(postJsonMock).toHaveBeenCalledTimes(1));
+
+    await act(async () => {
+      await coachHookMock.latestArgs?.onGoalsCreated();
+    });
+
+    expect(onPlannerMutation).toHaveBeenCalledTimes(1);
+    expect(postJsonMock).toHaveBeenCalledTimes(2);
+    expect(postJsonMock).toHaveBeenLastCalledWith(
+      "/api/planner/prepare",
+      expect.objectContaining({ scopeMonth: "2026-08" })
     );
   });
 

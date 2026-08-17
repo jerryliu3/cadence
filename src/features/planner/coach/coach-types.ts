@@ -1,3 +1,5 @@
+import type { SetStateAction } from "react";
+import type { BulkGoalDraft } from "@/features/goals/bulk-goal-drafts";
 import type {
   CalendarTab,
   CoachConversationSummary,
@@ -27,10 +29,19 @@ export interface UsePlannerCoachArgs {
   }) => boolean;
   clearDraftMoveCommands: (entryKeys: string[]) => void;
   applyDraftPolicy: (policy: PlannerPolicy) => void;
+  onGoalsCreated: () => Promise<void>;
   coachWindow: { start: string; end: string } | null;
   getNonPublishablePreviewMessage: (
     preview: NonNullable<PlannerContextPayload["preview"]>
   ) => string;
+}
+
+export interface CoachGoalDraftRuntimeState {
+  status: "loading" | "ready" | "saving" | "created" | "error";
+  drafts: BulkGoalDraft[];
+  warnings: string[];
+  errorCode?: string;
+  errorMessage?: string;
 }
 
 export interface PlannerCoachState {
@@ -47,6 +58,10 @@ export interface PlannerCoachState {
   coachRecommendations: string[];
   coachUnresolvedQuestions: string[];
   coachPolicyApplying: boolean;
+  coachGoalDraftStates: Record<number, CoachGoalDraftRuntimeState>;
+  hasPendingCalendarEdits: boolean;
+  coachGoalRefreshStatus: "idle" | "refreshing" | "failed";
+  coachGoalRefreshError: string | null;
   hasCoachConversationState: boolean;
 }
 
@@ -61,6 +76,13 @@ export interface PlannerCoachActions {
   rejectCoachProposal: () => void;
   requestCalendarEditsFromCoach: () => void;
   undoCoachProposal: (messageIndex: number) => Promise<void>;
+  generateCoachGoalDrafts: (messageIndex: number) => Promise<void>;
+  createCoachGoalDrafts: (messageIndex: number) => Promise<void>;
+  setCoachGoalDrafts: (
+    messageIndex: number,
+    drafts: SetStateAction<BulkGoalDraft[]>
+  ) => void;
+  retryCoachGoalRefresh: () => Promise<void>;
   resetForPlannerStateReset: () => void;
   onDraftDiscarded: () => void;
 }

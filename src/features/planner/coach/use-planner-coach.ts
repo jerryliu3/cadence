@@ -1,7 +1,15 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import {
+  type SetStateAction,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { toast } from "sonner";
+import type { BulkGoalDraft } from "@/features/goals/bulk-goal-drafts";
 import { buildCoachSummaryWorkUnits } from "@/features/planner/calendar-entries";
 import {
   persistPlannerDefaultPolicy,
@@ -21,13 +29,19 @@ import {
   countAssignmentChanges,
 } from "@/features/planner/coach/coach-state-utils";
 import {
+  createCoachGoalDrafts as persistCoachGoalDrafts,
+  parseCoachGoalDrafts,
+} from "@/features/planner/coach/coach-goal-draft-service";
+import {
   markAppliedProposalsUndone,
+  isCoachGoalDraftProposal,
   readAssistantMessageWithProposal,
   updateAssistantProposalStatus,
 } from "@/features/planner/coach/coach-message-state";
 import { validateUndoProposal } from "@/features/planner/coach/coach-proposal-utils";
 import { useCoachConversationPersistence } from "@/features/planner/coach/use-coach-conversation-persistence";
 import type {
+  CoachGoalDraftRuntimeState,
   PlannerCoachModel,
   UsePlannerCoachArgs,
 } from "@/features/planner/coach/coach-types";
@@ -38,6 +52,7 @@ import {
   saveCoachSession,
 } from "@/features/planner/coach-session";
 import type {
+  CoachGoalDraftMessageProposal,
   CoachMessage,
   CoachPolicyMessageProposal,
 } from "@/features/planner/calendar-surface.types";
@@ -52,6 +67,13 @@ interface CoachProposalApplyResult {
 
 type CoachProposalApplyStatus = CoachProposalAutoApplyStatus;
 
+function coachGoalDraftRuntimeKey(
+  _message: CoachMessage,
+  proposal: CoachGoalDraftMessageProposal
+) {
+  return proposal.proposalId;
+}
+
 export function usePlannerCoach({
   activeTab,
   context,
@@ -64,6 +86,7 @@ export function usePlannerCoach({
   queueDraftMoveCommand,
   clearDraftMoveCommands,
   applyDraftPolicy,
+  onGoalsCreated,
   coachWindow,
   getNonPublishablePreviewMessage,
 }: UsePlannerCoachArgs): PlannerCoachModel {
@@ -77,6 +100,16 @@ export function usePlannerCoach({
   );
   const [coachPolicyApplying, setCoachPolicyApplying] = useState(false);
   const [coachContextEvents, setCoachContextEvents] = useState<string[]>([]);
+  const [coachGoalDraftStatesByKey, setCoachGoalDraftStatesByKey] = useState<
+    Record<string, CoachGoalDraftRuntimeState>
+  >({});
+  const [coachGoalRefreshStatus, setCoachGoalRefreshStatus] = useState<
+    "idle" | "refreshing" | "failed"
+  >("idle");
+  const [coachGoalRefreshError, setCoachGoalRefreshError] = useState<
+    string | null
+  >(null);
+  const parsingGoalDraftMessagesRef = useRef(new Set<string>());
 
   const resetCoachUiState = useCallback((messages: CoachMessage[] = []) => {
     setCoachMessages(messages);
@@ -84,6 +117,8 @@ export function usePlannerCoach({
     setCoachRecommendations([]);
     setCoachUnresolvedQuestions([]);
     setCoachContextEvents([]);
+    setCoachGoalDraftStatesByKey({});
+    parsingGoalDraftMessagesRef.current.clear();
   }, []);
 
   const appendCoachContextEvent = useCallback((event: string) => {
@@ -100,6 +135,108 @@ export function usePlannerCoach({
     [context]
   );
 
+  const generateCoachGoalDrafts = useCallback(
+    async (messageIndex: number) => {
+      const proposal = coachMessages[messageIndex]?.proposal;
+      const message = coachMessages[messageIndex];
+      if (
+        !message ||
+        !proposal ||
+        !isCoachGoalDraftProposal(proposal) ||
+        proposal.creationStatus === "created" ||
+        !context?.timezone
+      ) {
+        return;
+      }
+      const runtimeKey = coachGoalDraftRuntimeKey(message, proposal);
+      if (parsingGoalDraftMessagesRef.current.has(runtimeKey)) {
+        return;
+      }
+
+      parsingGoalDraftMessagesRef.current.add(runtimeKey);
+      setCoachGoalDraftStatesByKey((previous) => ({
+        ...previous,
+        [runtimeKey]: {
+          status: "loading",
+          drafts: previous[runtimeKey]?.drafts ?? [],
+          warnings: previous[runtimeKey]?.warnings ?? [],
+        },
+      }));
+      try {
+        const result = await parseCoachGoalDrafts({
+          parserPrompt: proposal.parserPrompt,
+          timezone: context.timezone,
+        });
+        setCoachGoalDraftStatesByKey((previous) => ({
+          ...previous,
+          [runtimeKey]: {
+            status: "ready",
+            drafts: result.drafts,
+            warnings: result.warnings,
+          },
+        }));
+      } catch (error) {
+        const errorCode =
+          error && typeof error === "object" && "code" in error
+            ? String(error.code)
+            : "parse_failed";
+        setCoachGoalDraftStatesByKey((previous) => ({
+          ...previous,
+          [runtimeKey]: {
+            status: "error",
+            drafts: previous[runtimeKey]?.drafts ?? [],
+            warnings: previous[runtimeKey]?.warnings ?? [],
+            errorCode,
+            errorMessage:
+              error instanceof Error
+                ? error.message
+                : "Could not generate goal drafts.",
+          },
+        }));
+      } finally {
+        parsingGoalDraftMessagesRef.current.delete(runtimeKey);
+      }
+    },
+    [coachMessages, context?.timezone]
+  );
+
+  useEffect(() => {
+    for (const [messageIndex, message] of coachMessages.entries()) {
+      if (
+        message.proposal &&
+        isCoachGoalDraftProposal(message.proposal) &&
+        message.proposal.creationStatus !== "created" &&
+        !coachGoalDraftStatesByKey[
+          coachGoalDraftRuntimeKey(message, message.proposal)
+        ]
+      ) {
+        void generateCoachGoalDrafts(messageIndex);
+      }
+    }
+  }, [coachGoalDraftStatesByKey, coachMessages, generateCoachGoalDrafts]);
+
+  const setCoachGoalDrafts = useCallback(
+    (messageIndex: number, drafts: SetStateAction<BulkGoalDraft[]>) => {
+      const message = coachMessages[messageIndex];
+      const proposal = message?.proposal;
+      if (!message || !proposal || !isCoachGoalDraftProposal(proposal)) return;
+      const runtimeKey = coachGoalDraftRuntimeKey(message, proposal);
+      setCoachGoalDraftStatesByKey((previous) => {
+        const state = previous[runtimeKey];
+        if (!state) return previous;
+        return {
+          ...previous,
+          [runtimeKey]: {
+            ...state,
+            drafts:
+              typeof drafts === "function" ? drafts(state.drafts) : drafts,
+          },
+        };
+      });
+    },
+    [coachMessages]
+  );
+
   const {
     state: {
       savedCoachConversations,
@@ -110,9 +247,9 @@ export function usePlannerCoach({
     },
     actions: {
       setSelectedSavedCoachConversationId,
-      saveCoachConversation,
-      restoreSavedCoachConversation,
-      startNewCoachConversation,
+      saveCoachConversation: saveCoachConversationInternal,
+      restoreSavedCoachConversation: restoreSavedCoachConversationInternal,
+      startNewCoachConversation: startNewCoachConversationInternal,
       resetForPlannerStateReset,
     },
   } = useCoachConversationPersistence({
@@ -124,6 +261,24 @@ export function usePlannerCoach({
     setCoachInput,
     persistCoachMessages,
   });
+
+  const saveCoachConversation = useCallback(async () => {
+    if (coachGoalRefreshStatus !== "idle") return;
+    await saveCoachConversationInternal();
+  }, [coachGoalRefreshStatus, saveCoachConversationInternal]);
+
+  const restoreSavedCoachConversation = useCallback(
+    async (conversationId: string) => {
+      if (coachGoalRefreshStatus !== "idle") return;
+      await restoreSavedCoachConversationInternal(conversationId);
+    },
+    [coachGoalRefreshStatus, restoreSavedCoachConversationInternal]
+  );
+
+  const startNewCoachConversation = useCallback(() => {
+    if (coachGoalRefreshStatus !== "idle") return;
+    startNewCoachConversationInternal();
+  }, [coachGoalRefreshStatus, startNewCoachConversationInternal]);
 
   const coachSummaryWorkUnits = useMemo(
     () => buildCoachSummaryWorkUnits(entriesByDate),
@@ -347,6 +502,7 @@ export function usePlannerCoach({
       const warnings = coachPayload.warnings ?? [];
       const unresolvedQuestions = coachPayload.proposal?.unresolvedQuestions ?? [];
       const policyPatches = coachPayload.proposal?.policyPatches ?? [];
+      const goalDraftPrompt = coachPayload.proposal?.goalDraftPrompt?.trim() || null;
       let autoApplyStatus: CoachProposalApplyStatus = "not_attempted";
       let autoAppliedEntryKeys: string[] = [];
       const baselinePolicy = context.preferences
@@ -360,13 +516,23 @@ export function usePlannerCoach({
         autoApplyStatus = autoApply.status;
         autoAppliedEntryKeys = autoApply.movedEntryKeys;
       }
-      const proposal = buildCoachMessageProposal({
+      const policyProposal = buildCoachMessageProposal({
         policyPatches,
         unresolvedQuestions,
         baselinePolicy,
         autoApplyStatus,
         autoAppliedEntryKeys,
       });
+      const goalDraftProposal: CoachGoalDraftMessageProposal | null =
+        goalDraftPrompt
+          ? {
+              schemaVersion: "1",
+              kind: "goal_draft",
+              proposalId: crypto.randomUUID(),
+              parserPrompt: goalDraftPrompt,
+              creationStatus: "not_created",
+            }
+          : null;
       const assistantMessage: CoachMessage = {
         role: "assistant",
         content: buildAssistantMessage({
@@ -378,7 +544,7 @@ export function usePlannerCoach({
           autoApplyStatus,
         }),
         createdAt: Date.now(),
-        proposal,
+        proposal: goalDraftProposal ?? policyProposal,
       };
       const finalMessages = [...nextMessages, assistantMessage].slice(
         -COACH_SESSION_MAX_MESSAGES
@@ -429,6 +595,135 @@ export function usePlannerCoach({
     },
     [persistCoachMessages]
   );
+
+  const createCoachGoalDrafts = useCallback(
+    async (messageIndex: number) => {
+      const message = coachMessages[messageIndex];
+      const proposal = message?.proposal;
+      if (
+        !message ||
+        !proposal ||
+        !isCoachGoalDraftProposal(proposal) ||
+        proposal.creationStatus === "created"
+      ) {
+        return;
+      }
+      const runtimeKey = coachGoalDraftRuntimeKey(message, proposal);
+      const draftState = coachGoalDraftStatesByKey[runtimeKey];
+      if (
+        !draftState ||
+        draftState.status === "saving" ||
+        draftState.status === "created"
+      ) {
+        return;
+      }
+      if (coachGoalRefreshStatus !== "idle") {
+        toast.error(
+          "Finish refreshing the calendar before creating another goal proposal."
+        );
+        return;
+      }
+      if (hasDraftSession) {
+        toast.error("Save or discard pending calendar edits before creating goals.");
+        return;
+      }
+
+      setCoachGoalRefreshStatus("refreshing");
+      setCoachGoalRefreshError(null);
+      setCoachGoalDraftStatesByKey((previous) => ({
+        ...previous,
+        [runtimeKey]: {
+          ...draftState,
+          status: "saving",
+          errorCode: undefined,
+          errorMessage: undefined,
+        },
+      }));
+      try {
+        const { createdCount } = await persistCoachGoalDrafts({
+          drafts: draftState.drafts,
+        });
+        const nextMessages: CoachMessage[] = coachMessages.map(
+          (entry, index) =>
+            index === messageIndex
+              ? {
+                  ...entry,
+                  proposal: {
+                    ...proposal,
+                    creationStatus: "created" as const,
+                  },
+                }
+              : entry
+        );
+        setCoachMessages(nextMessages);
+        persistCoachMessages(nextMessages);
+        setCoachGoalDraftStatesByKey((previous) => ({
+          ...previous,
+          [runtimeKey]: {
+            ...draftState,
+            status: "created",
+          },
+        }));
+        toast.success(
+          `Created ${createdCount} goal${createdCount === 1 ? "" : "s"}. This action is not undoable here; edit or delete created goals from Goals.`
+        );
+        try {
+          await onGoalsCreated();
+          setCoachGoalRefreshStatus("idle");
+        } catch (error) {
+          const message =
+            error instanceof Error
+              ? error.message
+              : "The calendar could not refresh.";
+          setCoachGoalRefreshStatus("failed");
+          setCoachGoalRefreshError(message);
+          toast.error(
+            `Goals were created, but the calendar could not refresh: ${message}`
+          );
+        }
+      } catch (error) {
+        setCoachGoalRefreshStatus("idle");
+        const errorCode =
+          error && typeof error === "object" && "code" in error
+            ? String(error.code)
+            : "create_failed";
+        setCoachGoalDraftStatesByKey((previous) => ({
+          ...previous,
+          [runtimeKey]: {
+            ...draftState,
+            status: "error",
+            errorCode,
+            errorMessage:
+              error instanceof Error ? error.message : "Could not create goals.",
+          },
+        }));
+      }
+    },
+    [
+      coachGoalDraftStatesByKey,
+      coachGoalRefreshStatus,
+      coachMessages,
+      hasDraftSession,
+      onGoalsCreated,
+      persistCoachMessages,
+    ]
+  );
+
+  const retryCoachGoalRefresh = useCallback(async () => {
+    if (coachGoalRefreshStatus === "refreshing") return;
+    setCoachGoalRefreshStatus("refreshing");
+    setCoachGoalRefreshError(null);
+    try {
+      await onGoalsCreated();
+      setCoachGoalRefreshStatus("idle");
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "The calendar could not refresh.";
+      setCoachGoalRefreshStatus("failed");
+      setCoachGoalRefreshError(message);
+      toast.error(`Calendar refresh failed: ${message}`);
+    }
+  }, [coachGoalRefreshStatus, onGoalsCreated]);
 
   const applyCoachProposal = useCallback(
     async (messageIndex: number) => {
@@ -573,6 +868,26 @@ export function usePlannerCoach({
   }, [appendCoachContextEvent, persistCoachMessages]);
 
   const canUseCoach = Boolean(coachWindow && context?.timezone);
+  const coachGoalDraftStates = useMemo(
+    () =>
+      coachMessages.reduce<Record<number, CoachGoalDraftRuntimeState>>(
+        (states, message, index) => {
+          if (
+            message.proposal &&
+            isCoachGoalDraftProposal(message.proposal)
+          ) {
+            const state =
+              coachGoalDraftStatesByKey[
+                coachGoalDraftRuntimeKey(message, message.proposal)
+              ];
+            if (state) states[index] = state;
+          }
+          return states;
+        },
+        {}
+      ),
+    [coachGoalDraftStatesByKey, coachMessages]
+  );
   const hasCoachConversationState = computeHasCoachConversationState({
     coachMessages,
     coachWarnings,
@@ -597,6 +912,10 @@ export function usePlannerCoach({
       coachRecommendations,
       coachUnresolvedQuestions,
       coachPolicyApplying,
+      coachGoalDraftStates,
+      hasPendingCalendarEdits: hasDraftSession,
+      coachGoalRefreshStatus,
+      coachGoalRefreshError,
       hasCoachConversationState,
     },
     actions: {
@@ -610,6 +929,10 @@ export function usePlannerCoach({
       rejectCoachProposal,
       requestCalendarEditsFromCoach,
       undoCoachProposal,
+      generateCoachGoalDrafts,
+      createCoachGoalDrafts,
+      setCoachGoalDrafts,
+      retryCoachGoalRefresh,
       resetForPlannerStateReset,
       onDraftDiscarded,
     },

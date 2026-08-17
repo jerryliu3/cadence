@@ -5,8 +5,13 @@ import { ChevronDown } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { isCoachPolicyProposal } from "@/features/planner/coach/coach-message-state";
+import { BulkGoalDraftReview } from "@/features/goals/bulk-goal-draft-review";
+import {
+  isCoachGoalDraftProposal,
+  isCoachPolicyProposal,
+} from "@/features/planner/coach/coach-message-state";
 import type { PlannerCoachModel } from "@/features/planner/coach/coach-types";
+import type { CoachGoalDraftMessageProposal } from "@/features/planner/calendar-surface.types";
 
 interface PlannerCoachPanelProps {
   coach: PlannerCoachModel;
@@ -33,6 +38,90 @@ function formatProposalApplyStatus(status: string) {
   }
 }
 
+function goalDraftErrorMessage(code?: string, fallback?: string) {
+  switch (code) {
+    case "quota_exceeded":
+      return "The AI goal draft limit has been reached. Try again later or use Multi Goal.";
+    case "rate_limited":
+      return "Goal drafts are being generated too quickly. Wait a moment, then try again.";
+    case "too_many_goals":
+      return "The coach proposed more than five goals. Ask it to simplify the plan, then generate again.";
+    default:
+      return fallback ?? "Could not generate goal drafts.";
+  }
+}
+
+function CoachGoalDraftProposal({
+  coach,
+  messageIndex,
+  proposal,
+}: {
+  coach: PlannerCoachModel;
+  messageIndex: number;
+  proposal: CoachGoalDraftMessageProposal;
+}) {
+  const { state, actions } = coach;
+  const draftState = state.coachGoalDraftStates[messageIndex];
+  if (proposal.creationStatus === "created" || draftState?.status === "created") {
+    return (
+      <p className="mt-2 rounded border border-emerald-300 bg-emerald-50 p-2 text-xs text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-100">
+        Goals created. This action is not undoable here; edit or delete them from
+        Goals.
+      </p>
+    );
+  }
+  if (!draftState || draftState.status === "loading") {
+    return (
+      <p className="mt-2 rounded border bg-background/70 p-2 text-xs text-muted-foreground">
+        Generating editable goal drafts…
+      </p>
+    );
+  }
+
+  return (
+    <div className="mt-2 space-y-2">
+      {draftState.status === "error" ? (
+        <div className="rounded border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100">
+          <p>
+            {goalDraftErrorMessage(
+              draftState.errorCode,
+              draftState.errorMessage
+            )}
+          </p>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="mt-2"
+            onClick={() => void actions.generateCoachGoalDrafts(messageIndex)}
+          >
+            Generate again
+          </Button>
+        </div>
+      ) : null}
+      {draftState.drafts.length > 0 ? (
+        <BulkGoalDraftReview
+          variant="coach"
+          drafts={draftState.drafts}
+          setDrafts={(drafts) =>
+            actions.setCoachGoalDrafts(messageIndex, drafts)
+          }
+          saving={draftState.status === "saving"}
+          onCreate={() => actions.createCoachGoalDrafts(messageIndex)}
+          warnings={draftState.warnings}
+          createDisabledMessage={
+            state.hasPendingCalendarEdits
+              ? "Save or discard calendar edits first."
+              : state.coachGoalRefreshStatus !== "idle"
+                ? "Finish refreshing the calendar before creating more goals."
+              : null
+          }
+        />
+      ) : null}
+    </div>
+  );
+}
+
 export function PlannerCoachPanel({ coach }: PlannerCoachPanelProps) {
   const { state, actions } = coach;
   if (!state.canUseCoach) {
@@ -56,7 +145,11 @@ export function PlannerCoachPanel({ coach }: PlannerCoachPanelProps) {
           size="sm"
           variant="outline"
           onClick={() => void actions.saveCoachConversation()}
-          disabled={state.coachConversationSaving || state.coachMessages.length === 0}
+          disabled={
+            state.coachConversationSaving ||
+            state.coachGoalRefreshStatus !== "idle" ||
+            state.coachMessages.length === 0
+          }
         >
           {state.coachConversationSaving ? "Saving..." : "Save"}
         </Button>
@@ -68,6 +161,7 @@ export function PlannerCoachPanel({ coach }: PlannerCoachPanelProps) {
           disabled={
             state.coachLoading ||
             state.coachPolicyApplying ||
+            state.coachGoalRefreshStatus !== "idle" ||
             !state.hasCoachConversationState
           }
         >
@@ -84,7 +178,11 @@ export function PlannerCoachPanel({ coach }: PlannerCoachPanelProps) {
               actions.setSelectedSavedCoachConversationId(conversationId);
               void actions.restoreSavedCoachConversation(conversationId);
             }}
-            disabled={state.coachConversationsLoading || state.coachConversationRestoring}
+            disabled={
+              state.coachConversationsLoading ||
+              state.coachConversationRestoring ||
+              state.coachGoalRefreshStatus !== "idle"
+            }
             aria-label="Saved conversations"
             className="h-8 w-[min(100%,16.25rem)] appearance-none rounded-lg border border-input bg-background/90 px-3 pr-8 text-xs text-foreground outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50"
           >
@@ -180,12 +278,45 @@ export function PlannerCoachPanel({ coach }: PlannerCoachPanelProps) {
                     </div>
                   </div>
                 ) : null}
+                {message.role === "assistant" &&
+                message.proposal &&
+                isCoachGoalDraftProposal(message.proposal) ? (
+                  <CoachGoalDraftProposal
+                    coach={coach}
+                    messageIndex={index}
+                    proposal={message.proposal}
+                  />
+                ) : null}
               </div>
             );
           })
         )}
       </div>
       <div className="mt-3 space-y-2">
+        {state.coachGoalRefreshStatus !== "idle" ? (
+          <div className="rounded border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100">
+            <p>
+              {state.coachGoalRefreshStatus === "refreshing"
+                ? "Saving new goals and refreshing the calendar before the next coach turn…"
+                : `Your goals were created, but the calendar still needs to refresh.${
+                    state.coachGoalRefreshError
+                      ? ` ${state.coachGoalRefreshError}`
+                      : ""
+                  }`}
+            </p>
+            {state.coachGoalRefreshStatus === "failed" ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="mt-2"
+                onClick={() => void actions.retryCoachGoalRefresh()}
+              >
+                Retry calendar refresh
+              </Button>
+            ) : null}
+          </div>
+        ) : null}
         <Textarea
           value={state.coachInput}
           onChange={(event) => actions.setCoachInput(event.target.value)}
@@ -197,7 +328,11 @@ export function PlannerCoachPanel({ coach }: PlannerCoachPanelProps) {
           <Button
             type="button"
             onClick={() => void actions.sendCoachMessage()}
-            disabled={state.coachLoading || state.coachInput.trim().length === 0}
+            disabled={
+              state.coachLoading ||
+              state.coachGoalRefreshStatus !== "idle" ||
+              state.coachInput.trim().length === 0
+            }
           >
             {state.coachLoading ? "Thinking..." : "Send to coach"}
           </Button>
