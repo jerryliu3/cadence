@@ -911,6 +911,14 @@ export function BulkGoalForm({
                                   }))
                                 }
                                 filteredLinkTargets={filteredLinkTargets}
+                                selectedTargetGoal={
+                                  draft.linked_target_goal_id === "none"
+                                    ? null
+                                    : availableGoals.find(
+                                        (goal) => goal.id === draft.linked_target_goal_id
+                                      ) ?? null
+                                }
+                                sourceEndDate={draft.end_date.trim() || null}
                                 keyPrefix={draft.id}
                               />
                           </div>
