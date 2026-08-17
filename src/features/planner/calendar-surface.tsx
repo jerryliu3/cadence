@@ -45,6 +45,7 @@ import {
 import { buildPlannerLinkedTargetIndexes } from "@/features/planner/calendar-linked-targets";
 import {
   buildWeekdayLabels,
+  completionDisabledReasonCopy,
   getDayStatus,
   getEntryCompactTitle,
   getEntryDisplayTitle,
@@ -110,6 +111,7 @@ import {
 } from "@/lib/cache/planner-tab-cache";
 import {
   draftCommandEntryKey,
+  sortPlannerDraftCommands,
   type PlannerDraftCommand,
 } from "@/lib/planner/draft-commands";
 import {
@@ -131,6 +133,7 @@ import { withPlannerRefreshTimeout } from "@/lib/planner/refresh-timeout";
 import { captureViewportRect } from "@/lib/xp/events";
 import type {
   CalendarSurfaceProps,
+  CompletionControlDisabledReason,
   DayPreviewState,
   PlannerContextPayload,
   PlannerDayDetailEntry,

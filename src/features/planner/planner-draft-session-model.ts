@@ -11,7 +11,7 @@ import {
 } from "@/lib/planner/draft-commands";
 import {
   tryBuildPlannerDraftSaveWindow,
-  type PlannerDraftSaveWindowResult,
+  type PlannerDraftWindowResult,
 } from "@/lib/planner/draft-window";
 import type { PlannerPolicy } from "@/lib/planner/policy";
 
@@ -30,7 +30,7 @@ export interface PlannerDraftSessionModel {
   hasDraftSession: boolean;
   draftWindowWorkUnits: PlannerWorkUnit[];
   draftWindowUnitByEntryKey: Map<string, PlannerWorkUnit>;
-  draftSaveWindowResult: PlannerDraftSaveWindowResult;
+  draftSaveWindowResult: PlannerDraftWindowResult;
   draftSaveWindow: { start: string; end: string } | null;
   draftWindowTooWide: boolean;
 }
