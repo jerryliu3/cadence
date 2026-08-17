@@ -16,7 +16,7 @@ export function buildGoal(overrides: Partial<Goal> = {}): Goal {
     end_date: null,
     default_local_time: null,
     photo_path: null,
-    is_group: false,
+    team_id: null,
     is_deleted: false,
     archived_at: null,
     created_at: "2026-08-01T00:00:00.000Z",
