@@ -127,7 +127,7 @@ describe("buildPlannerPublishPersistencePayload draft edit validation", () => {
     });
   });
 
-  it("rejects draft retiming for completed or historical units", () => {
+  it("rejects draft retiming for completed units", () => {
     const snapshot = createSnapshot([]);
     const kernel = {
       ...createKernel("2026-08-10"),
