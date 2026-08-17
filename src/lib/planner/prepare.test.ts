@@ -709,6 +709,34 @@ describe("preparePlannerSchedule", () => {
     );
   });
 
+  it("does not report unplaceable capacity for ineligible goals", async () => {
+    const missingDeadlineGoal = goal({
+      frequency_type: "recurring",
+      recurrence_interval: "weekly",
+      target_count: 3,
+      milestone_names: null,
+      end_date: null,
+    });
+    mocks.loadPlannerPreparationSnapshot.mockResolvedValue(
+      preparationSnapshot([missingDeadlineGoal])
+    );
+
+    await prepare();
+
+    expect(mocks.runPlannerKernel).not.toHaveBeenCalled();
+    expect(mocks.rpc).toHaveBeenCalledWith(
+      "prepare_planner_schedule",
+      expect.objectContaining({
+        p_unplaceable: expect.arrayContaining([
+          expect.objectContaining({
+            goal_id: missingDeadlineGoal.id,
+            unplaced_count: 0,
+          }),
+        ]),
+      })
+    );
+  });
+
   it("skips re-solving unchanged infeasible goals when a valid record already accounts for missing units", async () => {
     const plannerGoal = goal({ target_count: 2 });
     const existing = persistedItem({ unit_key: "milestone:1" });
