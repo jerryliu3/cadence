@@ -68,6 +68,30 @@ export function getEntryCompactTitle(
   return getEntryDisplayTitle(entry);
 }
 
+export function getEntryDisplayTitleWithTime(
+  entry: Pick<
+    PlannerDayDetailEntry,
+    "goalTitle" | "label" | "unitKey" | "effectiveScheduledLocalTime"
+  >
+) {
+  const baseTitle = getEntryDisplayTitle(entry);
+  return entry.effectiveScheduledLocalTime
+    ? `${entry.effectiveScheduledLocalTime} ${baseTitle}`
+    : baseTitle;
+}
+
+export function getEntryCompactTitleWithTime(
+  entry: Pick<
+    PlannerDayDetailEntry,
+    "goalTitle" | "label" | "unitKey" | "effectiveScheduledLocalTime"
+  >
+) {
+  const baseTitle = getEntryCompactTitle(entry);
+  return entry.effectiveScheduledLocalTime
+    ? `${entry.effectiveScheduledLocalTime} ${baseTitle}`
+    : baseTitle;
+}
+
 export function getEntrySubtitle(
   entry: Pick<PlannerDayDetailEntry, "goalTitle" | "label">
 ) {

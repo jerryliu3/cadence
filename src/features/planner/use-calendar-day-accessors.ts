@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo } from "react";
+import { useMemo } from "react";
 import { buildActiveGoalIndexes } from "@/features/planner/calendar-entries";
 import {
   applyCalendarCompletionMarkerFilters,
@@ -40,14 +40,8 @@ interface UseCalendarDayAccessorsArgs {
   duoScope: "me" | "partner" | "both";
   partnerCompletionMarkersByDate?: Map<string, PlannerCompletionFactMarker[]>;
   visibleDays: string[];
-  focusedDay: string;
-  dayPreviewDay: string | null;
-  expandedPreviewDay: string | null;
-  moveDialogDay: string | null;
-  localSelectedDay: string | null;
-  selectedEventEntryKey: string | null;
+  additionalProjectionDays: string[];
   previewEntryOrderByDay: Record<string, string[]>;
-  draftWindowUnitByEntryKey: Map<string, NonNullable<PlannerContextPayload["preview"]>["workUnits"][number]>;
 }
 
 export interface CalendarDayAccessorsResult {
@@ -73,26 +67,9 @@ export interface CalendarDayAccessorsResult {
   canMutateEntryOnDay: (entry: PlannerDayDetailEntry, day: string | null) => boolean;
   hideViewerPlan: boolean;
   plannerReadOnly: boolean;
-  effectiveSelectedDay: string | null;
-  selectedEventEntry: PlannerDayDetailEntry | null;
-  selectedEventDraftEdit:
-    | PlannerCalendarStoreProjection["effectiveDraftItemEdits"][string]
-    | undefined;
-  selectedEventBaselineUnit:
-    | NonNullable<PlannerContextPayload["preview"]>["workUnits"][number]
-    | null;
-  selectedEventDraftScheduledDate: string | null;
-  selectedEventDraftTimeInputValue: string;
-  focusedDayEntries: PlannerDayDetailEntry[];
-  focusedDayCompletionFactMarkers: PlannerCompletionFactMarker[];
-  previewDayEntries: PlannerDayDetailEntry[];
-  previewDayCompletionFactMarkers: PlannerCompletionFactMarker[];
-  expandedPreviewEntries: PlannerDayDetailEntry[];
-  expandedPreviewCompletionFactMarkers: PlannerCompletionFactMarker[];
-  moveDialogEntriesForTargetDay: PlannerDayDetailEntry[];
 }
 
-export function useCalendarDayAccessors({
+export function selectCalendarDayAccessorsModel({
   context,
   effectivePreview,
   draftCommandState,
@@ -104,19 +81,10 @@ export function useCalendarDayAccessors({
   duoScope,
   partnerCompletionMarkersByDate,
   visibleDays,
-  focusedDay,
-  dayPreviewDay,
-  expandedPreviewDay,
-  moveDialogDay,
-  localSelectedDay,
-  selectedEventEntryKey,
+  additionalProjectionDays,
   previewEntryOrderByDay,
-  draftWindowUnitByEntryKey,
 }: UseCalendarDayAccessorsArgs): CalendarDayAccessorsResult {
-  const activeGoalIndexes = useMemo(
-    () => buildActiveGoalIndexes(context?.activePlan?.goals),
-    [context?.activePlan?.goals]
-  );
+  const activeGoalIndexes = buildActiveGoalIndexes(context?.activePlan?.goals);
   const activeGoalsByPlanGoalId = activeGoalIndexes.byPlanGoalId;
   const activeGoalsByOriginalGoalId = activeGoalIndexes.byOriginalGoalId;
   const filterReferenceMonth = currentScopeMonth ?? calendarToday.slice(0, 7);
@@ -125,11 +93,8 @@ export function useCalendarDayAccessors({
     filterReferenceMonth
   );
 
-  const categoryOptions = useMemo(
-    () => buildCalendarCategoryFilterOptions(activeGoalsByOriginalGoalId),
-    [activeGoalsByOriginalGoalId]
-  );
-  const endMonthOptions = useMemo(() => {
+  const categoryOptions = buildCalendarCategoryFilterOptions(activeGoalsByOriginalGoalId);
+  const endMonthOptions = (() => {
     const goalEndDates = Array.from(activeGoalsByOriginalGoalId.values()).map(
       (goal) => goal.end_date
     );
@@ -138,37 +103,24 @@ export function useCalendarDayAccessors({
       filterReferenceMonth,
       effectiveEndMonthFilter ? [effectiveEndMonthFilter] : []
     );
-  }, [activeGoalsByOriginalGoalId, effectiveEndMonthFilter, filterReferenceMonth]);
+  })();
 
-  const goalPassesFilters = useCallback(
-    (goalId: string) =>
-      goalPassesCalendarFilters({
-        goalId,
-        goalsByOriginalId: activeGoalsByOriginalGoalId,
-        categoryFilter,
-        allCategoriesValue,
-        endMonthFilter: effectiveEndMonthFilter,
-      }),
-    [activeGoalsByOriginalGoalId, categoryFilter, effectiveEndMonthFilter]
-  );
+  const goalPassesFilters = (goalId: string) =>
+    goalPassesCalendarFilters({
+      goalId,
+      goalsByOriginalId: activeGoalsByOriginalGoalId,
+      categoryFilter,
+      allCategoriesValue,
+      endMonthFilter: effectiveEndMonthFilter,
+    });
 
-  const calendarStoreProjection = useMemo(
-    () =>
-      selectPlannerCalendarStoreProjection({
-        context,
-        effectivePreview,
-        draftCommandState,
-        activeGoalsByPlanGoalId,
-        activeGoalsByOriginalGoalId,
-      }),
-    [
-      activeGoalsByOriginalGoalId,
-      activeGoalsByPlanGoalId,
-      context,
-      draftCommandState,
-      effectivePreview,
-    ]
-  );
+  const calendarStoreProjection = selectPlannerCalendarStoreProjection({
+    context,
+    effectivePreview,
+    draftCommandState,
+    activeGoalsByPlanGoalId,
+    activeGoalsByOriginalGoalId,
+  });
 
   const {
     effectiveDraftItemEdits,
@@ -186,167 +138,76 @@ export function useCalendarDayAccessors({
     (entry) => entry.reason === "capacity"
   ).length;
 
-  const effectiveSelectedDay = localSelectedDay;
-  const projectionDays = useMemo(() => {
-    const days = new Set<string>();
-    for (const day of visibleDays) {
-      days.add(day);
-    }
-    if (effectiveSelectedDay) {
-      days.add(effectiveSelectedDay);
-    }
-    if (focusedDay) {
-      days.add(focusedDay);
-    }
-    if (dayPreviewDay) {
-      days.add(dayPreviewDay);
+  const projectionDays = (() => {
+    const days = new Set<string>(visibleDays);
+    for (const day of additionalProjectionDays) {
+      if (day) {
+        days.add(day);
+      }
     }
     return Array.from(days);
-  }, [dayPreviewDay, effectiveSelectedDay, focusedDay, visibleDays]);
+  })();
 
-  const dayProjectionByDay = useMemo(
-    () =>
-      selectPlannerCalendarDayProjectionsByDay({
-        days: projectionDays,
-        storeProjection: calendarStoreProjection,
-        previewEntryOrderByDay,
-      }),
-    [calendarStoreProjection, previewEntryOrderByDay, projectionDays]
-  );
+  const dayProjectionByDay = selectPlannerCalendarDayProjectionsByDay({
+    days: projectionDays,
+    storeProjection: calendarStoreProjection,
+    previewEntryOrderByDay,
+  });
 
-  const getCalendarDayProjection = useCallback(
-    (day: string | null): PlannerCalendarDayProjection =>
-      readPlannerCalendarDayProjection(dayProjectionByDay, day),
-    [dayProjectionByDay]
-  );
+  const getCalendarDayProjection = (day: string | null): PlannerCalendarDayProjection =>
+    readPlannerCalendarDayProjection(dayProjectionByDay, day);
 
-  const isDayInCurrentScopeMonth = useCallback(
-    (day: string | null) => {
-      if (!day || !month) {
-        return false;
-      }
-      return day.slice(0, 7) === month;
-    },
-    [month]
-  );
+  const isDayInCurrentScopeMonth = (day: string | null) => {
+    if (!day || !month) {
+      return false;
+    }
+    return day.slice(0, 7) === month;
+  };
 
-  const canMutateEntryOnDay = useCallback(
-    (entry: PlannerDayDetailEntry, day: string | null) => {
-      if (!day) {
-        return false;
-      }
-      if (isDayInCurrentScopeMonth(day)) {
-        return true;
-      }
-      return entryDayByKey.get(entry.key) === day;
-    },
-    [entryDayByKey, isDayInCurrentScopeMonth]
-  );
+  const canMutateEntryOnDay = (entry: PlannerDayDetailEntry, day: string | null) => {
+    if (!day) {
+      return false;
+    }
+    if (isDayInCurrentScopeMonth(day)) {
+      return true;
+    }
+    return entryDayByKey.get(entry.key) === day;
+  };
 
   const hideViewerPlan = duoScope === "partner";
   const plannerReadOnly = duoScope === "partner";
 
-  const filterEntries = useCallback(
-    (entries: PlannerDayDetailEntry[]) =>
-      entries.filter((entry) => goalPassesFilters(entry.originalGoalId)),
-    [goalPassesFilters]
-  );
+  const filterEntries = (entries: PlannerDayDetailEntry[]) =>
+    entries.filter((entry) => goalPassesFilters(entry.originalGoalId));
 
-  const getEntriesForDay = useCallback(
-    (day: string | null) => {
-      if (hideViewerPlan) {
-        return [];
-      }
-      return filterEntries(getCalendarDayProjection(day).entries);
-    },
-    [filterEntries, getCalendarDayProjection, hideViewerPlan]
-  );
+  const getEntriesForDay = (day: string | null) => {
+    if (hideViewerPlan) {
+      return [];
+    }
+    return filterEntries(getCalendarDayProjection(day).entries);
+  };
 
-  const getCompletionFactMarkersForDay = useCallback(
-    (day: string | null) => {
-      const viewerMarkers = hideViewerPlan
-        ? []
-        : getCalendarDayProjection(day).completionFactMarkers;
-      const partnerMarkers =
-        day && (duoScope === "partner" || duoScope === "both")
-          ? partnerCompletionMarkersByDate?.get(day) ?? []
-          : [];
-      return applyCalendarCompletionMarkerFilters({
-        viewerMarkers,
-        partnerMarkers,
-        goalPassesFilters,
-      });
-    },
-    [
-      duoScope,
-      getCalendarDayProjection,
+  const getCompletionFactMarkersForDay = (day: string | null) => {
+    const viewerMarkers = hideViewerPlan
+      ? []
+      : getCalendarDayProjection(day).completionFactMarkers;
+    const partnerMarkers =
+      day && (duoScope === "partner" || duoScope === "both")
+        ? partnerCompletionMarkersByDate?.get(day) ?? []
+        : [];
+    return applyCalendarCompletionMarkerFilters({
+      viewerMarkers,
+      partnerMarkers,
       goalPassesFilters,
-      hideViewerPlan,
-      partnerCompletionMarkersByDate,
-    ]
-  );
+    });
+  };
 
-  const getOrderedEntriesForDay = useCallback(
-    (day: string | null) => {
-      if (hideViewerPlan) {
-        return [];
-      }
-      return filterEntries(getCalendarDayProjection(day).orderedEntries);
-    },
-    [filterEntries, getCalendarDayProjection, hideViewerPlan]
-  );
-
-  const focusedDayEntries = useMemo(
-    () => getOrderedEntriesForDay(focusedDay),
-    [focusedDay, getOrderedEntriesForDay]
-  );
-  const focusedDayCompletionFactMarkers = useMemo(
-    () => getCompletionFactMarkersForDay(focusedDay),
-    [focusedDay, getCompletionFactMarkersForDay]
-  );
-  const previewDayEntries = useMemo(
-    () => getOrderedEntriesForDay(dayPreviewDay),
-    [dayPreviewDay, getOrderedEntriesForDay]
-  );
-  const previewDayCompletionFactMarkers = useMemo(
-    () => getCompletionFactMarkersForDay(dayPreviewDay),
-    [dayPreviewDay, getCompletionFactMarkersForDay]
-  );
-  const expandedPreviewEntries = useMemo(
-    () => getOrderedEntriesForDay(expandedPreviewDay),
-    [expandedPreviewDay, getOrderedEntriesForDay]
-  );
-  const expandedPreviewCompletionFactMarkers = useMemo(
-    () => getCompletionFactMarkersForDay(expandedPreviewDay),
-    [expandedPreviewDay, getCompletionFactMarkersForDay]
-  );
-  const moveDialogEntriesForTargetDay = useMemo(
-    () => getOrderedEntriesForDay(moveDialogDay),
-    [getOrderedEntriesForDay, moveDialogDay]
-  );
-
-  const selectedEventEntry = useMemo(
-    () =>
-      selectedEventEntryKey ? entryByKey.get(selectedEventEntryKey) ?? null : null,
-    [entryByKey, selectedEventEntryKey]
-  );
-  const selectedEventDraftEdit = selectedEventEntry
-    ? effectiveDraftItemEdits[selectedEventEntry.key]
-    : undefined;
-  const selectedEventBaselineUnit = selectedEventEntry
-    ? draftWindowUnitByEntryKey.get(selectedEventEntry.key) ?? null
-    : null;
-  const selectedEventDraftScheduledDate =
-    selectedEventDraftEdit?.scheduledDate ??
-    selectedEventEntry?.activeItem?.scheduled_date ??
-    effectiveSelectedDay ??
-    null;
-  const selectedEventDraftTimeInputValue =
-    selectedEventDraftEdit?.scheduledTimeOverride === null
-      ? ""
-      : selectedEventDraftEdit?.scheduledTimeOverride ??
-        selectedEventBaselineUnit?.scheduledTimeOverride ??
-        "";
+  const getOrderedEntriesForDay = (day: string | null) => {
+    if (hideViewerPlan) {
+      return [];
+    }
+    return filterEntries(getCalendarDayProjection(day).orderedEntries);
+  };
 
   return {
     calendarStoreProjection,
@@ -369,18 +230,58 @@ export function useCalendarDayAccessors({
     canMutateEntryOnDay,
     hideViewerPlan,
     plannerReadOnly,
-    effectiveSelectedDay,
-    selectedEventEntry,
-    selectedEventDraftEdit,
-    selectedEventBaselineUnit,
-    selectedEventDraftScheduledDate,
-    selectedEventDraftTimeInputValue,
-    focusedDayEntries,
-    focusedDayCompletionFactMarkers,
-    previewDayEntries,
-    previewDayCompletionFactMarkers,
-    expandedPreviewEntries,
-    expandedPreviewCompletionFactMarkers,
-    moveDialogEntriesForTargetDay,
   };
+}
+
+export function useCalendarDayAccessors(
+  args: UseCalendarDayAccessorsArgs
+): CalendarDayAccessorsResult {
+  const {
+    context,
+    effectivePreview,
+    draftCommandState,
+    month,
+    currentScopeMonth,
+    calendarToday,
+    categoryFilter,
+    endMonthFilter,
+    duoScope,
+    partnerCompletionMarkersByDate,
+    visibleDays,
+    additionalProjectionDays,
+    previewEntryOrderByDay,
+  } = args;
+  return useMemo(
+    () =>
+      selectCalendarDayAccessorsModel({
+        context,
+        effectivePreview,
+        draftCommandState,
+        month,
+        currentScopeMonth,
+        calendarToday,
+        categoryFilter,
+        endMonthFilter,
+        duoScope,
+        partnerCompletionMarkersByDate,
+        visibleDays,
+        additionalProjectionDays,
+        previewEntryOrderByDay,
+      }),
+    [
+      additionalProjectionDays,
+      calendarToday,
+      categoryFilter,
+      context,
+      currentScopeMonth,
+      draftCommandState,
+      duoScope,
+      effectivePreview,
+      endMonthFilter,
+      month,
+      partnerCompletionMarkersByDate,
+      previewEntryOrderByDay,
+      visibleDays,
+    ]
+  );
 }
