@@ -1,5 +1,6 @@
 "use client";
 
+import { Link2 } from "lucide-react";
 import { CompletionToggle } from "@/components/ui/completion-toggle";
 import {
   PlannerDraggablePreviewEntry,
@@ -182,7 +183,15 @@ export function CalendarDayPreviewList<
                       </span>
                       <div className="min-w-0">
                         <p className={`${expanded ? "" : "truncate"} font-medium`}>
-                          {displayTitle}
+                          <span className="inline-flex items-center gap-1">
+                            <span>{displayTitle}</span>
+                            {entry.hasLinkedTargets ? (
+                              <Link2
+                                className="size-3 shrink-0 text-muted-foreground"
+                                aria-label="Links to target goals"
+                              />
+                            ) : null}
+                          </span>
                         </p>
                         {draftDiffSummary ? (
                           <p

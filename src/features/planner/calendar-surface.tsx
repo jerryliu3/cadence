@@ -45,6 +45,7 @@ import {
   allCategoriesValue,
 } from "@/features/goals/goal-filters";
 import { buildActiveGoalIndexes } from "@/features/planner/calendar-entries";
+import { buildPlannerLinkedTargetIndexes } from "@/features/planner/calendar-linked-targets";
 import {
   buildWeekdayLabels,
   completionDisabledReasonCopy,
@@ -67,6 +68,7 @@ import {
 } from "@/features/planner/calendar-dnd";
 import { CalendarDayPreviewList } from "@/features/planner/calendar-day-preview-list";
 import { CalendarMonthDayCell } from "@/features/planner/calendar-month-day-cell";
+import { LinkedTargetsNote } from "@/features/planner/linked-targets-note";
 import {
   MoveSessionDialog,
   type MoveSourceOption,
@@ -776,6 +778,19 @@ export function CalendarSurface({
         ? entryByKey.get(selectedEventEntryKey) ?? null
         : null,
     [entryByKey, selectedEventEntryKey]
+  );
+  const linkedTargetIndexes = useMemo(
+    () => buildPlannerLinkedTargetIndexes(context?.links ?? []),
+    [context?.links]
+  );
+  const selectedEventLinkedTargetIds = useMemo(
+    () =>
+      selectedEventEntry
+        ? linkedTargetIndexes.targetsBySourceGoalId.get(
+            selectedEventEntry.originalGoalId
+          ) ?? []
+        : [],
+    [linkedTargetIndexes.targetsBySourceGoalId, selectedEventEntry]
   );
   const selectedEventDraftEdit = selectedEventEntry
     ? effectiveDraftItemEdits[selectedEventEntry.key]
@@ -3648,6 +3663,15 @@ export function CalendarSurface({
               </DialogHeader>
               {selectedEventEntry ? (
                 <div className="space-y-3 text-sm">
+                  {selectedEventEntry.hasLinkedTargets ? (
+                    <LinkedTargetsNote
+                      sourceGoalId={selectedEventEntry.originalGoalId}
+                      sourceEndDate={selectedEventEntry.activeGoal?.end_date ?? null}
+                      linkedTargetIds={selectedEventLinkedTargetIds}
+                      goalTitles={context?.goalTitles ?? {}}
+                      scopeMonth={context?.scopeMonth ?? month ?? "1970-01"}
+                    />
+                  ) : null}
                   {getEntryDraftDiffSummary(selectedEventEntry) ? (
                     <p className="text-xs text-muted-foreground">
                       {getEntryDraftDiffSummary(selectedEventEntry)}

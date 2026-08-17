@@ -44,7 +44,10 @@ function buildPreview(workUnits: PlannerWorkUnit[]): NonNullable<PlannerContextP
   });
 }
 
-function buildContext(workUnits: PlannerWorkUnit[]): PlannerContextPayload {
+function buildContext(
+  workUnits: PlannerWorkUnit[],
+  links: PlannerContextPayload["links"] = []
+): PlannerContextPayload {
   const goalIds = Array.from(new Set(workUnits.map((unit) => unit.originalGoalId)));
   return buildPlannerContext({
     workUnits,
@@ -55,6 +58,7 @@ function buildContext(workUnits: PlannerWorkUnit[]): PlannerContextPayload {
         "goal-b": "Goal B",
         "goal-c": "Goal C",
       },
+      links,
       preferences: null,
       activePlan: {
         plan: { id: "plan", version: 1, status: "active" },
@@ -146,6 +150,25 @@ describe("calendar store selectors", () => {
     expect(projection.entriesByDate.get("2026-08-07")?.[0]?.key).toBe(
       "goal-a:total:1"
     );
+  });
+
+  it("marks source entries that have linked targets", () => {
+    const context = buildContext(
+      [unit({ goalId: "goal-a", unitKey: "total:1", scheduledDate: "2026-08-05" })],
+      [{ sourceGoalId: "goal-a", targetGoalId: "goal-b" }]
+    );
+    const projection = selectPlannerCalendarStoreProjection({
+      context,
+      effectivePreview: context.preview,
+      draftCommandState: commandState([]),
+      activeGoalsByPlanGoalId: new Map(),
+      activeGoalsByOriginalGoalId: new Map(),
+    });
+
+    expect(projection.entriesByDate.get("2026-08-05")?.[0]).toMatchObject({
+      originalGoalId: "goal-a",
+      hasLinkedTargets: true,
+    });
   });
 
   it("builds and reads day projections with pinned ordering", () => {
