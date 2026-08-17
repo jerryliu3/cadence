@@ -270,7 +270,7 @@ describe("bulk goal parser route", () => {
     });
   });
 
-  it("coerces finite training cadences into fixed milestones with named sessions", async () => {
+  it("preserves recurring cadence output without heuristic coercion", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue(
@@ -323,26 +323,16 @@ describe("bulk goal parser route", () => {
     };
     expect(payload.goals[0]).toMatchObject({
       title: "5k training plan",
-      frequency_type: "fixed_milestones",
-      target_count: 12,
+      frequency_type: "recurring",
+      target_count: 3,
     });
-    expect(payload.goals[0]?.milestone_names).toHaveLength(12);
-    expect(payload.goals[0]?.milestone_names?.slice(0, 3)).toEqual([
-      "Week 1 - Easy run (conversational pace, 20-35 min)",
-      "Week 1 - Tempo run (comfortably hard sustained effort)",
-      "Week 1 - Long run (steady aerobic endurance)",
-    ]);
-    expect(payload.goals[0]?.milestone_names?.slice(3, 6)).toEqual([
-      "Week 2 - Easy run (conversational pace, 20-35 min)",
-      "Week 2 - Tempo run (comfortably hard sustained effort)",
-      "Week 2 - Long run (steady aerobic endurance)",
-    ]);
+    expect(payload.goals[0]?.milestone_names).toBeUndefined();
   });
 
-  it("replaces generic or incomplete milestone names with full specific sequences", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockResolvedValue(
+  it("refines generic or incomplete fixed milestones with a targeted second generation", async () => {
+    const fetchSpy = vi
+      .fn()
+      .mockResolvedValueOnce(
         new Response(
           JSON.stringify({
             candidates: [
@@ -371,7 +361,33 @@ describe("bulk goal parser route", () => {
           { status: 200 }
         )
       )
-    );
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            candidates: [
+              {
+                content: {
+                  parts: [
+                    {
+                      text: JSON.stringify({
+                        milestone_names: Array.from({ length: 12 }, (_, index) => {
+                          const week = Math.floor(index / 3) + 1;
+                          const slot = index % 3;
+                          if (slot === 0) return `Week ${week} - Easy run with warmup`;
+                          if (slot === 1) return `Week ${week} - Tempo run with cooldown`;
+                          return `Week ${week} - Long run steady effort`;
+                        }),
+                      }),
+                    },
+                  ],
+                },
+              },
+            ],
+          }),
+          { status: 200 }
+        )
+      );
+    vi.stubGlobal("fetch", fetchSpy);
 
     const response = await POST(
       request({
@@ -387,11 +403,90 @@ describe("bulk goal parser route", () => {
     };
     expect(payload.goals[0]?.milestone_names).toHaveLength(12);
     expect(payload.goals[0]?.milestone_names?.[0]).toBe(
-      "Week 1 - Easy run (conversational pace, 20-35 min)"
+      "Week 1 - Easy run with warmup"
     );
     expect(payload.goals[0]?.milestone_names?.[3]).toBe(
-      "Week 2 - Easy run (conversational pace, 20-35 min)"
+      "Week 2 - Easy run with warmup"
     );
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+  });
+
+  it("falls back to neutral session names when milestone retry is unsuccessful", async () => {
+    const fetchSpy = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            candidates: [
+              {
+                content: {
+                  parts: [
+                    {
+                      text: JSON.stringify({
+                        goals: [
+                          {
+                            title: "Language progression plan",
+                            frequency_type: "fixed_milestones",
+                            target_count: 4,
+                            start_date: "2026-08-17",
+                            end_date: "2026-09-13",
+                            milestone_names: ["Week 1", "Week 2"],
+                          },
+                        ],
+                      }),
+                    },
+                  ],
+                },
+              },
+            ],
+          }),
+          { status: 200 }
+        )
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            candidates: [
+              {
+                content: {
+                  parts: [
+                    {
+                      text: JSON.stringify({
+                        milestone_names: ["Week 1", "Week 2"],
+                      }),
+                    },
+                  ],
+                },
+              },
+            ],
+          }),
+          { status: 200 }
+        )
+      );
+    vi.stubGlobal("fetch", fetchSpy);
+
+    const response = await POST(
+      request({
+        prompt: "Create a 4-step language learning progression.",
+        timezone: "UTC",
+      })
+    );
+
+    expect(response.status).toBe(200);
+    const payload = (await response.json()) as {
+      goals: Array<{ milestone_names?: string[] }>;
+      warnings?: string[];
+    };
+    expect(payload.goals[0]?.milestone_names).toEqual([
+      "Session 1",
+      "Session 2",
+      "Session 3",
+      "Session 4",
+    ]);
+    expect(payload.warnings).toContain(
+      "Draft 1 (Language progression plan): milestone names remained incomplete or generic; using neutral session labels for review."
+    );
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
   });
 
   it("rejects model outputs when milestone_names are malformed", async () => {
