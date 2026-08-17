@@ -1099,13 +1099,75 @@ describe("preparePlannerSchedule", () => {
     mocks.loadPlannerPreparationSnapshot.mockResolvedValue(
       preparationSnapshot([completedGoal], [], [], [completion])
     );
+
+    await prepare();
+
+    expect(mocks.runPlannerKernel).not.toHaveBeenCalled();
+    expect(mocks.rpc).toHaveBeenCalledWith(
+      "prepare_planner_schedule",
+      expect.objectContaining({
+        p_unplaceable: expect.arrayContaining([
+          expect.objectContaining({
+            goal_id: completedGoal.id,
+            reason: "capacity",
+            unplaced_count: 0,
+          }),
+        ]),
+      })
+    );
+  });
+
+  it("heals stale deadline-total unplaceable rows when completions already satisfy the target", async () => {
+    const completedGoal = goal({
+      frequency_type: "recurring",
+      recurrence_interval: "daily",
+      target_count: 2,
+      start_date: "2026-01-01",
+      end_date: "2026-12-31",
+      milestone_names: null,
+    });
+    const completionOne: Completion = {
+      id: "86666666-6666-4666-8666-666666666666",
+      goal_id: completedGoal.id,
+      completed_on: "2026-03-10",
+      created_at: "2026-03-10T00:00:00.000Z",
+    };
+    const completionTwo: Completion = {
+      id: "87777777-7777-4777-8777-777777777777",
+      goal_id: completedGoal.id,
+      completed_on: "2026-03-11",
+      created_at: "2026-03-11T00:00:00.000Z",
+    };
+    mocks.loadPlannerPreparationSnapshot.mockResolvedValue(
+      preparationSnapshot(
+        [completedGoal],
+        [],
+        [
+          unplaceableRecord({
+            goalId: completedGoal.id,
+            requirementFingerprint: computeRequirementFingerprint(completedGoal),
+            effectiveSpanEnd: completedGoal.end_date ?? "2026-12-31",
+            unplacedCount: 2,
+            reason: "capacity",
+            lockSignature: buildPlannerGoalLockSignature([]),
+          }),
+        ],
+        [completionOne, completionTwo]
+      )
+    );
     mocks.runPlannerKernel.mockReturnValue(
       kernelOutput(completedGoal.id, [
         {
           unitKey: "total:1",
           scheduledDate: null,
-          creditedCompletionId: completion.id,
-          creditedCompletionDate: completion.completed_on,
+          creditedCompletionId: completionOne.id,
+          creditedCompletionDate: completionOne.completed_on,
+        },
+        {
+          unitKey: "total:2",
+          scheduledDate: null,
+          creditedCompletionId: completionTwo.id,
+          creditedCompletionDate: completionTwo.completed_on,
         },
       ])
     );
