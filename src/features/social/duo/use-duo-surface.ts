@@ -50,6 +50,7 @@ export function useDuoSurface(surface: DuoLaneSurface) {
               "Partner",
             userId: activePartner.partnerId,
             readOnly: true,
+            avatarUrl: activePartner.partnerAvatarUrl,
           }
         : null,
     [activePartner]

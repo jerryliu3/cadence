@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { UserAvatar } from "@/components/user-avatar";
 import {
   fetchSocialLeaderboards,
   fetchSocialLeaderboardStandings,
@@ -154,7 +155,14 @@ export function LeaderboardsPanel() {
           <div className="space-y-2 text-sm">
             {(standings?.standings ?? []).map((entry) => (
               <div key={entry.subjectId} className="flex items-center justify-between rounded border p-2">
-                <div>
+                <div className="flex min-w-0 items-center gap-2">
+                  <UserAvatar
+                    avatarUrl={entry.avatarUrl}
+                    displayName={entry.displayName}
+                    username={null}
+                    size="sm"
+                    alt={`${entry.displayName} avatar`}
+                  />
                   <p className="font-medium">
                     #{entry.rank} {entry.displayName}
                   </p>

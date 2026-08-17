@@ -19,6 +19,7 @@ function toStandingDto(row: {
   subject_kind: "user" | "team";
   subject_id: string;
   display_name: string;
+  avatar_url: string | null;
   score: number | string;
   rank: number;
   tie_break_at: string | null;
@@ -29,6 +30,7 @@ function toStandingDto(row: {
     subjectKind: row.subject_kind,
     subjectId: row.subject_id,
     displayName: row.display_name,
+    avatarUrl: row.avatar_url,
     score: Number(row.score),
     rank: row.rank,
     tieBreakAt: row.tie_break_at,

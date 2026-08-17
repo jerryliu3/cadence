@@ -1,10 +1,12 @@
 import type { ReactNode } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { useTheme } from "../../theme";
+import { UserAvatar } from "../../ui/user-avatar";
 
 export function InsightsLaneSection({
   showHeading,
   headingLabel,
+  headingAvatarUrl,
   readOnly,
   tone,
   message,
@@ -12,6 +14,7 @@ export function InsightsLaneSection({
 }: {
   showHeading: boolean;
   headingLabel: string;
+  headingAvatarUrl?: string | null;
   readOnly: boolean;
   tone?: "muted" | "destructive";
   message?: string;
@@ -22,6 +25,12 @@ export function InsightsLaneSection({
     <View style={styles.section}>
       {showHeading ? (
         <View style={styles.headingRow}>
+          <UserAvatar
+            avatarUrl={headingAvatarUrl ?? null}
+            displayName={headingLabel}
+            username={null}
+            size={24}
+          />
           <Text style={{ color: theme.colors.foreground, fontWeight: "700" }}>
             {headingLabel}
           </Text>

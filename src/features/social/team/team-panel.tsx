@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { UserAvatar } from "@/components/user-avatar";
 import {
   acceptSocialTeamInvite,
   createSocialTeamInvite,
@@ -118,6 +119,25 @@ export function TeamPanel() {
         <CardContent>
           {activeTeam ? (
             <div className="space-y-2">
+              <div className="flex items-center gap-2 rounded border border-border bg-muted/20 px-3 py-2">
+                <UserAvatar
+                  avatarUrl={activeTeam.partnerAvatarUrl}
+                  displayName={activeTeam.partnerDisplayName}
+                  username={activeTeam.partnerUsername}
+                  size="sm"
+                  alt="Partner avatar"
+                />
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium">
+                    {activeTeam.partnerDisplayName ??
+                      activeTeam.partnerUsername ??
+                      "Partner"}
+                  </p>
+                  <p className="truncate text-xs text-muted-foreground">
+                    Team partner
+                  </p>
+                </div>
+              </div>
               <TeamXpSummary totalXp={activeTeam.teamXp ?? 0} />
               <Input
                 value={nudgeMessage}

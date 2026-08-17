@@ -4,6 +4,7 @@ import { format, parseISO } from "date-fns";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { UserAvatar } from "@/components/user-avatar";
 import { toLocalDateString } from "@/lib/dates/day";
 import {
   fetchProgressContext,
@@ -75,17 +76,26 @@ export function PartnerChecklistStrip({
   return (
     <Card className="shadow-sm">
       <CardContent className="flex flex-wrap items-center justify-between gap-3 py-3">
-        <div className="min-w-0 space-y-0.5">
-          <p className="text-sm font-medium">{partnerName}</p>
-          <p className="text-xs text-muted-foreground">
-            {state.status === "loading"
-              ? "Loading partner status..."
-              : state.status === "unavailable"
-                ? "Partner checklist is unavailable."
-                : `${state.completionCount} completion${
-                    state.completionCount === 1 ? "" : "s"
-                  } on ${format(parseISO(viewDate), "MMM d")} · ${state.goalCount} goals`}
-          </p>
+        <div className="flex min-w-0 items-center gap-2">
+          <UserAvatar
+            avatarUrl={partner.partnerAvatarUrl}
+            displayName={partner.partnerDisplayName}
+            username={partner.partnerUsername}
+            size="sm"
+            alt={`${partnerName} avatar`}
+          />
+          <div className="min-w-0 space-y-0.5">
+            <p className="text-sm font-medium">{partnerName}</p>
+            <p className="text-xs text-muted-foreground">
+              {state.status === "loading"
+                ? "Loading partner status..."
+                : state.status === "unavailable"
+                  ? "Partner checklist is unavailable."
+                  : `${state.completionCount} completion${
+                      state.completionCount === 1 ? "" : "s"
+                    } on ${format(parseISO(viewDate), "MMM d")} · ${state.goalCount} goals`}
+            </p>
+          </div>
         </div>
         <Button
           type="button"

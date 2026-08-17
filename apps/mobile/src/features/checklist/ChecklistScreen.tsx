@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import { useTheme } from "../../theme";
 import { LoadingScreen, Screen } from "../../ui/screen";
+import { UserAvatar } from "../../ui/user-avatar";
 import { useDuo, useDuoSurfaceScope } from "../duo/DuoProvider";
 import { DuoScopeSegmentedControl } from "../duo/DuoScopeSegmentedControl";
 import {
@@ -196,8 +197,15 @@ export function ChecklistScreen({
     }
 
     if (item.type === "lane_heading") {
+      const lane = lanes.find((candidate) => candidate.id === item.laneId);
       return (
         <View style={styles.headingRow}>
+          <UserAvatar
+            avatarUrl={lane?.avatarUrl ?? null}
+            displayName={item.label}
+            username={null}
+            size={24}
+          />
           <Text style={{ color: theme.colors.foreground, fontWeight: "700" }}>
             {item.label}
           </Text>
