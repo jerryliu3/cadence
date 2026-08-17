@@ -35,9 +35,13 @@ import {
 } from "@/lib/planner/dates";
 import {
   evaluateGoalEligibility,
-  resolveGoalLinkRole,
   type EligibilityReason,
 } from "@/lib/planner/eligibility";
+import {
+  isSuppressedInWindow,
+  resolveLinkSuppression,
+  toLinkSuppressionSource,
+} from "@/lib/planner/link-suppression";
 import {
   computeGenerationInputHash,
   type PlannerCanonicalLink,
@@ -117,6 +121,7 @@ export interface PlannerKernelInput {
   goals: Goal[];
   completions: Completion[];
   links: PlannerCanonicalLink[];
+  linkSourceGoals?: Goal[];
   assessments?: GoalAssessment[];
   policy: PlannerPolicy;
   basePlan: {
@@ -448,13 +453,31 @@ export function runPlannerKernel(
       ? bySource
       : compareCanonicalStrings(left.targetGoalId, right.targetGoalId);
   });
+  const suppressionSourcesById = new Map<string, ReturnType<typeof toLinkSuppressionSource>>();
+  for (const sourceGoal of rawInput.linkSourceGoals ?? []) {
+    suppressionSourcesById.set(sourceGoal.id, toLinkSuppressionSource(sourceGoal));
+  }
+  for (const goal of goals) {
+    suppressionSourcesById.set(goal.id, toLinkSuppressionSource(goal));
+  }
   const eligibility = goals.map((goal) => ({
     goal,
     decision: evaluateGoalEligibility({
       window,
       ownerId: rawInput.ownerId,
       goal,
-      currentLinkRole: resolveGoalLinkRole(goal.id, links),
+      currentLinkRole: isSuppressedInWindow(
+        resolveLinkSuppression({
+          goalId: goal.id,
+          links,
+          sourcesById: suppressionSourcesById,
+          ownerId: rawInput.ownerId,
+          asOfDate: rawInput.asOfDate,
+        }),
+        window
+      )
+        ? "target"
+        : "none",
       asOfDate: rawInput.asOfDate,
     }),
   }));
@@ -943,6 +966,7 @@ export function runPlannerKernel(
     goals: eligibleGoals,
     completions,
     links,
+    linkSourceGoals: rawInput.linkSourceGoals,
     assessments: normalizedAssessments,
     policy,
     basePlan: rawInput.basePlan

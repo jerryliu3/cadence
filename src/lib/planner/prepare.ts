@@ -28,8 +28,13 @@ import {
   buildPreparationWindows,
 } from "@/lib/planner/preparation-windows";
 import {
+  getLinkResumeDate,
+  isSuppressedOnDate,
+  resolveLinkSuppression,
+  toLinkSuppressionSource,
+} from "@/lib/planner/link-suppression";
+import {
   evaluateGoalEligibility,
-  resolveGoalLinkRole,
 } from "@/lib/planner/eligibility";
 import { normalizeGoalRequirement } from "@/lib/planner/requirements";
 import {
@@ -306,6 +311,9 @@ async function prepareOnce({
   const goalById = new Map(
     preparation.snapshot.goals.map((goal) => [goal.id, goal])
   );
+  const suppressionSourcesById = new Map(
+    preparation.snapshot.goals.map((goal) => [goal.id, toLinkSuppressionSource(goal)])
+  );
   const completionsByGoalId = new Map<string, Completion[]>();
   for (const completion of preparation.snapshot.completions) {
     const entries = completionsByGoalId.get(completion.goal_id) ?? [];
@@ -368,6 +376,7 @@ async function prepareOnce({
   const kernelResolvedGoalIds = new Set<string>();
   const eligibleGoalIds = new Set<string>();
   const preserveRecordedOutcomeGoalIds = new Set<string>();
+  const goalPreparationStartByGoalId = new Map<string, string>();
   const validUnplaceableRecordByGoalId = new Map<string, PlannerGoalUnplaceableRecord>(
     ((preparation.unplaceableGoals ?? []) as PlannerGoalUnplaceableRecord[]).flatMap(
       (record) =>
@@ -378,18 +387,53 @@ async function prepareOnce({
   );
 
   for (const goal of preparation.snapshot.goals) {
+    const suppression = resolveLinkSuppression({
+      goalId: goal.id,
+      links: preparation.snapshot.links,
+      sourcesById: suppressionSourcesById,
+      ownerId,
+      asOfDate,
+    });
+    if (isSuppressedOnDate(suppression, preparationEnd)) {
+      const suppressedGoalWindowsState = buildGoalPreparationWindows({
+        goal,
+        asOfDate,
+        preparationStart,
+        preparationEnd,
+      });
+      goalOutcomeByGoalId.set(goal.id, {
+        goal_id: goal.id,
+        requirement_fingerprint: normalizeGoalRequirement(goal).requirementFingerprint,
+        policy_revision: policyRevision,
+        lock_signature: buildPlannerGoalLockSignature(
+          (persistedItemsInHorizonByGoalId.get(goal.id) ?? []).map((item) => ({
+            unitKey: item.unit_key,
+            scheduledDate: item.scheduled_date,
+            locked: item.locked,
+          }))
+        ),
+        effective_span_end: suppressedGoalWindowsState.effectiveEnd,
+        unplaced_count: 0,
+        reason: "capacity",
+      });
+      continue;
+    }
+    const resumeDate = getLinkResumeDate(suppression);
+    const goalPreparationStart =
+      resumeDate && resumeDate > preparationStart ? resumeDate : preparationStart;
+    goalPreparationStartByGoalId.set(goal.id, goalPreparationStart);
     const eligibilityDecision = evaluateGoalEligibility({
-      window: { start: preparationStart, end: preparationEnd },
+      window: { start: goalPreparationStart, end: preparationEnd },
       ownerId,
       goal,
       asOfDate,
-      currentLinkRole: resolveGoalLinkRole(goal.id, preparation.snapshot.links),
+      currentLinkRole: "none",
     });
     if (!eligibilityDecision.eligible) {
       const ineligibleGoalWindowsState = buildGoalPreparationWindows({
         goal,
         asOfDate,
-        preparationStart,
+        preparationStart: goalPreparationStart,
         preparationEnd,
       });
       goalOutcomeByGoalId.set(goal.id, {
@@ -426,7 +470,7 @@ async function prepareOnce({
     const goalWindowsState = buildGoalPreparationWindows({
       goal,
       asOfDate,
-      preparationStart,
+      preparationStart: goalPreparationStart,
       preparationEnd,
     });
     const lockSignature = buildPlannerGoalLockSignature(
@@ -539,6 +583,13 @@ async function prepareOnce({
       }
     >();
     const goalDates = new Set<string>();
+    const linkSourceGoals = Array.from(
+      new Map(
+        preparation.snapshot.links
+          .filter((link) => link.targetGoalId === goal.id)
+          .map((link) => [link.sourceGoalId, goalById.get(link.sourceGoalId)])
+      ).values()
+    ).filter((linkSourceGoal): linkSourceGoal is Goal => Boolean(linkSourceGoal));
     let goalUnplaceableReason: PlannerGoalUnplaceableReason | null = null;
     let blockedByInvalidLock = false;
     for (const window of goalWindows) {
@@ -556,6 +607,7 @@ async function prepareOnce({
           (link) =>
             link.sourceGoalId === goal.id || link.targetGoalId === goal.id
         ),
+        linkSourceGoals,
         assessments: [createDefaultAssessment(goal)],
         policy,
         basePlan: {
@@ -728,10 +780,12 @@ async function prepareOnce({
     if (preserveRecordedOutcomeGoalIds.has(goal.id)) {
       continue;
     }
+    const goalPreparationStart =
+      goalPreparationStartByGoalId.get(goal.id) ?? preparationStart;
     const span = buildGoalPreparationWindows({
       goal,
       asOfDate,
-      preparationStart,
+      preparationStart: goalPreparationStart,
       preparationEnd,
     });
     const requiredUnitKeys = computeRequiredUnitKeys({

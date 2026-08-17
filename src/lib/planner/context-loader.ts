@@ -817,7 +817,14 @@ export async function loadPlannerContextPayload({
           policyFingerprint: canonicalHash(effectivePolicy),
           goals: currentGoals,
           linkedGoalIds: Array.from(
-            new Set(snapshot.links.map((link) => link.targetGoalId))
+            new Set(
+              preview.eligibility
+                .filter(
+                  (eligibility) =>
+                    !eligibility.eligible && eligibility.reason === "linked_target"
+                )
+                .map((eligibility) => eligibility.goalId)
+            )
           ),
           workUnits: preview.workUnits,
           driftFacts: preview.driftFacts,

@@ -121,13 +121,14 @@ function preparationSnapshot(
   goals: Goal[],
   items: ReturnType<typeof persistedItem>[] = [],
   unplaceableGoals: PlannerGoalUnplaceableRecord[] = [],
-  completions: Completion[] = []
+  completions: Completion[] = [],
+  links: Array<{ sourceGoalId: string; targetGoalId: string }> = []
 ) {
   return {
     snapshot: {
       goals,
       completions,
-      links: [],
+      links,
       revisions: {
         canonicalRevision: 0,
         executionRevision: 0,
@@ -749,6 +750,82 @@ describe("preparePlannerSchedule", () => {
         ]),
       })
     );
+  });
+
+  it("skips kernel execution for linked targets suppressed through preparation horizon", async () => {
+    const sourceGoal = goal({
+      id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      title: "Source",
+      end_date: "2028-12-31",
+    });
+    const targetGoal = goal({
+      id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+      title: "Target",
+      target_count: 1,
+      milestone_names: ["Only"],
+      end_date: "2028-12-31",
+    });
+    mocks.loadPlannerPreparationSnapshot.mockResolvedValue(
+      preparationSnapshot(
+        [sourceGoal, targetGoal],
+        [],
+        [],
+        [],
+        [{ sourceGoalId: sourceGoal.id, targetGoalId: targetGoal.id }]
+      )
+    );
+    mocks.runPlannerKernel.mockImplementation((kernelInput) =>
+      kernelOutput(kernelInput.goals[0].id, [])
+    );
+
+    await prepare();
+
+    const targetCalls = mocks.runPlannerKernel.mock.calls.filter(
+      ([kernelInput]) => kernelInput.goals[0]?.id === targetGoal.id
+    );
+    expect(targetCalls).toHaveLength(0);
+  });
+
+  it("clamps linked target preparation windows to the source resume date", async () => {
+    const sourceGoal = goal({
+      id: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+      title: "Source",
+      start_date: "2026-05-01",
+      end_date: "2026-08-31",
+    });
+    const targetGoal = goal({
+      id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+      title: "Target",
+      start_date: "2026-08-01",
+      end_date: "2026-10-31",
+      target_count: 1,
+      milestone_names: ["Only"],
+    });
+    mocks.loadPlannerPreparationSnapshot.mockResolvedValue(
+      preparationSnapshot(
+        [sourceGoal, targetGoal],
+        [],
+        [],
+        [],
+        [{ sourceGoalId: sourceGoal.id, targetGoalId: targetGoal.id }]
+      )
+    );
+    mocks.runPlannerKernel.mockImplementation((kernelInput) =>
+      kernelOutput(kernelInput.goals[0].id, [])
+    );
+
+    await prepare();
+
+    const targetCalls = mocks.runPlannerKernel.mock.calls.filter(
+      ([kernelInput]) => kernelInput.goals[0]?.id === targetGoal.id
+    );
+    expect(targetCalls.length).toBeGreaterThan(0);
+    for (const [kernelInput] of targetCalls) {
+      expect(kernelInput.startDate >= "2026-09-01").toBe(true);
+      expect(kernelInput.linkSourceGoals).toEqual(
+        expect.arrayContaining([expect.objectContaining({ id: sourceGoal.id })])
+      );
+    }
   });
 
   it("skips re-solving unchanged infeasible goals when a valid record already accounts for missing units", async () => {

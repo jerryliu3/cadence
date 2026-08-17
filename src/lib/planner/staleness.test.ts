@@ -173,6 +173,19 @@ describe("active plan semantic staleness", () => {
     ]);
   });
 
+  it("does not report link changes for linked ids outside the planned goal set", () => {
+    const result = evaluateActivePlanStaleness({
+      snapshot: snapshot(),
+      current: current({
+        linkedGoalIds: ["unplanned-goal"],
+      }),
+    });
+
+    expect(result.reasons.map((reason) => reason.code)).not.toContain(
+      "link_changed"
+    );
+  });
+
   it("maps completion reconciliation drift to stable reasons", () => {
     const result = evaluateActivePlanStaleness({
       snapshot: snapshot(),
