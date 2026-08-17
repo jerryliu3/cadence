@@ -575,6 +575,31 @@ async function prepareOnce({
         lockSignature,
         preparationEnd,
       });
+    const requirement = normalizedRequirement.requirement;
+    if (
+      (requirement.kind === "milestone_sequence" ||
+        requirement.kind === "deadline_total") &&
+      requirement.targetCount > MAX_WORK_UNITS
+    ) {
+      reportAndHandlePrecheckCreditFailure({
+        error: new PlannerPrecheckCompletionCreditError(
+          "target_count_exceeds_bound",
+          "Planner required-unit key materialization exceeds supported work-unit bound.",
+          {
+            scope: "planner.prepare",
+            goalId: goal.id,
+            targetCount: requirement.targetCount,
+            maximum: MAX_WORK_UNITS,
+          }
+        ),
+        goal,
+        existingUnplaceableRecord,
+        existingRecordIsValid,
+        goalOutcomeByGoalId,
+        preserveRecordedOutcomeGoalIds,
+      });
+      continue;
+    }
     const goalWindows = goalWindowsState.windows as PreparationWindow[];
     const requiredUnitKeys = computeRequiredUnitKeys({
       goal,
