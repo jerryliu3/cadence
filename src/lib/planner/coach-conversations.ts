@@ -35,6 +35,7 @@ const coachConversationGoalDraftProposalSchema = z
   .object({
     schemaVersion: z.literal("1"),
     kind: z.literal("goal_draft"),
+    proposalId: z.uuid(),
     parserPrompt: z.string().trim().min(1).max(2000),
     creationStatus: z.enum(["not_created", "created"]),
   })

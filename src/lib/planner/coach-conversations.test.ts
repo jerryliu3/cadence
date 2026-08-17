@@ -10,6 +10,7 @@ describe("coach conversation goal draft proposals", () => {
       coachConversationProposalSchema.parse({
         schemaVersion: "1",
         kind: "goal_draft",
+        proposalId: "31000000-0000-4000-8000-000000000001",
         parserPrompt:
           "Easy run weekly from 2026-08-17 to 2026-09-13, total target 4.",
         creationStatus: "not_created",
@@ -17,6 +18,7 @@ describe("coach conversation goal draft proposals", () => {
     ).toEqual({
       schemaVersion: "1",
       kind: "goal_draft",
+      proposalId: "31000000-0000-4000-8000-000000000001",
       parserPrompt:
         "Easy run weekly from 2026-08-17 to 2026-09-13, total target 4.",
       creationStatus: "not_created",
@@ -33,6 +35,7 @@ describe("coach conversation goal draft proposals", () => {
         proposal_meta: {
           schemaVersion: "1",
           kind: "goal_draft",
+          proposalId: "31000000-0000-4000-8000-000000000002",
           parserPrompt:
             "Easy run weekly from 2026-08-17 to 2026-09-13.",
           creationStatus: "created",

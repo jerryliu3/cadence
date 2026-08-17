@@ -3,7 +3,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { usePlannerCoach } from "@/features/planner/coach/use-planner-coach";
 import type { UsePlannerCoachArgs } from "@/features/planner/coach/coach-types";
 import { isCoachPolicyProposal } from "@/features/planner/coach/coach-message-state";
+import { buildBulkGoalDraftsFromLlmGoals } from "@/features/goals/bulk-goal-drafts";
 import type {
+  CoachMessage,
   PlannerContextPayload,
   PlannerDayDetailEntry,
   PlannerWorkUnit,
@@ -26,6 +28,8 @@ const saveCoachSessionMock = vi.fn();
 const applyCoachPolicyPatchesMock = vi.fn();
 const toastSuccessMock = vi.fn();
 const toastErrorMock = vi.fn();
+const parseCoachGoalDraftsMock = vi.fn();
+const createCoachGoalDraftsMock = vi.fn();
 
 vi.mock("@/features/planner/coach/coach-client", () => ({
   listPlannerCoachConversations: (...args: unknown[]) =>
@@ -55,6 +59,13 @@ vi.mock("@/features/planner/coach-context", () => ({
 vi.mock("@/features/planner/coach-policy", () => ({
   applyCoachPolicyPatches: (...args: unknown[]) =>
     applyCoachPolicyPatchesMock(...args),
+}));
+
+vi.mock("@/features/planner/coach/coach-goal-draft-service", () => ({
+  parseCoachGoalDrafts: (...args: unknown[]) =>
+    parseCoachGoalDraftsMock(...args),
+  createCoachGoalDrafts: (...args: unknown[]) =>
+    createCoachGoalDraftsMock(...args),
 }));
 
 vi.mock("sonner", () => ({
@@ -97,6 +108,7 @@ function buildArgs(overrides: Partial<UsePlannerCoachArgs> = {}): UsePlannerCoac
     queueDraftMoveCommand: vi.fn().mockReturnValue(true),
     clearDraftMoveCommands: vi.fn(),
     applyDraftPolicy: vi.fn(),
+    onGoalsCreated: vi.fn().mockResolvedValue(undefined),
     coachWindow: { start: "2026-08-01", end: "2026-08-31" },
     getNonPublishablePreviewMessage: vi.fn().mockReturnValue("blocked"),
     ...overrides,
@@ -115,6 +127,8 @@ describe("usePlannerCoach", () => {
     applyCoachPolicyPatchesMock.mockReset();
     toastSuccessMock.mockReset();
     toastErrorMock.mockReset();
+    parseCoachGoalDraftsMock.mockReset();
+    createCoachGoalDraftsMock.mockReset();
   });
 
   it("reports coach unavailable without context", () => {
@@ -264,6 +278,588 @@ describe("usePlannerCoach", () => {
     expect(applyCoachPolicyPatchesMock).toHaveBeenCalled();
     expect(persistPlannerDefaultPolicyMock).not.toHaveBeenCalled();
     expect(saveCoachSessionMock).toHaveBeenCalled();
+  });
+
+  it("auto-parses actionable goal drafts with the planner timezone", async () => {
+    requestPlannerCoachReplyMock.mockResolvedValue({
+      schemaVersion: "1",
+      phase: "ready",
+      reply: "I drafted a four-week running foundation.",
+      proposal: {
+        policyPatches: [],
+        unresolvedQuestions: [],
+        goalDraftPrompt:
+          "Easy run weekly from 2026-08-17 to 2026-09-13, total target 4.",
+      },
+      recommendations: [{ text: "Keep each run conversational." }],
+      warnings: [],
+    });
+    const drafts = buildBulkGoalDraftsFromLlmGoals([
+      {
+        title: "Easy run",
+        category: "Health",
+        frequency_type: "recurring",
+        recurrence_interval: "weekly",
+        target_count: 4,
+        start_date: "2026-08-17",
+        end_date: "2026-09-13",
+      },
+    ]);
+    parseCoachGoalDraftsMock.mockResolvedValue({ drafts, warnings: [] });
+    const context = buildContext();
+    const { result } = renderHook(() =>
+      usePlannerCoach(
+        buildArgs({
+          activeTab: "calendar",
+          context,
+          effectivePreview: context.preview,
+        })
+      )
+    );
+
+    await waitFor(() => expect(loadCoachSessionMock).toHaveBeenCalled());
+    act(() => {
+      result.current.actions.setCoachInput("Build me a four-week 5k plan");
+    });
+    await act(async () => {
+      await result.current.actions.sendCoachMessage();
+    });
+
+    await waitFor(() => {
+      expect(result.current.state.coachGoalDraftStates[1]?.status).toBe("ready");
+    });
+    expect(parseCoachGoalDraftsMock).toHaveBeenCalledWith({
+      parserPrompt:
+        "Easy run weekly from 2026-08-17 to 2026-09-13, total target 4.",
+      timezone: "UTC",
+    });
+    expect(result.current.state.coachMessages[1]?.proposal).toMatchObject({
+      kind: "goal_draft",
+      creationStatus: "not_created",
+    });
+    expect(result.current.state.coachGoalDraftStates[1]?.drafts).toEqual(drafts);
+  });
+
+  it("preserves a goal proposal and supports retry after parser quota errors", async () => {
+    requestPlannerCoachReplyMock.mockResolvedValue({
+      schemaVersion: "1",
+      phase: "ready",
+      reply: "I drafted a plan.",
+      proposal: {
+        policyPatches: [],
+        unresolvedQuestions: [],
+        goalDraftPrompt: "Mobility weekly starting 2026-08-17.",
+      },
+      recommendations: [],
+      warnings: [],
+    });
+    parseCoachGoalDraftsMock.mockRejectedValueOnce(
+      Object.assign(new Error("Daily AI goal parsing limit reached."), {
+        code: "quota_exceeded",
+      })
+    );
+    const context = buildContext();
+    const { result } = renderHook(() =>
+      usePlannerCoach(
+        buildArgs({
+          activeTab: "calendar",
+          context,
+          effectivePreview: context.preview,
+        })
+      )
+    );
+
+    await waitFor(() => expect(loadCoachSessionMock).toHaveBeenCalled());
+    act(() => {
+      result.current.actions.setCoachInput("Make a mobility goal");
+    });
+    await act(async () => {
+      await result.current.actions.sendCoachMessage();
+    });
+    await waitFor(() => {
+      expect(result.current.state.coachGoalDraftStates[1]).toMatchObject({
+        status: "error",
+        errorCode: "quota_exceeded",
+      });
+    });
+
+    const drafts = buildBulkGoalDraftsFromLlmGoals([
+      {
+        title: "Mobility",
+        frequency_type: "recurring",
+        recurrence_interval: "weekly",
+        start_date: "2026-08-17",
+      },
+    ]);
+    parseCoachGoalDraftsMock.mockResolvedValueOnce({ drafts, warnings: [] });
+    await act(async () => {
+      await result.current.actions.generateCoachGoalDrafts(1);
+    });
+
+    expect(result.current.state.coachGoalDraftStates[1]).toMatchObject({
+      status: "ready",
+      drafts,
+    });
+    expect(parseCoachGoalDraftsMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not reuse stale draft state when capped messages shift indexes", async () => {
+    const oldPrompt = "Old mobility goal weekly.";
+    const newPrompt = "New running goal weekly.";
+    const cappedMessages: CoachMessage[] = Array.from(
+      { length: 19 },
+      (_, index) => ({
+      role: "user" as const,
+      content: `Prior message ${index}`,
+      createdAt: index + 1,
+      })
+    );
+    cappedMessages.push({
+      role: "assistant" as const,
+      content: "Old proposal",
+      createdAt: 20,
+      proposal: {
+        schemaVersion: "1" as const,
+        kind: "goal_draft" as const,
+        proposalId: "33000000-0000-4000-8000-000000000001",
+        parserPrompt: oldPrompt,
+        creationStatus: "not_created" as const,
+      },
+    });
+    loadCoachSessionMock.mockReturnValue(cappedMessages);
+    parseCoachGoalDraftsMock.mockImplementation(
+      ({ parserPrompt }: { parserPrompt: string }) => ({
+        drafts: buildBulkGoalDraftsFromLlmGoals([
+          {
+            title: parserPrompt === oldPrompt ? "Old mobility" : "New running",
+            frequency_type: "recurring",
+            recurrence_interval: "weekly",
+            start_date: "2026-08-17",
+          },
+        ]),
+        warnings: [],
+      })
+    );
+    requestPlannerCoachReplyMock.mockResolvedValue({
+      schemaVersion: "1",
+      phase: "ready",
+      reply: "New proposal",
+      proposal: {
+        policyPatches: [],
+        unresolvedQuestions: [],
+        goalDraftPrompt: newPrompt,
+      },
+      recommendations: [],
+      warnings: [],
+    });
+    const context = buildContext();
+    const { result } = renderHook(() =>
+      usePlannerCoach(
+        buildArgs({
+          activeTab: "calendar",
+          context,
+          effectivePreview: context.preview,
+        })
+      )
+    );
+    await waitFor(() => {
+      expect(result.current.state.coachGoalDraftStates[19]?.drafts[0]?.title).toBe(
+        "Old mobility"
+      );
+    });
+
+    act(() => {
+      result.current.actions.setCoachInput("Make a new running goal");
+    });
+    await act(async () => {
+      await result.current.actions.sendCoachMessage();
+    });
+
+    await waitFor(() => {
+      expect(result.current.state.coachGoalDraftStates[19]?.drafts[0]?.title).toBe(
+        "New running"
+      );
+    });
+    expect(parseCoachGoalDraftsMock).toHaveBeenCalledWith({
+      parserPrompt: newPrompt,
+      timezone: "UTC",
+    });
+  });
+
+  it("serializes creation while another proposal is saving and refreshing", async () => {
+    loadCoachSessionMock.mockReturnValue([
+      {
+        role: "assistant",
+        content: "First proposal",
+        createdAt: 1,
+        proposal: {
+          schemaVersion: "1",
+          kind: "goal_draft",
+          proposalId: "34000000-0000-4000-8000-000000000001",
+          parserPrompt: "Easy run weekly.",
+          creationStatus: "not_created",
+        },
+      },
+      {
+        role: "assistant",
+        content: "Second proposal",
+        createdAt: 2,
+        proposal: {
+          schemaVersion: "1",
+          kind: "goal_draft",
+          proposalId: "34000000-0000-4000-8000-000000000002",
+          parserPrompt: "Mobility weekly.",
+          creationStatus: "not_created",
+        },
+      },
+    ]);
+    parseCoachGoalDraftsMock.mockImplementation(
+      ({ parserPrompt }: { parserPrompt: string }) => ({
+        drafts: buildBulkGoalDraftsFromLlmGoals([
+          {
+            title: parserPrompt.startsWith("Easy") ? "Easy run" : "Mobility",
+            frequency_type: "recurring",
+            recurrence_interval: "weekly",
+            start_date: "2026-08-17",
+          },
+        ]),
+        warnings: [],
+      })
+    );
+    let resolveCreation:
+      | ((value: { createdCount: number }) => void)
+      | undefined;
+    createCoachGoalDraftsMock.mockReturnValue(
+      new Promise<{ createdCount: number }>((resolve) => {
+        resolveCreation = resolve;
+      })
+    );
+    const context = buildContext();
+    const { result } = renderHook(() =>
+      usePlannerCoach(
+        buildArgs({
+          activeTab: "calendar",
+          context,
+          effectivePreview: context.preview,
+        })
+      )
+    );
+    await waitFor(() => {
+      expect(result.current.state.coachGoalDraftStates[0]?.status).toBe("ready");
+      expect(result.current.state.coachGoalDraftStates[1]?.status).toBe("ready");
+    });
+
+    let firstCreation: Promise<void> | undefined;
+    act(() => {
+      firstCreation = result.current.actions.createCoachGoalDrafts(0);
+    });
+    await waitFor(() => {
+      expect(result.current.state.coachGoalRefreshStatus).toBe("refreshing");
+      expect(createCoachGoalDraftsMock).toHaveBeenCalledTimes(1);
+    });
+    act(() => {
+      result.current.actions.startNewCoachConversation();
+    });
+    await act(async () => {
+      await result.current.actions.saveCoachConversation();
+      await result.current.actions.restoreSavedCoachConversation(
+        "conversation-1"
+      );
+    });
+    expect(result.current.state.coachMessages).toHaveLength(2);
+    expect(savePlannerCoachConversationMock).not.toHaveBeenCalled();
+    expect(restorePlannerCoachConversationMock).not.toHaveBeenCalled();
+    await act(async () => {
+      await result.current.actions.createCoachGoalDrafts(1);
+    });
+    expect(createCoachGoalDraftsMock).toHaveBeenCalledTimes(1);
+
+    resolveCreation?.({ createdCount: 1 });
+    await act(async () => {
+      await firstCreation;
+    });
+    expect(result.current.state.coachGoalRefreshStatus).toBe("idle");
+  });
+
+  it("creates selected drafts once and refreshes planner context", async () => {
+    requestPlannerCoachReplyMock.mockResolvedValue({
+      schemaVersion: "1",
+      phase: "ready",
+      reply: "I drafted a running goal.",
+      proposal: {
+        policyPatches: [],
+        unresolvedQuestions: [],
+        goalDraftPrompt: "Easy run weekly starting 2026-08-17.",
+      },
+      recommendations: [],
+      warnings: [],
+    });
+    const drafts = buildBulkGoalDraftsFromLlmGoals([
+      {
+        title: "Easy run",
+        frequency_type: "recurring",
+        recurrence_interval: "weekly",
+        start_date: "2026-08-17",
+      },
+    ]);
+    parseCoachGoalDraftsMock.mockResolvedValue({ drafts, warnings: [] });
+    createCoachGoalDraftsMock.mockResolvedValue({ createdCount: 1 });
+    const onGoalsCreated = vi.fn().mockResolvedValue(undefined);
+    const context = buildContext();
+    const { result } = renderHook(() =>
+      usePlannerCoach(
+        buildArgs({
+          activeTab: "calendar",
+          context,
+          effectivePreview: context.preview,
+          onGoalsCreated,
+        })
+      )
+    );
+
+    await waitFor(() => expect(loadCoachSessionMock).toHaveBeenCalled());
+    act(() => {
+      result.current.actions.setCoachInput("Make a running goal");
+    });
+    await act(async () => {
+      await result.current.actions.sendCoachMessage();
+    });
+    await waitFor(() => {
+      expect(result.current.state.coachGoalDraftStates[1]?.status).toBe("ready");
+    });
+    await act(async () => {
+      await result.current.actions.createCoachGoalDrafts(1);
+    });
+
+    expect(createCoachGoalDraftsMock).toHaveBeenCalledWith({ drafts });
+    expect(onGoalsCreated).toHaveBeenCalledTimes(1);
+    expect(result.current.state.coachMessages[1]?.proposal).toMatchObject({
+      kind: "goal_draft",
+      creationStatus: "created",
+    });
+    expect(result.current.state.coachGoalDraftStates[1]?.status).toBe("created");
+
+    await act(async () => {
+      await result.current.actions.createCoachGoalDrafts(1);
+    });
+    expect(createCoachGoalDraftsMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("uses refreshed created-goal work units on the next coach turn", async () => {
+    requestPlannerCoachReplyMock
+      .mockResolvedValueOnce({
+        schemaVersion: "1",
+        phase: "ready",
+        reply: "I drafted a running goal.",
+        proposal: {
+          policyPatches: [],
+          unresolvedQuestions: [],
+          goalDraftPrompt: "Easy run weekly starting 2026-08-17.",
+        },
+        recommendations: [],
+        warnings: [],
+      })
+      .mockResolvedValueOnce({
+        schemaVersion: "1",
+        phase: "ready",
+        reply: "I found the new running session.",
+        proposal: {
+          policyPatches: [],
+          unresolvedQuestions: [],
+          goalDraftPrompt: null,
+        },
+        recommendations: [],
+        warnings: [],
+      });
+    const drafts = buildBulkGoalDraftsFromLlmGoals([
+      {
+        title: "Easy run",
+        frequency_type: "recurring",
+        recurrence_interval: "weekly",
+        start_date: "2026-08-17",
+      },
+    ]);
+    parseCoachGoalDraftsMock.mockResolvedValue({ drafts, warnings: [] });
+    createCoachGoalDraftsMock.mockResolvedValue({ createdCount: 1 });
+    const context = buildContext();
+    let args = buildArgs({
+      activeTab: "calendar",
+      context,
+      effectivePreview: context.preview,
+    });
+    const { result, rerender } = renderHook(() => usePlannerCoach(args));
+    await waitFor(() => expect(loadCoachSessionMock).toHaveBeenCalled());
+
+    act(() => {
+      result.current.actions.setCoachInput("Make a running goal");
+    });
+    await act(async () => {
+      await result.current.actions.sendCoachMessage();
+    });
+    await waitFor(() => {
+      expect(result.current.state.coachGoalDraftStates[1]?.status).toBe("ready");
+    });
+    await act(async () => {
+      await result.current.actions.createCoachGoalDrafts(1);
+    });
+
+    const createdGoalId = "22000000-0000-4000-8000-000000000002";
+    const refreshedContext = buildContext({
+      goalTitles: {
+        ...context.goalTitles,
+        [createdGoalId]: "Easy run",
+      },
+      preview: {
+        ...context.preview!,
+        workUnits: [
+          ...context.preview!.workUnits,
+          buildWorkUnit({
+            originalGoalId: createdGoalId,
+            unitKey: "cadence:2026-08-17",
+            scheduledDate: "2026-08-17",
+          }),
+        ],
+      },
+    });
+    args = {
+      ...args,
+      context: refreshedContext,
+      effectivePreview: refreshedContext.preview,
+    };
+    rerender();
+
+    act(() => {
+      result.current.actions.setCoachInput("Move my easy run session");
+    });
+    await act(async () => {
+      await result.current.actions.sendCoachMessage();
+    });
+
+    expect(requestPlannerCoachReplyMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        focusGoalIds: expect.arrayContaining([createdGoalId]),
+      })
+    );
+  });
+
+  it("retries only planner refresh after goals persist successfully", async () => {
+    requestPlannerCoachReplyMock.mockResolvedValue({
+      schemaVersion: "1",
+      phase: "ready",
+      reply: "I drafted a mobility goal.",
+      proposal: {
+        policyPatches: [],
+        unresolvedQuestions: [],
+        goalDraftPrompt: "Mobility weekly starting 2026-08-17.",
+      },
+      recommendations: [],
+      warnings: [],
+    });
+    const drafts = buildBulkGoalDraftsFromLlmGoals([
+      {
+        title: "Mobility",
+        frequency_type: "recurring",
+        recurrence_interval: "weekly",
+        start_date: "2026-08-17",
+      },
+    ]);
+    parseCoachGoalDraftsMock.mockResolvedValue({ drafts, warnings: [] });
+    createCoachGoalDraftsMock.mockResolvedValue({ createdCount: 1 });
+    const onGoalsCreated = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("Planner preparation did not complete."))
+      .mockResolvedValueOnce(undefined);
+    const context = buildContext();
+    const { result } = renderHook(() =>
+      usePlannerCoach(
+        buildArgs({
+          activeTab: "calendar",
+          context,
+          effectivePreview: context.preview,
+          onGoalsCreated,
+        })
+      )
+    );
+    await waitFor(() => expect(loadCoachSessionMock).toHaveBeenCalled());
+
+    act(() => {
+      result.current.actions.setCoachInput("Make a mobility goal");
+    });
+    await act(async () => {
+      await result.current.actions.sendCoachMessage();
+    });
+    await waitFor(() => {
+      expect(result.current.state.coachGoalDraftStates[1]?.status).toBe("ready");
+    });
+    await act(async () => {
+      await result.current.actions.createCoachGoalDrafts(1);
+    });
+
+    expect(result.current.state.coachGoalRefreshStatus).toBe("failed");
+    expect(result.current.state.coachMessages[1]?.proposal).toMatchObject({
+      kind: "goal_draft",
+      creationStatus: "created",
+    });
+    await act(async () => {
+      await result.current.actions.createCoachGoalDrafts(1);
+      await result.current.actions.retryCoachGoalRefresh();
+    });
+
+    expect(createCoachGoalDraftsMock).toHaveBeenCalledTimes(1);
+    expect(onGoalsCreated).toHaveBeenCalledTimes(2);
+    expect(result.current.state.coachGoalRefreshStatus).toBe("idle");
+  });
+
+  it("keeps drafts visible but blocks creation during pending calendar edits", async () => {
+    requestPlannerCoachReplyMock.mockResolvedValue({
+      schemaVersion: "1",
+      phase: "ready",
+      reply: "I drafted a goal.",
+      proposal: {
+        policyPatches: [],
+        unresolvedQuestions: [],
+        goalDraftPrompt: "Mobility weekly starting 2026-08-17.",
+      },
+      recommendations: [],
+      warnings: [],
+    });
+    const drafts = buildBulkGoalDraftsFromLlmGoals([
+      {
+        title: "Mobility",
+        frequency_type: "recurring",
+        recurrence_interval: "weekly",
+        start_date: "2026-08-17",
+      },
+    ]);
+    parseCoachGoalDraftsMock.mockResolvedValue({ drafts, warnings: [] });
+    const context = buildContext();
+    const { result } = renderHook(() =>
+      usePlannerCoach(
+        buildArgs({
+          activeTab: "calendar",
+          context,
+          effectivePreview: context.preview,
+          hasDraftSession: true,
+        })
+      )
+    );
+
+    await waitFor(() => expect(loadCoachSessionMock).toHaveBeenCalled());
+    act(() => {
+      result.current.actions.setCoachInput("Make a mobility goal");
+    });
+    await act(async () => {
+      await result.current.actions.sendCoachMessage();
+    });
+    await waitFor(() => {
+      expect(result.current.state.coachGoalDraftStates[1]?.status).toBe("ready");
+    });
+    await act(async () => {
+      await result.current.actions.createCoachGoalDrafts(1);
+    });
+
+    expect(createCoachGoalDraftsMock).not.toHaveBeenCalled();
+    expect(result.current.state.coachGoalDraftStates[1]?.drafts).toEqual(drafts);
   });
 
   it("keeps proposal auto-applied when manual apply is a no-op", async () => {
