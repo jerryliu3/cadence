@@ -3,6 +3,18 @@ export function normalizeAvatarUrlDraft(rawValue: string): string | null {
   return trimmed.length > 0 ? trimmed : null;
 }
 
+function configuredSupabaseOrigin() {
+  const rawSupabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() ?? "";
+  if (!rawSupabaseUrl) {
+    return null;
+  }
+  try {
+    return new URL(rawSupabaseUrl).origin;
+  } catch {
+    return null;
+  }
+}
+
 export function getAvatarUrlValidationError(
   avatarUrl: string | null
 ): string | null {
@@ -23,6 +35,10 @@ export function getAvatarUrlValidationError(
 
   if (!parsed.pathname.startsWith("/storage/v1/object/public/avatars/")) {
     return "Avatar URL must point to the public avatars storage path.";
+  }
+  const expectedOrigin = configuredSupabaseOrigin();
+  if (expectedOrigin && parsed.origin !== expectedOrigin) {
+    return "Avatar URL must use your configured Supabase storage origin.";
   }
 
   return null;

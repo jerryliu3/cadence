@@ -1,5 +1,6 @@
 import * as ImageManipulator from "expo-image-manipulator";
 import type { ImagePickerAsset } from "expo-image-picker";
+import { mobileEnv } from "../../config/env";
 import { supabase } from "../supabase";
 
 const AVATAR_BUCKET = "avatars";
@@ -21,6 +22,17 @@ export function getMobileAvatarValidationError(
     return "Avatar image must be 5 MB or smaller.";
   }
   return null;
+}
+
+function validateUploadedAvatarUrl(publicUrl: string) {
+  const parsed = new URL(publicUrl);
+  const expectedOrigin = new URL(mobileEnv.supabaseUrl).origin;
+  if (parsed.origin !== expectedOrigin) {
+    throw new Error("Avatar URL origin mismatch.");
+  }
+  if (!parsed.pathname.startsWith("/storage/v1/object/public/avatars/")) {
+    throw new Error("Avatar URL path mismatch.");
+  }
 }
 
 export async function uploadMobileProfileAvatar({
@@ -53,5 +65,6 @@ export async function uploadMobileProfileAvatar({
   const {
     data: { publicUrl },
   } = supabase.storage.from(AVATAR_BUCKET).getPublicUrl(objectPath);
+  validateUploadedAvatarUrl(publicUrl);
   return `${publicUrl}?v=${Date.now()}`;
 }
