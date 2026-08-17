@@ -997,6 +997,52 @@ describe("preparePlannerSchedule", () => {
     );
   });
 
+  it("preserves durable invalid_lock records when precheck credit computation fails", async () => {
+    const oversizedGoal = goal({
+      frequency_type: "recurring",
+      recurrence_interval: "daily",
+      target_count: MAX_WORK_UNITS + 1,
+      milestone_names: null,
+      start_date: "2026-01-01",
+      end_date: "2026-12-31",
+    });
+    const completion: Completion = {
+      id: "90122222-2222-4222-8222-222222222222",
+      goal_id: oversizedGoal.id,
+      user_id: OWNER_ID,
+      completed_on: "2026-01-22",
+      source: "manual",
+      created_at: "2026-01-22T00:00:00.000Z",
+    };
+    const existingRecord = unplaceableRecord({
+      goalId: oversizedGoal.id,
+      requirementFingerprint: computeRequirementFingerprint(oversizedGoal),
+      lockSignature: buildPlannerGoalLockSignature([]),
+      effectiveSpanEnd: oversizedGoal.end_date ?? "2026-12-31",
+      unplacedCount: 2,
+      reason: "invalid_lock",
+    });
+    mocks.loadPlannerPreparationSnapshot.mockResolvedValue(
+      preparationSnapshot([oversizedGoal], [], [existingRecord], [completion])
+    );
+
+    await prepare();
+
+    expect(mocks.runPlannerKernel).not.toHaveBeenCalled();
+    expect(mocks.rpc).toHaveBeenCalledWith(
+      "prepare_planner_schedule",
+      expect.objectContaining({
+        p_unplaceable: expect.arrayContaining([
+          expect.objectContaining({
+            goal_id: oversizedGoal.id,
+            reason: "invalid_lock",
+            unplaced_count: 2,
+          }),
+        ]),
+      })
+    );
+  });
+
   it("fails prepare when precheck credit computation fails with no record to preserve", async () => {
     const oversizedGoal = goal({
       frequency_type: "recurring",
@@ -1022,6 +1068,89 @@ describe("preparePlannerSchedule", () => {
       code: "invariant_failed",
     });
     expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it("fails prepare when precheck fails and the only durable record is stale", async () => {
+    const oversizedGoal = goal({
+      frequency_type: "recurring",
+      recurrence_interval: "daily",
+      target_count: MAX_WORK_UNITS + 1,
+      milestone_names: null,
+      start_date: "2026-01-01",
+      end_date: "2026-12-31",
+    });
+    const completion: Completion = {
+      id: "90333333-3333-4333-8333-333333333333",
+      goal_id: oversizedGoal.id,
+      user_id: OWNER_ID,
+      completed_on: "2026-01-23",
+      source: "manual",
+      created_at: "2026-01-23T00:00:00.000Z",
+    };
+    const staleRecord = unplaceableRecord({
+      goalId: oversizedGoal.id,
+      requirementFingerprint: computeRequirementFingerprint(oversizedGoal),
+      policyFingerprint: "stale-policy-fingerprint",
+      lockSignature: buildPlannerGoalLockSignature([]),
+      effectiveSpanEnd: oversizedGoal.end_date ?? "2026-12-31",
+      unplacedCount: 3,
+      reason: "capacity",
+    });
+    mocks.loadPlannerPreparationSnapshot.mockResolvedValue(
+      preparationSnapshot([oversizedGoal], [], [staleRecord], [completion])
+    );
+
+    await expect(prepare()).rejects.toMatchObject({
+      code: "invariant_failed",
+    });
+    expect(mocks.runPlannerKernel).not.toHaveBeenCalled();
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it("preserves durable records when target_count exceeds required-unit key bounds", async () => {
+    const oversizedGoal = goal({
+      frequency_type: "recurring",
+      recurrence_interval: "daily",
+      target_count: 4_294_967_296,
+      milestone_names: null,
+      start_date: "2026-01-01",
+      end_date: "2026-12-31",
+    });
+    const completion: Completion = {
+      id: "90444444-4444-4444-8444-444444444444",
+      goal_id: oversizedGoal.id,
+      user_id: OWNER_ID,
+      completed_on: "2026-01-24",
+      source: "manual",
+      created_at: "2026-01-24T00:00:00.000Z",
+    };
+    const existingRecord = unplaceableRecord({
+      goalId: oversizedGoal.id,
+      requirementFingerprint: computeRequirementFingerprint(oversizedGoal),
+      lockSignature: buildPlannerGoalLockSignature([]),
+      effectiveSpanEnd: oversizedGoal.end_date ?? "2026-12-31",
+      unplacedCount: 7,
+      reason: "capacity",
+    });
+    mocks.loadPlannerPreparationSnapshot.mockResolvedValue(
+      preparationSnapshot([oversizedGoal], [], [existingRecord], [completion])
+    );
+
+    await prepare();
+
+    expect(mocks.runPlannerKernel).not.toHaveBeenCalled();
+    expect(mocks.rpc).toHaveBeenCalledWith(
+      "prepare_planner_schedule",
+      expect.objectContaining({
+        p_unplaceable: expect.arrayContaining([
+          expect.objectContaining({
+            goal_id: oversizedGoal.id,
+            reason: "capacity",
+            unplaced_count: 7,
+          }),
+        ]),
+      })
+    );
   });
 
   it("re-solves stale positive capacity rows with no covered units so trivial goals can self-heal", async () => {
