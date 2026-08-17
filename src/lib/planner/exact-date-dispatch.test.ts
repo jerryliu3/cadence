@@ -120,18 +120,32 @@ describe("exact-date dispatch helpers", () => {
     });
   });
 
-  it("rejects planner goal dispatch for linked target goals", async () => {
+  it("rejects planner goal dispatch when a linked source still covers the date", async () => {
     const targetGoalLinksQuery = {
       select: vi.fn(),
       eq: vi.fn(),
-      limit: vi.fn(),
     };
     targetGoalLinksQuery.select.mockReturnValue(targetGoalLinksQuery);
-    targetGoalLinksQuery.eq.mockReturnValue(targetGoalLinksQuery);
-    targetGoalLinksQuery.limit.mockResolvedValue({
-      data: [{ id: "link-1" }],
+    targetGoalLinksQuery.eq
+      .mockReturnValueOnce(targetGoalLinksQuery)
+      .mockResolvedValueOnce({
+      data: [
+        {
+          source_goal_id: "22000000-0000-4000-8000-000000000099",
+          source: {
+            id: "22000000-0000-4000-8000-000000000099",
+            owner_id: "owner-a",
+            start_date: "2026-01-01",
+            end_date: "2026-12-31",
+            frequency_type: "recurring",
+            target_count: null,
+            is_deleted: false,
+            archived_at: null,
+          },
+        },
+      ],
       error: null,
-    });
+      });
     const supabase = {
       rpc: vi.fn().mockResolvedValue({
         data: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
@@ -147,6 +161,7 @@ describe("exact-date dispatch helpers", () => {
 
     const result = await applyPlannerGoalDateFact({
       supabase,
+      ownerId: "owner-a",
       goalId,
       date: "2026-08-05",
       desiredFactState: "present",
@@ -167,18 +182,32 @@ describe("exact-date dispatch helpers", () => {
     });
   });
 
-  it("allows planner goal dispatch for linked source goals", async () => {
+  it("allows planner goal dispatch when the linked source already ended", async () => {
     const targetGoalLinksQuery = {
       select: vi.fn(),
       eq: vi.fn(),
-      limit: vi.fn(),
     };
     targetGoalLinksQuery.select.mockReturnValue(targetGoalLinksQuery);
-    targetGoalLinksQuery.eq.mockReturnValue(targetGoalLinksQuery);
-    targetGoalLinksQuery.limit.mockResolvedValue({
-      data: [],
+    targetGoalLinksQuery.eq
+      .mockReturnValueOnce(targetGoalLinksQuery)
+      .mockResolvedValueOnce({
+      data: [
+        {
+          source_goal_id: "22000000-0000-4000-8000-000000000098",
+          source: {
+            id: "22000000-0000-4000-8000-000000000098",
+            owner_id: "owner-a",
+            start_date: "2026-01-01",
+            end_date: "2026-07-31",
+            frequency_type: "recurring",
+            target_count: null,
+            is_deleted: false,
+            archived_at: null,
+          },
+        },
+      ],
       error: null,
-    });
+      });
 
     const rpc = vi
       .fn()
@@ -199,6 +228,7 @@ describe("exact-date dispatch helpers", () => {
 
     const result = await applyPlannerGoalDateFact({
       supabase,
+      ownerId: "owner-a",
       goalId,
       date: "2026-08-05",
       desiredFactState: "present",
@@ -221,6 +251,133 @@ describe("exact-date dispatch helpers", () => {
     expect(rpc).toHaveBeenLastCalledWith("mark_goal_complete", {
       p_goal_id: goalId,
       p_date: "2026-08-05",
+    });
+  });
+
+  it("allows planner goal dispatch when source is soft-deleted or archived", async () => {
+    const targetGoalLinksQuery = {
+      select: vi.fn(),
+      eq: vi.fn(),
+    };
+    targetGoalLinksQuery.select.mockReturnValue(targetGoalLinksQuery);
+    targetGoalLinksQuery.eq
+      .mockReturnValueOnce(targetGoalLinksQuery)
+      .mockResolvedValueOnce({
+      data: [
+        {
+          source_goal_id: "22000000-0000-4000-8000-000000000097",
+          source: {
+            id: "22000000-0000-4000-8000-000000000097",
+            owner_id: "owner-a",
+            start_date: "2026-01-01",
+            end_date: "2026-12-31",
+            frequency_type: "recurring",
+            target_count: null,
+            is_deleted: true,
+            archived_at: null,
+          },
+        },
+        {
+          source_goal_id: "22000000-0000-4000-8000-000000000096",
+          source: {
+            id: "22000000-0000-4000-8000-000000000096",
+            owner_id: "owner-a",
+            start_date: "2026-01-01",
+            end_date: "2026-12-31",
+            frequency_type: "recurring",
+            target_count: null,
+            is_deleted: false,
+            archived_at: "2026-01-02T00:00:00Z",
+          },
+        },
+      ],
+      error: null,
+      });
+    const rpc = vi
+      .fn()
+      .mockResolvedValueOnce({
+        data: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        error: null,
+      })
+      .mockResolvedValueOnce({ data: null, error: null });
+    const supabase = {
+      rpc,
+      from: vi.fn((table: string) => {
+        if (table !== "goal_links") {
+          throw new Error(`unexpected table: ${table}`);
+        }
+        return targetGoalLinksQuery;
+      }),
+    } as unknown as Parameters<typeof applyPlannerGoalDateFact>[0]["supabase"];
+
+    const result = await applyPlannerGoalDateFact({
+      supabase,
+      ownerId: "owner-a",
+      goalId,
+      date: "2026-08-05",
+      desiredFactState: "present",
+      timezone: "UTC",
+      goalLifetime: { startDate: "2026-08-01", endDate: "2026-08-31" },
+      expectation: {
+        expectedDigest:
+          "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      },
+    });
+
+    expect(result).toEqual({
+      ok: true,
+      payload: {
+        goalId,
+        date: "2026-08-05",
+        factState: "present",
+      },
+    });
+  });
+
+  it("returns lookup failure when goal link embed read fails", async () => {
+    const targetGoalLinksQuery = {
+      select: vi.fn(),
+      eq: vi.fn(),
+    };
+    targetGoalLinksQuery.select.mockReturnValue(targetGoalLinksQuery);
+    targetGoalLinksQuery.eq
+      .mockReturnValueOnce(targetGoalLinksQuery)
+      .mockResolvedValueOnce({
+      data: null,
+      error: { message: "db fail" },
+      });
+    const supabase = {
+      rpc: vi.fn().mockResolvedValue({
+        data: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        error: null,
+      }),
+      from: vi.fn((table: string) => {
+        if (table !== "goal_links") {
+          throw new Error(`unexpected table: ${table}`);
+        }
+        return targetGoalLinksQuery;
+      }),
+    } as unknown as Parameters<typeof applyPlannerGoalDateFact>[0]["supabase"];
+
+    const result = await applyPlannerGoalDateFact({
+      supabase,
+      ownerId: "owner-a",
+      goalId,
+      date: "2026-08-05",
+      desiredFactState: "present",
+      timezone: "UTC",
+      goalLifetime: { startDate: "2026-08-01", endDate: "2026-08-31" },
+      expectation: {
+        expectedDigest:
+          "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      },
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      status: 503,
+      code: "planner_goal_lookup_failed",
+      message: "Planner goal state could not be loaded.",
     });
   });
 });
