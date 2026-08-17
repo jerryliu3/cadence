@@ -522,7 +522,9 @@ describe("CalendarSurface characterization", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText("There were some issues generating the full calendar.")
+        screen.getByText(
+          "Some goals need updates before the calendar can be fully scheduled."
+        )
       ).toBeInTheDocument();
       expect(screen.getByRole("button", { name: "See warnings" })).toBeInTheDocument();
     });
@@ -612,6 +614,59 @@ describe("CalendarSurface characterization", () => {
     expect(
       within(dialog).getByText(
         /Goal B: Linked goals are managed by their source relationship\./i
+      )
+    ).toBeInTheDocument();
+  });
+
+  it("hides non-actionable eligibility reasons from the warning detail list", async () => {
+    const context = buildContext([
+      unit({
+        originalGoalId: "goal-a",
+        unitKey: "total:1",
+        scheduledDate: "2026-08-31",
+      }),
+    ]);
+    if (!context.preview) {
+      throw new Error("Expected preview payload.");
+    }
+    context.preview = {
+      ...context.preview,
+      eligibility: [
+        { goalId: "goal-a", eligible: false, reason: "missing_end_date" },
+        { goalId: "goal-b", eligible: false, reason: "not_owner" },
+      ],
+    };
+    postJsonMock.mockResolvedValue(context);
+
+    render(
+      <CalendarSurface
+        activeTab="calendar"
+        month="2026-08"
+        selectedDay={null}
+        viewMode="month"
+        onMonthChange={vi.fn()}
+        onViewModeChange={vi.fn()}
+        onSelectedDayChange={vi.fn()}
+        onPlannerMutation={vi.fn()}
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "See warnings" })).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByRole("button", { name: "See warnings" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(
+      within(dialog).getByText(
+        /Goal A: This goal needs a deadline before it can be planned in Calendar\./i
+      )
+    ).toBeInTheDocument();
+    expect(
+      within(dialog).queryByText(/Goal B: Only goals you own can be planned here\./i)
+    ).not.toBeInTheDocument();
+    expect(
+      within(dialog).getByText(
+        /1 additional goal is excluded automatically and does not require action\./i
       )
     ).toBeInTheDocument();
   });

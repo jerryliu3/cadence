@@ -140,6 +140,7 @@ export interface PlannerContextPayload {
       eligible: boolean;
       reason: EligibilityReason;
     }>;
+    suggestedRelaxations?: string[];
     horizonSummary?: PlannerGoalHorizonSummary[];
   } | null;
   revisions: {
