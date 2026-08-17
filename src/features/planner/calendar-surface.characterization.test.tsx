@@ -691,7 +691,7 @@ describe("CalendarSurface characterization", () => {
     ).not.toBeInTheDocument();
     expect(
       within(dialog).getByText(
-        /1 additional goal is excluded automatically and does not require action\./i
+        /1 linked target goal is hidden in this month while source goals remain active\./i
       )
     ).toBeInTheDocument();
   });
@@ -743,10 +743,8 @@ describe("CalendarSurface characterization", () => {
       within(dialog).queryByText(/Goal B: Only goals you own can be planned here\./i)
     ).not.toBeInTheDocument();
     expect(
-      within(dialog).getByText(
-        /1 additional goal is excluded automatically and does not require action\./i
-      )
-    ).toBeInTheDocument();
+      within(dialog).queryByText(/additional goal is excluded automatically/i)
+    ).not.toBeInTheDocument();
   });
 
   it("uses preview-backed save payload for mixed policy and move drafts", async () => {
