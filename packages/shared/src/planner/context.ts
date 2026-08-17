@@ -99,6 +99,7 @@ export interface PlannerContextPayload {
   asOfDate: string;
   timezone: string;
   goalTitles: Record<string, string>;
+  links: PlannerGoalLinkSummary[];
   preferences: {
     timezone: string;
     timezoneConfirmedAt: string;
@@ -160,6 +161,11 @@ export interface PlannerContextPayload {
     reason: "capacity" | "invalid_lock";
     computedAt?: string;
   }>;
+}
+
+export interface PlannerGoalLinkSummary {
+  sourceGoalId: string;
+  targetGoalId: string;
 }
 
 export interface PlannerVisibleMonthContextPayload {

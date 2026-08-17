@@ -845,6 +845,7 @@ export async function loadPlannerContextPayload({
     goalTitles: Object.fromEntries(
       snapshot.goals.map((goal) => [goal.id, goal.title])
     ),
+    links: snapshot.links,
     revisions: snapshot.revisions,
     capabilities,
     preferences: snapshot.preferences

@@ -210,6 +210,7 @@ function contextPayload() {
     asOfDate: "2026-08-05",
     timezone: "UTC",
     goalTitles: {},
+    links: [],
     revisions: {
       canonicalRevision: 0,
       executionRevision: 0,
