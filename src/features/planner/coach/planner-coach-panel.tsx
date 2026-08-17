@@ -113,59 +113,70 @@ export function PlannerCoachPanel({ coach }: PlannerCoachPanelProps) {
             running routine.&quot;
           </p>
         ) : (
-          state.coachMessages.map((message, index) => (
-            <div
-              key={`${message.createdAt}-${index}`}
-              className={`rounded-md p-2 text-sm ${
-                message.role === "user" ? "bg-primary/10" : "bg-muted"
-              }`}
-            >
-              <p className="mb-1 text-xs uppercase text-muted-foreground">
-                {message.role === "user" ? "You" : "Coach"}
-              </p>
-              <p className="whitespace-pre-wrap">{message.content}</p>
-              {message.role === "assistant" && message.proposal ? (
-                <div className="mt-2 rounded border bg-background/70 p-2">
-                  <p className="text-xs font-medium text-foreground/90">
-                    Proposal status:{" "}
-                    {formatProposalApplyStatus(message.proposal.applyStatus)}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {message.proposal.policyPatches.length} draft change
-                    {message.proposal.policyPatches.length === 1 ? "" : "s"} available.
-                  </p>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    <Button
-                      type="button"
-                      size="sm"
-                      onClick={() => void actions.applyCoachProposal(index)}
-                      disabled={state.coachPolicyApplying}
-                    >
-                      {state.coachPolicyApplying
-                        ? "Applying..."
-                        : message.proposal.applyStatus === "not_applied"
-                          ? "Apply changes"
-                          : "Re-apply changes"}
-                    </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      onClick={() => void actions.undoCoachProposal(index)}
-                      disabled={
-                        state.coachPolicyApplying ||
-                        message.proposal.baselinePolicy === null ||
-                        (message.proposal.applyStatus !== "auto_applied" &&
-                          message.proposal.applyStatus !== "manually_applied")
-                      }
-                    >
-                      {state.coachPolicyApplying ? "Undoing..." : "Undo proposal"}
-                    </Button>
+          state.coachMessages.map((message, index) => {
+            const proposal = message.proposal;
+            const proposalPolicyPatches = Array.isArray(proposal?.policyPatches)
+              ? proposal.policyPatches
+              : [];
+            const proposalApplyStatus = proposal?.applyStatus ?? "not_applied";
+            const proposalBaselinePolicy = proposal?.baselinePolicy ?? null;
+            const proposalPatchCount = proposalPolicyPatches.length;
+            const canUndoProposal =
+              proposalPatchCount > 0 &&
+              proposalBaselinePolicy !== null &&
+              (proposalApplyStatus === "auto_applied" ||
+                proposalApplyStatus === "manually_applied");
+            const canApplyProposal = proposalPatchCount > 0;
+
+            return (
+              <div
+                key={`${message.createdAt}-${index}`}
+                className={`rounded-md p-2 text-sm ${
+                  message.role === "user" ? "bg-primary/10" : "bg-muted"
+                }`}
+              >
+                <p className="mb-1 text-xs uppercase text-muted-foreground">
+                  {message.role === "user" ? "You" : "Coach"}
+                </p>
+                <p className="whitespace-pre-wrap">{message.content}</p>
+                {message.role === "assistant" && proposal ? (
+                  <div className="mt-2 rounded border bg-background/70 p-2">
+                    <p className="text-xs font-medium text-foreground/90">
+                      Proposal status:{" "}
+                      {formatProposalApplyStatus(proposalApplyStatus)}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {proposalPatchCount} draft change
+                      {proposalPatchCount === 1 ? "" : "s"} available.
+                    </p>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={() => void actions.applyCoachProposal(index)}
+                        disabled={state.coachPolicyApplying || !canApplyProposal}
+                      >
+                        {state.coachPolicyApplying
+                          ? "Applying..."
+                          : proposalApplyStatus === "not_applied"
+                            ? "Apply changes"
+                            : "Re-apply changes"}
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => void actions.undoCoachProposal(index)}
+                        disabled={state.coachPolicyApplying || !canUndoProposal}
+                      >
+                        {state.coachPolicyApplying ? "Undoing..." : "Undo proposal"}
+                      </Button>
+                    </div>
                   </div>
-                </div>
-              ) : null}
-            </div>
-          ))
+                ) : null}
+              </div>
+            );
+          })
         )}
       </div>
       <div className="mt-3 space-y-2">
