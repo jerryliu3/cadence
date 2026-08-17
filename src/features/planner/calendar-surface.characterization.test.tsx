@@ -652,6 +652,15 @@ describe("CalendarSurface characterization", () => {
     if (!context.preview) {
       throw new Error("Expected preview payload.");
     }
+    context.links = [
+      {
+        sourceGoalId: "goal-a",
+        targetGoalId: "goal-b",
+        sourcePlannedEndDate: null,
+        targetSuppressionKind: "indefinite",
+        targetResumesOn: null,
+      },
+    ];
     context.preview = {
       ...context.preview,
       eligibility: [
@@ -690,8 +699,62 @@ describe("CalendarSurface characterization", () => {
       )
     ).not.toBeInTheDocument();
     expect(
+      within(dialog).getByText(/Linked targets hidden in this month/i)
+    ).toBeInTheDocument();
+    expect(
       within(dialog).getByText(
-        /1 linked target goal is hidden in this month while source goals remain active\./i
+        /Goal B: Hidden while linked source goals remain active\./i
+      )
+    ).toBeInTheDocument();
+  });
+
+  it("shows linked-target warning details even without hard eligibility blockers", async () => {
+    const context = buildContext([
+      unit({
+        originalGoalId: "goal-a",
+        unitKey: "total:1",
+        scheduledDate: "2026-08-31",
+      }),
+    ]);
+    context.links = [
+      {
+        sourceGoalId: "goal-a",
+        targetGoalId: "goal-b",
+        sourcePlannedEndDate: "2026-08-31",
+        targetSuppressionKind: "until",
+        targetResumesOn: "2026-09-01",
+      },
+    ];
+    if (!context.preview) {
+      throw new Error("Expected preview payload.");
+    }
+    context.preview = {
+      ...context.preview,
+      eligibility: [{ goalId: "goal-b", eligible: false, reason: "linked_target" }],
+    };
+    postJsonMock.mockResolvedValue(context);
+
+    render(
+      <CalendarSurface
+        activeTab="calendar"
+        month="2026-08"
+        selectedDay={null}
+        viewMode="month"
+        onMonthChange={vi.fn()}
+        onViewModeChange={vi.fn()}
+        onSelectedDayChange={vi.fn()}
+        onPlannerMutation={vi.fn()}
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "See warnings" })).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByRole("button", { name: "See warnings" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(
+      within(dialog).getByText(
+        /Goal B: Hidden in this month; resumes on Sep 1, 2026\. Sources: Goal A\./i
       )
     ).toBeInTheDocument();
   });

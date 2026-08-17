@@ -45,7 +45,10 @@ import {
   allCategoriesValue,
 } from "@/features/goals/goal-filters";
 import { buildActiveGoalIndexes } from "@/features/planner/calendar-entries";
-import { buildPlannerLinkedTargetIndexes } from "@/features/planner/calendar-linked-targets";
+import {
+  buildPlannerLinkedTargetIndexes,
+  getLinkedTargetScopeStatus,
+} from "@/features/planner/calendar-linked-targets";
 import {
   buildWeekdayLabels,
   completionDisabledReasonCopy,
@@ -116,6 +119,7 @@ import {
   postJson,
   putJson,
 } from "@/lib/api/client";
+import { formatGoalDateLabel } from "@/lib/goals/linked-goal-labels";
 import { useOutsidePointerDismiss } from "@/lib/ui/use-outside-pointer-dismiss";
 import {
   readTabDataCache,
@@ -193,7 +197,7 @@ const ELIGIBILITY_REASON_LABELS: Record<EligibilityReason, string> = {
   deleted: "Deleted goals are excluded from planning.",
   archived: "Archived goals are excluded from planning.",
   linked_target:
-    "Linked target goals are managed by source completions and are hidden from Calendar.",
+    "Linked target goals can be hidden in months where linked source coverage is still active.",
   invalid_date_range: "The goal dates are invalid (start is after end).",
   end_outside_scope: "This goal ends before the selected planning month.",
   starts_after_scope: "This goal starts after the selected planning month.",
@@ -497,8 +501,22 @@ export function CalendarSurface({
     : null;
   const draftWindowTooWide =
     !draftSaveWindowResult.ok && draftSaveWindowResult.code === "too_wide";
+  const linkedTargetIndexes = useMemo(
+    () => buildPlannerLinkedTargetIndexes(context?.links ?? []),
+    [context?.links]
+  );
   const eligibilityNotices = useMemo(() => {
     const eligibilityEntries = effectivePreview?.eligibility ?? [];
+    const scopeMonth = context?.scopeMonth ?? month ?? "1970-01";
+    const linkedTargetDetailsByGoalId = new Map<
+      string,
+      {
+        goalId: string;
+        goalTitle: string;
+        statusCopy: string;
+        sourceGoalTitles: string[];
+      }
+    >();
     if (eligibilityEntries.length === 0) {
       return {
         hardIneligible: [] as Array<{
@@ -518,6 +536,12 @@ export function CalendarSurface({
           }>;
         }>,
         linkedTargetCount: 0,
+        linkedTargetDetails: [] as Array<{
+          goalId: string;
+          goalTitle: string;
+          statusCopy: string;
+          sourceGoalTitles: string[];
+        }>,
       };
     }
 
@@ -538,6 +562,42 @@ export function CalendarSurface({
       }
       if (eligibilityEntry.reason === "linked_target") {
         linkedTargetCount += 1;
+        if (!linkedTargetDetailsByGoalId.has(eligibilityEntry.goalId)) {
+          const targetLinks =
+            linkedTargetIndexes.linksByTargetGoalId.get(eligibilityEntry.goalId) ??
+            [];
+          const representativeLink = targetLinks[0];
+          const status = representativeLink
+            ? getLinkedTargetScopeStatus({
+                scopeMonth,
+                targetSuppressionKind: representativeLink.targetSuppressionKind,
+                targetResumesOn: representativeLink.targetResumesOn,
+                sourcePlannedEndDate: representativeLink.sourcePlannedEndDate,
+              })
+            : null;
+          const statusCopy =
+            status?.state === "indefinite"
+              ? "Hidden while linked source goals remain active."
+              : status?.state === "suppressed"
+                ? status.resumeDate
+                  ? `Hidden in this month; resumes on ${formatGoalDateLabel(status.resumeDate)}.`
+                  : "Hidden in this month."
+                : "Hidden in this month.";
+          const sourceGoalTitles = (
+            linkedTargetIndexes.sourceGoalsByTargetGoalId.get(
+              eligibilityEntry.goalId
+            ) ?? []
+          )
+            .map((sourceGoalId) => context?.goalTitles?.[sourceGoalId] ?? sourceGoalId)
+            .sort((left, right) => left.localeCompare(right));
+          linkedTargetDetailsByGoalId.set(eligibilityEntry.goalId, {
+            goalId: eligibilityEntry.goalId,
+            goalTitle:
+              context?.goalTitles?.[eligibilityEntry.goalId] ?? eligibilityEntry.goalId,
+            statusCopy,
+            sourceGoalTitles,
+          });
+        }
         continue;
       }
       if (NON_ACTIONABLE_ELIGIBILITY_REASONS.has(eligibilityEntry.reason)) {
@@ -573,8 +633,15 @@ export function CalendarSurface({
         entries,
       }))
       .sort((left, right) => left.heading.localeCompare(right.heading));
-    return { hardIneligible, groupedHardIneligible, linkedTargetCount };
-  }, [context?.goalTitles, effectivePreview?.eligibility]);
+    return {
+      hardIneligible,
+      groupedHardIneligible,
+      linkedTargetCount,
+      linkedTargetDetails: Array.from(linkedTargetDetailsByGoalId.values()).sort(
+        (left, right) => left.goalTitle.localeCompare(right.goalTitle)
+      ),
+    };
+  }, [context?.goalTitles, context?.scopeMonth, effectivePreview?.eligibility, linkedTargetIndexes, month]);
   const activeGoalIndexes = useMemo(
     () => buildActiveGoalIndexes(context?.activePlan?.goals),
     [context?.activePlan?.goals]
@@ -660,7 +727,15 @@ export function CalendarSurface({
   }, [capacityWarningGoalCount, invalidLockGoalCount]);
   const hasPlannerWarnings =
     unplaceableGoalSummaries.length > 0 ||
-    eligibilityNotices.hardIneligible.length > 0;
+    eligibilityNotices.hardIneligible.length > 0 ||
+    eligibilityNotices.linkedTargetCount > 0;
+  const plannerWarningBannerCopy =
+    unplaceableGoalSummaries.length > 0 ||
+    eligibilityNotices.hardIneligible.length > 0
+      ? "Some goals need updates before the calendar can be fully scheduled."
+      : `${eligibilityNotices.linkedTargetCount} linked target goal${
+          eligibilityNotices.linkedTargetCount === 1 ? "" : "s"
+        } ${eligibilityNotices.linkedTargetCount === 1 ? "is" : "are"} hidden in this month while source goals remain active.`;
   const effectiveSelectedDay = localSelectedDay;
   const dayPreviewDay = dayPreview?.day ?? null;
   const projectionDays = useMemo(() => {
@@ -778,18 +853,14 @@ export function CalendarSurface({
         : null,
     [entryByKey, selectedEventEntryKey]
   );
-  const linkedTargetIndexes = useMemo(
-    () => buildPlannerLinkedTargetIndexes(context?.links ?? []),
-    [context?.links]
-  );
-  const selectedEventLinkedTargetIds = useMemo(
+  const selectedEventLinkedTargets = useMemo(
     () =>
       selectedEventEntry
-        ? linkedTargetIndexes.targetsBySourceGoalId.get(
+        ? linkedTargetIndexes.linksBySourceGoalId.get(
             selectedEventEntry.originalGoalId
           ) ?? []
         : [],
-    [linkedTargetIndexes.targetsBySourceGoalId, selectedEventEntry]
+    [linkedTargetIndexes.linksBySourceGoalId, selectedEventEntry]
   );
   const selectedEventDraftEdit = selectedEventEntry
     ? effectiveDraftItemEdits[selectedEventEntry.key]
@@ -3055,7 +3126,7 @@ export function CalendarSurface({
         <div className="rounded-md border border-amber-300 bg-amber-100 px-3 py-2 text-xs text-amber-950 dark:border-amber-300 dark:bg-amber-100 dark:text-amber-950">
           <div className="flex items-center justify-between gap-2">
             <p className="min-w-0 flex-1">
-              Some goals need updates before the calendar can be fully scheduled.
+              {plannerWarningBannerCopy}
             </p>
             <div className="flex shrink-0 items-center gap-2">
               <Button
@@ -3664,9 +3735,7 @@ export function CalendarSurface({
                 <div className="space-y-3 text-sm">
                   {selectedEventEntry.hasLinkedTargets ? (
                     <LinkedTargetsNote
-                      sourceGoalId={selectedEventEntry.originalGoalId}
-                      sourceEndDate={selectedEventEntry.activeGoal?.end_date ?? null}
-                      linkedTargetIds={selectedEventLinkedTargetIds}
+                      linkedTargets={selectedEventLinkedTargets}
                       goalTitles={context?.goalTitles ?? {}}
                       scopeMonth={context?.scopeMonth ?? month ?? "1970-01"}
                     />
@@ -3847,9 +3916,13 @@ export function CalendarSurface({
                         } are not fully scheduled (${totalUnplacedCount} unresolved session${
                           totalUnplacedCount === 1 ? "" : "s"
                         }).`
-                    : `${eligibilityNotices.hardIneligible.length} goal${
-                          eligibilityNotices.hardIneligible.length === 1 ? "" : "s"
-                        } need updates before they can be fully planned.`}
+                      : eligibilityNotices.hardIneligible.length > 0
+                        ? `${eligibilityNotices.hardIneligible.length} goal${
+                            eligibilityNotices.hardIneligible.length === 1 ? "" : "s"
+                          } need updates before they can be fully planned.`
+                        : `${eligibilityNotices.linkedTargetCount} linked target goal${
+                            eligibilityNotices.linkedTargetCount === 1 ? "" : "s"
+                          } ${eligibilityNotices.linkedTargetCount === 1 ? "is" : "are"} hidden in this month while source goals remain active.`}
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-3 text-sm">
@@ -3915,14 +3988,29 @@ export function CalendarSurface({
                         ))}
                       </div>
                     ))}
-                    {eligibilityNotices.linkedTargetCount > 0 ? (
-                      <p className="text-xs text-muted-foreground">
-                        {eligibilityNotices.linkedTargetCount} linked target goal
-                        {eligibilityNotices.linkedTargetCount === 1 ? "" : "s"}{" "}
-                        {eligibilityNotices.linkedTargetCount === 1 ? "is" : "are"}{" "}
-                        hidden in this month while source goals remain active.
-                      </p>
-                    ) : null}
+                  </div>
+                ) : null}
+                {eligibilityNotices.linkedTargetCount > 0 ? (
+                  <div className="space-y-2">
+                    <p className="text-xs font-medium text-muted-foreground">
+                      Linked targets hidden in this month
+                    </p>
+                    <div
+                      className={`space-y-1 rounded-md border bg-muted/20 p-2 text-xs text-muted-foreground ${
+                        eligibilityNotices.linkedTargetDetails.length > 5
+                          ? "max-h-36 overflow-y-auto pr-1"
+                          : ""
+                      }`}
+                    >
+                      {eligibilityNotices.linkedTargetDetails.map((detail) => (
+                        <p key={`linked-target-warning-${detail.goalId}`}>
+                          {detail.goalTitle}: {detail.statusCopy}
+                          {detail.sourceGoalTitles.length > 0
+                            ? ` Sources: ${detail.sourceGoalTitles.join(", ")}.`
+                            : ""}
+                        </p>
+                      ))}
+                    </div>
                   </div>
                 ) : null}
                 {(invalidLockGoalCount > 0 || capacityWarningGoalCount > 0) && !plannerReadOnly ? (

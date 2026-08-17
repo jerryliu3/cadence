@@ -200,7 +200,7 @@ describe("GoalLinkTargetSelect", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByText(
-        "Linked targets stay hidden through 2026-08-31 and can appear from 2026-09-01."
+        "Linked targets stay hidden through Aug 31, 2026 and can appear from Sep 1, 2026."
       )
     ).toBeInTheDocument();
   });

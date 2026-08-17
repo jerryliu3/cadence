@@ -1,5 +1,6 @@
 import type { Completion, Goal } from "@/lib/goals/types";
 import { getDateInTimezone } from "@/lib/dates/timezone";
+import { resolveGoalPlanningEndDate } from "@/lib/goals/definition-validation";
 import { createDefaultAssessment } from "@/lib/planner/assessment";
 import { resolveCanonicalAsOfDate, PlannerRouteError } from "@/lib/planner/api";
 import { canonicalHash } from "@/lib/planner/canonical";
@@ -31,6 +32,12 @@ import type { PlannerCompletionUnitIdentity } from "@/lib/planner/reconciliation
 import { normalizeGoalRequirement } from "@/lib/planner/requirements";
 import type { PlannerIssueCode } from "@/lib/planner/solver/types";
 import { evaluateActivePlanStaleness } from "@/lib/planner/staleness";
+import {
+  buildLinkSuppressionInboundIndex,
+  getLinkResumeDate,
+  resolveLinkSuppression,
+  toLinkSuppressionSource,
+} from "@/lib/planner/link-suppression";
 import {
   buildPlannerGoalLockSignature,
   isPlannerGoalUnplaceableReason,
@@ -679,6 +686,68 @@ function toPlannerGoalSemanticSnapshot(goal: PlannerActiveGoalRow) {
   };
 }
 
+function buildPlannerGoalLinkSummaries({
+  links,
+  goals,
+  ownerId,
+  asOfDate,
+}: {
+  links: PlannerCanonicalLink[];
+  goals: Goal[];
+  ownerId: string;
+  asOfDate: string;
+}) {
+  const goalById = new Map(goals.map((goal) => [goal.id, goal]));
+  const suppressionSourcesById = new Map(
+    goals.map((goal) => [goal.id, toLinkSuppressionSource(goal)])
+  );
+  const sourcePlannedEndByGoalId = new Map(
+    goals.map((goal) => [
+      goal.id,
+      resolveGoalPlanningEndDate({
+        frequencyType: goal.frequency_type,
+        targetCount: goal.target_count,
+        startDate: goal.start_date,
+        endDate: goal.end_date,
+        asOfDate,
+      }),
+    ])
+  );
+  const suppressionByTargetGoalId = new Map<
+    string,
+    ReturnType<typeof resolveLinkSuppression>
+  >();
+  const suppressionInboundIndex = buildLinkSuppressionInboundIndex(links);
+  for (const targetGoalId of new Set(links.map((link) => link.targetGoalId))) {
+    suppressionByTargetGoalId.set(
+      targetGoalId,
+      resolveLinkSuppression({
+        goalId: targetGoalId,
+        links,
+        inboundSourceIdsByTargetId: suppressionInboundIndex,
+        sourcesById: suppressionSourcesById,
+        ownerId,
+        asOfDate,
+      })
+    );
+  }
+  return links.map((link) => {
+    const sourceGoal = goalById.get(link.sourceGoalId);
+    const suppression = suppressionByTargetGoalId.get(link.targetGoalId) ?? {
+      kind: "none" as const,
+    };
+    return {
+      sourceGoalId: link.sourceGoalId,
+      targetGoalId: link.targetGoalId,
+      sourcePlannedEndDate: sourceGoal
+        ? sourcePlannedEndByGoalId.get(sourceGoal.id) ?? null
+        : null,
+      targetSuppressionKind: suppression.kind,
+      targetResumesOn: getLinkResumeDate(suppression),
+    };
+  });
+}
+
 export async function loadPlannerContextPayload({
   supabase,
   ownerId,
@@ -836,6 +905,12 @@ export async function loadPlannerContextPayload({
         },
       })
     : { status: "not_applicable" as const, stale: false, reasons: [] };
+  const linkSummaries = buildPlannerGoalLinkSummaries({
+    links: snapshot.links,
+    goals: snapshot.goals,
+    ownerId,
+    asOfDate,
+  });
 
   return {
     schemaVersion: "1" as const,
@@ -845,7 +920,7 @@ export async function loadPlannerContextPayload({
     goalTitles: Object.fromEntries(
       snapshot.goals.map((goal) => [goal.id, goal.title])
     ),
-    links: snapshot.links,
+    links: linkSummaries,
     revisions: snapshot.revisions,
     capabilities,
     preferences: snapshot.preferences

@@ -29,8 +29,6 @@ interface GoalLinkTargetSelectProps {
   selectedTargetGoal: Goal | null;
   sourceEndDate: string | null;
   keyPrefix?: string;
-  disabled?: boolean;
-  disabledReason?: string | null;
 }
 
 export function GoalLinkTargetSelect({
@@ -44,8 +42,6 @@ export function GoalLinkTargetSelect({
   selectedTargetGoal,
   sourceEndDate,
   keyPrefix = "",
-  disabled = false,
-  disabledReason = null,
 }: GoalLinkTargetSelectProps) {
   const linkedTargetSchedulingNotice = getLinkedTargetSchedulingNotice({
     sourceEndDate,
@@ -61,7 +57,6 @@ export function GoalLinkTargetSelect({
         onValueChange={onValueChange}
         open={open}
         onOpenChange={onOpenChange}
-        disabled={disabled}
       >
         <SelectTrigger>
           <SelectValue placeholder="No linked target" />
@@ -97,9 +92,6 @@ export function GoalLinkTargetSelect({
       <p className="text-xs text-muted-foreground">
         Marking this goal complete will auto-complete linked goals for the same day.
       </p>
-      {disabledReason ? (
-        <p className="text-xs text-muted-foreground">{disabledReason}</p>
-      ) : null}
       {value !== "none" && selectedTargetGoal ? (
         <div className="rounded-md border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900 dark:border-amber-400/50 dark:bg-amber-500/10 dark:text-amber-100">
           <p className="font-medium">

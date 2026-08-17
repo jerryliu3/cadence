@@ -38,6 +38,7 @@ import {
   type EligibilityReason,
 } from "@/lib/planner/eligibility";
 import {
+  buildLinkSuppressionInboundIndex,
   isSuppressedInWindow,
   resolveLinkSuppression,
   toLinkSuppressionSource,
@@ -460,6 +461,7 @@ export function runPlannerKernel(
   for (const goal of goals) {
     suppressionSourcesById.set(goal.id, toLinkSuppressionSource(goal));
   }
+  const suppressionInboundIndex = buildLinkSuppressionInboundIndex(links);
   const eligibility = goals.map((goal) => ({
     goal,
     decision: evaluateGoalEligibility({
@@ -470,6 +472,7 @@ export function runPlannerKernel(
         resolveLinkSuppression({
           goalId: goal.id,
           links,
+          inboundSourceIdsByTargetId: suppressionInboundIndex,
           sourcesById: suppressionSourcesById,
           ownerId: rawInput.ownerId,
           asOfDate: rawInput.asOfDate,
