@@ -81,7 +81,9 @@ describe("buildCoachPrompt", () => {
     expect(prompt).toContain("does not clearly map to current focus goals");
     expect(prompt).toContain("sessionMoves");
     expect(prompt).toContain("Prefer sessionRef for moves");
-    expect(prompt).toContain("cannot create goals");
+    expect(prompt).toContain("goalDraftPrompt");
+    expect(prompt).toContain("1-5 recurring cadence goals");
+    expect(prompt).toContain("Never create one goal per workout");
     expect(prompt).toContain("Always include 2-5 concrete recommendations");
   });
 

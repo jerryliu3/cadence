@@ -39,7 +39,7 @@ import {
 } from "@/features/planner/coach-session";
 import type {
   CoachMessage,
-  CoachMessageProposal,
+  CoachPolicyMessageProposal,
 } from "@/features/planner/calendar-surface.types";
 import type { CoachPolicyPatch } from "@/lib/planner/coach";
 import { plannerPolicySchema } from "@/lib/planner/policy";
@@ -410,7 +410,7 @@ export function usePlannerCoach({
   const updateCoachProposalStatus = useCallback(
     (
       messageIndex: number,
-      applyStatus: CoachMessageProposal["applyStatus"],
+      applyStatus: CoachPolicyMessageProposal["applyStatus"],
       appliedMoveEntryKeys?: string[]
     ) => {
       setCoachMessages((previous) => {

@@ -84,6 +84,34 @@ describe("sanitizeCoachTurn", () => {
     );
   });
 
+  it("returns an actionable draft prompt without the needs-goal warning", () => {
+    const goalA = goal();
+    const result = sanitizeCoachTurn({
+      goalsById: new Map([[goalA.id, goalA]]),
+      raw: {
+        schemaVersion: "1",
+        phase: "ready",
+        reply: "I drafted a four-week running foundation.",
+        proposal: {
+          calendarIntent: {
+            action: "needs_goal",
+            goalDraftPrompt:
+              "Easy run weekly from 2026-08-17 to 2026-09-13, total target 4.",
+          },
+          unresolvedQuestions: [],
+        },
+        recommendations: [{ text: "Keep the effort conversational." }],
+      },
+    });
+
+    expect(result.proposal).toMatchObject({
+      policyPatches: [],
+      goalDraftPrompt:
+        "Easy run weekly from 2026-08-17 to 2026-09-13, total target 4.",
+    });
+    expect(result.warnings).toEqual([]);
+  });
+
   it("warns when apply action has no supported changes", () => {
     const goalA = goal();
     const result = sanitizeCoachTurn({

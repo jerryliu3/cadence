@@ -91,6 +91,7 @@ const calendarIntentGlobalSchema = z
 const calendarIntentSchema = z
   .object({
     action: z.enum(["none", "needs_goal", "apply"]),
+    goalDraftPrompt: z.string().trim().min(1).max(2000).optional(),
     global: calendarIntentGlobalSchema.nullable().optional().default(null),
     sessionMoves: z
       .array(
@@ -401,6 +402,8 @@ function compileCalendarIntent(
   const policyPatches: CoachPolicyPatch[] = [];
   const warnings: string[] = [];
   const unresolvedQuestions: string[] = [];
+  const goalDraftPrompt =
+    intent.action === "needs_goal" ? intent.goalDraftPrompt ?? null : null;
 
   const sessionByRef = new Map(
     sessionRoster.map((session) => [session.sessionRef, session] as const)
@@ -424,13 +427,25 @@ function compileCalendarIntent(
   };
 
   if (intent.action === "none") {
-    return { policyPatches, warnings, unresolvedQuestions };
+    return {
+      policyPatches,
+      warnings,
+      unresolvedQuestions,
+      goalDraftPrompt: null,
+    };
   }
   if (intent.action === "needs_goal") {
-    warnings.push(
-      "No calendar edits were generated because this plan does not map to an existing goal."
-    );
-    return { policyPatches, warnings, unresolvedQuestions };
+    if (!goalDraftPrompt) {
+      warnings.push(
+        "No calendar edits were generated because this plan does not map to an existing goal."
+      );
+    }
+    return {
+      policyPatches,
+      warnings,
+      unresolvedQuestions,
+      goalDraftPrompt,
+    };
   }
 
   if (intent.global) {
@@ -478,7 +493,12 @@ function compileCalendarIntent(
   if (policyPatches.length === 0) {
     warnings.push("The calendar intent did not contain any scheduling changes.");
   }
-  return { policyPatches, warnings, unresolvedQuestions };
+  return {
+    policyPatches,
+    warnings,
+    unresolvedQuestions,
+    goalDraftPrompt: null,
+  };
 }
 
 export type CoachPolicyPatch = z.infer<typeof coachPolicyPatchSchema>;
@@ -492,6 +512,7 @@ export interface SanitizedCoachTurn {
     assessments: GoalAssessment[];
     policyPatches: CoachPolicyPatch[];
     unresolvedQuestions: string[];
+    goalDraftPrompt: string | null;
   };
   recommendations: CoachRecommendation[];
   warnings: string[];
@@ -531,6 +552,7 @@ export function sanitizeCoachTurn({
       assessments: [],
       policyPatches: compiled.policyPatches,
       unresolvedQuestions,
+      goalDraftPrompt: compiled.goalDraftPrompt,
     },
     recommendations: envelope.recommendations,
     warnings: compiled.warnings,
@@ -556,6 +578,7 @@ export const coachResponseJsonSchema = {
               type: "string",
               enum: ["none", "needs_goal", "apply"],
             },
+            goalDraftPrompt: { type: "string" },
             global: {
               type: "object",
               properties: {

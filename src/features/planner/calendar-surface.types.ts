@@ -86,7 +86,7 @@ export type CoachProposalApplyStatus =
   | "manually_applied"
   | "undone";
 
-export interface CoachMessageProposal {
+export interface CoachPolicyMessageProposal {
   schemaVersion: "1";
   applyStatus: CoachProposalApplyStatus;
   patchSignature: string;
@@ -100,6 +100,24 @@ export interface CoachMessageProposal {
   appliedMoveEntryKeys?: string[];
   unresolvedQuestions: string[];
 }
+
+export interface CoachGoalDraftMessageProposal {
+  schemaVersion: "1";
+  kind: "goal_draft";
+  parserPrompt: string;
+  creationStatus: "not_created" | "created";
+  applyStatus?: never;
+  patchSignature?: never;
+  baselineSnapshotToken?: never;
+  baselinePolicy?: never;
+  policyPatches?: never;
+  appliedMoveEntryKeys?: never;
+  unresolvedQuestions?: never;
+}
+
+export type CoachMessageProposal =
+  | CoachPolicyMessageProposal
+  | CoachGoalDraftMessageProposal;
 
 export interface CoachMessage {
   role: CoachMessageRole;
@@ -139,6 +157,7 @@ export interface CoachResponsePayload {
   proposal?: {
     policyPatches?: CoachPolicyPatch[];
     unresolvedQuestions?: string[];
+    goalDraftPrompt?: string | null;
   };
   warnings?: string[];
   recommendations?: Array<{ text: string }>;

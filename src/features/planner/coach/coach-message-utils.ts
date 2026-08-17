@@ -1,4 +1,4 @@
-import type { CoachMessageProposal } from "@/features/planner/calendar-surface.types";
+import type { CoachPolicyMessageProposal } from "@/features/planner/calendar-surface.types";
 import type { CoachPolicyPatch } from "@/lib/planner/coach";
 import type { PlannerPolicy } from "@/lib/planner/policy";
 import { dedupeWeekdays, weekStartOptions } from "@/lib/dates/weekday-options";
@@ -68,7 +68,7 @@ export function buildDurableApplyToastDetail({
 
 export function mapAutoApplyStatusToProposalStatus(
   status: CoachProposalAutoApplyStatus
-): CoachMessageProposal["applyStatus"] {
+): CoachPolicyMessageProposal["applyStatus"] {
   if (status === "applied" || status === "already_applied") {
     return "auto_applied";
   }
@@ -87,14 +87,14 @@ export function buildCoachMessageProposal({
   baselinePolicy: PlannerPolicy | null;
   autoApplyStatus: CoachProposalAutoApplyStatus;
   autoAppliedEntryKeys: string[];
-}): CoachMessageProposal | null {
+}): CoachPolicyMessageProposal | null {
   return buildSharedCoachMessageProposal({
     baselinePolicy,
     policyPatches,
     unresolvedQuestions,
     applyStatus: mapAutoApplyStatusToProposalStatus(autoApplyStatus),
     appliedMoveEntryKeys: autoAppliedEntryKeys,
-  }) as CoachMessageProposal | null;
+  }) as CoachPolicyMessageProposal | null;
 }
 
 export function buildAssistantMessage({

@@ -1,8 +1,22 @@
 import type {
   CoachConversationSummary,
+  CoachGoalDraftMessageProposal,
   CoachMessage,
   CoachMessageProposal,
+  CoachPolicyMessageProposal,
 } from "@/features/planner/calendar-surface.types";
+
+export function isCoachGoalDraftProposal(
+  proposal: CoachMessageProposal
+): proposal is CoachGoalDraftMessageProposal {
+  return "kind" in proposal && proposal.kind === "goal_draft";
+}
+
+export function isCoachPolicyProposal(
+  proposal: CoachMessageProposal
+): proposal is CoachPolicyMessageProposal {
+  return !isCoachGoalDraftProposal(proposal);
+}
 
 export function upsertConversationSummary({
   previous,
@@ -23,7 +37,12 @@ export function readAssistantMessageWithProposal({
   messageIndex: number;
 }) {
   const message = messages[messageIndex];
-  if (!message || message.role !== "assistant" || !message.proposal) {
+  if (
+    !message ||
+    message.role !== "assistant" ||
+    !message.proposal ||
+    !isCoachPolicyProposal(message.proposal)
+  ) {
     return null;
   }
 
@@ -31,7 +50,10 @@ export function readAssistantMessageWithProposal({
     return null;
   }
 
-  return message as CoachMessage & { role: "assistant"; proposal: CoachMessageProposal };
+  return message as CoachMessage & {
+    role: "assistant";
+    proposal: CoachPolicyMessageProposal;
+  };
 }
 
 export function updateAssistantProposalStatus({
@@ -42,25 +64,26 @@ export function updateAssistantProposalStatus({
 }: {
   messages: CoachMessage[];
   messageIndex: number;
-  applyStatus: CoachMessageProposal["applyStatus"];
+  applyStatus: CoachPolicyMessageProposal["applyStatus"];
   appliedMoveEntryKeys?: string[];
 }) {
   const target = messages[messageIndex];
-  if (!target || target.role !== "assistant" || !target.proposal) {
+  if (
+    !target ||
+    target.role !== "assistant" ||
+    !target.proposal ||
+    !isCoachPolicyProposal(target.proposal)
+  ) {
     return { changed: false, nextMessages: messages };
   }
 
-  const nextMessages = messages.map((message, index) =>
-    index === messageIndex
-      ? {
-          ...message,
-          proposal: {
-            ...message.proposal!,
-            applyStatus,
-            ...(appliedMoveEntryKeys ? { appliedMoveEntryKeys } : {}),
-          },
-        }
-      : message
+  const nextProposal: CoachPolicyMessageProposal = {
+    ...target.proposal,
+    applyStatus,
+    ...(appliedMoveEntryKeys ? { appliedMoveEntryKeys } : {}),
+  };
+  const nextMessages: CoachMessage[] = messages.map((message, index) =>
+    index === messageIndex ? { ...message, proposal: nextProposal } : message
   );
 
   return { changed: true, nextMessages };
@@ -71,6 +94,7 @@ export function markAppliedProposalsUndone(messages: CoachMessage[]) {
   const nextMessages = messages.map((message) => {
     if (
       message.proposal &&
+      isCoachPolicyProposal(message.proposal) &&
       (message.proposal.applyStatus === "auto_applied" ||
         message.proposal.applyStatus === "manually_applied")
     ) {

@@ -1,5 +1,5 @@
 import type {
-  CoachMessageProposal,
+  CoachPolicyMessageProposal,
   PlannerContextPayload,
 } from "@/features/planner/calendar-surface.types";
 import { buildBaselineSnapshotToken } from "@/features/planner/coach/coach-message-utils";
@@ -30,7 +30,7 @@ export function validateUndoProposal({
   preferences,
   effectiveDraftPolicy,
 }: {
-  proposal: CoachMessageProposal;
+  proposal: CoachPolicyMessageProposal;
   preferences: PlannerContextPayload["preferences"] | null | undefined;
   effectiveDraftPolicy: PlannerPolicy | null;
 }): UndoValidationResult {
