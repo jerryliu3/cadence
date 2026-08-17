@@ -14,8 +14,6 @@ import { LoadingCard } from "@/components/ui/loading-card";
 import { allCategoriesValue } from "@/features/goals/goal-filters";
 import {
   buildWeekdayLabels,
-  getDayStatus,
-  getEntryCompactTitleWithTime,
   getEntryDisplayTitleWithTime,
   getEntrySubtitle,
   getMonthInTimezone,
@@ -27,7 +25,6 @@ import {
 import {
   PlannerDndProvider,
 } from "@/features/planner/calendar-dnd";
-import { CalendarMonthDayCell } from "@/features/planner/calendar-month-day-cell";
 import { MoveSessionDialog } from "@/features/planner/move-session-dialog";
 import { PlannerCoachPanel } from "@/features/planner/coach/planner-coach-panel";
 import { usePlannerCoach } from "@/features/planner/coach/use-planner-coach";
@@ -113,6 +110,7 @@ import { usePlannerPersistenceActions } from "@/features/planner/use-planner-per
 import { usePlannerDraftCommands } from "@/features/planner/use-planner-draft-commands";
 import { usePlannerCalendarDnd } from "@/features/planner/use-planner-calendar-dnd";
 import { usePlannerMoveSessionDialog } from "@/features/planner/use-planner-move-session-dialog";
+import { usePlannerCalendarDayCellRenderer } from "@/features/planner/use-planner-calendar-day-cell-renderer";
 const DAY_PREVIEW_HOVER_DELAY_MS = 1000;
 const DAY_PREVIEW_CLOSE_DELAY_MS = 250;
 const DAY_PREVIEW_LONG_PRESS_DELAY_MS = 500;
@@ -1385,170 +1383,34 @@ export function CalendarSurface({
     };
   }, [alignRollingWeekStripToFocusedDay, viewMode]);
   const saveButtonLabel = saveLoading ? "Saving..." : "Save plan";
-  const renderCalendarDayCell = (cell: { date: string; inMonth: boolean }) => {
-    const entriesForDay = getOrderedEntriesForDay(cell.date);
-    const completionFactMarkersForDay = getCompletionFactMarkersForDay(cell.date);
-    const status =
-      entriesForDay.length > 0
-        ? getDayStatus(entriesForDay, "No items")
-        : completionFactMarkersForDay.length > 0
-          ? "Completed elsewhere"
-          : "No items";
-    const isToday = cell.date === calendarToday;
-    const isPastInMonth = cell.inMonth && cell.date < calendarToday;
-    const ariaLabel = `${format(
-      parse(cell.date, "yyyy-MM-dd", new Date()),
-      "EEEE, MMMM d, yyyy"
-    )}. ${entriesForDay.length} planned item${
-      entriesForDay.length === 1 ? "" : "s"
-    }. ${completionFactMarkersForDay.length} completion fact${
-      completionFactMarkersForDay.length === 1 ? "" : "s"
-    }. ${status}.`;
-
-    return (
-      <CalendarMonthDayCell
-        key={`${viewMode}-${cell.date}`}
-        day={cell.date}
-        inMonth={cell.inMonth}
-        isToday={isToday}
-        isPastInMonth={isPastInMonth}
-        ariaLabel={ariaLabel}
-        entriesForDay={entriesForDay}
-        completionFactMarkersForDay={completionFactMarkersForDay}
-        maxVisibleItems={
-          viewMode === "week" || viewMode === "three_day"
-            ? Number.MAX_SAFE_INTEGER
-            : expandedMonthRows
-              ? Number.MAX_SAFE_INTEGER
-              : 2
-        }
-        isAnyEntryDragging={Boolean(draggingEntryKey)}
-        getEntryDisplayTitle={
-          viewMode === "month" || viewMode === "week" || viewMode === "three_day"
-            ? getEntryCompactTitleWithTime
-            : getEntryDisplayTitleWithTime
-        }
-        isEntryCredited={isEntryCredited}
-        isEntryImmovableForDraft={(entry) =>
-          plannerReadOnly ||
-          !canMutateEntryOnDay(entry, cell.date) ||
-          isEntryImmovableForDraft(entry)
-        }
-        onEntryClick={(day, entry, target) => {
-          if (!canMutateEntryOnDay(entry, day)) {
-            return;
-          }
-          if (viewMode === "day") {
-            if (day !== focusedDay) {
-              setLocalSelectedDay(day);
-              onSelectedDayChange(day, "push", "day");
-            }
-            setSelectedEventEntryKey(entry.key);
-            setDayPreview(null);
-            return;
-          }
-          clearHoverPreviewTimer();
-          clearHoverPreviewCloseTimer();
-          setSelectedEventEntryKey(null);
-          openDayPreview({ day, pinned: true, target });
-        }}
-        onCellClick={(target) => {
-          if (draggingEntryKey) {
-            return;
-          }
-          if (viewMode === "day") {
-            if (cell.date !== focusedDay) {
-              setLocalSelectedDay(cell.date);
-              onSelectedDayChange(cell.date, "push", "day");
-            }
-            setDayPreview(null);
-            return;
-          }
-          handleDayCellClick(cell.date, target);
-        }}
-        onCellDoubleClick={(target) => {
-          void target;
-          if (draggingEntryKey) {
-            return;
-          }
-          clearHoverPreviewTimer();
-          clearHoverPreviewCloseTimer();
-          clearLongPressTimer();
-          longPressTriggeredRef.current = false;
-          openDayViewForDay(cell.date);
-        }}
-        onCellMouseEnter={(target) => {
-          if (viewMode === "day") {
-            return;
-          }
-          scheduleHoverPreview(cell.date, target);
-        }}
-        onCellMouseLeave={() => {
-          if (viewMode === "day") {
-            return;
-          }
-          clearHoverPreviewTimer();
-          scheduleHoverPreviewClose(cell.date);
-        }}
-        onCellPointerDown={(pointerType, target) => {
-          if (viewMode === "day") {
-            return;
-          }
-          pointerPressActiveRef.current = true;
-          clearHoverPreviewTimer();
-          if (pointerType === "touch") {
-            const now = Date.now();
-            const lastTouchTap = lastTouchTapRef.current;
-            if (
-              lastTouchTap &&
-              lastTouchTap.day === cell.date &&
-              now - lastTouchTap.at < 350
-            ) {
-              clearLongPressTimer();
-              longPressTriggeredRef.current = false;
-              suppressDayCellClickRef.current = {
-                day: cell.date,
-                active: true,
-              };
-              openDayViewForDay(cell.date);
-              return;
-            }
-            lastTouchTapRef.current = { day: cell.date, at: now };
-            startLongPressPreview(cell.date, target);
-          }
-        }}
-        onCellPointerUp={() => {
-          if (viewMode === "day") {
-            return;
-          }
-          pointerPressActiveRef.current = false;
-          clearLongPressTimer();
-        }}
-        onCellPointerCancel={() => {
-          if (viewMode === "day") {
-            return;
-          }
-          pointerPressActiveRef.current = false;
-          clearLongPressTimer();
-        }}
-        onCellPointerLeave={() => {
-          if (viewMode === "day") {
-            return;
-          }
-          clearLongPressTimer();
-        }}
-        onEntryPointerStart={(immovable) => {
-          void immovable;
-          pointerPressActiveRef.current = true;
-          clearHoverPreviewTimer();
-          setDayPreview(null);
-        }}
-        onEntryPointerEnd={() => {
-          pointerPressActiveRef.current = false;
-        }}
-      />
-    );
-  };
+  const renderCalendarDayCell = usePlannerCalendarDayCellRenderer({
+    viewMode,
+    expandedMonthRows,
+    draggingEntryKey,
+    calendarToday,
+    focusedDay,
+    plannerReadOnly,
+    onSelectedDayChange,
+    setLocalSelectedDay,
+    setSelectedEventEntryKey,
+    setDayPreview,
+    canMutateEntryOnDay,
+    getOrderedEntriesForDay,
+    getCompletionFactMarkersForDay,
+    clearHoverPreviewTimer,
+    clearHoverPreviewCloseTimer,
+    clearLongPressTimer,
+    openDayPreview,
+    handleDayCellClick,
+    openDayViewForDay,
+    scheduleHoverPreview,
+    scheduleHoverPreviewClose,
+    startLongPressPreview,
+    pointerPressActiveRef,
+    longPressTriggeredRef,
+    lastTouchTapRef,
+    suppressDayCellClickRef,
+  });
   const rollingWeekStrip = (
     <PlannerRollingWeekStrip
       rollingWeekStripRef={rollingWeekStripRef}
