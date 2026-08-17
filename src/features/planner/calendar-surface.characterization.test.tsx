@@ -702,7 +702,7 @@ describe("CalendarSurface characterization", () => {
     ).toBeInTheDocument();
     expect(
       within(dialog).getByText(
-        /Goal B: Hidden while linked source goals remain active\./i
+        /Goal B: hidden while linked source goals remain active/i
       )
     ).toBeInTheDocument();
   });
@@ -752,7 +752,7 @@ describe("CalendarSurface characterization", () => {
     const dialog = await screen.findByRole("dialog");
     expect(
       within(dialog).getByText(
-        /Goal B: Hidden in this month; resumes on Sep 1, 2026\. Sources: Goal A\./i
+        /Goal B: hidden in this month and resumes on Sep 1, 2026 Sources: Goal A\./i
       )
     ).toBeInTheDocument();
   });
