@@ -19,7 +19,7 @@ interface CalendarViewWindowModelArgs {
 }
 
 export interface CalendarViewWindowModel {
-  monthLabel: string;
+  resolvedFocusedDay: string;
   viewHeading: string;
   fixedViewHeadingWidthCh: number;
   viewDescription: string;
@@ -79,6 +79,7 @@ export function selectCalendarViewWindowModel({
               "MMM d, yyyy"
             )}`
           : format(safeFocusedDay, "EEE MMM d, yyyy");
+  const resolvedFocusedDay = format(safeFocusedDay, "yyyy-MM-dd");
 
   const fixedViewHeadingWidthCh = Math.max(
     monthLabel.length,
@@ -115,7 +116,7 @@ export function selectCalendarViewWindowModel({
     viewMode === "month" ? month !== todayMonth : focusedDay !== calendarToday;
 
   return {
-    monthLabel,
+    resolvedFocusedDay,
     viewHeading,
     fixedViewHeadingWidthCh,
     viewDescription,

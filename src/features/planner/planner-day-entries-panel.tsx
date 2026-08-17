@@ -75,7 +75,6 @@ export function PlannerDayEntriesPanel({
           selectedDate: selectedDay,
           asOfDate,
           canMutatePlanItems,
-          canMutateEntryOnDay: mutableOnSelectedDay,
         });
         return {
           currentlyCredited: completionState.currentlyCredited,

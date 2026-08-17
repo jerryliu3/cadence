@@ -81,12 +81,10 @@ export function getCompletionControlDisabledReason({
   entry,
   dispatch,
   canMutatePlanItems,
-  canMutateEntryOnDay,
 }: {
   entry: PlannerDayDetailEntry;
   dispatch: DateFactDispatchForEntry | null;
   canMutatePlanItems: boolean;
-  canMutateEntryOnDay: boolean;
 }): CompletionControlDisabledReason | null {
   if (entry.draftGhost) {
     return "unsupported";
@@ -105,9 +103,6 @@ export function getCompletionControlDisabledReason({
   }
   if (dispatch.decision.route === "canonical_exact_date") {
     return null;
-  }
-  if (!canMutateEntryOnDay) {
-    return "out_of_scope_route";
   }
   if (dispatch.decision.route === "item_date") {
     if (!canMutatePlanItems || !entry.activeItem) {
@@ -129,13 +124,11 @@ export function getCompletionControlState({
   selectedDate,
   asOfDate,
   canMutatePlanItems,
-  canMutateEntryOnDay,
 }: {
   entry: PlannerDayDetailEntry;
   selectedDate: string | null;
   asOfDate: string | null;
   canMutatePlanItems: boolean;
-  canMutateEntryOnDay: boolean;
 }): CompletionControlState {
   const dispatch = getDateFactDispatchForEntry({
     entry,
@@ -146,7 +139,6 @@ export function getCompletionControlState({
     entry,
     dispatch,
     canMutatePlanItems,
-    canMutateEntryOnDay,
   });
   return {
     currentlyCredited: Boolean(dispatch?.currentlyCredited),

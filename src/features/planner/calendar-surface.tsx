@@ -53,7 +53,6 @@ import {
   getMonthInTimezone,
   isEntryCredited,
   isEntryImmovableForDraft,
-  monthToLabel,
   normalizeWeekStartsOn,
   parseMonth,
   restWeekdayOptions,
@@ -66,6 +65,7 @@ import { CalendarMonthDayCell } from "@/features/planner/calendar-month-day-cell
 import { MoveSessionDialog } from "@/features/planner/move-session-dialog";
 import { PlannerCoachPanel } from "@/features/planner/coach/planner-coach-panel";
 import { usePlannerCoach } from "@/features/planner/coach/use-planner-coach";
+import type { PlannerCoachBindings } from "@/features/planner/coach/coach-types";
 import { useCompletionMutation } from "@/features/planner/use-completion-mutation";
 import {
   draftCommandReducer,
@@ -451,13 +451,10 @@ export function CalendarSurface({
     categoryOptions,
     endMonthOptions,
     effectiveEndMonthFilter,
-    goalPassesFilters,
     getEntriesForDay,
     getCompletionFactMarkersForDay,
     getOrderedEntriesForDay,
-    isDayInCurrentScopeMonth,
     canMutateEntryOnDay,
-    hideViewerPlan,
     plannerReadOnly,
     effectiveSelectedDay,
     selectedEventEntry,
@@ -1033,13 +1030,7 @@ export function CalendarSurface({
       throw new Error("Planner preparation did not complete.");
     }
   }, [handlePlannerMutation, loadContext]);
-  const coach = usePlannerCoach({
-    activeTab,
-    context,
-    entriesByDate,
-    effectivePreview,
-    effectiveDraftPolicy,
-    hasDraftSession,
+  const coachBindings: PlannerCoachBindings = {
     refreshDraftPreview,
     applyPolicyReplanMoves,
     queueDraftMoveCommand: (args) => queueDraftMoveCommandRef.current(args),
@@ -1048,9 +1039,18 @@ export function CalendarSurface({
       setDraftPolicy(policy);
       setSetupRestWeekdays([...policy.restWeekdays].sort((left, right) => left - right));
     },
-    onGoalsCreated: handleCoachGoalsCreated,
     coachWindow: draftSaveWindow,
     getNonPublishablePreviewMessage: nonPublishablePreviewMessage,
+  };
+  const coach = usePlannerCoach({
+    activeTab,
+    context,
+    entriesByDate,
+    effectivePreview,
+    effectiveDraftPolicy,
+    hasDraftSession,
+    onGoalsCreated: handleCoachGoalsCreated,
+    ...coachBindings,
   });
 
   const isValidIsoDate = (value: string) => {
@@ -1592,14 +1592,12 @@ export function CalendarSurface({
 
   const completionControlDisabledReasonForEntry = (
     entry: PlannerDayDetailEntry,
-    dispatch: ReturnType<typeof getDateFactDispatchForEntry>,
-    selectedDate: string | null = effectiveSelectedDay
+    dispatch: ReturnType<typeof getDateFactDispatchForEntry>
   ): CompletionControlDisabledReason | null => {
     return getCompletionControlDisabledReason({
       entry,
       dispatch,
       canMutatePlanItems,
-      canMutateEntryOnDay: canMutateEntryOnDay(entry, selectedDate),
     });
   };
 
@@ -1728,11 +1726,7 @@ export function CalendarSurface({
       return;
     }
     const dispatch = getDateFactDispatchForEntry(entry, selectedDate);
-    const disabledReason = completionControlDisabledReasonForEntry(
-      entry,
-      dispatch,
-      selectedDate
-    );
+    const disabledReason = completionControlDisabledReasonForEntry(entry, dispatch);
     if (disabledReason) {
       toast.error(completionDisabledReasonCopy(disabledReason));
       return;
@@ -2192,6 +2186,7 @@ export function CalendarSurface({
     ? getMonthInTimezone(context.timezone)
     : getMonthInTimezone(setupTimezone);
   const {
+    resolvedFocusedDay,
     viewHeading,
     fixedViewHeadingWidthCh,
     viewDescription,
@@ -2233,11 +2228,8 @@ export function CalendarSurface({
       );
       return;
     }
-    const parsedFocusedDay = parse(focusedDay, "yyyy-MM-dd", new Date());
-    const safeFocusedDay = isValid(parsedFocusedDay)
-      ? parsedFocusedDay
-      : parse(calendarToday, "yyyy-MM-dd", new Date());
-    const nextDay = format(addDays(safeFocusedDay, direction * stepDays), "yyyy-MM-dd");
+    const baseDay = parse(resolvedFocusedDay, "yyyy-MM-dd", new Date());
+    const nextDay = format(addDays(baseDay, direction * stepDays), "yyyy-MM-dd");
     onSelectedDayChange(nextDay, "push", viewMode);
   };
   const resetViewWindow = () => {
