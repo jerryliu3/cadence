@@ -148,6 +148,7 @@ export function buildCoachPrompt({
     "- For action=apply, global can be omitted/null or include any subset of restWeekdays/addBlackoutRanges/removeBlackoutRanges.",
     "- sessionMoves can target any date in a focus goal credit window, including other months, as long as the resulting draft stays within the 366-day save window.",
     "- Prefer sessionRef for moves whenever a matching session is listed in Session roster JSON.",
+    '- If you include unitKey, copy it exactly from Session roster JSON and keep canonical prefixes only ("milestone:", "total:", or "cadence:").',
     "- restWeekdays entries are numeric weekdays where 0=Sunday through 6=Saturday.",
     "- blackout range entries use exact YYYY-MM-DD start/end values.",
     "- If the user says not to ask more questions, make conservative assumptions and return a best-effort plan in the same reply. For action=needs_goal, prefer including a complete goalDraftPrompt over deferring the user to manual goal creation.",
