@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { allCategoriesValue } from "@/features/goals/goal-filters";
+import { buildActiveGoalIndexes } from "@/features/planner/calendar-entries";
+import { selectPlannerCalendarStoreProjection } from "@/features/planner/calendar-store-selectors";
 import { initialDraftCommandState } from "@/features/planner/draft-command-reducer";
+import { selectPlannerDraftSessionModel } from "@/features/planner/planner-draft-session-model";
 import {
   selectPlannerCalendarModel,
   type PlannerCalendarModelArgs,
@@ -13,7 +16,7 @@ import {
 function buildArgs(
   overrides: Partial<PlannerCalendarModelArgs> = {}
 ): PlannerCalendarModelArgs {
-  return {
+  const base: PlannerCalendarModelArgs = {
     context: buildPlannerContext(),
     draftPreview: null,
     draftPolicy: null,
@@ -28,7 +31,35 @@ function buildArgs(
     partnerCompletionMarkersByDate: undefined,
     previewEntryOrderByDay: {},
     additionalProjectionDays: [],
+    memoizedState: undefined as unknown as PlannerCalendarModelArgs["memoizedState"],
+  };
+  const merged = {
+    ...base,
     ...overrides,
+  };
+  const currentScopeMonth = merged.month ?? merged.context?.scopeMonth ?? null;
+  const draftSession = selectPlannerDraftSessionModel({
+    context: merged.context,
+    draftPreview: merged.draftPreview,
+    draftPolicy: merged.draftPolicy,
+    draftCommandState: merged.draftCommandState,
+    currentScopeMonth,
+  });
+  const activeGoalIndexes = buildActiveGoalIndexes(merged.context?.activePlan?.goals);
+  const calendarStoreProjection = selectPlannerCalendarStoreProjection({
+    context: merged.context,
+    effectivePreview: draftSession.effectivePreview,
+    draftCommandState: merged.draftCommandState,
+    activeGoalsByPlanGoalId: activeGoalIndexes.byPlanGoalId,
+    activeGoalsByOriginalGoalId: activeGoalIndexes.byOriginalGoalId,
+  });
+  return {
+    ...merged,
+    memoizedState: {
+      draftSession,
+      activeGoalIndexes,
+      calendarStoreProjection,
+    },
   };
 }
 

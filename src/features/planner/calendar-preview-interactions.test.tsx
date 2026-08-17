@@ -187,6 +187,9 @@ describe("CalendarSurface preview interactions (fake timers)", () => {
     fireEvent.pointerDown(dayCell as Element, { pointerType: "touch" });
 
     expect(onSelectedDayChange).toHaveBeenCalledWith("2026-08-31", "push", "day");
+    expect(
+      screen.queryByRole("button", { name: "Expand day details" })
+    ).not.toBeInTheDocument();
   });
 
   it("opens a pinned preview on long press", async () => {
