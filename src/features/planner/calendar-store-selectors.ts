@@ -6,6 +6,7 @@ import {
   orderEntriesForDay,
   resolveCalendarDayData,
 } from "@/features/planner/calendar-entries";
+import { buildPlannerLinkedTargetIndexes } from "@/features/planner/calendar-linked-targets";
 import type {
   DraftItemEdit,
   PlannerActiveGoalSnapshot,
@@ -81,6 +82,7 @@ export function selectPlannerCalendarStoreProjection({
   const effectiveDraftItemEdits = projectPlannerDraftCommands(
     effectiveDraftCommands
   ) as Record<string, DraftItemEdit>;
+  const linkedTargetIndexes = buildPlannerLinkedTargetIndexes(context?.links ?? []);
   const {
     entriesByDate,
     entryByKey,
@@ -91,6 +93,9 @@ export function selectPlannerCalendarStoreProjection({
     activeGoalsByPlanGoalId,
     activeGoalsByOriginalGoalId,
     goalTitles: context?.goalTitles,
+    linkedTargetSourceGoalIds: new Set(
+      linkedTargetIndexes.targetsBySourceGoalId.keys()
+    ),
     draftItemEdits: effectiveDraftItemEdits,
     draftCommands: effectiveDraftCommands,
   });

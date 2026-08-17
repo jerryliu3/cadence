@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckCircle2 } from "lucide-react";
+import { CheckCircle2, Link2 } from "lucide-react";
 import type { ReactNode } from "react";
 import {
   PlannerDraggableEntry,
@@ -26,6 +26,7 @@ export interface CalendarMonthCellEntryBase {
   draftDiffFromDate: string | null;
   draftDiffToDate: string | null;
   draftGhost: boolean;
+  hasLinkedTargets?: boolean;
 }
 
 export interface CalendarCompletionFactMarkerBase {
@@ -190,6 +191,12 @@ export function CalendarMonthDayCell<
               <Icon className="size-2.5 text-white" />
             </span>
             <span className="truncate">{compactTitle}</span>
+            {entry.hasLinkedTargets ? (
+              <Link2
+                className="size-3 shrink-0 text-muted-foreground"
+                aria-label="Links to target goals"
+              />
+            ) : null}
             {credited ? <CheckCircle2 className="size-3 shrink-0" /> : null}
           </div>
         )}

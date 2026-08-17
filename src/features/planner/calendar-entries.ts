@@ -44,6 +44,7 @@ export function buildEntriesByDateProjection({
   activeGoalsByPlanGoalId,
   activeGoalsByOriginalGoalId,
   goalTitles,
+  linkedTargetSourceGoalIds,
   draftItemEdits,
   draftCommands = [],
 }: {
@@ -52,6 +53,7 @@ export function buildEntriesByDateProjection({
   activeGoalsByPlanGoalId: Map<string, PlannerActiveGoalSnapshot>;
   activeGoalsByOriginalGoalId: Map<string, PlannerActiveGoalSnapshot>;
   goalTitles: Record<string, string> | undefined;
+  linkedTargetSourceGoalIds?: ReadonlySet<string>;
   draftItemEdits: Record<string, DraftItemEdit>;
   draftCommands?: readonly PlannerDraftCommand[];
 }) {
@@ -133,6 +135,8 @@ export function buildEntriesByDateProjection({
       draftDiffFromDate: null,
       draftDiffToDate: null,
       draftGhost: false,
+      hasLinkedTargets:
+        linkedTargetSourceGoalIds?.has(unit.originalGoalId) ?? false,
       goalDefaultLocalTime: resolvedTime.goalDefaultLocalTime,
       scheduledTimeOverride: resolvedTime.scheduledTimeOverride,
       effectiveScheduledLocalTime: resolvedTime.effectiveScheduledLocalTime,
@@ -207,6 +211,8 @@ export function buildEntriesByDateProjection({
       draftDiffFromDate: null,
       draftDiffToDate: null,
       draftGhost: false,
+      hasLinkedTargets:
+        linkedTargetSourceGoalIds?.has(originalGoalId) ?? false,
       goalDefaultLocalTime: null,
       scheduledTimeOverride: item.scheduled_time_override ?? null,
       effectiveScheduledLocalTime: item.effective_scheduled_local_time ?? null,
@@ -334,6 +340,8 @@ export function buildEntriesByDateProjection({
       draftDiffFromDate: diffEntry.date,
       draftDiffToDate: diffEntry.counterpartDate,
       draftGhost: true,
+      hasLinkedTargets:
+        linkedTargetSourceGoalIds?.has(diffEntry.goalId) ?? false,
       scheduledTimeOverride: unit?.scheduledTimeOverride ?? null,
       effectiveScheduledLocalTime: unit?.effectiveScheduledLocalTime ?? null,
     });
