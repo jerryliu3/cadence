@@ -1,7 +1,7 @@
 "use client";
 
 import { addMonths, format } from "date-fns";
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import { toast } from "sonner";
 import { parseMonth } from "@/features/planner/calendar-format";
 import type {
@@ -25,11 +25,10 @@ import type { PlannerPolicy } from "@/lib/planner/policy";
 import { withPlannerRefreshTimeout } from "@/lib/planner/refresh-timeout";
 import { shouldUseDirectDraftPersistence } from "@/lib/planner/save-persistence";
 
-interface UsePlannerPlanActionsArgs {
+interface UsePlannerPersistenceActionsArgs {
   context: PlannerContextPayload | null;
   month: string | null;
   hasDraftSession: boolean;
-  rebuildLoading: boolean;
   draftSaveWindow: { start: string; end: string } | null;
   draftSaveWindowResult: PlannerDraftWindowResult;
   draftSaveCommands: PlannerDraftCommand[];
@@ -43,10 +42,6 @@ interface UsePlannerPlanActionsArgs {
     toastOnError?: boolean;
     forcePrepare?: boolean;
   }) => Promise<boolean>;
-  setSaveLoading: (loading: boolean) => void;
-  setResetLoading: (loading: boolean) => void;
-  setFullResetLoading: (loading: boolean) => void;
-  setRebuildLoading: (loading: boolean) => void;
   setDraftPreview: (
     preview: NonNullable<PlannerContextPayload["preview"]> | null
   ) => void;
@@ -65,11 +60,10 @@ interface UsePlannerPlanActionsArgs {
   };
 }
 
-export function usePlannerPlanActions({
+export function usePlannerPersistenceActions({
   context,
   month,
   hasDraftSession,
-  rebuildLoading,
   draftSaveWindow,
   draftSaveWindowResult,
   draftSaveCommands,
@@ -79,15 +73,15 @@ export function usePlannerPlanActions({
   clearDraftSession,
   handlePlannerMutation,
   loadContext,
-  setSaveLoading,
-  setResetLoading,
-  setFullResetLoading,
-  setRebuildLoading,
   setDraftPreview,
   setDraftPreviewWindow,
   requestPreviewForWindow,
   coachActions,
-}: UsePlannerPlanActionsArgs) {
+}: UsePlannerPersistenceActionsArgs) {
+  const [saveLoading, setSaveLoading] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
+  const [fullResetLoading, setFullResetLoading] = useState(false);
+  const [rebuildLoading, setRebuildLoading] = useState(false);
   const nonPublishablePreviewMessage = useCallback(
     (preview: NonNullable<PlannerContextPayload["preview"]>) =>
       getNonPublishablePreviewMessage({
@@ -280,7 +274,6 @@ export function usePlannerPlanActions({
     requestPreviewForWindow,
     setDraftPreview,
     setDraftPreviewWindow,
-    setSaveLoading,
   ]);
 
   const resetPlan = useCallback(async () => {
@@ -335,7 +328,6 @@ export function usePlannerPlanActions({
     context,
     handlePlannerMutation,
     loadContext,
-    setResetLoading,
   ]);
 
   const resetPlanFully = useCallback(async () => {
@@ -406,7 +398,6 @@ export function usePlannerPlanActions({
     handlePlannerMutation,
     loadContext,
     month,
-    setFullResetLoading,
   ]);
 
   const rebuildSchedule = useCallback(async () => {
@@ -439,7 +430,7 @@ export function usePlannerPlanActions({
     } finally {
       setRebuildLoading(false);
     }
-  }, [handlePlannerMutation, hasDraftSession, loadContext, rebuildLoading, setRebuildLoading]);
+  }, [handlePlannerMutation, hasDraftSession, loadContext, rebuildLoading]);
 
   const discardDraftChanges = useCallback(() => {
     if (!hasDraftSession) {
@@ -451,6 +442,10 @@ export function usePlannerPlanActions({
   }, [clearDraftSession, coachActions, hasDraftSession]);
 
   return {
+    saveLoading,
+    resetLoading,
+    fullResetLoading,
+    rebuildLoading,
     savePlan,
     resetPlan,
     resetPlanFully,
@@ -458,3 +453,5 @@ export function usePlannerPlanActions({
     discardDraftChanges,
   };
 }
+
+export const usePlannerPlanActions = usePlannerPersistenceActions;

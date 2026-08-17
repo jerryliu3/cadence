@@ -16,7 +16,7 @@ import type { PlannerPolicy } from "@/lib/planner/policy";
 import { withPlannerRefreshTimeout } from "@/lib/planner/refresh-timeout";
 import { captureViewportRect } from "@/lib/xp/events";
 
-interface UsePlannerEntryActionsArgs {
+interface UsePlannerEntryMutationsArgs {
   context: PlannerContextPayload | null;
   hasDraftSession: boolean;
   draftSaveCommands: PlannerDraftCommand[];
@@ -46,7 +46,7 @@ interface UsePlannerEntryActionsArgs {
   ) => Promise<PlannerContextPayload["preview"]>;
 }
 
-export function usePlannerEntryActions({
+export function usePlannerEntryMutations({
   context,
   hasDraftSession,
   draftSaveCommands,
@@ -60,7 +60,7 @@ export function usePlannerEntryActions({
   handlePlannerMutation,
   loadContext,
   refreshDraftPreview,
-}: UsePlannerEntryActionsArgs) {
+}: UsePlannerEntryMutationsArgs) {
   const toggleItemLock = useCallback(
     async (entry: PlannerDayDetailEntry) => {
       if (!context || !entry.activeItem) {
@@ -268,3 +268,5 @@ export function usePlannerEntryActions({
     toggleDateFact,
   };
 }
+
+export const usePlannerEntryActions = usePlannerEntryMutations;
