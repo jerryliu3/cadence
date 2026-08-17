@@ -743,6 +743,39 @@ describe("pure planner kernel", () => {
     );
   });
 
+  it("suppresses through a transitive ancestor when an intermediate source is missing", () => {
+    const ancestorGoal = goal({
+      id: "goal-a",
+      target_count: 2,
+      start_date: "2026-01-01",
+      end_date: "2026-12-31",
+    });
+    const targetGoal = goal({
+      id: "goal-c",
+      target_count: 2,
+      start_date: "2026-08-01",
+      end_date: "2026-08-31",
+    });
+    const output = runPlannerKernel(
+      input({
+        goals: [targetGoal],
+        links: [
+          { sourceGoalId: ancestorGoal.id, targetGoalId: "goal-b" },
+          { sourceGoalId: "goal-b", targetGoalId: targetGoal.id },
+        ],
+        linkSourceGoals: [ancestorGoal],
+      })
+    );
+
+    expect(
+      output.eligibility.find((entry) => entry.goalId === targetGoal.id)
+    ).toMatchObject({
+      eligible: false,
+      reason: "linked_target",
+    });
+    expect(output.workUnits).toHaveLength(0);
+  });
+
   it("keeps linked targets eligible when source already ended before the scope window", () => {
     const sourceGoal = goal({
       id: "goal-source",

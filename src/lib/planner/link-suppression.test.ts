@@ -178,6 +178,35 @@ describe("resolveLinkSuppression", () => {
     ).toEqual({ kind: "until", through: "2026-11-15" });
   });
 
+  it("is deterministic across inbound link order for finite fan-in", () => {
+    const links = [
+      { sourceGoalId: "source-a", targetGoalId: goalId },
+      { sourceGoalId: "source-b", targetGoalId: goalId },
+    ];
+    const sourcesById = new Map([
+      ["source-a", source({ id: "source-a", endDate: "2026-10-20" })],
+      ["source-b", source({ id: "source-b", endDate: "2026-11-15" })],
+    ]);
+    expect(
+      resolveLinkSuppression({
+        goalId,
+        links,
+        sourcesById,
+        ownerId,
+        asOfDate,
+      })
+    ).toEqual({ kind: "until", through: "2026-11-15" });
+    expect(
+      resolveLinkSuppression({
+        goalId,
+        links: [...links].reverse(),
+        sourcesById,
+        ownerId,
+        asOfDate,
+      })
+    ).toEqual({ kind: "until", through: "2026-11-15" });
+  });
+
   it("returns indefinite for open-ended cadence sources", () => {
     expect(
       resolveLinkSuppression({
@@ -262,6 +291,59 @@ describe("resolveLinkSuppression", () => {
       asOfDate,
     });
     expect(suppression).toEqual({ kind: "until", through: expectedEnd });
+  });
+
+  it("walks transitive ancestors when an intermediate source is deleted", () => {
+    expect(
+      resolveLinkSuppression({
+        goalId,
+        links: [
+          { sourceGoalId: "source-a", targetGoalId: "source-b" },
+          { sourceGoalId: "source-b", targetGoalId: goalId },
+        ],
+        sourcesById: new Map([
+          ["source-a", source({ id: "source-a", endDate: "2026-11-20" })],
+          ["source-b", source({ id: "source-b", isDeleted: true })],
+        ]),
+        ownerId,
+        asOfDate,
+      })
+    ).toEqual({ kind: "until", through: "2026-11-20" });
+  });
+
+  it("walks transitive ancestors when an intermediate source row is missing", () => {
+    expect(
+      resolveLinkSuppression({
+        goalId,
+        links: [
+          { sourceGoalId: "source-a", targetGoalId: "source-b" },
+          { sourceGoalId: "source-b", targetGoalId: goalId },
+        ],
+        sourcesById: new Map([
+          ["source-a", source({ id: "source-a", endDate: "2026-11-20" })],
+        ]),
+        ownerId,
+        asOfDate,
+      })
+    ).toEqual({ kind: "until", through: "2026-11-20" });
+  });
+
+  it("does not self-suppress through ancestry cycles", () => {
+    expect(
+      resolveLinkSuppression({
+        goalId: "source-a",
+        links: [
+          { sourceGoalId: "source-a", targetGoalId: "source-b" },
+          { sourceGoalId: "source-b", targetGoalId: "source-a" },
+        ],
+        sourcesById: new Map([
+          ["source-a", source({ id: "source-a", endDate: "2026-11-20" })],
+          ["source-b", source({ id: "source-b", isDeleted: true })],
+        ]),
+        ownerId,
+        asOfDate,
+      })
+    ).toEqual({ kind: "none" });
   });
 });
 

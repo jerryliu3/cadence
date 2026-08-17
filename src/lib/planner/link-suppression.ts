@@ -51,42 +51,69 @@ export function resolveLinkSuppression({
   ownerId: string;
   asOfDate: string;
 }): LinkSuppression {
-  let latestSuppressionEnd: string | null = null;
+  const inboundSourceIdsByTargetId = new Map<string, Set<string>>();
   for (const link of links) {
-    if (link.targetGoalId !== goalId) {
+    const sourceIds =
+      inboundSourceIdsByTargetId.get(link.targetGoalId) ?? new Set<string>();
+    sourceIds.add(link.sourceGoalId);
+    inboundSourceIdsByTargetId.set(link.targetGoalId, sourceIds);
+  }
+
+  const visited = new Set<string>([goalId]);
+  const queue = [goalId];
+  let latestSuppressionEnd: string | null = null;
+
+  while (queue.length > 0) {
+    const currentTargetId = queue.shift();
+    if (!currentTargetId) {
       continue;
     }
-    const source = sourcesById.get(link.sourceGoalId);
-    if (!source) {
+    const sourceIds = inboundSourceIdsByTargetId.get(currentTargetId);
+    if (!sourceIds) {
       continue;
     }
-    if (
-      source.ownerId !== ownerId ||
-      source.isDeleted ||
-      source.archivedAt !== null
-    ) {
-      continue;
-    }
-    const effectiveEnd = resolveGoalPlanningEndDate({
-      frequencyType: source.frequencyType,
-      targetCount: source.targetCount,
-      startDate: source.startDate,
-      endDate: source.endDate,
-      asOfDate,
-    });
-    if (effectiveEnd !== null && compareDateStrings(effectiveEnd, source.startDate) < 0) {
-      continue;
-    }
-    if (effectiveEnd === null) {
-      return { kind: "indefinite" };
-    }
-    if (
-      latestSuppressionEnd === null ||
-      compareDateStrings(effectiveEnd, latestSuppressionEnd) > 0
-    ) {
-      latestSuppressionEnd = effectiveEnd;
+
+    for (const sourceId of sourceIds) {
+      // Cycles should not let a goal suppress itself through ancestry loops.
+      if (sourceId !== goalId) {
+        const source = sourcesById.get(sourceId);
+        if (
+          source &&
+          source.ownerId === ownerId &&
+          !source.isDeleted &&
+          source.archivedAt === null
+        ) {
+          const effectiveEnd = resolveGoalPlanningEndDate({
+            frequencyType: source.frequencyType,
+            targetCount: source.targetCount,
+            startDate: source.startDate,
+            endDate: source.endDate,
+            asOfDate,
+          });
+          if (
+            effectiveEnd === null ||
+            compareDateStrings(effectiveEnd, source.startDate) >= 0
+          ) {
+            if (effectiveEnd === null) {
+              return { kind: "indefinite" };
+            }
+            if (
+              latestSuppressionEnd === null ||
+              compareDateStrings(effectiveEnd, latestSuppressionEnd) > 0
+            ) {
+              latestSuppressionEnd = effectiveEnd;
+            }
+          }
+        }
+      }
+
+      if (!visited.has(sourceId)) {
+        visited.add(sourceId);
+        queue.push(sourceId);
+      }
     }
   }
+
   if (latestSuppressionEnd === null) {
     return { kind: "none" };
   }

@@ -786,6 +786,43 @@ describe("preparePlannerSchedule", () => {
     expect(targetCalls).toHaveLength(0);
   });
 
+  it("skips kernel execution when suppression comes from an ancestor behind a missing intermediate source", async () => {
+    const sourceGoal = goal({
+      id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+      title: "Ancestor Source",
+      end_date: "2028-12-31",
+    });
+    const targetGoal = goal({
+      id: "ffffffff-ffff-4fff-8fff-ffffffffffff",
+      title: "Target",
+      target_count: 1,
+      milestone_names: ["Only"],
+      end_date: "2028-12-31",
+    });
+    mocks.loadPlannerPreparationSnapshot.mockResolvedValue(
+      preparationSnapshot(
+        [sourceGoal, targetGoal],
+        [],
+        [],
+        [],
+        [
+          { sourceGoalId: sourceGoal.id, targetGoalId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb" },
+          { sourceGoalId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", targetGoalId: targetGoal.id },
+        ]
+      )
+    );
+    mocks.runPlannerKernel.mockImplementation((kernelInput) =>
+      kernelOutput(kernelInput.goals[0].id, [])
+    );
+
+    await prepare();
+
+    const targetCalls = mocks.runPlannerKernel.mock.calls.filter(
+      ([kernelInput]) => kernelInput.goals[0]?.id === targetGoal.id
+    );
+    expect(targetCalls).toHaveLength(0);
+  });
+
   it("clamps linked target preparation windows to the source resume date", async () => {
     const sourceGoal = goal({
       id: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
