@@ -144,4 +144,27 @@ describe("planner coach panel", () => {
     await user.click(screen.getByRole("button", { name: "Undo proposal" }));
     expect(coach.actions.undoCoachProposal).toHaveBeenCalledWith(0);
   });
+
+  it("renders malformed proposal payloads without crashing", () => {
+    const coach = buildCoachModel({
+      coachMessages: [
+        {
+          role: "assistant",
+          content: "Legacy payload shape.",
+          createdAt: 456,
+          proposal: {
+            applyStatus: "not_applied",
+            baselinePolicy: null,
+          } as unknown as NonNullable<
+            PlannerCoachModel["state"]["coachMessages"][number]["proposal"]
+          >,
+        },
+      ],
+    });
+
+    render(<PlannerCoachPanel coach={coach} />);
+    expect(screen.getByText("0 draft changes available.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Apply changes" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Undo proposal" })).toBeDisabled();
+  });
 });

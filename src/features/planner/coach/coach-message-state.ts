@@ -27,6 +27,10 @@ export function readAssistantMessageWithProposal({
     return null;
   }
 
+  if (!Array.isArray(message.proposal.policyPatches)) {
+    return null;
+  }
+
   return message as CoachMessage & { role: "assistant"; proposal: CoachMessageProposal };
 }
 
