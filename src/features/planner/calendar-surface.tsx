@@ -182,7 +182,6 @@ const NON_ACTIONABLE_ELIGIBILITY_REASONS = new Set([
   "not_owner",
   "deleted",
   "archived",
-  "linked_target",
 ]);
 const ELIGIBILITY_REASON_GROUP_LABELS: Partial<Record<EligibilityReason, string>> = {
   invalid_date_range: "Goals with invalid date ranges",
@@ -518,8 +517,7 @@ export function CalendarSurface({
             reasonCopy: string;
           }>;
         }>,
-        hiddenCount: 0,
-        scopeOnlyCount: 0,
+        linkedTargetCount: 0,
       };
     }
 
@@ -529,19 +527,20 @@ export function CalendarSurface({
       reason: EligibilityReason;
       reasonCopy: string;
     }> = [];
-    let hiddenCount = 0;
-    let scopeOnlyCount = 0;
+    let linkedTargetCount = 0;
 
     for (const eligibilityEntry of eligibilityEntries) {
       if (eligibilityEntry.eligible) {
         continue;
       }
       if (SCOPE_ONLY_ELIGIBILITY_REASONS.has(eligibilityEntry.reason)) {
-        scopeOnlyCount += 1;
+        continue;
+      }
+      if (eligibilityEntry.reason === "linked_target") {
+        linkedTargetCount += 1;
         continue;
       }
       if (NON_ACTIONABLE_ELIGIBILITY_REASONS.has(eligibilityEntry.reason)) {
-        hiddenCount += 1;
         continue;
       }
       hardIneligible.push({
@@ -574,7 +573,7 @@ export function CalendarSurface({
         entries,
       }))
       .sort((left, right) => left.heading.localeCompare(right.heading));
-    return { hardIneligible, groupedHardIneligible, hiddenCount, scopeOnlyCount };
+    return { hardIneligible, groupedHardIneligible, linkedTargetCount };
   }, [context?.goalTitles, effectivePreview?.eligibility]);
   const activeGoalIndexes = useMemo(
     () => buildActiveGoalIndexes(context?.activePlan?.goals),
@@ -3916,21 +3915,12 @@ export function CalendarSurface({
                         ))}
                       </div>
                     ))}
-                    {eligibilityNotices.hiddenCount > 0 ? (
+                    {eligibilityNotices.linkedTargetCount > 0 ? (
                       <p className="text-xs text-muted-foreground">
-                        {eligibilityNotices.hiddenCount} additional goal
-                        {eligibilityNotices.hiddenCount === 1 ? "" : "s"}{" "}
-                        {eligibilityNotices.hiddenCount === 1 ? "is" : "are"} excluded
-                        automatically and{" "}
-                        {eligibilityNotices.hiddenCount === 1 ? "does" : "do"} not
-                        require action.
-                      </p>
-                    ) : null}
-                    {eligibilityNotices.scopeOnlyCount > 0 ? (
-                      <p className="text-xs text-muted-foreground">
-                        {eligibilityNotices.scopeOnlyCount} goal
-                        {eligibilityNotices.scopeOnlyCount === 1 ? "" : "s"} fall
-                        outside this visible month and are omitted from this warning list.
+                        {eligibilityNotices.linkedTargetCount} linked target goal
+                        {eligibilityNotices.linkedTargetCount === 1 ? "" : "s"}{" "}
+                        {eligibilityNotices.linkedTargetCount === 1 ? "is" : "are"}{" "}
+                        hidden in this month while source goals remain active.
                       </p>
                     ) : null}
                   </div>
