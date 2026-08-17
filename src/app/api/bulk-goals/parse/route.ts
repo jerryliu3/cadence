@@ -29,6 +29,8 @@ const BULK_PARSER_RATE_LIMIT_PER_MINUTE = 20;
 const MAX_MILESTONE_NAMES_PER_GOAL = 366;
 const localTimePattern = /^([01]\d|2[0-3]):[0-5]\d$/;
 const INVALID_ARGUMENT_PROVIDER_RE = /\(400\)|INVALID_ARGUMENT/i;
+const TRAINING_PLAN_KEYWORD_RE =
+  /\b(run|running|5k|10k|marathon|half\s*marathon|training|workout|interval|tempo|long run|recovery run|strength|mobility|gym)\b/i;
 
 const requestSchema = z.object({
   prompt: z.string().trim().min(1).max(8000),
@@ -191,26 +193,126 @@ function normalizeLocalTime(value: string | null | undefined): string | null {
   return null;
 }
 
+function extractTrainingSessionCycle(text: string): string[] {
+  const normalized = text.toLowerCase();
+  const sessionPatterns: Array<{ label: string; pattern: RegExp }> = [
+    { label: "Easy run", pattern: /\beasy run\b|\beasy\b/ },
+    { label: "Tempo run", pattern: /\btempo\b/ },
+    { label: "Interval run", pattern: /\binterval\b|\bspeed\b/ },
+    { label: "Long run", pattern: /\blong run\b/ },
+    { label: "Recovery run", pattern: /\brecovery run\b/ },
+    { label: "Steady run", pattern: /\bsteady\b/ },
+    { label: "Hill run", pattern: /\bhill\b/ },
+    { label: "Test run", pattern: /\btest run\b|\brace\b/ },
+    { label: "Strength", pattern: /\bstrength\b/ },
+    { label: "Mobility", pattern: /\bmobility\b/ },
+  ];
+  const labels = sessionPatterns
+    .filter(({ pattern }) => pattern.test(normalized))
+    .map(({ label }) => label);
+  if (labels.length > 0) {
+    return labels;
+  }
+  if (/\b(run|running)\b/.test(normalized)) {
+    return ["Run session"];
+  }
+  return [];
+}
+
+function buildTrainingMilestoneNames(targetCount: number, text: string): string[] {
+  const cycle = extractTrainingSessionCycle(text);
+  if (cycle.length === 0) {
+    return Array.from({ length: targetCount }, (_, index) => `Session ${index + 1}`);
+  }
+  if (cycle.length === 1) {
+    return Array.from(
+      { length: targetCount },
+      (_, index) => `${cycle[0]} ${index + 1}`
+    );
+  }
+  return Array.from({ length: targetCount }, (_, index) => {
+    const week = Math.floor(index / cycle.length) + 1;
+    const label = cycle[index % cycle.length] ?? "Session";
+    return `Week ${week} ${label}`;
+  });
+}
+
+function shouldCoerceToFixedMilestones({
+  parserPrompt,
+  title,
+  description,
+  targetCount,
+  frequency,
+  endDate,
+}: {
+  parserPrompt: string;
+  title: string;
+  description: string;
+  targetCount: number | null;
+  frequency: "recurring" | "fixed_milestones";
+  endDate: string | null;
+}) {
+  if (
+    frequency !== "recurring" ||
+    !endDate ||
+    typeof targetCount !== "number" ||
+    targetCount <= 1
+  ) {
+    return false;
+  }
+  const text = `${parserPrompt}\n${title}\n${description}`;
+  if (!TRAINING_PLAN_KEYWORD_RE.test(text)) {
+    return false;
+  }
+  return /\bweek\b|\bweeks\b/i.test(text) || targetCount >= 6;
+}
+
 function normalizeGeneratedPayload(
   payload: GeneratedPayload,
   today: string,
-  categoryCatalog: typeof DEFAULT_GOAL_CATEGORIES
+  categoryCatalog: typeof DEFAULT_GOAL_CATEGORIES,
+  parserPrompt: string
 ) {
   const warnings: string[] = [];
   const goals = payload.goals.map((goal, index) => {
-    const frequency = goal.frequency_type ?? "recurring";
-    const recurrence =
+    let frequency = goal.frequency_type ?? "recurring";
+    let recurrence =
       frequency === "recurring"
         ? goal.recurrence_interval ?? "daily"
         : undefined;
-    const milestoneNames =
-      frequency === "fixed_milestones" && Array.isArray(goal.milestone_names)
+    const providedMilestoneNames =
+      Array.isArray(goal.milestone_names) &&
+      goal.milestone_names.length > 0
         ? goal.milestone_names
             .map((name) => name.trim())
             .filter((name) => name.length > 0)
         : undefined;
     const startDate = toIsoDate(goal.start_date) ?? today;
     const endDate = toIsoDate(goal.end_date ?? undefined) ?? null;
+    const targetCount = goal.target_count ?? null;
+    const shouldCoerce = shouldCoerceToFixedMilestones({
+      parserPrompt,
+      title: goal.title.trim(),
+      description: goal.description?.trim() ?? "",
+      targetCount,
+      frequency,
+      endDate,
+    });
+    if (shouldCoerce) {
+      frequency = "fixed_milestones";
+      recurrence = undefined;
+    }
+    const milestoneNames =
+      frequency === "fixed_milestones"
+        ? providedMilestoneNames && providedMilestoneNames.length > 0
+          ? providedMilestoneNames
+          : typeof targetCount === "number" && targetCount > 0
+            ? buildTrainingMilestoneNames(
+                targetCount,
+                `${goal.title ?? ""}\n${goal.description ?? ""}\n${parserPrompt}`
+              )
+            : undefined
+        : undefined;
     const normalized = {
       title: goal.title.trim(),
       description: goal.description?.trim() ?? "",
@@ -220,7 +322,7 @@ function normalizeGeneratedPayload(
         : resolveCategoryKey(goal.category?.trim() ?? "Personal", categoryCatalog),
       frequency_type: frequency,
       recurrence_interval: recurrence,
-      target_count: goal.target_count ?? null,
+      target_count: targetCount,
       milestone_names:
         milestoneNames && milestoneNames.length > 0 ? milestoneNames : undefined,
       start_date: startDate,
@@ -466,7 +568,12 @@ export async function POST(request: Request) {
     }
 
     const responsePayload = {
-      ...normalizeGeneratedPayload(validatedPayload.data, today, categoryCatalog),
+      ...normalizeGeneratedPayload(
+        validatedPayload.data,
+        today,
+        categoryCatalog,
+        parsedRequest.prompt
+      ),
       correlationId,
     };
 

@@ -39,6 +39,10 @@ const COACH_MAX_OUTPUT_TOKENS = 8_192;
 const MAX_DEBUG_TEXT_LENGTH = 500;
 const LOCAL_BYPASS_QUOTA_REMAINING = 999_999;
 const COACH_RATE_LIMIT_PER_MINUTE = 30;
+const NEEDS_GOAL_NO_EDITS_WARNING =
+  "No calendar edits were generated because this plan does not map to an existing goal.";
+const GOAL_DRAFT_PROMPT_BACKFILL_WARNING =
+  "Coach did not return goal draft instructions, so draft generation was inferred from the conversation context.";
 
 function includeCoachDebugDetails() {
   return process.env.NODE_ENV !== "production";
@@ -121,6 +125,53 @@ function buildCoachSessionRoster({
       unitKey: item.unit_key,
       scheduledDate: item.scheduled_date,
     }));
+}
+
+function shouldBackfillGoalDraftPrompt(
+  sanitized: ReturnType<typeof sanitizeCoachTurn>
+) {
+  return (
+    !sanitized.proposal.goalDraftPrompt &&
+    sanitized.proposal.policyPatches.length === 0 &&
+    sanitized.warnings.includes(NEEDS_GOAL_NO_EDITS_WARNING)
+  );
+}
+
+function buildFallbackGoalDraftPrompt({
+  startDate,
+  endDate,
+  messages,
+  reply,
+  recommendations,
+}: {
+  startDate: string;
+  endDate: string;
+  messages: Array<{ role: "user" | "assistant"; content: string }>;
+  reply: string;
+  recommendations: Array<{ text: string }>;
+}) {
+  const recentUserMessages = messages
+    .filter((message) => message.role === "user")
+    .map((message) => message.content.trim())
+    .filter(Boolean)
+    .slice(-4);
+  const recommendationLines = recommendations
+    .map((recommendation) => recommendation.text.trim())
+    .filter(Boolean)
+    .slice(0, 5);
+
+  return [
+    "Create 1-5 goal drafts from this plan request.",
+    `Use absolute dates within ${startDate} to ${endDate}.`,
+    'Use "fixed_milestones" with ordered milestone_names when sessions vary across a finite training plan.',
+    'Use "recurring" only when sessions are fully interchangeable.',
+    "User request and plan details:",
+    ...recentUserMessages.map((line) => `- ${line}`),
+    ...recommendationLines.map((line) => `- ${line}`),
+    reply.trim() ? `Coach summary: ${reply.trim()}` : null,
+  ]
+    .filter((line): line is string => Boolean(line))
+    .join("\n");
 }
 
 export async function POST(request: Request) {
@@ -378,6 +429,29 @@ export async function POST(request: Request) {
               }
             : undefined
         );
+      }
+
+      if (shouldBackfillGoalDraftPrompt(sanitized)) {
+        const fallbackGoalDraftPrompt = buildFallbackGoalDraftPrompt({
+          startDate: body.startDate,
+          endDate: body.endDate,
+          messages: body.messages,
+          reply: sanitized.reply,
+          recommendations: sanitized.recommendations,
+        });
+        sanitized = {
+          ...sanitized,
+          proposal: {
+            ...sanitized.proposal,
+            goalDraftPrompt: fallbackGoalDraftPrompt,
+          },
+          warnings: [
+            ...sanitized.warnings.filter(
+              (warning) => warning !== NEEDS_GOAL_NO_EDITS_WARNING
+            ),
+            GOAL_DRAFT_PROMPT_BACKFILL_WARNING,
+          ],
+        };
       }
 
       const responsePayload = {

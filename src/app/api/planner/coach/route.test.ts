@@ -612,7 +612,7 @@ describe("planner coach route", () => {
     });
   });
 
-  it("refuses to compile edits when the activity needs a matching goal", async () => {
+  it("backfills goalDraftPrompt when needs_goal omits draft instructions", async () => {
     mocks.generateGeminiJson.mockResolvedValue({
       candidateJson: {
         schemaVersion: "1",
@@ -636,7 +636,7 @@ describe("planner coach route", () => {
         startDate: "2026-01-01",
         endDate: "2026-01-31",
         focusGoalIds: ["12000000-0000-4000-8000-000000000001"],
-        messages: [{ role: "user", content: "Apply this as concrete edits." }],
+        messages: [{ role: "user", content: "Create a 4-week 5k plan." }],
       })
     );
 
@@ -644,9 +644,10 @@ describe("planner coach route", () => {
     await expect(response.json()).resolves.toMatchObject({
       proposal: {
         policyPatches: [],
+        goalDraftPrompt: expect.stringContaining("Create 1-5 goal drafts"),
       },
       warnings: [
-        "No calendar edits were generated because this plan does not map to an existing goal.",
+        "Coach did not return goal draft instructions, so draft generation was inferred from the conversation context.",
       ],
     });
   });
