@@ -34,6 +34,35 @@ export function resolveAvatarObjectPathFromPublicUrl(avatarUrl: string | null) {
   }
 }
 
+export function buildAvatarCleanupPathsForProfileChange({
+  userId,
+  previousAvatarUrl,
+  nextAvatarUrl,
+}: {
+  userId: string;
+  previousAvatarUrl: string | null;
+  nextAvatarUrl: string | null;
+}) {
+  const previousObjectPath = resolveAvatarObjectPathFromPublicUrl(previousAvatarUrl);
+  const nextObjectPath = resolveAvatarObjectPathFromPublicUrl(nextAvatarUrl);
+  const cleanupPaths = new Set<string>();
+
+  if (!nextAvatarUrl) {
+    cleanupPaths.add(getCanonicalAvatarObjectPath(userId));
+    if (previousObjectPath?.startsWith(`${userId}/`)) {
+      cleanupPaths.add(previousObjectPath);
+    }
+  } else if (
+    previousObjectPath &&
+    previousObjectPath.startsWith(`${userId}/`) &&
+    previousObjectPath !== nextObjectPath
+  ) {
+    cleanupPaths.add(previousObjectPath);
+  }
+
+  return Array.from(cleanupPaths);
+}
+
 export function getAvatarUploadValidationError(file: File): string | null {
   if (!AVATAR_ALLOWED_MIME_TYPES.has(file.type)) {
     return "Choose a PNG, JPEG, or WebP image.";
@@ -115,6 +144,8 @@ async function convertImageToJpegBlob(file: File): Promise<Blob> {
   if (!context) {
     throw new Error("Could not prepare avatar image.");
   }
+  context.fillStyle = "#ffffff";
+  context.fillRect(0, 0, targetWidth, targetHeight);
   context.drawImage(drawImage, 0, 0, targetWidth, targetHeight);
 
   if (typeof ImageBitmap !== "undefined" && drawImage instanceof ImageBitmap) {
@@ -146,8 +177,12 @@ export async function uploadProfileAvatar({
   file: File;
 }): Promise<string> {
   const objectPath = getCanonicalAvatarObjectPath(userId);
-  const uploadBlob = await convertImageToJpegBlob(file);
+  const {
+    data: { publicUrl },
+  } = supabase.storage.from(AVATAR_UPLOAD_BUCKET).getPublicUrl(objectPath);
+  assertUploadedAvatarPublicUrl(publicUrl);
 
+  const uploadBlob = await convertImageToJpegBlob(file);
   const { error: uploadError } = await supabase.storage
     .from(AVATAR_UPLOAD_BUCKET)
     .upload(objectPath, uploadBlob, {
@@ -158,11 +193,6 @@ export async function uploadProfileAvatar({
   if (uploadError) {
     throw uploadError;
   }
-
-  const {
-    data: { publicUrl },
-  } = supabase.storage.from(AVATAR_UPLOAD_BUCKET).getPublicUrl(objectPath);
-  assertUploadedAvatarPublicUrl(publicUrl);
   return `${publicUrl}?v=${Date.now()}`;
 }
 

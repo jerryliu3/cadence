@@ -1,12 +1,21 @@
 import * as ImageManipulator from "expo-image-manipulator";
 import type { ImagePickerAsset } from "expo-image-picker";
 import { mobileEnv } from "../../config/env";
+import {
+  buildMobileAvatarCleanupPathsForProfileChange,
+  getMobileCanonicalAvatarObjectPath,
+  resolveMobileAvatarObjectPathFromUrl,
+} from "./avatar-upload-paths";
 import { supabase } from "../supabase";
 
 const AVATAR_BUCKET = "avatars";
 const AVATAR_MAX_BYTES = 5 * 1024 * 1024;
-const AVATAR_OBJECT_FILE_NAME = "avatar.jpg";
-const AVATAR_PUBLIC_PATH_PREFIX = "/storage/v1/object/public/avatars/";
+
+export {
+  buildMobileAvatarCleanupPathsForProfileChange,
+  getMobileCanonicalAvatarObjectPath,
+  resolveMobileAvatarObjectPathFromUrl,
+};
 
 async function decodeBase64(base64: string) {
   const binary = globalThis.atob(base64);
@@ -37,28 +46,6 @@ function validateUploadedAvatarUrl(publicUrl: string) {
   }
 }
 
-export function getMobileCanonicalAvatarObjectPath(userId: string) {
-  return `${userId}/${AVATAR_OBJECT_FILE_NAME}`;
-}
-
-export function resolveMobileAvatarObjectPathFromUrl(avatarUrl: string | null) {
-  if (!avatarUrl) {
-    return null;
-  }
-  try {
-    const parsed = new URL(avatarUrl);
-    if (!parsed.pathname.startsWith(AVATAR_PUBLIC_PATH_PREFIX)) {
-      return null;
-    }
-    const objectPath = decodeURIComponent(
-      parsed.pathname.slice(AVATAR_PUBLIC_PATH_PREFIX.length)
-    );
-    return objectPath.length > 0 ? objectPath : null;
-  } catch {
-    return null;
-  }
-}
-
 export async function uploadMobileProfileAvatar({
   userId,
   asset,
@@ -76,6 +63,11 @@ export async function uploadMobileProfileAvatar({
   }
 
   const objectPath = getMobileCanonicalAvatarObjectPath(userId);
+  const {
+    data: { publicUrl },
+  } = supabase.storage.from(AVATAR_BUCKET).getPublicUrl(objectPath);
+  validateUploadedAvatarUrl(publicUrl);
+
   const { error: uploadError } = await supabase.storage
     .from(AVATAR_BUCKET)
     .upload(objectPath, await decodeBase64(manipulated.base64), {
@@ -85,11 +77,6 @@ export async function uploadMobileProfileAvatar({
   if (uploadError) {
     throw uploadError;
   }
-
-  const {
-    data: { publicUrl },
-  } = supabase.storage.from(AVATAR_BUCKET).getPublicUrl(objectPath);
-  validateUploadedAvatarUrl(publicUrl);
   return `${publicUrl}?v=${Date.now()}`;
 }
 

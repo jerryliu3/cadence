@@ -26,10 +26,9 @@ import { Screen } from "../../ui/screen";
 import { UserAvatar } from "../../ui/user-avatar";
 import { IntegrationsSection } from "./IntegrationsSection";
 import {
+  buildMobileAvatarCleanupPathsForProfileChange,
   deleteMobileProfileAvatar,
-  getMobileCanonicalAvatarObjectPath,
   getMobileAvatarValidationError,
-  resolveMobileAvatarObjectPathFromUrl,
   uploadMobileProfileAvatar,
 } from "../../lib/profile/avatar-upload";
 
@@ -269,18 +268,15 @@ export function SettingsScreen() {
                 if (error) {
                   throw error;
                 }
-                const previousAvatarObjectPath =
-                  resolveMobileAvatarObjectPathFromUrl(previousAvatarUrl);
-                const nextAvatarObjectPath =
-                  resolveMobileAvatarObjectPathFromUrl(avatarUrl);
-                if (
-                  previousAvatarObjectPath &&
-                  previousAvatarObjectPath.startsWith(`${userId}/`) &&
-                  previousAvatarObjectPath !== nextAvatarObjectPath
-                ) {
+                const cleanupPaths = buildMobileAvatarCleanupPathsForProfileChange({
+                  userId,
+                  previousAvatarUrl,
+                  nextAvatarUrl: avatarUrl,
+                });
+                if (cleanupPaths.length > 0) {
                   try {
                     await deleteMobileProfileAvatar({
-                      objectPaths: [previousAvatarObjectPath],
+                      objectPaths: cleanupPaths,
                     });
                   } catch (cleanupError) {
                     setMessage(
@@ -330,20 +326,14 @@ export function SettingsScreen() {
                     setMessage(error.message);
                     return;
                   }
-                  const cleanupPaths = new Set<string>([
-                    getMobileCanonicalAvatarObjectPath(userId),
-                  ]);
-                  const previousAvatarObjectPath =
-                    resolveMobileAvatarObjectPathFromUrl(previousAvatarUrl);
-                  if (
-                    previousAvatarObjectPath &&
-                    previousAvatarObjectPath.startsWith(`${userId}/`)
-                  ) {
-                    cleanupPaths.add(previousAvatarObjectPath);
-                  }
-                  if (cleanupPaths.size > 0) {
+                  const cleanupPaths = buildMobileAvatarCleanupPathsForProfileChange({
+                    userId,
+                    previousAvatarUrl,
+                    nextAvatarUrl: null,
+                  });
+                  if (cleanupPaths.length > 0) {
                     await deleteMobileProfileAvatar({
-                      objectPaths: Array.from(cleanupPaths),
+                      objectPaths: cleanupPaths,
                     });
                   }
                   setMessage("Profile photo removed.");
