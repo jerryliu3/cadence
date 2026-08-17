@@ -36,6 +36,26 @@ export interface UsePlannerCoachArgs {
   ) => string;
 }
 
+export interface PlannerCoachBindings {
+  refreshDraftPreview: (
+    nextPolicy: PlannerPolicy
+  ) => Promise<PlannerContextPayload["preview"]>;
+  applyPolicyReplanMoves: (
+    nextPolicy: PlannerPolicy
+  ) => Promise<{ moveCount: number; movedEntryKeys: string[] }>;
+  queueDraftMoveCommand: (args: {
+    entry: PlannerDayDetailEntry;
+    nextDate: string;
+    source: "date_input" | "drag_drop" | "coach";
+  }) => boolean;
+  clearDraftMoveCommands: (entryKeys: string[]) => void;
+  applyDraftPolicy: (policy: PlannerPolicy) => void;
+  coachWindow: { start: string; end: string } | null;
+  getNonPublishablePreviewMessage: (
+    preview: NonNullable<PlannerContextPayload["preview"]>
+  ) => string;
+}
+
 export interface CoachGoalDraftRuntimeState {
   status: "loading" | "ready" | "saving" | "created" | "error";
   drafts: BulkGoalDraft[];

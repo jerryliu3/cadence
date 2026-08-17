@@ -49,9 +49,7 @@ export interface PlannerSaveAvailability {
   draftSaveBlocked: boolean;
   draftSaveBlockedMessage: string | null;
   rebuildBlockedMessage: string | undefined;
-  hasLockedPlanItems: boolean;
   canResetPlan: boolean;
-  hasOverduePlannerItems: boolean;
   canRecoverPastSessions: boolean;
   hasUnsavedPlannerChanges: boolean;
   canShowSaveAction: boolean;
@@ -101,9 +99,7 @@ export function selectPlannerSaveAvailability({
     rebuildBlockedMessage: hasDraftSession
       ? "Save or undo preview changes before rebuilding schedule."
       : undefined,
-    hasLockedPlanItems,
     canResetPlan,
-    hasOverduePlannerItems,
     canRecoverPastSessions,
     hasUnsavedPlannerChanges,
     canShowSaveAction,
