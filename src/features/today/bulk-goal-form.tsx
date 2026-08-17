@@ -89,6 +89,7 @@ interface BulkGoalFormProps {
 const csvExample = `title,description,category,color,frequency_type,recurrence_interval,target_count,milestone_names,start_date,end_date,default_local_time
 Morning run,Train for a half marathon,Health,#16a34a,recurring,daily,20,,2026-06-01,2026-12-31,06:45
 Read 12 books,One book per month,Personal,#6366f1,fixed,,12,Book 1|Book 2|Book 3,2026-06-01,2026-12-31,`;
+const BULK_GOAL_PARSE_TIMEOUT_MS = 45_000;
 
 async function parseRowsFromCsvText(csvText: string): Promise<Record<string, unknown>[]> {
   const XLSX = await import("xlsx");
@@ -275,6 +276,9 @@ export function BulkGoalForm({
         {
           prompt: trimmed,
           timezone: resolveUserTimezone(),
+        },
+        {
+          timeoutMs: BULK_GOAL_PARSE_TIMEOUT_MS,
         }
       );
 

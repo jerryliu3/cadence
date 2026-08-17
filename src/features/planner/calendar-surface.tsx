@@ -2793,7 +2793,7 @@ export function CalendarSurface({
         }
         isAnyEntryDragging={Boolean(draggingEntryKey)}
         getEntryDisplayTitle={
-          viewMode === "month"
+          viewMode === "month" || viewMode === "week" || viewMode === "three_day"
             ? getEntryCompactTitleWithTime
             : getEntryDisplayTitleWithTime
         }

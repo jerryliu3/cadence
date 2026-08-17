@@ -260,10 +260,74 @@ describe("bulk goal parser route", () => {
         {
           title: "5k training block",
           frequency_type: "fixed_milestones",
+          target_count: 3,
           milestone_names: [
             "Easy run 3 mi",
             "Tempo run 4x800",
             "Long run 6 mi",
+          ],
+        },
+      ],
+    });
+  });
+
+  it("derives fixed milestone target_count from milestone_names when omitted", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            candidates: [
+              {
+                content: {
+                  parts: [
+                    {
+                      text: JSON.stringify({
+                        goals: [
+                          {
+                            title: "5k progression block",
+                            frequency_type: "fixed_milestones",
+                            start_date: "2026-08-17",
+                            end_date: "2026-09-13",
+                            milestone_names: [
+                              "Week 1 - Easy run",
+                              "Week 1 - Tempo run",
+                              "Week 1 - Long run",
+                              "Week 2 - Easy run",
+                            ],
+                          },
+                        ],
+                      }),
+                    },
+                  ],
+                },
+              },
+            ],
+          }),
+          { status: 200 }
+        )
+      )
+    );
+
+    const response = await POST(
+      request({
+        prompt: "Create a short 5k progression block.",
+        timezone: "UTC",
+      })
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      goals: [
+        {
+          title: "5k progression block",
+          frequency_type: "fixed_milestones",
+          target_count: 4,
+          milestone_names: [
+            "Week 1 - Easy run",
+            "Week 1 - Tempo run",
+            "Week 1 - Long run",
+            "Week 2 - Easy run",
           ],
         },
       ],
@@ -411,7 +475,7 @@ describe("bulk goal parser route", () => {
     expect(fetchSpy).toHaveBeenCalledTimes(2);
   });
 
-  it("falls back to neutral session names when milestone retry is unsuccessful", async () => {
+  it("keeps best available milestone names when retry output is still low quality", async () => {
     const fetchSpy = vi
       .fn()
       .mockResolvedValueOnce(
@@ -478,15 +542,147 @@ describe("bulk goal parser route", () => {
       warnings?: string[];
     };
     expect(payload.goals[0]?.milestone_names).toEqual([
-      "Session 1",
-      "Session 2",
+      "Week 1",
+      "Week 2",
       "Session 3",
       "Session 4",
     ]);
     expect(payload.warnings).toContain(
-      "Draft 1 (Language progression plan): milestone names remained incomplete or generic; using neutral session labels for review."
+      "Draft 1 (Language progression plan): milestone names remained incomplete or generic after refinement; kept best available labels for review."
     );
     expect(fetchSpy).toHaveBeenCalledTimes(2);
+  });
+
+  it("skips milestone-name refinement when retry quota is exhausted", async () => {
+    let quotaCalls = 0;
+    mocks.adminRpc.mockImplementation((functionName: string) => {
+      if (functionName === "consume_planner_ai_quota") {
+        quotaCalls += 1;
+        return Promise.resolve({
+          data: [
+            {
+              quota_usage_date: "2026-01-31",
+              allowed: quotaCalls === 1,
+              request_count: quotaCalls,
+              remaining: quotaCalls === 1 ? 19 : 0,
+              retry_after_seconds: 321,
+            },
+          ],
+          error: null,
+        });
+      }
+      return Promise.resolve({ data: null, error: null });
+    });
+
+    const fetchSpy = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          candidates: [
+            {
+              content: {
+                parts: [
+                  {
+                    text: JSON.stringify({
+                      goals: [
+                        {
+                          title: "Language progression plan",
+                          frequency_type: "fixed_milestones",
+                          target_count: 4,
+                          start_date: "2026-08-17",
+                          end_date: "2026-09-13",
+                          milestone_names: ["Week 1", "Week 2"],
+                        },
+                      ],
+                    }),
+                  },
+                ],
+              },
+            },
+          ],
+        }),
+        { status: 200 }
+      )
+    );
+    vi.stubGlobal("fetch", fetchSpy);
+
+    const response = await POST(
+      request({
+        prompt: "Create a 4-step language learning progression.",
+        timezone: "UTC",
+      })
+    );
+
+    expect(response.status).toBe(200);
+    const payload = (await response.json()) as {
+      goals: Array<{ milestone_names?: string[] }>;
+      warnings?: string[];
+    };
+    expect(payload.goals[0]?.milestone_names).toEqual([
+      "Week 1",
+      "Week 2",
+      "Session 3",
+      "Session 4",
+    ]);
+    expect(payload.warnings).toContain(
+      "Draft 1 (Language progression plan): milestone-name refinement was skipped because quota is exhausted; kept best available labels for review."
+    );
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(quotaCalls).toBe(2);
+  });
+
+  it("does not retry specific milestone names from non-running domains", async () => {
+    const fetchSpy = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          candidates: [
+            {
+              content: {
+                parts: [
+                  {
+                    text: JSON.stringify({
+                      goals: [
+                        {
+                          title: "Piano progression plan",
+                          frequency_type: "fixed_milestones",
+                          target_count: 3,
+                          start_date: "2026-08-17",
+                          end_date: "2026-08-31",
+                          milestone_names: [
+                            "Scales warmup",
+                            "Sight reading",
+                            "Repertoire polish",
+                          ],
+                        },
+                      ],
+                    }),
+                  },
+                ],
+              },
+            },
+          ],
+        }),
+        { status: 200 }
+      )
+    );
+    vi.stubGlobal("fetch", fetchSpy);
+
+    const response = await POST(
+      request({
+        prompt: "Create a 3-session piano progression plan.",
+        timezone: "UTC",
+      })
+    );
+
+    expect(response.status).toBe(200);
+    const payload = (await response.json()) as {
+      goals: Array<{ milestone_names?: string[] }>;
+    };
+    expect(payload.goals[0]?.milestone_names).toEqual([
+      "Scales warmup",
+      "Sight reading",
+      "Repertoire polish",
+    ]);
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
   });
 
   it("rejects model outputs when milestone_names are malformed", async () => {

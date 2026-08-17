@@ -8,6 +8,7 @@ export const MAX_COACH_MESSAGES = 20;
 export { MAX_COACH_FOCUS_GOALS };
 export const MAX_COACH_MESSAGE_CHARS = 12_000;
 export const MAX_COACH_REPLY_CHARS = 12_000;
+export const MAX_GOAL_DRAFT_PROMPT_CHARS = 5_000;
 const CANONICAL_UNIT_KEY_PATTERN = /^(milestone|total|cadence):/;
 
 export interface CoachSessionRosterEntry {
@@ -91,7 +92,12 @@ const calendarIntentGlobalSchema = z
 const calendarIntentSchema = z
   .object({
     action: z.enum(["none", "needs_goal", "apply"]),
-    goalDraftPrompt: z.string().trim().min(1).max(2000).optional(),
+    goalDraftPrompt: z
+      .string()
+      .trim()
+      .min(1)
+      .max(MAX_GOAL_DRAFT_PROMPT_CHARS)
+      .optional(),
     global: calendarIntentGlobalSchema.nullable().optional().default(null),
     sessionMoves: z
       .array(

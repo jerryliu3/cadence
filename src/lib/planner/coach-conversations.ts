@@ -1,5 +1,6 @@
 import { z } from "zod";
 import {
+  MAX_GOAL_DRAFT_PROMPT_CHARS,
   coachPolicyPatchSchema,
   MAX_COACH_MESSAGE_CHARS,
   MAX_COACH_MESSAGES,
@@ -36,7 +37,7 @@ const coachConversationGoalDraftProposalSchema = z
     schemaVersion: z.literal("1"),
     kind: z.literal("goal_draft"),
     proposalId: z.uuid(),
-    parserPrompt: z.string().trim().min(1).max(2000),
+    parserPrompt: z.string().trim().min(1).max(MAX_GOAL_DRAFT_PROMPT_CHARS),
     creationStatus: z.enum(["not_created", "created"]),
   })
   .strict();

@@ -102,9 +102,11 @@ describe("buildCoachPrompt", () => {
       'Use "recurring" when sessions are genuinely repetitive'
     );
     expect(prompt).toContain(
-      'milestone_names must cover every milestone from first to last'
+      "describe the session pattern and progression structure clearly"
     );
-    expect(prompt).toContain('Do not use generic summaries like "Week 1: 3 runs"');
+    expect(prompt).toContain(
+      "Do not list every single session line unless it is necessary for correctness."
+    );
     expect(prompt).toContain(
       "never claim that goals were already created or scheduled"
     );

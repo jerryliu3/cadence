@@ -62,26 +62,40 @@ type GeneratedPayload = {
 };
 
 function buildGeneratedPayloadSchema(categoryKeySet: Set<string>) {
-  const generatedGoalSchema = z.object({
-    title: z.string().trim().min(1).max(200),
-    description: z.string().trim().max(2_000).optional(),
-    category: z.string().trim().min(1).max(80).optional(),
-    category_key: z
-      .string()
-      .trim()
-      .refine((value) => categoryKeySet.has(value), "category_key must be known")
-      .optional(),
-    frequency_type: z.enum(["recurring", "fixed_milestones"]).optional(),
-    recurrence_interval: z.enum(["daily", "weekly", "monthly"]).optional(),
-    target_count: z.number().int().positive().nullable().optional(),
-    milestone_names: z
-      .array(z.string().trim().min(1).max(200))
-      .max(MAX_MILESTONE_NAMES_PER_GOAL)
-      .optional(),
-    start_date: z.string().optional(),
-    end_date: z.string().nullable().optional(),
-    default_local_time: z.string().nullable().optional(),
-  });
+  const generatedGoalSchema = z
+    .object({
+      title: z.string().trim().min(1).max(200),
+      description: z.string().trim().max(2_000).optional(),
+      category: z.string().trim().min(1).max(80).optional(),
+      category_key: z
+        .string()
+        .trim()
+        .refine((value) => categoryKeySet.has(value), "category_key must be known")
+        .optional(),
+      frequency_type: z.enum(["recurring", "fixed_milestones"]).optional(),
+      recurrence_interval: z.enum(["daily", "weekly", "monthly"]).optional(),
+      target_count: z.number().int().positive().nullable().optional(),
+      milestone_names: z
+        .array(z.string().trim().min(1).max(200))
+        .max(MAX_MILESTONE_NAMES_PER_GOAL)
+        .optional(),
+      start_date: z.string().optional(),
+      end_date: z.string().nullable().optional(),
+      default_local_time: z.string().nullable().optional(),
+    })
+    .superRefine((goal, context) => {
+      if (
+        goal.frequency_type === "fixed_milestones" &&
+        typeof goal.target_count === "number" &&
+        goal.target_count > MAX_MILESTONE_NAMES_PER_GOAL
+      ) {
+        context.addIssue({
+          code: "custom",
+          path: ["target_count"],
+          message: `target_count must be <= ${MAX_MILESTONE_NAMES_PER_GOAL} for fixed milestones`,
+        });
+      }
+    });
   return z.object({
     goals: z.array(generatedGoalSchema).max(MAX_GOALS_PER_REQUEST),
   });
@@ -202,8 +216,12 @@ function normalizeMilestoneNameList(names: string[] | undefined) {
   return (names ?? []).map((name) => name.trim()).filter((name) => name.length > 0);
 }
 
-function buildNeutralMilestoneNames(targetCount: number) {
-  return Array.from({ length: targetCount }, (_, index) => `Session ${index + 1}`);
+function deriveFixedMilestoneTargetCount(goal: Pick<GeneratedGoal, "target_count" | "milestone_names">) {
+  if (typeof goal.target_count === "number" && goal.target_count > 0) {
+    return goal.target_count;
+  }
+  const inferredCount = normalizeMilestoneNameList(goal.milestone_names).length;
+  return inferredCount > 0 ? inferredCount : null;
 }
 
 function normalizeMilestoneNamesToTargetCount(
@@ -227,24 +245,11 @@ function isGenericMilestoneName(name: string) {
   );
 }
 
-function isUnderspecifiedMilestoneName(name: string) {
-  const trimmed = name.trim();
-  if (!trimmed) {
-    return true;
-  }
-  const words = trimmed.split(/\s+/).filter(Boolean).length;
-  const hasNumericOrPunctuation = /[\d:;,().\-]/.test(trimmed);
-  return words <= 3 && !hasNumericOrPunctuation;
-}
-
 function needsMilestoneNameRetry(goal: GeneratedGoal) {
   if (goal.frequency_type !== "fixed_milestones") {
     return false;
   }
-  const targetCount =
-    typeof goal.target_count === "number" && goal.target_count > 0
-      ? goal.target_count
-      : null;
+  const targetCount = deriveFixedMilestoneTargetCount(goal);
   if (!targetCount) {
     return false;
   }
@@ -256,16 +261,13 @@ function needsMilestoneNameRetry(goal: GeneratedGoal) {
   const uniqueNames = new Set(
     normalizedNames.map((name) => name.toLowerCase().replace(/\s+/g, " ").trim())
   );
-  if (uniqueNames.size <= 1) {
+  if (uniqueNames.size < normalizedNames.length) {
     return true;
   }
-  if (normalizedNames.every((name) => isGenericMilestoneName(name))) {
+  if (normalizedNames.some((name) => isGenericMilestoneName(name))) {
     return true;
   }
-  const underspecifiedCount = normalizedNames.filter((name) =>
-    isUnderspecifiedMilestoneName(name)
-  ).length;
-  return underspecifiedCount >= Math.ceil(targetCount * 0.7);
+  return false;
 }
 
 function buildMilestoneNameRetryPrompt({
@@ -311,6 +313,7 @@ function buildMilestoneNameRetryResponseSchema(targetCount: number) {
     properties: {
       milestone_names: {
         type: "array",
+        minItems: targetCount,
         maxItems: targetCount,
         items: { type: "string" },
       },
@@ -329,22 +332,15 @@ function buildMilestoneNameRetryZodSchema(targetCount: number) {
 
 async function regenerateMilestoneNames({
   apiKey,
-  parserPrompt,
-  goal,
+  retryPrompt,
   targetCount,
   signal,
 }: {
   apiKey: string;
-  parserPrompt: string;
-  goal: GeneratedGoal;
+  retryPrompt: string;
   targetCount: number;
   signal: AbortSignal;
 }) {
-  const retryPrompt = buildMilestoneNameRetryPrompt({
-    parserPrompt,
-    goal,
-    targetCount,
-  });
   let result: Awaited<ReturnType<typeof generateGeminiJson>>;
   try {
     result = await generateGeminiJson({
@@ -383,52 +379,98 @@ async function refineMilestoneNamesForGoals({
   parserPrompt,
   apiKey,
   signal,
+  quotaContext,
 }: {
   goals: GeneratedGoal[];
   parserPrompt: string;
   apiKey: string;
   signal: AbortSignal;
+  quotaContext: {
+    admin: ReturnType<typeof createAdminClient>;
+    ownerId: string;
+    limit: number;
+  };
 }) {
-  const warnings: string[] = [];
-  const enrichedGoals: GeneratedGoal[] = [];
-  for (let index = 0; index < goals.length; index += 1) {
-    const goal = goals[index]!;
-    const targetCount =
-      typeof goal.target_count === "number" && goal.target_count > 0
-        ? goal.target_count
-        : null;
-    if (!targetCount || !needsMilestoneNameRetry(goal)) {
-      enrichedGoals.push(goal);
-      continue;
-    }
-    let regenerated: string[] | null = null;
-    try {
-      regenerated = await regenerateMilestoneNames({
-        apiKey,
+  const refinements = await Promise.all(
+    goals.map(async (goal, index) => {
+      const targetCount = deriveFixedMilestoneTargetCount(goal);
+      if (!targetCount || !needsMilestoneNameRetry(goal)) {
+        return { goal, warning: null as string | null };
+      }
+
+      const retryPrompt = buildMilestoneNameRetryPrompt({
         parserPrompt,
         goal,
         targetCount,
-        signal,
       });
-    } catch {
-      regenerated = null;
-    }
-    if (regenerated) {
-      const regeneratedGoal = { ...goal, milestone_names: regenerated };
-      if (!needsMilestoneNameRetry(regeneratedGoal)) {
-        enrichedGoals.push(regeneratedGoal);
-        continue;
+      let retryBlockedByQuota = false;
+      const retryInputTokens = Math.max(1, Math.ceil(retryPrompt.length / 4));
+      try {
+        const retryQuota = await consumePlannerAiQuota({
+          admin: quotaContext.admin,
+          ownerId: quotaContext.ownerId,
+          feature: "bulk_parser",
+          limit: quotaContext.limit,
+          estimatedInputTokens: retryInputTokens,
+        });
+        retryBlockedByQuota = !retryQuota.allowed;
+      } catch {
+        retryBlockedByQuota = true;
       }
-    }
-    enrichedGoals.push({
-      ...goal,
-      milestone_names: buildNeutralMilestoneNames(targetCount),
-    });
-    warnings.push(
-      `Draft ${index + 1} (${goal.title.trim()}): milestone names remained incomplete or generic; using neutral session labels for review.`
-    );
-  }
-  return { goals: enrichedGoals, warnings };
+
+      let regenerated: string[] | null = null;
+      if (!retryBlockedByQuota) {
+        try {
+          regenerated = await regenerateMilestoneNames({
+            apiKey,
+            retryPrompt,
+            targetCount,
+            signal,
+          });
+        } catch {
+          regenerated = null;
+        }
+      }
+
+      if (regenerated) {
+        const regeneratedGoal = { ...goal, milestone_names: regenerated };
+        if (!needsMilestoneNameRetry(regeneratedGoal)) {
+          return { goal: regeneratedGoal, warning: null as string | null };
+        }
+      }
+
+      const bestAvailableNames = normalizeMilestoneNameList(
+        regenerated ?? goal.milestone_names
+      );
+      const hasBestAvailableNames = bestAvailableNames.length > 0;
+      const fallbackMilestoneNames = hasBestAvailableNames
+        ? normalizeMilestoneNamesToTargetCount(targetCount, bestAvailableNames)
+        : normalizeMilestoneNamesToTargetCount(targetCount, undefined);
+
+      const warning = retryBlockedByQuota
+        ? hasBestAvailableNames
+          ? `Draft ${index + 1} (${goal.title.trim()}): milestone-name refinement was skipped because quota is exhausted; kept best available labels for review.`
+          : `Draft ${index + 1} (${goal.title.trim()}): milestone-name refinement was skipped because quota is exhausted; using neutral session labels for review.`
+        : hasBestAvailableNames
+          ? `Draft ${index + 1} (${goal.title.trim()}): milestone names remained incomplete or generic after refinement; kept best available labels for review.`
+          : `Draft ${index + 1} (${goal.title.trim()}): milestone names remained incomplete or generic; using neutral session labels for review.`;
+
+      return {
+        goal: {
+          ...goal,
+          milestone_names: fallbackMilestoneNames,
+        },
+        warning,
+      };
+    })
+  );
+
+  return {
+    goals: refinements.map((entry) => entry.goal),
+    warnings: refinements
+      .map((entry) => entry.warning)
+      .filter((warning): warning is string => Boolean(warning)),
+  };
 }
 
 function normalizeGeneratedPayload(
@@ -439,18 +481,24 @@ function normalizeGeneratedPayload(
   const warnings: string[] = [];
   const goals = payload.goals.map((goal, index) => {
     const frequency = goal.frequency_type ?? "recurring";
+    const normalizedMilestoneNames = normalizeMilestoneNameList(goal.milestone_names);
+    const targetCount =
+      frequency === "fixed_milestones"
+        ? deriveFixedMilestoneTargetCount(goal)
+        : goal.target_count ?? null;
     const recurrence =
       frequency === "recurring"
         ? goal.recurrence_interval ?? "daily"
         : undefined;
     const startDate = toIsoDate(goal.start_date) ?? today;
     const endDate = toIsoDate(goal.end_date ?? undefined) ?? null;
-    const targetCount = goal.target_count ?? null;
     const milestoneNames =
       frequency === "fixed_milestones"
         ? typeof targetCount === "number" && targetCount > 0
-          ? normalizeMilestoneNamesToTargetCount(targetCount, goal.milestone_names)
-          : undefined
+          ? normalizeMilestoneNamesToTargetCount(targetCount, normalizedMilestoneNames)
+          : normalizedMilestoneNames.length > 0
+            ? normalizedMilestoneNames
+            : undefined
         : undefined;
     const normalized = {
       title: goal.title.trim(),
@@ -711,6 +759,11 @@ export async function POST(request: Request) {
       parserPrompt: parsedRequest.prompt,
       apiKey,
       signal: request.signal,
+      quotaContext: {
+        admin,
+        ownerId: userId,
+        limit: quotaLimit,
+      },
     });
     const normalizedPayload = normalizeGeneratedPayload(
       { goals: milestoneRefinements.goals },

@@ -46,6 +46,8 @@ describe("coach goal draft service", () => {
     expect(postJsonMock).toHaveBeenCalledWith("/api/bulk-goals/parse", {
       prompt: "Easy run weekly.",
       timezone: "America/Los_Angeles",
+    }, {
+      timeoutMs: 45_000,
     });
     expect(result.drafts[0]?.title).toBe("Easy run");
   });
