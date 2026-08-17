@@ -90,6 +90,12 @@ import {
 import { computeDayPreviewPosition } from "@/features/planner/day-preview-popup";
 import { getGoalVisual } from "@/features/planner/goal-visuals";
 import {
+  applyCalendarCompletionMarkerFilters,
+  buildCalendarCategoryFilterOptions,
+  goalPassesCalendarFilters,
+} from "@/features/planner/calendar-filters";
+import { shouldBlockAutomatedReplanMoveForEntry } from "@/features/planner/replan-move-guard";
+import {
   readPlannerCalendarDayProjection,
   selectPlannerCalendarDayProjectionsByDay,
   selectPlannerCalendarStoreProjection,
@@ -143,12 +149,10 @@ import {
 import { shouldUseDirectDraftPersistence } from "@/lib/planner/save-persistence";
 import { withPlannerRefreshTimeout } from "@/lib/planner/refresh-timeout";
 import { captureViewportRect } from "@/lib/xp/events";
-import { mergeCompletionFactMarkers } from "@cadence/shared/planner/partner-completion";
 import type {
   CalendarSurfaceProps,
   CompletionControlDisabledReason,
   DayPreviewState,
-  PlannerCompletionFactMarker,
   PlannerContextPayload,
   PlannerDayDetailEntry,
   PlannerErrorPayload,
@@ -534,18 +538,10 @@ export function CalendarSurface({
     endMonthFilter,
     filterReferenceMonth
   );
-  const categoryOptions = useMemo(() => {
-    const labels = new Set<string>();
-    for (const goal of activeGoalsByOriginalGoalId.values()) {
-      const trimmed = goal.category.trim();
-      if (trimmed.length > 0) {
-        labels.add(trimmed);
-      }
-    }
-    return Array.from(labels)
-      .sort((left, right) => left.localeCompare(right))
-      .map((label) => ({ value: label, label }));
-  }, [activeGoalsByOriginalGoalId]);
+  const categoryOptions = useMemo(
+    () => buildCalendarCategoryFilterOptions(activeGoalsByOriginalGoalId),
+    [activeGoalsByOriginalGoalId]
+  );
   const endMonthOptions = useMemo(() => {
     const goalEndDates = Array.from(activeGoalsByOriginalGoalId.values()).map(
       (goal) => goal.end_date
@@ -556,30 +552,19 @@ export function CalendarSurface({
       effectiveEndMonthFilter ? [effectiveEndMonthFilter] : []
     );
   }, [activeGoalsByOriginalGoalId, effectiveEndMonthFilter, filterReferenceMonth]);
-  const hasActiveFilters =
-    categoryFilter !== allCategoriesValue || effectiveEndMonthFilter !== null;
   const goalPassesFilters = useCallback(
-    (goalId: string) => {
-      const goal = activeGoalsByOriginalGoalId.get(goalId) ?? null;
-      if (!goal) {
-        return !hasActiveFilters;
-      }
-      if (
-        categoryFilter !== allCategoriesValue &&
-        goal.category !== categoryFilter
-      ) {
-        return false;
-      }
-      if (effectiveEndMonthFilter !== null) {
-        return goal.end_date?.slice(0, 7) === effectiveEndMonthFilter;
-      }
-      return true;
-    },
+    (goalId: string) =>
+      goalPassesCalendarFilters({
+        goalId,
+        goalsByOriginalId: activeGoalsByOriginalGoalId,
+        categoryFilter,
+        allCategoriesValue,
+        endMonthFilter: effectiveEndMonthFilter,
+      }),
     [
       activeGoalsByOriginalGoalId,
       categoryFilter,
       effectiveEndMonthFilter,
-      hasActiveFilters,
     ]
   );
   const calendarStoreProjection = useMemo(
@@ -673,11 +658,6 @@ export function CalendarSurface({
       entries.filter((entry) => goalPassesFilters(entry.originalGoalId)),
     [goalPassesFilters]
   );
-  const filterMarkers = useCallback(
-    (markers: PlannerCompletionFactMarker[]) =>
-      markers.filter((marker) => goalPassesFilters(marker.originalGoalId)),
-    [goalPassesFilters]
-  );
   const getEntriesForDay = useCallback(
     (day: string | null) => {
       if (hideViewerPlan) {
@@ -691,20 +671,21 @@ export function CalendarSurface({
     (day: string | null) => {
       const viewerMarkers = hideViewerPlan
         ? []
-        : filterMarkers(getCalendarDayProjection(day).completionFactMarkers);
+        : getCalendarDayProjection(day).completionFactMarkers;
       const partnerMarkers =
         day && (duoScope === "partner" || duoScope === "both")
           ? partnerCompletionMarkersByDate?.get(day) ?? []
           : [];
-      return mergeCompletionFactMarkers(
+      return applyCalendarCompletionMarkerFilters({
         viewerMarkers,
-        filterMarkers(partnerMarkers)
-      );
+        partnerMarkers,
+        goalPassesFilters,
+      });
     },
     [
       duoScope,
-      filterMarkers,
       getCalendarDayProjection,
+      goalPassesFilters,
       hideViewerPlan,
       partnerCompletionMarkersByDate,
     ]
@@ -1071,6 +1052,15 @@ export function CalendarSurface({
         unit.scheduledDate,
       ])
     );
+    const baselineUnitByEntryKey = new Map(
+      effectivePreview.workUnits.map((unit) => [
+        draftCommandEntryKey({
+          goalId: unit.originalGoalId,
+          unitKey: unit.unitKey,
+        }),
+        unit,
+      ])
+    );
 
     let nextState = draftCommandState;
     const pendingActions: Array<{
@@ -1088,6 +1078,16 @@ export function CalendarSurface({
       });
       const nextDate = unit.scheduledDate;
       if (nextDate === null || baselineDateByEntryKey.get(entryKey) === nextDate) {
+        continue;
+      }
+      const baselineUnit = baselineUnitByEntryKey.get(entryKey);
+      if (
+        shouldBlockAutomatedReplanMoveForEntry({
+          baselineClassification: baselineUnit?.classification,
+          baselineScheduledDate: baselineUnit?.scheduledDate,
+          asOfDate: context.asOfDate,
+        })
+      ) {
         continue;
       }
       const action = {
@@ -1538,6 +1538,7 @@ export function CalendarSurface({
         entry,
         nextDate: normalizedDate,
         scopeMonth,
+        source,
         previewUnit: baselineUnit,
         conflictKeys: moveConflictByGoalDate.get(
           `${entry.originalGoalId}:${normalizedDate}`
@@ -1599,7 +1600,6 @@ export function CalendarSurface({
         scheduledDate: planned.scheduledDate,
         sourceDate,
       });
-      void source;
       return true;
     },
     [
@@ -1665,7 +1665,7 @@ export function CalendarSurface({
         toast.error("Time must be in 24-hour HH:MM format.");
       } else {
         toast.error(
-          "Completed or historical sessions cannot change time overrides in preview mode. Clear completion in the saved plan first."
+          "Completed or otherwise non-editable sessions cannot change time overrides in preview mode."
         );
       }
       return;
