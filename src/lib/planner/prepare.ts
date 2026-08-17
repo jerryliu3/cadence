@@ -1,5 +1,6 @@
 import { getAnchoredPeriod } from "@/lib/goals/periods";
-import type { Goal } from "@/lib/goals/types";
+import { getAdmissibleCompletions } from "@/lib/goals/admissible";
+import type { Completion, Goal } from "@/lib/goals/types";
 import { reportError } from "@/lib/observability/report-error";
 import { createDefaultAssessment } from "@/lib/planner/assessment";
 import {
@@ -148,6 +149,58 @@ function computeRequiredUnitKeys({
   return requiredUnitKeys;
 }
 
+function computeCompletionCreditedUnitKeys({
+  goal,
+  completions,
+  asOfDate,
+  weekStartsOn,
+  requiredUnitKeys,
+}: {
+  goal: Goal;
+  completions: Completion[];
+  asOfDate: string;
+  weekStartsOn: number;
+  requiredUnitKeys: Set<string>;
+}) {
+  if (requiredUnitKeys.size === 0 || completions.length === 0) {
+    return new Set<string>();
+  }
+
+  const admissible = getAdmissibleCompletions(goal, completions, {
+    asOfDate,
+    weeklyAnchor: { weekStartsOn },
+  });
+  if (admissible.length === 0) {
+    return new Set<string>();
+  }
+
+  const requirement = normalizeGoalRequirement(goal).requirement;
+  if (requirement.kind === "cadence") {
+    const creditedCadenceUnits = new Set<string>();
+    for (const completion of admissible) {
+      const period = getAnchoredPeriod(
+        goal.start_date,
+        requirement.interval,
+        completion.completed_on,
+        { weekStartsOn }
+      );
+      const unitKey = `cadence:${period.periodKey}`;
+      if (requiredUnitKeys.has(unitKey)) {
+        creditedCadenceUnits.add(unitKey);
+      }
+    }
+    return creditedCadenceUnits;
+  }
+
+  const creditedCount = Math.min(admissible.length, requirement.targetCount);
+  const unitPrefix = requirement.kind === "milestone_sequence" ? "milestone" : "total";
+  return new Set(
+    Array.from({ length: creditedCount }, (_, index) => `${unitPrefix}:${index + 1}`).filter(
+      (unitKey) => requiredUnitKeys.has(unitKey)
+    )
+  );
+}
+
 function throwPrepareInvariant({
   code,
   message,
@@ -193,6 +246,12 @@ async function prepareOnce({
   const goalById = new Map(
     preparation.snapshot.goals.map((goal) => [goal.id, goal])
   );
+  const completionsByGoalId = new Map<string, Completion[]>();
+  for (const completion of preparation.snapshot.completions) {
+    const entries = completionsByGoalId.get(completion.goal_id) ?? [];
+    entries.push(completion);
+    completionsByGoalId.set(completion.goal_id, entries);
+  }
   const persistedItemsInHorizon = preparation.persistedItems.filter(
     (item) =>
       item.scheduled_date >= preparationStart &&
@@ -321,11 +380,22 @@ async function prepareOnce({
       effectiveEnd: goalWindowsState.effectiveEnd,
       weekStartsOn: policy.weekStartsOn ?? 1,
     });
+    const completionCreditedUnitKeys = computeCompletionCreditedUnitKeys({
+      goal,
+      completions: completionsByGoalId.get(goal.id) ?? [],
+      asOfDate,
+      weekStartsOn: policy.weekStartsOn ?? 1,
+      requiredUnitKeys,
+    });
     const persistedUnitKeys = new Set(
       (persistedItemsValidByGoalId.get(goal.id) ?? []).map((item) => item.unit_key)
     );
+    const resolvedUnitKeys = new Set([
+      ...persistedUnitKeys,
+      ...completionCreditedUnitKeys,
+    ]);
     const missingRequiredUnitCount = Array.from(requiredUnitKeys).filter(
-      (unitKey) => !persistedUnitKeys.has(unitKey)
+      (unitKey) => !resolvedUnitKeys.has(unitKey)
     ).length;
     const hasStalePersistedRows =
       (persistedItemsInHorizonByGoalId.get(goal.id)?.length ?? 0) !==
@@ -607,6 +677,16 @@ async function prepareOnce({
       if (item.goal_id === goal.id) {
         scheduledUnitKeys.add(item.unit_key);
       }
+    }
+    const completionCreditedUnitKeys = computeCompletionCreditedUnitKeys({
+      goal,
+      completions: completionsByGoalId.get(goal.id) ?? [],
+      asOfDate,
+      weekStartsOn: policy.weekStartsOn ?? 1,
+      requiredUnitKeys,
+    });
+    for (const unitKey of completionCreditedUnitKeys) {
+      scheduledUnitKeys.add(unitKey);
     }
     const unresolvedCount = Array.from(requiredUnitKeys).filter(
       (unitKey) => !scheduledUnitKeys.has(unitKey)

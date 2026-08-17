@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { Goal } from "@/lib/goals/types";
+import type { Completion, Goal } from "@/lib/goals/types";
 import { getAnchoredPeriod } from "@/lib/goals/periods";
 import { createDefaultPlannerPolicy } from "@/lib/planner/policy";
 import { computeRequirementFingerprint } from "@/lib/planner/requirements";
@@ -112,12 +112,13 @@ function persistedItem(
 function preparationSnapshot(
   goals: Goal[],
   items: ReturnType<typeof persistedItem>[] = [],
-  unplaceableGoals: PlannerGoalUnplaceableRecord[] = []
+  unplaceableGoals: PlannerGoalUnplaceableRecord[] = [],
+  completions: Completion[] = []
 ) {
   return {
     snapshot: {
       goals,
-      completions: [],
+      completions,
       links: [],
       revisions: {
         canonicalRevision: 0,
@@ -948,6 +949,41 @@ describe("preparePlannerSchedule", () => {
         p_unplaceable: expect.arrayContaining([
           expect.objectContaining({
             goal_id: cadenceGoal.id,
+            unplaced_count: 0,
+          }),
+        ]),
+      })
+    );
+  });
+
+  it("does not create capacity shortfall for targeted goals already satisfied by completions", async () => {
+    const completedGoal = goal({
+      frequency_type: "recurring",
+      recurrence_interval: "daily",
+      target_count: 1,
+      start_date: "2026-01-01",
+      end_date: "2026-12-31",
+    });
+    const completion: Completion = {
+      id: "81111111-1111-4111-8111-111111111111",
+      goal_id: completedGoal.id,
+      completed_on: "2026-03-10",
+      created_at: "2026-03-10T00:00:00.000Z",
+    };
+    mocks.loadPlannerPreparationSnapshot.mockResolvedValue(
+      preparationSnapshot([completedGoal], [], [], [completion])
+    );
+
+    await prepare();
+
+    expect(mocks.runPlannerKernel).not.toHaveBeenCalled();
+    expect(mocks.rpc).toHaveBeenCalledWith(
+      "prepare_planner_schedule",
+      expect.objectContaining({
+        p_unplaceable: expect.arrayContaining([
+          expect.objectContaining({
+            goal_id: completedGoal.id,
+            reason: "capacity",
             unplaced_count: 0,
           }),
         ]),
