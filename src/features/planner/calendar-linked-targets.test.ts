@@ -11,28 +11,24 @@ describe("buildPlannerLinkedTargetIndexes", () => {
       {
         sourceGoalId: "goal-b",
         targetGoalId: "goal-c",
-        sourcePlannedEndDate: "2026-12-31",
         targetSuppressionKind: "until",
         targetResumesOn: "2027-01-01",
       },
       {
         sourceGoalId: "goal-a",
         targetGoalId: "goal-c",
-        sourcePlannedEndDate: "2026-03-31",
         targetSuppressionKind: "until",
         targetResumesOn: "2027-01-01",
       },
       {
         sourceGoalId: "goal-a",
         targetGoalId: "goal-c",
-        sourcePlannedEndDate: "2026-03-31",
         targetSuppressionKind: "until",
         targetResumesOn: "2027-01-01",
       },
       {
         sourceGoalId: "goal-a",
         targetGoalId: "goal-b",
-        sourcePlannedEndDate: "2026-03-31",
         targetSuppressionKind: "until",
         targetResumesOn: "2026-04-01",
       },

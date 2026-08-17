@@ -22,25 +22,29 @@ export function buildPlannerLinkedTargetIndexes(
     }
     seenLinkKeys.add(linkKey);
     const targets = targetsBySourceGoalId.get(link.sourceGoalId) ?? [];
-    if (!targets.includes(link.targetGoalId)) {
-      targets.push(link.targetGoalId);
-      targets.sort((left, right) => left.localeCompare(right));
-      targetsBySourceGoalId.set(link.sourceGoalId, targets);
-    }
+    targets.push(link.targetGoalId);
+    targetsBySourceGoalId.set(link.sourceGoalId, targets);
     const sources = sourceGoalsByTargetGoalId.get(link.targetGoalId) ?? [];
-    if (!sources.includes(link.sourceGoalId)) {
-      sources.push(link.sourceGoalId);
-      sources.sort((left, right) => left.localeCompare(right));
-      sourceGoalsByTargetGoalId.set(link.targetGoalId, sources);
-    }
+    sources.push(link.sourceGoalId);
+    sourceGoalsByTargetGoalId.set(link.targetGoalId, sources);
     const sourceLinks = linksBySourceGoalId.get(link.sourceGoalId) ?? [];
     sourceLinks.push(link);
-    sourceLinks.sort((left, right) => left.targetGoalId.localeCompare(right.targetGoalId));
     linksBySourceGoalId.set(link.sourceGoalId, sourceLinks);
     const targetLinks = linksByTargetGoalId.get(link.targetGoalId) ?? [];
     targetLinks.push(link);
-    targetLinks.sort((left, right) => left.sourceGoalId.localeCompare(right.sourceGoalId));
     linksByTargetGoalId.set(link.targetGoalId, targetLinks);
+  }
+  for (const targetIds of targetsBySourceGoalId.values()) {
+    targetIds.sort((left, right) => left.localeCompare(right));
+  }
+  for (const sourceIds of sourceGoalsByTargetGoalId.values()) {
+    sourceIds.sort((left, right) => left.localeCompare(right));
+  }
+  for (const sourceLinks of linksBySourceGoalId.values()) {
+    sourceLinks.sort((left, right) => left.targetGoalId.localeCompare(right.targetGoalId));
+  }
+  for (const targetLinks of linksByTargetGoalId.values()) {
+    targetLinks.sort((left, right) => left.sourceGoalId.localeCompare(right.sourceGoalId));
   }
   return {
     targetsBySourceGoalId,

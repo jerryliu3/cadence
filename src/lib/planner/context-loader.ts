@@ -1,6 +1,5 @@
 import type { Completion, Goal } from "@/lib/goals/types";
 import { getDateInTimezone } from "@/lib/dates/timezone";
-import { resolveGoalPlanningEndDate } from "@/lib/goals/definition-validation";
 import { createDefaultAssessment } from "@/lib/planner/assessment";
 import { resolveCanonicalAsOfDate, PlannerRouteError } from "@/lib/planner/api";
 import { canonicalHash } from "@/lib/planner/canonical";
@@ -697,21 +696,8 @@ function buildPlannerGoalLinkSummaries({
   ownerId: string;
   asOfDate: string;
 }) {
-  const goalById = new Map(goals.map((goal) => [goal.id, goal]));
   const suppressionSourcesById = new Map(
     goals.map((goal) => [goal.id, toLinkSuppressionSource(goal)])
-  );
-  const sourcePlannedEndByGoalId = new Map(
-    goals.map((goal) => [
-      goal.id,
-      resolveGoalPlanningEndDate({
-        frequencyType: goal.frequency_type,
-        targetCount: goal.target_count,
-        startDate: goal.start_date,
-        endDate: goal.end_date,
-        asOfDate,
-      }),
-    ])
   );
   const suppressionByTargetGoalId = new Map<
     string,
@@ -731,16 +717,12 @@ function buildPlannerGoalLinkSummaries({
     );
   }
   return links.map((link) => {
-    const sourceGoal = goalById.get(link.sourceGoalId);
     const suppression = suppressionByTargetGoalId.get(link.targetGoalId) ?? {
       kind: "none" as const,
     };
     return {
       sourceGoalId: link.sourceGoalId,
       targetGoalId: link.targetGoalId,
-      sourcePlannedEndDate: sourceGoal
-        ? sourcePlannedEndByGoalId.get(sourceGoal.id) ?? null
-        : null,
       targetSuppressionKind: suppression.kind,
       targetResumesOn: getLinkResumeDate(suppression),
     };
