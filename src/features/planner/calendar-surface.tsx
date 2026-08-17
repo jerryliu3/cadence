@@ -1592,13 +1592,14 @@ export function CalendarSurface({
 
   const completionControlDisabledReasonForEntry = (
     entry: PlannerDayDetailEntry,
-    dispatch: ReturnType<typeof getDateFactDispatchForEntry>
+    dispatch: ReturnType<typeof getDateFactDispatchForEntry>,
+    selectedDate: string | null = effectiveSelectedDay
   ): CompletionControlDisabledReason | null => {
     return getCompletionControlDisabledReason({
       entry,
       dispatch,
       canMutatePlanItems,
-      canMutateEntryOnDay: canMutateEntryOnDay(entry, effectiveSelectedDay),
+      canMutateEntryOnDay: canMutateEntryOnDay(entry, selectedDate),
     });
   };
 
@@ -1729,7 +1730,8 @@ export function CalendarSurface({
     const dispatch = getDateFactDispatchForEntry(entry, selectedDate);
     const disabledReason = completionControlDisabledReasonForEntry(
       entry,
-      dispatch
+      dispatch,
+      selectedDate
     );
     if (disabledReason) {
       toast.error(completionDisabledReasonCopy(disabledReason));
