@@ -155,12 +155,14 @@ function computeCompletionCreditedUnitKeys({
   asOfDate,
   weekStartsOn,
   requiredUnitKeys,
+  persistedItems,
 }: {
   goal: Goal;
   completions: Completion[];
   asOfDate: string;
   weekStartsOn: number;
   requiredUnitKeys: Set<string>;
+  persistedItems: PlannerItemRow[];
 }) {
   if (requiredUnitKeys.size === 0 || completions.length === 0) {
     return new Set<string>();
@@ -174,13 +176,6 @@ function computeCompletionCreditedUnitKeys({
   }
 
   const requirement = normalizeGoalRequirement(goal).requirement;
-  // For deadline-total goals, completion-to-unit identity is schedule-date-first
-  // then chronological in reconciliation. We avoid re-deriving that mapping here
-  // so pre-check can be conservative and final persisted counts can rely on
-  // kernel-produced credit identities.
-  if (requirement.kind === "deadline_total") {
-    return new Set<string>();
-  }
   if (requirement.kind === "cadence") {
     const creditedCadenceUnits = new Set<string>();
     for (const completion of admissible) {
@@ -196,6 +191,64 @@ function computeCompletionCreditedUnitKeys({
       }
     }
     return creditedCadenceUnits;
+  }
+
+  if (requirement.kind === "deadline_total") {
+    // Mirror reconciliation's deadline-total credit ordering:
+    // scheduled-date matches first, then chronological fallback.
+    const usedCompletionIds = new Set<string>();
+    const creditedUnitKeys = new Set<string>();
+    const admissibleByDate = new Map<string, Completion[]>();
+    for (const completion of admissible) {
+      const byDate = admissibleByDate.get(completion.completed_on) ?? [];
+      byDate.push(completion);
+      admissibleByDate.set(completion.completed_on, byDate);
+    }
+    const scheduledDateByUnitKey = new Map(
+      persistedItems.map((item) => [item.unit_key, item.scheduled_date] as const)
+    );
+    const orderedUnitKeys = Array.from(
+      { length: requirement.targetCount },
+      (_, index) => `total:${index + 1}`
+    );
+
+    for (const unitKey of orderedUnitKeys) {
+      if (!requiredUnitKeys.has(unitKey)) {
+        continue;
+      }
+      const scheduledDate = scheduledDateByUnitKey.get(unitKey);
+      if (!scheduledDate) {
+        continue;
+      }
+      const matches = admissibleByDate.get(scheduledDate) ?? [];
+      const available = matches.find((completion) => !usedCompletionIds.has(completion.id));
+      if (available) {
+        usedCompletionIds.add(available.id);
+        creditedUnitKeys.add(unitKey);
+      }
+    }
+
+    let admissibleIndex = 0;
+    for (const unitKey of orderedUnitKeys) {
+      if (!requiredUnitKeys.has(unitKey) || creditedUnitKeys.has(unitKey)) {
+        continue;
+      }
+      while (
+        admissibleIndex < admissible.length &&
+        usedCompletionIds.has(admissible[admissibleIndex]!.id)
+      ) {
+        admissibleIndex += 1;
+      }
+      const nextCompletion = admissible[admissibleIndex];
+      if (!nextCompletion) {
+        break;
+      }
+      usedCompletionIds.add(nextCompletion.id);
+      creditedUnitKeys.add(unitKey);
+      admissibleIndex += 1;
+    }
+
+    return creditedUnitKeys;
   }
 
   const creditedCount = Math.min(admissible.length, requirement.targetCount);
@@ -395,6 +448,7 @@ async function prepareOnce({
       asOfDate,
       weekStartsOn: policy.weekStartsOn ?? 1,
       requiredUnitKeys,
+      persistedItems: persistedItemsValidByGoalId.get(goal.id) ?? [],
     });
     precheckCompletionCreditedUnitKeysByGoalId.set(goal.id, completionCreditedUnitKeys);
     const persistedUnitKeys = new Set(
