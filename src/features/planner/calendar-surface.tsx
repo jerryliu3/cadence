@@ -26,7 +26,6 @@ import {
   isEntryImmovableForDraft,
   normalizeWeekStartsOn,
   parseMonth,
-  restWeekdayOptions,
 } from "@/features/planner/calendar-format";
 import {
   type PlannerDragTarget,
@@ -113,7 +112,6 @@ import type {
   PlannerPreferencesPayload,
   PlannerPreviewResponsePayload,
 } from "@/features/planner/calendar-surface.types";
-import { ROLLING_WEEK_GRID_WIDTH_BY_VIEW } from "@/features/planner/calendar-rolling-week-width";
 import { selectPlannerDraftSessionModel } from "@/features/planner/planner-draft-session-model";
 import { selectPlannerEligibilityNotices } from "@/features/planner/planner-eligibility-notices";
 import {
@@ -132,13 +130,11 @@ import { PlannerFiltersDialog } from "@/features/planner/planner-filters-dialog"
 import { PlannerSettingsDialog } from "@/features/planner/planner-settings-dialog";
 import { PlannerDayPreviewPopover } from "@/features/planner/planner-day-preview-popover";
 import { PlannerExpandedPreviewDialog } from "@/features/planner/planner-expanded-preview-dialog";
+import { PlannerSettingsForm } from "@/features/planner/planner-settings-form";
+import { PlannerRollingWeekStrip } from "@/features/planner/planner-rolling-week-strip";
 const DAY_PREVIEW_HOVER_DELAY_MS = 1000;
 const DAY_PREVIEW_CLOSE_DELAY_MS = 250;
 const DAY_PREVIEW_LONG_PRESS_DELAY_MS = 500;
-const ROLLING_WEEK_GRID_LABELS_BASE_CLASS =
-  "grid min-w-[calc(7*var(--rolling-week-cell-width))] grid-cols-[repeat(7,minmax(0,var(--rolling-week-cell-width)))] gap-2 text-center text-xs text-muted-foreground";
-const ROLLING_WEEK_GRID_CELLS_BASE_CLASS =
-  "mt-2 grid min-w-[calc(7*var(--rolling-week-cell-width))] grid-cols-[repeat(7,minmax(0,var(--rolling-week-cell-width)))] gap-2";
 
 export function CalendarSurface({
   activeTab,
@@ -2460,120 +2456,46 @@ export function CalendarSurface({
     );
   };
   const rollingWeekStrip = (
-    <div className="mx-auto w-full max-w-[56rem]">
-      <div ref={rollingWeekStripRef} className="overflow-x-auto pb-1">
-        <div
-          className={`${ROLLING_WEEK_GRID_LABELS_BASE_CLASS} ${
-            ROLLING_WEEK_GRID_WIDTH_BY_VIEW[viewMode === "day" ? "day" : "three_day"]
-          }`}
-        >
-          {focusedWeekDays.map((day) => (
-            <span key={`rolling-week-label-${day}`}>
-              {format(parse(day, "yyyy-MM-dd", new Date()), "EEE d")}
-            </span>
-          ))}
-        </div>
-        <div
-          data-rolling-week-grid="cells"
-          className={`${ROLLING_WEEK_GRID_CELLS_BASE_CLASS} ${
-            ROLLING_WEEK_GRID_WIDTH_BY_VIEW[viewMode === "day" ? "day" : "three_day"]
-          }`}
-        >
-          {focusedWeekCells.map(renderCalendarDayCell)}
-        </div>
-      </div>
-    </div>
-  );
-
-  const restWeekdaysField = (
-    <div className="space-y-2 text-sm">
-      <p>Rest weekdays</p>
-      <div className="flex flex-wrap gap-2">
-        {restWeekdayOptions.map((option) => (
-          <label
-            key={option.label}
-            className="inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs"
-          >
-            <input
-              type="checkbox"
-              checked={setupRestWeekdays.includes(option.value)}
-              onChange={(event) =>
-                setSetupRestWeekdays((previous) =>
-                  event.target.checked
-                    ? Array.from(new Set([...previous, option.value])).sort(
-                        (left, right) => left - right
-                      )
-                    : previous.filter((weekday) => weekday !== option.value)
-                )
-              }
-            />
-            {option.label}
-          </label>
-        ))}
-      </div>
-    </div>
+    <PlannerRollingWeekStrip
+      rollingWeekStripRef={rollingWeekStripRef}
+      viewMode={viewMode}
+      focusedWeekDays={focusedWeekDays}
+      focusedWeekCells={focusedWeekCells}
+      renderCalendarDayCell={renderCalendarDayCell}
+    />
   );
 
   const plannerSettingsForm = (
-    <div className="space-y-4">
-      <p className="text-sm text-muted-foreground">
-        Timezone and first-day-of-week preferences now live in Profile settings.
-      </p>
-      {restWeekdaysField}
-      <Button type="button" onClick={submitSetup} disabled={setupLoading}>
-        {setupLoading ? "Saving settings..." : "Save settings"}
-      </Button>
-      {!plannerReadOnly ? (
-        <div className="space-y-2 rounded-md border p-3">
-          <p className="text-xs text-muted-foreground">
-            Use these tools to refresh the current calendar projection or clear lock-based
-            blockers.
-          </p>
-          <div className="flex flex-wrap gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => void recoverPastSessions()}
-              title="Re-place uncompleted sessions left behind in the past"
-              disabled={recoverLoading || loading || saveLoading || !canRecoverPastSessions}
-            >
-              {recoverLoading ? "Recovering..." : "Recover"}
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={resetPlan}
-              title={!canResetPlan ? "No locked goals to unlock." : undefined}
-              disabled={loading || resetLoading || !canResetPlan}
-            >
-              {resetLoading ? "Unlocking..." : "Unlock all goals"}
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={rebuildSchedule}
-              title={rebuildBlockedMessage}
-              disabled={rebuildLoading || loading || hasDraftSession || !canShowSaveAction}
-            >
-              {rebuildLoading ? "Refreshing..." : "Refresh calendar"}
-            </Button>
-          </div>
-        </div>
-      ) : null}
-      <div className="space-y-2 rounded-md border border-destructive/30 bg-destructive/5 p-3">
-        <p className="text-xs text-muted-foreground">
-          Full reset clears planner schedule snapshots across the active 24-month horizon.
-        </p>
-        <Button
-          type="button"
-          variant="destructive"
-          onClick={() => void resetPlanFully()}
-          disabled={fullResetLoading || loading || resetLoading}
-        >
-          {fullResetLoading ? "Running full reset..." : "Full reset planner"}
-        </Button>
-      </div>
-    </div>
+    <PlannerSettingsForm
+      setupRestWeekdays={setupRestWeekdays}
+      onSetupRestWeekdaysChange={setSetupRestWeekdays}
+      setupLoading={setupLoading}
+      plannerReadOnly={plannerReadOnly}
+      recoverLoading={recoverLoading}
+      loading={loading}
+      saveLoading={saveLoading}
+      canRecoverPastSessions={canRecoverPastSessions}
+      canResetPlan={canResetPlan}
+      resetLoading={resetLoading}
+      rebuildLoading={rebuildLoading}
+      hasDraftSession={hasDraftSession}
+      canShowSaveAction={canShowSaveAction}
+      rebuildBlockedMessage={rebuildBlockedMessage}
+      fullResetLoading={fullResetLoading}
+      onSaveSettings={() => {
+        void submitSetup();
+      }}
+      onRecover={() => {
+        void recoverPastSessions();
+      }}
+      onUnlockAllGoals={resetPlan}
+      onRefreshCalendar={() => {
+        void rebuildSchedule();
+      }}
+      onFullReset={() => {
+        void resetPlanFully();
+      }}
+    />
   );
 
   return (
