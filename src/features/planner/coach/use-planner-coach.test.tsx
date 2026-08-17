@@ -512,6 +512,9 @@ describe("usePlannerCoach", () => {
         })
       )
     );
+    await waitFor(() => {
+      expect(result.current.state.coachMessages).toHaveLength(20);
+    });
     await act(async () => {
       await result.current.actions.generateCoachGoalDrafts(19);
     });
@@ -595,6 +598,9 @@ describe("usePlannerCoach", () => {
         })
       )
     );
+    await waitFor(() => {
+      expect(result.current.state.coachMessages).toHaveLength(2);
+    });
     await act(async () => {
       await result.current.actions.generateCoachGoalDrafts(0);
       await result.current.actions.generateCoachGoalDrafts(1);
