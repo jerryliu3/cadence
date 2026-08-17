@@ -310,10 +310,14 @@ export function buildBulkGoalDraftsFromLlmGoals(
     if (normalizedMilestoneNames.length === 0) {
       return draft;
     }
-    const targetCount =
-      parseBulkGoalTargetCount(draft.target_count) ?? normalizedMilestoneNames.length;
+    const explicitTargetCount =
+      typeof goal.target_count === "number" && goal.target_count > 0
+        ? goal.target_count
+        : null;
+    const targetCount = explicitTargetCount ?? normalizedMilestoneNames.length;
     return withValidatedBulkGoalDraft({
       ...draft,
+      target_count: String(targetCount),
       milestone_names: buildMilestoneNameDrafts(
         targetCount,
         normalizedMilestoneNames
