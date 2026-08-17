@@ -1369,6 +1369,8 @@ describe("preparePlannerSchedule", () => {
       { unit_key: "total:1", scheduled_date: "2026-08-04" },
       { unit_key: "total:2", scheduled_date: "2026-08-04" },
     ];
+    // This state is not reachable from DB-backed planner_items because
+    // (goal_id, scheduled_date) is unique; it guards defensive parity invariants.
     const duplicateScheduledDateDeadlineRequired = new Set([
       "total:1",
       "total:2",

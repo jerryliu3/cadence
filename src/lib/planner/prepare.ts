@@ -423,9 +423,6 @@ async function prepareOnce({
         locked: item.locked,
         scheduledTimeOverride: item.scheduled_time,
       }));
-    // This pre-check uses requirement-valid persisted identities only, while the
-    // kernel receives all persisted base assignments (including stale rows) so it
-    // can reconcile and clear them during preparation.
     const goalWindowsState = buildGoalPreparationWindows({
       goal,
       asOfDate,
@@ -446,6 +443,9 @@ async function prepareOnce({
       effectiveEnd: goalWindowsState.effectiveEnd,
       weekStartsOn: policy.weekStartsOn ?? 1,
     });
+    // This pre-check uses requirement-valid persisted identities only, while the
+    // kernel receives all persisted base assignments (including stale rows) so it
+    // can reconcile and clear them during preparation.
     const completionCreditedUnitKeys = computeCompletionCreditedUnitKeys({
       goal,
       completions: completionsByGoalId.get(goal.id) ?? [],
@@ -551,9 +551,7 @@ async function prepareOnce({
         asOfDate,
         timezone,
         goals: [goal],
-        completions: preparation.snapshot.completions.filter(
-          (completion) => completion.goal_id === goal.id
-        ),
+        completions: completionsByGoalId.get(goal.id) ?? [],
         links: preparation.snapshot.links.filter(
           (link) =>
             link.sourceGoalId === goal.id || link.targetGoalId === goal.id
