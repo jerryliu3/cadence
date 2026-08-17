@@ -2,17 +2,12 @@
 
 import { format } from "date-fns";
 import {
-  ArrowLeft,
   ChevronDown,
   ChevronUp,
-  FileSpreadsheet,
   LoaderCircle,
-  ListChecks,
   Sparkles,
   Trash2,
-  Upload,
 } from "lucide-react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   type ChangeEvent,
@@ -51,6 +46,8 @@ import {
   GoalDateRangeFields,
   GoalDefaultTimeField,
 } from "@/features/goals/goal-schedule-fields";
+import { BulkGoalInputCard } from "@/features/today/bulk-goal-input-card";
+import { type BulkGoalDraft, type BulkInputMode } from "@/features/today/bulk-goal-types";
 import { getApiErrorMessage, postJson } from "@/lib/api/client";
 import { buildLoginHref } from "@/lib/auth/login-redirect";
 import { invalidatePlannerRelatedTabCaches } from "@/lib/cache/planner-tab-cache";
@@ -96,31 +93,6 @@ const columnAliases = {
   end_date: ["end_date", "end", "enddate", "due_date", "due"],
   default_local_time: ["default_local_time", "default_time", "time_of_day", "local_time"],
 } as const;
-
-interface BulkGoalDraft {
-  id: string;
-  sourceRowLabel: string;
-  include: boolean;
-  title: string;
-  description: string;
-  category_selection: CategorySelection;
-  custom_category: string;
-  color: string;
-  frequency_type: GoalFrequencyType;
-  recurrence_interval: RecurrenceInterval;
-  target_count: string;
-  milestone_names: string[];
-  start_date: string;
-  end_date: string;
-  default_local_time: string;
-  linked_target_goal_id: string;
-  link_target_search: string;
-  link_target_open: boolean;
-  advanced_open: boolean;
-  photo_file: File | null;
-  errors: string[];
-}
-
 interface LlmGoalDraftPayload {
   title?: string;
   description?: string | null;
@@ -132,8 +104,6 @@ interface LlmGoalDraftPayload {
   end_date?: string | null;
   default_local_time?: string | null;
 }
-
-type BulkInputMode = "natural_language" | "csv";
 
 interface BulkGoalFormProps {
   showBackButton?: boolean;
@@ -752,165 +722,25 @@ export function BulkGoalForm({
 
   return (
     <div className="space-y-5">
-      <Card className="shadow-sm">
-        <CardHeader>
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <div className="flex flex-wrap items-center gap-2">
-                <CardTitle>Create multiple goals</CardTitle>
-                {modeSwitchControl}
-              </div>
-              <CardDescription>
-                Describe goals with AI, paste CSV, or upload CSV/XLSX, then approve in one click.
-              </CardDescription>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="inline-flex items-center gap-1 rounded-lg border bg-muted/40 p-1">
-                <Button
-                  type="button"
-                  size="sm"
-                  variant={inputMode === "natural_language" ? "secondary" : "ghost"}
-                  className="h-8 rounded-md px-3"
-                  onClick={() => setInputMode("natural_language")}
-                >
-                  Natural language
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant={inputMode === "csv" ? "secondary" : "ghost"}
-                  className="h-8 rounded-md px-3"
-                  onClick={() => setInputMode("csv")}
-                >
-                  CSV
-                </Button>
-              </div>
-              {showBackButton ? (
-                onExit ? (
-                  <Button type="button" variant="outline" onClick={onExit}>
-                    <ArrowLeft className="size-4" />
-                    Back
-                  </Button>
-                ) : (
-                  <Button variant="outline" asChild>
-                    <Link href="/">
-                      <ArrowLeft className="size-4" />
-                      Back
-                    </Link>
-                  </Button>
-                )
-              ) : null}
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-5">
-          {inputMode === "natural_language" ? (
-            <section className="space-y-2">
-              <Label htmlFor="bulk-natural-language">Describe goals in natural language</Label>
-              <Textarea
-                id="bulk-natural-language"
-                value={naturalLanguageInput}
-                onChange={(event) => setNaturalLanguageInput(event.target.value)}
-                maxLength={8000}
-                placeholder={
-                  "Example: I want to run 4 times per week, read 20 books this year, and call my parents every Sunday."
-                }
-                className="min-h-28"
-              />
-              <div className="flex flex-wrap items-center gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={parseNaturalLanguageInput}
-                  disabled={parsing}
-                >
-                  {parsing ? (
-                    <LoaderCircle className="size-4 animate-spin" />
-                  ) : (
-                    <Sparkles className="size-4" />
-                  )}
-                  Parse natural language
-                </Button>
-              </div>
-            </section>
-          ) : (
-            <>
-              <section className="space-y-2">
-                <div className="rounded-lg border bg-muted/30 p-3 text-xs">
-                  <p className="font-medium text-foreground">Example CSV (2 goals)</p>
-                  <pre className="mt-2 overflow-x-auto whitespace-pre-wrap text-muted-foreground">
-                    {csvExample}
-                  </pre>
-                  <div className="mt-2">
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      onClick={() => setCsvInput(csvExample)}
-                    >
-                      Use this example
-                    </Button>
-                  </div>
-                </div>
-                <Label htmlFor="bulk-csv-input">Paste CSV content</Label>
-                <Textarea
-                  id="bulk-csv-input"
-                  value={csvInput}
-                  onChange={(event) => setCsvInput(event.target.value)}
-                  placeholder="title,description,category,color,frequency_type,recurrence_interval,target_count,milestone_names,start_date,end_date,default_local_time"
-                  className="min-h-36"
-                />
-                <div className="flex flex-wrap items-center gap-2">
-                  <Button type="button" variant="outline" onClick={parseCsvInput} disabled={parsing}>
-                    {parsing ? (
-                      <LoaderCircle className="size-4 animate-spin" />
-                    ) : (
-                      <ListChecks className="size-4" />
-                    )}
-                    Parse pasted CSV
-                  </Button>
-                </div>
-              </section>
-
-              <section className="space-y-2">
-                <Label htmlFor="bulk-file-upload">Upload file</Label>
-                <Input
-                  id="bulk-file-upload"
-                  type="file"
-                  accept=".csv,.xlsx,.xls"
-                  onChange={onFileChange}
-                />
-                <div className="flex flex-wrap items-center gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={parseUploadedFile}
-                    disabled={parsing}
-                  >
-                    {parsing ? (
-                      <LoaderCircle className="size-4 animate-spin" />
-                    ) : (
-                      <Upload className="size-4" />
-                    )}
-                    Parse uploaded file
-                  </Button>
-                  {uploadedFile ? (
-                    <Badge variant="secondary" className="inline-flex items-center gap-1">
-                      <FileSpreadsheet className="size-3.5" />
-                      {uploadedFile.name}
-                    </Badge>
-                  ) : null}
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Supported columns: title, description, category, color,
-                  frequency_type, recurrence_interval, target_count, milestone_names, start_date,
-                  end_date, default_local_time.
-                </p>
-              </section>
-            </>
-          )}
-        </CardContent>
-      </Card>
+      <BulkGoalInputCard
+        inputMode={inputMode}
+        onInputModeChange={setInputMode}
+        modeSwitchControl={modeSwitchControl}
+        showBackButton={showBackButton}
+        onExit={onExit}
+        naturalLanguageInput={naturalLanguageInput}
+        onNaturalLanguageInputChange={setNaturalLanguageInput}
+        csvInput={csvInput}
+        onCsvInputChange={setCsvInput}
+        csvExample={csvExample}
+        onUseCsvExample={() => setCsvInput(csvExample)}
+        parsing={parsing}
+        onParseNaturalLanguage={parseNaturalLanguageInput}
+        onParseCsv={parseCsvInput}
+        onFileChange={onFileChange}
+        onParseUploadedFile={parseUploadedFile}
+        uploadedFileName={uploadedFile?.name ?? null}
+      />
 
       <Card className="shadow-sm">
         <CardHeader>
