@@ -12,6 +12,7 @@ import { supabase } from "../../lib/supabase";
 import { useTheme } from "../../theme";
 import { PrimaryButton } from "../../ui/button";
 import { LoadingScreen, Screen } from "../../ui/screen";
+import { UserAvatar } from "../../ui/user-avatar";
 import { useDuo } from "../duo/DuoProvider";
 import { createDuoLifecycleMutations } from "../duo/lifecycle";
 import {
@@ -42,13 +43,13 @@ export function SocialScreen() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("profiles")
-        .select("username")
+        .select("id,username,display_name,avatar_url")
         .eq("id", userId ?? "")
         .maybeSingle();
       if (error) {
         throw error;
       }
-      return data?.username ?? null;
+      return data ?? null;
     },
   });
 
@@ -255,19 +256,39 @@ export function SocialScreen() {
   return (
     <Screen title="Community">
       <View style={[styles.card, { borderColor: theme.colors.border }]}>
-        <Text style={{ color: theme.colors.foreground, fontWeight: "700" }}>
-          Signed in as{" "}
-          {viewerProfile.data ? `@${viewerProfile.data}` : "Cadence user"}
-        </Text>
-        <Text style={{ color: theme.colors.mutedForeground }}>
-          User id: {userId}
-        </Text>
+        <View style={styles.identityRow}>
+          <UserAvatar
+            avatarUrl={viewerProfile.data?.avatar_url ?? null}
+            displayName={viewerProfile.data?.display_name ?? null}
+            username={viewerProfile.data?.username ?? null}
+            size={42}
+          />
+          <View style={{ gap: 2 }}>
+            <Text style={{ color: theme.colors.foreground, fontWeight: "700" }}>
+              Signed in as{" "}
+              {viewerProfile.data?.username
+                ? `@${viewerProfile.data.username}`
+                : "Cadence user"}
+            </Text>
+            <Text style={{ color: theme.colors.mutedForeground }}>
+              User id: {userId}
+            </Text>
+          </View>
+        </View>
       </View>
       {activePartner ? (
         <View style={[styles.card, { borderColor: theme.colors.border }]}>
-          <Text style={{ color: theme.colors.foreground, fontWeight: "700" }}>
-            Active team with {partnerLabel}
-          </Text>
+          <View style={styles.identityRow}>
+            <UserAvatar
+              avatarUrl={activePartner.partnerAvatarUrl}
+              displayName={activePartner.partnerDisplayName}
+              username={activePartner.partnerUsername}
+              size={38}
+            />
+            <Text style={{ color: theme.colors.foreground, fontWeight: "700" }}>
+              Active team with {partnerLabel}
+            </Text>
+          </View>
           <Text style={{ color: theme.colors.mutedForeground }}>
             Partner id: {activePartner.partnerId}
           </Text>
@@ -340,9 +361,17 @@ export function SocialScreen() {
         </View>
       ) : incomingInvite ? (
         <View style={[styles.card, { borderColor: theme.colors.border }]}>
-          <Text style={{ color: theme.colors.foreground, fontWeight: "700" }}>
-            Incoming invite from {pendingLabel}
-          </Text>
+          <View style={styles.identityRow}>
+            <UserAvatar
+              avatarUrl={incomingInvite.partnerAvatarUrl}
+              displayName={incomingInvite.partnerDisplayName}
+              username={incomingInvite.partnerUsername}
+              size={38}
+            />
+            <Text style={{ color: theme.colors.foreground, fontWeight: "700" }}>
+              Incoming invite from {pendingLabel}
+            </Text>
+          </View>
           <Text style={{ color: theme.colors.mutedForeground }}>
             Acknowledge visibility before accepting.
           </Text>
@@ -377,9 +406,17 @@ export function SocialScreen() {
         </View>
       ) : outgoingInvite ? (
         <View style={[styles.card, { borderColor: theme.colors.border }]}>
-          <Text style={{ color: theme.colors.foreground, fontWeight: "700" }}>
-            Invite pending with {pendingLabel}
-          </Text>
+          <View style={styles.identityRow}>
+            <UserAvatar
+              avatarUrl={outgoingInvite.partnerAvatarUrl}
+              displayName={outgoingInvite.partnerDisplayName}
+              username={outgoingInvite.partnerUsername}
+              size={38}
+            />
+            <Text style={{ color: theme.colors.foreground, fontWeight: "700" }}>
+              Invite pending with {pendingLabel}
+            </Text>
+          </View>
           <Text style={{ color: theme.colors.mutedForeground }}>
             Waiting for your partner to accept.
           </Text>
@@ -434,14 +471,24 @@ export function SocialScreen() {
                   },
                 ]}
               >
-                <Text
-                  style={{ color: theme.colors.foreground, fontWeight: "700" }}
-                >
-                  @{profile.username}
-                </Text>
-                <Text style={{ color: theme.colors.mutedForeground }}>
-                  {profile.display_name}
-                </Text>
+                <View style={styles.identityRow}>
+                  <UserAvatar
+                    avatarUrl={profile.avatar_url}
+                    displayName={profile.display_name}
+                    username={profile.username}
+                    size={34}
+                  />
+                  <View>
+                    <Text
+                      style={{ color: theme.colors.foreground, fontWeight: "700" }}
+                    >
+                      @{profile.username}
+                    </Text>
+                    <Text style={{ color: theme.colors.mutedForeground }}>
+                      {profile.display_name}
+                    </Text>
+                  </View>
+                </View>
               </Pressable>
             );
           })}
@@ -494,6 +541,11 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     padding: 12,
     gap: 2,
+  },
+  identityRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
   },
   input: {
     borderWidth: 1,

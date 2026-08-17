@@ -7,6 +7,7 @@ import {
   type DuoLaneSubject,
   type DuoScope,
 } from "@cadence/shared/social/duo";
+import { UserAvatar } from "@/components/user-avatar";
 export type { DuoLaneSubject, DuoScope } from "@cadence/shared/social/duo";
 
 export function DuoLanes({
@@ -52,6 +53,13 @@ export function DuoLanes({
         >
           {scope !== "me" ? (
             <div className="flex min-h-6 items-center gap-2 px-1">
+              <UserAvatar
+                avatarUrl={subject.avatarUrl ?? null}
+                displayName={subject.label}
+                username={null}
+                size="sm"
+                alt={`${subject.label} avatar`}
+              />
               <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                 {subject.label}
               </span>

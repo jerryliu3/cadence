@@ -167,6 +167,7 @@ export function InsightsScreen() {
                   <InsightsLaneSection
                     showHeading={Boolean(renderModel.heading)}
                     headingLabel={renderModel.heading?.label ?? lane.label}
+                    headingAvatarUrl={lane.avatarUrl}
                     readOnly={Boolean(renderModel.heading?.readOnly)}
                     tone="muted"
                     message={`Loading ${lane.label.toLowerCase()} insights...`}
@@ -181,6 +182,7 @@ export function InsightsScreen() {
                   <InsightsLaneSection
                     showHeading={Boolean(renderModel.heading)}
                     headingLabel={renderModel.heading?.label ?? lane.label}
+                    headingAvatarUrl={lane.avatarUrl}
                     readOnly={Boolean(renderModel.heading?.readOnly)}
                     tone="muted"
                     message="Partner insights are unavailable."
@@ -195,6 +197,7 @@ export function InsightsScreen() {
                   <InsightsLaneSection
                     showHeading={Boolean(renderModel.heading)}
                     headingLabel={renderModel.heading?.label ?? lane.label}
+                    headingAvatarUrl={lane.avatarUrl}
                     readOnly={Boolean(renderModel.heading?.readOnly)}
                     tone="destructive"
                     message={
@@ -214,6 +217,7 @@ export function InsightsScreen() {
                 <InsightsLaneSection
                   showHeading={Boolean(renderModel.heading)}
                   headingLabel={renderModel.heading?.label ?? lane.label}
+                  headingAvatarUrl={lane.avatarUrl}
                   readOnly={Boolean(renderModel.heading?.readOnly)}
                 >
                   <InsightsActivitySummaryRow
@@ -258,6 +262,7 @@ export function InsightsScreen() {
               key={lane.id}
               showHeading={Boolean(renderModel.heading)}
               headingLabel={renderModel.heading?.label ?? lane.label}
+              headingAvatarUrl={lane.avatarUrl}
               readOnly={Boolean(renderModel.heading?.readOnly)}
               tone="muted"
               message={`Loading ${lane.label.toLowerCase()} insights...`}
@@ -271,6 +276,7 @@ export function InsightsScreen() {
               key={lane.id}
               showHeading={Boolean(renderModel.heading)}
               headingLabel={renderModel.heading?.label ?? lane.label}
+              headingAvatarUrl={lane.avatarUrl}
               readOnly={Boolean(renderModel.heading?.readOnly)}
               tone="muted"
               message="Partner insights are unavailable."
@@ -284,6 +290,7 @@ export function InsightsScreen() {
               key={lane.id}
               showHeading={Boolean(renderModel.heading)}
               headingLabel={renderModel.heading?.label ?? lane.label}
+              headingAvatarUrl={lane.avatarUrl}
               readOnly={Boolean(renderModel.heading?.readOnly)}
               tone="destructive"
               message={
@@ -302,6 +309,7 @@ export function InsightsScreen() {
               key={lane.id}
               showHeading={Boolean(renderModel.heading)}
               headingLabel={renderModel.heading?.label ?? lane.label}
+              headingAvatarUrl={lane.avatarUrl}
               readOnly={Boolean(renderModel.heading?.readOnly)}
             >
               <InsightsActivitySummaryRow
