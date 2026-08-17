@@ -568,7 +568,7 @@ describe("CalendarSurface characterization", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("shows actionable guidance for missing end date and linked-goal ineligibility", async () => {
+  it("hides linked-target ineligibility from the warning detail list", async () => {
     const context = buildContext([
       unit({
         originalGoalId: "goal-a",
@@ -583,7 +583,7 @@ describe("CalendarSurface characterization", () => {
       ...context.preview,
       eligibility: [
         { goalId: "goal-a", eligible: false, reason: "missing_end_date" },
-        { goalId: "goal-b", eligible: false, reason: "linked" },
+        { goalId: "goal-b", eligible: false, reason: "linked_target" },
       ],
     };
     postJsonMock.mockResolvedValue(context);
@@ -612,8 +612,13 @@ describe("CalendarSurface characterization", () => {
       )
     ).toBeInTheDocument();
     expect(
+      within(dialog).queryByText(
+        /Goal B: Linked target goals are managed by source completions and are hidden from Calendar\./i
+      )
+    ).not.toBeInTheDocument();
+    expect(
       within(dialog).getByText(
-        /Goal B: Linked goals are managed by their source relationship\./i
+        /1 additional goal is excluded automatically and does not require action\./i
       )
     ).toBeInTheDocument();
   });

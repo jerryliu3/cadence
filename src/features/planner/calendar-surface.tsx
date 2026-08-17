@@ -179,9 +179,11 @@ const NON_ACTIONABLE_ELIGIBILITY_REASONS = new Set([
   "not_owner",
   "deleted",
   "archived",
+  "linked_target",
 ]);
 const ELIGIBILITY_REASON_GROUP_LABELS: Partial<Record<EligibilityReason, string>> = {
   linked: "Linked goals",
+  linked_target: "Linked goals",
   missing_end_date: "Goals missing deadlines",
   invalid_date_range: "Goals with invalid date ranges",
   horizon_too_long: "Goals beyond the planning horizon",
@@ -192,6 +194,8 @@ const ELIGIBILITY_REASON_LABELS: Record<EligibilityReason, string> = {
   deleted: "Deleted goals are excluded from planning.",
   archived: "Archived goals are excluded from planning.",
   linked: "Linked goals are managed by their source relationship.",
+  linked_target:
+    "Linked target goals are managed by source completions and are hidden from Calendar.",
   missing_end_date:
     "This goal needs a deadline before it can be planned in Calendar.",
   invalid_date_range: "The goal dates are invalid (start is after end).",

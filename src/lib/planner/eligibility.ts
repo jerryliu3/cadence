@@ -32,8 +32,8 @@ function evaluateStaticEligibility(goal: EligibilityGoal): EligibilityDecision |
   if (goal.archivedAt !== null) {
     return { eligible: false, reason: "archived" };
   }
-  if (goal.currentLinkRole !== "none") {
-    return { eligible: false, reason: "linked" };
+  if (goal.currentLinkRole === "target") {
+    return { eligible: false, reason: "linked_target" };
   }
   if (goal.requiresDeadline !== false && goal.endDate === null) {
     return { eligible: false, reason: "missing_end_date" };

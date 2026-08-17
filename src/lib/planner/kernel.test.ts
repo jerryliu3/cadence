@@ -706,18 +706,31 @@ describe("pure planner kernel", () => {
     );
   });
 
-  it("excludes either side of a current goal link", () => {
+  it("schedules linked sources while keeping linked targets ineligible", () => {
+    const sourceGoal = goal({ id: "goal-a", target_count: 2 });
+    const targetGoal = goal({ id: "goal-b", target_count: 2 });
     const output = runPlannerKernel(
       input({
+        goals: [sourceGoal, targetGoal],
         links: [{ sourceGoalId: "goal-a", targetGoalId: "goal-b" }],
       })
     );
 
-    expect(output.eligibility[0]).toMatchObject({
-      eligible: false,
-      reason: "linked",
+    expect(
+      output.eligibility.find((entry) => entry.goalId === "goal-a")
+    ).toMatchObject({
+      eligible: true,
+      reason: "eligible",
     });
-    expect(output.workUnits).toEqual([]);
+    expect(
+      output.eligibility.find((entry) => entry.goalId === "goal-b")
+    ).toMatchObject({
+      eligible: false,
+      reason: "linked_target",
+    });
+    expect(output.workUnits.every((unit) => unit.originalGoalId === "goal-a")).toBe(
+      true
+    );
   });
 
   it("honors locks that invert ordinal order", () => {
