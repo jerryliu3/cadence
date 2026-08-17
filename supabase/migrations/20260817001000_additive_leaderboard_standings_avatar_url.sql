@@ -136,3 +136,8 @@ begin
   offset v_offset;
 end;
 $$;
+
+revoke all on function public.get_leaderboard_standings(uuid, integer, integer)
+from public, anon;
+grant execute on function public.get_leaderboard_standings(uuid, integer, integer)
+to authenticated;
