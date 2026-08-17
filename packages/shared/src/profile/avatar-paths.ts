@@ -1,11 +1,11 @@
-const AVATAR_OBJECT_FILE_NAME = "avatar.jpg";
+export const AVATAR_OBJECT_FILE_NAME = "avatar.jpg";
 const AVATAR_PUBLIC_PATH_PREFIX = "/storage/v1/object/public/avatars/";
 
-export function getMobileCanonicalAvatarObjectPath(userId: string) {
+export function getCanonicalAvatarObjectPath(userId: string) {
   return `${userId}/${AVATAR_OBJECT_FILE_NAME}`;
 }
 
-export function resolveMobileAvatarObjectPathFromUrl(avatarUrl: string | null) {
+export function resolveAvatarObjectPathFromPublicUrl(avatarUrl: string | null) {
   if (!avatarUrl) {
     return null;
   }
@@ -23,7 +23,7 @@ export function resolveMobileAvatarObjectPathFromUrl(avatarUrl: string | null) {
   }
 }
 
-export function buildMobileAvatarCleanupPathsForProfileChange({
+export function buildAvatarCleanupPathsForProfileChange({
   userId,
   previousAvatarUrl,
   nextAvatarUrl,
@@ -32,12 +32,12 @@ export function buildMobileAvatarCleanupPathsForProfileChange({
   previousAvatarUrl: string | null;
   nextAvatarUrl: string | null;
 }) {
-  const previousObjectPath = resolveMobileAvatarObjectPathFromUrl(previousAvatarUrl);
-  const nextObjectPath = resolveMobileAvatarObjectPathFromUrl(nextAvatarUrl);
+  const previousObjectPath = resolveAvatarObjectPathFromPublicUrl(previousAvatarUrl);
+  const nextObjectPath = resolveAvatarObjectPathFromPublicUrl(nextAvatarUrl);
   const cleanupPaths = new Set<string>();
 
   if (!nextAvatarUrl) {
-    cleanupPaths.add(getMobileCanonicalAvatarObjectPath(userId));
+    cleanupPaths.add(getCanonicalAvatarObjectPath(userId));
     if (previousObjectPath?.startsWith(`${userId}/`)) {
       cleanupPaths.add(previousObjectPath);
     }

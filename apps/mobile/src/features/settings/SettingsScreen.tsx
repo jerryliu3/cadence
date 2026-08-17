@@ -31,6 +31,7 @@ import {
   getMobileAvatarValidationError,
   uploadMobileProfileAvatar,
 } from "../../lib/profile/avatar-upload";
+import { buildMobileProfileQueryOptions } from "../social/mobile-profile-query";
 
 interface NotificationSchedule {
   id: string;
@@ -62,19 +63,7 @@ export function SettingsScreen() {
   const mountedRef = useRef(true);
 
   const profile = useQuery({
-    queryKey: ["mobile-profile", userId],
-    enabled: Boolean(userId),
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("id,username,display_name,avatar_url")
-        .eq("id", userId ?? "")
-        .maybeSingle();
-      if (error) {
-        throw error;
-      }
-      return data ?? null;
-    },
+    ...buildMobileProfileQueryOptions({ userId }),
   });
 
   const schedules = useQuery({

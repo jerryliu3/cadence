@@ -1,20 +1,20 @@
 import * as ImageManipulator from "expo-image-manipulator";
 import type { ImagePickerAsset } from "expo-image-picker";
-import { mobileEnv } from "../../config/env";
 import {
-  buildMobileAvatarCleanupPathsForProfileChange,
-  getMobileCanonicalAvatarObjectPath,
-  resolveMobileAvatarObjectPathFromUrl,
-} from "./avatar-upload-paths";
+  buildAvatarCleanupPathsForProfileChange,
+  getCanonicalAvatarObjectPath,
+  resolveAvatarObjectPathFromPublicUrl,
+} from "@cadence/shared/profile/avatar-paths";
+import { mobileEnv } from "../../config/env";
 import { supabase } from "../supabase";
 
 const AVATAR_BUCKET = "avatars";
 const AVATAR_MAX_BYTES = 5 * 1024 * 1024;
 
 export {
-  buildMobileAvatarCleanupPathsForProfileChange,
-  getMobileCanonicalAvatarObjectPath,
-  resolveMobileAvatarObjectPathFromUrl,
+  buildAvatarCleanupPathsForProfileChange as buildMobileAvatarCleanupPathsForProfileChange,
+  getCanonicalAvatarObjectPath as getMobileCanonicalAvatarObjectPath,
+  resolveAvatarObjectPathFromPublicUrl as resolveMobileAvatarObjectPathFromUrl,
 };
 
 async function decodeBase64(base64: string) {
@@ -62,7 +62,7 @@ export async function uploadMobileProfileAvatar({
     throw new Error("Could not read avatar photo.");
   }
 
-  const objectPath = getMobileCanonicalAvatarObjectPath(userId);
+  const objectPath = getCanonicalAvatarObjectPath(userId);
   const {
     data: { publicUrl },
   } = supabase.storage.from(AVATAR_BUCKET).getPublicUrl(objectPath);
