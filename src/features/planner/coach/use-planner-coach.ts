@@ -67,7 +67,10 @@ interface CoachProposalApplyResult {
 
 type CoachProposalApplyStatus = CoachProposalAutoApplyStatus;
 
-function coachGoalDraftRuntimeKey(proposal: CoachGoalDraftMessageProposal) {
+function coachGoalDraftRuntimeKey(
+  _message: CoachMessage,
+  proposal: CoachGoalDraftMessageProposal
+) {
   return proposal.proposalId;
 }
 
@@ -107,7 +110,6 @@ export function usePlannerCoach({
     string | null
   >(null);
   const parsingGoalDraftMessagesRef = useRef(new Set<string>());
-  const autoParseGoalDraftProposalIdsRef = useRef(new Set<string>());
 
   const resetCoachUiState = useCallback((messages: CoachMessage[] = []) => {
     setCoachMessages(messages);
@@ -116,10 +118,7 @@ export function usePlannerCoach({
     setCoachUnresolvedQuestions([]);
     setCoachContextEvents([]);
     setCoachGoalDraftStatesByKey({});
-    setCoachGoalRefreshStatus("idle");
-    setCoachGoalRefreshError(null);
     parsingGoalDraftMessagesRef.current.clear();
-    autoParseGoalDraftProposalIdsRef.current.clear();
   }, []);
 
   const appendCoachContextEvent = useCallback((event: string) => {
@@ -149,7 +148,7 @@ export function usePlannerCoach({
       ) {
         return;
       }
-      const runtimeKey = coachGoalDraftRuntimeKey(proposal);
+      const runtimeKey = coachGoalDraftRuntimeKey(message, proposal);
       if (parsingGoalDraftMessagesRef.current.has(runtimeKey)) {
         return;
       }
@@ -206,13 +205,11 @@ export function usePlannerCoach({
       if (
         message.proposal &&
         isCoachGoalDraftProposal(message.proposal) &&
-        autoParseGoalDraftProposalIdsRef.current.has(message.proposal.proposalId) &&
         message.proposal.creationStatus !== "created" &&
-        !coachGoalDraftStatesByKey[coachGoalDraftRuntimeKey(message.proposal)]
+        !coachGoalDraftStatesByKey[
+          coachGoalDraftRuntimeKey(message, message.proposal)
+        ]
       ) {
-        autoParseGoalDraftProposalIdsRef.current.delete(
-          message.proposal.proposalId
-        );
         void generateCoachGoalDrafts(messageIndex);
       }
     }
@@ -223,7 +220,7 @@ export function usePlannerCoach({
       const message = coachMessages[messageIndex];
       const proposal = message?.proposal;
       if (!message || !proposal || !isCoachGoalDraftProposal(proposal)) return;
-      const runtimeKey = coachGoalDraftRuntimeKey(proposal);
+      const runtimeKey = coachGoalDraftRuntimeKey(message, proposal);
       setCoachGoalDraftStatesByKey((previous) => {
         const state = previous[runtimeKey];
         if (!state) return previous;
@@ -266,20 +263,20 @@ export function usePlannerCoach({
   });
 
   const saveCoachConversation = useCallback(async () => {
-    if (coachGoalRefreshStatus === "refreshing") return;
+    if (coachGoalRefreshStatus !== "idle") return;
     await saveCoachConversationInternal();
   }, [coachGoalRefreshStatus, saveCoachConversationInternal]);
 
   const restoreSavedCoachConversation = useCallback(
     async (conversationId: string) => {
-      if (coachGoalRefreshStatus === "refreshing") return;
+      if (coachGoalRefreshStatus !== "idle") return;
       await restoreSavedCoachConversationInternal(conversationId);
     },
     [coachGoalRefreshStatus, restoreSavedCoachConversationInternal]
   );
 
   const startNewCoachConversation = useCallback(() => {
-    if (coachGoalRefreshStatus === "refreshing") return;
+    if (coachGoalRefreshStatus !== "idle") return;
     startNewCoachConversationInternal();
   }, [coachGoalRefreshStatus, startNewCoachConversationInternal]);
 
@@ -536,9 +533,6 @@ export function usePlannerCoach({
               creationStatus: "not_created",
             }
           : null;
-      if (goalDraftProposal) {
-        autoParseGoalDraftProposalIdsRef.current.add(goalDraftProposal.proposalId);
-      }
       const assistantMessage: CoachMessage = {
         role: "assistant",
         content: buildAssistantMessage({
@@ -614,7 +608,7 @@ export function usePlannerCoach({
       ) {
         return;
       }
-      const runtimeKey = coachGoalDraftRuntimeKey(proposal);
+      const runtimeKey = coachGoalDraftRuntimeKey(message, proposal);
       const draftState = coachGoalDraftStatesByKey[runtimeKey];
       if (
         !draftState ||
@@ -883,7 +877,9 @@ export function usePlannerCoach({
             isCoachGoalDraftProposal(message.proposal)
           ) {
             const state =
-              coachGoalDraftStatesByKey[coachGoalDraftRuntimeKey(message.proposal)];
+              coachGoalDraftStatesByKey[
+                coachGoalDraftRuntimeKey(message, message.proposal)
+              ];
             if (state) states[index] = state;
           }
           return states;

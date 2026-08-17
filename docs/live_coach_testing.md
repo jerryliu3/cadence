@@ -46,7 +46,7 @@ structured-output/compiler failure mode.
 Use the calendar surface explicitly; the default planner surface is the
 checklist:
 
-1. Open `/calendar?surface=calendar` and open AI Coach.
+1. Open `/today?surface=calendar` and open AI Coach.
 2. Ask: `Create a 5k running plan for the next four weeks.`
 3. Confirm the coach renders no more than five recurring goal drafts inline
    (for example, weekly easy run and weekly long run), rather than one goal per
@@ -68,8 +68,7 @@ Also exercise these failure paths:
 - Exhaust or stub the bulk parser quota and confirm `quota_exceeded` or
   `rate_limited` copy appears inline with `Generate again`.
 - Return six parser goals and confirm the proposal is rejected with guidance to
-  simplify it to five or fewer recurring goals (no retry button should appear
-  for this overflow case).
+  simplify it to five or fewer recurring goals.
 - Use a plan whose requested workload cannot fully fit in the planner window.
   Goal creation should still succeed; placement limitations should appear
   through the normal planner unplaceable-goal messaging after refresh.

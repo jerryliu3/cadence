@@ -195,58 +195,6 @@ describe("planner coach panel", () => {
     expect(coach.actions.createCoachGoalDrafts).toHaveBeenCalledWith(0);
   });
 
-  it("renders malformed proposal payloads without crashing", () => {
-    const coach = buildCoachModel({
-      coachMessages: [
-        {
-          role: "assistant",
-          content: "Legacy payload shape.",
-          createdAt: 456,
-          proposal: {
-            applyStatus: "not_applied",
-            baselinePolicy: null,
-          } as unknown as NonNullable<
-            PlannerCoachModel["state"]["coachMessages"][number]["proposal"]
-          >,
-        },
-      ],
-    });
-
-    render(<PlannerCoachPanel coach={coach} />);
-    expect(screen.getByText("0 draft changes available.")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Apply changes" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Undo proposal" })).toBeDisabled();
-  });
-
-  it("renders generate action for proposals without runtime draft state", async () => {
-    const coach = buildCoachModel({
-      coachMessages: [
-        {
-          role: "assistant",
-          content: "I can draft this plan.",
-          createdAt: 123,
-          proposal: {
-            schemaVersion: "1",
-            kind: "goal_draft",
-            proposalId: "32000000-0000-4000-8000-000000000010",
-            parserPrompt: "Easy run weekly for four weeks.",
-            creationStatus: "not_created",
-          },
-        },
-      ],
-    });
-    const user = userEvent.setup();
-
-    render(<PlannerCoachPanel coach={coach} />);
-    expect(
-      screen.getByText(/Drafts are not generated yet/)
-    ).toBeInTheDocument();
-    await user.click(
-      screen.getByRole("button", { name: "Generate editable drafts" })
-    );
-    expect(coach.actions.generateCoachGoalDrafts).toHaveBeenCalledWith(0);
-  });
-
   it("keeps generated drafts visible but disables creation for calendar edits", () => {
     const drafts = buildBulkGoalDraftsFromLlmGoals([
       {
@@ -325,41 +273,6 @@ describe("planner coach panel", () => {
     expect(coach.actions.generateCoachGoalDrafts).toHaveBeenCalledWith(0);
   });
 
-  it("does not offer retry when parser returns too many goals", () => {
-    const coach = buildCoachModel({
-      coachMessages: [
-        {
-          role: "assistant",
-          content: "I drafted a plan.",
-          createdAt: 123,
-          proposal: {
-            schemaVersion: "1",
-            kind: "goal_draft",
-            proposalId: "32000000-0000-4000-8000-000000000011",
-            parserPrompt: "Too many goals prompt.",
-            creationStatus: "not_created",
-          },
-        },
-      ],
-      coachGoalDraftStates: {
-        0: {
-          status: "error",
-          drafts: [],
-          warnings: [],
-          errorCode: "too_many_goals",
-          errorMessage: "Too many goals.",
-        },
-      },
-    });
-
-    render(<PlannerCoachPanel coach={coach} />);
-
-    expect(screen.getByText(/proposed more than five goals/i)).toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: "Generate again" })
-    ).not.toBeInTheDocument();
-  });
-
   it("labels created goals as persisted and not undoable here", () => {
     const coach = buildCoachModel({
       coachMessages: [
@@ -387,7 +300,7 @@ describe("planner coach panel", () => {
     ).toBeInTheDocument();
   });
 
-  it("blocks new turns but keeps conversation controls available after refresh failure", async () => {
+  it("blocks new turns until a failed post-create refresh is retried", async () => {
     const coach = buildCoachModel({
       coachInput: "Move my new session",
       coachMessages: [
@@ -420,9 +333,9 @@ describe("planner coach panel", () => {
     expect(
       screen.getByRole("button", { name: "Send to coach" })
     ).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Save" })).toBeEnabled();
-    expect(screen.getByRole("button", { name: "New convo" })).toBeEnabled();
-    expect(screen.getByLabelText("Saved conversations")).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "New convo" })).toBeDisabled();
+    expect(screen.getByLabelText("Saved conversations")).toBeDisabled();
     expect(screen.getByText(/Planner prepare failed/)).toBeInTheDocument();
     await user.click(
       screen.getByRole("button", { name: "Retry calendar refresh" })

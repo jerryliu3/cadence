@@ -1,4 +1,4 @@
-import { format, parseISO } from "date-fns";
+import { format, isValid, parseISO } from "date-fns";
 import { toLocalDateString } from "@/lib/dates/day";
 import {
   type CategorySelection,
@@ -318,9 +318,16 @@ export function summarizeBulkGoalDraftSchedule(draft: BulkGoalDraft): string {
     draft.frequency_type === "recurring"
       ? `${draft.recurrence_interval[0]!.toUpperCase()}${draft.recurrence_interval.slice(1)}`
       : `${draft.target_count || "0"} milestones`;
-  const start = format(parseISO(draft.start_date), "MMM d");
+  const parsedStart = parseISO(draft.start_date);
+  if (!isValid(parsedStart)) {
+    return `${cadence} · Start date required`;
+  }
+  const start = format(parsedStart, "MMM d");
+  const parsedEnd = draft.end_date ? parseISO(draft.end_date) : null;
   const range = draft.end_date
-    ? `${start} – ${format(parseISO(draft.end_date), "MMM d")}`
+    ? `${start} – ${
+        parsedEnd && isValid(parsedEnd) ? format(parsedEnd, "MMM d") : "Invalid end"
+      }`
     : `Starts ${start}`;
   return `${cadence} · ${range}`;
 }

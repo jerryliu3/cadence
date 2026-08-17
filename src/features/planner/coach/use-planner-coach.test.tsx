@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { usePlannerCoach } from "@/features/planner/coach/use-planner-coach";
 import type { UsePlannerCoachArgs } from "@/features/planner/coach/coach-types";
 import { isCoachPolicyProposal } from "@/features/planner/coach/coach-message-state";
+import { buildBulkGoalDraftsFromLlmGoals } from "@/features/goals/bulk-goal-drafts";
 import type {
   CoachMessage,
   PlannerContextPayload,
@@ -339,56 +340,6 @@ describe("usePlannerCoach", () => {
     expect(result.current.state.coachGoalDraftStates[1]?.drafts).toEqual(drafts);
   });
 
-  it("does not auto-parse restored goal draft proposals on mount", async () => {
-    loadCoachSessionMock.mockReturnValue([
-      {
-        role: "assistant",
-        content: "Restored proposal",
-        createdAt: 1,
-        proposal: {
-          schemaVersion: "1",
-          kind: "goal_draft",
-          proposalId: "35000000-0000-4000-8000-000000000001",
-          parserPrompt: "Restored mobility weekly plan.",
-          creationStatus: "not_created",
-        },
-      },
-    ]);
-    const drafts = buildBulkGoalDraftsFromLlmGoals([
-      {
-        title: "Mobility",
-        frequency_type: "recurring",
-        recurrence_interval: "weekly",
-        start_date: "2026-08-17",
-      },
-    ]);
-    parseCoachGoalDraftsMock.mockResolvedValue({ drafts, warnings: [] });
-    const context = buildContext();
-    const { result } = renderHook(() =>
-      usePlannerCoach(
-        buildArgs({
-          activeTab: "calendar",
-          context,
-          effectivePreview: context.preview,
-        })
-      )
-    );
-
-    await waitFor(() => expect(loadCoachSessionMock).toHaveBeenCalled());
-    expect(result.current.state.coachMessages).toHaveLength(1);
-    expect(parseCoachGoalDraftsMock).not.toHaveBeenCalled();
-
-    await act(async () => {
-      await result.current.actions.generateCoachGoalDrafts(0);
-    });
-
-    expect(parseCoachGoalDraftsMock).toHaveBeenCalledWith({
-      parserPrompt: "Restored mobility weekly plan.",
-      timezone: "UTC",
-    });
-    expect(result.current.state.coachGoalDraftStates[0]?.status).toBe("ready");
-  });
-
   it("preserves a goal proposal and supports retry after parser quota errors", async () => {
     requestPlannerCoachReplyMock.mockResolvedValue({
       schemaVersion: "1",
@@ -512,14 +463,10 @@ describe("usePlannerCoach", () => {
       )
     );
     await waitFor(() => {
-      expect(result.current.state.coachMessages).toHaveLength(20);
+      expect(result.current.state.coachGoalDraftStates[19]?.drafts[0]?.title).toBe(
+        "Old mobility"
+      );
     });
-    await act(async () => {
-      await result.current.actions.generateCoachGoalDrafts(19);
-    });
-    expect(result.current.state.coachGoalDraftStates[19]?.drafts[0]?.title).toBe(
-      "Old mobility"
-    );
 
     act(() => {
       result.current.actions.setCoachInput("Make a new running goal");
@@ -597,13 +544,6 @@ describe("usePlannerCoach", () => {
         })
       )
     );
-    await waitFor(() => {
-      expect(result.current.state.coachMessages).toHaveLength(2);
-    });
-    await act(async () => {
-      await result.current.actions.generateCoachGoalDrafts(0);
-      await result.current.actions.generateCoachGoalDrafts(1);
-    });
     await waitFor(() => {
       expect(result.current.state.coachGoalDraftStates[0]?.status).toBe("ready");
       expect(result.current.state.coachGoalDraftStates[1]?.status).toBe("ready");
@@ -868,71 +808,6 @@ describe("usePlannerCoach", () => {
     expect(createCoachGoalDraftsMock).toHaveBeenCalledTimes(1);
     expect(onGoalsCreated).toHaveBeenCalledTimes(2);
     expect(result.current.state.coachGoalRefreshStatus).toBe("idle");
-  });
-
-  it("clears failed refresh state when starting a new conversation", async () => {
-    requestPlannerCoachReplyMock.mockResolvedValue({
-      schemaVersion: "1",
-      phase: "ready",
-      reply: "I drafted a mobility goal.",
-      proposal: {
-        policyPatches: [],
-        unresolvedQuestions: [],
-        goalDraftPrompt: "Mobility weekly starting 2026-08-17.",
-      },
-      recommendations: [],
-      warnings: [],
-    });
-    const drafts = buildBulkGoalDraftsFromLlmGoals([
-      {
-        title: "Mobility",
-        frequency_type: "recurring",
-        recurrence_interval: "weekly",
-        start_date: "2026-08-17",
-      },
-    ]);
-    parseCoachGoalDraftsMock.mockResolvedValue({ drafts, warnings: [] });
-    createCoachGoalDraftsMock.mockResolvedValue({ createdCount: 1 });
-    const onGoalsCreated = vi
-      .fn()
-      .mockRejectedValueOnce(new Error("Planner preparation did not complete."));
-    const context = buildContext();
-    const { result } = renderHook(() =>
-      usePlannerCoach(
-        buildArgs({
-          activeTab: "calendar",
-          context,
-          effectivePreview: context.preview,
-          onGoalsCreated,
-        })
-      )
-    );
-    await waitFor(() => expect(loadCoachSessionMock).toHaveBeenCalled());
-
-    act(() => {
-      result.current.actions.setCoachInput("Make a mobility goal");
-    });
-    await act(async () => {
-      await result.current.actions.sendCoachMessage();
-    });
-    await waitFor(() => {
-      expect(result.current.state.coachGoalDraftStates[1]?.status).toBe("ready");
-    });
-    await act(async () => {
-      await result.current.actions.createCoachGoalDrafts(1);
-    });
-    expect(result.current.state.coachGoalRefreshStatus).toBe("failed");
-    expect(result.current.state.coachGoalRefreshError).toContain(
-      "Planner preparation did not complete"
-    );
-
-    act(() => {
-      result.current.actions.startNewCoachConversation();
-    });
-
-    expect(result.current.state.coachMessages).toEqual([]);
-    expect(result.current.state.coachGoalRefreshStatus).toBe("idle");
-    expect(result.current.state.coachGoalRefreshError).toBeNull();
   });
 
   it("keeps drafts visible but blocks creation during pending calendar edits", async () => {
