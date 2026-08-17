@@ -534,7 +534,21 @@ async function prepareOnce({
         ? existingUnplaceableRecord.unplacedCount
         : 0;
     const missingCount = missingRequiredUnitCount - accountedCount;
-    const goalNeedsPreparation = missingCount !== 0 || hasStalePersistedRows;
+    const hasInHorizonCoverage =
+      (persistedItemsInHorizonValidByGoalId.get(goal.id)?.length ?? 0) > 0 ||
+      completionCreditedUnitKeys.size > 0;
+    // A positive capacity row with no current in-horizon coverage can become
+    // stale even when lock/policy/requirement fingerprints still match; force
+    // a targeted re-solve so trivially placeable goals self-heal on refresh.
+    const shouldRecheckSparseCapacityRecord =
+      existingRecordIsValid &&
+      existingUnplaceableRecord !== null &&
+      existingUnplaceableRecord.reason === "capacity" &&
+      existingUnplaceableRecord.unplacedCount > 0 &&
+      missingCount === 0 &&
+      !hasInHorizonCoverage;
+    const goalNeedsPreparation =
+      missingCount !== 0 || hasStalePersistedRows || shouldRecheckSparseCapacityRecord;
     if (!goalNeedsPreparation) {
       if (
         existingRecordIsValid &&
