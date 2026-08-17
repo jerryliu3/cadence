@@ -10,6 +10,7 @@ import {
   Settings,
   SlidersHorizontal,
 } from "lucide-react";
+import Link from "next/link";
 import {
   useCallback,
   useEffect,
@@ -22,7 +23,6 @@ import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { AnchoredPopupCard } from "@/components/ui/anchored-popup-card";
 import { Button } from "@/components/ui/button";
-import { CompletionToggle } from "@/components/ui/completion-toggle";
 import {
   Dialog,
   DialogContent,
@@ -2784,15 +2784,6 @@ export function CalendarSurface({
   const saveButtonLabel = saveLoading ? "Saving..." : "Save plan";
   const readOnlyMonthHint =
     "This session belongs to another month snapshot. Open that month to edit it.";
-  const selectedEventCompletionDispatch = selectedEventEntry
-    ? getDateFactDispatchForEntry(selectedEventEntry)
-    : null;
-  const selectedEventCompletionDisabledReason = selectedEventEntry
-    ? completionControlDisabledReasonForEntry(
-        selectedEventEntry,
-        selectedEventCompletionDispatch
-      )
-    : null;
   const renderCalendarDayCell = (cell: { date: string; inMonth: boolean }) => {
     const entriesForDay = getOrderedEntriesForDay(cell.date);
     const completionFactMarkersForDay = getCompletionFactMarkersForDay(cell.date);
@@ -3677,7 +3668,7 @@ export function CalendarSurface({
               }
             }}
           >
-            <DialogContent>
+            <DialogContent className="overflow-x-hidden">
               <DialogHeader>
                 <DialogTitle>
                   {selectedEventEntry
@@ -3686,7 +3677,7 @@ export function CalendarSurface({
                 </DialogTitle>
               </DialogHeader>
               {selectedEventEntry ? (
-                <div className="space-y-3 text-sm">
+                <div className="min-w-0 space-y-3 text-sm">
                   {selectedEventEntry.hasLinkedTargets ? (
                     <LinkedTargetsNote
                       linkedTargets={selectedEventLinkedTargets}
@@ -3781,6 +3772,16 @@ export function CalendarSurface({
                             type="button"
                             size="sm"
                             variant="outline"
+                            asChild
+                          >
+                            <Link href={`/goals/${selectedEventEntry.originalGoalId}`}>
+                              Edit goal
+                            </Link>
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
                             onClick={() => void toggleItemLock(selectedEventEntry)}
                             disabled={
                               Boolean(mutationLoadingKey) ||
@@ -3794,55 +3795,7 @@ export function CalendarSurface({
                                 ? "Unlock"
                                 : "Lock"}
                           </Button>
-                          <div className="inline-flex items-center gap-2 rounded-md border px-2 py-1">
-                            <CompletionToggle
-                              completed={Boolean(
-                                selectedEventCompletionDispatch?.currentlyCredited
-                              )}
-                              pending={
-                                mutationLoadingKey === `fact:${selectedEventEntry.key}`
-                              }
-                              size="sm"
-                              onClick={(event) =>
-                                void toggleDateFact(
-                                  selectedEventEntry,
-                                  undefined,
-                                  event.currentTarget
-                                )
-                              }
-                              disabled={
-                                Boolean(mutationLoadingKey) ||
-                                selectedEventCompletionDisabledReason !== null
-                              }
-                              aria-label={
-                                selectedEventCompletionDispatch?.currentlyCredited
-                                  ? "Mark session not done"
-                                  : "Mark session done"
-                              }
-                              title={
-                                selectedEventCompletionDisabledReason
-                                  ? completionDisabledReasonCopy(
-                                      selectedEventCompletionDisabledReason
-                                    )
-                                  : "Toggle completion for this session"
-                              }
-                            />
-                            <span className="text-xs font-medium">
-                              {mutationLoadingKey === `fact:${selectedEventEntry.key}`
-                                ? "Saving..."
-                                : selectedEventCompletionDispatch?.currentlyCredited
-                                  ? "Undo done"
-                                  : "Mark done"}
-                            </span>
-                          </div>
                         </div>
-                      ) : null}
-                      {selectedEventCompletionDisabledReason ? (
-                        <p className="text-xs text-muted-foreground">
-                          {completionDisabledReasonCopy(
-                            selectedEventCompletionDisabledReason
-                          )}
-                        </p>
                       ) : null}
                     </div>
                   )}

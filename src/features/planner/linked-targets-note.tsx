@@ -38,15 +38,15 @@ export function LinkedTargetsNote({
         ? "1 linked target is hidden in this month."
         : `${hiddenCount} linked targets are hidden in this month.`;
   return (
-    <div className="rounded-md border border-dashed p-2 text-xs">
-      <div className="flex items-center gap-1.5 font-medium">
+    <div className="min-w-0 overflow-hidden rounded-md border border-dashed p-2 text-xs">
+      <div className="flex min-w-0 items-center gap-1.5 font-medium">
         <Link2 className="size-3.5" />
         <span>Linked targets</span>
       </div>
-      <p className="mt-1 text-muted-foreground">{summary}</p>
-      <ul className="mt-2 space-y-1 text-muted-foreground">
+      <p className="mt-1 break-words text-muted-foreground">{summary}</p>
+      <ul className="mt-2 min-w-0 space-y-1 text-muted-foreground">
         {rows.map((row) => (
-          <li key={row.targetGoalId} className="truncate">
+          <li key={row.targetGoalId} className="break-words">
             {row.title}: {describeLinkedTargetStatus(row.status)}
           </li>
         ))}

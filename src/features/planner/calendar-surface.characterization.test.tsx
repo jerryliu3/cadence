@@ -971,6 +971,11 @@ describe("CalendarSurface characterization", () => {
     });
 
     fireEvent.click(await screen.findByText("Next: Baseline"));
+    expect(await screen.findByRole("link", { name: "Edit goal" })).toHaveAttribute(
+      "href",
+      "/goals/goal-a"
+    );
+    expect(screen.queryByText("Mark done")).not.toBeInTheDocument();
     fireEvent.click(await screen.findByRole("button", { name: "Lock" }));
 
     await waitFor(() => {
