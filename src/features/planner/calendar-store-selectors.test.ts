@@ -377,6 +377,7 @@ describe("calendar store selectors", () => {
       {
         goalId: "goal-a",
         requirementFingerprint: "a".repeat(64),
+        policyFingerprint: "p".repeat(64),
         policyRevision: 1,
         lockSignature: "lock-a",
         effectiveSpanEnd: "2027-07-31",

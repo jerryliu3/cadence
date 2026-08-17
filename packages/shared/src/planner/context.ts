@@ -154,6 +154,7 @@ export interface PlannerContextPayload {
   unplaceableGoals?: Array<{
     goalId: string;
     requirementFingerprint: string;
+    policyFingerprint: string;
     policyRevision: number;
     lockSignature: string;
     effectiveSpanEnd: string;

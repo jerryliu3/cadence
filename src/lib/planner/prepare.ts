@@ -8,6 +8,7 @@ import {
   PlannerRouteError,
 } from "@/lib/planner/api";
 import {
+  MAX_WORK_UNITS,
   PLANNER_CONTRACT_VERSION,
   PLANNER_ELIGIBILITY_MODES,
 } from "@/lib/planner/contracts/bounds";
@@ -191,6 +192,24 @@ export function computeCompletionCreditedUnitKeys({
     return new Set<string>();
   }
   const normalizedRequirement = normalizeGoalRequirement(goal);
+  const requirement = normalizedRequirement.requirement;
+  if (
+    (requirement.kind === "milestone_sequence" ||
+      requirement.kind === "deadline_total") &&
+    requirement.targetCount > MAX_WORK_UNITS
+  ) {
+    reportError(
+      new Error("Planner pre-check target count exceeds supported work-unit bound."),
+      {
+        scope: "planner.prepare",
+        code: "precheck_target_count_exceeds_bound",
+        goalId: goal.id,
+        targetCount: requirement.targetCount,
+        maximum: MAX_WORK_UNITS,
+      }
+    );
+    return new Set<string>();
+  }
   const baseAssignments: PlannerBaseAssignment[] = persistedItems.map((item) => ({
     goalId: goal.id,
     requirementFingerprint: normalizedRequirement.requirementFingerprint,
@@ -198,34 +217,42 @@ export function computeCompletionCreditedUnitKeys({
     scheduledDate: item.scheduled_date,
     locked: false,
   }));
-  const ordinalsForScopeMonth =
-    normalizedRequirement.requirement.kind === "cadence"
-      ? undefined
-      : new Set(
-          Array.from(
-            { length: normalizedRequirement.requirement.targetCount },
-            (_, index) => index + 1
-          )
-        );
-  const reconciled = reconcilePlannerCompletions({
-    goal,
-    workUnits: materializeWorkUnits({
+  try {
+    const ordinalsForScopeMonth =
+      requirement.kind === "cadence"
+        ? undefined
+        : new Set(
+            Array.from({ length: requirement.targetCount }, (_, index) => index + 1)
+          );
+    const reconciled = reconcilePlannerCompletions({
       goal,
-      normalizedRequirement,
-      window,
+      workUnits: materializeWorkUnits({
+        goal,
+        normalizedRequirement,
+        window,
+        asOfDate,
+        baseAssignments,
+        ordinalsForScopeMonth,
+        weeklyAnchor: { weekStartsOn },
+      }),
+      completions,
       asOfDate,
-      baseAssignments,
-      ordinalsForScopeMonth,
-      weeklyAnchor: { weekStartsOn },
-    }),
-    completions,
-    asOfDate,
-  });
-  return new Set(
-    Object.values(reconciled.completionToUnit)
-      .map((identity) => identity.unitKey)
-      .filter((unitKey) => requiredUnitKeys.has(unitKey))
-  );
+    });
+    return new Set(
+      Object.values(reconciled.completionToUnit)
+        .map((identity) => identity.unitKey)
+        .filter((unitKey) => requiredUnitKeys.has(unitKey))
+    );
+  } catch (error) {
+    // Pre-check crediting is advisory for targeted re-solve decisions; on
+    // unexpected failures, fall back to empty credit so prepare can continue.
+    reportError(error, {
+      scope: "planner.prepare",
+      code: "precheck_completion_credit_failed",
+      goalId: goal.id,
+    });
+    return new Set<string>();
+  }
 }
 
 function throwPrepareInvariant({
