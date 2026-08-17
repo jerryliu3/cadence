@@ -26,6 +26,7 @@ import { Screen } from "../../ui/screen";
 import { UserAvatar } from "../../ui/user-avatar";
 import { IntegrationsSection } from "./IntegrationsSection";
 import {
+  deleteMobileProfileAvatar,
   getMobileAvatarValidationError,
   uploadMobileProfileAvatar,
 } from "../../lib/profile/avatar-upload";
@@ -254,6 +255,7 @@ export function SettingsScreen() {
 
               setAvatarBusy(true);
               try {
+                const previousAvatarUrl = profile.data?.avatar_url ?? null;
                 const avatarUrl = await uploadMobileProfileAvatar({
                   userId,
                   asset: picked.assets[0],
@@ -264,6 +266,21 @@ export function SettingsScreen() {
                   .eq("id", userId);
                 if (error) {
                   throw error;
+                }
+                if (previousAvatarUrl && previousAvatarUrl !== avatarUrl) {
+                  try {
+                    await deleteMobileProfileAvatar({
+                      userId,
+                      avatarUrl: previousAvatarUrl,
+                    });
+                  } catch (cleanupError) {
+                    setMessage(
+                      getApiErrorMessage(
+                        cleanupError,
+                        "Profile photo updated, but previous avatar cleanup failed."
+                      )
+                    );
+                  }
                 }
                 setMessage("Profile photo updated.");
                 await queryClient.invalidateQueries({
@@ -295,6 +312,7 @@ export function SettingsScreen() {
               const removeAvatar = async () => {
                 setAvatarBusy(true);
                 try {
+                  const previousAvatarUrl = profile.data?.avatar_url ?? null;
                   const { error } = await supabase
                     .from("profiles")
                     .update({ avatar_url: null })
@@ -303,10 +321,18 @@ export function SettingsScreen() {
                     setMessage(error.message);
                     return;
                   }
+                  if (previousAvatarUrl) {
+                    await deleteMobileProfileAvatar({
+                      userId,
+                      avatarUrl: previousAvatarUrl,
+                    });
+                  }
                   setMessage("Profile photo removed.");
                   await queryClient.invalidateQueries({
                     queryKey: ["mobile-profile", userId],
                   });
+                } catch (error) {
+                  setMessage(getApiErrorMessage(error, "Profile photo removal failed."));
                 } finally {
                   setAvatarBusy(false);
                 }

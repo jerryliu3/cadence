@@ -29,6 +29,7 @@ import { createClient } from "@/lib/supabase/client";
 import type { PlannerPreferencesDraft } from "@/features/settings/planner-preferences-settings";
 import { buildProfilePreferencesUpdate } from "@/features/social/profile-preferences";
 import {
+  deleteProfileAvatar,
   getAvatarUploadValidationError,
   uploadProfileAvatar,
 } from "@/lib/profile/avatar-upload";
@@ -421,6 +422,10 @@ export function useSocialTabData() {
       display_name: normalizedProfileDraft.display_name,
       avatar_url: normalizedProfileDraft.avatar_url,
     };
+    const shouldDeletePreviousAvatar =
+      Boolean(state.userId) &&
+      Boolean(normalizedPersistedProfile.avatar_url) &&
+      normalizedPersistedProfile.avatar_url !== normalizedProfileDraft.avatar_url;
 
     const { error } = await supabase.from("profiles").upsert(payload, {
       onConflict: "id",
@@ -428,6 +433,22 @@ export function useSocialTabData() {
     if (error) {
       toast.error(error.message);
     } else {
+      if (shouldDeletePreviousAvatar && state.userId) {
+        try {
+          await deleteProfileAvatar({
+            supabase,
+            userId: state.userId,
+            avatarUrl: normalizedPersistedProfile.avatar_url,
+          });
+        } catch (avatarDeleteError) {
+          toast.error(
+            getApiErrorMessage(
+              avatarDeleteError,
+              "Profile saved, but previous avatar file cleanup failed."
+            )
+          );
+        }
+      }
       toast.success("Profile saved.");
       await loadData();
     }
