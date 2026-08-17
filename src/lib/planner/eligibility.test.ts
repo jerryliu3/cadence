@@ -6,6 +6,7 @@ import { getScopeDateRange } from "@/lib/planner/dates";
 import {
   evaluateGoalEligibility,
   evaluateOverlapV1Eligibility,
+  resolveGoalLinkRole,
   type EligibilityGoal,
 } from "@/lib/planner/eligibility";
 
@@ -95,6 +96,7 @@ describe("goal-level eligibility guards", () => {
         window: getScopeDateRange("2026-08"),
         ownerId: "owner-a",
         goal: cadenceGoal,
+        asOfDate: "2026-08-15",
         currentLinkRole: "none",
       })
     ).toEqual({
@@ -112,6 +114,7 @@ describe("goal-level eligibility guards", () => {
           ...cadenceGoal,
           start_date: "2026-09-01",
         },
+        asOfDate: "2026-08-15",
         currentLinkRole: "none",
       })
     ).toEqual({
@@ -186,6 +189,7 @@ describe("goal-level eligibility guards", () => {
         window: getScopeDateRange("2026-08"),
         ownerId: "owner-a",
         goal: longHorizonGoal,
+        asOfDate: "2026-08-15",
         currentLinkRole: "none",
       })
     ).toEqual({
@@ -204,11 +208,43 @@ describe("goal-level eligibility guards", () => {
           id: "goal-cadence-overlong",
           end_date: "2028-12-31",
         },
+        asOfDate: "2026-08-15",
         currentLinkRole: "none",
       })
     ).toEqual({
       eligible: false,
       reason: "horizon_too_long",
     });
+  });
+});
+
+describe("resolveGoalLinkRole", () => {
+  it("returns none for unlinked goals", () => {
+    expect(resolveGoalLinkRole("goal-a", [])).toBe("none");
+  });
+
+  it("returns source for goals that only source links", () => {
+    expect(
+      resolveGoalLinkRole("goal-a", [
+        { sourceGoalId: "goal-a", targetGoalId: "goal-b" },
+      ])
+    ).toBe("source");
+  });
+
+  it("returns target for goals that only target links", () => {
+    expect(
+      resolveGoalLinkRole("goal-b", [
+        { sourceGoalId: "goal-a", targetGoalId: "goal-b" },
+      ])
+    ).toBe("target");
+  });
+
+  it("prefers target when a goal is both source and target", () => {
+    expect(
+      resolveGoalLinkRole("goal-b", [
+        { sourceGoalId: "goal-a", targetGoalId: "goal-b" },
+        { sourceGoalId: "goal-b", targetGoalId: "goal-c" },
+      ])
+    ).toBe("target");
   });
 });

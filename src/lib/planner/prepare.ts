@@ -26,8 +26,10 @@ import {
   buildGoalPreparationWindows,
   buildPreparationWindows,
 } from "@/lib/planner/preparation-windows";
-import { evaluateGoalEligibility } from "@/lib/planner/eligibility";
-import { resolveGoalLinkRole } from "@/lib/planner/link-role";
+import {
+  evaluateGoalEligibility,
+  resolveGoalLinkRole,
+} from "@/lib/planner/eligibility";
 import { normalizeGoalRequirement } from "@/lib/planner/requirements";
 import {
   buildPlannerGoalLockSignature,

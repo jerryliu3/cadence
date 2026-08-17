@@ -14,9 +14,7 @@ export type EligibilityReason =
   | "not_owner"
   | "deleted"
   | "archived"
-  | "linked"
   | "linked_target"
-  | "missing_end_date"
   | "invalid_date_range"
   | "end_outside_scope"
   | "starts_after_scope"
@@ -141,7 +139,6 @@ export interface PlannerContextPayload {
       eligible: boolean;
       reason: EligibilityReason;
     }>;
-    suggestedRelaxations?: string[];
     horizonSummary?: PlannerGoalHorizonSummary[];
   } | null;
   revisions: {

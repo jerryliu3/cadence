@@ -35,13 +35,13 @@ import {
 } from "@/lib/planner/dates";
 import {
   evaluateGoalEligibility,
+  resolveGoalLinkRole,
   type EligibilityReason,
 } from "@/lib/planner/eligibility";
 import {
   computeGenerationInputHash,
   type PlannerCanonicalLink,
 } from "@/lib/planner/fingerprint";
-import { resolveGoalLinkRole } from "@/lib/planner/link-role";
 import {
   compilePlannerPolicy,
   plannerPolicySchema,

@@ -582,7 +582,7 @@ describe("CalendarSurface characterization", () => {
     context.preview = {
       ...context.preview,
       eligibility: [
-        { goalId: "goal-a", eligible: false, reason: "missing_end_date" },
+        { goalId: "goal-a", eligible: false, reason: "invalid_date_range" },
         { goalId: "goal-b", eligible: false, reason: "linked_target" },
       ],
     };
@@ -608,7 +608,7 @@ describe("CalendarSurface characterization", () => {
     const dialog = await screen.findByRole("dialog");
     expect(
       within(dialog).getByText(
-        /Goal A: This goal needs a deadline before it can be planned in Calendar\./i
+        /Goal A: The goal dates are invalid \(start is after end\)\./i
       )
     ).toBeInTheDocument();
     expect(
@@ -637,7 +637,7 @@ describe("CalendarSurface characterization", () => {
     context.preview = {
       ...context.preview,
       eligibility: [
-        { goalId: "goal-a", eligible: false, reason: "missing_end_date" },
+        { goalId: "goal-a", eligible: false, reason: "invalid_date_range" },
         { goalId: "goal-b", eligible: false, reason: "not_owner" },
       ],
     };
@@ -663,7 +663,7 @@ describe("CalendarSurface characterization", () => {
     const dialog = await screen.findByRole("dialog");
     expect(
       within(dialog).getByText(
-        /Goal A: This goal needs a deadline before it can be planned in Calendar\./i
+        /Goal A: The goal dates are invalid \(start is after end\)\./i
       )
     ).toBeInTheDocument();
     expect(
