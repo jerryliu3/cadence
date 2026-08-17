@@ -1998,7 +1998,7 @@ export type Database = {
       }
       profiles: {
         Row: {
-        avatar_url: string
+          avatar_url: string | null
           blackout_ranges: Json
           calendar_feed_token_version: number
           created_at: string
@@ -2573,7 +2573,7 @@ export type Database = {
       get_leaderboard_standings: {
         Args: { p_limit?: number; p_offset?: number; p_season_id: string }
         Returns: {
-          avatar_url: string | null
+          avatar_url: string
           display_name: string
           rank: number
           score: number
