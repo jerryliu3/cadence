@@ -30,7 +30,9 @@ import type { PlannerPreferencesDraft } from "@/features/settings/planner-prefer
 import { buildProfilePreferencesUpdate } from "@/features/social/profile-preferences";
 import {
   deleteProfileAvatar,
+  getCanonicalAvatarObjectPath,
   getAvatarUploadValidationError,
+  resolveAvatarObjectPathFromPublicUrl,
   uploadProfileAvatar,
 } from "@/lib/profile/avatar-upload";
 
@@ -422,10 +424,25 @@ export function useSocialTabData() {
       display_name: normalizedProfileDraft.display_name,
       avatar_url: normalizedProfileDraft.avatar_url,
     };
-    const shouldDeletePreviousAvatar =
-      Boolean(state.userId) &&
-      Boolean(normalizedPersistedProfile.avatar_url) &&
-      normalizedPersistedProfile.avatar_url !== normalizedProfileDraft.avatar_url;
+    const previousAvatarObjectPath = resolveAvatarObjectPathFromPublicUrl(
+      normalizedPersistedProfile.avatar_url
+    );
+    const nextAvatarObjectPath = resolveAvatarObjectPathFromPublicUrl(
+      normalizedProfileDraft.avatar_url
+    );
+    const cleanupAvatarPaths = new Set<string>();
+    if (!normalizedProfileDraft.avatar_url) {
+      cleanupAvatarPaths.add(getCanonicalAvatarObjectPath(state.userId));
+      if (previousAvatarObjectPath?.startsWith(`${state.userId}/`)) {
+        cleanupAvatarPaths.add(previousAvatarObjectPath);
+      }
+    } else if (
+      previousAvatarObjectPath &&
+      previousAvatarObjectPath.startsWith(`${state.userId}/`) &&
+      previousAvatarObjectPath !== nextAvatarObjectPath
+    ) {
+      cleanupAvatarPaths.add(previousAvatarObjectPath);
+    }
 
     const { error } = await supabase.from("profiles").upsert(payload, {
       onConflict: "id",
@@ -433,12 +450,11 @@ export function useSocialTabData() {
     if (error) {
       toast.error(error.message);
     } else {
-      if (shouldDeletePreviousAvatar && state.userId) {
+      if (cleanupAvatarPaths.size > 0) {
         try {
           await deleteProfileAvatar({
             supabase,
-            userId: state.userId,
-            avatarUrl: normalizedPersistedProfile.avatar_url,
+            objectPaths: Array.from(cleanupAvatarPaths),
           });
         } catch (avatarDeleteError) {
           toast.error(

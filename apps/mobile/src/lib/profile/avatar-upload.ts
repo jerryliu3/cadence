@@ -37,7 +37,11 @@ function validateUploadedAvatarUrl(publicUrl: string) {
   }
 }
 
-function resolveAvatarObjectPathFromUrl(avatarUrl: string | null) {
+export function getMobileCanonicalAvatarObjectPath(userId: string) {
+  return `${userId}/${AVATAR_OBJECT_FILE_NAME}`;
+}
+
+export function resolveMobileAvatarObjectPathFromUrl(avatarUrl: string | null) {
   if (!avatarUrl) {
     return null;
   }
@@ -53,21 +57,6 @@ function resolveAvatarObjectPathFromUrl(avatarUrl: string | null) {
   } catch {
     return null;
   }
-}
-
-function buildAvatarDeletePaths({
-  userId,
-  avatarUrl,
-}: {
-  userId: string;
-  avatarUrl: string | null;
-}) {
-  const paths = new Set<string>([`${userId}/${AVATAR_OBJECT_FILE_NAME}`]);
-  const parsedPath = resolveAvatarObjectPathFromUrl(avatarUrl);
-  if (parsedPath && parsedPath.startsWith(`${userId}/`)) {
-    paths.add(parsedPath);
-  }
-  return Array.from(paths);
 }
 
 export async function uploadMobileProfileAvatar({
@@ -86,7 +75,7 @@ export async function uploadMobileProfileAvatar({
     throw new Error("Could not read avatar photo.");
   }
 
-  const objectPath = `${userId}/${AVATAR_OBJECT_FILE_NAME}`;
+  const objectPath = getMobileCanonicalAvatarObjectPath(userId);
   const { error: uploadError } = await supabase.storage
     .from(AVATAR_BUCKET)
     .upload(objectPath, await decodeBase64(manipulated.base64), {
@@ -105,13 +94,13 @@ export async function uploadMobileProfileAvatar({
 }
 
 export async function deleteMobileProfileAvatar({
-  userId,
-  avatarUrl,
+  objectPaths,
 }: {
-  userId: string;
-  avatarUrl: string | null;
+  objectPaths: string[];
 }) {
-  const deletePaths = buildAvatarDeletePaths({ userId, avatarUrl });
+  const deletePaths = Array.from(
+    new Set(objectPaths.map((path) => path.trim()).filter((path) => path.length > 0))
+  );
   if (deletePaths.length === 0) {
     return;
   }
