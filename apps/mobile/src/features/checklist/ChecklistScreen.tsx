@@ -23,6 +23,7 @@ import {
   resolveMobileDuoLaneSubjects,
   viewerLaneSubject,
 } from "../duo/lane-subjects";
+import { useViewerAvatarUrl } from "../duo/use-viewer-avatar-url";
 import {
   resolveLanePageSnapInterval,
   resolveLanePageWidth,
@@ -65,9 +66,11 @@ export function ChecklistScreen({
     hasPartner: Boolean(activePartner),
   });
   const { asOfDate } = useChecklistClock();
+  const viewerAvatarQuery = useViewerAvatarUrl();
+  const viewerAvatarUrl = viewerAvatarQuery.data ?? null;
   const partnerId = activePartner?.partnerId ?? null;
   const partnerSubject = partnerLaneSubject(activePartner);
-  const viewerSubject = viewerLaneSubject();
+  const viewerSubject = viewerLaneSubject({ avatarUrl: viewerAvatarUrl });
   const viewerLane = useChecklistLaneData({
     subject: viewerSubject,
     partnerId,
@@ -81,6 +84,7 @@ export function ChecklistScreen({
   const lanes = resolveMobileDuoLaneSubjects({
     scope,
     activePartner,
+    viewerAvatarUrl,
   });
   const useLanePager = shouldUseLanePager(lanes.length);
   const lanePageWidth = resolveLanePageWidth(viewportWidth);

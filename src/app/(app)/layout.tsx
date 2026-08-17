@@ -26,7 +26,7 @@ export default async function AuthenticatedLayout({
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("display_name, username, planner_primary_tab")
+    .select("display_name, username, avatar_url, planner_primary_tab")
     .eq("id", user.id)
     .maybeSingle();
   const plannerPrimaryTabPreference = normalizePlannerPrimaryTabPreference(
@@ -44,6 +44,10 @@ export default async function AuthenticatedLayout({
     typeof user.user_metadata?.username === "string"
       ? user.user_metadata.username.trim()
       : "";
+  const viewerAvatarUrl =
+    typeof profile?.avatar_url === "string" && profile.avatar_url.trim().length > 0
+      ? profile.avatar_url.trim()
+      : null;
   const emailLocalPart =
     typeof user.email === "string" && user.email.includes("@")
       ? user.email.split("@")[0]?.trim() ?? ""
@@ -69,6 +73,7 @@ export default async function AuthenticatedLayout({
       duoAvailability={duo.availability}
       initialDuoScopePreference={initialDuoScopePreference}
       plannerPrimaryTabPreference={plannerPrimaryTabPreference}
+      viewerAvatarUrl={viewerAvatarUrl}
     >
       {children}
     </AppShell>

@@ -39,5 +39,3 @@ export function UserAvatar({
     </Avatar>
   );
 }
-
-export { resolveInitials as getUserInitials };
