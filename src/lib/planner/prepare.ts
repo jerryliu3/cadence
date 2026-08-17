@@ -26,6 +26,7 @@ import {
   buildGoalPreparationWindows,
   buildPreparationWindows,
 } from "@/lib/planner/preparation-windows";
+import { evaluateGoalEligibility } from "@/lib/planner/eligibility";
 import { normalizeGoalRequirement } from "@/lib/planner/requirements";
 import {
   buildPlannerGoalLockSignature,
@@ -65,6 +66,22 @@ interface GoalUnplaceablePayload {
 
 function itemKey(item: { goal_id: string; unit_key: string }) {
   return `${item.goal_id}\u0000${item.unit_key}`;
+}
+
+function currentLinkRole({
+  goalId,
+  links,
+}: {
+  goalId: string;
+  links: Array<{ sourceGoalId: string; targetGoalId: string }>;
+}) {
+  if (links.some((link) => link.sourceGoalId === goalId)) {
+    return "source" as const;
+  }
+  if (links.some((link) => link.targetGoalId === goalId)) {
+    return "target" as const;
+  }
+  return "none" as const;
 }
 
 function itemMatchesCurrentRequirement({
@@ -240,6 +257,7 @@ async function prepareOnce({
     }
   >();
   const goalOutcomeByGoalId = new Map<string, GoalUnplaceablePayload>();
+  const eligibleGoalIds = new Set<string>();
   const preserveRecordedOutcomeGoalIds = new Set<string>();
   const validUnplaceableRecordByGoalId = new Map<string, PlannerGoalUnplaceableRecord>(
     ((preparation.unplaceableGoals ?? []) as PlannerGoalUnplaceableRecord[]).flatMap(
@@ -251,6 +269,41 @@ async function prepareOnce({
   );
 
   for (const goal of preparation.snapshot.goals) {
+    const eligibilityDecision = evaluateGoalEligibility({
+      window: { start: preparationStart, end: preparationEnd },
+      ownerId,
+      goal,
+      currentLinkRole: currentLinkRole({
+        goalId: goal.id,
+        links: preparation.snapshot.links,
+      }),
+    });
+    if (!eligibilityDecision.eligible) {
+      const ineligibleGoalWindowsState = buildGoalPreparationWindows({
+        goal,
+        asOfDate,
+        preparationStart,
+        preparationEnd,
+      });
+      goalOutcomeByGoalId.set(goal.id, {
+        goal_id: goal.id,
+        requirement_fingerprint: normalizeGoalRequirement(goal).requirementFingerprint,
+        policy_revision: policyRevision,
+        lock_signature: buildPlannerGoalLockSignature(
+          (persistedItemsInHorizonByGoalId.get(goal.id) ?? []).map((item) => ({
+            unitKey: item.unit_key,
+            scheduledDate: item.scheduled_date,
+            locked: item.locked,
+          }))
+        ),
+        effective_span_end: ineligibleGoalWindowsState.effectiveEnd,
+        unplaced_count: 0,
+        reason: "capacity",
+      });
+      continue;
+    }
+    eligibleGoalIds.add(goal.id);
+
     const normalizedRequirement = normalizeGoalRequirement(goal);
     const requirementFingerprint = normalizedRequirement.requirementFingerprint;
     const goalAssignments = preparation.persistedItems
@@ -537,6 +590,11 @@ async function prepareOnce({
   for (const goal of preparation.snapshot.goals) {
     const preparedOutcome = goalOutcomeByGoalId.get(goal.id);
     if (!preparedOutcome) {
+      continue;
+    }
+    if (!eligibleGoalIds.has(goal.id)) {
+      preparedOutcome.unplaced_count = 0;
+      preparedOutcome.reason = "capacity";
       continue;
     }
     if (preserveRecordedOutcomeGoalIds.has(goal.id)) {
