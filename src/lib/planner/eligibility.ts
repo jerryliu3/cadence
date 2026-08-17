@@ -1,5 +1,5 @@
 import type { Goal } from "@/lib/goals/types";
-import { isOrdinalGoalDefinition } from "@/lib/goals/definition-validation";
+import { resolveGoalPlanningEndDate } from "@/lib/goals/definition-validation";
 import { enumerateMonthsInWindow, type DateWindow } from "@/lib/planner/dates";
 import { MAX_HORIZON_MONTHS } from "@/lib/planner/contracts/bounds";
 import type { EligibilityReason } from "@cadence/shared/planner/context";
@@ -67,15 +67,20 @@ export function evaluateGoalEligibility({
   ownerId,
   goal,
   currentLinkRole,
+  asOfDate,
 }: {
   window: DateWindow;
   ownerId: string;
   goal: Goal;
   currentLinkRole: EligibilityGoal["currentLinkRole"];
+  asOfDate?: string;
 }): EligibilityDecision {
-  const requiresDeadline = isOrdinalGoalDefinition({
+  const effectiveEndDate = resolveGoalPlanningEndDate({
     frequencyType: goal.frequency_type,
     targetCount: goal.target_count,
+    startDate: goal.start_date,
+    endDate: goal.end_date,
+    asOfDate,
   });
   const normalizedGoal: EligibilityGoal = {
     ownedByViewer: goal.owner_id === ownerId,
@@ -84,16 +89,20 @@ export function evaluateGoalEligibility({
     currentLinkRole,
     outgoingShareCount: 0,
     startDate: goal.start_date,
-    endDate: goal.end_date,
-    requiresDeadline,
+    endDate: effectiveEndDate,
+    requiresDeadline: false,
   };
   const decision = evaluateOverlapV1Eligibility(window, normalizedGoal);
-  if (!decision.eligible || goal.end_date === null) {
+  if (
+    !decision.eligible ||
+    normalizedGoal.endDate === null ||
+    goal.end_date === null
+  ) {
     return decision;
   }
   const horizonMonths = enumerateMonthsInWindow({
     start: goal.start_date,
-    end: goal.end_date,
+    end: normalizedGoal.endDate,
   });
   if (horizonMonths.length > MAX_HORIZON_MONTHS) {
     return { eligible: false, reason: "horizon_too_long" };

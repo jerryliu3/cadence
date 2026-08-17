@@ -265,6 +265,7 @@ function validateDraft(draft: BulkGoalDraft): string[] {
     targetCount: definitionTargetCount,
     startDate: draft.start_date,
     endDate: draft.end_date || null,
+    asOfDate: toLocalDateString(),
   })) {
     errors.push(issue.message);
   }
@@ -789,7 +790,7 @@ export function BulkGoalForm({
                   : draft.target_count.trim().length > 0
                     ? parsedTargetCount
                     : null;
-              const requiresEndDate = isOrdinalGoalDefinition({
+              const usesSoftHorizon = isOrdinalGoalDefinition({
                 frequencyType: draft.frequency_type,
                 targetCount: definitionTargetCount,
               });
@@ -1072,7 +1073,8 @@ export function BulkGoalForm({
                             end_date: value,
                           }))
                         }
-                        requiresEndDate={requiresEndDate}
+                        requiresEndDate={false}
+                        showSoftHorizonHint={usesSoftHorizon}
                       />
 
                       <GoalDefaultTimeField

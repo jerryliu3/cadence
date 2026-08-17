@@ -710,7 +710,8 @@ describe("preparePlannerSchedule", () => {
   });
 
   it("does not report unplaceable capacity for ineligible goals", async () => {
-    const missingDeadlineGoal = goal({
+    const ineligibleGoal = goal({
+      owner_id: "99999999-9999-4999-8999-999999999999",
       frequency_type: "recurring",
       recurrence_interval: "weekly",
       target_count: 3,
@@ -718,7 +719,7 @@ describe("preparePlannerSchedule", () => {
       end_date: null,
     });
     mocks.loadPlannerPreparationSnapshot.mockResolvedValue(
-      preparationSnapshot([missingDeadlineGoal])
+      preparationSnapshot([ineligibleGoal])
     );
 
     await prepare();
@@ -729,7 +730,7 @@ describe("preparePlannerSchedule", () => {
       expect.objectContaining({
         p_unplaceable: expect.arrayContaining([
           expect.objectContaining({
-            goal_id: missingDeadlineGoal.id,
+            goal_id: ineligibleGoal.id,
             unplaced_count: 0,
           }),
         ]),

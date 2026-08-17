@@ -4,6 +4,7 @@ import {
   getGoalDeadlineMonthSpan,
   getGoalHorizonEndDate,
   isOrdinalGoalDefinition,
+  resolveGoalPlanningEndDate,
   validateGoalDefinition,
 } from "@/lib/goals/definition-validation";
 
@@ -48,23 +49,23 @@ describe("goal definition validation", () => {
     ).toEqual([]);
   });
 
-  it("rejects missing deadlines for milestones and targeted recurring goals", () => {
+  it("allows missing deadlines for ordinal goals via the soft horizon", () => {
     expect(
       validateGoalDefinition({
         frequencyType: "fixed_milestones",
         targetCount: 3,
         startDate: "2026-08-01",
         endDate: null,
-      })[0]
-    ).toMatchObject({ code: "missing_end_date" });
+      })
+    ).toEqual([]);
     expect(
       validateGoalDefinition({
         frequencyType: "recurring",
         targetCount: 12,
         startDate: "2026-08-01",
         endDate: null,
-      })[0]
-    ).toMatchObject({ code: "missing_end_date" });
+      })
+    ).toEqual([]);
   });
 
   it("enforces the deadline month-span cap", () => {
@@ -104,6 +105,27 @@ describe("goal definition validation", () => {
         endDate: "2026-13-45",
       })
     ).toBeNull();
+  });
+
+  it("computes rolling soft-horizon end dates from max(start, asOf)", () => {
+    expect(
+      resolveGoalPlanningEndDate({
+        frequencyType: "fixed_milestones",
+        targetCount: 3,
+        startDate: "2026-01-01",
+        endDate: null,
+        asOfDate: "2026-08-15",
+      })
+    ).toBe("2028-07-31");
+    expect(
+      resolveGoalPlanningEndDate({
+        frequencyType: "fixed_milestones",
+        targetCount: 3,
+        startDate: "2026-10-01",
+        endDate: null,
+        asOfDate: "2026-08-15",
+      })
+    ).toBe("2028-09-30");
   });
 
   it("flags likely capacity shortfall when target exceeds available days", () => {

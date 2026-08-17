@@ -120,7 +120,7 @@ describe("goal-level eligibility guards", () => {
     });
   });
 
-  it("requires end dates for targeted recurring goals", () => {
+  it("keeps targeted recurring goals eligible when using the soft horizon", () => {
     expect(
       evaluateGoalEligibility({
         window: getScopeDateRange("2026-08"),
@@ -130,11 +130,32 @@ describe("goal-level eligibility guards", () => {
           id: "goal-target-no-end",
           target_count: 12,
         },
+        asOfDate: "2026-08-15",
+        currentLinkRole: "none",
+      })
+    ).toEqual({
+      eligible: true,
+      reason: "eligible",
+    });
+  });
+
+  it("treats soft-horizon ordinal goals as out of scope beyond the rolling cap", () => {
+    expect(
+      evaluateGoalEligibility({
+        window: getScopeDateRange("2028-09"),
+        ownerId: "owner-a",
+        goal: {
+          ...cadenceGoal,
+          id: "goal-target-rolling-window",
+          target_count: 12,
+          end_date: null,
+        },
+        asOfDate: "2026-08-15",
         currentLinkRole: "none",
       })
     ).toEqual({
       eligible: false,
-      reason: "missing_end_date",
+      reason: "end_outside_scope",
     });
   });
 

@@ -18,7 +18,6 @@ export interface GoalCapacityInput {
 }
 
 export type GoalDefinitionValidationCode =
-  | "missing_end_date"
   | "invalid_date_range"
   | "horizon_too_long"
   | "target_exceeds_capacity";
@@ -95,6 +94,37 @@ export function getGoalHorizonEndDate(startDate: string): string | null {
   return `${endYear}-${String(endMonth).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
 }
 
+export function resolveGoalPlanningEndDate({
+  frequencyType,
+  targetCount,
+  startDate,
+  endDate,
+  asOfDate,
+}: Pick<
+  GoalDefinitionValidationInput,
+  "frequencyType" | "targetCount" | "startDate" | "endDate" | "asOfDate"
+>) {
+  if (isIsoDate(endDate)) {
+    return endDate;
+  }
+  if (
+    !isOrdinalGoalDefinition({
+      frequencyType,
+      targetCount,
+    })
+  ) {
+    return null;
+  }
+  if (!isIsoDate(startDate)) {
+    return null;
+  }
+  const horizonAnchor =
+    isIsoDate(asOfDate) && compareDateStrings(asOfDate, startDate) > 0
+      ? asOfDate
+      : startDate;
+  return getGoalHorizonEndDate(horizonAnchor);
+}
+
 export function getGoalDeadlineMonthSpan({
   startDate,
   endDate,
@@ -112,23 +142,11 @@ export function validateGoalDefinition(
   input: GoalDefinitionValidationInput
 ): GoalDefinitionValidationIssue[] {
   const issues: GoalDefinitionValidationIssue[] = [];
-  const normalizedEndDate =
-    input.endDate && input.endDate.length > 0
-      ? input.endDate
-      : null;
-  if (isOrdinalGoalDefinition(input) && normalizedEndDate === null) {
-    issues.push({
-      code: "missing_end_date",
-      message:
-        input.frequencyType === "fixed_milestones"
-          ? "Milestone goals require an end date."
-          : "Recurring goals with a target count require an end date.",
-    });
-  }
-  if (!isIsoDate(input.startDate) || !isIsoDate(normalizedEndDate)) {
+  const planningEndDate = resolveGoalPlanningEndDate(input);
+  if (!isIsoDate(input.startDate) || !isIsoDate(planningEndDate)) {
     return issues;
   }
-  if (compareDateStrings(input.startDate, normalizedEndDate) > 0) {
+  if (compareDateStrings(input.startDate, planningEndDate) > 0) {
     issues.push({
       code: "invalid_date_range",
       message: "End date cannot be before start date.",
@@ -137,7 +155,7 @@ export function validateGoalDefinition(
   }
   const monthSpan = enumerateMonthsInWindow({
     start: input.startDate,
-    end: normalizedEndDate,
+    end: planningEndDate,
   }).length;
   if (monthSpan > MAX_HORIZON_MONTHS) {
     issues.push({
@@ -155,13 +173,13 @@ export function validateGoalDefinition(
         ? input.asOfDate
         : input.startDate;
     const available = countAvailableDays(
-      { start: windowStart, end: normalizedEndDate },
+      { start: windowStart, end: planningEndDate },
       input.capacity
     );
     if (input.targetCount > available) {
       issues.push({
         code: "target_exceeds_capacity",
-        message: `Only ${available} available days before ${normalizedEndDate} with your current rest days and blackout ranges — ${input.targetCount} sessions likely won't all fit. Lower the target, extend the end date, or free up rest days.`,
+        message: `Only ${available} available days before ${planningEndDate} with your current rest days and blackout ranges — ${input.targetCount} sessions likely won't all fit. Lower the target, extend the end date, or free up rest days.`,
       });
     }
   }

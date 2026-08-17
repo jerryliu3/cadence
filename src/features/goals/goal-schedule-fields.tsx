@@ -20,6 +20,7 @@ interface GoalDateRangeFieldsProps {
   endDateLabel?: string;
   startDateActions?: ReactNode;
   endDateActions?: ReactNode;
+  showSoftHorizonHint?: boolean;
 }
 
 export function GoalDateRangeFields({
@@ -34,6 +35,7 @@ export function GoalDateRangeFields({
   endDateLabel,
   startDateActions,
   endDateActions,
+  showSoftHorizonHint = false,
 }: GoalDateRangeFieldsProps) {
   const maxEndDate = startDate ? getGoalHorizonEndDate(startDate) ?? undefined : undefined;
   return (
@@ -67,6 +69,11 @@ export function GoalDateRangeFields({
         />
         {endDateActions ? (
           <div className="flex flex-wrap items-center gap-2 text-xs">{endDateActions}</div>
+        ) : null}
+        {showSoftHorizonHint ? (
+          <p className="text-xs text-muted-foreground">
+            Leave blank to use a rolling 24-month planning horizon.
+          </p>
         ) : null}
       </div>
     </div>
