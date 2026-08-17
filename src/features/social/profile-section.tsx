@@ -16,6 +16,7 @@ interface ProfileDraft {
   display_name: string;
   avatar_url: string;
   planner_primary_tab: PlannerPrimaryTabPreference;
+  social_activity_visible: boolean;
 }
 
 interface ProfileSectionProps {

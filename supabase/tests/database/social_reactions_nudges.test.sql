@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions, pg_catalog;
-select plan(8);
+select plan(10);
 
 insert into auth.users (id, email)
 values
@@ -9,7 +9,9 @@ values
   ('9b222222-2222-4222-8222-222222222222', 'social-react-actor@example.com'),
   ('9b333333-3333-4333-8333-333333333333', 'social-nudge-sender@example.com'),
   ('9b444444-4444-4444-8444-444444444444', 'social-nudge-receiver@example.com'),
-  ('9b555555-5555-4555-8555-555555555555', 'social-nudge-outsider@example.com')
+  ('9b555555-5555-4555-8555-555555555555', 'social-nudge-outsider@example.com'),
+  ('9b666666-6666-4666-8666-666666666666', 'social-nudge-24h-sender@example.com'),
+  ('9b777777-7777-4777-8777-777777777777', 'social-nudge-24h-receiver@example.com')
 on conflict (id) do nothing;
 
 insert into public.profiles (id, username)
@@ -18,7 +20,9 @@ values
   ('9b222222-2222-4222-8222-222222222222', 'social_react_actor'),
   ('9b333333-3333-4333-8333-333333333333', 'social_nudge_sender'),
   ('9b444444-4444-4444-8444-444444444444', 'social_nudge_receiver'),
-  ('9b555555-5555-4555-8555-555555555555', 'social_nudge_outsider')
+  ('9b555555-5555-4555-8555-555555555555', 'social_nudge_outsider'),
+  ('9b666666-6666-4666-8666-666666666666', 'social_nudge_24h_sender'),
+  ('9b777777-7777-4777-8777-777777777777', 'social_nudge_24h_receiver')
 on conflict (id) do nothing;
 
 set local role service_role;
@@ -40,6 +44,42 @@ values
     '9b500000-0000-4000-8000-000000000001',
     '9b333333-3333-4333-8333-333333333333',
     'Nudge test goal',
+    'Health',
+    'health',
+    'recurring',
+    'weekly',
+    3,
+    current_date - 5,
+    current_date + 5
+  ),
+  (
+    '9b500000-0000-4000-8000-000000000002',
+    '9b666666-6666-4666-8666-666666666666',
+    'Nudge 24h goal A',
+    'Health',
+    'health',
+    'recurring',
+    'weekly',
+    3,
+    current_date - 5,
+    current_date + 5
+  ),
+  (
+    '9b500000-0000-4000-8000-000000000003',
+    '9b666666-6666-4666-8666-666666666666',
+    'Nudge 24h goal B',
+    'Health',
+    'health',
+    'recurring',
+    'weekly',
+    3,
+    current_date - 5,
+    current_date + 5
+  ),
+  (
+    '9b500000-0000-4000-8000-000000000004',
+    '9b666666-6666-4666-8666-666666666666',
+    'Nudge 24h goal C',
     'Health',
     'health',
     'recurring',
@@ -91,13 +131,22 @@ values (
   pg_catalog.now() - interval '1 day',
   pg_catalog.now() - interval '1 day',
   pg_catalog.now() - interval '1 day'
+), (
+  '9b700000-0000-4000-8000-000000000002',
+  '9b666666-6666-4666-8666-666666666666',
+  'active',
+  pg_catalog.now() - interval '1 day',
+  pg_catalog.now() - interval '1 day',
+  pg_catalog.now() - interval '1 day'
 )
 on conflict (id) do nothing;
 
 insert into public.team_members (team_id, user_id, role)
 values
   ('9b700000-0000-4000-8000-000000000001', '9b333333-3333-4333-8333-333333333333', 'initiator'),
-  ('9b700000-0000-4000-8000-000000000001', '9b444444-4444-4444-8444-444444444444', 'member')
+  ('9b700000-0000-4000-8000-000000000001', '9b444444-4444-4444-8444-444444444444', 'member'),
+  ('9b700000-0000-4000-8000-000000000002', '9b666666-6666-4666-8666-666666666666', 'initiator'),
+  ('9b700000-0000-4000-8000-000000000002', '9b777777-7777-4777-8777-777777777777', 'member')
 on conflict (team_id, user_id) do nothing;
 
 reset role;
@@ -170,14 +219,24 @@ select is(
 
 select set_config('request.jwt.claim.sub', '9b333333-3333-4333-8333-333333333333', true);
 
-select ok(
-  public.send_nudge_service(
-    '9b444444-4444-4444-8444-444444444444',
-    'cheer'::public.nudge_kind,
-    '9b500000-0000-4000-8000-000000000001',
-    null
-  ) is not null,
-  'active team member can send nudge'
+select lives_ok(
+  $$
+    do $inner$
+    declare
+      v_count integer;
+    begin
+      for v_count in 1..10 loop
+        perform public.send_nudge_service(
+          '9b444444-4444-4444-8444-444444444444',
+          'cheer'::public.nudge_kind,
+          '9b500000-0000-4000-8000-000000000001',
+          null
+        );
+      end loop;
+    end;
+    $inner$;
+  $$,
+  'sender can send 10 nudges to the same partner in one calendar day'
 );
 
 select throws_ok(
@@ -189,7 +248,50 @@ select throws_ok(
     )$$,
   '42900',
   'nudge_rate_limited_goal_daily',
-  'same sender/recipient/goal is limited to once per day'
+  'same sender/recipient/goal is capped at 10 nudges per calendar day'
+);
+
+reset role;
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config('request.jwt.claim.sub', '9b666666-6666-4666-8666-666666666666', true);
+
+select lives_ok(
+  $$
+    do $inner$
+    declare
+      v_count integer;
+    begin
+      for v_count in 1..10 loop
+        perform public.send_nudge_service(
+          '9b777777-7777-4777-8777-777777777777',
+          'cheer'::public.nudge_kind,
+          '9b500000-0000-4000-8000-000000000002',
+          null
+        );
+        perform public.send_nudge_service(
+          '9b777777-7777-4777-8777-777777777777',
+          'cheer'::public.nudge_kind,
+          '9b500000-0000-4000-8000-000000000003',
+          null
+        );
+      end loop;
+    end;
+    $inner$;
+  $$,
+  'sender can send 20 nudges in a rolling 24-hour window'
+);
+
+select throws_ok(
+  $$select public.send_nudge_service(
+      '9b777777-7777-4777-8777-777777777777',
+      'cheer'::public.nudge_kind,
+      '9b500000-0000-4000-8000-000000000004',
+      null
+    )$$,
+  '42900',
+  'nudge_rate_limited_24h',
+  'sender cannot send more than 20 nudges in a rolling 24-hour window'
 );
 
 select set_config('request.jwt.claim.sub', '9b555555-5555-4555-8555-555555555555', true);

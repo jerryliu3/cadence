@@ -1306,7 +1306,7 @@ create index if not exists feed_reactions_user_idx on public.feed_reactions (use
 
 `feed_events.reaction_count` is maintained by an `after insert or delete` trigger on `feed_reactions` — the count is read on every feed page, so denormalizing avoids a correlated aggregate per row.
 
-**Rate limits, enforced inside `public.send_nudge_service`:** 5 nudges per sender per rolling 24 hours, and at most 1 per `(from, to, goal_id)` per calendar day. `kind in ('cheer','remind')` ignores `message` entirely — free text is reachable only via `kind = 'custom'`, which is the one path needing moderation attention later.
+**Rate limits, enforced inside `public.send_nudge_service`:** 20 nudges per sender per rolling 24 hours, and at most 10 per `(from, to, goal_id)` per calendar day. `kind in ('cheer','remind')` ignores `message` entirely — free text is reachable only via `kind = 'custom'`, which is the one path needing moderation attention later.
 
 Reactions are available on any visible feed event, not just a partner's — that is what makes the global feed feel alive. Nudges are duo-only.
 

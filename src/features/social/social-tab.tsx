@@ -213,6 +213,33 @@ export function SocialTab() {
                         <SelectItem value="calendar">Calendar first</SelectItem>
                       </SelectContent>
                     </Select>
+                    <div className="space-y-2 border-t pt-3">
+                      <div className="space-y-1">
+                        <p className="text-sm font-medium">Privacy</p>
+                        <p className="text-xs text-muted-foreground">
+                          Control whether your social activity appears in feeds and leaderboards.
+                        </p>
+                      </div>
+                      <label className="flex items-start gap-3 text-sm">
+                        <input
+                          type="checkbox"
+                          className="mt-1"
+                          checked={profileDraft.social_activity_visible}
+                          onChange={(event) =>
+                            setProfileDraft((prev) => ({
+                              ...prev,
+                              social_activity_visible: event.target.checked,
+                            }))
+                          }
+                        />
+                        <span>
+                          Social activity enabled
+                          <span className="block text-xs text-muted-foreground">
+                            Turn off to hide your activity from social feed and leaderboard listings.
+                          </span>
+                        </span>
+                      </label>
+                    </div>
                     <Button
                       type="button"
                       size="sm"
