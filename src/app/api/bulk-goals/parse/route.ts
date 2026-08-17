@@ -31,6 +31,12 @@ const localTimePattern = /^([01]\d|2[0-3]):[0-5]\d$/;
 const INVALID_ARGUMENT_PROVIDER_RE = /\(400\)|INVALID_ARGUMENT/i;
 const TRAINING_PLAN_KEYWORD_RE =
   /\b(run|running|5k|10k|marathon|half\s*marathon|training|workout|interval|tempo|long run|recovery run|strength|mobility|gym)\b/i;
+const RUNNING_PLAN_KEYWORD_RE =
+  /\b(run|running|5k|10k|marathon|half\s*marathon|interval|tempo|long run|recovery run)\b/i;
+const GENERIC_MILESTONE_NAME_RE =
+  /^(week\s*\d+(\s*[:\-]\s*\d+\s*(runs?|sessions?|workouts?))?|session\s*\d+|milestone\s*\d+)$/i;
+const BARE_MILESTONE_LABEL_RE =
+  /^(easy run|tempo run|interval run|long run|recovery run|steady run|hill run|test run|run session|strength|mobility)$/i;
 
 const requestSchema = z.object({
   prompt: z.string().trim().min(1).max(8000),
@@ -193,6 +199,82 @@ function normalizeLocalTime(value: string | null | undefined): string | null {
   return null;
 }
 
+function extractWeekCount(text: string): number | null {
+  const firstWeeksMatch = text.match(/\bfirst\s+(\d{1,2})\s+weeks?\b/i);
+  if (firstWeeksMatch?.[1]) {
+    const parsed = Number.parseInt(firstWeeksMatch[1], 10);
+    return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+  }
+  const weekMatch = text.match(/\b(\d{1,2})\s*[- ]?\s*weeks?\b/i);
+  if (!weekMatch?.[1]) {
+    return null;
+  }
+  const parsed = Number.parseInt(weekMatch[1], 10);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+}
+
+function extractSessionsPerWeek(text: string): number | null {
+  const cadenceMatch = text.match(
+    /\b(\d{1,2})\s*(runs?|workouts?|sessions?)\s+per\s+week\b/i
+  );
+  if (!cadenceMatch?.[1]) {
+    return null;
+  }
+  const parsed = Number.parseInt(cadenceMatch[1], 10);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+}
+
+function inferTrainingTargetCount(text: string): number | null {
+  const weeks = extractWeekCount(text);
+  const sessionsPerWeek = extractSessionsPerWeek(text);
+  if (!weeks || !sessionsPerWeek) {
+    return null;
+  }
+  const inferred = weeks * sessionsPerWeek;
+  if (!Number.isInteger(inferred) || inferred <= 0) {
+    return null;
+  }
+  return Math.min(inferred, MAX_MILESTONE_NAMES_PER_GOAL);
+}
+
+function decorateTrainingSessionLabel(label: string): string {
+  const normalized = label.trim().toLowerCase();
+  if (normalized === "easy run") {
+    return "Easy run (conversational pace, 20-35 min)";
+  }
+  if (normalized === "tempo run") {
+    return "Tempo run (comfortably hard sustained effort)";
+  }
+  if (normalized === "interval run") {
+    return "Interval run (repeat hard efforts with easy recoveries)";
+  }
+  if (normalized === "long run") {
+    return "Long run (steady aerobic endurance)";
+  }
+  if (normalized === "recovery run") {
+    return "Recovery run (very easy effort)";
+  }
+  if (normalized === "steady run") {
+    return "Steady run (controlled aerobic effort)";
+  }
+  if (normalized === "hill run") {
+    return "Hill run (short uphill repeat efforts)";
+  }
+  if (normalized === "test run") {
+    return "Test run (5k effort check-in)";
+  }
+  if (normalized === "run session") {
+    return "Run session (easy-to-moderate effort)";
+  }
+  if (normalized === "strength") {
+    return "Strength session (full-body, controlled form)";
+  }
+  if (normalized === "mobility") {
+    return "Mobility session (15-20 min recovery reset)";
+  }
+  return `${label.trim()} (focused session)`;
+}
+
 function extractTrainingSessionCycle(text: string): string[] {
   const normalized = text.toLowerCase();
   const sessionPatterns: Array<{ label: string; pattern: RegExp }> = [
@@ -219,21 +301,83 @@ function extractTrainingSessionCycle(text: string): string[] {
   return [];
 }
 
-function buildTrainingMilestoneNames(targetCount: number, text: string): string[] {
-  const cycle = extractTrainingSessionCycle(text);
-  if (cycle.length === 0) {
-    return Array.from({ length: targetCount }, (_, index) => `Session ${index + 1}`);
+function buildTrainingMilestoneNames(
+  targetCount: number,
+  text: string,
+  sessionsPerWeek: number | null
+): string[] {
+  let cycle = extractTrainingSessionCycle(text);
+  if (cycle.length === 0 && RUNNING_PLAN_KEYWORD_RE.test(text)) {
+    const fallbackCycle =
+      sessionsPerWeek && sessionsPerWeek >= 3
+        ? ["Easy run", "Tempo run", "Long run"]
+        : sessionsPerWeek === 2
+          ? ["Easy run", "Long run"]
+          : ["Run session"];
+    cycle = fallbackCycle;
   }
-  if (cycle.length === 1) {
+  const detailedCycle = cycle.map((label) => decorateTrainingSessionLabel(label));
+  if (cycle.length === 0) {
     return Array.from(
       { length: targetCount },
-      (_, index) => `${cycle[0]} ${index + 1}`
+      (_, index) => `Session ${index + 1} (specific workout focus)`
     );
   }
+  if (detailedCycle.length === 1) {
+    return Array.from(
+      { length: targetCount },
+      (_, index) => `Session ${index + 1} - ${detailedCycle[0]}`
+    );
+  }
+  const weekBlock = sessionsPerWeek && sessionsPerWeek > 1 ? sessionsPerWeek : cycle.length;
   return Array.from({ length: targetCount }, (_, index) => {
-    const week = Math.floor(index / cycle.length) + 1;
-    const label = cycle[index % cycle.length] ?? "Session";
-    return `Week ${week} ${label}`;
+    const week = Math.floor(index / weekBlock) + 1;
+    const cycleLabel = detailedCycle[index % detailedCycle.length];
+    return `Week ${week} - ${cycleLabel ?? "Specific session"}`;
+  });
+}
+
+function isGenericMilestoneName(name: string) {
+  const trimmed = name.trim();
+  if (!trimmed) {
+    return true;
+  }
+  return (
+    GENERIC_MILESTONE_NAME_RE.test(trimmed) ||
+    BARE_MILESTONE_LABEL_RE.test(trimmed)
+  );
+}
+
+function normalizeTrainingMilestoneNames({
+  provided,
+  targetCount,
+  generated,
+}: {
+  provided: string[] | undefined;
+  targetCount: number;
+  generated: string[];
+}) {
+  if (!provided || provided.length === 0) {
+    return generated;
+  }
+  const trimmedProvided = provided
+    .map((name) => name.trim())
+    .filter((name) => name.length > 0)
+    .slice(0, targetCount);
+  if (trimmedProvided.length === 0) {
+    return generated;
+  }
+  const uniqueProvided = new Set(trimmedProvided.map((name) => name.toLowerCase()));
+  const hasSpecificProvided = trimmedProvided.some((name) => !isGenericMilestoneName(name));
+  if (!hasSpecificProvided || uniqueProvided.size <= 1) {
+    return generated;
+  }
+  return Array.from({ length: targetCount }, (_, index) => {
+    const candidate = trimmedProvided[index];
+    if (candidate && !isGenericMilestoneName(candidate)) {
+      return candidate;
+    }
+    return generated[index] ?? `Session ${index + 1} (specific workout focus)`;
   });
 }
 
@@ -289,12 +433,17 @@ function normalizeGeneratedPayload(
         : undefined;
     const startDate = toIsoDate(goal.start_date) ?? today;
     const endDate = toIsoDate(goal.end_date ?? undefined) ?? null;
-    const targetCount = goal.target_count ?? null;
+    const inputText = `${goal.title ?? ""}\n${goal.description ?? ""}\n${parserPrompt}`;
+    const inferredTargetCount = inferTrainingTargetCount(inputText);
+    const targetCount =
+      typeof goal.target_count === "number" && goal.target_count > 0
+        ? goal.target_count
+        : null;
     const shouldCoerce = shouldCoerceToFixedMilestones({
       parserPrompt,
       title: goal.title.trim(),
       description: goal.description?.trim() ?? "",
-      targetCount,
+      targetCount: targetCount ?? inferredTargetCount,
       frequency,
       endDate,
     });
@@ -302,16 +451,28 @@ function normalizeGeneratedPayload(
       frequency = "fixed_milestones";
       recurrence = undefined;
     }
+    const sessionsPerWeek = extractSessionsPerWeek(inputText);
+    const effectiveTargetCount =
+      frequency === "fixed_milestones"
+        ? inferredTargetCount && inferredTargetCount > 0
+          ? targetCount === null || targetCount < inferredTargetCount
+            ? inferredTargetCount
+            : targetCount
+          : targetCount
+        : targetCount;
     const milestoneNames =
       frequency === "fixed_milestones"
-        ? providedMilestoneNames && providedMilestoneNames.length > 0
-          ? providedMilestoneNames
-          : typeof targetCount === "number" && targetCount > 0
-            ? buildTrainingMilestoneNames(
-                targetCount,
-                `${goal.title ?? ""}\n${goal.description ?? ""}\n${parserPrompt}`
-              )
-            : undefined
+        ? typeof effectiveTargetCount === "number" && effectiveTargetCount > 0
+          ? normalizeTrainingMilestoneNames({
+              provided: providedMilestoneNames,
+              targetCount: effectiveTargetCount,
+              generated: buildTrainingMilestoneNames(
+                effectiveTargetCount,
+                inputText,
+                sessionsPerWeek
+              ),
+            })
+          : undefined
         : undefined;
     const normalized = {
       title: goal.title.trim(),
@@ -322,7 +483,7 @@ function normalizeGeneratedPayload(
         : resolveCategoryKey(goal.category?.trim() ?? "Personal", categoryCatalog),
       frequency_type: frequency,
       recurrence_interval: recurrence,
-      target_count: targetCount,
+      target_count: effectiveTargetCount,
       milestone_names:
         milestoneNames && milestoneNames.length > 0 ? milestoneNames : undefined,
       start_date: startDate,

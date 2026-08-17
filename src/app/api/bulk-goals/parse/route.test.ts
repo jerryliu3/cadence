@@ -287,7 +287,7 @@ describe("bulk goal parser route", () => {
                             title: "5k training plan",
                             frequency_type: "recurring",
                             recurrence_interval: "weekly",
-                            target_count: 12,
+                            target_count: 3,
                             start_date: "2026-08-17",
                             end_date: "2026-09-13",
                           },
@@ -328,10 +328,70 @@ describe("bulk goal parser route", () => {
     });
     expect(payload.goals[0]?.milestone_names).toHaveLength(12);
     expect(payload.goals[0]?.milestone_names?.slice(0, 3)).toEqual([
-      "Week 1 Easy run",
-      "Week 1 Tempo run",
-      "Week 1 Long run",
+      "Week 1 - Easy run (conversational pace, 20-35 min)",
+      "Week 1 - Tempo run (comfortably hard sustained effort)",
+      "Week 1 - Long run (steady aerobic endurance)",
     ]);
+    expect(payload.goals[0]?.milestone_names?.slice(3, 6)).toEqual([
+      "Week 2 - Easy run (conversational pace, 20-35 min)",
+      "Week 2 - Tempo run (comfortably hard sustained effort)",
+      "Week 2 - Long run (steady aerobic endurance)",
+    ]);
+  });
+
+  it("replaces generic or incomplete milestone names with full specific sequences", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            candidates: [
+              {
+                content: {
+                  parts: [
+                    {
+                      text: JSON.stringify({
+                        goals: [
+                          {
+                            title: "5k training plan",
+                            frequency_type: "fixed_milestones",
+                            target_count: 12,
+                            start_date: "2026-08-17",
+                            end_date: "2026-09-13",
+                            milestone_names: ["Week 1: 3 runs", "Week 1: 3 runs"],
+                          },
+                        ],
+                      }),
+                    },
+                  ],
+                },
+              },
+            ],
+          }),
+          { status: 200 }
+        )
+      )
+    );
+
+    const response = await POST(
+      request({
+        prompt:
+          "Create a 4-week 5k training plan with 3 runs per week: easy run, tempo run, and long run.",
+        timezone: "UTC",
+      })
+    );
+
+    expect(response.status).toBe(200);
+    const payload = (await response.json()) as {
+      goals: Array<{ milestone_names?: string[] }>;
+    };
+    expect(payload.goals[0]?.milestone_names).toHaveLength(12);
+    expect(payload.goals[0]?.milestone_names?.[0]).toBe(
+      "Week 1 - Easy run (conversational pace, 20-35 min)"
+    );
+    expect(payload.goals[0]?.milestone_names?.[3]).toBe(
+      "Week 2 - Easy run (conversational pace, 20-35 min)"
+    );
   });
 
   it("rejects model outputs when milestone_names are malformed", async () => {
