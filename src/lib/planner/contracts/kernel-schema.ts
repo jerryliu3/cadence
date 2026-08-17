@@ -109,6 +109,7 @@ export const plannerKernelInputSchema = z
         })
         .strict()
     ),
+    linkSourceGoals: z.array(plannerGoalSchema).optional(),
     assessments: z.array(goalAssessmentSchema).optional(),
     policy: plannerPolicySchema,
     basePlan: z

@@ -38,6 +38,7 @@ export interface GenerationHashInput {
   goals: Goal[];
   completions: Completion[];
   links: PlannerCanonicalLink[];
+  linkSourceGoals?: Goal[];
   assessments: GoalAssessment[];
   policy: PlannerPolicy;
   basePlan: {
@@ -93,6 +94,13 @@ export function computeGenerationInputHash(input: GenerationHashInput) {
         ? bySource
         : compareCanonicalStrings(left.targetGoalId, right.targetGoalId);
     }),
+    ...(input.linkSourceGoals && input.linkSourceGoals.length > 0
+      ? {
+          linkSourceGoals: [...input.linkSourceGoals].sort((left, right) =>
+            compareCanonicalStrings(left.id, right.id)
+          ),
+        }
+      : {}),
     assessments: [...input.assessments].sort((left, right) =>
       compareCanonicalStrings(left.goalId, right.goalId)
     ),

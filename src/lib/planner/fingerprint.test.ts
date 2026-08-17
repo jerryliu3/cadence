@@ -141,4 +141,29 @@ describe("solver-input coverage", () => {
 
     expect(forward).toBe(reversed);
   });
+
+  it("keeps hash shape stable when link source goals are omitted or empty", () => {
+    expect(
+      computeGenerationInputHash({
+        ...input(),
+        linkSourceGoals: [],
+      })
+    ).toBe(computeGenerationInputHash(input()));
+  });
+
+  it("hashes link source goals canonically when present", () => {
+    const sourceA = { ...goal, id: "source-a" };
+    const sourceB = { ...goal, id: "source-b" };
+    const forward = computeGenerationInputHash({
+      ...input(),
+      linkSourceGoals: [sourceA, sourceB],
+    });
+    const reversed = computeGenerationInputHash({
+      ...input(),
+      linkSourceGoals: [sourceB, sourceA],
+    });
+
+    expect(forward).toBe(reversed);
+    expect(forward).not.toBe(computeGenerationInputHash(input()));
+  });
 });

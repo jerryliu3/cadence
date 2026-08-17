@@ -40,19 +40,6 @@ function evaluateStaticEligibility(goal: EligibilityGoal): EligibilityDecision |
   return null;
 }
 
-export function resolveGoalLinkRole(
-  goalId: string,
-  links: ReadonlyArray<{ sourceGoalId: string; targetGoalId: string }>
-): EligibilityGoal["currentLinkRole"] {
-  if (links.some((link) => link.targetGoalId === goalId)) {
-    return "target";
-  }
-  if (links.some((link) => link.sourceGoalId === goalId)) {
-    return "source";
-  }
-  return "none";
-}
-
 export function evaluateOverlapV1Eligibility(
   window: DateWindow,
   goal: EligibilityGoal

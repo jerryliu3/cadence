@@ -706,7 +706,7 @@ describe("pure planner kernel", () => {
     );
   });
 
-  it("schedules linked sources while keeping linked targets ineligible", () => {
+  it("suppresses linked targets while the source is still active in the scope window", () => {
     const sourceGoal = goal({ id: "goal-a", target_count: 2 });
     const mixedRoleGoal = goal({ id: "goal-b", target_count: 2 });
     const downstreamTargetGoal = goal({ id: "goal-c", target_count: 2 });
@@ -741,6 +741,66 @@ describe("pure planner kernel", () => {
     expect(output.workUnits.every((unit) => unit.originalGoalId === "goal-a")).toBe(
       true
     );
+  });
+
+  it("keeps linked targets eligible when source already ended before the scope window", () => {
+    const sourceGoal = goal({
+      id: "goal-source",
+      target_count: 2,
+      start_date: "2026-05-01",
+      end_date: "2026-07-31",
+    });
+    const targetGoal = goal({
+      id: "goal-target",
+      target_count: 2,
+      start_date: "2026-08-01",
+      end_date: "2026-08-31",
+    });
+    const output = runPlannerKernel(
+      input({
+        goals: [targetGoal],
+        links: [{ sourceGoalId: sourceGoal.id, targetGoalId: targetGoal.id }],
+        linkSourceGoals: [sourceGoal],
+      })
+    );
+
+    expect(
+      output.eligibility.find((entry) => entry.goalId === targetGoal.id)
+    ).toMatchObject({
+      eligible: true,
+      reason: "eligible",
+    });
+    expect(output.workUnits.every((unit) => unit.originalGoalId === targetGoal.id)).toBe(
+      true
+    );
+  });
+
+  it("applies monotone suppression before source start when source ends after scope start", () => {
+    const sourceGoal = goal({
+      id: "goal-source-future",
+      target_count: 2,
+      start_date: "2026-09-01",
+      end_date: "2026-10-31",
+    });
+    const targetGoal = goal({
+      id: "goal-target-future",
+      target_count: 2,
+    });
+    const output = runPlannerKernel(
+      input({
+        goals: [targetGoal],
+        links: [{ sourceGoalId: sourceGoal.id, targetGoalId: targetGoal.id }],
+        linkSourceGoals: [sourceGoal],
+      })
+    );
+
+    expect(
+      output.eligibility.find((entry) => entry.goalId === targetGoal.id)
+    ).toMatchObject({
+      eligible: false,
+      reason: "linked_target",
+    });
+    expect(output.workUnits).toHaveLength(0);
   });
 
   it("honors locks that invert ordinal order", () => {
