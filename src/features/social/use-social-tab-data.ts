@@ -9,6 +9,7 @@ import {
   normalizePlannerPrimaryTabPreference,
 } from "@cadence/shared/navigation/tabs";
 import {
+  getAvatarUrlValidationError,
   normalizeAvatarUrlDraft,
 } from "@/features/social/avatar-url";
 import { getApiErrorMessage, getJson, putJson } from "@/lib/api/client";
@@ -27,6 +28,10 @@ import { unsubscribeCurrentBrowser } from "@/lib/push/client";
 import { createClient } from "@/lib/supabase/client";
 import type { PlannerPreferencesDraft } from "@/features/settings/planner-preferences-settings";
 import { buildProfilePreferencesUpdate } from "@/features/social/profile-preferences";
+import {
+  getAvatarUploadValidationError,
+  uploadProfileAvatar,
+} from "@/lib/profile/avatar-upload";
 
 interface SocialState {
   userId: string;
@@ -402,6 +407,13 @@ export function useSocialTabData() {
     if (!canSaveProfile) {
       return;
     }
+    const avatarValidationError = getAvatarUrlValidationError(
+      normalizedProfileDraft.avatar_url
+    );
+    if (avatarValidationError) {
+      toast.error(avatarValidationError);
+      return;
+    }
     setSaving(true);
     const payload = {
       id: state.userId,
@@ -420,6 +432,30 @@ export function useSocialTabData() {
       await loadData();
     }
     setSaving(false);
+  };
+
+  const uploadProfileAvatarFile = async (file: File) => {
+    if (!state.userId) {
+      toast.error("Sign in to upload an avatar.");
+      return;
+    }
+    const validationError = getAvatarUploadValidationError(file);
+    if (validationError) {
+      toast.error(validationError);
+      return;
+    }
+
+    try {
+      const avatarUrl = await uploadProfileAvatar({
+        supabase,
+        userId: state.userId,
+        file,
+      });
+      setProfileDraft((prev) => ({ ...prev, avatar_url: avatarUrl }));
+      toast.success("Avatar uploaded. Save profile to publish the change.");
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, "Avatar upload failed."));
+    }
   };
 
   const savePreferences = async () => {
@@ -573,6 +609,7 @@ export function useSocialTabData() {
     setSharedMonthCursor,
     profileDraft,
     setProfileDraft,
+    uploadProfileAvatarFile,
     plannerPreferencesLoading,
     plannerPreferencesDraft,
     setPlannerPreferencesDraft,

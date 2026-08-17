@@ -1,14 +1,15 @@
 "use client";
 
+import { useRef, useState } from "react";
 import { WandSparkles } from "lucide-react";
 import type {
   PlannerPrimaryTabPreference,
 } from "@cadence/shared/navigation/tabs";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { UserAvatar } from "@/components/user-avatar";
 import type { Profile } from "@/lib/goals/types";
 
 interface ProfileDraft {
@@ -27,13 +28,7 @@ interface ProfileSectionProps {
   canSaveProfile: boolean;
   setProfileDraft: (updater: (previous: ProfileDraft) => ProfileDraft) => void;
   onSaveProfile: () => Promise<void>;
-}
-
-function getInitials(profile: Profile | null) {
-  if (!profile) {
-    return "??";
-  }
-  return (profile.display_name ?? profile.username).slice(0, 2).toUpperCase();
+  onUploadAvatar: (file: File) => Promise<void>;
 }
 
 export function ProfileSection({
@@ -44,8 +39,11 @@ export function ProfileSection({
   canSaveProfile,
   setProfileDraft,
   onSaveProfile,
+  onUploadAvatar,
 }: ProfileSectionProps) {
   const avatarPreviewUrl = profileDraft.avatar_url.trim();
+  const avatarInputRef = useRef<HTMLInputElement | null>(null);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
   return (
     <Card className="overflow-visible shadow-sm">
@@ -55,14 +53,58 @@ export function ProfileSection({
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="flex items-center gap-3">
-          <Avatar>
-            {avatarPreviewUrl ? (
-              <AvatarImage src={avatarPreviewUrl} alt="Profile avatar preview" />
-            ) : null}
-            <AvatarFallback>{getInitials(profile)}</AvatarFallback>
-          </Avatar>
-          <div className="text-sm text-muted-foreground">
-            Keep this profile updated so collaborators can find you quickly.
+          <UserAvatar
+            avatarUrl={avatarPreviewUrl || null}
+            displayName={profileDraft.display_name || profile?.display_name || null}
+            username={profileDraft.username || profile?.username || null}
+            alt="Profile avatar preview"
+          />
+          <div className="space-y-2">
+            <div className="text-sm text-muted-foreground">
+              Keep this profile updated so collaborators can find you quickly.
+            </div>
+            <input
+              ref={avatarInputRef}
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              className="hidden"
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                if (!file) {
+                  return;
+                }
+                setUploadingAvatar(true);
+                void onUploadAvatar(file).finally(() => {
+                  setUploadingAvatar(false);
+                  event.currentTarget.value = "";
+                });
+              }}
+            />
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={uploadingAvatar || saving}
+                onClick={() => avatarInputRef.current?.click()}
+              >
+                {uploadingAvatar ? "Uploading..." : "Upload photo"}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={uploadingAvatar || saving || avatarPreviewUrl.length === 0}
+                onClick={() =>
+                  setProfileDraft((prev) => ({
+                    ...prev,
+                    avatar_url: "",
+                  }))
+                }
+              >
+                Remove photo
+              </Button>
+            </div>
           </div>
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
