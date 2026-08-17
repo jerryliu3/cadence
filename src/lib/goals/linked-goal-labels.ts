@@ -29,7 +29,7 @@ export function getLinkedGoalRecurrenceLabel(
 }
 
 export function getLinkedGoalDeadlineLabel(goal: Pick<Goal, "end_date">): string {
-  return goal.end_date ? `Due ${goal.end_date}` : "No deadline";
+  return goal.end_date ? `Due ${formatGoalDateLabel(goal.end_date)}` : "No deadline";
 }
 
 export function getLinkedTargetSchedulingNotice({

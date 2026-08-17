@@ -47,8 +47,7 @@ import {
 import { buildActiveGoalIndexes } from "@/features/planner/calendar-entries";
 import {
   buildPlannerLinkedTargetIndexes,
-  describeLinkedTargetStatus,
-  getLinkedTargetScopeStatus,
+  describeLinkedTargetSuppression,
 } from "@/features/planner/calendar-linked-targets";
 import {
   buildWeekdayLabels,
@@ -506,25 +505,30 @@ export function CalendarSurface({
     () => buildPlannerLinkedTargetIndexes(context?.links ?? []),
     [context?.links]
   );
+  const linkedTargetSuppression = useMemo(
+    () =>
+      describeLinkedTargetSuppression({
+        eligibility: effectivePreview?.eligibility ?? [],
+        links: context?.links ?? [],
+        goalTitles: context?.goalTitles ?? {},
+        scopeMonth: context?.scopeMonth ?? month ?? "1970-01",
+      }),
+    [
+      context?.goalTitles,
+      context?.links,
+      context?.scopeMonth,
+      effectivePreview?.eligibility,
+      month,
+    ]
+  );
   const eligibilityNotices = useMemo(() => {
     const eligibilityEntries = effectivePreview?.eligibility ?? [];
-    const scopeMonth = context?.scopeMonth ?? month ?? "1970-01";
-    const linkedTargetDetailsByGoalId = new Map<
-      string,
-      {
-        goalId: string;
-        goalTitle: string;
-        statusCopy: string;
-        sourceGoalTitles: string[];
-      }
-    >();
     const hardIneligible: Array<{
       goalId: string;
       goalTitle: string;
       reason: EligibilityReason;
       reasonCopy: string;
     }> = [];
-    let linkedTargetCount = 0;
 
     for (const eligibilityEntry of eligibilityEntries) {
       if (eligibilityEntry.eligible) {
@@ -534,38 +538,6 @@ export function CalendarSurface({
         continue;
       }
       if (eligibilityEntry.reason === "linked_target") {
-        linkedTargetCount += 1;
-        if (!linkedTargetDetailsByGoalId.has(eligibilityEntry.goalId)) {
-          const targetLinks =
-            linkedTargetIndexes.linksByTargetGoalId.get(eligibilityEntry.goalId) ??
-            [];
-          const representativeLink = targetLinks[0];
-          const statusCopy = representativeLink
-            ? describeLinkedTargetStatus(
-                getLinkedTargetScopeStatus({
-                  scopeMonth,
-                  targetSuppressionKind: representativeLink.targetSuppressionKind,
-                  targetResumesOn: representativeLink.targetResumesOn,
-                })
-              )
-            : "hidden in this month";
-          const sourceGoalTitles = Array.from(
-            new Set(
-              targetLinks.map(
-                (targetLink) =>
-                  context?.goalTitles?.[targetLink.sourceGoalId] ??
-                  targetLink.sourceGoalId
-              )
-            )
-          ).sort((left, right) => left.localeCompare(right));
-          linkedTargetDetailsByGoalId.set(eligibilityEntry.goalId, {
-            goalId: eligibilityEntry.goalId,
-            goalTitle:
-              context?.goalTitles?.[eligibilityEntry.goalId] ?? eligibilityEntry.goalId,
-            statusCopy,
-            sourceGoalTitles,
-          });
-        }
         continue;
       }
       if (NON_ACTIONABLE_ELIGIBILITY_REASONS.has(eligibilityEntry.reason)) {
@@ -604,12 +576,10 @@ export function CalendarSurface({
     return {
       hardIneligible,
       groupedHardIneligible,
-      linkedTargetCount,
-      linkedTargetDetails: Array.from(linkedTargetDetailsByGoalId.values()).sort(
-        (left, right) => left.goalTitle.localeCompare(right.goalTitle)
-      ),
+      linkedTargetCount: linkedTargetSuppression.linkedTargetCount,
+      linkedTargetDetails: linkedTargetSuppression.linkedTargetDetails,
     };
-  }, [context?.goalTitles, context?.scopeMonth, effectivePreview?.eligibility, linkedTargetIndexes, month]);
+  }, [context?.goalTitles, effectivePreview?.eligibility, linkedTargetSuppression]);
   const activeGoalIndexes = useMemo(
     () => buildActiveGoalIndexes(context?.activePlan?.goals),
     [context?.activePlan?.goals]

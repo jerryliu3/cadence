@@ -8,6 +8,19 @@ export interface PlannerLinkedTargetScopeStatus {
   resumeDate: string | null;
 }
 
+export interface LinkedTargetSuppressionDetail {
+  goalId: string;
+  goalTitle: string;
+  statusCopy: string;
+  sourceGoalTitles: string[];
+}
+
+interface LinkedTargetEligibilityEntry {
+  goalId: string;
+  eligible: boolean;
+  reason: string;
+}
+
 export function buildPlannerLinkedTargetIndexes(
   links: ReadonlyArray<PlannerGoalLinkSummary>
 ) {
@@ -79,4 +92,68 @@ export function describeLinkedTargetStatus(
       : "hidden in this month";
   }
   return "visible in this month";
+}
+
+export function describeLinkedTargetSuppression({
+  eligibility,
+  links,
+  goalTitles,
+  scopeMonth,
+}: {
+  eligibility: ReadonlyArray<LinkedTargetEligibilityEntry>;
+  links: ReadonlyArray<PlannerGoalLinkSummary>;
+  goalTitles: Record<string, string>;
+  scopeMonth: string;
+}): {
+  linkedTargetCount: number;
+  linkedTargetDetails: LinkedTargetSuppressionDetail[];
+} {
+  let linkedTargetCount = 0;
+  const linkedTargetDetailsByGoalId = new Map<string, LinkedTargetSuppressionDetail>();
+  const linkedTargetIndexes = buildPlannerLinkedTargetIndexes(links);
+
+  for (const eligibilityEntry of eligibility) {
+    if (eligibilityEntry.eligible || eligibilityEntry.reason !== "linked_target") {
+      continue;
+    }
+    linkedTargetCount += 1;
+    if (linkedTargetDetailsByGoalId.has(eligibilityEntry.goalId)) {
+      continue;
+    }
+
+    const targetLinks =
+      linkedTargetIndexes.linksByTargetGoalId.get(eligibilityEntry.goalId) ?? [];
+    const representativeLink = targetLinks[0];
+    const statusCopy = representativeLink
+      ? describeLinkedTargetStatus(
+          getLinkedTargetScopeStatus({
+            scopeMonth,
+            targetSuppressionKind: representativeLink.targetSuppressionKind,
+            targetResumesOn: representativeLink.targetResumesOn,
+          })
+        )
+      : "hidden in this month";
+    const sourceGoalTitles = Array.from(
+      new Set(
+        targetLinks.map(
+          (targetLink) =>
+            goalTitles[targetLink.sourceGoalId] ?? targetLink.sourceGoalId
+        )
+      )
+    ).sort((left, right) => left.localeCompare(right));
+
+    linkedTargetDetailsByGoalId.set(eligibilityEntry.goalId, {
+      goalId: eligibilityEntry.goalId,
+      goalTitle: goalTitles[eligibilityEntry.goalId] ?? eligibilityEntry.goalId,
+      statusCopy,
+      sourceGoalTitles,
+    });
+  }
+
+  return {
+    linkedTargetCount,
+    linkedTargetDetails: Array.from(linkedTargetDetailsByGoalId.values()).sort(
+      (left, right) => left.goalTitle.localeCompare(right.goalTitle)
+    ),
+  };
 }
