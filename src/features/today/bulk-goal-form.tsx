@@ -491,7 +491,7 @@ export function BulkGoalForm({
                 draft.frequency_type === "fixed_milestones"
                   ? parsedTargetCount ?? 0
                   : 0;
-              const usesSoftHorizon = bulkGoalDraftRequiresEndDate(draft);
+              const requiresEndDate = bulkGoalDraftRequiresEndDate(draft);
               const linkQuery = draft.link_target_search.trim().toLowerCase();
               const filteredLinkTargets = availableGoals.filter((goal) => {
                 if (linkQuery.length === 0) {

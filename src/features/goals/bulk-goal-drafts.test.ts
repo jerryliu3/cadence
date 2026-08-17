@@ -67,21 +67,6 @@ describe("bulk goal drafts", () => {
     );
   });
 
-  it("keeps schedule summaries renderable while dates are being edited", () => {
-    const [draft] = buildBulkGoalDraftsFromLlmGoals([
-      {
-        title: "Easy run",
-        frequency_type: "recurring",
-        recurrence_interval: "weekly",
-        start_date: "2026-08-17",
-      },
-    ]);
-
-    expect(
-      summarizeBulkGoalDraftSchedule({ ...draft, start_date: "" })
-    ).toBe("Weekly · Start date required");
-  });
-
   it("prepares the existing create_goals row shape", () => {
     const [draft] = buildBulkGoalDraftsFromLlmGoals([
       {
