@@ -1,4 +1,5 @@
 import { Image, StyleSheet, Text, View } from "react-native";
+import { useEffect, useState } from "react";
 import { useTheme } from "../theme";
 
 function getInitials(displayName?: string | null, username?: string | null) {
@@ -23,6 +24,11 @@ export function UserAvatar({
   const theme = useTheme();
   const initials = getInitials(displayName, username);
   const normalizedUrl = avatarUrl?.trim() ? avatarUrl.trim() : null;
+  const [imageFailed, setImageFailed] = useState(false);
+
+  useEffect(() => {
+    setImageFailed(false);
+  }, [normalizedUrl]);
 
   return (
     <View
@@ -36,8 +42,14 @@ export function UserAvatar({
         },
       ]}
     >
-      {normalizedUrl ? (
-        <Image source={{ uri: normalizedUrl }} style={styles.image} />
+      {normalizedUrl && !imageFailed ? (
+        <Image
+          source={{ uri: normalizedUrl }}
+          style={styles.image}
+          onError={() => {
+            setImageFailed(true);
+          }}
+        />
       ) : (
         <Text style={{ color: theme.colors.mutedForeground, fontWeight: "700" }}>
           {initials}
