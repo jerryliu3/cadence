@@ -84,6 +84,8 @@ describe("buildCoachPrompt", () => {
     expect(prompt).toContain("goalDraftPrompt");
     expect(prompt).toContain("1-5 recurring cadence goals");
     expect(prompt).toContain("Never create one goal per workout");
+    expect(prompt).toContain("prefer including a complete goalDraftPrompt");
+    expect(prompt).not.toContain("calendar edits require a matching goal");
     expect(prompt).toContain("Always include 2-5 concrete recommendations");
   });
 
