@@ -6,16 +6,10 @@ import {
 import type { PlannerGoalLinkSummary } from "@cadence/shared/planner/context";
 
 describe("buildPlannerLinkedTargetIndexes", () => {
-  it("builds deterministic source/target indexes without duplicates", () => {
+  it("builds deterministic source/target link indexes", () => {
     const links: PlannerGoalLinkSummary[] = [
       {
         sourceGoalId: "goal-b",
-        targetGoalId: "goal-c",
-        targetSuppressionKind: "until",
-        targetResumesOn: "2027-01-01",
-      },
-      {
-        sourceGoalId: "goal-a",
         targetGoalId: "goal-c",
         targetSuppressionKind: "until",
         targetResumesOn: "2027-01-01",
@@ -35,12 +29,14 @@ describe("buildPlannerLinkedTargetIndexes", () => {
     ];
     const indexes = buildPlannerLinkedTargetIndexes(links);
 
-    expect(indexes.targetsBySourceGoalId.get("goal-a")).toEqual([
+    expect(indexes.linksBySourceGoalId.get("goal-a")?.map((link) => link.targetGoalId)).toEqual([
       "goal-b",
       "goal-c",
     ]);
-    expect(indexes.targetsBySourceGoalId.get("goal-b")).toEqual(["goal-c"]);
-    expect(indexes.sourceGoalsByTargetGoalId.get("goal-c")).toEqual([
+    expect(indexes.linksBySourceGoalId.get("goal-b")?.map((link) => link.targetGoalId)).toEqual([
+      "goal-c",
+    ]);
+    expect(indexes.linksByTargetGoalId.get("goal-c")?.map((link) => link.sourceGoalId)).toEqual([
       "goal-a",
       "goal-b",
     ]);

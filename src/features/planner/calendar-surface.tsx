@@ -47,6 +47,7 @@ import {
 import { buildActiveGoalIndexes } from "@/features/planner/calendar-entries";
 import {
   buildPlannerLinkedTargetIndexes,
+  describeLinkedTargetStatus,
   getLinkedTargetScopeStatus,
 } from "@/features/planner/calendar-linked-targets";
 import {
@@ -119,7 +120,6 @@ import {
   postJson,
   putJson,
 } from "@/lib/api/client";
-import { formatGoalDateLabel } from "@/lib/goals/linked-goal-labels";
 import { useOutsidePointerDismiss } from "@/lib/ui/use-outside-pointer-dismiss";
 import {
   readTabDataCache,
@@ -518,34 +518,6 @@ export function CalendarSurface({
         sourceGoalTitles: string[];
       }
     >();
-    if (eligibilityEntries.length === 0) {
-      return {
-        hardIneligible: [] as Array<{
-          goalId: string;
-          goalTitle: string;
-          reason: EligibilityReason;
-          reasonCopy: string;
-        }>,
-        groupedHardIneligible: [] as Array<{
-          reason: EligibilityReason;
-          heading: string;
-          entries: Array<{
-            goalId: string;
-            goalTitle: string;
-            reason: EligibilityReason;
-            reasonCopy: string;
-          }>;
-        }>,
-        linkedTargetCount: 0,
-        linkedTargetDetails: [] as Array<{
-          goalId: string;
-          goalTitle: string;
-          statusCopy: string;
-          sourceGoalTitles: string[];
-        }>,
-      };
-    }
-
     const hardIneligible: Array<{
       goalId: string;
       goalTitle: string;
@@ -568,28 +540,24 @@ export function CalendarSurface({
             linkedTargetIndexes.linksByTargetGoalId.get(eligibilityEntry.goalId) ??
             [];
           const representativeLink = targetLinks[0];
-          const status = representativeLink
-            ? getLinkedTargetScopeStatus({
-                scopeMonth,
-                targetSuppressionKind: representativeLink.targetSuppressionKind,
-                targetResumesOn: representativeLink.targetResumesOn,
-              })
-            : null;
-          const statusCopy =
-            status?.state === "indefinite"
-              ? "Hidden while linked source goals remain active."
-              : status?.state === "suppressed"
-                ? status.resumeDate
-                  ? `Hidden in this month; resumes on ${formatGoalDateLabel(status.resumeDate)}.`
-                  : "Hidden in this month."
-                : "Hidden in this month.";
-          const sourceGoalTitles = (
-            linkedTargetIndexes.sourceGoalsByTargetGoalId.get(
-              eligibilityEntry.goalId
-            ) ?? []
-          )
-            .map((sourceGoalId) => context?.goalTitles?.[sourceGoalId] ?? sourceGoalId)
-            .sort((left, right) => left.localeCompare(right));
+          const statusCopy = representativeLink
+            ? describeLinkedTargetStatus(
+                getLinkedTargetScopeStatus({
+                  scopeMonth,
+                  targetSuppressionKind: representativeLink.targetSuppressionKind,
+                  targetResumesOn: representativeLink.targetResumesOn,
+                })
+              )
+            : "hidden in this month";
+          const sourceGoalTitles = Array.from(
+            new Set(
+              targetLinks.map(
+                (targetLink) =>
+                  context?.goalTitles?.[targetLink.sourceGoalId] ??
+                  targetLink.sourceGoalId
+              )
+            )
+          ).sort((left, right) => left.localeCompare(right));
           linkedTargetDetailsByGoalId.set(eligibilityEntry.goalId, {
             goalId: eligibilityEntry.goalId,
             goalTitle:

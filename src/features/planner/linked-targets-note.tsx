@@ -1,8 +1,10 @@
 "use client";
 
 import { Link2 } from "lucide-react";
-import { getLinkedTargetScopeStatus } from "@/features/planner/calendar-linked-targets";
-import { formatGoalDateLabel } from "@/lib/goals/linked-goal-labels";
+import {
+  describeLinkedTargetStatus,
+  getLinkedTargetScopeStatus,
+} from "@/features/planner/calendar-linked-targets";
 import type { PlannerGoalLinkSummary } from "@cadence/shared/planner/context";
 
 export function LinkedTargetsNote({
@@ -31,10 +33,10 @@ export function LinkedTargetsNote({
   const hiddenCount = rows.filter((row) => row.status.state !== "visible").length;
   const summary =
     hiddenCount === 0
-      ? "Linked targets can appear in this scope."
+      ? "Linked targets can appear in this month."
       : hiddenCount === 1
-        ? "1 linked target is hidden in this scope."
-        : `${hiddenCount} linked targets are hidden in this scope.`;
+        ? "1 linked target is hidden in this month."
+        : `${hiddenCount} linked targets are hidden in this month.`;
   return (
     <div className="rounded-md border border-dashed p-2 text-xs">
       <div className="flex items-center gap-1.5 font-medium">
@@ -45,14 +47,7 @@ export function LinkedTargetsNote({
       <ul className="mt-2 space-y-1 text-muted-foreground">
         {rows.map((row) => (
           <li key={row.targetGoalId} className="truncate">
-            {row.title}:{" "}
-            {row.status.state === "indefinite"
-              ? "hidden while linked source goals remain active"
-              : row.status.state === "suppressed"
-                ? row.status.resumeDate
-                  ? `hidden in this scope and resumes on ${formatGoalDateLabel(row.status.resumeDate)}`
-                  : "hidden in this scope"
-                : "visible in this scope"}
+            {row.title}: {describeLinkedTargetStatus(row.status)}
           </li>
         ))}
       </ul>
