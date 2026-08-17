@@ -3,20 +3,35 @@ import type { Database } from "@/lib/supabase/database.types";
 
 export const AVATAR_UPLOAD_BUCKET = "avatars";
 export const AVATAR_MAX_BYTES = 5 * 1024 * 1024;
+export const AVATAR_OBJECT_FILE_NAME = "avatar.jpg";
 export const AVATAR_ALLOWED_MIME_TYPES = new Set([
   "image/png",
   "image/jpeg",
   "image/webp",
 ]);
 
-function normalizeFilename(name: string) {
-  const cleaned = name
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9._-]+/g, "-")
-    .replace(/-+/g, "-")
-    .replace(/^-|-$/g, "");
-  return cleaned.length > 0 ? cleaned : "avatar.jpg";
+const AVATAR_PUBLIC_PATH_PREFIX = "/storage/v1/object/public/avatars/";
+
+export function getCanonicalAvatarObjectPath(userId: string) {
+  return `${userId}/${AVATAR_OBJECT_FILE_NAME}`;
+}
+
+export function resolveAvatarObjectPathFromPublicUrl(avatarUrl: string | null) {
+  if (!avatarUrl) {
+    return null;
+  }
+  try {
+    const parsed = new URL(avatarUrl);
+    if (!parsed.pathname.startsWith(AVATAR_PUBLIC_PATH_PREFIX)) {
+      return null;
+    }
+    const objectPath = decodeURIComponent(
+      parsed.pathname.slice(AVATAR_PUBLIC_PATH_PREFIX.length)
+    );
+    return objectPath.length > 0 ? objectPath : null;
+  } catch {
+    return null;
+  }
 }
 
 export function getAvatarUploadValidationError(file: File): string | null {
@@ -44,6 +59,99 @@ function assertUploadedAvatarPublicUrl(publicUrl: string) {
   }
 }
 
+async function readImageElementFromFile(file: File) {
+  return new Promise<HTMLImageElement>((resolve, reject) => {
+    const objectUrl = URL.createObjectURL(file);
+    const image = new Image();
+    image.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+      resolve(image);
+    };
+    image.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error("Could not decode avatar image."));
+    };
+    image.src = objectUrl;
+  });
+}
+
+async function convertImageToJpegBlob(file: File): Promise<Blob> {
+  const maxWidth = 600;
+  let sourceWidth = 0;
+  let sourceHeight = 0;
+  let drawImage: CanvasImageSource | null = null;
+
+  if (typeof createImageBitmap === "function") {
+    try {
+      const bitmap = await createImageBitmap(file);
+      sourceWidth = bitmap.width;
+      sourceHeight = bitmap.height;
+      drawImage = bitmap;
+    } catch {
+      drawImage = null;
+    }
+  }
+
+  if (!drawImage) {
+    const image = await readImageElementFromFile(file);
+    sourceWidth = image.naturalWidth;
+    sourceHeight = image.naturalHeight;
+    drawImage = image;
+  }
+
+  if (sourceWidth <= 0 || sourceHeight <= 0) {
+    throw new Error("Could not decode avatar image.");
+  }
+
+  const targetWidth = Math.min(sourceWidth, maxWidth);
+  const targetHeight = Math.max(
+    1,
+    Math.round((sourceHeight / sourceWidth) * targetWidth)
+  );
+  const canvas = document.createElement("canvas");
+  canvas.width = targetWidth;
+  canvas.height = targetHeight;
+  const context = canvas.getContext("2d");
+  if (!context) {
+    throw new Error("Could not prepare avatar image.");
+  }
+  context.drawImage(drawImage, 0, 0, targetWidth, targetHeight);
+
+  if (typeof ImageBitmap !== "undefined" && drawImage instanceof ImageBitmap) {
+    drawImage.close();
+  }
+
+  return new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob(
+      (blob) => {
+        if (!blob) {
+          reject(new Error("Could not encode avatar image."));
+          return;
+        }
+        resolve(blob);
+      },
+      "image/jpeg",
+      0.82
+    );
+  });
+}
+
+function buildAvatarDeletePaths({
+  userId,
+  avatarUrl,
+}: {
+  userId: string;
+  avatarUrl: string | null;
+}) {
+  const paths = new Set<string>();
+  paths.add(getCanonicalAvatarObjectPath(userId));
+  const parsedPath = resolveAvatarObjectPathFromPublicUrl(avatarUrl);
+  if (parsedPath && parsedPath.startsWith(`${userId}/`)) {
+    paths.add(parsedPath);
+  }
+  return Array.from(paths);
+}
+
 export async function uploadProfileAvatar({
   supabase,
   userId,
@@ -53,15 +161,13 @@ export async function uploadProfileAvatar({
   userId: string;
   file: File;
 }): Promise<string> {
-  const extension = file.type === "image/png" ? "png" : file.type === "image/webp" ? "webp" : "jpg";
-  const fileName = normalizeFilename(file.name);
-  const baseName = fileName.replace(/\.[a-z0-9]+$/i, "");
-  const objectPath = `${userId}/${baseName || "avatar"}.${extension}`;
+  const objectPath = getCanonicalAvatarObjectPath(userId);
+  const uploadBlob = await convertImageToJpegBlob(file);
 
   const { error: uploadError } = await supabase.storage
     .from(AVATAR_UPLOAD_BUCKET)
-    .upload(objectPath, file, {
-      contentType: file.type,
+    .upload(objectPath, uploadBlob, {
+      contentType: "image/jpeg",
       upsert: true,
     });
 
@@ -74,4 +180,25 @@ export async function uploadProfileAvatar({
   } = supabase.storage.from(AVATAR_UPLOAD_BUCKET).getPublicUrl(objectPath);
   assertUploadedAvatarPublicUrl(publicUrl);
   return `${publicUrl}?v=${Date.now()}`;
+}
+
+export async function deleteProfileAvatar({
+  supabase,
+  userId,
+  avatarUrl,
+}: {
+  supabase: SupabaseClient<Database>;
+  userId: string;
+  avatarUrl: string | null;
+}) {
+  const deletePaths = buildAvatarDeletePaths({ userId, avatarUrl });
+  if (deletePaths.length === 0) {
+    return;
+  }
+  const { error } = await supabase.storage
+    .from(AVATAR_UPLOAD_BUCKET)
+    .remove(deletePaths);
+  if (error) {
+    throw error;
+  }
 }

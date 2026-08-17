@@ -76,7 +76,9 @@ export function ProfileSection({
                 setUploadingAvatar(true);
                 void onUploadAvatar(file).finally(() => {
                   setUploadingAvatar(false);
-                  event.currentTarget.value = "";
+                  if (avatarInputRef.current) {
+                    avatarInputRef.current.value = "";
+                  }
                 });
               }}
             />
