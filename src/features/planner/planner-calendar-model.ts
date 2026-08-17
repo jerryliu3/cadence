@@ -33,6 +33,7 @@ import {
 } from "@/features/planner/planner-warning-model";
 import {
   selectCalendarDayAccessorsModel,
+  type CalendarDayAccessorsMemoizedState,
   type CalendarDayAccessorsResult,
 } from "@/features/planner/use-calendar-day-accessors";
 import type { PlannerPolicy } from "@/lib/planner/policy";
@@ -53,6 +54,9 @@ export interface PlannerCalendarModelArgs {
   partnerCompletionMarkersByDate?: Map<string, PlannerCompletionFactMarker[]>;
   previewEntryOrderByDay: Record<string, string[]>;
   additionalProjectionDays: string[];
+  memoizedState?: {
+    draftSession?: PlannerDraftSessionModel;
+  } & CalendarDayAccessorsMemoizedState;
 }
 
 export interface PlannerCalendarModel {
@@ -85,6 +89,7 @@ export function selectPlannerCalendarModel({
   partnerCompletionMarkersByDate,
   previewEntryOrderByDay,
   additionalProjectionDays,
+  memoizedState,
 }: PlannerCalendarModelArgs): PlannerCalendarModel {
   const weekStartsOn = normalizeWeekStartsOn(
     context?.preferences?.defaultPolicy.weekStartsOn
@@ -103,13 +108,15 @@ export function selectPlannerCalendarModel({
     viewMode,
   });
   const currentScopeMonth = month ?? context?.scopeMonth ?? null;
-  const draftSession = selectPlannerDraftSessionModel({
-    context,
-    draftPreview,
-    draftPolicy,
-    draftCommandState,
-    currentScopeMonth,
-  });
+  const draftSession =
+    memoizedState?.draftSession ??
+    selectPlannerDraftSessionModel({
+      context,
+      draftPreview,
+      draftPolicy,
+      draftCommandState,
+      currentScopeMonth,
+    });
   const dayAccessors = selectCalendarDayAccessorsModel({
     context,
     effectivePreview: draftSession.effectivePreview,
@@ -124,6 +131,7 @@ export function selectPlannerCalendarModel({
     visibleDays: viewProjection.visibleDays,
     additionalProjectionDays: [viewProjection.focusedDay, ...additionalProjectionDays],
     previewEntryOrderByDay,
+    memoizedState,
   });
   const eligibilityNotices = selectPlannerEligibilityNotices({
     context,

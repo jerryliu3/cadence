@@ -1,6 +1,3 @@
-"use client";
-
-import { useMemo } from "react";
 import { buildActiveGoalIndexes } from "@/features/planner/calendar-entries";
 import {
   applyCalendarCompletionMarkerFilters,
@@ -28,7 +25,7 @@ import {
   resolveEffectiveEndMonth,
 } from "@/lib/goals/list-view";
 
-interface UseCalendarDayAccessorsArgs {
+export interface CalendarDayAccessorsArgs {
   context: PlannerContextPayload | null;
   effectivePreview: PlannerContextPayload["preview"] | null;
   draftCommandState: DraftCommandState;
@@ -44,8 +41,12 @@ interface UseCalendarDayAccessorsArgs {
   previewEntryOrderByDay: Record<string, string[]>;
 }
 
+export interface CalendarDayAccessorsMemoizedState {
+  activeGoalIndexes?: ReturnType<typeof buildActiveGoalIndexes>;
+  calendarStoreProjection?: PlannerCalendarStoreProjection;
+}
+
 export interface CalendarDayAccessorsResult {
-  calendarStoreProjection: PlannerCalendarStoreProjection;
   entriesByDate: Map<string, PlannerDayDetailEntry[]>;
   entryByKey: Map<string, PlannerDayDetailEntry>;
   entryDayByKey: Map<string, string>;
@@ -57,13 +58,11 @@ export interface CalendarDayAccessorsResult {
   categoryOptions: ReturnType<typeof buildCalendarCategoryFilterOptions>;
   endMonthOptions: ReturnType<typeof buildGoalEndMonthOptions>;
   effectiveEndMonthFilter: string | null;
-  goalPassesFilters: (goalId: string) => boolean;
   getEntriesForDay: (day: string | null) => PlannerDayDetailEntry[];
   getCompletionFactMarkersForDay: (
     day: string | null
   ) => PlannerCompletionFactMarker[];
   getOrderedEntriesForDay: (day: string | null) => PlannerDayDetailEntry[];
-  isDayInCurrentScopeMonth: (day: string | null) => boolean;
   canMutateEntryOnDay: (entry: PlannerDayDetailEntry, day: string | null) => boolean;
   hideViewerPlan: boolean;
   plannerReadOnly: boolean;
@@ -83,8 +82,13 @@ export function selectCalendarDayAccessorsModel({
   visibleDays,
   additionalProjectionDays,
   previewEntryOrderByDay,
-}: UseCalendarDayAccessorsArgs): CalendarDayAccessorsResult {
-  const activeGoalIndexes = buildActiveGoalIndexes(context?.activePlan?.goals);
+  memoizedState,
+}: CalendarDayAccessorsArgs & {
+  memoizedState?: CalendarDayAccessorsMemoizedState;
+}): CalendarDayAccessorsResult {
+  const activeGoalIndexes =
+    memoizedState?.activeGoalIndexes ??
+    buildActiveGoalIndexes(context?.activePlan?.goals);
   const activeGoalsByPlanGoalId = activeGoalIndexes.byPlanGoalId;
   const activeGoalsByOriginalGoalId = activeGoalIndexes.byOriginalGoalId;
   const filterReferenceMonth = currentScopeMonth ?? calendarToday.slice(0, 7);
@@ -114,13 +118,15 @@ export function selectCalendarDayAccessorsModel({
       endMonthFilter: effectiveEndMonthFilter,
     });
 
-  const calendarStoreProjection = selectPlannerCalendarStoreProjection({
-    context,
-    effectivePreview,
-    draftCommandState,
-    activeGoalsByPlanGoalId,
-    activeGoalsByOriginalGoalId,
-  });
+  const calendarStoreProjection =
+    memoizedState?.calendarStoreProjection ??
+    selectPlannerCalendarStoreProjection({
+      context,
+      effectivePreview,
+      draftCommandState,
+      activeGoalsByPlanGoalId,
+      activeGoalsByOriginalGoalId,
+    });
 
   const {
     effectiveDraftItemEdits,
@@ -210,7 +216,6 @@ export function selectCalendarDayAccessorsModel({
   };
 
   return {
-    calendarStoreProjection,
     entriesByDate,
     entryByKey,
     entryDayByKey,
@@ -222,66 +227,11 @@ export function selectCalendarDayAccessorsModel({
     categoryOptions,
     endMonthOptions,
     effectiveEndMonthFilter,
-    goalPassesFilters,
     getEntriesForDay,
     getCompletionFactMarkersForDay,
     getOrderedEntriesForDay,
-    isDayInCurrentScopeMonth,
     canMutateEntryOnDay,
     hideViewerPlan,
     plannerReadOnly,
   };
-}
-
-export function useCalendarDayAccessors(
-  args: UseCalendarDayAccessorsArgs
-): CalendarDayAccessorsResult {
-  const {
-    context,
-    effectivePreview,
-    draftCommandState,
-    month,
-    currentScopeMonth,
-    calendarToday,
-    categoryFilter,
-    endMonthFilter,
-    duoScope,
-    partnerCompletionMarkersByDate,
-    visibleDays,
-    additionalProjectionDays,
-    previewEntryOrderByDay,
-  } = args;
-  return useMemo(
-    () =>
-      selectCalendarDayAccessorsModel({
-        context,
-        effectivePreview,
-        draftCommandState,
-        month,
-        currentScopeMonth,
-        calendarToday,
-        categoryFilter,
-        endMonthFilter,
-        duoScope,
-        partnerCompletionMarkersByDate,
-        visibleDays,
-        additionalProjectionDays,
-        previewEntryOrderByDay,
-      }),
-    [
-      additionalProjectionDays,
-      calendarToday,
-      categoryFilter,
-      context,
-      currentScopeMonth,
-      draftCommandState,
-      duoScope,
-      effectivePreview,
-      endMonthFilter,
-      month,
-      partnerCompletionMarkersByDate,
-      previewEntryOrderByDay,
-      visibleDays,
-    ]
-  );
 }
