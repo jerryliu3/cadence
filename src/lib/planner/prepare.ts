@@ -3,6 +3,7 @@ import { getAdmissibleCompletions } from "@/lib/goals/admissible";
 import type { Completion, Goal } from "@/lib/goals/types";
 import { reportError } from "@/lib/observability/report-error";
 import { createDefaultAssessment } from "@/lib/planner/assessment";
+import { canonicalHash } from "@/lib/planner/canonical";
 import {
   resolveCanonicalAsOfDate,
   PlannerRouteError,
@@ -67,6 +68,7 @@ interface PreparedItem {
 interface GoalUnplaceablePayload {
   goal_id: string;
   requirement_fingerprint: string;
+  policy_fingerprint: string;
   policy_revision: number;
   lock_signature: string;
   effective_span_end: string;
@@ -305,6 +307,7 @@ async function prepareOnce({
     preparation.snapshot.preferences?.default_policy ??
       createDefaultPlannerPolicy(timezone, new Date().toISOString())
   );
+  const policyFingerprint = canonicalHash(policy);
   const windows = buildPreparationWindows(asOfDate);
   const preparationStart = windows[0]!.start;
   const preparationEnd = windows.at(-1)!.end;
@@ -408,6 +411,7 @@ async function prepareOnce({
       goalOutcomeByGoalId.set(goal.id, {
         goal_id: goal.id,
         requirement_fingerprint: normalizeGoalRequirement(goal).requirementFingerprint,
+        policy_fingerprint: policyFingerprint,
         policy_revision: policyRevision,
         lock_signature: buildPlannerGoalLockSignature(
           (persistedItemsInHorizonByGoalId.get(goal.id) ?? []).map((item) => ({
@@ -445,6 +449,7 @@ async function prepareOnce({
       goalOutcomeByGoalId.set(goal.id, {
         goal_id: goal.id,
         requirement_fingerprint: normalizeGoalRequirement(goal).requirementFingerprint,
+        policy_fingerprint: policyFingerprint,
         policy_revision: policyRevision,
         lock_signature: buildPlannerGoalLockSignature(
           (persistedItemsInHorizonByGoalId.get(goal.id) ?? []).map((item) => ({
@@ -525,6 +530,7 @@ async function prepareOnce({
       isPlannerGoalUnplaceableRecordValid({
         record: existingUnplaceableRecord,
         goal,
+        policyFingerprint,
         policyRevision,
         lockSignature,
         preparationEnd,
@@ -534,19 +540,19 @@ async function prepareOnce({
         ? existingUnplaceableRecord.unplacedCount
         : 0;
     const missingCount = missingRequiredUnitCount - accountedCount;
-    const hasInHorizonCoverage =
+    const hasAnyCoveredUnits =
       (persistedItemsInHorizonValidByGoalId.get(goal.id)?.length ?? 0) > 0 ||
       completionCreditedUnitKeys.size > 0;
-    // A positive capacity row with no current in-horizon coverage can become
-    // stale even when lock/policy/requirement fingerprints still match; force
-    // a targeted re-solve so trivially placeable goals self-heal on refresh.
+    // A positive capacity row with no currently covered units can become stale
+    // even when lock/policy/requirement fingerprints still match; force a
+    // targeted re-solve so trivially placeable goals self-heal on refresh.
     const shouldRecheckSparseCapacityRecord =
       existingRecordIsValid &&
       existingUnplaceableRecord !== null &&
       existingUnplaceableRecord.reason === "capacity" &&
       existingUnplaceableRecord.unplacedCount > 0 &&
       missingCount === 0 &&
-      !hasInHorizonCoverage;
+      !hasAnyCoveredUnits;
     const goalNeedsPreparation =
       missingCount !== 0 || hasStalePersistedRows || shouldRecheckSparseCapacityRecord;
     if (!goalNeedsPreparation) {
@@ -558,6 +564,7 @@ async function prepareOnce({
         goalOutcomeByGoalId.set(goal.id, {
           goal_id: goal.id,
           requirement_fingerprint: existingUnplaceableRecord.requirementFingerprint,
+          policy_fingerprint: policyFingerprint,
           policy_revision: existingUnplaceableRecord.policyRevision,
           lock_signature: lockSignature,
           effective_span_end: existingUnplaceableRecord.effectiveSpanEnd,
@@ -569,6 +576,7 @@ async function prepareOnce({
         goalOutcomeByGoalId.set(goal.id, {
           goal_id: goal.id,
           requirement_fingerprint: requirementFingerprint,
+          policy_fingerprint: policyFingerprint,
           policy_revision: policyRevision,
           lock_signature: lockSignature,
           effective_span_end: goalWindowsState.effectiveEnd,
@@ -583,6 +591,7 @@ async function prepareOnce({
       goalOutcomeByGoalId.set(goal.id, {
         goal_id: goal.id,
         requirement_fingerprint: requirementFingerprint,
+        policy_fingerprint: policyFingerprint,
         policy_revision: policyRevision,
         lock_signature: lockSignature,
         effective_span_end: goalWindowsState.effectiveEnd,
@@ -717,6 +726,7 @@ async function prepareOnce({
     goalOutcomeByGoalId.set(goal.id, {
       goal_id: goal.id,
       requirement_fingerprint: requirementFingerprint,
+      policy_fingerprint: policyFingerprint,
       policy_revision: policyRevision,
       lock_signature: lockSignature,
       effective_span_end: goalWindowsState.effectiveEnd,
@@ -857,6 +867,7 @@ async function prepareOnce({
     .map((outcome) => ({
       goal_id: outcome.goal_id,
       requirement_fingerprint: outcome.requirement_fingerprint,
+      policy_fingerprint: outcome.policy_fingerprint,
       policy_revision: outcome.policy_revision,
       lock_signature: outcome.lock_signature,
       effective_span_end: outcome.effective_span_end,

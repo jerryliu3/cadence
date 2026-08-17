@@ -1864,6 +1864,7 @@ export type Database = {
           goal_id: string
           lock_signature: string
           owner_id: string
+          policy_fingerprint: string
           policy_revision: number
           reason: string
           requirement_fingerprint: string
@@ -1875,6 +1876,7 @@ export type Database = {
           goal_id: string
           lock_signature?: string
           owner_id: string
+          policy_fingerprint?: string
           policy_revision: number
           reason: string
           requirement_fingerprint: string
@@ -1886,6 +1888,7 @@ export type Database = {
           goal_id?: string
           lock_signature?: string
           owner_id?: string
+          policy_fingerprint?: string
           policy_revision?: number
           reason?: string
           requirement_fingerprint?: string
