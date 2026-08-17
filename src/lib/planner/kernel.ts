@@ -471,7 +471,6 @@ export function runPlannerKernel(
       currentLinkRole: isSuppressedInWindow(
         resolveLinkSuppression({
           goalId: goal.id,
-          links,
           inboundSourceIdsByTargetId: suppressionInboundIndex,
           sourcesById: suppressionSourcesById,
           ownerId: rawInput.ownerId,

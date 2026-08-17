@@ -59,14 +59,14 @@ export function resolveLinkSuppression({
   asOfDate,
 }: {
   goalId: string;
-  links: ReadonlyArray<LinkEdge>;
+  links?: ReadonlyArray<LinkEdge>;
   inboundSourceIdsByTargetId?: ReadonlyMap<string, ReadonlySet<string>>;
   sourcesById: ReadonlyMap<string, LinkSuppressionSource>;
   ownerId: string;
   asOfDate: string;
 }): LinkSuppression {
   const inboundIndex =
-    inboundSourceIdsByTargetId ?? buildLinkSuppressionInboundIndex(links);
+    inboundSourceIdsByTargetId ?? buildLinkSuppressionInboundIndex(links ?? []);
 
   const visited = new Set<string>([goalId]);
   const queue = [goalId];

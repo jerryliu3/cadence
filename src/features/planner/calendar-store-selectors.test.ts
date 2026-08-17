@@ -155,7 +155,13 @@ describe("calendar store selectors", () => {
   it("marks source entries that have linked targets", () => {
     const context = buildContext(
       [unit({ goalId: "goal-a", unitKey: "total:1", scheduledDate: "2026-08-05" })],
-      [{ sourceGoalId: "goal-a", targetGoalId: "goal-b" }]
+      [{
+        sourceGoalId: "goal-a",
+        targetGoalId: "goal-b",
+        sourcePlannedEndDate: "2026-08-31",
+        targetSuppressionKind: "until",
+        targetResumesOn: "2026-09-01",
+      }]
     );
     const projection = selectPlannerCalendarStoreProjection({
       context,

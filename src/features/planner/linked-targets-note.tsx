@@ -17,48 +17,15 @@ export function LinkedTargetsNote({
   if (linkedTargets.length === 0) {
     return null;
   }
-  const statusByTargetGoalId = new Map<
-    string,
-    ReturnType<typeof getLinkedTargetScopeStatus>
-  >();
-  for (const link of linkedTargets) {
-    const nextStatus = getLinkedTargetScopeStatus({
-      scopeMonth,
-      targetSuppressionKind: link.targetSuppressionKind,
-      targetResumesOn: link.targetResumesOn,
-      sourcePlannedEndDate: link.sourcePlannedEndDate,
-    });
-    const existingStatus = statusByTargetGoalId.get(link.targetGoalId);
-    if (!existingStatus) {
-      statusByTargetGoalId.set(link.targetGoalId, nextStatus);
-      continue;
-    }
-    if (existingStatus.state === "indefinite") {
-      continue;
-    }
-    if (nextStatus.state === "indefinite") {
-      statusByTargetGoalId.set(link.targetGoalId, nextStatus);
-      continue;
-    }
-    if (
-      existingStatus.state === "suppressed" &&
-      nextStatus.state === "suppressed" &&
-      existingStatus.resumeDate &&
-      nextStatus.resumeDate &&
-      existingStatus.resumeDate < nextStatus.resumeDate
-    ) {
-      statusByTargetGoalId.set(link.targetGoalId, nextStatus);
-      continue;
-    }
-    if (existingStatus.state === "visible" && nextStatus.state === "suppressed") {
-      statusByTargetGoalId.set(link.targetGoalId, nextStatus);
-    }
-  }
-  const rows = Array.from(statusByTargetGoalId.entries())
-    .map(([targetGoalId, status]) => ({
-      targetGoalId,
-      title: goalTitles[targetGoalId] ?? targetGoalId,
-      status,
+  const rows = linkedTargets
+    .map((link) => ({
+      targetGoalId: link.targetGoalId,
+      title: goalTitles[link.targetGoalId] ?? link.targetGoalId,
+      status: getLinkedTargetScopeStatus({
+        scopeMonth,
+        targetSuppressionKind: link.targetSuppressionKind,
+        targetResumesOn: link.targetResumesOn,
+      }),
     }))
     .sort((left, right) => left.title.localeCompare(right.title));
   const hiddenCount = rows.filter((row) => row.status.state !== "visible").length;

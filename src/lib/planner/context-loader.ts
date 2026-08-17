@@ -723,7 +723,6 @@ function buildPlannerGoalLinkSummaries({
       targetGoalId,
       resolveLinkSuppression({
         goalId: targetGoalId,
-        links,
         inboundSourceIdsByTargetId: suppressionInboundIndex,
         sourcesById: suppressionSourcesById,
         ownerId,

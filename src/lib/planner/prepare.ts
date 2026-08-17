@@ -393,7 +393,6 @@ async function prepareOnce({
   for (const goal of preparation.snapshot.goals) {
     const suppression = resolveLinkSuppression({
       goalId: goal.id,
-      links: preparation.snapshot.links,
       inboundSourceIdsByTargetId: suppressionInboundIndex,
       sourcesById: suppressionSourcesById,
       ownerId,

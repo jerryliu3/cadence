@@ -572,7 +572,6 @@ export function CalendarSurface({
                 scopeMonth,
                 targetSuppressionKind: representativeLink.targetSuppressionKind,
                 targetResumesOn: representativeLink.targetResumesOn,
-                sourcePlannedEndDate: representativeLink.sourcePlannedEndDate,
               })
             : null;
           const statusCopy =
