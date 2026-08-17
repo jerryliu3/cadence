@@ -4,7 +4,7 @@ import type { Database } from "@/lib/supabase/database.types";
 export const AVATAR_UPLOAD_BUCKET = "avatars";
 export const AVATAR_MAX_BYTES = 5 * 1024 * 1024;
 export const AVATAR_OBJECT_FILE_NAME = "avatar.jpg";
-export const AVATAR_ALLOWED_MIME_TYPES = new Set([
+const AVATAR_ALLOWED_MIME_TYPES = new Set([
   "image/png",
   "image/jpeg",
   "image/webp",
