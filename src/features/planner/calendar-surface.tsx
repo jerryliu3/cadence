@@ -25,7 +25,6 @@ import {
   parseMonth,
 } from "@/features/planner/calendar-format";
 import {
-  type PlannerDragTarget,
   PlannerDndProvider,
 } from "@/features/planner/calendar-dnd";
 import { CalendarMonthDayCell } from "@/features/planner/calendar-month-day-cell";
@@ -43,17 +42,12 @@ import {
   getCompletionControlDisabledReason,
   getDateFactDispatchForEntry as resolveDateFactDispatchForEntry,
 } from "@/features/planner/completion-entry-dispatch";
-import { planDraftMove } from "@/features/planner/plan-draft-move";
-import { planDraftTimeOverrideUpdate } from "@/features/planner/draft-time-override";
-import { reorderPreviewEntryKeys } from "@/features/planner/reorder-preview-entries";
-import { resolvePlannerDndResolution } from "@/features/planner/planner-dnd-resolution";
 import {
   buildPlannerRecoveryPlan,
   buildPlannerRecoveryWindow,
   describePlannerRecoveryOutcome,
 } from "@/lib/planner/recovery";
 import { computeDayPreviewPosition } from "@/features/planner/day-preview-popup";
-import { getGoalVisual } from "@/features/planner/goal-visuals";
 import { shouldBlockAutomatedReplanMoveForEntry } from "@/features/planner/replan-move-guard";
 import { isValidIanaTimezone, resolveUserTimezone } from "@/lib/dates/timezone";
 import {
@@ -114,8 +108,11 @@ import { PlannerExpandedPreviewDialog } from "@/features/planner/planner-expande
 import { PlannerSettingsForm } from "@/features/planner/planner-settings-form";
 import { PlannerRollingWeekStrip } from "@/features/planner/planner-rolling-week-strip";
 import { usePlannerCalendarModel } from "@/features/planner/use-planner-calendar-model";
-import { usePlannerEntryActions } from "@/features/planner/use-planner-entry-actions";
-import { usePlannerPlanActions } from "@/features/planner/use-planner-plan-actions";
+import { usePlannerEntryMutations } from "@/features/planner/use-planner-entry-mutations";
+import { usePlannerPersistenceActions } from "@/features/planner/use-planner-persistence-actions";
+import { usePlannerDraftCommands } from "@/features/planner/use-planner-draft-commands";
+import { usePlannerCalendarDnd } from "@/features/planner/use-planner-calendar-dnd";
+import { usePlannerMoveSessionDialog } from "@/features/planner/use-planner-move-session-dialog";
 const DAY_PREVIEW_HOVER_DELAY_MS = 1000;
 const DAY_PREVIEW_CLOSE_DELAY_MS = 250;
 const DAY_PREVIEW_LONG_PRESS_DELAY_MS = 500;
@@ -136,11 +133,7 @@ export function CalendarSurface({
   const [context, setContext] = useState<PlannerContextPayload | null>(null);
   const [loading, setLoading] = useState(false);
   const [setupLoading, setSetupLoading] = useState(false);
-  const [saveLoading, setSaveLoading] = useState(false);
-  const [resetLoading, setResetLoading] = useState(false);
-  const [rebuildLoading, setRebuildLoading] = useState(false);
   const [recoverLoading, setRecoverLoading] = useState(false);
-  const [fullResetLoading, setFullResetLoading] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [categoryFilter, setCategoryFilter] = useState(allCategoriesValue);
@@ -167,7 +160,6 @@ export function CalendarSurface({
   const [warningsOpen, setWarningsOpen] = useState(false);
   // Intentionally session-scoped for now; dismissal resets on page reload.
   const [warningsDismissed, setWarningsDismissed] = useState(false);
-  const [draggingEntryKey, setDraggingEntryKey] = useState<string | null>(null);
   const [localSelectedDay, setLocalSelectedDay] = useState<string | null>(null);
   const [expandedMonthRows, setExpandedMonthRows] = useState(false);
   const [previewEntryOrderByDay, setPreviewEntryOrderByDay] = useState<
@@ -463,6 +455,22 @@ export function CalendarSurface({
     [getOrderedEntriesForDay, moveDialogDay]
   );
   const scopeMonth = context?.scopeMonth ?? null;
+  const {
+    queueDraftMoveCommand,
+    updateDraftLabel,
+    updateDraftScheduledDate,
+    updateDraftScheduledTimeOverride,
+  } = usePlannerDraftCommands({
+    context,
+    scopeMonth,
+    currentScopeMonth,
+    draftWindowWorkUnits,
+    draftWindowUnitByEntryKey,
+    effectiveDraftItemEdits,
+    draftSaveCommands,
+    draftCommandState,
+    dispatchDraftCommand,
+  });
   const moveDialogSourceOptions = useMemo(
     () =>
       buildMoveSourceOptions({
@@ -1172,352 +1180,28 @@ export function CalendarSurface({
     }, DAY_PREVIEW_LONG_PRESS_DELAY_MS);
   };
 
-  const moveConflictByGoalDate = useMemo(() => {
-    const map = new Map<string, Set<string>>();
-    for (const unit of draftWindowWorkUnits) {
-      const entryKey = draftCommandEntryKey({
-        goalId: unit.originalGoalId,
-        unitKey: unit.unitKey,
-      });
-      const editedDate = effectiveDraftItemEdits[entryKey]?.scheduledDate;
-      const day = editedDate === undefined ? unit.scheduledDate : editedDate;
-      if (!day) {
-        continue;
-      }
-      const key = `${unit.originalGoalId}:${day}`;
-      const existing = map.get(key) ?? new Set<string>();
-      existing.add(entryKey);
-      map.set(key, existing);
-    }
-    return map;
-  }, [draftWindowWorkUnits, effectiveDraftItemEdits]);
-  const moveCompletionConflictByGoalDate = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const unit of draftWindowWorkUnits) {
-      if (!unit.creditedCompletionDate) {
-        continue;
-      }
-      map.set(
-        `${unit.originalGoalId}:${unit.creditedCompletionDate}`,
-        unit.unitKey
-      );
-    }
-    return map;
-  }, [draftWindowWorkUnits]);
-
-  const queueDraftMoveCommand = useCallback(
-    ({
-      entry,
-      nextDate,
-      source,
-    }: {
-      entry: PlannerDayDetailEntry;
-      nextDate: string;
-      source: "date_input" | "drag_drop" | "coach";
-    }) => {
-      if (!scopeMonth) {
-        return false;
-      }
-      const normalizedDate = nextDate.trim();
-      const baselineUnit = draftWindowUnitByEntryKey.get(entry.key);
-      const completionConflictUnitKey = moveCompletionConflictByGoalDate.get(
-        `${entry.originalGoalId}:${normalizedDate}`
-      );
-      const planned = planDraftMove({
-        entry,
-        nextDate: normalizedDate,
-        scopeMonth,
-        source,
-        previewUnit: baselineUnit,
-        conflictKeys: moveConflictByGoalDate.get(
-          `${entry.originalGoalId}:${normalizedDate}`
-        ),
-        completionFactConflict: completionConflictUnitKey
-          ? {
-              unitKey: completionConflictUnitKey,
-              scheduledDate: null,
-            }
-          : undefined,
-      });
-      if (!planned.ok) {
-        toast.error(planned.message);
-        return false;
-      }
-      if (!baselineUnit) {
-        return false;
-      }
-
-      const existingMove = draftSaveCommands.find(
-        (command) =>
-          command.kind === "move_item" &&
-          command.goalId === entry.originalGoalId &&
-          command.unitKey === entry.unitKey
-      );
-      const sourceDate =
-        existingMove?.kind === "move_item"
-          ? existingMove.sourceDate
-          : baselineUnit.scheduledDate ??
-            entry.draftDiffFromDate ??
-            planned.scheduledDate;
-      const prospectiveState = draftCommandReducer(draftCommandState, {
-        type: "upsert_move",
-        goalId: entry.originalGoalId,
-        unitKey: entry.unitKey,
-        scheduledDate: planned.scheduledDate,
-        sourceDate,
-      });
-      if (currentScopeMonth) {
-        const prospectiveWindow = tryBuildPlannerDraftSaveWindow({
-          currentMonth: currentScopeMonth,
-          commands: selectDraftCommands(prospectiveState),
-          workUnits: draftWindowWorkUnits,
-        });
-        if (!prospectiveWindow.ok) {
-          toast.error(
-            prospectiveWindow.code === "too_wide"
-              ? PLANNER_DRAFT_WINDOW_TOO_WIDE_MESSAGE
-              : "That date cannot fit in the current draft window."
-          );
-          return false;
-        }
-      }
-
-      dispatchDraftCommand({
-        type: "upsert_move",
-        goalId: entry.originalGoalId,
-        unitKey: entry.unitKey,
-        scheduledDate: planned.scheduledDate,
-        sourceDate,
-      });
-      return true;
-    },
-    [
-      currentScopeMonth,
-      draftCommandState,
-      draftSaveCommands,
-      draftWindowWorkUnits,
-      scopeMonth,
-      dispatchDraftCommand,
-      moveConflictByGoalDate,
-      moveCompletionConflictByGoalDate,
-      draftWindowUnitByEntryKey,
-    ]
-  );
   useEffect(() => {
     queueDraftMoveCommandRef.current = queueDraftMoveCommand;
   }, [queueDraftMoveCommand]);
 
-  const updateDraftLabel = (entry: PlannerDayDetailEntry, label: string) => {
-    if (entry.draftGhost) {
-      return;
-    }
-    if (!context?.scopeMonth) {
-      return;
-    }
-    const baselineTitle =
-      entry.activeGoal?.title ?? context?.goalTitles?.[entry.originalGoalId] ?? null;
-    if (!label || label === baselineTitle) {
-      dispatchDraftCommand({
-        type: "remove_kind",
-        kind: "rename_item",
-        goalId: entry.originalGoalId,
-        unitKey: entry.unitKey,
-      });
-      return;
-    }
-    dispatchDraftCommand({
-      type: "upsert_rename",
-      goalId: entry.originalGoalId,
-      unitKey: entry.unitKey,
-      label,
-    });
-  };
-
-  const updateDraftScheduledTimeOverride = (
-    entry: PlannerDayDetailEntry,
-    localTime: string
-  ) => {
-    if (!context?.scopeMonth) {
-      return;
-    }
-    const baselineOverride =
-      draftWindowUnitByEntryKey.get(entry.key)?.scheduledTimeOverride ??
-      entry.activeItem?.scheduled_time_override ??
-      null;
-    const nextPlan = planDraftTimeOverrideUpdate({
-      entry,
-      localTimeInput: localTime,
-      baselineOverride,
-    });
-    if (nextPlan.status === "blocked") {
-      if (nextPlan.reason === "invalid_time") {
-        toast.error("Time must be in 24-hour HH:MM format.");
-      } else {
-        toast.error(
-          "Completed or otherwise non-editable sessions cannot change time overrides in preview mode."
-        );
-      }
-      return;
-    }
-    for (const action of nextPlan.actions) {
-      dispatchDraftCommand(action);
-    }
-  };
-
-  const updateDraftScheduledDate = (
-    entry: PlannerDayDetailEntry,
-    date: string
-  ) => {
-    if (entry.draftGhost) {
-      return;
-    }
-    if (!date.trim()) {
-      return;
-    }
-    void queueDraftMoveCommand({
-      entry,
-      nextDate: date,
-      source: "date_input",
-    });
-  };
-
-  const clearDragState = useCallback(() => {
-    pointerPressActiveRef.current = false;
-    setDraggingEntryKey(null);
-  }, []);
-
-  const getDragEntryLabel = useCallback(
-    (entryKey: string) => {
-      const entry = entryByKey.get(entryKey);
-      return entry ? getEntryDisplayTitleWithTime(entry) : "planner session";
-    },
-    [entryByKey]
-  );
-
-  const getDragDayLabel = useCallback((day: string) => {
-    if (!isValidIsoDate(day)) {
-      return day;
-    }
-    return format(parse(day, "yyyy-MM-dd", new Date()), "EEEE, MMMM d");
-  }, []);
-
-  const renderEntryDragOverlay = useCallback(
-    (entryKey: string) => {
-      const entry = entryByKey.get(entryKey);
-      if (!entry) {
-        return null;
-      }
-      const visual = getGoalVisual({
-        goalId: entry.originalGoalId,
-        color: entry.activeGoal?.color ?? null,
-        category: entry.activeGoal?.category ?? null,
-      });
-      const Icon = visual.Icon;
-      const title = getEntryDisplayTitleWithTime(entry);
-      const credited = isEntryCredited(entry);
-      return (
-        <div
-          className={`flex max-w-64 items-center gap-2 rounded-lg border px-2 py-1 text-xs ${
-            credited
-              ? "border-emerald-300 bg-emerald-100 text-emerald-950"
-              : "border-primary/40 bg-card text-foreground"
-          }`}
-        >
-          <span
-            className="inline-flex size-4 items-center justify-center rounded-full"
-            style={{ backgroundColor: visual.color }}
-          >
-            <Icon className="size-2.5 text-white" />
-          </span>
-          <span className="truncate font-medium">{title}</span>
-        </div>
-      );
-    },
-    [entryByKey]
-  );
-
-  const handleDndEntryDragStart = useCallback(
-    (entryKey: string) => {
-      pointerPressActiveRef.current = true;
-      clearHoverPreviewTimer();
-      setDraggingEntryKey(entryKey);
-    },
-    [clearHoverPreviewTimer]
-  );
-
-  const reorderPreviewEntriesForDay = useCallback(
-    (day: string, activeEntryKey: string, overEntryKey: string) => {
-      const entriesForDay = getEntriesForDay(day);
-      const incompleteKeys = entriesForDay
-        .filter((entry) => !isEntryCredited(entry))
-        .map((entry) => entry.key);
-      const completedKeys = entriesForDay
-        .filter((entry) => isEntryCredited(entry))
-        .map((entry) => entry.key);
-      setPreviewEntryOrderByDay((previous) => {
-        const next = reorderPreviewEntryKeys({
-          incompleteKeys,
-          completedKeys,
-          activeEntryKey,
-          overEntryKey,
-          existingOrder: previous[day],
-        });
-        if (!next) {
-          return previous;
-        }
-        return {
-          ...previous,
-          [day]: next,
-        };
-      });
-    },
-    [getEntriesForDay]
-  );
-
-  const handleDndEntryDragEnd = useCallback(
-    (entryKey: string, target: PlannerDragTarget) => {
-      const resolution = resolvePlannerDndResolution({
-        entryKey,
-        target,
-        entryByKey,
-        entryDayByKey,
-      });
-      if (resolution.kind === "clear") {
-        clearDragState();
-        return;
-      }
-      if (resolution.kind === "reorder_preview") {
-        reorderPreviewEntriesForDay(
-          resolution.day,
-          resolution.activeEntryKey,
-          resolution.overEntryKey
-        );
-        clearDragState();
-        return;
-      }
-      void queueDraftMoveCommand({
-        entry: resolution.entry,
-        nextDate: resolution.nextDate,
-        source: "drag_drop",
-      });
-      clearDragState();
-    },
-    [
-      clearDragState,
-      entryByKey,
-      entryDayByKey,
-      queueDraftMoveCommand,
-      reorderPreviewEntriesForDay,
-    ]
-  );
-
-  const handleDndEntryDragCancel = useCallback(
-    (entryKey: string | null) => {
-      void entryKey;
-      clearDragState();
-    },
-    [clearDragState]
-  );
+  const {
+    draggingEntryKey,
+    getDragEntryLabel,
+    getDragDayLabel,
+    renderEntryDragOverlay,
+    handleDndEntryDragStart,
+    handleDndEntryDragEnd,
+    handleDndEntryDragCancel,
+  } = usePlannerCalendarDnd({
+    entryByKey,
+    entryDayByKey,
+    getEntriesForDay,
+    getEntryDisplayTitleWithTime,
+    setPreviewEntryOrderByDay,
+    queueDraftMoveCommand,
+    clearHoverPreviewTimer,
+    pointerPressActiveRef,
+  });
   const canMutatePlanItems = Boolean(
     context?.activePlan?.plan.status === "active"
   );
@@ -1543,7 +1227,7 @@ export function CalendarSurface({
     });
   };
 
-  const { toggleItemLock, toggleDateFact } = usePlannerEntryActions({
+  const { toggleItemLock, toggleDateFact } = usePlannerEntryMutations({
     context,
     hasDraftSession,
     draftSaveCommands,
@@ -1564,33 +1248,14 @@ export function CalendarSurface({
     setMoveDialogSourceEntryKey("");
   };
 
-  const submitMoveDialog = () => {
-    if (!moveDialogDay || !isValidIsoDate(moveDialogDay)) {
-      toast.error("Select a valid destination date.");
-      return;
-    }
-    if (!effectiveMoveDialogSourceEntryKey) {
-      toast.error("Select a scheduled date to move from.");
-      return;
-    }
-    const sourceOption = moveDialogSourceOptions.find(
-      (option) => option.entryKey === effectiveMoveDialogSourceEntryKey
-    );
-    if (!sourceOption) {
-      toast.error("Selected source session is no longer available.");
-      return;
-    }
-    const moved = queueDraftMoveCommand({
-      entry: sourceOption.entry,
-      nextDate: moveDialogDay,
-      source: "date_input",
-    });
-    if (!moved) {
-      return;
-    }
-    closeMoveDialog();
-    toast.success("Move staged. Save plan to persist.");
-  };
+  const { submitMoveDialog } = usePlannerMoveSessionDialog({
+    moveDialogDay,
+    effectiveMoveDialogSourceEntryKey,
+    moveDialogSourceOptions,
+    queueDraftMoveCommand,
+    isValidIsoDate,
+    closeMoveDialog,
+  });
 
   const contractExpandedPreview = () => {
     if (!expandedPreviewDay) {
@@ -1610,12 +1275,20 @@ export function CalendarSurface({
     setExpandedPreviewDay(null);
   };
 
-  const { savePlan, resetPlan, resetPlanFully, rebuildSchedule, discardDraftChanges } =
-    usePlannerPlanActions({
+  const {
+    saveLoading,
+    resetLoading,
+    fullResetLoading,
+    rebuildLoading,
+    savePlan,
+    resetPlan,
+    resetPlanFully,
+    rebuildSchedule,
+    discardDraftChanges,
+  } = usePlannerPersistenceActions({
       context,
       month,
       hasDraftSession,
-      rebuildLoading,
       draftSaveWindow,
       draftSaveWindowResult,
       draftSaveCommands,
@@ -1625,10 +1298,6 @@ export function CalendarSurface({
       clearDraftSession,
       handlePlannerMutation,
       loadContext,
-      setSaveLoading,
-      setResetLoading,
-      setFullResetLoading,
-      setRebuildLoading,
       setDraftPreview,
       setDraftPreviewWindow,
       requestPreviewForWindow,
