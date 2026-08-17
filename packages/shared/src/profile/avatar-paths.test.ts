@@ -1,18 +1,18 @@
 import { describe, expect, it } from "vitest";
 import {
-  buildMobileAvatarCleanupPathsForProfileChange,
-  getMobileCanonicalAvatarObjectPath,
-  resolveMobileAvatarObjectPathFromUrl,
-} from "./avatar-upload-paths";
+  buildAvatarCleanupPathsForProfileChange,
+  getCanonicalAvatarObjectPath,
+  resolveAvatarObjectPathFromPublicUrl,
+} from "./avatar-paths";
 
-describe("mobile avatar upload path helpers", () => {
+describe("profile avatar path helpers", () => {
   it("uses a canonical per-user avatar object path", () => {
-    expect(getMobileCanonicalAvatarObjectPath("user-1")).toBe("user-1/avatar.jpg");
+    expect(getCanonicalAvatarObjectPath("user-1")).toBe("user-1/avatar.jpg");
   });
 
   it("extracts object path from public avatar URL", () => {
     expect(
-      resolveMobileAvatarObjectPathFromUrl(
+      resolveAvatarObjectPathFromPublicUrl(
         "https://project.supabase.co/storage/v1/object/public/avatars/user-1/avatar.jpg?v=2"
       )
     ).toBe("user-1/avatar.jpg");
@@ -20,7 +20,7 @@ describe("mobile avatar upload path helpers", () => {
 
   it("does not schedule cleanup for in-place replacement at canonical path", () => {
     expect(
-      buildMobileAvatarCleanupPathsForProfileChange({
+      buildAvatarCleanupPathsForProfileChange({
         userId: "user-1",
         previousAvatarUrl:
           "https://project.supabase.co/storage/v1/object/public/avatars/user-1/avatar.jpg?v=1",
@@ -32,7 +32,7 @@ describe("mobile avatar upload path helpers", () => {
 
   it("deletes canonical object when avatar is cleared", () => {
     expect(
-      buildMobileAvatarCleanupPathsForProfileChange({
+      buildAvatarCleanupPathsForProfileChange({
         userId: "user-1",
         previousAvatarUrl:
           "https://project.supabase.co/storage/v1/object/public/avatars/user-1/avatar.jpg?v=2",
@@ -43,7 +43,7 @@ describe("mobile avatar upload path helpers", () => {
 
   it("deletes legacy per-file path after canonical replacement", () => {
     expect(
-      buildMobileAvatarCleanupPathsForProfileChange({
+      buildAvatarCleanupPathsForProfileChange({
         userId: "user-1",
         previousAvatarUrl:
           "https://project.supabase.co/storage/v1/object/public/avatars/user-1/selfie.jpg?v=1",
@@ -55,7 +55,7 @@ describe("mobile avatar upload path helpers", () => {
 
   it("ignores foreign-user object paths during cleanup planning", () => {
     expect(
-      buildMobileAvatarCleanupPathsForProfileChange({
+      buildAvatarCleanupPathsForProfileChange({
         userId: "user-1",
         previousAvatarUrl:
           "https://project.supabase.co/storage/v1/object/public/avatars/user-2/avatar.jpg?v=2",

@@ -452,6 +452,7 @@ export function useSocialTabData() {
       }
       toast.success("Profile saved.");
       await loadData();
+      router.refresh();
     }
     setSaving(false);
   };
