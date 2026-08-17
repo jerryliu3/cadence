@@ -2,15 +2,6 @@
 
 import { addDays, addMonths, format, isValid, parse } from "date-fns";
 import {
-  ArrowRightLeft,
-  CalendarDays,
-  Loader2,
-  Maximize2,
-  Minimize2,
-  Settings,
-  SlidersHorizontal,
-} from "lucide-react";
-import {
   useCallback,
   useEffect,
   useMemo,
@@ -19,29 +10,9 @@ import {
   useState,
 } from "react";
 import { toast } from "sonner";
-import { Badge } from "@/components/ui/badge";
-import { AnchoredPopupCard } from "@/components/ui/anchored-popup-card";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { LoadingCard } from "@/components/ui/loading-card";
-import { PeriodStepper } from "@/components/ui/period-stepper";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  GoalFilters,
-  allCategoriesValue,
-} from "@/features/goals/goal-filters";
+import { allCategoriesValue } from "@/features/goals/goal-filters";
 import { buildPlannerLinkedTargetIndexes } from "@/features/planner/calendar-linked-targets";
 import {
   buildWeekdayLabels,
@@ -134,6 +105,7 @@ import { captureViewportRect } from "@/lib/xp/events";
 import type {
   CalendarSurfaceProps,
   CompletionControlDisabledReason,
+  PlannerCalendarViewMode,
   DayPreviewState,
   PlannerContextPayload,
   PlannerDayDetailEntry,
@@ -154,6 +126,12 @@ import { PlannerWarningsPanel } from "@/features/planner/planner-warnings-panel"
 import { PlannerEventDetailDialog } from "@/features/planner/planner-event-detail-dialog";
 import { buildMoveSourceOptions } from "@/features/planner/planner-move-source-options";
 import { selectCalendarViewWindowModel } from "@/features/planner/calendar-view-window";
+import { PlannerCalendarToolbar } from "@/features/planner/planner-calendar-toolbar";
+import { PlannerViewWindowHeader } from "@/features/planner/planner-view-window-header";
+import { PlannerFiltersDialog } from "@/features/planner/planner-filters-dialog";
+import { PlannerSettingsDialog } from "@/features/planner/planner-settings-dialog";
+import { PlannerDayPreviewPopover } from "@/features/planner/planner-day-preview-popover";
+import { PlannerExpandedPreviewDialog } from "@/features/planner/planner-expanded-preview-dialog";
 const DAY_PREVIEW_HOVER_DELAY_MS = 1000;
 const DAY_PREVIEW_CLOSE_DELAY_MS = 250;
 const DAY_PREVIEW_LONG_PRESS_DELAY_MS = 500;
@@ -161,13 +139,6 @@ const ROLLING_WEEK_GRID_LABELS_BASE_CLASS =
   "grid min-w-[calc(7*var(--rolling-week-cell-width))] grid-cols-[repeat(7,minmax(0,var(--rolling-week-cell-width)))] gap-2 text-center text-xs text-muted-foreground";
 const ROLLING_WEEK_GRID_CELLS_BASE_CLASS =
   "mt-2 grid min-w-[calc(7*var(--rolling-week-cell-width))] grid-cols-[repeat(7,minmax(0,var(--rolling-week-cell-width)))] gap-2";
-
-const PLANNER_VIEW_MODES = [
-  { value: "month", label: "Month" },
-  { value: "week", label: "Week" },
-  { value: "three_day", label: "3 Day" },
-  { value: "day", label: "Day" },
-] as const;
 
 export function CalendarSurface({
   activeTab,
@@ -2239,7 +2210,7 @@ export function CalendarSurface({
     }
     onSelectedDayChange(calendarToday, "replace", viewMode);
   };
-  const setCalendarViewMode = (nextViewMode: (typeof PLANNER_VIEW_MODES)[number]["value"]) => {
+  const setCalendarViewMode = (nextViewMode: PlannerCalendarViewMode) => {
     if (nextViewMode === viewMode) {
       return;
     }
@@ -2635,109 +2606,30 @@ export function CalendarSurface({
           setSettingsOpen(true);
         }}
       />
-      <div className="rounded-xl border bg-card p-4 shadow-sm">
-        <div className="space-y-3">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="space-y-1">
-              <div className="flex items-center gap-2">
-                <CalendarDays className="size-4 text-primary" />
-                <h2 className="text-lg font-semibold">Calendar</h2>
-                {hasDraftSession ? (
-                  <Badge
-                    data-testid="planner-preview-mode-badge"
-                    className="h-7 border-amber-300 bg-amber-100 px-3 text-sm font-semibold text-amber-950 dark:border-amber-300 dark:bg-amber-100 dark:text-amber-950"
-                  >
-                    Planning Mode
-                  </Badge>
-                ) : null}
-              </div>
-            </div>
-            <div className="flex flex-wrap items-center justify-end gap-2">
-              {!plannerReadOnly && canShowSaveAction ? (
-                <Button
-                  type="button"
-                  size="sm"
-                  onClick={savePlan}
-                  title={draftSaveBlockedMessage ?? undefined}
-                  disabled={
-                    saveLoading ||
-                    loading ||
-                    !context ||
-                    !draftSaveWindow ||
-                    !hasUnsavedPlannerChanges ||
-                    draftSaveBlocked
-                  }
-                >
-                  {saveButtonLabel}
-                </Button>
-              ) : null}
-              {plannerReadOnly ? (
-                <span className="text-xs text-muted-foreground">
-                  Partner completions (read-only)
-                </span>
-              ) : null}
-              {hasDraftSession ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={discardDraftChanges}
-                  disabled={saveLoading || loading}
-                >
-                  Undo changes
-                </Button>
-              ) : null}
-              <Select
-                value={viewMode}
-                onValueChange={(value) =>
-                  setCalendarViewMode(
-                    value as (typeof PLANNER_VIEW_MODES)[number]["value"]
-                  )
-                }
-              >
-                <SelectTrigger
-                  className="h-8 w-[7.5rem] rounded-md bg-background/90 text-xs"
-                  disabled={loading}
-                  aria-label="Calendar view mode"
-                >
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {PLANNER_VIEW_MODES.map((modeOption) => (
-                    <SelectItem key={modeOption.value} value={modeOption.value}>
-                      {modeOption.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Button
-                type="button"
-                variant="outline"
-                size="icon-sm"
-                aria-label="Filters"
-                title="Filters"
-                onClick={() => setFiltersOpen(true)}
-                disabled={loading}
-              >
-                <SlidersHorizontal className="size-4" />
-              </Button>
-              {context?.preferences ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon-sm"
-                  aria-label="Settings"
-                  title="Settings"
-                  onClick={() => setSettingsOpen(true)}
-                  disabled={loading}
-                >
-                  <Settings className="size-4" />
-                </Button>
-              ) : null}
-            </div>
-          </div>
-        </div>
-      </div>
+      <PlannerCalendarToolbar
+        hasDraftSession={hasDraftSession}
+        plannerReadOnly={plannerReadOnly}
+        canShowSaveAction={canShowSaveAction}
+        saveButtonLabel={saveButtonLabel}
+        draftSaveBlockedMessage={draftSaveBlockedMessage}
+        saveDisabled={
+          saveLoading ||
+          loading ||
+          !context ||
+          !draftSaveWindow ||
+          !hasUnsavedPlannerChanges ||
+          draftSaveBlocked
+        }
+        undoDisabled={saveLoading || loading}
+        loading={loading}
+        viewMode={viewMode}
+        canOpenSettings={Boolean(context?.preferences)}
+        onSave={savePlan}
+        onDiscardDraftChanges={discardDraftChanges}
+        onViewModeChange={setCalendarViewMode}
+        onOpenFilters={() => setFiltersOpen(true)}
+        onOpenSettings={() => setSettingsOpen(true)}
+      />
 
       {partnerOverlayError ? (
         <p className="text-xs text-muted-foreground">{partnerOverlayError}</p>
@@ -2754,71 +2646,22 @@ export function CalendarSurface({
       ) : month ? (
         <>
           <div className="rounded-xl border bg-card p-4 shadow-sm">
-            <div className="mx-auto mb-3 w-full max-w-[56rem] space-y-3">
-              <div className="space-y-2">
-                <div className="relative flex w-full justify-center">
-                  <PeriodStepper
-                    className="shrink-0"
-                    onPrevious={() => moveViewWindow(-1)}
-                    onNext={() => moveViewWindow(1)}
-                    previousDisabled={loading}
-                    nextDisabled={loading}
-                    previousAriaLabel={previousWindowAriaLabel}
-                    nextAriaLabel={nextWindowAriaLabel}
-                    center={
-                      <h3
-                        className="truncate text-center text-base font-semibold"
-                        style={{ width: `${fixedViewHeadingWidthCh}ch` }}
-                      >
-                        {viewHeading}
-                      </h3>
-                    }
-                  />
-                  <div className="absolute right-0 top-1/2 flex -translate-y-1/2 items-center gap-2">
-                    {viewMode === "month" ? (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="icon-sm"
-                        disabled={loading}
-                        aria-label={expandedMonthRows ? "Compact rows" : "Expand rows"}
-                        title={expandedMonthRows ? "Compact rows" : "Expand rows"}
-                        onClick={() => setExpandedMonthRows((current) => !current)}
-                      >
-                        {expandedMonthRows ? (
-                          <Minimize2 className="size-4" />
-                        ) : (
-                          <Maximize2 className="size-4" />
-                        )}
-                      </Button>
-                    ) : null}
-                  </div>
-                </div>
-                {canResetViewWindow ? (
-                  <div className="flex justify-center">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="h-7 px-2 text-xs"
-                      disabled={loading}
-                      onClick={resetViewWindow}
-                    >
-                      Today
-                    </Button>
-                  </div>
-                ) : null}
-              </div>
-              <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                <p>{viewDescription}</p>
-                {loading ? (
-                  <span className="inline-flex items-center gap-1">
-                    <Loader2 className="size-3 animate-spin" />
-                    Updating...
-                  </span>
-                ) : null}
-              </div>
-            </div>
+            <PlannerViewWindowHeader
+              loading={loading}
+              viewMode={viewMode}
+              previousWindowAriaLabel={previousWindowAriaLabel}
+              nextWindowAriaLabel={nextWindowAriaLabel}
+              fixedViewHeadingWidthCh={fixedViewHeadingWidthCh}
+              viewHeading={viewHeading}
+              canResetViewWindow={canResetViewWindow}
+              viewDescription={viewDescription}
+              expandedMonthRows={expandedMonthRows}
+              onMoveViewWindow={moveViewWindow}
+              onToggleExpandedMonthRows={() =>
+                setExpandedMonthRows((current) => !current)
+              }
+              onResetViewWindow={resetViewWindow}
+            />
             <PlannerDndProvider
               getEntryLabel={getDragEntryLabel}
               getDayLabel={getDragDayLabel}
@@ -2907,14 +2750,51 @@ export function CalendarSurface({
                 ) : null}
 
                 {viewMode !== "day" && dayPreview ? (
-                  <AnchoredPopupCard
+                  <PlannerDayPreviewPopover
+                    dayPreview={dayPreview}
                     popupRef={dayPreviewRef}
-                    position={dayPreview.position}
+                    entries={previewDayEntries}
+                    completionFactMarkers={previewDayCompletionFactMarkers}
+                    mutationLoading={Boolean(mutationLoadingKey)}
+                    asOfDate={context?.asOfDate ?? null}
+                    canMutatePlanItems={canMutatePlanItems}
+                    canMutateEntryOnDay={canMutateEntryOnDay}
+                    getEntryDisplayTitle={getEntryDisplayTitleWithTime}
+                    getEntrySubtitle={getEntrySubtitle}
+                    isEntryCredited={isEntryCredited}
+                    isEntryImmovableForDraft={isEntryImmovableForDraft}
+                    onEntryOpen={(entryKey, day) => {
+                      const entry = previewDayEntries.find(
+                        (candidate) => candidate.key === entryKey
+                      );
+                      if (!entry || !canMutateEntryOnDay(entry, day)) {
+                        return;
+                      }
+                      setLocalSelectedDay(day);
+                      setSelectedEventEntryKey(entry.key);
+                    }}
+                    onToggleCompletion={(entry, day, sourceElement) => {
+                      if (!canMutateEntryOnDay(entry, day)) {
+                        return;
+                      }
+                      void toggleDateFact(entry, day, sourceElement);
+                    }}
+                    onEntryPointerStart={(immovable) => {
+                      void immovable;
+                      pointerPressActiveRef.current = true;
+                    }}
+                    onEntryPointerEnd={() => {
+                      pointerPressActiveRef.current = false;
+                    }}
+                    onMoveDay={openMoveDialogForDay}
+                    onExpandDay={(day) => {
+                      setExpandedPreviewDay(day);
+                      setDayPreview(null);
+                    }}
+                    onClose={() => setDayPreview(null)}
                     onPointerDownCapture={() => {
                       setDayPreview((current) =>
-                        current && !current.pinned
-                          ? { ...current, pinned: true }
-                          : current
+                        current && !current.pinned ? { ...current, pinned: true } : current
                       );
                     }}
                     onMouseEnter={() => {
@@ -2931,89 +2811,7 @@ export function CalendarSurface({
                       clearHoverPreviewCloseTimer();
                       setDayPreview(null);
                     }}
-                    title={format(
-                      parse(dayPreview.day, "yyyy-MM-dd", new Date()),
-                      "EEE, MMM d"
-                    )}
-                    actions={
-                      <>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          className="h-6 px-2 text-xs"
-                          onClick={() => {
-                            openMoveDialogForDay(dayPreview.day);
-                          }}
-                        >
-                          <ArrowRightLeft className="mr-1 size-3" />
-                          Move
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="icon-sm"
-                          aria-label="Expand day details"
-                          title="Expand day details"
-                          onClick={() => {
-                            setExpandedPreviewDay(dayPreview.day);
-                            setDayPreview(null);
-                          }}
-                        >
-                          <Maximize2 className="size-3.5" />
-                        </Button>
-                        {dayPreview.pinned ? (
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            className="h-6 px-2 text-xs"
-                            onClick={() => setDayPreview(null)}
-                          >
-                            X
-                          </Button>
-                        ) : null}
-                      </>
-                    }
-                  >
-                    <PlannerDayEntriesPanel
-                      day={dayPreview.day}
-                      entries={previewDayEntries}
-                      completionFactMarkers={previewDayCompletionFactMarkers}
-                      mutationLoading={Boolean(mutationLoadingKey)}
-                      asOfDate={context?.asOfDate ?? null}
-                      canMutatePlanItems={canMutatePlanItems}
-                      canMutateEntryOnDay={canMutateEntryOnDay}
-                      getEntryDisplayTitle={getEntryDisplayTitleWithTime}
-                      getEntrySubtitle={getEntrySubtitle}
-                      isEntryCredited={isEntryCredited}
-                      isEntryImmovableForDraft={isEntryImmovableForDraft}
-                      onEntryOpen={(entryKey) => {
-                        const entry = previewDayEntries.find(
-                          (candidate) => candidate.key === entryKey
-                        );
-                        if (!entry || !canMutateEntryOnDay(entry, dayPreview.day)) {
-                          return;
-                        }
-                        setLocalSelectedDay(dayPreview.day);
-                        setSelectedEventEntryKey(entry.key);
-                      }}
-                      onToggleCompletion={(entry, day, sourceElement) => {
-                        if (!canMutateEntryOnDay(entry, day)) {
-                          return;
-                        }
-                        void toggleDateFact(entry, day, sourceElement);
-                      }}
-                      onEntryPointerStart={(immovable) => {
-                        void immovable;
-                        pointerPressActiveRef.current = true;
-                      }}
-                      onEntryPointerEnd={() => {
-                        pointerPressActiveRef.current = false;
-                      }}
-                      density="compact"
-                    />
-                  </AnchoredPopupCard>
+                  />
                 ) : null}
               </div>
             </PlannerDndProvider>
@@ -3021,95 +2819,50 @@ export function CalendarSurface({
 
           <PlannerCoachPanel coach={coach} />
 
-          <Dialog
-            open={Boolean(expandedPreviewDay)}
+          <PlannerExpandedPreviewDialog
+            expandedPreviewDay={expandedPreviewDay}
+            entries={expandedPreviewEntries}
+            completionFactMarkers={expandedPreviewCompletionFactMarkers}
+            mutationLoading={Boolean(mutationLoadingKey)}
+            asOfDate={context?.asOfDate ?? null}
+            canMutatePlanItems={canMutatePlanItems}
+            canMutateEntryOnDay={canMutateEntryOnDay}
+            getEntryDisplayTitle={getEntryDisplayTitleWithTime}
+            getEntrySubtitle={getEntrySubtitle}
+            isEntryCredited={isEntryCredited}
+            isEntryImmovableForDraft={isEntryImmovableForDraft}
             onOpenChange={(open) => {
               if (!open) {
                 setExpandedPreviewDay(null);
               }
             }}
-          >
-            <DialogContent className="sm:max-w-2xl">
-              {expandedPreviewDay ? (
-                <div className="absolute top-2 right-10 z-10 flex items-center gap-2">
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      openMoveDialogForDay(expandedPreviewDay);
-                    }}
-                  >
-                    <ArrowRightLeft className="size-4" />
-                    Move
-                  </Button>
-                  <Button
-                    type="button"
-                    size="icon-sm"
-                    variant="outline"
-                    aria-label="Contract to day popup"
-                    title="Contract to day popup"
-                    onClick={contractExpandedPreview}
-                  >
-                    <Minimize2 className="size-4" />
-                  </Button>
-                </div>
-              ) : null}
-              <DialogHeader>
-                <DialogTitle>
-                  {expandedPreviewDay
-                    ? format(parse(expandedPreviewDay, "yyyy-MM-dd", new Date()), "EEE, MMM d")
-                    : "Expanded day preview"}
-                </DialogTitle>
-                <DialogDescription>
-                  Review all sessions for this day. Use Move to stage taking one existing
-                  scheduled session and relocating it to this date.
-                </DialogDescription>
-              </DialogHeader>
-              {expandedPreviewDay ? (
-                <div className="space-y-3">
-                  <PlannerDayEntriesPanel
-                    day={expandedPreviewDay}
-                    entries={expandedPreviewEntries}
-                    completionFactMarkers={expandedPreviewCompletionFactMarkers}
-                    mutationLoading={Boolean(mutationLoadingKey)}
-                    asOfDate={context?.asOfDate ?? null}
-                    canMutatePlanItems={canMutatePlanItems}
-                    canMutateEntryOnDay={canMutateEntryOnDay}
-                    getEntryDisplayTitle={getEntryDisplayTitleWithTime}
-                    getEntrySubtitle={getEntrySubtitle}
-                    isEntryCredited={isEntryCredited}
-                    isEntryImmovableForDraft={isEntryImmovableForDraft}
-                    onEntryOpen={(entryKey) => {
-                      const entry = expandedPreviewEntries.find(
-                        (candidate) => candidate.key === entryKey
-                      );
-                      if (!entry || !canMutateEntryOnDay(entry, expandedPreviewDay)) {
-                        return;
-                      }
-                      setExpandedPreviewDay(null);
-                      setLocalSelectedDay(expandedPreviewDay);
-                      setSelectedEventEntryKey(entry.key);
-                    }}
-                    onToggleCompletion={(entry, day, sourceElement) => {
-                      if (!canMutateEntryOnDay(entry, day)) {
-                        return;
-                      }
-                      void toggleDateFact(entry, day, sourceElement);
-                    }}
-                    onEntryPointerStart={(immovable) => {
-                      void immovable;
-                      pointerPressActiveRef.current = true;
-                    }}
-                    onEntryPointerEnd={() => {
-                      pointerPressActiveRef.current = false;
-                    }}
-                    density="expanded"
-                  />
-                </div>
-              ) : null}
-            </DialogContent>
-          </Dialog>
+            onMoveDay={openMoveDialogForDay}
+            onContract={contractExpandedPreview}
+            onEntryOpen={(entryKey, day) => {
+              const entry = expandedPreviewEntries.find(
+                (candidate) => candidate.key === entryKey
+              );
+              if (!entry || !canMutateEntryOnDay(entry, day)) {
+                return;
+              }
+              setExpandedPreviewDay(null);
+              setLocalSelectedDay(day);
+              setSelectedEventEntryKey(entry.key);
+            }}
+            onToggleCompletion={(entry, day, sourceElement) => {
+              if (!canMutateEntryOnDay(entry, day)) {
+                return;
+              }
+              void toggleDateFact(entry, day, sourceElement);
+            }}
+            onEntryPointerStart={(immovable) => {
+              void immovable;
+              pointerPressActiveRef.current = true;
+            }}
+            onEntryPointerEnd={() => {
+              pointerPressActiveRef.current = false;
+            }}
+          />
 
           <MoveSessionDialog
             open={Boolean(moveDialogDay)}
@@ -3164,38 +2917,20 @@ export function CalendarSurface({
         </>
       ) : null}
 
-      <Dialog open={filtersOpen} onOpenChange={setFiltersOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Calendar filters</DialogTitle>
-            <DialogDescription>
-              Filter the currently visible calendar entries.
-            </DialogDescription>
-          </DialogHeader>
-          <GoalFilters
-            categoryFilterEnabled
-            endMonthFilterEnabled
-            categoryFilter={categoryFilter}
-            onCategoryFilterChange={setCategoryFilter}
-            categoryOptions={categoryOptions}
-            endMonthFilter={effectiveEndMonthFilter}
-            onEndMonthFilterChange={setEndMonthFilter}
-            endMonthOptions={endMonthOptions}
-          />
-        </DialogContent>
-      </Dialog>
+      <PlannerFiltersDialog
+        open={filtersOpen}
+        onOpenChange={setFiltersOpen}
+        categoryFilter={categoryFilter}
+        onCategoryFilterChange={setCategoryFilter}
+        categoryOptions={categoryOptions}
+        endMonthFilter={effectiveEndMonthFilter}
+        onEndMonthFilterChange={setEndMonthFilter}
+        endMonthOptions={endMonthOptions}
+      />
 
-      <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Planner settings</DialogTitle>
-            <DialogDescription>
-              Update rest weekdays used by planner default policy.
-            </DialogDescription>
-          </DialogHeader>
-          {plannerSettingsForm}
-        </DialogContent>
-      </Dialog>
+      <PlannerSettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen}>
+        {plannerSettingsForm}
+      </PlannerSettingsDialog>
     </div>
   );
 }
