@@ -563,6 +563,7 @@ describe("CalendarSurface characterization", () => {
       {
         goalId: "goal-a",
         requirementFingerprint: "a".repeat(64),
+        policyFingerprint: "p".repeat(64),
         policyRevision: 1,
         lockSignature: "lock-a",
         effectiveSpanEnd: "2027-07-31",
@@ -572,6 +573,7 @@ describe("CalendarSurface characterization", () => {
       {
         goalId: "goal-b",
         requirementFingerprint: "b".repeat(64),
+        policyFingerprint: "q".repeat(64),
         policyRevision: 1,
         lockSignature: "lock-b",
         effectiveSpanEnd: "2027-07-31",
