@@ -905,6 +905,49 @@ describe("preparePlannerSchedule", () => {
     );
   });
 
+  it("re-solves stale positive capacity rows with no covered units so trivial goals can self-heal", async () => {
+    const plannerGoal = goal({
+      frequency_type: "recurring",
+      recurrence_interval: "daily",
+      target_count: 1,
+      milestone_names: null,
+      start_date: "2026-08-01",
+      end_date: "2026-08-31",
+    });
+    mocks.loadPlannerPreparationSnapshot.mockResolvedValue(
+      preparationSnapshot([plannerGoal], [], [
+        unplaceableRecord({
+          goalId: plannerGoal.id,
+          requirementFingerprint: computeRequirementFingerprint(plannerGoal),
+          effectiveSpanEnd: plannerGoal.end_date ?? "2026-08-31",
+          unplacedCount: 1,
+          reason: "capacity",
+          lockSignature: buildPlannerGoalLockSignature([]),
+        }),
+      ])
+    );
+    mocks.runPlannerKernel.mockReturnValue(
+      kernelOutput(plannerGoal.id, [
+        { unitKey: "total:1", scheduledDate: "2026-08-20" },
+      ])
+    );
+
+    await prepare();
+
+    expect(mocks.runPlannerKernel).toHaveBeenCalledTimes(1);
+    expect(mocks.rpc).toHaveBeenCalledWith(
+      "prepare_planner_schedule",
+      expect.objectContaining({
+        p_unplaceable: expect.arrayContaining([
+          expect.objectContaining({
+            goal_id: plannerGoal.id,
+            unplaced_count: 0,
+          }),
+        ]),
+      })
+    );
+  });
+
   it("re-solves invalid_lock records when lock signature changes", async () => {
     const plannerGoal = goal({ target_count: 2 });
     const existing = persistedItem({
