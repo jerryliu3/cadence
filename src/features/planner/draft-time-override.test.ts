@@ -23,7 +23,7 @@ describe("planDraftTimeOverrideUpdate", () => {
     });
   });
 
-  it("blocks draft retiming for historical sessions", () => {
+  it("allows draft retiming for historical sessions", () => {
     const plan = planDraftTimeOverrideUpdate({
       entry: buildPlannerDayEntry({
         key: "goal-a:total:1",
@@ -37,8 +37,15 @@ describe("planDraftTimeOverrideUpdate", () => {
       baselineOverride: null,
     });
     expect(plan).toEqual({
-      status: "blocked",
-      reason: "immovable",
+      status: "dispatch",
+      actions: [
+        {
+          type: "upsert_time_override",
+          goalId: "goal-a",
+          unitKey: "total:1",
+          localTime: "09:30",
+        },
+      ],
     });
   });
 

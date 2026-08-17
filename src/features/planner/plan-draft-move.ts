@@ -1,5 +1,6 @@
 import { isValidDate } from "@cadence/shared/planner/calendar-state";
 import { isEntryImmovableForDraft } from "@/features/planner/calendar-format";
+import { isHistoricalPlannerEntryClassification } from "@/features/planner/replan-move-guard";
 import type {
   PlannerDayDetailEntry,
   PlannerWorkUnit,
@@ -9,10 +10,17 @@ export type PlanDraftMoveResult =
   | { ok: true; scheduledDate: string }
   | { ok: false; message: string };
 
+/**
+ * `date_input` and `drag_drop` represent direct/manual user intent.
+ * `coach` represents automated move proposals and must not recover past sessions.
+ */
+export type DraftMoveSource = "date_input" | "drag_drop" | "coach";
+
 export function planDraftMove({
   entry,
   nextDate,
   scopeMonth,
+  source = "date_input",
   previewUnit,
   conflictKeys,
   completionFactConflict,
@@ -20,6 +28,13 @@ export function planDraftMove({
   entry: PlannerDayDetailEntry;
   nextDate: string;
   scopeMonth: string | null;
+  /**
+   * Keep this aligned with intent:
+   * - Use `date_input` / `drag_drop` for explicit user actions.
+   * - Use `coach` for automated proposal flows.
+   * Historical recovery is intentionally manual-only right now.
+   */
+  source?: DraftMoveSource;
   previewUnit: PlannerWorkUnit | undefined;
   conflictKeys: Set<string> | undefined;
   completionFactConflict:
@@ -43,7 +58,17 @@ export function planDraftMove({
     return {
       ok: false,
       message:
-        "Completed or historical sessions cannot move in preview mode. Clear completion in the saved plan first.",
+        "Completed sessions cannot move in preview mode. Clear completion in the saved plan first.",
+    };
+  }
+  if (
+    source === "coach" &&
+    isHistoricalPlannerEntryClassification(entry.classification)
+  ) {
+    return {
+      ok: false,
+      message:
+        "Past sessions can only be moved manually. Use drag and drop or edit the date directly.",
     };
   }
   if (entry.activeItem?.locked) {

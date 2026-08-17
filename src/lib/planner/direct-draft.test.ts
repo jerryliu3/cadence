@@ -101,6 +101,31 @@ describe("buildDirectDraftPersistence", () => {
     ]);
   });
 
+  it("allows manually moving an uncredited past session into a future date", () => {
+    const result = buildDirectDraftPersistence({
+      snapshot,
+      commands: [
+        {
+          id: "33333333-3333-4333-8333-333333333334",
+          sequence: 1,
+          kind: "move_item",
+          goalId: goal.id,
+          unitKey: "milestone:1",
+          sourceDate: "2026-08-10",
+          scheduledDate: "2026-09-05",
+        },
+      ],
+      asOfDate: "2026-08-20",
+    });
+
+    expect(
+      result.map((item) => [item.unit_key, item.scheduled_date])
+    ).toEqual([
+      ["milestone:1", "2026-09-05"],
+      ["milestone:2", "2026-09-10"],
+    ]);
+  });
+
   it("rejects a duplicate date without moving either item", () => {
     expect(() =>
       buildDirectDraftPersistence({
