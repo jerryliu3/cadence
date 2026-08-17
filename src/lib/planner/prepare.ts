@@ -1,4 +1,4 @@
-import { getAnchoredPeriod } from "@/lib/goals/periods";
+import { compareDateStrings, getAnchoredPeriod } from "@/lib/goals/periods";
 import { getAdmissibleCompletions } from "@/lib/goals/admissible";
 import type { Completion, Goal } from "@/lib/goals/types";
 import { reportError } from "@/lib/observability/report-error";
@@ -28,6 +28,7 @@ import {
   buildPreparationWindows,
 } from "@/lib/planner/preparation-windows";
 import {
+  buildLinkSuppressionInboundIndex,
   getLinkResumeDate,
   isSuppressedOnDate,
   resolveLinkSuppression,
@@ -314,6 +315,9 @@ async function prepareOnce({
   const suppressionSourcesById = new Map(
     preparation.snapshot.goals.map((goal) => [goal.id, toLinkSuppressionSource(goal)])
   );
+  const suppressionInboundIndex = buildLinkSuppressionInboundIndex(
+    preparation.snapshot.links
+  );
   const completionsByGoalId = new Map<string, Completion[]>();
   for (const completion of preparation.snapshot.completions) {
     const entries = completionsByGoalId.get(completion.goal_id) ?? [];
@@ -390,6 +394,7 @@ async function prepareOnce({
     const suppression = resolveLinkSuppression({
       goalId: goal.id,
       links: preparation.snapshot.links,
+      inboundSourceIdsByTargetId: suppressionInboundIndex,
       sourcesById: suppressionSourcesById,
       ownerId,
       asOfDate,
@@ -420,7 +425,9 @@ async function prepareOnce({
     }
     const resumeDate = getLinkResumeDate(suppression);
     const goalPreparationStart =
-      resumeDate && resumeDate > preparationStart ? resumeDate : preparationStart;
+      resumeDate && compareDateStrings(resumeDate, preparationStart) > 0
+        ? resumeDate
+        : preparationStart;
     goalPreparationStartByGoalId.set(goal.id, goalPreparationStart);
     const eligibilityDecision = evaluateGoalEligibility({
       window: { start: goalPreparationStart, end: preparationEnd },

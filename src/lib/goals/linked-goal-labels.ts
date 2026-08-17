@@ -1,5 +1,14 @@
+import { format, isValid, parse } from "date-fns";
 import type { Goal } from "@/lib/goals/types";
 import { addDaysToDateString } from "@/lib/goals/periods";
+
+export function formatGoalDateLabel(date: string): string {
+  const parsedDate = parse(date, "yyyy-MM-dd", new Date());
+  if (!isValid(parsedDate)) {
+    return date;
+  }
+  return format(parsedDate, "MMM d, yyyy");
+}
 
 export function getLinkedGoalRecurrenceLabel(
   goal: Pick<Goal, "frequency_type" | "recurrence_interval">
@@ -31,5 +40,5 @@ export function getLinkedTargetSchedulingNotice({
   if (!sourceEndDate) {
     return "Linked targets stay hidden while this source goal remains active because it has no end date.";
   }
-  return `Linked targets stay hidden through ${sourceEndDate} and can appear from ${addDaysToDateString(sourceEndDate, 1)}.`;
+  return `Linked targets stay hidden through ${formatGoalDateLabel(sourceEndDate)} and can appear from ${formatGoalDateLabel(addDaysToDateString(sourceEndDate, 1))}.`;
 }

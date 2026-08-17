@@ -1,8 +1,7 @@
 import type { Goal } from "@/lib/goals/types";
 import { resolveGoalPlanningEndDate } from "@/lib/goals/definition-validation";
+import { addDaysToDateString, compareDateStrings } from "@/lib/goals/periods";
 import type { DateWindow } from "@/lib/planner/dates";
-import { compareDateStrings } from "@/lib/goals/periods";
-import { addDaysToDateString } from "@/lib/goals/periods";
 
 export interface LinkSuppressionSource {
   id: string;
@@ -25,6 +24,19 @@ interface LinkEdge {
   targetGoalId: string;
 }
 
+export function buildLinkSuppressionInboundIndex(
+  links: ReadonlyArray<LinkEdge>
+): ReadonlyMap<string, ReadonlySet<string>> {
+  const inboundSourceIdsByTargetId = new Map<string, Set<string>>();
+  for (const link of links) {
+    const sourceIds =
+      inboundSourceIdsByTargetId.get(link.targetGoalId) ?? new Set<string>();
+    sourceIds.add(link.sourceGoalId);
+    inboundSourceIdsByTargetId.set(link.targetGoalId, sourceIds);
+  }
+  return inboundSourceIdsByTargetId;
+}
+
 export function toLinkSuppressionSource(goal: Goal): LinkSuppressionSource {
   return {
     id: goal.id,
@@ -41,23 +53,20 @@ export function toLinkSuppressionSource(goal: Goal): LinkSuppressionSource {
 export function resolveLinkSuppression({
   goalId,
   links,
+  inboundSourceIdsByTargetId,
   sourcesById,
   ownerId,
   asOfDate,
 }: {
   goalId: string;
   links: ReadonlyArray<LinkEdge>;
+  inboundSourceIdsByTargetId?: ReadonlyMap<string, ReadonlySet<string>>;
   sourcesById: ReadonlyMap<string, LinkSuppressionSource>;
   ownerId: string;
   asOfDate: string;
 }): LinkSuppression {
-  const inboundSourceIdsByTargetId = new Map<string, Set<string>>();
-  for (const link of links) {
-    const sourceIds =
-      inboundSourceIdsByTargetId.get(link.targetGoalId) ?? new Set<string>();
-    sourceIds.add(link.sourceGoalId);
-    inboundSourceIdsByTargetId.set(link.targetGoalId, sourceIds);
-  }
+  const inboundIndex =
+    inboundSourceIdsByTargetId ?? buildLinkSuppressionInboundIndex(links);
 
   const visited = new Set<string>([goalId]);
   const queue = [goalId];
@@ -67,7 +76,7 @@ export function resolveLinkSuppression({
   while (queueIndex < queue.length) {
     const currentTargetId = queue[queueIndex]!;
     queueIndex += 1;
-    const sourceIds = inboundSourceIdsByTargetId.get(currentTargetId);
+    const sourceIds = inboundIndex.get(currentTargetId);
     if (!sourceIds) {
       continue;
     }
