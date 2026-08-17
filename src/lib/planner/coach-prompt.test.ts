@@ -96,7 +96,7 @@ describe("buildCoachPrompt", () => {
       'Use "fixed_milestones" when sessions differ across the plan'
     );
     expect(prompt).toContain(
-      'For finite training requests (for example: "4-week 5k plan with 3 runs per week"), default to one fixed_milestones goal'
+      "For any training-plan request, or any request where steps are progressive and not identical to each other"
     );
     expect(prompt).toContain(
       'Use "recurring" when sessions are genuinely repetitive'
