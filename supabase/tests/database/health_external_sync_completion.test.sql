@@ -4,7 +4,7 @@ set local search_path = public, private, extensions, pg_catalog;
 select plan(17);
 select set_config(
   'health.today',
-  (pg_catalog.timezone('utc', now()))::date::text,
+  (now() at time zone 'America/Los_Angeles')::date::text,
   true
 );
 

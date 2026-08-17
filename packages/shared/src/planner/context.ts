@@ -73,6 +73,8 @@ export interface PlannerActiveGoalSnapshot {
   title: string;
   category: string;
   color: string | null;
+  start_date?: string;
+  end_date?: string | null;
 }
 
 export interface PlannerActiveItemSnapshot {
