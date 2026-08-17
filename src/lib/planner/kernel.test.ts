@@ -708,11 +708,15 @@ describe("pure planner kernel", () => {
 
   it("schedules linked sources while keeping linked targets ineligible", () => {
     const sourceGoal = goal({ id: "goal-a", target_count: 2 });
-    const targetGoal = goal({ id: "goal-b", target_count: 2 });
+    const mixedRoleGoal = goal({ id: "goal-b", target_count: 2 });
+    const downstreamTargetGoal = goal({ id: "goal-c", target_count: 2 });
     const output = runPlannerKernel(
       input({
-        goals: [sourceGoal, targetGoal],
-        links: [{ sourceGoalId: "goal-a", targetGoalId: "goal-b" }],
+        goals: [sourceGoal, mixedRoleGoal, downstreamTargetGoal],
+        links: [
+          { sourceGoalId: "goal-a", targetGoalId: "goal-b" },
+          { sourceGoalId: "goal-b", targetGoalId: "goal-c" },
+        ],
       })
     );
 
@@ -724,6 +728,12 @@ describe("pure planner kernel", () => {
     });
     expect(
       output.eligibility.find((entry) => entry.goalId === "goal-b")
+    ).toMatchObject({
+      eligible: false,
+      reason: "linked_target",
+    });
+    expect(
+      output.eligibility.find((entry) => entry.goalId === "goal-c")
     ).toMatchObject({
       eligible: false,
       reason: "linked_target",

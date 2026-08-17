@@ -35,13 +35,13 @@ import {
 } from "@/lib/planner/dates";
 import {
   evaluateGoalEligibility,
-  type EligibilityGoal,
   type EligibilityReason,
 } from "@/lib/planner/eligibility";
 import {
   computeGenerationInputHash,
   type PlannerCanonicalLink,
 } from "@/lib/planner/fingerprint";
+import { resolveGoalLinkRole } from "@/lib/planner/link-role";
 import {
   compilePlannerPolicy,
   plannerPolicySchema,
@@ -171,19 +171,6 @@ export interface PlannerGoalHorizonSummary {
 interface OrdinalScopeAllocation {
   scopedOrdinals: Set<number>;
   monthOrdinals: Map<string, number[]>;
-}
-
-function currentLinkRole(
-  goalId: string,
-  links: PlannerCanonicalLink[]
-): EligibilityGoal["currentLinkRole"] {
-  if (links.some((link) => link.sourceGoalId === goalId)) {
-    return "source";
-  }
-  if (links.some((link) => link.targetGoalId === goalId)) {
-    return "target";
-  }
-  return "none";
 }
 
 function countDateWindowDays({
@@ -467,7 +454,7 @@ export function runPlannerKernel(
       window,
       ownerId: rawInput.ownerId,
       goal,
-      currentLinkRole: currentLinkRole(goal.id, links),
+      currentLinkRole: resolveGoalLinkRole(goal.id, links),
       asOfDate: rawInput.asOfDate,
     }),
   }));

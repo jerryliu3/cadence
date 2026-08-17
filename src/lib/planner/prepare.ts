@@ -27,6 +27,7 @@ import {
   buildPreparationWindows,
 } from "@/lib/planner/preparation-windows";
 import { evaluateGoalEligibility } from "@/lib/planner/eligibility";
+import { resolveGoalLinkRole } from "@/lib/planner/link-role";
 import { normalizeGoalRequirement } from "@/lib/planner/requirements";
 import {
   buildPlannerGoalLockSignature,
@@ -66,22 +67,6 @@ interface GoalUnplaceablePayload {
 
 function itemKey(item: { goal_id: string; unit_key: string }) {
   return `${item.goal_id}\u0000${item.unit_key}`;
-}
-
-function currentLinkRole({
-  goalId,
-  links,
-}: {
-  goalId: string;
-  links: Array<{ sourceGoalId: string; targetGoalId: string }>;
-}) {
-  if (links.some((link) => link.sourceGoalId === goalId)) {
-    return "source" as const;
-  }
-  if (links.some((link) => link.targetGoalId === goalId)) {
-    return "target" as const;
-  }
-  return "none" as const;
 }
 
 function itemMatchesCurrentRequirement({
@@ -274,10 +259,7 @@ async function prepareOnce({
       ownerId,
       goal,
       asOfDate,
-      currentLinkRole: currentLinkRole({
-        goalId: goal.id,
-        links: preparation.snapshot.links,
-      }),
+      currentLinkRole: resolveGoalLinkRole(goal.id, preparation.snapshot.links),
     });
     if (!eligibilityDecision.eligible) {
       const ineligibleGoalWindowsState = buildGoalPreparationWindows({
