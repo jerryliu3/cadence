@@ -10,3 +10,10 @@ allowBuilds:
   sharp: true
   unrs-resolver: true
 minimumReleaseAge: 1440
+minimumReleaseAgeExclude:
+  - '@expo/cli'
+  - expo
+  - expo-constants
+  - expo-file-system
+  - expo-modules-autolinking
+  - expo-updates
