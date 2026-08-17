@@ -3,10 +3,11 @@ import {
   buildPlannerLinkedTargetIndexes,
   getLinkedTargetScopeStatus,
 } from "@/features/planner/calendar-linked-targets";
+import type { PlannerGoalLinkSummary } from "@cadence/shared/planner/context";
 
 describe("buildPlannerLinkedTargetIndexes", () => {
   it("builds deterministic source/target indexes without duplicates", () => {
-    const links = [
+    const links: PlannerGoalLinkSummary[] = [
       {
         sourceGoalId: "goal-b",
         targetGoalId: "goal-c",
