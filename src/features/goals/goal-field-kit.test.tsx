@@ -43,13 +43,17 @@ describe("CategorySelect", () => {
 });
 
 describe("GoalTypeToggle", () => {
-  it("renders an option for every goal type and highlights the active one", () => {
+  it("renders the selected goal type and lists all options when opened", async () => {
+    const user = userEvent.setup();
     render(<GoalTypeToggle value="recurring" onValueChange={vi.fn()} />);
 
-    const repeatButton = screen.getByRole("button", { name: "Repeat" });
-    const milestoneButton = screen.getByRole("button", { name: "Milestone" });
-    expect(repeatButton).toBeInTheDocument();
-    expect(milestoneButton).toBeInTheDocument();
+    const trigger = screen.getByRole("combobox");
+    expect(trigger).toHaveTextContent("Repeated");
+
+    await user.click(trigger);
+    const listbox = screen.getByRole("listbox");
+    expect(within(listbox).getByRole("option", { name: "Repeated" })).toBeInTheDocument();
+    expect(within(listbox).getByRole("option", { name: "Milestones" })).toBeInTheDocument();
   });
 
   it("calls onValueChange with the clicked option's value", async () => {
@@ -57,18 +61,25 @@ describe("GoalTypeToggle", () => {
     const user = userEvent.setup();
     render(<GoalTypeToggle value="recurring" onValueChange={onValueChange} />);
 
-    await user.click(screen.getByRole("button", { name: "Milestone" }));
+    await user.click(screen.getByRole("combobox"));
+    await user.click(screen.getByRole("option", { name: "Milestones" }));
     expect(onValueChange).toHaveBeenCalledWith("fixed_milestones");
   });
 });
 
 describe("RecurrenceIntervalToggle", () => {
-  it("renders every recurrence interval option", () => {
+  it("renders the selected interval and lists all recurrence options when opened", async () => {
+    const user = userEvent.setup();
     render(<RecurrenceIntervalToggle value="daily" onValueChange={vi.fn()} />);
 
-    expect(screen.getByRole("button", { name: "Daily" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Weekly" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Monthly" })).toBeInTheDocument();
+    const trigger = screen.getByRole("combobox");
+    expect(trigger).toHaveTextContent("Daily");
+
+    await user.click(trigger);
+    const listbox = screen.getByRole("listbox");
+    expect(within(listbox).getByRole("option", { name: "Daily" })).toBeInTheDocument();
+    expect(within(listbox).getByRole("option", { name: "Weekly" })).toBeInTheDocument();
+    expect(within(listbox).getByRole("option", { name: "Monthly" })).toBeInTheDocument();
   });
 
   it("calls onValueChange with the clicked option's value", async () => {
@@ -76,7 +87,8 @@ describe("RecurrenceIntervalToggle", () => {
     const user = userEvent.setup();
     render(<RecurrenceIntervalToggle value="daily" onValueChange={onValueChange} />);
 
-    await user.click(screen.getByRole("button", { name: "Weekly" }));
+    await user.click(screen.getByRole("combobox"));
+    await user.click(screen.getByRole("option", { name: "Weekly" }));
     expect(onValueChange).toHaveBeenCalledWith("weekly");
   });
 });
