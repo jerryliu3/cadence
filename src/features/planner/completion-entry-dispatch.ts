@@ -1,4 +1,7 @@
-import type { PlannerDayDetailEntry } from "@/features/planner/calendar-surface.types";
+import type {
+  CompletionControlDisabledReason,
+  PlannerDayDetailEntry,
+} from "@/features/planner/calendar-surface.types";
 import {
   resolveCompletionDispatch,
   type CompletionDispatchDecision,
@@ -8,6 +11,12 @@ export interface DateFactDispatchForEntry {
   currentlyCredited: boolean;
   desiredFactState: "present" | "absent";
   decision: CompletionDispatchDecision;
+}
+
+export interface CompletionControlState {
+  currentlyCredited: boolean;
+  dispatch: DateFactDispatchForEntry | null;
+  disabledReason: CompletionControlDisabledReason | null;
 }
 
 export function getDateFactDispatchForEntry({
@@ -65,5 +74,83 @@ export function getDateFactDispatchForEntry({
     currentlyCredited,
     desiredFactState,
     decision,
+  };
+}
+
+export function getCompletionControlDisabledReason({
+  entry,
+  dispatch,
+  canMutatePlanItems,
+  canMutateEntryOnDay,
+}: {
+  entry: PlannerDayDetailEntry;
+  dispatch: DateFactDispatchForEntry | null;
+  canMutatePlanItems: boolean;
+  canMutateEntryOnDay: boolean;
+}): CompletionControlDisabledReason | null {
+  if (entry.draftGhost) {
+    return "unsupported";
+  }
+  if (!dispatch) {
+    return "unsupported";
+  }
+  if (!dispatch.decision.allowed) {
+    if (dispatch.decision.reason === "future_creation") {
+      return "future_creation";
+    }
+    if (dispatch.decision.reason === "satisfied_elsewhere") {
+      return "satisfied_elsewhere";
+    }
+    return "unsupported";
+  }
+  if (dispatch.decision.route === "canonical_exact_date") {
+    return null;
+  }
+  if (!canMutateEntryOnDay) {
+    return "out_of_scope_route";
+  }
+  if (dispatch.decision.route === "item_date") {
+    if (!canMutatePlanItems || !entry.activeItem) {
+      return "out_of_scope_route";
+    }
+    return null;
+  }
+  if (dispatch.decision.route === "plan_goal_date") {
+    if (!canMutatePlanItems || !entry.activeGoal) {
+      return "out_of_scope_route";
+    }
+    return null;
+  }
+  return "out_of_scope_route";
+}
+
+export function getCompletionControlState({
+  entry,
+  selectedDate,
+  asOfDate,
+  canMutatePlanItems,
+  canMutateEntryOnDay,
+}: {
+  entry: PlannerDayDetailEntry;
+  selectedDate: string | null;
+  asOfDate: string | null;
+  canMutatePlanItems: boolean;
+  canMutateEntryOnDay: boolean;
+}): CompletionControlState {
+  const dispatch = getDateFactDispatchForEntry({
+    entry,
+    selectedDate,
+    asOfDate,
+  });
+  const disabledReason = getCompletionControlDisabledReason({
+    entry,
+    dispatch,
+    canMutatePlanItems,
+    canMutateEntryOnDay,
+  });
+  return {
+    currentlyCredited: Boolean(dispatch?.currentlyCredited),
+    dispatch,
+    disabledReason,
   };
 }
