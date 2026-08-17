@@ -972,7 +972,9 @@ describe("preparePlannerSchedule", () => {
     const completion: Completion = {
       id: "82222222-2222-4222-8222-222222222222",
       goal_id: cadenceGoal.id,
+      user_id: OWNER_ID,
       completed_on: "2026-08-02",
+      source: "manual",
       created_at: "2026-08-02T00:00:00.000Z",
     };
     mocks.loadPlannerPreparationSnapshot.mockResolvedValue(
@@ -1023,13 +1025,17 @@ describe("preparePlannerSchedule", () => {
     const completionOne: Completion = {
       id: "84444444-4444-4444-8444-444444444444",
       goal_id: targetedGoal.id,
+      user_id: OWNER_ID,
       completed_on: "2026-08-03",
+      source: "manual",
       created_at: "2026-08-03T00:00:00.000Z",
     };
     const completionTwo: Completion = {
       id: "85555555-5555-4555-8555-555555555555",
       goal_id: targetedGoal.id,
+      user_id: OWNER_ID,
       completed_on: "2026-08-12",
+      source: "manual",
       created_at: "2026-08-12T00:00:00.000Z",
     };
     mocks.loadPlannerPreparationSnapshot.mockResolvedValue(
@@ -1093,7 +1099,9 @@ describe("preparePlannerSchedule", () => {
     const completion: Completion = {
       id: "81111111-1111-4111-8111-111111111111",
       goal_id: completedGoal.id,
+      user_id: OWNER_ID,
       completed_on: "2026-03-10",
+      source: "manual",
       created_at: "2026-03-10T00:00:00.000Z",
     };
     mocks.loadPlannerPreparationSnapshot.mockResolvedValue(
@@ -1129,13 +1137,17 @@ describe("preparePlannerSchedule", () => {
     const completionOne: Completion = {
       id: "86666666-6666-4666-8666-666666666666",
       goal_id: completedGoal.id,
+      user_id: OWNER_ID,
       completed_on: "2026-03-10",
+      source: "manual",
       created_at: "2026-03-10T00:00:00.000Z",
     };
     const completionTwo: Completion = {
       id: "87777777-7777-4777-8777-777777777777",
       goal_id: completedGoal.id,
+      user_id: OWNER_ID,
       completed_on: "2026-03-11",
+      source: "manual",
       created_at: "2026-03-11T00:00:00.000Z",
     };
     mocks.loadPlannerPreparationSnapshot.mockResolvedValue(
