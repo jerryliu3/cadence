@@ -270,6 +270,70 @@ describe("bulk goal parser route", () => {
     });
   });
 
+  it("coerces finite training cadences into fixed milestones with named sessions", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            candidates: [
+              {
+                content: {
+                  parts: [
+                    {
+                      text: JSON.stringify({
+                        goals: [
+                          {
+                            title: "5k training plan",
+                            frequency_type: "recurring",
+                            recurrence_interval: "weekly",
+                            target_count: 12,
+                            start_date: "2026-08-17",
+                            end_date: "2026-09-13",
+                          },
+                        ],
+                      }),
+                    },
+                  ],
+                },
+              },
+            ],
+          }),
+          { status: 200 }
+        )
+      )
+    );
+
+    const response = await POST(
+      request({
+        prompt:
+          "Create a 4-week 5k training plan with 3 runs per week: easy run, tempo run, and long run.",
+        timezone: "UTC",
+      })
+    );
+
+    expect(response.status).toBe(200);
+    const payload = (await response.json()) as {
+      goals: Array<{
+        title: string;
+        frequency_type: string;
+        target_count: number | null;
+        milestone_names?: string[];
+      }>;
+    };
+    expect(payload.goals[0]).toMatchObject({
+      title: "5k training plan",
+      frequency_type: "fixed_milestones",
+      target_count: 12,
+    });
+    expect(payload.goals[0]?.milestone_names).toHaveLength(12);
+    expect(payload.goals[0]?.milestone_names?.slice(0, 3)).toEqual([
+      "Week 1 Easy run",
+      "Week 1 Tempo run",
+      "Week 1 Long run",
+    ]);
+  });
+
   it("rejects model outputs when milestone_names are malformed", async () => {
     vi.stubGlobal(
       "fetch",

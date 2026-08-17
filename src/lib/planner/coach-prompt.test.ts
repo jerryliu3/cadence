@@ -90,10 +90,19 @@ describe("buildCoachPrompt", () => {
       "include goalDraftPrompt as plain instructions for 1-5 goals"
     );
     expect(prompt).toContain(
+      "For action=needs_goal, goalDraftPrompt is required and must be non-empty."
+    );
+    expect(prompt).toContain(
       'Use "fixed_milestones" when sessions differ across the plan'
     );
     expect(prompt).toContain(
+      'For finite training requests (for example: "4-week 5k plan with 3 runs per week"), default to one fixed_milestones goal'
+    );
+    expect(prompt).toContain(
       'Use "recurring" when sessions are genuinely repetitive'
+    );
+    expect(prompt).toContain(
+      "never claim that goals were already created or scheduled"
     );
     expect(prompt).toContain("Never create one goal per workout");
     expect(prompt).toContain("prefer including a complete goalDraftPrompt");
