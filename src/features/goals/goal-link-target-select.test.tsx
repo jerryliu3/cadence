@@ -19,6 +19,8 @@ describe("GoalLinkTargetSelect", () => {
         searchQuery=""
         onSearchQueryChange={vi.fn()}
         filteredLinkTargets={[]}
+        selectedTargetGoal={null}
+        sourceEndDate={null}
       />
     );
 
@@ -37,6 +39,8 @@ describe("GoalLinkTargetSelect", () => {
         searchQuery=""
         onSearchQueryChange={vi.fn()}
         filteredLinkTargets={[]}
+        selectedTargetGoal={null}
+        sourceEndDate={null}
       />
     );
 
@@ -62,6 +66,8 @@ describe("GoalLinkTargetSelect", () => {
         searchQuery=""
         onSearchQueryChange={vi.fn()}
         filteredLinkTargets={[goal]}
+        selectedTargetGoal={null}
+        sourceEndDate={null}
       />
     );
 
@@ -82,6 +88,8 @@ describe("GoalLinkTargetSelect", () => {
         searchQuery=""
         onSearchQueryChange={vi.fn()}
         filteredLinkTargets={[buildGoal({ id: "goal-2", title: "Read daily" })]}
+        selectedTargetGoal={null}
+        sourceEndDate={null}
       />
     );
 
@@ -103,6 +111,8 @@ describe("GoalLinkTargetSelect", () => {
         searchQuery=""
         onSearchQueryChange={vi.fn()}
         filteredLinkTargets={[goal]}
+        selectedTargetGoal={null}
+        sourceEndDate={null}
       />
     );
 
@@ -120,6 +130,8 @@ describe("GoalLinkTargetSelect", () => {
         searchQuery="zzz"
         onSearchQueryChange={vi.fn()}
         filteredLinkTargets={[]}
+        selectedTargetGoal={null}
+        sourceEndDate={null}
       />
     );
 
@@ -138,6 +150,8 @@ describe("GoalLinkTargetSelect", () => {
         searchQuery=""
         onSearchQueryChange={onSearchQueryChange}
         filteredLinkTargets={[]}
+        selectedTargetGoal={null}
+        sourceEndDate={null}
       />
     );
 
@@ -156,10 +170,38 @@ describe("GoalLinkTargetSelect", () => {
         searchQuery=""
         onSearchQueryChange={vi.fn()}
         filteredLinkTargets={[goal]}
+        selectedTargetGoal={null}
+        sourceEndDate={null}
         keyPrefix="edit"
       />
     );
 
     expect(screen.getByRole("option", { name: /meditate/i })).toBeInTheDocument();
+  });
+
+  it("shows scheduling warning copy for selected linked target", () => {
+    const selectedTarget = buildGoal({ id: "goal-9", title: "Read daily" });
+    render(
+      <GoalLinkTargetSelect
+        value="goal-9"
+        onValueChange={vi.fn()}
+        open={false}
+        onOpenChange={vi.fn()}
+        searchQuery=""
+        onSearchQueryChange={vi.fn()}
+        filteredLinkTargets={[selectedTarget]}
+        selectedTargetGoal={selectedTarget}
+        sourceEndDate="2026-08-31"
+      />
+    );
+
+    expect(
+      screen.getByText("Linking to Read daily affects calendar visibility.")
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Linked targets stay hidden through 2026-08-31 and can appear from 2026-09-01."
+      )
+    ).toBeInTheDocument();
   });
 });

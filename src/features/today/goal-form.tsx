@@ -24,6 +24,7 @@ import {
   useState,
 } from "react";
 import { toast } from "sonner";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -371,6 +372,14 @@ export function GoalForm({
       );
     });
   }, [availableGoals, linkTargetSearch]);
+  const selectedLinkTargetGoal = useMemo(
+    () =>
+      selectedLinkTarget === "none"
+        ? null
+        : availableGoals.find((goal) => goal.id === selectedLinkTarget) ?? null,
+    [availableGoals, selectedLinkTarget]
+  );
+  const hasLinkedTarget = selectedLinkTarget !== "none";
 
   const updateFrequencyType = (nextFrequency: GoalFrequencyType) => {
     setMilestoneNamesOpen(false);
@@ -932,7 +941,10 @@ export function GoalForm({
                   variant="ghost"
                   className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-sm"
                 >
-                  <span>Advanced settings (optional)</span>
+                  <span className="inline-flex items-center gap-2">
+                    <span>Advanced settings (optional)</span>
+                    {hasLinkedTarget ? <Badge variant="secondary">Linked</Badge> : null}
+                  </span>
                   {advancedOpen ? (
                     <ChevronUp className="size-4 text-muted-foreground" />
                   ) : (
@@ -1122,6 +1134,8 @@ export function GoalForm({
                       searchQuery={linkTargetSearch}
                       onSearchQueryChange={setLinkTargetSearch}
                       filteredLinkTargets={filteredLinkTargets}
+                      selectedTargetGoal={selectedLinkTargetGoal}
+                      sourceEndDate={state.end_date.trim() || null}
                     />
                   ) : null}
                 </div>

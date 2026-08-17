@@ -11,7 +11,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { getLinkedGoalDeadlineLabel, getLinkedGoalRecurrenceLabel } from "@/lib/goals/linked-goal-labels";
+import {
+  getLinkedGoalDeadlineLabel,
+  getLinkedGoalRecurrenceLabel,
+  getLinkedTargetSchedulingNotice,
+} from "@/lib/goals/linked-goal-labels";
 import type { Goal } from "@/lib/goals/types";
 
 interface GoalLinkTargetSelectProps {
@@ -22,7 +26,11 @@ interface GoalLinkTargetSelectProps {
   searchQuery: string;
   onSearchQueryChange: (value: string) => void;
   filteredLinkTargets: Goal[];
+  selectedTargetGoal: Goal | null;
+  sourceEndDate: string | null;
   keyPrefix?: string;
+  disabled?: boolean;
+  disabledReason?: string | null;
 }
 
 export function GoalLinkTargetSelect({
@@ -33,15 +41,28 @@ export function GoalLinkTargetSelect({
   searchQuery,
   onSearchQueryChange,
   filteredLinkTargets,
+  selectedTargetGoal,
+  sourceEndDate,
   keyPrefix = "",
+  disabled = false,
+  disabledReason = null,
 }: GoalLinkTargetSelectProps) {
+  const linkedTargetSchedulingNotice = getLinkedTargetSchedulingNotice({
+    sourceEndDate,
+  });
   return (
     <div className="space-y-2">
       <Label className="inline-flex items-center gap-2">
         <Link2 className="size-4 text-muted-foreground" />
         Link this goal to another goal
       </Label>
-      <Select value={value} onValueChange={onValueChange} open={open} onOpenChange={onOpenChange}>
+      <Select
+        value={value}
+        onValueChange={onValueChange}
+        open={open}
+        onOpenChange={onOpenChange}
+        disabled={disabled}
+      >
         <SelectTrigger>
           <SelectValue placeholder="No linked target" />
         </SelectTrigger>
@@ -76,6 +97,17 @@ export function GoalLinkTargetSelect({
       <p className="text-xs text-muted-foreground">
         Marking this goal complete will auto-complete linked goals for the same day.
       </p>
+      {disabledReason ? (
+        <p className="text-xs text-muted-foreground">{disabledReason}</p>
+      ) : null}
+      {value !== "none" && selectedTargetGoal ? (
+        <div className="rounded-md border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900 dark:border-amber-400/50 dark:bg-amber-500/10 dark:text-amber-100">
+          <p className="font-medium">
+            Linking to {selectedTargetGoal.title} affects calendar visibility.
+          </p>
+          <p className="mt-1">{linkedTargetSchedulingNotice}</p>
+        </div>
+      ) : null}
     </div>
   );
 }
