@@ -138,6 +138,13 @@ export function CalendarDayPreviewList<
                     onPointerCancelCapture={() => {
                       onEntryPointerEnd();
                     }}
+                    onClick={() => {
+                      if (isDragging) {
+                        return;
+                      }
+                      onEntryOpen(entry.key);
+                    }}
+                    data-planner-entry-key={entry.key}
                     {...attributes}
                     {...listeners}
                   >
@@ -168,13 +175,7 @@ export function CalendarDayPreviewList<
                         }
                       />
                     ) : null}
-                    <button
-                      type="button"
-                      className="flex min-w-0 flex-1 items-center gap-2 text-left"
-                      onClick={() => {
-                        onEntryOpen(entry.key);
-                      }}
-                    >
+                    <div className="flex min-w-0 flex-1 items-center gap-2 text-left">
                       <span
                         className="inline-flex size-4 items-center justify-center rounded-full"
                         style={{ backgroundColor: visual.color }}
@@ -208,7 +209,7 @@ export function CalendarDayPreviewList<
                           </p>
                         ) : null}
                       </div>
-                    </button>
+                    </div>
                   </div>
                 )}
               </PlannerDraggablePreviewEntry>

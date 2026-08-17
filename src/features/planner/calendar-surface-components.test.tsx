@@ -136,7 +136,11 @@ describe("calendar surface extracted components", () => {
     await user.click(toggle);
     expect(onToggleCompletion).toHaveBeenCalledTimes(1);
 
-    await user.click(within(view.container).getByText("Run"));
+    const previewEntry = view.container.querySelector(
+      '[data-planner-entry-key="goal-1:cadence:0"]'
+    );
+    expect(previewEntry).not.toBeNull();
+    await user.click(previewEntry as HTMLElement);
     expect(onEntryOpen).toHaveBeenCalledWith(sampleEntry.key);
   });
 
