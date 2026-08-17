@@ -951,6 +951,79 @@ describe("preparePlannerSchedule", () => {
     );
   });
 
+  it("preserves durable shortfall records when precheck credit computation fails", async () => {
+    const oversizedGoal = goal({
+      frequency_type: "recurring",
+      recurrence_interval: "daily",
+      target_count: MAX_WORK_UNITS + 1,
+      milestone_names: null,
+      start_date: "2026-01-01",
+      end_date: "2026-12-31",
+    });
+    const completion: Completion = {
+      id: "90111111-1111-4111-8111-111111111111",
+      goal_id: oversizedGoal.id,
+      user_id: OWNER_ID,
+      completed_on: "2026-01-20",
+      source: "manual",
+      created_at: "2026-01-20T00:00:00.000Z",
+    };
+    const existingRecord = unplaceableRecord({
+      goalId: oversizedGoal.id,
+      requirementFingerprint: computeRequirementFingerprint(oversizedGoal),
+      lockSignature: buildPlannerGoalLockSignature([]),
+      effectiveSpanEnd: oversizedGoal.end_date ?? "2026-12-31",
+      unplacedCount: 4,
+      reason: "capacity",
+    });
+    mocks.loadPlannerPreparationSnapshot.mockResolvedValue(
+      preparationSnapshot([oversizedGoal], [], [existingRecord], [completion])
+    );
+
+    await prepare();
+
+    expect(mocks.runPlannerKernel).not.toHaveBeenCalled();
+    expect(mocks.rpc).toHaveBeenCalledWith(
+      "prepare_planner_schedule",
+      expect.objectContaining({
+        p_unplaceable: expect.arrayContaining([
+          expect.objectContaining({
+            goal_id: oversizedGoal.id,
+            reason: "capacity",
+            unplaced_count: 4,
+          }),
+        ]),
+      })
+    );
+  });
+
+  it("fails prepare when precheck credit computation fails with no record to preserve", async () => {
+    const oversizedGoal = goal({
+      frequency_type: "recurring",
+      recurrence_interval: "daily",
+      target_count: MAX_WORK_UNITS + 1,
+      milestone_names: null,
+      start_date: "2026-01-01",
+      end_date: "2026-12-31",
+    });
+    const completion: Completion = {
+      id: "90222222-2222-4222-8222-222222222222",
+      goal_id: oversizedGoal.id,
+      user_id: OWNER_ID,
+      completed_on: "2026-01-21",
+      source: "manual",
+      created_at: "2026-01-21T00:00:00.000Z",
+    };
+    mocks.loadPlannerPreparationSnapshot.mockResolvedValue(
+      preparationSnapshot([oversizedGoal], [], [], [completion])
+    );
+
+    await expect(prepare()).rejects.toMatchObject({
+      code: "invariant_failed",
+    });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
   it("re-solves stale positive capacity rows with no covered units so trivial goals can self-heal", async () => {
     const plannerGoal = goal({
       frequency_type: "recurring",
@@ -1482,7 +1555,7 @@ describe("preparePlannerSchedule", () => {
     expect(Array.from(credited).sort()).toEqual(["total:1"]);
   });
 
-  it("returns no precheck lifetime credit when ordinal target count exceeds planner bounds", () => {
+  it("throws when precheck lifetime credit is requested beyond planner bounds", () => {
     const oversizedGoal = goal({
       frequency_type: "recurring",
       recurrence_interval: "daily",
@@ -1500,17 +1573,17 @@ describe("preparePlannerSchedule", () => {
       created_at: "2026-01-15T00:00:00.000Z",
     };
 
-    const credited = computeCompletionCreditedUnitKeys({
-      goal: oversizedGoal,
-      completions: [completion],
-      asOfDate: "2026-08-15",
-      weekStartsOn: 1,
-      requiredUnitKeys: new Set(["total:1"]),
-      persistedItems: [],
-      window: { start: "2026-08-01", end: "2026-12-31" },
-    });
-
-    expect(credited.size).toBe(0);
+    expect(() =>
+      computeCompletionCreditedUnitKeys({
+        goal: oversizedGoal,
+        completions: [completion],
+        asOfDate: "2026-08-15",
+        weekStartsOn: 1,
+        requiredUnitKeys: new Set(["total:1"]),
+        persistedItems: [],
+        window: { start: "2026-08-01", end: "2026-12-31" },
+      })
+    ).toThrow("exceeds supported work-unit bound");
   });
 
   it("uses the canonical snapshot digest for preparation", async () => {

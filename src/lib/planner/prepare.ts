@@ -86,6 +86,19 @@ interface PersistedCompletionCreditItem {
   scheduled_date: string;
 }
 
+class PlannerPrecheckCompletionCreditError extends Error {
+  constructor(
+    readonly code:
+      | "target_count_exceeds_bound"
+      | "completion_credit_reconciliation_failed",
+    message: string,
+    readonly details: Record<string, unknown> = {}
+  ) {
+    super(message);
+    this.name = "PlannerPrecheckCompletionCreditError";
+  }
+}
+
 function itemKey(item: { goal_id: string; unit_key: string }) {
   return `${item.goal_id}\u0000${item.unit_key}`;
 }
@@ -198,17 +211,16 @@ export function computeCompletionCreditedUnitKeys({
       requirement.kind === "deadline_total") &&
     requirement.targetCount > MAX_WORK_UNITS
   ) {
-    reportError(
-      new Error("Planner pre-check target count exceeds supported work-unit bound."),
+    throw new PlannerPrecheckCompletionCreditError(
+      "target_count_exceeds_bound",
+      "Planner pre-check target count exceeds supported work-unit bound.",
       {
         scope: "planner.prepare",
-        code: "precheck_target_count_exceeds_bound",
         goalId: goal.id,
         targetCount: requirement.targetCount,
         maximum: MAX_WORK_UNITS,
       }
     );
-    return new Set<string>();
   }
   const baseAssignments: PlannerBaseAssignment[] = persistedItems.map((item) => ({
     goalId: goal.id,
@@ -244,15 +256,91 @@ export function computeCompletionCreditedUnitKeys({
         .filter((unitKey) => requiredUnitKeys.has(unitKey))
     );
   } catch (error) {
-    // Pre-check crediting is advisory for targeted re-solve decisions; on
-    // unexpected failures, fall back to empty credit so prepare can continue.
-    reportError(error, {
-      scope: "planner.prepare",
-      code: "precheck_completion_credit_failed",
-      goalId: goal.id,
-    });
-    return new Set<string>();
+    throw new PlannerPrecheckCompletionCreditError(
+      "completion_credit_reconciliation_failed",
+      "Planner pre-check completion credit reconciliation failed.",
+      {
+        scope: "planner.prepare",
+        causeMessage: error instanceof Error ? error.message : String(error),
+      }
+    );
   }
+}
+
+function preserveExistingUnplaceableOutcome({
+  goalId,
+  record,
+  goalOutcomeByGoalId,
+  preserveRecordedOutcomeGoalIds,
+}: {
+  goalId: string;
+  record: PlannerGoalUnplaceableRecord;
+  goalOutcomeByGoalId: Map<string, GoalUnplaceablePayload>;
+  preserveRecordedOutcomeGoalIds: Set<string>;
+}) {
+  goalOutcomeByGoalId.set(goalId, {
+    goal_id: goalId,
+    requirement_fingerprint: record.requirementFingerprint,
+    policy_fingerprint: record.policyFingerprint,
+    policy_revision: record.policyRevision,
+    lock_signature: record.lockSignature,
+    effective_span_end: record.effectiveSpanEnd,
+    unplaced_count: record.unplacedCount,
+    reason: record.reason,
+  });
+  preserveRecordedOutcomeGoalIds.add(goalId);
+}
+
+function reportAndHandlePrecheckCreditFailure({
+  error,
+  goal,
+  existingUnplaceableRecord,
+  existingRecordIsValid,
+  goalOutcomeByGoalId,
+  preserveRecordedOutcomeGoalIds,
+}: {
+  error: unknown;
+  goal: Goal;
+  existingUnplaceableRecord: PlannerGoalUnplaceableRecord | null;
+  existingRecordIsValid: boolean;
+  goalOutcomeByGoalId: Map<string, GoalUnplaceablePayload>;
+  preserveRecordedOutcomeGoalIds: Set<string>;
+}) {
+  const precheckError =
+    error instanceof PlannerPrecheckCompletionCreditError
+      ? error
+      : new PlannerPrecheckCompletionCreditError(
+          "completion_credit_reconciliation_failed",
+          "Planner pre-check completion credit reconciliation failed.",
+          {
+            causeMessage: error instanceof Error ? error.message : String(error),
+          }
+        );
+  reportError(error, {
+    scope: "planner.prepare",
+    code: `precheck_${precheckError.code}`,
+    goalId: goal.id,
+    ...precheckError.details,
+  });
+  if (existingRecordIsValid && existingUnplaceableRecord) {
+    preserveExistingUnplaceableOutcome({
+      goalId: goal.id,
+      record: existingUnplaceableRecord,
+      goalOutcomeByGoalId,
+      preserveRecordedOutcomeGoalIds,
+    });
+    return;
+  }
+  throwPrepareInvariant({
+    code: "precheck_completion_credit_failed",
+    message:
+      "Planner prepare could not compute completion credit and had no durable unplaceable record to preserve.",
+    details: {
+      goalId: goal.id,
+      precheckCode: precheckError.code,
+      ...precheckError.details,
+    },
+  });
 }
 
 function throwPrepareInvariant({
@@ -475,6 +563,18 @@ async function prepareOnce({
         locked: item.locked,
       }))
     );
+    const existingUnplaceableRecord =
+      validUnplaceableRecordByGoalId.get(goal.id) ?? null;
+    const existingRecordIsValid =
+      existingUnplaceableRecord !== null &&
+      isPlannerGoalUnplaceableRecordValid({
+        record: existingUnplaceableRecord,
+        goal,
+        policyFingerprint,
+        policyRevision,
+        lockSignature,
+        preparationEnd,
+      });
     const goalWindows = goalWindowsState.windows as PreparationWindow[];
     const requiredUnitKeys = computeRequiredUnitKeys({
       goal,
@@ -485,18 +585,31 @@ async function prepareOnce({
     // This pre-check uses requirement-valid persisted identities only, while the
     // kernel receives all persisted base assignments (including stale rows) so it
     // can reconcile and clear them during preparation.
-    const completionCreditedUnitKeys = computeCompletionCreditedUnitKeys({
-      goal,
-      completions: completionsByGoalId.get(goal.id) ?? [],
-      asOfDate,
-      weekStartsOn: policy.weekStartsOn ?? 1,
-      requiredUnitKeys,
-      persistedItems: persistedItemsValidByGoalId.get(goal.id) ?? [],
-      window: {
-        start: goalWindowsState.effectiveStart,
-        end: goalWindowsState.effectiveEnd,
-      },
-    });
+    let completionCreditedUnitKeys: Set<string>;
+    try {
+      completionCreditedUnitKeys = computeCompletionCreditedUnitKeys({
+        goal,
+        completions: completionsByGoalId.get(goal.id) ?? [],
+        asOfDate,
+        weekStartsOn: policy.weekStartsOn ?? 1,
+        requiredUnitKeys,
+        persistedItems: persistedItemsValidByGoalId.get(goal.id) ?? [],
+        window: {
+          start: goalWindowsState.effectiveStart,
+          end: goalWindowsState.effectiveEnd,
+        },
+      });
+    } catch (error) {
+      reportAndHandlePrecheckCreditFailure({
+        error,
+        goal,
+        existingUnplaceableRecord,
+        existingRecordIsValid,
+        goalOutcomeByGoalId,
+        preserveRecordedOutcomeGoalIds,
+      });
+      continue;
+    }
     precheckCompletionCreditedUnitKeysByGoalId.set(goal.id, completionCreditedUnitKeys);
     const persistedUnitKeys = new Set(
       (persistedItemsValidByGoalId.get(goal.id) ?? []).map((item) => item.unit_key)
@@ -511,18 +624,6 @@ async function prepareOnce({
     const hasStalePersistedRows =
       (persistedItemsInHorizonByGoalId.get(goal.id)?.length ?? 0) !==
       (persistedItemsInHorizonValidByGoalId.get(goal.id)?.length ?? 0);
-    const existingUnplaceableRecord =
-      validUnplaceableRecordByGoalId.get(goal.id) ?? null;
-    const existingRecordIsValid =
-      existingUnplaceableRecord !== null &&
-      isPlannerGoalUnplaceableRecordValid({
-        record: existingUnplaceableRecord,
-        goal,
-        policyFingerprint,
-        policyRevision,
-        lockSignature,
-        preparationEnd,
-      });
     const accountedCount =
       existingRecordIsValid && existingUnplaceableRecord
         ? existingUnplaceableRecord.unplacedCount
@@ -549,17 +650,12 @@ async function prepareOnce({
         existingUnplaceableRecord &&
         existingUnplaceableRecord.unplacedCount > 0
       ) {
-        goalOutcomeByGoalId.set(goal.id, {
-          goal_id: goal.id,
-          requirement_fingerprint: existingUnplaceableRecord.requirementFingerprint,
-          policy_fingerprint: policyFingerprint,
-          policy_revision: existingUnplaceableRecord.policyRevision,
-          lock_signature: lockSignature,
-          effective_span_end: existingUnplaceableRecord.effectiveSpanEnd,
-          unplaced_count: existingUnplaceableRecord.unplacedCount,
-          reason: existingUnplaceableRecord.reason,
+        preserveExistingUnplaceableOutcome({
+          goalId: goal.id,
+          record: existingUnplaceableRecord,
+          goalOutcomeByGoalId,
+          preserveRecordedOutcomeGoalIds,
         });
-        preserveRecordedOutcomeGoalIds.add(goal.id);
       } else {
         goalOutcomeByGoalId.set(goal.id, {
           goal_id: goal.id,
