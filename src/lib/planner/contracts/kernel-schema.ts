@@ -335,7 +335,6 @@ export const plannerKernelOutputSchema = z
         invariantViolations: z.array(z.string()),
       })
       .strict(),
-    suggestedRelaxations: z.array(z.string()),
     horizonSummary: z.array(goalHorizonSummarySchema),
   })
   .strict();

@@ -151,7 +151,6 @@ export interface PlannerKernelOutput {
   }>;
   diff: ReturnType<typeof diffPlannerAssignments>;
   validation: ReturnType<typeof validateSolverResult>;
-  suggestedRelaxations: string[];
   horizonSummary: PlannerGoalHorizonSummary[];
 }
 
@@ -395,19 +394,6 @@ function throwBounds(
       { dimension, actual, maximum }
     );
   }
-}
-
-function suggestedRelaxations(issueCodes: PlannerIssueCode[]) {
-  const suggestions = new Set<string>();
-  if (issueCodes.includes("placement_shortfall")) {
-    suggestions.add("Reduce rest weekdays or blackout dates.");
-    suggestions.add("Allow more weekdays for affected goals.");
-    suggestions.add("Accept a reviewed partial plan.");
-  }
-  if (issueCodes.includes("invalid_lock")) {
-    suggestions.add("Unlock the conflicting item before regenerating.");
-  }
-  return Array.from(suggestions);
 }
 
 export function runPlannerKernel(
@@ -997,7 +983,6 @@ export function runPlannerKernel(
       nextIssues: solver.issueCodes,
     }),
     validation,
-    suggestedRelaxations: suggestedRelaxations(solver.issueCodes),
     horizonSummary,
   };
   plannerKernelOutputSchema.parse(output);
