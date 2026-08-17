@@ -214,35 +214,38 @@ describe("CalendarSurface characterization", () => {
     );
   });
 
-  it("keeps time prefix while using compact milestone labels in month pills", async () => {
-    postJsonMock.mockResolvedValue(
-      buildContext([
-        unit({
-          originalGoalId: "goal-b",
-          unitKey: "milestone:2",
-          label: "Tempo run 4x800",
-          goalDefaultLocalTime: "07:30",
-          scheduledDate: "2026-09-01",
-        }),
-      ])
-    );
+  it.each(["month", "week", "three_day"] as const)(
+    "keeps time prefix while using compact milestone labels in %s cells",
+    async (viewMode) => {
+      postJsonMock.mockResolvedValue(
+        buildContext([
+          unit({
+            originalGoalId: "goal-b",
+            unitKey: "milestone:2",
+            label: "Tempo run 4x800",
+            goalDefaultLocalTime: "07:30",
+            scheduledDate: "2026-09-01",
+          }),
+        ])
+      );
 
-    render(
-      <CalendarSurface
-        activeTab="calendar"
-        month="2026-09"
-        selectedDay={null}
-        viewMode="month"
-        onMonthChange={vi.fn()}
-        onViewModeChange={vi.fn()}
-        onSelectedDayChange={vi.fn()}
-        onPlannerMutation={vi.fn()}
-      />
-    );
+      render(
+        <CalendarSurface
+          activeTab="calendar"
+          month="2026-09"
+          selectedDay={viewMode === "month" ? null : "2026-09-01"}
+          viewMode={viewMode}
+          onMonthChange={vi.fn()}
+          onViewModeChange={vi.fn()}
+          onSelectedDayChange={vi.fn()}
+          onPlannerMutation={vi.fn()}
+        />
+      );
 
-    expect(await screen.findByText("07:30 Tempo run 4x800")).toBeInTheDocument();
-    expect(screen.queryByText("07:30 Goal B")).not.toBeInTheDocument();
-  });
+      expect(await screen.findByText("07:30 Tempo run 4x800")).toBeInTheDocument();
+      expect(screen.queryByText("07:30 Goal B")).not.toBeInTheDocument();
+    }
+  );
 
   it("force-prepares planner context after coach goals are created", async () => {
     postJsonMock.mockResolvedValue(

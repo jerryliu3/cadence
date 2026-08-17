@@ -10,6 +10,7 @@ import { ApiClientError, postJson } from "@/lib/api/client";
 import { createClient } from "@/lib/supabase/client";
 
 export const MAX_COACH_GOAL_DRAFTS = 5;
+const COACH_GOAL_DRAFT_PARSE_TIMEOUT_MS = 45_000;
 
 export class CoachGoalDraftServiceError extends Error {
   readonly code: string;
@@ -35,6 +36,8 @@ export async function parseCoachGoalDrafts({
     }>("/api/bulk-goals/parse", {
       prompt: parserPrompt,
       timezone,
+    }, {
+      timeoutMs: COACH_GOAL_DRAFT_PARSE_TIMEOUT_MS,
     });
     const goals = payload.goals ?? [];
     if (goals.length === 0) {
