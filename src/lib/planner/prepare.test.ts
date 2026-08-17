@@ -1290,22 +1290,10 @@ describe("preparePlannerSchedule", () => {
         [completionOne, completionTwo]
       )
     );
-    mocks.runPlannerKernel.mockReturnValue(
-      kernelOutput(completedGoal.id, [
-        {
-          unitKey: "total:1",
-          scheduledDate: null,
-          creditedCompletionId: completionOne.id,
-          creditedCompletionDate: completionOne.completed_on,
-        },
-        {
-          unitKey: "total:2",
-          scheduledDate: null,
-          creditedCompletionId: completionTwo.id,
-          creditedCompletionDate: completionTwo.completed_on,
-        },
-      ])
-    );
+    // In production this stale-row case can arrive with all completions in
+    // months outside the current solve window, so scoped kernel work units can
+    // carry zero credit identities even though the lifetime target is fully met.
+    mocks.runPlannerKernel.mockReturnValue(kernelOutput(completedGoal.id, []));
 
     await prepare();
 

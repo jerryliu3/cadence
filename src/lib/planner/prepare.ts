@@ -811,9 +811,17 @@ async function prepareOnce({
         scheduledUnitKeys.add(item.unit_key);
       }
     }
-    const completionCreditedUnitKeys = kernelResolvedGoalIds.has(goal.id)
-      ? (kernelCompletionCreditedUnitKeysByGoalId.get(goal.id) ?? new Set<string>())
-      : (precheckCompletionCreditedUnitKeysByGoalId.get(goal.id) ?? new Set<string>());
+    // Keep lifetime completion credit from pre-check so goals completed in
+    // earlier months still clear stale shortfall rows when the scoped kernel
+    // solve carries no credited units for the current window.
+    const completionCreditedUnitKeys = new Set(
+      precheckCompletionCreditedUnitKeysByGoalId.get(goal.id) ?? []
+    );
+    if (kernelResolvedGoalIds.has(goal.id)) {
+      for (const unitKey of kernelCompletionCreditedUnitKeysByGoalId.get(goal.id) ?? []) {
+        completionCreditedUnitKeys.add(unitKey);
+      }
+    }
     for (const unitKey of completionCreditedUnitKeys) {
       scheduledUnitKeys.add(unitKey);
     }
