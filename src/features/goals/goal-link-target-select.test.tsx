@@ -73,7 +73,7 @@ describe("GoalLinkTargetSelect", () => {
 
     expect(screen.getByRole("option", { name: /read daily/i })).toBeInTheDocument();
     expect(screen.getByText("Weekly")).toBeInTheDocument();
-    expect(screen.getByText("Due 2026-12-31")).toBeInTheDocument();
+    expect(screen.getByText("Due Dec 31, 2026")).toBeInTheDocument();
   });
 
   it("shows a no-linked-target option and calls onValueChange when selected", async () => {

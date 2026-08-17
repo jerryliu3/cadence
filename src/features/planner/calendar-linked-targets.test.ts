@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildPlannerLinkedTargetIndexes,
+  describeLinkedTargetSuppression,
   getLinkedTargetScopeStatus,
 } from "@/features/planner/calendar-linked-targets";
 import type { PlannerGoalLinkSummary } from "@cadence/shared/planner/context";
@@ -82,6 +83,86 @@ describe("getLinkedTargetScopeStatus", () => {
     ).toEqual({
       state: "visible",
       resumeDate: null,
+    });
+  });
+});
+
+describe("describeLinkedTargetSuppression", () => {
+  it("counts linked-target eligibility entries and deduplicates per-goal details", () => {
+    const links: PlannerGoalLinkSummary[] = [
+      {
+        sourceGoalId: "source-z",
+        targetGoalId: "goal-b",
+        targetSuppressionKind: "until",
+        targetResumesOn: "2026-09-01",
+      },
+      {
+        sourceGoalId: "source-a",
+        targetGoalId: "goal-b",
+        targetSuppressionKind: "until",
+        targetResumesOn: "2026-09-01",
+      },
+      {
+        sourceGoalId: "source-c",
+        targetGoalId: "goal-c",
+        targetSuppressionKind: "indefinite",
+        targetResumesOn: null,
+      },
+    ];
+
+    const result = describeLinkedTargetSuppression({
+      eligibility: [
+        { goalId: "goal-b", eligible: false, reason: "linked_target" },
+        { goalId: "goal-b", eligible: false, reason: "linked_target" },
+        { goalId: "goal-c", eligible: false, reason: "linked_target" },
+        { goalId: "goal-a", eligible: false, reason: "not_owner" },
+      ],
+      links,
+      goalTitles: {
+        "goal-b": "Goal B",
+        "goal-c": "Goal C",
+        "source-a": "Source A",
+        "source-c": "Source C",
+        "source-z": "Source Z",
+      },
+      scopeMonth: "2026-08",
+    });
+
+    expect(result.linkedTargetCount).toBe(3);
+    expect(result.linkedTargetDetails).toEqual([
+      {
+        goalId: "goal-b",
+        goalTitle: "Goal B",
+        statusCopy: "hidden in this month and resumes on Sep 1, 2026",
+        sourceGoalTitles: ["Source A", "Source Z"],
+      },
+      {
+        goalId: "goal-c",
+        goalTitle: "Goal C",
+        statusCopy: "hidden while linked source goals remain active",
+        sourceGoalTitles: ["Source C"],
+      },
+    ]);
+  });
+
+  it("uses a hidden-in-month fallback when linked-target metadata is missing", () => {
+    const result = describeLinkedTargetSuppression({
+      eligibility: [{ goalId: "goal-x", eligible: false, reason: "linked_target" }],
+      links: [],
+      goalTitles: {},
+      scopeMonth: "2026-08",
+    });
+
+    expect(result).toEqual({
+      linkedTargetCount: 1,
+      linkedTargetDetails: [
+        {
+          goalId: "goal-x",
+          goalTitle: "goal-x",
+          statusCopy: "hidden in this month",
+          sourceGoalTitles: [],
+        },
+      ],
     });
   });
 });

@@ -37,7 +37,7 @@ describe("linked goal label helpers", () => {
 
   it("renders deadline labels", () => {
     expect(getLinkedGoalDeadlineLabel({ end_date: "2026-09-01" })).toBe(
-      "Due 2026-09-01"
+      "Due Sep 1, 2026"
     );
     expect(getLinkedGoalDeadlineLabel({ end_date: null })).toBe("No deadline");
   });
