@@ -29,10 +29,9 @@ import { createClient } from "@/lib/supabase/client";
 import type { PlannerPreferencesDraft } from "@/features/settings/planner-preferences-settings";
 import { buildProfilePreferencesUpdate } from "@/features/social/profile-preferences";
 import {
+  buildAvatarCleanupPathsForProfileChange,
   deleteProfileAvatar,
-  getCanonicalAvatarObjectPath,
   getAvatarUploadValidationError,
-  resolveAvatarObjectPathFromPublicUrl,
   uploadProfileAvatar,
 } from "@/lib/profile/avatar-upload";
 
@@ -424,25 +423,11 @@ export function useSocialTabData() {
       display_name: normalizedProfileDraft.display_name,
       avatar_url: normalizedProfileDraft.avatar_url,
     };
-    const previousAvatarObjectPath = resolveAvatarObjectPathFromPublicUrl(
-      normalizedPersistedProfile.avatar_url
-    );
-    const nextAvatarObjectPath = resolveAvatarObjectPathFromPublicUrl(
-      normalizedProfileDraft.avatar_url
-    );
-    const cleanupAvatarPaths = new Set<string>();
-    if (!normalizedProfileDraft.avatar_url) {
-      cleanupAvatarPaths.add(getCanonicalAvatarObjectPath(state.userId));
-      if (previousAvatarObjectPath?.startsWith(`${state.userId}/`)) {
-        cleanupAvatarPaths.add(previousAvatarObjectPath);
-      }
-    } else if (
-      previousAvatarObjectPath &&
-      previousAvatarObjectPath.startsWith(`${state.userId}/`) &&
-      previousAvatarObjectPath !== nextAvatarObjectPath
-    ) {
-      cleanupAvatarPaths.add(previousAvatarObjectPath);
-    }
+    const cleanupAvatarPaths = buildAvatarCleanupPathsForProfileChange({
+      userId: state.userId,
+      previousAvatarUrl: normalizedPersistedProfile.avatar_url,
+      nextAvatarUrl: normalizedProfileDraft.avatar_url,
+    });
 
     const { error } = await supabase.from("profiles").upsert(payload, {
       onConflict: "id",
@@ -450,11 +435,11 @@ export function useSocialTabData() {
     if (error) {
       toast.error(error.message);
     } else {
-      if (cleanupAvatarPaths.size > 0) {
+      if (cleanupAvatarPaths.length > 0) {
         try {
           await deleteProfileAvatar({
             supabase,
-            objectPaths: Array.from(cleanupAvatarPaths),
+            objectPaths: cleanupAvatarPaths,
           });
         } catch (avatarDeleteError) {
           toast.error(
