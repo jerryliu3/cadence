@@ -205,6 +205,31 @@ describe("planner work units", () => {
     );
   });
 
+  it("materializes ordinal goals without explicit deadlines using the soft horizon", () => {
+    const goal = buildGoal({
+      target_count: 3,
+      start_date: "2026-08-01",
+      end_date: null,
+    });
+    const units = materializeWorkUnits({
+      goal,
+      normalizedRequirement: normalizeGoalRequirement(goal),
+      window: getScopeDateRange("2026-08"),
+      asOfDate: "2026-08-05",
+      ordinalsForScopeMonth: allOrdinals(goal),
+    });
+
+    expect(units.map((unit) => unit.unitKey)).toEqual([
+      "total:1",
+      "total:2",
+      "total:3",
+    ]);
+    expect(units[0]?.creditWindow.end).toBe("2028-07-31");
+    expect(units.every((unit) => unit.placementWindow?.end === "2026-08-31")).toBe(
+      true
+    );
+  });
+
   it("requires explicit ordinal scope allocation for ordinal goals", () => {
     const totalGoal = buildGoal({
       target_count: 2,

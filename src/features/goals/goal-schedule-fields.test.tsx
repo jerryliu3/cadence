@@ -83,6 +83,23 @@ describe("GoalDateRangeFields", () => {
     expect(screen.getByLabelText("Ends")).toBeInTheDocument();
   });
 
+  it("shows the rolling horizon hint when soft-horizon mode is enabled", () => {
+    render(
+      <GoalDateRangeFields
+        startDate="2026-08-14"
+        endDate=""
+        onStartDateChange={vi.fn()}
+        onEndDateChange={vi.fn()}
+        requiresEndDate={false}
+        showSoftHorizonHint
+      />
+    );
+
+    expect(
+      screen.getByText("Leave blank to use a rolling 24-month planning horizon.")
+    ).toBeInTheDocument();
+  });
+
   it("fires onStartDateChange and onEndDateChange with the new value", async () => {
     const onStartDateChange = vi.fn();
     const onEndDateChange = vi.fn();

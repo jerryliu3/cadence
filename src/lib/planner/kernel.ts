@@ -2,6 +2,7 @@ import type { Completion, Goal } from "@/lib/goals/types";
 import {
   isCompletionAdmissible,
 } from "@/lib/goals/admissible";
+import { resolveGoalPlanningEndDate } from "@/lib/goals/definition-validation";
 import { normalizeWeekStartsOn } from "@/lib/dates/week-start";
 import { compareCanonicalStrings } from "@/lib/planner/canonical";
 import {
@@ -218,9 +219,22 @@ function allocateOrdinalWindow({
   if (requirement.kind === "cadence") {
     return undefined;
   }
+  const effectiveGoalEndDate = resolveGoalPlanningEndDate({
+    frequencyType: goal.frequency_type,
+    targetCount: goal.target_count,
+    startDate: goal.start_date,
+    endDate: goal.end_date,
+    asOfDate,
+  });
+  if (effectiveGoalEndDate === null) {
+    return {
+      scopedOrdinals: new Set<number>(),
+      monthOrdinals: new Map(),
+    };
+  }
   const lifetimeMonths = enumerateMonthsInWindow({
     start: goal.start_date,
-    end: goal.end_date ?? goal.start_date,
+    end: effectiveGoalEndDate,
   });
   const windowMonths = enumerateMonthsInWindow(window);
   if (!windowMonths.some((month) => lifetimeMonths.includes(month))) {
@@ -237,7 +251,7 @@ function allocateOrdinalWindow({
     compareCanonicalStrings(asOfDate, goal.start_date) > 0
       ? asOfDate
       : goal.start_date;
-  const lifetimeEnd = goal.end_date ?? goal.start_date;
+  const lifetimeEnd = effectiveGoalEndDate;
   const ownershipWindow =
     compareCanonicalStrings(projectableStart, lifetimeEnd) <= 0
       ? { start: projectableStart, end: lifetimeEnd }
@@ -257,7 +271,7 @@ function allocateOrdinalWindow({
     }
     const projectableWindow = intersectDateWindows(monthWindow, {
       start: projectableStart,
-      end: goal.end_date ?? monthWindow.end,
+      end: effectiveGoalEndDate,
     });
     if (!projectableWindow) {
       monthCapacity.set(month, 0);
@@ -454,6 +468,7 @@ export function runPlannerKernel(
       ownerId: rawInput.ownerId,
       goal,
       currentLinkRole: currentLinkRole(goal.id, links),
+      asOfDate: rawInput.asOfDate,
     }),
   }));
   const eligibleGoals = eligibility
@@ -705,7 +720,14 @@ export function runPlannerKernel(
     idealDateContextByGoal: new Map(
       eligibleGoals.flatMap((goal) => {
         const requirement = normalizedRequirements.get(goal.id)!.requirement;
-        if (requirement.kind === "cadence" || goal.end_date === null) {
+        const effectiveGoalEndDate = resolveGoalPlanningEndDate({
+          frequencyType: goal.frequency_type,
+          targetCount: goal.target_count,
+          startDate: goal.start_date,
+          endDate: goal.end_date,
+          asOfDate: rawInput.asOfDate,
+        });
+        if (requirement.kind === "cadence" || effectiveGoalEndDate === null) {
           return [];
         }
         return [
@@ -718,7 +740,7 @@ export function runPlannerKernel(
                   compareCanonicalStrings(rawInput.asOfDate, goal.start_date) > 0
                     ? rawInput.asOfDate
                     : goal.start_date,
-                end: goal.end_date,
+                end: effectiveGoalEndDate,
               },
             },
           ] as const,

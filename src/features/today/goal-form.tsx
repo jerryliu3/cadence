@@ -347,7 +347,7 @@ export function GoalForm({
       : state.target_count.trim().length > 0
         ? parsedTargetCount
         : null;
-  const requiresEndDate = isOrdinalGoalDefinition({
+  const usesSoftHorizon = isOrdinalGoalDefinition({
     frequencyType: state.frequency_type,
     targetCount: definitionTargetCount,
   });
@@ -846,7 +846,8 @@ export function GoalForm({
             onEndDateChange={(value) =>
               setState((previous) => ({ ...previous, end_date: value }))
             }
-            requiresEndDate={requiresEndDate}
+            requiresEndDate={false}
+            showSoftHorizonHint={usesSoftHorizon}
             startDateId="start-date"
             endDateId="end-date"
             startDateActions={

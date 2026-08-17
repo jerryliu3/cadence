@@ -273,6 +273,7 @@ async function prepareOnce({
       window: { start: preparationStart, end: preparationEnd },
       ownerId,
       goal,
+      asOfDate,
       currentLinkRole: currentLinkRole({
         goalId: goal.id,
         links: preparation.snapshot.links,

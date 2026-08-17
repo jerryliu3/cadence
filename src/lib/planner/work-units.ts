@@ -6,6 +6,7 @@ import {
   type WeeklyAnchorContext,
 } from "@/lib/goals/periods";
 import type { Goal } from "@/lib/goals/types";
+import { resolveGoalPlanningEndDate } from "@/lib/goals/definition-validation";
 import { compareCanonicalStrings } from "@/lib/planner/canonical";
 import {
   dateIsInWindow,
@@ -224,13 +225,21 @@ export function materializeWorkUnits({
   weeklyAnchor?: WeeklyAnchorContext | null;
 }): PlannerWorkUnit[] {
   const requirement = normalizedRequirement.requirement;
+  const effectiveGoalEndDate = resolveGoalPlanningEndDate({
+    frequencyType: goal.frequency_type,
+    targetCount: goal.target_count,
+    startDate: goal.start_date,
+    endDate: goal.end_date,
+    asOfDate,
+  });
   const planningWindowEnd =
-    goal.end_date === null || compareDateStrings(goal.end_date, window.end) > 0
+    effectiveGoalEndDate === null ||
+    compareDateStrings(effectiveGoalEndDate, window.end) > 0
       ? window.end
-      : goal.end_date;
+      : effectiveGoalEndDate;
   const lifetime = {
     start: goal.start_date,
-    end: goal.end_date ?? OPEN_ENDED_HORIZON_END,
+    end: effectiveGoalEndDate ?? OPEN_ENDED_HORIZON_END,
   };
   const baseAssignmentMap = new Map(
     baseAssignments.map((assignment) => [
@@ -247,7 +256,7 @@ export function materializeWorkUnits({
     requirement.kind === "milestone_sequence" ||
     requirement.kind === "deadline_total"
   ) {
-    if (goal.end_date === null) {
+    if (effectiveGoalEndDate === null) {
       throw new Error("Planner ordinal work units require a goal end date.");
     }
     if (!ordinalsForScopeMonth) {
@@ -260,7 +269,7 @@ export function materializeWorkUnits({
         compareDateStrings(asOfDate, goal.start_date) > 0
           ? asOfDate
           : goal.start_date,
-      end: goal.end_date ?? OPEN_ENDED_HORIZON_END,
+      end: effectiveGoalEndDate,
     });
     const classification: WorkUnitClassification =
       placementWindow === null &&
@@ -337,7 +346,7 @@ export function materializeWorkUnits({
 
     const placementWindow = intersectDateWindows(creditWindow, window, {
       start: asOfDate,
-      end: goal.end_date ?? OPEN_ENDED_HORIZON_END,
+      end: effectiveGoalEndDate ?? OPEN_ENDED_HORIZON_END,
     });
     let classification: WorkUnitClassification = "open";
     if (compareDateStrings(creditWindow.end, asOfDate) < 0) {

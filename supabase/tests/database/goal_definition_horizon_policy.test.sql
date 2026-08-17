@@ -46,7 +46,7 @@ select lives_ok(
   'open-ended cadence goals can be created without deadlines'
 );
 
-select throws_ok(
+select lives_ok(
   $$
     insert into public.goals (
       id,
@@ -70,12 +70,10 @@ select throws_ok(
       null
     )
   $$,
-  '23514'::character(5),
-  'new row for relation "goals" violates check constraint "goals_deadline_required_by_requirement"',
-  'milestone goals must provide a deadline'
+  'milestone goals can be created without explicit deadlines'
 );
 
-select throws_ok(
+select lives_ok(
   $$
     insert into public.goals (
       id,
@@ -99,9 +97,7 @@ select throws_ok(
       null
     )
   $$,
-  '23514'::character(5),
-  'new row for relation "goals" violates check constraint "goals_deadline_required_by_requirement"',
-  'target-total recurring goals must provide a deadline'
+  'target-total recurring goals can be created without explicit deadlines'
 );
 
 select throws_ok(
@@ -160,15 +156,13 @@ select lives_ok(
   'twenty-four-month deadline spans are accepted'
 );
 
-select throws_ok(
+select lives_ok(
   $$
     update public.goals
     set target_count = 4
     where id = '31000000-0000-4000-8000-000000000001'
   $$,
-  '23514'::character(5),
-  'new row for relation "goals" violates check constraint "goals_deadline_required_by_requirement"',
-  'editing cadence goals into target-total without deadline is rejected'
+  'editing cadence goals into target-total without deadline is accepted'
 );
 
 select lives_ok(
