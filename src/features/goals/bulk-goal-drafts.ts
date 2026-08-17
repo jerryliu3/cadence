@@ -66,6 +66,7 @@ export interface LlmGoalDraftPayload {
   frequency_type?: GoalFrequencyType;
   recurrence_interval?: RecurrenceInterval | null;
   target_count?: number | null;
+  milestone_names?: string[] | null;
   start_date?: string | null;
   end_date?: string | null;
   default_local_time?: string | null;
@@ -279,8 +280,8 @@ export function buildBulkGoalDraftFromRow(
 export function buildBulkGoalDraftsFromLlmGoals(
   goals: LlmGoalDraftPayload[]
 ): BulkGoalDraft[] {
-  return goals.map((goal, index) =>
-    buildBulkGoalDraftFromRow(
+  return goals.map((goal, index) => {
+    const draft = buildBulkGoalDraftFromRow(
       {
         title: goal.title ?? "",
         description: goal.description ?? "",
@@ -296,8 +297,29 @@ export function buildBulkGoalDraftsFromLlmGoals(
         default_local_time: goal.default_local_time ?? "",
       },
       index
-    )
-  );
+    );
+    if (
+      draft.frequency_type !== "fixed_milestones" ||
+      !Array.isArray(goal.milestone_names)
+    ) {
+      return draft;
+    }
+    const normalizedMilestoneNames = goal.milestone_names
+      .map((name) => name.trim())
+      .filter((name) => name.length > 0);
+    if (normalizedMilestoneNames.length === 0) {
+      return draft;
+    }
+    const targetCount =
+      parseBulkGoalTargetCount(draft.target_count) ?? normalizedMilestoneNames.length;
+    return withValidatedBulkGoalDraft({
+      ...draft,
+      milestone_names: buildMilestoneNameDrafts(
+        targetCount,
+        normalizedMilestoneNames
+      ),
+    });
+  });
 }
 
 export function bulkGoalDraftRequiresEndDate(draft: BulkGoalDraft): boolean {

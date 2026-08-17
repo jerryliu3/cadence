@@ -51,6 +51,56 @@ describe("bulk goal drafts", () => {
     expect(draft.errors).toEqual([]);
   });
 
+  it("maps milestone arrays from parser output without delimiter loss", () => {
+    const [draft] = buildBulkGoalDraftsFromLlmGoals([
+      {
+        title: "5k training block",
+        frequency_type: "fixed_milestones",
+        target_count: 3,
+        start_date: "2026-08-17",
+        end_date: "2026-09-13",
+        milestone_names: [
+          "Easy run 3 mi",
+          "Tempo 4x800 | controlled",
+          "Long run 6 mi",
+        ],
+      },
+    ]);
+
+    expect(draft.milestone_names).toEqual([
+      "Easy run 3 mi",
+      "Tempo 4x800 | controlled",
+      "Long run 6 mi",
+    ]);
+    expect(draft.errors).toEqual([]);
+  });
+
+  it("normalizes milestone arrays to target count by trimming or padding", () => {
+    const [trimmedDraft] = buildBulkGoalDraftsFromLlmGoals([
+      {
+        title: "Trimmed milestones",
+        frequency_type: "fixed_milestones",
+        target_count: 2,
+        start_date: "2026-08-17",
+        end_date: "2026-09-13",
+        milestone_names: ["One", "Two", "Three"],
+      },
+    ]);
+    const [paddedDraft] = buildBulkGoalDraftsFromLlmGoals([
+      {
+        title: "Padded milestones",
+        frequency_type: "fixed_milestones",
+        target_count: 3,
+        start_date: "2026-08-17",
+        end_date: "2026-09-13",
+        milestone_names: ["One", "Two"],
+      },
+    ]);
+
+    expect(trimmedDraft.milestone_names).toEqual(["One", "Two"]);
+    expect(paddedDraft.milestone_names).toEqual(["One", "Two", ""]);
+  });
+
   it("formats the schedule summary used by both review surfaces", () => {
     const [draft] = buildBulkGoalDraftsFromLlmGoals([
       {

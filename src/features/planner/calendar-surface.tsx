@@ -50,6 +50,7 @@ import {
   completionDisabledReasonCopy,
   getEntryDraftDiffSummary,
   getDayStatus,
+  getEntryCompactTitle,
   getEntryDisplayTitle,
   getEntrySubtitle,
   getMonthInTimezone,
@@ -796,6 +797,15 @@ export function CalendarSurface({
   const getEntryDisplayTitleWithTime = useCallback(
     (entry: PlannerDayDetailEntry) => {
       const baseTitle = getEntryDisplayTitle(entry);
+      return entry.effectiveScheduledLocalTime
+        ? `${entry.effectiveScheduledLocalTime} ${baseTitle}`
+        : baseTitle;
+    },
+    []
+  );
+  const getEntryCompactTitleWithTime = useCallback(
+    (entry: PlannerDayDetailEntry) => {
+      const baseTitle = getEntryCompactTitle(entry);
       return entry.effectiveScheduledLocalTime
         ? `${entry.effectiveScheduledLocalTime} ${baseTitle}`
         : baseTitle;
@@ -2782,7 +2792,11 @@ export function CalendarSurface({
               : 2
         }
         isAnyEntryDragging={Boolean(draggingEntryKey)}
-        getEntryDisplayTitle={getEntryDisplayTitleWithTime}
+        getEntryDisplayTitle={
+          viewMode === "month"
+            ? getEntryCompactTitleWithTime
+            : getEntryDisplayTitleWithTime
+        }
         isEntryCredited={isEntryCredited}
         isEntryImmovableForDraft={(entry) =>
           plannerReadOnly ||

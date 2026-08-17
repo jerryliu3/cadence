@@ -82,7 +82,15 @@ describe("buildCoachPrompt", () => {
     expect(prompt).toContain("sessionMoves");
     expect(prompt).toContain("Prefer sessionRef for moves");
     expect(prompt).toContain("goalDraftPrompt");
-    expect(prompt).toContain("1-5 recurring cadence goals");
+    expect(prompt).toContain(
+      "include goalDraftPrompt as plain instructions for 1-5 goals"
+    );
+    expect(prompt).toContain(
+      'Use "fixed_milestones" when sessions differ across the plan'
+    );
+    expect(prompt).toContain(
+      'Use "recurring" when sessions are genuinely repetitive'
+    );
     expect(prompt).toContain("Never create one goal per workout");
     expect(prompt).toContain("prefer including a complete goalDraftPrompt");
     expect(prompt).not.toContain("calendar edits require a matching goal");

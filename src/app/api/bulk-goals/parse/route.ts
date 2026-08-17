@@ -26,6 +26,7 @@ const MAX_PROVIDER_RESPONSE_BYTES = 256 * 1024;
 const PROVIDER_TIMEOUT_MS = 12_000;
 const MAX_PROVIDER_ATTEMPTS = 2;
 const BULK_PARSER_RATE_LIMIT_PER_MINUTE = 20;
+const MAX_MILESTONE_NAMES_PER_GOAL = 366;
 const localTimePattern = /^([01]\d|2[0-3]):[0-5]\d$/;
 const INVALID_ARGUMENT_PROVIDER_RE = /\(400\)|INVALID_ARGUMENT/i;
 
@@ -47,6 +48,7 @@ type GeneratedGoal = {
   frequency_type?: "recurring" | "fixed_milestones";
   recurrence_interval?: "daily" | "weekly" | "monthly";
   target_count?: number | null;
+  milestone_names?: string[];
   start_date?: string;
   end_date?: string | null;
   default_local_time?: string | null;
@@ -69,6 +71,10 @@ function buildGeneratedPayloadSchema(categoryKeySet: Set<string>) {
     frequency_type: z.enum(["recurring", "fixed_milestones"]).optional(),
     recurrence_interval: z.enum(["daily", "weekly", "monthly"]).optional(),
     target_count: z.number().int().positive().nullable().optional(),
+    milestone_names: z
+      .array(z.string().trim().min(1).max(200))
+      .max(MAX_MILESTONE_NAMES_PER_GOAL)
+      .optional(),
     start_date: z.string().optional(),
     end_date: z.string().nullable().optional(),
     default_local_time: z.string().nullable().optional(),
@@ -104,6 +110,11 @@ function buildBulkGoalResponseSchema(categoryKeys: string[]) {
               enum: ["daily", "weekly", "monthly"],
             },
             target_count: { type: "number" },
+            milestone_names: {
+              type: "array",
+              maxItems: MAX_MILESTONE_NAMES_PER_GOAL,
+              items: { type: "string" },
+            },
             start_date: { type: "string" },
             end_date: { type: "string" },
             default_local_time: { type: "string" },
@@ -140,15 +151,21 @@ function buildPrompt(userPrompt: string, today: string, categoryKeys: string[]):
     '- "frequency_type" ("recurring" | "fixed_milestones")',
     '- "recurrence_interval" ("daily" | "weekly" | "monthly", only for recurring)',
     '- "target_count" (positive integer or null)',
+    '- "milestone_names" (array of short session names, only for fixed_milestones)',
     '- "start_date" (YYYY-MM-DD)',
     '- "end_date" (YYYY-MM-DD or null)',
     '- "default_local_time" (HH:MM 24-hour local time string or null)',
     "",
     "Rules:",
     `- If start date is missing, use ${today}.`,
+    '- Choose "fixed_milestones" for ordered programs where sessions differ over time (for example easy run -> tempo -> long run progression).',
+    '- Choose "recurring" only when sessions are genuinely repetitive and interchangeable.',
+    "- Never create one goal per workout, session, or date. Consolidate into 1-5 goals.",
     '- If frequency is missing, default to "recurring".',
     '- If recurrence interval is missing for recurring, default to "daily".',
     '- For fixed goals, include a positive target_count when possible.',
+    '- For fixed goals, include milestone_names in order when session names are inferable.',
+    '- For fixed goals with milestone_names, keep the list length aligned with target_count.',
     "- For recurring goals, only set target_count when the user asks for a total count by a deadline.",
     "- Fixed milestones always require an end_date.",
     "- Recurring goals with a positive target_count always require an end_date.",
@@ -185,6 +202,12 @@ function normalizeGeneratedPayload(
       frequency === "recurring"
         ? goal.recurrence_interval ?? "daily"
         : undefined;
+    const milestoneNames =
+      frequency === "fixed_milestones" && Array.isArray(goal.milestone_names)
+        ? goal.milestone_names
+            .map((name) => name.trim())
+            .filter((name) => name.length > 0)
+        : undefined;
     const startDate = toIsoDate(goal.start_date) ?? today;
     const endDate = toIsoDate(goal.end_date ?? undefined) ?? null;
     const normalized = {
@@ -197,6 +220,8 @@ function normalizeGeneratedPayload(
       frequency_type: frequency,
       recurrence_interval: recurrence,
       target_count: goal.target_count ?? null,
+      milestone_names:
+        milestoneNames && milestoneNames.length > 0 ? milestoneNames : undefined,
       start_date: startDate,
       end_date: endDate,
       default_local_time: normalizeLocalTime(goal.default_local_time),

@@ -209,6 +209,114 @@ describe("bulk goal parser route", () => {
     });
   });
 
+  it("accepts fixed milestone drafts with milestone_names from model output", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            candidates: [
+              {
+                content: {
+                  parts: [
+                    {
+                      text: JSON.stringify({
+                        goals: [
+                          {
+                            title: "5k training block",
+                            frequency_type: "fixed_milestones",
+                            target_count: 3,
+                            start_date: "2026-08-17",
+                            end_date: "2026-09-13",
+                            milestone_names: [
+                              "Easy run 3 mi",
+                              "Tempo run 4x800",
+                              "Long run 6 mi",
+                            ],
+                          },
+                        ],
+                      }),
+                    },
+                  ],
+                },
+              },
+            ],
+          }),
+          { status: 200 }
+        )
+      )
+    );
+
+    const response = await POST(
+      request({
+        prompt: "Build me a 4-week 5k progression plan.",
+        timezone: "UTC",
+      })
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      goals: [
+        {
+          title: "5k training block",
+          frequency_type: "fixed_milestones",
+          milestone_names: [
+            "Easy run 3 mi",
+            "Tempo run 4x800",
+            "Long run 6 mi",
+          ],
+        },
+      ],
+    });
+  });
+
+  it("rejects model outputs when milestone_names are malformed", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            candidates: [
+              {
+                content: {
+                  parts: [
+                    {
+                      text: JSON.stringify({
+                        goals: [
+                          {
+                            title: "5k training block",
+                            frequency_type: "fixed_milestones",
+                            target_count: 2,
+                            start_date: "2026-08-17",
+                            end_date: "2026-08-31",
+                            milestone_names: ["Easy run", 42],
+                          },
+                        ],
+                      }),
+                    },
+                  ],
+                },
+              },
+            ],
+          }),
+          { status: 200 }
+        )
+      )
+    );
+
+    const response = await POST(
+      request({
+        prompt: "Build a short running plan.",
+        timezone: "UTC",
+      })
+    );
+
+    expect(response.status).toBe(502);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "ai_invalid_output",
+    });
+  });
+
   it("does not expose provider response bodies", async () => {
     vi.stubGlobal(
       "fetch",
@@ -296,6 +404,66 @@ describe("bulk goal parser route", () => {
     ) as { generationConfig?: { responseSchema?: unknown } };
     expect(firstBody.generationConfig?.responseSchema).toBeDefined();
     expect(thirdBody.generationConfig?.responseSchema).toBeUndefined();
+  });
+
+  it("guides training-plan prompts toward milestones in schema and instructions", async () => {
+    const fetchSpy = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          candidates: [
+            {
+              content: {
+                parts: [
+                  {
+                    text: JSON.stringify({
+                      goals: [{ title: "Training plan" }],
+                    }),
+                  },
+                ],
+              },
+            },
+          ],
+        }),
+        { status: 200 }
+      )
+    );
+    vi.stubGlobal("fetch", fetchSpy);
+
+    const response = await POST(
+      request({
+        prompt: "Create a 5k plan for four weeks.",
+        timezone: "UTC",
+      })
+    );
+
+    expect(response.status).toBe(200);
+    const firstBody = JSON.parse(
+      String((fetchSpy.mock.calls[0]?.[1] as RequestInit | undefined)?.body ?? "")
+    ) as {
+      contents?: Array<{ parts?: Array<{ text?: string }> }>;
+      generationConfig?: {
+        responseSchema?: {
+          properties?: {
+            goals?: {
+              items?: {
+                properties?: Record<string, unknown>;
+              };
+            };
+          };
+        };
+      };
+    };
+    const promptText = firstBody.contents?.[0]?.parts?.[0]?.text ?? "";
+    expect(promptText).toContain(
+      'Choose "fixed_milestones" for ordered programs where sessions differ over time'
+    );
+    expect(promptText).toContain(
+      "Never create one goal per workout, session, or date."
+    );
+    expect(
+      firstBody.generationConfig?.responseSchema?.properties?.goals?.items
+        ?.properties
+    ).toHaveProperty("milestone_names");
   });
 
   it("uses DB-backed category keys in generated output validation", async () => {
