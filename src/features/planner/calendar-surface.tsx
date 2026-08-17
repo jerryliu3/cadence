@@ -46,6 +46,7 @@ import {
 import { planDraftMove } from "@/features/planner/plan-draft-move";
 import { planDraftTimeOverrideUpdate } from "@/features/planner/draft-time-override";
 import { reorderPreviewEntryKeys } from "@/features/planner/reorder-preview-entries";
+import { resolvePlannerDndResolution } from "@/features/planner/planner-dnd-resolution";
 import {
   buildPlannerRecoveryPlan,
   buildPlannerRecoveryWindow,
@@ -1475,33 +1476,28 @@ export function CalendarSurface({
 
   const handleDndEntryDragEnd = useCallback(
     (entryKey: string, target: PlannerDragTarget) => {
-      if (!target) {
+      const resolution = resolvePlannerDndResolution({
+        entryKey,
+        target,
+        entryByKey,
+        entryDayByKey,
+      });
+      if (resolution.kind === "clear") {
         clearDragState();
         return;
       }
-      const entry = entryByKey.get(entryKey);
-      if (!entry) {
-        clearDragState();
-        return;
-      }
-      if (target.type === "preview_entry") {
-        const sourceDay = entryDayByKey.get(entryKey) ?? null;
-        if (sourceDay === target.day) {
-          reorderPreviewEntriesForDay(target.day, entryKey, target.entryKey);
-          clearDragState();
-          return;
-        }
-        void queueDraftMoveCommand({
-          entry,
-          nextDate: target.day,
-          source: "drag_drop",
-        });
+      if (resolution.kind === "reorder_preview") {
+        reorderPreviewEntriesForDay(
+          resolution.day,
+          resolution.activeEntryKey,
+          resolution.overEntryKey
+        );
         clearDragState();
         return;
       }
       void queueDraftMoveCommand({
-        entry,
-        nextDate: target.day,
+        entry: resolution.entry,
+        nextDate: resolution.nextDate,
         source: "drag_drop",
       });
       clearDragState();
