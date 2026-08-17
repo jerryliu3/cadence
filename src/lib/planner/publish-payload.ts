@@ -81,8 +81,6 @@ function buildDraftItemEditsFromCommands(commands: PlannerDraftCommand[]) {
 function isDraftItemImmovable(unit: PlannerKernelOutput["workUnits"][number]) {
   return (
     unit.creditState !== "uncredited" ||
-    unit.classification === "historical_miss" ||
-    unit.classification === "historical_shortfall" ||
     unit.classification === "satisfied_elsewhere"
   );
 }
@@ -136,7 +134,7 @@ function applyValidatedDraftItemEdits({
     if (hasScheduledTimeChange && isDraftItemImmovable(unit)) {
       throw new PlannerDraftEditValidationError(
         "draft_item_unmovable",
-        "Completed or historical planner items cannot be retimed in draft.",
+        "Completed planner items cannot be retimed in draft.",
         {
           goalId: edit.goalId,
           unitKey: edit.unitKey,

@@ -8,6 +8,7 @@ import {
   Maximize2,
   Minimize2,
   Settings,
+  SlidersHorizontal,
 } from "lucide-react";
 import {
   useCallback,
@@ -39,6 +40,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  GoalFilters,
+  allCategoriesValue,
+} from "@/features/goals/goal-filters";
 import { buildActiveGoalIndexes } from "@/features/planner/calendar-entries";
 import {
   buildWeekdayLabels,
@@ -85,6 +90,12 @@ import {
 import { computeDayPreviewPosition } from "@/features/planner/day-preview-popup";
 import { getGoalVisual } from "@/features/planner/goal-visuals";
 import {
+  applyCalendarCompletionMarkerFilters,
+  buildCalendarCategoryFilterOptions,
+  goalPassesCalendarFilters,
+} from "@/features/planner/calendar-filters";
+import { shouldBlockAutomatedReplanMoveForEntry } from "@/features/planner/replan-move-guard";
+import {
   readPlannerCalendarDayProjection,
   selectPlannerCalendarDayProjectionsByDay,
   selectPlannerCalendarStoreProjection,
@@ -126,6 +137,10 @@ import {
   getScopeDateRange,
   getWindowState,
 } from "@/lib/planner/dates";
+import {
+  buildGoalEndMonthOptions,
+  resolveEffectiveEndMonth,
+} from "@/lib/goals/list-view";
 import { buildPlannerSaveRequestBody } from "@/features/planner/planner-save-request";
 import {
   createDefaultPlannerPolicy,
@@ -134,7 +149,6 @@ import {
 import { shouldUseDirectDraftPersistence } from "@/lib/planner/save-persistence";
 import { withPlannerRefreshTimeout } from "@/lib/planner/refresh-timeout";
 import { captureViewportRect } from "@/lib/xp/events";
-import { mergeCompletionFactMarkers } from "@cadence/shared/planner/partner-completion";
 import type {
   CalendarSurfaceProps,
   CompletionControlDisabledReason,
@@ -209,6 +223,9 @@ export function CalendarSurface({
   const [recoverLoading, setRecoverLoading] = useState(false);
   const [fullResetLoading, setFullResetLoading] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [categoryFilter, setCategoryFilter] = useState(allCategoriesValue);
+  const [endMonthFilter, setEndMonthFilter] = useState<string | null>(null);
   const [draftPolicy, setDraftPolicy] = useState<PlannerPolicy | null>(null);
   const [draftPreview, setDraftPreview] = useState<
     NonNullable<PlannerContextPayload["preview"]> | null
@@ -516,6 +533,40 @@ export function CalendarSurface({
   );
   const activeGoalsByPlanGoalId = activeGoalIndexes.byPlanGoalId;
   const activeGoalsByOriginalGoalId = activeGoalIndexes.byOriginalGoalId;
+  const filterReferenceMonth = currentScopeMonth ?? calendarToday.slice(0, 7);
+  const effectiveEndMonthFilter = resolveEffectiveEndMonth(
+    endMonthFilter,
+    filterReferenceMonth
+  );
+  const categoryOptions = useMemo(
+    () => buildCalendarCategoryFilterOptions(activeGoalsByOriginalGoalId),
+    [activeGoalsByOriginalGoalId]
+  );
+  const endMonthOptions = useMemo(() => {
+    const goalEndDates = Array.from(activeGoalsByOriginalGoalId.values()).map(
+      (goal) => goal.end_date
+    );
+    return buildGoalEndMonthOptions(
+      goalEndDates,
+      filterReferenceMonth,
+      effectiveEndMonthFilter ? [effectiveEndMonthFilter] : []
+    );
+  }, [activeGoalsByOriginalGoalId, effectiveEndMonthFilter, filterReferenceMonth]);
+  const goalPassesFilters = useCallback(
+    (goalId: string) =>
+      goalPassesCalendarFilters({
+        goalId,
+        goalsByOriginalId: activeGoalsByOriginalGoalId,
+        categoryFilter,
+        allCategoriesValue,
+        endMonthFilter: effectiveEndMonthFilter,
+      }),
+    [
+      activeGoalsByOriginalGoalId,
+      categoryFilter,
+      effectiveEndMonthFilter,
+    ]
+  );
   const calendarStoreProjection = useMemo(
     () =>
       selectPlannerCalendarStoreProjection({
@@ -602,10 +653,19 @@ export function CalendarSurface({
   );
   const hideViewerPlan = duoScope === "partner";
   const plannerReadOnly = duoScope === "partner";
+  const filterEntries = useCallback(
+    (entries: PlannerDayDetailEntry[]) =>
+      entries.filter((entry) => goalPassesFilters(entry.originalGoalId)),
+    [goalPassesFilters]
+  );
   const getEntriesForDay = useCallback(
-    (day: string | null) =>
-      hideViewerPlan ? [] : getCalendarDayProjection(day).entries,
-    [getCalendarDayProjection, hideViewerPlan]
+    (day: string | null) => {
+      if (hideViewerPlan) {
+        return [];
+      }
+      return filterEntries(getCalendarDayProjection(day).entries);
+    },
+    [filterEntries, getCalendarDayProjection, hideViewerPlan]
   );
   const getCompletionFactMarkersForDay = useCallback(
     (day: string | null) => {
@@ -616,19 +676,28 @@ export function CalendarSurface({
         day && (duoScope === "partner" || duoScope === "both")
           ? partnerCompletionMarkersByDate?.get(day) ?? []
           : [];
-      return mergeCompletionFactMarkers(viewerMarkers, partnerMarkers);
+      return applyCalendarCompletionMarkerFilters({
+        viewerMarkers,
+        partnerMarkers,
+        goalPassesFilters,
+      });
     },
     [
       duoScope,
       getCalendarDayProjection,
+      goalPassesFilters,
       hideViewerPlan,
       partnerCompletionMarkersByDate,
     ]
   );
   const getOrderedEntriesForDay = useCallback(
-    (day: string | null) =>
-      hideViewerPlan ? [] : getCalendarDayProjection(day).orderedEntries,
-    [getCalendarDayProjection, hideViewerPlan]
+    (day: string | null) => {
+      if (hideViewerPlan) {
+        return [];
+      }
+      return filterEntries(getCalendarDayProjection(day).orderedEntries);
+    },
+    [filterEntries, getCalendarDayProjection, hideViewerPlan]
   );
 
   const focusedDayEntries = useMemo(
@@ -983,6 +1052,15 @@ export function CalendarSurface({
         unit.scheduledDate,
       ])
     );
+    const baselineUnitByEntryKey = new Map(
+      effectivePreview.workUnits.map((unit) => [
+        draftCommandEntryKey({
+          goalId: unit.originalGoalId,
+          unitKey: unit.unitKey,
+        }),
+        unit,
+      ])
+    );
 
     let nextState = draftCommandState;
     const pendingActions: Array<{
@@ -1000,6 +1078,16 @@ export function CalendarSurface({
       });
       const nextDate = unit.scheduledDate;
       if (nextDate === null || baselineDateByEntryKey.get(entryKey) === nextDate) {
+        continue;
+      }
+      const baselineUnit = baselineUnitByEntryKey.get(entryKey);
+      if (
+        shouldBlockAutomatedReplanMoveForEntry({
+          baselineClassification: baselineUnit?.classification,
+          baselineScheduledDate: baselineUnit?.scheduledDate,
+          asOfDate: context.asOfDate,
+        })
+      ) {
         continue;
       }
       const action = {
@@ -1450,6 +1538,7 @@ export function CalendarSurface({
         entry,
         nextDate: normalizedDate,
         scopeMonth,
+        source,
         previewUnit: baselineUnit,
         conflictKeys: moveConflictByGoalDate.get(
           `${entry.originalGoalId}:${normalizedDate}`
@@ -1511,7 +1600,6 @@ export function CalendarSurface({
         scheduledDate: planned.scheduledDate,
         sourceDate,
       });
-      void source;
       return true;
     },
     [
@@ -1577,7 +1665,7 @@ export function CalendarSurface({
         toast.error("Time must be in 24-hour HH:MM format.");
       } else {
         toast.error(
-          "Completed or historical sessions cannot change time overrides in preview mode. Clear completion in the saved plan first."
+          "Completed or otherwise non-editable sessions cannot change time overrides in preview mode."
         );
       }
       return;
@@ -2966,6 +3054,17 @@ export function CalendarSurface({
                   ))}
                 </SelectContent>
               </Select>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon-sm"
+                aria-label="Filters"
+                title="Filters"
+                onClick={() => setFiltersOpen(true)}
+                disabled={loading}
+              >
+                <SlidersHorizontal className="size-4" />
+              </Button>
               {context?.preferences ? (
                 <Button
                   type="button"
@@ -3705,6 +3804,27 @@ export function CalendarSurface({
           </Dialog>
         </>
       ) : null}
+
+      <Dialog open={filtersOpen} onOpenChange={setFiltersOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Calendar filters</DialogTitle>
+            <DialogDescription>
+              Filter the currently visible calendar entries.
+            </DialogDescription>
+          </DialogHeader>
+          <GoalFilters
+            categoryFilterEnabled
+            endMonthFilterEnabled
+            categoryFilter={categoryFilter}
+            onCategoryFilterChange={setCategoryFilter}
+            categoryOptions={categoryOptions}
+            endMonthFilter={effectiveEndMonthFilter}
+            onEndMonthFilterChange={setEndMonthFilter}
+            endMonthOptions={endMonthOptions}
+          />
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
         <DialogContent>
