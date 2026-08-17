@@ -42,6 +42,7 @@ export function SocialTab() {
     authEmail,
     profileDraft,
     setProfileDraft,
+    uploadProfileAvatarFile,
     plannerPreferencesLoading,
     plannerPreferencesDraft,
     setPlannerPreferencesDraft,
@@ -92,6 +93,7 @@ export function SocialTab() {
         canSaveProfile={canSaveProfile}
         setProfileDraft={setProfileDraft}
         onSaveProfile={saveProfile}
+        onUploadAvatar={uploadProfileAvatarFile}
       />
 
       <Card className="shadow-sm">
