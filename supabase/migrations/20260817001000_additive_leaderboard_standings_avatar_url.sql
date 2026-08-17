@@ -1,3 +1,5 @@
+drop function if exists public.get_leaderboard_standings(uuid, integer, integer);
+
 create or replace function public.get_leaderboard_standings(
   p_season_id uuid,
   p_limit integer default 50,
