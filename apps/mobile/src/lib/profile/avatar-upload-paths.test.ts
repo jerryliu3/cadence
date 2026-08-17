@@ -41,6 +41,18 @@ describe("mobile avatar upload path helpers", () => {
     ).toEqual(["user-1/avatar.jpg"]);
   });
 
+  it("deletes legacy per-file path after canonical replacement", () => {
+    expect(
+      buildMobileAvatarCleanupPathsForProfileChange({
+        userId: "user-1",
+        previousAvatarUrl:
+          "https://project.supabase.co/storage/v1/object/public/avatars/user-1/selfie.jpg?v=1",
+        nextAvatarUrl:
+          "https://project.supabase.co/storage/v1/object/public/avatars/user-1/avatar.jpg?v=2",
+      })
+    ).toEqual(["user-1/selfie.jpg"]);
+  });
+
   it("ignores foreign-user object paths during cleanup planning", () => {
     expect(
       buildMobileAvatarCleanupPathsForProfileChange({
