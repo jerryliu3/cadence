@@ -118,9 +118,11 @@ export function resolveGoalPlanningEndDate({
   if (!isIsoDate(startDate)) {
     return null;
   }
+  const normalizedAsOfDate = asOfDate ?? null;
   const horizonAnchor =
-    isIsoDate(asOfDate) && compareDateStrings(asOfDate, startDate) > 0
-      ? asOfDate
+    isIsoDate(normalizedAsOfDate) &&
+    compareDateStrings(normalizedAsOfDate, startDate) > 0
+      ? normalizedAsOfDate
       : startDate;
   return getGoalHorizonEndDate(horizonAnchor);
 }
