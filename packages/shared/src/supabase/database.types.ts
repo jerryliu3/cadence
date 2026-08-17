@@ -2573,6 +2573,7 @@ export type Database = {
       get_leaderboard_standings: {
         Args: { p_limit?: number; p_offset?: number; p_season_id: string }
         Returns: {
+          avatar_url: string
           display_name: string
           rank: number
           score: number

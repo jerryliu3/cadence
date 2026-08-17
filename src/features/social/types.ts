@@ -81,6 +81,7 @@ export interface LeaderboardStanding {
   subjectKind: SocialSubjectKind;
   subjectId: string;
   displayName: string;
+  avatarUrl: string | null;
   score: number;
   rank: number;
   tieBreakAt: string | null;

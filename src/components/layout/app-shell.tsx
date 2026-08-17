@@ -24,6 +24,7 @@ interface AppShellProps {
   children: ReactNode;
   userId: string;
   viewerLabel?: string | null;
+  viewerAvatarUrl?: string | null;
   goalSheet?: ReactNode;
   duoState: DuoContextState;
   duoAvailability: DuoAvailability;
@@ -35,6 +36,7 @@ export function AppShell({
   children,
   userId,
   viewerLabel,
+  viewerAvatarUrl,
   goalSheet,
   duoState,
   duoAvailability,
@@ -64,6 +66,7 @@ export function AppShell({
           key={`${duoAvailability}:${duoState.activePartner?.partnerId ?? "none"}`}
           viewerUserId={userId}
           viewerLabel={viewerLabel}
+          viewerAvatarUrl={viewerAvatarUrl}
           initialState={duoState}
           availability={duoAvailability}
           initialScopePreference={initialDuoScopePreference}

@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import { useTheme } from "../../theme";
 import { LoadingScreen, Screen } from "../../ui/screen";
+import { UserAvatar } from "../../ui/user-avatar";
 import { useDuo, useDuoSurfaceScope } from "../duo/DuoProvider";
 import { DuoScopeSegmentedControl } from "../duo/DuoScopeSegmentedControl";
 import {
@@ -22,6 +23,7 @@ import {
   resolveMobileDuoLaneSubjects,
   viewerLaneSubject,
 } from "../duo/lane-subjects";
+import { useViewerAvatarUrl } from "../duo/use-viewer-avatar-url";
 import {
   resolveLanePageSnapInterval,
   resolveLanePageWidth,
@@ -64,9 +66,11 @@ export function ChecklistScreen({
     hasPartner: Boolean(activePartner),
   });
   const { asOfDate } = useChecklistClock();
+  const viewerAvatarQuery = useViewerAvatarUrl();
+  const viewerAvatarUrl = viewerAvatarQuery.data ?? null;
   const partnerId = activePartner?.partnerId ?? null;
   const partnerSubject = partnerLaneSubject(activePartner);
-  const viewerSubject = viewerLaneSubject();
+  const viewerSubject = viewerLaneSubject({ avatarUrl: viewerAvatarUrl });
   const viewerLane = useChecklistLaneData({
     subject: viewerSubject,
     partnerId,
@@ -80,6 +84,7 @@ export function ChecklistScreen({
   const lanes = resolveMobileDuoLaneSubjects({
     scope,
     activePartner,
+    viewerAvatarUrl,
   });
   const useLanePager = shouldUseLanePager(lanes.length);
   const lanePageWidth = resolveLanePageWidth(viewportWidth);
@@ -196,8 +201,15 @@ export function ChecklistScreen({
     }
 
     if (item.type === "lane_heading") {
+      const lane = lanes.find((candidate) => candidate.id === item.laneId);
       return (
         <View style={styles.headingRow}>
+          <UserAvatar
+            avatarUrl={lane?.avatarUrl ?? null}
+            displayName={item.label}
+            username={null}
+            size={24}
+          />
           <Text style={{ color: theme.colors.foreground, fontWeight: "700" }}>
             {item.label}
           </Text>

@@ -24,6 +24,7 @@ import {
 interface DuoContextValue {
   viewerUserId: string;
   viewerLabel: string;
+  viewerAvatarUrl: string | null;
   state: DuoContextState;
   availability: DuoAvailability;
   scopePreference: DuoScope | null;
@@ -33,6 +34,7 @@ interface DuoContextValue {
 const DuoContext = createContext<DuoContextValue>({
   viewerUserId: "",
   viewerLabel: "You",
+  viewerAvatarUrl: null,
   state: {
     activePartner: null,
     pendingInvite: null,
@@ -46,6 +48,7 @@ export function DuoProvider({
   children,
   viewerUserId,
   viewerLabel,
+  viewerAvatarUrl,
   initialState,
   availability,
   initialScopePreference,
@@ -53,6 +56,7 @@ export function DuoProvider({
   children: ReactNode;
   viewerUserId: string;
   viewerLabel?: string | null;
+  viewerAvatarUrl?: string | null;
   initialState: DuoContextState;
   availability: DuoAvailability;
   initialScopePreference: DuoScope | null;
@@ -99,6 +103,10 @@ export function DuoProvider({
         typeof viewerLabel === "string" && viewerLabel.trim().length > 0
           ? viewerLabel.trim()
           : "You",
+      viewerAvatarUrl:
+        typeof viewerAvatarUrl === "string" && viewerAvatarUrl.trim().length > 0
+          ? viewerAvatarUrl.trim()
+          : null,
       state: initialState,
       availability,
       scopePreference: displayedScopePreference,
@@ -109,6 +117,7 @@ export function DuoProvider({
       displayedScopePreference,
       initialState,
       setScopePreference,
+      viewerAvatarUrl,
       viewerLabel,
       viewerUserId,
     ]

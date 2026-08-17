@@ -65,4 +65,30 @@ describe("resolveMobileDuoLaneSubjects", () => {
       })
     ).toEqual([{ id: "viewer", label: "Solo", readOnly: false }]);
   });
+
+  it("includes viewer avatar URL when provided", () => {
+    expect(
+      resolveMobileDuoLaneSubjects({
+        scope: "both",
+        activePartner,
+        viewerAvatarUrl:
+          "https://project.supabase.co/storage/v1/object/public/avatars/user-1/avatar.jpg?v=2",
+      })
+    ).toEqual([
+      {
+        id: "viewer",
+        label: "Solo",
+        readOnly: false,
+        avatarUrl:
+          "https://project.supabase.co/storage/v1/object/public/avatars/user-1/avatar.jpg?v=2",
+      },
+      {
+        id: "partner",
+        label: "Alex",
+        userId: "22222222-2222-4222-8222-222222222222",
+        readOnly: true,
+        avatarUrl: null,
+      },
+    ]);
+  });
 });

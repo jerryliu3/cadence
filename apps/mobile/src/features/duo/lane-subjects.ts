@@ -5,14 +5,21 @@ import {
   type DuoScope,
 } from "@cadence/shared/social/duo";
 
-const VIEWER_LANE: DuoLaneSubject = {
+const VIEWER_LANE_BASE = {
   id: "viewer",
   label: "Solo",
   readOnly: false,
-};
+} as const satisfies Pick<DuoLaneSubject, "id" | "label" | "readOnly">;
 
-export function viewerLaneSubject(): DuoLaneSubject {
-  return VIEWER_LANE;
+export function viewerLaneSubject({
+  avatarUrl,
+}: {
+  avatarUrl?: string | null;
+} = {}): DuoLaneSubject {
+  const normalizedAvatarUrl = avatarUrl?.trim() ? avatarUrl.trim() : null;
+  return normalizedAvatarUrl
+    ? { ...VIEWER_LANE_BASE, avatarUrl: normalizedAvatarUrl }
+    : { ...VIEWER_LANE_BASE };
 }
 
 export function partnerLaneSubject(
@@ -33,13 +40,15 @@ export function partnerLaneSubject(
 export function resolveMobileDuoLaneSubjects({
   scope,
   activePartner,
+  viewerAvatarUrl,
 }: {
   scope: DuoScope;
   activePartner: DuoActivePartner | null;
+  viewerAvatarUrl?: string | null;
 }): DuoLaneSubject[] {
   return resolveDuoLanes({
     scope,
-    viewer: viewerLaneSubject(),
+    viewer: viewerLaneSubject({ avatarUrl: viewerAvatarUrl }),
     partner: partnerLaneSubject(activePartner),
   });
 }
