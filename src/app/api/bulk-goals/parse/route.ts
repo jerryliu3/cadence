@@ -29,14 +29,9 @@ const BULK_PARSER_RATE_LIMIT_PER_MINUTE = 20;
 const MAX_MILESTONE_NAMES_PER_GOAL = 366;
 const localTimePattern = /^([01]\d|2[0-3]):[0-5]\d$/;
 const INVALID_ARGUMENT_PROVIDER_RE = /\(400\)|INVALID_ARGUMENT/i;
-const TRAINING_PLAN_KEYWORD_RE =
-  /\b(run|running|5k|10k|marathon|half\s*marathon|training|workout|interval|tempo|long run|recovery run|strength|mobility|gym)\b/i;
-const RUNNING_PLAN_KEYWORD_RE =
-  /\b(run|running|5k|10k|marathon|half\s*marathon|interval|tempo|long run|recovery run)\b/i;
-const GENERIC_MILESTONE_NAME_RE =
-  /^(week\s*\d+(\s*[:\-]\s*\d+\s*(runs?|sessions?|workouts?))?|session\s*\d+|milestone\s*\d+)$/i;
-const BARE_MILESTONE_LABEL_RE =
-  /^(easy run|tempo run|interval run|long run|recovery run|steady run|hill run|test run|run session|strength|mobility)$/i;
+const MILESTONE_GENERIC_NAME_RE = /^(milestone|session|step)\s*\d+$/i;
+const MILESTONE_WEEK_SUMMARY_RE =
+  /^week\s*\d+\s*[:\-]\s*\d+\s*(runs?|sessions?|workouts?)$/i;
 
 const requestSchema = z.object({
   prompt: z.string().trim().min(1).max(8000),
@@ -182,6 +177,10 @@ function buildPrompt(userPrompt: string, today: string, categoryKeys: string[]):
     "- If end_date is present, keep the start_date..end_date window at 24 calendar months or less.",
     `- Return at most ${MAX_GOALS_PER_REQUEST} goals.`,
     "",
+    "Few-shot example for progression plans:",
+    'Input: "Create a 4-week 5k plan with 3 runs per week: easy, tempo, long."',
+    'Output: {"goals":[{"title":"4-week 5k progression","frequency_type":"fixed_milestones","target_count":12,"milestone_names":["Week 1 - Easy run (conversational pace)","Week 1 - Tempo run (comfortably hard effort)","Week 1 - Long run (steady endurance)","Week 2 - Easy run (conversational pace)","Week 2 - Tempo run (comfortably hard effort)","Week 2 - Long run (steady endurance)","Week 3 - Easy run (conversational pace)","Week 3 - Tempo run (comfortably hard effort)","Week 3 - Long run (steady endurance)","Week 4 - Easy run (conversational pace)","Week 4 - Tempo run (comfortably hard effort)","Week 4 - Long run (steady endurance)"],"start_date":"2026-08-17","end_date":"2026-09-13"}]}',
+    "",
     "User input:",
     userPrompt,
   ].join("\n");
@@ -199,141 +198,21 @@ function normalizeLocalTime(value: string | null | undefined): string | null {
   return null;
 }
 
-function extractWeekCount(text: string): number | null {
-  const firstWeeksMatch = text.match(/\bfirst\s+(\d{1,2})\s+weeks?\b/i);
-  if (firstWeeksMatch?.[1]) {
-    const parsed = Number.parseInt(firstWeeksMatch[1], 10);
-    return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
-  }
-  const weekMatch = text.match(/\b(\d{1,2})\s*[- ]?\s*weeks?\b/i);
-  if (!weekMatch?.[1]) {
-    return null;
-  }
-  const parsed = Number.parseInt(weekMatch[1], 10);
-  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+function normalizeMilestoneNameList(names: string[] | undefined) {
+  return (names ?? []).map((name) => name.trim()).filter((name) => name.length > 0);
 }
 
-function extractSessionsPerWeek(text: string): number | null {
-  const cadenceMatch = text.match(
-    /\b(\d{1,2})\s*(runs?|workouts?|sessions?)\s+per\s+week\b/i
-  );
-  if (!cadenceMatch?.[1]) {
-    return null;
-  }
-  const parsed = Number.parseInt(cadenceMatch[1], 10);
-  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+function buildNeutralMilestoneNames(targetCount: number) {
+  return Array.from({ length: targetCount }, (_, index) => `Session ${index + 1}`);
 }
 
-function inferTrainingTargetCount(text: string): number | null {
-  const weeks = extractWeekCount(text);
-  const sessionsPerWeek = extractSessionsPerWeek(text);
-  if (!weeks || !sessionsPerWeek) {
-    return null;
-  }
-  const inferred = weeks * sessionsPerWeek;
-  if (!Number.isInteger(inferred) || inferred <= 0) {
-    return null;
-  }
-  return Math.min(inferred, MAX_MILESTONE_NAMES_PER_GOAL);
-}
-
-function decorateTrainingSessionLabel(label: string): string {
-  const normalized = label.trim().toLowerCase();
-  if (normalized === "easy run") {
-    return "Easy run (conversational pace, 20-35 min)";
-  }
-  if (normalized === "tempo run") {
-    return "Tempo run (comfortably hard sustained effort)";
-  }
-  if (normalized === "interval run") {
-    return "Interval run (repeat hard efforts with easy recoveries)";
-  }
-  if (normalized === "long run") {
-    return "Long run (steady aerobic endurance)";
-  }
-  if (normalized === "recovery run") {
-    return "Recovery run (very easy effort)";
-  }
-  if (normalized === "steady run") {
-    return "Steady run (controlled aerobic effort)";
-  }
-  if (normalized === "hill run") {
-    return "Hill run (short uphill repeat efforts)";
-  }
-  if (normalized === "test run") {
-    return "Test run (5k effort check-in)";
-  }
-  if (normalized === "run session") {
-    return "Run session (easy-to-moderate effort)";
-  }
-  if (normalized === "strength") {
-    return "Strength session (full-body, controlled form)";
-  }
-  if (normalized === "mobility") {
-    return "Mobility session (15-20 min recovery reset)";
-  }
-  return `${label.trim()} (focused session)`;
-}
-
-function extractTrainingSessionCycle(text: string): string[] {
-  const normalized = text.toLowerCase();
-  const sessionPatterns: Array<{ label: string; pattern: RegExp }> = [
-    { label: "Easy run", pattern: /\beasy run\b|\beasy\b/ },
-    { label: "Tempo run", pattern: /\btempo\b/ },
-    { label: "Interval run", pattern: /\binterval\b|\bspeed\b/ },
-    { label: "Long run", pattern: /\blong run\b/ },
-    { label: "Recovery run", pattern: /\brecovery run\b/ },
-    { label: "Steady run", pattern: /\bsteady\b/ },
-    { label: "Hill run", pattern: /\bhill\b/ },
-    { label: "Test run", pattern: /\btest run\b|\brace\b/ },
-    { label: "Strength", pattern: /\bstrength\b/ },
-    { label: "Mobility", pattern: /\bmobility\b/ },
-  ];
-  const labels = sessionPatterns
-    .filter(({ pattern }) => pattern.test(normalized))
-    .map(({ label }) => label);
-  if (labels.length > 0) {
-    return labels;
-  }
-  if (/\b(run|running)\b/.test(normalized)) {
-    return ["Run session"];
-  }
-  return [];
-}
-
-function buildTrainingMilestoneNames(
+function normalizeMilestoneNamesToTargetCount(
   targetCount: number,
-  text: string,
-  sessionsPerWeek: number | null
-): string[] {
-  let cycle = extractTrainingSessionCycle(text);
-  if (cycle.length === 0 && RUNNING_PLAN_KEYWORD_RE.test(text)) {
-    const fallbackCycle =
-      sessionsPerWeek && sessionsPerWeek >= 3
-        ? ["Easy run", "Tempo run", "Long run"]
-        : sessionsPerWeek === 2
-          ? ["Easy run", "Long run"]
-          : ["Run session"];
-    cycle = fallbackCycle;
-  }
-  const detailedCycle = cycle.map((label) => decorateTrainingSessionLabel(label));
-  if (cycle.length === 0) {
-    return Array.from(
-      { length: targetCount },
-      (_, index) => `Session ${index + 1} (specific workout focus)`
-    );
-  }
-  if (detailedCycle.length === 1) {
-    return Array.from(
-      { length: targetCount },
-      (_, index) => `Session ${index + 1} - ${detailedCycle[0]}`
-    );
-  }
-  const weekBlock = sessionsPerWeek && sessionsPerWeek > 1 ? sessionsPerWeek : cycle.length;
+  names: string[] | undefined
+) {
+  const normalizedNames = normalizeMilestoneNameList(names);
   return Array.from({ length: targetCount }, (_, index) => {
-    const week = Math.floor(index / weekBlock) + 1;
-    const cycleLabel = detailedCycle[index % detailedCycle.length];
-    return `Week ${week} - ${cycleLabel ?? "Specific session"}`;
+    return normalizedNames[index] ?? `Session ${index + 1}`;
   });
 }
 
@@ -343,135 +222,234 @@ function isGenericMilestoneName(name: string) {
     return true;
   }
   return (
-    GENERIC_MILESTONE_NAME_RE.test(trimmed) ||
-    BARE_MILESTONE_LABEL_RE.test(trimmed)
+    MILESTONE_GENERIC_NAME_RE.test(trimmed) ||
+    MILESTONE_WEEK_SUMMARY_RE.test(trimmed)
   );
 }
 
-function normalizeTrainingMilestoneNames({
-  provided,
+function isUnderspecifiedMilestoneName(name: string) {
+  const trimmed = name.trim();
+  if (!trimmed) {
+    return true;
+  }
+  const words = trimmed.split(/\s+/).filter(Boolean).length;
+  const hasNumericOrPunctuation = /[\d:;,().\-]/.test(trimmed);
+  return words <= 3 && !hasNumericOrPunctuation;
+}
+
+function needsMilestoneNameRetry(goal: GeneratedGoal) {
+  if (goal.frequency_type !== "fixed_milestones") {
+    return false;
+  }
+  const targetCount =
+    typeof goal.target_count === "number" && goal.target_count > 0
+      ? goal.target_count
+      : null;
+  if (!targetCount) {
+    return false;
+  }
+  const names = normalizeMilestoneNameList(goal.milestone_names);
+  if (names.length < targetCount) {
+    return true;
+  }
+  const normalizedNames = names.slice(0, targetCount);
+  const uniqueNames = new Set(
+    normalizedNames.map((name) => name.toLowerCase().replace(/\s+/g, " ").trim())
+  );
+  if (uniqueNames.size <= 1) {
+    return true;
+  }
+  if (normalizedNames.every((name) => isGenericMilestoneName(name))) {
+    return true;
+  }
+  const underspecifiedCount = normalizedNames.filter((name) =>
+    isUnderspecifiedMilestoneName(name)
+  ).length;
+  return underspecifiedCount >= Math.ceil(targetCount * 0.7);
+}
+
+function buildMilestoneNameRetryPrompt({
+  parserPrompt,
+  goal,
   targetCount,
-  generated,
 }: {
-  provided: string[] | undefined;
+  parserPrompt: string;
+  goal: GeneratedGoal;
   targetCount: number;
-  generated: string[];
 }) {
-  if (!provided || provided.length === 0) {
-    return generated;
-  }
-  const trimmedProvided = provided
-    .map((name) => name.trim())
-    .filter((name) => name.length > 0)
-    .slice(0, targetCount);
-  if (trimmedProvided.length === 0) {
-    return generated;
-  }
-  const uniqueProvided = new Set(trimmedProvided.map((name) => name.toLowerCase()));
-  const hasSpecificProvided = trimmedProvided.some((name) => !isGenericMilestoneName(name));
-  if (!hasSpecificProvided || uniqueProvided.size <= 1) {
-    return generated;
-  }
-  return Array.from({ length: targetCount }, (_, index) => {
-    const candidate = trimmedProvided[index];
-    if (candidate && !isGenericMilestoneName(candidate)) {
-      return candidate;
-    }
-    return generated[index] ?? `Session ${index + 1} (specific workout focus)`;
+  return [
+    "Refine milestone names for a single fixed_milestones goal.",
+    "Return only JSON with no markdown fences and no extra prose.",
+    'JSON shape: {"milestone_names":["..."]}',
+    `Provide exactly ${targetCount} milestone_names in chronological order.`,
+    "Each milestone name must describe the specific activity/instruction for that session.",
+    'Do not use generic summaries such as "Week 1: 3 runs" or placeholders such as "Milestone 1".',
+    "Preserve the user's language and domain context.",
+    "",
+    "Original user request:",
+    parserPrompt,
+    "",
+    "Goal draft context:",
+    JSON.stringify(
+      {
+        title: goal.title,
+        description: goal.description ?? "",
+        target_count: targetCount,
+        start_date: goal.start_date ?? null,
+        end_date: goal.end_date ?? null,
+        existing_milestone_names: goal.milestone_names ?? [],
+      },
+      null,
+      2
+    ),
+  ].join("\n");
+}
+
+function buildMilestoneNameRetryResponseSchema(targetCount: number) {
+  return {
+    type: "object",
+    properties: {
+      milestone_names: {
+        type: "array",
+        maxItems: targetCount,
+        items: { type: "string" },
+      },
+    },
+    required: ["milestone_names"],
+  } as const;
+}
+
+function buildMilestoneNameRetryZodSchema(targetCount: number) {
+  return z.object({
+    milestone_names: z
+      .array(z.string().trim().min(1).max(200))
+      .length(targetCount),
   });
 }
 
-function shouldCoerceToFixedMilestones({
+async function regenerateMilestoneNames({
+  apiKey,
   parserPrompt,
-  title,
-  description,
+  goal,
   targetCount,
-  frequency,
-  endDate,
+  signal,
 }: {
+  apiKey: string;
   parserPrompt: string;
-  title: string;
-  description: string;
-  targetCount: number | null;
-  frequency: "recurring" | "fixed_milestones";
-  endDate: string | null;
+  goal: GeneratedGoal;
+  targetCount: number;
+  signal: AbortSignal;
 }) {
-  if (
-    frequency !== "recurring" ||
-    !endDate ||
-    typeof targetCount !== "number" ||
-    targetCount <= 1
-  ) {
-    return false;
+  const retryPrompt = buildMilestoneNameRetryPrompt({
+    parserPrompt,
+    goal,
+    targetCount,
+  });
+  let result: Awaited<ReturnType<typeof generateGeminiJson>>;
+  try {
+    result = await generateGeminiJson({
+      apiKey,
+      prompt: retryPrompt,
+      responseSchema: buildMilestoneNameRetryResponseSchema(
+        targetCount
+      ) as unknown as Record<string, unknown>,
+      maxResponseBytes: MAX_PROVIDER_RESPONSE_BYTES,
+      totalTimeoutMs: PROVIDER_TIMEOUT_MS,
+      maxAttempts: MAX_PROVIDER_ATTEMPTS,
+      signal,
+    });
+  } catch (error) {
+    if (error instanceof GeminiRequestError && shouldRetryWithoutResponseSchema(error)) {
+      result = await generateGeminiJson({
+        apiKey,
+        prompt: retryPrompt,
+        maxResponseBytes: MAX_PROVIDER_RESPONSE_BYTES,
+        totalTimeoutMs: PROVIDER_TIMEOUT_MS,
+        maxAttempts: MAX_PROVIDER_ATTEMPTS,
+        signal,
+      });
+    } else {
+      throw error;
+    }
   }
-  const text = `${parserPrompt}\n${title}\n${description}`;
-  if (!TRAINING_PLAN_KEYWORD_RE.test(text)) {
-    return false;
+  const parsed = buildMilestoneNameRetryZodSchema(targetCount).safeParse(
+    result.candidateJson
+  );
+  return parsed.success ? parsed.data.milestone_names : null;
+}
+
+async function refineMilestoneNamesForGoals({
+  goals,
+  parserPrompt,
+  apiKey,
+  signal,
+}: {
+  goals: GeneratedGoal[];
+  parserPrompt: string;
+  apiKey: string;
+  signal: AbortSignal;
+}) {
+  const warnings: string[] = [];
+  const enrichedGoals: GeneratedGoal[] = [];
+  for (let index = 0; index < goals.length; index += 1) {
+    const goal = goals[index]!;
+    const targetCount =
+      typeof goal.target_count === "number" && goal.target_count > 0
+        ? goal.target_count
+        : null;
+    if (!targetCount || !needsMilestoneNameRetry(goal)) {
+      enrichedGoals.push(goal);
+      continue;
+    }
+    let regenerated: string[] | null = null;
+    try {
+      regenerated = await regenerateMilestoneNames({
+        apiKey,
+        parserPrompt,
+        goal,
+        targetCount,
+        signal,
+      });
+    } catch {
+      regenerated = null;
+    }
+    if (regenerated) {
+      const regeneratedGoal = { ...goal, milestone_names: regenerated };
+      if (!needsMilestoneNameRetry(regeneratedGoal)) {
+        enrichedGoals.push(regeneratedGoal);
+        continue;
+      }
+    }
+    enrichedGoals.push({
+      ...goal,
+      milestone_names: buildNeutralMilestoneNames(targetCount),
+    });
+    warnings.push(
+      `Draft ${index + 1} (${goal.title.trim()}): milestone names remained incomplete or generic; using neutral session labels for review.`
+    );
   }
-  return /\bweek\b|\bweeks\b/i.test(text) || targetCount >= 6;
+  return { goals: enrichedGoals, warnings };
 }
 
 function normalizeGeneratedPayload(
   payload: GeneratedPayload,
   today: string,
-  categoryCatalog: typeof DEFAULT_GOAL_CATEGORIES,
-  parserPrompt: string
+  categoryCatalog: typeof DEFAULT_GOAL_CATEGORIES
 ) {
   const warnings: string[] = [];
   const goals = payload.goals.map((goal, index) => {
-    let frequency = goal.frequency_type ?? "recurring";
-    let recurrence =
+    const frequency = goal.frequency_type ?? "recurring";
+    const recurrence =
       frequency === "recurring"
         ? goal.recurrence_interval ?? "daily"
         : undefined;
-    const providedMilestoneNames =
-      Array.isArray(goal.milestone_names) &&
-      goal.milestone_names.length > 0
-        ? goal.milestone_names
-            .map((name) => name.trim())
-            .filter((name) => name.length > 0)
-        : undefined;
     const startDate = toIsoDate(goal.start_date) ?? today;
     const endDate = toIsoDate(goal.end_date ?? undefined) ?? null;
-    const inputText = `${goal.title ?? ""}\n${goal.description ?? ""}\n${parserPrompt}`;
-    const inferredTargetCount = inferTrainingTargetCount(inputText);
-    const targetCount =
-      typeof goal.target_count === "number" && goal.target_count > 0
-        ? goal.target_count
-        : null;
-    const shouldCoerce = shouldCoerceToFixedMilestones({
-      parserPrompt,
-      title: goal.title.trim(),
-      description: goal.description?.trim() ?? "",
-      targetCount: targetCount ?? inferredTargetCount,
-      frequency,
-      endDate,
-    });
-    if (shouldCoerce) {
-      frequency = "fixed_milestones";
-      recurrence = undefined;
-    }
-    const sessionsPerWeek = extractSessionsPerWeek(inputText);
-    const effectiveTargetCount =
-      frequency === "fixed_milestones"
-        ? inferredTargetCount && inferredTargetCount > 0
-          ? targetCount === null || targetCount < inferredTargetCount
-            ? inferredTargetCount
-            : targetCount
-          : targetCount
-        : targetCount;
+    const targetCount = goal.target_count ?? null;
     const milestoneNames =
       frequency === "fixed_milestones"
-        ? typeof effectiveTargetCount === "number" && effectiveTargetCount > 0
-          ? normalizeTrainingMilestoneNames({
-              provided: providedMilestoneNames,
-              targetCount: effectiveTargetCount,
-              generated: buildTrainingMilestoneNames(
-                effectiveTargetCount,
-                inputText,
-                sessionsPerWeek
-              ),
-            })
+        ? typeof targetCount === "number" && targetCount > 0
+          ? normalizeMilestoneNamesToTargetCount(targetCount, goal.milestone_names)
           : undefined
         : undefined;
     const normalized = {
@@ -483,7 +461,7 @@ function normalizeGeneratedPayload(
         : resolveCategoryKey(goal.category?.trim() ?? "Personal", categoryCatalog),
       frequency_type: frequency,
       recurrence_interval: recurrence,
-      target_count: effectiveTargetCount,
+      target_count: targetCount,
       milestone_names:
         milestoneNames && milestoneNames.length > 0 ? milestoneNames : undefined,
       start_date: startDate,
@@ -728,13 +706,20 @@ export async function POST(request: Request) {
       );
     }
 
+    const milestoneRefinements = await refineMilestoneNamesForGoals({
+      goals: validatedPayload.data.goals,
+      parserPrompt: parsedRequest.prompt,
+      apiKey,
+      signal: request.signal,
+    });
+    const normalizedPayload = normalizeGeneratedPayload(
+      { goals: milestoneRefinements.goals },
+      today,
+      categoryCatalog
+    );
     const responsePayload = {
-      ...normalizeGeneratedPayload(
-        validatedPayload.data,
-        today,
-        categoryCatalog,
-        parsedRequest.prompt
-      ),
+      ...normalizedPayload,
+      warnings: [...normalizedPayload.warnings, ...milestoneRefinements.warnings],
       correlationId,
     };
 

@@ -131,9 +131,8 @@ function shouldBackfillGoalDraftPrompt(
   sanitized: ReturnType<typeof sanitizeCoachTurn>
 ) {
   return (
-    !sanitized.proposal.goalDraftPrompt &&
-    sanitized.proposal.policyPatches.length === 0 &&
-    sanitized.warnings.includes(NEEDS_GOAL_NO_EDITS_WARNING)
+    sanitized.calendarIntentAction === "needs_goal" &&
+    sanitized.goalDraftPromptMissing
   );
 }
 
@@ -454,8 +453,14 @@ export async function POST(request: Request) {
         };
       }
 
+      const {
+        calendarIntentAction: _calendarIntentAction,
+        goalDraftPromptMissing: _goalDraftPromptMissing,
+        ...sanitizedForResponse
+      } = sanitized;
+
       const responsePayload = {
-        ...sanitized,
+        ...sanitizedForResponse,
         startDate: body.startDate,
         endDate: body.endDate,
         scopeMonth: body.scopeMonth,

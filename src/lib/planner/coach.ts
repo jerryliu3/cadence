@@ -435,9 +435,12 @@ function compileCalendarIntent(
       warnings,
       unresolvedQuestions,
       goalDraftPrompt: null,
+      calendarIntentAction: "none" as const,
+      goalDraftPromptMissing: false,
     };
   }
   if (intent.action === "needs_goal") {
+    const goalDraftPromptMissing = !goalDraftPrompt;
     if (!goalDraftPrompt) {
       warnings.push(
         "No calendar edits were generated because this plan does not map to an existing goal."
@@ -448,6 +451,8 @@ function compileCalendarIntent(
       warnings,
       unresolvedQuestions,
       goalDraftPrompt,
+      calendarIntentAction: "needs_goal" as const,
+      goalDraftPromptMissing,
     };
   }
 
@@ -501,6 +506,8 @@ function compileCalendarIntent(
     warnings,
     unresolvedQuestions,
     goalDraftPrompt: null,
+    calendarIntentAction: "apply" as const,
+    goalDraftPromptMissing: false,
   };
 }
 
@@ -511,6 +518,8 @@ export interface SanitizedCoachTurn {
   schemaVersion: "1";
   phase: "discovery" | "review" | "ready" | "explain";
   reply: string;
+  calendarIntentAction: "none" | "needs_goal" | "apply";
+  goalDraftPromptMissing: boolean;
   proposal: {
     assessments: GoalAssessment[];
     policyPatches: CoachPolicyPatch[];
@@ -551,6 +560,8 @@ export function sanitizeCoachTurn({
     schemaVersion: "1",
     phase: envelope.phase,
     reply: envelope.reply,
+    calendarIntentAction: compiled.calendarIntentAction,
+    goalDraftPromptMissing: compiled.goalDraftPromptMissing,
     proposal: {
       assessments: [],
       policyPatches: compiled.policyPatches,
