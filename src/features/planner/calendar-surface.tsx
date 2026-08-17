@@ -729,13 +729,29 @@ export function CalendarSurface({
     unplaceableGoalSummaries.length > 0 ||
     eligibilityNotices.hardIneligible.length > 0 ||
     eligibilityNotices.linkedTargetCount > 0;
+  const plannerWarningSeverity: "none" | "informational" | "actionable" =
+    !hasPlannerWarnings
+      ? "none"
+      : unplaceableGoalSummaries.length > 0 ||
+        eligibilityNotices.hardIneligible.length > 0
+        ? "actionable"
+        : "informational";
   const plannerWarningBannerCopy =
-    unplaceableGoalSummaries.length > 0 ||
-    eligibilityNotices.hardIneligible.length > 0
+    plannerWarningSeverity === "actionable"
       ? "Some goals need updates before the calendar can be fully scheduled."
       : `${eligibilityNotices.linkedTargetCount} linked target goal${
           eligibilityNotices.linkedTargetCount === 1 ? "" : "s"
         } ${eligibilityNotices.linkedTargetCount === 1 ? "is" : "are"} hidden in this month while source goals remain active.`;
+  const previousWarningSeverityRef = useRef(plannerWarningSeverity);
+  useEffect(() => {
+    if (
+      plannerWarningSeverity === "actionable" &&
+      previousWarningSeverityRef.current !== "actionable"
+    ) {
+      setWarningsDismissed(false);
+    }
+    previousWarningSeverityRef.current = plannerWarningSeverity;
+  }, [plannerWarningSeverity]);
   const effectiveSelectedDay = localSelectedDay;
   const dayPreviewDay = dayPreview?.day ?? null;
   const projectionDays = useMemo(() => {
