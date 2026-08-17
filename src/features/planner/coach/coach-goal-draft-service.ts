@@ -46,7 +46,7 @@ export async function parseCoachGoalDrafts({
     if (goals.length > MAX_COACH_GOAL_DRAFTS) {
       throw new CoachGoalDraftServiceError(
         "too_many_goals",
-        `The coach generated ${goals.length} goals. Ask it to simplify the plan to ${MAX_COACH_GOAL_DRAFTS} or fewer recurring goals.`
+        `The coach generated ${goals.length} goals. Ask it to simplify the plan to ${MAX_COACH_GOAL_DRAFTS} or fewer goals.`
       );
     }
     return {

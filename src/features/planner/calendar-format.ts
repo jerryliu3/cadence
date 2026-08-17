@@ -57,6 +57,17 @@ export function getEntryDisplayTitle(
   return entry.unitKey;
 }
 
+export function getEntryCompactTitle(
+  entry: Pick<PlannerDayDetailEntry, "goalTitle" | "label" | "unitKey">
+) {
+  if (entry.label && !isDerivedCounterLabel(entry.label)) {
+    if (!entry.goalTitle || entry.label !== entry.goalTitle) {
+      return entry.label;
+    }
+  }
+  return getEntryDisplayTitle(entry);
+}
+
 export function getEntrySubtitle(
   entry: Pick<PlannerDayDetailEntry, "goalTitle" | "label">
 ) {

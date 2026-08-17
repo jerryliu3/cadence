@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildWeekdayLabels,
+  getEntryCompactTitle,
   getEntrySubtitle,
   normalizeWeekStartsOn,
 } from "@/features/planner/calendar-format";
@@ -52,5 +53,27 @@ describe("calendar entry subtitles", () => {
         label: "Publish beta",
       })
     ).toBe("Next: Publish beta");
+  });
+});
+
+describe("calendar compact entry titles", () => {
+  it("prefers meaningful labels over goal title in compact contexts", () => {
+    expect(
+      getEntryCompactTitle({
+        goalTitle: "5k training block",
+        label: "Tempo run 4x800",
+        unitKey: "milestone:2",
+      })
+    ).toBe("Tempo run 4x800");
+  });
+
+  it("falls back to canonical title for derived counter labels", () => {
+    expect(
+      getEntryCompactTitle({
+        goalTitle: "Read",
+        label: "total:3",
+        unitKey: "total:3",
+      })
+    ).toBe("Read");
   });
 });
