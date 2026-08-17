@@ -16,7 +16,6 @@ import {
 } from "@/features/planner/calendar-view-window";
 import type { DraftCommandState } from "@/features/planner/draft-command-reducer";
 import {
-  selectPlannerDraftSessionModel,
   type PlannerDraftSessionModel,
 } from "@/features/planner/planner-draft-session-model";
 import {
@@ -54,9 +53,12 @@ export interface PlannerCalendarModelArgs {
   partnerCompletionMarkersByDate?: Map<string, PlannerCompletionFactMarker[]>;
   previewEntryOrderByDay: Record<string, string[]>;
   additionalProjectionDays: string[];
-  memoizedState?: {
-    draftSession?: PlannerDraftSessionModel;
-  } & CalendarDayAccessorsMemoizedState;
+  memoizedState: PlannerCalendarMemoizedState;
+}
+
+export interface PlannerCalendarMemoizedState
+  extends CalendarDayAccessorsMemoizedState {
+  draftSession: PlannerDraftSessionModel;
 }
 
 export interface PlannerCalendarModel {
@@ -76,8 +78,6 @@ export interface PlannerCalendarModel {
 
 export function selectPlannerCalendarModel({
   context,
-  draftPreview,
-  draftPolicy,
   draftCommandState,
   month,
   selectedDay,
@@ -108,15 +108,7 @@ export function selectPlannerCalendarModel({
     viewMode,
   });
   const currentScopeMonth = month ?? context?.scopeMonth ?? null;
-  const draftSession =
-    memoizedState?.draftSession ??
-    selectPlannerDraftSessionModel({
-      context,
-      draftPreview,
-      draftPolicy,
-      draftCommandState,
-      currentScopeMonth,
-    });
+  const draftSession = memoizedState.draftSession;
   const dayAccessors = selectCalendarDayAccessorsModel({
     context,
     effectivePreview: draftSession.effectivePreview,

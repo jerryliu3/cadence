@@ -26,6 +26,9 @@ const postJsonMock = vi.fn();
 const putJsonMock = vi.fn();
 const toastSuccessMock = vi.fn();
 const toastErrorMock = vi.fn();
+const completionMutationMock = vi.hoisted(() =>
+  vi.fn(async () => ({ ok: true, message: null }))
+);
 const coachHookMock = vi.hoisted(() => ({
   latestArgs: null as null | {
     applyDraftPolicy: (policy: ReturnType<typeof buildPlannerPolicy>) => void;
@@ -69,7 +72,7 @@ vi.mock("@/features/planner/coach/planner-coach-panel", () => ({
 }));
 
 vi.mock("@/features/planner/use-completion-mutation", () => ({
-  useCompletionMutation: () => vi.fn(async () => ({ ok: true })),
+  useCompletionMutation: () => completionMutationMock,
 }));
 
 function unit(overrides: Partial<PlannerWorkUnit>): PlannerWorkUnit {
@@ -162,6 +165,8 @@ describe("CalendarSurface characterization", () => {
     putJsonMock.mockReset();
     toastSuccessMock.mockReset();
     toastErrorMock.mockReset();
+    completionMutationMock.mockReset();
+    completionMutationMock.mockResolvedValue({ ok: true, message: null });
     coachHookMock.latestArgs = null;
     coachHookMock.actions.onDraftDiscarded.mockReset();
     coachHookMock.actions.resetForPlannerStateReset.mockReset();
@@ -988,5 +993,138 @@ describe("CalendarSurface characterization", () => {
           .length
       ).toBe(2);
     });
+  });
+
+  it("shows no move-dialog candidates when no eligible source sessions exist", async () => {
+    postJsonMock.mockResolvedValue(
+      buildContext([
+        unit({
+          originalGoalId: "goal-a",
+          unitKey: "total:1",
+          scheduledDate: "2026-08-31",
+          label: "Goal A target",
+        }),
+      ])
+    );
+
+    render(
+      <CalendarSurface
+        activeTab="calendar"
+        month="2026-08"
+        selectedDay={null}
+        viewMode="month"
+        onMonthChange={vi.fn()}
+        onViewModeChange={vi.fn()}
+        onSelectedDayChange={vi.fn()}
+        onPlannerMutation={vi.fn()}
+      />
+    );
+
+    await waitFor(() => {
+      expect(postJsonMock).toHaveBeenCalledWith(
+        "/api/planner/prepare",
+        expect.any(Object)
+      );
+    });
+
+    const dayCell = document.querySelector(
+      '[data-day-cell="true"][data-day="2026-08-31"]'
+    );
+    expect(dayCell).toBeInstanceOf(HTMLButtonElement);
+    fireEvent.click(dayCell as Element);
+    fireEvent.click(await screen.findByRole("button", { name: "Move" }));
+
+    const dialog = await screen.findByRole("dialog", {
+      name: /Move session here/i,
+    });
+    expect(
+      within(dialog).getByText("No movable sessions are eligible for this day.")
+    ).toBeInTheDocument();
+  });
+
+  it("routes day-panel completion toggles through completion mutation callbacks", async () => {
+    postJsonMock.mockResolvedValue(
+      buildContext([
+        unit({
+          originalGoalId: "goal-a",
+          unitKey: "total:1",
+          scheduledDate: "2026-08-15",
+          classification: "planned",
+          creditState: "uncredited",
+        }),
+      ])
+    );
+
+    render(
+      <CalendarSurface
+        activeTab="calendar"
+        month="2026-08"
+        selectedDay="2026-08-15"
+        viewMode="day"
+        onMonthChange={vi.fn()}
+        onViewModeChange={vi.fn()}
+        onSelectedDayChange={vi.fn()}
+        onPlannerMutation={vi.fn()}
+      />
+    );
+
+    await waitFor(() => {
+      expect(postJsonMock).toHaveBeenCalledWith(
+        "/api/planner/prepare",
+        expect.any(Object)
+      );
+    });
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Mark session done" })
+    );
+
+    await waitFor(() => {
+      expect(completionMutationMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          goalId: "goal-a",
+          date: "2026-08-15",
+          desiredFactState: "present",
+        })
+      );
+    });
+  });
+
+  it("keeps partner scope read-only for planner day actions", async () => {
+    postJsonMock.mockResolvedValue(
+      buildContext([
+        unit({
+          originalGoalId: "goal-a",
+          unitKey: "total:1",
+          scheduledDate: "2026-08-31",
+        }),
+      ])
+    );
+
+    render(
+      <CalendarSurface
+        activeTab="calendar"
+        month="2026-08"
+        selectedDay="2026-08-31"
+        viewMode="day"
+        onMonthChange={vi.fn()}
+        onViewModeChange={vi.fn()}
+        onSelectedDayChange={vi.fn()}
+        onPlannerMutation={vi.fn()}
+        duoScope="partner"
+      />
+    );
+
+    await waitFor(() => {
+      expect(postJsonMock).toHaveBeenCalledWith(
+        "/api/planner/prepare",
+        expect.any(Object)
+      );
+    });
+
+    expect(
+      screen.queryByRole("button", { name: "Mark session done" })
+    ).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Lock" })).not.toBeInTheDocument();
   });
 });

@@ -10,6 +10,8 @@ import {
   type PlannerCalendarModelArgs,
 } from "@/features/planner/planner-calendar-model";
 
+type UsePlannerCalendarModelArgs = Omit<PlannerCalendarModelArgs, "memoizedState">;
+
 export function usePlannerCalendarModel({
   context,
   draftPreview,
@@ -25,7 +27,7 @@ export function usePlannerCalendarModel({
   partnerCompletionMarkersByDate,
   previewEntryOrderByDay,
   additionalProjectionDays,
-}: PlannerCalendarModelArgs): PlannerCalendarModel {
+}: UsePlannerCalendarModelArgs): PlannerCalendarModel {
   const currentScopeMonth = month ?? context?.scopeMonth ?? null;
   const draftSession = useMemo(
     () =>
