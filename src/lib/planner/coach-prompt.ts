@@ -142,7 +142,7 @@ export function buildCoachPrompt({
     "- For action=needs_goal, goalDraftPrompt is required and must be non-empty.",
     "- For actionable needs_goal requests, include goalDraftPrompt as plain instructions for 1-5 goals with absolute YYYY-MM-DD start/end dates and target counts when known.",
     '- Use "fixed_milestones" when sessions differ across the plan and name each milestone in order.',
-    '- For finite training requests (for example: "4-week 5k plan with 3 runs per week"), default to one fixed_milestones goal with milestone_names for each session in sequence.',
+    '- For any training-plan request, or any request where steps are progressive and not identical to each other, default to fixed_milestones with milestone_names in sequence.',
     '- Use "recurring" when sessions are genuinely repetitive and interchangeable.',
     "- Never create one goal per workout, session, or date. Consolidate sessions into either cadence goals or milestone-sequence goals.",
     "- In needs_goal replies, never claim that goals were already created or scheduled; describe them as drafts pending user review.",
