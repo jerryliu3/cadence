@@ -261,7 +261,7 @@ function needsMilestoneNameRetry(goal: GeneratedGoal) {
   const uniqueNames = new Set(
     normalizedNames.map((name) => name.toLowerCase().replace(/\s+/g, " ").trim())
   );
-  if (uniqueNames.size < normalizedNames.length) {
+  if (uniqueNames.size <= 1) {
     return true;
   }
   if (normalizedNames.some((name) => isGenericMilestoneName(name))) {

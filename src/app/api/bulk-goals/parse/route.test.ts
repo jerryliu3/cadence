@@ -685,6 +685,69 @@ describe("bulk goal parser route", () => {
     expect(fetchSpy).toHaveBeenCalledTimes(1);
   });
 
+  it("does not retry repeated milestone cycles when names are specific", async () => {
+    const fetchSpy = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          candidates: [
+            {
+              content: {
+                parts: [
+                  {
+                    text: JSON.stringify({
+                      goals: [
+                        {
+                          title: "5k progression cycle",
+                          frequency_type: "fixed_milestones",
+                          target_count: 6,
+                          start_date: "2026-08-17",
+                          end_date: "2026-09-13",
+                          milestone_names: [
+                            "Easy run",
+                            "Tempo run",
+                            "Long run",
+                            "Easy run",
+                            "Tempo run",
+                            "Long run",
+                          ],
+                        },
+                      ],
+                    }),
+                  },
+                ],
+              },
+            },
+          ],
+        }),
+        { status: 200 }
+      )
+    );
+    vi.stubGlobal("fetch", fetchSpy);
+
+    const response = await POST(
+      request({
+        prompt: "Create a 2-week running cycle with easy, tempo, and long runs.",
+        timezone: "UTC",
+      })
+    );
+
+    expect(response.status).toBe(200);
+    const payload = (await response.json()) as {
+      goals: Array<{ milestone_names?: string[] }>;
+      warnings?: string[];
+    };
+    expect(payload.goals[0]?.milestone_names).toEqual([
+      "Easy run",
+      "Tempo run",
+      "Long run",
+      "Easy run",
+      "Tempo run",
+      "Long run",
+    ]);
+    expect(payload.warnings ?? []).toEqual([]);
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+
   it("rejects model outputs when milestone_names are malformed", async () => {
     vi.stubGlobal(
       "fetch",
