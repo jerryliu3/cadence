@@ -1,6 +1,9 @@
 "use client";
 
 import { useMemo } from "react";
+import { buildActiveGoalIndexes } from "@/features/planner/calendar-entries";
+import { selectPlannerCalendarStoreProjection } from "@/features/planner/calendar-store-selectors";
+import { selectPlannerDraftSessionModel } from "@/features/planner/planner-draft-session-model";
 import {
   selectPlannerCalendarModel,
   type PlannerCalendarModel,
@@ -23,6 +26,40 @@ export function usePlannerCalendarModel({
   previewEntryOrderByDay,
   additionalProjectionDays,
 }: PlannerCalendarModelArgs): PlannerCalendarModel {
+  const currentScopeMonth = month ?? context?.scopeMonth ?? null;
+  const draftSession = useMemo(
+    () =>
+      selectPlannerDraftSessionModel({
+        context,
+        draftPreview,
+        draftPolicy,
+        draftCommandState,
+        currentScopeMonth,
+      }),
+    [context, currentScopeMonth, draftCommandState, draftPolicy, draftPreview]
+  );
+  const activeGoalIndexes = useMemo(
+    () => buildActiveGoalIndexes(context?.activePlan?.goals),
+    [context?.activePlan?.goals]
+  );
+  const calendarStoreProjection = useMemo(
+    () =>
+      selectPlannerCalendarStoreProjection({
+        context,
+        effectivePreview: draftSession.effectivePreview,
+        draftCommandState,
+        activeGoalsByPlanGoalId: activeGoalIndexes.byPlanGoalId,
+        activeGoalsByOriginalGoalId: activeGoalIndexes.byOriginalGoalId,
+      }),
+    [
+      activeGoalIndexes.byOriginalGoalId,
+      activeGoalIndexes.byPlanGoalId,
+      context,
+      draftCommandState,
+      draftSession.effectivePreview,
+    ]
+  );
+
   return useMemo(
     () =>
       selectPlannerCalendarModel({
@@ -40,12 +77,20 @@ export function usePlannerCalendarModel({
         partnerCompletionMarkersByDate,
         previewEntryOrderByDay,
         additionalProjectionDays,
+        memoizedState: {
+          draftSession,
+          activeGoalIndexes,
+          calendarStoreProjection,
+        },
       }),
     [
       additionalProjectionDays,
+      activeGoalIndexes,
+      calendarStoreProjection,
       categoryFilter,
       context,
       draftCommandState,
+      draftSession,
       draftPolicy,
       draftPreview,
       duoScope,
