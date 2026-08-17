@@ -165,6 +165,8 @@ function kernelOutput(
     scheduledDate: string | null;
     locked?: boolean;
     scheduledTimeOverride?: string | null;
+    creditedCompletionId?: string | null;
+    creditedCompletionDate?: string | null;
   }>
 ) {
   return {
@@ -185,6 +187,8 @@ function kernelOutput(
       locked: unit.locked ?? false,
       scheduledTimeOverride: unit.scheduledTimeOverride ?? null,
       effectiveScheduledLocalTime: unit.scheduledTimeOverride ?? null,
+      creditedCompletionId: unit.creditedCompletionId ?? null,
+      creditedCompletionDate: unit.creditedCompletionDate ?? null,
       ordinal: index + 1,
     })),
   };
@@ -956,6 +960,128 @@ describe("preparePlannerSchedule", () => {
     );
   });
 
+  it("does not create phantom shortfall for cadence goals satisfied by completions without scheduled items", async () => {
+    const cadenceGoal = goal({
+      frequency_type: "recurring",
+      recurrence_interval: "monthly",
+      target_count: null,
+      milestone_names: null,
+      start_date: "2026-07-01",
+      end_date: "2026-08-31",
+    });
+    const completion: Completion = {
+      id: "82222222-2222-4222-8222-222222222222",
+      goal_id: cadenceGoal.id,
+      completed_on: "2026-08-02",
+      created_at: "2026-08-02T00:00:00.000Z",
+    };
+    mocks.loadPlannerPreparationSnapshot.mockResolvedValue(
+      preparationSnapshot([cadenceGoal], [], [], [completion])
+    );
+
+    await prepare();
+
+    expect(mocks.runPlannerKernel).not.toHaveBeenCalled();
+    expect(mocks.rpc).toHaveBeenCalledWith(
+      "prepare_planner_schedule",
+      expect.objectContaining({
+        p_unplaceable: expect.arrayContaining([
+          expect.objectContaining({
+            goal_id: cadenceGoal.id,
+            reason: "capacity",
+            unplaced_count: 0,
+          }),
+        ]),
+      })
+    );
+  });
+
+  it("uses kernel credit identities for targeted goals so mixed scheduled/completion states stay accurate", async () => {
+    const targetedGoal = goal({
+      frequency_type: "recurring",
+      recurrence_interval: "daily",
+      target_count: 4,
+      milestone_names: null,
+      start_date: "2026-08-01",
+      end_date: "2026-12-31",
+    });
+    const scheduledThree = persistedItem({
+      goal_id: targetedGoal.id,
+      unit_key: "total:3",
+      scheduled_date: "2026-08-11",
+      original_scheduled_date: "2026-08-11",
+      locked: false,
+    });
+    const scheduledFour = persistedItem({
+      id: "83333333-3333-4333-8333-333333333333",
+      goal_id: targetedGoal.id,
+      unit_key: "total:4",
+      scheduled_date: "2026-08-12",
+      original_scheduled_date: "2026-08-12",
+      locked: false,
+    });
+    const completionOne: Completion = {
+      id: "84444444-4444-4444-8444-444444444444",
+      goal_id: targetedGoal.id,
+      completed_on: "2026-08-03",
+      created_at: "2026-08-03T00:00:00.000Z",
+    };
+    const completionTwo: Completion = {
+      id: "85555555-5555-4555-8555-555555555555",
+      goal_id: targetedGoal.id,
+      completed_on: "2026-08-12",
+      created_at: "2026-08-12T00:00:00.000Z",
+    };
+    mocks.loadPlannerPreparationSnapshot.mockResolvedValue(
+      preparationSnapshot(
+        [targetedGoal],
+        [scheduledThree, scheduledFour],
+        [],
+        [completionOne, completionTwo]
+      )
+    );
+    mocks.runPlannerKernel.mockReturnValue(
+      kernelOutput(targetedGoal.id, [
+        {
+          unitKey: "total:1",
+          scheduledDate: null,
+          creditedCompletionId: completionOne.id,
+          creditedCompletionDate: completionOne.completed_on,
+        },
+        {
+          unitKey: "total:2",
+          scheduledDate: null,
+        },
+        {
+          unitKey: "total:3",
+          scheduledDate: "2026-08-11",
+        },
+        {
+          unitKey: "total:4",
+          scheduledDate: "2026-08-12",
+          creditedCompletionId: completionTwo.id,
+          creditedCompletionDate: completionTwo.completed_on,
+        },
+      ])
+    );
+
+    await prepare();
+
+    expect(mocks.runPlannerKernel).toHaveBeenCalledTimes(1);
+    expect(mocks.rpc).toHaveBeenCalledWith(
+      "prepare_planner_schedule",
+      expect.objectContaining({
+        p_unplaceable: expect.arrayContaining([
+          expect.objectContaining({
+            goal_id: targetedGoal.id,
+            reason: "capacity",
+            unplaced_count: 1,
+          }),
+        ]),
+      })
+    );
+  });
+
   it("does not create capacity shortfall for targeted goals already satisfied by completions", async () => {
     const completedGoal = goal({
       frequency_type: "recurring",
@@ -973,10 +1099,20 @@ describe("preparePlannerSchedule", () => {
     mocks.loadPlannerPreparationSnapshot.mockResolvedValue(
       preparationSnapshot([completedGoal], [], [], [completion])
     );
+    mocks.runPlannerKernel.mockReturnValue(
+      kernelOutput(completedGoal.id, [
+        {
+          unitKey: "total:1",
+          scheduledDate: null,
+          creditedCompletionId: completion.id,
+          creditedCompletionDate: completion.completed_on,
+        },
+      ])
+    );
 
     await prepare();
 
-    expect(mocks.runPlannerKernel).not.toHaveBeenCalled();
+    expect(mocks.runPlannerKernel).toHaveBeenCalledTimes(1);
     expect(mocks.rpc).toHaveBeenCalledWith(
       "prepare_planner_schedule",
       expect.objectContaining({

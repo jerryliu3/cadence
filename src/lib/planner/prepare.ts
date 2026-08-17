@@ -168,13 +168,19 @@ function computeCompletionCreditedUnitKeys({
 
   const admissible = getAdmissibleCompletions(goal, completions, {
     asOfDate,
-    weeklyAnchor: { weekStartsOn },
   });
   if (admissible.length === 0) {
     return new Set<string>();
   }
 
   const requirement = normalizeGoalRequirement(goal).requirement;
+  // For deadline-total goals, completion-to-unit identity is schedule-date-first
+  // then chronological in reconciliation. We avoid re-deriving that mapping here
+  // so pre-check can be conservative and final persisted counts can rely on
+  // kernel-produced credit identities.
+  if (requirement.kind === "deadline_total") {
+    return new Set<string>();
+  }
   if (requirement.kind === "cadence") {
     const creditedCadenceUnits = new Set<string>();
     for (const completion of admissible) {
@@ -193,7 +199,7 @@ function computeCompletionCreditedUnitKeys({
   }
 
   const creditedCount = Math.min(admissible.length, requirement.targetCount);
-  const unitPrefix = requirement.kind === "milestone_sequence" ? "milestone" : "total";
+  const unitPrefix = "milestone";
   return new Set(
     Array.from({ length: creditedCount }, (_, index) => `${unitPrefix}:${index + 1}`).filter(
       (unitKey) => requiredUnitKeys.has(unitKey)
@@ -303,6 +309,9 @@ async function prepareOnce({
     }
   >();
   const goalOutcomeByGoalId = new Map<string, GoalUnplaceablePayload>();
+  const precheckCompletionCreditedUnitKeysByGoalId = new Map<string, Set<string>>();
+  const kernelCompletionCreditedUnitKeysByGoalId = new Map<string, Set<string>>();
+  const kernelResolvedGoalIds = new Set<string>();
   const eligibleGoalIds = new Set<string>();
   const preserveRecordedOutcomeGoalIds = new Set<string>();
   const validUnplaceableRecordByGoalId = new Map<string, PlannerGoalUnplaceableRecord>(
@@ -387,6 +396,7 @@ async function prepareOnce({
       weekStartsOn: policy.weekStartsOn ?? 1,
       requiredUnitKeys,
     });
+    precheckCompletionCreditedUnitKeysByGoalId.set(goal.id, completionCreditedUnitKeys);
     const persistedUnitKeys = new Set(
       (persistedItemsValidByGoalId.get(goal.id) ?? []).map((item) => item.unit_key)
     );
@@ -529,6 +539,12 @@ async function prepareOnce({
         }
       }
       for (const unit of kernel.workUnits) {
+        if (typeof unit.creditedCompletionDate === "string") {
+          const creditedUnitKeys =
+            kernelCompletionCreditedUnitKeysByGoalId.get(goal.id) ?? new Set<string>();
+          creditedUnitKeys.add(unit.unitKey);
+          kernelCompletionCreditedUnitKeysByGoalId.set(goal.id, creditedUnitKeys);
+        }
         if (unit.scheduledDate !== null) {
           const goalDateKey = `${goal.id}\u0000${unit.scheduledDate}`;
           if (goalDates.has(goalDateKey)) {
@@ -565,6 +581,7 @@ async function prepareOnce({
       }
     }
     if (!blockedByInvalidLock) {
+      kernelResolvedGoalIds.add(goal.id);
       for (const [key, generated] of generatedForGoal.entries()) {
         generatedByKey.set(key, generated);
       }
@@ -678,13 +695,9 @@ async function prepareOnce({
         scheduledUnitKeys.add(item.unit_key);
       }
     }
-    const completionCreditedUnitKeys = computeCompletionCreditedUnitKeys({
-      goal,
-      completions: completionsByGoalId.get(goal.id) ?? [],
-      asOfDate,
-      weekStartsOn: policy.weekStartsOn ?? 1,
-      requiredUnitKeys,
-    });
+    const completionCreditedUnitKeys = kernelResolvedGoalIds.has(goal.id)
+      ? (kernelCompletionCreditedUnitKeysByGoalId.get(goal.id) ?? new Set<string>())
+      : (precheckCompletionCreditedUnitKeysByGoalId.get(goal.id) ?? new Set<string>());
     for (const unitKey of completionCreditedUnitKeys) {
       scheduledUnitKeys.add(unitKey);
     }
