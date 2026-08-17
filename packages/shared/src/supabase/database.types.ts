@@ -1998,7 +1998,7 @@ export type Database = {
       }
       profiles: {
         Row: {
-        avatar_url: string
+          avatar_url: string | null
           blackout_ranges: Json
           calendar_feed_token_version: number
           created_at: string
