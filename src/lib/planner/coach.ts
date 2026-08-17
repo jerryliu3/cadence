@@ -106,15 +106,7 @@ const calendarIntentSchema = z
               .trim()
               .min(1)
               .max(200)
-              .optional()
-              .refine(
-                (value) =>
-                  value === undefined || CANONICAL_UNIT_KEY_PATTERN.test(value),
-                {
-                  message:
-                    "unitKey must use a canonical prefix (milestone:, total:, cadence:).",
-                }
-              ),
+              .optional(),
             sourceDate: z.iso.date().optional(),
           })
           .superRefine((move, ctx) => {
@@ -352,10 +344,15 @@ function resolveSessionMove({
   const resolvedGoalTitle = resolvedGoal?.title ?? "this goal";
   const sessionsForGoal = sessionsByGoalId.get(resolvedGoalId) ?? [];
   let resolvedSession: CoachSessionRosterEntry | null = null;
+  const hasNonCanonicalUnitKey =
+    Boolean(move.unitKey) &&
+    !CANONICAL_UNIT_KEY_PATTERN.test(move.unitKey as string);
+  const unitKeyForLookup = hasNonCanonicalUnitKey ? null : move.unitKey ?? null;
 
-  if (move.unitKey) {
+  if (unitKeyForLookup) {
     resolvedSession =
-      sessionsForGoal.find((session) => session.unitKey === move.unitKey) ?? null;
+      sessionsForGoal.find((session) => session.unitKey === unitKeyForLookup) ??
+      null;
   }
 
   if (!resolvedSession && move.sourceDate) {
@@ -377,9 +374,12 @@ function resolveSessionMove({
   }
 
   if (!resolvedSession) {
+    const unitKeyHint = hasNonCanonicalUnitKey
+      ? " The provided unit reference was ignored because it did not use a canonical unitKey."
+      : "";
     return {
       patch: null,
-      warning: `Ignored session move because no scheduled ${resolvedGoalTitle} session matched the provided reference.`,
+      warning: `Ignored session move because no scheduled ${resolvedGoalTitle} session matched the provided reference.${unitKeyHint}`,
       unresolvedQuestion: `Which existing ${resolvedGoalTitle} session should move to ${move.scheduledDate}?`,
     };
   }
@@ -391,6 +391,9 @@ function resolveSessionMove({
       unitKey: resolvedSession.unitKey,
       scheduledDate: move.scheduledDate,
     },
+    warning: hasNonCanonicalUnitKey
+      ? "Resolved a session move by ignoring a non-canonical unitKey and matching from the available roster."
+      : undefined,
   };
 }
 

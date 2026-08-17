@@ -84,6 +84,7 @@ describe("buildCoachPrompt", () => {
     expect(prompt).toContain("does not clearly map to current focus goals");
     expect(prompt).toContain("sessionMoves");
     expect(prompt).toContain("Prefer sessionRef for moves");
+    expect(prompt).toContain("copy it exactly from Session roster JSON");
     expect(prompt).toContain("goalDraftPrompt");
     expect(prompt).toContain(
       "include goalDraftPrompt as plain instructions for 1-5 goals"
