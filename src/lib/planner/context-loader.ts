@@ -760,7 +760,7 @@ export async function loadPlannerContextPayload({
   const activeAssessments = (snapshot.activePlan?.goals ?? []).map((goal) =>
     goal.assessment_snapshot
   );
-  const preview = runPlannerKernel({
+  const kernelPreview = runPlannerKernel({
     schemaVersion: PLANNER_CONTRACT_VERSION,
     eligibilityMode: PLANNER_ELIGIBILITY_MODES[0],
     ownerId,
@@ -775,6 +775,8 @@ export async function loadPlannerContextPayload({
     basePlan: snapshot.activePlan?.basePlan ?? null,
     preserveExistingAssignments: true,
   });
+  const { suggestedRelaxations: _omittedSuggestedRelaxations, ...preview } =
+    kernelPreview;
   const activeAssessmentByGoalId = new Map(
     activeAssessments.map((assessment) => [assessment.goalId, assessment])
   );
@@ -819,9 +821,9 @@ export async function loadPlannerContextPayload({
           linkedGoalIds: Array.from(
             new Set(snapshot.links.map((link) => link.targetGoalId))
           ),
-          workUnits: preview.workUnits,
-          driftFacts: preview.driftFacts,
-          invalidGoalIds: preview.solver.invalidGoalIds,
+          workUnits: kernelPreview.workUnits,
+          driftFacts: kernelPreview.driftFacts,
+          invalidGoalIds: kernelPreview.solver.invalidGoalIds,
           localToday: getDateInTimezone(
             new Date(),
             snapshot.activePlan.plan.timezone

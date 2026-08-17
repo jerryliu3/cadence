@@ -149,7 +149,7 @@
     },
     {
       "id": "missing_deadline",
-      "description": "A goal without an end date remains outside Calendar.",
+      "description": "A goal without an end date remains eligible when it overlaps scope.",
       "scopeMonth": "2026-08",
       "goal": {
         "ownedByViewer": true,
@@ -161,8 +161,8 @@
         "endDate": null
       },
       "expected": {
-        "eligible": false,
-        "reason": "missing_end_date"
+        "eligible": true,
+        "reason": "eligible"
       }
     },
     {

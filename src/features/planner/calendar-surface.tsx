@@ -182,9 +182,6 @@ const NON_ACTIONABLE_ELIGIBILITY_REASONS = new Set([
   "linked_target",
 ]);
 const ELIGIBILITY_REASON_GROUP_LABELS: Partial<Record<EligibilityReason, string>> = {
-  linked: "Linked goals",
-  linked_target: "Linked goals",
-  missing_end_date: "Goals missing deadlines",
   invalid_date_range: "Goals with invalid date ranges",
   horizon_too_long: "Goals beyond the planning horizon",
 };
@@ -193,11 +190,8 @@ const ELIGIBILITY_REASON_LABELS: Record<EligibilityReason, string> = {
   not_owner: "Only goals you own can be planned here.",
   deleted: "Deleted goals are excluded from planning.",
   archived: "Archived goals are excluded from planning.",
-  linked: "Linked goals are managed by their source relationship.",
   linked_target:
     "Linked target goals are managed by source completions and are hidden from Calendar.",
-  missing_end_date:
-    "This goal needs a deadline before it can be planned in Calendar.",
   invalid_date_range: "The goal dates are invalid (start is after end).",
   end_outside_scope: "This goal ends before the selected planning month.",
   starts_after_scope: "This goal starts after the selected planning month.",
@@ -650,9 +644,18 @@ export function CalendarSurface({
   const capacityWarningGoalCount = unplaceableGoalSummaries.filter(
     (entry) => entry.reason === "capacity"
   ).length;
-  const previewSuggestedRelaxations = Array.from(
-    new Set(effectivePreview?.suggestedRelaxations ?? [])
-  );
+  const warningSuggestedNextSteps = useMemo(() => {
+    const suggestions: string[] = [];
+    if (invalidLockGoalCount > 0) {
+      suggestions.push("Unlock conflicting locked sessions and regenerate the calendar.");
+    }
+    if (capacityWarningGoalCount > 0) {
+      suggestions.push(
+        "Open planner settings to adjust targets, deadlines, or rest-day constraints."
+      );
+    }
+    return suggestions;
+  }, [capacityWarningGoalCount, invalidLockGoalCount]);
   const hasPlannerWarnings =
     unplaceableGoalSummaries.length > 0 ||
     eligibilityNotices.hardIneligible.length > 0;
@@ -3827,13 +3830,13 @@ export function CalendarSurface({
                         </div>
                       ))}
                     </div>
-                    {previewSuggestedRelaxations.length > 0 ? (
+                    {warningSuggestedNextSteps.length > 0 ? (
                       <div className="rounded-md border bg-muted/20 p-2">
                         <p className="text-xs font-medium text-muted-foreground">
                           Suggested next steps
                         </p>
                         <ul className="mt-1 list-disc space-y-1 pl-4 text-xs text-muted-foreground">
-                          {previewSuggestedRelaxations.map((suggestion) => (
+                          {warningSuggestedNextSteps.map((suggestion) => (
                             <li key={suggestion}>{suggestion}</li>
                           ))}
                         </ul>

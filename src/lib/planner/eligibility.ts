@@ -14,7 +14,6 @@ export interface EligibilityGoal {
   outgoingShareCount: number;
   startDate: string;
   endDate: string | null;
-  requiresDeadline?: boolean;
 }
 
 export interface EligibilityDecision {
@@ -35,13 +34,23 @@ function evaluateStaticEligibility(goal: EligibilityGoal): EligibilityDecision |
   if (goal.currentLinkRole === "target") {
     return { eligible: false, reason: "linked_target" };
   }
-  if (goal.requiresDeadline !== false && goal.endDate === null) {
-    return { eligible: false, reason: "missing_end_date" };
-  }
   if (goal.endDate !== null && goal.startDate > goal.endDate) {
     return { eligible: false, reason: "invalid_date_range" };
   }
   return null;
+}
+
+export function resolveGoalLinkRole(
+  goalId: string,
+  links: ReadonlyArray<{ sourceGoalId: string; targetGoalId: string }>
+): EligibilityGoal["currentLinkRole"] {
+  if (links.some((link) => link.targetGoalId === goalId)) {
+    return "target";
+  }
+  if (links.some((link) => link.sourceGoalId === goalId)) {
+    return "source";
+  }
+  return "none";
 }
 
 export function evaluateOverlapV1Eligibility(
@@ -73,7 +82,7 @@ export function evaluateGoalEligibility({
   ownerId: string;
   goal: Goal;
   currentLinkRole: EligibilityGoal["currentLinkRole"];
-  asOfDate?: string;
+  asOfDate: string;
 }): EligibilityDecision {
   const effectiveEndDate = resolveGoalPlanningEndDate({
     frequencyType: goal.frequency_type,
@@ -90,7 +99,6 @@ export function evaluateGoalEligibility({
     outgoingShareCount: 0,
     startDate: goal.start_date,
     endDate: effectiveEndDate,
-    requiresDeadline: false,
   };
   const decision = evaluateOverlapV1Eligibility(window, normalizedGoal);
   if (
@@ -98,6 +106,9 @@ export function evaluateGoalEligibility({
     normalizedGoal.endDate === null ||
     goal.end_date === null
   ) {
+    // Soft-horizon end dates are anchored to max(start_date, as_of_date). When a
+    // stored end_date is null, measuring horizon length from start_date would
+    // over-count legacy goals and produce false horizon_too_long failures.
     return decision;
   }
   const horizonMonths = enumerateMonthsInWindow({
