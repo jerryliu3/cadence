@@ -12,13 +12,10 @@ import {
 import { toast } from "sonner";
 import { LoadingCard } from "@/components/ui/loading-card";
 import { allCategoriesValue } from "@/features/goals/goal-filters";
-import { buildPlannerLinkedTargetIndexes } from "@/features/planner/calendar-linked-targets";
 import {
   buildWeekdayLabels,
   completionDisabledReasonCopy,
   getDayStatus,
-  getEntryCompactTitle,
-  getEntryDisplayTitle,
   getEntrySubtitle,
   getMonthInTimezone,
   isEntryCredited,
@@ -111,18 +108,12 @@ import type {
   PlannerPreferencesPayload,
   PlannerPreviewResponsePayload,
 } from "@/features/planner/calendar-surface.types";
-import { selectPlannerDraftSessionModel } from "@/features/planner/planner-draft-session-model";
-import { selectPlannerEligibilityNotices } from "@/features/planner/planner-eligibility-notices";
 import {
   getNonPublishablePreviewMessage,
-  selectPlannerSaveAvailability,
 } from "@/features/planner/planner-save-availability";
-import { useCalendarDayAccessors } from "@/features/planner/use-calendar-day-accessors";
 import { PlannerDayEntriesPanel } from "@/features/planner/planner-day-entries-panel";
 import { PlannerWarningsPanel } from "@/features/planner/planner-warnings-panel";
 import { PlannerEventDetailDialog } from "@/features/planner/planner-event-detail-dialog";
-import { buildMoveSourceOptions } from "@/features/planner/planner-move-source-options";
-import { selectCalendarViewWindowModel } from "@/features/planner/calendar-view-window";
 import { PlannerCalendarToolbar } from "@/features/planner/planner-calendar-toolbar";
 import { PlannerViewWindowHeader } from "@/features/planner/planner-view-window-header";
 import { PlannerFiltersDialog } from "@/features/planner/planner-filters-dialog";
@@ -131,6 +122,7 @@ import { PlannerDayPreviewPopover } from "@/features/planner/planner-day-preview
 import { PlannerExpandedPreviewDialog } from "@/features/planner/planner-expanded-preview-dialog";
 import { PlannerSettingsForm } from "@/features/planner/planner-settings-form";
 import { PlannerRollingWeekStrip } from "@/features/planner/planner-rolling-week-strip";
+import { usePlannerCalendarModel } from "@/features/planner/use-planner-calendar-model";
 const DAY_PREVIEW_HOVER_DELAY_MS = 1000;
 const DAY_PREVIEW_CLOSE_DELAY_MS = 250;
 const DAY_PREVIEW_LONG_PRESS_DELAY_MS = 500;
@@ -300,6 +292,17 @@ export function CalendarSurface({
     if (shouldShowLoading) {
       setLoading(false);
     }
+    if (!contextPayload) {
+      const message = "Planner calendar context could not be loaded.";
+      if (shouldShowLoading) {
+        setContext(null);
+        setError(message);
+      }
+      if (toastOnError) {
+        toast.error(message);
+      }
+      return false;
+    }
 
     setContext(contextPayload);
     writeTabDataCache(plannerContextCacheKey, contextPayload);
@@ -361,7 +364,6 @@ export function CalendarSurface({
     invalidatePlannerRelatedTabCaches();
     onPlannerMutation();
   }, [onPlannerMutation]);
-  const currentScopeMonth = month ?? context?.scopeMonth ?? null;
   const clearDraftSession = useCallback(() => {
     setDraftPolicy(null);
     setDraftPreview(null);
@@ -370,6 +372,51 @@ export function CalendarSurface({
       type: "clear",
     });
   }, []);
+  const todayMonth = context?.timezone
+    ? getMonthInTimezone(context.timezone)
+    : getMonthInTimezone(setupTimezone);
+  const {
+    currentScopeMonth,
+    draftSession,
+    dayAccessors,
+    saveAvailability,
+    viewWindow,
+    warningSuggestedNextSteps,
+    hasPlannerWarnings,
+    plannerWarningSeverity,
+    plannerWarningBannerCopy,
+    selectedEventLinkedTargets,
+    getEntryDisplayTitleWithTime,
+    getEntryCompactTitleWithTime,
+    moveDialogSourceOptions,
+    effectiveMoveDialogSourceEntryKey,
+    eligibilityNotices,
+  } = usePlannerCalendarModel({
+    context,
+    draftPreview,
+    draftPolicy,
+    draftCommandState,
+    month,
+    viewMode,
+    duoScope,
+    categoryFilter,
+    endMonthFilter,
+    partnerCompletionMarkersByDate,
+    selectedEventEntryKey,
+    moveDialogDay,
+    moveDialogSourceEntryKey,
+    localSelectedDay,
+    expandedPreviewDay,
+    dayPreview,
+    previewEntryOrderByDay,
+    visibleDays,
+    focusedDay,
+    focusedWeekDays,
+    focusedThreeDayDays,
+    calendarToday,
+    todayMonth,
+    weekStartsOn,
+  });
   const {
     effectiveDraftPolicy,
     effectivePreview,
@@ -379,32 +426,7 @@ export function CalendarSurface({
     draftWindowUnitByEntryKey,
     draftSaveWindowResult,
     draftSaveWindow,
-    draftWindowTooWide,
-  } = useMemo(
-    () =>
-      selectPlannerDraftSessionModel({
-        context,
-        draftPreview,
-        draftPolicy,
-        draftCommandState,
-        currentScopeMonth,
-      }),
-    [context, currentScopeMonth, draftCommandState, draftPolicy, draftPreview]
-  );
-  const linkedTargetIndexes = useMemo(
-    () => buildPlannerLinkedTargetIndexes(context?.links ?? []),
-    [context?.links]
-  );
-  const eligibilityNotices = useMemo(
-    () =>
-      selectPlannerEligibilityNotices({
-        context,
-        effectivePreview,
-        month,
-      }),
-    [context, effectivePreview, month]
-  );
-  const dayPreviewDay = dayPreview?.day ?? null;
+  } = draftSession;
   const {
     entriesByDate,
     entryByKey,
@@ -434,57 +456,27 @@ export function CalendarSurface({
     previewDayCompletionFactMarkers,
     expandedPreviewEntries,
     expandedPreviewCompletionFactMarkers,
-    moveDialogEntriesForTargetDay,
-  } = useCalendarDayAccessors({
-    context,
-    effectivePreview,
-    draftCommandState,
-    month,
-    currentScopeMonth,
-    calendarToday,
-    categoryFilter,
-    endMonthFilter,
-    duoScope,
-    partnerCompletionMarkersByDate,
-    visibleDays,
-    focusedDay,
-    dayPreviewDay,
-    expandedPreviewDay,
-    moveDialogDay,
-    localSelectedDay,
-    selectedEventEntryKey,
-    previewEntryOrderByDay,
-    draftWindowUnitByEntryKey,
-  });
-  const warningSuggestedNextSteps = useMemo(() => {
-    const suggestions: string[] = [];
-    if (invalidLockGoalCount > 0) {
-      suggestions.push("Unlock conflicting locked sessions and regenerate the calendar.");
-    }
-    if (capacityWarningGoalCount > 0) {
-      suggestions.push(
-        "Open planner settings to adjust targets, deadlines, or rest-day constraints."
-      );
-    }
-    return suggestions;
-  }, [capacityWarningGoalCount, invalidLockGoalCount]);
-  const hasPlannerWarnings =
-    unplaceableGoalSummaries.length > 0 ||
-    eligibilityNotices.hardIneligible.length > 0 ||
-    eligibilityNotices.linkedTargetCount > 0;
-  const plannerWarningSeverity: "none" | "informational" | "actionable" =
-    !hasPlannerWarnings
-      ? "none"
-      : unplaceableGoalSummaries.length > 0 ||
-        eligibilityNotices.hardIneligible.length > 0
-        ? "actionable"
-        : "informational";
-  const plannerWarningBannerCopy =
-    plannerWarningSeverity === "actionable"
-      ? "Some goals need updates before the calendar can be fully scheduled."
-      : `${eligibilityNotices.linkedTargetCount} linked target goal${
-          eligibilityNotices.linkedTargetCount === 1 ? "" : "s"
-        } ${eligibilityNotices.linkedTargetCount === 1 ? "is" : "are"} hidden in this month while source goals remain active.`;
+  } = dayAccessors;
+  const {
+    draftSaveBlocked,
+    draftSaveBlockedMessage,
+    rebuildBlockedMessage,
+    canResetPlan,
+    canRecoverPastSessions,
+    hasUnsavedPlannerChanges,
+    canShowSaveAction,
+  } = saveAvailability;
+  const {
+    resolvedFocusedDay,
+    viewHeading,
+    fixedViewHeadingWidthCh,
+    viewDescription,
+    previousWindowAriaLabel,
+    nextWindowAriaLabel,
+    canResetViewWindow,
+    stepDays,
+  } = viewWindow;
+  const scopeMonth = context?.scopeMonth ?? null;
   const previousWarningSeverityRef = useRef(plannerWarningSeverity);
   useEffect(() => {
     if (
@@ -495,68 +487,6 @@ export function CalendarSurface({
     }
     previousWarningSeverityRef.current = plannerWarningSeverity;
   }, [plannerWarningSeverity]);
-  const selectedEventLinkedTargets = useMemo(
-    () =>
-      selectedEventEntry
-        ? linkedTargetIndexes.linksBySourceGoalId.get(
-            selectedEventEntry.originalGoalId
-          ) ?? []
-        : [],
-    [linkedTargetIndexes.linksBySourceGoalId, selectedEventEntry]
-  );
-  const getEntryDisplayTitleWithTime = useCallback(
-    (entry: PlannerDayDetailEntry) => {
-      const baseTitle = getEntryDisplayTitle(entry);
-      return entry.effectiveScheduledLocalTime
-        ? `${entry.effectiveScheduledLocalTime} ${baseTitle}`
-        : baseTitle;
-    },
-    []
-  );
-  const getEntryCompactTitleWithTime = useCallback(
-    (entry: PlannerDayDetailEntry) => {
-      const baseTitle = getEntryCompactTitle(entry);
-      return entry.effectiveScheduledLocalTime
-        ? `${entry.effectiveScheduledLocalTime} ${baseTitle}`
-        : baseTitle;
-    },
-    []
-  );
-
-  const scopeMonth = context?.scopeMonth ?? null;
-  const moveDialogSourceOptions = useMemo(
-    () =>
-      buildMoveSourceOptions({
-        targetDay: moveDialogDay,
-        scopeMonth,
-        moveDialogEntriesForTargetDay,
-        entriesByDate,
-        draftWindowUnitByEntryKey,
-        canMutateEntryOnDay,
-        getEntryDisplayTitleWithTime,
-      }),
-    [
-      canMutateEntryOnDay,
-      draftWindowUnitByEntryKey,
-      entriesByDate,
-      getEntryDisplayTitleWithTime,
-      moveDialogDay,
-      moveDialogEntriesForTargetDay,
-      scopeMonth,
-    ]
-  );
-
-  const effectiveMoveDialogSourceEntryKey = useMemo(() => {
-    if (
-      moveDialogSourceEntryKey &&
-      moveDialogSourceOptions.some(
-        (option) => option.entryKey === moveDialogSourceEntryKey
-      )
-    ) {
-      return moveDialogSourceEntryKey;
-    }
-    return moveDialogSourceOptions[0]?.entryKey ?? "";
-  }, [moveDialogSourceEntryKey, moveDialogSourceOptions]);
   useEffect(
     () => () => {
       if (hoverPreviewTimerRef.current) {
@@ -2148,41 +2078,6 @@ export function CalendarSurface({
   };
 
   const showBlockingLoading = loading && context === null;
-  const todayMonth = context?.timezone
-    ? getMonthInTimezone(context.timezone)
-    : getMonthInTimezone(setupTimezone);
-  const {
-    resolvedFocusedDay,
-    viewHeading,
-    fixedViewHeadingWidthCh,
-    viewDescription,
-    previousWindowAriaLabel,
-    nextWindowAriaLabel,
-    canResetViewWindow,
-    stepDays,
-  } = useMemo(
-    () =>
-      selectCalendarViewWindowModel({
-        month,
-        viewMode,
-        focusedDay,
-        focusedWeekDays,
-        focusedThreeDayDays,
-        calendarToday,
-        todayMonth,
-        weekStartsOn,
-      }),
-    [
-      calendarToday,
-      focusedDay,
-      focusedThreeDayDays,
-      focusedWeekDays,
-      month,
-      todayMonth,
-      viewMode,
-      weekStartsOn,
-    ]
-  );
   const moveViewWindow = (direction: -1 | 1) => {
     if (viewMode === "month") {
       if (!month) {
@@ -2262,33 +2157,6 @@ export function CalendarSurface({
       window.removeEventListener("resize", alignRollingWeekStripToFocusedDay);
     };
   }, [alignRollingWeekStripToFocusedDay, viewMode]);
-  const {
-    draftSaveBlocked,
-    draftSaveBlockedMessage,
-    rebuildBlockedMessage,
-    canResetPlan,
-    canRecoverPastSessions,
-    hasUnsavedPlannerChanges,
-    canShowSaveAction,
-  } = useMemo(
-    () =>
-      selectPlannerSaveAvailability({
-        context,
-        effectivePreview,
-        draftSaveWindow,
-        draftWindowTooWide,
-        hasDraftSession,
-        plannerReadOnly,
-      }),
-    [
-      context,
-      draftSaveWindow,
-      draftWindowTooWide,
-      effectivePreview,
-      hasDraftSession,
-      plannerReadOnly,
-    ]
-  );
   const saveButtonLabel = saveLoading ? "Saving..." : "Save plan";
   const renderCalendarDayCell = (cell: { date: string; inMonth: boolean }) => {
     const entriesForDay = getOrderedEntriesForDay(cell.date);
