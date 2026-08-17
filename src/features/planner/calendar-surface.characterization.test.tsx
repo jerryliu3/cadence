@@ -656,7 +656,6 @@ describe("CalendarSurface characterization", () => {
       {
         sourceGoalId: "goal-a",
         targetGoalId: "goal-b",
-        sourcePlannedEndDate: null,
         targetSuppressionKind: "indefinite",
         targetResumesOn: null,
       },
@@ -720,7 +719,6 @@ describe("CalendarSurface characterization", () => {
       {
         sourceGoalId: "goal-a",
         targetGoalId: "goal-b",
-        sourcePlannedEndDate: "2026-08-31",
         targetSuppressionKind: "until",
         targetResumesOn: "2026-09-01",
       },

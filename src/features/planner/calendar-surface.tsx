@@ -261,6 +261,7 @@ export function CalendarSurface({
   const [moveDialogDay, setMoveDialogDay] = useState<string | null>(null);
   const [moveDialogSourceEntryKey, setMoveDialogSourceEntryKey] = useState<string>("");
   const [warningsOpen, setWarningsOpen] = useState(false);
+  // Intentionally session-scoped for now; dismissal resets on page reload.
   const [warningsDismissed, setWarningsDismissed] = useState(false);
   const [draggingEntryKey, setDraggingEntryKey] = useState<string | null>(null);
   const [localSelectedDay, setLocalSelectedDay] = useState<string | null>(null);
