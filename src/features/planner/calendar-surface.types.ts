@@ -104,7 +104,6 @@ export interface CoachPolicyMessageProposal {
 export interface CoachGoalDraftMessageProposal {
   schemaVersion: "1";
   kind: "goal_draft";
-  proposalId: string;
   parserPrompt: string;
   creationStatus: "not_created" | "created";
   applyStatus?: never;

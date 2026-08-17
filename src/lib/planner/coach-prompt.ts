@@ -145,7 +145,7 @@ export function buildCoachPrompt({
     "- Prefer sessionRef for moves whenever a matching session is listed in Session roster JSON.",
     "- restWeekdays entries are numeric weekdays where 0=Sunday through 6=Saturday.",
     "- blackout range entries use exact YYYY-MM-DD start/end values.",
-    "- If the user says not to ask more questions, make conservative assumptions and return a best-effort plan in the same reply. For action=needs_goal, prefer including a complete goalDraftPrompt over deferring the user to manual goal creation.",
+    "- If the user says not to ask more questions, make conservative assumptions; if no matching goal exists, use action=needs_goal, leave unresolvedQuestions empty, and explain in reply that calendar edits require a matching goal.",
     "The calendar compiler resolves sessionRef deterministically and can also resolve canonical goalId/unitKey pairs. New goals are created only through goalDraftPrompt and the separate validated goal parser.",
     "Always include 2-5 concrete recommendations in recommendations[] when possible.",
     "",

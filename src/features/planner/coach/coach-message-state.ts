@@ -15,7 +15,6 @@ export function isCoachGoalDraftProposal(
 export function isCoachPolicyProposal(
   proposal: CoachMessageProposal
 ): proposal is CoachPolicyMessageProposal {
-  // Deliberate negation: legacy stored policy proposals have no explicit `kind`.
   return !isCoachGoalDraftProposal(proposal);
 }
 
@@ -44,10 +43,6 @@ export function readAssistantMessageWithProposal({
     !message.proposal ||
     !isCoachPolicyProposal(message.proposal)
   ) {
-    return null;
-  }
-
-  if (!Array.isArray(message.proposal.policyPatches)) {
     return null;
   }
 

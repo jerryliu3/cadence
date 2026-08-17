@@ -3,7 +3,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { usePlannerCoach } from "@/features/planner/coach/use-planner-coach";
 import type { UsePlannerCoachArgs } from "@/features/planner/coach/coach-types";
 import { isCoachPolicyProposal } from "@/features/planner/coach/coach-message-state";
-import { buildBulkGoalDraftsFromLlmGoals } from "@/features/goals/bulk-goal-drafts";
 import type {
   CoachMessage,
   PlannerContextPayload,
