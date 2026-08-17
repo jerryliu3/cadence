@@ -45,7 +45,7 @@ function goalDraftErrorMessage(code?: string, fallback?: string) {
     case "rate_limited":
       return "Goal drafts are being generated too quickly. Wait a moment, then try again.";
     case "too_many_goals":
-      return "The coach proposed more than five goals. Ask it to simplify the plan, then generate again.";
+      return "The coach proposed more than five goals. Ask it to simplify the plan and send again.";
     default:
       return fallback ?? "Could not generate goal drafts.";
   }
@@ -70,7 +70,26 @@ function CoachGoalDraftProposal({
       </p>
     );
   }
-  if (!draftState || draftState.status === "loading") {
+  if (!draftState) {
+    return (
+      <div className="mt-2 rounded border bg-background/70 p-2 text-xs">
+        <p className="text-muted-foreground">
+          Drafts are not generated yet. Generate editable drafts to review before
+          creating goals.
+        </p>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="mt-2"
+          onClick={() => void actions.generateCoachGoalDrafts(messageIndex)}
+        >
+          Generate editable drafts
+        </Button>
+      </div>
+    );
+  }
+  if (draftState.status === "loading") {
     return (
       <p className="mt-2 rounded border bg-background/70 p-2 text-xs text-muted-foreground">
         Generating editable goal drafts…
@@ -88,15 +107,17 @@ function CoachGoalDraftProposal({
               draftState.errorMessage
             )}
           </p>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            className="mt-2"
-            onClick={() => void actions.generateCoachGoalDrafts(messageIndex)}
-          >
-            Generate again
-          </Button>
+          {draftState.errorCode !== "too_many_goals" ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="mt-2"
+              onClick={() => void actions.generateCoachGoalDrafts(messageIndex)}
+            >
+              Generate again
+            </Button>
+          ) : null}
         </div>
       ) : null}
       {draftState.drafts.length > 0 ? (
@@ -147,7 +168,7 @@ export function PlannerCoachPanel({ coach }: PlannerCoachPanelProps) {
           onClick={() => void actions.saveCoachConversation()}
           disabled={
             state.coachConversationSaving ||
-            state.coachGoalRefreshStatus !== "idle" ||
+            state.coachGoalRefreshStatus === "refreshing" ||
             state.coachMessages.length === 0
           }
         >
@@ -161,7 +182,7 @@ export function PlannerCoachPanel({ coach }: PlannerCoachPanelProps) {
           disabled={
             state.coachLoading ||
             state.coachPolicyApplying ||
-            state.coachGoalRefreshStatus !== "idle" ||
+            state.coachGoalRefreshStatus === "refreshing" ||
             !state.hasCoachConversationState
           }
         >
@@ -181,7 +202,7 @@ export function PlannerCoachPanel({ coach }: PlannerCoachPanelProps) {
             disabled={
               state.coachConversationsLoading ||
               state.coachConversationRestoring ||
-              state.coachGoalRefreshStatus !== "idle"
+              state.coachGoalRefreshStatus === "refreshing"
             }
             aria-label="Saved conversations"
             className="h-8 w-[min(100%,16.25rem)] appearance-none rounded-lg border border-input bg-background/90 px-3 pr-8 text-xs text-foreground outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50"
