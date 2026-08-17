@@ -224,7 +224,7 @@ export function computeCompletionCreditedUnitKeys({
         continue;
       }
       const available = admissibleByDate.get(scheduledDate);
-      if (available) {
+      if (available && !usedCompletionIds.has(available.id)) {
         usedCompletionIds.add(available.id);
         creditedUnitKeys.add(unitKey);
       }

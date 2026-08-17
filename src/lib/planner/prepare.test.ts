@@ -1346,6 +1346,34 @@ describe("preparePlannerSchedule", () => {
     ).periodKey;
     const cadenceRequired = new Set([`cadence:${augustPeriodKey}`]);
 
+    const duplicateScheduledDateDeadlineGoal = goal({
+      id: "88888888-8888-4888-8888-888888888888",
+      frequency_type: "recurring",
+      recurrence_interval: "daily",
+      target_count: 2,
+      milestone_names: null,
+      start_date: "2026-08-01",
+      end_date: "2026-12-31",
+    });
+    const duplicateScheduledDateDeadlineCompletions: Completion[] = [
+      {
+        id: "99999999-9999-4999-9999-999999999991",
+        goal_id: duplicateScheduledDateDeadlineGoal.id,
+        user_id: OWNER_ID,
+        completed_on: "2026-08-04",
+        source: "manual",
+        created_at: "2026-08-04T00:00:00.000Z",
+      },
+    ];
+    const duplicateScheduledDateDeadlinePersisted = [
+      { unit_key: "total:1", scheduled_date: "2026-08-04" },
+      { unit_key: "total:2", scheduled_date: "2026-08-04" },
+    ];
+    const duplicateScheduledDateDeadlineRequired = new Set([
+      "total:1",
+      "total:2",
+    ]);
+
     const cases = [
       {
         goal: milestoneGoal,
@@ -1367,6 +1395,13 @@ describe("preparePlannerSchedule", () => {
         persistedItems: [],
         requiredUnitKeys: cadenceRequired,
         window: { start: "2026-07-01", end: "2026-08-31" },
+      },
+      {
+        goal: duplicateScheduledDateDeadlineGoal,
+        completions: duplicateScheduledDateDeadlineCompletions,
+        persistedItems: duplicateScheduledDateDeadlinePersisted,
+        requiredUnitKeys: duplicateScheduledDateDeadlineRequired,
+        window: { start: "2026-08-01", end: "2026-12-31" },
       },
     ];
 
