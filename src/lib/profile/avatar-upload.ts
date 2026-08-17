@@ -29,6 +29,21 @@ export function getAvatarUploadValidationError(file: File): string | null {
   return null;
 }
 
+function assertUploadedAvatarPublicUrl(publicUrl: string) {
+  const parsed = new URL(publicUrl);
+  if (!parsed.pathname.startsWith("/storage/v1/object/public/avatars/")) {
+    throw new Error("Avatar upload returned an unexpected storage path.");
+  }
+  const rawSupabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() ?? "";
+  if (!rawSupabaseUrl) {
+    return;
+  }
+  const expectedOrigin = new URL(rawSupabaseUrl).origin;
+  if (parsed.origin !== expectedOrigin) {
+    throw new Error("Avatar upload returned an unexpected storage origin.");
+  }
+}
+
 export async function uploadProfileAvatar({
   supabase,
   userId,
@@ -57,5 +72,6 @@ export async function uploadProfileAvatar({
   const {
     data: { publicUrl },
   } = supabase.storage.from(AVATAR_UPLOAD_BUCKET).getPublicUrl(objectPath);
+  assertUploadedAvatarPublicUrl(publicUrl);
   return `${publicUrl}?v=${Date.now()}`;
 }
