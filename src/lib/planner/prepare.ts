@@ -68,6 +68,11 @@ interface GoalUnplaceablePayload {
   reason: PlannerGoalUnplaceableReason;
 }
 
+interface PersistedCompletionCreditItem {
+  unit_key: string;
+  scheduled_date: string;
+}
+
 function itemKey(item: { goal_id: string; unit_key: string }) {
   return `${item.goal_id}\u0000${item.unit_key}`;
 }
@@ -149,7 +154,7 @@ function computeRequiredUnitKeys({
   return requiredUnitKeys;
 }
 
-function computeCompletionCreditedUnitKeys({
+export function computeCompletionCreditedUnitKeys({
   goal,
   completions,
   asOfDate,
@@ -162,7 +167,7 @@ function computeCompletionCreditedUnitKeys({
   asOfDate: string;
   weekStartsOn: number;
   requiredUnitKeys: Set<string>;
-  persistedItems: PlannerItemRow[];
+  persistedItems: PersistedCompletionCreditItem[];
 }) {
   if (requiredUnitKeys.size === 0 || completions.length === 0) {
     return new Set<string>();
@@ -198,11 +203,9 @@ function computeCompletionCreditedUnitKeys({
     // scheduled-date matches first, then chronological fallback.
     const usedCompletionIds = new Set<string>();
     const creditedUnitKeys = new Set<string>();
-    const admissibleByDate = new Map<string, Completion[]>();
+    const admissibleByDate = new Map<string, Completion>();
     for (const completion of admissible) {
-      const byDate = admissibleByDate.get(completion.completed_on) ?? [];
-      byDate.push(completion);
-      admissibleByDate.set(completion.completed_on, byDate);
+      admissibleByDate.set(completion.completed_on, completion);
     }
     const scheduledDateByUnitKey = new Map(
       persistedItems.map((item) => [item.unit_key, item.scheduled_date] as const)
@@ -220,8 +223,7 @@ function computeCompletionCreditedUnitKeys({
       if (!scheduledDate) {
         continue;
       }
-      const matches = admissibleByDate.get(scheduledDate) ?? [];
-      const available = matches.find((completion) => !usedCompletionIds.has(completion.id));
+      const available = admissibleByDate.get(scheduledDate);
       if (available) {
         usedCompletionIds.add(available.id);
         creditedUnitKeys.add(unitKey);
@@ -252,9 +254,8 @@ function computeCompletionCreditedUnitKeys({
   }
 
   const creditedCount = Math.min(admissible.length, requirement.targetCount);
-  const unitPrefix = "milestone";
   return new Set(
-    Array.from({ length: creditedCount }, (_, index) => `${unitPrefix}:${index + 1}`).filter(
+    Array.from({ length: creditedCount }, (_, index) => `milestone:${index + 1}`).filter(
       (unitKey) => requiredUnitKeys.has(unitKey)
     )
   );
@@ -422,6 +423,9 @@ async function prepareOnce({
         locked: item.locked,
         scheduledTimeOverride: item.scheduled_time,
       }));
+    // This pre-check uses requirement-valid persisted identities only, while the
+    // kernel receives all persisted base assignments (including stale rows) so it
+    // can reconcile and clear them during preparation.
     const goalWindowsState = buildGoalPreparationWindows({
       goal,
       asOfDate,
