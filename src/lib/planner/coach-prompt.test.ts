@@ -35,6 +35,9 @@ describe("buildCoachPrompt", () => {
 
     expect(prompt).toContain("highly experienced professional life coach");
     expect(prompt).toContain("evidence-informed coaching");
+    expect(prompt).toContain("internally compare at least two viable plan options");
+    expect(prompt).toContain("sanity-check progression and total workload");
+    expect(prompt).toContain("Keep internal deliberation private");
     expect(prompt).toContain("sleep routines, flossing");
     expect(prompt).toContain("running and gym");
     expect(prompt).toContain("Focus goal horizon markers:");
