@@ -80,6 +80,26 @@ interface GoalLifetimeWindow {
   endDate: string | null;
 }
 
+interface GoalLinkSourceRecord {
+  id: string;
+  owner_id: string;
+  start_date: string;
+  end_date: string | null;
+  frequency_type: "fixed_milestones" | "recurring";
+  target_count: number | null;
+  is_deleted: boolean;
+  archived_at: string | null;
+}
+
+interface GoalLinkRow {
+  source_goal_id: string;
+  target_goal_id: string;
+  source: GoalLinkSourceRecord | GoalLinkSourceRecord[] | null;
+}
+
+const GOAL_LINK_SOURCE_SELECT =
+  "source_goal_id, target_goal_id, source:goals!goal_links_source_goal_id_fkey(id, owner_id, start_date, end_date, frequency_type, target_count, is_deleted, archived_at)";
+
 function dispatchFailure(
   status: number,
   code: string,
@@ -95,6 +115,78 @@ function dispatchFailure(
 
 function dateOutsideGoalLifetime(date: string, goal: GoalLifetimeWindow) {
   return date < goal.startDate || (goal.endDate !== null && date > goal.endDate);
+}
+
+async function loadSuppressionGraphForGoal({
+  supabase,
+  ownerId,
+  goalId,
+}: {
+  supabase: ExactDateClient;
+  ownerId: string;
+  goalId: string;
+}): Promise<
+  | {
+      links: Array<{ sourceGoalId: string; targetGoalId: string }>;
+      sourcesById: Map<string, LinkSuppressionSource>;
+    }
+  | PlannerExactDateDispatchFailure
+> {
+  const links: Array<{ sourceGoalId: string; targetGoalId: string }> = [];
+  const sourcesById = new Map<string, LinkSuppressionSource>();
+  const visitedTargets = new Set<string>([goalId]);
+  let frontierTargetGoalIds = [goalId];
+
+  while (frontierTargetGoalIds.length > 0) {
+    const targetLinksResponse = await supabase
+      .from("goal_links")
+      .select(GOAL_LINK_SOURCE_SELECT)
+      .in("target_goal_id", frontierTargetGoalIds)
+      .eq("owner_id", ownerId);
+
+    if (targetLinksResponse.error) {
+      return dispatchFailure(
+        503,
+        "planner_goal_lookup_failed",
+        "Planner goal state could not be loaded."
+      );
+    }
+
+    const linkRows = (targetLinksResponse.data ?? []) as GoalLinkRow[];
+    const nextFrontierTargetGoalIds = new Set<string>();
+
+    for (const linkRow of linkRows) {
+      links.push({
+        sourceGoalId: linkRow.source_goal_id,
+        targetGoalId: linkRow.target_goal_id,
+      });
+
+      const sourceRecord = Array.isArray(linkRow.source)
+        ? (linkRow.source[0] ?? null)
+        : linkRow.source;
+      if (sourceRecord) {
+        sourcesById.set(sourceRecord.id, {
+          id: sourceRecord.id,
+          ownerId: sourceRecord.owner_id,
+          isDeleted: sourceRecord.is_deleted,
+          archivedAt: sourceRecord.archived_at,
+          startDate: sourceRecord.start_date,
+          endDate: sourceRecord.end_date,
+          frequencyType: sourceRecord.frequency_type,
+          targetCount: sourceRecord.target_count,
+        });
+      }
+
+      if (!visitedTargets.has(linkRow.source_goal_id)) {
+        visitedTargets.add(linkRow.source_goal_id);
+        nextFrontierTargetGoalIds.add(linkRow.source_goal_id);
+      }
+    }
+
+    frontierTargetGoalIds = Array.from(nextFrontierTargetGoalIds);
+  }
+
+  return { links, sourcesById };
 }
 
 async function ensureExpectedDigest({
@@ -264,73 +356,18 @@ export async function applyPlannerGoalDateFact({
     return digestFailure;
   }
   const localToday = getDateInTimezone(new Date(), timezone);
-
-  const targetLinksResponse = await supabase
-    .from("goal_links")
-    .select(
-      "id, source_goal_id, source:goals!goal_links_source_goal_id_fkey(id, owner_id, start_date, end_date, frequency_type, target_count, is_deleted, archived_at)"
-    )
-    .eq("target_goal_id", goalId)
-    .eq("owner_id", ownerId);
-
-  if (targetLinksResponse.error) {
-    return dispatchFailure(
-      503,
-      "planner_goal_lookup_failed",
-      "Planner goal state could not be loaded."
-    );
-  }
-  const linkRows = (targetLinksResponse.data ?? []) as Array<{
-    source_goal_id: string;
-    source:
-      | {
-          id: string;
-          owner_id: string;
-          start_date: string;
-          end_date: string | null;
-          frequency_type: "fixed_milestones" | "recurring";
-          target_count: number | null;
-          is_deleted: boolean;
-          archived_at: string | null;
-        }
-      | Array<{
-          id: string;
-          owner_id: string;
-          start_date: string;
-          end_date: string | null;
-          frequency_type: "fixed_milestones" | "recurring";
-          target_count: number | null;
-          is_deleted: boolean;
-          archived_at: string | null;
-        }>
-      | null;
-  }>;
-  const suppressionSourcesById = new Map<string, LinkSuppressionSource>();
-  for (const linkRow of linkRows) {
-    const sourceRecord = Array.isArray(linkRow.source)
-      ? (linkRow.source[0] ?? null)
-      : linkRow.source;
-    if (!sourceRecord) {
-      continue;
-    }
-    suppressionSourcesById.set(sourceRecord.id, {
-      id: sourceRecord.id,
-      ownerId: sourceRecord.owner_id,
-      isDeleted: sourceRecord.is_deleted,
-      archivedAt: sourceRecord.archived_at,
-      startDate: sourceRecord.start_date,
-      endDate: sourceRecord.end_date,
-      frequencyType: sourceRecord.frequency_type,
-      targetCount: sourceRecord.target_count,
-    });
+  const suppressionGraph = await loadSuppressionGraphForGoal({
+    supabase,
+    ownerId,
+    goalId,
+  });
+  if ("ok" in suppressionGraph) {
+    return suppressionGraph;
   }
   const suppression = resolveLinkSuppression({
     goalId,
-    links: linkRows.map((linkRow) => ({
-      sourceGoalId: linkRow.source_goal_id,
-      targetGoalId: goalId,
-    })),
-    sourcesById: suppressionSourcesById,
+    links: suppressionGraph.links,
+    sourcesById: suppressionGraph.sourcesById,
     ownerId,
     asOfDate: localToday,
   });

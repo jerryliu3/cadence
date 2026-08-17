@@ -123,15 +123,17 @@ describe("exact-date dispatch helpers", () => {
   it("rejects planner goal dispatch when a linked source still covers the date", async () => {
     const targetGoalLinksQuery = {
       select: vi.fn(),
+      in: vi.fn(),
       eq: vi.fn(),
     };
     targetGoalLinksQuery.select.mockReturnValue(targetGoalLinksQuery);
+    targetGoalLinksQuery.in.mockReturnValue(targetGoalLinksQuery);
     targetGoalLinksQuery.eq
-      .mockReturnValueOnce(targetGoalLinksQuery)
       .mockResolvedValueOnce({
       data: [
         {
           source_goal_id: "22000000-0000-4000-8000-000000000099",
+          target_goal_id: goalId,
           source: {
             id: "22000000-0000-4000-8000-000000000099",
             owner_id: "owner-a",
@@ -145,6 +147,99 @@ describe("exact-date dispatch helpers", () => {
         },
       ],
       error: null,
+      })
+      .mockResolvedValueOnce({
+      data: [],
+      error: null,
+      });
+    const supabase = {
+      rpc: vi.fn().mockResolvedValue({
+        data: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        error: null,
+      }),
+      from: vi.fn((table: string) => {
+        if (table !== "goal_links") {
+          throw new Error(`unexpected table: ${table}`);
+        }
+        return targetGoalLinksQuery;
+      }),
+    } as unknown as Parameters<typeof applyPlannerGoalDateFact>[0]["supabase"];
+
+    const result = await applyPlannerGoalDateFact({
+      supabase,
+      ownerId: "owner-a",
+      goalId,
+      date: "2026-08-05",
+      desiredFactState: "present",
+      timezone: "UTC",
+      goalLifetime: { startDate: "2026-08-01", endDate: "2026-08-31" },
+      expectation: {
+        expectedDigest:
+          "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      },
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      status: 422,
+      code: "linked_goal_disallowed",
+      message:
+        "Linked target goals cannot be completed through plan-goal date facts.",
+    });
+  });
+
+  it("rejects planner goal dispatch when suppression comes from an ancestor behind a deleted intermediate", async () => {
+    const intermediateId = "22000000-0000-4000-8000-000000000090";
+    const ancestorId = "22000000-0000-4000-8000-000000000091";
+    const targetGoalLinksQuery = {
+      select: vi.fn(),
+      in: vi.fn(),
+      eq: vi.fn(),
+    };
+    targetGoalLinksQuery.select.mockReturnValue(targetGoalLinksQuery);
+    targetGoalLinksQuery.in.mockReturnValue(targetGoalLinksQuery);
+    targetGoalLinksQuery.eq
+      .mockResolvedValueOnce({
+        data: [
+          {
+            source_goal_id: intermediateId,
+            target_goal_id: goalId,
+            source: {
+              id: intermediateId,
+              owner_id: "owner-a",
+              start_date: "2026-01-01",
+              end_date: "2026-12-31",
+              frequency_type: "recurring",
+              target_count: null,
+              is_deleted: true,
+              archived_at: null,
+            },
+          },
+        ],
+        error: null,
+      })
+      .mockResolvedValueOnce({
+        data: [
+          {
+            source_goal_id: ancestorId,
+            target_goal_id: intermediateId,
+            source: {
+              id: ancestorId,
+              owner_id: "owner-a",
+              start_date: "2026-01-01",
+              end_date: "2026-12-31",
+              frequency_type: "recurring",
+              target_count: null,
+              is_deleted: false,
+              archived_at: null,
+            },
+          },
+        ],
+        error: null,
+      })
+      .mockResolvedValueOnce({
+        data: [],
+        error: null,
       });
     const supabase = {
       rpc: vi.fn().mockResolvedValue({
@@ -185,15 +280,17 @@ describe("exact-date dispatch helpers", () => {
   it("allows planner goal dispatch when the linked source already ended", async () => {
     const targetGoalLinksQuery = {
       select: vi.fn(),
+      in: vi.fn(),
       eq: vi.fn(),
     };
     targetGoalLinksQuery.select.mockReturnValue(targetGoalLinksQuery);
+    targetGoalLinksQuery.in.mockReturnValue(targetGoalLinksQuery);
     targetGoalLinksQuery.eq
-      .mockReturnValueOnce(targetGoalLinksQuery)
       .mockResolvedValueOnce({
       data: [
         {
           source_goal_id: "22000000-0000-4000-8000-000000000098",
+          target_goal_id: goalId,
           source: {
             id: "22000000-0000-4000-8000-000000000098",
             owner_id: "owner-a",
@@ -206,6 +303,10 @@ describe("exact-date dispatch helpers", () => {
           },
         },
       ],
+      error: null,
+      })
+      .mockResolvedValueOnce({
+      data: [],
       error: null,
       });
 
@@ -257,15 +358,17 @@ describe("exact-date dispatch helpers", () => {
   it("allows planner goal dispatch when source is soft-deleted or archived", async () => {
     const targetGoalLinksQuery = {
       select: vi.fn(),
+      in: vi.fn(),
       eq: vi.fn(),
     };
     targetGoalLinksQuery.select.mockReturnValue(targetGoalLinksQuery);
+    targetGoalLinksQuery.in.mockReturnValue(targetGoalLinksQuery);
     targetGoalLinksQuery.eq
-      .mockReturnValueOnce(targetGoalLinksQuery)
       .mockResolvedValueOnce({
       data: [
         {
           source_goal_id: "22000000-0000-4000-8000-000000000097",
+          target_goal_id: goalId,
           source: {
             id: "22000000-0000-4000-8000-000000000097",
             owner_id: "owner-a",
@@ -279,6 +382,7 @@ describe("exact-date dispatch helpers", () => {
         },
         {
           source_goal_id: "22000000-0000-4000-8000-000000000096",
+          target_goal_id: goalId,
           source: {
             id: "22000000-0000-4000-8000-000000000096",
             owner_id: "owner-a",
@@ -291,6 +395,10 @@ describe("exact-date dispatch helpers", () => {
           },
         },
       ],
+      error: null,
+      })
+      .mockResolvedValueOnce({
+      data: [],
       error: null,
       });
     const rpc = vi
@@ -337,11 +445,12 @@ describe("exact-date dispatch helpers", () => {
   it("returns lookup failure when goal link embed read fails", async () => {
     const targetGoalLinksQuery = {
       select: vi.fn(),
+      in: vi.fn(),
       eq: vi.fn(),
     };
     targetGoalLinksQuery.select.mockReturnValue(targetGoalLinksQuery);
+    targetGoalLinksQuery.in.mockReturnValue(targetGoalLinksQuery);
     targetGoalLinksQuery.eq
-      .mockReturnValueOnce(targetGoalLinksQuery)
       .mockResolvedValueOnce({
       data: null,
       error: { message: "db fail" },
