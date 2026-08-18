@@ -99,13 +99,6 @@ const serverEnvSchema = publicEnvSchema.extend({
   SOCIAL_ENABLED: booleanFromEnv(false),
   INTEGRATIONS_ENABLED: booleanFromEnv(false),
   JOURNEY_ENABLED: booleanFromEnv(false),
-  JOURNEY_VIDEO_ENABLED: booleanFromEnv(false),
-  JOURNEY_RIVE_ENABLED: booleanFromEnv(false),
-  JOURNEY_SOCIAL_OVERLAY_ENABLED: booleanFromEnv(false),
-  JOURNEY_ASSET_MANIFEST_VERSION: z.preprocess((value) => {
-    const normalized = emptyToUndefined(value);
-    return normalized === undefined ? "v1" : normalized;
-  }, z.string().min(1)),
   INTEGRATIONS_ROLLOUT_STAGE: z.preprocess((value) => {
     const normalized = emptyToUndefined(value);
     return normalized === undefined ? "off" : normalized;
@@ -178,11 +171,6 @@ function readServerEnvInput() {
     SOCIAL_ENABLED: process.env.SOCIAL_ENABLED,
     INTEGRATIONS_ENABLED: process.env.INTEGRATIONS_ENABLED,
     JOURNEY_ENABLED: process.env.JOURNEY_ENABLED,
-    JOURNEY_VIDEO_ENABLED: process.env.JOURNEY_VIDEO_ENABLED,
-    JOURNEY_RIVE_ENABLED: process.env.JOURNEY_RIVE_ENABLED,
-    JOURNEY_SOCIAL_OVERLAY_ENABLED:
-      process.env.JOURNEY_SOCIAL_OVERLAY_ENABLED,
-    JOURNEY_ASSET_MANIFEST_VERSION: process.env.JOURNEY_ASSET_MANIFEST_VERSION,
     INTEGRATIONS_ROLLOUT_STAGE: process.env.INTEGRATIONS_ROLLOUT_STAGE,
     INTEGRATIONS_ALLOWED_USER_IDS: process.env.INTEGRATIONS_ALLOWED_USER_IDS,
     CALENDAR_COACH_DISABLE_QUOTA: process.env.CALENDAR_COACH_DISABLE_QUOTA,
