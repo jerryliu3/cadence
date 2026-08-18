@@ -156,6 +156,7 @@ export interface PlannerContextPayload {
     goalId: string;
     requirementFingerprint: string;
     policyFingerprint: string;
+    coverageFingerprint: string;
     policyRevision: number;
     lockSignature: string;
     effectiveSpanEnd: string;

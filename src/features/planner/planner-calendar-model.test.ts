@@ -114,6 +114,7 @@ describe("selectPlannerCalendarModel", () => {
             goalId: "goal-1",
             requirementFingerprint: "fingerprint",
             policyFingerprint: "policy-fingerprint",
+            coverageFingerprint: "coverage-fingerprint",
             policyRevision: 1,
             lockSignature: "lock",
             effectiveSpanEnd: "2026-08-31",

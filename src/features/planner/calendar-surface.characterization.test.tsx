@@ -564,6 +564,7 @@ describe("CalendarSurface characterization", () => {
         goalId: "goal-a",
         requirementFingerprint: "a".repeat(64),
         policyFingerprint: "p".repeat(64),
+        coverageFingerprint: "c".repeat(64),
         policyRevision: 1,
         lockSignature: "lock-a",
         effectiveSpanEnd: "2027-07-31",
@@ -574,6 +575,7 @@ describe("CalendarSurface characterization", () => {
         goalId: "goal-b",
         requirementFingerprint: "b".repeat(64),
         policyFingerprint: "q".repeat(64),
+        coverageFingerprint: "d".repeat(64),
         policyRevision: 1,
         lockSignature: "lock-b",
         effectiveSpanEnd: "2027-07-31",
@@ -584,7 +586,7 @@ describe("CalendarSurface characterization", () => {
     postJsonMock.mockResolvedValue(context);
 
     const expectedSummaries = summarizePlannerGoalUnplaceableRecords({
-      records: context.unplaceableGoals,
+      records: context.unplaceableGoals ?? [],
       goalTitles: context.goalTitles,
     });
     render(

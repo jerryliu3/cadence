@@ -158,6 +158,7 @@ function unplaceableRecord(
     requirementFingerprint:
       input.requirementFingerprint ?? computeRequirementFingerprint(goal()),
     policyFingerprint: input.policyFingerprint ?? DEFAULT_POLICY_FINGERPRINT,
+    coverageFingerprint: input.coverageFingerprint ?? "",
     policyRevision: input.policyRevision ?? 1,
     lockSignature: input.lockSignature ?? "lock-signature",
     effectiveSpanEnd: input.effectiveSpanEnd ?? "2028-07-31",
@@ -1406,7 +1407,7 @@ describe("preparePlannerSchedule", () => {
     expect(targetOutcome?.unplaced_count).toBe(2);
   });
 
-  it("does not double-count projected source coverage with existing linked target completions", async () => {
+  it("composes projected source coverage with existing linked target completions", async () => {
     mocks.resolveCanonicalAsOfDate.mockReturnValue("2026-08-18");
     const sourceGoal = goal({
       id: "36363636-3636-4363-8363-363636363636",
@@ -1480,7 +1481,75 @@ describe("preparePlannerSchedule", () => {
     const targetOutcome = rpcPayload.p_unplaceable.find(
       (entry) => entry.goal_id === targetGoal.id
     );
-    expect(targetOutcome?.unplaced_count).toBe(1);
+    expect(targetOutcome?.unplaced_count).toBe(0);
+  });
+
+  it("applies projected source coverage after already-credited target ordinals", async () => {
+    mocks.resolveCanonicalAsOfDate.mockReturnValue("2026-08-18");
+    const sourceGoal = goal({
+      id: "43434343-4343-4434-8434-434343434343",
+      title: "Source for prefix composition",
+      frequency_type: "recurring",
+      recurrence_interval: "weekly",
+      target_count: 5,
+      milestone_names: null,
+      start_date: "2026-08-01",
+      end_date: "2026-08-31",
+    });
+    const targetGoal = goal({
+      id: "44444444-4444-4444-8444-444444444444",
+      title: "Target with direct completions",
+      frequency_type: "fixed_milestones",
+      recurrence_interval: null,
+      target_count: 13,
+      milestone_names: Array.from({ length: 13 }, (_, index) => `${index + 1}`),
+      start_date: "2026-01-01",
+      end_date: "2026-12-31",
+    });
+    const sourceItems = Array.from({ length: 5 }, (_, index) =>
+      persistedItem({
+        id: `source-prefix-item-${index + 1}`,
+        goal_id: sourceGoal.id,
+        unit_key: `total:${index + 1}`,
+        scheduled_date: `2026-08-${String(20 + index).padStart(2, "0")}`,
+        original_scheduled_date: `2026-08-${String(20 + index).padStart(2, "0")}`,
+        scheduled_time: null,
+        locked: false,
+      })
+    );
+    const targetManualCompletions: Completion[] = Array.from(
+      { length: 8 },
+      (_, index) => ({
+        id: `target-direct-completion-${index + 1}`,
+        goal_id: targetGoal.id,
+        user_id: OWNER_ID,
+        completed_on: `2026-08-${String(index + 1).padStart(2, "0")}`,
+        source: "manual",
+        created_at: `2026-08-${String(index + 1).padStart(2, "0")}T00:00:00.000Z`,
+      })
+    );
+    mocks.loadPlannerPreparationSnapshot.mockResolvedValue(
+      preparationSnapshot(
+        [sourceGoal, targetGoal],
+        sourceItems,
+        [],
+        targetManualCompletions,
+        [{ sourceGoalId: sourceGoal.id, targetGoalId: targetGoal.id }]
+      )
+    );
+    mocks.runPlannerKernel.mockImplementation((kernelInput) =>
+      kernelOutput(kernelInput.goals[0].id, [])
+    );
+
+    await prepare();
+
+    const rpcPayload = mocks.rpc.mock.calls[0]?.[1] as {
+      p_unplaceable: Array<{ goal_id: string; unplaced_count: number }>;
+    };
+    const targetOutcome = rpcPayload.p_unplaceable.find(
+      (entry) => entry.goal_id === targetGoal.id
+    );
+    expect(targetOutcome?.unplaced_count).toBe(0);
   });
 
   it("applies projected linked coverage to targeted recurring goals", async () => {
@@ -1623,6 +1692,7 @@ describe("preparePlannerSchedule", () => {
             goal_id: plannerGoal.id,
             requirement_fingerprint: existingRecord.requirementFingerprint,
             policy_fingerprint: existingRecord.policyFingerprint,
+            coverage_fingerprint: existingRecord.coverageFingerprint,
             policy_revision: existingRecord.policyRevision,
             lock_signature: existingRecord.lockSignature,
             effective_span_end: existingRecord.effectiveSpanEnd,

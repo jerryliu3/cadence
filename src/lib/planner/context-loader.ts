@@ -441,6 +441,7 @@ async function loadPlannerGoalUnplaceableRecords(
         goalId: row.goal_id,
         requirementFingerprint: row.requirement_fingerprint,
         policyFingerprint: row.policy_fingerprint ?? "",
+        coverageFingerprint: row.coverage_fingerprint ?? "",
         policyRevision: row.policy_revision,
         lockSignature: row.lock_signature,
         effectiveSpanEnd: row.effective_span_end,
