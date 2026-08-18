@@ -9,7 +9,6 @@ export interface PlannerGoalUnplaceableRecord {
   goalId: string;
   requirementFingerprint: string;
   policyFingerprint: string;
-  coverageFingerprint: string;
   policyRevision: number;
   lockSignature: string;
   effectiveSpanEnd: string;
@@ -51,7 +50,6 @@ export function isPlannerGoalUnplaceableRecordValid({
   record,
   goal,
   policyFingerprint,
-  coverageFingerprint,
   policyRevision,
   lockSignature,
   preparationEnd,
@@ -59,7 +57,6 @@ export function isPlannerGoalUnplaceableRecordValid({
   record: PlannerGoalUnplaceableRecord;
   goal: Goal;
   policyFingerprint: string;
-  coverageFingerprint?: string;
   policyRevision: number;
   lockSignature: string;
   preparationEnd: string;
@@ -71,8 +68,6 @@ export function isPlannerGoalUnplaceableRecordValid({
   return (
     record.requirementFingerprint === requirementFingerprint &&
     record.policyFingerprint === policyFingerprint &&
-    (coverageFingerprint === undefined ||
-      record.coverageFingerprint === coverageFingerprint) &&
     record.policyRevision === policyRevision &&
     record.lockSignature === lockSignature &&
     compareDateStrings(record.effectiveSpanEnd, currentEffectiveEnd) >= 0
