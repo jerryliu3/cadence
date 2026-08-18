@@ -17,7 +17,6 @@ import { JourneyContrastLayer } from "./journey-contrast-layer";
 import { RiveJourneyOverlay } from "./rive-journey-overlay.web";
 import { StaticJourneyPoster } from "./static-journey-poster.web";
 import type { JourneyFeatureFlags } from "./types";
-import { useJourneyManifest } from "./use-journey-manifest.web";
 import { WebJourneyVideo } from "./web-journey-video";
 
 const JOURNEY_ASSET_VERSION = defaultJourneyAssetManifest.assetVersion;
@@ -73,8 +72,8 @@ export function JourneyBackdrop({ flags }: JourneyBackdropProps) {
     useState<JourneyEffectEvent | null>(null);
   const consumedEffectIdsRef = useRef(new Set<string>());
   const previousCheckpointRef = useRef<number | null>(null);
-  const { manifest, source: manifestSource } =
-    useJourneyManifest(JOURNEY_ASSET_VERSION);
+  const manifest = defaultJourneyAssetManifest;
+  const manifestSource = "bundled";
 
   const progressState = useMemo(
     () =>
