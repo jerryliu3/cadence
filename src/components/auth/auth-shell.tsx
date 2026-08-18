@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 
 interface AuthShellProps {
   title: string;
@@ -8,6 +9,7 @@ interface AuthShellProps {
   alternateHref: string;
   alternateLabel: string;
   alternateText: string;
+  backgroundClassName?: string;
   children: ReactNode;
 }
 
@@ -17,10 +19,16 @@ export function AuthShell({
   alternateHref,
   alternateLabel,
   alternateText,
+  backgroundClassName,
   children,
 }: AuthShellProps) {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4 py-10">
+    <div
+      className={cn(
+        "flex min-h-screen items-center justify-center px-4 py-10",
+        backgroundClassName ?? "bg-background"
+      )}
+    >
       <Card className="w-full max-w-md shadow-sm">
         <CardHeader>
           <CardTitle className="text-2xl">{title}</CardTitle>

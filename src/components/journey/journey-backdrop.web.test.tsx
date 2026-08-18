@@ -16,10 +16,6 @@ vi.mock("@/components/xp/xp-profile-provider", () => ({
 
 const enabledFlags = {
   journeyEnabled: true,
-  journeyVideoEnabled: true,
-  journeyRiveEnabled: true,
-  journeySocialOverlayEnabled: false,
-  journeyAssetManifestVersion: "v1",
 } as const;
 
 describe("JourneyBackdrop", () => {
@@ -51,12 +47,12 @@ describe("JourneyBackdrop", () => {
     expect(posterLayer).toHaveClass("opacity-0");
   });
 
-  it("disables video when flag is off", () => {
+  it("does not render video when journey is disabled", () => {
     render(
       <JourneyBackdrop
         flags={{
           ...enabledFlags,
-          journeyVideoEnabled: false,
+          journeyEnabled: false,
         }}
       />
     );

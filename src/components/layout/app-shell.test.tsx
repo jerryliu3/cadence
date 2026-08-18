@@ -54,10 +54,6 @@ const emptyDuoProps = {
   plannerPrimaryTabPreference: "checklist" as const,
   journeyFlags: {
     journeyEnabled: false,
-    journeyVideoEnabled: false,
-    journeyRiveEnabled: false,
-    journeySocialOverlayEnabled: false,
-    journeyAssetManifestVersion: "v1",
   },
 } as const;
 
