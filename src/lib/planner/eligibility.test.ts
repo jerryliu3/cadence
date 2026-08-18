@@ -96,7 +96,6 @@ describe("goal-level eligibility guards", () => {
         ownerId: "owner-a",
         goal: cadenceGoal,
         currentLinkRole: "none",
-        asOfDate: "2026-08-05",
       })
     ).toEqual({
       eligible: true,
@@ -114,7 +113,6 @@ describe("goal-level eligibility guards", () => {
           start_date: "2026-09-01",
         },
         currentLinkRole: "none",
-        asOfDate: "2026-08-05",
       })
     ).toEqual({
       eligible: false,
@@ -122,7 +120,7 @@ describe("goal-level eligibility guards", () => {
     });
   });
 
-  it("allows targeted recurring goals without end dates via soft horizon", () => {
+  it("requires end dates for targeted recurring goals", () => {
     expect(
       evaluateGoalEligibility({
         window: getScopeDateRange("2026-08"),
@@ -133,11 +131,10 @@ describe("goal-level eligibility guards", () => {
           target_count: 12,
         },
         currentLinkRole: "none",
-        asOfDate: "2026-08-05",
       })
     ).toEqual({
-      eligible: true,
-      reason: "eligible",
+      eligible: false,
+      reason: "missing_end_date",
     });
   });
 
@@ -169,7 +166,6 @@ describe("goal-level eligibility guards", () => {
         ownerId: "owner-a",
         goal: longHorizonGoal,
         currentLinkRole: "none",
-        asOfDate: "2026-08-05",
       })
     ).toEqual({
       eligible: false,
@@ -188,7 +184,6 @@ describe("goal-level eligibility guards", () => {
           end_date: "2028-12-31",
         },
         currentLinkRole: "none",
-        asOfDate: "2026-08-05",
       })
     ).toEqual({
       eligible: false,
