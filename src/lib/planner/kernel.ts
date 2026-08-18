@@ -783,7 +783,6 @@ export function runPlannerKernel(
     completionDatesByGoal,
     preserveExistingAssignments:
       rawInput.preserveExistingAssignments === true,
-    recoverPastPlacements: rawInput.recoverPastPlacements === true,
     draftPinnedDates: rawInput.draftPinnedDates ?? {},
     idealDateContextByGoal: new Map(
       eligibleGoals.flatMap((goal) => {
@@ -1025,7 +1024,6 @@ export function runPlannerKernel(
     goals: eligibleGoals,
     completions,
     links,
-    linkSourceGoals: rawInput.linkSourceGoals,
     assessments: normalizedAssessments,
     policy,
     basePlan: rawInput.basePlan

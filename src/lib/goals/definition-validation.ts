@@ -95,6 +95,30 @@ export function getGoalHorizonEndDate(startDate: string): string | null {
   return `${endYear}-${String(endMonth).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
 }
 
+export function resolveGoalPlanningEndDate({
+  frequencyType,
+  targetCount,
+  startDate,
+  endDate,
+  asOfDate,
+}: Pick<
+  GoalDefinitionValidationInput,
+  "frequencyType" | "targetCount" | "startDate" | "endDate" | "asOfDate"
+>) {
+  const normalizedEndDate = endDate && endDate.length > 0 ? endDate : null;
+  if (!isOrdinalGoalDefinition({ frequencyType, targetCount })) {
+    return normalizedEndDate;
+  }
+  if (normalizedEndDate !== null) {
+    return normalizedEndDate;
+  }
+  const planningStart =
+    asOfDate && compareDateStrings(asOfDate, startDate) > 0
+      ? asOfDate
+      : startDate;
+  return getGoalHorizonEndDate(planningStart);
+}
+
 export function getGoalDeadlineMonthSpan({
   startDate,
   endDate,

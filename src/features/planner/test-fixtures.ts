@@ -98,6 +98,7 @@ export function buildPlannerContext({
     goalTitles: {
       "goal-1": "Running",
     },
+    links: [],
     preferences: {
       timezone: "UTC",
       timezoneConfirmedAt: "2026-08-01T00:00:00.000Z",
