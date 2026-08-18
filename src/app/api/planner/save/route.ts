@@ -40,7 +40,6 @@ import {
 } from "@/lib/planner/dates";
 import { plannerPolicySchema } from "@/lib/planner/policy";
 import type { Json } from "@/lib/supabase/database.types";
-import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 
@@ -228,10 +227,7 @@ function plannerKernelErrorToRouteError(error: PlannerError) {
 
 export async function handlePlannerSave(request: Request) {
   return withPlannerRoute(async ({ correlationId }) => {
-    const supabase = await createClient();
-    const routeContext = await requirePlannerRouteContext({
-      supabase,
-    });
+    const routeContext = await requirePlannerRouteContext(request);
     const body = await parseBoundedJsonBody(
       request,
       Math.min(MAX_API_BODY_BYTES, 256 * 1024),
