@@ -836,6 +836,81 @@ describe("pure planner kernel", () => {
     expect(output.workUnits).toHaveLength(0);
   });
 
+  it("keeps unresolved resumed-prefix ordinals in scope after linked suppression resumes", () => {
+    const sourceGoal = goal({
+      id: "goal-source-resume",
+      target_count: 5,
+      start_date: "2026-08-01",
+      end_date: "2026-08-31",
+    });
+    const targetGoal = goal({
+      id: "goal-target-resumed",
+      frequency_type: "fixed_milestones",
+      recurrence_interval: null,
+      target_count: 100,
+      milestone_names: Array.from({ length: 100 }, (_, index) => `M${index + 1}`),
+      start_date: "2026-01-01",
+      end_date: "2026-12-31",
+    });
+    const requirementFingerprint = computeRequirementFingerprint(targetGoal);
+    const addDays = (startDate: string, days: number) => {
+      const date = new Date(`${startDate}T00:00:00.000Z`);
+      date.setUTCDate(date.getUTCDate() + days);
+      return date.toISOString().slice(0, 10);
+    };
+    const preservedSuffixAssignments = Array.from({ length: 89 }, (_, index) => {
+      const ordinal = index + 12;
+      return {
+        goalId: targetGoal.id,
+        requirementFingerprint,
+        unitKey: `milestone:${ordinal}`,
+        scheduledDate: addDays("2026-09-01", index),
+        locked: false,
+      };
+    });
+    const targetCompletions: Completion[] = [
+      "2026-05-24",
+      "2026-06-14",
+      "2026-06-30",
+      "2026-07-27",
+      "2026-07-28",
+      "2026-08-03",
+      "2026-08-04",
+      "2026-08-05",
+    ].map((completedOn, index) => ({
+      id: `completion-${index + 1}`,
+      goal_id: targetGoal.id,
+      user_id: targetGoal.owner_id,
+      completed_on: completedOn,
+      source: "manual",
+      created_at: `${completedOn}T00:00:00.000Z`,
+    }));
+    const output = runPlannerKernel(
+      input({
+        startDate: "2026-09-01",
+        endDate: "2026-12-31",
+        asOfDate: "2026-08-18",
+        goals: [targetGoal],
+        completions: targetCompletions,
+        links: [{ sourceGoalId: sourceGoal.id, targetGoalId: targetGoal.id }],
+        linkSourceGoals: [sourceGoal],
+        preserveExistingAssignments: true,
+        basePlan: {
+          planId: "plan-a",
+          version: 1,
+          assignments: preservedSuffixAssignments,
+          completionToUnit: {},
+          issueCodes: [],
+        },
+      })
+    );
+
+    expect(output.workUnits.map((unit) => unit.unitKey)).toEqual(
+      expect.arrayContaining(["milestone:9", "milestone:10", "milestone:11"])
+    );
+    expect(output.solver.issueCodes).toContain("placement_shortfall");
+  });
+
   it("honors locks that invert ordinal order", () => {
     const output = runPlannerKernel(
       input({
