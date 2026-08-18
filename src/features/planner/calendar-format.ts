@@ -3,6 +3,7 @@ import type { PlannerDraftVisualKind } from "@/lib/planner/diff";
 import { getDateInTimezone } from "@/lib/dates/timezone";
 import { weekStartOptions } from "@/lib/dates/weekday-options";
 import { normalizeWeekStartsOn } from "@/lib/dates/week-start";
+import { defaultMilestoneName } from "@/lib/goals/milestones";
 import type {
   CompletionControlDisabledReason,
   PlannerDayDetailEntry,
@@ -45,6 +46,18 @@ export function isDerivedCounterLabel(value: string | null) {
   return /^total:\d+$/i.test(value.trim());
 }
 
+function isCanonicalDefaultMilestoneLabel(
+  entry: Pick<PlannerDayDetailEntry, "label" | "unitKey">
+) {
+  const ordinalMatch = /^milestone:(\d+)$/.exec(entry.unitKey);
+  if (!entry.label || !ordinalMatch) {
+    return false;
+  }
+
+  const ordinal = Number(ordinalMatch[1]);
+  return ordinal > 0 && entry.label.trim() === defaultMilestoneName(ordinal - 1);
+}
+
 export function getEntryDisplayTitle(
   entry: Pick<PlannerDayDetailEntry, "goalTitle" | "label" | "unitKey">
 ) {
@@ -60,7 +73,11 @@ export function getEntryDisplayTitle(
 export function getEntryCompactTitle(
   entry: Pick<PlannerDayDetailEntry, "goalTitle" | "label" | "unitKey">
 ) {
-  if (entry.label && !isDerivedCounterLabel(entry.label)) {
+  if (
+    entry.label &&
+    !isDerivedCounterLabel(entry.label) &&
+    !isCanonicalDefaultMilestoneLabel(entry)
+  ) {
     if (!entry.goalTitle || entry.label !== entry.goalTitle) {
       return entry.label;
     }

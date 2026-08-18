@@ -54,6 +54,15 @@ describe("calendar entry subtitles", () => {
       })
     ).toBe("Next: Publish beta");
   });
+
+  it("keeps default milestone text when the subtitle shows both names", () => {
+    expect(
+      getEntrySubtitle({
+        goalTitle: "Launch",
+        label: "Milestone 2",
+      })
+    ).toBe("Next: Milestone 2");
+  });
 });
 
 describe("calendar compact entry titles", () => {
@@ -65,6 +74,46 @@ describe("calendar compact entry titles", () => {
         unitKey: "milestone:2",
       })
     ).toBe("Tempo run 4x800");
+  });
+
+  it("uses the goal title for canonical default milestone labels", () => {
+    expect(
+      getEntryCompactTitle({
+        goalTitle: "5k training block",
+        label: "Milestone 2",
+        unitKey: "milestone:2",
+      })
+    ).toBe("5k training block");
+  });
+
+  it("uses the goal title when the milestone label is absent", () => {
+    expect(
+      getEntryCompactTitle({
+        goalTitle: "5k training block",
+        label: null,
+        unitKey: "milestone:2",
+      })
+    ).toBe("5k training block");
+  });
+
+  it("keeps a default-looking label assigned to a different ordinal", () => {
+    expect(
+      getEntryCompactTitle({
+        goalTitle: "5k training block",
+        label: "Milestone 3",
+        unitKey: "milestone:2",
+      })
+    ).toBe("Milestone 3");
+  });
+
+  it("keeps the default label when no goal title is available", () => {
+    expect(
+      getEntryCompactTitle({
+        goalTitle: null,
+        label: "Milestone 2",
+        unitKey: "milestone:2",
+      })
+    ).toBe("Milestone 2");
   });
 
   it("falls back to canonical title for derived counter labels", () => {
