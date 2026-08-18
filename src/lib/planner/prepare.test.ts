@@ -1420,6 +1420,85 @@ describe("preparePlannerSchedule", () => {
     expect(targetOutcome?.unplaced_count).toBe(1);
   });
 
+  it("deduplicates projected coverage when two linked sources plan the exact same day", async () => {
+    mocks.resolveCanonicalAsOfDate.mockReturnValue("2026-08-18");
+    const sourceGoalA = goal({
+      id: "2aa2aa2a-2aa2-42aa-82aa-2aa2aa2aa2aa",
+      title: "Source A",
+      frequency_type: "recurring",
+      recurrence_interval: "weekly",
+      target_count: 1,
+      milestone_names: null,
+      start_date: "2026-08-01",
+      end_date: "2026-08-31",
+    });
+    const sourceGoalB = goal({
+      id: "2bb2bb2b-2bb2-42bb-82bb-2bb2bb2bb2bb",
+      title: "Source B",
+      frequency_type: "recurring",
+      recurrence_interval: "weekly",
+      target_count: 1,
+      milestone_names: null,
+      start_date: "2026-08-01",
+      end_date: "2026-08-31",
+    });
+    const targetGoal = goal({
+      id: "2cc2cc2c-2cc2-42cc-82cc-2cc2cc2cc2cc",
+      title: "Target",
+      frequency_type: "fixed_milestones",
+      recurrence_interval: null,
+      target_count: 2,
+      milestone_names: ["1", "2"],
+      start_date: "2026-01-01",
+      end_date: "2026-12-31",
+    });
+    const sourceItems = [
+      persistedItem({
+        id: "2dd2dd2d-2dd2-42dd-82dd-2dd2dd2dd2dd",
+        goal_id: sourceGoalA.id,
+        unit_key: "total:1",
+        scheduled_date: "2026-08-21",
+        original_scheduled_date: "2026-08-21",
+        scheduled_time: null,
+        locked: false,
+      }),
+      persistedItem({
+        id: "2ee2ee2e-2ee2-42ee-82ee-2ee2ee2ee2ee",
+        goal_id: sourceGoalB.id,
+        unit_key: "total:1",
+        scheduled_date: "2026-08-21",
+        original_scheduled_date: "2026-08-21",
+        scheduled_time: null,
+        locked: false,
+      }),
+    ];
+    mocks.loadPlannerPreparationSnapshot.mockResolvedValue(
+      preparationSnapshot(
+        [sourceGoalA, sourceGoalB, targetGoal],
+        sourceItems,
+        [],
+        [],
+        [
+          { sourceGoalId: sourceGoalA.id, targetGoalId: targetGoal.id },
+          { sourceGoalId: sourceGoalB.id, targetGoalId: targetGoal.id },
+        ]
+      )
+    );
+    mocks.runPlannerKernel.mockImplementation((kernelInput) =>
+      kernelOutput(kernelInput.goals[0].id, [])
+    );
+
+    await prepare();
+
+    const rpcPayload = mocks.rpc.mock.calls[0]?.[1] as {
+      p_unplaceable: Array<{ goal_id: string; unplaced_count: number }>;
+    };
+    const targetOutcome = rpcPayload.p_unplaceable.find(
+      (entry) => entry.goal_id === targetGoal.id
+    );
+    expect(targetOutcome?.unplaced_count).toBe(1);
+  });
+
   it("filters projected source coverage to dates inside the target lifetime window", async () => {
     mocks.resolveCanonicalAsOfDate.mockReturnValue("2026-09-20");
     const sourceGoal = goal({
