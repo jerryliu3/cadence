@@ -15,10 +15,6 @@ describe("feature flags", () => {
       socialEnabled: false,
       integrationsEnabled: false,
       journeyEnabled: false,
-      journeyVideoEnabled: false,
-      journeyRiveEnabled: false,
-      journeySocialOverlayEnabled: false,
-      journeyAssetManifestVersion: "v1",
     });
     expect(isFeatureEnabled("crossMonthMovesEnabled")).toBe(false);
     expect(isFeatureEnabled("xpEnabled")).toBe(false);
@@ -36,10 +32,6 @@ describe("feature flags", () => {
       socialEnabled: false,
       integrationsEnabled: false,
       journeyEnabled: false,
-      journeyVideoEnabled: false,
-      journeyRiveEnabled: false,
-      journeySocialOverlayEnabled: false,
-      journeyAssetManifestVersion: "v1",
     });
   });
 
@@ -52,10 +44,6 @@ describe("feature flags", () => {
       socialEnabled: false,
       integrationsEnabled: false,
       journeyEnabled: false,
-      journeyVideoEnabled: false,
-      journeyRiveEnabled: false,
-      journeySocialOverlayEnabled: false,
-      journeyAssetManifestVersion: "v1",
     });
   });
 
@@ -68,10 +56,6 @@ describe("feature flags", () => {
       socialEnabled: true,
       integrationsEnabled: false,
       journeyEnabled: false,
-      journeyVideoEnabled: false,
-      journeyRiveEnabled: false,
-      journeySocialOverlayEnabled: false,
-      journeyAssetManifestVersion: "v1",
     });
   });
 
@@ -84,19 +68,11 @@ describe("feature flags", () => {
       socialEnabled: false,
       integrationsEnabled: true,
       journeyEnabled: false,
-      journeyVideoEnabled: false,
-      journeyRiveEnabled: false,
-      journeySocialOverlayEnabled: false,
-      journeyAssetManifestVersion: "v1",
     });
   });
 
-  it("reads journey visual feature flags from env", () => {
+  it("reads journey rollout flag from env", () => {
     vi.stubEnv("JOURNEY_ENABLED", "true");
-    vi.stubEnv("JOURNEY_VIDEO_ENABLED", "true");
-    vi.stubEnv("JOURNEY_RIVE_ENABLED", "true");
-    vi.stubEnv("JOURNEY_SOCIAL_OVERLAY_ENABLED", "true");
-    vi.stubEnv("JOURNEY_ASSET_MANIFEST_VERSION", "winter-v2");
     resetEnvCacheForTests();
     expect(getFeatureFlags()).toEqual({
       crossMonthMovesEnabled: false,
@@ -104,10 +80,6 @@ describe("feature flags", () => {
       socialEnabled: false,
       integrationsEnabled: false,
       journeyEnabled: true,
-      journeyVideoEnabled: true,
-      journeyRiveEnabled: true,
-      journeySocialOverlayEnabled: true,
-      journeyAssetManifestVersion: "winter-v2",
     });
   });
 });

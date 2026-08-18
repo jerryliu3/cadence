@@ -22,10 +22,6 @@ export function getFeatureFlags(): FeatureFlags {
     socialEnabled: env.SOCIAL_ENABLED,
     integrationsEnabled: env.INTEGRATIONS_ENABLED,
     journeyEnabled: env.JOURNEY_ENABLED,
-    journeyVideoEnabled: env.JOURNEY_VIDEO_ENABLED,
-    journeyRiveEnabled: env.JOURNEY_RIVE_ENABLED,
-    journeySocialOverlayEnabled: env.JOURNEY_SOCIAL_OVERLAY_ENABLED,
-    journeyAssetManifestVersion: env.JOURNEY_ASSET_MANIFEST_VERSION,
   };
 }
 
