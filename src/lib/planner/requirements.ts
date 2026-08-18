@@ -26,7 +26,7 @@ export interface NormalizedGoalRequirement {
   requirementFingerprint: string;
 }
 
-function positiveTarget(goal: Goal) {
+export function positiveTarget(goal: Goal) {
   return Math.max(1, goal.target_count ?? 1);
 }
 

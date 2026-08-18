@@ -1,10 +1,14 @@
 import type { Goal } from "@/lib/goals/types";
-import { resolveGoalPlanningEndDate } from "@/lib/goals/definition-validation";
+import {
+  isOrdinalGoalDefinition,
+  resolveGoalPlanningEndDate,
+} from "@/lib/goals/definition-validation";
 import { enumerateMonthsInWindow, type DateWindow } from "@/lib/planner/dates";
 import {
   MAX_HORIZON_MONTHS,
   MAX_WORK_UNITS,
 } from "@/lib/planner/contracts/bounds";
+import { positiveTarget } from "@/lib/planner/requirements";
 import type { EligibilityReason } from "@cadence/shared/planner/context";
 
 export type { EligibilityReason } from "@cadence/shared/planner/context";
@@ -91,13 +95,11 @@ export function evaluateGoalEligibility({
     endDate: effectiveEndDate,
   };
   const decision = evaluateOverlapV1Eligibility(window, normalizedGoal);
-  const targetCount = Math.max(1, goal.target_count ?? 1);
-  const isTargetedRecurringGoal =
-    goal.frequency_type === "recurring" &&
-    typeof goal.target_count === "number" &&
-    goal.target_count > 0;
-  const isOrdinalGoal =
-    goal.frequency_type === "fixed_milestones" || isTargetedRecurringGoal;
+  const targetCount = positiveTarget(goal);
+  const isOrdinalGoal = isOrdinalGoalDefinition({
+    frequencyType: goal.frequency_type,
+    targetCount: goal.target_count,
+  });
   if (decision.eligible && isOrdinalGoal && targetCount > MAX_WORK_UNITS) {
     return { eligible: false, reason: "target_exceeds_work_unit_limit" };
   }

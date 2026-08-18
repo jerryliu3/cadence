@@ -8,7 +8,6 @@ import {
   PlannerRouteError,
 } from "@/lib/planner/api";
 import {
-  MAX_WORK_UNITS,
   PLANNER_CONTRACT_VERSION,
   PLANNER_ELIGIBILITY_MODES,
 } from "@/lib/planner/contracts/bounds";
@@ -88,9 +87,7 @@ interface PersistedCompletionCreditItem {
 
 class PlannerPrecheckCompletionCreditError extends Error {
   constructor(
-    readonly code:
-      | "target_count_exceeds_bound"
-      | "completion_credit_reconciliation_failed",
+    readonly code: "completion_credit_reconciliation_failed",
     message: string,
     readonly details: Record<string, unknown> = {}
   ) {
@@ -206,22 +203,6 @@ export function computeCompletionCreditedUnitKeys({
   }
   const normalizedRequirement = normalizeGoalRequirement(goal);
   const requirement = normalizedRequirement.requirement;
-  if (
-    (requirement.kind === "milestone_sequence" ||
-      requirement.kind === "deadline_total") &&
-    requirement.targetCount > MAX_WORK_UNITS
-  ) {
-    throw new PlannerPrecheckCompletionCreditError(
-      "target_count_exceeds_bound",
-      "Planner pre-check target count exceeds supported work-unit bound.",
-      {
-        scope: "planner.prepare",
-        goalId: goal.id,
-        targetCount: requirement.targetCount,
-        maximum: MAX_WORK_UNITS,
-      }
-    );
-  }
   const baseAssignments: PlannerBaseAssignment[] = persistedItems.map((item) => ({
     goalId: goal.id,
     requirementFingerprint: normalizedRequirement.requirementFingerprint,
@@ -575,31 +556,6 @@ async function prepareOnce({
         lockSignature,
         preparationEnd,
       });
-    const requirement = normalizedRequirement.requirement;
-    if (
-      (requirement.kind === "milestone_sequence" ||
-        requirement.kind === "deadline_total") &&
-      requirement.targetCount > MAX_WORK_UNITS
-    ) {
-      reportAndHandlePrecheckCreditFailure({
-        error: new PlannerPrecheckCompletionCreditError(
-          "target_count_exceeds_bound",
-          "Planner required-unit key materialization exceeds supported work-unit bound.",
-          {
-            scope: "planner.prepare",
-            goalId: goal.id,
-            targetCount: requirement.targetCount,
-            maximum: MAX_WORK_UNITS,
-          }
-        ),
-        goal,
-        existingUnplaceableRecord,
-        existingRecordIsValid,
-        goalOutcomeByGoalId,
-        preserveRecordedOutcomeGoalIds,
-      });
-      continue;
-    }
     const goalWindows = goalWindowsState.windows as PreparationWindow[];
     const requiredUnitKeys = computeRequiredUnitKeys({
       goal,
