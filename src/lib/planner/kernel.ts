@@ -39,6 +39,7 @@ import {
 } from "@/lib/planner/eligibility";
 import {
   buildLinkSuppressionInboundIndex,
+  getLinkResumeDate,
   isSuppressedInWindow,
   resolveLinkSuppression,
   toLinkSuppressionSource,
@@ -200,12 +201,14 @@ function allocateOrdinalWindow({
   normalizedRequirement,
   window,
   asOfDate,
+  effectivePlacementStart,
   reconciledUnits,
 }: {
   goal: Goal;
   normalizedRequirement: NormalizedGoalRequirement;
   window: DateWindow;
   asOfDate: string;
+  effectivePlacementStart: string | null;
   reconciledUnits: PlannerWorkUnit[];
 }): OrdinalScopeAllocation | undefined {
   const requirement = normalizedRequirement.requirement;
@@ -240,10 +243,15 @@ function allocateOrdinalWindow({
   const monthWindows = new Map(
     lifetimeMonths.map((month) => [month, getScopeDateRange(month)])
   );
-  const projectableStart =
+  const baselineProjectableStart =
     compareCanonicalStrings(asOfDate, goal.start_date) > 0
       ? asOfDate
       : goal.start_date;
+  const projectableStart =
+    effectivePlacementStart &&
+    compareCanonicalStrings(effectivePlacementStart, baselineProjectableStart) > 0
+      ? effectivePlacementStart
+      : baselineProjectableStart;
   const lifetimeEnd = effectiveGoalEndDate;
   const ownershipWindow =
     compareCanonicalStrings(projectableStart, lifetimeEnd) <= 0
@@ -462,27 +470,32 @@ export function runPlannerKernel(
     suppressionSourcesById.set(goal.id, toLinkSuppressionSource(goal));
   }
   const suppressionInboundIndex = buildLinkSuppressionInboundIndex(links);
-  const eligibility = goals.map((goal) => ({
-    goal,
-    decision: evaluateGoalEligibility({
-      window,
+  const suppressionByGoalId = new Map<
+    string,
+    ReturnType<typeof resolveLinkSuppression>
+  >();
+  const eligibility = goals.map((goal) => {
+    const suppression = resolveLinkSuppression({
+      goalId: goal.id,
+      inboundSourceIdsByTargetId: suppressionInboundIndex,
+      sourcesById: suppressionSourcesById,
       ownerId: rawInput.ownerId,
-      goal,
-      currentLinkRole: isSuppressedInWindow(
-        resolveLinkSuppression({
-          goalId: goal.id,
-          inboundSourceIdsByTargetId: suppressionInboundIndex,
-          sourcesById: suppressionSourcesById,
-          ownerId: rawInput.ownerId,
-          asOfDate: rawInput.asOfDate,
-        }),
-        window
-      )
-        ? "target"
-        : "none",
       asOfDate: rawInput.asOfDate,
-    }),
-  }));
+    });
+    suppressionByGoalId.set(goal.id, suppression);
+    return {
+      goal,
+      decision: evaluateGoalEligibility({
+        window,
+        ownerId: rawInput.ownerId,
+        goal,
+        currentLinkRole: isSuppressedInWindow(suppression, window)
+          ? "target"
+          : "none",
+        asOfDate: rawInput.asOfDate,
+      }),
+    };
+  });
   const eligibleGoals = eligibility
     .filter((entry) => entry.decision.eligible)
     .map((entry) => entry.goal);
@@ -632,6 +645,15 @@ export function runPlannerKernel(
             normalizedRequirement: requirement,
             window,
             asOfDate: rawInput.asOfDate,
+            effectivePlacementStart: (() => {
+              const resumeDate = getLinkResumeDate(
+                suppressionByGoalId.get(goal.id) ?? { kind: "none" }
+              );
+              return resumeDate &&
+                compareCanonicalStrings(resumeDate, rawInput.asOfDate) > 0
+                ? resumeDate
+                : null;
+            })(),
             reconciledUnits: reconciled.units,
           });
     const scopedOrdinals =
