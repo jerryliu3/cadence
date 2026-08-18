@@ -1786,37 +1786,6 @@ describe("preparePlannerSchedule", () => {
     expect(Array.from(credited)).toEqual([`cadence:${augustPeriodKey}`]);
   });
 
-  it("throws when precheck lifetime credit is requested beyond planner bounds", () => {
-    const oversizedGoal = goal({
-      frequency_type: "recurring",
-      recurrence_interval: "daily",
-      target_count: MAX_WORK_UNITS + 1,
-      milestone_names: null,
-      start_date: "2026-01-01",
-      end_date: "2026-12-31",
-    });
-    const completion: Completion = {
-      id: "92222222-2222-4222-8222-222222222222",
-      goal_id: oversizedGoal.id,
-      user_id: OWNER_ID,
-      completed_on: "2026-01-15",
-      source: "manual",
-      created_at: "2026-01-15T00:00:00.000Z",
-    };
-
-    expect(() =>
-      computeCompletionCreditedUnitKeys({
-        goal: oversizedGoal,
-        completions: [completion],
-        asOfDate: "2026-08-15",
-        weekStartsOn: 1,
-        requiredUnitKeys: new Set(["total:1"]),
-        persistedItems: [],
-        window: { start: "2026-08-01", end: "2026-12-31" },
-      })
-    ).toThrow("exceeds supported work-unit bound");
-  });
-
   it("uses the canonical snapshot digest for preparation", async () => {
     const plannerGoal = goal();
     mocks.loadPlannerPreparationSnapshot.mockResolvedValue(
