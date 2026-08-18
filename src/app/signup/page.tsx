@@ -1,6 +1,9 @@
 import { redirect } from "next/navigation";
 import { AuthShell } from "@/components/auth/auth-shell";
+import { JourneyBackdrop } from "@/components/journey/journey-backdrop.web";
+import type { JourneyFeatureFlags } from "@/components/journey/types";
 import { SignupForm } from "@/features/auth/signup-form";
+import { getFeatureFlags } from "@/lib/feature-flags";
 import { createClient } from "@/lib/supabase/server";
 
 export default async function SignupPage() {
@@ -13,15 +16,28 @@ export default async function SignupPage() {
     redirect("/");
   }
 
+  const flags = getFeatureFlags();
+  const journeyFlags: JourneyFeatureFlags = {
+    journeyEnabled: flags.journeyEnabled,
+  };
+
   return (
-    <AuthShell
-      title="Create account"
-      description="Start simple and stay consistent with a clean goal-tracking flow."
-      alternateText="Already have an account?"
-      alternateLabel="Sign in"
-      alternateHref="/login"
-    >
-      <SignupForm />
-    </AuthShell>
+    <div className="relative min-h-screen overflow-hidden">
+      {journeyFlags.journeyEnabled ? <JourneyBackdrop flags={journeyFlags} /> : null}
+      <div className="relative z-10">
+        <AuthShell
+          title="Create account"
+          description="Start simple and stay consistent with a clean goal-tracking flow."
+          alternateText="Already have an account?"
+          alternateLabel="Sign in"
+          alternateHref="/login"
+          backgroundClassName={
+            journeyFlags.journeyEnabled ? "bg-background/30 backdrop-blur-[1px]" : undefined
+          }
+        >
+          <SignupForm />
+        </AuthShell>
+      </div>
+    </div>
   );
 }
