@@ -1127,4 +1127,46 @@ describe("CalendarSurface characterization", () => {
     ).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Lock" })).not.toBeInTheDocument();
   });
+
+  it("keeps cross-month day scope read-only for planner day actions", async () => {
+    postJsonMock.mockResolvedValue(
+      buildContext([
+        unit({
+          originalGoalId: "goal-a",
+          unitKey: "total:1",
+          scheduledDate: "2026-09-01",
+          label: "Outside scope month",
+        }),
+      ])
+    );
+
+    render(
+      <CalendarSurface
+        activeTab="calendar"
+        month="2026-08"
+        selectedDay="2026-09-01"
+        viewMode="day"
+        onMonthChange={vi.fn()}
+        onViewModeChange={vi.fn()}
+        onSelectedDayChange={vi.fn()}
+        onPlannerMutation={vi.fn()}
+      />
+    );
+
+    await waitFor(() => {
+      expect(postJsonMock).toHaveBeenCalledWith(
+        "/api/planner/prepare",
+        expect.any(Object)
+      );
+    });
+
+    const completionButton = await screen.findByRole("button", {
+      name: "Mark session done",
+    });
+    expect(completionButton).toBeDisabled();
+    const lockButton = screen.queryByRole("button", { name: "Lock" });
+    if (lockButton) {
+      expect(lockButton).toBeDisabled();
+    }
+  });
 });

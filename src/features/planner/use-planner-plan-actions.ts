@@ -42,10 +42,10 @@ interface UsePlannerPersistenceActionsArgs {
     toastOnError?: boolean;
     forcePrepare?: boolean;
   }) => Promise<boolean>;
-  setDraftPreview: (
-    preview: NonNullable<PlannerContextPayload["preview"]> | null
-  ) => void;
-  setDraftPreviewWindow: (window: { start: string; end: string } | null) => void;
+  cacheDraftPreviewForWindow: (args: {
+    preview: NonNullable<PlannerContextPayload["preview"]>;
+    window: { start: string; end: string };
+  }) => void;
   requestPreviewForWindow: (args: {
     startDate: string;
     endDate: string;
@@ -73,8 +73,7 @@ export function usePlannerPersistenceActions({
   clearDraftSession,
   handlePlannerMutation,
   loadContext,
-  setDraftPreview,
-  setDraftPreviewWindow,
+  cacheDraftPreviewForWindow,
   requestPreviewForWindow,
   coachActions,
 }: UsePlannerPersistenceActionsArgs) {
@@ -183,10 +182,12 @@ export function usePlannerPersistenceActions({
             draftCommands: draftSaveCommands,
           });
           if (savePreview) {
-            setDraftPreview(savePreview);
-            setDraftPreviewWindow({
-              start: draftSaveWindow.start,
-              end: draftSaveWindow.end,
+            cacheDraftPreviewForWindow({
+              preview: savePreview,
+              window: {
+                start: draftSaveWindow.start,
+                end: draftSaveWindow.end,
+              },
             });
           }
         }
@@ -272,8 +273,7 @@ export function usePlannerPersistenceActions({
     loadContext,
     nonPublishablePreviewMessage,
     requestPreviewForWindow,
-    setDraftPreview,
-    setDraftPreviewWindow,
+    cacheDraftPreviewForWindow,
   ]);
 
   const resetPlan = useCallback(async () => {
@@ -453,5 +453,3 @@ export function usePlannerPersistenceActions({
     discardDraftChanges,
   };
 }
-
-export const usePlannerPlanActions = usePlannerPersistenceActions;

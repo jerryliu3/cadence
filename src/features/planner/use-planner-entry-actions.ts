@@ -268,5 +268,3 @@ export function usePlannerEntryMutations({
     toggleDateFact,
   };
 }
-
-export const usePlannerEntryActions = usePlannerEntryMutations;

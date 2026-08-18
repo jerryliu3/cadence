@@ -9,17 +9,14 @@ import {
   useRef,
   useState,
 } from "react";
-import { toast } from "sonner";
 import { LoadingCard } from "@/components/ui/loading-card";
 import { allCategoriesValue } from "@/features/goals/goal-filters";
 import {
   buildWeekdayLabels,
   getEntryDisplayTitleWithTime,
   getEntrySubtitle,
-  getMonthInTimezone,
   isEntryCredited,
   isEntryImmovableForDraft,
-  normalizeWeekStartsOn,
   parseMonth,
 } from "@/features/planner/calendar-format";
 import {
@@ -33,50 +30,16 @@ import { useCompletionMutation } from "@/features/planner/use-completion-mutatio
 import {
   draftCommandReducer,
   initialDraftCommandState,
-  selectDraftCommands,
 } from "@/features/planner/draft-command-reducer";
 import {
   getCompletionControlDisabledReason,
   getDateFactDispatchForEntry as resolveDateFactDispatchForEntry,
 } from "@/features/planner/completion-entry-dispatch";
-import {
-  buildPlannerRecoveryPlan,
-  buildPlannerRecoveryWindow,
-  describePlannerRecoveryOutcome,
-} from "@/lib/planner/recovery";
-import { computeDayPreviewPosition } from "@/features/planner/day-preview-popup";
-import { shouldBlockAutomatedReplanMoveForEntry } from "@/features/planner/replan-move-guard";
-import { isValidIanaTimezone, resolveUserTimezone } from "@/lib/dates/timezone";
-import {
-  getApiErrorMessage,
-  getJson,
-  postJson,
-  putJson,
-} from "@/lib/api/client";
-import { useOutsidePointerDismiss } from "@/lib/ui/use-outside-pointer-dismiss";
-import {
-  readTabDataCache,
-  writeTabDataCache,
-} from "@/lib/cache/tab-data-cache";
+import { resolveUserTimezone } from "@/lib/dates/timezone";
 import {
   invalidatePlannerRelatedTabCaches,
-  PLANNER_CONTEXT_CACHE_PREFIX,
 } from "@/lib/cache/planner-tab-cache";
 import {
-  draftCommandEntryKey,
-  sortPlannerDraftCommands,
-  type PlannerDraftCommand,
-} from "@/lib/planner/draft-commands";
-import {
-  PLANNER_DRAFT_WINDOW_TOO_WIDE_MESSAGE,
-  tryBuildPlannerDraftSaveWindow,
-  plannerDraftWindowUnavailableMessage
-} from "@/lib/planner/draft-window";
-import {
-  getScopeDateRange,
-} from "@/lib/planner/dates";
-import {
-  createDefaultPlannerPolicy,
   type PlannerPolicy,
 } from "@/lib/planner/policy";
 import type {
@@ -86,8 +49,6 @@ import type {
   DayPreviewState,
   PlannerContextPayload,
   PlannerDayDetailEntry,
-  PlannerPreferencesPayload,
-  PlannerPreviewResponsePayload,
 } from "@/features/planner/calendar-surface.types";
 import {
   getNonPublishablePreviewMessage,
@@ -111,9 +72,10 @@ import { usePlannerDraftCommands } from "@/features/planner/use-planner-draft-co
 import { usePlannerCalendarDnd } from "@/features/planner/use-planner-calendar-dnd";
 import { usePlannerMoveSessionDialog } from "@/features/planner/use-planner-move-session-dialog";
 import { usePlannerCalendarDayCellRenderer } from "@/features/planner/use-planner-calendar-day-cell-renderer";
-const DAY_PREVIEW_HOVER_DELAY_MS = 1000;
-const DAY_PREVIEW_CLOSE_DELAY_MS = 250;
-const DAY_PREVIEW_LONG_PRESS_DELAY_MS = 500;
+import { usePlannerContextLoader } from "@/features/planner/use-planner-context-loader";
+import { usePlannerSetup } from "@/features/planner/use-planner-setup";
+import { usePlannerPreviewSession } from "@/features/planner/use-planner-preview-session";
+import { usePlannerDayPreviewInteractions } from "@/features/planner/use-planner-day-preview-interactions";
 
 export function CalendarSurface({
   activeTab,
@@ -130,8 +92,6 @@ export function CalendarSurface({
 }: CalendarSurfaceProps) {
   const [context, setContext] = useState<PlannerContextPayload | null>(null);
   const [loading, setLoading] = useState(false);
-  const [setupLoading, setSetupLoading] = useState(false);
-  const [recoverLoading, setRecoverLoading] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [categoryFilter, setCategoryFilter] = useState(allCategoriesValue);
@@ -188,118 +148,20 @@ export function CalendarSurface({
     draftPolicyRef.current = draftPolicy;
   }, [draftPolicy]);
 
-  const loadContext = useCallback(
-    async ({
-      showLoading = true,
-      toastOnError = false,
-      forcePrepare = false,
-    }: {
-      showLoading?: boolean;
-      toastOnError?: boolean;
-      forcePrepare?: boolean;
-    } = {}) => {
-    if (activeTab !== "calendar") {
-      return false;
-    }
-
-    let shouldShowLoading = showLoading;
-    if (shouldShowLoading) {
-      setError(null);
-    }
-    if (!month) {
-      const resolvedMonth = getMonthInTimezone(setupTimezone);
-      onMonthChange(resolvedMonth, "replace");
-      return true;
-    }
-
-    const plannerContextCacheKey = `${PLANNER_CONTEXT_CACHE_PREFIX}${month}`;
-    const cachedContextPayload = readTabDataCache<PlannerContextPayload>(plannerContextCacheKey);
-    if (cachedContextPayload) {
-      setContext(cachedContextPayload);
-      if (cachedContextPayload.preferences?.timezone) {
-        const policyForSetup =
-          draftPolicyRef.current ?? cachedContextPayload.preferences.defaultPolicy;
-        setSetupTimezone(cachedContextPayload.preferences.timezone);
-        setSetupWeekStartsOn(
-          normalizeWeekStartsOn(policyForSetup.weekStartsOn)
-        );
-        setSetupRestWeekdays(policyForSetup.restWeekdays);
-      }
-      shouldShowLoading = false;
-    }
-
-    if (shouldShowLoading) {
-      setLoading(true);
-    }
-    let contextPayload: PlannerContextPayload;
-    try {
-      const parsedMonth = parseMonth(month);
-      const visibleStart = getScopeDateRange(
-        format(addMonths(parsedMonth, -1), "yyyy-MM")
-      ).start;
-      const visibleEnd = getScopeDateRange(
-        format(addMonths(parsedMonth, 1), "yyyy-MM")
-      ).end;
-      const shouldPrepare = forcePrepare || !calendarPreparedRef.current;
-      contextPayload = shouldPrepare
-        ? await postJson<PlannerContextPayload>("/api/planner/prepare", {
-            scopeMonth: month,
-            visibleStart,
-            visibleEnd,
-          })
-        : await getJson<PlannerContextPayload>("/api/planner/context", {
-            query: {
-              scopeMonth: month,
-              visibleStart,
-              visibleEnd,
-            },
-          });
-      calendarPreparedRef.current = true;
-    } catch (error) {
-      if (shouldShowLoading) {
-        setLoading(false);
-      }
-      const message = getApiErrorMessage(
-        error,
-        "Planner calendar context could not be loaded."
-      );
-      if (shouldShowLoading) {
-        setContext(null);
-        setError(message);
-      }
-      if (toastOnError) {
-        toast.error(message);
-      }
-      return false;
-    }
-    if (shouldShowLoading) {
-      setLoading(false);
-    }
-    if (!contextPayload) {
-      const message = "Planner calendar context could not be loaded.";
-      if (shouldShowLoading) {
-        setContext(null);
-        setError(message);
-      }
-      if (toastOnError) {
-        toast.error(message);
-      }
-      return false;
-    }
-
-    setContext(contextPayload);
-    writeTabDataCache(plannerContextCacheKey, contextPayload);
-    if (contextPayload.preferences?.timezone) {
-      const policyForSetup =
-        draftPolicyRef.current ?? contextPayload.preferences.defaultPolicy;
-      setSetupTimezone(contextPayload.preferences.timezone);
-      setSetupWeekStartsOn(
-        normalizeWeekStartsOn(policyForSetup.weekStartsOn)
-      );
-      setSetupRestWeekdays(policyForSetup.restWeekdays);
-    }
-    return true;
-  }, [activeTab, month, onMonthChange, setupTimezone]);
+  const loadContext = usePlannerContextLoader({
+    activeTab,
+    month,
+    setupTimezone,
+    onMonthChange,
+    setContext,
+    setLoading,
+    setError,
+    setSetupTimezone,
+    setSetupWeekStartsOn,
+    setSetupRestWeekdays,
+    draftPolicyRef,
+    calendarPreparedRef,
+  });
 
   useEffect(() => {
     if (activeTab !== "calendar") {
@@ -579,381 +441,58 @@ export function CalendarSurface({
     }
   }, [dayPreview]);
 
-  useOutsidePointerDismiss({
-    enabled: Boolean(dayPreview?.pinned),
-    containerRef: dayPreviewRef,
-    onDismiss: () => {
-      setDayPreview(null);
-    },
-    shouldIgnoreTarget: isDayPreviewSurfaceTarget,
+  const {
+    clearHoverPreviewTimer,
+    clearHoverPreviewCloseTimer,
+    clearLongPressTimer,
+    openDayPreview,
+    openMoveDialogForDay,
+    openDayViewForDay,
+    scheduleHoverPreviewClose,
+    scheduleHoverPreview,
+    handleDayCellClick,
+    startLongPressPreview,
+  } = usePlannerDayPreviewInteractions({
+    dayPreview,
+    setDayPreview,
+    setExpandedPreviewDay,
+    setMoveDialogDay,
+    setMoveDialogSourceEntryKey,
+    setSelectedEventEntryKey,
+    setLocalSelectedDay,
+    onSelectedDayChange,
+    hoverPreviewTimerRef,
+    hoverPreviewCloseTimerRef,
+    longPressTimerRef,
+    longPressTriggeredRef,
+    pointerPressActiveRef,
+    pointerInsideDayPreviewRef,
+    suppressDayCellClickRef,
+    dayPreviewRef,
+    isDayPreviewSurfaceTarget,
   });
 
-  const submitSetup = async () => {
-    if (!isValidIanaTimezone(setupTimezone)) {
-      toast.error("Provide a valid IANA timezone.");
-      return;
-    }
-
-    setSetupLoading(true);
-    const defaultPolicy = createDefaultPlannerPolicy(
-      setupTimezone,
-      new Date().toISOString()
-    );
-    defaultPolicy.restWeekdays = [...setupRestWeekdays].sort((a, b) => a - b);
-    defaultPolicy.weekStartsOn = normalizeWeekStartsOn(setupWeekStartsOn);
-
-    try {
-      await putJson<
-        { message?: string; preferences?: PlannerPreferencesPayload["preferences"] },
-        {
-          timezone: string;
-          defaultPolicy: PlannerPolicy;
-        }
-      >("/api/planner/context", {
-        timezone: setupTimezone,
-        defaultPolicy,
-      });
-    } catch (error) {
-      toast.error(getApiErrorMessage(error, "Planner setup could not be saved."));
-      setSetupLoading(false);
-      return;
-    }
-    setSetupLoading(false);
-
-    handlePlannerMutation();
-    setDraftPolicy(null);
-    setDraftPreview(null);
-    setDraftPreviewWindow(null);
-    dispatchDraftCommand({ type: "clear" });
-    setSettingsOpen(false);
-    if (!month) {
-      onMonthChange(getMonthInTimezone(setupTimezone), "replace");
-    } else {
-      await loadContext();
-    }
-    toast.success("Planner setup saved.");
-  };
-
-  const requestPreviewForWindow = useCallback(
-    async ({
-      startDate,
-      endDate,
-      nextPolicy,
-      solveIntent,
-      draftCommands,
-      recoverPastPlacements = false,
-    }: {
-      startDate: string;
-      endDate: string;
-      nextPolicy: PlannerPolicy;
-      solveIntent: "stable" | "replan";
-      draftCommands: PlannerDraftCommand[];
-      recoverPastPlacements?: boolean;
-    }) => {
-      if (!context?.timezone) {
-        throw new Error("Planner context is unavailable.");
-      }
-      try {
-        const previewPayload = await postJson<PlannerPreviewResponsePayload>(
-          "/api/planner/context",
-          {
-            startDate,
-            endDate,
-            timezone: context.timezone,
-            policy: nextPolicy,
-            source: context.activePlan ? "update" : "manual",
-            solveIntent,
-            draftCommands,
-            recoverPastPlacements,
-          }
-        );
-        return previewPayload.preview;
-      } catch (error) {
-        throw new Error(getApiErrorMessage(error, "Preview refresh failed."));
-      }
-    },
-    [context]
-  );
-
-  const requestPreview = async (
-    nextPolicy: PlannerPolicy,
-    solveIntent: "stable" | "replan",
-    draftCommands: PlannerDraftCommand[]
-  ) => {
-    const window = draftSaveWindow;
-    if (!window) {
-      throw new Error(
-        plannerDraftWindowUnavailableMessage(draftSaveWindowResult)
-      );
-    }
-    return requestPreviewForWindow({
-      startDate: window.start,
-      endDate: window.end,
-      nextPolicy,
-      solveIntent,
-      draftCommands,
-    });
-  };
-
-  /**
-   * The only way a preview becomes the draft. `replan` results deliberately do
-   * not come through here: they are proposals, and the save route always solves
-   * `stable`, so storing one would hand the user a draft that cannot publish.
-   */
-  const draftSaveCommandsRef = useRef(draftSaveCommands);
-  useEffect(() => {
-    draftSaveCommandsRef.current = draftSaveCommands;
-  }, [draftSaveCommands]);
-  const refreshDraftPreview = async (nextPolicy: PlannerPolicy) => {
-    const preview = await requestPreview(
-      nextPolicy,
-      "stable",
-      draftSaveCommandsRef.current
-    );
-    if (preview) {
-      setDraftPreview(preview);
-      if (draftSaveWindow) {
-        setDraftPreviewWindow({
-          start: draftSaveWindow.start,
-          end: draftSaveWindow.end,
-        });
-      }
-    }
-    return preview;
-  };
-
-  /**
-   * Ask the solver where things would go under `nextPolicy` when policy cost
-   * outranks stability, then record the differences as `move_item` commands.
-   *
-   * The proposal is scratch: it is never stored as the draft. Only the pins it
-   * produces persist, which is what makes a coach change survive the next
-   * recompute instead of evaporating on the following stable solve.
-   *
-   * Existing pins are kept, not released, so a policy change reshuffles what
-   * the user has not placed by hand and leaves deliberate placements alone.
-   */
-  const applyPolicyReplanMoves = async (nextPolicy: PlannerPolicy) => {
-    if (!context?.scopeMonth || !effectivePreview) {
-      return { moveCount: 0, movedEntryKeys: [] as string[] };
-    }
-    const priorCommands = draftSaveCommandsRef.current;
-    const proposal = await requestPreview(nextPolicy, "replan", priorCommands);
-    if (!proposal) {
-      return { moveCount: 0, movedEntryKeys: [] as string[] };
-    }
-    const baselineDateByEntryKey = new Map(
-      effectivePreview.workUnits.map((unit) => [
-        draftCommandEntryKey({
-          goalId: unit.originalGoalId,
-          unitKey: unit.unitKey,
-        }),
-        unit.scheduledDate,
-      ])
-    );
-    const baselineUnitByEntryKey = new Map(
-      effectivePreview.workUnits.map((unit) => [
-        draftCommandEntryKey({
-          goalId: unit.originalGoalId,
-          unitKey: unit.unitKey,
-        }),
-        unit,
-      ])
-    );
-
-    let nextState = draftCommandState;
-    const pendingActions: Array<{
-      type: "upsert_move";
-      goalId: string;
-      unitKey: string;
-      scheduledDate: string;
-      sourceDate: string;
-    }> = [];
-    const movedEntryKeys: string[] = [];
-    for (const unit of proposal.workUnits) {
-      const entryKey = draftCommandEntryKey({
-        goalId: unit.originalGoalId,
-        unitKey: unit.unitKey,
-      });
-      const nextDate = unit.scheduledDate;
-      if (nextDate === null || baselineDateByEntryKey.get(entryKey) === nextDate) {
-        continue;
-      }
-      const baselineUnit = baselineUnitByEntryKey.get(entryKey);
-      if (
-        shouldBlockAutomatedReplanMoveForEntry({
-          baselineClassification: baselineUnit?.classification,
-          baselineScheduledDate: baselineUnit?.scheduledDate,
-          asOfDate: context.asOfDate,
-        })
-      ) {
-        continue;
-      }
-      const action = {
-        type: "upsert_move" as const,
-        goalId: unit.originalGoalId,
-        unitKey: unit.unitKey,
-        scheduledDate: nextDate,
-        sourceDate: baselineDateByEntryKey.get(entryKey) ?? nextDate,
-      };
-      nextState = draftCommandReducer(nextState, action);
-      pendingActions.push(action);
-      movedEntryKeys.push(entryKey);
-    }
-
-    if (pendingActions.length > 0) {
-      const prospectiveWindow = tryBuildPlannerDraftSaveWindow({
-        currentMonth: context.scopeMonth,
-        commands: selectDraftCommands(nextState),
-        workUnits: draftWindowWorkUnits,
-      });
-      if (!prospectiveWindow.ok) {
-        if (prospectiveWindow.code === "too_wide") {
-          toast.error(PLANNER_DRAFT_WINDOW_TOO_WIDE_MESSAGE);
-        } else {
-          toast.error("Those session moves cannot fit in the current draft window.");
-        }
-        return { moveCount: 0, movedEntryKeys: [] as string[] };
-      }
-      for (const action of pendingActions) {
-        dispatchDraftCommand(action);
-      }
-    }
-
-    // Keep the ref ahead of the reducer so the stable refresh that follows
-    // sends the pins we just created rather than the previous render's list.
-    draftSaveCommandsRef.current = sortPlannerDraftCommands(
-      selectDraftCommands(nextState)
-    );
-    return { moveCount: movedEntryKeys.length, movedEntryKeys };
-  };
-
-  /**
-   * Ask the solver where uncredited sessions whose date has already passed
-   * would go if it were free to re-place them, then record the differences as
-   * `move_item` commands so the user reviews and saves them like any other
-   * draft change.
-   *
-   * Two solves over the same window: a plain one for the baseline, and the
-   * recovery one. Diffing them is what identifies a session as recovered rather
-   * than merely late, and it keeps the flow on the existing preview/save path
-   * instead of introducing a second write surface for past dates.
-   */
-  const recoverPastSessions = async () => {
-    if (recoverLoading) {
-      return;
-    }
-    if (!context?.scopeMonth || !context.asOfDate) {
-      toast.error("Planner context is unavailable.");
-      return;
-    }
-    const policy = effectiveDraftPolicy ?? context.preferences?.defaultPolicy ?? null;
-    if (!policy) {
-      toast.error("Confirm planner settings before recovering past sessions.");
-      return;
-    }
-
-    setRecoverLoading(true);
-    try {
-      const window = buildPlannerRecoveryWindow(context.asOfDate);
-      const priorCommands = draftSaveCommandsRef.current;
-      const [baseline, recovered] = await Promise.all([
-        requestPreviewForWindow({
-          startDate: window.start,
-          endDate: window.end,
-          nextPolicy: policy,
-          solveIntent: "stable",
-          draftCommands: priorCommands,
-        }),
-        requestPreviewForWindow({
-          startDate: window.start,
-          endDate: window.end,
-          nextPolicy: policy,
-          solveIntent: "stable",
-          draftCommands: priorCommands,
-          recoverPastPlacements: true,
-        }),
-      ]);
-      if (!baseline || !recovered) {
-        toast.error("Recovery preview returned no planner data.");
-        return;
-      }
-
-      const plan = buildPlannerRecoveryPlan({
-        baselineUnits: baseline.workUnits,
-        recoveredUnits: recovered.workUnits,
-        asOfDate: context.asOfDate,
-      });
-      if (plan.moves.length === 0) {
-        toast(describePlannerRecoveryOutcome(plan));
-        return;
-      }
-
-      let nextState = draftCommandState;
-      const pendingActions = plan.moves.map((move) => ({
-        type: "upsert_move" as const,
-        goalId: move.goalId,
-        unitKey: move.unitKey,
-        scheduledDate: move.scheduledDate,
-        sourceDate: move.sourceDate,
-      }));
-      for (const action of pendingActions) {
-        nextState = draftCommandReducer(nextState, action);
-      }
-
-      const prospectiveWindow = tryBuildPlannerDraftSaveWindow({
-        currentMonth: context.scopeMonth,
-        commands: selectDraftCommands(nextState),
-        workUnits: draftWindowWorkUnits,
-      });
-      if (!prospectiveWindow.ok) {
-        toast.error(
-          prospectiveWindow.code === "too_wide"
-            ? PLANNER_DRAFT_WINDOW_TOO_WIDE_MESSAGE
-            : "Those recovered sessions cannot fit in a single draft window."
-        );
-        return;
-      }
-
-      for (const action of pendingActions) {
-        dispatchDraftCommand(action);
-      }
-      // Keep the ref ahead of the reducer so the stable refresh below sends the
-      // pins we just created rather than the previous render's list.
-      draftSaveCommandsRef.current = sortPlannerDraftCommands(
-        selectDraftCommands(nextState)
-      );
-      await refreshDraftPreview(policy);
-      toast.success(describePlannerRecoveryOutcome(plan));
-    } catch (error) {
-      toast.error(
-        getApiErrorMessage(error, "Past sessions could not be recovered.")
-      );
-    } finally {
-      setRecoverLoading(false);
-    }
-  };
-
-  const clearDraftMoveCommands = (entryKeys: string[]) => {
-    if (!context?.scopeMonth || entryKeys.length === 0) {
-      return;
-    }
-    let nextState = draftCommandState;
-    for (const entryKey of entryKeys) {
-      const separatorIndex = entryKey.indexOf(":");
-      const action = {
-        type: "remove_kind",
-        kind: "move_item",
-        goalId: entryKey.slice(0, separatorIndex),
-        unitKey: entryKey.slice(separatorIndex + 1),
-      } as const;
-      dispatchDraftCommand(action);
-      nextState = draftCommandReducer(nextState, action);
-    }
-    draftSaveCommandsRef.current = sortPlannerDraftCommands(
-      selectDraftCommands(nextState)
-    );
-  };
+  const {
+    recoverLoading,
+    requestPreviewForWindow,
+    refreshDraftPreview,
+    applyPolicyReplanMoves,
+    recoverPastSessions,
+    clearDraftMoveCommands,
+    cacheDraftPreviewForWindow,
+  } = usePlannerPreviewSession({
+    context,
+    effectivePreview,
+    effectiveDraftPolicy,
+    draftSaveWindow,
+    draftSaveWindowResult,
+    draftWindowWorkUnits,
+    draftCommandState,
+    draftSaveCommands,
+    dispatchDraftCommand,
+    setDraftPreview,
+    setDraftPreviewWindow,
+  });
 
   const nonPublishablePreviewMessage = useCallback(
     (preview: NonNullable<PlannerContextPayload["preview"]>) =>
@@ -964,6 +503,18 @@ export function CalendarSurface({
       }),
     [context, draftSaveWindow]
   );
+  const { setupLoading, submitSetup } = usePlannerSetup({
+    setupTimezone,
+    setupWeekStartsOn,
+    setupRestWeekdays,
+    month,
+    onMonthChange,
+    clearDraftSession,
+    handlePlannerMutation,
+    loadContext,
+    setSettingsOpen,
+  });
+
   const runCompletionMutation = useCompletionMutation();
   const queueDraftMoveCommandRef = useRef<
     (args: {
@@ -1012,170 +563,6 @@ export function CalendarSurface({
     }
     const parsed = parse(value, "yyyy-MM-dd", new Date());
     return isValid(parsed) && format(parsed, "yyyy-MM-dd") === value;
-  };
-
-  const clearHoverPreviewTimer = useCallback(() => {
-    if (hoverPreviewTimerRef.current) {
-      window.clearTimeout(hoverPreviewTimerRef.current);
-      hoverPreviewTimerRef.current = null;
-    }
-  }, []);
-
-  const clearHoverPreviewCloseTimer = useCallback(() => {
-    if (hoverPreviewCloseTimerRef.current) {
-      window.clearTimeout(hoverPreviewCloseTimerRef.current);
-      hoverPreviewCloseTimerRef.current = null;
-    }
-  }, []);
-
-  const scheduleHoverPreviewClose = useCallback((day: string) => {
-    clearHoverPreviewCloseTimer();
-    hoverPreviewCloseTimerRef.current = window.setTimeout(() => {
-      setDayPreview((current) => {
-        if (!current || current.pinned || current.day !== day) {
-          return current;
-        }
-        if (pointerInsideDayPreviewRef.current) {
-          return current;
-        }
-        return null;
-      });
-    }, DAY_PREVIEW_CLOSE_DELAY_MS);
-  }, [clearHoverPreviewCloseTimer]);
-
-  useEffect(() => {
-    if (!dayPreview || dayPreview.pinned) {
-      return;
-    }
-    const handlePointerMove = (event: PointerEvent) => {
-      const target = event.target;
-      if (!(target instanceof Element)) {
-        return;
-      }
-      if (isDayPreviewSurfaceTarget(target)) {
-        return;
-      }
-      pointerInsideDayPreviewRef.current = false;
-      scheduleHoverPreviewClose(dayPreview.day);
-    };
-
-    window.addEventListener("pointermove", handlePointerMove, { passive: true });
-    return () => {
-      window.removeEventListener("pointermove", handlePointerMove);
-    };
-  }, [dayPreview, scheduleHoverPreviewClose]);
-
-  const clearLongPressTimer = () => {
-    if (longPressTimerRef.current) {
-      window.clearTimeout(longPressTimerRef.current);
-      longPressTimerRef.current = null;
-    }
-  };
-
-  const openDayPreview = ({
-    day,
-    pinned,
-    target,
-  }: {
-    day: string;
-    pinned: boolean;
-    target: EventTarget & HTMLElement;
-  }) => {
-    const rect = target.getBoundingClientRect();
-    const position = computeDayPreviewPosition({
-      rect: {
-        top: rect.top,
-        left: rect.left,
-        width: rect.width,
-        height: rect.height,
-      },
-      viewportWidth: window.innerWidth,
-      viewportHeight: window.innerHeight,
-    });
-    setDayPreview({ day, position, pinned });
-  };
-
-  const openMoveDialogForDay = useCallback((day: string) => {
-    setExpandedPreviewDay(null);
-    setDayPreview(null);
-    setMoveDialogDay(day);
-    setMoveDialogSourceEntryKey("");
-  }, []);
-
-  const openDayViewForDay = useCallback(
-    (day: string) => {
-      setExpandedPreviewDay(null);
-      setMoveDialogDay(null);
-      setSelectedEventEntryKey(null);
-      setLocalSelectedDay(day);
-      onSelectedDayChange(day, "push", "day");
-      setDayPreview(null);
-    },
-    [onSelectedDayChange]
-  );
-
-  const shouldSuppressDayCellClick = (day: string) => {
-    const suppression = suppressDayCellClickRef.current;
-    if (!suppression) {
-      return false;
-    }
-    if (suppression.day !== day) {
-      return false;
-    }
-    if (suppression.active) {
-      suppressDayCellClickRef.current = null;
-      return true;
-    }
-    return false;
-  };
-
-  const scheduleHoverPreview = (
-    day: string,
-    target: EventTarget & HTMLElement
-  ) => {
-    if (dayPreview?.pinned || pointerPressActiveRef.current) {
-      return;
-    }
-    clearHoverPreviewCloseTimer();
-    clearHoverPreviewTimer();
-    hoverPreviewTimerRef.current = window.setTimeout(() => {
-      if (pointerPressActiveRef.current) {
-        return;
-      }
-      openDayPreview({ day, pinned: false, target });
-    }, DAY_PREVIEW_HOVER_DELAY_MS);
-  };
-
-  const handleDayCellClick = (
-    day: string,
-    target: EventTarget & HTMLElement
-  ) => {
-    if (shouldSuppressDayCellClick(day)) {
-      suppressDayCellClickRef.current = null;
-      return;
-    }
-    if (longPressTriggeredRef.current) {
-      longPressTriggeredRef.current = false;
-      return;
-    }
-    if (dayPreview?.pinned && dayPreview.day === day) {
-      setDayPreview(null);
-      return;
-    }
-    clearHoverPreviewTimer();
-    openDayPreview({ day, pinned: true, target });
-  };
-
-  const startLongPressPreview = (
-    day: string,
-    target: EventTarget & HTMLElement
-  ) => {
-    clearLongPressTimer();
-    longPressTriggeredRef.current = false;
-    longPressTimerRef.current = window.setTimeout(() => {
-      longPressTriggeredRef.current = true;
-      openDayPreview({ day, pinned: true, target });
-    }, DAY_PREVIEW_LONG_PRESS_DELAY_MS);
   };
 
   useEffect(() => {
@@ -1296,8 +683,7 @@ export function CalendarSurface({
       clearDraftSession,
       handlePlannerMutation,
       loadContext,
-      setDraftPreview,
-      setDraftPreviewWindow,
+      cacheDraftPreviewForWindow,
       requestPreviewForWindow,
       coachActions: coach.actions,
     });
