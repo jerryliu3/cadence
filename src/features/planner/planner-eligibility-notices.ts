@@ -16,6 +16,7 @@ const NON_ACTIONABLE_ELIGIBILITY_REASONS = new Set<EligibilityReason>([
 const ELIGIBILITY_REASON_GROUP_LABELS: Partial<Record<EligibilityReason, string>> = {
   invalid_date_range: "Goals with invalid date ranges",
   horizon_too_long: "Goals beyond the planning horizon",
+  target_exceeds_work_unit_limit: "Goals exceeding planner size limits",
 };
 
 const ELIGIBILITY_REASON_LABELS: Record<EligibilityReason, string> = {
@@ -30,6 +31,8 @@ const ELIGIBILITY_REASON_LABELS: Record<EligibilityReason, string> = {
   starts_after_scope: "This goal starts after the selected planning month.",
   horizon_too_long:
     "This goal deadline exceeds the 24-month planning horizon limit.",
+  target_exceeds_work_unit_limit:
+    "This goal target exceeds the planner's maximum supported work-unit limit.",
 };
 
 export interface PlannerEligibilityNotice {

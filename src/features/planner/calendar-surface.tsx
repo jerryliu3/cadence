@@ -39,6 +39,7 @@ import { resolveUserTimezone } from "@/lib/dates/timezone";
 import {
   invalidatePlannerRelatedTabCaches,
 } from "@/lib/cache/planner-tab-cache";
+import type { EligibilityReason } from "@/lib/planner/eligibility";
 import {
   type PlannerPolicy,
 } from "@/lib/planner/policy";
