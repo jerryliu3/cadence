@@ -1,18 +1,24 @@
 import {
   type ReactNode,
+  useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
+  createJourneyEffectEvent,
+  consumeJourneyEffectEvent,
   defaultJourneyAssetManifest,
   deriveJourneyProgressState,
   resolveJourneyRenderPolicy,
   resolveJourneySceneAsset,
+  type JourneyEffectEvent,
 } from "@cadence/shared/journey";
 import { api } from "../../lib/api";
 import { useMobileRuntimeConfig } from "../../lib/runtime-config";
 import { JourneyContext, useJourney } from "./journey-context.native";
+import { useJourneyManifest } from "./use-journey-manifest.native";
 import { useJourneyLifecyclePause } from "./use-journey-lifecycle-pause";
 import { useJourneyMotionMode } from "./use-journey-motion-mode";
 import {
@@ -27,6 +33,8 @@ interface XpProfileResponse {
   };
 }
 
+const JOURNEY_ASSET_VERSION = defaultJourneyAssetManifest.assetVersion;
+
 export function JourneyProvider({ children }: { children: ReactNode }) {
   const runtime = useMobileRuntimeConfig();
   const lifecyclePaused = useJourneyLifecyclePause();
@@ -37,9 +45,12 @@ export function JourneyProvider({ children }: { children: ReactNode }) {
 
   const flags = runtime.data?.flags;
   const journeyEnabled = Boolean(flags?.journeyEnabled);
-  const journeyVideoEnabled = Boolean(flags?.journeyVideoEnabled);
-  const journeyRiveEnabled = Boolean(flags?.journeyRiveEnabled);
-  const assetVersion = flags?.journeyAssetManifestVersion ?? "v1";
+  const assetVersion = JOURNEY_ASSET_VERSION;
+  const { manifest, source: manifestSource } = useJourneyManifest(assetVersion);
+  const [latestEffectEvent, setLatestEffectEvent] =
+    useState<JourneyEffectEvent | null>(null);
+  const consumedEffectIdsRef = useRef(new Set<string>());
+  const previousCheckpointRef = useRef<number | null>(null);
 
   const xpProfile = useQuery({
     queryKey: ["journey", "xp-profile"],
@@ -64,8 +75,8 @@ export function JourneyProvider({ children }: { children: ReactNode }) {
       resolveJourneyRenderPolicy({
         assetVersion,
         journeyEnabled,
-        videoEnabled: journeyVideoEnabled,
-        riveEnabled: journeyRiveEnabled,
+        videoEnabled: true,
+        riveEnabled: false,
         reducedMotionPreferred: motion.reduceMotionEnabled,
         lowPowerMode: motion.lowPowerMode,
         lifecyclePaused,
@@ -74,8 +85,6 @@ export function JourneyProvider({ children }: { children: ReactNode }) {
     [
       assetVersion,
       journeyEnabled,
-      journeyRiveEnabled,
-      journeyVideoEnabled,
       lifecyclePaused,
       motion.lowPowerMode,
       motion.preference,
@@ -86,17 +95,47 @@ export function JourneyProvider({ children }: { children: ReactNode }) {
   const scene = useMemo(
     () =>
       resolveJourneySceneAsset({
-        manifest: defaultJourneyAssetManifest,
+        manifest,
         biome: progressState.biome,
       }),
-    [progressState.biome]
+    [manifest, progressState.biome]
   );
+
+  useEffect(() => {
+    const previousCheckpoint = previousCheckpointRef.current;
+    previousCheckpointRef.current = progressState.checkpointIndex;
+
+    if (previousCheckpoint === null) {
+      return;
+    }
+
+    if (progressState.checkpointIndex <= previousCheckpoint) {
+      return;
+    }
+
+    const kind =
+      progressState.biome === "summit" ? "summit" : "checkpoint";
+    const event = createJourneyEffectEvent({
+      kind,
+      sourceEventId: `xp-${xpProfile.data?.profile.totalXp ?? 0}-cp-${progressState.checkpointIndex}`,
+    });
+    if (!consumeJourneyEffectEvent(consumedEffectIdsRef.current, event)) {
+      return;
+    }
+    setLatestEffectEvent(event);
+  }, [
+    progressState.biome,
+    progressState.checkpointIndex,
+    xpProfile.data?.profile.totalXp,
+  ]);
 
   const value = useMemo<JourneyContextValue>(
     () => ({
       progressState,
       renderPolicy,
       scene,
+      latestEffectEvent,
+      manifestSource,
       presentation,
       setPresentation(next) {
         setPresentationState((current) => ({ ...current, ...next }));
@@ -105,7 +144,14 @@ export function JourneyProvider({ children }: { children: ReactNode }) {
         setPresentationState(defaultJourneyPresentation);
       },
     }),
-    [presentation, progressState, renderPolicy, scene]
+    [
+      latestEffectEvent,
+      manifestSource,
+      presentation,
+      progressState,
+      renderPolicy,
+      scene,
+    ]
   );
 
   return (
