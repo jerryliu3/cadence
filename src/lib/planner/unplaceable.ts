@@ -8,6 +8,8 @@ export type PlannerGoalUnplaceableReason = "capacity" | "invalid_lock";
 export interface PlannerGoalUnplaceableRecord {
   goalId: string;
   requirementFingerprint: string;
+  policyFingerprint: string;
+  coverageFingerprint: string;
   policyRevision: number;
   lockSignature: string;
   effectiveSpanEnd: string;
@@ -48,12 +50,16 @@ export function buildPlannerGoalLockSignature(
 export function isPlannerGoalUnplaceableRecordValid({
   record,
   goal,
+  policyFingerprint,
+  coverageFingerprint,
   policyRevision,
   lockSignature,
   preparationEnd,
 }: {
   record: PlannerGoalUnplaceableRecord;
   goal: Goal;
+  policyFingerprint: string;
+  coverageFingerprint?: string;
   policyRevision: number;
   lockSignature: string;
   preparationEnd: string;
@@ -64,6 +70,9 @@ export function isPlannerGoalUnplaceableRecordValid({
     .sort()[0]!;
   return (
     record.requirementFingerprint === requirementFingerprint &&
+    record.policyFingerprint === policyFingerprint &&
+    (coverageFingerprint === undefined ||
+      record.coverageFingerprint === coverageFingerprint) &&
     record.policyRevision === policyRevision &&
     record.lockSignature === lockSignature &&
     compareDateStrings(record.effectiveSpanEnd, currentEffectiveEnd) >= 0

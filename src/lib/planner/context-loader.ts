@@ -32,6 +32,12 @@ import { normalizeGoalRequirement } from "@/lib/planner/requirements";
 import type { PlannerIssueCode } from "@/lib/planner/solver/types";
 import { evaluateActivePlanStaleness } from "@/lib/planner/staleness";
 import {
+  buildLinkSuppressionInboundIndex,
+  getLinkResumeDate,
+  resolveLinkSuppression,
+  toLinkSuppressionSource,
+} from "@/lib/planner/link-suppression";
+import {
   buildPlannerGoalLockSignature,
   isPlannerGoalUnplaceableReason,
   isPlannerGoalUnplaceableRecordValid,
@@ -434,6 +440,8 @@ async function loadPlannerGoalUnplaceableRecords(
       return [{
         goalId: row.goal_id,
         requirementFingerprint: row.requirement_fingerprint,
+        policyFingerprint: row.policy_fingerprint ?? "",
+        coverageFingerprint: row.coverage_fingerprint ?? "",
         policyRevision: row.policy_revision,
         lockSignature: row.lock_signature,
         effectiveSpanEnd: row.effective_span_end,
@@ -679,6 +687,50 @@ function toPlannerGoalSemanticSnapshot(goal: PlannerActiveGoalRow) {
   };
 }
 
+function buildPlannerGoalLinkSummaries({
+  links,
+  goals,
+  ownerId,
+  asOfDate,
+}: {
+  links: PlannerCanonicalLink[];
+  goals: Goal[];
+  ownerId: string;
+  asOfDate: string;
+}) {
+  const suppressionSourcesById = new Map(
+    goals.map((goal) => [goal.id, toLinkSuppressionSource(goal)])
+  );
+  const suppressionByTargetGoalId = new Map<
+    string,
+    ReturnType<typeof resolveLinkSuppression>
+  >();
+  const suppressionInboundIndex = buildLinkSuppressionInboundIndex(links);
+  for (const targetGoalId of new Set(links.map((link) => link.targetGoalId))) {
+    suppressionByTargetGoalId.set(
+      targetGoalId,
+      resolveLinkSuppression({
+        goalId: targetGoalId,
+        inboundSourceIdsByTargetId: suppressionInboundIndex,
+        sourcesById: suppressionSourcesById,
+        ownerId,
+        asOfDate,
+      })
+    );
+  }
+  return links.map((link) => {
+    const suppression = suppressionByTargetGoalId.get(link.targetGoalId) ?? {
+      kind: "none" as const,
+    };
+    return {
+      sourceGoalId: link.sourceGoalId,
+      targetGoalId: link.targetGoalId,
+      targetSuppressionKind: suppression.kind,
+      targetResumesOn: getLinkResumeDate(suppression),
+    };
+  });
+}
+
 export async function loadPlannerContextPayload({
   supabase,
   ownerId,
@@ -722,6 +774,7 @@ export async function loadPlannerContextPayload({
     snapshot.preferences?.default_policy ??
       createDefaultPlannerPolicy(effectiveTimezone, new Date().toISOString())
   );
+  const policyFingerprint = canonicalHash(effectivePolicy);
   const policyRevision = snapshot.preferences?.policy_revision ?? 0;
   const goalById = new Map(snapshot.goals.map((goal) => [goal.id, goal]));
   const lockSignatureByGoalId = new Map<string, string>();
@@ -752,6 +805,7 @@ export async function loadPlannerContextPayload({
     return isPlannerGoalUnplaceableRecordValid({
       record,
       goal,
+      policyFingerprint,
       policyRevision,
       lockSignature: lockSignatureByGoalId.get(goal.id) ?? "",
       preparationEnd,
@@ -814,14 +868,16 @@ export async function loadPlannerContextPayload({
         },
         current: {
           timezone: effectiveTimezone,
-          policyFingerprint: canonicalHash(effectivePolicy),
+          policyFingerprint,
           goals: currentGoals,
           linkedGoalIds: Array.from(
             new Set(
-              snapshot.links.flatMap((link) => [
-                link.sourceGoalId,
-                link.targetGoalId,
-              ])
+              preview.eligibility
+                .filter(
+                  (eligibility) =>
+                    !eligibility.eligible && eligibility.reason === "linked_target"
+                )
+                .map((eligibility) => eligibility.goalId)
             )
           ),
           workUnits: preview.workUnits,
@@ -834,6 +890,12 @@ export async function loadPlannerContextPayload({
         },
       })
     : { status: "not_applicable" as const, stale: false, reasons: [] };
+  const linkSummaries = buildPlannerGoalLinkSummaries({
+    links: snapshot.links,
+    goals: snapshot.goals,
+    ownerId,
+    asOfDate,
+  });
 
   return {
     schemaVersion: "1" as const,
@@ -843,6 +905,7 @@ export async function loadPlannerContextPayload({
     goalTitles: Object.fromEntries(
       snapshot.goals.map((goal) => [goal.id, goal.title])
     ),
+    links: linkSummaries,
     revisions: snapshot.revisions,
     capabilities,
     preferences: snapshot.preferences

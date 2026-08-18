@@ -2,6 +2,7 @@ import type { Completion, Goal } from "@/lib/goals/types";
 import {
   isCompletionAdmissible,
 } from "@/lib/goals/admissible";
+import { resolveGoalPlanningEndDate } from "@/lib/goals/definition-validation";
 import { normalizeWeekStartsOn } from "@/lib/dates/week-start";
 import { compareCanonicalStrings } from "@/lib/planner/canonical";
 import {
@@ -34,9 +35,15 @@ import {
 } from "@/lib/planner/dates";
 import {
   evaluateGoalEligibility,
-  type EligibilityGoal,
   type EligibilityReason,
 } from "@/lib/planner/eligibility";
+import {
+  buildLinkSuppressionInboundIndex,
+  getLinkResumeDate,
+  isSuppressedInWindow,
+  resolveLinkSuppression,
+  toLinkSuppressionSource,
+} from "@/lib/planner/link-suppression";
 import {
   computeGenerationInputHash,
   type PlannerCanonicalLink,
@@ -96,7 +103,19 @@ export interface PlannerKernelInput {
   eligibilityMode: PlannerEligibilityMode;
   solveIntent?: SolverSolveIntent;
   preserveExistingAssignments?: boolean;
+  /**
+   * Recovery mode: let the solver re-place uncredited units whose saved date
+   * has already passed, instead of holding them at that stale date.
+   *
+   * Read-only planning only. The recover flow turns the resulting differences
+   * into `move_item` draft commands, so publish still runs a plain preserve
+   * solve over pinned dates and this never reaches a write path. It is
+   * deliberately absent from `computeGenerationInputHash` for that reason: the
+   * pins it produces are hashed, the flag itself never spans preview/save.
+   */
+  recoverPastPlacements?: boolean;
   draftPinnedDates?: Record<string, string>;
+  precoveredOrdinalsByGoalId?: Record<string, number[]>;
   ownerId: string;
   startDate: string;
   endDate: string;
@@ -105,6 +124,7 @@ export interface PlannerKernelInput {
   goals: Goal[];
   completions: Completion[];
   links: PlannerCanonicalLink[];
+  linkSourceGoals?: Goal[];
   assessments?: GoalAssessment[];
   policy: PlannerPolicy;
   basePlan: {
@@ -140,7 +160,6 @@ export interface PlannerKernelOutput {
   }>;
   diff: ReturnType<typeof diffPlannerAssignments>;
   validation: ReturnType<typeof validateSolverResult>;
-  suggestedRelaxations: string[];
   horizonSummary: PlannerGoalHorizonSummary[];
 }
 
@@ -160,19 +179,6 @@ export interface PlannerGoalHorizonSummary {
 interface OrdinalScopeAllocation {
   scopedOrdinals: Set<number>;
   monthOrdinals: Map<string, number[]>;
-}
-
-function currentLinkRole(
-  goalId: string,
-  links: PlannerCanonicalLink[]
-): EligibilityGoal["currentLinkRole"] {
-  if (links.some((link) => link.sourceGoalId === goalId)) {
-    return "source";
-  }
-  if (links.some((link) => link.targetGoalId === goalId)) {
-    return "target";
-  }
-  return "none";
 }
 
 function countDateWindowDays({
@@ -196,21 +202,38 @@ function allocateOrdinalWindow({
   normalizedRequirement,
   window,
   asOfDate,
+  effectivePlacementStart,
+  precoveredOrdinals,
   reconciledUnits,
 }: {
   goal: Goal;
   normalizedRequirement: NormalizedGoalRequirement;
   window: DateWindow;
   asOfDate: string;
+  effectivePlacementStart: string | null;
+  precoveredOrdinals: Set<number>;
   reconciledUnits: PlannerWorkUnit[];
 }): OrdinalScopeAllocation | undefined {
   const requirement = normalizedRequirement.requirement;
   if (requirement.kind === "cadence") {
     return undefined;
   }
+  const effectiveGoalEndDate = resolveGoalPlanningEndDate({
+    frequencyType: goal.frequency_type,
+    targetCount: goal.target_count,
+    startDate: goal.start_date,
+    endDate: goal.end_date,
+    asOfDate,
+  });
+  if (effectiveGoalEndDate === null) {
+    return {
+      scopedOrdinals: new Set<number>(),
+      monthOrdinals: new Map(),
+    };
+  }
   const lifetimeMonths = enumerateMonthsInWindow({
     start: goal.start_date,
-    end: goal.end_date ?? goal.start_date,
+    end: effectiveGoalEndDate,
   });
   const windowMonths = enumerateMonthsInWindow(window);
   if (!windowMonths.some((month) => lifetimeMonths.includes(month))) {
@@ -223,11 +246,16 @@ function allocateOrdinalWindow({
   const monthWindows = new Map(
     lifetimeMonths.map((month) => [month, getScopeDateRange(month)])
   );
-  const projectableStart =
+  const baselineProjectableStart =
     compareCanonicalStrings(asOfDate, goal.start_date) > 0
       ? asOfDate
       : goal.start_date;
-  const lifetimeEnd = goal.end_date ?? goal.start_date;
+  const projectableStart =
+    effectivePlacementStart &&
+    compareCanonicalStrings(effectivePlacementStart, baselineProjectableStart) > 0
+      ? effectivePlacementStart
+      : baselineProjectableStart;
+  const lifetimeEnd = effectiveGoalEndDate;
   const ownershipWindow =
     compareCanonicalStrings(projectableStart, lifetimeEnd) <= 0
       ? { start: projectableStart, end: lifetimeEnd }
@@ -247,7 +275,7 @@ function allocateOrdinalWindow({
     }
     const projectableWindow = intersectDateWindows(monthWindow, {
       start: projectableStart,
-      end: goal.end_date ?? monthWindow.end,
+      end: effectiveGoalEndDate,
     });
     if (!projectableWindow) {
       monthCapacity.set(month, 0);
@@ -362,10 +390,19 @@ function allocateOrdinalWindow({
     }
   }
 
+  if (precoveredOrdinals.size > 0) {
+    for (const [month, ordinals] of finalOrdinalsByMonth) {
+      finalOrdinalsByMonth.set(
+        month,
+        ordinals.filter((ordinal) => !precoveredOrdinals.has(ordinal))
+      );
+    }
+  }
+  const scopedOrdinals = new Set(
+    windowMonths.flatMap((month) => finalOrdinalsByMonth.get(month) ?? [])
+  );
   return {
-    scopedOrdinals: new Set(
-      windowMonths.flatMap((month) => finalOrdinalsByMonth.get(month) ?? [])
-    ),
+    scopedOrdinals,
     monthOrdinals: finalOrdinalsByMonth,
   };
 }
@@ -384,19 +421,6 @@ function throwBounds(
       { dimension, actual, maximum }
     );
   }
-}
-
-function suggestedRelaxations(issueCodes: PlannerIssueCode[]) {
-  const suggestions = new Set<string>();
-  if (issueCodes.includes("placement_shortfall")) {
-    suggestions.add("Reduce rest weekdays or blackout dates.");
-    suggestions.add("Allow more weekdays for affected goals.");
-    suggestions.add("Accept a reviewed partial plan.");
-  }
-  if (issueCodes.includes("invalid_lock")) {
-    suggestions.add("Unlock the conflicting item before regenerating.");
-  }
-  return Array.from(suggestions);
 }
 
 export function runPlannerKernel(
@@ -450,15 +474,40 @@ export function runPlannerKernel(
       ? bySource
       : compareCanonicalStrings(left.targetGoalId, right.targetGoalId);
   });
-  const eligibility = goals.map((goal) => ({
-    goal,
-    decision: evaluateGoalEligibility({
-      window,
+  const suppressionSourcesById = new Map<string, ReturnType<typeof toLinkSuppressionSource>>();
+  for (const sourceGoal of rawInput.linkSourceGoals ?? []) {
+    suppressionSourcesById.set(sourceGoal.id, toLinkSuppressionSource(sourceGoal));
+  }
+  for (const goal of goals) {
+    suppressionSourcesById.set(goal.id, toLinkSuppressionSource(goal));
+  }
+  const suppressionInboundIndex = buildLinkSuppressionInboundIndex(links);
+  const suppressionByGoalId = new Map<
+    string,
+    ReturnType<typeof resolveLinkSuppression>
+  >();
+  const eligibility = goals.map((goal) => {
+    const suppression = resolveLinkSuppression({
+      goalId: goal.id,
+      inboundSourceIdsByTargetId: suppressionInboundIndex,
+      sourcesById: suppressionSourcesById,
       ownerId: rawInput.ownerId,
+      asOfDate: rawInput.asOfDate,
+    });
+    suppressionByGoalId.set(goal.id, suppression);
+    return {
       goal,
-      currentLinkRole: currentLinkRole(goal.id, links),
-    }),
-  }));
+      decision: evaluateGoalEligibility({
+        window,
+        ownerId: rawInput.ownerId,
+        goal,
+        currentLinkRole: isSuppressedInWindow(suppression, window)
+          ? "target"
+          : "none",
+        asOfDate: rawInput.asOfDate,
+      }),
+    };
+  });
   const eligibleGoals = eligibility
     .filter((entry) => entry.decision.eligible)
     .map((entry) => entry.goal);
@@ -555,6 +604,16 @@ export function runPlannerKernel(
   const horizonSummary: PlannerGoalHorizonSummary[] = [];
   for (const goal of eligibleGoals) {
     const requirement = normalizedRequirements.get(goal.id)!;
+    const precoveredOrdinals = new Set(
+      (rawInput.precoveredOrdinalsByGoalId?.[goal.id] ?? []).filter(
+        (ordinal) =>
+          Number.isInteger(ordinal) &&
+          ordinal > 0 &&
+          ordinal <= (requirement.requirement.kind === "cadence"
+            ? 0
+            : requirement.requirement.targetCount)
+      )
+    );
     if (
       requirement.requirement.kind !== "cadence" &&
       requirement.requirement.targetCount >
@@ -608,6 +667,16 @@ export function runPlannerKernel(
             normalizedRequirement: requirement,
             window,
             asOfDate: rawInput.asOfDate,
+            effectivePlacementStart: (() => {
+              const resumeDate = getLinkResumeDate(
+                suppressionByGoalId.get(goal.id) ?? { kind: "none" }
+              );
+              return resumeDate &&
+                compareCanonicalStrings(resumeDate, rawInput.asOfDate) > 0
+                ? resumeDate
+                : null;
+            })(),
+            precoveredOrdinals,
             reconciledUnits: reconciled.units,
           });
     const scopedOrdinals =
@@ -703,11 +772,19 @@ export function runPlannerKernel(
     completionDatesByGoal,
     preserveExistingAssignments:
       rawInput.preserveExistingAssignments === true,
+    recoverPastPlacements: rawInput.recoverPastPlacements === true,
     draftPinnedDates: rawInput.draftPinnedDates ?? {},
     idealDateContextByGoal: new Map(
       eligibleGoals.flatMap((goal) => {
         const requirement = normalizedRequirements.get(goal.id)!.requirement;
-        if (requirement.kind === "cadence" || goal.end_date === null) {
+        const effectiveGoalEndDate = resolveGoalPlanningEndDate({
+          frequencyType: goal.frequency_type,
+          targetCount: goal.target_count,
+          startDate: goal.start_date,
+          endDate: goal.end_date,
+          asOfDate: rawInput.asOfDate,
+        });
+        if (requirement.kind === "cadence" || effectiveGoalEndDate === null) {
           return [];
         }
         return [
@@ -720,7 +797,7 @@ export function runPlannerKernel(
                   compareCanonicalStrings(rawInput.asOfDate, goal.start_date) > 0
                     ? rawInput.asOfDate
                     : goal.start_date,
-                end: goal.end_date,
+                end: effectiveGoalEndDate,
               },
             },
           ] as const,
@@ -929,6 +1006,7 @@ export function runPlannerKernel(
     preserveExistingAssignments:
       rawInput.preserveExistingAssignments === true,
     draftPinnedDates: rawInput.draftPinnedDates ?? {},
+    precoveredOrdinalsByGoalId: rawInput.precoveredOrdinalsByGoalId ?? {},
     startDate: rawInput.startDate,
     endDate: rawInput.endDate,
     asOfDate: rawInput.asOfDate,
@@ -936,6 +1014,7 @@ export function runPlannerKernel(
     goals: eligibleGoals,
     completions,
     links,
+    linkSourceGoals: rawInput.linkSourceGoals,
     assessments: normalizedAssessments,
     policy,
     basePlan: rawInput.basePlan
@@ -985,7 +1064,6 @@ export function runPlannerKernel(
       nextIssues: solver.issueCodes,
     }),
     validation,
-    suggestedRelaxations: suggestedRelaxations(solver.issueCodes),
     horizonSummary,
   };
   plannerKernelOutputSchema.parse(output);

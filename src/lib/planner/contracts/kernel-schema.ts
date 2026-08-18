@@ -93,6 +93,9 @@ export const plannerKernelInputSchema = z
     solveIntent: z.enum(["stable", "replan"]).optional(),
     preserveExistingAssignments: z.boolean().optional(),
     draftPinnedDates: z.record(z.string(), dateSchema).optional(),
+    precoveredOrdinalsByGoalId: z
+      .record(z.string(), z.array(z.number().int().positive()))
+      .optional(),
     ownerId: z.string().min(1).max(100),
     startDate: dateSchema,
     endDate: dateSchema,

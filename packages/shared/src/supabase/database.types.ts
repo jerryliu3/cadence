@@ -1792,6 +1792,7 @@ export type Database = {
       planner_goal_unplaceable: {
         Row: {
           computed_at: string
+          coverage_fingerprint: string
           effective_span_end: string
           goal_id: string
           lock_signature: string
@@ -1803,6 +1804,7 @@ export type Database = {
         }
         Insert: {
           computed_at?: string
+          coverage_fingerprint?: string
           effective_span_end: string
           goal_id: string
           lock_signature?: string
@@ -1814,6 +1816,7 @@ export type Database = {
         }
         Update: {
           computed_at?: string
+          coverage_fingerprint?: string
           effective_span_end?: string
           goal_id?: string
           lock_signature?: string

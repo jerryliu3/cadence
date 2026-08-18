@@ -14,12 +14,12 @@ export type EligibilityReason =
   | "not_owner"
   | "deleted"
   | "archived"
-  | "linked"
-  | "missing_end_date"
+  | "linked_target"
   | "invalid_date_range"
   | "end_outside_scope"
   | "starts_after_scope"
-  | "horizon_too_long";
+  | "horizon_too_long"
+  | "target_exceeds_limit";
 
 export interface PlannerWorkUnit {
   originalGoalId: string;
@@ -73,6 +73,8 @@ export interface PlannerActiveGoalSnapshot {
   title: string;
   category: string;
   color: string | null;
+  start_date?: string;
+  end_date?: string | null;
 }
 
 export interface PlannerActiveItemSnapshot {
@@ -98,6 +100,7 @@ export interface PlannerContextPayload {
   asOfDate: string;
   timezone: string;
   goalTitles: Record<string, string>;
+  links: PlannerGoalLinkSummary[];
   preferences: {
     timezone: string;
     timezoneConfirmedAt: string;
@@ -152,6 +155,8 @@ export interface PlannerContextPayload {
   unplaceableGoals?: Array<{
     goalId: string;
     requirementFingerprint: string;
+    policyFingerprint: string;
+    coverageFingerprint: string;
     policyRevision: number;
     lockSignature: string;
     effectiveSpanEnd: string;
@@ -159,6 +164,13 @@ export interface PlannerContextPayload {
     reason: "capacity" | "invalid_lock";
     computedAt?: string;
   }>;
+}
+
+export interface PlannerGoalLinkSummary {
+  sourceGoalId: string;
+  targetGoalId: string;
+  targetSuppressionKind: "none" | "until" | "indefinite";
+  targetResumesOn: string | null;
 }
 
 export interface PlannerVisibleMonthContextPayload {

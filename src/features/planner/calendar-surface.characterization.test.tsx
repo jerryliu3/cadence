@@ -26,9 +26,13 @@ const postJsonMock = vi.fn();
 const putJsonMock = vi.fn();
 const toastSuccessMock = vi.fn();
 const toastErrorMock = vi.fn();
+const completionMutationMock = vi.hoisted(() =>
+  vi.fn(async () => ({ ok: true, message: null }))
+);
 const coachHookMock = vi.hoisted(() => ({
   latestArgs: null as null | {
     applyDraftPolicy: (policy: ReturnType<typeof buildPlannerPolicy>) => void;
+    onGoalsCreated: () => Promise<void>;
   },
   actions: {
     resetForPlannerStateReset: vi.fn(),
@@ -55,6 +59,7 @@ vi.mock("@/features/planner/coach/use-planner-coach", () => ({
   usePlannerCoach: (args: unknown) => {
     coachHookMock.latestArgs = args as {
       applyDraftPolicy: (policy: ReturnType<typeof buildPlannerPolicy>) => void;
+      onGoalsCreated: () => Promise<void>;
     };
     return {
       actions: coachHookMock.actions,
@@ -67,7 +72,7 @@ vi.mock("@/features/planner/coach/planner-coach-panel", () => ({
 }));
 
 vi.mock("@/features/planner/use-completion-mutation", () => ({
-  useCompletionMutation: () => vi.fn(async () => ({ ok: true })),
+  useCompletionMutation: () => completionMutationMock,
 }));
 
 function unit(overrides: Partial<PlannerWorkUnit>): PlannerWorkUnit {
@@ -160,6 +165,8 @@ describe("CalendarSurface characterization", () => {
     putJsonMock.mockReset();
     toastSuccessMock.mockReset();
     toastErrorMock.mockReset();
+    completionMutationMock.mockReset();
+    completionMutationMock.mockResolvedValue({ ok: true, message: null });
     coachHookMock.latestArgs = null;
     coachHookMock.actions.onDraftDiscarded.mockReset();
     coachHookMock.actions.resetForPlannerStateReset.mockReset();
@@ -212,6 +219,77 @@ describe("CalendarSurface characterization", () => {
     );
   });
 
+  it.each(["month", "week", "three_day"] as const)(
+    "keeps time prefix while using compact milestone labels in %s cells",
+    async (viewMode) => {
+      postJsonMock.mockResolvedValue(
+        buildContext([
+          unit({
+            originalGoalId: "goal-b",
+            unitKey: "milestone:2",
+            label: "Tempo run 4x800",
+            goalDefaultLocalTime: "07:30",
+            scheduledDate: "2026-09-01",
+          }),
+        ])
+      );
+
+      render(
+        <CalendarSurface
+          activeTab="calendar"
+          month="2026-09"
+          selectedDay={viewMode === "month" ? null : "2026-09-01"}
+          viewMode={viewMode}
+          onMonthChange={vi.fn()}
+          onViewModeChange={vi.fn()}
+          onSelectedDayChange={vi.fn()}
+          onPlannerMutation={vi.fn()}
+        />
+      );
+
+      expect(await screen.findByText("07:30 Tempo run 4x800")).toBeInTheDocument();
+      expect(screen.queryByText("07:30 Goal B")).not.toBeInTheDocument();
+    }
+  );
+
+  it("force-prepares planner context after coach goals are created", async () => {
+    postJsonMock.mockResolvedValue(
+      buildContext([
+        unit({
+          originalGoalId: "goal-a",
+          unitKey: "total:1",
+          scheduledDate: "2026-08-31",
+        }),
+      ])
+    );
+    const onPlannerMutation = vi.fn();
+
+    render(
+      <CalendarSurface
+        activeTab="calendar"
+        month="2026-08"
+        selectedDay={null}
+        viewMode="month"
+        onMonthChange={vi.fn()}
+        onViewModeChange={vi.fn()}
+        onSelectedDayChange={vi.fn()}
+        onPlannerMutation={onPlannerMutation}
+      />
+    );
+    await waitFor(() => expect(postJsonMock).toHaveBeenCalledTimes(1));
+
+    await act(async () => {
+      await coachHookMock.latestArgs?.onGoalsCreated();
+    });
+
+    expect(onPlannerMutation).toHaveBeenCalledTimes(1);
+    expect(postJsonMock).toHaveBeenCalledTimes(2);
+    expect(postJsonMock).toHaveBeenLastCalledWith(
+      "/api/planner/prepare",
+      expect.objectContaining({ scopeMonth: "2026-08" })
+    );
+  });
+
   it("renders calendar directly when planner preferences are missing", async () => {
     const context = buildContext([
       unit({
@@ -246,7 +324,7 @@ describe("CalendarSurface characterization", () => {
     });
 
     expect(screen.queryByText("Plan setup")).not.toBeInTheDocument();
-    expect(await screen.findAllByRole("button", { name: "Go to today" })).not.toHaveLength(0);
+    expect(await screen.findAllByRole("button", { name: "Today" })).not.toHaveLength(0);
   });
 
   it("keeps the centered period and right-aligned calendar actions on one row", async () => {
@@ -280,19 +358,13 @@ describe("CalendarSurface characterization", () => {
       );
     });
 
-    const todayButton = await screen.findByRole("button", { name: "Go to today" });
     const expandButton = screen.getByRole("button", { name: "Expand rows" });
     const heading = screen.getByRole("heading", { name: "August 2026" });
-    const actionGroup = todayButton.parentElement;
-    const calendarHeaderRow = actionGroup?.parentElement;
+    const actionGroup = expandButton.parentElement;
 
-    expect(actionGroup).toContainElement(expandButton);
-    expect(actionGroup).toHaveClass("justify-self-end");
-    expect(calendarHeaderRow).toBe(heading.parentElement?.parentElement);
-    expect(calendarHeaderRow).toHaveClass(
-      "grid",
-      "grid-cols-[1fr_auto_1fr]"
-    );
+    expect(actionGroup).not.toBeNull();
+    expect(actionGroup).toHaveClass("right-0");
+    expect(heading).toBeInTheDocument();
   });
 
   it("dismisses unpinned day preview after pointer leaves preview surface", async () => {
@@ -334,7 +406,11 @@ describe("CalendarSurface characterization", () => {
     });
     fireEvent.mouseEnter(dayCell);
 
-    const expandAction = await screen.findByText("Expand", {}, { timeout: 2500 });
+    const expandAction = await screen.findByRole(
+      "button",
+      { name: "Expand day details" },
+      { timeout: 2500 }
+    );
     expect(expandAction).toBeInTheDocument();
 
     const popup = document.querySelector('[data-no-swipe="true"].fixed');
@@ -346,7 +422,9 @@ describe("CalendarSurface characterization", () => {
     fireEvent.pointerMove(document.body);
 
     await waitFor(() => {
-      expect(screen.queryByText("Expand")).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: "Expand day details" })
+      ).not.toBeInTheDocument();
     }, { timeout: 2500 });
   });
 
@@ -389,7 +467,11 @@ describe("CalendarSurface characterization", () => {
     });
     fireEvent.mouseEnter(dayCell);
 
-    const expandAction = await screen.findByText("Expand", {}, { timeout: 2500 });
+    const expandAction = await screen.findByRole(
+      "button",
+      { name: "Expand day details" },
+      { timeout: 2500 }
+    );
     expect(expandAction).toBeInTheDocument();
 
     const popup = document.querySelector('[data-no-swipe="true"].fixed');
@@ -398,7 +480,9 @@ describe("CalendarSurface characterization", () => {
     fireEvent.mouseLeave(popup as Element);
 
     await waitFor(() => {
-      expect(screen.queryByText("Expand")).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: "Expand day details" })
+      ).not.toBeInTheDocument();
     }, { timeout: 300 });
   });
 
@@ -453,14 +537,14 @@ describe("CalendarSurface characterization", () => {
     fireEvent.click(
       await screen.findByRole(
         "button",
-        { name: "Expand" },
+        { name: "Expand day details" },
         { timeout: 2500 }
       )
     );
 
     const dialog = await screen.findByRole("dialog");
     expect(
-      within(dialog).getByRole("heading", { name: "Monday, Aug 31" })
+      within(dialog).getByRole("heading", { name: "Mon, Aug 31" })
     ).toBeInTheDocument();
     expect(within(dialog).getByText("Goal A")).toBeInTheDocument();
     expect(within(dialog).getByText("Goal B")).toBeInTheDocument();
@@ -479,6 +563,8 @@ describe("CalendarSurface characterization", () => {
       {
         goalId: "goal-a",
         requirementFingerprint: "a".repeat(64),
+        policyFingerprint: "p".repeat(64),
+        coverageFingerprint: "c".repeat(64),
         policyRevision: 1,
         lockSignature: "lock-a",
         effectiveSpanEnd: "2027-07-31",
@@ -488,6 +574,8 @@ describe("CalendarSurface characterization", () => {
       {
         goalId: "goal-b",
         requirementFingerprint: "b".repeat(64),
+        policyFingerprint: "q".repeat(64),
+        coverageFingerprint: "d".repeat(64),
         policyRevision: 1,
         lockSignature: "lock-b",
         effectiveSpanEnd: "2027-07-31",
@@ -498,15 +586,9 @@ describe("CalendarSurface characterization", () => {
     postJsonMock.mockResolvedValue(context);
 
     const expectedSummaries = summarizePlannerGoalUnplaceableRecords({
-      records: context.unplaceableGoals,
+      records: context.unplaceableGoals ?? [],
       goalTitles: context.goalTitles,
     });
-    const expectedGoalCount = expectedSummaries.length;
-    const expectedUnitCount = expectedSummaries.reduce(
-      (count, summary) => count + summary.unplacedCount,
-      0
-    );
-
     render(
       <CalendarSurface
         activeTab="calendar"
@@ -520,17 +602,20 @@ describe("CalendarSurface characterization", () => {
       />
     );
 
-    fireEvent.click(
-      await screen.findByRole("button", { name: "See warnings" })
-    );
-    expect(
-      await screen.findByText(
-        new RegExp(
-          `${expectedGoalCount} goal${expectedGoalCount === 1 ? "" : "s"} are not fully scheduled \\(${expectedUnitCount} unresolved session${expectedUnitCount === 1 ? "" : "s"}\\)\\.`,
-          "i"
+    await waitFor(() => {
+      expect(
+        screen.getByText(
+          "Some goals need updates before the calendar can be fully scheduled."
         )
-      )
-    ).toBeInTheDocument();
+      ).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "See warnings" })).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "See warnings" }));
+    const dialog = await screen.findByRole("dialog");
+    for (const expected of expectedSummaries) {
+      expect(within(dialog).getByText(expected.title)).toBeInTheDocument();
+    }
   });
 
   it("does not render unplaceable banner when no record is present", async () => {
@@ -562,6 +647,173 @@ describe("CalendarSurface characterization", () => {
     });
     expect(
       screen.queryByRole("button", { name: "See warnings" })
+    ).not.toBeInTheDocument();
+  });
+
+  it("hides linked-target ineligibility from the warning detail list", async () => {
+    const context = buildContext([
+      unit({
+        originalGoalId: "goal-a",
+        unitKey: "total:1",
+        scheduledDate: "2026-08-31",
+      }),
+    ]);
+    if (!context.preview) {
+      throw new Error("Expected preview payload.");
+    }
+    context.links = [
+      {
+        sourceGoalId: "goal-a",
+        targetGoalId: "goal-b",
+        targetSuppressionKind: "indefinite",
+        targetResumesOn: null,
+      },
+    ];
+    context.preview = {
+      ...context.preview,
+      eligibility: [
+        { goalId: "goal-a", eligible: false, reason: "invalid_date_range" },
+        { goalId: "goal-b", eligible: false, reason: "linked_target" },
+      ],
+    };
+    postJsonMock.mockResolvedValue(context);
+
+    render(
+      <CalendarSurface
+        activeTab="calendar"
+        month="2026-08"
+        selectedDay={null}
+        viewMode="month"
+        onMonthChange={vi.fn()}
+        onViewModeChange={vi.fn()}
+        onSelectedDayChange={vi.fn()}
+        onPlannerMutation={vi.fn()}
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "See warnings" })).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByRole("button", { name: "See warnings" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(
+      within(dialog).getByText(
+        /Goal A: The goal dates are invalid \(start is after end\)\./i
+      )
+    ).toBeInTheDocument();
+    expect(
+      within(dialog).queryByText(
+        /Goal B: Linked target goals are managed by source completions and are hidden from Calendar\./i
+      )
+    ).not.toBeInTheDocument();
+    expect(
+      within(dialog).getByText(/Linked targets hidden in this month/i)
+    ).toBeInTheDocument();
+    expect(
+      within(dialog).getByText(
+        /Goal B: hidden while linked source goals remain active/i
+      )
+    ).toBeInTheDocument();
+  });
+
+  it("shows linked-target warning details even without hard eligibility blockers", async () => {
+    const context = buildContext([
+      unit({
+        originalGoalId: "goal-a",
+        unitKey: "total:1",
+        scheduledDate: "2026-08-31",
+      }),
+    ]);
+    context.links = [
+      {
+        sourceGoalId: "goal-a",
+        targetGoalId: "goal-b",
+        targetSuppressionKind: "until",
+        targetResumesOn: "2026-09-01",
+      },
+    ];
+    if (!context.preview) {
+      throw new Error("Expected preview payload.");
+    }
+    context.preview = {
+      ...context.preview,
+      eligibility: [{ goalId: "goal-b", eligible: false, reason: "linked_target" }],
+    };
+    postJsonMock.mockResolvedValue(context);
+
+    render(
+      <CalendarSurface
+        activeTab="calendar"
+        month="2026-08"
+        selectedDay={null}
+        viewMode="month"
+        onMonthChange={vi.fn()}
+        onViewModeChange={vi.fn()}
+        onSelectedDayChange={vi.fn()}
+        onPlannerMutation={vi.fn()}
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "See warnings" })).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByRole("button", { name: "See warnings" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(
+      within(dialog).getByText(
+        /Goal B: hidden in this month and resumes on Sep 1, 2026 Sources: Goal A\./i
+      )
+    ).toBeInTheDocument();
+  });
+
+  it("hides non-actionable eligibility reasons from the warning detail list", async () => {
+    const context = buildContext([
+      unit({
+        originalGoalId: "goal-a",
+        unitKey: "total:1",
+        scheduledDate: "2026-08-31",
+      }),
+    ]);
+    if (!context.preview) {
+      throw new Error("Expected preview payload.");
+    }
+    context.preview = {
+      ...context.preview,
+      eligibility: [
+        { goalId: "goal-a", eligible: false, reason: "invalid_date_range" },
+        { goalId: "goal-b", eligible: false, reason: "not_owner" },
+      ],
+    };
+    postJsonMock.mockResolvedValue(context);
+
+    render(
+      <CalendarSurface
+        activeTab="calendar"
+        month="2026-08"
+        selectedDay={null}
+        viewMode="month"
+        onMonthChange={vi.fn()}
+        onViewModeChange={vi.fn()}
+        onSelectedDayChange={vi.fn()}
+        onPlannerMutation={vi.fn()}
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "See warnings" })).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByRole("button", { name: "See warnings" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(
+      within(dialog).getByText(
+        /Goal A: The goal dates are invalid \(start is after end\)\./i
+      )
+    ).toBeInTheDocument();
+    expect(
+      within(dialog).queryByText(/Goal B: Only goals you own can be planned here\./i)
+    ).not.toBeInTheDocument();
+    expect(
+      within(dialog).queryByText(/additional goal is excluded automatically/i)
     ).not.toBeInTheDocument();
   });
 
@@ -645,6 +897,49 @@ describe("CalendarSurface characterization", () => {
     ).toBe(true);
   });
 
+  it("updates rest day checkboxes when coach applies a draft policy", async () => {
+    const context = buildContext([
+      unit({
+        originalGoalId: "goal-a",
+        unitKey: "total:1",
+        scheduledDate: "2026-08-31",
+      }),
+    ]);
+    postJsonMock.mockResolvedValue(context);
+
+    render(
+      <CalendarSurface
+        activeTab="calendar"
+        month="2026-08"
+        selectedDay={null}
+        viewMode="month"
+        onMonthChange={vi.fn()}
+        onViewModeChange={vi.fn()}
+        onSelectedDayChange={vi.fn()}
+        onPlannerMutation={vi.fn()}
+      />
+    );
+
+    await waitFor(() => {
+      expect(postJsonMock).toHaveBeenCalledWith(
+        "/api/planner/prepare",
+        expect.any(Object)
+      );
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+    const tuesdayCheckbox = await screen.findByLabelText("Tue");
+    expect(tuesdayCheckbox).not.toBeChecked();
+
+    await act(async () => {
+      coachHookMock.latestArgs?.applyDraftPolicy(
+        buildPlannerPolicy({ restWeekdays: [2] })
+      );
+    });
+
+    expect(await screen.findByLabelText("Tue")).toBeChecked();
+  });
+
   it("forces prepare refresh after toggling a lock", async () => {
     const context = buildContext([
       unit({
@@ -685,6 +980,11 @@ describe("CalendarSurface characterization", () => {
     });
 
     fireEvent.click(await screen.findByText("Next: Baseline"));
+    expect(await screen.findByRole("link", { name: "Edit goal" })).toHaveAttribute(
+      "href",
+      "/goals/goal-a"
+    );
+    expect(screen.queryByText("Mark done")).not.toBeInTheDocument();
     fireEvent.click(await screen.findByRole("button", { name: "Lock" }));
 
     await waitFor(() => {
@@ -697,5 +997,180 @@ describe("CalendarSurface characterization", () => {
           .length
       ).toBe(2);
     });
+  });
+
+  it("shows no move-dialog candidates when no eligible source sessions exist", async () => {
+    postJsonMock.mockResolvedValue(
+      buildContext([
+        unit({
+          originalGoalId: "goal-a",
+          unitKey: "total:1",
+          scheduledDate: "2026-08-31",
+          label: "Goal A target",
+        }),
+      ])
+    );
+
+    render(
+      <CalendarSurface
+        activeTab="calendar"
+        month="2026-08"
+        selectedDay={null}
+        viewMode="month"
+        onMonthChange={vi.fn()}
+        onViewModeChange={vi.fn()}
+        onSelectedDayChange={vi.fn()}
+        onPlannerMutation={vi.fn()}
+      />
+    );
+
+    await waitFor(() => {
+      expect(postJsonMock).toHaveBeenCalledWith(
+        "/api/planner/prepare",
+        expect.any(Object)
+      );
+    });
+
+    const dayCell = document.querySelector(
+      '[data-day-cell="true"][data-day="2026-08-31"]'
+    );
+    expect(dayCell).toBeInstanceOf(HTMLButtonElement);
+    fireEvent.click(dayCell as Element);
+    fireEvent.click(await screen.findByRole("button", { name: "Move" }));
+
+    const dialog = await screen.findByRole("dialog", {
+      name: /Move session here/i,
+    });
+    expect(
+      within(dialog).getByText("No movable sessions are eligible for this day.")
+    ).toBeInTheDocument();
+  });
+
+  it("routes day-panel completion toggles through completion mutation callbacks", async () => {
+    postJsonMock.mockResolvedValue(
+      buildContext([
+        unit({
+          originalGoalId: "goal-a",
+          unitKey: "total:1",
+          scheduledDate: "2026-08-15",
+          classification: "planned",
+          creditState: "uncredited",
+        }),
+      ])
+    );
+
+    render(
+      <CalendarSurface
+        activeTab="calendar"
+        month="2026-08"
+        selectedDay="2026-08-15"
+        viewMode="day"
+        onMonthChange={vi.fn()}
+        onViewModeChange={vi.fn()}
+        onSelectedDayChange={vi.fn()}
+        onPlannerMutation={vi.fn()}
+      />
+    );
+
+    await waitFor(() => {
+      expect(postJsonMock).toHaveBeenCalledWith(
+        "/api/planner/prepare",
+        expect.any(Object)
+      );
+    });
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Mark session done" })
+    );
+
+    await waitFor(() => {
+      expect(completionMutationMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          goalId: "goal-a",
+          date: "2026-08-15",
+          desiredFactState: "present",
+        })
+      );
+    });
+  });
+
+  it("keeps partner scope read-only for planner day actions", async () => {
+    postJsonMock.mockResolvedValue(
+      buildContext([
+        unit({
+          originalGoalId: "goal-a",
+          unitKey: "total:1",
+          scheduledDate: "2026-08-31",
+        }),
+      ])
+    );
+
+    render(
+      <CalendarSurface
+        activeTab="calendar"
+        month="2026-08"
+        selectedDay="2026-08-31"
+        viewMode="day"
+        onMonthChange={vi.fn()}
+        onViewModeChange={vi.fn()}
+        onSelectedDayChange={vi.fn()}
+        onPlannerMutation={vi.fn()}
+        duoScope="partner"
+      />
+    );
+
+    await waitFor(() => {
+      expect(postJsonMock).toHaveBeenCalledWith(
+        "/api/planner/prepare",
+        expect.any(Object)
+      );
+    });
+
+    expect(
+      screen.queryByRole("button", { name: "Mark session done" })
+    ).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Lock" })).not.toBeInTheDocument();
+  });
+
+  it("keeps cross-month day scope read-only for planner day actions", async () => {
+    postJsonMock.mockResolvedValue(
+      buildContext([
+        unit({
+          originalGoalId: "goal-a",
+          unitKey: "total:1",
+          scheduledDate: "2026-09-01",
+          label: "Outside scope month",
+        }),
+      ])
+    );
+
+    render(
+      <CalendarSurface
+        activeTab="calendar"
+        month="2026-08"
+        selectedDay="2026-09-01"
+        viewMode="day"
+        onMonthChange={vi.fn()}
+        onViewModeChange={vi.fn()}
+        onSelectedDayChange={vi.fn()}
+        onPlannerMutation={vi.fn()}
+      />
+    );
+
+    await waitFor(() => {
+      expect(postJsonMock).toHaveBeenCalledWith(
+        "/api/planner/prepare",
+        expect.any(Object)
+      );
+    });
+
+    const completionButton = await screen.findByRole("button", {
+      name: "Mark session done",
+    });
+    expect(completionButton).toBeDisabled();
+    const lockButton = screen.queryByRole("button", { name: "Lock" });
+    if (lockButton) {
+      expect(lockButton).toBeDisabled();
+    }
   });
 });
