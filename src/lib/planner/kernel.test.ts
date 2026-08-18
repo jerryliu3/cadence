@@ -1435,7 +1435,7 @@ describe("pure planner kernel", () => {
       output.eligibility.find((entry) => entry.goalId === oversizedGoal.id)
     ).toMatchObject({
       eligible: false,
-      reason: "target_exceeds_work_unit_limit",
+      reason: "target_exceeds_limit",
     });
     expect(output.workUnits).toHaveLength(0);
   });
@@ -1452,7 +1452,7 @@ describe("pure planner kernel", () => {
       output.eligibility.find((entry) => entry.goalId === oversizedGoal.id)
     ).toMatchObject({
       eligible: false,
-      reason: "target_exceeds_work_unit_limit",
+      reason: "target_exceeds_limit",
     });
     expect(output.workUnits).toHaveLength(0);
   });

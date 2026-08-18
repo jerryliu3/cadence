@@ -233,7 +233,7 @@ describe("goal-level eligibility guards", () => {
       })
     ).toEqual({
       eligible: false,
-      reason: "target_exceeds_work_unit_limit",
+      reason: "target_exceeds_limit",
     });
   });
 
@@ -256,7 +256,7 @@ describe("goal-level eligibility guards", () => {
       })
     ).toEqual({
       eligible: false,
-      reason: "target_exceeds_work_unit_limit",
+      reason: "target_exceeds_limit",
     });
   });
 });

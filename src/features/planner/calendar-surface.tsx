@@ -39,6 +39,7 @@ import { resolveUserTimezone } from "@/lib/dates/timezone";
 import {
   invalidatePlannerRelatedTabCaches,
 } from "@/lib/cache/planner-tab-cache";
+import { MAX_GOAL_TARGET_COUNT } from "@/lib/planner/contracts/bounds";
 import type { EligibilityReason } from "@/lib/planner/eligibility";
 import {
   type PlannerPolicy,
@@ -101,7 +102,7 @@ const NON_ACTIONABLE_ELIGIBILITY_REASONS = new Set([
 const ELIGIBILITY_REASON_GROUP_LABELS: Partial<Record<EligibilityReason, string>> = {
   invalid_date_range: "Goals with invalid date ranges",
   horizon_too_long: "Goals beyond the planning horizon",
-  target_exceeds_work_unit_limit: "Goals exceeding planner size limits",
+  target_exceeds_limit: "Goals exceeding planner size limits",
 };
 const ELIGIBILITY_REASON_LABELS: Record<EligibilityReason, string> = {
   eligible: "This goal can be planned.",
@@ -115,8 +116,7 @@ const ELIGIBILITY_REASON_LABELS: Record<EligibilityReason, string> = {
   starts_after_scope: "This goal starts after the selected planning month.",
   horizon_too_long:
     "This goal deadline exceeds the 24-month planning horizon limit.",
-  target_exceeds_work_unit_limit:
-    "This goal target exceeds the planner's maximum supported limit (1,000).",
+  target_exceeds_limit: `This goal target exceeds the planner's maximum supported limit (${MAX_GOAL_TARGET_COUNT.toLocaleString()}).`,
 };
 
 function getEligibilityReasonLabel(reason: EligibilityReason) {

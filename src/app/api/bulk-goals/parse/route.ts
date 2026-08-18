@@ -11,10 +11,8 @@ import {
 import { getDateInTimezone, isValidIanaTimezone } from "@/lib/dates/timezone";
 import { getServerEnv } from "@/lib/env";
 import { DEFAULT_GOAL_CATEGORIES, resolveCategoryKey } from "@/lib/goals/category";
-import {
-  MAX_GOAL_TARGET_COUNT,
-  validateGoalDefinition,
-} from "@/lib/goals/definition-validation";
+import { validateGoalDefinition } from "@/lib/goals/definition-validation";
+import { MAX_GOAL_TARGET_COUNT } from "@/lib/planner/contracts/bounds";
 import {
   consumePlannerAiQuota,
   readBulkParserQuotaLimit,

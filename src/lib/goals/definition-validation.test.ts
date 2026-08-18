@@ -181,4 +181,19 @@ describe("goal definition validation", () => {
       String(MAX_GOAL_TARGET_COUNT)
     );
   });
+
+  it("reports target-limit issues even when date ranges are invalid", () => {
+    const issues = validateGoalDefinition({
+      frequencyType: "fixed_milestones",
+      targetCount: MAX_GOAL_TARGET_COUNT + 1,
+      startDate: "2026-08-15",
+      endDate: "2026-08-01",
+    });
+    expect(issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ code: "target_exceeds_limit" }),
+        expect.objectContaining({ code: "invalid_date_range" }),
+      ])
+    );
+  });
 });
