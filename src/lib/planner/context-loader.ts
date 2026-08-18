@@ -46,6 +46,11 @@ import {
   isPlannerGoalUnplaceableRecordValid,
   type PlannerGoalUnplaceableRecord,
 } from "@/lib/planner/unplaceable";
+import {
+  computeLinkedSourceCoverageByGoalId,
+  buildPlannedDatesByGoalIdFromPlannerItems,
+  indexCompletionsByGoalId,
+} from "@/lib/planner/linked-source-coverage";
 import type { PlannerBaseAssignment } from "@/lib/planner/work-units";
 import type { Database } from "@/lib/supabase/database.types";
 import type { createClient as createServerClient } from "@/lib/supabase/server";
@@ -345,7 +350,7 @@ async function loadPlannerPreferences(
   return resolvePlannerPreferencesSnapshot({ profile });
 }
 
-async function loadPlannerItemsForWindow(
+export async function loadPlannerItemsForWindow(
   supabase: ServerSupabaseClient,
   ownerId: string,
   startDate: string,
@@ -444,7 +449,6 @@ async function loadPlannerGoalUnplaceableRecords(
         goalId: row.goal_id,
         requirementFingerprint: row.requirement_fingerprint,
         policyFingerprint: row.policy_fingerprint ?? "",
-        coverageFingerprint: row.coverage_fingerprint ?? "",
         policyRevision: row.policy_revision,
         lockSignature: row.lock_signature,
         effectiveSpanEnd: row.effective_span_end,
@@ -454,61 +458,6 @@ async function loadPlannerGoalUnplaceableRecords(
       }];
     })
     .sort((left, right) => left.goalId.localeCompare(right.goalId));
-}
-
-function computePlannerGoalCoverageFingerprint({
-  goal,
-  effectiveEnd,
-  asOfDate,
-  linkSourceGoals,
-  completionsByGoalId,
-  persistedItemsByGoalId,
-}: {
-  goal: Goal;
-  effectiveEnd: string;
-  asOfDate: string;
-  linkSourceGoals: Goal[];
-  completionsByGoalId: Map<string, Completion[]>;
-  persistedItemsByGoalId: Map<string, PlannerItemRow[]>;
-}) {
-  const requirement = normalizeGoalRequirement(goal).requirement;
-  if (requirement.kind === "cadence" || linkSourceGoals.length === 0) {
-    return "";
-  }
-  const projectedCoverageDates = new Set<string>();
-  for (const sourceGoal of linkSourceGoals) {
-    if (sourceGoal.is_deleted || sourceGoal.archived_at !== null) {
-      continue;
-    }
-    for (const completion of completionsByGoalId.get(sourceGoal.id) ?? []) {
-      if (
-        completion.completed_on < sourceGoal.start_date ||
-        completion.completed_on > asOfDate ||
-        (sourceGoal.end_date !== null && completion.completed_on > sourceGoal.end_date) ||
-        completion.completed_on < goal.start_date ||
-        completion.completed_on > effectiveEnd
-      ) {
-        continue;
-      }
-      projectedCoverageDates.add(completion.completed_on);
-    }
-    for (const item of persistedItemsByGoalId.get(sourceGoal.id) ?? []) {
-      if (
-        item.scheduled_date < asOfDate ||
-        item.scheduled_date < sourceGoal.start_date ||
-        (sourceGoal.end_date !== null && item.scheduled_date > sourceGoal.end_date) ||
-        item.scheduled_date < goal.start_date ||
-        item.scheduled_date > effectiveEnd
-      ) {
-        continue;
-      }
-      projectedCoverageDates.add(item.scheduled_date);
-    }
-  }
-  if (projectedCoverageDates.size === 0) {
-    return "";
-  }
-  return canonicalHash(Array.from(projectedCoverageDates).sort());
 }
 
 async function loadActivePlanSnapshot(
@@ -819,8 +768,9 @@ export async function loadPlannerContextPayload({
   const preparationWindows = buildPreparationWindows(asOfDate);
   const preparationStart = preparationWindows[0]?.start ?? startDate;
   const preparationEnd = preparationWindows.at(-1)?.end ?? endDate;
-  const hasUnplaceableRecords = (snapshot.unplaceableGoals?.length ?? 0) > 0;
-  const persistedItemsInPreparationHorizon = hasUnplaceableRecords
+  const needsPreparationHorizonItems =
+    (snapshot.unplaceableGoals?.length ?? 0) > 0 || snapshot.links.length > 0;
+  const persistedItemsInPreparationHorizon = needsPreparationHorizonItems
     ? await loadPlannerItemsForWindow(
         supabase,
         ownerId,
@@ -835,22 +785,10 @@ export async function loadPlannerContextPayload({
   const policyFingerprint = canonicalHash(effectivePolicy);
   const policyRevision = snapshot.preferences?.policy_revision ?? 0;
   const goalById = new Map(snapshot.goals.map((goal) => [goal.id, goal]));
-  const persistedItemsByGoalId = new Map<string, PlannerItemRow[]>();
-  for (const item of persistedItemsInPreparationHorizon) {
-    const entries = persistedItemsByGoalId.get(item.goal_id) ?? [];
-    entries.push(item);
-    persistedItemsByGoalId.set(item.goal_id, entries);
-  }
-  const completionsByGoalId = new Map<string, Completion[]>();
-  for (const completion of snapshot.completions) {
-    const entries = completionsByGoalId.get(completion.goal_id) ?? [];
-    entries.push(completion);
-    completionsByGoalId.set(completion.goal_id, entries);
-  }
-  const suppressionInboundIndex = buildLinkSuppressionInboundIndex(snapshot.links);
-  const suppressionSourcesById = new Map(
-    snapshot.goals.map((goal) => [goal.id, toLinkSuppressionSource(goal)])
+  const plannedDatesByGoalId = buildPlannedDatesByGoalIdFromPlannerItems(
+    persistedItemsInPreparationHorizon
   );
+  const completionsByGoalId = indexCompletionsByGoalId(snapshot.completions);
   const lockSignatureByGoalId = new Map<string, string>();
   const lockEntriesByGoalId = new Map<
     string,
@@ -871,47 +809,25 @@ export async function loadPlannerContextPayload({
       buildPlannerGoalLockSignature(lockEntriesByGoalId.get(goal.id) ?? [])
     );
   }
+  const { projectedCoverageCountByGoalId } = computeLinkedSourceCoverageByGoalId({
+    goals: snapshot.goals,
+    links: snapshot.links,
+    ownerId,
+    asOfDate,
+    preparationStart,
+    preparationEnd,
+    completionsByGoalId,
+    plannedDatesByGoalId,
+  });
   const validUnplaceableGoals = (snapshot.unplaceableGoals ?? []).filter((record) => {
     const goal = goalById.get(record.goalId);
     if (!goal) {
       return false;
     }
-    const suppression = resolveLinkSuppression({
-      goalId: goal.id,
-      inboundSourceIdsByTargetId: suppressionInboundIndex,
-      sourcesById: suppressionSourcesById,
-      ownerId,
-      asOfDate,
-    });
-    const resumeDate = getLinkResumeDate(suppression);
-    const goalPreparationStart =
-      resumeDate && resumeDate > preparationStart ? resumeDate : preparationStart;
-    const goalWindowsState = buildGoalPreparationWindows({
-      goal,
-      asOfDate,
-      preparationStart: goalPreparationStart,
-      preparationEnd,
-    });
-    const linkSourceGoals = Array.from(
-      new Map(
-        snapshot.links
-          .filter((link) => link.targetGoalId === goal.id)
-          .map((link) => [link.sourceGoalId, goalById.get(link.sourceGoalId)])
-      ).values()
-    ).filter((linkSourceGoal): linkSourceGoal is Goal => Boolean(linkSourceGoal));
-    const coverageFingerprint = computePlannerGoalCoverageFingerprint({
-      goal,
-      effectiveEnd: goalWindowsState.effectiveEnd,
-      asOfDate,
-      linkSourceGoals,
-      completionsByGoalId,
-      persistedItemsByGoalId,
-    });
     return isPlannerGoalUnplaceableRecordValid({
       record,
       goal,
       policyFingerprint,
-      coverageFingerprint,
       policyRevision,
       lockSignature: lockSignatureByGoalId.get(goal.id) ?? "",
       preparationEnd,
@@ -930,6 +846,11 @@ export async function loadPlannerContextPayload({
     goals: snapshot.goals,
     completions: snapshot.completions,
     links: snapshot.links,
+    precoveredCountByGoalId: Object.fromEntries(
+      Array.from(projectedCoverageCountByGoalId.entries()).filter(
+        ([, count]) => count > 0
+      )
+    ),
     assessments: activeAssessments.length > 0 ? activeAssessments : undefined,
     policy: effectivePolicy,
     basePlan: snapshot.activePlan?.basePlan ?? null,

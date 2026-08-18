@@ -158,7 +158,6 @@ function unplaceableRecord(
     requirementFingerprint:
       input.requirementFingerprint ?? computeRequirementFingerprint(goal()),
     policyFingerprint: input.policyFingerprint ?? DEFAULT_POLICY_FINGERPRINT,
-    coverageFingerprint: input.coverageFingerprint ?? "",
     policyRevision: input.policyRevision ?? 1,
     lockSignature: input.lockSignature ?? "lock-signature",
     effectiveSpanEnd: input.effectiveSpanEnd ?? "2028-07-31",
@@ -1046,6 +1045,202 @@ describe("preparePlannerSchedule", () => {
     expect(targetOutcome?.unplaced_count).toBe(0);
   });
 
+  it("passes projected source coverage to the prepare kernel input", async () => {
+    mocks.resolveCanonicalAsOfDate.mockReturnValue("2026-08-18");
+    const sourceGoal = goal({
+      id: "f0f0f0f0-f0f0-4f0f-8f0f-f0f0f0f0f0f0",
+      title: "Source work",
+      frequency_type: "fixed_milestones",
+      recurrence_interval: null,
+      target_count: 2,
+      milestone_names: ["1", "2"],
+      start_date: "2026-08-01",
+      end_date: "2026-08-31",
+    });
+    const targetGoal = goal({
+      id: "a0a0a0a0-a0a0-4a0a-8a0a-a0a0a0a0a0a0",
+      title: "Target work",
+      frequency_type: "fixed_milestones",
+      recurrence_interval: null,
+      target_count: 4,
+      milestone_names: ["1", "2", "3", "4"],
+      start_date: "2026-01-01",
+      end_date: "2026-12-31",
+    });
+    mocks.loadPlannerPreparationSnapshot.mockResolvedValue(
+      preparationSnapshot(
+        [sourceGoal, targetGoal],
+        [
+          persistedItem({
+            id: "b0b0b0b0-b0b0-4b0b-8b0b-b0b0b0b0b0b0",
+            goal_id: sourceGoal.id,
+            unit_key: "milestone:2",
+            scheduled_date: "2026-08-20",
+            original_scheduled_date: "2026-08-20",
+            scheduled_time: null,
+            locked: false,
+          }),
+          persistedItem({
+            id: "c0c0c0c0-c0c0-4c0c-8c0c-c0c0c0c0c0c0",
+            goal_id: targetGoal.id,
+            unit_key: "milestone:4",
+            scheduled_date: "2026-09-01",
+            original_scheduled_date: "2026-09-01",
+            scheduled_time: null,
+            locked: false,
+          }),
+        ],
+        [],
+        [
+          {
+            id: "source-completion-1",
+            goal_id: sourceGoal.id,
+            user_id: OWNER_ID,
+            completed_on: "2026-08-03",
+            source: "manual",
+            created_at: "2026-08-03T00:00:00.000Z",
+          },
+        ],
+        [{ sourceGoalId: sourceGoal.id, targetGoalId: targetGoal.id }]
+      )
+    );
+    mocks.runPlannerKernel.mockImplementation((kernelInput) =>
+      kernelOutput(kernelInput.goals[0].id, [
+        { unitKey: "milestone:3", scheduledDate: "2026-09-02" },
+      ])
+    );
+
+    await prepare();
+
+    const targetCalls = mocks.runPlannerKernel.mock.calls.filter(
+      ([kernelInput]) => kernelInput.goals[0]?.id === targetGoal.id
+    );
+    expect(targetCalls.length).toBeGreaterThan(0);
+    for (const [kernelInput] of targetCalls) {
+      expect(kernelInput.precoveredCountByGoalId).toEqual({
+        [targetGoal.id]: 2,
+      });
+    }
+  });
+
+  it("does not re-solve when source dates move but projected coverage count stays constant", async () => {
+    mocks.resolveCanonicalAsOfDate.mockReturnValue("2026-08-18");
+    const sourceGoal = goal({
+      id: "d1d1d1d1-d1d1-41d1-81d1-d1d1d1d1d1d1",
+      title: "Source",
+      frequency_type: "fixed_milestones",
+      recurrence_interval: null,
+      target_count: 2,
+      milestone_names: ["1", "2"],
+      start_date: "2026-08-01",
+      end_date: "2026-08-31",
+    });
+    const targetGoal = goal({
+      id: "e1e1e1e1-e1e1-41e1-81e1-e1e1e1e1e1e1",
+      title: "Target",
+      frequency_type: "fixed_milestones",
+      recurrence_interval: null,
+      target_count: 5,
+      milestone_names: ["1", "2", "3", "4", "5"],
+      start_date: "2026-01-01",
+      end_date: "2026-12-31",
+    });
+    const sourceItemsRunOne = [
+      persistedItem({
+        id: "run-one-source-1",
+        goal_id: sourceGoal.id,
+        unit_key: "milestone:1",
+        scheduled_date: "2026-08-20",
+        original_scheduled_date: "2026-08-20",
+        scheduled_time: null,
+        locked: false,
+      }),
+      persistedItem({
+        id: "run-one-source-2",
+        goal_id: sourceGoal.id,
+        unit_key: "milestone:2",
+        scheduled_date: "2026-08-22",
+        original_scheduled_date: "2026-08-22",
+        scheduled_time: null,
+        locked: false,
+      }),
+    ];
+    const sourceItemsRunTwo = [
+      persistedItem({
+        id: "run-two-source-1",
+        goal_id: sourceGoal.id,
+        unit_key: "milestone:1",
+        scheduled_date: "2026-08-24",
+        original_scheduled_date: "2026-08-24",
+        scheduled_time: null,
+        locked: false,
+      }),
+      persistedItem({
+        id: "run-two-source-2",
+        goal_id: sourceGoal.id,
+        unit_key: "milestone:2",
+        scheduled_date: "2026-08-26",
+        original_scheduled_date: "2026-08-26",
+        scheduled_time: null,
+        locked: false,
+      }),
+    ];
+    const existingTargetShortfall = unplaceableRecord({
+      goalId: targetGoal.id,
+      requirementFingerprint: computeRequirementFingerprint(targetGoal),
+      policyFingerprint: DEFAULT_POLICY_FINGERPRINT,
+      policyRevision: 1,
+      lockSignature: buildPlannerGoalLockSignature([]),
+      effectiveSpanEnd: targetGoal.end_date ?? "2026-12-31",
+      unplacedCount: 3,
+      reason: "capacity",
+    });
+    mocks.loadPlannerPreparationSnapshot
+      .mockResolvedValueOnce(
+        preparationSnapshot(
+          [sourceGoal, targetGoal],
+          sourceItemsRunOne,
+          [existingTargetShortfall],
+          [],
+          [{ sourceGoalId: sourceGoal.id, targetGoalId: targetGoal.id }]
+        )
+      )
+      .mockResolvedValueOnce(
+        preparationSnapshot(
+          [sourceGoal, targetGoal],
+          sourceItemsRunTwo,
+          [existingTargetShortfall],
+          [],
+          [{ sourceGoalId: sourceGoal.id, targetGoalId: targetGoal.id }]
+        )
+      );
+    mocks.runPlannerKernel.mockImplementation((kernelInput) =>
+      kernelOutput(kernelInput.goals[0].id, [])
+    );
+
+    await prepare();
+    await prepare();
+
+    const targetCalls = mocks.runPlannerKernel.mock.calls.filter(
+      ([kernelInput]) => kernelInput.goals[0]?.id === targetGoal.id
+    );
+    expect(targetCalls).toHaveLength(0);
+    const firstRunPayload = mocks.rpc.mock.calls[0]?.[1] as {
+      p_unplaceable: Array<{ goal_id: string; unplaced_count: number }>;
+    };
+    const secondRunPayload = mocks.rpc.mock.calls[1]?.[1] as {
+      p_unplaceable: Array<{ goal_id: string; unplaced_count: number }>;
+    };
+    expect(
+      firstRunPayload.p_unplaceable.find((entry) => entry.goal_id === targetGoal.id)
+        ?.unplaced_count
+    ).toBe(3);
+    expect(
+      secondRunPayload.p_unplaceable.find((entry) => entry.goal_id === targetGoal.id)
+        ?.unplaced_count
+    ).toBe(3);
+  });
+
   it("shrinks projected linked coverage after uncompleted source planned dates elapse", async () => {
     const sourceGoal = goal({
       id: "17171717-1717-4717-8717-171717171717",
@@ -1692,7 +1887,6 @@ describe("preparePlannerSchedule", () => {
             goal_id: plannerGoal.id,
             requirement_fingerprint: existingRecord.requirementFingerprint,
             policy_fingerprint: existingRecord.policyFingerprint,
-            coverage_fingerprint: existingRecord.coverageFingerprint,
             policy_revision: existingRecord.policyRevision,
             lock_signature: existingRecord.lockSignature,
             effective_span_end: existingRecord.effectiveSpanEnd,

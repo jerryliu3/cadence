@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   requirePlannerRouteContext: vi.fn(),
   resolveCanonicalAsOfDate: vi.fn(),
   loadPlannerCanonicalSnapshot: vi.fn(),
+  loadPlannerItemsForWindow: vi.fn(),
   runPlannerKernel: vi.fn(),
 }));
 
@@ -31,6 +32,7 @@ vi.mock("@/lib/planner/api", async () => {
 
 vi.mock("@/lib/planner/context-loader", () => ({
   loadPlannerCanonicalSnapshot: mocks.loadPlannerCanonicalSnapshot,
+  loadPlannerItemsForWindow: mocks.loadPlannerItemsForWindow,
 }));
 
 vi.mock("@/lib/planner/kernel", () => ({
@@ -67,7 +69,15 @@ describe("planner context preview route", () => {
       },
     });
     mocks.resolveCanonicalAsOfDate.mockReturnValue("2026-08-05");
+    mocks.loadPlannerItemsForWindow.mockResolvedValue([]);
     mocks.loadPlannerCanonicalSnapshot.mockResolvedValue({
+      goals: [],
+      completions: [],
+      links: [],
+      revisions: {
+        canonicalRevision: 0,
+        executionRevision: 0,
+      },
       preferences: {
         timezone: "UTC",
         default_policy: {
@@ -75,6 +85,7 @@ describe("planner context preview route", () => {
           timezone: "UTC",
         },
       },
+      activePlan: null,
     });
   });
 
@@ -219,6 +230,89 @@ describe("planner context preview route", () => {
     expect(mocks.runPlannerKernel).toHaveBeenCalledWith(
       expect.objectContaining({
         recoverPastPlacements: false,
+      })
+    );
+  });
+
+  it("threads linked-source projected coverage into preview kernel input", async () => {
+    mocks.parseBoundedJsonBody.mockResolvedValueOnce({
+      startDate: "2026-08-01",
+      endDate: "2026-08-31",
+      source: "manual",
+      timezone: "UTC",
+      policy: createDefaultPlannerPolicy("UTC", "2026-08-01T00:00:00.000Z"),
+    });
+    const sourceGoalId = "33333333-3333-4333-8333-333333333333";
+    const targetGoalId = "44444444-4444-4444-8444-444444444444";
+    mocks.loadPlannerCanonicalSnapshot.mockResolvedValueOnce({
+      goals: [
+        {
+          id: sourceGoalId,
+          owner_id: "11111111-1111-4111-8111-111111111111",
+          title: "Source",
+          category: "Personal",
+          color: null,
+          frequency_type: "fixed_milestones",
+          recurrence_interval: null,
+          target_count: 2,
+          milestone_names: ["1", "2"],
+          start_date: "2026-08-01",
+          end_date: "2026-08-31",
+          is_deleted: false,
+          archived_at: null,
+        },
+        {
+          id: targetGoalId,
+          owner_id: "11111111-1111-4111-8111-111111111111",
+          title: "Target",
+          category: "Personal",
+          color: null,
+          frequency_type: "fixed_milestones",
+          recurrence_interval: null,
+          target_count: 4,
+          milestone_names: ["1", "2", "3", "4"],
+          start_date: "2026-01-01",
+          end_date: "2026-12-31",
+          is_deleted: false,
+          archived_at: null,
+        },
+      ],
+      completions: [
+        {
+          id: "completion-1",
+          goal_id: sourceGoalId,
+          user_id: "11111111-1111-4111-8111-111111111111",
+          completed_on: "2026-08-03",
+          source: "manual",
+          created_at: "2026-08-03T00:00:00.000Z",
+        },
+      ],
+      links: [{ sourceGoalId, targetGoalId }],
+      revisions: {
+        canonicalRevision: 0,
+        executionRevision: 0,
+      },
+      preferences: {
+        timezone: "UTC",
+        default_policy: createDefaultPlannerPolicy("UTC", "2026-08-01T00:00:00.000Z"),
+      },
+      activePlan: null,
+    });
+    mocks.loadPlannerItemsForWindow.mockResolvedValueOnce([
+      {
+        goal_id: sourceGoalId,
+        scheduled_date: "2026-08-10",
+      },
+    ]);
+    mocks.runPlannerKernel.mockImplementationOnce(() => {
+      throw new Error("forced");
+    });
+
+    await POST(new Request("http://localhost/api/planner/context", { method: "POST" }));
+
+    expect(mocks.runPlannerKernel).toHaveBeenCalledWith(
+      expect.objectContaining({
+        precoveredCountByGoalId: { [targetGoalId]: 2 },
       })
     );
   });
