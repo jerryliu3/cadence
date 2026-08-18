@@ -149,11 +149,6 @@ export function usePlannerPreviewSession({
     [setDraftPreview, setDraftPreviewWindow]
   );
 
-  const clearDraftPreviewState = useCallback(() => {
-    setDraftPreview(null);
-    setDraftPreviewWindow(null);
-  }, [setDraftPreview, setDraftPreviewWindow]);
-
   const refreshDraftPreview = useCallback(
     async (nextPolicy: PlannerPolicy) => {
       const preview = await requestPreview(
@@ -408,6 +403,5 @@ export function usePlannerPreviewSession({
     recoverPastSessions,
     clearDraftMoveCommands,
     cacheDraftPreviewForWindow,
-    clearDraftPreviewState,
   };
 }
