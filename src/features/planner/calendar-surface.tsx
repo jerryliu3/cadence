@@ -116,7 +116,7 @@ const ELIGIBILITY_REASON_LABELS: Record<EligibilityReason, string> = {
   horizon_too_long:
     "This goal deadline exceeds the 24-month planning horizon limit.",
   target_exceeds_work_unit_limit:
-    "This goal target exceeds the planner's maximum supported work-unit limit.",
+    "This goal target exceeds the planner's maximum supported limit (1,000).",
 };
 
 function getEligibilityReasonLabel(reason: EligibilityReason) {

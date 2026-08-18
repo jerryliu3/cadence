@@ -11,7 +11,10 @@ import {
 import { getDateInTimezone, isValidIanaTimezone } from "@/lib/dates/timezone";
 import { getServerEnv } from "@/lib/env";
 import { DEFAULT_GOAL_CATEGORIES, resolveCategoryKey } from "@/lib/goals/category";
-import { validateGoalDefinition } from "@/lib/goals/definition-validation";
+import {
+  MAX_GOAL_TARGET_COUNT,
+  validateGoalDefinition,
+} from "@/lib/goals/definition-validation";
 import {
   consumePlannerAiQuota,
   readBulkParserQuotaLimit,
@@ -74,7 +77,13 @@ function buildGeneratedPayloadSchema(categoryKeySet: Set<string>) {
         .optional(),
       frequency_type: z.enum(["recurring", "fixed_milestones"]).optional(),
       recurrence_interval: z.enum(["daily", "weekly", "monthly"]).optional(),
-      target_count: z.number().int().positive().nullable().optional(),
+      target_count: z
+        .number()
+        .int()
+        .positive()
+        .max(MAX_GOAL_TARGET_COUNT)
+        .nullable()
+        .optional(),
       milestone_names: z
         .array(z.string().trim().min(1).max(200))
         .max(MAX_MILESTONE_NAMES_PER_GOAL)
@@ -126,7 +135,7 @@ function buildBulkGoalResponseSchema(categoryKeys: string[]) {
               type: "string",
               enum: ["daily", "weekly", "monthly"],
             },
-            target_count: { type: "number" },
+            target_count: { type: "number", maximum: MAX_GOAL_TARGET_COUNT },
             milestone_names: {
               type: "array",
               maxItems: MAX_MILESTONE_NAMES_PER_GOAL,

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import eligibilityFixtureJson from "../../../test/fixtures/planner-contracts/eligibility.v1.json";
 import type { Goal } from "@/lib/goals/types";
+import { MAX_GOAL_TARGET_COUNT } from "@/lib/planner/contracts/bounds";
 import { eligibilityFixtureSchema } from "@/lib/planner/contracts/fixture-schema";
 import { getScopeDateRange } from "@/lib/planner/dates";
 import {
@@ -224,7 +225,7 @@ describe("goal-level eligibility guards", () => {
         goal: {
           ...cadenceGoal,
           id: "goal-target-too-large",
-          target_count: 5_001,
+          target_count: MAX_GOAL_TARGET_COUNT + 1,
           end_date: "2026-12-31",
         },
         asOfDate: "2026-08-15",
@@ -246,7 +247,7 @@ describe("goal-level eligibility guards", () => {
           id: "goal-fixed-too-large",
           frequency_type: "fixed_milestones",
           recurrence_interval: null,
-          target_count: 5_001,
+          target_count: MAX_GOAL_TARGET_COUNT + 1,
           milestone_names: [],
           end_date: "2026-12-31",
         },

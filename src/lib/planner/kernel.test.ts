@@ -1428,7 +1428,7 @@ describe("pure planner kernel", () => {
   });
 
   it("marks oversized targeted goals ineligible before allocating work units", () => {
-    const oversizedGoal = goal({ target_count: 5_001 });
+    const oversizedGoal = goal({ target_count: 1_001 });
     const output = runPlannerKernel(input({ goals: [oversizedGoal] }));
 
     expect(
@@ -1444,7 +1444,7 @@ describe("pure planner kernel", () => {
     const oversizedGoal = goal({
       frequency_type: "fixed_milestones",
       recurrence_interval: null,
-      target_count: 4_294_967_296,
+      target_count: 1_001,
     });
     const output = runPlannerKernel(input({ goals: [oversizedGoal] }));
 

@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { MAX_HORIZON_MONTHS } from "@/lib/planner/contracts/bounds";
+import {
+  MAX_GOAL_TARGET_COUNT,
+  MAX_HORIZON_MONTHS,
+} from "@/lib/planner/contracts/bounds";
 import {
   getGoalDeadlineMonthSpan,
   getGoalHorizonEndDate,
@@ -160,5 +163,22 @@ describe("goal definition validation", () => {
     expect(
       issues.some((issue) => issue.code === "target_exceeds_capacity")
     ).toBe(false);
+  });
+
+  it("rejects ordinal targets above the supported planner target limit", () => {
+    const issues = validateGoalDefinition({
+      frequencyType: "fixed_milestones",
+      targetCount: MAX_GOAL_TARGET_COUNT + 1,
+      startDate: "2026-08-01",
+      endDate: "2026-09-30",
+    });
+    expect(issues).toContainEqual(
+      expect.objectContaining({
+        code: "target_exceeds_limit",
+      })
+    );
+    expect(issues.find((issue) => issue.code === "target_exceeds_limit")?.message).toContain(
+      String(MAX_GOAL_TARGET_COUNT)
+    );
   });
 });

@@ -1,7 +1,12 @@
 import type { GoalFrequencyType } from "@/lib/goals/types";
 import { compareDateStrings } from "@/lib/goals/periods";
-import { MAX_HORIZON_MONTHS } from "@/lib/planner/contracts/bounds";
+import {
+  MAX_GOAL_TARGET_COUNT,
+  MAX_HORIZON_MONTHS,
+} from "@/lib/planner/contracts/bounds";
 import { enumerateDates, enumerateMonthsInWindow, getUtcWeekday } from "@/lib/planner/dates";
+
+export { MAX_GOAL_TARGET_COUNT } from "@/lib/planner/contracts/bounds";
 
 export interface GoalDefinitionValidationInput {
   frequencyType: GoalFrequencyType;
@@ -20,6 +25,7 @@ export interface GoalCapacityInput {
 export type GoalDefinitionValidationCode =
   | "invalid_date_range"
   | "horizon_too_long"
+  | "target_exceeds_limit"
   | "target_exceeds_capacity";
 
 export interface GoalDefinitionValidationIssue {
@@ -165,8 +171,19 @@ export function validateGoalDefinition(
       message: `Goal deadlines cannot span more than ${MAX_HORIZON_MONTHS} calendar months.`,
     });
   }
+  const exceedsTargetLimit =
+    isOrdinalGoalDefinition(input) &&
+    typeof input.targetCount === "number" &&
+    input.targetCount > MAX_GOAL_TARGET_COUNT;
+  if (exceedsTargetLimit) {
+    issues.push({
+      code: "target_exceeds_limit",
+      message: `Target count cannot exceed ${MAX_GOAL_TARGET_COUNT}.`,
+    });
+  }
   if (
     input.capacity &&
+    !exceedsTargetLimit &&
     isOrdinalGoalDefinition(input) &&
     typeof input.targetCount === "number"
   ) {
