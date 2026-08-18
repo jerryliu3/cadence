@@ -57,7 +57,7 @@ export interface PlannerEligibilityNotices {
   }>;
 }
 
-export function getEligibilityReasonLabel(reason: EligibilityReason) {
+function getEligibilityReasonLabel(reason: EligibilityReason) {
   return ELIGIBILITY_REASON_LABELS[reason];
 }
 
