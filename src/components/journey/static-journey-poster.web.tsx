@@ -14,7 +14,7 @@ export function StaticJourneyPoster({
   return (
     <div
       aria-hidden="true"
-      className={`pointer-events-none fixed inset-0 -z-10 overflow-hidden transition-opacity duration-300 ease-[var(--motion-ease-standard)] ${
+      className={`pointer-events-none fixed inset-0 z-0 overflow-hidden transition-opacity duration-300 ease-[var(--motion-ease-standard)] ${
         visible ? "opacity-100" : "opacity-0"
       }`}
       data-journey-layer="poster"

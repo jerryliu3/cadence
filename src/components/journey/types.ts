@@ -2,11 +2,7 @@ import type { FeatureFlags } from "@cadence/shared/feature-flags";
 
 export type JourneyFeatureFlags = Pick<
   FeatureFlags,
-  | "journeyEnabled"
-  | "journeyVideoEnabled"
-  | "journeyRiveEnabled"
-  | "journeySocialOverlayEnabled"
-  | "journeyAssetManifestVersion"
+  "journeyEnabled"
 >;
 
 export interface JourneyPresentationPreferences {

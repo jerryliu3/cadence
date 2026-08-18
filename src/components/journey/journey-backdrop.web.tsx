@@ -1,11 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  consumeJourneyEffectEvent,
+  createJourneyEffectEvent,
   defaultJourneyAssetManifest,
   deriveJourneyProgressState,
   resolveJourneyRenderPolicy,
   resolveJourneySceneAsset,
+  type JourneyEffectEvent,
   type JourneyRenderPolicy,
 } from "@cadence/shared/journey";
 import { useReducedMotion } from "motion/react";
@@ -14,7 +17,10 @@ import { JourneyContrastLayer } from "./journey-contrast-layer";
 import { RiveJourneyOverlay } from "./rive-journey-overlay.web";
 import { StaticJourneyPoster } from "./static-journey-poster.web";
 import type { JourneyFeatureFlags } from "./types";
+import { useJourneyManifest } from "./use-journey-manifest.web";
 import { WebJourneyVideo } from "./web-journey-video";
+
+const JOURNEY_ASSET_VERSION = defaultJourneyAssetManifest.assetVersion;
 
 function useDocumentVisibility() {
   const [hidden, setHidden] = useState(false);
@@ -43,10 +49,10 @@ function createRenderPolicy({
   lifecyclePaused: boolean;
 }): JourneyRenderPolicy {
   return resolveJourneyRenderPolicy({
-    assetVersion: flags.journeyAssetManifestVersion,
+    assetVersion: JOURNEY_ASSET_VERSION,
     journeyEnabled: flags.journeyEnabled,
-    videoEnabled: flags.journeyVideoEnabled,
-    riveEnabled: flags.journeyRiveEnabled,
+    videoEnabled: true,
+    riveEnabled: false,
     reducedMotionPreferred: reducedMotion,
     lowPowerMode: false,
     lifecyclePaused,
@@ -63,6 +69,12 @@ export function JourneyBackdrop({ flags }: JourneyBackdropProps) {
   const { profile } = useXpProfile();
   const [videoReady, setVideoReady] = useState(false);
   const [videoFailed, setVideoFailed] = useState(false);
+  const [latestEffectEvent, setLatestEffectEvent] =
+    useState<JourneyEffectEvent | null>(null);
+  const consumedEffectIdsRef = useRef(new Set<string>());
+  const previousCheckpointRef = useRef<number | null>(null);
+  const { manifest, source: manifestSource } =
+    useJourneyManifest(JOURNEY_ASSET_VERSION);
 
   const progressState = useMemo(
     () =>
@@ -87,16 +99,41 @@ export function JourneyBackdrop({ flags }: JourneyBackdropProps) {
   const activeScene = useMemo(
     () =>
       resolveJourneySceneAsset({
-        manifest: defaultJourneyAssetManifest,
+        manifest,
         biome: progressState.biome,
       }),
-    [progressState.biome]
+    [manifest, progressState.biome]
   );
 
   const showVideo = renderPolicy.videoEnabled && !renderPolicy.lifecyclePaused && !videoFailed;
   const showPoster = !showVideo || !videoReady;
   const contrastOpacity =
     renderPolicy.motionMode === "still" ? Math.min(0.65, activeScene.scrim.opacity + 0.12) : activeScene.scrim.opacity;
+
+  useEffect(() => {
+    const previousCheckpoint = previousCheckpointRef.current;
+    previousCheckpointRef.current = progressState.checkpointIndex;
+
+    // Initial hydration should not emit celebratory one-shot events.
+    if (previousCheckpoint === null || !profile) {
+      return;
+    }
+
+    if (progressState.checkpointIndex <= previousCheckpoint) {
+      return;
+    }
+
+    const kind =
+      progressState.biome === "summit" ? "summit" : "checkpoint";
+    const event = createJourneyEffectEvent({
+      kind,
+      sourceEventId: `xp-${profile.totalXp}-cp-${progressState.checkpointIndex}`,
+    });
+    if (!consumeJourneyEffectEvent(consumedEffectIdsRef.current, event)) {
+      return;
+    }
+    setLatestEffectEvent(event);
+  }, [profile, progressState.biome, progressState.checkpointIndex]);
 
   return (
     <>
@@ -117,7 +154,16 @@ export function JourneyBackdrop({ flags }: JourneyBackdropProps) {
         opacity={contrastOpacity}
         position={activeScene.scrim.position}
       />
-      <RiveJourneyOverlay progress={progressState} policy={renderPolicy} />
+      <RiveJourneyOverlay
+        progress={progressState}
+        policy={renderPolicy}
+        latestEffectEvent={latestEffectEvent}
+      />
+      <div
+        aria-hidden="true"
+        data-journey-manifest-source={manifestSource}
+        data-journey-asset-version={renderPolicy.assetVersion}
+      />
     </>
   );
 }

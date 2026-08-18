@@ -76,7 +76,7 @@ export function AppShell({
             availability={duoAvailability}
             initialScopePreference={initialDuoScopePreference}
           >
-            <div className="flex min-h-screen w-full justify-center px-4 py-4 sm:px-6 sm:py-6">
+            <div className="relative z-10 flex min-h-screen w-full justify-center px-4 py-4 sm:px-6 sm:py-6">
               <div className="flex w-full max-w-5xl flex-col gap-4 md:gap-6">
                 <header
                   className="sticky top-0 z-40 -mx-4 -mt-4 border-b bg-background/80 px-4 pb-3 pt-[calc(env(safe-area-inset-top)+0.7rem)] shadow-sm backdrop-blur supports-[backdrop-filter]:bg-background/70 md:static md:m-0 md:rounded-2xl md:border md:bg-card/95 md:p-4"

@@ -64,10 +64,6 @@ export default async function AuthenticatedLayout({
   const flags = getFeatureFlags();
   const journeyFlags = {
     journeyEnabled: flags.journeyEnabled,
-    journeyVideoEnabled: flags.journeyVideoEnabled,
-    journeyRiveEnabled: flags.journeyRiveEnabled,
-    journeySocialOverlayEnabled: flags.journeySocialOverlayEnabled,
-    journeyAssetManifestVersion: flags.journeyAssetManifestVersion,
   } as const;
   const initialDuoScopePreference = parseDuoScopeCookieValue(
     cookieStore.get(DUO_SCOPE_COOKIE_NAME)?.value

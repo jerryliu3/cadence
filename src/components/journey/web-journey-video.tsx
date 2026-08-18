@@ -63,7 +63,7 @@ export function WebJourneyVideo({
   return (
     <video
       aria-hidden="true"
-      className="pointer-events-none fixed inset-0 -z-10 h-full w-full object-cover"
+      className="pointer-events-none fixed inset-0 z-0 h-full w-full object-cover"
       autoPlay
       muted
       loop
