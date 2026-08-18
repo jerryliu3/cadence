@@ -97,18 +97,37 @@ function canonicalGoalUnits(units: SolverUnit[], dates: Set<string>) {
 
 /**
  * Units solve in the order their dates imply -- a pinned date first, otherwise
- * where the unit already sits -- rather than by ordinal.
+ * where the unit already sits, otherwise where it is independently expected to
+ * land -- rather than by ordinal.
  *
- * Ordinal is no longer a scheduling constraint, only identity and cross-month
- * accounting. It stays as the tie-break because with no anchors at all (a fresh
- * plan) it is the only stable ordering, and falling back to `unitKey` would sort
- * `total:10` before `total:2`.
+ * A unit with no real anchor (never locked, never scheduled) used to fall back
+ * to ordinal for this comparison. That silently reintroduced ordinal as a hard
+ * scheduling constraint: an unanchored unit with a lower ordinal than an
+ * anchored one always solved first, so it was forced onto a date before that
+ * anchor even when its own placement window could not reach one -- an
+ * artificial deadlock with no product meaning (ordinal is identity, not
+ * priority). Falling back to `idealDate` instead compares two real dates, so
+ * an unanchored unit sorts relative to an anchored one by where it can
+ * actually go, not by its position in an arbitrary count.
+ *
+ * Ordinal remains the last resort because with no anchor and no ideal date at
+ * all (a genuinely fresh plan with no computed target) it is the only stable
+ * ordering, and falling back to `unitKey` would sort `total:10` before
+ * `total:2`.
  */
 function compareSolveOrder(left: SolverUnit, right: SolverUnit) {
   const leftAnchor =
-    left.lockedDate ?? left.solveOrderAnchor ?? left.previousDate ?? null;
+    left.lockedDate ??
+    left.solveOrderAnchor ??
+    left.previousDate ??
+    left.idealDate ??
+    null;
   const rightAnchor =
-    right.lockedDate ?? right.solveOrderAnchor ?? right.previousDate ?? null;
+    right.lockedDate ??
+    right.solveOrderAnchor ??
+    right.previousDate ??
+    right.idealDate ??
+    null;
   if (
     leftAnchor !== null &&
     rightAnchor !== null &&
