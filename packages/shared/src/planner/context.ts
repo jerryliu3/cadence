@@ -18,7 +18,8 @@ export type EligibilityReason =
   | "invalid_date_range"
   | "end_outside_scope"
   | "starts_after_scope"
-  | "horizon_too_long";
+  | "horizon_too_long"
+  | "target_exceeds_work_unit_limit";
 
 export interface PlannerWorkUnit {
   originalGoalId: string;

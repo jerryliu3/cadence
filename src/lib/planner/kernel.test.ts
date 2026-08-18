@@ -1427,35 +1427,34 @@ describe("pure planner kernel", () => {
     expect(output.validation.valid).toBe(true);
   });
 
-  it("rejects excessive target counts before allocating work units", () => {
-    try {
-      runPlannerKernel(input({ goals: [goal({ target_count: 5_001 })] }));
-      throw new Error("Expected planner bound rejection.");
-    } catch (error) {
-      expect(error).toBeInstanceOf(PlannerError);
-      expect((error as PlannerError).code).toBe("plan_too_large");
-      expect((error as PlannerError).httpStatus).toBe(413);
-    }
+  it("marks oversized targeted goals ineligible before allocating work units", () => {
+    const oversizedGoal = goal({ target_count: 5_001 });
+    const output = runPlannerKernel(input({ goals: [oversizedGoal] }));
+
+    expect(
+      output.eligibility.find((entry) => entry.goalId === oversizedGoal.id)
+    ).toMatchObject({
+      eligible: false,
+      reason: "target_exceeds_work_unit_limit",
+    });
+    expect(output.workUnits).toHaveLength(0);
   });
 
-  it("preflights fixed milestone labels before allocation", () => {
-    try {
-      runPlannerKernel(
-        input({
-          goals: [
-            goal({
-              frequency_type: "fixed_milestones",
-              recurrence_interval: null,
-              target_count: 4_294_967_296,
-            }),
-          ],
-        })
-      );
-      throw new Error("Expected planner bound rejection.");
-    } catch (error) {
-      expect(error).toBeInstanceOf(PlannerError);
-      expect((error as PlannerError).code).toBe("plan_too_large");
-    }
+  it("marks oversized fixed milestone goals ineligible before label materialization", () => {
+    const oversizedGoal = goal({
+      frequency_type: "fixed_milestones",
+      recurrence_interval: null,
+      target_count: 4_294_967_296,
+    });
+    const output = runPlannerKernel(input({ goals: [oversizedGoal] }));
+
+    expect(
+      output.eligibility.find((entry) => entry.goalId === oversizedGoal.id)
+    ).toMatchObject({
+      eligible: false,
+      reason: "target_exceeds_work_unit_limit",
+    });
+    expect(output.workUnits).toHaveLength(0);
   });
 
   it("rejects a locked base assignment without a date at the contract", () => {
