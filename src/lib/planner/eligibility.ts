@@ -105,7 +105,7 @@ export function evaluateGoalEligibility({
     isOrdinalGoal &&
     targetCount > MAX_GOAL_TARGET_COUNT
   ) {
-    return { eligible: false, reason: "target_exceeds_work_unit_limit" };
+    return { eligible: false, reason: "target_exceeds_limit" };
   }
   if (
     !decision.eligible ||

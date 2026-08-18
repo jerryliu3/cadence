@@ -68,7 +68,7 @@ const eligibilityReasonSchema = z.enum([
   "end_outside_scope",
   "starts_after_scope",
   "horizon_too_long",
-  "target_exceeds_work_unit_limit",
+  "target_exceeds_limit",
 ]);
 
 export const eligibilityFixtureSchema = z

@@ -302,7 +302,7 @@ export const plannerKernelOutputSchema = z
             "end_outside_scope",
             "starts_after_scope",
             "horizon_too_long",
-            "target_exceeds_work_unit_limit",
+            "target_exceeds_limit",
           ]),
         })
         .strict()
