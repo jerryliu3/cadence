@@ -52,7 +52,7 @@ export function DuoLanes({
           )}
         >
           {scope !== "me" ? (
-            <div className="flex min-h-6 items-center gap-2 px-1">
+            <div className="flex min-h-12 items-center gap-3 px-1">
               <UserAvatar
                 avatarUrl={subject.avatarUrl ?? null}
                 displayName={subject.label}
@@ -60,11 +60,11 @@ export function DuoLanes({
                 size="sm"
                 alt={`${subject.label} avatar`}
               />
-              <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              <span className="text-base font-medium uppercase tracking-wide text-muted-foreground">
                 {subject.label}
               </span>
               {subject.readOnly ? (
-                <span className="rounded-full border border-border px-2 py-0.5 text-[11px] text-muted-foreground">
+                <span className="rounded-full border border-border px-2 py-1 text-sm text-muted-foreground">
                   Read-only
                 </span>
               ) : null}

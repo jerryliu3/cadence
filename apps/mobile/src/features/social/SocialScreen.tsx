@@ -264,13 +264,15 @@ export function SocialScreen() {
             size={42}
           />
           <View style={{ gap: 2 }}>
-            <Text style={{ color: theme.colors.foreground, fontWeight: "700" }}>
+            <Text
+              style={{ color: theme.colors.foreground, fontWeight: "700", fontSize: 22 }}
+            >
               Signed in as{" "}
               {viewerProfile.data?.username
                 ? `@${viewerProfile.data.username}`
                 : "Cadence user"}
             </Text>
-            <Text style={{ color: theme.colors.mutedForeground }}>
+            <Text style={{ color: theme.colors.mutedForeground, fontSize: 16 }}>
               User id: {userId}
             </Text>
           </View>
@@ -285,7 +287,9 @@ export function SocialScreen() {
               username={activePartner.partnerUsername}
               size={38}
             />
-            <Text style={{ color: theme.colors.foreground, fontWeight: "700" }}>
+            <Text
+              style={{ color: theme.colors.foreground, fontWeight: "700", fontSize: 22 }}
+            >
               Active team with {partnerLabel}
             </Text>
           </View>
@@ -368,7 +372,9 @@ export function SocialScreen() {
               username={incomingInvite.partnerUsername}
               size={38}
             />
-            <Text style={{ color: theme.colors.foreground, fontWeight: "700" }}>
+            <Text
+              style={{ color: theme.colors.foreground, fontWeight: "700", fontSize: 22 }}
+            >
               Incoming invite from {pendingLabel}
             </Text>
           </View>
@@ -413,7 +419,9 @@ export function SocialScreen() {
               username={outgoingInvite.partnerUsername}
               size={38}
             />
-            <Text style={{ color: theme.colors.foreground, fontWeight: "700" }}>
+            <Text
+              style={{ color: theme.colors.foreground, fontWeight: "700", fontSize: 22 }}
+            >
               Invite pending with {pendingLabel}
             </Text>
           </View>
@@ -480,11 +488,11 @@ export function SocialScreen() {
                   />
                   <View>
                     <Text
-                      style={{ color: theme.colors.foreground, fontWeight: "700" }}
+                      style={{ color: theme.colors.foreground, fontWeight: "700", fontSize: 20 }}
                     >
                       @{profile.username}
                     </Text>
-                    <Text style={{ color: theme.colors.mutedForeground }}>
+                    <Text style={{ color: theme.colors.mutedForeground, fontSize: 16 }}>
                       {profile.display_name}
                     </Text>
                   </View>
@@ -545,7 +553,7 @@ const styles = StyleSheet.create({
   identityRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
+    gap: 14,
   },
   input: {
     borderWidth: 1,

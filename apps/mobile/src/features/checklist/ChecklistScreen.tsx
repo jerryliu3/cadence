@@ -210,7 +210,7 @@ export function ChecklistScreen({
             username={null}
             size={24}
           />
-          <Text style={{ color: theme.colors.foreground, fontWeight: "700" }}>
+          <Text style={{ color: theme.colors.foreground, fontWeight: "700", fontSize: 24 }}>
             {item.label}
           </Text>
           {item.readOnly ? (
@@ -483,13 +483,13 @@ const styles = StyleSheet.create({
   lanePage: {
     flexShrink: 0,
   },
-  headingRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  headingRow: { flexDirection: "row", alignItems: "center", gap: 12 },
   readOnlyTag: {
     borderWidth: 1,
     borderRadius: 999,
     paddingHorizontal: 8,
     paddingVertical: 2,
-    fontSize: 11,
+    fontSize: 16,
     fontWeight: "600",
   },
 });

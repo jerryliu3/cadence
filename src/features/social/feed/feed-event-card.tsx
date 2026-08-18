@@ -62,7 +62,7 @@ export function FeedEventCard({ event }: { event: SocialFeedEvent }) {
     <Card className="shadow-sm">
       <CardContent className="space-y-1.5 py-2.5">
         <div className="flex items-center justify-between gap-2">
-          <div className="flex min-w-0 items-center gap-2">
+          <div className="flex min-w-0 items-center gap-3">
             <UserAvatar
               avatarUrl={event.actor.avatarUrl}
               displayName={event.actor.displayName}
@@ -70,7 +70,7 @@ export function FeedEventCard({ event }: { event: SocialFeedEvent }) {
               size="sm"
               alt={`${actorName} avatar`}
             />
-            <p className="truncate text-sm font-medium">{actorName}</p>
+            <p className="truncate text-xl font-medium">{actorName}</p>
           </div>
           <span className="shrink-0 text-[11px] text-muted-foreground">
             {formatDistanceToNow(new Date(event.createdAt), { addSuffix: true })}

@@ -24,6 +24,8 @@ export function UserAvatar({
   const theme = useTheme();
   const initials = getInitials(displayName, username);
   const normalizedUrl = avatarUrl?.trim() ? avatarUrl.trim() : null;
+  const resolvedSize = Math.round(size * 2);
+  const fallbackFontSize = Math.max(16, Math.round(resolvedSize * 0.34));
   const [failedUrl, setFailedUrl] = useState<string | null>(null);
   const canRenderImage = normalizedUrl !== null && failedUrl !== normalizedUrl;
 
@@ -32,8 +34,8 @@ export function UserAvatar({
       style={[
         styles.root,
         {
-          width: size,
-          height: size,
+          width: resolvedSize,
+          height: resolvedSize,
           borderColor: theme.colors.border,
           backgroundColor: theme.colors.card,
         },
@@ -42,6 +44,7 @@ export function UserAvatar({
       {canRenderImage && normalizedUrl ? (
         <Image
           source={{ uri: normalizedUrl }}
+          alt={displayName ?? username ?? "Profile avatar"}
           style={styles.image}
           onError={() => {
             setFailedUrl((previous) =>
@@ -50,7 +53,14 @@ export function UserAvatar({
           }}
         />
       ) : (
-        <Text style={{ color: theme.colors.mutedForeground, fontWeight: "700" }}>
+        <Text
+          style={{
+            color: theme.colors.mutedForeground,
+            fontWeight: "700",
+            fontSize: fallbackFontSize,
+            lineHeight: Math.round(fallbackFontSize * 1.1),
+          }}
+        >
           {initials}
         </Text>
       )}

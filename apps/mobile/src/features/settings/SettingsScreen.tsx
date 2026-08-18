@@ -207,12 +207,14 @@ export function SettingsScreen() {
             username={profile.data?.username ?? null}
             size={48}
           />
-          <View style={{ gap: 2, flex: 1 }}>
-            <Text style={{ color: theme.colors.foreground, fontWeight: "700" }}>
+          <View style={{ gap: 4, flex: 1 }}>
+            <Text
+              style={{ color: theme.colors.foreground, fontWeight: "700", fontSize: 24 }}
+            >
               {profile.data?.display_name ?? profile.data?.username ?? "Cadence user"}
             </Text>
             {profile.data?.username ? (
-              <Text style={{ color: theme.colors.mutedForeground }}>
+              <Text style={{ color: theme.colors.mutedForeground, fontSize: 18 }}>
                 @{profile.data.username}
               </Text>
             ) : null}
@@ -503,7 +505,7 @@ const styles = StyleSheet.create({
   profileSummaryRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
+    gap: 16,
   },
   removePhotoButton: {
     borderWidth: 1,

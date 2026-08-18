@@ -119,7 +119,7 @@ export function TeamPanel() {
         <CardContent>
           {activeTeam ? (
             <div className="space-y-2">
-              <div className="flex items-center gap-2 rounded border border-border bg-muted/20 px-3 py-2">
+              <div className="flex items-center gap-3 rounded border border-border bg-muted/20 px-3 py-3">
                 <UserAvatar
                   avatarUrl={activeTeam.partnerAvatarUrl}
                   displayName={activeTeam.partnerDisplayName}
@@ -128,12 +128,12 @@ export function TeamPanel() {
                   alt="Partner avatar"
                 />
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-medium">
+                  <p className="truncate text-xl font-medium">
                     {activeTeam.partnerDisplayName ??
                       activeTeam.partnerUsername ??
                       "Partner"}
                   </p>
-                  <p className="truncate text-xs text-muted-foreground">
+                  <p className="truncate text-sm text-muted-foreground">
                     Team partner
                   </p>
                 </div>

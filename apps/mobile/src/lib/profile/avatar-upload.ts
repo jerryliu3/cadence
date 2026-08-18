@@ -55,8 +55,8 @@ export async function uploadMobileProfileAvatar({
 }) {
   const manipulated = await ImageManipulator.manipulateAsync(
     asset.uri,
-    [{ resize: { width: 600 } }],
-    { compress: 0.82, format: ImageManipulator.SaveFormat.JPEG, base64: true }
+    [{ resize: { width: 1600 } }],
+    { compress: 0.95, format: ImageManipulator.SaveFormat.JPEG, base64: true }
   );
   if (!manipulated.base64) {
     throw new Error("Could not read avatar photo.");

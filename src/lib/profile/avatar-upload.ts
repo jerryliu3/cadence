@@ -63,7 +63,7 @@ async function readImageElementFromFile(file: File) {
 }
 
 async function convertImageToJpegBlob(file: File): Promise<Blob> {
-  const maxWidth = 600;
+  const maxWidth = 1600;
   let sourceWidth = 0;
   let sourceHeight = 0;
   let drawImage: CanvasImageSource | null = null;
@@ -120,7 +120,7 @@ async function convertImageToJpegBlob(file: File): Promise<Blob> {
         resolve(blob);
       },
       "image/jpeg",
-      0.82
+      0.95
     );
   });
 }
