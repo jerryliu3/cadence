@@ -941,6 +941,110 @@ describe("preparePlannerSchedule", () => {
     }
   });
 
+  it("treats planned-and-completed source dates as projected linked coverage", async () => {
+    mocks.resolveCanonicalAsOfDate.mockReturnValue("2026-08-18");
+    const sourceGoal = goal({
+      id: "12121212-1212-4212-8212-121212121212",
+      title: "Create videos",
+      frequency_type: "recurring",
+      recurrence_interval: "weekly",
+      target_count: 5,
+      milestone_names: null,
+      start_date: "2026-08-01",
+      end_date: "2026-08-31",
+    });
+    const targetGoal = goal({
+      id: "13131313-1313-4313-8313-131313131313",
+      title: "Post videos",
+      frequency_type: "fixed_milestones",
+      recurrence_interval: null,
+      target_count: 6,
+      milestone_names: ["1", "2", "3", "4", "5", "6"],
+      start_date: "2026-01-01",
+      end_date: "2026-12-31",
+    });
+    const sourcePlannedItems = [
+      persistedItem({
+        id: "14141414-1414-4414-8414-141414141414",
+        goal_id: sourceGoal.id,
+        unit_key: "total:4",
+        scheduled_date: "2026-08-20",
+        original_scheduled_date: "2026-08-20",
+        scheduled_time: null,
+        locked: false,
+      }),
+      persistedItem({
+        id: "15151515-1515-4515-8515-151515151515",
+        goal_id: sourceGoal.id,
+        unit_key: "total:5",
+        scheduled_date: "2026-08-25",
+        original_scheduled_date: "2026-08-25",
+        scheduled_time: null,
+        locked: false,
+      }),
+    ];
+    const targetPersistedItem = persistedItem({
+      id: "16161616-1616-4616-8616-161616161616",
+      goal_id: targetGoal.id,
+      unit_key: "milestone:6",
+      scheduled_date: "2026-09-01",
+      original_scheduled_date: "2026-09-01",
+      scheduled_time: null,
+      locked: false,
+    });
+    const sourceCompletions: Completion[] = [
+      "2026-08-03",
+      "2026-08-04",
+      "2026-08-05",
+    ].map((completedOn, index) => ({
+      id: `source-completion-${index + 1}`,
+      goal_id: sourceGoal.id,
+      user_id: OWNER_ID,
+      completed_on: completedOn,
+      source: "manual",
+      created_at: `${completedOn}T00:00:00.000Z`,
+    }));
+    const targetCompletions: Completion[] = [
+      "2026-08-03",
+      "2026-08-04",
+      "2026-08-05",
+    ].map((completedOn, index) => ({
+      id: `target-completion-${index + 1}`,
+      goal_id: targetGoal.id,
+      user_id: OWNER_ID,
+      completed_on: completedOn,
+      source: "linked_cascade",
+      created_at: `${completedOn}T00:00:00.000Z`,
+    }));
+    mocks.loadPlannerPreparationSnapshot.mockResolvedValue(
+      preparationSnapshot(
+        [sourceGoal, targetGoal],
+        [targetPersistedItem, ...sourcePlannedItems],
+        [],
+        [...sourceCompletions, ...targetCompletions],
+        [{ sourceGoalId: sourceGoal.id, targetGoalId: targetGoal.id }]
+      )
+    );
+
+    await prepare();
+
+    const targetCalls = mocks.runPlannerKernel.mock.calls.filter(
+      ([kernelInput]) => kernelInput.goals[0]?.id === targetGoal.id
+    );
+    expect(targetCalls).toHaveLength(0);
+
+    const rpcPayload = mocks.rpc.mock.calls[0]?.[1] as {
+      p_unplaceable: Array<{
+        goal_id: string;
+        unplaced_count: number;
+      }>;
+    };
+    const targetOutcome = rpcPayload.p_unplaceable.find(
+      (entry) => entry.goal_id === targetGoal.id
+    );
+    expect(targetOutcome?.unplaced_count).toBe(0);
+  });
+
   it("skips re-solving unchanged infeasible goals when a valid record already accounts for missing units", async () => {
     const plannerGoal = goal({ target_count: 2 });
     const existing = persistedItem({ unit_key: "milestone:1" });

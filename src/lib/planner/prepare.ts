@@ -177,6 +177,70 @@ function computeRequiredUnitKeys({
   return requiredUnitKeys;
 }
 
+function computeProjectedLinkedSourceCoverageUnitKeys({
+  goal,
+  requirement,
+  effectiveEnd,
+  asOfDate,
+  linkSourceGoals,
+  completionsByGoalId,
+  persistedItemsValidByGoalId,
+}: {
+  goal: Goal;
+  requirement: ReturnType<typeof normalizeGoalRequirement>["requirement"];
+  effectiveEnd: string;
+  asOfDate: string;
+  linkSourceGoals: Goal[];
+  completionsByGoalId: Map<string, Completion[]>;
+  persistedItemsValidByGoalId: Map<string, PlannerItemRow[]>;
+}) {
+  if (requirement.kind === "cadence" || linkSourceGoals.length === 0) {
+    return new Set<string>();
+  }
+  const projectedCoverageDates = new Set<string>();
+  for (const sourceGoal of linkSourceGoals) {
+    if (sourceGoal.is_deleted || sourceGoal.archived_at !== null) {
+      continue;
+    }
+    for (const completion of completionsByGoalId.get(sourceGoal.id) ?? []) {
+      if (
+        completion.completed_on < sourceGoal.start_date ||
+        completion.completed_on > asOfDate ||
+        (sourceGoal.end_date !== null && completion.completed_on > sourceGoal.end_date) ||
+        completion.completed_on < goal.start_date ||
+        completion.completed_on > effectiveEnd
+      ) {
+        continue;
+      }
+      projectedCoverageDates.add(completion.completed_on);
+    }
+    for (const item of persistedItemsValidByGoalId.get(sourceGoal.id) ?? []) {
+      if (
+        item.scheduled_date < asOfDate ||
+        item.scheduled_date < sourceGoal.start_date ||
+        (sourceGoal.end_date !== null && item.scheduled_date > sourceGoal.end_date) ||
+        item.scheduled_date < goal.start_date ||
+        item.scheduled_date > effectiveEnd
+      ) {
+        continue;
+      }
+      projectedCoverageDates.add(item.scheduled_date);
+    }
+  }
+
+  const projectedCoverageCount = Math.min(
+    projectedCoverageDates.size,
+    requirement.targetCount
+  );
+  const unitPrefix = requirement.kind === "milestone_sequence" ? "milestone" : "total";
+  return new Set(
+    Array.from(
+      { length: projectedCoverageCount },
+      (_, index) => `${unitPrefix}:${index + 1}`
+    )
+  );
+}
+
 export function computeCompletionCreditedUnitKeys({
   goal,
   completions,
@@ -434,6 +498,10 @@ async function prepareOnce({
   >();
   const goalOutcomeByGoalId = new Map<string, GoalUnplaceablePayload>();
   const precheckCompletionCreditedUnitKeysByGoalId = new Map<string, Set<string>>();
+  const projectedLinkedSourceCoverageUnitKeysByGoalId = new Map<
+    string,
+    Set<string>
+  >();
   const eligibleGoalIds = new Set<string>();
   const preserveRecordedOutcomeGoalIds = new Set<string>();
   const goalPreparationStartByGoalId = new Map<string, string>();
@@ -556,6 +624,13 @@ async function prepareOnce({
         lockSignature,
         preparationEnd,
       });
+    const linkSourceGoals = Array.from(
+      new Map(
+        preparation.snapshot.links
+          .filter((link) => link.targetGoalId === goal.id)
+          .map((link) => [link.sourceGoalId, goalById.get(link.sourceGoalId)])
+      ).values()
+    ).filter((linkSourceGoal): linkSourceGoal is Goal => Boolean(linkSourceGoal));
     const goalWindows = goalWindowsState.windows as PreparationWindow[];
     const requiredUnitKeys = computeRequiredUnitKeys({
       goal,
@@ -592,12 +667,27 @@ async function prepareOnce({
       continue;
     }
     precheckCompletionCreditedUnitKeysByGoalId.set(goal.id, completionCreditedUnitKeys);
+    const projectedLinkedSourceCoverageUnitKeys =
+      computeProjectedLinkedSourceCoverageUnitKeys({
+        goal,
+        requirement: normalizedRequirement.requirement,
+        effectiveEnd: goalWindowsState.effectiveEnd,
+        asOfDate,
+        linkSourceGoals,
+        completionsByGoalId,
+        persistedItemsValidByGoalId,
+      });
+    projectedLinkedSourceCoverageUnitKeysByGoalId.set(
+      goal.id,
+      projectedLinkedSourceCoverageUnitKeys
+    );
     const persistedUnitKeys = new Set(
       (persistedItemsValidByGoalId.get(goal.id) ?? []).map((item) => item.unit_key)
     );
     const resolvedUnitKeys = new Set([
       ...persistedUnitKeys,
       ...completionCreditedUnitKeys,
+      ...projectedLinkedSourceCoverageUnitKeys,
     ]);
     const missingRequiredUnitCount = Array.from(requiredUnitKeys).filter(
       (unitKey) => !resolvedUnitKeys.has(unitKey)
@@ -612,7 +702,8 @@ async function prepareOnce({
     const missingCount = missingRequiredUnitCount - accountedCount;
     const hasAnyCoveredUnits =
       (persistedItemsInHorizonValidByGoalId.get(goal.id)?.length ?? 0) > 0 ||
-      completionCreditedUnitKeys.size > 0;
+      completionCreditedUnitKeys.size > 0 ||
+      projectedLinkedSourceCoverageUnitKeys.size > 0;
     // A positive capacity row with no currently covered units can become stale
     // even when lock/policy/requirement fingerprints still match; force a
     // targeted re-solve so trivially placeable goals self-heal on refresh.
@@ -677,13 +768,6 @@ async function prepareOnce({
       }
     >();
     const goalDates = new Set<string>();
-    const linkSourceGoals = Array.from(
-      new Map(
-        preparation.snapshot.links
-          .filter((link) => link.targetGoalId === goal.id)
-          .map((link) => [link.sourceGoalId, goalById.get(link.sourceGoalId)])
-      ).values()
-    ).filter((linkSourceGoal): linkSourceGoal is Goal => Boolean(linkSourceGoal));
     let goalUnplaceableReason: PlannerGoalUnplaceableReason | null = null;
     let blockedByInvalidLock = false;
     for (const window of goalWindows) {
@@ -898,6 +982,11 @@ async function prepareOnce({
     const completionCreditedUnitKeys =
       precheckCompletionCreditedUnitKeysByGoalId.get(goal.id) ?? new Set<string>();
     for (const unitKey of completionCreditedUnitKeys) {
+      scheduledUnitKeys.add(unitKey);
+    }
+    const projectedLinkedSourceCoverageUnitKeys =
+      projectedLinkedSourceCoverageUnitKeysByGoalId.get(goal.id) ?? new Set<string>();
+    for (const unitKey of projectedLinkedSourceCoverageUnitKeys) {
       scheduledUnitKeys.add(unitKey);
     }
     const unresolvedCount = Array.from(requiredUnitKeys).filter(
