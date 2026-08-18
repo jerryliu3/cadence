@@ -41,6 +41,7 @@ export interface PlannerDayDetailEntry {
   draftDiffFromDate: string | null;
   draftDiffToDate: string | null;
   draftGhost: boolean;
+  hasLinkedTargets?: boolean;
   goalDefaultLocalTime?: string | null;
   scheduledTimeOverride?: string | null;
   effectiveScheduledLocalTime?: string | null;

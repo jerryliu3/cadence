@@ -50,6 +50,7 @@ const context: MobilePlannerContext = {
   asOfDate: "2026-08-14",
   timezone: "America/New_York",
   goalTitles: { "goal-a": "Running", "goal-b": "Lifting" },
+  links: [],
   capabilities: { crossMonthMovesEnabled: true },
   preview,
   activePlan: {
