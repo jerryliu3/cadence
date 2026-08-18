@@ -157,8 +157,11 @@ const ELIGIBILITY_REASON_LABELS: Record<EligibilityReason, string> = {
   not_owner: "Only goals you own can be planned here.",
   deleted: "Deleted goals are excluded from planning.",
   archived: "Archived goals are excluded from planning.",
+  linked: "Linked goals are managed by their source relationship.",
   linked_target:
     "Linked target goals are managed by their source relationship.",
+  missing_end_date:
+    "This goal needs a deadline before it can be planned in Calendar.",
   invalid_date_range: "The goal dates are invalid (start is after end).",
   end_outside_scope: "This goal ends before the selected planning month.",
   starts_after_scope: "This goal starts after the selected planning month.",
