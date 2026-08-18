@@ -15,6 +15,7 @@ import {
 } from "@/lib/goals/category";
 import { GOAL_TYPE_OPTIONS, RECURRENCE_INTERVAL_OPTIONS } from "@/lib/goals/form-options";
 import type { GoalFrequencyType, RecurrenceInterval } from "@/lib/goals/types";
+import { MAX_GOAL_TARGET_COUNT } from "@/lib/planner/contracts/bounds";
 import { cn } from "@/lib/utils";
 
 interface CategorySelectProps {
@@ -136,6 +137,7 @@ export function TargetCountField({
         id={id}
         type="number"
         min={frequencyType === "fixed_milestones" ? 1 : 0}
+        max={MAX_GOAL_TARGET_COUNT}
         value={value}
         onChange={(event) => onValueChange(event.target.value)}
         required={frequencyType === "fixed_milestones"}

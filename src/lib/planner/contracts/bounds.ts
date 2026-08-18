@@ -10,6 +10,7 @@ export type PlannerEligibilityMode =
 
 export const MAX_ELIGIBLE_GOALS = 100;
 export const MAX_WORK_UNITS = 5_000;
+export const MAX_GOAL_TARGET_COUNT = 1_000;
 export const MAX_COMPLETION_FACTS = 20_000;
 export const MAX_POLICY_RANGES = 100;
 export const MAX_HORIZON_MONTHS = 24;

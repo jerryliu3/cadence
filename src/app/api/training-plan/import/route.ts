@@ -6,7 +6,10 @@ import {
   requirePlannerRouteContext,
   withPlannerRoute,
 } from "@/lib/planner/api";
-import { MAX_API_BODY_BYTES } from "@/lib/planner/contracts/bounds";
+import {
+  MAX_API_BODY_BYTES,
+  MAX_GOAL_TARGET_COUNT,
+} from "@/lib/planner/contracts/bounds";
 import { postgresErrorMatches } from "@/lib/planner/postgres-errors";
 import type { Json } from "@/lib/supabase/database.types";
 
@@ -29,7 +32,13 @@ const trainingGoalSchema = z.object({
   color: z.string().trim().max(16).optional().nullable(),
   frequency_type: z.enum(["recurring", "fixed_milestones"]).optional(),
   recurrence_interval: z.enum(["daily", "weekly", "monthly"]).optional().nullable(),
-  target_count: z.number().int().positive().optional().nullable(),
+  target_count: z
+    .number()
+    .int()
+    .positive()
+    .max(MAX_GOAL_TARGET_COUNT)
+    .optional()
+    .nullable(),
   start_date: z.iso.date().optional(),
   end_date: z.iso.date().optional().nullable(),
   default_local_time: z

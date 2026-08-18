@@ -5,8 +5,8 @@ import {
 } from "@/lib/goals/definition-validation";
 import { enumerateMonthsInWindow, type DateWindow } from "@/lib/planner/dates";
 import {
+  MAX_GOAL_TARGET_COUNT,
   MAX_HORIZON_MONTHS,
-  MAX_WORK_UNITS,
 } from "@/lib/planner/contracts/bounds";
 import { positiveTarget } from "@/lib/planner/requirements";
 import type { EligibilityReason } from "@cadence/shared/planner/context";
@@ -100,7 +100,11 @@ export function evaluateGoalEligibility({
     frequencyType: goal.frequency_type,
     targetCount: goal.target_count,
   });
-  if (decision.eligible && isOrdinalGoal && targetCount > MAX_WORK_UNITS) {
+  if (
+    decision.eligible &&
+    isOrdinalGoal &&
+    targetCount > MAX_GOAL_TARGET_COUNT
+  ) {
     return { eligible: false, reason: "target_exceeds_work_unit_limit" };
   }
   if (

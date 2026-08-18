@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Completion, Goal } from "@/lib/goals/types";
 import { getAnchoredPeriod } from "@/lib/goals/periods";
 import { canonicalHash } from "@/lib/planner/canonical";
-import { MAX_WORK_UNITS } from "@/lib/planner/contracts/bounds";
+import { MAX_GOAL_TARGET_COUNT } from "@/lib/planner/contracts/bounds";
 import { createDefaultPlannerPolicy } from "@/lib/planner/policy";
 import { computeRequirementFingerprint } from "@/lib/planner/requirements";
 import {
@@ -1076,7 +1076,7 @@ describe("preparePlannerSchedule", () => {
     const oversizedGoal = goal({
       frequency_type: "recurring",
       recurrence_interval: "daily",
-      target_count: MAX_WORK_UNITS + 1,
+      target_count: MAX_GOAL_TARGET_COUNT + 1,
       milestone_names: null,
       start_date: "2026-01-01",
       end_date: "2026-12-31",
@@ -1114,7 +1114,7 @@ describe("preparePlannerSchedule", () => {
     const oversizedGoal = goal({
       frequency_type: "fixed_milestones",
       recurrence_interval: null,
-      target_count: MAX_WORK_UNITS + 1,
+      target_count: MAX_GOAL_TARGET_COUNT + 1,
       milestone_names: [],
       start_date: "2026-01-01",
       end_date: "2026-12-31",
