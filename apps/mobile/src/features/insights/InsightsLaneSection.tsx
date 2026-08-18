@@ -31,7 +31,7 @@ export function InsightsLaneSection({
             username={null}
             size={24}
           />
-          <Text style={{ color: theme.colors.foreground, fontWeight: "700" }}>
+          <Text style={{ color: theme.colors.foreground, fontWeight: "700", fontSize: 24 }}>
             {headingLabel}
           </Text>
           {readOnly ? (
@@ -68,13 +68,13 @@ export function InsightsLaneSection({
 
 const styles = StyleSheet.create({
   section: { gap: 8 },
-  headingRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  headingRow: { flexDirection: "row", alignItems: "center", gap: 12 },
   readOnlyTag: {
     borderWidth: 1,
     borderRadius: 999,
     paddingHorizontal: 8,
     paddingVertical: 2,
-    fontSize: 11,
+    fontSize: 16,
     fontWeight: "600",
   },
 });

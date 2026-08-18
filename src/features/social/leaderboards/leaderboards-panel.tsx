@@ -152,10 +152,13 @@ export function LeaderboardsPanel() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="space-y-2 text-sm">
+          <div className="space-y-2 text-base">
             {(standings?.standings ?? []).map((entry) => (
-              <div key={entry.subjectId} className="flex items-center justify-between rounded border p-2">
-                <div className="flex min-w-0 items-center gap-2">
+              <div
+                key={entry.subjectId}
+                className="flex items-center justify-between rounded border p-3"
+              >
+                <div className="flex min-w-0 items-center gap-3">
                   <UserAvatar
                     avatarUrl={entry.avatarUrl}
                     displayName={entry.displayName}
@@ -163,7 +166,7 @@ export function LeaderboardsPanel() {
                     size="sm"
                     alt={`${entry.displayName} avatar`}
                   />
-                  <p className="font-medium">
+                  <p className="text-xl font-medium">
                     #{entry.rank} {entry.displayName}
                   </p>
                 </div>

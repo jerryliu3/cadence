@@ -75,8 +75,8 @@ export function PartnerChecklistStrip({
 
   return (
     <Card className="shadow-sm">
-      <CardContent className="flex flex-wrap items-center justify-between gap-3 py-3">
-        <div className="flex min-w-0 items-center gap-2">
+      <CardContent className="flex flex-wrap items-center justify-between gap-4 py-3">
+        <div className="flex min-w-0 items-center gap-3">
           <UserAvatar
             avatarUrl={partner.partnerAvatarUrl}
             displayName={partner.partnerDisplayName}
@@ -85,8 +85,8 @@ export function PartnerChecklistStrip({
             alt={`${partnerName} avatar`}
           />
           <div className="min-w-0 space-y-0.5">
-            <p className="text-sm font-medium">{partnerName}</p>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xl font-medium">{partnerName}</p>
+            <p className="text-sm text-muted-foreground">
               {state.status === "loading"
                 ? "Loading partner status..."
                 : state.status === "unavailable"
