@@ -448,7 +448,9 @@ async function loadPlannerGoalUnplaceableRecords(
       return [{
         goalId: row.goal_id,
         requirementFingerprint: row.requirement_fingerprint,
-        policyFingerprint: row.policy_fingerprint ?? "",
+        policyFingerprint:
+          (row as PlannerGoalUnplaceableRow & { policy_fingerprint?: string })
+            .policy_fingerprint ?? "",
         policyRevision: row.policy_revision,
         lockSignature: row.lock_signature,
         effectiveSpanEnd: row.effective_span_end,

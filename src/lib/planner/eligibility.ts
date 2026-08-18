@@ -1,7 +1,13 @@
 import type { Goal } from "@/lib/goals/types";
-import { isOrdinalGoalDefinition } from "@/lib/goals/definition-validation";
+import {
+  isOrdinalGoalDefinition,
+  resolveGoalPlanningEndDate,
+} from "@/lib/goals/definition-validation";
 import { enumerateMonthsInWindow, type DateWindow } from "@/lib/planner/dates";
-import { MAX_HORIZON_MONTHS } from "@/lib/planner/contracts/bounds";
+import {
+  MAX_HORIZON_MONTHS,
+  MAX_WORK_UNITS,
+} from "@/lib/planner/contracts/bounds";
 import type { EligibilityReason } from "@cadence/shared/planner/context";
 
 export type { EligibilityReason } from "@cadence/shared/planner/context";
@@ -14,7 +20,6 @@ export interface EligibilityGoal {
   outgoingShareCount: number;
   startDate: string;
   endDate: string | null;
-  requiresDeadline?: boolean;
 }
 
 export interface EligibilityDecision {
@@ -32,11 +37,8 @@ function evaluateStaticEligibility(goal: EligibilityGoal): EligibilityDecision |
   if (goal.archivedAt !== null) {
     return { eligible: false, reason: "archived" };
   }
-  if (goal.currentLinkRole !== "none") {
-    return { eligible: false, reason: "linked" };
-  }
-  if (goal.requiresDeadline !== false && goal.endDate === null) {
-    return { eligible: false, reason: "missing_end_date" };
+  if (goal.currentLinkRole === "target") {
+    return { eligible: false, reason: "linked_target" };
   }
   if (goal.endDate !== null && goal.startDate > goal.endDate) {
     return { eligible: false, reason: "invalid_date_range" };
@@ -67,15 +69,20 @@ export function evaluateGoalEligibility({
   ownerId,
   goal,
   currentLinkRole,
+  asOfDate,
 }: {
   window: DateWindow;
   ownerId: string;
   goal: Goal;
   currentLinkRole: EligibilityGoal["currentLinkRole"];
+  asOfDate: string;
 }): EligibilityDecision {
-  const requiresDeadline = isOrdinalGoalDefinition({
+  const effectiveEndDate = resolveGoalPlanningEndDate({
     frequencyType: goal.frequency_type,
     targetCount: goal.target_count,
+    startDate: goal.start_date,
+    endDate: goal.end_date,
+    asOfDate,
   });
   const normalizedGoal: EligibilityGoal = {
     ownedByViewer: goal.owner_id === ownerId,
@@ -84,16 +91,30 @@ export function evaluateGoalEligibility({
     currentLinkRole,
     outgoingShareCount: 0,
     startDate: goal.start_date,
-    endDate: goal.end_date,
-    requiresDeadline,
+    endDate: effectiveEndDate,
   };
   const decision = evaluateOverlapV1Eligibility(window, normalizedGoal);
-  if (!decision.eligible || goal.end_date === null) {
+  const targetCount = Math.max(1, goal.target_count ?? 1);
+  const isOrdinalGoal = isOrdinalGoalDefinition({
+    frequencyType: goal.frequency_type,
+    targetCount: goal.target_count,
+  });
+  if (decision.eligible && isOrdinalGoal && targetCount > MAX_WORK_UNITS) {
+    return { eligible: false, reason: "target_exceeds_limit" };
+  }
+  if (
+    !decision.eligible ||
+    normalizedGoal.endDate === null ||
+    goal.end_date === null
+  ) {
+    // Soft-horizon end dates are anchored to max(start_date, as_of_date). When a
+    // stored end_date is null, measuring horizon length from start_date would
+    // over-count legacy goals and produce false horizon_too_long failures.
     return decision;
   }
   const horizonMonths = enumerateMonthsInWindow({
     start: goal.start_date,
-    end: goal.end_date,
+    end: normalizedGoal.endDate,
   });
   if (horizonMonths.length > MAX_HORIZON_MONTHS) {
     return { eligible: false, reason: "horizon_too_long" };
