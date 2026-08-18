@@ -821,6 +821,38 @@ describe("pure planner kernel", () => {
     expect(output.solver.issueCodes).toContain("placement_shortfall");
   });
 
+  it("does not enforce resumed omission guard on partial resumed windows", () => {
+    const sourceGoal = goal({
+      id: "goal-source-partial-window",
+      target_count: 5,
+      start_date: "2026-08-01",
+      end_date: "2026-08-31",
+    });
+    const targetGoal = goal({
+      id: "goal-target-partial-window",
+      frequency_type: "fixed_milestones",
+      recurrence_interval: null,
+      target_count: 20,
+      milestone_names: Array.from({ length: 20 }, (_, index) => `M${index + 1}`),
+      start_date: "2026-01-01",
+      end_date: "2026-12-31",
+    });
+
+    expect(() =>
+      runPlannerKernel(
+        input({
+          startDate: "2026-09-01",
+          endDate: "2026-09-30",
+          asOfDate: "2026-08-18",
+          goals: [targetGoal],
+          links: [{ sourceGoalId: sourceGoal.id, targetGoalId: targetGoal.id }],
+          linkSourceGoals: [sourceGoal],
+          preserveExistingAssignments: true,
+        })
+      )
+    ).not.toThrow();
+  });
+
   it("honors locks that invert ordinal order", () => {
     const output = runPlannerKernel(
       input({
