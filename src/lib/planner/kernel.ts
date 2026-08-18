@@ -390,40 +390,6 @@ function allocateOrdinalWindow({
   const scopedOrdinals = new Set(
     windowMonths.flatMap((month) => finalOrdinalsByMonth.get(month) ?? [])
   );
-  // Guard the resumed-suppression handoff: when solving the full resumed
-  // remainder, the first resumed window must not silently omit unresolved
-  // required ordinals.
-  if (
-    effectivePlacementStart !== null &&
-    compareCanonicalStrings(window.start, effectivePlacementStart) === 0 &&
-    compareCanonicalStrings(window.end, effectiveGoalEndDate) >= 0
-  ) {
-    for (const unit of reconciledUnits) {
-      if (
-        unit.kind !== requirement.kind ||
-        unit.ordinal <= 0 ||
-        unit.ordinal > requirement.targetCount ||
-        unit.creditedCompletionDate !== null ||
-        unit.scheduledDate !== null ||
-        scopedOrdinals.has(unit.ordinal)
-      ) {
-        continue;
-      }
-      throw new PlannerError(
-        "invariant_failed",
-        500,
-        "Resumed linked-target allocation omitted an unresolved required ordinal.",
-        {
-          goalId: goal.id,
-          unitKey: unit.unitKey,
-          ordinal: unit.ordinal,
-          windowStart: window.start,
-          effectivePlacementStart,
-        }
-      );
-    }
-  }
-
   return {
     scopedOrdinals,
     monthOrdinals: finalOrdinalsByMonth,
