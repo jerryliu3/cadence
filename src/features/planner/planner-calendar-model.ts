@@ -34,7 +34,7 @@ import {
   selectCalendarDayAccessorsModel,
   type CalendarDayAccessorsMemoizedState,
   type CalendarDayAccessorsResult,
-} from "@/features/planner/use-calendar-day-accessors";
+} from "@/features/planner/planner-calendar-day-accessors-model";
 import type { PlannerPolicy } from "@/lib/planner/policy";
 import { getDateInTimezone } from "@/lib/dates/timezone";
 

@@ -4,7 +4,6 @@ import { format, parse } from "date-fns";
 import {
   useCallback,
   type Dispatch,
-  type MutableRefObject,
   type SetStateAction,
 } from "react";
 import { CalendarMonthDayCell } from "@/features/planner/calendar-month-day-cell";
@@ -21,6 +20,7 @@ import type {
   PlannerCompletionFactMarker,
   PlannerDayDetailEntry,
 } from "@/features/planner/calendar-surface.types";
+import type { PlannerDayPreviewInteractions } from "@/features/planner/use-planner-day-preview-interactions";
 
 interface PlannerCalendarCell {
   date: string;
@@ -45,23 +45,22 @@ interface UsePlannerCalendarDayCellRendererArgs {
   canMutateEntryOnDay: (entry: PlannerDayDetailEntry, day: string) => boolean;
   getOrderedEntriesForDay: (day: string | null) => PlannerDayDetailEntry[];
   getCompletionFactMarkersForDay: (day: string | null) => PlannerCompletionFactMarker[];
-  clearHoverPreviewTimer: () => void;
-  clearHoverPreviewCloseTimer: () => void;
-  clearLongPressTimer: () => void;
-  openDayPreview: (args: {
-    day: string;
-    pinned: boolean;
-    target: EventTarget & HTMLElement;
-  }) => void;
-  handleDayCellClick: (day: string, target: EventTarget & HTMLElement) => void;
-  openDayViewForDay: (day: string) => void;
-  scheduleHoverPreview: (day: string, target: EventTarget & HTMLElement) => void;
-  scheduleHoverPreviewClose: (day: string) => void;
-  startLongPressPreview: (day: string, target: EventTarget & HTMLElement) => void;
-  pointerPressActiveRef: MutableRefObject<boolean>;
-  longPressTriggeredRef: MutableRefObject<boolean>;
-  lastTouchTapRef: MutableRefObject<{ day: string; at: number } | null>;
-  suppressDayCellClickRef: MutableRefObject<{ day: string; active: boolean } | null>;
+  dayPreviewInteractions: Pick<
+    PlannerDayPreviewInteractions,
+    | "clearHoverPreviewTimer"
+    | "clearHoverPreviewCloseTimer"
+    | "clearLongPressTimer"
+    | "openDayPreview"
+    | "handleDayCellClick"
+    | "openDayViewForDay"
+    | "scheduleHoverPreview"
+    | "scheduleHoverPreviewClose"
+    | "startLongPressPreview"
+    | "pointerPressActiveRef"
+    | "longPressTriggeredRef"
+    | "lastTouchTapRef"
+    | "suppressDayCellClickRef"
+  >;
 }
 
 export function usePlannerCalendarDayCellRenderer({
@@ -78,20 +77,24 @@ export function usePlannerCalendarDayCellRenderer({
   canMutateEntryOnDay,
   getOrderedEntriesForDay,
   getCompletionFactMarkersForDay,
-  clearHoverPreviewTimer,
-  clearHoverPreviewCloseTimer,
-  clearLongPressTimer,
-  openDayPreview,
-  handleDayCellClick,
-  openDayViewForDay,
-  scheduleHoverPreview,
-  scheduleHoverPreviewClose,
-  startLongPressPreview,
-  pointerPressActiveRef,
-  longPressTriggeredRef,
-  lastTouchTapRef,
-  suppressDayCellClickRef,
+  dayPreviewInteractions,
 }: UsePlannerCalendarDayCellRendererArgs) {
+  const {
+    clearHoverPreviewTimer,
+    clearHoverPreviewCloseTimer,
+    clearLongPressTimer,
+    openDayPreview,
+    handleDayCellClick,
+    openDayViewForDay,
+    scheduleHoverPreview,
+    scheduleHoverPreviewClose,
+    startLongPressPreview,
+    pointerPressActiveRef,
+    longPressTriggeredRef,
+    lastTouchTapRef,
+    suppressDayCellClickRef,
+  } = dayPreviewInteractions;
+
   return useCallback(
     (cell: PlannerCalendarCell) => {
       const entriesForDay = getOrderedEntriesForDay(cell.date);
