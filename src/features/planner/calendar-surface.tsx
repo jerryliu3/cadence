@@ -441,18 +441,7 @@ export function CalendarSurface({
     }
   }, [dayPreview]);
 
-  const {
-    clearHoverPreviewTimer,
-    clearHoverPreviewCloseTimer,
-    clearLongPressTimer,
-    openDayPreview,
-    openMoveDialogForDay,
-    openDayViewForDay,
-    scheduleHoverPreviewClose,
-    scheduleHoverPreview,
-    handleDayCellClick,
-    startLongPressPreview,
-  } = usePlannerDayPreviewInteractions({
+  const dayPreviewInteractions = usePlannerDayPreviewInteractions({
     dayPreview,
     setDayPreview,
     setExpandedPreviewDay,
@@ -467,10 +456,16 @@ export function CalendarSurface({
     longPressTriggeredRef,
     pointerPressActiveRef,
     pointerInsideDayPreviewRef,
+    lastTouchTapRef,
     suppressDayCellClickRef,
     dayPreviewRef,
     isDayPreviewSurfaceTarget,
   });
+  const {
+    clearHoverPreviewTimer,
+    clearHoverPreviewCloseTimer,
+    openMoveDialogForDay,
+  } = dayPreviewInteractions;
 
   const {
     recoverLoading,
@@ -651,7 +646,7 @@ export function CalendarSurface({
       `[data-day-cell="true"][data-day="${day}"]`
     );
     if (dayCell instanceof HTMLElement) {
-      openDayPreview({
+      dayPreviewInteractions.openDayPreview({
         day,
         pinned: true,
         target: dayCell,
@@ -783,19 +778,7 @@ export function CalendarSurface({
     canMutateEntryOnDay,
     getOrderedEntriesForDay,
     getCompletionFactMarkersForDay,
-    clearHoverPreviewTimer,
-    clearHoverPreviewCloseTimer,
-    clearLongPressTimer,
-    openDayPreview,
-    handleDayCellClick,
-    openDayViewForDay,
-    scheduleHoverPreview,
-    scheduleHoverPreviewClose,
-    startLongPressPreview,
-    pointerPressActiveRef,
-    longPressTriggeredRef,
-    lastTouchTapRef,
-    suppressDayCellClickRef,
+    dayPreviewInteractions,
   });
   const rollingWeekStrip = (
     <PlannerRollingWeekStrip

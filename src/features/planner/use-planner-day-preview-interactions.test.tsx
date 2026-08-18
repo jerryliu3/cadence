@@ -43,6 +43,7 @@ describe("usePlannerDayPreviewInteractions", () => {
         longPressTriggeredRef: { current: false },
         pointerPressActiveRef: { current: false },
         pointerInsideDayPreviewRef: { current: false },
+        lastTouchTapRef: { current: null },
         suppressDayCellClickRef,
         dayPreviewRef: { current: null },
         isDayPreviewSurfaceTarget: () => false,

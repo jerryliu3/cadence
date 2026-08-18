@@ -37,9 +37,31 @@ interface UsePlannerDayPreviewInteractionsArgs {
   longPressTriggeredRef: MutableRefObject<boolean>;
   pointerPressActiveRef: MutableRefObject<boolean>;
   pointerInsideDayPreviewRef: MutableRefObject<boolean>;
+  lastTouchTapRef: MutableRefObject<{ day: string; at: number } | null>;
   suppressDayCellClickRef: MutableRefObject<{ day: string; active: boolean } | null>;
   dayPreviewRef: MutableRefObject<HTMLDivElement | null>;
   isDayPreviewSurfaceTarget: (target: Element) => boolean;
+}
+
+export interface PlannerDayPreviewInteractions {
+  clearHoverPreviewTimer: () => void;
+  clearHoverPreviewCloseTimer: () => void;
+  clearLongPressTimer: () => void;
+  openDayPreview: (args: {
+    day: string;
+    pinned: boolean;
+    target: EventTarget & HTMLElement;
+  }) => void;
+  openMoveDialogForDay: (day: string) => void;
+  openDayViewForDay: (day: string) => void;
+  scheduleHoverPreviewClose: (day: string) => void;
+  scheduleHoverPreview: (day: string, target: EventTarget & HTMLElement) => void;
+  handleDayCellClick: (day: string, target: EventTarget & HTMLElement) => void;
+  startLongPressPreview: (day: string, target: EventTarget & HTMLElement) => void;
+  pointerPressActiveRef: MutableRefObject<boolean>;
+  longPressTriggeredRef: MutableRefObject<boolean>;
+  lastTouchTapRef: MutableRefObject<{ day: string; at: number } | null>;
+  suppressDayCellClickRef: MutableRefObject<{ day: string; active: boolean } | null>;
 }
 
 export function usePlannerDayPreviewInteractions({
@@ -57,6 +79,7 @@ export function usePlannerDayPreviewInteractions({
   longPressTriggeredRef,
   pointerPressActiveRef,
   pointerInsideDayPreviewRef,
+  lastTouchTapRef,
   suppressDayCellClickRef,
   dayPreviewRef,
   isDayPreviewSurfaceTarget,
@@ -284,5 +307,9 @@ export function usePlannerDayPreviewInteractions({
     scheduleHoverPreview,
     handleDayCellClick,
     startLongPressPreview,
+    pointerPressActiveRef,
+    longPressTriggeredRef,
+    lastTouchTapRef,
+    suppressDayCellClickRef,
   };
 }
