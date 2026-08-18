@@ -21,7 +21,10 @@ import {
   plannerPolicySchema,
   type PlannerPolicy,
 } from "@/lib/planner/policy";
-import { buildPreparationWindows } from "@/lib/planner/preparation-windows";
+import {
+  buildGoalPreparationWindows,
+  buildPreparationWindows,
+} from "@/lib/planner/preparation-windows";
 import {
   parsePlannerProfilePreferencesRow,
   resolvePlannerPreferencesSnapshot,
@@ -453,6 +456,61 @@ async function loadPlannerGoalUnplaceableRecords(
     .sort((left, right) => left.goalId.localeCompare(right.goalId));
 }
 
+function computePlannerGoalCoverageFingerprint({
+  goal,
+  effectiveEnd,
+  asOfDate,
+  linkSourceGoals,
+  completionsByGoalId,
+  persistedItemsByGoalId,
+}: {
+  goal: Goal;
+  effectiveEnd: string;
+  asOfDate: string;
+  linkSourceGoals: Goal[];
+  completionsByGoalId: Map<string, Completion[]>;
+  persistedItemsByGoalId: Map<string, PlannerItemRow[]>;
+}) {
+  const requirement = normalizeGoalRequirement(goal).requirement;
+  if (requirement.kind === "cadence" || linkSourceGoals.length === 0) {
+    return "";
+  }
+  const projectedCoverageDates = new Set<string>();
+  for (const sourceGoal of linkSourceGoals) {
+    if (sourceGoal.is_deleted || sourceGoal.archived_at !== null) {
+      continue;
+    }
+    for (const completion of completionsByGoalId.get(sourceGoal.id) ?? []) {
+      if (
+        completion.completed_on < sourceGoal.start_date ||
+        completion.completed_on > asOfDate ||
+        (sourceGoal.end_date !== null && completion.completed_on > sourceGoal.end_date) ||
+        completion.completed_on < goal.start_date ||
+        completion.completed_on > effectiveEnd
+      ) {
+        continue;
+      }
+      projectedCoverageDates.add(completion.completed_on);
+    }
+    for (const item of persistedItemsByGoalId.get(sourceGoal.id) ?? []) {
+      if (
+        item.scheduled_date < asOfDate ||
+        item.scheduled_date < sourceGoal.start_date ||
+        (sourceGoal.end_date !== null && item.scheduled_date > sourceGoal.end_date) ||
+        item.scheduled_date < goal.start_date ||
+        item.scheduled_date > effectiveEnd
+      ) {
+        continue;
+      }
+      projectedCoverageDates.add(item.scheduled_date);
+    }
+  }
+  if (projectedCoverageDates.size === 0) {
+    return "";
+  }
+  return canonicalHash(Array.from(projectedCoverageDates).sort());
+}
+
 async function loadActivePlanSnapshot(
   windowKey: string,
   plannerItems: PlannerItemRow[],
@@ -777,6 +835,22 @@ export async function loadPlannerContextPayload({
   const policyFingerprint = canonicalHash(effectivePolicy);
   const policyRevision = snapshot.preferences?.policy_revision ?? 0;
   const goalById = new Map(snapshot.goals.map((goal) => [goal.id, goal]));
+  const persistedItemsByGoalId = new Map<string, PlannerItemRow[]>();
+  for (const item of persistedItemsInPreparationHorizon) {
+    const entries = persistedItemsByGoalId.get(item.goal_id) ?? [];
+    entries.push(item);
+    persistedItemsByGoalId.set(item.goal_id, entries);
+  }
+  const completionsByGoalId = new Map<string, Completion[]>();
+  for (const completion of snapshot.completions) {
+    const entries = completionsByGoalId.get(completion.goal_id) ?? [];
+    entries.push(completion);
+    completionsByGoalId.set(completion.goal_id, entries);
+  }
+  const suppressionInboundIndex = buildLinkSuppressionInboundIndex(snapshot.links);
+  const suppressionSourcesById = new Map(
+    snapshot.goals.map((goal) => [goal.id, toLinkSuppressionSource(goal)])
+  );
   const lockSignatureByGoalId = new Map<string, string>();
   const lockEntriesByGoalId = new Map<
     string,
@@ -802,10 +876,42 @@ export async function loadPlannerContextPayload({
     if (!goal) {
       return false;
     }
+    const suppression = resolveLinkSuppression({
+      goalId: goal.id,
+      inboundSourceIdsByTargetId: suppressionInboundIndex,
+      sourcesById: suppressionSourcesById,
+      ownerId,
+      asOfDate,
+    });
+    const resumeDate = getLinkResumeDate(suppression);
+    const goalPreparationStart =
+      resumeDate && resumeDate > preparationStart ? resumeDate : preparationStart;
+    const goalWindowsState = buildGoalPreparationWindows({
+      goal,
+      asOfDate,
+      preparationStart: goalPreparationStart,
+      preparationEnd,
+    });
+    const linkSourceGoals = Array.from(
+      new Map(
+        snapshot.links
+          .filter((link) => link.targetGoalId === goal.id)
+          .map((link) => [link.sourceGoalId, goalById.get(link.sourceGoalId)])
+      ).values()
+    ).filter((linkSourceGoal): linkSourceGoal is Goal => Boolean(linkSourceGoal));
+    const coverageFingerprint = computePlannerGoalCoverageFingerprint({
+      goal,
+      effectiveEnd: goalWindowsState.effectiveEnd,
+      asOfDate,
+      linkSourceGoals,
+      completionsByGoalId,
+      persistedItemsByGoalId,
+    });
     return isPlannerGoalUnplaceableRecordValid({
       record,
       goal,
       policyFingerprint,
+      coverageFingerprint,
       policyRevision,
       lockSignature: lockSignatureByGoalId.get(goal.id) ?? "",
       preparationEnd,
