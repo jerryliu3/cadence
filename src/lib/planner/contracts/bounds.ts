@@ -13,6 +13,7 @@ export const MAX_WORK_UNITS = 5_000;
 export const MAX_COMPLETION_FACTS = 20_000;
 export const MAX_POLICY_RANGES = 100;
 export const MAX_HORIZON_MONTHS = 24;
+export const MAX_GOAL_TARGET_COUNT = 1_000;
 /** Inclusive max length of a planner publish window. Publish windows are a contiguous span of whole months. Goal credit/horizon may still span MAX_HORIZON_MONTHS. */
 export const MAX_PLANNER_WINDOW_DAYS = 366;
 export const MAX_API_BODY_BYTES = 3 * 1024 * 1024;

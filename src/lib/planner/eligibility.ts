@@ -8,7 +8,6 @@ import {
   MAX_HORIZON_MONTHS,
   MAX_WORK_UNITS,
 } from "@/lib/planner/contracts/bounds";
-import { positiveTarget } from "@/lib/planner/requirements";
 import type { EligibilityReason } from "@cadence/shared/planner/context";
 
 export type { EligibilityReason } from "@cadence/shared/planner/context";
@@ -95,13 +94,13 @@ export function evaluateGoalEligibility({
     endDate: effectiveEndDate,
   };
   const decision = evaluateOverlapV1Eligibility(window, normalizedGoal);
-  const targetCount = positiveTarget(goal);
+  const targetCount = Math.max(1, goal.target_count ?? 1);
   const isOrdinalGoal = isOrdinalGoalDefinition({
     frequencyType: goal.frequency_type,
     targetCount: goal.target_count,
   });
   if (decision.eligible && isOrdinalGoal && targetCount > MAX_WORK_UNITS) {
-    return { eligible: false, reason: "target_exceeds_work_unit_limit" };
+    return { eligible: false, reason: "target_exceeds_limit" };
   }
   if (
     !decision.eligible ||
