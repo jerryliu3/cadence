@@ -115,6 +115,7 @@ export interface PlannerKernelInput {
    */
   recoverPastPlacements?: boolean;
   draftPinnedDates?: Record<string, string>;
+  precoveredCountByGoalId?: Record<string, number>;
   ownerId: string;
   startDate: string;
   endDate: string;
