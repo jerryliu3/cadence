@@ -62,7 +62,6 @@ import {
   normalizeGoalRequirement,
   type NormalizedGoalRequirement,
 } from "@/lib/planner/requirements";
-import { mapProjectedCoverageOrdinals } from "@/lib/planner/linked-source-coverage";
 import { solveOrderedDpV1 } from "@/lib/planner/solver/ordered-dp-v1";
 import { computeLifetimeIdealDate } from "@/lib/planner/solver/ideal-dates";
 import { projectWorkUnitsToSolver } from "@/lib/planner/solver/project";
@@ -116,7 +115,6 @@ export interface PlannerKernelInput {
    */
   recoverPastPlacements?: boolean;
   draftPinnedDates?: Record<string, string>;
-  precoveredCountByGoalId?: Record<string, number>;
   ownerId: string;
   startDate: string;
   endDate: string;
@@ -204,7 +202,6 @@ function allocateOrdinalWindow({
   window,
   asOfDate,
   effectivePlacementStart,
-  precoveredOrdinals,
   reconciledUnits,
 }: {
   goal: Goal;
@@ -212,7 +209,6 @@ function allocateOrdinalWindow({
   window: DateWindow;
   asOfDate: string;
   effectivePlacementStart: string | null;
-  precoveredOrdinals: Set<number>;
   reconciledUnits: PlannerWorkUnit[];
 }): OrdinalScopeAllocation | undefined {
   const requirement = normalizedRequirement.requirement;
@@ -391,19 +387,10 @@ function allocateOrdinalWindow({
     }
   }
 
-  if (precoveredOrdinals.size > 0) {
-    for (const [month, ordinals] of finalOrdinalsByMonth) {
-      finalOrdinalsByMonth.set(
-        month,
-        ordinals.filter((ordinal) => !precoveredOrdinals.has(ordinal))
-      );
-    }
-  }
-  const scopedOrdinals = new Set(
-    windowMonths.flatMap((month) => finalOrdinalsByMonth.get(month) ?? [])
-  );
   return {
-    scopedOrdinals,
+    scopedOrdinals: new Set(
+      windowMonths.flatMap((month) => finalOrdinalsByMonth.get(month) ?? [])
+    ),
     monthOrdinals: finalOrdinalsByMonth,
   };
 }
@@ -605,10 +592,6 @@ export function runPlannerKernel(
   const horizonSummary: PlannerGoalHorizonSummary[] = [];
   for (const goal of eligibleGoals) {
     const requirement = normalizedRequirements.get(goal.id)!;
-    const rawPrecoveredCount = rawInput.precoveredCountByGoalId?.[goal.id] ?? 0;
-    const precoveredCount = Number.isFinite(rawPrecoveredCount)
-      ? Math.max(Math.floor(rawPrecoveredCount), 0)
-      : 0;
     if (
       requirement.requirement.kind !== "cadence" &&
       requirement.requirement.targetCount >
@@ -654,22 +637,6 @@ export function runPlannerKernel(
       // scheduled dates, which can differ between date-window base plans.
       allowScheduledDateMatching: scopeState !== "historical",
     });
-    const completionCreditedOrdinals =
-      requirement.requirement.kind === "cadence"
-        ? new Set<number>()
-        : new Set(
-            reconciled.units
-              .filter((unit) => unit.creditedCompletionId !== null)
-              .map((unit) => unit.ordinal)
-          );
-    const precoveredOrdinals =
-      requirement.requirement.kind === "cadence"
-        ? new Set<number>()
-        : mapProjectedCoverageOrdinals({
-            targetCount: requirement.requirement.targetCount,
-            completionCreditedOrdinals,
-            projectedCoverageCount: precoveredCount,
-          });
     const ordinalAllocation =
       requirement.requirement.kind === "cadence"
         ? undefined
@@ -687,7 +654,6 @@ export function runPlannerKernel(
                 ? resumeDate
                 : null;
             })(),
-            precoveredOrdinals,
             reconciledUnits: reconciled.units,
           });
     const scopedOrdinals =
@@ -1017,7 +983,6 @@ export function runPlannerKernel(
     preserveExistingAssignments:
       rawInput.preserveExistingAssignments === true,
     draftPinnedDates: rawInput.draftPinnedDates ?? {},
-    precoveredCountByGoalId: rawInput.precoveredCountByGoalId ?? {},
     startDate: rawInput.startDate,
     endDate: rawInput.endDate,
     asOfDate: rawInput.asOfDate,
