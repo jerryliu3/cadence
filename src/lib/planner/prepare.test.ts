@@ -1045,6 +1045,88 @@ describe("preparePlannerSchedule", () => {
     expect(targetOutcome?.unplaced_count).toBe(0);
   });
 
+  it("shrinks projected linked coverage after uncompleted source planned dates elapse", async () => {
+    const sourceGoal = goal({
+      id: "17171717-1717-4717-8717-171717171717",
+      title: "Create videos source",
+      frequency_type: "recurring",
+      recurrence_interval: "weekly",
+      target_count: 5,
+      milestone_names: null,
+      start_date: "2026-08-01",
+      end_date: "2026-08-31",
+    });
+    const targetGoal = goal({
+      id: "18181818-1818-4818-8818-181818181818",
+      title: "Post videos target",
+      frequency_type: "fixed_milestones",
+      recurrence_interval: null,
+      target_count: 5,
+      milestone_names: ["1", "2", "3", "4", "5"],
+      start_date: "2026-01-01",
+      end_date: "2026-12-31",
+    });
+    const sourcePlannedItems = [
+      persistedItem({
+        id: "19191919-1919-4919-8919-191919191919",
+        goal_id: sourceGoal.id,
+        unit_key: "total:4",
+        scheduled_date: "2026-08-20",
+        original_scheduled_date: "2026-08-20",
+        scheduled_time: null,
+        locked: false,
+      }),
+      persistedItem({
+        id: "20202020-2020-4020-8020-202020202020",
+        goal_id: sourceGoal.id,
+        unit_key: "total:5",
+        scheduled_date: "2026-08-25",
+        original_scheduled_date: "2026-08-25",
+        scheduled_time: null,
+        locked: false,
+      }),
+    ];
+    mocks.loadPlannerPreparationSnapshot.mockResolvedValue(
+      preparationSnapshot(
+        [sourceGoal, targetGoal],
+        sourcePlannedItems,
+        [],
+        [],
+        [{ sourceGoalId: sourceGoal.id, targetGoalId: targetGoal.id }]
+      )
+    );
+    mocks.runPlannerKernel.mockImplementation((kernelInput) =>
+      kernelOutput(kernelInput.goals[0].id, [])
+    );
+
+    mocks.resolveCanonicalAsOfDate.mockReturnValue("2026-08-18");
+    await prepare();
+
+    mocks.resolveCanonicalAsOfDate.mockReturnValue("2026-08-28");
+    await prepare();
+
+    const firstRunPayload = mocks.rpc.mock.calls[0]?.[1] as {
+      p_unplaceable: Array<{
+        goal_id: string;
+        unplaced_count: number;
+      }>;
+    };
+    const secondRunPayload = mocks.rpc.mock.calls[1]?.[1] as {
+      p_unplaceable: Array<{
+        goal_id: string;
+        unplaced_count: number;
+      }>;
+    };
+    const firstRunTargetOutcome = firstRunPayload.p_unplaceable.find(
+      (entry) => entry.goal_id === targetGoal.id
+    );
+    const secondRunTargetOutcome = secondRunPayload.p_unplaceable.find(
+      (entry) => entry.goal_id === targetGoal.id
+    );
+    expect(firstRunTargetOutcome?.unplaced_count).toBe(3);
+    expect(secondRunTargetOutcome?.unplaced_count).toBe(5);
+  });
+
   it("skips re-solving unchanged infeasible goals when a valid record already accounts for missing units", async () => {
     const plannerGoal = goal({ target_count: 2 });
     const existing = persistedItem({ unit_key: "milestone:1" });
