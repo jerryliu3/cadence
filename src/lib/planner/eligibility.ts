@@ -3,7 +3,10 @@ import {
   isOrdinalGoalDefinition,
 } from "@/lib/goals/definition-validation";
 import { enumerateMonthsInWindow, type DateWindow } from "@/lib/planner/dates";
-import { MAX_HORIZON_MONTHS } from "@/lib/planner/contracts/bounds";
+import {
+  MAX_GOAL_TARGET_COUNT,
+  MAX_HORIZON_MONTHS,
+} from "@/lib/planner/contracts/bounds";
 import type { EligibilityReason } from "@cadence/shared/planner/context";
 
 export type { EligibilityReason } from "@cadence/shared/planner/context";
@@ -34,8 +37,11 @@ function evaluateStaticEligibility(goal: EligibilityGoal): EligibilityDecision |
   if (goal.archivedAt !== null) {
     return { eligible: false, reason: "archived" };
   }
-  if (goal.currentLinkRole !== "none") {
+  if (goal.currentLinkRole === "source") {
     return { eligible: false, reason: "linked" };
+  }
+  if (goal.currentLinkRole === "target") {
+    return { eligible: false, reason: "linked_target" };
   }
   if (goal.requiresDeadline !== false && goal.endDate === null) {
     return { eligible: false, reason: "missing_end_date" };
@@ -76,10 +82,11 @@ export function evaluateGoalEligibility({
   currentLinkRole: EligibilityGoal["currentLinkRole"];
   asOfDate?: string;
 }): EligibilityDecision {
-  const requiresDeadline = isOrdinalGoalDefinition({
+  const isOrdinalGoal = isOrdinalGoalDefinition({
     frequencyType: goal.frequency_type,
     targetCount: goal.target_count,
   });
+  const requiresDeadline = isOrdinalGoal;
   const normalizedGoal: EligibilityGoal = {
     ownedByViewer: goal.owner_id === ownerId,
     isDeleted: goal.is_deleted,
@@ -91,7 +98,16 @@ export function evaluateGoalEligibility({
     requiresDeadline,
   };
   const decision = evaluateOverlapV1Eligibility(window, normalizedGoal);
-  if (!decision.eligible || goal.end_date === null) {
+  if (!decision.eligible) {
+    return decision;
+  }
+  const targetCount = Number.isFinite(goal.target_count)
+    ? Math.max(0, Math.floor(goal.target_count ?? 0))
+    : 0;
+  if (isOrdinalGoal && targetCount > MAX_GOAL_TARGET_COUNT) {
+    return { eligible: false, reason: "target_exceeds_limit" };
+  }
+  if (goal.end_date === null) {
     return decision;
   }
   const horizonMonths = enumerateMonthsInWindow({
