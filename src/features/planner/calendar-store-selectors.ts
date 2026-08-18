@@ -94,6 +94,26 @@ export function selectPlannerCalendarStoreProjection({
     draftItemEdits: effectiveDraftItemEdits,
     draftCommands: effectiveDraftCommands,
   });
+  const linkedSourceGoalIds = new Set(
+    (context?.links ?? []).map((link) => link.sourceGoalId)
+  );
+  if (linkedSourceGoalIds.size > 0) {
+    for (const [day, entries] of entriesByDate.entries()) {
+      entriesByDate.set(
+        day,
+        entries.map((entry) =>
+          linkedSourceGoalIds.has(entry.originalGoalId)
+            ? { ...entry, hasLinkedTargets: true }
+            : entry
+        )
+      );
+    }
+    for (const [key, entry] of entryByKey.entries()) {
+      if (linkedSourceGoalIds.has(entry.originalGoalId)) {
+        entryByKey.set(key, { ...entry, hasLinkedTargets: true });
+      }
+    }
+  }
   const previewUnitByEntryKey = buildPreviewUnitByEntryKey(effectivePreview?.workUnits);
   const completionFactUnitsByGoalDate = buildCompletionFactUnitsByGoalDate(
     effectivePreview?.workUnits
