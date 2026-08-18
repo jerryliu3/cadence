@@ -183,7 +183,7 @@ describe("planner context preview route", () => {
     );
   });
 
-  it("threads the recovery flag into the kernel while preserving assignments", async () => {
+  it("ignores recovery-only flags while preserving stable assignment mode", async () => {
     mocks.parseBoundedJsonBody.mockResolvedValueOnce({
       startDate: "2026-02-01",
       endDate: "2027-01-31",
@@ -205,13 +205,15 @@ describe("planner context preview route", () => {
     expect(mocks.runPlannerKernel).toHaveBeenCalledWith(
       expect.objectContaining({
         solveIntent: "stable",
-        recoverPastPlacements: true,
         preserveExistingAssignments: true,
       })
     );
+    expect(mocks.runPlannerKernel.mock.calls[0]?.[0]).not.toHaveProperty(
+      "recoverPastPlacements"
+    );
   });
 
-  it("defaults the recovery flag off so ordinary previews are unchanged", async () => {
+  it("keeps ordinary previews stable without recovery-only kernel input", async () => {
     mocks.parseBoundedJsonBody.mockResolvedValueOnce({
       startDate: "2026-08-01",
       endDate: "2026-08-31",
@@ -229,8 +231,12 @@ describe("planner context preview route", () => {
 
     expect(mocks.runPlannerKernel).toHaveBeenCalledWith(
       expect.objectContaining({
-        recoverPastPlacements: false,
+        solveIntent: "stable",
+        preserveExistingAssignments: true,
       })
+    );
+    expect(mocks.runPlannerKernel.mock.calls[0]?.[0]).not.toHaveProperty(
+      "recoverPastPlacements"
     );
   });
 

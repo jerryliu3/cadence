@@ -160,6 +160,7 @@ export interface PlannerKernelOutput {
   }>;
   diff: ReturnType<typeof diffPlannerAssignments>;
   validation: ReturnType<typeof validateSolverResult>;
+  suggestedRelaxations: string[];
   horizonSummary: PlannerGoalHorizonSummary[];
 }
 
@@ -1040,6 +1041,7 @@ export function runPlannerKernel(
       nextIssues: solver.issueCodes,
     }),
     validation,
+    suggestedRelaxations: [],
     horizonSummary,
   };
   plannerKernelOutputSchema.parse(output);
