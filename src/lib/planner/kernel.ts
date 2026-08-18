@@ -390,11 +390,13 @@ function allocateOrdinalWindow({
   const scopedOrdinals = new Set(
     windowMonths.flatMap((month) => finalOrdinalsByMonth.get(month) ?? [])
   );
-  // Guard the resumed-suppression handoff: the first resumed window must not
-  // silently omit unresolved required ordinals.
+  // Guard the resumed-suppression handoff: when solving the full resumed
+  // remainder, the first resumed window must not silently omit unresolved
+  // required ordinals.
   if (
     effectivePlacementStart !== null &&
-    compareCanonicalStrings(window.start, effectivePlacementStart) === 0
+    compareCanonicalStrings(window.start, effectivePlacementStart) === 0 &&
+    compareCanonicalStrings(window.end, effectiveGoalEndDate) >= 0
   ) {
     for (const unit of reconciledUnits) {
       if (
