@@ -166,7 +166,7 @@ describe("pure planner kernel", () => {
     );
   });
 
-  it("omits precovered ordinals from kernel placement output", () => {
+  it("omits projected source-covered ordinals from kernel placement output", () => {
     const milestoneGoal = goal({
       id: "goal-precovered",
       frequency_type: "fixed_milestones",
@@ -179,14 +179,14 @@ describe("pure planner kernel", () => {
     const output = runPlannerKernel(
       input({
         goals: [milestoneGoal],
-        precoveredOrdinalsByGoalId: {
-          [milestoneGoal.id]: [2, 3],
+        precoveredCountByGoalId: {
+          [milestoneGoal.id]: 2,
         },
       })
     );
 
     expect(output.workUnits.map((unit) => unit.unitKey)).toEqual([
-      "milestone:1",
+      "milestone:3",
       "milestone:4",
       "milestone:5",
     ]);
@@ -1558,6 +1558,11 @@ describe("solve intent and draft pins", () => {
     expect(
       runPlannerKernel(
         input({ draftPinnedDates: { "goal-a:total:1": "2026-08-20" } })
+      ).generationInputHash
+    ).not.toBe(base);
+    expect(
+      runPlannerKernel(
+        input({ precoveredCountByGoalId: { "goal-a": 2 } })
       ).generationInputHash
     ).not.toBe(base);
   });

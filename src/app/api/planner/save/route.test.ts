@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   requirePlannerAdminClient: vi.fn(),
   resolveCanonicalAsOfDate: vi.fn(),
   loadPlannerCanonicalSnapshot: vi.fn(),
+  loadPlannerItemsForWindow: vi.fn(),
   loadAllPlannerItems: vi.fn(),
   runPlannerKernel: vi.fn(),
   routeRpc: vi.fn(),
@@ -39,6 +40,7 @@ vi.mock("@/lib/planner/api", async () => {
 
 vi.mock("@/lib/planner/context-loader", () => ({
   loadPlannerCanonicalSnapshot: mocks.loadPlannerCanonicalSnapshot,
+  loadPlannerItemsForWindow: mocks.loadPlannerItemsForWindow,
   loadAllPlannerItems: mocks.loadAllPlannerItems,
 }));
 
@@ -94,6 +96,7 @@ describe("planner save route", () => {
       draftCommands: [],
     });
     mocks.resolveCanonicalAsOfDate.mockReturnValue("2026-08-05");
+    mocks.loadPlannerItemsForWindow.mockResolvedValue([]);
     mocks.loadAllPlannerItems.mockResolvedValue([]);
     mocks.loadPlannerCanonicalSnapshot.mockResolvedValue({
       goals: [],
@@ -140,6 +143,95 @@ describe("planner save route", () => {
     expect(mocks.runPlannerKernel).toHaveBeenCalledWith(
       expect.objectContaining({
         preserveExistingAssignments: true,
+      })
+    );
+  });
+
+  it("threads linked-source projected coverage into save kernel input", async () => {
+    const sourceGoalId = "55555555-5555-4555-8555-555555555555";
+    const targetGoalId = "66666666-6666-4666-8666-666666666666";
+    mocks.loadPlannerCanonicalSnapshot.mockResolvedValueOnce({
+      goals: [
+        {
+          id: sourceGoalId,
+          owner_id: "11111111-1111-4111-8111-111111111111",
+          title: "Source",
+          category: "Personal",
+          color: null,
+          frequency_type: "fixed_milestones",
+          recurrence_interval: null,
+          target_count: 2,
+          milestone_names: ["1", "2"],
+          start_date: "2026-08-01",
+          end_date: "2026-08-31",
+          is_deleted: false,
+          archived_at: null,
+        },
+        {
+          id: targetGoalId,
+          owner_id: "11111111-1111-4111-8111-111111111111",
+          title: "Target",
+          category: "Personal",
+          color: null,
+          frequency_type: "fixed_milestones",
+          recurrence_interval: null,
+          target_count: 4,
+          milestone_names: ["1", "2", "3", "4"],
+          start_date: "2026-01-01",
+          end_date: "2026-12-31",
+          is_deleted: false,
+          archived_at: null,
+        },
+      ],
+      completions: [
+        {
+          id: "completion-1",
+          goal_id: sourceGoalId,
+          user_id: "11111111-1111-4111-8111-111111111111",
+          completed_on: "2026-08-03",
+          source: "manual",
+          created_at: "2026-08-03T00:00:00.000Z",
+        },
+      ],
+      links: [{ sourceGoalId, targetGoalId }],
+      revisions: {
+        canonicalRevision: 0,
+        executionRevision: 0,
+      },
+      preferences: {
+        timezone: "UTC",
+        timezone_confirmed_at: "2026-08-01T00:00:00.000Z",
+        policy_revision: 1,
+        default_policy: createDefaultPlannerPolicy(
+          "UTC",
+          "2026-08-01T00:00:00.000Z"
+        ),
+      },
+      activePlan: null,
+    });
+    mocks.loadPlannerItemsForWindow.mockResolvedValueOnce([
+      {
+        goal_id: sourceGoalId,
+        scheduled_date: "2026-08-10",
+      },
+    ]);
+    mocks.runPlannerKernel.mockImplementationOnce(() => {
+      throw new PlannerError(
+        "validation_failed",
+        400,
+        "Planner policy failed validation."
+      );
+    });
+
+    await POST(
+      new Request("http://localhost/api/planner/save", {
+        method: "POST",
+      })
+    );
+
+    expect(mocks.runPlannerKernel).toHaveBeenCalledWith(
+      expect.objectContaining({
+        precoveredCountByGoalId: { [targetGoalId]: 2 },
       })
     );
   });

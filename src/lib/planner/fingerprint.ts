@@ -31,7 +31,7 @@ export interface GenerationHashInput {
   solveIntent: SolverSolveIntent;
   preserveExistingAssignments: boolean;
   draftPinnedDates: Record<string, string>;
-  precoveredOrdinalsByGoalId?: Record<string, number[]>;
+  precoveredCountByGoalId?: Record<string, number>;
   startDate: string;
   endDate: string;
   asOfDate: string;
@@ -67,15 +67,10 @@ export function computeGenerationInputHash(input: GenerationHashInput) {
         compareCanonicalStrings(left, right)
       )
     ),
-    precoveredOrdinalsByGoalId: Object.fromEntries(
-      Object.entries(input.precoveredOrdinalsByGoalId ?? {})
+    precoveredCountByGoalId: Object.fromEntries(
+      Object.entries(input.precoveredCountByGoalId ?? {})
         .sort(([left], [right]) => compareCanonicalStrings(left, right))
-        .map(([goalId, ordinals]) => [
-          goalId,
-          [...ordinals]
-            .filter((ordinal) => Number.isInteger(ordinal) && ordinal > 0)
-            .sort((left, right) => left - right),
-        ])
+        .map(([goalId, count]) => [goalId, Math.max(Math.floor(count), 0)])
     ),
     startDate: input.startDate,
     endDate: input.endDate,
