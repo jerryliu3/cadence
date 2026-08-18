@@ -76,6 +76,58 @@ import { usePlannerContextLoader } from "@/features/planner/use-planner-context-
 import { usePlannerSetup } from "@/features/planner/use-planner-setup";
 import { usePlannerPreviewSession } from "@/features/planner/use-planner-preview-session";
 import { usePlannerDayPreviewInteractions } from "@/features/planner/use-planner-day-preview-interactions";
+import { ROLLING_WEEK_GRID_WIDTH_BY_VIEW } from "@/features/planner/calendar-rolling-week-width";
+const DAY_PREVIEW_HOVER_DELAY_MS = 1000;
+const DAY_PREVIEW_CLOSE_DELAY_MS = 250;
+const DAY_PREVIEW_LONG_PRESS_DELAY_MS = 500;
+const MAX_MONTH_HEADING_SAMPLE = "September 2026";
+const MAX_WEEK_HEADING_SAMPLE = "Sep 30 - Sep 30, 2026";
+const MAX_THREE_DAY_HEADING_SAMPLE = "Sep 30 - Oct 2, 2026";
+const MAX_DAY_HEADING_SAMPLE = "Wed Aug 30";
+const ROLLING_WEEK_GRID_LABELS_BASE_CLASS =
+  "grid min-w-[calc(7*var(--rolling-week-cell-width))] grid-cols-[repeat(7,minmax(0,var(--rolling-week-cell-width)))] gap-2 text-center text-xs text-muted-foreground";
+const ROLLING_WEEK_GRID_CELLS_BASE_CLASS =
+  "mt-2 grid min-w-[calc(7*var(--rolling-week-cell-width))] grid-cols-[repeat(7,minmax(0,var(--rolling-week-cell-width)))] gap-2";
+const SCOPE_ONLY_ELIGIBILITY_REASONS = new Set([
+  "end_outside_scope",
+  "starts_after_scope",
+]);
+const NON_ACTIONABLE_ELIGIBILITY_REASONS = new Set([
+  "not_owner",
+  "deleted",
+  "archived",
+]);
+const ELIGIBILITY_REASON_GROUP_LABELS: Partial<Record<EligibilityReason, string>> = {
+  invalid_date_range: "Goals with invalid date ranges",
+  horizon_too_long: "Goals beyond the planning horizon",
+  target_exceeds_work_unit_limit: "Goals exceeding planner size limits",
+};
+const ELIGIBILITY_REASON_LABELS: Record<EligibilityReason, string> = {
+  eligible: "This goal can be planned.",
+  not_owner: "Only goals you own can be planned here.",
+  deleted: "Deleted goals are excluded from planning.",
+  archived: "Archived goals are excluded from planning.",
+  linked_target:
+    "Linked target goals can be hidden in months where linked source coverage is still active.",
+  invalid_date_range: "The goal dates are invalid (start is after end).",
+  end_outside_scope: "This goal ends before the selected planning month.",
+  starts_after_scope: "This goal starts after the selected planning month.",
+  horizon_too_long:
+    "This goal deadline exceeds the 24-month planning horizon limit.",
+  target_exceeds_work_unit_limit:
+    "This goal target exceeds the planner's maximum supported work-unit limit.",
+};
+
+function getEligibilityReasonLabel(reason: EligibilityReason) {
+  return ELIGIBILITY_REASON_LABELS[reason];
+}
+
+const PLANNER_VIEW_MODES = [
+  { value: "month", label: "Month" },
+  { value: "week", label: "Week" },
+  { value: "three_day", label: "3 Day" },
+  { value: "day", label: "Day" },
+] as const;
 
 export function CalendarSurface({
   activeTab,

@@ -215,5 +215,48 @@ describe("goal-level eligibility guards", () => {
       reason: "horizon_too_long",
     });
   });
+
+  it("marks targeted recurring goals above work-unit bounds as ineligible", () => {
+    expect(
+      evaluateGoalEligibility({
+        window: getScopeDateRange("2026-08"),
+        ownerId: "owner-a",
+        goal: {
+          ...cadenceGoal,
+          id: "goal-target-too-large",
+          target_count: 5_001,
+          end_date: "2026-12-31",
+        },
+        asOfDate: "2026-08-15",
+        currentLinkRole: "none",
+      })
+    ).toEqual({
+      eligible: false,
+      reason: "target_exceeds_work_unit_limit",
+    });
+  });
+
+  it("marks fixed milestone goals above work-unit bounds as ineligible", () => {
+    expect(
+      evaluateGoalEligibility({
+        window: getScopeDateRange("2026-08"),
+        ownerId: "owner-a",
+        goal: {
+          ...cadenceGoal,
+          id: "goal-fixed-too-large",
+          frequency_type: "fixed_milestones",
+          recurrence_interval: null,
+          target_count: 5_001,
+          milestone_names: [],
+          end_date: "2026-12-31",
+        },
+        asOfDate: "2026-08-15",
+        currentLinkRole: "none",
+      })
+    ).toEqual({
+      eligible: false,
+      reason: "target_exceeds_work_unit_limit",
+    });
+  });
 });
 
