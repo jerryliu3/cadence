@@ -10,6 +10,7 @@ const context = {
   asOfDate: "2026-08-14",
   timezone: "America/New_York",
   goalTitles: {},
+  links: [],
   capabilities: { crossMonthMovesEnabled: true },
   preview: null,
   activePlan: null,

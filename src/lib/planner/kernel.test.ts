@@ -732,18 +732,29 @@ describe("pure planner kernel", () => {
     );
   });
 
-  it("excludes either side of a current goal link", () => {
+  it("keeps source goals eligible while suppressing linked targets", () => {
+    const sourceGoal = goal({ id: "goal-a", target_count: 1 });
+    const targetGoal = goal({ id: "goal-b", target_count: 1 });
     const output = runPlannerKernel(
       input({
+        goals: [sourceGoal, targetGoal],
         links: [{ sourceGoalId: "goal-a", targetGoalId: "goal-b" }],
       })
     );
 
-    expect(output.eligibility[0]).toMatchObject({
-      eligible: false,
-      reason: "linked",
-    });
-    expect(output.workUnits).toEqual([]);
+    expect(output.eligibility).toEqual([
+      {
+        goalId: "goal-a",
+        eligible: true,
+        reason: "eligible",
+      },
+      {
+        goalId: "goal-b",
+        eligible: false,
+        reason: "linked_target",
+      },
+    ]);
+    expect(output.workUnits.map((unit) => unit.originalGoalId)).toEqual(["goal-a"]);
   });
 
   it("honors locks that invert ordinal order", () => {
@@ -1337,35 +1348,44 @@ describe("pure planner kernel", () => {
     expect(output.validation.valid).toBe(true);
   });
 
-  it("rejects excessive target counts before allocating work units", () => {
-    try {
-      runPlannerKernel(input({ goals: [goal({ target_count: 5_001 })] }));
-      throw new Error("Expected planner bound rejection.");
-    } catch (error) {
-      expect(error).toBeInstanceOf(PlannerError);
-      expect((error as PlannerError).code).toBe("plan_too_large");
-      expect((error as PlannerError).httpStatus).toBe(413);
-    }
+  it("marks excessive target counts as ineligible before allocation", () => {
+    const output = runPlannerKernel(input({ goals: [goal({ target_count: 5_001 })] }));
+
+    expect(output.eligibility).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          goalId: "goal-a",
+          eligible: false,
+          reason: "target_exceeds_limit",
+        }),
+      ])
+    );
+    expect(output.workUnits).toEqual([]);
   });
 
-  it("preflights fixed milestone labels before allocation", () => {
-    try {
-      runPlannerKernel(
-        input({
-          goals: [
-            goal({
-              frequency_type: "fixed_milestones",
-              recurrence_interval: null,
-              target_count: 4_294_967_296,
-            }),
-          ],
-        })
-      );
-      throw new Error("Expected planner bound rejection.");
-    } catch (error) {
-      expect(error).toBeInstanceOf(PlannerError);
-      expect((error as PlannerError).code).toBe("plan_too_large");
-    }
+  it("marks oversized fixed milestone plans as ineligible before allocation", () => {
+    const output = runPlannerKernel(
+      input({
+        goals: [
+          goal({
+            frequency_type: "fixed_milestones",
+            recurrence_interval: null,
+            target_count: 4_294_967_296,
+          }),
+        ],
+      })
+    );
+
+    expect(output.eligibility).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          goalId: "goal-a",
+          eligible: false,
+          reason: "target_exceeds_limit",
+        }),
+      ])
+    );
+    expect(output.workUnits).toEqual([]);
   });
 
   it("rejects a locked base assignment without a date at the contract", () => {
