@@ -94,6 +94,9 @@ export const plannerKernelInputSchema = z
     preserveExistingAssignments: z.boolean().optional(),
     recoverPastPlacements: z.boolean().optional(),
     draftPinnedDates: z.record(z.string(), dateSchema).optional(),
+    precoveredOrdinalsByGoalId: z
+      .record(z.string(), z.array(z.number().int().positive()))
+      .optional(),
     ownerId: z.string().min(1).max(100),
     startDate: dateSchema,
     endDate: dateSchema,

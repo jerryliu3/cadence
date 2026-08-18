@@ -73,6 +73,7 @@ interface GoalUnplaceablePayload {
   goal_id: string;
   requirement_fingerprint: string;
   policy_fingerprint: string;
+  coverage_fingerprint: string;
   policy_revision: number;
   lock_signature: string;
   effective_span_end: string;
@@ -177,7 +178,7 @@ function computeRequiredUnitKeys({
   return requiredUnitKeys;
 }
 
-function computeProjectedLinkedSourceCoverageUnitKeys({
+function collectProjectedLinkedSourceCoverageDates({
   goal,
   requirement,
   effectiveEnd,
@@ -228,17 +229,38 @@ function computeProjectedLinkedSourceCoverageUnitKeys({
     }
   }
 
-  const projectedCoverageCount = Math.min(
-    projectedCoverageDates.size,
-    requirement.targetCount
-  );
-  const unitPrefix = requirement.kind === "milestone_sequence" ? "milestone" : "total";
-  return new Set(
-    Array.from(
-      { length: projectedCoverageCount },
-      (_, index) => `${unitPrefix}:${index + 1}`
-    )
-  );
+  return projectedCoverageDates;
+}
+
+function mapProjectedCoverageToUnitKeys({
+  requiredUnitKeys,
+  completionCreditedUnitKeys,
+  projectedCoverageCount,
+}: {
+  requiredUnitKeys: Set<string>;
+  completionCreditedUnitKeys: Set<string>;
+  projectedCoverageCount: number;
+}) {
+  if (projectedCoverageCount <= 0) {
+    return new Set<string>();
+  }
+  const unresolvedRequiredUnitKeys = Array.from(requiredUnitKeys)
+    .filter((unitKey) => !completionCreditedUnitKeys.has(unitKey))
+    .sort((left, right) => {
+      const [, leftOrdinalRaw] = left.split(":");
+      const [, rightOrdinalRaw] = right.split(":");
+      const leftOrdinal = Number(leftOrdinalRaw ?? 0);
+      const rightOrdinal = Number(rightOrdinalRaw ?? 0);
+      return leftOrdinal - rightOrdinal;
+    });
+  return new Set(unresolvedRequiredUnitKeys.slice(0, projectedCoverageCount));
+}
+
+function buildCoverageFingerprint(dates: Set<string>) {
+  if (dates.size === 0) {
+    return "";
+  }
+  return canonicalHash(Array.from(dates).sort(compareDateStrings));
 }
 
 export function computeCompletionCreditedUnitKeys({
@@ -327,6 +349,7 @@ function preserveExistingUnplaceableOutcome({
     goal_id: goalId,
     requirement_fingerprint: record.requirementFingerprint,
     policy_fingerprint: record.policyFingerprint,
+    coverage_fingerprint: record.coverageFingerprint,
     policy_revision: record.policyRevision,
     lock_signature: record.lockSignature,
     effective_span_end: record.effectiveSpanEnd,
@@ -502,6 +525,10 @@ async function prepareOnce({
     string,
     Set<string>
   >();
+  const projectedLinkedSourceCoverageOrdinalsByGoalId = new Map<
+    string,
+    Set<number>
+  >();
   const eligibleGoalIds = new Set<string>();
   const preserveRecordedOutcomeGoalIds = new Set<string>();
   const goalPreparationStartByGoalId = new Map<string, string>();
@@ -533,6 +560,7 @@ async function prepareOnce({
         goal_id: goal.id,
         requirement_fingerprint: normalizeGoalRequirement(goal).requirementFingerprint,
         policy_fingerprint: policyFingerprint,
+        coverage_fingerprint: "",
         policy_revision: policyRevision,
         lock_signature: buildPlannerGoalLockSignature(
           (persistedItemsInHorizonByGoalId.get(goal.id) ?? []).map((item) => ({
@@ -571,6 +599,7 @@ async function prepareOnce({
         goal_id: goal.id,
         requirement_fingerprint: normalizeGoalRequirement(goal).requirementFingerprint,
         policy_fingerprint: policyFingerprint,
+        coverage_fingerprint: "",
         policy_revision: policyRevision,
         lock_signature: buildPlannerGoalLockSignature(
           (persistedItemsInHorizonByGoalId.get(goal.id) ?? []).map((item) => ({
@@ -612,6 +641,23 @@ async function prepareOnce({
         locked: item.locked,
       }))
     );
+    const linkSourceGoals = Array.from(
+      new Map(
+        preparation.snapshot.links
+          .filter((link) => link.targetGoalId === goal.id)
+          .map((link) => [link.sourceGoalId, goalById.get(link.sourceGoalId)])
+      ).values()
+    ).filter((linkSourceGoal): linkSourceGoal is Goal => Boolean(linkSourceGoal));
+    const projectedCoverageDates = collectProjectedLinkedSourceCoverageDates({
+      goal,
+      requirement: normalizedRequirement.requirement,
+      effectiveEnd: goalWindowsState.effectiveEnd,
+      asOfDate,
+      linkSourceGoals,
+      completionsByGoalId,
+      persistedItemsValidByGoalId,
+    });
+    const coverageFingerprint = buildCoverageFingerprint(projectedCoverageDates);
     const existingUnplaceableRecord =
       validUnplaceableRecordByGoalId.get(goal.id) ?? null;
     const existingRecordIsValid =
@@ -620,17 +666,11 @@ async function prepareOnce({
         record: existingUnplaceableRecord,
         goal,
         policyFingerprint,
+        coverageFingerprint,
         policyRevision,
         lockSignature,
         preparationEnd,
       });
-    const linkSourceGoals = Array.from(
-      new Map(
-        preparation.snapshot.links
-          .filter((link) => link.targetGoalId === goal.id)
-          .map((link) => [link.sourceGoalId, goalById.get(link.sourceGoalId)])
-      ).values()
-    ).filter((linkSourceGoal): linkSourceGoal is Goal => Boolean(linkSourceGoal));
     const goalWindows = goalWindowsState.windows as PreparationWindow[];
     const requiredUnitKeys = computeRequiredUnitKeys({
       goal,
@@ -667,19 +707,27 @@ async function prepareOnce({
       continue;
     }
     precheckCompletionCreditedUnitKeysByGoalId.set(goal.id, completionCreditedUnitKeys);
-    const projectedLinkedSourceCoverageUnitKeys =
-      computeProjectedLinkedSourceCoverageUnitKeys({
-        goal,
-        requirement: normalizedRequirement.requirement,
-        effectiveEnd: goalWindowsState.effectiveEnd,
-        asOfDate,
-        linkSourceGoals,
-        completionsByGoalId,
-        persistedItemsValidByGoalId,
-      });
+    const projectedLinkedSourceCoverageUnitKeys = mapProjectedCoverageToUnitKeys({
+      requiredUnitKeys,
+      completionCreditedUnitKeys,
+      projectedCoverageCount: Math.min(
+        projectedCoverageDates.size,
+        normalizedRequirement.requirement.kind === "cadence"
+          ? 0
+          : normalizedRequirement.requirement.targetCount
+      ),
+    });
     projectedLinkedSourceCoverageUnitKeysByGoalId.set(
       goal.id,
       projectedLinkedSourceCoverageUnitKeys
+    );
+    projectedLinkedSourceCoverageOrdinalsByGoalId.set(
+      goal.id,
+      new Set(
+        Array.from(projectedLinkedSourceCoverageUnitKeys)
+          .map((unitKey) => Number(unitKey.split(":")[1] ?? 0))
+          .filter((ordinal) => Number.isInteger(ordinal) && ordinal > 0)
+      )
     );
     const persistedUnitKeys = new Set(
       (persistedItemsValidByGoalId.get(goal.id) ?? []).map((item) => item.unit_key)
@@ -733,6 +781,7 @@ async function prepareOnce({
           goal_id: goal.id,
           requirement_fingerprint: requirementFingerprint,
           policy_fingerprint: policyFingerprint,
+          coverage_fingerprint: coverageFingerprint,
           policy_revision: policyRevision,
           lock_signature: lockSignature,
           effective_span_end: goalWindowsState.effectiveEnd,
@@ -748,6 +797,7 @@ async function prepareOnce({
         goal_id: goal.id,
         requirement_fingerprint: requirementFingerprint,
         policy_fingerprint: policyFingerprint,
+        coverage_fingerprint: coverageFingerprint,
         policy_revision: policyRevision,
         lock_signature: lockSignature,
         effective_span_end: goalWindowsState.effectiveEnd,
@@ -786,6 +836,11 @@ async function prepareOnce({
             link.sourceGoalId === goal.id || link.targetGoalId === goal.id
         ),
         linkSourceGoals,
+        precoveredOrdinalsByGoalId: {
+          [goal.id]: Array.from(
+            projectedLinkedSourceCoverageOrdinalsByGoalId.get(goal.id) ?? []
+          ).sort((left, right) => left - right),
+        },
         assessments: [createDefaultAssessment(goal)],
         policy,
         basePlan: {
@@ -869,6 +924,7 @@ async function prepareOnce({
       goal_id: goal.id,
       requirement_fingerprint: requirementFingerprint,
       policy_fingerprint: policyFingerprint,
+      coverage_fingerprint: coverageFingerprint,
       policy_revision: policyRevision,
       lock_signature: lockSignature,
       effective_span_end: goalWindowsState.effectiveEnd,
@@ -1008,6 +1064,7 @@ async function prepareOnce({
       goal_id: outcome.goal_id,
       requirement_fingerprint: outcome.requirement_fingerprint,
       policy_fingerprint: outcome.policy_fingerprint,
+      coverage_fingerprint: outcome.coverage_fingerprint,
       policy_revision: outcome.policy_revision,
       lock_signature: outcome.lock_signature,
       effective_span_end: outcome.effective_span_end,

@@ -42,6 +42,7 @@ function record(
     requirementFingerprint:
       input.requirementFingerprint ?? computeRequirementFingerprint(baselineGoal),
     policyFingerprint: input.policyFingerprint ?? "policy-fingerprint",
+    coverageFingerprint: input.coverageFingerprint ?? "coverage-fingerprint",
     policyRevision: input.policyRevision ?? 2,
     lockSignature: input.lockSignature ?? "lock-signature",
     effectiveSpanEnd: input.effectiveSpanEnd ?? "2027-07-31",
@@ -113,6 +114,24 @@ describe("planner unplaceable helpers", () => {
         }),
         goal: plannerGoal,
         policyFingerprint: "current-policy-fingerprint",
+        policyRevision: 2,
+        lockSignature: "lock-signature",
+        preparationEnd: "2027-07-31",
+      })
+    ).toBe(false);
+  });
+
+  it("invalidates when coverage fingerprint mismatches", () => {
+    const plannerGoal = goal();
+    expect(
+      isPlannerGoalUnplaceableRecordValid({
+        record: record({
+          goalId: plannerGoal.id,
+          coverageFingerprint: "stale-coverage-fingerprint",
+        }),
+        goal: plannerGoal,
+        policyFingerprint: "policy-fingerprint",
+        coverageFingerprint: "current-coverage-fingerprint",
         policyRevision: 2,
         lockSignature: "lock-signature",
         preparationEnd: "2027-07-31",

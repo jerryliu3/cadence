@@ -115,6 +115,7 @@ export interface PlannerKernelInput {
    */
   recoverPastPlacements?: boolean;
   draftPinnedDates?: Record<string, string>;
+  precoveredOrdinalsByGoalId?: Record<string, number[]>;
   ownerId: string;
   startDate: string;
   endDate: string;
@@ -202,6 +203,7 @@ function allocateOrdinalWindow({
   window,
   asOfDate,
   effectivePlacementStart,
+  precoveredOrdinals,
   reconciledUnits,
 }: {
   goal: Goal;
@@ -209,6 +211,7 @@ function allocateOrdinalWindow({
   window: DateWindow;
   asOfDate: string;
   effectivePlacementStart: string | null;
+  precoveredOrdinals: Set<number>;
   reconciledUnits: PlannerWorkUnit[];
 }): OrdinalScopeAllocation | undefined {
   const requirement = normalizedRequirement.requirement;
@@ -387,6 +390,14 @@ function allocateOrdinalWindow({
     }
   }
 
+  if (precoveredOrdinals.size > 0) {
+    for (const [month, ordinals] of finalOrdinalsByMonth) {
+      finalOrdinalsByMonth.set(
+        month,
+        ordinals.filter((ordinal) => !precoveredOrdinals.has(ordinal))
+      );
+    }
+  }
   const scopedOrdinals = new Set(
     windowMonths.flatMap((month) => finalOrdinalsByMonth.get(month) ?? [])
   );
@@ -593,6 +604,16 @@ export function runPlannerKernel(
   const horizonSummary: PlannerGoalHorizonSummary[] = [];
   for (const goal of eligibleGoals) {
     const requirement = normalizedRequirements.get(goal.id)!;
+    const precoveredOrdinals = new Set(
+      (rawInput.precoveredOrdinalsByGoalId?.[goal.id] ?? []).filter(
+        (ordinal) =>
+          Number.isInteger(ordinal) &&
+          ordinal > 0 &&
+          ordinal <= (requirement.requirement.kind === "cadence"
+            ? 0
+            : requirement.requirement.targetCount)
+      )
+    );
     if (
       requirement.requirement.kind !== "cadence" &&
       requirement.requirement.targetCount >
@@ -655,6 +676,7 @@ export function runPlannerKernel(
                 ? resumeDate
                 : null;
             })(),
+            precoveredOrdinals,
             reconciledUnits: reconciled.units,
           });
     const scopedOrdinals =
@@ -984,6 +1006,7 @@ export function runPlannerKernel(
     preserveExistingAssignments:
       rawInput.preserveExistingAssignments === true,
     draftPinnedDates: rawInput.draftPinnedDates ?? {},
+    precoveredOrdinalsByGoalId: rawInput.precoveredOrdinalsByGoalId ?? {},
     startDate: rawInput.startDate,
     endDate: rawInput.endDate,
     asOfDate: rawInput.asOfDate,

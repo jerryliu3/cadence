@@ -166,6 +166,32 @@ describe("pure planner kernel", () => {
     );
   });
 
+  it("omits precovered ordinals from kernel placement output", () => {
+    const milestoneGoal = goal({
+      id: "goal-precovered",
+      frequency_type: "fixed_milestones",
+      recurrence_interval: null,
+      target_count: 5,
+      milestone_names: ["One", "Two", "Three", "Four", "Five"],
+      start_date: "2026-08-01",
+      end_date: "2026-08-31",
+    });
+    const output = runPlannerKernel(
+      input({
+        goals: [milestoneGoal],
+        precoveredOrdinalsByGoalId: {
+          [milestoneGoal.id]: [2, 3],
+        },
+      })
+    );
+
+    expect(output.workUnits.map((unit) => unit.unitKey)).toEqual([
+      "milestone:1",
+      "milestone:4",
+      "milestone:5",
+    ]);
+  });
+
   it("produces identical assignments for identical fresh runs", () => {
     const runA = runPlannerKernel(input());
     const runB = runPlannerKernel(input());
