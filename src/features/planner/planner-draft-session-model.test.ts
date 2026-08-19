@@ -53,6 +53,7 @@ describe("selectPlannerDraftSessionModel", () => {
     });
     const draftCommandState = draftCommandReducer(initialDraftCommandState, {
       type: "upsert_move",
+      itemId: "item-1",
       goalId: "goal-1",
       unitKey: "unit-1",
       scheduledDate: "2026-08-20",

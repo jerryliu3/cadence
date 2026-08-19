@@ -1,8 +1,5 @@
 import { createClientUuid } from "@/features/planner/calendar-format";
-import {
-  draftCommandEntryKey,
-  type PlannerDraftCommand,
-} from "@/lib/planner/draft-commands";
+import { type PlannerDraftCommand } from "@/lib/planner/draft-commands";
 
 export interface DraftCommandState {
   commands: PlannerDraftCommand[];
@@ -12,6 +9,7 @@ export interface DraftCommandState {
 export type DraftCommandAction =
   | {
       type: "upsert_move";
+      itemId: string;
       goalId: string;
       unitKey: string;
       scheduledDate: string | null;
@@ -19,18 +17,21 @@ export type DraftCommandAction =
     }
   | {
       type: "upsert_rename";
+      itemId: string;
       goalId: string;
       unitKey: string;
       label: string | null;
     }
   | {
       type: "upsert_time_override";
+      itemId: string;
       goalId: string;
       unitKey: string;
       localTime: string;
     }
   | {
       type: "clear_time_override";
+      itemId: string;
       goalId: string;
       unitKey: string;
     }
@@ -41,12 +42,13 @@ export type DraftCommandAction =
         | "rename_item"
         | "set_item_time_override"
         | "clear_item_time_override";
+      itemId: string;
       goalId: string;
       unitKey: string;
     }
   | {
       type: "remove_entries";
-      entries: Array<{ goalId: string; unitKey: string }>;
+      entries: Array<{ itemId: string; goalId: string; unitKey: string }>;
     }
   | { type: "clear" };
 
@@ -57,10 +59,9 @@ export const initialDraftCommandState: DraftCommandState = {
 
 function commandTargetsEntry(
   command: PlannerDraftCommand,
-  goalId: string,
-  unitKey: string
+  itemId: string
 ) {
-  return command.goalId === goalId && command.unitKey === unitKey;
+  return command.itemId === itemId;
 }
 
 export function draftCommandReducer(
@@ -78,22 +79,20 @@ export function draftCommandReducer(
         (command) =>
           !(
             command.kind === action.kind &&
-            commandTargetsEntry(command, action.goalId, action.unitKey)
+            commandTargetsEntry(command, action.itemId)
           )
       ),
     };
   }
   if (action.type === "remove_entries") {
-    const keys = new Set(
-      action.entries.map((entry) => `${entry.goalId}:${entry.unitKey}`)
-    );
+    const keys = new Set(action.entries.map((entry) => entry.itemId));
     if (keys.size === 0) {
       return state;
     }
     return {
       ...state,
       commands: state.commands.filter(
-        (command) => !keys.has(`${command.goalId}:${command.unitKey}`)
+        (command) => !keys.has(command.itemId)
       ),
     };
   }
@@ -110,7 +109,7 @@ export function draftCommandReducer(
   const existingIndex = state.commands.findIndex(
     (command) =>
       command.kind === actionKind &&
-      commandTargetsEntry(command, action.goalId, action.unitKey)
+      commandTargetsEntry(command, action.itemId)
   );
 
   if (existingIndex >= 0) {
@@ -118,7 +117,8 @@ export function draftCommandReducer(
     const identity = {
       id: existingCommand.id,
       sequence: existingCommand.sequence,
-      goalId: existingCommand.goalId,
+      itemId: existingCommand.itemId,
+      goalId: action.goalId,
       unitKey: action.unitKey,
     };
     const nextCommand: PlannerDraftCommand =
@@ -163,6 +163,7 @@ export function draftCommandReducer(
           id: createClientUuid(),
           sequence: nextSequence,
           kind: "move_item",
+          itemId: action.itemId,
           goalId: action.goalId,
           unitKey: action.unitKey,
           scheduledDate: action.scheduledDate,
@@ -173,6 +174,7 @@ export function draftCommandReducer(
             id: createClientUuid(),
             sequence: nextSequence,
             kind: "rename_item",
+            itemId: action.itemId,
             goalId: action.goalId,
             unitKey: action.unitKey,
             label: action.label,
@@ -182,6 +184,7 @@ export function draftCommandReducer(
               id: createClientUuid(),
               sequence: nextSequence,
               kind: "set_item_time_override",
+              itemId: action.itemId,
               goalId: action.goalId,
               unitKey: action.unitKey,
               localTime: action.localTime,
@@ -190,6 +193,7 @@ export function draftCommandReducer(
               id: createClientUuid(),
               sequence: nextSequence,
               kind: "clear_item_time_override",
+              itemId: action.itemId,
               goalId: action.goalId,
               unitKey: action.unitKey,
             };
@@ -205,11 +209,15 @@ export function selectDraftCommands(state: DraftCommandState) {
 }
 
 export function selectDraftEntries(state: DraftCommandState) {
-  const entriesByKey = new Map<string, { goalId: string; unitKey: string }>();
+  const entriesByKey = new Map<
+    string,
+    { itemId: string; goalId: string; unitKey: string }
+  >();
   for (const command of state.commands) {
-    const entryKey = draftCommandEntryKey(command);
+    const entryKey = command.itemId;
     if (!entriesByKey.has(entryKey)) {
       entriesByKey.set(entryKey, {
+        itemId: command.itemId,
         goalId: command.goalId,
         unitKey: command.unitKey,
       });

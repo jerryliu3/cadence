@@ -2,6 +2,7 @@ import { getAnchoredPeriod } from "@/lib/goals/periods";
 import { getAdmissibleCompletions } from "@/lib/goals/admissible";
 import type {
   PlannerCanonicalSnapshot,
+  PlannerActiveItemRow,
   PlannerItemRow,
 } from "@/lib/planner/context-loader";
 import {
@@ -11,6 +12,7 @@ import {
 } from "@/lib/planner/draft-commands";
 import { normalizeGoalRequirement } from "@/lib/planner/requirements";
 import { resolvePlannerEffectiveScheduledTime } from "@/lib/planner/schedule-time";
+import type { PlannerBaseAssignment } from "@/lib/planner/work-units";
 
 export class PlannerDirectDraftValidationError extends Error {
   constructor(
@@ -145,25 +147,46 @@ export function buildDirectDraftPersistence({
   persistedItems?: PlannerItemRow[];
 }) {
   const goalById = new Map(snapshot.goals.map((goal) => [goal.id, goal]));
+  const activeGoalByPlanGoalId = new Map(
+    (snapshot.activePlan?.goals ?? []).map((goal) => [goal.id, goal])
+  );
   const canonicalAssignmentByKey = new Map(
     (snapshot.activePlan?.basePlan.assignments ?? []).map((assignment) => [
       assignmentKey(assignment),
       assignment,
     ])
   );
+  const activeEntryByItemId = new Map<
+    string,
+    {
+      key: string;
+      goalId: string;
+      unitKey: string;
+      assignment: PlannerBaseAssignment;
+      activeItem: PlannerActiveItemRow;
+    }
+  >();
+  for (const item of snapshot.activePlan?.items ?? []) {
+    const activeGoal = activeGoalByPlanGoalId.get(item.plan_goal_id);
+    const goalId = activeGoal?.original_goal_id ?? item.plan_goal_id;
+    const key = draftCommandEntryKey({ goalId, unitKey: item.unit_key });
+    const assignment = canonicalAssignmentByKey.get(key);
+    if (!assignment) {
+      continue;
+    }
+    activeEntryByItemId.set(item.id, {
+      key,
+      goalId,
+      unitKey: item.unit_key,
+      assignment,
+      activeItem: item,
+    });
+  }
   const activeItemByKey = new Map(
-    (snapshot.activePlan?.items ?? []).map((item) => {
-      const activeGoal = snapshot.activePlan?.goals.find(
-        (goal) => goal.id === item.plan_goal_id
-      );
-      return [
-        draftCommandEntryKey({
-          goalId: activeGoal?.original_goal_id ?? item.plan_goal_id,
-          unitKey: item.unit_key,
-        }),
-        item,
-      ];
-    })
+    Array.from(activeEntryByItemId.values()).map((entry) => [
+      entry.key,
+      entry.activeItem,
+    ])
   );
   const completedUnitKeys = new Set(
     Object.values(snapshot.activePlan?.basePlan.completionToUnit ?? {}).map(
@@ -186,7 +209,14 @@ export function buildDirectDraftPersistence({
           ]
         : [];
     });
-  for (const goalId of new Set(commands.map((command) => command.goalId))) {
+  const touchedGoalIds = new Set<string>();
+  for (const command of commands) {
+    const activeEntry = activeEntryByItemId.get(command.itemId);
+    if (activeEntry) {
+      touchedGoalIds.add(activeEntry.goalId);
+    }
+  }
+  for (const goalId of touchedGoalIds) {
     for (const unitKey of completedUnitKeysForGoal({
       snapshot,
       goalId,
@@ -216,27 +246,52 @@ export function buildDirectDraftPersistence({
   );
 
   for (const command of sortPlannerDraftCommands(commands)) {
-    const key = assignmentKey(command);
-    const assignment = canonicalAssignmentByKey.get(key);
-    const activeItem = activeItemByKey.get(key);
-    const goal = goalById.get(command.goalId);
-    if (!assignment || !activeItem || !goal) {
+    const activeEntry = activeEntryByItemId.get(command.itemId);
+    if (!activeEntry) {
+      throw new PlannerDirectDraftValidationError(
+        "draft_item_stale",
+        "A planner session changed after this draft was created. Refresh and try again.",
+        { itemId: command.itemId }
+      );
+    }
+    const {
+      key,
+      goalId,
+      unitKey,
+      assignment,
+      activeItem,
+    } = activeEntry;
+    if (command.goalId !== goalId || command.unitKey !== unitKey) {
+      throw new PlannerDirectDraftValidationError(
+        "draft_item_stale",
+        "A planner session changed after this draft was created. Refresh and try again.",
+        {
+          itemId: command.itemId,
+          commandGoalId: command.goalId,
+          commandUnitKey: command.unitKey,
+          goalId,
+          unitKey,
+        }
+      );
+    }
+    const goal = goalById.get(goalId);
+    if (!goal) {
       throw new PlannerDirectDraftValidationError(
         "draft_item_unknown",
         "That planner session is no longer available. Refresh and try again.",
-        { goalId: command.goalId, unitKey: command.unitKey }
+        { itemId: command.itemId, goalId, unitKey }
       );
     }
     const requirement = normalizeGoalRequirement(goal).requirement;
     const ordinalMatch =
       requirement.kind === "milestone_sequence"
-        ? /^milestone:([1-9][0-9]*)$/.exec(command.unitKey)
+        ? /^milestone:([1-9][0-9]*)$/.exec(unitKey)
         : requirement.kind === "deadline_total"
-          ? /^total:([1-9][0-9]*)$/.exec(command.unitKey)
+          ? /^total:([1-9][0-9]*)$/.exec(unitKey)
           : null;
     const identityIsCurrent =
       requirement.kind === "cadence"
-        ? command.unitKey ===
+        ? unitKey ===
           `cadence:${
             getAnchoredPeriod(
               goal.start_date,
@@ -256,7 +311,7 @@ export function buildDirectDraftPersistence({
       throw new PlannerDirectDraftValidationError(
         "draft_item_stale",
         "A goal changed after this draft was created. Refresh and try again.",
-        { goalId: command.goalId, unitKey: command.unitKey }
+        { itemId: command.itemId, goalId, unitKey }
       );
     }
     const itemIsImmovable =
@@ -270,7 +325,7 @@ export function buildDirectDraftPersistence({
         throw new PlannerDirectDraftValidationError(
           "draft_item_unmovable",
           "Completed or locked sessions cannot be changed.",
-          { goalId: command.goalId, unitKey: command.unitKey }
+          { itemId: command.itemId, goalId, unitKey }
         );
       }
       projectedTimeByKey.set(key, command.localTime);
@@ -281,7 +336,7 @@ export function buildDirectDraftPersistence({
         throw new PlannerDirectDraftValidationError(
           "draft_item_unmovable",
           "Completed or locked sessions cannot be changed.",
-          { goalId: command.goalId, unitKey: command.unitKey }
+          { itemId: command.itemId, goalId, unitKey }
         );
       }
       projectedTimeByKey.set(key, null);
@@ -296,7 +351,7 @@ export function buildDirectDraftPersistence({
       throw new PlannerDirectDraftValidationError(
         "draft_item_stale",
         "That session moved after this draft was created. Refresh and try again.",
-        { goalId: command.goalId, unitKey: command.unitKey }
+        { itemId: command.itemId, goalId, unitKey }
       );
     }
     if (
@@ -305,7 +360,7 @@ export function buildDirectDraftPersistence({
       throw new PlannerDirectDraftValidationError(
         "draft_item_unmovable",
         "Completed or locked sessions cannot be moved.",
-        { goalId: command.goalId, unitKey: command.unitKey }
+        { itemId: command.itemId, goalId, unitKey }
       );
     }
     if (command.scheduledDate !== null) {
@@ -336,8 +391,9 @@ export function buildDirectDraftPersistence({
           "draft_destination_invalid",
           "That date is outside this session's allowed move range.",
           {
-            goalId: command.goalId,
-            unitKey: command.unitKey,
+            itemId: command.itemId,
+            goalId,
+            unitKey,
             scheduledDate: command.scheduledDate,
             moveWindow,
           }
@@ -347,14 +403,14 @@ export function buildDirectDraftPersistence({
         canonicalAssignmentByKey.values()
       ).find(
         (candidate) =>
-          candidate.goalId === command.goalId &&
+          candidate.goalId === goalId &&
           assignmentKey(candidate) !== key &&
           projectedDateByKey.get(assignmentKey(candidate)) ===
             command.scheduledDate
       );
       const completionConflict = snapshot.completions.some(
         (completion) =>
-          completion.goal_id === command.goalId &&
+          completion.goal_id === goalId &&
           completion.completed_on === command.scheduledDate
       );
       if (conflictingAssignment || completionConflict) {
@@ -362,8 +418,9 @@ export function buildDirectDraftPersistence({
           "draft_destination_conflict",
           "That goal already has a session or completion on the selected date.",
           {
-            goalId: command.goalId,
-            unitKey: command.unitKey,
+            itemId: command.itemId,
+            goalId,
+            unitKey,
             scheduledDate: command.scheduledDate,
           }
         );

@@ -33,6 +33,7 @@ import { postgresErrorMatches } from "@/lib/planner/postgres-errors";
 import {
   buildDraftPinnedDatesFromCommands,
   plannerDraftCommandSchema,
+  type PlannerDraftCommand,
 } from "@/lib/planner/draft-commands";
 import {
   assertDateWindow,
@@ -235,6 +236,81 @@ function plannerKernelErrorToRouteError(error: PlannerError) {
   );
 }
 
+function normalizeDraftCommandsWithItemIdentity({
+  commands,
+  snapshot,
+}: {
+  commands: PlannerDraftCommand[];
+  snapshot: Awaited<ReturnType<typeof loadPlannerCanonicalSnapshot>>;
+}) {
+  if (commands.length === 0) {
+    return commands;
+  }
+  if (!snapshot.activePlan) {
+    throw new PlannerRouteError(
+      422,
+      "validation_failed",
+      "A planner session changed after this draft was created. Refresh and try again.",
+      { stage: "draft_edits", code: "draft_item_stale" }
+    );
+  }
+  const originalGoalIdByPlanGoalId = new Map(
+    snapshot.activePlan.goals.map((goal) => [goal.id, goal.original_goal_id])
+  );
+  const identityByItemId = new Map(
+    snapshot.activePlan.items.map((item) => {
+      const goalId =
+        originalGoalIdByPlanGoalId.get(item.plan_goal_id) ?? item.plan_goal_id;
+      return [
+        item.id,
+        {
+          goalId,
+          unitKey: item.unit_key,
+        },
+      ];
+    })
+  );
+  return commands.map((command) => {
+    const identity = identityByItemId.get(command.itemId);
+    if (!identity) {
+      throw new PlannerRouteError(
+        422,
+        "validation_failed",
+        "A planner session changed after this draft was created. Refresh and try again.",
+        {
+          stage: "draft_edits",
+          code: "draft_item_stale",
+          itemId: command.itemId,
+        }
+      );
+    }
+    if (
+      command.goalId !== identity.goalId ||
+      command.unitKey !== identity.unitKey
+    ) {
+      throw new PlannerRouteError(
+        422,
+        "validation_failed",
+        "A planner session changed after this draft was created. Refresh and try again.",
+        {
+          stage: "draft_edits",
+          code: "draft_item_stale",
+          itemId: command.itemId,
+          commandGoalId: command.goalId,
+          commandUnitKey: command.unitKey,
+          goalId: identity.goalId,
+          unitKey: identity.unitKey,
+        }
+      );
+    }
+    return {
+      ...command,
+      goalId: identity.goalId,
+      unitKey: identity.unitKey,
+    };
+  });
+}
+
 export async function handlePlannerSave(request: Request) {
   return withPlannerRoute(async ({ correlationId }) => {
     const routeContext = await requirePlannerRouteContext(request);
@@ -258,7 +334,6 @@ export async function handlePlannerSave(request: Request) {
         })()
       : null;
     const draftCommands = body.draftCommands ?? [];
-    const draftPinnedDates = buildDraftPinnedDatesFromCommands(draftCommands);
     const effectiveEligibilityMode =
       body.eligibilityMode ?? PLANNER_ELIGIBILITY_MODES[0];
     const kernelWindow = toKernelWindowFromDates({
@@ -270,6 +345,12 @@ export async function handlePlannerSave(request: Request) {
       ownerId: routeContext.userId,
       ...kernelWindow,
     });
+    const normalizedDraftCommands = normalizeDraftCommandsWithItemIdentity({
+      commands: draftCommands,
+      snapshot,
+    });
+    const draftPinnedDates =
+      buildDraftPinnedDatesFromCommands(normalizedDraftCommands);
 
     if (!snapshot.preferences) {
       throw new PlannerRouteError(
@@ -299,7 +380,7 @@ export async function handlePlannerSave(request: Request) {
     }
     let persistence: ReturnType<typeof buildPlannerPublishPersistencePayload>;
     const useDirectDraftPersistence = shouldUseDirectDraftPersistence({
-      draftCommands,
+      draftCommands: normalizedDraftCommands,
       requestedPolicy,
     });
     if (useDirectDraftPersistence) {
@@ -310,15 +391,15 @@ export async function handlePlannerSave(request: Request) {
         );
         const items = buildDirectDraftPersistence({
           snapshot,
-          commands: draftCommands,
+          commands: normalizedDraftCommands,
           asOfDate,
           persistedItems,
         });
         persistence = {
           items,
           changeSummary: {
-            draftCommands: draftCommands.length,
-            moved: draftCommands.filter(
+            draftCommands: normalizedDraftCommands.length,
+            moved: normalizedDraftCommands.filter(
               (command) => command.kind === "move_item"
             ).length,
             confirmationRequired: false,
@@ -461,7 +542,7 @@ export async function handlePlannerSave(request: Request) {
       persistence = buildPlannerPublishPersistencePayload({
         kernel,
         snapshot,
-        draftCommands,
+        draftCommands: normalizedDraftCommands,
       });
     } catch (error) {
       if (error instanceof PlannerDraftEditValidationError) {

@@ -10,6 +10,7 @@ describe("draftCommandReducer remove_entries", () => {
     let state = initialDraftCommandState;
     state = draftCommandReducer(state, {
       type: "upsert_move",
+      itemId: "item-a-1",
       goalId: "goal-a",
       unitKey: "unit-1",
       scheduledDate: "2026-08-03",
@@ -17,12 +18,14 @@ describe("draftCommandReducer remove_entries", () => {
     });
     state = draftCommandReducer(state, {
       type: "upsert_rename",
+      itemId: "item-a-1",
       goalId: "goal-a",
       unitKey: "unit-1",
       label: "Renamed",
     });
     state = draftCommandReducer(state, {
       type: "upsert_time_override",
+      itemId: "item-b-2",
       goalId: "goal-b",
       unitKey: "unit-2",
       localTime: "09:30",
@@ -30,7 +33,9 @@ describe("draftCommandReducer remove_entries", () => {
 
     const next = draftCommandReducer(state, {
       type: "remove_entries",
-      entries: [{ goalId: "goal-a", unitKey: "unit-1" }],
+      entries: [
+        { itemId: "item-a-1", goalId: "goal-a", unitKey: "unit-1" },
+      ],
     });
 
     const commands = selectDraftCommands(next);
@@ -57,6 +62,7 @@ describe("draftCommandReducer global commands", () => {
     let state = initialDraftCommandState;
     state = draftCommandReducer(state, {
       type: "upsert_move",
+      itemId: "item-a-1",
       goalId: "goal-a",
       unitKey: "unit-1",
       scheduledDate: "2026-08-03",
@@ -64,6 +70,7 @@ describe("draftCommandReducer global commands", () => {
     });
     state = draftCommandReducer(state, {
       type: "upsert_move",
+      itemId: "item-a-1",
       goalId: "goal-a",
       unitKey: "unit-1",
       scheduledDate: "2026-09-02",

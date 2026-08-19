@@ -53,6 +53,7 @@ describe("planner calendar entries", () => {
           id: "11111111-1111-4111-8111-111111111111",
           sequence: 1,
           kind: "move_item",
+          itemId: "item-a",
           goalId: "goal-a",
           unitKey: "total:1",
           sourceDate: "2026-08-05",

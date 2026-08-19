@@ -2,6 +2,20 @@ import { describe, expect, it } from "vitest";
 import { planDraftTimeOverrideUpdate } from "@/features/planner/draft-time-override";
 import { buildPlannerDayEntry } from "@/features/planner/test-fixtures";
 
+const ACTIVE_ITEM = {
+  id: "11000000-0000-4000-8000-000000000001",
+  plan_goal_id: "goal-a",
+  unit_key: "total:1",
+  requirement_kind: "deadline_total" as const,
+  scheduled_date: "2026-08-01",
+  classification: "open",
+  credit_state: "uncredited",
+  locked: false,
+  revision: 0,
+  credited_completion_id: null,
+  credited_completion_date: null,
+};
+
 describe("planDraftTimeOverrideUpdate", () => {
   it("blocks draft retiming for credited sessions", () => {
     const plan = planDraftTimeOverrideUpdate({
@@ -13,6 +27,10 @@ describe("planDraftTimeOverrideUpdate", () => {
         label: null,
         classification: "open",
         creditState: "completed_as_scheduled",
+        activeItem: {
+          ...ACTIVE_ITEM,
+          credit_state: "completed_as_scheduled",
+        },
       }),
       localTimeInput: "09:30",
       baselineOverride: null,
@@ -32,6 +50,7 @@ describe("planDraftTimeOverrideUpdate", () => {
         unitKey: "total:1",
         label: null,
         classification: "historical_shortfall",
+        activeItem: ACTIVE_ITEM,
       }),
       localTimeInput: "09:30",
       baselineOverride: null,
@@ -41,6 +60,7 @@ describe("planDraftTimeOverrideUpdate", () => {
       actions: [
         {
           type: "upsert_time_override",
+          itemId: "11000000-0000-4000-8000-000000000001",
           goalId: "goal-a",
           unitKey: "total:1",
           localTime: "09:30",
@@ -58,6 +78,7 @@ describe("planDraftTimeOverrideUpdate", () => {
         unitKey: "total:1",
         label: null,
         classification: "open",
+        activeItem: ACTIVE_ITEM,
       }),
       localTimeInput: "2:30 PM",
       baselineOverride: null,
@@ -77,6 +98,7 @@ describe("planDraftTimeOverrideUpdate", () => {
         unitKey: "total:1",
         label: null,
         classification: "open",
+        activeItem: ACTIVE_ITEM,
       }),
       localTimeInput: "",
       baselineOverride: null,
@@ -87,12 +109,14 @@ describe("planDraftTimeOverrideUpdate", () => {
         {
           type: "remove_kind",
           kind: "set_item_time_override",
+          itemId: "11000000-0000-4000-8000-000000000001",
           goalId: "goal-a",
           unitKey: "total:1",
         },
         {
           type: "remove_kind",
           kind: "clear_item_time_override",
+          itemId: "11000000-0000-4000-8000-000000000001",
           goalId: "goal-a",
           unitKey: "total:1",
         },
@@ -109,6 +133,7 @@ describe("planDraftTimeOverrideUpdate", () => {
         unitKey: "total:1",
         label: null,
         classification: "open",
+        activeItem: ACTIVE_ITEM,
       }),
       localTimeInput: "",
       baselineOverride: "08:00",
@@ -118,6 +143,7 @@ describe("planDraftTimeOverrideUpdate", () => {
       actions: [
         {
           type: "clear_time_override",
+          itemId: "11000000-0000-4000-8000-000000000001",
           goalId: "goal-a",
           unitKey: "total:1",
         },
@@ -134,6 +160,7 @@ describe("planDraftTimeOverrideUpdate", () => {
         unitKey: "total:1",
         label: null,
         classification: "open",
+        activeItem: ACTIVE_ITEM,
       }),
       localTimeInput: "09:15",
       baselineOverride: "08:00",
@@ -143,6 +170,7 @@ describe("planDraftTimeOverrideUpdate", () => {
       actions: [
         {
           type: "upsert_time_override",
+          itemId: "11000000-0000-4000-8000-000000000001",
           goalId: "goal-a",
           unitKey: "total:1",
           localTime: "09:15",

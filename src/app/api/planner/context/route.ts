@@ -27,6 +27,7 @@ import { findUnhonoredDraftPins } from "@/lib/planner/draft-pins";
 import {
   buildDraftPinnedDatesFromCommands,
   plannerDraftCommandSchema,
+  type PlannerDraftCommand,
 } from "@/lib/planner/draft-commands";
 import { createDefaultPlannerPolicy, plannerPolicySchema } from "@/lib/planner/policy";
 import {
@@ -143,6 +144,81 @@ function plannerKernelErrorToRouteError(error: PlannerError) {
 type PlannerCanonicalSnapshotResult = Awaited<
   ReturnType<typeof loadPlannerCanonicalSnapshot>
 >;
+
+function normalizeDraftCommandsWithItemIdentity({
+  commands,
+  snapshot,
+}: {
+  commands: PlannerDraftCommand[];
+  snapshot: PlannerCanonicalSnapshotResult;
+}) {
+  if (commands.length === 0) {
+    return commands;
+  }
+  if (!snapshot.activePlan) {
+    throw new PlannerRouteError(
+      422,
+      "validation_failed",
+      "A planner session changed after this draft was created. Refresh and try again.",
+      { stage: "draft_edits", code: "draft_item_stale" }
+    );
+  }
+  const originalGoalIdByPlanGoalId = new Map(
+    snapshot.activePlan.goals.map((goal) => [goal.id, goal.original_goal_id])
+  );
+  const identityByItemId = new Map(
+    snapshot.activePlan.items.map((item) => {
+      const goalId =
+        originalGoalIdByPlanGoalId.get(item.plan_goal_id) ?? item.plan_goal_id;
+      return [
+        item.id,
+        {
+          goalId,
+          unitKey: item.unit_key,
+        },
+      ];
+    })
+  );
+  return commands.map((command) => {
+    const identity = identityByItemId.get(command.itemId);
+    if (!identity) {
+      throw new PlannerRouteError(
+        422,
+        "validation_failed",
+        "A planner session changed after this draft was created. Refresh and try again.",
+        {
+          stage: "draft_edits",
+          code: "draft_item_stale",
+          itemId: command.itemId,
+        }
+      );
+    }
+    if (
+      command.goalId !== identity.goalId ||
+      command.unitKey !== identity.unitKey
+    ) {
+      throw new PlannerRouteError(
+        422,
+        "validation_failed",
+        "A planner session changed after this draft was created. Refresh and try again.",
+        {
+          stage: "draft_edits",
+          code: "draft_item_stale",
+          itemId: command.itemId,
+          commandGoalId: command.goalId,
+          commandUnitKey: command.unitKey,
+          goalId: identity.goalId,
+          unitKey: identity.unitKey,
+        }
+      );
+    }
+    return {
+      ...command,
+      goalId: identity.goalId,
+      unitKey: identity.unitKey,
+    };
+  });
+}
 
 function resolvePlannerPreview({
   ownerId,
@@ -395,6 +471,10 @@ export async function POST(request: Request) {
       ownerId: routeContext.userId,
       ...kernelWindow,
     });
+    const normalizedDraftCommands = normalizeDraftCommandsWithItemIdentity({
+      commands: body.draftCommands ?? [],
+      snapshot,
+    });
     const effectiveTimezoneForCoverage =
       body.timezone ?? snapshot.preferences?.timezone;
     if (!effectiveTimezoneForCoverage) {
@@ -434,7 +514,7 @@ export async function POST(request: Request) {
         recoverPastPlacements: body.recoverPastPlacements ?? false,
         solveIntent: body.solveIntent ?? "stable",
         draftPinnedDates: buildDraftPinnedDatesFromCommands(
-          body.draftCommands ?? []
+          normalizedDraftCommands
         ),
         plannedDatesByGoalId,
       });
