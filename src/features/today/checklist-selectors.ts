@@ -117,7 +117,7 @@ export function selectFilteredTodayGoals({
   recurrenceFilter,
   searchQuery,
   endMonth,
-  completedGoalIds = new Set<string>(),
+  completedTargetGoalIds = new Set<string>(),
   showCompletedGoals = true,
 }: {
   activeGoals: Goal[];
@@ -127,13 +127,13 @@ export function selectFilteredTodayGoals({
   recurrenceFilter: RecurrenceFilter;
   searchQuery: string;
   endMonth: string | null;
-  completedGoalIds?: ReadonlySet<string>;
+  completedTargetGoalIds?: ReadonlySet<string>;
   showCompletedGoals?: boolean;
 }): Goal[] {
   const normalizedQuery = searchQuery.trim().toLowerCase();
   const matchingGoals = activeGoals
     .filter((goal) => goal.start_date <= todayDate)
-    .filter((goal) => showCompletedGoals || !completedGoalIds.has(goal.id))
+    .filter((goal) => showCompletedGoals || !completedTargetGoalIds.has(goal.id))
     .filter((goal) =>
       matchesTodayFacetFilters({
         goal,
@@ -151,9 +151,32 @@ export function selectFilteredTodayGoals({
   return filterGoalsByEndMonth(matchingGoals, endMonth);
 }
 
+export function orderGoalsWithCurrentPeriodCompletedLast(
+  goals: Goal[],
+  completedCurrentGoalIds: ReadonlySet<string>
+): Goal[] {
+  if (goals.length === 0 || completedCurrentGoalIds.size === 0) {
+    return goals;
+  }
+
+  const incompleteGoals: Goal[] = [];
+  const completedGoals: Goal[] = [];
+
+  for (const goal of goals) {
+    if (completedCurrentGoalIds.has(goal.id)) {
+      completedGoals.push(goal);
+    } else {
+      incompleteGoals.push(goal);
+    }
+  }
+
+  return [...incompleteGoals, ...completedGoals];
+}
+
 export function groupGoalsByRecurrence(
   goals: Goal[],
-  sort: GoalDateSort
+  sort: GoalDateSort,
+  completedCurrentGoalIds?: ReadonlySet<string>
 ): Array<{ key: RecurrenceGroup; label: string; goals: Goal[] }> {
   const grouped: Record<RecurrenceGroup, Goal[]> = {
     daily: [],
@@ -170,7 +193,10 @@ export function groupGoalsByRecurrence(
     .map((group) => ({
       key: group,
       label: recurrenceGroupLabel[group],
-      goals: sortGoalsByDate(grouped[group], sort),
+      goals: orderGoalsWithCurrentPeriodCompletedLast(
+        sortGoalsByDate(grouped[group], sort),
+        completedCurrentGoalIds ?? new Set<string>()
+      ),
     }))
     .filter((group) => group.goals.length > 0);
 }

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   getRecurrenceGroup,
   groupGoalsByRecurrence,
+  orderGoalsWithCurrentPeriodCompletedLast,
   selectFilteredTodayGoals,
 } from "@/features/today/checklist-selectors";
 import type { Goal } from "@/lib/goals/types";
@@ -70,9 +71,21 @@ describe("checklist selectors", () => {
         recurrenceFilter: "all",
         searchQuery: "run",
         endMonth: null,
-        completedGoalIds: new Set(["daily"]),
+        completedTargetGoalIds: new Set(["daily"]),
         showCompletedGoals: false,
       }).map((row) => row.id)
     ).toEqual(["weekly"]);
+
+    expect(
+      orderGoalsWithCurrentPeriodCompletedLast(goals, new Set(["weekly"])).map(
+        (row) => row.id
+      )
+    ).toEqual(["daily", "future", "weekly"]);
+
+    expect(
+      groupGoalsByRecurrence(goals, "earliest_end", new Set(["daily"]))[0]?.goals.map(
+        (row) => row.id
+      )
+    ).toEqual(["future", "daily"]);
   });
 });

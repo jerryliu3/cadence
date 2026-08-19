@@ -98,7 +98,13 @@ export function InsightsGoalStatsFilters({
       </div>
 
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="top-auto bottom-0 left-1/2 max-h-[85vh] max-w-[calc(100%-1rem)] -translate-x-1/2 translate-y-0 overflow-y-auto rounded-b-none rounded-t-xl pb-[calc(env(safe-area-inset-bottom)+1rem)] sm:top-1/2 sm:bottom-auto sm:max-w-lg sm:-translate-y-1/2 sm:rounded-b-xl">
+        <DialogContent
+          onOpenAutoFocus={(event) => {
+            // Avoid focusing/select-opening a nested dropdown immediately on open.
+            event.preventDefault();
+          }}
+          className="top-auto bottom-0 left-1/2 max-h-[85vh] max-w-[calc(100%-1rem)] -translate-x-1/2 translate-y-0 overflow-y-auto rounded-b-none rounded-t-xl pb-[calc(env(safe-area-inset-bottom)+1rem)] sm:top-1/2 sm:bottom-auto sm:max-w-lg sm:-translate-y-1/2 sm:rounded-b-xl"
+        >
           <DialogHeader>
             <DialogTitle>Insights filters</DialogTitle>
             <DialogDescription>

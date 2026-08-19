@@ -12,7 +12,7 @@ import {
 import type { InsightsStatsResponse } from "@/lib/insights/types";
 import { createClient } from "@/lib/supabase/client";
 
-const INSIGHTS_STATS_CACHE_KEY = "insights-stats:v1";
+export const INSIGHTS_STATS_CACHE_PREFIX = "insights-stats:v1";
 const INSIGHTS_STATS_TIMEOUT_MS = 15_000;
 
 async function resolveInsightsStatsCacheKey() {
@@ -25,7 +25,7 @@ async function resolveInsightsStatsCacheKey() {
     if (error || !user) {
       return null;
     }
-    return `${INSIGHTS_STATS_CACHE_KEY}:${user.id}`;
+    return `${INSIGHTS_STATS_CACHE_PREFIX}:${user.id}`;
   } catch {
     return null;
   }

@@ -26,15 +26,23 @@ export function InsightsGoalCardHeader({
     >
       <div
         data-testid="insights-goal-card-title-line"
-        className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5"
+        className="flex min-w-0 flex-1 items-center gap-1.5"
       >
         <span
           className="size-2 shrink-0 rounded-full"
           style={{ backgroundColor: color }}
         />
-        <p className="text-sm font-semibold leading-tight break-words [overflow-wrap:anywhere]">
+        <p className="min-w-0 flex-1 truncate whitespace-nowrap text-sm font-semibold leading-tight">
           {title}
         </p>
+      </div>
+      {action ? (
+        <div className="flex shrink-0 items-center justify-end">{action}</div>
+      ) : null}
+      <div
+        data-testid="insights-goal-card-meta-line"
+        className="flex w-full flex-wrap items-center gap-1.5"
+      >
         <Badge
           variant="outline"
           className={`w-fit ${categoryClassName}`}
@@ -43,9 +51,6 @@ export function InsightsGoalCardHeader({
         </Badge>
         <GoalEndMonthBadge endDate={endDate} />
       </div>
-      {action ? (
-        <div className="flex shrink-0 items-center justify-end">{action}</div>
-      ) : null}
     </div>
   );
 }

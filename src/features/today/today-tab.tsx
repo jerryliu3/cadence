@@ -31,6 +31,7 @@ import { ChecklistPastPanels } from "@/features/today/checklist-past-panels";
 import {
   INITIAL_GROUP_EXPANDED,
   groupGoalsByRecurrence,
+  orderGoalsWithCurrentPeriodCompletedLast,
   recurrenceFilterOptions,
   selectActiveGoals,
   selectArchivedGoals,
@@ -220,6 +221,15 @@ export function TodayTab({
       ),
     [activeGoals, completionsByGoal, viewDateObj, weeklyAnchor]
   );
+  const completedTargetGoalIds = useMemo(
+    () =>
+      new Set(
+        activeGoals
+          .filter((goal) => progressByGoal.get(goal.id)?.outcome === "achieved")
+          .map((goal) => goal.id)
+      ),
+    [activeGoals, progressByGoal]
+  );
 
   const filteredTodayGoals = useMemo(
     () =>
@@ -231,13 +241,13 @@ export function TodayTab({
         recurrenceFilter,
         searchQuery: todayGoalSearchQuery,
         endMonth: effectiveTodayEndMonth,
-        completedGoalIds: completedCurrentGoalIds,
+        completedTargetGoalIds,
         showCompletedGoals,
       }),
     [
       activeGoals,
       categoryFilter,
-      completedCurrentGoalIds,
+      completedTargetGoalIds,
       effectiveTodayEndMonth,
       recurrenceFilter,
       showCompletedGoals,
@@ -247,16 +257,24 @@ export function TodayTab({
   );
 
   const todayGoalsSorted = useMemo(
-    () => sortGoalsByDate(filteredTodayGoals, todaySort),
-    [filteredTodayGoals, todaySort]
+    () =>
+      orderGoalsWithCurrentPeriodCompletedLast(
+        sortGoalsByDate(filteredTodayGoals, todaySort),
+        completedCurrentGoalIds
+      ),
+    [completedCurrentGoalIds, filteredTodayGoals, todaySort]
   );
 
   const groupedTodayGoalsForAll = useMemo(
     () =>
       recurrenceFilter === "all"
-        ? groupGoalsByRecurrence(filteredTodayGoals, todaySort)
+        ? groupGoalsByRecurrence(
+            filteredTodayGoals,
+            todaySort,
+            completedCurrentGoalIds
+          )
         : [],
-    [filteredTodayGoals, recurrenceFilter, todaySort]
+    [completedCurrentGoalIds, filteredTodayGoals, recurrenceFilter, todaySort]
   );
 
   const prepareSupplementalGoals = useCallback(
@@ -593,7 +611,7 @@ export function TodayTab({
                       },
                       {
                         label: "Show completed goals",
-                        count: completedCurrentGoalIds.size,
+                        count: completedTargetGoalIds.size,
                         checked: showCompletedGoals,
                         onChange: setShowCompletedGoals,
                       },
