@@ -1,0 +1,60 @@
+{
+  "schemaVersion": 1,
+  "assetVersion": "v1",
+  "expiresAt": null,
+  "scenes": [
+    {
+      "id": "basecamp-v1",
+      "version": "v1",
+      "biome": "basecamp",
+      "poster": {
+        "mobile": {
+          "url": "https://namwwojtboxpaawwuwzt.supabase.co/storage/v1/object/public/journey-assets/v1/basecamp/poster-mobile.jpeg",
+          "mimeType": "image/jpeg",
+          "width": 2752,
+          "height": 1536
+        },
+        "desktop": {
+          "url": "https://namwwojtboxpaawwuwzt.supabase.co/storage/v1/object/public/journey-assets/v1/basecamp/poster-desktop.jpeg",
+          "mimeType": "image/jpeg",
+          "width": 2752,
+          "height": 1536
+        }
+      },
+      "video": {
+        "mobile": [
+          {
+            "url": "https://namwwojtboxpaawwuwzt.supabase.co/storage/v1/object/public/journey-assets/v1/basecamp/loop-mobile.mp4",
+            "mimeType": "video/mp4",
+            "width": 3604,
+            "height": 2004
+          }
+        ],
+        "desktop": [
+          {
+            "url": "https://namwwojtboxpaawwuwzt.supabase.co/storage/v1/object/public/journey-assets/v1/basecamp/loop-desktop.mp4",
+            "mimeType": "video/mp4",
+            "width": 3604,
+            "height": 2004
+          }
+        ]
+      },
+      "focalPoint": {
+        "mobile": {
+          "x": 0.5,
+          "y": 0.38
+        },
+        "desktop": {
+          "x": 0.52,
+          "y": 0.34
+        }
+      },
+      "scrim": {
+        "opacity": 0.42,
+        "position": "full"
+      },
+      "loopDurationMs": 12000,
+      "fallbackSceneId": null
+    }
+  ]
+}
