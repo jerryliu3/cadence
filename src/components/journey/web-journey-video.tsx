@@ -8,8 +8,8 @@ interface WebJourneyVideoProps {
   mobileSources: AssetSource[];
   enabled: boolean;
   paused: boolean;
-  onReady: () => void;
-  onError: () => void;
+  onReady: (sourceUrl: string) => void;
+  onError: (sourceUrl: string) => void;
 }
 
 function pickPrimarySource(
@@ -69,8 +69,8 @@ export function WebJourneyVideo({
       loop
       playsInline
       preload="metadata"
-      onCanPlay={onReady}
-      onError={onError}
+      onCanPlay={() => onReady(selectedSource.url)}
+      onError={() => onError(selectedSource.url)}
       data-journey-layer="video"
       src={selectedSource.url}
       style={{ visibility: paused ? "hidden" : "visible" }}
