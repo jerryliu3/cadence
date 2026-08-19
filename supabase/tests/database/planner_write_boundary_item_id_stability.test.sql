@@ -91,6 +91,15 @@ values
     false
   );
 
+reset role;
+set local role authenticated;
+select set_config(
+  'request.jwt.claim.sub',
+  '11111111-1111-4111-8111-111111111111',
+  true
+);
+select set_config('request.jwt.claim.role', 'authenticated', true);
+
 create temp table tmp_item_id_stability (
   alpha_id uuid,
   beta_id uuid,
@@ -133,15 +142,6 @@ values (
       and unit_key = 'unit:outside'
   )
 );
-
-reset role;
-set local role authenticated;
-select set_config(
-  'request.jwt.claim.sub',
-  '11111111-1111-4111-8111-111111111111',
-  true
-);
-select set_config('request.jwt.claim.role', 'authenticated', true);
 
 select lives_ok(
   $tap$
