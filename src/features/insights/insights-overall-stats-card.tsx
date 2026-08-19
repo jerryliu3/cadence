@@ -13,6 +13,16 @@ import {
 } from "@/features/insights/insights-stats-ui";
 import type { InsightsStatsGroup } from "@/lib/insights/types";
 
+type InsightsOverallStatsSummary = Pick<
+  InsightsStatsGroup,
+  | "totalActivities"
+  | "totalGoalsCompleted"
+  | "todayActivities"
+  | "activeStreakDays"
+  | "currentWeekActivities"
+  | "currentMonthActivities"
+>;
+
 const aggregateWeekdayLabels: [string, string, string, string, string, string, string] = [
   "Su",
   "M",
@@ -34,17 +44,19 @@ export function InsightsOverallStatsCard({
   titleForValue,
   onDayClick,
   legend,
+  showMoreLink = true,
 }: {
   heatmapRef: RefObject<HTMLDivElement | null>;
   selectedYearStart: Date;
   selectedYearEnd: Date;
   values: Array<{ date: string; count: number }>;
   overallCompletion: number;
-  overallStats?: InsightsStatsGroup | null;
+  overallStats?: InsightsOverallStatsSummary | null;
   classForValue: (value?: { date?: string; count?: number }) => string;
   titleForValue: (value?: { date?: string; count?: number }) => string;
   onDayClick: (value?: { date?: string; count?: number }) => void;
   legend?: ReactNode;
+  showMoreLink?: boolean;
 }) {
   return (
     <Card className="shadow-sm">
@@ -174,11 +186,13 @@ export function InsightsOverallStatsCard({
                 </p>
               </div>
             </div>
-            <div className="text-right text-sm">
-              <Link href="/insights/more" className="font-medium text-primary hover:underline">
-                View more -&gt;
-              </Link>
-            </div>
+            {showMoreLink ? (
+              <div className="text-right text-sm">
+                <Link href="/insights/more" className="font-medium text-primary hover:underline">
+                  View more -&gt;
+                </Link>
+              </div>
+            ) : null}
           </>
         ) : (
           <>

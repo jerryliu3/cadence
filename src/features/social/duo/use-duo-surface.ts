@@ -17,7 +17,7 @@ type DuoLaneSurface = keyof typeof DUO_SURFACE_DEFAULTS;
  * `surface` tag, and the lane labels from drifting apart.
  */
 export function useDuoSurface(surface: DuoLaneSurface) {
-  const { viewerLabel, viewerAvatarUrl } = useDuo();
+  const { viewerUserId, viewerLabel, viewerAvatarUrl } = useDuo();
   const { scope, activePartner, setScopePreference } = useDuoScope(
     DUO_SURFACE_DEFAULTS[surface]
   );
@@ -34,10 +34,11 @@ export function useDuoSurface(surface: DuoLaneSurface) {
     () => ({
       id: "viewer",
       label: viewerLabel.trim().length > 0 ? viewerLabel : "You",
+      userId: viewerUserId,
       readOnly: false,
       avatarUrl: viewerAvatarUrl,
     }),
-    [viewerAvatarUrl, viewerLabel]
+    [viewerAvatarUrl, viewerLabel, viewerUserId]
   );
 
   const partner = useMemo<DuoLaneSubject | null>(

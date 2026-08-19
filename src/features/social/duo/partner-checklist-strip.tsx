@@ -81,6 +81,7 @@ export function PartnerChecklistStrip({
             avatarUrl={partner.partnerAvatarUrl}
             displayName={partner.partnerDisplayName}
             username={partner.partnerUsername}
+            profileSubjectUserId={partner.partnerId}
             size="sm"
             alt={`${partnerName} avatar`}
           />

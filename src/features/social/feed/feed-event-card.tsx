@@ -67,6 +67,7 @@ export function FeedEventCard({ event }: { event: SocialFeedEvent }) {
               avatarUrl={event.actor.avatarUrl}
               displayName={event.actor.displayName}
               username={event.actor.username}
+              profileSubjectUserId={event.actor.id}
               size="sm"
               alt={`${actorName} avatar`}
             />

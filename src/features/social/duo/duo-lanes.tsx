@@ -57,6 +57,7 @@ export function DuoLanes({
                 avatarUrl={subject.avatarUrl ?? null}
                 displayName={subject.label}
                 username={null}
+                profileSubjectUserId={subject.userId ?? null}
                 size="sm"
                 alt={`${subject.label} avatar`}
               />

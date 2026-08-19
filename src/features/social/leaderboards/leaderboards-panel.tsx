@@ -163,6 +163,7 @@ export function LeaderboardsPanel() {
                     avatarUrl={entry.avatarUrl}
                     displayName={entry.displayName}
                     username={null}
+                    profileSubjectUserId={entry.subjectId}
                     size="sm"
                     alt={`${entry.displayName} avatar`}
                   />

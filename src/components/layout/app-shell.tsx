@@ -14,6 +14,7 @@ import { XpProgressBar } from "@/components/xp/xp-progress-bar";
 import { XpRewardProvider } from "@/components/xp/xp-reward-provider";
 import { DuoProvider } from "@/features/social/duo/duo-context";
 import { DuoScopeToggle } from "@/features/social/duo/duo-scope-toggle";
+import { PublicProfileSheetProvider } from "@/features/social/public-profile/public-profile-sheet-provider";
 import { setTabDataCacheScope } from "@/lib/cache/tab-data-cache";
 import type {
   DuoAvailability,
@@ -76,60 +77,62 @@ export function AppShell({
             availability={duoAvailability}
             initialScopePreference={initialDuoScopePreference}
           >
-            <div className="relative z-10 flex min-h-screen w-full justify-center px-4 py-4 sm:px-6 sm:py-6">
-              <div className="flex w-full max-w-5xl flex-col gap-4 md:gap-6">
-                <header
-                  className="sticky top-0 z-40 -mx-4 -mt-4 border-b bg-background/80 px-4 pb-3 pt-[calc(env(safe-area-inset-top)+0.7rem)] shadow-sm backdrop-blur supports-[backdrop-filter]:bg-background/70 md:static md:m-0 md:rounded-2xl md:border md:bg-card/95 md:p-4"
-                  style={{ viewTransitionName: "app-shell-header" }}
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="flex flex-wrap items-center gap-3">
-                      <h1 className="text-2xl font-semibold tracking-tight">Goalmaxxing</h1>
-                      <XpProgressBar />
-                    </div>
-                    <div className="flex flex-col items-end gap-2">
-                      <Button asChild size="sm" className="h-8" title="New Goal +">
-                        <Link href={newGoalHref}>
-                          New Goal +
-                        </Link>
-                      </Button>
-                      <DuoScopeToggle />
-                    </div>
-                  </div>
-                  <div className="mt-4 hidden md:block">
-                    <TabNav plannerPrimaryTabPreference={plannerPrimaryTabPreference} />
-                  </div>
-                </header>
-
-                {ViewTransitionWrapper === ViewTransition ? (
-                  <ViewTransition
-                    name="app-main-content"
-                    enter={{
-                      "nav-forward": "app-nav-forward",
-                      "nav-back": "app-nav-back",
-                      default: "app-nav-crossfade",
-                    }}
-                    exit={{
-                      "nav-forward": "app-nav-forward",
-                      "nav-back": "app-nav-back",
-                      default: "app-nav-crossfade",
-                    }}
-                    default="none"
+            <PublicProfileSheetProvider>
+              <div className="relative z-10 flex min-h-screen w-full justify-center px-4 py-4 sm:px-6 sm:py-6">
+                <div className="flex w-full max-w-5xl flex-col gap-4 md:gap-6">
+                  <header
+                    className="sticky top-0 z-40 -mx-4 -mt-4 border-b bg-background/80 px-4 pb-3 pt-[calc(env(safe-area-inset-top)+0.7rem)] shadow-sm backdrop-blur supports-[backdrop-filter]:bg-background/70 md:static md:m-0 md:rounded-2xl md:border md:bg-card/95 md:p-4"
+                    style={{ viewTransitionName: "app-shell-header" }}
                   >
-                    {mainContent}
-                  </ViewTransition>
-                ) : (
-                  <ViewTransitionWrapper>{mainContent}</ViewTransitionWrapper>
-                )}
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex flex-wrap items-center gap-3">
+                        <h1 className="text-2xl font-semibold tracking-tight">Goalmaxxing</h1>
+                        <XpProgressBar />
+                      </div>
+                      <div className="flex flex-col items-end gap-2">
+                        <Button asChild size="sm" className="h-8" title="New Goal +">
+                          <Link href={newGoalHref}>
+                            New Goal +
+                          </Link>
+                        </Button>
+                        <DuoScopeToggle />
+                      </div>
+                    </div>
+                    <div className="mt-4 hidden md:block">
+                      <TabNav plannerPrimaryTabPreference={plannerPrimaryTabPreference} />
+                    </div>
+                  </header>
+
+                  {ViewTransitionWrapper === ViewTransition ? (
+                    <ViewTransition
+                      name="app-main-content"
+                      enter={{
+                        "nav-forward": "app-nav-forward",
+                        "nav-back": "app-nav-back",
+                        default: "app-nav-crossfade",
+                      }}
+                      exit={{
+                        "nav-forward": "app-nav-forward",
+                        "nav-back": "app-nav-back",
+                        default: "app-nav-crossfade",
+                      }}
+                      default="none"
+                    >
+                      {mainContent}
+                    </ViewTransition>
+                  ) : (
+                    <ViewTransitionWrapper>{mainContent}</ViewTransitionWrapper>
+                  )}
+                </div>
               </div>
-            </div>
-            <div className="relative z-50 md:hidden" style={{ viewTransitionName: "app-mobile-tab-nav" }}>
-              <TabNav
-                mobile
-                plannerPrimaryTabPreference={plannerPrimaryTabPreference}
-              />
-            </div>
-            {goalSheet}
+              <div className="relative z-50 md:hidden" style={{ viewTransitionName: "app-mobile-tab-nav" }}>
+                <TabNav
+                  mobile
+                  plannerPrimaryTabPreference={plannerPrimaryTabPreference}
+                />
+              </div>
+              {goalSheet}
+            </PublicProfileSheetProvider>
           </DuoProvider>
         </JourneyProvider>
       </XpProfileProvider>
