@@ -85,7 +85,7 @@ html {
   min-height: 100%;
   overflow-y: scroll;
   overflow-x: clip;
-  scrollbar-gutter: stable both-edges;
+  scrollbar-gutter: stable;
 }
 
 body {
