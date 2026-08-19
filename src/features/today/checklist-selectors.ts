@@ -110,7 +110,7 @@ export function selectFilteredTodayGoals({
   recurrenceFilters,
   searchQuery,
   endMonths,
-  completedGoalIds = new Set<string>(),
+  completedTargetGoalIds = new Set<string>(),
   showCompletedGoals = true,
 }: {
   activeGoals: Goal[];
@@ -119,13 +119,13 @@ export function selectFilteredTodayGoals({
   recurrenceFilters: RecurrenceGroup[];
   searchQuery: string;
   endMonths: string[];
-  completedGoalIds?: ReadonlySet<string>;
+  completedTargetGoalIds?: ReadonlySet<string>;
   showCompletedGoals?: boolean;
 }): Goal[] {
   const normalizedQuery = searchQuery.trim().toLowerCase();
   const matchingGoals = activeGoals
     .filter((goal) => goal.start_date <= todayDate)
-    .filter((goal) => showCompletedGoals || !completedGoalIds.has(goal.id))
+    .filter((goal) => showCompletedGoals || !completedTargetGoalIds.has(goal.id))
     .filter((goal) =>
       matchesTodayFacetFilters({
         goal,

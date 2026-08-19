@@ -10,6 +10,7 @@ import {
   PLANNER_CONTEXT_CACHE_PREFIX,
   invalidatePlannerRelatedTabCaches,
 } from "@/lib/cache/planner-tab-cache";
+import { INSIGHTS_STATS_CACHE_PREFIX } from "@/lib/insights/stats";
 
 describe("invalidatePlannerRelatedTabCaches", () => {
   afterEach(() => {
@@ -17,10 +18,13 @@ describe("invalidatePlannerRelatedTabCaches", () => {
     window.sessionStorage.clear();
   });
 
-  it("clears planner, checklist, insights, and progress cache keys", () => {
+  it("clears planner, checklist, insights, stats, and progress cache keys", () => {
     writeTabDataCache(`${PLANNER_CONTEXT_CACHE_PREFIX}2026-08`, { context: true });
     writeTabDataCache(`${CHECKLIST_DATA_CACHE_PREFIX}viewer:2026-08-15`, { data: true });
     writeTabDataCache(`${INSIGHTS_DATA_CACHE_PREFIX}viewer:2026:2026-08-15`, {
+      data: true,
+    });
+    writeTabDataCache(`${INSIGHTS_STATS_CACHE_PREFIX}:viewer:viewer`, {
       data: true,
     });
     writeTabDataCache("progress-context:test", { progress: true });
@@ -33,6 +37,9 @@ describe("invalidatePlannerRelatedTabCaches", () => {
     ).toBeNull();
     expect(
       readTabDataCache(`${INSIGHTS_DATA_CACHE_PREFIX}viewer:2026:2026-08-15`)
+    ).toBeNull();
+    expect(
+      readTabDataCache(`${INSIGHTS_STATS_CACHE_PREFIX}:viewer:viewer`)
     ).toBeNull();
     expect(readTabDataCache("progress-context:test")).toBeNull();
   });

@@ -22,6 +22,7 @@ import { useDuoLaneError } from "@/features/social/duo/use-duo-lane-error";
 import { assertQueriesOk } from "@/lib/supabase/query-error";
 import { selectViewerVisibleGoals } from "@cadence/shared/goals/visible-goals";
 import { useDuo } from "@/features/social/duo/duo-context";
+import { subscribeXpRefresh } from "@/lib/xp/events";
 
 export interface InsightsData {
   userId: string;
@@ -226,6 +227,18 @@ export function useInsightsData({
     };
 
     void run();
+  }, [loadData, redirectToLogin, reportLoadError]);
+
+  useEffect(() => {
+    return subscribeXpRefresh(() => {
+      void loadData({ showLoading: false, forceRefresh: true }).catch((error) => {
+        if (error instanceof InsightsStatsAuthenticationError) {
+          redirectToLogin();
+          return;
+        }
+        reportLoadError(error);
+      });
+    });
   }, [loadData, redirectToLogin, reportLoadError]);
 
   return {

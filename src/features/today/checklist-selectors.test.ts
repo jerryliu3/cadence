@@ -68,7 +68,7 @@ describe("checklist selectors", () => {
         recurrenceFilters: [],
         searchQuery: "run",
         endMonths: [],
-        completedGoalIds: new Set(["daily"]),
+        completedTargetGoalIds: new Set(["daily"]),
         showCompletedGoals: false,
       }).map((row) => row.id)
     ).toEqual(["weekly"]);
