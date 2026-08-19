@@ -6,5 +6,11 @@
       "main": true,
       "master": true
     }
-  }
+  },
+  "rewrites": [
+    {
+      "source": "/journey/:path*",
+      "destination": "https://namwwojtboxpaawwuwzt.supabase.co/storage/v1/object/public/journey-assets/:path*"
+    }
+  ]
 }

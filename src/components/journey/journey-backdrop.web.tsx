@@ -12,6 +12,7 @@ import {
   type JourneyRenderPolicy,
 } from "@cadence/shared/journey";
 import { useReducedMotion } from "motion/react";
+import { usePathname } from "next/navigation";
 import { useXpProfile } from "@/components/xp/xp-profile-provider";
 import { JourneyContrastLayer } from "./journey-contrast-layer";
 import { RiveJourneyOverlay } from "./rive-journey-overlay.web";
@@ -21,6 +22,20 @@ import { useJourneyManifest } from "./use-journey-manifest.web";
 import { WebJourneyVideo } from "./web-journey-video";
 
 const JOURNEY_ASSET_VERSION = defaultJourneyAssetManifest.assetVersion;
+
+function isAuthRoute(pathname: string) {
+  return pathname === "/login" || pathname === "/signup" || pathname === "/reset-password";
+}
+
+function allowJourneyVideoForPathname(pathname: string) {
+  if (pathname.startsWith("/social")) {
+    return true;
+  }
+  if (isAuthRoute(pathname)) {
+    return true;
+  }
+  return false;
+}
 
 function useDocumentVisibility() {
   const [hidden, setHidden] = useState(false);
@@ -43,15 +58,17 @@ function createRenderPolicy({
   flags,
   reducedMotion,
   lifecyclePaused,
+  videoEnabled,
 }: {
   flags: JourneyFeatureFlags;
   reducedMotion: boolean;
   lifecyclePaused: boolean;
+  videoEnabled: boolean;
 }): JourneyRenderPolicy {
   return resolveJourneyRenderPolicy({
     assetVersion: JOURNEY_ASSET_VERSION,
     journeyEnabled: flags.journeyEnabled,
-    videoEnabled: true,
+    videoEnabled,
     riveEnabled: false,
     reducedMotionPreferred: reducedMotion,
     lowPowerMode: false,
@@ -64,6 +81,8 @@ export interface JourneyBackdropProps {
 }
 
 export function JourneyBackdrop({ flags }: JourneyBackdropProps) {
+  const pathname = usePathname() ?? "";
+  const videoEnabledForRoute = allowJourneyVideoForPathname(pathname);
   const reducedMotion = Boolean(useReducedMotion());
   const hidden = useDocumentVisibility();
   const { profile } = useXpProfile();
@@ -92,8 +111,9 @@ export function JourneyBackdrop({ flags }: JourneyBackdropProps) {
         flags,
         reducedMotion,
         lifecyclePaused: hidden,
+        videoEnabled: videoEnabledForRoute,
       }),
-    [flags, hidden, reducedMotion]
+    [flags, hidden, reducedMotion, videoEnabledForRoute]
   );
 
   const activeScene = useMemo(
