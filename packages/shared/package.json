@@ -39,6 +39,7 @@
     "./journey/effect-events": "./src/journey/effect-events.ts",
     "./journey/asset-manifest": "./src/journey/asset-manifest.ts",
     "./social/duo": "./src/social/duo.ts",
+    "./social/public-profile": "./src/social/public-profile.ts",
     "./social/team": "./src/social/team.ts",
     "./supabase/database.types": "./src/supabase/database.types.ts",
     "./tokens": "./src/tokens.ts"
