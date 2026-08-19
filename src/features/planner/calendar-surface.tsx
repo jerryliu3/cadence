@@ -45,7 +45,8 @@ import {
   completionDisabledReasonCopy,
   getEntryDraftDiffSummary,
   getDayStatus,
-  getEntryDisplayTitle,
+  getEntryCompactTitleWithTime as formatEntryCompactTitleWithTime,
+  getEntryDisplayTitleWithTime as formatEntryDisplayTitleWithTime,
   getEntrySubtitle,
   getMonthInTimezone,
   isEntryCredited,
@@ -658,12 +659,11 @@ export function CalendarSurface({
     ? draftWindowUnitByEntryKey.get(selectedEventEntry.key) ?? null
     : null;
   const getEntryDisplayTitleWithTime = useCallback(
-    (entry: PlannerDayDetailEntry) => {
-      const baseTitle = getEntryDisplayTitle(entry);
-      return entry.effectiveScheduledLocalTime
-        ? `${entry.effectiveScheduledLocalTime} ${baseTitle}`
-        : baseTitle;
-    },
+    (entry: PlannerDayDetailEntry) => formatEntryDisplayTitleWithTime(entry),
+    []
+  );
+  const getEntryCompactTitleWithTime = useCallback(
+    (entry: PlannerDayDetailEntry) => formatEntryCompactTitleWithTime(entry),
     []
   );
 
@@ -2307,7 +2307,7 @@ export function CalendarSurface({
               : 2
         }
         isAnyEntryDragging={Boolean(draggingEntryKey)}
-        getEntryDisplayTitle={getEntryDisplayTitleWithTime}
+        getEntryDisplayTitle={getEntryCompactTitleWithTime}
         isEntryCredited={isEntryCredited}
         isEntryImmovableForDraft={(entry) =>
           plannerReadOnly ||
@@ -2883,7 +2883,7 @@ export function CalendarSurface({
                       entries={previewDayEntries}
                       completionFactMarkers={previewDayCompletionFactMarkers}
                       mutationLoading={Boolean(mutationLoadingKey)}
-                      getEntryDisplayTitle={getEntryDisplayTitleWithTime}
+                      getEntryDisplayTitle={getEntryCompactTitleWithTime}
                       getEntrySubtitle={getEntrySubtitle}
                       isEntryCredited={isEntryCredited}
                       isEntryImmovableForDraft={(entry) =>
