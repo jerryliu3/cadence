@@ -1,13 +1,22 @@
 "use client";
 
-import type { JourneyProgressState, JourneyRenderPolicy } from "@cadence/shared/journey";
+import type {
+  JourneyEffectEvent,
+  JourneyProgressState,
+  JourneyRenderPolicy,
+} from "@cadence/shared/journey";
 
 interface RiveJourneyOverlayProps {
   progress: JourneyProgressState;
   policy: JourneyRenderPolicy;
+  latestEffectEvent?: JourneyEffectEvent | null;
 }
 
-export function RiveJourneyOverlay({ progress, policy }: RiveJourneyOverlayProps) {
+export function RiveJourneyOverlay({
+  progress,
+  policy,
+  latestEffectEvent,
+}: RiveJourneyOverlayProps) {
   if (!policy.riveEnabled || policy.lifecyclePaused) {
     return null;
   }
@@ -19,6 +28,7 @@ export function RiveJourneyOverlay({ progress, policy }: RiveJourneyOverlayProps
       data-journey-layer="rive-overlay"
       data-biome={progress.biome}
       data-checkpoint={progress.checkpointIndex}
+      data-effect-kind={latestEffectEvent?.kind ?? ""}
     />
   );
 }
