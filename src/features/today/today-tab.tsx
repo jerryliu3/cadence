@@ -64,7 +64,6 @@ import {
 import {
   getCompletionsForCurrentPeriod,
   hasCompletionToday,
-  isGoalDoneForCurrentPeriod,
 } from "@/lib/goals/schedule";
 import type { Goal } from "@/lib/goals/types";
 import {
@@ -256,21 +255,14 @@ export function TodayTab({
     todayEndMonths,
     checklistFilterStartMonth
   );
-  const completedCurrentGoalIds = useMemo(
+  const completedTargetGoalIds = useMemo(
     () =>
       new Set(
         activeGoals
-          .filter((goal) =>
-            isGoalDoneForCurrentPeriod(
-              goal,
-              completionsByGoal.get(goal.id) ?? [],
-              viewDateObj,
-              { weeklyAnchor }
-            )
-          )
+          .filter((goal) => progressByGoal.get(goal.id)?.outcome === "achieved")
           .map((goal) => goal.id)
       ),
-    [activeGoals, completionsByGoal, viewDateObj, weeklyAnchor]
+    [activeGoals, progressByGoal]
   );
 
   const filteredTodayGoals = useMemo(
@@ -282,13 +274,13 @@ export function TodayTab({
         recurrenceFilters,
         searchQuery: todayGoalSearchQuery,
         endMonths: effectiveTodayEndMonths,
-        completedGoalIds: completedCurrentGoalIds,
+        completedTargetGoalIds,
         showCompletedGoals,
       }),
     [
       activeGoals,
       categoryFilters,
-      completedCurrentGoalIds,
+      completedTargetGoalIds,
       effectiveTodayEndMonths,
       recurrenceFilters,
       showCompletedGoals,
@@ -656,7 +648,7 @@ export function TodayTab({
                         },
                         {
                           label: "Show completed goals",
-                          count: completedCurrentGoalIds.size,
+                          count: completedTargetGoalIds.size,
                           checked: showCompletedGoals,
                           onChange: setShowCompletedGoals,
                         },

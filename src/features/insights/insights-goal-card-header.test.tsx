@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { InsightsGoalCardHeader } from "./insights-goal-card-header";
 
 describe("InsightsGoalCardHeader", () => {
-  it("keeps the title and badges together with Edit on the top row", () => {
+  it("keeps the title line compact and renders badges on a separate row", () => {
     render(
       <InsightsGoalCardHeader
         title="Run a marathon"
@@ -21,13 +21,16 @@ describe("InsightsGoalCardHeader", () => {
     const titleLine = within(header).getByTestId(
       "insights-goal-card-title-line"
     );
+    const metaLine = within(header).getByTestId(
+      "insights-goal-card-meta-line"
+    );
     expect(within(titleLine).getByText("Run a marathon")).toBeInTheDocument();
-    expect(within(titleLine).getByText("Health")).toBeInTheDocument();
+    expect(within(metaLine).getByText("Health")).toBeInTheDocument();
     expect(
-      within(titleLine).getByLabelText("Goal end date Oct 31, 2026")
+      within(metaLine).getByLabelText("Goal end date Oct 31, 2026")
     ).toBeInTheDocument();
     expect(
-      within(titleLine).getByLabelText("Days remaining 76")
+      within(metaLine).getByLabelText("Days remaining 76")
     ).toBeInTheDocument();
     expect(
       within(header).getByRole("button", { name: "Edit" })

@@ -12,7 +12,7 @@ import {
 import type { InsightsStatsResponse } from "@/lib/insights/types";
 import { createClient } from "@/lib/supabase/client";
 
-const INSIGHTS_STATS_CACHE_KEY = "insights-stats:v1";
+export const INSIGHTS_STATS_CACHE_PREFIX = "insights-stats:v1";
 const INSIGHTS_STATS_TIMEOUT_MS = 15_000;
 
 async function resolveInsightsStatsViewerUserId() {
@@ -32,7 +32,7 @@ async function resolveInsightsStatsViewerUserId() {
 }
 
 function buildInsightsStatsCacheKey(userId: string, subjectUserId?: string) {
-  return `${INSIGHTS_STATS_CACHE_KEY}:${userId}:${subjectUserId ?? userId}`;
+  return `${INSIGHTS_STATS_CACHE_PREFIX}:${userId}:${subjectUserId ?? userId}`;
 }
 
 export class InsightsStatsAuthenticationError extends Error {

@@ -24,19 +24,27 @@ export function InsightsGoalCardHeader({
   return (
     <div
       data-testid="insights-goal-card-header"
-      className="flex items-center justify-between gap-2"
+      className="flex flex-wrap items-start justify-between gap-2"
     >
       <div
         data-testid="insights-goal-card-title-line"
-        className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5"
+        className="flex min-w-0 flex-1 items-center gap-1.5"
       >
         <span
           className="size-2 shrink-0 rounded-full"
           style={{ backgroundColor: color }}
         />
-        <p className="min-w-0 flex-1 break-words text-sm font-semibold leading-tight">
+        <p className="min-w-0 flex-1 truncate whitespace-nowrap text-sm font-semibold leading-tight">
           {title}
         </p>
+      </div>
+      {action ? (
+        <div className="flex shrink-0 items-center justify-end">{action}</div>
+      ) : null}
+      <div
+        data-testid="insights-goal-card-meta-line"
+        className="flex w-full flex-wrap items-center gap-1.5"
+      >
         <Badge
           variant="outline"
           className={`w-fit ${categoryClassName}`}
@@ -55,9 +63,6 @@ export function InsightsGoalCardHeader({
           </Badge>
         ) : null}
       </div>
-      {action ? (
-        <div className="flex shrink-0 items-center justify-end">{action}</div>
-      ) : null}
     </div>
   );
 }
