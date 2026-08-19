@@ -6,6 +6,11 @@ vi.mock("motion/react", () => ({
   useReducedMotion: () => false,
 }));
 
+const pathnameMock = vi.fn(() => "/social");
+vi.mock("next/navigation", () => ({
+  usePathname: () => pathnameMock(),
+}));
+
 vi.mock("@/components/xp/xp-profile-provider", () => ({
   useXpProfile: () => ({
     profile: {
@@ -21,6 +26,7 @@ const enabledFlags = {
 describe("JourneyBackdrop", () => {
   afterEach(() => {
     cleanup();
+    pathnameMock.mockReturnValue("/social");
   });
 
   it("renders poster-first fallback immediately", () => {
@@ -35,7 +41,7 @@ describe("JourneyBackdrop", () => {
     expect(posterLayer).toHaveClass("opacity-100");
   });
 
-  it("fades poster after video can play", () => {
+  it("fades poster after video can play on community routes", () => {
     render(<JourneyBackdrop flags={enabledFlags} />);
     const video = document.querySelector("video");
     expect(video).not.toBeNull();
@@ -45,6 +51,14 @@ describe("JourneyBackdrop", () => {
     fireEvent.canPlay(video);
     const posterLayer = document.querySelector("[data-journey-layer='poster']");
     expect(posterLayer).toHaveClass("opacity-0");
+  });
+
+  it("prefers poster and skips video outside community and auth routes", () => {
+    pathnameMock.mockReturnValue("/calendar");
+
+    render(<JourneyBackdrop flags={enabledFlags} />);
+    const video = document.querySelector("video");
+    expect(video).toBeNull();
   });
 
   it("does not render video when journey is disabled", () => {
