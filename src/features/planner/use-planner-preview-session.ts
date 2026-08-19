@@ -49,6 +49,28 @@ interface UsePlannerPreviewSessionArgs {
   setDraftPreviewWindow: (window: { start: string; end: string } | null) => void;
 }
 
+function buildItemIdByEntryKey(context: PlannerContextPayload | null) {
+  if (!context?.activePlan) {
+    return new Map<string, string>();
+  }
+  const originalGoalIdByPlanGoalId = new Map(
+    context.activePlan.goals.map((goal) => [goal.id, goal.original_goal_id])
+  );
+  return new Map(
+    context.activePlan.items.map((item) => {
+      const originalGoalId =
+        originalGoalIdByPlanGoalId.get(item.plan_goal_id) ?? item.plan_goal_id;
+      return [
+        draftCommandEntryKey({
+          goalId: originalGoalId,
+          unitKey: item.unit_key,
+        }),
+        item.id,
+      ];
+    })
+  );
+}
+
 export function usePlannerPreviewSession({
   context,
   effectivePreview,
@@ -196,10 +218,12 @@ export function usePlannerPreviewSession({
           unit,
         ])
       );
+      const itemIdByEntryKey = buildItemIdByEntryKey(context);
 
       let nextState = draftCommandState;
       const pendingActions: Array<{
         type: "upsert_move";
+        itemId: string;
         goalId: string;
         unitKey: string;
         scheduledDate: string;
@@ -216,6 +240,10 @@ export function usePlannerPreviewSession({
           continue;
         }
         const baselineUnit = baselineUnitByEntryKey.get(entryKey);
+        const itemId = itemIdByEntryKey.get(entryKey);
+        if (!itemId) {
+          continue;
+        }
         if (
           shouldBlockAutomatedReplanMoveForEntry({
             baselineClassification: baselineUnit?.classification,
@@ -227,6 +255,7 @@ export function usePlannerPreviewSession({
         }
         const action = {
           type: "upsert_move" as const,
+          itemId,
           goalId: unit.originalGoalId,
           unitKey: unit.unitKey,
           scheduledDate: nextDate,
@@ -322,13 +351,28 @@ export function usePlannerPreviewSession({
       }
 
       let nextState = draftCommandState;
-      const pendingActions = plan.moves.map((move) => ({
-        type: "upsert_move" as const,
-        goalId: move.goalId,
-        unitKey: move.unitKey,
-        scheduledDate: move.scheduledDate,
-        sourceDate: move.sourceDate,
-      }));
+      const itemIdByEntryKey = buildItemIdByEntryKey(context);
+      const pendingActions = plan.moves.flatMap((move) => {
+        const itemId = itemIdByEntryKey.get(
+          draftCommandEntryKey({
+            goalId: move.goalId,
+            unitKey: move.unitKey,
+          })
+        );
+        if (!itemId) {
+          return [];
+        }
+        return [
+          {
+            type: "upsert_move" as const,
+            itemId,
+            goalId: move.goalId,
+            unitKey: move.unitKey,
+            scheduledDate: move.scheduledDate,
+            sourceDate: move.sourceDate,
+          },
+        ];
+      });
       for (const action of pendingActions) {
         nextState = draftCommandReducer(nextState, action);
       }
@@ -377,11 +421,17 @@ export function usePlannerPreviewSession({
         return;
       }
       let nextState = draftCommandState;
+      const itemIdByEntryKey = buildItemIdByEntryKey(context);
       for (const entryKey of entryKeys) {
         const separatorIndex = entryKey.indexOf(":");
+        const itemId = itemIdByEntryKey.get(entryKey);
+        if (!itemId) {
+          continue;
+        }
         const action = {
           type: "remove_kind",
           kind: "move_item",
+          itemId,
           goalId: entryKey.slice(0, separatorIndex),
           unitKey: entryKey.slice(separatorIndex + 1),
         } as const;
@@ -392,7 +442,7 @@ export function usePlannerPreviewSession({
         selectDraftCommands(nextState)
       );
     },
-    [context?.scopeMonth, dispatchDraftCommand, draftCommandState]
+    [context, dispatchDraftCommand, draftCommandState]
   );
 
   return {

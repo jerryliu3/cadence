@@ -22,7 +22,8 @@ export function planDraftTimeOverrideUpdate({
   localTimeInput: string;
   baselineOverride: string | null;
 }): DraftTimeOverridePlan {
-  if (isEntryImmovableForDraft(entry)) {
+  const itemId = entry.activeItem?.id ?? null;
+  if (!itemId || isEntryImmovableForDraft(entry)) {
     return {
       status: "blocked",
       reason: "immovable",
@@ -41,12 +42,14 @@ export function planDraftTimeOverrideUpdate({
 
   const removeSetAction: DraftCommandAction = {
     type: "remove_kind",
+    itemId,
     kind: "set_item_time_override",
     goalId: entry.originalGoalId,
     unitKey: entry.unitKey,
   };
   const removeClearAction: DraftCommandAction = {
     type: "remove_kind",
+    itemId,
     kind: "clear_item_time_override",
     goalId: entry.originalGoalId,
     unitKey: entry.unitKey,
@@ -64,6 +67,7 @@ export function planDraftTimeOverrideUpdate({
       actions: [
         {
           type: "clear_time_override",
+          itemId,
           goalId: entry.originalGoalId,
           unitKey: entry.unitKey,
         },
@@ -83,6 +87,7 @@ export function planDraftTimeOverrideUpdate({
     actions: [
       {
         type: "upsert_time_override",
+        itemId,
         goalId: entry.originalGoalId,
         unitKey: entry.unitKey,
         localTime: normalizedTime,

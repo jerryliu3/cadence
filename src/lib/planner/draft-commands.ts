@@ -9,6 +9,7 @@ const draftCommandBaseSchema = z
   .object({
     id: z.uuid(),
     sequence: z.number().int().nonnegative(),
+    itemId: z.uuid(),
     goalId: z.uuid(),
   })
   .strict();
@@ -78,6 +79,7 @@ function commandPayloadTiebreak(command: PlannerDraftCommand) {
     case "move_item":
       return canonicalHash({
         kind: command.kind,
+        itemId: command.itemId,
         goalId: command.goalId,
         unitKey: command.unitKey,
         scheduledDate: command.scheduledDate,
@@ -86,6 +88,7 @@ function commandPayloadTiebreak(command: PlannerDraftCommand) {
     case "rename_item":
       return canonicalHash({
         kind: command.kind,
+        itemId: command.itemId,
         goalId: command.goalId,
         unitKey: command.unitKey,
         label: command.label,
@@ -93,6 +96,7 @@ function commandPayloadTiebreak(command: PlannerDraftCommand) {
     case "set_item_time_override":
       return canonicalHash({
         kind: command.kind,
+        itemId: command.itemId,
         goalId: command.goalId,
         unitKey: command.unitKey,
         localTime: command.localTime,
@@ -100,6 +104,7 @@ function commandPayloadTiebreak(command: PlannerDraftCommand) {
     case "clear_item_time_override":
       return canonicalHash({
         kind: command.kind,
+        itemId: command.itemId,
         goalId: command.goalId,
         unitKey: command.unitKey,
       });
@@ -125,12 +130,12 @@ export function sortPlannerDraftCommands(commands: PlannerDraftCommand[]) {
     if (left.command.sequence !== right.command.sequence) {
       return left.command.sequence - right.command.sequence;
     }
-    const byGoal = compareCanonicalStrings(
-      left.command.goalId,
-      right.command.goalId
+    const byItemId = compareCanonicalStrings(
+      left.command.itemId,
+      right.command.itemId
     );
-    if (byGoal !== 0) {
-      return byGoal;
+    if (byItemId !== 0) {
+      return byItemId;
     }
     const byKind =
       commandKindOrder[left.command.kind] - commandKindOrder[right.command.kind];

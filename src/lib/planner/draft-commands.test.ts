@@ -7,6 +7,11 @@ import {
 
 const GOAL_A = "12000000-0000-4000-8000-000000000001";
 const GOAL_B = "12000000-0000-4000-8000-000000000002";
+const ITEM_A1 = "13000000-0000-4000-8000-000000000001";
+const ITEM_A2 = "13000000-0000-4000-8000-000000000002";
+const ITEM_A3 = "13000000-0000-4000-8000-000000000003";
+const ITEM_A9 = "13000000-0000-4000-8000-000000000009";
+const ITEM_B1 = "13000000-0000-4000-8000-000000000101";
 
 describe("planner draft commands", () => {
   it("applies command projection in deterministic sequence order", () => {
@@ -15,6 +20,7 @@ describe("planner draft commands", () => {
         id: "11000000-0000-4000-8000-000000000001",
         sequence: 3,
         kind: "rename_item",
+        itemId: ITEM_A1,
         goalId: GOAL_A,
         unitKey: "total:1",
         label: "Tempo run",
@@ -23,6 +29,7 @@ describe("planner draft commands", () => {
         id: "11000000-0000-4000-8000-000000000002",
         sequence: 2,
         kind: "move_item",
+        itemId: ITEM_A1,
         goalId: GOAL_A,
         unitKey: "total:1",
         scheduledDate: "2026-08-07",
@@ -32,6 +39,7 @@ describe("planner draft commands", () => {
         id: "11000000-0000-4000-8000-000000000003",
         sequence: 1,
         kind: "move_item",
+        itemId: ITEM_A1,
         goalId: GOAL_A,
         unitKey: "total:1",
         scheduledDate: "2026-08-05",
@@ -52,6 +60,7 @@ describe("planner draft commands", () => {
         id: "22000000-0000-4000-8000-000000000003",
         sequence: 1,
         kind: "rename_item",
+        itemId: ITEM_B1,
         goalId: GOAL_B,
         unitKey: "total:1",
         label: "B",
@@ -60,6 +69,7 @@ describe("planner draft commands", () => {
         id: "22000000-0000-4000-8000-000000000001",
         sequence: 1,
         kind: "move_item",
+        itemId: ITEM_A2,
         goalId: GOAL_A,
         unitKey: "total:2",
         scheduledDate: "2026-08-03",
@@ -69,6 +79,7 @@ describe("planner draft commands", () => {
         id: "22000000-0000-4000-8000-000000000002",
         sequence: 1,
         kind: "move_item",
+        itemId: ITEM_A1,
         goalId: GOAL_A,
         unitKey: "total:1",
         scheduledDate: "2026-08-02",
@@ -87,6 +98,7 @@ describe("planner draft commands", () => {
         id: "23000000-0000-4000-8000-000000000002",
         sequence: 1,
         kind: "set_item_time_override",
+        itemId: ITEM_A1,
         goalId: GOAL_A,
         unitKey: "total:1",
         localTime: "19:45",
@@ -95,6 +107,7 @@ describe("planner draft commands", () => {
         id: "23000000-0000-4000-8000-000000000003",
         sequence: 2,
         kind: "clear_item_time_override",
+        itemId: ITEM_A2,
         goalId: GOAL_A,
         unitKey: "total:2",
       },
@@ -115,6 +128,7 @@ describe("planner draft commands", () => {
         id: "23000000-0000-4000-8000-000000000010",
         sequence: 7,
         kind: "clear_item_time_override",
+        itemId: ITEM_A3,
         goalId: GOAL_A,
         unitKey: "total:3",
       },
@@ -122,6 +136,7 @@ describe("planner draft commands", () => {
         id: "23000000-0000-4000-8000-000000000001",
         sequence: 7,
         kind: "set_item_time_override",
+        itemId: ITEM_A3,
         goalId: GOAL_A,
         unitKey: "total:3",
         localTime: "21:15",
@@ -149,6 +164,7 @@ describe("planner draft commands", () => {
         id: "24000000-0000-4000-8000-000000000001",
         sequence: 11,
         kind: "set_item_time_override",
+        itemId: ITEM_A9,
         goalId: GOAL_A,
         unitKey: "total:9",
         localTime: "07:30",
@@ -157,6 +173,7 @@ describe("planner draft commands", () => {
         id: "24000000-0000-4000-8000-000000000010",
         sequence: 11,
         kind: "set_item_time_override",
+        itemId: ITEM_A9,
         goalId: GOAL_A,
         unitKey: "total:9",
         localTime: "20:45",
@@ -167,6 +184,7 @@ describe("planner draft commands", () => {
         id: "24000000-0000-4000-8000-000000000010",
         sequence: 11,
         kind: "set_item_time_override",
+        itemId: ITEM_A9,
         goalId: GOAL_A,
         unitKey: "total:9",
         localTime: "07:30",
@@ -175,6 +193,7 @@ describe("planner draft commands", () => {
         id: "24000000-0000-4000-8000-000000000001",
         sequence: 11,
         kind: "set_item_time_override",
+        itemId: ITEM_A9,
         goalId: GOAL_A,
         unitKey: "total:9",
         localTime: "20:45",

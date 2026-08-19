@@ -117,12 +117,16 @@ export function usePlannerDraftCommands({
       if (!baselineUnit) {
         return false;
       }
+      const itemId = entry.activeItem?.id ?? null;
+      if (!itemId) {
+        toast.error("That session is stale. Refresh and try again.");
+        return false;
+      }
 
       const existingMove = draftSaveCommands.find(
         (command) =>
           command.kind === "move_item" &&
-          command.goalId === entry.originalGoalId &&
-          command.unitKey === entry.unitKey
+          command.itemId === itemId
       );
       const sourceDate =
         existingMove?.kind === "move_item"
@@ -130,6 +134,7 @@ export function usePlannerDraftCommands({
           : baselineUnit.scheduledDate ?? entry.draftDiffFromDate ?? planned.scheduledDate;
       const prospectiveState = draftCommandReducer(draftCommandState, {
         type: "upsert_move",
+        itemId,
         goalId: entry.originalGoalId,
         unitKey: entry.unitKey,
         scheduledDate: planned.scheduledDate,
@@ -153,6 +158,7 @@ export function usePlannerDraftCommands({
 
       dispatchDraftCommand({
         type: "upsert_move",
+        itemId,
         goalId: entry.originalGoalId,
         unitKey: entry.unitKey,
         scheduledDate: planned.scheduledDate,
@@ -178,12 +184,17 @@ export function usePlannerDraftCommands({
       if (entry.draftGhost || !context?.scopeMonth) {
         return;
       }
+      const itemId = entry.activeItem?.id ?? null;
+      if (!itemId) {
+        return;
+      }
       const baselineTitle =
         entry.activeGoal?.title ?? context.goalTitles?.[entry.originalGoalId] ?? null;
       if (!label || label === baselineTitle) {
         dispatchDraftCommand({
           type: "remove_kind",
           kind: "rename_item",
+          itemId,
           goalId: entry.originalGoalId,
           unitKey: entry.unitKey,
         });
@@ -191,6 +202,7 @@ export function usePlannerDraftCommands({
       }
       dispatchDraftCommand({
         type: "upsert_rename",
+        itemId,
         goalId: entry.originalGoalId,
         unitKey: entry.unitKey,
         label,

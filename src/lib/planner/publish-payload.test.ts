@@ -8,6 +8,7 @@ import {
 } from "@/lib/planner/publish-payload";
 
 const GOAL_ID = "12000000-0000-4000-8000-000000000001";
+const ITEM_ID = "13000000-0000-4000-8000-000000000001";
 
 const baseGoal: Goal = {
   id: GOAL_ID,
@@ -95,6 +96,7 @@ describe("buildPlannerPublishPersistencePayload draft edit validation", () => {
           id: "30000000-0000-4000-8000-000000000014",
           sequence: 1,
           kind: "set_item_time_override",
+          itemId: ITEM_ID,
           goalId: GOAL_ID,
           unitKey: "total:1",
           localTime: "18:30",
@@ -148,6 +150,7 @@ describe("buildPlannerPublishPersistencePayload draft edit validation", () => {
             id: "30000000-0000-4000-8000-000000000015",
             sequence: 1,
             kind: "set_item_time_override",
+            itemId: ITEM_ID,
             goalId: GOAL_ID,
             unitKey: "total:1",
             localTime: "23:45",
@@ -172,6 +175,7 @@ describe("positional draft moves are kernel-owned", () => {
             id: "11111111-1111-4111-8111-111111111111",
             sequence: 1,
             kind: "move_item",
+            itemId: ITEM_ID,
             goalId: GOAL_ID,
             unitKey: "total:1",
             scheduledDate: "2026-08-20",
@@ -196,6 +200,7 @@ describe("positional draft moves are kernel-owned", () => {
           id: "11111111-1111-4111-8111-111111111111",
           sequence: 1,
           kind: "move_item",
+          itemId: ITEM_ID,
           goalId: GOAL_ID,
           unitKey: "total:1",
           scheduledDate: "2026-08-20",

@@ -59,6 +59,7 @@ describe("buildPlannerSaveRequestBody", () => {
           id: "33333333-3333-4333-8333-333333333333",
           sequence: 1,
           kind: "move_item",
+          itemId: "44444444-4444-4444-8444-444444444444",
           goalId: "11111111-1111-4111-8111-111111111111",
           unitKey: "milestone:1",
           scheduledDate: "2026-08-20",
