@@ -177,6 +177,161 @@ describe("ordered-dp-v1 solver", () => {
 
     expect(result.assignments[0].scheduledDate).toBe("2026-08-07");
   });
+
+  it("places unanchored low-ordinal units after a preserved future anchor when their ideal dates land later", () => {
+    // Reproduces the resumed-suppression prefix deadlock: ordinals 9-11 have
+    // never been scheduled (no anchor) and their ideal dates fall inside the
+    // window that opened up after the resumed date, while ordinal 12 is
+    // already pinned to the first day of that window from a prior save.
+    // Falling back to ordinal for the unanchored units would force them onto
+    // a date before the pin, which their candidate dates cannot reach at
+    // all -- an unsatisfiable prefix. Falling back to their ideal date lets
+    // them correctly sort after the pin instead.
+    const dates = [
+      "2026-09-01",
+      "2026-09-02",
+      "2026-09-03",
+      "2026-09-04",
+      "2026-09-05",
+    ];
+    const unanchoredAfterResume = (ordinal: number, idealDate: string) => ({
+      unitKey: `milestone:${ordinal}`,
+      goalId: "goal-a",
+      kind: "milestone_sequence" as const,
+      ordinal,
+      candidateDates: dates,
+      previousDate: null,
+      lockedDate: null,
+      idealDate,
+    });
+    const result = solveOrderedDpV1({
+      dates,
+      units: [
+        unanchoredAfterResume(9, "2026-09-02"),
+        unanchoredAfterResume(10, "2026-09-03"),
+        unanchoredAfterResume(11, "2026-09-04"),
+        {
+          unitKey: "milestone:12",
+          goalId: "goal-a",
+          kind: "milestone_sequence",
+          ordinal: 12,
+          candidateDates: ["2026-09-01"],
+          previousDate: "2026-09-01",
+          lockedDate: "2026-09-01",
+        },
+      ],
+    });
+
+    expect(result.placementStatus).toBe("complete");
+    expect(result.issueCodes).toEqual([]);
+    expect(
+      result.assignments.map(
+        (assignment) => `${assignment.unitKey}=${assignment.scheduledDate}`
+      )
+    ).toEqual([
+      "milestone:9=2026-09-02",
+      "milestone:10=2026-09-03",
+      "milestone:11=2026-09-04",
+      "milestone:12=2026-09-01",
+    ]);
+  });
+
+  it("interleaves anchored and unanchored milestones by real date rather than ordinal", () => {
+    // Ordinal 5 already sits on 08-10 (a real anchor). Ordinals 1 and 10 have
+    // never been scheduled, but their ideal dates fall on either side of that
+    // anchor. Ordinal rank alone would force 1 before 5 and 10 after 5 anyway
+    // in this case -- the point is that it now happens because their ideal
+    // dates genuinely fall there, not because of their ordinal position.
+    const dates = ["2026-08-01", "2026-08-10", "2026-08-20"];
+    const result = solveOrderedDpV1({
+      dates,
+      units: [
+        {
+          unitKey: "milestone:10",
+          goalId: "goal-a",
+          kind: "milestone_sequence",
+          ordinal: 10,
+          candidateDates: dates,
+          previousDate: null,
+          lockedDate: null,
+          idealDate: "2026-08-20",
+        },
+        {
+          unitKey: "milestone:1",
+          goalId: "goal-a",
+          kind: "milestone_sequence",
+          ordinal: 1,
+          candidateDates: dates,
+          previousDate: null,
+          lockedDate: null,
+          idealDate: "2026-08-01",
+        },
+        {
+          unitKey: "milestone:5",
+          goalId: "goal-a",
+          kind: "milestone_sequence",
+          ordinal: 5,
+          candidateDates: dates,
+          previousDate: "2026-08-10",
+          lockedDate: "2026-08-10",
+        },
+      ],
+    });
+
+    expect(result.placementStatus).toBe("complete");
+    // Output order is stable by (goalId, ordinal, unitKey) regardless of
+    // internal solve order, so this reads back sorted by ordinal.
+    expect(
+      result.assignments.map(
+        (assignment) => `${assignment.unitKey}=${assignment.scheduledDate}`
+      )
+    ).toEqual([
+      "milestone:1=2026-08-01",
+      "milestone:5=2026-08-10",
+      "milestone:10=2026-08-20",
+    ]);
+  });
+
+  it("never lets an unanchored unit's ideal date override another unit's real lock", () => {
+    // Two units both want 08-05 by ideal date, but one is genuinely locked
+    // there. The lock must win the date outright regardless of ideal-date
+    // based solve order for the other unit.
+    const dates = ["2026-08-05", "2026-08-06"];
+    const result = solveOrderedDpV1({
+      dates,
+      units: [
+        {
+          unitKey: "total:2",
+          goalId: "goal-a",
+          kind: "deadline_total",
+          ordinal: 2,
+          candidateDates: dates,
+          previousDate: null,
+          lockedDate: null,
+          idealDate: "2026-08-05",
+        },
+        {
+          unitKey: "total:1",
+          goalId: "goal-a",
+          kind: "deadline_total",
+          ordinal: 1,
+          candidateDates: ["2026-08-05"],
+          previousDate: "2026-08-05",
+          lockedDate: "2026-08-05",
+        },
+      ],
+    });
+
+    expect(result.placementStatus).toBe("complete");
+    expect(
+      result.assignments.find((assignment) => assignment.unitKey === "total:1")
+        ?.scheduledDate
+    ).toBe("2026-08-05");
+    expect(
+      result.assignments.find((assignment) => assignment.unitKey === "total:2")
+        ?.scheduledDate
+    ).toBe("2026-08-06");
+  });
 });
 
 describe("solve intent objective ordering", () => {
