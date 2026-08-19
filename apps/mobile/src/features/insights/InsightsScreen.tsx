@@ -5,6 +5,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } fr
 import Svg, { Rect } from "react-native-svg";
 import { useTheme } from "../../theme";
 import { LoadingScreen, Screen } from "../../ui/screen";
+import { useSession } from "../../lib/session";
 import { useDuo, useDuoSurfaceScope } from "../duo/DuoProvider";
 import { DuoScopeSegmentedControl } from "../duo/DuoScopeSegmentedControl";
 import { useReportMobileDuoScopeViewed } from "../duo/telemetry";
@@ -22,6 +23,7 @@ import {
 import { buildInsightsLaneRenderModel } from "./insights-lane-render-model";
 import { InsightsLaneSection } from "./InsightsLaneSection";
 import { useInsightsLaneData } from "./use-insights-lane-data";
+import { usePublicProfileSheet } from "../social/PublicProfileSheetProvider";
 
 function InsightsActivitySummaryRow({
   totalActivities,
@@ -80,6 +82,7 @@ function InsightsActivitySummaryRow({
 
 export function InsightsScreen() {
   const theme = useTheme();
+  const { userId } = useSession();
   const { width: viewportWidth } = useWindowDimensions();
   const { ready, scope, hasActivePartner } =
     useDuoSurfaceScope("insights");
@@ -94,8 +97,12 @@ export function InsightsScreen() {
   const [month, setMonth] = useState(format(new Date(), "yyyy-MM"));
   const viewerAvatarQuery = useViewerAvatarUrl();
   const viewerAvatarUrl = viewerAvatarQuery.data ?? null;
+  const { openPublicProfile } = usePublicProfileSheet();
   const partnerSubject = partnerLaneSubject(activePartner);
-  const viewerSubject = viewerLaneSubject({ avatarUrl: viewerAvatarUrl });
+  const viewerSubject = viewerLaneSubject({
+    avatarUrl: viewerAvatarUrl,
+    userId,
+  });
   const viewerLane = useInsightsLaneData({
     subject: viewerSubject,
     month,
@@ -110,6 +117,7 @@ export function InsightsScreen() {
     scope,
     activePartner,
     viewerAvatarUrl,
+    viewerUserId: userId,
   });
   const useLanePager = shouldUseLanePager(lanes.length);
   const lanePageWidth = resolveLanePageWidth(viewportWidth);
@@ -172,9 +180,11 @@ export function InsightsScreen() {
                     showHeading={Boolean(renderModel.heading)}
                     headingLabel={renderModel.heading?.label ?? lane.label}
                     headingAvatarUrl={lane.avatarUrl}
+                    headingSubjectUserId={lane.userId ?? null}
                     readOnly={Boolean(renderModel.heading?.readOnly)}
                     tone="muted"
                     message={`Loading ${lane.label.toLowerCase()} insights...`}
+                    onOpenProfile={openPublicProfile}
                   />
                 </View>
               );
@@ -187,9 +197,11 @@ export function InsightsScreen() {
                     showHeading={Boolean(renderModel.heading)}
                     headingLabel={renderModel.heading?.label ?? lane.label}
                     headingAvatarUrl={lane.avatarUrl}
+                    headingSubjectUserId={lane.userId ?? null}
                     readOnly={Boolean(renderModel.heading?.readOnly)}
                     tone="muted"
                     message="Partner insights are unavailable."
+                    onOpenProfile={openPublicProfile}
                   />
                 </View>
               );
@@ -202,6 +214,7 @@ export function InsightsScreen() {
                     showHeading={Boolean(renderModel.heading)}
                     headingLabel={renderModel.heading?.label ?? lane.label}
                     headingAvatarUrl={lane.avatarUrl}
+                    headingSubjectUserId={lane.userId ?? null}
                     readOnly={Boolean(renderModel.heading?.readOnly)}
                     tone="destructive"
                     message={
@@ -209,6 +222,7 @@ export function InsightsScreen() {
                         ? laneData.error.message
                         : "Could not load insights."
                     }
+                    onOpenProfile={openPublicProfile}
                   />
                 </View>
               );
@@ -222,7 +236,9 @@ export function InsightsScreen() {
                   showHeading={Boolean(renderModel.heading)}
                   headingLabel={renderModel.heading?.label ?? lane.label}
                   headingAvatarUrl={lane.avatarUrl}
+                  headingSubjectUserId={lane.userId ?? null}
                   readOnly={Boolean(renderModel.heading?.readOnly)}
+                  onOpenProfile={openPublicProfile}
                 >
                   <InsightsActivitySummaryRow
                     totalActivities={laneData.monthSummary.totalActivities}
@@ -267,9 +283,11 @@ export function InsightsScreen() {
               showHeading={Boolean(renderModel.heading)}
               headingLabel={renderModel.heading?.label ?? lane.label}
               headingAvatarUrl={lane.avatarUrl}
+              headingSubjectUserId={lane.userId ?? null}
               readOnly={Boolean(renderModel.heading?.readOnly)}
               tone="muted"
               message={`Loading ${lane.label.toLowerCase()} insights...`}
+              onOpenProfile={openPublicProfile}
             />
           );
         }
@@ -281,9 +299,11 @@ export function InsightsScreen() {
               showHeading={Boolean(renderModel.heading)}
               headingLabel={renderModel.heading?.label ?? lane.label}
               headingAvatarUrl={lane.avatarUrl}
+              headingSubjectUserId={lane.userId ?? null}
               readOnly={Boolean(renderModel.heading?.readOnly)}
               tone="muted"
               message="Partner insights are unavailable."
+              onOpenProfile={openPublicProfile}
             />
           );
         }
@@ -295,6 +315,7 @@ export function InsightsScreen() {
               showHeading={Boolean(renderModel.heading)}
               headingLabel={renderModel.heading?.label ?? lane.label}
               headingAvatarUrl={lane.avatarUrl}
+              headingSubjectUserId={lane.userId ?? null}
               readOnly={Boolean(renderModel.heading?.readOnly)}
               tone="destructive"
               message={
@@ -302,6 +323,7 @@ export function InsightsScreen() {
                   ? laneData.error.message
                   : "Could not load insights."
               }
+              onOpenProfile={openPublicProfile}
             />
           );
         }
@@ -314,7 +336,9 @@ export function InsightsScreen() {
               showHeading={Boolean(renderModel.heading)}
               headingLabel={renderModel.heading?.label ?? lane.label}
               headingAvatarUrl={lane.avatarUrl}
+              headingSubjectUserId={lane.userId ?? null}
               readOnly={Boolean(renderModel.heading?.readOnly)}
+              onOpenProfile={openPublicProfile}
             >
               <InsightsActivitySummaryRow
                 totalActivities={laneData.monthSummary.totalActivities}

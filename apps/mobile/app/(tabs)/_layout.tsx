@@ -7,6 +7,7 @@ import { useProfileNavigationPreferences } from "../../src/lib/navigation-prefer
 import { DuoProvider } from "../../src/features/duo/DuoProvider";
 import { JourneyBackdrop } from "../../src/features/journey/JourneyBackdrop.native";
 import { JourneyProvider } from "../../src/features/journey/JourneyProvider.native";
+import { PublicProfileSheetProvider } from "../../src/features/social/PublicProfileSheetProvider";
 import { useTheme } from "../../src/theme";
 import { LoadingScreen } from "../../src/ui/screen";
 
@@ -47,36 +48,38 @@ export default function TabsLayout() {
     <JourneyProvider>
       <JourneyBackdrop />
       <DuoProvider>
-        <Tabs
-          screenOptions={{
-            headerStyle: { backgroundColor: theme.colors.background },
-            headerTintColor: theme.colors.foreground,
-            tabBarStyle: { backgroundColor: withHexAlpha(theme.colors.card, 0.5) },
-            tabBarActiveTintColor: theme.colors.primary,
-            tabBarInactiveTintColor: theme.colors.mutedForeground,
-          }}
-        >
-          {tabs.map((tab) => {
-            const tabLabel = tab.key === "social" ? "Community" : tab.label;
-            return (
-              <Tabs.Screen
-                key={tab.key}
-                name={tab.key}
-                options={{
-                  title: tabLabel,
-                  tabBarLabel: tabLabel,
-                  href: tab.key === "social" && upgrade.flags && !upgrade.flags.socialEnabled
-                    ? null
-                    : undefined,
-                  tabBarIcon: ({ color }) => (
-                    <Text style={{ color, fontSize: 16 }}>{TAB_ICONS[tab.key]}</Text>
-                  ),
-                }}
-              />
-            );
-          })}
-          <Tabs.Screen name="checklist" options={{ href: null }} />
-        </Tabs>
+        <PublicProfileSheetProvider>
+          <Tabs
+            screenOptions={{
+              headerStyle: { backgroundColor: theme.colors.background },
+              headerTintColor: theme.colors.foreground,
+              tabBarStyle: { backgroundColor: withHexAlpha(theme.colors.card, 0.5) },
+              tabBarActiveTintColor: theme.colors.primary,
+              tabBarInactiveTintColor: theme.colors.mutedForeground,
+            }}
+          >
+            {tabs.map((tab) => {
+              const tabLabel = tab.key === "social" ? "Community" : tab.label;
+              return (
+                <Tabs.Screen
+                  key={tab.key}
+                  name={tab.key}
+                  options={{
+                    title: tabLabel,
+                    tabBarLabel: tabLabel,
+                    href: tab.key === "social" && upgrade.flags && !upgrade.flags.socialEnabled
+                      ? null
+                      : undefined,
+                    tabBarIcon: ({ color }) => (
+                      <Text style={{ color, fontSize: 16 }}>{TAB_ICONS[tab.key]}</Text>
+                    ),
+                  }}
+                />
+              );
+            })}
+            <Tabs.Screen name="checklist" options={{ href: null }} />
+          </Tabs>
+        </PublicProfileSheetProvider>
       </DuoProvider>
     </JourneyProvider>
   );

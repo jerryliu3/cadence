@@ -13,13 +13,20 @@ const VIEWER_LANE_BASE = {
 
 export function viewerLaneSubject({
   avatarUrl,
+  userId,
 }: {
   avatarUrl?: string | null;
+  userId?: string | null;
 } = {}): DuoLaneSubject {
   const normalizedAvatarUrl = avatarUrl?.trim() ? avatarUrl.trim() : null;
+  const normalizedUserId = userId?.trim() ? userId.trim() : null;
+  const withUser =
+    normalizedUserId !== null
+      ? { ...VIEWER_LANE_BASE, userId: normalizedUserId }
+      : { ...VIEWER_LANE_BASE };
   return normalizedAvatarUrl
-    ? { ...VIEWER_LANE_BASE, avatarUrl: normalizedAvatarUrl }
-    : { ...VIEWER_LANE_BASE };
+    ? { ...withUser, avatarUrl: normalizedAvatarUrl }
+    : withUser;
 }
 
 export function partnerLaneSubject(
@@ -41,14 +48,16 @@ export function resolveMobileDuoLaneSubjects({
   scope,
   activePartner,
   viewerAvatarUrl,
+  viewerUserId,
 }: {
   scope: DuoScope;
   activePartner: DuoActivePartner | null;
   viewerAvatarUrl?: string | null;
+  viewerUserId?: string | null;
 }): DuoLaneSubject[] {
   return resolveDuoLanes({
     scope,
-    viewer: viewerLaneSubject({ avatarUrl: viewerAvatarUrl }),
+    viewer: viewerLaneSubject({ avatarUrl: viewerAvatarUrl, userId: viewerUserId }),
     partner: partnerLaneSubject(activePartner),
   });
 }

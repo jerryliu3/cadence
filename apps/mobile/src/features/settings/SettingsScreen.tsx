@@ -32,6 +32,7 @@ import {
   uploadMobileProfileAvatar,
 } from "../../lib/profile/avatar-upload";
 import { buildMobileProfileQueryOptions } from "../social/mobile-profile-query";
+import { usePublicProfileSheet } from "../social/PublicProfileSheetProvider";
 
 interface NotificationSchedule {
   id: string;
@@ -48,6 +49,7 @@ interface NotificationPreferencesPayload {
 export function SettingsScreen() {
   const theme = useTheme();
   const { session, userId } = useSession();
+  const { openPublicProfile } = usePublicProfileSheet();
   const queryClient = useQueryClient();
   const [hour, setHour] = useState("18");
   const [message, setMessage] = useState<string | null>(null);
@@ -206,6 +208,12 @@ export function SettingsScreen() {
             displayName={profile.data?.display_name ?? null}
             username={profile.data?.username ?? null}
             size={48}
+            onPress={
+              userId
+                ? () => openPublicProfile(userId)
+                : undefined
+            }
+            accessibilityLabel="Open your profile"
           />
           <View style={{ gap: 4, flex: 1 }}>
             <Text

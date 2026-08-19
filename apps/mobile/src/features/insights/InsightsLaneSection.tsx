@@ -7,20 +7,29 @@ export function InsightsLaneSection({
   showHeading,
   headingLabel,
   headingAvatarUrl,
+  headingSubjectUserId,
   readOnly,
   tone,
   message,
   children,
+  onOpenProfile,
 }: {
   showHeading: boolean;
   headingLabel: string;
   headingAvatarUrl?: string | null;
+  headingSubjectUserId?: string | null;
   readOnly: boolean;
   tone?: "muted" | "destructive";
   message?: string;
   children?: ReactNode;
+  onOpenProfile?: (subjectUserId: string) => void;
 }) {
   const theme = useTheme();
+  const normalizedHeadingSubjectUserId = headingSubjectUserId?.trim() ?? "";
+  const canOpenProfile = normalizedHeadingSubjectUserId.length > 0 && onOpenProfile;
+  const handleAvatarPress = canOpenProfile
+    ? () => onOpenProfile?.(normalizedHeadingSubjectUserId)
+    : undefined;
   return (
     <View style={styles.section}>
       {showHeading ? (
@@ -30,6 +39,8 @@ export function InsightsLaneSection({
             displayName={headingLabel}
             username={null}
             size={24}
+            onPress={handleAvatarPress}
+            accessibilityLabel={`Open ${headingLabel} profile`}
           />
           <Text style={{ color: theme.colors.foreground, fontWeight: "700", fontSize: 24 }}>
             {headingLabel}

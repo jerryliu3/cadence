@@ -1,4 +1,11 @@
-import { Image, StyleSheet, Text, View } from "react-native";
+import {
+  Image,
+  Pressable,
+  type GestureResponderEvent,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import { useState } from "react";
 import { useTheme } from "../theme";
 
@@ -15,11 +22,15 @@ export function UserAvatar({
   displayName,
   username,
   size = 44,
+  onPress,
+  accessibilityLabel,
 }: {
   avatarUrl: string | null;
   displayName?: string | null;
   username?: string | null;
   size?: number;
+  onPress?: (event: GestureResponderEvent) => void;
+  accessibilityLabel?: string;
 }) {
   const theme = useTheme();
   const initials = getInitials(displayName, username);
@@ -29,7 +40,7 @@ export function UserAvatar({
   const [failedUrl, setFailedUrl] = useState<string | null>(null);
   const canRenderImage = normalizedUrl !== null && failedUrl !== normalizedUrl;
 
-  return (
+  const avatarNode = (
     <View
       style={[
         styles.root,
@@ -66,9 +77,29 @@ export function UserAvatar({
       )}
     </View>
   );
+
+  if (!onPress) {
+    return avatarNode;
+  }
+
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={
+        accessibilityLabel ?? `${displayName ?? username ?? "User"} profile`
+      }
+      onPress={onPress}
+      style={styles.pressable}
+    >
+      {avatarNode}
+    </Pressable>
+  );
 }
 
 const styles = StyleSheet.create({
+  pressable: {
+    borderRadius: 999,
+  },
   root: {
     borderRadius: 999,
     borderWidth: 1,

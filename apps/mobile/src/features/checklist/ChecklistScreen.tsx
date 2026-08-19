@@ -13,11 +13,13 @@ import {
 import { useTheme } from "../../theme";
 import { LoadingScreen, Screen } from "../../ui/screen";
 import { UserAvatar } from "../../ui/user-avatar";
+import { useSession } from "../../lib/session";
 import { useDuo, useDuoSurfaceScope } from "../duo/DuoProvider";
 import { DuoScopeSegmentedControl } from "../duo/DuoScopeSegmentedControl";
 import {
   useReportMobileDuoScopeViewed,
 } from "../duo/telemetry";
+import { usePublicProfileSheet } from "../social/PublicProfileSheetProvider";
 import {
   partnerLaneSubject,
   resolveMobileDuoLaneSubjects,
@@ -47,6 +49,8 @@ export function ChecklistScreen({
   plannerNavigation?: ReactNode;
 } = {}) {
   const theme = useTheme();
+  const { userId } = useSession();
+  const { openPublicProfile } = usePublicProfileSheet();
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [filters, setFilters] = useState<ChecklistVisibilityFilters>({
     showPastGoals: false,
@@ -70,7 +74,10 @@ export function ChecklistScreen({
   const viewerAvatarUrl = viewerAvatarQuery.data ?? null;
   const partnerId = activePartner?.partnerId ?? null;
   const partnerSubject = partnerLaneSubject(activePartner);
-  const viewerSubject = viewerLaneSubject({ avatarUrl: viewerAvatarUrl });
+  const viewerSubject = viewerLaneSubject({
+    avatarUrl: viewerAvatarUrl,
+    userId,
+  });
   const viewerLane = useChecklistLaneData({
     subject: viewerSubject,
     partnerId,
@@ -85,6 +92,7 @@ export function ChecklistScreen({
     scope,
     activePartner,
     viewerAvatarUrl,
+    viewerUserId: userId,
   });
   const useLanePager = shouldUseLanePager(lanes.length);
   const lanePageWidth = resolveLanePageWidth(viewportWidth);
@@ -202,6 +210,7 @@ export function ChecklistScreen({
 
     if (item.type === "lane_heading") {
       const lane = lanes.find((candidate) => candidate.id === item.laneId);
+      const subjectUserId = lane?.userId?.trim() ?? "";
       return (
         <View style={styles.headingRow}>
           <UserAvatar
@@ -209,6 +218,12 @@ export function ChecklistScreen({
             displayName={item.label}
             username={null}
             size={24}
+            onPress={
+              subjectUserId.length > 0
+                ? () => openPublicProfile(subjectUserId)
+                : undefined
+            }
+            accessibilityLabel={`Open ${item.label} profile`}
           />
           <Text style={{ color: theme.colors.foreground, fontWeight: "700", fontSize: 24 }}>
             {item.label}
