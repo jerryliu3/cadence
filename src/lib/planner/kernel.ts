@@ -59,7 +59,9 @@ import {
   type PlannerCompletionUnitIdentity,
 } from "@/lib/planner/reconciliation";
 import {
+  isTargetedRecurringGoal,
   normalizeGoalRequirement,
+  positiveTarget,
   type NormalizedGoalRequirement,
 } from "@/lib/planner/requirements";
 import { mapProjectedCoverageOrdinals } from "@/lib/planner/linked-source-coverage";
@@ -551,9 +553,9 @@ export function runPlannerKernel(
   for (const goal of eligibleGoals) {
     const targetCount =
       goal.frequency_type === "fixed_milestones"
-        ? Math.max(1, goal.target_count ?? 0)
-        : goal.target_count && goal.target_count > 0
-          ? goal.target_count
+        ? positiveTarget(goal)
+        : isTargetedRecurringGoal(goal)
+          ? positiveTarget(goal)
           : 0;
     if (targetCount > MAX_WORK_UNITS - ordinalUnitCount) {
       throw new PlannerError(
