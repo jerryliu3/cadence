@@ -66,7 +66,9 @@ describe("UserAvatar", () => {
       );
     });
 
-    const pressableNode = root.root.findByType("pressable");
+    const pressableNode = root.root.find(
+      (node) => node.props.onPress === onPress
+    );
     act(() => {
       pressableNode.props.onPress?.({});
     });
