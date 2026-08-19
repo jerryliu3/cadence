@@ -10,6 +10,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   createInvite: vi.fn(),
+  openPublicProfile: vi.fn(),
   rpc: vi.fn(),
   pendingInvite: null as null | {
     teamId: string;
@@ -110,6 +111,11 @@ vi.mock("../../ui/screen", async () => {
       ReactModule.createElement("Screen", null, children),
   };
 });
+vi.mock("./PublicProfileSheetProvider", () => ({
+  usePublicProfileSheet: () => ({
+    openPublicProfile: mocks.openPublicProfile,
+  }),
+}));
 
 import { SocialScreen } from "./SocialScreen";
 
@@ -120,6 +126,7 @@ function findHost(root: ReactTestInstance, type: string) {
 describe("SocialScreen Duo onboarding", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.openPublicProfile.mockReset();
     mocks.pendingInvite = null;
     mocks.activePartner = null;
     mocks.rpc.mockResolvedValue({

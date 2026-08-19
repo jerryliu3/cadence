@@ -6,6 +6,13 @@ import { UserAvatar } from "./user-avatar";
 vi.mock("react-native", () => ({
   Image: ({ onError }: { onError?: () => void }) =>
     React.createElement("image", { onError }),
+  Pressable: ({
+    children,
+    onPress,
+  }: {
+    children: React.ReactNode;
+    onPress?: (event: { stopPropagation?: () => void }) => void;
+  }) => React.createElement("pressable", { onPress }, children),
   Text: ({ children }: { children: React.ReactNode }) =>
     React.createElement("text", null, children),
   View: ({ children }: { children: React.ReactNode }) =>
@@ -43,5 +50,29 @@ describe("UserAvatar", () => {
 
     const textNodes = root.root.findAllByType("text");
     expect(textNodes.some((node) => String(node.props.children).includes("AL"))).toBe(true);
+  });
+
+  it("calls onPress when interactive avatar is pressed", () => {
+    let root!: ReactTestRenderer;
+    const onPress = vi.fn();
+    act(() => {
+      root = create(
+        <UserAvatar
+          avatarUrl={null}
+          displayName="Alex"
+          username={null}
+          onPress={onPress}
+        />
+      );
+    });
+
+    const pressableNode = root.root.find(
+      (node) => node.props.onPress === onPress
+    );
+    act(() => {
+      pressableNode.props.onPress?.({});
+    });
+
+    expect(onPress).toHaveBeenCalledTimes(1);
   });
 });

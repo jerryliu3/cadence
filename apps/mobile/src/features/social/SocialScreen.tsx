@@ -20,10 +20,12 @@ import {
   searchDuoPartners,
   type DuoPartnerSearchResult,
 } from "./duo-onboarding";
+import { usePublicProfileSheet } from "./PublicProfileSheetProvider";
 
 export function SocialScreen() {
   const theme = useTheme();
   const { userId } = useSession();
+  const { openPublicProfile } = usePublicProfileSheet();
   const duo = useDuo();
   const queryClient = useQueryClient();
   const [partnerSearchInput, setPartnerSearchInput] = useState("");
@@ -252,6 +254,12 @@ export function SocialScreen() {
     activePartner?.partnerDisplayName ?? activePartner?.partnerUsername ?? "Partner";
   const pendingLabel =
     pendingInvite?.partnerDisplayName ?? pendingInvite?.partnerUsername ?? "Partner";
+  const openProfileIfAvailable = (subjectUserId: string | null | undefined) => {
+    const normalizedSubjectUserId = subjectUserId?.trim() ?? "";
+    if (normalizedSubjectUserId.length > 0) {
+      openPublicProfile(normalizedSubjectUserId);
+    }
+  };
 
   return (
     <Screen title="Community">
@@ -262,6 +270,8 @@ export function SocialScreen() {
             displayName={viewerProfile.data?.display_name ?? null}
             username={viewerProfile.data?.username ?? null}
             size={42}
+            onPress={() => openProfileIfAvailable(viewerProfile.data?.id)}
+            accessibilityLabel="Open your profile"
           />
           <View style={{ gap: 2 }}>
             <Text
@@ -286,6 +296,8 @@ export function SocialScreen() {
               displayName={activePartner.partnerDisplayName}
               username={activePartner.partnerUsername}
               size={38}
+              onPress={() => openProfileIfAvailable(activePartner.partnerId)}
+              accessibilityLabel={`Open ${partnerLabel} profile`}
             />
             <Text
               style={{ color: theme.colors.foreground, fontWeight: "700", fontSize: 22 }}
@@ -371,6 +383,8 @@ export function SocialScreen() {
               displayName={incomingInvite.partnerDisplayName}
               username={incomingInvite.partnerUsername}
               size={38}
+              onPress={() => openProfileIfAvailable(incomingInvite.partnerId)}
+              accessibilityLabel={`Open ${pendingLabel} profile`}
             />
             <Text
               style={{ color: theme.colors.foreground, fontWeight: "700", fontSize: 22 }}
@@ -418,6 +432,8 @@ export function SocialScreen() {
               displayName={outgoingInvite.partnerDisplayName}
               username={outgoingInvite.partnerUsername}
               size={38}
+              onPress={() => openProfileIfAvailable(outgoingInvite.partnerId)}
+              accessibilityLabel={`Open ${pendingLabel} profile`}
             />
             <Text
               style={{ color: theme.colors.foreground, fontWeight: "700", fontSize: 22 }}
@@ -485,6 +501,11 @@ export function SocialScreen() {
                     displayName={profile.display_name}
                     username={profile.username}
                     size={34}
+                    onPress={(event) => {
+                      event.stopPropagation?.();
+                      openProfileIfAvailable(profile.id);
+                    }}
+                    accessibilityLabel={`Open @${profile.username} profile`}
                   />
                   <View>
                     <Text
