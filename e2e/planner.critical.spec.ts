@@ -179,6 +179,7 @@ async function ensureCalendarEntryAvailable(page: Page, maxMonthJumps = 12) {
     }
   }
 
+  // Some CI seeds can yield empty future windows for this account.
   return null;
 }
 
