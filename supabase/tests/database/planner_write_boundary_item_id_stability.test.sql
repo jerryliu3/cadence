@@ -107,13 +107,32 @@ insert into tmp_item_id_stability (
   gamma_id,
   outside_id
 )
-select
-  max(case when unit_key = 'unit:alpha' then id end) as alpha_id,
-  max(case when unit_key = 'unit:beta' then id end) as beta_id,
-  max(case when unit_key = 'unit:gamma' then id end) as gamma_id,
-  max(case when unit_key = 'unit:outside' then id end) as outside_id
-from public.planner_items
-where goal_id = '91900000-0000-4000-8000-000000000001';
+values (
+  (
+    select id
+    from public.planner_items
+    where goal_id = '91900000-0000-4000-8000-000000000001'
+      and unit_key = 'unit:alpha'
+  ),
+  (
+    select id
+    from public.planner_items
+    where goal_id = '91900000-0000-4000-8000-000000000001'
+      and unit_key = 'unit:beta'
+  ),
+  (
+    select id
+    from public.planner_items
+    where goal_id = '91900000-0000-4000-8000-000000000001'
+      and unit_key = 'unit:gamma'
+  ),
+  (
+    select id
+    from public.planner_items
+    where goal_id = '91900000-0000-4000-8000-000000000001'
+      and unit_key = 'unit:outside'
+  )
+);
 
 reset role;
 set local role authenticated;
