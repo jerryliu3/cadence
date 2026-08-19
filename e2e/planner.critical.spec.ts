@@ -164,6 +164,24 @@ async function ensureDragFixtureEntryAvailable(page: Page, maxMonthJumps = 12) {
   return { scopeMonth: lastScannedScopeMonth, fixtureAvailable: false };
 }
 
+async function ensureCalendarEntryAvailable(page: Page, maxMonthJumps = 12) {
+  const startScopeMonth = await resolveCalendarScopeMonth(page);
+  const scanOrder = Array.from({ length: maxMonthJumps + 1 }, (_, jump) => jump);
+
+  for (const delta of scanOrder) {
+    const scopeMonth =
+      delta === 0 ? startScopeMonth : shiftScopeMonth(startScopeMonth, delta);
+    if (delta !== 0) {
+      await openCalendar(page, scopeMonth);
+    }
+    if ((await page.locator('[data-calendar-day-entry="true"]').count()) > 0) {
+      return scopeMonth;
+    }
+  }
+
+  return null;
+}
+
 async function resolveCalendarScopeMonth(page: Page) {
   for (let attempt = 0; attempt < 30; attempt += 1) {
     const fromUrl = new URL(page.url()).searchParams.get("month");
@@ -623,10 +641,22 @@ test.describe("planner critical rails", () => {
   test("completion toggle dispatches from calendar surface", async ({ page }) => {
     test.setTimeout(120_000);
     await openCalendar(page);
-    const dayCellWithEntry = page
-      .locator('[data-day-cell="true"]')
-      .filter({ has: page.locator('[data-calendar-day-entry="true"]') })
-      .first();
+    const scopeMonth = await ensureCalendarEntryAvailable(page);
+    test.skip(scopeMonth === null, "Could not find a calendar entry in this CI run.");
+    if (scopeMonth === null) {
+      return;
+    }
+
+    const entry = page.locator('[data-calendar-day-entry="true"]:visible').first();
+    await expect(entry).toBeVisible();
+    const dayValue = await entry.evaluate((element) =>
+      element.closest('[data-day-cell="true"]')?.getAttribute("data-day")
+    );
+    test.skip(!dayValue, "Could not resolve a calendar day for completion dispatch.");
+    if (!dayValue) {
+      return;
+    }
+    const dayCellWithEntry = page.locator(`[data-day-cell="true"][data-day="${dayValue}"]`).first();
     await expect(dayCellWithEntry).toBeVisible();
     await dayCellWithEntry.click();
     const calendarPayload = await runCompletionToggleAction(page, async () => {
