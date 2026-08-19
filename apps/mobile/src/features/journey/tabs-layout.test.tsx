@@ -66,6 +66,12 @@ vi.mock("../duo/DuoProvider", () => ({
   ),
 }));
 
+vi.mock("../social/PublicProfileSheetProvider", () => ({
+  PublicProfileSheetProvider: ({ children }: { children: ReactNode }) => (
+    <View testID="public-profile-provider">{children}</View>
+  ),
+}));
+
 vi.mock("./JourneyProvider.native", () => ({
   JourneyProvider: ({ children }: { children: ReactNode }) => (
     <View testID="journey-provider">{children}</View>
