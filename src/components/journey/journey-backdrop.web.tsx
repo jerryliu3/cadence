@@ -17,6 +17,7 @@ import { JourneyContrastLayer } from "./journey-contrast-layer";
 import { RiveJourneyOverlay } from "./rive-journey-overlay.web";
 import { StaticJourneyPoster } from "./static-journey-poster.web";
 import type { JourneyFeatureFlags } from "./types";
+import { useJourneyManifest } from "./use-journey-manifest.web";
 import { WebJourneyVideo } from "./web-journey-video";
 
 const JOURNEY_ASSET_VERSION = defaultJourneyAssetManifest.assetVersion;
@@ -66,14 +67,14 @@ export function JourneyBackdrop({ flags }: JourneyBackdropProps) {
   const reducedMotion = Boolean(useReducedMotion());
   const hidden = useDocumentVisibility();
   const { profile } = useXpProfile();
-  const [videoReady, setVideoReady] = useState(false);
-  const [videoFailed, setVideoFailed] = useState(false);
+  const [readySourceUrl, setReadySourceUrl] = useState<string | null>(null);
+  const [failedSourceUrl, setFailedSourceUrl] = useState<string | null>(null);
   const [latestEffectEvent, setLatestEffectEvent] =
     useState<JourneyEffectEvent | null>(null);
   const consumedEffectIdsRef = useRef(new Set<string>());
   const previousCheckpointRef = useRef<number | null>(null);
-  const manifest = defaultJourneyAssetManifest;
-  const manifestSource = "bundled";
+  const { manifest, source: manifestSource } =
+    useJourneyManifest(JOURNEY_ASSET_VERSION);
 
   const progressState = useMemo(
     () =>
@@ -104,8 +105,23 @@ export function JourneyBackdrop({ flags }: JourneyBackdropProps) {
     [manifest, progressState.biome]
   );
 
-  const showVideo = renderPolicy.videoEnabled && !renderPolicy.lifecyclePaused && !videoFailed;
-  const showPoster = !showVideo || !videoReady;
+  const sceneVideoUrls = useMemo(
+    () =>
+      [
+        activeScene.video.desktop[0]?.url ?? null,
+        activeScene.video.mobile[0]?.url ?? null,
+      ].filter((url): url is string => Boolean(url)),
+    [activeScene.video.desktop, activeScene.video.mobile]
+  );
+
+  const sceneSourceFailed =
+    failedSourceUrl !== null && sceneVideoUrls.includes(failedSourceUrl);
+  const sceneSourceReady =
+    readySourceUrl !== null && sceneVideoUrls.includes(readySourceUrl);
+
+  const showVideo =
+    renderPolicy.videoEnabled && !renderPolicy.lifecyclePaused && !sceneSourceFailed;
+  const showPoster = !showVideo || !sceneSourceReady;
   const contrastOpacity =
     renderPolicy.motionMode === "still" ? Math.min(0.65, activeScene.scrim.opacity + 0.12) : activeScene.scrim.opacity;
 
@@ -146,8 +162,8 @@ export function JourneyBackdrop({ flags }: JourneyBackdropProps) {
         mobileSources={activeScene.video.mobile}
         enabled={showVideo}
         paused={renderPolicy.lifecyclePaused}
-        onReady={() => setVideoReady(true)}
-        onError={() => setVideoFailed(true)}
+        onReady={(sourceUrl) => setReadySourceUrl(sourceUrl)}
+        onError={(sourceUrl) => setFailedSourceUrl(sourceUrl)}
       />
       <JourneyContrastLayer
         opacity={contrastOpacity}

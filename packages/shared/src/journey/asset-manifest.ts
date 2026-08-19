@@ -92,23 +92,23 @@ function defaultSceneAsset(
   biome: JourneyBiome,
   fallbackSceneId: string | null
 ): JourneySceneAsset {
-  const base = `https://cdn.cadence.app/journey/v1/${biome}`;
+  const base = "https://namwwojtboxpaawwuwzt.supabase.co/storage/v1/object/public/journey-assets/v1/basecamp";
   return {
     id: `${biome}-v1`,
     version: "v1",
     biome,
     poster: {
       mobile: {
-        url: `${base}/poster-mobile.webp`,
-        mimeType: "image/webp",
-        width: 1080,
-        height: 1920,
+        url: `${base}/poster-mobile.jpeg`,
+        mimeType: "image/jpeg",
+        width: 2752,
+        height: 1536,
       },
       desktop: {
-        url: `${base}/poster-desktop.webp`,
-        mimeType: "image/webp",
-        width: 1920,
-        height: 1080,
+        url: `${base}/poster-desktop.jpeg`,
+        mimeType: "image/jpeg",
+        width: 2752,
+        height: 1536,
       },
     },
     video: {
@@ -116,16 +116,16 @@ function defaultSceneAsset(
         {
           url: `${base}/loop-mobile.mp4`,
           mimeType: "video/mp4",
-          width: 1080,
-          height: 1920,
+          width: 3604,
+          height: 2004,
         },
       ],
       desktop: [
         {
           url: `${base}/loop-desktop.mp4`,
           mimeType: "video/mp4",
-          width: 1920,
-          height: 1080,
+          width: 3604,
+          height: 2004,
         },
       ],
     },
