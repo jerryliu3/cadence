@@ -321,7 +321,14 @@ jobs:
             ${{ runner.os }}-playwright-
 
       - name: Install Playwright Chromium browser
-        run: pnpm exec playwright install --with-deps chromium
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Avoid long apt stalls on GH runners; fall back to browser-only install.
+          if ! timeout 8m pnpm exec playwright install --with-deps chromium; then
+            echo "Playwright --with-deps timed out or failed; retrying without system deps."
+            pnpm exec playwright install chromium
+          fi
 
       - name: Run Chromium + API E2E smoke
         shell: bash
