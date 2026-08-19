@@ -123,7 +123,7 @@ export function AppShell({
                 )}
               </div>
             </div>
-            <div className="md:hidden" style={{ viewTransitionName: "app-mobile-tab-nav" }}>
+            <div className="relative z-50 md:hidden" style={{ viewTransitionName: "app-mobile-tab-nav" }}>
               <TabNav
                 mobile
                 plannerPrimaryTabPreference={plannerPrimaryTabPreference}
