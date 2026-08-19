@@ -86,6 +86,7 @@ export function SocialTab() {
   return (
     <div className="space-y-5">
       <ProfileSection
+        userId={state.userId}
         profile={state.profile}
         profileDraft={profileDraft}
         authEmail={authEmail}

@@ -21,6 +21,7 @@ interface ProfileDraft {
 }
 
 interface ProfileSectionProps {
+  userId: string;
   profile: Profile | null;
   profileDraft: ProfileDraft;
   authEmail: string;
@@ -32,6 +33,7 @@ interface ProfileSectionProps {
 }
 
 export function ProfileSection({
+  userId,
   profile,
   profileDraft,
   authEmail,
@@ -42,6 +44,7 @@ export function ProfileSection({
   onUploadAvatar,
 }: ProfileSectionProps) {
   const avatarPreviewUrl = profileDraft.avatar_url.trim();
+  const profileSubjectUserId = profile?.id ?? userId;
   const avatarInputRef = useRef<HTMLInputElement | null>(null);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
@@ -57,7 +60,7 @@ export function ProfileSection({
             avatarUrl={avatarPreviewUrl || null}
             displayName={profileDraft.display_name || profile?.display_name || null}
             username={profileDraft.username || profile?.username || null}
-            profileSubjectUserId={profile?.id ?? null}
+            profileSubjectUserId={profileSubjectUserId}
             alt="Profile avatar preview"
           />
           <div className="space-y-2">
