@@ -58,6 +58,9 @@ vi.mock("@/lib/planner/kernel", () => ({
 
 import { POST } from "./route";
 
+const DRAFT_GOAL_ID = "22222222-2222-4222-8222-222222222222";
+const DRAFT_ITEM_ID = "44444444-4444-4444-8444-444444444444";
+
 describe("planner context preview route", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -145,6 +148,37 @@ describe("planner context preview route", () => {
   });
 
   it("threads solve intent and draft pins into the kernel", async () => {
+    mocks.loadPlannerCanonicalSnapshot.mockResolvedValueOnce({
+      goals: [],
+      completions: [],
+      links: [],
+      revisions: {
+        canonicalRevision: 0,
+        executionRevision: 0,
+      },
+      preferences: {
+        timezone: "UTC",
+        default_policy: createDefaultPlannerPolicy(
+          "UTC",
+          "2026-08-01T00:00:00.000Z"
+        ),
+      },
+      activePlan: {
+        goals: [
+          {
+            id: DRAFT_GOAL_ID,
+            original_goal_id: DRAFT_GOAL_ID,
+          },
+        ],
+        items: [
+          {
+            id: DRAFT_ITEM_ID,
+            plan_goal_id: DRAFT_GOAL_ID,
+            unit_key: "total:1",
+          },
+        ],
+      },
+    });
     mocks.parseBoundedJsonBody.mockResolvedValueOnce({
       startDate: "2026-08-01",
       endDate: "2026-08-31",
@@ -157,7 +191,8 @@ describe("planner context preview route", () => {
           id: "11111111-1111-4111-8111-111111111111",
           sequence: 1,
           kind: "move_item",
-          goalId: "22222222-2222-4222-8222-222222222222",
+          itemId: DRAFT_ITEM_ID,
+          goalId: DRAFT_GOAL_ID,
           unitKey: "total:1",
           scheduledDate: "2026-08-20",
           sourceDate: "2026-08-01",
@@ -177,7 +212,7 @@ describe("planner context preview route", () => {
         solveIntent: "replan",
         preserveExistingAssignments: false,
         draftPinnedDates: {
-          "22222222-2222-4222-8222-222222222222:total:1": "2026-08-20",
+          [`${DRAFT_GOAL_ID}:total:1`]: "2026-08-20",
         },
       })
     );
@@ -318,6 +353,37 @@ describe("planner context preview route", () => {
   });
 
   it("rejects a preview that did not honor a draft pin", async () => {
+    mocks.loadPlannerCanonicalSnapshot.mockResolvedValueOnce({
+      goals: [],
+      completions: [],
+      links: [],
+      revisions: {
+        canonicalRevision: 0,
+        executionRevision: 0,
+      },
+      preferences: {
+        timezone: "UTC",
+        default_policy: createDefaultPlannerPolicy(
+          "UTC",
+          "2026-08-01T00:00:00.000Z"
+        ),
+      },
+      activePlan: {
+        goals: [
+          {
+            id: DRAFT_GOAL_ID,
+            original_goal_id: DRAFT_GOAL_ID,
+          },
+        ],
+        items: [
+          {
+            id: DRAFT_ITEM_ID,
+            plan_goal_id: DRAFT_GOAL_ID,
+            unit_key: "total:1",
+          },
+        ],
+      },
+    });
     mocks.parseBoundedJsonBody.mockResolvedValueOnce({
       startDate: "2026-08-01",
       endDate: "2026-08-31",
@@ -329,7 +395,8 @@ describe("planner context preview route", () => {
           id: "11111111-1111-4111-8111-111111111111",
           sequence: 1,
           kind: "move_item",
-          goalId: "22222222-2222-4222-8222-222222222222",
+          itemId: DRAFT_ITEM_ID,
+          goalId: DRAFT_GOAL_ID,
           unitKey: "total:1",
           scheduledDate: "2026-08-20",
           sourceDate: "2026-08-01",
@@ -339,7 +406,7 @@ describe("planner context preview route", () => {
     mocks.runPlannerKernel.mockReturnValueOnce({
       workUnits: [
         {
-          originalGoalId: "22222222-2222-4222-8222-222222222222",
+          originalGoalId: DRAFT_GOAL_ID,
           unitKey: "total:1",
           scheduledDate: "2026-08-06",
           creditState: "uncredited",
@@ -358,7 +425,7 @@ describe("planner context preview route", () => {
       details: {
         violations: [
           {
-            goalId: "22222222-2222-4222-8222-222222222222",
+            goalId: DRAFT_GOAL_ID,
             unitKey: "total:1",
             expectedDate: "2026-08-20",
             actualDate: "2026-08-06",

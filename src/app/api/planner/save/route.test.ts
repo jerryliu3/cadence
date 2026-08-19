@@ -409,6 +409,7 @@ describe("planner save route", () => {
           id: "33333333-3333-4333-8333-333333333333",
           sequence: 1,
           kind: "move_item",
+          itemId: "44444444-4444-4444-8444-444444444444",
           goalId,
           unitKey: "milestone:1",
           sourceDate: "2026-08-10",
@@ -477,7 +478,7 @@ describe("planner save route", () => {
         ),
       },
       activePlan: {
-        goals: [{ id: goalId, original_goal_id: goalId }],
+        goals: [],
         items: [
           {
             id: "44444444-4444-4444-8444-444444444444",
@@ -517,6 +518,7 @@ describe("planner save route", () => {
           id: "33333333-3333-4333-8333-333333333333",
           sequence: 1,
           kind: "set_item_time_override",
+          itemId: "44444444-4444-4444-8444-444444444444",
           goalId,
           unitKey: "milestone:1",
           localTime: "07:15",
@@ -695,6 +697,32 @@ describe("planner save route", () => {
   // direct path applies moves without re-solving, so the policy the preview
   // reflected would be silently dropped from the saved schedule.
   it("routes a mixed policy and move payload through the kernel, not direct persistence", async () => {
+    const goalId = "22222222-2222-4222-8222-222222222222";
+    mocks.loadPlannerCanonicalSnapshot.mockResolvedValueOnce({
+      goals: [],
+      completions: [],
+      links: [],
+      revisions: { canonicalRevision: 0, executionRevision: 0 },
+      preferences: {
+        timezone: "UTC",
+        timezone_confirmed_at: "2026-08-01T00:00:00.000Z",
+        policy_revision: 1,
+        default_policy: createDefaultPlannerPolicy(
+          "UTC",
+          "2026-08-01T00:00:00.000Z"
+        ),
+      },
+      activePlan: {
+        goals: [],
+        items: [
+          {
+            id: "44444444-4444-4444-8444-444444444444",
+            plan_goal_id: goalId,
+            unit_key: "milestone:1",
+          },
+        ],
+      },
+    });
     mocks.parseBoundedJsonBody.mockResolvedValueOnce({
       expectedDigest:
         "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
@@ -709,7 +737,8 @@ describe("planner save route", () => {
           id: "33333333-3333-4333-8333-333333333333",
           sequence: 1,
           kind: "move_item",
-          goalId: "22222222-2222-4222-8222-222222222222",
+          itemId: "44444444-4444-4444-8444-444444444444",
+          goalId,
           unitKey: "milestone:1",
           sourceDate: "2026-08-10",
           scheduledDate: "2026-08-20",
@@ -739,6 +768,32 @@ describe("planner save route", () => {
   });
 
   it("keeps a move-only payload on the direct path so no solve runs", async () => {
+    const goalId = "22222222-2222-4222-8222-222222222222";
+    mocks.loadPlannerCanonicalSnapshot.mockResolvedValueOnce({
+      goals: [],
+      completions: [],
+      links: [],
+      revisions: { canonicalRevision: 0, executionRevision: 0 },
+      preferences: {
+        timezone: "UTC",
+        timezone_confirmed_at: "2026-08-01T00:00:00.000Z",
+        policy_revision: 1,
+        default_policy: createDefaultPlannerPolicy(
+          "UTC",
+          "2026-08-01T00:00:00.000Z"
+        ),
+      },
+      activePlan: {
+        goals: [{ id: goalId, original_goal_id: goalId }],
+        items: [
+          {
+            id: "44444444-4444-4444-8444-444444444444",
+            plan_goal_id: goalId,
+            unit_key: "milestone:1",
+          },
+        ],
+      },
+    });
     mocks.parseBoundedJsonBody.mockResolvedValueOnce({
       expectedDigest:
         "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
@@ -752,7 +807,8 @@ describe("planner save route", () => {
           id: "33333333-3333-4333-8333-333333333333",
           sequence: 1,
           kind: "move_item",
-          goalId: "22222222-2222-4222-8222-222222222222",
+          itemId: "44444444-4444-4444-8444-444444444444",
+          goalId,
           unitKey: "milestone:1",
           sourceDate: "2026-08-10",
           scheduledDate: "2026-08-20",
