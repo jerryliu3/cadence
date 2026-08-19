@@ -42,6 +42,12 @@ export interface JourneyAssetManifest {
   scenes: JourneySceneAsset[];
 }
 
+export interface JourneyActiveManifestPointer {
+  schemaVersion: 1;
+  assetVersion: string;
+  manifestUrl: string;
+}
+
 const assetSourceSchema = z.object({
   url: z.string().url(),
   mimeType: z.string().min(1),
@@ -86,6 +92,12 @@ const journeyAssetManifestSchema = z.object({
   assetVersion: z.string().min(1),
   expiresAt: z.string().datetime().nullable(),
   scenes: z.array(journeySceneAssetSchema).min(1),
+});
+
+const journeyActiveManifestPointerSchema = z.object({
+  schemaVersion: z.literal(1),
+  assetVersion: z.string().min(1),
+  manifestUrl: z.string().url(),
 });
 
 function defaultSceneAsset(
@@ -159,6 +171,13 @@ export function parseJourneyAssetManifest(
   value: unknown
 ): JourneyAssetManifest | null {
   const parsed = journeyAssetManifestSchema.safeParse(value);
+  return parsed.success ? parsed.data : null;
+}
+
+export function parseJourneyActiveManifestPointer(
+  value: unknown
+): JourneyActiveManifestPointer | null {
+  const parsed = journeyActiveManifestPointerSchema.safeParse(value);
   return parsed.success ? parsed.data : null;
 }
 

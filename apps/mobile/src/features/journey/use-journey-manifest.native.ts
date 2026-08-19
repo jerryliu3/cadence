@@ -2,12 +2,14 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useEffect, useState } from "react";
 import {
   defaultJourneyAssetManifest,
+  parseJourneyActiveManifestPointer,
   parseJourneyAssetManifest,
   type JourneyAssetManifest,
 } from "@cadence/shared/journey";
 import { api } from "../../lib/api";
 
-const CACHE_KEY_PREFIX = "journey.manifest.lkg.";
+const ACTIVE_POINTER_PATH = "/journey/active.json";
+const ACTIVE_CACHE_KEY = "journey.manifest.lkg.active";
 
 interface ManifestResolution {
   assetVersion: string;
@@ -15,22 +17,17 @@ interface ManifestResolution {
   source: "bundled" | "remote" | "lkg";
 }
 
-function cacheKey(assetVersion: string) {
-  return `${CACHE_KEY_PREFIX}${assetVersion}`;
-}
-
-export function useJourneyManifest(assetVersion: string): ManifestResolution {
+export function useJourneyManifest(): ManifestResolution {
   const [resolution, setResolution] = useState<ManifestResolution>({
-    assetVersion,
+    assetVersion: defaultJourneyAssetManifest.assetVersion,
     manifest: defaultJourneyAssetManifest,
     source: "bundled",
   });
 
   useEffect(() => {
     let cancelled = false;
-    const key = cacheKey(assetVersion);
 
-    void AsyncStorage.getItem(key)
+    void AsyncStorage.getItem(ACTIVE_CACHE_KEY)
       .then((raw) => {
         if (cancelled || !raw) {
           return;
@@ -45,7 +42,7 @@ export function useJourneyManifest(assetVersion: string): ManifestResolution {
           return;
         }
         setResolution({
-          assetVersion,
+          assetVersion: parsed.assetVersion,
           manifest: parsed,
           source: "lkg",
         });
@@ -55,20 +52,33 @@ export function useJourneyManifest(assetVersion: string): ManifestResolution {
       });
 
     void api
-      .getJson<unknown>(`/journey-assets/${assetVersion}/manifest.json`)
-      .then((body) => {
+      .getJson<unknown>(ACTIVE_POINTER_PATH)
+      .then((pointerBody) => {
         if (cancelled) {
           return;
         }
-        const parsed = parseJourneyAssetManifest(body);
-        if (!parsed) {
+        const pointer = parseJourneyActiveManifestPointer(pointerBody);
+        if (!pointer) {
           return;
         }
-        void AsyncStorage.setItem(key, JSON.stringify(parsed));
-        setResolution({
-          assetVersion,
-          manifest: parsed,
-          source: "remote",
+
+        return fetch(pointer.manifestUrl, {
+          method: "GET",
+        }).then(async (response) => {
+          if (!response.ok || cancelled) {
+            return;
+          }
+          const manifestBody = (await response.json()) as unknown;
+          const parsed = parseJourneyAssetManifest(manifestBody);
+          if (!parsed || parsed.assetVersion !== pointer.assetVersion || cancelled) {
+            return;
+          }
+          void AsyncStorage.setItem(ACTIVE_CACHE_KEY, JSON.stringify(parsed));
+          setResolution({
+            assetVersion: parsed.assetVersion,
+            manifest: parsed,
+            source: "remote",
+          });
         });
       })
       .catch(() => {
@@ -78,14 +88,7 @@ export function useJourneyManifest(assetVersion: string): ManifestResolution {
     return () => {
       cancelled = true;
     };
-  }, [assetVersion]);
+  }, []);
 
-  if (resolution.assetVersion !== assetVersion) {
-    return {
-      assetVersion,
-      manifest: defaultJourneyAssetManifest,
-      source: "bundled",
-    };
-  }
   return resolution;
 }

@@ -9,7 +9,6 @@ import { useQuery } from "@tanstack/react-query";
 import {
   createJourneyEffectEvent,
   consumeJourneyEffectEvent,
-  defaultJourneyAssetManifest,
   deriveJourneyProgressState,
   resolveJourneyRenderPolicy,
   resolveJourneySceneAsset,
@@ -33,8 +32,6 @@ interface XpProfileResponse {
   };
 }
 
-const JOURNEY_ASSET_VERSION = defaultJourneyAssetManifest.assetVersion;
-
 export function JourneyProvider({ children }: { children: ReactNode }) {
   const runtime = useMobileRuntimeConfig();
   const lifecyclePaused = useJourneyLifecyclePause();
@@ -45,8 +42,7 @@ export function JourneyProvider({ children }: { children: ReactNode }) {
 
   const flags = runtime.data?.flags;
   const journeyEnabled = Boolean(flags?.journeyEnabled);
-  const assetVersion = JOURNEY_ASSET_VERSION;
-  const { manifest, source: manifestSource } = useJourneyManifest(assetVersion);
+  const { assetVersion, manifest, source: manifestSource } = useJourneyManifest();
   const [latestEffectEvent, setLatestEffectEvent] =
     useState<JourneyEffectEvent | null>(null);
   const consumedEffectIdsRef = useRef(new Set<string>());
