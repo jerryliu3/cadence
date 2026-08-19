@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions, pg_catalog;
-select plan(15);
+select plan(20);
 
 set local role service_role;
 
@@ -103,6 +103,67 @@ select is(
   'three credited completions plus one achievement yield 160 xp on health track'
 );
 
+select is(
+  (
+    select count(*)
+    from public.xp_ledger l
+    where l.user_id = '11111111-1111-4111-8111-111111111111'
+      and l.goal_id = 'b3400000-0000-4000-8000-000000000001'
+      and l.event_type = 'completion_credit'
+      and l.entry_kind = 'award'
+  ),
+  3::bigint,
+  'three credited completions emit three completion-credit award rows'
+);
+
+select is(
+  (
+    select count(distinct l.completion_id)
+    from public.xp_ledger l
+    where l.user_id = '11111111-1111-4111-8111-111111111111'
+      and l.goal_id = 'b3400000-0000-4000-8000-000000000001'
+      and l.event_type = 'completion_credit'
+      and l.entry_kind = 'award'
+  ),
+  3::bigint,
+  'completion-credit award rows are one-to-one with completion events'
+);
+
+select ok(
+  not exists (
+    select 1
+    from public.xp_ledger l
+    where l.user_id = '11111111-1111-4111-8111-111111111111'
+      and l.goal_id = 'b3400000-0000-4000-8000-000000000001'
+      and l.event_type = 'completion_credit'
+      and l.source_key !~ '^completion:[0-9a-fA-F-]{36}$'
+  ),
+  'completion-credit rows use completion-event source keys'
+);
+
+select lives_ok(
+  $tap$
+    select public.mark_goal_complete(
+      'b3400000-0000-4000-8000-000000000001',
+      current_date
+    );
+  $tap$,
+  'duplicate same-day mark is accepted as idempotent'
+);
+
+select is(
+  (
+    select count(*)
+    from public.xp_ledger l
+    where l.user_id = '11111111-1111-4111-8111-111111111111'
+      and l.goal_id = 'b3400000-0000-4000-8000-000000000001'
+      and l.event_type = 'completion_credit'
+      and l.entry_kind = 'award'
+  ),
+  3::bigint,
+  'same-day duplicate mark does not add completion-credit rows'
+);
+
 select ok(
   exists(
     select 1
@@ -151,6 +212,18 @@ select ok(
 
 reset role;
 set local role service_role;
+
+select is(
+  (
+    select public.recompute_goal_xp_service(
+      '11111111-1111-4111-8111-111111111111',
+      'b3400000-0000-4000-8000-000000000001',
+      false
+    )
+  ),
+  0,
+  'recompute rerun is idempotent when no completion facts changed'
+);
 
 select ok(
   position(
