@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { XpProgressBar } from "@/components/xp/xp-progress-bar";
+import { bandForTotalXp } from "@/lib/xp/altitude";
 
 const useXpProfileMock = vi.hoisted(() => vi.fn());
 
@@ -20,14 +21,10 @@ describe("XpProgressBar", () => {
         xpToNextLevel: 180,
       },
       rewardSequence: 0,
-      band: {
-        id: "foothills",
-        name: "Foothills",
-      },
     });
 
     const { container } = render(<XpProgressBar />);
-    expect(screen.getByText("Foothills")).toBeInTheDocument();
+    expect(screen.getByText(bandForTotalXp(320).name)).toBeInTheDocument();
     expect(screen.getByText("Lv 2 · 220 XP")).toBeInTheDocument();
     expect(screen.getByText("220 / 400 XP to Lv 3")).toBeInTheDocument();
     expect(

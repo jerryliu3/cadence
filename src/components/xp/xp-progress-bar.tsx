@@ -15,7 +15,7 @@ export function XpProgressBar() {
       profile={profile}
       rewardSequence={rewardSequence}
       href="/achievements"
-      aria-label="Open achievements and XP details"
+      ariaLabel="Open achievements and XP details"
     />
   );
 }
