@@ -3,6 +3,7 @@
 import { format, parseISO } from "date-fns";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { PublicProfileTrigger } from "@/components/public-profile-trigger";
 import { Card, CardContent } from "@/components/ui/card";
 import { UserAvatar } from "@/components/user-avatar";
 import { toLocalDateString } from "@/lib/dates/day";
@@ -76,12 +77,15 @@ export function PartnerChecklistStrip({
   return (
     <Card className="shadow-sm">
       <CardContent className="flex flex-wrap items-center justify-between gap-4 py-3">
-        <div className="flex min-w-0 items-center gap-3">
+        <PublicProfileTrigger
+          subjectUserId={partner.partnerId}
+          buttonLabel={`Open ${partnerName} profile`}
+          className="-ml-1.5 flex min-w-0 items-center gap-3"
+        >
           <UserAvatar
             avatarUrl={partner.partnerAvatarUrl}
             displayName={partner.partnerDisplayName}
             username={partner.partnerUsername}
-            profileSubjectUserId={partner.partnerId}
             size="sm"
             alt={`${partnerName} avatar`}
           />
@@ -97,7 +101,7 @@ export function PartnerChecklistStrip({
                     } on ${format(parseISO(viewDate), "MMM d")} · ${state.goalCount} goals`}
             </p>
           </div>
-        </div>
+        </PublicProfileTrigger>
         <Button
           type="button"
           variant="outline"

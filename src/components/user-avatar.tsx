@@ -60,7 +60,7 @@ export function UserAvatar({
   return (
     <button
       type="button"
-      className="cursor-pointer rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className="cursor-pointer rounded-full p-0.5 transition-colors hover:bg-muted/50 active:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       aria-label={resolvedButtonLabel}
       onClick={() => {
         onClick?.();

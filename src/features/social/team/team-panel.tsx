@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { PublicProfileTrigger } from "@/components/public-profile-trigger";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -119,12 +120,15 @@ export function TeamPanel() {
         <CardContent>
           {activeTeam ? (
             <div className="space-y-2">
-              <div className="flex items-center gap-3 rounded border border-border bg-muted/20 px-3 py-3">
+              <PublicProfileTrigger
+                subjectUserId={activeTeam.partnerId}
+                buttonLabel={`Open ${activeTeam.partnerDisplayName ?? activeTeam.partnerUsername ?? "partner"} profile`}
+                className="flex items-center gap-3 rounded border border-border bg-muted/20 px-3 py-3"
+              >
                 <UserAvatar
                   avatarUrl={activeTeam.partnerAvatarUrl}
                   displayName={activeTeam.partnerDisplayName}
                   username={activeTeam.partnerUsername}
-                  profileSubjectUserId={activeTeam.partnerId}
                   size="sm"
                   alt="Partner avatar"
                 />
@@ -138,7 +142,7 @@ export function TeamPanel() {
                     Team partner
                   </p>
                 </div>
-              </div>
+              </PublicProfileTrigger>
               <TeamXpSummary totalXp={activeTeam.teamXp ?? 0} />
               <Input
                 value={nudgeMessage}
