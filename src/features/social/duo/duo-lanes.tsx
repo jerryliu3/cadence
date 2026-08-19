@@ -7,6 +7,7 @@ import {
   type DuoLaneSubject,
   type DuoScope,
 } from "@cadence/shared/social/duo";
+import { PublicProfileTrigger } from "@/components/public-profile-trigger";
 import { UserAvatar } from "@/components/user-avatar";
 export type { DuoLaneSubject, DuoScope } from "@cadence/shared/social/duo";
 
@@ -53,17 +54,22 @@ export function DuoLanes({
         >
           {scope !== "me" ? (
             <div className="flex min-h-12 items-center gap-3 px-1">
-              <UserAvatar
-                avatarUrl={subject.avatarUrl ?? null}
-                displayName={subject.label}
-                username={null}
-                profileSubjectUserId={subject.userId ?? null}
-                size="sm"
-                alt={`${subject.label} avatar`}
-              />
-              <span className="text-base font-medium uppercase tracking-wide text-muted-foreground">
-                {subject.label}
-              </span>
+              <PublicProfileTrigger
+                subjectUserId={subject.userId}
+                buttonLabel={`Open ${subject.label} profile`}
+                className="-ml-1.5 flex min-w-0 items-center gap-3"
+              >
+                <UserAvatar
+                  avatarUrl={subject.avatarUrl ?? null}
+                  displayName={subject.label}
+                  username={null}
+                  size="sm"
+                  alt={`${subject.label} avatar`}
+                />
+                <span className="text-base font-medium uppercase tracking-wide text-muted-foreground">
+                  {subject.label}
+                </span>
+              </PublicProfileTrigger>
               {subject.readOnly ? (
                 <span className="rounded-full border border-border px-2 py-1 text-sm text-muted-foreground">
                   Read-only

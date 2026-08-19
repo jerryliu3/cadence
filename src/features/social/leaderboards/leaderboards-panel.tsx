@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { PublicProfileTrigger } from "@/components/public-profile-trigger";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { UserAvatar } from "@/components/user-avatar";
 import {
@@ -158,19 +159,22 @@ export function LeaderboardsPanel() {
                 key={entry.subjectId}
                 className="flex items-center justify-between rounded border p-3"
               >
-                <div className="flex min-w-0 items-center gap-3">
+                <PublicProfileTrigger
+                  subjectUserId={entry.subjectId}
+                  buttonLabel={`Open ${entry.displayName} profile`}
+                  className="-ml-1.5 flex min-w-0 items-center gap-3"
+                >
                   <UserAvatar
                     avatarUrl={entry.avatarUrl}
                     displayName={entry.displayName}
                     username={null}
-                    profileSubjectUserId={entry.subjectId}
                     size="sm"
                     alt={`${entry.displayName} avatar`}
                   />
                   <p className="text-xl font-medium">
                     #{entry.rank} {entry.displayName}
                   </p>
-                </div>
+                </PublicProfileTrigger>
                 <p className="font-medium">{entry.score}</p>
               </div>
             ))}
