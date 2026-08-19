@@ -15,7 +15,7 @@ import { createClient } from "@/lib/supabase/client";
 export const INSIGHTS_STATS_CACHE_PREFIX = "insights-stats:v1";
 const INSIGHTS_STATS_TIMEOUT_MS = 15_000;
 
-async function resolveInsightsStatsCacheKey() {
+async function resolveInsightsStatsViewerUserId() {
   try {
     const supabase = createClient();
     const {
@@ -25,10 +25,14 @@ async function resolveInsightsStatsCacheKey() {
     if (error || !user) {
       return null;
     }
-    return `${INSIGHTS_STATS_CACHE_PREFIX}:${user.id}`;
+    return user.id;
   } catch {
     return null;
   }
+}
+
+function buildInsightsStatsCacheKey(userId: string, subjectUserId?: string) {
+  return `${INSIGHTS_STATS_CACHE_PREFIX}:${userId}:${subjectUserId ?? userId}`;
 }
 
 export class InsightsStatsAuthenticationError extends Error {
@@ -44,10 +48,15 @@ export class InsightsStatsAuthenticationError extends Error {
 
 export async function fetchInsightsStats({
   forceRefresh = false,
+  subjectUserId,
 }: {
   forceRefresh?: boolean;
+  subjectUserId?: string;
 } = {}) {
-  const cacheKey = await resolveInsightsStatsCacheKey();
+  const viewerUserId = await resolveInsightsStatsViewerUserId();
+  const cacheKey = viewerUserId
+    ? buildInsightsStatsCacheKey(viewerUserId, subjectUserId)
+    : null;
   if (cacheKey) {
     const cached = readTabDataCache<InsightsStatsResponse>(cacheKey);
     if (!forceRefresh && cached) {
@@ -57,7 +66,11 @@ export async function fetchInsightsStats({
 
   let payload: InsightsStatsResponse;
   try {
-    payload = await getJson<InsightsStatsResponse>("/api/insights/stats", {
+    const query =
+      subjectUserId && subjectUserId.length > 0
+        ? `?subjectUserId=${encodeURIComponent(subjectUserId)}`
+        : "";
+    payload = await getJson<InsightsStatsResponse>(`/api/insights/stats${query}`, {
       timeoutMs: INSIGHTS_STATS_TIMEOUT_MS,
     });
   } catch (error) {

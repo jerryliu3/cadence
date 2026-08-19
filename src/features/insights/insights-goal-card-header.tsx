@@ -8,6 +8,7 @@ interface InsightsGoalCardHeaderProps {
   categoryLabel: string;
   categoryClassName: string;
   endDate: string | null;
+  daysRemaining: number | null;
   action?: ReactNode;
 }
 
@@ -17,6 +18,7 @@ export function InsightsGoalCardHeader({
   categoryLabel,
   categoryClassName,
   endDate,
+  daysRemaining,
   action,
 }: InsightsGoalCardHeaderProps) {
   return (
@@ -50,6 +52,16 @@ export function InsightsGoalCardHeader({
           {categoryLabel}
         </Badge>
         <GoalEndMonthBadge endDate={endDate} />
+        {daysRemaining !== null ? (
+          <Badge
+            variant="outline"
+            className="h-5 rounded-md border-amber-200 bg-amber-100 px-1.5 font-medium text-[11px] text-amber-900 dark:border-amber-200 dark:bg-amber-100 dark:text-amber-900"
+            title="Days remaining to goal deadline"
+            aria-label={`Days remaining ${daysRemaining}`}
+          >
+            Days remaining: {daysRemaining}
+          </Badge>
+        ) : null}
       </div>
     </div>
   );

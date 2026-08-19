@@ -19,8 +19,8 @@ import type { Goal } from "@/lib/goals/types";
 interface InsightsGoalStatsFiltersProps {
   goals: Goal[];
   referenceMonth: string;
-  endMonth: string | null;
-  onEndMonthChange: (month: string | null) => void;
+  endMonths: string[];
+  onEndMonthsChange: (months: string[]) => void;
   sort: GoalDateSort;
   onSortChange: (sort: GoalDateSort) => void;
   monthCursor: Date;
@@ -37,8 +37,8 @@ interface InsightsGoalStatsFiltersProps {
 export function InsightsGoalStatsFilters({
   goals,
   referenceMonth,
-  endMonth,
-  onEndMonthChange,
+  endMonths,
+  onEndMonthsChange,
   sort,
   onSortChange,
   monthCursor,
@@ -51,15 +51,23 @@ export function InsightsGoalStatsFilters({
   open,
   onOpenChange,
 }: InsightsGoalStatsFiltersProps) {
-  const quickEndMonths = useMemo(() => {
+  const quickEndMonths = useMemo<
+    Array<{ key: string; label: string; value: string | null }>
+  >(() => {
     const referenceDate = parseISO(`${referenceMonth}-01`);
     return [
-      { label: "This month", value: referenceMonth },
+      { key: "all-end-months", label: "All End Months", value: null },
+      { key: "this-month", label: "This month", value: referenceMonth },
       {
+        key: "next-month",
         label: "Next month",
         value: format(addMonths(referenceDate, 1), "yyyy-MM"),
       },
-      { label: "Year end", value: `${referenceMonth.slice(0, 4)}-12` },
+      {
+        key: "year-end",
+        label: "Year end",
+        value: `${referenceMonth.slice(0, 4)}-12`,
+      },
     ];
   }, [referenceMonth]);
 
@@ -71,14 +79,30 @@ export function InsightsGoalStatsFilters({
       >
         {quickEndMonths.map((option) => (
           <Button
-            key={option.value}
+            key={option.key}
             type="button"
-            variant={endMonth === option.value ? "default" : "outline"}
+            variant={
+              option.value === null
+                ? endMonths.length === 0
+                  ? "default"
+                  : "outline"
+                : endMonths.includes(option.value)
+                  ? "default"
+                  : "outline"
+            }
             size="sm"
             className="h-8 shrink-0 rounded-full px-3 text-xs"
-            onClick={() =>
-              onEndMonthChange(endMonth === option.value ? null : option.value)
-            }
+            onClick={() => {
+              if (option.value === null) {
+                onEndMonthsChange([]);
+                return;
+              }
+              onEndMonthsChange(
+                endMonths.includes(option.value)
+                  ? endMonths.filter((month) => month !== option.value)
+                  : [...endMonths, option.value]
+              );
+            }}
           >
             {option.label}
           </Button>
@@ -100,7 +124,7 @@ export function InsightsGoalStatsFilters({
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent
           onOpenAutoFocus={(event) => {
-            // Avoid focusing/select-opening a nested dropdown immediately on open.
+            // Prevent a nested select from auto-opening when the sheet mounts.
             event.preventDefault();
           }}
           className="top-auto bottom-0 left-1/2 max-h-[85vh] max-w-[calc(100%-1rem)] -translate-x-1/2 translate-y-0 overflow-y-auto rounded-b-none rounded-t-xl pb-[calc(env(safe-area-inset-bottom)+1rem)] sm:top-1/2 sm:bottom-auto sm:max-w-lg sm:-translate-y-1/2 sm:rounded-b-xl"
@@ -123,8 +147,8 @@ export function InsightsGoalStatsFilters({
             <GoalListControls
               goals={goals}
               referenceMonth={referenceMonth}
-              endMonth={endMonth}
-              onEndMonthChange={onEndMonthChange}
+              endMonths={endMonths}
+              onEndMonthsChange={onEndMonthsChange}
               sort={sort}
               onSortChange={onSortChange}
               className="grid grid-cols-2 gap-3 [&>div]:min-w-0 [&>div]:w-full [&_[role=combobox]]:w-full"
