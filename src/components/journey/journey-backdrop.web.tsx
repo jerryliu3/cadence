@@ -4,7 +4,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   consumeJourneyEffectEvent,
   createJourneyEffectEvent,
-  defaultJourneyAssetManifest,
   deriveJourneyProgressState,
   resolveJourneyRenderPolicy,
   resolveJourneySceneAsset,
@@ -20,8 +19,6 @@ import { StaticJourneyPoster } from "./static-journey-poster.web";
 import type { JourneyFeatureFlags } from "./types";
 import { useJourneyManifest } from "./use-journey-manifest.web";
 import { WebJourneyVideo } from "./web-journey-video";
-
-const JOURNEY_ASSET_VERSION = defaultJourneyAssetManifest.assetVersion;
 
 function isAuthRoute(pathname: string) {
   return pathname === "/login" || pathname === "/signup" || pathname === "/reset-password";
@@ -55,18 +52,20 @@ function useDocumentVisibility() {
 }
 
 function createRenderPolicy({
+  assetVersion,
   flags,
   reducedMotion,
   lifecyclePaused,
   videoEnabled,
 }: {
+  assetVersion: string;
   flags: JourneyFeatureFlags;
   reducedMotion: boolean;
   lifecyclePaused: boolean;
   videoEnabled: boolean;
 }): JourneyRenderPolicy {
   return resolveJourneyRenderPolicy({
-    assetVersion: JOURNEY_ASSET_VERSION,
+    assetVersion,
     journeyEnabled: flags.journeyEnabled,
     videoEnabled,
     riveEnabled: false,
@@ -92,8 +91,7 @@ export function JourneyBackdrop({ flags }: JourneyBackdropProps) {
     useState<JourneyEffectEvent | null>(null);
   const consumedEffectIdsRef = useRef(new Set<string>());
   const previousCheckpointRef = useRef<number | null>(null);
-  const { manifest, source: manifestSource } =
-    useJourneyManifest(JOURNEY_ASSET_VERSION);
+  const { assetVersion, manifest, source: manifestSource } = useJourneyManifest();
 
   const progressState = useMemo(
     () =>
@@ -108,12 +106,13 @@ export function JourneyBackdrop({ flags }: JourneyBackdropProps) {
   const renderPolicy = useMemo(
     () =>
       createRenderPolicy({
+        assetVersion,
         flags,
         reducedMotion,
         lifecyclePaused: hidden,
         videoEnabled: videoEnabledForRoute,
       }),
-    [flags, hidden, reducedMotion, videoEnabledForRoute]
+    [assetVersion, flags, hidden, reducedMotion, videoEnabledForRoute]
   );
 
   const activeScene = useMemo(

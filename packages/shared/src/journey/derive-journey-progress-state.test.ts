@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { parseJourneyAssetManifest, defaultJourneyAssetManifest } from "./asset-manifest";
+import {
+  parseJourneyActiveManifestPointer,
+  parseJourneyAssetManifest,
+  defaultJourneyAssetManifest,
+} from "./asset-manifest";
 import { consumeJourneyEffectEvent, createJourneyEffectEvent } from "./effect-events";
 import { deriveJourneyProgressState } from "./derive-journey-progress-state";
 import { firstExpeditionRoute, resolveCheckpointProgress } from "./progression-curves";
@@ -123,5 +127,27 @@ describe("asset manifest", () => {
       scenes: [],
     });
     expect(parsed).toBeNull();
+  });
+
+  it("parses active manifest pointer payloads", () => {
+    const pointer = parseJourneyActiveManifestPointer({
+      schemaVersion: 1,
+      assetVersion: "v2",
+      manifestUrl: "https://media.goalmaxxing.xyz/journey/v2/manifest.json",
+    });
+    expect(pointer).toEqual({
+      schemaVersion: 1,
+      assetVersion: "v2",
+      manifestUrl: "https://media.goalmaxxing.xyz/journey/v2/manifest.json",
+    });
+  });
+
+  it("rejects invalid active manifest pointers", () => {
+    const pointer = parseJourneyActiveManifestPointer({
+      schemaVersion: 1,
+      assetVersion: "v2",
+      manifestUrl: "/journey/v2/manifest.json",
+    });
+    expect(pointer).toBeNull();
   });
 });
