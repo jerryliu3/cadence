@@ -1,9 +1,9 @@
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { getServerEnv, getSupabaseSecretKey } from "@/lib/env";
 import { getSupabaseConfig } from "@/lib/supabase/config";
 import type { Database } from "@/lib/supabase/database.types";
 
-export function createAdminClient() {
+export function createAdminClient(): SupabaseClient<Database> {
   const env = getServerEnv();
   const secretKey = getSupabaseSecretKey(env);
 
@@ -19,6 +19,7 @@ export function createAdminClient() {
     auth: {
       autoRefreshToken: false,
       persistSession: false,
+      detectSessionInUrl: false,
     },
   });
 }

@@ -30,6 +30,7 @@
     "./planner/reorder-preview-entries": "./src/planner/reorder-preview-entries.ts",
     "./planner/visible-window": "./src/planner/visible-window.ts",
     "./social/duo": "./src/social/duo.ts",
+    "./social/public-profile": "./src/social/public-profile.ts",
     "./social/team": "./src/social/team.ts",
     "./supabase/database.types": "./src/supabase/database.types.ts",
     "./tokens": "./src/tokens.ts"
