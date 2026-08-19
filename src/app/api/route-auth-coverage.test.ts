@@ -183,6 +183,7 @@ import {
 } from "@/app/api/social/feed/[eventId]/reactions/route";
 import { GET as leaderboardsGet } from "@/app/api/social/leaderboards/route";
 import { GET as leaderboardGet } from "@/app/api/social/leaderboards/[seasonId]/route";
+import { GET as socialProfileGet } from "@/app/api/social/profiles/[subjectUserId]/route";
 
 import { GET as adminMetadataGet } from "@/app/api/admin/social-metadata/route";
 import { POST as adminModerationPost } from "@/app/api/admin/moderation/feed-events/[id]/route";
@@ -389,6 +390,11 @@ const auditedRouteCases: AuditedRouteCase[] = [
     "GET /api/social/leaderboards/[seasonId]",
     leaderboardGet,
     { seasonId: RESOURCE_ID }
+  ),
+  routeCase(
+    "GET /api/social/profiles/[subjectUserId]",
+    socialProfileGet,
+    { subjectUserId: RESOURCE_ID }
   ),
 
   routeCase("GET /api/admin/social-metadata", adminMetadataGet),
