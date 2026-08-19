@@ -4,8 +4,6 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { buildLoginHref } from "@/lib/auth/login-redirect";
 import { withAbortSignal } from "@/lib/async/abort";
-import { INSIGHTS_DATA_CACHE_PREFIX } from "@/lib/cache/planner-tab-cache";
-import { readTabDataCache, writeTabDataCache } from "@/lib/cache/tab-data-cache";
 import { toLocalDateString } from "@/lib/dates/day";
 import {
   fetchProgressContext,
@@ -22,6 +20,7 @@ import { useDuoLaneError } from "@/features/social/duo/use-duo-lane-error";
 import { assertQueriesOk } from "@/lib/supabase/query-error";
 import { selectViewerVisibleGoals } from "@cadence/shared/goals/visible-goals";
 import { useDuo } from "@/features/social/duo/duo-context";
+import { subscribeXpRefresh } from "@/lib/xp/events";
 
 export interface InsightsData {
   userId: string;
@@ -129,18 +128,6 @@ export function useInsightsData({
         const yearEnd = `${selectedYear}-12-31`;
         const targetSubjectUserId = subjectUserId ?? userId;
         const targetIsViewer = targetSubjectUserId === userId;
-        const asOfDate = toLocalDateString();
-        const partnerCacheScope =
-          targetIsViewer && partnerId ? `partner:${partnerId}` : "partner:none";
-        const insightsDataCacheKey = `${INSIGHTS_DATA_CACHE_PREFIX}${targetSubjectUserId}:${selectedYear}:${asOfDate}:${partnerCacheScope}`;
-        if (!forceRefresh) {
-          const cachedState = readTabDataCache<InsightsData>(insightsDataCacheKey);
-          if (cachedState) {
-            setState(cachedState);
-            clearLaneError();
-            return;
-          }
-        }
         const [goalsResponse, teamMembersResponse, progress, insightsStats] =
           await withAbortSignal(
             Promise.all([
@@ -153,16 +140,15 @@ export function useInsightsData({
                 ? supabase.from("team_members").select("team_id").eq("user_id", userId)
                 : Promise.resolve({ data: [], error: null }),
               fetchProgressContext({
-                asOfDate,
+                asOfDate: toLocalDateString(),
                 factsFrom: yearStart,
                 factsTo: yearEnd,
                 subjectUserId: targetIsViewer ? undefined : targetSubjectUserId,
                 forceRefresh,
               }),
-              fetchInsightsStats({
-                forceRefresh,
-                subjectUserId: targetIsViewer ? undefined : targetSubjectUserId,
-              }),
+              targetIsViewer
+                ? fetchInsightsStats({ forceRefresh })
+                : Promise.resolve(null),
             ]),
             controller.signal
           );
@@ -188,16 +174,14 @@ export function useInsightsData({
             })
           : goals;
 
-        const nextState: InsightsData = {
+        setState({
           userId: targetSubjectUserId,
           goals: visibleGoals,
           completions: progress.facts,
           memberTeamIds,
           progress,
           insightsStats,
-        };
-        setState(nextState);
-        writeTabDataCache(insightsDataCacheKey, nextState);
+        });
         clearLaneError();
       } finally {
         window.clearTimeout(timeoutId);
@@ -226,6 +210,18 @@ export function useInsightsData({
     };
 
     void run();
+  }, [loadData, redirectToLogin, reportLoadError]);
+
+  useEffect(() => {
+    return subscribeXpRefresh(() => {
+      void loadData({ showLoading: false, forceRefresh: true }).catch((error) => {
+        if (error instanceof InsightsStatsAuthenticationError) {
+          redirectToLogin();
+          return;
+        }
+        reportLoadError(error);
+      });
+    });
   }, [loadData, redirectToLogin, reportLoadError]);
 
   return {

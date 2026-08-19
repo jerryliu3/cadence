@@ -1,7 +1,7 @@
-import { resolveCategoryKey } from "@/lib/goals/category";
+import { getGoalCategoryLabel } from "@/lib/goals/category";
 import { getGoalLifecycle } from "@/lib/goals/lifecycle";
 import {
-  filterGoalsByEndMonths,
+  filterGoalsByEndMonth,
   sortGoalsByDate,
   type GoalDateSort,
 } from "@/lib/goals/list-view";
@@ -59,26 +59,32 @@ export function getRecurrenceGroup(goal: Goal): RecurrenceGroup {
 
 export function matchesTodayFacetFilters({
   goal,
-  categoryFilters,
-  recurrenceFilters,
+  categoryFilter,
+  allCategoriesFilterValue,
+  recurrenceFilter,
 }: {
   goal: Goal;
-  categoryFilters: string[];
-  recurrenceFilters: RecurrenceGroup[];
+  categoryFilter: string;
+  allCategoriesFilterValue: string;
+  recurrenceFilter: RecurrenceFilter;
 }): boolean {
-  if (categoryFilters.length > 0) {
-    const allowedCategoryKeys = new Set(
-      categoryFilters.map((categoryFilter) => resolveCategoryKey(categoryFilter))
-    );
-    const goalCategoryKey = resolveCategoryKey(goal.category_key ?? goal.category);
-    if (!allowedCategoryKeys.has(goalCategoryKey)) {
-      return false;
-    }
+  const goalCategory = getGoalCategoryLabel(goal.category, goal.category_key);
+  if (
+    categoryFilter !== allCategoriesFilterValue &&
+    goalCategory !== categoryFilter
+  ) {
+    return false;
   }
 
-  if (recurrenceFilters.length > 0) {
-    const recurrenceGroup = getRecurrenceGroup(goal);
-    if (!recurrenceFilters.includes(recurrenceGroup)) {
+  if (recurrenceFilter !== "all") {
+    if (recurrenceFilter === "fixed") {
+      if (goal.frequency_type !== "fixed_milestones") {
+        return false;
+      }
+    } else if (
+      goal.frequency_type !== "recurring" ||
+      goal.recurrence_interval !== recurrenceFilter
+    ) {
       return false;
     }
   }
@@ -106,31 +112,34 @@ export function selectActiveGoals({
 export function selectFilteredTodayGoals({
   activeGoals,
   todayDate,
-  categoryFilters,
-  recurrenceFilters,
+  categoryFilter,
+  allCategoriesFilterValue,
+  recurrenceFilter,
   searchQuery,
-  endMonths,
-  completedGoalIds = new Set<string>(),
+  endMonth,
+  completedTargetGoalIds = new Set<string>(),
   showCompletedGoals = true,
 }: {
   activeGoals: Goal[];
   todayDate: string;
-  categoryFilters: string[];
-  recurrenceFilters: RecurrenceGroup[];
+  categoryFilter: string;
+  allCategoriesFilterValue: string;
+  recurrenceFilter: RecurrenceFilter;
   searchQuery: string;
-  endMonths: string[];
-  completedGoalIds?: ReadonlySet<string>;
+  endMonth: string | null;
+  completedTargetGoalIds?: ReadonlySet<string>;
   showCompletedGoals?: boolean;
 }): Goal[] {
   const normalizedQuery = searchQuery.trim().toLowerCase();
   const matchingGoals = activeGoals
     .filter((goal) => goal.start_date <= todayDate)
-    .filter((goal) => showCompletedGoals || !completedGoalIds.has(goal.id))
+    .filter((goal) => showCompletedGoals || !completedTargetGoalIds.has(goal.id))
     .filter((goal) =>
       matchesTodayFacetFilters({
         goal,
-        categoryFilters,
-        recurrenceFilters,
+        categoryFilter,
+        allCategoriesFilterValue,
+        recurrenceFilter,
       })
     )
     .filter((goal) =>
@@ -139,7 +148,7 @@ export function selectFilteredTodayGoals({
         : goal.title.toLowerCase().includes(normalizedQuery)
     );
 
-  return filterGoalsByEndMonths(matchingGoals, endMonths);
+  return filterGoalsByEndMonth(matchingGoals, endMonth);
 }
 
 export function groupGoalsByRecurrence(

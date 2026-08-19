@@ -53,10 +53,11 @@ describe("checklist selectors", () => {
       selectFilteredTodayGoals({
         activeGoals: goals,
         todayDate: "2026-08-13",
-        categoryFilters: [],
-        recurrenceFilters: [],
+        categoryFilter: "__all_categories__",
+        allCategoriesFilterValue: "__all_categories__",
+        recurrenceFilter: "all",
         searchQuery: "run",
-        endMonths: [],
+        endMonth: null,
       }).map((row) => row.id)
     ).toEqual(["daily", "weekly"]);
 
@@ -64,56 +65,15 @@ describe("checklist selectors", () => {
       selectFilteredTodayGoals({
         activeGoals: goals,
         todayDate: "2026-08-13",
-        categoryFilters: [],
-        recurrenceFilters: [],
+        categoryFilter: "__all_categories__",
+        allCategoriesFilterValue: "__all_categories__",
+        recurrenceFilter: "all",
         searchQuery: "run",
-        endMonths: [],
-        completedGoalIds: new Set(["daily"]),
+        endMonth: null,
+        completedTargetGoalIds: new Set(["daily"]),
         showCompletedGoals: false,
       }).map((row) => row.id)
     ).toEqual(["weekly"]);
-  });
 
-  it("applies OR filtering for categories, cadence, and end months", () => {
-    const goals = [
-      goal({
-        id: "health-daily",
-        owner_id: "me",
-        title: "Health daily",
-        category: "health",
-        category_key: "health",
-        recurrence_interval: "daily",
-        end_date: "2026-08-30",
-      }),
-      goal({
-        id: "career-weekly",
-        owner_id: "me",
-        title: "Career weekly",
-        category: "career",
-        category_key: "career",
-        recurrence_interval: "weekly",
-        end_date: "2026-09-30",
-      }),
-      goal({
-        id: "personal-monthly",
-        owner_id: "me",
-        title: "Personal monthly",
-        category: "personal",
-        category_key: "personal",
-        recurrence_interval: "monthly",
-        end_date: "2026-10-31",
-      }),
-    ];
-
-    expect(
-      selectFilteredTodayGoals({
-        activeGoals: goals,
-        todayDate: "2026-08-13",
-        categoryFilters: ["health", "career"],
-        recurrenceFilters: ["daily", "weekly"],
-        searchQuery: "",
-        endMonths: ["2026-08", "2026-09"],
-      }).map((row) => row.id)
-    ).toEqual(["health-daily", "career-weekly"]);
   });
 });
