@@ -1,8 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  GlobalAchievementsCard,
+  type GlobalAchievementItem,
+} from "@/features/achievements/global-achievements-card";
 
 interface AchievementsPayload {
   achievedGoals: Array<{
@@ -25,10 +28,7 @@ interface AchievementsPayload {
   };
 }
 
-const ACHIEVEMENT_VISIBLE_ROWS = 10.5;
-const ACHIEVEMENT_ROW_HEIGHT_REM = 3.25;
-const ACHIEVEMENT_SECTION_MAX_HEIGHT_REM =
-  ACHIEVEMENT_VISIBLE_ROWS * ACHIEVEMENT_ROW_HEIGHT_REM;
+const GOAL_ACHIEVEMENTS_SECTION_MAX_HEIGHT_REM = 10.5 * 3.25;
 
 function formatDate(value: string | null) {
   if (!value) {
@@ -39,6 +39,19 @@ function formatDate(value: string | null) {
     return value;
   }
   return date.toLocaleDateString();
+}
+
+function toGlobalAchievementItems(
+  achievements: AchievementsPayload["globalAchievements"]
+): GlobalAchievementItem[] {
+  return achievements.map((achievement) => ({
+    id: achievement.id,
+    title: achievement.title,
+    level: achievement.level,
+    description: achievement.description,
+    unlockedAt: achievement.unlockedAt,
+    revokedAt: achievement.revokedAt,
+  }));
 }
 
 export default function AchievementsPage() {
@@ -112,44 +125,9 @@ export default function AchievementsPage() {
 
   return (
     <div className="space-y-4">
-      <Card>
-        <CardHeader>
-          <CardTitle>Global Achievements</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2 text-sm">
-          {payload.globalAchievements.length === 0 ? (
-            <p className="text-muted-foreground">No global achievements yet.</p>
-          ) : (
-            <div
-              className="space-y-2 overflow-y-auto pr-1"
-              style={{ maxHeight: `${ACHIEVEMENT_SECTION_MAX_HEIGHT_REM}rem` }}
-            >
-              {payload.globalAchievements.map((achievement) => (
-                <div
-                  key={achievement.id}
-                  className="flex items-center justify-between rounded-md border p-2"
-                >
-                  <div>
-                    <p className="font-medium">{achievement.title ?? "XP achievement"}</p>
-                    <p className="text-xs text-muted-foreground">
-                      Level {achievement.level ?? "?"} ·{" "}
-                      {formatDate(achievement.unlockedAt)}
-                    </p>
-                    {achievement.description ? (
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        {achievement.description}
-                      </p>
-                    ) : null}
-                  </div>
-                  {achievement.revokedAt ? (
-                    <Badge variant="secondary">Revoked</Badge>
-                  ) : null}
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      <GlobalAchievementsCard
+        achievements={toGlobalAchievementItems(payload.globalAchievements)}
+      />
 
       <Card>
         <CardHeader>
@@ -166,7 +144,7 @@ export default function AchievementsPage() {
           ) : (
             <div
               className="space-y-3 overflow-y-auto pr-1"
-              style={{ maxHeight: `${ACHIEVEMENT_SECTION_MAX_HEIGHT_REM}rem` }}
+              style={{ maxHeight: `${GOAL_ACHIEVEMENTS_SECTION_MAX_HEIGHT_REM}rem` }}
             >
               {payload.achievedGoals.map((goal) => (
                 <div key={goal.goalId} className="rounded-md border p-2">

@@ -124,6 +124,7 @@ export function TeamPanel() {
                   avatarUrl={activeTeam.partnerAvatarUrl}
                   displayName={activeTeam.partnerDisplayName}
                   username={activeTeam.partnerUsername}
+                  profileSubjectUserId={activeTeam.partnerId}
                   size="sm"
                   alt="Partner avatar"
                 />

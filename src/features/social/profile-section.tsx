@@ -57,6 +57,7 @@ export function ProfileSection({
             avatarUrl={avatarPreviewUrl || null}
             displayName={profileDraft.display_name || profile?.display_name || null}
             username={profileDraft.username || profile?.username || null}
+            profileSubjectUserId={profile?.id ?? null}
             alt="Profile avatar preview"
           />
           <div className="space-y-2">

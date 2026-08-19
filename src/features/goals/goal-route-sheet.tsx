@@ -17,6 +17,7 @@ interface GoalRouteSheetProps {
   children: ReactNode;
   onClose: () => void;
   title: string;
+  closeButtonLabel?: string;
 }
 
 const SHEET_TOP_OFFSET_VAR = "--goal-sheet-top-offset";
@@ -34,7 +35,12 @@ function getInitialHeaderBottomOffset() {
   return Math.max(0, Math.round(header.getBoundingClientRect().bottom));
 }
 
-export function GoalRouteSheet({ children, onClose, title }: GoalRouteSheetProps) {
+export function GoalRouteSheet({
+  children,
+  onClose,
+  title,
+  closeButtonLabel = "Close goal editor",
+}: GoalRouteSheetProps) {
   const swipeStartRef = useRef<{ x: number; y: number } | null>(null);
   const isMobileViewport = useMediaQuery(MOBILE_SHEET_BREAKPOINT_QUERY);
   const [headerBottomOffset, setHeaderBottomOffset] = useState(getInitialHeaderBottomOffset);
@@ -166,7 +172,7 @@ export function GoalRouteSheet({ children, onClose, title }: GoalRouteSheetProps
               size="icon-sm"
               className="hidden md:inline-flex"
               onClick={onClose}
-              aria-label="Close goal editor"
+              aria-label={closeButtonLabel}
               data-no-swipe="true"
             >
               <X className="size-4" />
