@@ -2,6 +2,7 @@ import { buildActiveGoalIndexes } from "@/features/planner/calendar-entries";
 import {
   applyCalendarCompletionMarkerFilters,
   buildCalendarCategoryFilterOptions,
+  entryMatchesCalendarSearchQuery,
   goalPassesCalendarFilters,
 } from "@/features/planner/calendar-filters";
 import {
@@ -34,6 +35,7 @@ export interface CalendarDayAccessorsArgs {
   calendarToday: string;
   categoryFilter: string;
   endMonthFilter: string | null;
+  searchQuery?: string;
   duoScope: "me" | "partner" | "both";
   partnerCompletionMarkersByDate?: Map<string, PlannerCompletionFactMarker[]>;
   visibleDays: string[];
@@ -77,6 +79,7 @@ export function selectCalendarDayAccessorsModel({
   calendarToday,
   categoryFilter,
   endMonthFilter,
+  searchQuery = "",
   duoScope,
   partnerCompletionMarkersByDate,
   visibleDays,
@@ -184,7 +187,11 @@ export function selectCalendarDayAccessorsModel({
   const plannerReadOnly = duoScope === "partner";
 
   const filterEntries = (entries: PlannerDayDetailEntry[]) =>
-    entries.filter((entry) => goalPassesFilters(entry.originalGoalId));
+    entries.filter(
+      (entry) =>
+        goalPassesFilters(entry.originalGoalId) &&
+        entryMatchesCalendarSearchQuery(entry, searchQuery)
+    );
 
   const getEntriesForDay = (day: string | null) => {
     if (hideViewerPlan) {
@@ -205,6 +212,7 @@ export function selectCalendarDayAccessorsModel({
       viewerMarkers,
       partnerMarkers,
       goalPassesFilters,
+      searchQuery,
     });
   };
 

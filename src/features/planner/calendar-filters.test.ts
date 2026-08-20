@@ -3,7 +3,9 @@ import { allCategoriesValue } from "@/features/goals/goal-filters";
 import {
   applyCalendarCompletionMarkerFilters,
   buildCalendarCategoryFilterOptions,
+  entryMatchesCalendarSearchQuery,
   goalPassesCalendarFilters,
+  normalizeCalendarSearchQuery,
 } from "@/features/planner/calendar-filters";
 
 describe("calendar filters", () => {
@@ -98,6 +100,62 @@ describe("calendar filters", () => {
         owner: "partner",
       },
     ]);
+  });
+
+  it("normalizes search query text for case-insensitive substring matching", () => {
+    expect(normalizeCalendarSearchQuery("  Tempo Run  ")).toBe("tempo run");
+  });
+
+  it("matches goal title substrings case-insensitively", () => {
+    expect(
+      entryMatchesCalendarSearchQuery(
+        {
+          goalTitle: "Half Marathon Build",
+          label: "Tempo run",
+          unitKey: "milestone:2",
+        },
+        "marathon"
+      )
+    ).toBe(true);
+  });
+
+  it("matches milestone labels for milestone entries", () => {
+    expect(
+      entryMatchesCalendarSearchQuery(
+        {
+          goalTitle: "Half Marathon Build",
+          label: "Tempo run 4x800",
+          unitKey: "milestone:2",
+        },
+        "4x800"
+      )
+    ).toBe(true);
+  });
+
+  it("does not match non-milestone labels when goal title is present", () => {
+    expect(
+      entryMatchesCalendarSearchQuery(
+        {
+          goalTitle: "Hydration",
+          label: "Drink two liters",
+          unitKey: "total:1",
+        },
+        "drink"
+      )
+    ).toBe(false);
+  });
+
+  it("falls back to label matching when goal title is absent", () => {
+    expect(
+      entryMatchesCalendarSearchQuery(
+        {
+          goalTitle: null,
+          label: "Strength session",
+          unitKey: "total:1",
+        },
+        "strength"
+      )
+    ).toBe(true);
   });
 });
 

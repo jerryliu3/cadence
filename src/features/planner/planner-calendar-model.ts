@@ -50,6 +50,7 @@ export interface PlannerCalendarModelArgs {
   duoScope: "me" | "partner" | "both";
   categoryFilter: string;
   endMonthFilter: string | null;
+  searchQuery?: string;
   partnerCompletionMarkersByDate?: Map<string, PlannerCompletionFactMarker[]>;
   previewEntryOrderByDay: Record<string, string[]>;
   additionalProjectionDays: string[];
@@ -86,6 +87,7 @@ export function selectPlannerCalendarModel({
   duoScope,
   categoryFilter,
   endMonthFilter,
+  searchQuery = "",
   partnerCompletionMarkersByDate,
   previewEntryOrderByDay,
   additionalProjectionDays,
@@ -118,6 +120,7 @@ export function selectPlannerCalendarModel({
     calendarToday,
     categoryFilter,
     endMonthFilter,
+    searchQuery,
     duoScope,
     partnerCompletionMarkersByDate,
     visibleDays: viewProjection.visibleDays,

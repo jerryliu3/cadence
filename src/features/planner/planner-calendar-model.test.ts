@@ -13,6 +13,53 @@ import {
   buildPlannerWorkUnit,
 } from "@/features/planner/test-fixtures";
 
+function buildContextWithPersistedPlan(
+  workUnits: ReturnType<typeof buildPlannerWorkUnit>[],
+  goalTitles: Record<string, string>
+) {
+  const goalIds = Array.from(new Set(workUnits.map((workUnit) => workUnit.originalGoalId)));
+  return buildPlannerContext({
+    workUnits,
+    overrides: {
+      goalTitles,
+      activePlan: {
+        plan: {
+          id: "plan",
+          version: 1,
+          status: "active",
+        },
+        goals: goalIds.map((goalId) => ({
+          id: goalId,
+          goal_id: goalId,
+          original_goal_id: goalId,
+          requirement_fingerprint: "a".repeat(64),
+          title: goalTitles[goalId] ?? goalId,
+          category: "Personal",
+          color: null,
+        })),
+        items: workUnits.flatMap((workUnit, index) =>
+          workUnit.scheduledDate
+            ? [{
+                id: `item-${index}`,
+                plan_goal_id: workUnit.originalGoalId,
+                unit_key: workUnit.unitKey,
+                requirement_kind: "deadline_total" as const,
+                scheduled_date: workUnit.scheduledDate,
+                original_scheduled_date: workUnit.scheduledDate,
+                classification: workUnit.classification,
+                credit_state: workUnit.creditState,
+                locked: false,
+                revision: 0,
+                credited_completion_id: null,
+                credited_completion_date: null,
+              }]
+            : []
+        ),
+      },
+    },
+  });
+}
+
 function buildArgs(
   overrides: Partial<PlannerCalendarModelArgs> = {}
 ): PlannerCalendarModelArgs {
@@ -28,6 +75,7 @@ function buildArgs(
     duoScope: "me",
     categoryFilter: allCategoriesValue,
     endMonthFilter: null,
+    searchQuery: "",
     partnerCompletionMarkersByDate: undefined,
     previewEntryOrderByDay: {},
     additionalProjectionDays: [],
@@ -133,5 +181,50 @@ describe("selectPlannerCalendarModel", () => {
     expect(model.warningModel.warningSuggestedNextSteps).toContain(
       "Unlock conflicting locked sessions and regenerate the calendar."
     );
+  });
+
+  it("filters day entries by goal title and milestone label search query", () => {
+    const context = buildContextWithPersistedPlan(
+      [
+        buildPlannerWorkUnit({
+          originalGoalId: "goal-a",
+          unitKey: "total:1",
+          label: "Strength block",
+          scheduledDate: "2026-08-06",
+        }),
+        buildPlannerWorkUnit({
+          originalGoalId: "goal-b",
+          unitKey: "milestone:2",
+          label: "Tempo run 4x800",
+          scheduledDate: "2026-08-06",
+        }),
+      ],
+      {
+        "goal-a": "Strength",
+        "goal-b": "Half Marathon Build",
+      }
+    );
+
+    const titleMatches = selectPlannerCalendarModel(
+      buildArgs({
+        context,
+        selectedDay: "2026-08-06",
+        searchQuery: "strength",
+      })
+    ).dayAccessors.getOrderedEntriesForDay("2026-08-06");
+
+    expect(titleMatches).toHaveLength(1);
+    expect(titleMatches[0]?.originalGoalId).toBe("goal-a");
+
+    const milestoneMatches = selectPlannerCalendarModel(
+      buildArgs({
+        context,
+        selectedDay: "2026-08-06",
+        searchQuery: "4x800",
+      })
+    ).dayAccessors.getOrderedEntriesForDay("2026-08-06");
+
+    expect(milestoneMatches).toHaveLength(1);
+    expect(milestoneMatches[0]?.originalGoalId).toBe("goal-b");
   });
 });
