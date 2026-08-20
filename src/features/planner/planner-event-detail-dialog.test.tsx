@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react"
+import { fireEvent, render, screen, within } from "@testing-library/react"
 import { describe, expect, it, vi } from "vitest"
 import { PlannerEventDetailDialog } from "@/features/planner/planner-event-detail-dialog"
 import type { PlannerDayDetailEntry } from "@/features/planner/calendar-surface.types"
@@ -94,13 +94,25 @@ describe("PlannerEventDetailDialog", () => {
       />
     )
 
-    expect(await screen.findByRole("heading", { name: "Goal A" })).toHaveClass("text-center")
-    expect(screen.getByLabelText("Date")).toHaveValue("2026-08-31")
-    expect(screen.getByRole("button", { name: "Go to previous open instance" })).toBeDisabled()
+    const activeDialog = (await screen.findAllByRole("dialog")).at(-1)
+    expect(activeDialog).toBeDefined()
+    expect(within(activeDialog!).getByRole("heading", { name: "Goal A" })).toHaveClass(
+      "text-center"
+    )
+    expect(within(activeDialog!).getByLabelText("Date")).toHaveValue("2026-08-31")
+    expect(
+      within(activeDialog!).getByRole("button", { name: "Go to previous open instance" })
+    ).toBeDisabled()
 
-    fireEvent.click(screen.getByRole("button", { name: "Go to first open instance" }))
-    fireEvent.click(screen.getByRole("button", { name: "Go to next open instance" }))
-    fireEvent.click(screen.getByRole("button", { name: "Go to last open instance" }))
+    fireEvent.click(
+      within(activeDialog!).getByRole("button", { name: "Go to first open instance" })
+    )
+    fireEvent.click(
+      within(activeDialog!).getByRole("button", { name: "Go to next open instance" })
+    )
+    fireEvent.click(
+      within(activeDialog!).getByRole("button", { name: "Go to last open instance" })
+    )
 
     expect(callbacks.onNavigateToFirstOpenInstance).toHaveBeenCalledTimes(1)
     expect(callbacks.onNavigateToNextOpenInstance).toHaveBeenCalledTimes(1)
