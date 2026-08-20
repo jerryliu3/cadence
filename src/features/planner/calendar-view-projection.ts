@@ -129,7 +129,7 @@ export function selectCalendarViewWindowProjection({
     focusedThreeDayDays,
   });
   const visibleDays =
-    viewMode === "month"
+    viewMode === "month" || viewMode === "three_month"
       ? cells.map((cell) => cell.date)
       : viewMode === "day" || viewMode === "three_day" || viewMode === "week"
         ? focusedWeekDays

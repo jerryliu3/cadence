@@ -56,7 +56,7 @@ export function PlannerViewWindowHeader({
             }
           />
           <div className="absolute right-0 top-1/2 flex -translate-y-1/2 items-center gap-2">
-            {viewMode === "month" ? (
+            {viewMode === "month" || viewMode === "three_month" ? (
               <Button
                 type="button"
                 variant="outline"

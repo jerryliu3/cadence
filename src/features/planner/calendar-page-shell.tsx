@@ -59,14 +59,17 @@ export function CalendarPageShell() {
     (month: string, mode: "push" | "replace") => {
       applySearchParams(
         (params) => {
-          params.set("view", "month");
+          params.set(
+            "view",
+            normalized.viewMode === "three_month" ? "three_month" : "month"
+          );
           params.set("month", month);
           params.delete("day");
         },
         mode
       );
     },
-    [applySearchParams]
+    [applySearchParams, normalized.viewMode]
   );
 
   const updateViewMode = useCallback(
@@ -74,7 +77,7 @@ export function CalendarPageShell() {
       applySearchParams(
         (params) => {
           params.set("view", viewMode);
-          if (viewMode === "month") {
+          if (viewMode === "month" || viewMode === "three_month") {
             params.delete("day");
             return;
           }
@@ -105,7 +108,10 @@ export function CalendarPageShell() {
           if (day && isValidDate(day)) {
             const resolvedViewMode =
               nextViewMode ??
-              (normalized.viewMode === "month" ? "day" : normalized.viewMode);
+              (normalized.viewMode === "month" ||
+              normalized.viewMode === "three_month"
+                ? "day"
+                : normalized.viewMode);
             params.set("view", resolvedViewMode);
             params.set("day", day);
             params.set("month", day.slice(0, 7));

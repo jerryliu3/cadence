@@ -2,7 +2,12 @@ import { format, parse } from "date-fns";
 
 export type PlannerShellTab = "today" | "not-today" | "calendar";
 export type SurfaceKey = "checklist" | "calendar";
-export type PlannerCalendarViewMode = "month" | "week" | "three_day" | "day";
+export type PlannerCalendarViewMode =
+  | "month"
+  | "three_month"
+  | "week"
+  | "three_day"
+  | "day";
 
 const monthPattern = /^\d{4}-(0[1-9]|1[0-2])$/;
 const datePattern = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
@@ -24,6 +29,7 @@ export function isValidCalendarViewMode(
 ): value is PlannerCalendarViewMode {
   return (
     value === "month" ||
+    value === "three_month" ||
     value === "week" ||
     value === "three_day" ||
     value === "day"
@@ -50,7 +56,7 @@ function applyCalendarViewInvariants(
   day: string | null,
   viewMode: PlannerCalendarViewMode
 ): Pick<CalendarState, "month" | "day" | "viewMode"> {
-  if (viewMode === "month") {
+  if (viewMode === "month" || viewMode === "three_month") {
     return {
       month: isValidMonth(month) ? month : null,
       day: null,

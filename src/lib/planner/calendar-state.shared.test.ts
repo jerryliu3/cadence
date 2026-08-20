@@ -57,6 +57,18 @@ describe("normalizeChecklistShellRoute", () => {
     expect(result.day).toBeNull();
     expect(result.month).toBe("2026-08");
   });
+
+  it("clears day in three_month view on the calendar tab", () => {
+    const result = normalizeChecklistShellRoute({
+      searchParams: new URLSearchParams(
+        "tab=calendar&view=three_month&month=2026-08&day=2026-08-13"
+      ),
+      defaultCalendarViewMode: "month",
+    });
+    expect(result.viewMode).toBe("three_month");
+    expect(result.day).toBeNull();
+    expect(result.month).toBe("2026-08");
+  });
 });
 
 describe("normalizeCalendarState", () => {
@@ -70,6 +82,19 @@ describe("normalizeCalendarState", () => {
     expect(result.day).toBe("2026-08-01");
     expect(result.viewMode).toBe("week");
     expect(result.month).toBe("2026-08");
+  });
+
+  it("keeps month-scoped invariants for three_month on the calendar surface", () => {
+    const result = normalizeCalendarState({
+      month: "2026-08",
+      day: "2026-08-13",
+      viewMode: "three_month",
+      defaultCalendarViewMode: "month",
+      surface: "calendar",
+    });
+    expect(result.day).toBeNull();
+    expect(result.month).toBe("2026-08");
+    expect(result.viewMode).toBe("three_month");
   });
 
   it("keeps an explicit today tab with a valid day", () => {

@@ -104,6 +104,10 @@ const NON_ACTIONABLE_ELIGIBILITY_REASONS = new Set([
   "deleted",
   "archived",
 ]);
+const MONTH_SCOPED_VIEW_MODES = new Set<PlannerCalendarViewMode>([
+  "month",
+  "three_month",
+]);
 const ELIGIBILITY_REASON_GROUP_LABELS: Partial<Record<EligibilityReason, string>> = {
   invalid_date_range: "Goals with invalid date ranges",
   horizon_too_long: "Goals beyond the planning horizon",
@@ -801,7 +805,7 @@ export function CalendarSurface({
     [onMonthChange, onSelectedDayChange, viewMode]
   );
   const moveViewWindow = (direction: -1 | 1) => {
-    if (viewMode === "month") {
+    if (MONTH_SCOPED_VIEW_MODES.has(viewMode)) {
       if (!month) {
         return;
       }
@@ -816,7 +820,7 @@ export function CalendarSurface({
     onSelectedDayChange(nextDay, "push", viewMode);
   };
   const resetViewWindow = () => {
-    if (viewMode === "month") {
+    if (MONTH_SCOPED_VIEW_MODES.has(viewMode)) {
       onMonthChange(todayMonth, "replace");
       return;
     }
@@ -1038,7 +1042,7 @@ export function CalendarSurface({
               <div
                 className={`transition-opacity duration-150 motion-reduce:transition-none ${
                   loading ? "opacity-70" : "opacity-100"
-                } ${viewMode === "month" ? "min-h-[34rem]" : "min-h-[26rem]"}`}
+                } ${MONTH_SCOPED_VIEW_MODES.has(viewMode) ? "min-h-[34rem]" : "min-h-[26rem]"}`}
               >
                 {viewMode === "day" ? (
                   <div className="space-y-2">
