@@ -18,6 +18,7 @@ const PLANNER_VIEW_MODES: ReadonlyArray<{
   label: string;
 }> = [
   { value: "month", label: "Month" },
+  { value: "three_month", label: "3 Months" },
   { value: "week", label: "Week" },
   { value: "three_day", label: "3 Day" },
   { value: "day", label: "Day" },

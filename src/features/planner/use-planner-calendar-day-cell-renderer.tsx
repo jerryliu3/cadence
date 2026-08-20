@@ -135,7 +135,10 @@ export function usePlannerCalendarDayCellRenderer({
           }
           isAnyEntryDragging={Boolean(draggingEntryKey)}
           getEntryDisplayTitle={
-            viewMode === "month" || viewMode === "week" || viewMode === "three_day"
+            viewMode === "month" ||
+            viewMode === "three_month" ||
+            viewMode === "week" ||
+            viewMode === "three_day"
               ? getEntryCompactTitleWithTime
               : getEntryDisplayTitleWithTime
           }

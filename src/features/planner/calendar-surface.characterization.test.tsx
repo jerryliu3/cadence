@@ -219,7 +219,7 @@ describe("CalendarSurface characterization", () => {
     );
   });
 
-  it.each(["month", "week", "three_day"] as const)(
+  it.each(["month", "three_month", "week", "three_day"] as const)(
     "keeps time prefix while using compact milestone labels in %s cells",
     async (viewMode) => {
       postJsonMock.mockResolvedValue(
@@ -238,7 +238,11 @@ describe("CalendarSurface characterization", () => {
         <CalendarSurface
           activeTab="calendar"
           month="2026-09"
-          selectedDay={viewMode === "month" ? null : "2026-09-01"}
+          selectedDay={
+            viewMode === "month" || viewMode === "three_month"
+              ? null
+              : "2026-09-01"
+          }
           viewMode={viewMode}
           onMonthChange={vi.fn()}
           onViewModeChange={vi.fn()}

@@ -1,4 +1,4 @@
-import { addDays, format, isValid, parse } from "date-fns";
+import { addDays, addMonths, format, isValid, parse } from "date-fns";
 import type { PlannerCalendarViewMode } from "@/features/planner/calendar-surface.types";
 import { buildMonthCells, type MonthCell } from "@/features/planner/month-cells";
 
@@ -93,6 +93,47 @@ export function buildFocusedThreeDayCells({
   });
 }
 
+function buildThreeMonthCells({
+  month,
+  weekStartsOn,
+}: {
+  month: string;
+  weekStartsOn: number;
+}) {
+  const centerMonthDate = parse(`${month}-01`, "yyyy-MM-dd", new Date());
+  if (!isValid(centerMonthDate)) {
+    return buildMonthCells(month, weekStartsOn);
+  }
+  const previousMonth = format(addMonths(centerMonthDate, -1), "yyyy-MM");
+  const nextMonth = format(addMonths(centerMonthDate, 1), "yyyy-MM");
+  const previousMonthCells = buildMonthCells(previousMonth, weekStartsOn);
+  const nextMonthCells = buildMonthCells(nextMonth, weekStartsOn);
+  const rangeStart = previousMonthCells[0]?.date;
+  const rangeEnd = nextMonthCells.at(-1)?.date;
+  if (!rangeStart || !rangeEnd) {
+    return [];
+  }
+  const rangeStartDate = parse(rangeStart, "yyyy-MM-dd", new Date());
+  const rangeEndDate = parse(rangeEnd, "yyyy-MM-dd", new Date());
+  if (!isValid(rangeStartDate) || !isValid(rangeEndDate)) {
+    return [];
+  }
+  const monthPrefixes = new Set([previousMonth, month, nextMonth]);
+  const cells: MonthCell[] = [];
+  for (
+    let day = rangeStartDate;
+    day <= rangeEndDate;
+    day = addDays(day, 1)
+  ) {
+    const isoDay = format(day, "yyyy-MM-dd");
+    cells.push({
+      date: isoDay,
+      inMonth: monthPrefixes.has(isoDay.slice(0, 7)),
+    });
+  }
+  return cells;
+}
+
 export function selectCalendarViewWindowProjection({
   month,
   selectedDay,
@@ -106,7 +147,12 @@ export function selectCalendarViewWindowProjection({
   weekStartsOn: number;
   viewMode: PlannerCalendarViewMode;
 }): CalendarViewWindowProjection {
-  const cells = month ? buildMonthCells(month, weekStartsOn) : [];
+  const cells =
+    month && viewMode === "three_month"
+      ? buildThreeMonthCells({ month, weekStartsOn })
+      : month
+        ? buildMonthCells(month, weekStartsOn)
+        : [];
   const cellByDate = new Map(cells.map((cell) => [cell.date, cell] as const));
   const focusedDay = selectedDay ?? calendarToday;
   const focusedWeekDays = buildFocusedWeekDays({
