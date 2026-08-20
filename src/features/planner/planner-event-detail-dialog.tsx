@@ -92,8 +92,8 @@ export function PlannerEventDetailDialog({
         className="overflow-x-hidden"
         onOpenAutoFocus={handleOpenAutoFocus}
       >
-        <DialogHeader className="gap-1">
-          <div className="grid grid-cols-[auto_auto_minmax(0,1fr)_auto_auto] items-center gap-1">
+        <DialogHeader className="gap-1 pr-10">
+          <div className="flex items-center justify-center gap-1">
             <Button
               type="button"
               variant="outline"
@@ -114,7 +114,7 @@ export function PlannerEventDetailDialog({
             >
               <ChevronLeft className="size-4" />
             </Button>
-            <DialogTitle className="min-w-0 text-center">
+            <DialogTitle className="mx-1 min-w-0 text-center">
               {selectedEventEntry
                 ? getEntryDisplayTitleWithTime(selectedEventEntry)
                 : "Event detail"}
