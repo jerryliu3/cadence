@@ -9,6 +9,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { Input } from "@/components/ui/input";
 import { LoadingCard } from "@/components/ui/loading-card";
 import { allCategoriesValue } from "@/features/goals/goal-filters";
 import {
@@ -153,6 +154,7 @@ export function CalendarSurface({
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [categoryFilter, setCategoryFilter] = useState(allCategoriesValue);
   const [endMonthFilter, setEndMonthFilter] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
   const [draftPolicy, setDraftPolicy] = useState<PlannerPolicy | null>(null);
   const [draftPreview, setDraftPreview] = useState<
     NonNullable<PlannerContextPayload["preview"]> | null
@@ -280,6 +282,7 @@ export function CalendarSurface({
     duoScope,
     categoryFilter,
     endMonthFilter,
+    searchQuery,
     partnerCompletionMarkersByDate,
     previewEntryOrderByDay,
     additionalProjectionDays,
@@ -1175,6 +1178,23 @@ export function CalendarSurface({
                 ) : null}
               </div>
             </PlannerDndProvider>
+            <div className="mt-3 border-t pt-3">
+              <label
+                htmlFor="planner-calendar-search"
+                className="mb-1 block text-xs font-medium text-muted-foreground"
+              >
+                Search goals
+              </label>
+              <Input
+                id="planner-calendar-search"
+                type="search"
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                placeholder="Filter by goal or milestone name"
+                className="h-8 text-xs"
+                aria-label="Search goals"
+              />
+            </div>
           </div>
 
           <PlannerCoachPanel coach={coach} />

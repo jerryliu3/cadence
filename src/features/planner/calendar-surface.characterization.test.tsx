@@ -252,6 +252,57 @@ describe("CalendarSurface characterization", () => {
     }
   );
 
+  it("filters visible calendar entries by the search query", async () => {
+    postJsonMock.mockResolvedValue(
+      buildContext([
+        unit({
+          originalGoalId: "goal-a",
+          unitKey: "total:1",
+          label: "Goal A",
+          scheduledDate: "2026-08-31",
+        }),
+        unit({
+          originalGoalId: "goal-b",
+          unitKey: "milestone:2",
+          label: "Tempo run 4x800",
+          scheduledDate: "2026-08-31",
+        }),
+      ])
+    );
+
+    render(
+      <CalendarSurface
+        activeTab="calendar"
+        month="2026-08"
+        selectedDay={null}
+        viewMode="month"
+        onMonthChange={vi.fn()}
+        onViewModeChange={vi.fn()}
+        onSelectedDayChange={vi.fn()}
+        onPlannerMutation={vi.fn()}
+      />
+    );
+
+    expect(await screen.findByText("Goal A")).toBeInTheDocument();
+    expect(screen.getByText("Tempo run 4x800")).toBeInTheDocument();
+
+    const searchInput = await screen.findByRole("searchbox", {
+      name: /search goals/i,
+    });
+
+    fireEvent.change(searchInput, { target: { value: "goal a" } });
+    await waitFor(() => {
+      expect(screen.getByText("Goal A")).toBeInTheDocument();
+      expect(screen.queryByText("Tempo run 4x800")).not.toBeInTheDocument();
+    });
+
+    fireEvent.change(searchInput, { target: { value: "4x800" } });
+    await waitFor(() => {
+      expect(screen.getByText("Tempo run 4x800")).toBeInTheDocument();
+      expect(screen.queryByText("Goal A")).not.toBeInTheDocument();
+    });
+  });
+
   it("force-prepares planner context after coach goals are created", async () => {
     postJsonMock.mockResolvedValue(
       buildContext([
