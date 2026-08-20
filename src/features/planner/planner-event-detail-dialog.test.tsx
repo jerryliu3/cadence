@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react"
+import { fireEvent, render, screen } from "@testing-library/react"
 import { describe, expect, it, vi } from "vitest"
 import { PlannerEventDetailDialog } from "@/features/planner/planner-event-detail-dialog"
 import type { PlannerDayDetailEntry } from "@/features/planner/calendar-surface.types"
@@ -58,5 +58,52 @@ describe("PlannerEventDetailDialog", () => {
 
     const titleInput = await screen.findByPlaceholderText("Goal title")
     expect(titleInput).not.toHaveFocus()
+  })
+
+  it("renders centered title and instance navigation controls", async () => {
+    const callbacks = {
+      onOpenChange: vi.fn(),
+      onUpdateDraftLabel: vi.fn(),
+      onUpdateDraftScheduledDate: vi.fn(),
+      onUpdateDraftScheduledTimeOverride: vi.fn(),
+      onToggleItemLock: vi.fn(),
+      onNavigateToFirstOpenInstance: vi.fn(),
+      onNavigateToPreviousOpenInstance: vi.fn(),
+      onNavigateToNextOpenInstance: vi.fn(),
+      onNavigateToLastOpenInstance: vi.fn(),
+    }
+
+    render(
+      <PlannerEventDetailDialog
+        selectedEventEntry={buildEntry()}
+        selectedEventLinkedTargets={[]}
+        goalTitles={{}}
+        scopeMonth="2026-08"
+        selectedEventDraftEdit={undefined}
+        selectedEventBaselineUnit={null}
+        selectedEventDraftScheduledDate="2026-08-31"
+        selectedEventDraftTimeInputValue=""
+        mutationLoadingKey={null}
+        canMutatePlanItems
+        canNavigateToFirstOpenInstance
+        canNavigateToPreviousOpenInstance={false}
+        canNavigateToNextOpenInstance
+        canNavigateToLastOpenInstance
+        getEntryDisplayTitleWithTime={() => "Goal A"}
+        callbacks={callbacks}
+      />
+    )
+
+    expect(await screen.findByRole("heading", { name: "Goal A" })).toHaveClass("text-center")
+    expect(screen.getByLabelText("Date")).toHaveValue("2026-08-31")
+    expect(screen.getByRole("button", { name: "Go to previous open instance" })).toBeDisabled()
+
+    fireEvent.click(screen.getByRole("button", { name: "Go to first open instance" }))
+    fireEvent.click(screen.getByRole("button", { name: "Go to next open instance" }))
+    fireEvent.click(screen.getByRole("button", { name: "Go to last open instance" }))
+
+    expect(callbacks.onNavigateToFirstOpenInstance).toHaveBeenCalledTimes(1)
+    expect(callbacks.onNavigateToNextOpenInstance).toHaveBeenCalledTimes(1)
+    expect(callbacks.onNavigateToLastOpenInstance).toHaveBeenCalledTimes(1)
   })
 })

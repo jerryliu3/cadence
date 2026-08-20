@@ -997,6 +997,104 @@ describe("CalendarSurface characterization", () => {
     });
   });
 
+  it("navigates between open goal instances from the event dialog", async () => {
+    postJsonMock.mockResolvedValue(
+      buildContext([
+        unit({
+          originalGoalId: "goal-a",
+          unitKey: "total:1",
+          label: "First",
+          scheduledDate: "2026-08-29",
+        }),
+        unit({
+          originalGoalId: "goal-a",
+          unitKey: "total:2",
+          label: "Middle",
+          scheduledDate: "2026-08-31",
+        }),
+        unit({
+          originalGoalId: "goal-a",
+          unitKey: "total:3",
+          label: "Last",
+          scheduledDate: "2026-09-02",
+        }),
+        unit({
+          originalGoalId: "goal-a",
+          unitKey: "total:4",
+          label: "Done",
+          scheduledDate: "2026-09-04",
+          creditState: "completed",
+        }),
+        unit({
+          originalGoalId: "goal-b",
+          unitKey: "total:1",
+          label: "Other goal",
+          scheduledDate: "2026-08-31",
+        }),
+      ])
+    );
+    const onMonthChange = vi.fn();
+    const onSelectedDayChange = vi.fn();
+
+    render(
+      <CalendarSurface
+        activeTab="calendar"
+        month="2026-08"
+        selectedDay="2026-08-31"
+        viewMode="day"
+        onMonthChange={onMonthChange}
+        onViewModeChange={vi.fn()}
+        onSelectedDayChange={onSelectedDayChange}
+        onPlannerMutation={vi.fn()}
+      />
+    );
+
+    await waitFor(() => {
+      expect(postJsonMock).toHaveBeenCalledWith(
+        "/api/planner/prepare",
+        expect.any(Object)
+      );
+    });
+
+    fireEvent.click(await screen.findByText("Next: Middle"));
+    expect(await screen.findByLabelText("Date")).toHaveValue("2026-08-31");
+    expect(onSelectedDayChange).not.toHaveBeenCalled();
+    expect(onMonthChange).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Go to next open instance" }));
+    await waitFor(() => {
+      expect(screen.getByLabelText("Date")).toHaveValue("2026-09-02");
+    });
+    expect(onSelectedDayChange).toHaveBeenLastCalledWith(
+      "2026-09-02",
+      "replace",
+      "day"
+    );
+
+    expect(
+      screen.getByRole("button", { name: "Go to next open instance" })
+    ).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Go to last open instance" })
+    ).toBeDisabled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Go to first open instance" }));
+    await waitFor(() => {
+      expect(screen.getByLabelText("Date")).toHaveValue("2026-08-29");
+    });
+    expect(onSelectedDayChange).toHaveBeenLastCalledWith(
+      "2026-08-29",
+      "replace",
+      "day"
+    );
+    expect(
+      screen.getByRole("button", { name: "Go to first open instance" })
+    ).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Go to previous open instance" })
+    ).toBeDisabled();
+  });
+
   it("shows no move-dialog candidates when no eligible source sessions exist", async () => {
     postJsonMock.mockResolvedValue(
       buildContext([
