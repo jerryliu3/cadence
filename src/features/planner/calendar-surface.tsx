@@ -21,6 +21,7 @@ import {
 } from "@/features/planner/calendar-format";
 import {
   PlannerDndProvider,
+  PlannerDroppableDay,
 } from "@/features/planner/calendar-dnd";
 import { MoveSessionDialog } from "@/features/planner/move-session-dialog";
 import { PlannerCoachPanel } from "@/features/planner/coach/planner-coach-panel";
@@ -78,7 +79,6 @@ import { usePlannerContextLoader } from "@/features/planner/use-planner-context-
 import { usePlannerSetup } from "@/features/planner/use-planner-setup";
 import { usePlannerPreviewSession } from "@/features/planner/use-planner-preview-session";
 import { usePlannerDayPreviewInteractions } from "@/features/planner/use-planner-day-preview-interactions";
-import { ROLLING_WEEK_GRID_WIDTH_BY_VIEW } from "@/features/planner/calendar-rolling-week-width";
 const DAY_PREVIEW_HOVER_DELAY_MS = 1000;
 const DAY_PREVIEW_CLOSE_DELAY_MS = 250;
 const DAY_PREVIEW_LONG_PRESS_DELAY_MS = 500;
@@ -86,10 +86,6 @@ const MAX_MONTH_HEADING_SAMPLE = "September 2026";
 const MAX_WEEK_HEADING_SAMPLE = "Sep 30 - Sep 30, 2026";
 const MAX_THREE_DAY_HEADING_SAMPLE = "Sep 30 - Oct 2, 2026";
 const MAX_DAY_HEADING_SAMPLE = "Wed Aug 30";
-const ROLLING_WEEK_GRID_LABELS_BASE_CLASS =
-  "grid min-w-[calc(7*var(--rolling-week-cell-width))] grid-cols-[repeat(7,minmax(0,var(--rolling-week-cell-width)))] gap-2 text-center text-xs text-muted-foreground";
-const ROLLING_WEEK_GRID_CELLS_BASE_CLASS =
-  "mt-2 grid min-w-[calc(7*var(--rolling-week-cell-width))] grid-cols-[repeat(7,minmax(0,var(--rolling-week-cell-width)))] gap-2";
 const SCOPE_ONLY_ELIGIBILITY_REASONS = new Set([
   "end_outside_scope",
   "starts_after_scope",
@@ -193,6 +189,7 @@ export function CalendarSurface({
   const calendarPreparedRef = useRef(false);
   const dayPreviewRef = useRef<HTMLDivElement | null>(null);
   const rollingWeekStripRef = useRef<HTMLDivElement | null>(null);
+  const dayExpandedCardsStripRef = useRef<HTMLDivElement | null>(null);
   const isDayPreviewSurfaceTarget = (target: Element) =>
     Boolean(target.closest('[data-day-cell="true"]')) ||
     Boolean(dayPreviewRef.current?.contains(target));
@@ -339,13 +336,14 @@ export function CalendarSurface({
       : selectedEventDraftEdit?.scheduledTimeOverride ??
         selectedEventBaselineUnit?.scheduledTimeOverride ??
         "";
-  const focusedDayEntries = useMemo(
-    () => getOrderedEntriesForDay(focusedDay),
-    [focusedDay, getOrderedEntriesForDay]
-  );
-  const focusedDayCompletionFactMarkers = useMemo(
-    () => getCompletionFactMarkersForDay(focusedDay),
-    [focusedDay, getCompletionFactMarkersForDay]
+  const focusedWeekDayPanels = useMemo(
+    () =>
+      focusedWeekDays.map((day) => ({
+        day,
+        entries: getOrderedEntriesForDay(day),
+        completionFactMarkers: getCompletionFactMarkersForDay(day),
+      })),
+    [focusedWeekDays, getCompletionFactMarkersForDay, getOrderedEntriesForDay]
   );
   const previewDayEntries = useMemo(
     () => getOrderedEntriesForDay(dayPreview?.day ?? null),
@@ -766,8 +764,8 @@ export function CalendarSurface({
     setDayPreview(null);
     onViewModeChange(nextViewMode, "push");
   };
-  const alignRollingWeekStripToFocusedDay = useCallback(() => {
-    if (viewMode !== "day" && viewMode !== "three_day") {
+  const alignThreeDayStripToFocusedDay = useCallback(() => {
+    if (viewMode !== "three_day") {
       return;
     }
     const strip = rollingWeekStripRef.current;
@@ -806,16 +804,70 @@ export function CalendarSurface({
     });
   }, [focusedDay, focusedWeekDays, viewMode]);
   useEffect(() => {
-    if (viewMode !== "day" && viewMode !== "three_day") {
+    if (viewMode !== "three_day") {
       return;
     }
-    const frame = window.requestAnimationFrame(alignRollingWeekStripToFocusedDay);
-    window.addEventListener("resize", alignRollingWeekStripToFocusedDay);
+    const frame = window.requestAnimationFrame(alignThreeDayStripToFocusedDay);
+    window.addEventListener("resize", alignThreeDayStripToFocusedDay);
     return () => {
       window.cancelAnimationFrame(frame);
-      window.removeEventListener("resize", alignRollingWeekStripToFocusedDay);
+      window.removeEventListener("resize", alignThreeDayStripToFocusedDay);
     };
-  }, [alignRollingWeekStripToFocusedDay, viewMode]);
+  }, [alignThreeDayStripToFocusedDay, viewMode]);
+  const alignDayExpandedCardsStripToFocusedDay = useCallback(() => {
+    if (viewMode !== "day") {
+      return;
+    }
+    const strip = dayExpandedCardsStripRef.current;
+    if (!strip) {
+      return;
+    }
+    const dayCardsGrid = strip.querySelector<HTMLElement>(
+      '[data-day-expanded-cards-grid="true"]'
+    );
+    const firstCard = dayCardsGrid?.firstElementChild;
+    if (!(firstCard instanceof HTMLElement) || !dayCardsGrid) {
+      return;
+    }
+    const focusedDayIndex = focusedWeekDays.indexOf(focusedDay);
+    if (focusedDayIndex < 0) {
+      return;
+    }
+    const gridStyles = window.getComputedStyle(dayCardsGrid);
+    const columnGap = Number.parseFloat(gridStyles.columnGap || "0");
+    const columnWidth = firstCard.getBoundingClientRect().width;
+    if (!Number.isFinite(columnWidth) || columnWidth <= 0) {
+      return;
+    }
+    const visibleColumnCount = Math.max(
+      1,
+      Math.round((strip.clientWidth + columnGap) / (columnWidth + columnGap))
+    );
+    const leftMostVisibleIndex = Math.max(
+      0,
+      Math.min(
+        focusedDayIndex - Math.floor(visibleColumnCount / 2),
+        Math.max(0, focusedWeekDays.length - visibleColumnCount)
+      )
+    );
+    strip.scrollTo({
+      left: leftMostVisibleIndex * (columnWidth + columnGap),
+      behavior: "auto",
+    });
+  }, [focusedDay, focusedWeekDays, viewMode]);
+  useEffect(() => {
+    if (viewMode !== "day") {
+      return;
+    }
+    const frame = window.requestAnimationFrame(
+      alignDayExpandedCardsStripToFocusedDay
+    );
+    window.addEventListener("resize", alignDayExpandedCardsStripToFocusedDay);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener("resize", alignDayExpandedCardsStripToFocusedDay);
+    };
+  }, [alignDayExpandedCardsStripToFocusedDay, viewMode]);
   const saveButtonLabel = saveLoading ? "Saving..." : "Save plan";
   const renderCalendarDayCell = usePlannerCalendarDayCellRenderer({
     viewMode,
@@ -976,50 +1028,103 @@ export function CalendarSurface({
                 } ${viewMode === "month" ? "min-h-[34rem]" : "min-h-[26rem]"}`}
               >
                 {viewMode === "day" ? (
-                  <div className="space-y-2">
-                    {rollingWeekStrip}
-                    <div className="rounded-md border p-3">
-                      <p className="mb-2 text-sm font-medium">
-                        {format(parse(focusedDay, "yyyy-MM-dd", new Date()), "EEE MMM d, yyyy")}
-                      </p>
-                      <PlannerDayEntriesPanel
-                        day={focusedDay}
-                        entries={focusedDayEntries}
-                        completionFactMarkers={focusedDayCompletionFactMarkers}
-                        mutationLoading={Boolean(mutationLoadingKey)}
-                        asOfDate={context?.asOfDate ?? null}
-                        canMutatePlanItems={canMutatePlanItems}
-                        canMutateEntryOnDay={canMutateEntryOnDay}
-                        getEntryDisplayTitle={getEntryDisplayTitleWithTime}
-                        getEntrySubtitle={getEntrySubtitle}
-                        isEntryCredited={isEntryCredited}
-                        isEntryImmovableForDraft={isEntryImmovableForDraft}
-                        onEntryOpen={(entryKey) => {
-                          const entry = focusedDayEntries.find(
-                            (candidate) => candidate.key === entryKey
-                          );
-                          if (!entry || !canMutateEntryOnDay(entry, focusedDay)) {
-                            return;
-                          }
-                          setLocalSelectedDay(focusedDay);
-                          setSelectedEventEntryKey(entry.key);
-                        }}
-                        onToggleCompletion={(entry, day) => {
-                          if (!canMutateEntryOnDay(entry, day)) {
-                            return;
-                          }
-                          void toggleDateFact(entry, day);
-                        }}
-                        onEntryPointerStart={(immovable) => {
-                          void immovable;
-                          pointerPressActiveRef.current = true;
-                        }}
-                        onEntryPointerEnd={() => {
-                          pointerPressActiveRef.current = false;
-                        }}
-                        density="expanded"
-                        includeSourceElement={false}
-                      />
+                  <div className="mx-auto w-full max-w-[56rem]">
+                    <div ref={dayExpandedCardsStripRef} className="overflow-x-auto pb-1">
+                      <div
+                        data-day-expanded-cards-grid="true"
+                        className="grid min-w-[calc(7*var(--day-expanded-card-width))] grid-cols-[repeat(7,minmax(0,var(--day-expanded-card-width)))] gap-2 [--day-expanded-card-width:calc((100%-0.5rem)/1.25)] md:[--day-expanded-card-width:calc((100%-1rem)/1.85)] xl:[--day-expanded-card-width:calc((100%-1.5rem)/2.7)]"
+                      >
+                        {focusedWeekDayPanels.map(
+                          ({ day, entries, completionFactMarkers }) => (
+                            <PlannerDroppableDay key={`day-expanded-card-${day}`} day={day}>
+                              {({ setNodeRef, isOver }) => (
+                                <div
+                                  ref={setNodeRef}
+                                  className={`flex min-h-[20rem] flex-col rounded-md border p-3 transition-colors ${
+                                    day === focusedDay
+                                      ? "border-primary/60 bg-primary/5"
+                                      : "bg-background"
+                                  } ${isOver ? "ring-2 ring-primary/70" : ""}`}
+                                  data-day-expanded-card="true"
+                                  data-day={day}
+                                >
+                                  <div className="mb-2 flex items-center justify-between gap-2">
+                                    <button
+                                      type="button"
+                                      className={`min-w-0 truncate text-left text-sm font-medium ${
+                                        day === focusedDay ? "text-primary" : ""
+                                      }`}
+                                      onClick={() => {
+                                        if (day === focusedDay) {
+                                          return;
+                                        }
+                                        setLocalSelectedDay(day);
+                                        onSelectedDayChange(day, "push", "day");
+                                      }}
+                                      aria-pressed={day === focusedDay}
+                                    >
+                                      {format(
+                                        parse(day, "yyyy-MM-dd", new Date()),
+                                        "EEE MMM d, yyyy"
+                                      )}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className="h-6 shrink-0 rounded-md border px-2 text-xs hover:bg-accent"
+                                      onClick={() => {
+                                        openMoveDialogForDay(day);
+                                      }}
+                                    >
+                                      Move
+                                    </button>
+                                  </div>
+                                  <PlannerDayEntriesPanel
+                                    day={day}
+                                    entries={entries}
+                                    completionFactMarkers={completionFactMarkers}
+                                    mutationLoading={Boolean(mutationLoadingKey)}
+                                    asOfDate={context?.asOfDate ?? null}
+                                    canMutatePlanItems={canMutatePlanItems}
+                                    canMutateEntryOnDay={canMutateEntryOnDay}
+                                    getEntryDisplayTitle={getEntryDisplayTitleWithTime}
+                                    getEntrySubtitle={getEntrySubtitle}
+                                    isEntryCredited={isEntryCredited}
+                                    isEntryImmovableForDraft={isEntryImmovableForDraft}
+                                    onEntryOpen={(entryKey) => {
+                                      const entry = entries.find(
+                                        (candidate) => candidate.key === entryKey
+                                      );
+                                      if (!entry || !canMutateEntryOnDay(entry, day)) {
+                                        return;
+                                      }
+                                      setLocalSelectedDay(day);
+                                      if (day !== focusedDay) {
+                                        onSelectedDayChange(day, "push", "day");
+                                      }
+                                      setSelectedEventEntryKey(entry.key);
+                                    }}
+                                    onToggleCompletion={(entry, selectedDay) => {
+                                      if (!canMutateEntryOnDay(entry, selectedDay)) {
+                                        return;
+                                      }
+                                      void toggleDateFact(entry, selectedDay);
+                                    }}
+                                    onEntryPointerStart={(immovable) => {
+                                      void immovable;
+                                      pointerPressActiveRef.current = true;
+                                    }}
+                                    onEntryPointerEnd={() => {
+                                      pointerPressActiveRef.current = false;
+                                    }}
+                                    density="expanded"
+                                    includeSourceElement={false}
+                                  />
+                                </div>
+                              )}
+                            </PlannerDroppableDay>
+                          )
+                        )}
+                      </div>
                     </div>
                   </div>
                 ) : viewMode === "three_day" ? (
