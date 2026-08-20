@@ -342,22 +342,22 @@ export function CalendarSurface({
     const targetGoalId = selectedEventEntry.originalGoalId;
     const orderedDays = Array.from(entriesByDate.keys()).sort();
     for (const day of orderedDays) {
-      const dayEntries = getOrderedEntriesForDay(day);
+      const dayEntries = entriesByDate.get(day) ?? [];
       for (const entry of dayEntries) {
         if (entry.originalGoalId !== targetGoalId) {
           continue;
         }
-        if (!entry.activeItem || entry.classification !== "scheduled") {
+        if (!entry.activeItem) {
           continue;
         }
-        if (isEntryCredited(entry) || entry.draftGhost) {
+        if (isEntryImmovableForDraft(entry)) {
           continue;
         }
         nextInstances.push({ entryKey: entry.key, day });
       }
     }
     return nextInstances;
-  }, [entriesByDate, getOrderedEntriesForDay, selectedEventEntry]);
+  }, [entriesByDate, selectedEventEntry]);
   const selectedGoalOpenInstanceIndex = useMemo(
     () =>
       selectedEventEntryKey
