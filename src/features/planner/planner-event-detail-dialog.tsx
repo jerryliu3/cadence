@@ -8,6 +8,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react";
 import Link from "next/link";
 import { getEntryDraftDiffSummary, getEntrySubtitle } from "@/features/planner/calendar-format";
 import { LinkedTargetsNote } from "@/features/planner/linked-targets-note";
@@ -22,6 +23,10 @@ export interface PlannerEventDetailDialogCallbacks {
     nextTime: string
   ) => void;
   onToggleItemLock: (entry: PlannerDayDetailEntry) => void;
+  onNavigateToFirstOpenInstance: () => void;
+  onNavigateToPreviousOpenInstance: () => void;
+  onNavigateToNextOpenInstance: () => void;
+  onNavigateToLastOpenInstance: () => void;
 }
 
 interface PlannerEventDetailDialogProps {
@@ -51,6 +56,10 @@ interface PlannerEventDetailDialogProps {
   selectedEventDraftTimeInputValue: string;
   mutationLoadingKey: string | null;
   canMutatePlanItems: boolean;
+  canNavigateToFirstOpenInstance: boolean;
+  canNavigateToPreviousOpenInstance: boolean;
+  canNavigateToNextOpenInstance: boolean;
+  canNavigateToLastOpenInstance: boolean;
   getEntryDisplayTitleWithTime: (entry: PlannerDayDetailEntry) => string;
   callbacks: PlannerEventDetailDialogCallbacks;
 }
@@ -66,6 +75,10 @@ export function PlannerEventDetailDialog({
   selectedEventDraftTimeInputValue,
   mutationLoadingKey,
   canMutatePlanItems,
+  canNavigateToFirstOpenInstance,
+  canNavigateToPreviousOpenInstance,
+  canNavigateToNextOpenInstance,
+  canNavigateToLastOpenInstance,
   getEntryDisplayTitleWithTime,
   callbacks,
 }: PlannerEventDetailDialogProps) {
@@ -79,12 +92,54 @@ export function PlannerEventDetailDialog({
         className="overflow-x-hidden"
         onOpenAutoFocus={handleOpenAutoFocus}
       >
-        <DialogHeader>
-          <DialogTitle>
-            {selectedEventEntry
-              ? getEntryDisplayTitleWithTime(selectedEventEntry)
-              : "Event detail"}
-          </DialogTitle>
+        <DialogHeader className="gap-1">
+          <div className="grid grid-cols-[auto_auto_minmax(0,1fr)_auto_auto] items-center gap-1">
+            <Button
+              type="button"
+              variant="outline"
+              size="icon-sm"
+              aria-label="Go to first open instance"
+              onClick={callbacks.onNavigateToFirstOpenInstance}
+              disabled={!canNavigateToFirstOpenInstance}
+            >
+              <ChevronsLeft className="size-4" />
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="icon-sm"
+              aria-label="Go to previous open instance"
+              onClick={callbacks.onNavigateToPreviousOpenInstance}
+              disabled={!canNavigateToPreviousOpenInstance}
+            >
+              <ChevronLeft className="size-4" />
+            </Button>
+            <DialogTitle className="min-w-0 text-center">
+              {selectedEventEntry
+                ? getEntryDisplayTitleWithTime(selectedEventEntry)
+                : "Event detail"}
+            </DialogTitle>
+            <Button
+              type="button"
+              variant="outline"
+              size="icon-sm"
+              aria-label="Go to next open instance"
+              onClick={callbacks.onNavigateToNextOpenInstance}
+              disabled={!canNavigateToNextOpenInstance}
+            >
+              <ChevronRight className="size-4" />
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="icon-sm"
+              aria-label="Go to last open instance"
+              onClick={callbacks.onNavigateToLastOpenInstance}
+              disabled={!canNavigateToLastOpenInstance}
+            >
+              <ChevronsRight className="size-4" />
+            </Button>
+          </div>
         </DialogHeader>
         {selectedEventEntry ? (
           <div className="min-w-0 space-y-3 text-sm">
@@ -130,7 +185,7 @@ export function PlannerEventDetailDialog({
                   />
                 </label>
                 <label className="flex items-center gap-2 text-xs text-muted-foreground">
-                  Move to
+                  Date
                   <Input
                     type="date"
                     value={selectedEventDraftScheduledDate ?? ""}

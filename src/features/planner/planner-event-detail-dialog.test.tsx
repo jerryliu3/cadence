@@ -29,6 +29,10 @@ describe("PlannerEventDetailDialog", () => {
       onUpdateDraftScheduledDate: vi.fn(),
       onUpdateDraftScheduledTimeOverride: vi.fn(),
       onToggleItemLock: vi.fn(),
+      onNavigateToFirstOpenInstance: vi.fn(),
+      onNavigateToPreviousOpenInstance: vi.fn(),
+      onNavigateToNextOpenInstance: vi.fn(),
+      onNavigateToLastOpenInstance: vi.fn(),
     }
 
     render(
@@ -43,6 +47,10 @@ describe("PlannerEventDetailDialog", () => {
         selectedEventDraftTimeInputValue=""
         mutationLoadingKey={null}
         canMutatePlanItems
+        canNavigateToFirstOpenInstance={false}
+        canNavigateToPreviousOpenInstance={false}
+        canNavigateToNextOpenInstance={false}
+        canNavigateToLastOpenInstance={false}
         getEntryDisplayTitleWithTime={() => "Goal A"}
         callbacks={callbacks}
       />
