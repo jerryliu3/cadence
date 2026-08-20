@@ -869,7 +869,7 @@ describe("CalendarSurface characterization", () => {
     });
 
     fireEvent.click(await screen.findByText("Next: Baseline"));
-    fireEvent.change(await screen.findByLabelText("Move to"), {
+    fireEvent.change(await screen.findByLabelText("Date"), {
       target: { value: "2026-08-30" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Close" }));

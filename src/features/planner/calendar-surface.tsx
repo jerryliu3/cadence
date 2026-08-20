@@ -86,6 +86,10 @@ const MAX_MONTH_HEADING_SAMPLE = "September 2026";
 const MAX_WEEK_HEADING_SAMPLE = "Sep 30 - Sep 30, 2026";
 const MAX_THREE_DAY_HEADING_SAMPLE = "Sep 30 - Oct 2, 2026";
 const MAX_DAY_HEADING_SAMPLE = "Wed Aug 30";
+interface OpenGoalInstance {
+  entryKey: string;
+  day: string;
+}
 const SCOPE_ONLY_ELIGIBILITY_REASONS = new Set([
   "end_outside_scope",
   "starts_after_scope",
@@ -330,6 +334,47 @@ export function CalendarSurface({
     selectedEventEntry?.activeItem?.scheduled_date ??
     effectiveSelectedDay ??
     null;
+  const selectedGoalOpenInstances = useMemo<OpenGoalInstance[]>(() => {
+    if (!selectedEventEntry) {
+      return [];
+    }
+    const nextInstances: OpenGoalInstance[] = [];
+    const targetGoalId = selectedEventEntry.originalGoalId;
+    const orderedDays = Array.from(entriesByDate.keys()).sort();
+    for (const day of orderedDays) {
+      const dayEntries = getOrderedEntriesForDay(day);
+      for (const entry of dayEntries) {
+        if (entry.originalGoalId !== targetGoalId) {
+          continue;
+        }
+        if (!entry.activeItem || entry.classification !== "scheduled") {
+          continue;
+        }
+        if (isEntryCredited(entry) || entry.draftGhost) {
+          continue;
+        }
+        nextInstances.push({ entryKey: entry.key, day });
+      }
+    }
+    return nextInstances;
+  }, [entriesByDate, getOrderedEntriesForDay, selectedEventEntry]);
+  const selectedGoalOpenInstanceIndex = useMemo(
+    () =>
+      selectedEventEntryKey
+        ? selectedGoalOpenInstances.findIndex(
+            (instance) => instance.entryKey === selectedEventEntryKey
+          )
+        : -1,
+    [selectedEventEntryKey, selectedGoalOpenInstances]
+  );
+  const canNavigateToFirstOpenInstance = selectedGoalOpenInstanceIndex > 0;
+  const canNavigateToPreviousOpenInstance = selectedGoalOpenInstanceIndex > 0;
+  const canNavigateToNextOpenInstance =
+    selectedGoalOpenInstanceIndex >= 0 &&
+    selectedGoalOpenInstanceIndex < selectedGoalOpenInstances.length - 1;
+  const canNavigateToLastOpenInstance =
+    selectedGoalOpenInstanceIndex >= 0 &&
+    selectedGoalOpenInstanceIndex < selectedGoalOpenInstances.length - 1;
   const selectedEventDraftTimeInputValue =
     selectedEventDraftEdit?.scheduledTimeOverride === null
       ? ""
@@ -735,6 +780,21 @@ export function CalendarSurface({
     });
 
   const showBlockingLoading = loading && context === null;
+  const navigateToOpenInstance = useCallback(
+    (target: OpenGoalInstance | undefined) => {
+      if (!target) {
+        return;
+      }
+      setSelectedEventEntryKey(target.entryKey);
+      setLocalSelectedDay(target.day);
+      if (viewMode === "month") {
+        onMonthChange(target.day.slice(0, 7), "replace");
+        return;
+      }
+      onSelectedDayChange(target.day, "replace", viewMode);
+    },
+    [onMonthChange, onSelectedDayChange, viewMode]
+  );
   const moveViewWindow = (direction: -1 | 1) => {
     if (viewMode === "month") {
       if (!month) {
@@ -1302,6 +1362,10 @@ export function CalendarSurface({
             selectedEventDraftTimeInputValue={selectedEventDraftTimeInputValue}
             mutationLoadingKey={mutationLoadingKey}
             canMutatePlanItems={canMutatePlanItems}
+            canNavigateToFirstOpenInstance={canNavigateToFirstOpenInstance}
+            canNavigateToPreviousOpenInstance={canNavigateToPreviousOpenInstance}
+            canNavigateToNextOpenInstance={canNavigateToNextOpenInstance}
+            canNavigateToLastOpenInstance={canNavigateToLastOpenInstance}
             getEntryDisplayTitleWithTime={getEntryDisplayTitleWithTime}
             callbacks={{
               onOpenChange: (open) => {
@@ -1315,6 +1379,33 @@ export function CalendarSurface({
               onUpdateDraftScheduledTimeOverride: updateDraftScheduledTimeOverride,
               onToggleItemLock: (entry) => {
                 void toggleItemLock(entry);
+              },
+              onNavigateToFirstOpenInstance: () => {
+                navigateToOpenInstance(selectedGoalOpenInstances[0]);
+              },
+              onNavigateToPreviousOpenInstance: () => {
+                if (selectedGoalOpenInstanceIndex <= 0) {
+                  return;
+                }
+                navigateToOpenInstance(
+                  selectedGoalOpenInstances[selectedGoalOpenInstanceIndex - 1]
+                );
+              },
+              onNavigateToNextOpenInstance: () => {
+                if (
+                  selectedGoalOpenInstanceIndex < 0 ||
+                  selectedGoalOpenInstanceIndex >= selectedGoalOpenInstances.length - 1
+                ) {
+                  return;
+                }
+                navigateToOpenInstance(
+                  selectedGoalOpenInstances[selectedGoalOpenInstanceIndex + 1]
+                );
+              },
+              onNavigateToLastOpenInstance: () => {
+                navigateToOpenInstance(
+                  selectedGoalOpenInstances[selectedGoalOpenInstances.length - 1]
+                );
               },
             }}
           />
