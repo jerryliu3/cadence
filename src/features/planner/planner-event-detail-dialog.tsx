@@ -69,9 +69,16 @@ export function PlannerEventDetailDialog({
   getEntryDisplayTitleWithTime,
   callbacks,
 }: PlannerEventDetailDialogProps) {
+  const handleOpenAutoFocus = (event: Event) => {
+    event.preventDefault();
+  };
+
   return (
     <Dialog open={Boolean(selectedEventEntry)} onOpenChange={callbacks.onOpenChange}>
-      <DialogContent className="overflow-x-hidden">
+      <DialogContent
+        className="overflow-x-hidden"
+        onOpenAutoFocus={handleOpenAutoFocus}
+      >
         <DialogHeader>
           <DialogTitle>
             {selectedEventEntry
