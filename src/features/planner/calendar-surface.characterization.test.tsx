@@ -1092,6 +1092,155 @@ describe("CalendarSurface characterization", () => {
     });
   });
 
+  it("renders seven expanded day cards with per-day move actions in day mode", async () => {
+    postJsonMock.mockResolvedValue(
+      buildContext([
+        unit({
+          originalGoalId: "goal-a",
+          unitKey: "total:1",
+          scheduledDate: "2026-08-15",
+          classification: "planned",
+          creditState: "uncredited",
+        }),
+      ])
+    );
+
+    render(
+      <CalendarSurface
+        activeTab="calendar"
+        month="2026-08"
+        selectedDay="2026-08-15"
+        viewMode="day"
+        onMonthChange={vi.fn()}
+        onViewModeChange={vi.fn()}
+        onSelectedDayChange={vi.fn()}
+        onPlannerMutation={vi.fn()}
+      />
+    );
+
+    await waitFor(() => {
+      expect(postJsonMock).toHaveBeenCalledWith(
+        "/api/planner/prepare",
+        expect.any(Object)
+      );
+    });
+
+    await waitFor(() => {
+      expect(screen.getAllByRole("button", { name: "Move" })).toHaveLength(7);
+    });
+    expect(
+      document.querySelectorAll('[data-day-expanded-card="true"]')
+    ).toHaveLength(7);
+  });
+
+  it("opens move dialog for the clicked day card in day mode", async () => {
+    postJsonMock.mockResolvedValue(
+      buildContext([
+        unit({
+          originalGoalId: "goal-a",
+          unitKey: "total:1",
+          scheduledDate: "2026-08-15",
+          classification: "planned",
+          creditState: "uncredited",
+        }),
+      ])
+    );
+
+    render(
+      <CalendarSurface
+        activeTab="calendar"
+        month="2026-08"
+        selectedDay="2026-08-15"
+        viewMode="day"
+        onMonthChange={vi.fn()}
+        onViewModeChange={vi.fn()}
+        onSelectedDayChange={vi.fn()}
+        onPlannerMutation={vi.fn()}
+      />
+    );
+
+    await waitFor(() => {
+      expect(postJsonMock).toHaveBeenCalledWith(
+        "/api/planner/prepare",
+        expect.any(Object)
+      );
+    });
+
+    const fridayCard = await waitFor(() => {
+      const match = document.querySelector(
+        '[data-day-expanded-card="true"][data-day="2026-08-14"]'
+      );
+      if (!(match instanceof HTMLElement)) {
+        throw new Error("Expected expanded day card for 2026-08-14.");
+      }
+      return match;
+    });
+
+    fireEvent.click(within(fridayCard).getByRole("button", { name: "Move" }));
+
+    expect(
+      await screen.findByRole("dialog", { name: /Move session here - Fri, Aug 14/i })
+    ).toBeInTheDocument();
+  });
+
+  it("uses each day card context for completion toggles in day mode", async () => {
+    postJsonMock.mockResolvedValue(
+      buildContext([
+        unit({
+          originalGoalId: "goal-b",
+          unitKey: "total:1",
+          scheduledDate: "2026-08-14",
+          classification: "planned",
+          creditState: "uncredited",
+        }),
+      ])
+    );
+
+    render(
+      <CalendarSurface
+        activeTab="calendar"
+        month="2026-08"
+        selectedDay="2026-08-15"
+        viewMode="day"
+        onMonthChange={vi.fn()}
+        onViewModeChange={vi.fn()}
+        onSelectedDayChange={vi.fn()}
+        onPlannerMutation={vi.fn()}
+      />
+    );
+
+    await waitFor(() => {
+      expect(postJsonMock).toHaveBeenCalledWith(
+        "/api/planner/prepare",
+        expect.any(Object)
+      );
+    });
+
+    const thursdayCard = await waitFor(() => {
+      const match = document.querySelector(
+        '[data-day-expanded-card="true"][data-day="2026-08-14"]'
+      );
+      if (!(match instanceof HTMLElement)) {
+        throw new Error("Expected expanded day card for 2026-08-14.");
+      }
+      return match;
+    });
+
+    fireEvent.click(
+      within(thursdayCard).getByRole("button", { name: "Mark session done" })
+    );
+
+    await waitFor(() => {
+      expect(completionMutationMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          goalId: "goal-b",
+          date: "2026-08-14",
+          desiredFactState: "present",
+        })
+      );
+    });
+  });
+
   it("keeps partner scope read-only for planner day actions", async () => {
     postJsonMock.mockResolvedValue(
       buildContext([
