@@ -212,20 +212,6 @@ export function PlannerEventDetailDialog({
                     }
                     className="h-8 text-xs"
                   />
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="ghost"
-                    className="h-8 px-2 text-xs"
-                    onClick={() =>
-                      callbacks.onUpdateDraftScheduledTimeOverride(
-                        selectedEventEntry,
-                        ""
-                      )
-                    }
-                  >
-                    Clear
-                  </Button>
                 </label>
                 <p className="text-[11px] text-muted-foreground">
                   Drag month-cell session pills to move quickly, or use this date/time editor
