@@ -229,7 +229,7 @@ export async function sendPushToUser({
           icon: payload.icon ?? "/cadence-icon.svg",
           badge: payload.badge ?? "/cadence-icon.svg",
           tag: payload.tag ?? `cadence-${userId}`,
-          url: payload.url ?? "/",
+          url: payload.url ?? "/app",
         }),
         {
           TTL: ttlSeconds,

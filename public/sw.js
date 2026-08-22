@@ -1,3 +1,30 @@
+self.KNOWN_APP_PREFIXES = ["/social", "/checklist", "/calendar"];
+
+function mapAppNotificationUrl(requestedUrl) {
+  const targetUrl = new URL(requestedUrl, self.location.origin);
+
+  if (targetUrl.origin !== self.location.origin) {
+    return new URL("/app", self.location.origin);
+  }
+
+  if (targetUrl.pathname === "/" || targetUrl.pathname.length === 0) {
+    targetUrl.pathname = "/app";
+    return targetUrl;
+  }
+
+  if (targetUrl.pathname === "/app" || targetUrl.pathname.startsWith("/app/")) {
+    return targetUrl;
+  }
+
+  const matchedPrefix = self.KNOWN_APP_PREFIXES.find((prefix) =>
+    targetUrl.pathname.startsWith(prefix)
+  );
+  if (matchedPrefix) {
+    targetUrl.pathname = `/app${targetUrl.pathname}`;
+  }
+  return targetUrl;
+}
+
 self.addEventListener("push", (event) => {
   if (!event.data) {
     return;
@@ -18,7 +45,7 @@ self.addEventListener("push", (event) => {
     badge: payload.badge || "/cadence-icon.svg",
     tag: payload.tag,
     data: {
-      url: payload.url || "/",
+      url: payload.url || "/app",
     },
   };
 
@@ -28,12 +55,8 @@ self.addEventListener("push", (event) => {
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
 
-  const requestedUrl = event.notification.data?.url || "/";
-  const targetUrl = new URL(requestedUrl, self.location.origin);
-
-  if (targetUrl.origin !== self.location.origin) {
-    targetUrl.href = self.location.origin;
-  }
+  const requestedUrl = event.notification.data?.url || "/app";
+  const targetUrl = mapAppNotificationUrl(requestedUrl);
 
   event.waitUntil(
     self.clients
