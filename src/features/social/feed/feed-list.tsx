@@ -6,7 +6,12 @@ import { fetchSocialFeedPage } from "@/features/social/data";
 import { FeedEventCard } from "@/features/social/feed/feed-event-card";
 import type { SocialFeedEvent } from "@/features/social/types";
 
-export function FeedList() {
+interface FeedListProps {
+  isActive?: boolean;
+  refreshToken?: number;
+}
+
+export function FeedList({ isActive = true, refreshToken = 0 }: FeedListProps) {
   const [items, setItems] = useState<SocialFeedEvent[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -31,13 +36,16 @@ export function FeedList() {
   }, []);
 
   useEffect(() => {
+    if (!isActive) {
+      return;
+    }
     const timeoutId = window.setTimeout(() => {
       void loadFeed(null);
     }, 0);
     return () => {
       window.clearTimeout(timeoutId);
     };
-  }, [loadFeed]);
+  }, [isActive, loadFeed, refreshToken]);
 
   return (
     <div className="space-y-3">
