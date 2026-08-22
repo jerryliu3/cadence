@@ -16,16 +16,14 @@ describe("proxy", () => {
     updateSessionMock.mockClear();
   });
 
-  it("redirects bare root requests to /app/calendar", async () => {
-    const response = await proxy(
-      new NextRequest("http://localhost:3000/")
-    );
+  it("lets the public landing page own bare root requests", async () => {
+    const request = new NextRequest("http://localhost:3000/");
 
-    expect(updateSessionMock).not.toHaveBeenCalled();
-    expect(response.status).toBe(307);
-    expect(response.headers.get("location")).toBe(
-      "http://localhost:3000/app/calendar"
-    );
+    const response = await proxy(request);
+
+    expect(updateSessionMock).toHaveBeenCalledTimes(1);
+    expect(updateSessionMock).toHaveBeenCalledWith(request);
+    expect(response.status).not.toBe(307);
   });
 
   it("passes non-root requests through session update", async () => {
