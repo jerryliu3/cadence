@@ -2409,6 +2409,21 @@ export type Database = {
         }
         Returns: boolean
       }
+      adjust_targeted_planner_instance: {
+        Args: {
+          p_action: string
+          p_expected_digest: string
+          p_goal_id: string
+          p_scheduled_date: string
+          p_unit_key: string
+        }
+        Returns: {
+          goal_id: string
+          schedule_digest: string
+          target_count: number
+          unit_key: string
+        }[]
+      }
       apply_external_completion_service: {
         Args: {
           p_completed_on: string
@@ -2430,21 +2445,6 @@ export type Database = {
           p_xp: number
         }
         Returns: number
-      }
-      adjust_targeted_planner_instance: {
-        Args: {
-          p_action: string
-          p_expected_digest: string
-          p_goal_id: string
-          p_scheduled_date: string | null
-          p_unit_key: string | null
-        }
-        Returns: {
-          goal_id: string
-          schedule_digest: string
-          target_count: number
-          unit_key: string
-        }[]
       }
       can_administer_goal: {
         Args: { p_goal_id: string; p_uid: string }
