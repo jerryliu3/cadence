@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
+import { LandingFeatureBento } from "@/components/landing/landing-feature-bento";
 import { LandingFeatureNarrative } from "@/components/landing/landing-feature-narrative";
 import { LandingPlannerPreview } from "@/components/landing/landing-planner-preview";
+import { LandingProductTour } from "@/components/landing/landing-product-tour";
 import { LandingWhyGoalmaxxing } from "@/components/landing/landing-why-goalmaxxing";
 import { Button } from "@/components/ui/button";
 
@@ -67,6 +69,8 @@ export function LandingPage() {
         </section>
 
         <LandingFeatureNarrative />
+        <LandingProductTour />
+        <LandingFeatureBento />
         <LandingWhyGoalmaxxing />
 
         <section className="mx-auto w-full max-w-6xl px-4 py-16 text-center sm:px-6">
