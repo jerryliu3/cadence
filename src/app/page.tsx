@@ -2,9 +2,9 @@ import type { Metadata, Viewport } from "next";
 import { LandingPage } from "@/components/landing/landing-page";
 
 export const metadata: Metadata = {
-  title: "Goalmaxxing - Plan goals and build consistency",
+  title: "Goalmaxxing - Short-term and long-term goal planning",
   description:
-    "Goalmaxxing helps you plan goals, complete daily checklists, and track momentum with insights and accountability.",
+    "Goalmaxxing helps you achieve short-term wins and long-term outcomes with planning, measurable progress tracking, and accountability.",
 };
 
 export const viewport: Viewport = {
