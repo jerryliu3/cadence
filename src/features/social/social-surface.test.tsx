@@ -165,4 +165,20 @@ describe("SocialSurface refresh behavior", () => {
 
     expect(invalidateSocialTabCache).toHaveBeenCalledTimes(initialRefreshCount + 1);
   });
+
+  it("shows freshness indicator only for cron-backed tabs", async () => {
+    const user = userEvent.setup();
+    render(<SocialSurface initialTab="feed" />);
+
+    expect(screen.queryByTestId("social-freshness-indicator")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("tab", { name: "Challenges" }));
+    expect(screen.getByTestId("social-freshness-indicator")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("tab", { name: "Leaderboards" }));
+    expect(screen.getByTestId("social-freshness-indicator")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("tab", { name: "Team" }));
+    expect(screen.queryByTestId("social-freshness-indicator")).not.toBeInTheDocument();
+  });
 });
