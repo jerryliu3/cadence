@@ -434,8 +434,8 @@ export function LandingPlannerPreview() {
             {isViewMenuOpen ? (
               <motion.div
                 data-demo-view-menu
-                initial={reducedMotion ? false : { opacity: 0, y: -4 }}
-                animate={{ opacity: 1, y: 0 }}
+                initial={reducedMotion ? false : { y: -4 }}
+                animate={{ y: 0 }}
                 className="absolute top-9 right-0 z-40 w-28 rounded-lg border bg-card p-1 text-xs shadow-lg"
               >
                 <div
@@ -477,8 +477,8 @@ export function LandingPlannerPreview() {
               key="month"
               ref={monthCalendarRef}
               data-calendar-view="month"
-              initial={reducedMotion ? false : { opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
+              initial={reducedMotion ? false : { y: 6 }}
+              animate={{ y: 0 }}
               className="relative h-full"
             >
               <div className="mb-1 grid grid-cols-7 gap-1">
@@ -634,8 +634,8 @@ export function LandingPlannerPreview() {
             <motion.div
               key="week"
               data-calendar-view="week"
-              initial={reducedMotion ? false : { opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
+              initial={false}
+              animate={{ y: 0 }}
               className="h-full"
             >
               <div className="grid grid-cols-7 gap-1.5 sm:gap-2">
@@ -682,8 +682,8 @@ export function LandingPlannerPreview() {
               {showWeekPreview ? (
                 <motion.div
                   data-demo-day-preview
-                  initial={reducedMotion ? false : { opacity: 0, y: 6 }}
-                  animate={{ opacity: 1, y: 0 }}
+                  initial={reducedMotion ? false : { y: 6 }}
+                  animate={{ y: 0 }}
                   className="mt-3 ml-auto max-w-sm rounded-xl border border-blue-200 bg-blue-50/70 p-3 shadow-sm"
                 >
                   <div className="flex items-center justify-between gap-3">

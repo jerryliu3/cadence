@@ -33,8 +33,41 @@ test.describe("marketing landing", () => {
       })
     ).toBeVisible();
     await expect(
+      page.getByRole("heading", { name: "Built for the full loop" })
+    ).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Execute your way" })
+    ).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "See your patterns" })
+    ).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Progress together" })
+    ).toBeVisible();
+    await expect(page.getByText("AI Coach")).toBeVisible();
+    await expect(page.getByText("Recover your rhythm")).toBeVisible();
+    await expect(
       page.getByRole("navigation", { name: "Main navigation" })
     ).toHaveCount(0);
+  });
+
+  test("keeps the planner stage stable across week and month", async ({ page }) => {
+    await page.goto("/");
+
+    const stage = page.locator("[data-demo-calendar-stage]");
+    await expect(page.locator('[data-calendar-view="week"]')).toBeVisible();
+    const weekBox = await stage.boundingBox();
+
+    await expect(page.locator('[data-calendar-view="month"]')).toBeVisible({
+      timeout: 15_000,
+    });
+    const monthBox = await stage.boundingBox();
+
+    expect(weekBox).not.toBeNull();
+    expect(monthBox).not.toBeNull();
+    expect(Math.abs((weekBox?.height ?? 0) - (monthBox?.height ?? 0))).toBeLessThanOrEqual(
+      1
+    );
   });
 
   test("passes baseline WCAG A/AA checks", async ({ page }) => {
