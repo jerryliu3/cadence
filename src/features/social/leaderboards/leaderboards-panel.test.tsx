@@ -53,7 +53,9 @@ describe("LeaderboardsPanel", () => {
 
     expect(await screen.findByText("Leaderboards")).toBeInTheDocument();
     expect(
-      screen.getByText("Leaderboard seasons will appear once admins publish one.")
+      await screen.findByText(
+        "Leaderboard seasons will appear once admins publish one."
+      )
     ).toBeInTheDocument();
   });
 
