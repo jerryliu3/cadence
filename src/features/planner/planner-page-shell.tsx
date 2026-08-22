@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { CalendarPageShell } from "@/features/planner/calendar-page-shell";
 import { ChecklistShell } from "@/features/today/checklist-shell";
 import { TasksTab } from "@/features/tasks/tasks-tab";
+import { TabOnboardingOverlay } from "@/features/onboarding/tab-onboarding-overlay";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useClientSearchParamsUpdater } from "@/lib/navigation/use-client-search-params-updater";
 import { cn } from "@/lib/utils";
@@ -26,6 +27,7 @@ const selectedChipShadow =
 export function PlannerPageShell() {
   const searchParams = useSearchParams();
   const { applySearchParams } = useClientSearchParamsUpdater();
+  const requestedOnboardingKey = searchParams.get("onboarding");
   const surfaceParam = searchParams.get("surface");
   const surface: PlannerSurface =
     surfaceParam === "calendar"
@@ -35,88 +37,110 @@ export function PlannerPageShell() {
       : surfaceParam === "tasks"
         ? "tasks"
         : "checklist";
+  const onboardingKey = `planner.${surface}` as const;
+  const onboardingTitle =
+    surface === "calendar"
+      ? "Calendar guide"
+      : surface === "tasks"
+      ? "Tasks guide"
+      : "Checklist guide";
+  const onboardingDescription =
+    surface === "calendar"
+      ? "Use Calendar to place sessions and lock must-do days before the week starts."
+      : surface === "tasks"
+      ? "Use Tasks for one-off work that should not become long-lived goals."
+      : "Use Checklist to focus today's execution while your longer plan stays in Calendar.";
 
   return (
-    <Tabs
-      value={surface}
-      onValueChange={(value) => {
-        const nextSurface: PlannerSurface =
-          value === "calendar"
-            ? "calendar"
-            : value === "checklist"
-            ? "checklist"
-            : value === "tasks"
-              ? "tasks"
-              : "checklist";
-        applySearchParams((params) => {
-          params.delete("tab");
-          if (nextSurface === "checklist") {
-            params.delete("surface");
-          } else if (nextSurface === "calendar") {
-            params.set("surface", "calendar");
-          } else {
-            params.set("surface", "tasks");
-          }
-        }, "push");
-      }}
-      className="flex flex-col gap-4"
-    >
-      <TabsList
-        variant="line"
-        className="grid w-full grid-cols-3 gap-1.5 rounded-2xl bg-transparent p-0"
+    <>
+      <TabOnboardingOverlay
+        onboardingKey={onboardingKey}
+        title={onboardingTitle}
+        description={onboardingDescription}
+        forceOpen={requestedOnboardingKey === onboardingKey}
+      />
+      <Tabs
+        value={surface}
+        onValueChange={(value) => {
+          const nextSurface: PlannerSurface =
+            value === "calendar"
+              ? "calendar"
+              : value === "checklist"
+              ? "checklist"
+              : value === "tasks"
+                ? "tasks"
+                : "checklist";
+          applySearchParams((params) => {
+            params.delete("tab");
+            params.delete("onboarding");
+            if (nextSurface === "checklist") {
+              params.delete("surface");
+            } else if (nextSurface === "calendar") {
+              params.set("surface", "calendar");
+            } else {
+              params.set("surface", "tasks");
+            }
+          }, "push");
+        }}
+        className="flex flex-col gap-4"
       >
-        <TabsTrigger
-          value="calendar"
-          className={cn(
-            plannerSurfaceTriggerBaseClass,
-            plannerSurfaceTriggerToneClass
-          )}
-          style={
-            surface === "calendar" ? { boxShadow: selectedChipShadow } : undefined
-          }
+        <TabsList
+          variant="line"
+          className="grid w-full grid-cols-3 gap-1.5 rounded-2xl bg-transparent p-0"
         >
-          <CalendarDays className="size-3.5" />
-          <span className="truncate">Calendar</span>
-        </TabsTrigger>
-        <TabsTrigger
-          value="checklist"
-          className={cn(
-            plannerSurfaceTriggerBaseClass,
-            plannerSurfaceTriggerToneClass
-          )}
-          style={
-            surface === "checklist"
-              ? { boxShadow: selectedChipShadow }
-              : undefined
-          }
-        >
-          <ListChecks className="size-3.5" />
-          <span className="truncate">Checklist</span>
-        </TabsTrigger>
-        <TabsTrigger
-          value="tasks"
-          className={cn(
-            plannerSurfaceTriggerBaseClass,
-            plannerSurfaceTriggerToneClass
-          )}
-          style={
-            surface === "tasks" ? { boxShadow: selectedChipShadow } : undefined
-          }
-        >
-          <NotebookPen className="size-3.5" />
-          <span className="truncate">Tasks</span>
-        </TabsTrigger>
-      </TabsList>
+          <TabsTrigger
+            value="calendar"
+            className={cn(
+              plannerSurfaceTriggerBaseClass,
+              plannerSurfaceTriggerToneClass
+            )}
+            style={
+              surface === "calendar" ? { boxShadow: selectedChipShadow } : undefined
+            }
+          >
+            <CalendarDays className="size-3.5" />
+            <span className="truncate">Calendar</span>
+          </TabsTrigger>
+          <TabsTrigger
+            value="checklist"
+            className={cn(
+              plannerSurfaceTriggerBaseClass,
+              plannerSurfaceTriggerToneClass
+            )}
+            style={
+              surface === "checklist"
+                ? { boxShadow: selectedChipShadow }
+                : undefined
+            }
+          >
+            <ListChecks className="size-3.5" />
+            <span className="truncate">Checklist</span>
+          </TabsTrigger>
+          <TabsTrigger
+            value="tasks"
+            className={cn(
+              plannerSurfaceTriggerBaseClass,
+              plannerSurfaceTriggerToneClass
+            )}
+            style={
+              surface === "tasks" ? { boxShadow: selectedChipShadow } : undefined
+            }
+          >
+            <NotebookPen className="size-3.5" />
+            <span className="truncate">Tasks</span>
+          </TabsTrigger>
+        </TabsList>
 
-      <TabsContent value="calendar">
-        <CalendarPageShell />
-      </TabsContent>
-      <TabsContent value="checklist">
-        <ChecklistShell />
-      </TabsContent>
-      <TabsContent value="tasks">
-        <TasksTab />
-      </TabsContent>
-    </Tabs>
+        <TabsContent value="calendar">
+          <CalendarPageShell />
+        </TabsContent>
+        <TabsContent value="checklist">
+          <ChecklistShell />
+        </TabsContent>
+        <TabsContent value="tasks">
+          <TasksTab />
+        </TabsContent>
+      </Tabs>
+    </>
   );
 }
