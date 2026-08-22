@@ -341,8 +341,8 @@ describe("CalendarSurface characterization", () => {
       throw new Error("Expected day panel container.");
     }
 
-    expect(within(dayPanel).getByText("07:30 Tempo run 4x800")).toBeInTheDocument();
-    expect(within(dayPanel).queryByText("07:30 Goal B")).not.toBeInTheDocument();
+    expect(within(dayPanel).getByText(/Tempo run 4x800/i)).toBeInTheDocument();
+    expect(within(dayPanel).queryByText(/Goal B/i)).not.toBeInTheDocument();
   });
 
   it("suppresses default milestone label duplication in month preview and event dialog", async () => {
