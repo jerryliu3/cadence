@@ -280,6 +280,10 @@ export function useChecklistData({
   );
 
   useEffect(() => {
+    if (!isActive) {
+      return;
+    }
+
     const run = async () => {
       try {
         await loadData();
@@ -289,7 +293,7 @@ export function useChecklistData({
     };
 
     void run();
-  }, [loadData, reportLoadError]);
+  }, [isActive, loadData, reportLoadError]);
 
   useEffect(() => {
     if (!isActive || previousViewDateRef.current === viewDate) {

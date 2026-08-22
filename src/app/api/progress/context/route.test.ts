@@ -296,4 +296,69 @@ describe("bounded progress context route", () => {
     ]);
   });
 
+  it("starts goals and completions pagination in parallel", async () => {
+    mocks.socialEnabled = true;
+    const userId = "11111111-1111-4111-8111-111111111111";
+    let releaseGoalsPage!: () => void;
+    const goalsGate = new Promise<void>((resolve) => {
+      releaseGoalsPage = resolve;
+    });
+    let completionsRequested = false;
+
+    class BlockingGoalsQuery extends FakeQuery {
+      then<TResult1 = unknown, TResult2 = never>(
+        onfulfilled?:
+          | ((value: { data: unknown[]; error: null }) => TResult1 | PromiseLike<TResult1>)
+          | null,
+        onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null
+      ) {
+        return goalsGate.then(() => super.then(onfulfilled, onrejected));
+      }
+    }
+
+    mocks.client = {
+      auth: {
+        getUser: async () => ({
+          data: {
+            user: { id: userId },
+          },
+          error: null,
+        }),
+      },
+      rpc: async () => ({ data: [], error: null }),
+      from: (table: string) => {
+        if (table === "goals") {
+          return new BlockingGoalsQuery([
+            goal() as unknown as Record<string, unknown>,
+          ]);
+        }
+        if (table === "completions") {
+          completionsRequested = true;
+          return new FakeQuery([]);
+        }
+        if (table === "profiles") {
+          return new FakeQuery([{ id: userId, week_starts_on: 1 }]);
+        }
+        return new FakeQuery([]);
+      },
+    };
+
+    const responsePromise = GET(
+      new Request(
+        "http://localhost/api/progress/context?asOfDate=2026-08-14&timezone=UTC"
+      )
+    );
+
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(completionsRequested).toBe(true);
+
+    releaseGoalsPage();
+    const response = await responsePromise;
+    expect(response.status).toBe(200);
+  });
+
 });
