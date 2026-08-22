@@ -177,6 +177,7 @@ import {
 } from "@/app/api/social/challenges/[challengeId]/join/route";
 import { POST as groupJoinPost } from "@/app/api/social/groups/join/route";
 import { GET as feedGet } from "@/app/api/social/feed/route";
+import { GET as socialFreshnessGet } from "@/app/api/social/freshness/route";
 import {
   DELETE as reactionDelete,
   POST as reactionPost,
@@ -373,6 +374,7 @@ const auditedRouteCases: AuditedRouteCase[] = [
     { joinCode: "test-code" }
   ),
   routeCase("GET /api/social/feed", feedGet),
+  routeCase("GET /api/social/freshness", socialFreshnessGet),
   routeCase(
     "POST /api/social/feed/[eventId]/reactions",
     reactionPost,

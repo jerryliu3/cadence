@@ -11,6 +11,7 @@ import { GroupJoinCard } from "@/features/social/group-join-card";
 import { TeamPanel } from "@/features/social/team/team-panel";
 import { FeedList } from "@/features/social/feed/feed-list";
 import { LeaderboardsPanel } from "@/features/social/leaderboards/leaderboards-panel";
+import { SocialFreshnessIndicator } from "@/features/social/social-freshness-indicator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   resolveSocialSurfaceTab,
@@ -171,6 +172,7 @@ export function SocialSurface({
           <span className="truncate">Team</span>
         </TabsTrigger>
       </TabsList>
+      <SocialFreshnessIndicator refreshToken={refreshToken} />
 
       <TabsContent value="feed" className="space-y-4">
         <FeedList isActive={activeTab === "feed"} refreshToken={refreshToken} />

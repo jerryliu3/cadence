@@ -87,3 +87,10 @@ export interface LeaderboardStanding {
   tieBreakAt: string | null;
   viewerRank: number | null;
 }
+
+export interface SocialFreshness {
+  serverNow: string;
+  nextExpectedRefreshAt: string;
+  leaderboardRefreshedAt: string | null;
+  challengesRefreshedAt: string | null;
+}

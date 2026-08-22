@@ -45,6 +45,12 @@ vi.mock("@/features/social/group-join-card", () => ({
   GroupJoinCard: () => <div data-testid="group-join-card" />,
 }));
 
+vi.mock("@/features/social/social-freshness-indicator", () => ({
+  SocialFreshnessIndicator: ({ refreshToken }: { refreshToken?: number }) => (
+    <div data-testid="social-freshness-indicator" data-refresh-token={String(refreshToken)} />
+  ),
+}));
+
 afterEach(() => {
   cleanup();
   vi.useRealTimers();
