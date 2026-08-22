@@ -2431,6 +2431,21 @@ export type Database = {
         }
         Returns: number
       }
+      adjust_targeted_planner_instance: {
+        Args: {
+          p_action: string
+          p_expected_digest: string
+          p_goal_id: string
+          p_scheduled_date: string | null
+          p_unit_key: string | null
+        }
+        Returns: {
+          goal_id: string
+          schedule_digest: string
+          target_count: number
+          unit_key: string
+        }[]
+      }
       can_administer_goal: {
         Args: { p_goal_id: string; p_uid: string }
         Returns: boolean
