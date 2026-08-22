@@ -1,20 +1,25 @@
 "use client";
 
-import { addMonths, format } from "date-fns";
 import { useCallback, type Dispatch, type MutableRefObject, type SetStateAction } from "react";
 import { toast } from "sonner";
 import {
   getMonthInTimezone,
   normalizeWeekStartsOn,
-  parseMonth,
 } from "@/features/planner/calendar-format";
-import type { PlannerContextPayload } from "@/features/planner/calendar-surface.types";
+import type {
+  PlannerCalendarViewMode,
+  PlannerContextPayload,
+} from "@/features/planner/calendar-surface.types";
+import {
+  buildCalendarVisibleDateWindow,
+  selectCalendarViewWindowProjection,
+} from "@/features/planner/calendar-view-projection";
 import { getApiErrorMessage, getJson, postJson } from "@/lib/api/client";
 import {
   PLANNER_CONTEXT_CACHE_PREFIX,
 } from "@/lib/cache/planner-tab-cache";
 import { readTabDataCache, writeTabDataCache } from "@/lib/cache/tab-data-cache";
-import { getScopeDateRange } from "@/lib/planner/dates";
+import { getDateInTimezone } from "@/lib/dates/timezone";
 import type { PlannerPolicy } from "@/lib/planner/policy";
 
 export interface LoadPlannerContextOptions {
@@ -26,7 +31,10 @@ export interface LoadPlannerContextOptions {
 interface UsePlannerContextLoaderArgs {
   activeTab: string;
   month: string | null;
+  selectedDay: string | null;
+  viewMode: PlannerCalendarViewMode;
   setupTimezone: string;
+  setupWeekStartsOn: number;
   onMonthChange: (month: string, mode: "push" | "replace") => void;
   setContext: Dispatch<SetStateAction<PlannerContextPayload | null>>;
   setLoading: Dispatch<SetStateAction<boolean>>;
@@ -41,7 +49,10 @@ interface UsePlannerContextLoaderArgs {
 export function usePlannerContextLoader({
   activeTab,
   month,
+  selectedDay,
+  viewMode,
   setupTimezone,
+  setupWeekStartsOn,
   onMonthChange,
   setContext,
   setLoading,
@@ -71,6 +82,20 @@ export function usePlannerContextLoader({
         onMonthChange(resolvedMonth, "replace");
         return true;
       }
+      const calendarToday = getDateInTimezone(new Date(), setupTimezone);
+      const projection = selectCalendarViewWindowProjection({
+        month,
+        selectedDay,
+        calendarToday,
+        weekStartsOn: setupWeekStartsOn,
+        viewMode,
+      });
+      const visibleWindow = buildCalendarVisibleDateWindow(projection.visibleDays);
+      if (!visibleWindow) {
+        return false;
+      }
+      const visibleStart = visibleWindow.start;
+      const visibleEnd = visibleWindow.end;
 
       const plannerContextCacheKey = `${PLANNER_CONTEXT_CACHE_PREFIX}${month}`;
       const cachedContextPayload = readTabDataCache<PlannerContextPayload>(plannerContextCacheKey);
@@ -91,13 +116,6 @@ export function usePlannerContextLoader({
       }
       let contextPayload: PlannerContextPayload;
       try {
-        const parsedMonth = parseMonth(month);
-        const visibleStart = getScopeDateRange(
-          format(addMonths(parsedMonth, -1), "yyyy-MM")
-        ).start;
-        const visibleEnd = getScopeDateRange(
-          format(addMonths(parsedMonth, 1), "yyyy-MM")
-        ).end;
         const shouldPrepare = forcePrepare || !calendarPreparedRef.current;
         contextPayload = shouldPrepare
           ? await postJson<PlannerContextPayload>("/api/planner/prepare", {
@@ -162,13 +180,16 @@ export function usePlannerContextLoader({
       draftPolicyRef,
       month,
       onMonthChange,
+      selectedDay,
       setContext,
       setError,
       setLoading,
       setSetupRestWeekdays,
       setSetupTimezone,
       setSetupWeekStartsOn,
+      setupWeekStartsOn,
       setupTimezone,
+      viewMode,
     ]
   );
 }

@@ -205,8 +205,8 @@ describe("CalendarSurface characterization", () => {
     await waitFor(() => {
       expect(postJsonMock).toHaveBeenCalledWith("/api/planner/prepare", {
         scopeMonth: "2026-09",
-        visibleStart: "2026-08-01",
-        visibleEnd: "2026-10-31",
+        visibleStart: "2026-07-27",
+        visibleEnd: "2026-11-08",
       });
     });
 
@@ -258,7 +258,6 @@ describe("CalendarSurface characterization", () => {
     ).toBeInstanceOf(HTMLButtonElement);
   });
 
-  it.each(["month", "three_month", "week", "three_day"] as const)(
   it.each(["month", "week", "three_day"] as const)(
     "keeps time prefix while using compact milestone labels in %s cells",
     async (viewMode) => {

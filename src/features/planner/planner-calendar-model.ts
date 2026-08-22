@@ -8,7 +8,10 @@ import type {
   PlannerCompletionFactMarker,
   PlannerContextPayload,
 } from "@/features/planner/calendar-surface.types";
-import { selectCalendarViewWindowProjection } from "@/features/planner/calendar-view-projection";
+import {
+  buildCalendarVisibleDateWindow,
+  selectCalendarViewWindowProjection,
+} from "@/features/planner/calendar-view-projection";
 import type { CalendarViewWindowProjection } from "@/features/planner/calendar-view-projection";
 import {
   selectCalendarViewWindowModel,
@@ -35,7 +38,6 @@ import {
   type CalendarDayAccessorsMemoizedState,
   type CalendarDayAccessorsResult,
 } from "@/features/planner/planner-calendar-day-accessors-model";
-import { getScopeDateRange } from "@/lib/planner/dates";
 import type { PlannerPolicy } from "@/lib/planner/policy";
 import { getDateInTimezone } from "@/lib/dates/timezone";
 
@@ -78,13 +80,6 @@ export interface PlannerCalendarModel {
   linkedTargetIndexes: ReturnType<typeof buildPlannerLinkedTargetIndexes>;
 }
 
-function resolveEditableDateWindow(month: string | null) {
-  if (!month) {
-    return null;
-  }
-  return getScopeDateRange(month);
-}
-
 export function selectPlannerCalendarModel({
   context,
   draftCommandState,
@@ -118,7 +113,9 @@ export function selectPlannerCalendarModel({
     viewMode,
   });
   const currentScopeMonth = month ?? context?.scopeMonth ?? null;
-  const editableDateWindow = resolveEditableDateWindow(month);
+  const editableDateWindow = buildCalendarVisibleDateWindow(
+    viewProjection.visibleDays
+  );
   const draftSession = memoizedState.draftSession;
   const dayAccessors = selectCalendarDayAccessorsModel({
     context,
