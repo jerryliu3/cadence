@@ -226,7 +226,7 @@ export function PlannerEventDetailDialog({
                 {selectedEventEntry.activeItem ? (
                   <div className="flex flex-wrap gap-2">
                     <Button type="button" size="sm" variant="outline" asChild>
-                      <Link href={`/goals/${selectedEventEntry.originalGoalId}`}>
+                      <Link href={`/app/goals/${selectedEventEntry.originalGoalId}`}>
                         Edit goal
                       </Link>
                     </Button>

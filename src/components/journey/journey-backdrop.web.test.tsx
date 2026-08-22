@@ -6,7 +6,7 @@ vi.mock("motion/react", () => ({
   useReducedMotion: () => false,
 }));
 
-const pathnameMock = vi.fn(() => "/social");
+const pathnameMock = vi.fn(() => "/app/social");
 vi.mock("next/navigation", () => ({
   usePathname: () => pathnameMock(),
 }));
@@ -26,7 +26,7 @@ const enabledFlags = {
 describe("JourneyBackdrop", () => {
   afterEach(() => {
     cleanup();
-    pathnameMock.mockReturnValue("/social");
+    pathnameMock.mockReturnValue("/app/social");
   });
 
   it("renders poster-first fallback immediately", () => {
@@ -54,7 +54,7 @@ describe("JourneyBackdrop", () => {
   });
 
   it("prefers poster and skips video outside community and auth routes", () => {
-    pathnameMock.mockReturnValue("/calendar");
+    pathnameMock.mockReturnValue("/app/calendar");
 
     render(<JourneyBackdrop flags={enabledFlags} />);
     const video = document.querySelector("video");

@@ -28,7 +28,7 @@ function isAuthRoute(pathname: string) {
 }
 
 function allowJourneyVideoForPathname(pathname: string) {
-  if (pathname.startsWith("/social")) {
+  if (pathname.startsWith("/app/social")) {
     return true;
   }
   if (isAuthRoute(pathname)) {

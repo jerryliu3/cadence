@@ -69,7 +69,7 @@ describe("GoalCard", () => {
 
     expect(screen.getByRole("link")).toHaveAttribute(
       "href",
-      "/goals/10000000-0000-4000-8000-000000000001"
+      "/app/goals/10000000-0000-4000-8000-000000000001"
     );
     expect(
       screen.getByRole("button", { name: "Mark goal as complete" })

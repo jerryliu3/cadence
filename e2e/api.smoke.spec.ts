@@ -6,6 +6,13 @@ import { expect, test, type Page } from "@playwright/test";
 // cannot land inside that window.
 test.describe.configure({ mode: "serial" });
 
+async function gotoAuthenticatedApp(page: Page) {
+  await page.goto("/app");
+  await expect(
+    page.getByRole("navigation", { name: "Main navigation" })
+  ).toBeVisible();
+}
+
 async function postInvalidPushSubscription(page: Page) {
   return page.evaluate(async () => {
     const response = await fetch("/api/push/subscriptions", {
@@ -49,7 +56,7 @@ async function postJson(page: Page, url: string, body: unknown) {
 test("API integration preserves authenticated validation order", async ({
   page,
 }) => {
-  await page.goto("/");
+  await gotoAuthenticatedApp(page);
   const response = await postInvalidPushSubscription(page);
 
   expect(response.status).toBe(400);
@@ -58,7 +65,7 @@ test("API integration preserves authenticated validation order", async ({
 });
 
 test("API integration rejects an unauthenticated mutation", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/login");
   await page.context().clearCookies();
   await page.evaluate(() => window.localStorage.clear());
 
@@ -70,7 +77,7 @@ test("API integration rejects an unauthenticated mutation", async ({ page }) => 
 });
 
 test("planner bridge APIs authenticate before validation", async ({ page }) => {
-  await page.goto("/");
+  await gotoAuthenticatedApp(page);
 
   const bulkParser = await postJson(page, "/api/bulk-goals/parse", null);
   const exactCompletion = await postJson(
@@ -88,7 +95,7 @@ test("planner bridge APIs authenticate before validation", async ({ page }) => {
 test("bounded progress context returns explicit non-truncated data", async ({
   page,
 }) => {
-  await page.goto("/");
+  await gotoAuthenticatedApp(page);
   const result = await page.evaluate(async () => {
     const today = new Intl.DateTimeFormat("en-CA", {
       year: "numeric",
@@ -119,7 +126,7 @@ test("bounded progress context returns explicit non-truncated data", async ({
 });
 
 test("planner bridge APIs reject unauthenticated callers", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/login");
   await page.context().clearCookies();
   await page.evaluate(() => window.localStorage.clear());
 
@@ -137,7 +144,7 @@ test("planner bridge APIs reject unauthenticated callers", async ({ page }) => {
 });
 
 test("planner reset rejects stale digest expectations", async ({ page }) => {
-  await page.goto("/");
+  await gotoAuthenticatedApp(page);
   const result = await page.evaluate(async () => {
     const fallbackDigest =
       "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
@@ -186,7 +193,7 @@ test("planner reset rejects stale digest expectations", async ({ page }) => {
 test("planner completion bridge rejects stale item expectation digests first", async ({
   page,
 }) => {
-  await page.goto("/");
+  await gotoAuthenticatedApp(page);
   const result = await page.evaluate(async () => {
     const fallbackDigest =
       "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
@@ -244,7 +251,7 @@ test("planner completion bridge rejects stale item expectation digests first", a
 test("planner completion bridge reports missing planner item with matching digest", async ({
   page,
 }) => {
-  await page.goto("/");
+  await gotoAuthenticatedApp(page);
   const result = await page.evaluate(async () => {
     const now = new Date();
     now.setDate(now.getDate() - 1);
@@ -309,7 +316,7 @@ test("planner completion bridge reports missing planner item with matching diges
 test("targeted recurring bridge mutates only the requested date", async ({
   page,
 }, testInfo) => {
-  await page.goto("/");
+  await gotoAuthenticatedApp(page);
   const dayOffset = {
     chromium: 1,
     webkit: 2,
@@ -378,7 +385,7 @@ test("targeted recurring bridge mutates only the requested date", async ({
 test("planner save publishes a multi-month date window in one request", async ({
   page,
 }) => {
-  await page.goto("/");
+  await gotoAuthenticatedApp(page);
   const result = await page.evaluate(async () => {
     type Ctx = {
       asOfDate: string;

@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
 import { normalizePlannerPrimaryTabPreference } from "@cadence/shared/navigation/tabs";
 import { AppShell } from "@/components/layout/app-shell";
+import { buildLoginHref } from "@/lib/auth/login-redirect";
 import { getFeatureFlags } from "@/lib/feature-flags";
 import { parseDuoScopeCookieValue, DUO_SCOPE_COOKIE_NAME } from "@/lib/social/duo/scope-cookie";
 import { loadDuoContext } from "@/lib/social/duo/load-duo-context";
@@ -22,7 +23,7 @@ export default async function AuthenticatedLayout({
   } = await supabase.auth.getUser();
 
   if (!user) {
-    redirect("/login");
+    redirect(buildLoginHref("/app"));
   }
 
   const [{ data: profile }, duo] = await Promise.all([

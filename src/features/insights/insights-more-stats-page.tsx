@@ -394,7 +394,7 @@ export function InsightsMoreStatsPage() {
           <div className="flex items-center justify-between gap-3">
             <CardTitle>More stats</CardTitle>
             <Button asChild variant="outline" size="sm">
-              <Link href="/insights" className="inline-flex items-center gap-1">
+              <Link href="/app/insights" className="inline-flex items-center gap-1">
                 <ArrowLeft className="size-3.5" />
                 Back
               </Link>

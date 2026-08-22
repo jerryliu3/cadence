@@ -28,13 +28,13 @@ export default async function HomePage({
     nextParams.set("view", "day");
     nextParams.set("day", day);
     nextParams.set("month", day.slice(0, 7));
-    redirect(`/calendar?${nextParams.toString()}`);
+    redirect(`/app/calendar?${nextParams.toString()}`);
     return;
   }
 
   if (tab === "today" || tab === "not-today" || tab === "past") {
     const normalizedTab = tab === "past" ? "not-today" : tab;
-    redirect(`/checklist?tab=${normalizedTab}`);
+    redirect(`/app/checklist?tab=${normalizedTab}`);
     return;
   }
 
@@ -47,9 +47,9 @@ export default async function HomePage({
   }
   const query = nextParams.toString();
   if (query.length > 0) {
-    redirect(`/calendar?${query}`);
+    redirect(`/app/calendar?${query}`);
     return;
   }
 
-  redirect("/calendar");
+  redirect("/app/calendar");
 }

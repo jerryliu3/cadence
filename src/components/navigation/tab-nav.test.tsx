@@ -36,7 +36,7 @@ describe("TabNav", () => {
   });
 
   it("renders four app tabs and marks the active tab", () => {
-    mockPathname = "/social";
+    mockPathname = "/app/social";
     const { container } = render(<TabNav />);
 
     expect(screen.getByRole("link", { name: /Insights/i })).toBeInTheDocument();
@@ -58,7 +58,7 @@ describe("TabNav", () => {
 
     expect(screen.getByRole("link", { name: /Planner/i })).toHaveAttribute(
       "href",
-      "/calendar"
+      "/app/calendar"
     );
   });
 
@@ -79,7 +79,7 @@ describe("TabNav", () => {
   });
 
   it("marks tab navigation with directional transition types", () => {
-    mockPathname = "/calendar";
+    mockPathname = "/app/calendar";
     render(<TabNav />);
 
     expect(screen.getByRole("link", { name: "Insights" })).toHaveAttribute(
@@ -96,7 +96,7 @@ describe("TabNav", () => {
   });
 
   it("updates the planner highlight immediately on click even if the route lags", () => {
-    mockPathname = "/insights";
+    mockPathname = "/app/insights";
     render(<TabNav mobile />);
 
     fireEvent.click(screen.getByRole("link", { name: "Planner" }));
@@ -111,11 +111,11 @@ describe("TabNav", () => {
   });
 
   it("follows the real route once pathname catches up after an optimistic click", () => {
-    mockPathname = "/insights";
+    mockPathname = "/app/insights";
     const { rerender } = render(<TabNav mobile />);
 
     fireEvent.click(screen.getByRole("link", { name: "Planner" }));
-    mockPathname = "/calendar";
+    mockPathname = "/app/calendar";
     rerender(<TabNav mobile />);
 
     expect(screen.getByRole("link", { name: "Planner" })).toHaveAttribute(
@@ -123,7 +123,7 @@ describe("TabNav", () => {
       "page"
     );
 
-    mockPathname = "/social";
+    mockPathname = "/app/social";
     rerender(<TabNav mobile />);
 
     expect(screen.getByRole("link", { name: "Community" })).toHaveAttribute(

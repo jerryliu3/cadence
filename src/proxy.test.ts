@@ -16,7 +16,7 @@ describe("proxy", () => {
     updateSessionMock.mockClear();
   });
 
-  it("redirects bare root requests to /calendar", async () => {
+  it("redirects bare root requests to /app/calendar", async () => {
     const response = await proxy(
       new NextRequest("http://localhost:3000/")
     );
@@ -24,12 +24,12 @@ describe("proxy", () => {
     expect(updateSessionMock).not.toHaveBeenCalled();
     expect(response.status).toBe(307);
     expect(response.headers.get("location")).toBe(
-      "http://localhost:3000/calendar"
+      "http://localhost:3000/app/calendar"
     );
   });
 
   it("passes non-root requests through session update", async () => {
-    const request = new NextRequest("http://localhost:3000/calendar");
+    const request = new NextRequest("http://localhost:3000/app/calendar");
 
     await proxy(request);
 

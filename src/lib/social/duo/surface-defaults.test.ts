@@ -13,7 +13,9 @@ describe("duo surface defaults", () => {
     expect(DUO_SURFACE_DEFAULTS.checklist).toBe("me");
     expect(DUO_SURFACE_DEFAULTS.calendar).toBe("me");
     expect(resolveDuoSurfaceDefault("/calendar")).toBe("me");
+    expect(resolveDuoSurfaceDefault("/app/calendar")).toBe("me");
     expect(resolveDuoSurfaceDefault("/insights")).toBe("both");
+    expect(resolveDuoSurfaceDefault("/app/insights")).toBe("both");
   });
 
   it("resolves effective scope from partner availability and preference", () => {

@@ -171,7 +171,7 @@ export function GoalCard({
           </div>
         ) : (
           <Link
-            href={`/goals/${goal.id}`}
+            href={`/app/goals/${goal.id}`}
             className="flex min-w-0 flex-1 items-center gap-2 rounded-lg px-0.5 py-0.5 transition-colors hover:bg-muted/40"
           >
             {body}

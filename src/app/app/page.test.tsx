@@ -17,7 +17,7 @@ describe("app root page routing", () => {
       searchParams: Promise.resolve({}),
     });
 
-    expect(redirectMock).toHaveBeenCalledWith("/calendar");
+    expect(redirectMock).toHaveBeenCalledWith("/app/calendar");
   });
 
   it("redirects legacy day links into calendar day view", async () => {
@@ -26,7 +26,7 @@ describe("app root page routing", () => {
     });
 
     expect(redirectMock).toHaveBeenCalledWith(
-      "/calendar?view=day&day=2026-08-04&month=2026-08"
+      "/app/calendar?view=day&day=2026-08-04&month=2026-08"
     );
   });
 
@@ -35,6 +35,6 @@ describe("app root page routing", () => {
       searchParams: Promise.resolve({ tab: "past" }),
     });
 
-    expect(redirectMock).toHaveBeenCalledWith("/checklist?tab=not-today");
+    expect(redirectMock).toHaveBeenCalledWith("/app/checklist?tab=not-today");
   });
 });

@@ -1,6 +1,13 @@
-const DEFAULT_POST_LOGIN_PATH = "/";
+const DEFAULT_POST_LOGIN_PATH = "/app";
 const LOGIN_PATH = "/login";
 const SENTINEL_BASE_URL = "http://resolution.local";
+const LEGACY_ROUTE_PREFIXES = [
+  "/calendar",
+  "/checklist",
+  "/social",
+  "/insights",
+  "/settings",
+] as const;
 
 function isSafeRelativePath(path: string) {
   if (!path.startsWith("/") || path.startsWith("//")) {
@@ -26,12 +33,27 @@ function isLoginPath(path: string) {
   return path === LOGIN_PATH || path.startsWith(`${LOGIN_PATH}/`);
 }
 
+function remapLegacyRoutePath(path: string) {
+  const resolved = new URL(path, SENTINEL_BASE_URL);
+  const pathname = resolved.pathname;
+  if (pathname === "/") {
+    return DEFAULT_POST_LOGIN_PATH;
+  }
+  const matchedPrefix = LEGACY_ROUTE_PREFIXES.find((prefix) =>
+    pathname.startsWith(prefix)
+  );
+  if (!matchedPrefix) {
+    return path;
+  }
+  return `/app${path}`;
+}
+
 export function resolveSafePostLoginPath(candidatePath?: string | null) {
   const normalized = candidatePath?.trim();
   if (!normalized || !isSafeRelativePath(normalized)) {
     return DEFAULT_POST_LOGIN_PATH;
   }
-  const safePath = normalizeSafePath(normalized);
+  const safePath = remapLegacyRoutePath(normalizeSafePath(normalized));
   if (isLoginPath(new URL(safePath, SENTINEL_BASE_URL).pathname)) {
     return DEFAULT_POST_LOGIN_PATH;
   }
