@@ -93,64 +93,64 @@ values
     '11111111-1111-4111-8111-111111111111',
     '92100000-0000-4000-8000-000000000001',
     'total:1',
-    (date_trunc('month', current_date) + 2)::date,
-    (date_trunc('month', current_date) + 2)::date,
+    (date_trunc('month', current_date)::date + 2),
+    (date_trunc('month', current_date)::date + 2),
     false
   ),
   (
     '11111111-1111-4111-8111-111111111111',
     '92100000-0000-4000-8000-000000000001',
     'total:2',
-    (date_trunc('month', current_date) + 3)::date,
-    (date_trunc('month', current_date) + 3)::date,
+    (date_trunc('month', current_date)::date + 3),
+    (date_trunc('month', current_date)::date + 3),
     false
   ),
   (
     '11111111-1111-4111-8111-111111111111',
     '92100000-0000-4000-8000-000000000001',
     'total:3',
-    (date_trunc('month', current_date) + 4)::date,
-    (date_trunc('month', current_date) + 4)::date,
+    (date_trunc('month', current_date)::date + 4),
+    (date_trunc('month', current_date)::date + 4),
     false
   ),
   (
     '11111111-1111-4111-8111-111111111111',
     '92400000-0000-4000-8000-000000000001',
     'total:1',
-    (date_trunc('month', current_date) + 8)::date,
-    (date_trunc('month', current_date) + 8)::date,
+    (date_trunc('month', current_date)::date + 8),
+    (date_trunc('month', current_date)::date + 8),
     true
   ),
   (
     '11111111-1111-4111-8111-111111111111',
     '92400000-0000-4000-8000-000000000001',
     'total:2',
-    (date_trunc('month', current_date) + 9)::date,
-    (date_trunc('month', current_date) + 9)::date,
+    (date_trunc('month', current_date)::date + 9),
+    (date_trunc('month', current_date)::date + 9),
     false
   ),
   (
     '11111111-1111-4111-8111-111111111111',
     '92200000-0000-4000-8000-000000000001',
     'milestone:1',
-    (date_trunc('month', current_date) + 10)::date,
-    (date_trunc('month', current_date) + 10)::date,
+    (date_trunc('month', current_date)::date + 10),
+    (date_trunc('month', current_date)::date + 10),
     false
   ),
   (
     '11111111-1111-4111-8111-111111111111',
     '92200000-0000-4000-8000-000000000001',
     'milestone:2',
-    (date_trunc('month', current_date) + 11)::date,
-    (date_trunc('month', current_date) + 11)::date,
+    (date_trunc('month', current_date)::date + 11),
+    (date_trunc('month', current_date)::date + 11),
     false
   ),
   (
     '11111111-1111-4111-8111-111111111111',
     '92200000-0000-4000-8000-000000000001',
     'milestone:3',
-    (date_trunc('month', current_date) + 12)::date,
-    (date_trunc('month', current_date) + 12)::date,
+    (date_trunc('month', current_date)::date + 12),
+    (date_trunc('month', current_date)::date + 12),
     false
   );
 
@@ -158,7 +158,7 @@ insert into public.completions (user_id, goal_id, completed_on)
 values (
   '11111111-1111-4111-8111-111111111111',
   '92100000-0000-4000-8000-000000000001',
-  (date_trunc('month', current_date) + 2)::date
+  (date_trunc('month', current_date)::date + 2)
 );
 
 reset role;
@@ -181,7 +181,7 @@ select throws_ok(
     from public.adjust_targeted_planner_instance(
       '92300000-0000-4000-8000-000000000001',
       'add',
-      (date_trunc('month', current_date) + 15)::date,
+      (date_trunc('month', current_date)::date + 15),
       null::text,
       v_digest
     );
@@ -204,7 +204,7 @@ select lives_ok(
     from public.adjust_targeted_planner_instance(
       '92100000-0000-4000-8000-000000000001',
       'add',
-      (date_trunc('month', current_date) + 14)::date,
+      (date_trunc('month', current_date)::date + 14),
       null::text,
       v_digest
     );
@@ -226,7 +226,7 @@ select ok(
     from public.planner_items
     where goal_id = '92100000-0000-4000-8000-000000000001'
       and unit_key = 'total:4'
-      and scheduled_date = (date_trunc('month', current_date) + 14)::date
+      and scheduled_date = (date_trunc('month', current_date)::date + 14)
   ),
   'add inserts the new total:4 planner item on the requested date'
 );
@@ -310,7 +310,7 @@ select ok(
     from public.planner_items
     where goal_id = '92100000-0000-4000-8000-000000000001'
       and unit_key = 'total:2'
-      and scheduled_date = (date_trunc('month', current_date) + 4)::date
+      and scheduled_date = (date_trunc('month', current_date)::date + 4)
   ),
   'delete renumbers total:3 to total:2 while preserving scheduled date'
 );
@@ -336,7 +336,7 @@ select lives_ok(
     from public.adjust_targeted_planner_instance(
       '92200000-0000-4000-8000-000000000001',
       'add',
-      (date_trunc('month', current_date) + 16)::date,
+      (date_trunc('month', current_date)::date + 16),
       null::text,
       v_digest
     );
