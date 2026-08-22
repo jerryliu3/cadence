@@ -240,7 +240,7 @@ export function GoalSharingSection({
         <CardHeader>
           <CardTitle>Shared by me</CardTitle>
           <CardDescription>
-            Manage who can view each goal you've shared.
+            Manage who can view each goal you have shared.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
