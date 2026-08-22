@@ -113,9 +113,12 @@ export function AdminSyntheticUsersManager() {
   }, []);
 
   useEffect(() => {
-    void load().catch((loadError) => {
-      setError(loadError instanceof Error ? loadError.message : "Could not load synthetic users.");
-    });
+    const timeoutId = window.setTimeout(() => {
+      void load().catch((loadError) => {
+        setError(loadError instanceof Error ? loadError.message : "Could not load synthetic users.");
+      });
+    }, 0);
+    return () => window.clearTimeout(timeoutId);
   }, [load]);
 
   function updateDraft(userId: string, patch: Partial<UserDraft>) {

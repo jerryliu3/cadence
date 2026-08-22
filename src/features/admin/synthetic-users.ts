@@ -1,5 +1,3 @@
-import { ApiRouteError } from "@/lib/api/route";
-
 export const SYNTHETIC_PERSONAS = ["low", "medium", "high"] as const;
 
 export type SyntheticPersona = (typeof SYNTHETIC_PERSONAS)[number];
@@ -90,35 +88,5 @@ export function filterAdminSyntheticUsers(
       (item.displayName ?? "").toLowerCase().includes(query) ||
       item.archetype.toLowerCase().includes(query)
     );
-  });
-}
-
-export type DbMutationError = {
-  message: string;
-  code?: string | null;
-};
-
-export function mapSyntheticUserMutationError(
-  error: DbMutationError,
-  fallbackCode: string,
-  fallbackMessage: string
-) {
-  if (error.code === "23505") {
-    return new ApiRouteError(409, "synthetic_username_conflict", "Username already exists.");
-  }
-  if (error.message.includes("admin_synthetic_username_invalid")) {
-    return new ApiRouteError(400, "synthetic_username_invalid", "Username format is invalid.");
-  }
-  if (error.message.includes("admin_synthetic_archetype_invalid")) {
-    return new ApiRouteError(400, "synthetic_archetype_invalid", "Archetype is invalid.");
-  }
-  if (error.message.includes("admin_synthetic_user_id_immutable")) {
-    return new ApiRouteError(400, "synthetic_user_id_immutable", "Synthetic user id cannot be changed.");
-  }
-  if (error.code === "23514") {
-    return new ApiRouteError(400, "synthetic_user_invalid", "Synthetic user fields failed validation.");
-  }
-  return new ApiRouteError(500, fallbackCode, fallbackMessage, {
-    cause: error.message,
   });
 }

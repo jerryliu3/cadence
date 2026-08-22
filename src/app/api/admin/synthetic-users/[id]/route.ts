@@ -8,11 +8,37 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireAdminContext } from "@/lib/api/admin-context";
 import { createAdminClient } from "@/lib/supabase/admin";
-import {
-  mapSyntheticUserMutationError,
-  SYNTHETIC_PERSONAS,
-  toAdminSyntheticUserDto,
-} from "@/features/admin/synthetic-users";
+import { SYNTHETIC_PERSONAS, toAdminSyntheticUserDto } from "@/features/admin/synthetic-users";
+
+type DbMutationError = {
+  message: string;
+  code?: string | null;
+};
+
+function mapSyntheticUserMutationError(
+  error: DbMutationError,
+  fallbackCode: string,
+  fallbackMessage: string
+) {
+  if (error.code === "23505") {
+    return new ApiRouteError(409, "synthetic_username_conflict", "Username already exists.");
+  }
+  if (error.message.includes("admin_synthetic_username_invalid")) {
+    return new ApiRouteError(400, "synthetic_username_invalid", "Username format is invalid.");
+  }
+  if (error.message.includes("admin_synthetic_archetype_invalid")) {
+    return new ApiRouteError(400, "synthetic_archetype_invalid", "Archetype is invalid.");
+  }
+  if (error.message.includes("admin_synthetic_user_id_immutable")) {
+    return new ApiRouteError(400, "synthetic_user_id_immutable", "Synthetic user id cannot be changed.");
+  }
+  if (error.code === "23514") {
+    return new ApiRouteError(400, "synthetic_user_invalid", "Synthetic user fields failed validation.");
+  }
+  return new ApiRouteError(500, fallbackCode, fallbackMessage, {
+    cause: error.message,
+  });
+}
 
 export const runtime = "nodejs";
 
