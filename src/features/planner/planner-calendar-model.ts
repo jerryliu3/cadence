@@ -1,8 +1,5 @@
 import { buildPlannerLinkedTargetIndexes } from "@/features/planner/calendar-linked-targets";
-import {
-  getMonthInTimezone,
-  normalizeWeekStartsOn,
-} from "@/features/planner/calendar-format";
+import { normalizeWeekStartsOn } from "@/features/planner/calendar-format";
 import type {
   PlannerCalendarViewMode,
   PlannerCompletionFactMarker,
@@ -69,7 +66,6 @@ export interface PlannerCalendarModel {
   currentScopeMonth: string | null;
   weekStartsOn: number;
   calendarToday: string;
-  todayMonth: string;
   viewProjection: CalendarViewWindowProjection;
   viewWindow: CalendarViewWindowModel;
   draftSession: PlannerDraftSessionModel;
@@ -102,9 +98,6 @@ export function selectPlannerCalendarModel({
   const calendarToday =
     context?.asOfDate ??
     getDateInTimezone(new Date(), context?.timezone ?? setupTimezone);
-  const todayMonth = context?.timezone
-    ? getMonthInTimezone(context.timezone)
-    : getMonthInTimezone(setupTimezone);
   const viewProjection = selectCalendarViewWindowProjection({
     month,
     selectedDay,
@@ -160,8 +153,6 @@ export function selectPlannerCalendarModel({
     focusedWeekDays: viewProjection.focusedWeekDays,
     focusedThreeDayDays: viewProjection.focusedThreeDayDays,
     calendarToday,
-    todayMonth,
-    weekStartsOn,
   });
   const linkedTargetIndexes = buildPlannerLinkedTargetIndexes(context?.links ?? []);
 
@@ -169,7 +160,6 @@ export function selectPlannerCalendarModel({
     currentScopeMonth,
     weekStartsOn,
     calendarToday,
-    todayMonth,
     viewProjection,
     viewWindow,
     draftSession,
