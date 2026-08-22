@@ -21,7 +21,7 @@ setup("authenticate seeded Alice account", async ({ page }) => {
 
   await page.getByRole("button", { name: "Sign in" }).click();
 
-  await expect(page).toHaveURL(/\/calendar/);
+  await expect(page).toHaveURL(/\/app\/calendar/);
   await expect(
     page.getByRole("navigation", { name: "Main navigation" })
   ).toBeVisible();

@@ -46,7 +46,7 @@ structured-output/compiler failure mode.
 Use the calendar surface explicitly; the default planner surface is the
 checklist:
 
-1. Open `/calendar?surface=calendar` and open AI Coach.
+1. Open `/app/calendar?surface=calendar` and open AI Coach.
 2. Ask: `Create a 5k running plan for the next four weeks.`
 3. Confirm the coach renders no more than five recurring goal drafts inline
    (for example, weekly easy run and weekly long run), rather than one goal per

@@ -13,10 +13,24 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const metadataBase = (() => {
+  const configured = process.env.NEXT_PUBLIC_APP_URL?.trim();
+  if (!configured) {
+    return undefined;
+  }
+  try {
+    const url = new URL(configured);
+    return new URL(url.origin);
+  } catch {
+    return undefined;
+  }
+})();
+
 export const metadata: Metadata = {
   title: "Goalmaxxing",
   description: "Personal goal tracking with insights and social accountability.",
   applicationName: "Goalmaxxing",
+  metadataBase,
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
