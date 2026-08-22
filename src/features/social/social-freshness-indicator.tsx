@@ -90,7 +90,12 @@ export function SocialFreshnessIndicator({
   }, []);
 
   useEffect(() => {
-    void loadFreshness();
+    const timeoutId = window.setTimeout(() => {
+      void loadFreshness();
+    }, 0);
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
   }, [loadFreshness, refreshToken]);
 
   useEffect(() => {
