@@ -107,6 +107,10 @@ export function usePlannerCalendarDayCellRenderer({
             : "No items";
       const isToday = cell.date === calendarToday;
       const isPastInMonth = cell.inMonth && cell.date < calendarToday;
+      const monthContextLabel =
+        viewMode === "month" && !cell.inMonth && cell.date.endsWith("-01")
+          ? format(parse(cell.date, "yyyy-MM-dd", new Date()), "MMM")
+          : null;
       const ariaLabel = `${format(
         parse(cell.date, "yyyy-MM-dd", new Date()),
         "EEEE, MMMM d, yyyy"
@@ -121,6 +125,7 @@ export function usePlannerCalendarDayCellRenderer({
           key={`${viewMode}-${cell.date}`}
           day={cell.date}
           inMonth={cell.inMonth}
+          monthContextLabel={monthContextLabel}
           isToday={isToday}
           isPastInMonth={isPastInMonth}
           ariaLabel={ariaLabel}
