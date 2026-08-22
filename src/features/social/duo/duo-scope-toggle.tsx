@@ -30,7 +30,8 @@ export function DuoScopeToggle() {
   const selectedScope = SCOPE_OPTIONS.find((option) => option.value === scope);
 
   return (
-    <div className="w-auto">
+    <div className="flex items-center gap-1.5 text-xs">
+      <span className="text-muted-foreground">Mode:</span>
       <label htmlFor="duo-scope-toggle" className="sr-only">
         Duo scope
       </label>
@@ -45,7 +46,7 @@ export function DuoScopeToggle() {
         >
           <SelectValue />
         </SelectTrigger>
-        <SelectContent>
+        <SelectContent position="popper" align="end">
           {SCOPE_OPTIONS.map((option) => (
             <SelectItem key={option.value} value={option.value}>
               {option.label}
