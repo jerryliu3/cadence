@@ -227,4 +227,34 @@ describe("selectPlannerCalendarModel", () => {
     expect(milestoneMatches).toHaveLength(1);
     expect(milestoneMatches[0]?.originalGoalId).toBe("goal-b");
   });
+
+  it("gates entry mutation using an explicit editable date window", () => {
+    const context = buildContextWithPersistedPlan(
+      [
+        buildPlannerWorkUnit({
+          originalGoalId: "goal-a",
+          unitKey: "total:1",
+          scheduledDate: "2026-08-20",
+        }),
+      ],
+      {
+        "goal-a": "Goal A",
+      }
+    );
+    const model = selectPlannerCalendarModel(
+      buildArgs({
+        context,
+        month: "2026-08",
+        viewMode: "month",
+      })
+    );
+    const [entry] = model.dayAccessors.getEntriesForDay("2026-08-20");
+    expect(entry).toBeDefined();
+    if (!entry) {
+      throw new Error("Expected an entry on 2026-08-20.");
+    }
+
+    expect(model.dayAccessors.canMutateEntryOnDay(entry, "2026-08-25")).toBe(true);
+    expect(model.dayAccessors.canMutateEntryOnDay(entry, "2026-09-01")).toBe(false);
+  });
 });
