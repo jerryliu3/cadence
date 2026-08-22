@@ -256,6 +256,12 @@ describe("CalendarSurface characterization", () => {
     expect(
       document.querySelector('[data-day-cell="true"][data-day="2026-09-30"]')
     ).toBeInstanceOf(HTMLButtonElement);
+    expect(
+      document.querySelector('[data-month-context-label="Jul"]')
+    ).toBeInstanceOf(HTMLElement);
+    expect(
+      document.querySelector('[data-month-context-label="Sep"]')
+    ).toBeInstanceOf(HTMLElement);
   });
 
   it.each(["month", "week", "three_day"] as const)(
