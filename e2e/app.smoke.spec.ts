@@ -70,10 +70,8 @@ test("goal creation entry stays under the /app shell", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Create goal" }).first()).toBeVisible();
 });
 
-test("login surface has no detectable WCAG A/AA violations", async ({
-  page,
-}) => {
-  await page.goto("/");
+test("login surface has no detectable WCAG A/AA violations", async ({ page }) => {
+  await page.goto("/app");
   await page.context().clearCookies();
   await page.evaluate(() => window.localStorage.clear());
   await page.goto("/login");
