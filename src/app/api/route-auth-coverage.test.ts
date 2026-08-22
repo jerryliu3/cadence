@@ -205,6 +205,15 @@ import {
   PATCH as adminSeasonPatch,
 } from "@/app/api/admin/seasons/[id]/route";
 import { POST as adminSeasonClosePost } from "@/app/api/admin/seasons/[id]/close/route";
+import { PATCH as adminSyntheticConfigPatch } from "@/app/api/admin/synthetic-config/route";
+import {
+  GET as adminSyntheticUsersGet,
+  POST as adminSyntheticUsersPost,
+} from "@/app/api/admin/synthetic-users/route";
+import {
+  DELETE as adminSyntheticUserDelete,
+  PATCH as adminSyntheticUserPatch,
+} from "@/app/api/admin/synthetic-users/[id]/route";
 
 type Handler = (...args: never[]) => Promise<Response>;
 
@@ -433,6 +442,30 @@ const auditedRouteCases: AuditedRouteCase[] = [
     "POST /api/admin/seasons/[id]/close",
     adminSeasonClosePost,
     { id: RESOURCE_ID }
+  ),
+  routeCase("GET /api/admin/synthetic-users", adminSyntheticUsersGet),
+  routeCase(
+    "POST /api/admin/synthetic-users",
+    adminSyntheticUsersPost,
+    undefined,
+    { targetCount: 10 }
+  ),
+  routeCase(
+    "PATCH /api/admin/synthetic-users/[id]",
+    adminSyntheticUserPatch,
+    { id: RESOURCE_ID },
+    { enabled: false }
+  ),
+  routeCase(
+    "DELETE /api/admin/synthetic-users/[id]",
+    adminSyntheticUserDelete,
+    { id: RESOURCE_ID }
+  ),
+  routeCase(
+    "PATCH /api/admin/synthetic-config",
+    adminSyntheticConfigPatch,
+    undefined,
+    { enabled: false }
   ),
 ];
 
