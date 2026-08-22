@@ -42,6 +42,11 @@ export default function SignupScreen() {
           const { error } = await supabase.auth.signUp({
             email: email.trim(),
             password,
+            options: {
+              data: {
+                seed_default_goals: true,
+              },
+            },
           });
           setBusy(false);
           if (error) {
