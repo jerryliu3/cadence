@@ -53,6 +53,9 @@ export function JourneyIntroOverlay() {
           <p className="text-muted-foreground">
             You can edit or delete these anytime as you shape your own system.
           </p>
+          <p className="text-muted-foreground">
+            Optional Health and Fitness starter packs are available in multi-goal creation.
+          </p>
         </>
       ),
     },

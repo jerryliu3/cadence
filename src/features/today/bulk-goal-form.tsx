@@ -7,7 +7,7 @@ import {
   Sparkles,
   Trash2,
 } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   type ChangeEvent,
   type ReactNode,
@@ -52,6 +52,10 @@ import {
 } from "@/features/goals/goal-field-kit";
 import { GoalLinkTargetSelect } from "@/features/goals/goal-link-target-select";
 import { MilestoneNameFields } from "@/features/goals/milestone-name-fields";
+import {
+  buildStarterPackRows,
+  resolveStarterPackKey,
+} from "@/features/goals/starter-packs";
 import {
   GoalDateRangeFields,
   GoalDefaultTimeField,
@@ -129,6 +133,7 @@ export function BulkGoalForm({
 }: BulkGoalFormProps) {
   const supabase = useMemo(() => createClient(), []);
   const router = useRouter();
+  const searchParams = useSearchParams();
   const completeAndExit = useCallback(() => {
     if (onExit) {
       onExit();
@@ -148,6 +153,7 @@ export function BulkGoalForm({
   const [drafts, setDrafts] = useState<BulkGoalDraft[]>([]);
   const [expandedDraftId, setExpandedDraftId] = useState<string | null>(null);
   const [availableGoals, setAvailableGoals] = useState<Goal[]>([]);
+  const [appliedStarterPack, setAppliedStarterPack] = useState<string | null>(null);
 
   useEffect(() => {
     const run = async () => {
@@ -222,7 +228,7 @@ export function BulkGoalForm({
     );
   };
 
-  const loadDraftsFromRows = (rows: Record<string, unknown>[]) => {
+  const loadDraftsFromRows = useCallback((rows: Record<string, unknown>[]) => {
     if (rows.length === 0) {
       toast.error("No rows found. Include a header row and at least one goal.");
       return;
@@ -234,7 +240,22 @@ export function BulkGoalForm({
     setDrafts(nextDrafts);
     setExpandedDraftId(null);
     toast.success(`Loaded ${nextDrafts.length} goal draft${nextDrafts.length === 1 ? "" : "s"}.`);
-  };
+  }, []);
+
+  useEffect(() => {
+    const starterPack = resolveStarterPackKey(searchParams.get("starterPack"));
+    if (!starterPack) {
+      setAppliedStarterPack(null);
+      return;
+    }
+    if (appliedStarterPack === starterPack) {
+      return;
+    }
+
+    const rows = buildStarterPackRows(starterPack, toLocalDateString());
+    loadDraftsFromRows(rows);
+    setAppliedStarterPack(starterPack);
+  }, [appliedStarterPack, loadDraftsFromRows, searchParams]);
 
   const parseCsvInput = async () => {
     const trimmed = csvInput.trim();
