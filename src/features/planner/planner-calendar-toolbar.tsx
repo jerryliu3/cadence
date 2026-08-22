@@ -84,7 +84,7 @@ export function PlannerCalendarToolbar({
             </div>
           </div>
           <div className="flex flex-wrap items-center justify-end gap-2">
-            {!plannerReadOnly && canShowSaveAction ? (
+            {!plannerReadOnly && canShowSaveAction && hasDraftSession ? (
               <Button
                 type="button"
                 size="sm"
@@ -108,9 +108,25 @@ export function PlannerCalendarToolbar({
                 onClick={onDiscardDraftChanges}
                 disabled={undoDisabled}
               >
-                Undo changes
+                Undo
               </Button>
             ) : null}
+          </div>
+        </div>
+        <div className="flex w-full items-center gap-2">
+          <div className="min-w-0 flex-1">
+            <Input
+              id="planner-calendar-search"
+              type="search"
+              value={searchQuery}
+              onChange={(event) => onSearchQueryChange(event.target.value)}
+              placeholder="Filter by goal or milestone name"
+              className="h-8 w-full text-xs"
+              aria-label="Search goals"
+              disabled={loading}
+            />
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
             <Select
               value={viewMode}
               onValueChange={(value) => onViewModeChange(value as PlannerCalendarViewMode)}
@@ -155,18 +171,6 @@ export function PlannerCalendarToolbar({
               </Button>
             ) : null}
           </div>
-        </div>
-        <div className="w-full">
-          <Input
-            id="planner-calendar-search"
-            type="search"
-            value={searchQuery}
-            onChange={(event) => onSearchQueryChange(event.target.value)}
-            placeholder="Filter by goal or milestone name"
-            className="h-8 w-full text-xs"
-            aria-label="Search goals"
-            disabled={loading}
-          />
         </div>
       </div>
     </div>
