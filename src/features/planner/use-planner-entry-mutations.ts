@@ -173,6 +173,14 @@ export function usePlannerEntryMutations({
       );
 
       setMutationLoadingKey(mutationKey);
+      let loadingReleased = false;
+      const releaseLoading = () => {
+        if (loadingReleased) {
+          return;
+        }
+        loadingReleased = true;
+        setMutationLoadingKey(null);
+      };
       try {
         const result = await runCompletionMutation({
           decision: dispatch.decision,
@@ -219,31 +227,41 @@ export function usePlannerEntryMutations({
         }
 
         handlePlannerMutation();
-        const refreshed = await withPlannerRefreshTimeout({
+        releaseLoading();
+        void withPlannerRefreshTimeout({
           operation: loadContext({
             showLoading: false,
             toastOnError: false,
           }),
           timeoutMessage:
             "Completion updated, but calendar refresh timed out. Please refresh the page.",
-        });
-        if (!refreshed) {
-          toast.error(
-            "Completion updated, but calendar refresh failed. Please refresh the page."
-          );
-          return;
-        }
-        if (draftDateOverlayActive || draftPreviewRefreshFailed) {
-          toast(
-            "This entry is still shown with preview overlays. Save or discard preview edits to view canonical placement only."
-          );
-        }
+        })
+          .then((refreshed) => {
+            if (!refreshed) {
+              toast.error(
+                "Completion updated, but calendar refresh failed. Please refresh the page."
+              );
+              return;
+            }
+            if (draftDateOverlayActive || draftPreviewRefreshFailed) {
+              toast(
+                "This entry is still shown with preview overlays. Save or discard preview edits to view canonical placement only."
+              );
+            }
+          })
+          .catch((error) => {
+            toast.error(
+              error instanceof Error
+                ? error.message
+                : "Completion updated, but calendar refresh failed. Please refresh the page."
+            );
+          });
       } catch (error) {
         toast.error(
           error instanceof Error ? error.message : "Planner completion update failed."
         );
       } finally {
-        setMutationLoadingKey(null);
+        releaseLoading();
       }
     },
     [

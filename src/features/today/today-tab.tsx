@@ -332,6 +332,32 @@ export function TodayTab({
     [completableGoals, prepareSupplementalGoals]
   );
 
+  const refreshChecklistInBackground = useCallback(
+    (scrollY: number) => {
+      void loadData({ showLoading: false, forceRefresh: true })
+        .then(() => {
+          requestAnimationFrame(() => {
+            window.scrollTo({ top: scrollY, behavior: "auto" });
+          });
+        })
+        .catch((error) => {
+          if (isProgressContextAuthenticationError(error)) {
+            redirectToLogin();
+            return;
+          }
+          const timeoutLike =
+            error instanceof Error &&
+            error.message.toLowerCase().includes("timed out");
+          toast.error(
+            timeoutLike
+              ? "Completion updated, but calendar refresh timed out. Please refresh the page."
+              : "Completion updated, but calendar refresh failed. Please refresh the page."
+          );
+        });
+    },
+    [loadData, redirectToLogin]
+  );
+
   const toggleCompletion = useCallback(async (
     goal: Goal,
     sourceElement: HTMLButtonElement
@@ -412,32 +438,12 @@ export function TodayTab({
       toast.success(`Marked as incomplete for ${removedDate}.`);
     }
 
-    try {
-      await loadData({ showLoading: false, forceRefresh: true });
-      requestAnimationFrame(() => {
-        window.scrollTo({ top: currentScrollY, behavior: "auto" });
-      });
-    } catch (error) {
-      if (isProgressContextAuthenticationError(error)) {
-        redirectToLogin();
-        return;
-      }
-      const timeoutLike =
-        error instanceof Error &&
-        error.message.toLowerCase().includes("timed out");
-      toast.error(
-        timeoutLike
-          ? "Completion updated, but calendar refresh timed out. Please refresh the page."
-          : "Completion updated, but calendar refresh failed. Please refresh the page."
-      );
-    } finally {
-      setSavingGoalId(null);
-    }
+    setSavingGoalId(null);
+    refreshChecklistInBackground(currentScrollY);
   }, [
     completionsByGoal,
-    loadData,
     readOnly,
-    redirectToLogin,
+    refreshChecklistInBackground,
     runCompletionMutation,
     todayLocalDate,
     viewDate,

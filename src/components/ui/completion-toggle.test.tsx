@@ -85,13 +85,41 @@ describe("CompletionToggle", () => {
     expect(onClick).not.toHaveBeenCalled();
   });
 
-  it("keeps optimistic completed state visible while pending", () => {
+  it("keeps optimistic completed state visible until canonical completion catches up", () => {
+    const { rerender } = render(
+      <CompletionToggle
+        completed={false}
+        aria-label="Mark session done"
+      />
+    );
+
+    const toggle = screen.getByRole("button", { name: "Mark session done" });
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute("data-visual-completed", "true");
+
+    rerender(
+      <CompletionToggle
+        completed
+        aria-label="Mark session done"
+      />
+    );
+    expect(toggle).toHaveAttribute("data-visual-completed", "true");
+
+    rerender(
+      <CompletionToggle
+        completed={false}
+        aria-label="Mark session done"
+      />
+    );
+    expect(toggle).toHaveAttribute("data-visual-completed", "false");
+  });
+
+  it("clears optimistic state with a long fallback timer", () => {
     vi.useFakeTimers();
 
     render(
       <CompletionToggle
         completed={false}
-        pending
         aria-label="Mark session done"
       />
     );
@@ -101,12 +129,12 @@ describe("CompletionToggle", () => {
     expect(toggle).toHaveAttribute("data-visual-completed", "true");
 
     act(() => {
-      vi.advanceTimersByTime(500);
+      vi.advanceTimersByTime(7_900);
     });
     expect(toggle).toHaveAttribute("data-visual-completed", "true");
 
     act(() => {
-      vi.advanceTimersByTime(3000);
+      vi.advanceTimersByTime(200);
     });
     expect(toggle).toHaveAttribute("data-visual-completed", "false");
 
@@ -114,12 +142,9 @@ describe("CompletionToggle", () => {
   });
 
   it("optimistically clears the checkmark when unchecking", () => {
-    vi.useFakeTimers();
-
     render(
       <CompletionToggle
         completed
-        pending
         aria-label="Mark session not done"
       />
     );
@@ -129,13 +154,6 @@ describe("CompletionToggle", () => {
     });
     fireEvent.click(toggle);
     expect(toggle).toHaveAttribute("data-visual-completed", "false");
-
-    act(() => {
-      vi.advanceTimersByTime(3000);
-    });
-    expect(toggle).toHaveAttribute("data-visual-completed", "true");
-
-    vi.useRealTimers();
   });
 
   it("suppresses haptics when the user requests reduced motion", () => {
