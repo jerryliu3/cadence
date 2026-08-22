@@ -9,14 +9,22 @@ import {
 import { toLocalDateString } from "@/lib/dates/day";
 
 const useXpProfileMock = vi.hoisted(() => vi.fn());
+const routerPushMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/components/xp/xp-profile-provider", () => ({
   useXpProfile: () => useXpProfileMock(),
 }));
 
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({
+    push: routerPushMock,
+  }),
+}));
+
 describe("JourneyIntroOverlay", () => {
   beforeEach(() => {
     window.localStorage.clear();
+    routerPushMock.mockReset();
     useXpProfileMock.mockReturnValue({
       band: { name: "Trailhead" },
       profile: { currentLevel: 1, totalXp: 0 },
@@ -30,13 +38,13 @@ describe("JourneyIntroOverlay", () => {
 
   it("shows intro when unseen", async () => {
     render(<JourneyIntroOverlay />);
-    expect(await screen.findByRole("dialog", { name: "Welcome to your climb" })).toBeInTheDocument();
+    expect(await screen.findByRole("dialog", { name: "Welcome to Goalmaxxing" })).toBeInTheDocument();
   });
 
   it("keeps the intro modal vertically centered", async () => {
     render(<JourneyIntroOverlay />);
     const overlay = await screen.findByRole("dialog", {
-      name: "Welcome to your climb",
+      name: "Welcome to Goalmaxxing",
     });
     expect(overlay).toHaveClass("items-center");
     expect(overlay).not.toHaveClass("items-end");
@@ -57,32 +65,36 @@ describe("JourneyIntroOverlay", () => {
   it("reopens intro when settings triggers the revisit event", async () => {
     window.localStorage.setItem(JOURNEY_ONBOARDING_COMPLETED_KEY, "done");
     render(<JourneyIntroOverlay />);
-    expect(screen.queryByRole("dialog", { name: "Welcome to your climb" })).toBeNull();
+    expect(screen.queryByRole("dialog", { name: "Welcome to Goalmaxxing" })).toBeNull();
 
     window.dispatchEvent(new Event(JOURNEY_INTRO_OPEN_EVENT));
 
     expect(
-      await screen.findByRole("dialog", { name: "Welcome to your climb" })
+      await screen.findByRole("dialog", { name: "Welcome to Goalmaxxing" })
     ).toBeInTheDocument();
   });
 
-  it("advances through steps and persists completion", async () => {
+  it("advances through steps, persists completion, and routes to first goal creation", async () => {
     render(<JourneyIntroOverlay />);
-    expect(await screen.findByRole("dialog", { name: "Welcome to your climb" })).toBeInTheDocument();
+    expect(await screen.findByRole("dialog", { name: "Welcome to Goalmaxxing" })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Next" }));
-    expect(await screen.findByRole("dialog", { name: "Plan your week" })).toBeInTheDocument();
+    expect(await screen.findByRole("dialog", { name: "Your starter goals are ready" })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Next" }));
     expect(
-      await screen.findByRole("dialog", { name: "Capture one-off tasks" })
+      await screen.findByRole("dialog", { name: "Plan and execute" })
     ).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Next" }));
-    expect(await screen.findByRole("dialog", { name: "Stay connected" })).toBeInTheDocument();
+    expect(await screen.findByRole("dialog", { name: "Build momentum with community" })).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Start journey" }));
-    expect(screen.queryByRole("dialog", { name: "Stay connected" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    expect(await screen.findByRole("dialog", { name: "Create your first real goal" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Create first goal" }));
+    expect(screen.queryByRole("dialog", { name: "Create your first real goal" })).toBeNull();
     expect(window.localStorage.getItem(JOURNEY_ONBOARDING_COMPLETED_KEY)).toBe("done");
+    expect(routerPushMock).toHaveBeenCalledWith("/goals/new?onboarding=intro");
   });
 });

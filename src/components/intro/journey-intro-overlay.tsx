@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -19,6 +20,7 @@ export function requestJourneyIntroOpen() {
 }
 
 export function JourneyIntroOverlay() {
+  const router = useRouter();
   const { profile, band } = useXpProfile();
   const [open, setOpen] = useState(false);
   const [stepIndex, setStepIndex] = useState(0);
@@ -28,7 +30,7 @@ export function JourneyIntroOverlay() {
 
   const steps = [
     {
-      title: "Welcome to your climb",
+      title: "Welcome to Goalmaxxing",
       body: (
         <>
           <p className="text-muted-foreground">
@@ -42,40 +44,53 @@ export function JourneyIntroOverlay() {
       ),
     },
     {
-      title: "Plan your week",
+      title: "Your starter goals are ready",
       body: (
         <>
           <p className="text-muted-foreground">
-            Use Calendar to place sessions and lock must-do days before the week starts.
+            We added a few one-milestone starter goals so you can get a quick first win.
           </p>
           <p className="text-muted-foreground">
-            Checklist stays focused on what matters today so execution is simple.
+            You can edit or delete these anytime as you shape your own system.
           </p>
         </>
       ),
     },
     {
-      title: "Capture one-off tasks",
+      title: "Plan and execute",
       body: (
         <>
           <p className="text-muted-foreground">
-            The new To-Do tab tracks ad-hoc work that should not become long-lived goals.
+            Use Calendar to place sessions and lock must-do days ahead of time.
           </p>
           <p className="text-muted-foreground">
-            Completed tasks remain visible through today, then clear automatically tomorrow.
+            Checklist keeps today focused, and Tasks captures one-off work that should not become long-lived goals.
           </p>
         </>
       ),
     },
     {
-      title: "Stay connected",
+      title: "Build momentum with community",
       body: (
         <>
           <p className="text-muted-foreground">
-            Use Challenges to coordinate with your partner and keep momentum together.
+            Open Community Team to invite a partner when you are ready for accountability.
           </p>
           <p className="text-muted-foreground">
-            You can replay this onboarding anytime from Profile settings.
+            You can replay this intro and page guides anytime from Profile settings.
+          </p>
+        </>
+      ),
+    },
+    {
+      title: "Create your first real goal",
+      body: (
+        <>
+          <p className="text-muted-foreground">
+            Finish this intro by creating your first personalized goal.
+          </p>
+          <p className="text-muted-foreground">
+            We will take you to the goal creation page now.
           </p>
         </>
       ),
@@ -141,7 +156,7 @@ export function JourneyIntroOverlay() {
               variant="ghost"
               onClick={closeAndPersist}
             >
-              Skip onboarding
+              Skip intro
             </Button>
             <div className="flex gap-2">
               {stepIndex > 0 ? (
@@ -155,16 +170,17 @@ export function JourneyIntroOverlay() {
               ) : null}
               <Button
                 type="button"
-              onClick={() => {
-                if (isLastStep) {
-                  closeAndPersist();
-                  return;
-                }
-                setStepIndex((current) => Math.min(steps.length - 1, current + 1));
-              }}
-            >
-              {isLastStep ? "Start journey" : "Next"}
-            </Button>
+                onClick={() => {
+                  if (isLastStep) {
+                    closeAndPersist();
+                    router.push("/goals/new?onboarding=intro");
+                    return;
+                  }
+                  setStepIndex((current) => Math.min(steps.length - 1, current + 1));
+                }}
+              >
+                {isLastStep ? "Create first goal" : "Next"}
+              </Button>
             </div>
           </div>
         </CardContent>
