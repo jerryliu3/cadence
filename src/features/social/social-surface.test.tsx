@@ -136,8 +136,8 @@ describe("SocialSurface refresh behavior", () => {
 
     render(<SocialSurface initialTab="feed" />);
 
-    await act(async () => {
-      await Promise.resolve();
+    act(() => {
+      vi.runOnlyPendingTimers();
     });
     expect(invalidateSocialTabCache).toHaveBeenCalledTimes(1);
 
