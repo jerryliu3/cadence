@@ -16,7 +16,15 @@ interface StandingsState {
   viewerRank: number | null;
 }
 
-export function LeaderboardsPanel() {
+interface LeaderboardsPanelProps {
+  isActive?: boolean;
+  refreshToken?: number;
+}
+
+export function LeaderboardsPanel({
+  isActive = true,
+  refreshToken = 0,
+}: LeaderboardsPanelProps) {
   const [seasons, setSeasons] = useState<LeaderboardSeason[]>([]);
   const [selectedSeasonId, setSelectedSeasonId] = useState<string | null>(null);
   const [standings, setStandings] = useState<StandingsState | null>(null);
@@ -62,21 +70,24 @@ export function LeaderboardsPanel() {
   }, []);
 
   useEffect(() => {
+    if (!isActive) {
+      return;
+    }
     const timeoutId = window.setTimeout(() => {
       void loadSeasons();
     }, 0);
     return () => window.clearTimeout(timeoutId);
-  }, [loadSeasons]);
+  }, [isActive, loadSeasons, refreshToken]);
 
   useEffect(() => {
-    if (!selectedSeasonId) {
+    if (!isActive || !selectedSeasonId) {
       return;
     }
     const timeoutId = window.setTimeout(() => {
       void loadStandings(selectedSeasonId);
     }, 0);
     return () => window.clearTimeout(timeoutId);
-  }, [loadStandings, selectedSeasonId]);
+  }, [isActive, loadStandings, refreshToken, selectedSeasonId]);
 
   if (isLoading) {
     return (

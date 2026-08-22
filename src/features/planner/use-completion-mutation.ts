@@ -2,6 +2,7 @@
 
 import { useCallback } from "react";
 import { invalidatePlannerRelatedTabCaches } from "@/lib/cache/planner-tab-cache";
+import { invalidateSocialFeedCache } from "@/features/social/data";
 import {
   executeCompletionDispatch,
   type CompletionDispatchDecision,
@@ -73,6 +74,7 @@ export function useCompletionMutation() {
           };
         }
         invalidatePlannerRelatedTabCaches();
+        invalidateSocialFeedCache();
         requestXpRefresh({
           reason: "completion",
           desiredFactState,

@@ -1,8 +1,12 @@
 "use client";
 
 import { Flag, Newspaper, Trophy, Users } from "lucide-react";
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ChallengeList } from "@/features/social/challenges/challenge-list";
+import {
+  invalidateSocialFeedCache,
+  invalidateSocialTabCache,
+} from "@/features/social/data";
 import { GroupJoinCard } from "@/features/social/group-join-card";
 import { TeamPanel } from "@/features/social/team/team-panel";
 import { FeedList } from "@/features/social/feed/feed-list";
@@ -13,6 +17,7 @@ import {
   type SocialSurfaceTab,
 } from "@/features/social/social-surface-tab";
 import { cn } from "@/lib/utils";
+import { subscribeXpRefresh } from "@/lib/xp/events";
 
 const socialSurfaceTriggerBaseClass =
   "h-10 min-w-0 flex-col gap-0.5 rounded-xl px-1.5 py-1 text-[10px] font-semibold leading-tight transition-[transform,box-shadow,border-color,background-color] duration-150 hover:-translate-y-0.5 active:translate-y-[3px] data-[state=active]:translate-y-[3px] data-[state=active]:hover:translate-y-[3px] data-[state=active]:cursor-default after:hidden";
@@ -25,6 +30,7 @@ const socialSurfaceTriggerToneClass =
 
 const selectedChipShadow =
   "inset 0 4px 7px rgba(15, 23, 42, 0.3), inset 2px 0 4px rgba(15, 23, 42, 0.16), inset -1px 0 0 rgba(255, 255, 255, 0.42), inset 0 -2px 1px rgba(255, 255, 255, 0.72)";
+const SOCIAL_SURFACE_FOCUS_REFRESH_COOLDOWN_MS = 15 * 1000;
 
 export function SocialSurface({
   initialTab,
@@ -33,6 +39,48 @@ export function SocialSurface({
 }) {
   const defaultTab: SocialSurfaceTab = resolveSocialSurfaceTab(initialTab);
   const [activeTab, setActiveTab] = useState<SocialSurfaceTab>(defaultTab);
+  const [refreshToken, setRefreshToken] = useState(0);
+  const lastFocusRefreshAtRef = useRef(0);
+
+  const refreshActiveTab = useCallback(() => {
+    setRefreshToken((token) => token + 1);
+  }, []);
+
+  const triggerGlobalRefresh = useCallback(() => {
+    invalidateSocialTabCache();
+    refreshActiveTab();
+  }, [refreshActiveTab]);
+
+  const handleVisibilityOrFocus = useCallback(() => {
+    if (document.visibilityState !== "visible") {
+      return;
+    }
+    const now = Date.now();
+    if (now - lastFocusRefreshAtRef.current < SOCIAL_SURFACE_FOCUS_REFRESH_COOLDOWN_MS) {
+      return;
+    }
+    lastFocusRefreshAtRef.current = now;
+    triggerGlobalRefresh();
+  }, [triggerGlobalRefresh]);
+
+  useEffect(() => {
+    return subscribeXpRefresh(() => {
+      if (activeTab !== "feed") {
+        return;
+      }
+      invalidateSocialFeedCache();
+      refreshActiveTab();
+    });
+  }, [activeTab, refreshActiveTab]);
+
+  useEffect(() => {
+    window.addEventListener("focus", handleVisibilityOrFocus);
+    document.addEventListener("visibilitychange", handleVisibilityOrFocus);
+    return () => {
+      window.removeEventListener("focus", handleVisibilityOrFocus);
+      document.removeEventListener("visibilitychange", handleVisibilityOrFocus);
+    };
+  }, [handleVisibilityOrFocus]);
 
   return (
     <Tabs
@@ -103,17 +151,20 @@ export function SocialSurface({
       </TabsList>
 
       <TabsContent value="feed" className="space-y-4">
-        <FeedList />
+        <FeedList isActive={activeTab === "feed"} refreshToken={refreshToken} />
       </TabsContent>
       <TabsContent value="challenges" className="space-y-4">
         <GroupJoinCard />
-        <ChallengeList />
+        <ChallengeList isActive={activeTab === "challenges"} refreshToken={refreshToken} />
       </TabsContent>
       <TabsContent value="leaderboards" className="space-y-4">
-        <LeaderboardsPanel />
+        <LeaderboardsPanel
+          isActive={activeTab === "leaderboards"}
+          refreshToken={refreshToken}
+        />
       </TabsContent>
       <TabsContent value="team" className="space-y-4">
-        <TeamPanel />
+        <TeamPanel isActive={activeTab === "team"} refreshToken={refreshToken} />
       </TabsContent>
     </Tabs>
   );

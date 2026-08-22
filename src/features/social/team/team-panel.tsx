@@ -21,7 +21,12 @@ import {
 import { NudgeButton } from "@/features/social/team/nudge-button";
 import { TeamXpSummary } from "@/features/social/team/team-xp-summary";
 
-export function TeamPanel() {
+interface TeamPanelProps {
+  isActive?: boolean;
+  refreshToken?: number;
+}
+
+export function TeamPanel({ isActive = true, refreshToken = 0 }: TeamPanelProps) {
   const router = useRouter();
   const [rows, setRows] = useState<TeamStateRow[]>([]);
   const [partnerUsername, setPartnerUsername] = useState("");
@@ -49,11 +54,14 @@ export function TeamPanel() {
   }, []);
 
   useEffect(() => {
+    if (!isActive) {
+      return;
+    }
     const timeoutId = window.setTimeout(() => {
       void load();
     }, 0);
     return () => window.clearTimeout(timeoutId);
-  }, [load]);
+  }, [isActive, load, refreshToken]);
 
   async function sendInvite() {
     setError(null);

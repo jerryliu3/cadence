@@ -6,7 +6,12 @@ import { fetchSocialChallenges } from "@/features/social/data";
 import { ChallengeDetail } from "@/features/social/challenges/challenge-detail";
 import type { SocialChallenge } from "@/features/social/types";
 
-export function ChallengeList() {
+interface ChallengeListProps {
+  isActive?: boolean;
+  refreshToken?: number;
+}
+
+export function ChallengeList({ isActive = true, refreshToken = 0 }: ChallengeListProps) {
   const [items, setItems] = useState<SocialChallenge[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -46,13 +51,16 @@ export function ChallengeList() {
   }, [loadChallenges]);
 
   useEffect(() => {
+    if (!isActive) {
+      return;
+    }
     const timeoutId = window.setTimeout(() => {
       void loadChallenges();
     }, 0);
     return () => {
       window.clearTimeout(timeoutId);
     };
-  }, [loadChallenges]);
+  }, [isActive, loadChallenges, refreshToken]);
 
   if (isLoading) {
     return (
