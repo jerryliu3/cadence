@@ -157,12 +157,6 @@ export function PlannerCalendarToolbar({
           </div>
         </div>
         <div className="border-t pt-3">
-          <label
-            htmlFor="planner-calendar-search"
-            className="mb-1 block text-xs font-medium text-muted-foreground"
-          >
-            Search goals
-          </label>
           <Input
             id="planner-calendar-search"
             type="search"
