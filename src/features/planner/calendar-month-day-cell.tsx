@@ -256,7 +256,7 @@ export function CalendarMonthDayCell<
                   ? "text-primary"
                   : inMonth
                     ? "text-foreground"
-                    : "text-foreground/75"
+                    : "text-sky-700 dark:text-sky-300"
               }`}
             >
               {day.slice(8, 10)}
