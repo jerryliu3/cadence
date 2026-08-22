@@ -1,7 +1,13 @@
-import type { NextRequest } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 import { updateSession } from "@/lib/supabase/proxy";
 
 export async function proxy(request: NextRequest) {
+  if (request.nextUrl.pathname === "/" && request.nextUrl.search.length === 0) {
+    const redirectUrl = request.nextUrl.clone();
+    redirectUrl.pathname = "/calendar";
+    return NextResponse.redirect(redirectUrl);
+  }
+
   return updateSession(request);
 }
 
