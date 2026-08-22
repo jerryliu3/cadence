@@ -212,7 +212,10 @@ export function CalendarSurface({
   const loadContext = usePlannerContextLoader({
     activeTab,
     month,
+    selectedDay,
+    viewMode,
     setupTimezone,
+    setupWeekStartsOn,
     onMonthChange,
     setContext,
     setLoading,
@@ -291,6 +294,7 @@ export function CalendarSurface({
   });
   const {
     cells,
+    cellByDate,
     focusedDay,
     focusedWeekDays,
     focusedWeekCells,
@@ -806,8 +810,13 @@ export function CalendarSurface({
     if (!month) {
       return null;
     }
+    for (const day of focusedWeekDays) {
+      if (cellByDate.has(day)) {
+        return day;
+      }
+    }
     return cells.find((cell) => cell.date.startsWith(`${month}-`))?.date ?? null;
-  }, [cells, month]);
+  }, [cellByDate, cells, focusedWeekDays, month]);
   const moveViewWindow = (direction: -1 | 1) => {
     if (viewMode === "month") {
       if (!month) {
@@ -908,7 +917,7 @@ export function CalendarSurface({
         return;
       }
       monthGridScrollKeyRef.current = scrollKey;
-      const nextTop = Math.max(0, anchorCell.offsetTop - 40);
+      const nextTop = Math.max(0, anchorCell.offsetTop);
       if (typeof container.scrollTo === "function") {
         container.scrollTo({
           top: nextTop,

@@ -255,6 +255,7 @@ describe("selectPlannerCalendarModel", () => {
     }
 
     expect(model.dayAccessors.canMutateEntryOnDay(entry, "2026-08-25")).toBe(true);
-    expect(model.dayAccessors.canMutateEntryOnDay(entry, "2026-09-01")).toBe(false);
+    expect(model.dayAccessors.canMutateEntryOnDay(entry, "2026-09-01")).toBe(true);
+    expect(model.dayAccessors.canMutateEntryOnDay(entry, "2026-10-12")).toBe(false);
   });
 });
