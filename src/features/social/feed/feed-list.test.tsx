@@ -122,7 +122,7 @@ describe("FeedList", () => {
       expect(fetchSocialFeedPage).toHaveBeenCalledTimes(1);
 
       await act(async () => {
-        vi.advanceTimersByTime(30 * 1000);
+        vi.advanceTimersByTime(60 * 1000);
       });
       await act(async () => {
         await Promise.resolve();

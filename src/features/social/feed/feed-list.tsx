@@ -11,7 +11,7 @@ interface FeedListProps {
   refreshToken?: number;
 }
 
-const FEED_NEW_ACTIVITY_POLL_INTERVAL_MS = 30 * 1000;
+const FEED_NEW_ACTIVITY_POLL_INTERVAL_MS = 60 * 1000;
 
 export function FeedList({ isActive = true, refreshToken = 0 }: FeedListProps) {
   const [items, setItems] = useState<SocialFeedEvent[]>([]);
