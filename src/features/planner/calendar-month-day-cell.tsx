@@ -242,7 +242,7 @@ export function CalendarMonthDayCell<
                 : isPastInMonth
                   ? "bg-muted/20 hover:border-primary/50"
                   : "bg-background hover:border-primary/60"
-              : "border-slate-300/70 bg-slate-100/90 text-muted-foreground dark:border-slate-700/70 dark:bg-slate-800/70"
+              : "border-muted-foreground/40 bg-muted/80 text-muted-foreground"
           } ${isAnyEntryDragging && isOver ? "ring-2 ring-primary/70" : ""}`}
           aria-label={ariaLabel}
           data-no-swipe="true"
