@@ -17,6 +17,10 @@ vi.mock("@/features/social/data", () => ({
   leaveSocialChallenge: (...args: unknown[]) => leaveSocialChallengeMock(...args),
 }));
 
+vi.mock("@/features/social/social-freshness-indicator", () => ({
+  SocialFreshnessIndicator: () => <div data-testid="social-freshness-indicator" />,
+}));
+
 function makeChallenge(id: string, title: string): SocialChallenge {
   return {
     id,
@@ -82,5 +86,28 @@ describe("ChallengeList", () => {
 
     expect(fetchSocialChallengesMock).toHaveBeenCalledTimes(1);
     expect(fetchSocialChallengeDetailMock).toHaveBeenCalledTimes(0);
+  });
+
+  it("keeps the Challenges title when the roster fails to load", async () => {
+    fetchSocialChallengesMock.mockRejectedValueOnce(new Error("Challenges service unavailable"));
+
+    render(<ChallengeList />);
+
+    expect(await screen.findByText("Challenges service unavailable")).toBeInTheDocument();
+    expect(screen.getByText("Challenges")).toBeInTheDocument();
+  });
+
+  it("keeps the Challenges title when no active challenges exist", async () => {
+    fetchSocialChallengesMock.mockResolvedValueOnce({
+      schemaVersion: "1",
+      items: [],
+    });
+
+    render(<ChallengeList />);
+
+    expect(
+      await screen.findByText("New challenges will appear here when published.")
+    ).toBeInTheDocument();
+    expect(screen.getByText("Challenges")).toBeInTheDocument();
   });
 });

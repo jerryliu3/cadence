@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { PublicProfileTrigger } from "@/components/public-profile-trigger";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { UserAvatar } from "@/components/user-avatar";
+import { SocialFreshnessIndicator } from "@/features/social/social-freshness-indicator";
 import {
   fetchSocialLeaderboards,
   fetchSocialLeaderboardStandings,
@@ -19,11 +20,13 @@ interface StandingsState {
 interface LeaderboardsPanelProps {
   isActive?: boolean;
   refreshToken?: number;
+  onRefreshRequested?: () => void;
 }
 
 export function LeaderboardsPanel({
   isActive = true,
   refreshToken = 0,
+  onRefreshRequested,
 }: LeaderboardsPanelProps) {
   const [seasons, setSeasons] = useState<LeaderboardSeason[]>([]);
   const [selectedSeasonId, setSelectedSeasonId] = useState<string | null>(null);
@@ -92,7 +95,11 @@ export function LeaderboardsPanel({
   if (isLoading) {
     return (
       <Card className="shadow-sm">
-        <CardHeader>
+        <CardHeader className="space-y-2">
+          <SocialFreshnessIndicator
+            refreshToken={refreshToken}
+            onRefreshRequested={onRefreshRequested}
+          />
           <CardTitle>Leaderboards</CardTitle>
           <CardDescription>Loading leaderboard seasons...</CardDescription>
         </CardHeader>
@@ -103,8 +110,12 @@ export function LeaderboardsPanel({
   if (error) {
     return (
       <Card className="shadow-sm">
-        <CardHeader>
-          <CardTitle>Leaderboards unavailable</CardTitle>
+        <CardHeader className="space-y-2">
+          <SocialFreshnessIndicator
+            refreshToken={refreshToken}
+            onRefreshRequested={onRefreshRequested}
+          />
+          <CardTitle>Leaderboards</CardTitle>
           <CardDescription>{error}</CardDescription>
         </CardHeader>
       </Card>
@@ -114,8 +125,12 @@ export function LeaderboardsPanel({
   if (seasons.length === 0) {
     return (
       <Card className="shadow-sm">
-        <CardHeader>
-          <CardTitle>No leaderboard seasons</CardTitle>
+        <CardHeader className="space-y-2">
+          <SocialFreshnessIndicator
+            refreshToken={refreshToken}
+            onRefreshRequested={onRefreshRequested}
+          />
+          <CardTitle>Leaderboards</CardTitle>
           <CardDescription>Leaderboard seasons will appear once admins publish one.</CardDescription>
         </CardHeader>
       </Card>
@@ -127,6 +142,10 @@ export function LeaderboardsPanel({
       <Card className="shadow-sm">
         <CardHeader>
           <CardTitle>Leaderboard seasons</CardTitle>
+          <SocialFreshnessIndicator
+            refreshToken={refreshToken}
+            onRefreshRequested={onRefreshRequested}
+          />
           <CardDescription>Select an active or recently closed season.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-2">

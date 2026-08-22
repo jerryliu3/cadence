@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { SocialFreshnessIndicator } from "@/features/social/social-freshness-indicator";
 import { fetchSocialChallenges } from "@/features/social/data";
 import { ChallengeDetail } from "@/features/social/challenges/challenge-detail";
 import type { SocialChallenge } from "@/features/social/types";
@@ -9,9 +10,14 @@ import type { SocialChallenge } from "@/features/social/types";
 interface ChallengeListProps {
   isActive?: boolean;
   refreshToken?: number;
+  onRefreshRequested?: () => void;
 }
 
-export function ChallengeList({ isActive = true, refreshToken = 0 }: ChallengeListProps) {
+export function ChallengeList({
+  isActive = true,
+  refreshToken = 0,
+  onRefreshRequested,
+}: ChallengeListProps) {
   const [items, setItems] = useState<SocialChallenge[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -65,7 +71,11 @@ export function ChallengeList({ isActive = true, refreshToken = 0 }: ChallengeLi
   if (isLoading) {
     return (
       <Card className="shadow-sm">
-        <CardHeader>
+        <CardHeader className="space-y-2">
+          <SocialFreshnessIndicator
+            refreshToken={refreshToken}
+            onRefreshRequested={onRefreshRequested}
+          />
           <CardTitle>Challenges</CardTitle>
           <CardDescription>Loading challenge roster...</CardDescription>
         </CardHeader>
@@ -76,8 +86,12 @@ export function ChallengeList({ isActive = true, refreshToken = 0 }: ChallengeLi
   if (error) {
     return (
       <Card className="shadow-sm">
-        <CardHeader>
-          <CardTitle>Challenges unavailable</CardTitle>
+        <CardHeader className="space-y-2">
+          <SocialFreshnessIndicator
+            refreshToken={refreshToken}
+            onRefreshRequested={onRefreshRequested}
+          />
+          <CardTitle>Challenges</CardTitle>
           <CardDescription>{error}</CardDescription>
         </CardHeader>
       </Card>
@@ -87,8 +101,12 @@ export function ChallengeList({ isActive = true, refreshToken = 0 }: ChallengeLi
   if (items.length === 0) {
     return (
       <Card className="shadow-sm">
-        <CardHeader>
-          <CardTitle>No active challenges</CardTitle>
+        <CardHeader className="space-y-2">
+          <SocialFreshnessIndicator
+            refreshToken={refreshToken}
+            onRefreshRequested={onRefreshRequested}
+          />
+          <CardTitle>Challenges</CardTitle>
           <CardDescription>New challenges will appear here when published.</CardDescription>
         </CardHeader>
       </Card>
@@ -96,9 +114,13 @@ export function ChallengeList({ isActive = true, refreshToken = 0 }: ChallengeLi
   }
 
   return (
-    <div className="space-y-4">
+    <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
       <Card className="shadow-sm">
-        <CardHeader>
+        <CardHeader className="space-y-2">
+          <SocialFreshnessIndicator
+            refreshToken={refreshToken}
+            onRefreshRequested={onRefreshRequested}
+          />
           <CardTitle>Challenges</CardTitle>
           <CardDescription>Select a challenge to view details.</CardDescription>
         </CardHeader>
@@ -128,7 +150,16 @@ export function ChallengeList({ isActive = true, refreshToken = 0 }: ChallengeLi
         </CardContent>
       </Card>
 
-      {selectedChallenge ? <ChallengeDetail challenge={selectedChallenge} onUpdated={refreshAll} /> : null}
+      {selectedChallenge ? (
+        <ChallengeDetail challenge={selectedChallenge} onUpdated={refreshAll} />
+      ) : (
+        <Card className="shadow-sm">
+          <CardHeader>
+            <CardTitle>Challenge details</CardTitle>
+            <CardDescription>Select a challenge to view details.</CardDescription>
+          </CardHeader>
+        </Card>
+      )}
     </div>
   );
 }

@@ -23,6 +23,7 @@ describe("SocialFreshnessIndicator", () => {
   afterEach(() => {
     cleanup();
     vi.clearAllMocks();
+    vi.useRealTimers();
   });
 
   it("renders freshness summary after loading", async () => {
@@ -30,18 +31,51 @@ describe("SocialFreshnessIndicator", () => {
 
     await waitFor(() => {
       expect(screen.getByTestId("social-freshness-indicator")).toHaveTextContent(
-        "Sync every 1m"
+        /Sync every minute \(\d+s\)/
       );
     });
-    expect(screen.getByTestId("social-freshness-indicator")).toHaveTextContent(
-      "next run in"
-    );
-    expect(screen.getByTestId("social-freshness-indicator")).toHaveTextContent(
+    expect(screen.getByTestId("social-freshness-indicator")).not.toHaveTextContent(
       "standings + challenges"
     );
     expect(screen.getByTestId("social-freshness-status-dot")).toHaveClass(
       "bg-emerald-500"
     );
+  });
+
+  it("requests refresh and reloads freshness when countdown hits zero", async () => {
+    vi.mocked(fetchSocialFreshness)
+      .mockResolvedValueOnce({
+        schemaVersion: "1",
+        freshness: {
+          serverNow: "2026-08-22T15:46:00.000Z",
+          nextExpectedRefreshAt: "2026-08-22T15:46:00.000Z",
+          leaderboardRefreshedAt: "2026-08-22T15:44:05.000Z",
+          challengesRefreshedAt: "2026-08-22T15:44:35.000Z",
+        },
+      })
+      .mockResolvedValueOnce({
+        schemaVersion: "1",
+        freshness: {
+          serverNow: "2026-08-22T15:46:00.000Z",
+          nextExpectedRefreshAt: "2026-08-22T15:47:00.000Z",
+          leaderboardRefreshedAt: "2026-08-22T15:45:05.000Z",
+          challengesRefreshedAt: "2026-08-22T15:45:35.000Z",
+        },
+      });
+    const onRefreshRequested = vi.fn();
+
+    render(
+      <SocialFreshnessIndicator
+        refreshToken={0}
+        onRefreshRequested={onRefreshRequested}
+      />
+    );
+    await waitFor(() => {
+      expect(onRefreshRequested).toHaveBeenCalledTimes(1);
+    });
+    await waitFor(() => {
+      expect(fetchSocialFreshness).toHaveBeenCalledTimes(2);
+    });
   });
 
   it("re-fetches freshness when refreshToken changes", async () => {

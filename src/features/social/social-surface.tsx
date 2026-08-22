@@ -11,7 +11,6 @@ import { GroupJoinCard } from "@/features/social/group-join-card";
 import { TeamPanel } from "@/features/social/team/team-panel";
 import { FeedList } from "@/features/social/feed/feed-list";
 import { LeaderboardsPanel } from "@/features/social/leaderboards/leaderboards-panel";
-import { SocialFreshnessIndicator } from "@/features/social/social-freshness-indicator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   resolveSocialSurfaceTab,
@@ -43,8 +42,6 @@ export function SocialSurface({
   const [activeTab, setActiveTab] = useState<SocialSurfaceTab>(defaultTab);
   const [refreshToken, setRefreshToken] = useState(0);
   const lastFocusRefreshAtRef = useRef(0);
-  const showCronFreshnessIndicator =
-    activeTab === "challenges" || activeTab === "leaderboards";
 
   const refreshActiveTab = useCallback(() => {
     setRefreshToken((token) => token + 1);
@@ -174,21 +171,22 @@ export function SocialSurface({
           <span className="truncate">Team</span>
         </TabsTrigger>
       </TabsList>
-      {showCronFreshnessIndicator ? (
-        <SocialFreshnessIndicator refreshToken={refreshToken} />
-      ) : null}
-
       <TabsContent value="feed" className="space-y-4">
         <FeedList isActive={activeTab === "feed"} refreshToken={refreshToken} />
       </TabsContent>
       <TabsContent value="challenges" className="space-y-4">
         <GroupJoinCard />
-        <ChallengeList isActive={activeTab === "challenges"} refreshToken={refreshToken} />
+        <ChallengeList
+          isActive={activeTab === "challenges"}
+          refreshToken={refreshToken}
+          onRefreshRequested={triggerGlobalRefresh}
+        />
       </TabsContent>
       <TabsContent value="leaderboards" className="space-y-4">
         <LeaderboardsPanel
           isActive={activeTab === "leaderboards"}
           refreshToken={refreshToken}
+          onRefreshRequested={triggerGlobalRefresh}
         />
       </TabsContent>
       <TabsContent value="team" className="space-y-4">

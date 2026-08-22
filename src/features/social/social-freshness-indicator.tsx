@@ -1,7 +1,6 @@
 "use client";
 
-import { formatDistanceToNow } from "date-fns";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { fetchSocialFreshness } from "@/features/social/data";
 import type { SocialFreshness } from "@/features/social/types";
 import { cn } from "@/lib/utils";
@@ -10,6 +9,7 @@ const SOCIAL_REFRESH_INTERVAL_MS = 60 * 1000;
 
 interface SocialFreshnessIndicatorProps {
   refreshToken?: number;
+  onRefreshRequested?: () => void;
 }
 
 interface FreshnessSnapshot {
@@ -46,36 +46,15 @@ function toSnapshot(freshness: SocialFreshness): FreshnessSnapshot {
   };
 }
 
-function formatRelative(timestampMs: number | null) {
-  if (timestampMs === null) {
-    return "awaiting first run";
-  }
-  return formatDistanceToNow(new Date(timestampMs), { addSuffix: true });
-}
-
-function combineStandingsAndChallengesFreshness({
-  leaderboardRefreshedAtMs,
-  challengesRefreshedAtMs,
-}: {
-  leaderboardRefreshedAtMs: number | null;
-  challengesRefreshedAtMs: number | null;
-}) {
-  const timestamps = [leaderboardRefreshedAtMs, challengesRefreshedAtMs].filter(
-    (timestamp): timestamp is number => timestamp !== null
-  );
-  if (timestamps.length === 0) {
-    return null;
-  }
-  // Use the older timestamp so the single signal is safe for both datasets.
-  return Math.min(...timestamps);
-}
-
 export function SocialFreshnessIndicator({
   refreshToken = 0,
+  onRefreshRequested,
 }: SocialFreshnessIndicatorProps) {
   const [snapshot, setSnapshot] = useState<FreshnessSnapshot | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [clientNowMs, setClientNowMs] = useState(() => Date.now());
+  const refreshInFlightRef = useRef(false);
+  const lastElapsedRefreshAtRef = useRef<number | null>(null);
 
   const loadFreshness = useCallback(async () => {
     try {
@@ -121,15 +100,23 @@ export function SocialFreshnessIndicator({
     );
   }, [clientNowMs, snapshot]);
 
-  const standingsAndChallengesRefreshedAt = useMemo(() => {
-    if (!snapshot) {
-      return null;
+  useEffect(() => {
+    if (!snapshot || secondsUntilNextRefresh === null || secondsUntilNextRefresh > 0) {
+      return;
     }
-    return combineStandingsAndChallengesFreshness({
-      leaderboardRefreshedAtMs: snapshot.leaderboardRefreshedAtMs,
-      challengesRefreshedAtMs: snapshot.challengesRefreshedAtMs,
+    if (
+      refreshInFlightRef.current ||
+      lastElapsedRefreshAtRef.current === snapshot.nextExpectedRefreshAtMs
+    ) {
+      return;
+    }
+    lastElapsedRefreshAtRef.current = snapshot.nextExpectedRefreshAtMs;
+    refreshInFlightRef.current = true;
+    onRefreshRequested?.();
+    void loadFreshness().finally(() => {
+      refreshInFlightRef.current = false;
     });
-  }, [snapshot]);
+  }, [loadFreshness, onRefreshRequested, secondsUntilNextRefresh, snapshot]);
 
   const indicatorClassName = useMemo(
     () =>
@@ -155,7 +142,7 @@ export function SocialFreshnessIndicator({
           className={indicatorClassName}
           data-testid="social-freshness-status-dot"
         />
-        Community syncs every minute.
+        Sync every minute.
         {errorMessage ? " Freshness details are temporarily unavailable." : ""}
       </p>
     );
@@ -171,9 +158,7 @@ export function SocialFreshnessIndicator({
         className={indicatorClassName}
         data-testid="social-freshness-status-dot"
       />
-      Sync every 1m
-      {` · next run in ${secondsUntilNextRefresh ?? 0}s`}
-      {` · standings + challenges ${formatRelative(standingsAndChallengesRefreshedAt)}`}
+      {`Sync every minute (${secondsUntilNextRefresh ?? 0}s)`}
       {errorMessage ? " · refresh signal unavailable" : ""}
     </p>
   );
