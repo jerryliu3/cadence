@@ -285,7 +285,7 @@ export function CalendarMonthDayCell<
                   key={`completion-fact-${marker.key}`}
                   className={
                     partnerOwned
-                      ? "flex items-center gap-1.5 rounded-sm border-2 border-sky-500 bg-transparent px-1.5 py-1 text-[11px] text-sky-700 dark:text-sky-300"
+                      ? "flex items-center gap-1.5 rounded-sm border-2 border-sky-500 bg-transparent px-1.5 py-1 text-[11px] text-blue-900 dark:text-blue-200"
                       : "flex items-center gap-1.5 rounded-sm border border-emerald-300 bg-emerald-100 px-1.5 py-1 text-[11px] text-emerald-950 dark:border-emerald-300 dark:bg-emerald-100 dark:text-emerald-950"
                   }
                   aria-label={`${marker.goalTitle}. ${statusCopy}`}
