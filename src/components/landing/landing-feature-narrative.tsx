@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { BarChart3, CalendarDays, Users } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
-const featureScenes = [
+export const featureScenes = [
   {
     title: "Plan with clarity",
     description:
@@ -16,18 +16,39 @@ const featureScenes = [
   {
     title: "Track real progress",
     description:
-      "Measure follow-through with completion trends and momentum signals, not just checked boxes.",
+      "See completion trends, active streaks, and heatmap patterns instead of guessing whether effort is compounding.",
     supportingText:
-      "See which goals are compounding and where your execution plan needs a reset.",
+      "Review real activity across days, weeks, months, and individual goals.",
     icon: BarChart3,
   },
   {
     title: "Stay accountable",
     description:
-      "Keep trusted accountability loops around your goals without turning your plan into a noisy social feed.",
+      "Celebrate progress in Community and keep a trusted partner close through focused duo tools.",
     supportingText:
-      "Share progress snapshots, request feedback, and keep ownership of what is visible.",
+      "Use feed events, Cheers, partner nudges, and side-by-side progress while controlling visibility.",
     icon: Users,
+  },
+] as const;
+
+export const progressMetrics = [
+  { label: "Completion rate", value: "82%", width: 82 },
+  { label: "Current month activities", value: "24", width: 68 },
+  { label: "Active streak", value: "7 days", width: 76 },
+] as const;
+
+export const accountabilityEvents = [
+  {
+    kind: "feed",
+    eyebrow: "Community",
+    copy: "Alex completed a weekly goal.",
+    action: "Cheer",
+  },
+  {
+    kind: "nudge",
+    eyebrow: "Duo",
+    copy: "Alex sent a momentum nudge.",
+    action: "Keep going",
   },
 ] as const;
 
@@ -166,24 +187,22 @@ export function LandingFeatureNarrative() {
                 }`}
               >
                   <div className="w-full rounded-xl border bg-emerald-50/65 p-3.5">
-                  <p className="text-xs font-medium text-emerald-950">Progress pulse</p>
+                  <p className="text-xs font-medium text-emerald-950">
+                    Progress patterns
+                  </p>
                   <div className="mt-3 space-y-2.5">
-                    {[
-                      { label: "Execution score", value: 82 },
-                      { label: "Goal momentum", value: 74 },
-                      { label: "Weekly consistency", value: 91 },
-                    ].map((metric) => (
+                    {progressMetrics.map((metric) => (
                       <div key={metric.label}>
                         <div className="flex items-center justify-between text-[11px]">
                           <span className="text-emerald-900">{metric.label}</span>
                           <span className="font-medium text-emerald-950">
-                            {metric.value}%
+                            {metric.value}
                           </span>
                         </div>
                         <div className="mt-1 h-2 rounded-full bg-emerald-100">
                           <div
                             className="h-2 rounded-full bg-emerald-500 transition-all duration-500"
-                            style={{ width: `${metric.value}%` }}
+                            style={{ width: `${metric.width}%` }}
                           />
                         </div>
                       </div>
@@ -205,18 +224,22 @@ export function LandingFeatureNarrative() {
                     Accountability loop
                   </p>
                   <div className="mt-3 space-y-2 text-[11px]">
-                    <div className="rounded-lg border border-violet-200 bg-white p-2.5">
-                      <p className="font-medium text-violet-900">Alex</p>
-                      <p className="mt-0.5 text-violet-800">
-                        Nice rebound after Tuesday.
-                      </p>
-                    </div>
-                    <div className="rounded-lg border border-violet-200 bg-white p-2.5">
-                      <p className="font-medium text-violet-900">You</p>
-                      <p className="mt-0.5 text-violet-800">
-                        Locked Thursday focus block to protect launch work.
-                      </p>
-                    </div>
+                    {accountabilityEvents.map((event) => (
+                      <div
+                        key={event.kind}
+                        className="rounded-lg border border-violet-200 bg-white p-2.5"
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <p className="font-medium text-violet-900">
+                            {event.eyebrow}
+                          </p>
+                          <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[9px] font-medium text-violet-800">
+                            {event.action}
+                          </span>
+                        </div>
+                        <p className="mt-1 text-violet-800">{event.copy}</p>
+                      </div>
+                    ))}
                   </div>
                 </div>
               </div>
