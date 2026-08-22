@@ -14,6 +14,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import { toast } from "sonner";
@@ -153,7 +154,7 @@ export function BulkGoalForm({
   const [drafts, setDrafts] = useState<BulkGoalDraft[]>([]);
   const [expandedDraftId, setExpandedDraftId] = useState<string | null>(null);
   const [availableGoals, setAvailableGoals] = useState<Goal[]>([]);
-  const [appliedStarterPack, setAppliedStarterPack] = useState<string | null>(null);
+  const appliedStarterPackRef = useRef<string | null>(null);
 
   useEffect(() => {
     const run = async () => {
@@ -245,17 +246,17 @@ export function BulkGoalForm({
   useEffect(() => {
     const starterPack = resolveStarterPackKey(searchParams.get("starterPack"));
     if (!starterPack) {
-      setAppliedStarterPack(null);
+      appliedStarterPackRef.current = null;
       return;
     }
-    if (appliedStarterPack === starterPack) {
+    if (appliedStarterPackRef.current === starterPack) {
       return;
     }
 
     const rows = buildStarterPackRows(starterPack, toLocalDateString());
     loadDraftsFromRows(rows);
-    setAppliedStarterPack(starterPack);
-  }, [appliedStarterPack, loadDraftsFromRows, searchParams]);
+    appliedStarterPackRef.current = starterPack;
+  }, [loadDraftsFromRows, searchParams]);
 
   const parseCsvInput = async () => {
     const trimmed = csvInput.trim();
