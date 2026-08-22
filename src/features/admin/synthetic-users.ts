@@ -61,6 +61,38 @@ export function toAdminSyntheticConfigDto(row: Record<string, unknown>): AdminSy
   };
 }
 
+export interface AdminSyntheticUserFilters {
+  query: string;
+  persona: "all" | SyntheticPersona;
+  enabled: "all" | "true" | "false";
+}
+
+export function filterAdminSyntheticUsers(
+  items: AdminSyntheticUser[],
+  filters: AdminSyntheticUserFilters
+): AdminSyntheticUser[] {
+  const query = filters.query.trim().toLowerCase();
+  return items.filter((item) => {
+    if (filters.persona !== "all" && item.persona !== filters.persona) {
+      return false;
+    }
+    if (filters.enabled === "true" && !item.enabled) {
+      return false;
+    }
+    if (filters.enabled === "false" && item.enabled) {
+      return false;
+    }
+    if (query.length === 0) {
+      return true;
+    }
+    return (
+      item.username.toLowerCase().includes(query) ||
+      (item.displayName ?? "").toLowerCase().includes(query) ||
+      item.archetype.toLowerCase().includes(query)
+    );
+  });
+}
+
 export type DbMutationError = {
   message: string;
   code?: string | null;

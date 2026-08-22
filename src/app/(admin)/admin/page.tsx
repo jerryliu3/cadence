@@ -33,6 +33,11 @@ export default function AdminDashboardPage() {
               Issue reports
             </Link>
           </li>
+          <li>
+            <Link className="text-primary hover:underline" href="/admin/synthetic-users">
+              Synthetic users
+            </Link>
+          </li>
         </ul>
       </CardContent>
     </Card>

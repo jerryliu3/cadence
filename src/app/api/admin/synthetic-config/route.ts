@@ -8,7 +8,10 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireAdminContext } from "@/lib/api/admin-context";
 import { createAdminClient } from "@/lib/supabase/admin";
+import type { Database } from "@/lib/supabase/database.types";
 import { toAdminSyntheticConfigDto } from "@/features/admin/synthetic-users";
+
+type SyntheticConfigUpdate = Database["public"]["Tables"]["synthetic_config"]["Update"];
 
 export const runtime = "nodejs";
 
@@ -23,8 +26,8 @@ const patchSchema = z
     message: "Provide at least one field to update.",
   });
 
-function toConfigPatch(body: z.infer<typeof patchSchema>): Record<string, unknown> {
-  const patch: Record<string, unknown> = {};
+function toConfigPatch(body: z.infer<typeof patchSchema>): SyntheticConfigUpdate {
+  const patch: SyntheticConfigUpdate = {};
   if (body.enabled !== undefined) patch.enabled = body.enabled;
   if (body.maxCompletionsPerTick !== undefined) {
     patch.max_completions_per_tick = body.maxCompletionsPerTick;
