@@ -22,3 +22,18 @@ export function getTopVisibleCalendarDay(container: HTMLElement) {
 
   return null;
 }
+
+export function isCalendarDayVisible(
+  container: HTMLElement,
+  day: string
+) {
+  const dayCell = container.querySelector<HTMLElement>(
+    `${DAY_CELL_SELECTOR}[data-day="${day}"]`
+  );
+  if (!dayCell) {
+    return false;
+  }
+  const containerRect = container.getBoundingClientRect();
+  const dayRect = dayCell.getBoundingClientRect();
+  return dayRect.bottom > containerRect.top && dayRect.top < containerRect.bottom;
+}
