@@ -93,18 +93,20 @@ export function FeedList({ isActive = true, refreshToken = 0 }: FeedListProps) {
 
   return (
     <div className="space-y-3">
-      {hasNewActivity ? (
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => {
-            void loadFeed(null);
-          }}
-          disabled={loading}
-        >
-          New activity available. Refresh feed.
-        </Button>
-      ) : null}
+      <Button
+        type="button"
+        variant="outline"
+        onClick={() => {
+          void loadFeed(null);
+        }}
+        disabled={loading}
+      >
+        {loading
+          ? "Refreshing..."
+          : hasNewActivity
+            ? "New activity available. Refresh feed."
+            : "Refresh feed"}
+      </Button>
       {errorMessage ? (
         <p className="text-sm text-destructive">{errorMessage}</p>
       ) : null}

@@ -18,6 +18,36 @@ afterEach(() => {
 });
 
 describe("FeedList", () => {
+  it("shows a manual refresh button and reloads feed when clicked", async () => {
+    vi.mocked(fetchSocialFeedPage).mockResolvedValue({
+      schemaVersion: "1",
+      items: [],
+      nextCursor: null,
+    });
+    vi.mocked(fetchSocialFeedHead).mockResolvedValue({
+      schemaVersion: "1",
+      items: [],
+      nextCursor: null,
+    });
+
+    render(<FeedList isActive refreshToken={0} />);
+    await waitFor(() => {
+      expect(fetchSocialFeedPage).toHaveBeenCalledTimes(1);
+    });
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: "Refresh feed" })
+      ).toBeInTheDocument();
+    });
+
+    await act(async () => {
+      screen.getByRole("button", { name: "Refresh feed" }).click();
+    });
+    await waitFor(() => {
+      expect(fetchSocialFeedPage).toHaveBeenCalledTimes(2);
+    });
+  });
+
   it("reloads feed when refresh token changes while active", async () => {
     vi.mocked(fetchSocialFeedPage).mockResolvedValue({
       schemaVersion: "1",

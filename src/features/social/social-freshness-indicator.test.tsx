@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fetchSocialFreshness } from "@/features/social/data";
 import { SocialFreshnessIndicator } from "@/features/social/social-freshness-indicator";
@@ -21,6 +21,7 @@ describe("SocialFreshnessIndicator", () => {
   });
 
   afterEach(() => {
+    cleanup();
     vi.clearAllMocks();
   });
 
@@ -38,6 +39,9 @@ describe("SocialFreshnessIndicator", () => {
     expect(screen.getByTestId("social-freshness-indicator")).toHaveTextContent(
       "standings + challenges"
     );
+    expect(screen.getByTestId("social-freshness-status-dot")).toHaveClass(
+      "bg-emerald-500"
+    );
   });
 
   it("re-fetches freshness when refreshToken changes", async () => {
@@ -51,5 +55,22 @@ describe("SocialFreshnessIndicator", () => {
     await waitFor(() => {
       expect(fetchSocialFreshness).toHaveBeenCalledTimes(2);
     });
+  });
+
+  it("shows a red status dot when freshness fetch fails", async () => {
+    vi.mocked(fetchSocialFreshness).mockRejectedValueOnce(
+      new Error("Freshness endpoint unavailable")
+    );
+
+    render(<SocialFreshnessIndicator refreshToken={0} />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("social-freshness-indicator")).toHaveTextContent(
+        "Freshness details are temporarily unavailable."
+      );
+    });
+    expect(screen.getByTestId("social-freshness-status-dot")).toHaveClass(
+      "bg-destructive"
+    );
   });
 });

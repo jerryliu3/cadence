@@ -4,6 +4,7 @@ import { formatDistanceToNow } from "date-fns";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { fetchSocialFreshness } from "@/features/social/data";
 import type { SocialFreshness } from "@/features/social/types";
+import { cn } from "@/lib/utils";
 
 const SOCIAL_REFRESH_INTERVAL_MS = 60 * 1000;
 
@@ -125,9 +126,30 @@ export function SocialFreshnessIndicator({
     });
   }, [snapshot]);
 
+  const indicatorClassName = useMemo(
+    () =>
+      cn(
+        "inline-block size-2 rounded-full",
+        errorMessage
+          ? "bg-destructive"
+          : snapshot
+            ? "animate-pulse bg-emerald-500"
+            : "bg-muted-foreground/40"
+      ),
+    [errorMessage, snapshot]
+  );
+
   if (!snapshot) {
     return (
-      <p className="text-xs text-muted-foreground">
+      <p
+        className="flex items-center gap-2 text-xs text-muted-foreground"
+        data-testid="social-freshness-indicator"
+      >
+        <span
+          aria-hidden
+          className={indicatorClassName}
+          data-testid="social-freshness-status-dot"
+        />
         Community syncs every minute.
         {errorMessage ? " Freshness details are temporarily unavailable." : ""}
       </p>
@@ -135,10 +157,19 @@ export function SocialFreshnessIndicator({
   }
 
   return (
-    <p className="text-xs text-muted-foreground" data-testid="social-freshness-indicator">
+    <p
+      className="flex items-center gap-2 text-xs text-muted-foreground"
+      data-testid="social-freshness-indicator"
+    >
+      <span
+        aria-hidden
+        className={indicatorClassName}
+        data-testid="social-freshness-status-dot"
+      />
       Sync every 1m
       {` · next run in ${secondsUntilNextRefresh ?? 0}s`}
       {` · standings + challenges ${formatRelative(standingsAndChallengesRefreshedAt)}`}
+      {errorMessage ? " · refresh signal unavailable" : ""}
     </p>
   );
 }
