@@ -37,13 +37,13 @@ function SurfaceTab({
 
 function CalendarOutline() {
   const days = [
-    { day: "Mon", date: "12", items: ["Deep work"] },
-    { day: "Tue", date: "13", items: [] },
-    { day: "Wed", date: "14", items: ["Launch"] },
+    { day: "Mon", date: "12", items: ["Deep work"], today: false },
+    { day: "Tue", date: "13", items: [], today: false },
+    { day: "Wed", date: "14", items: ["Launch"], today: false },
     { day: "Thu", date: "15", items: ["Tempo run"], today: true },
-    { day: "Fri", date: "16", items: ["Update"] },
-    { day: "Sat", date: "17", items: [] },
-    { day: "Sun", date: "18", items: ["Review"] },
+    { day: "Fri", date: "16", items: ["Update"], today: false },
+    { day: "Sat", date: "17", items: [], today: false },
+    { day: "Sun", date: "18", items: ["Review"], today: false },
   ] as const;
 
   return (
