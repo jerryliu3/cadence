@@ -165,6 +165,16 @@ export function SocialTab() {
                       <Link href={link.href}>{link.label}</Link>
                     </Button>
                   ))}
+                  <Button type="button" variant="outline" size="sm" asChild>
+                    <Link href="/goals/new?mode=multi&starterPack=health">
+                      Open Health starter pack
+                    </Link>
+                  </Button>
+                  <Button type="button" variant="outline" size="sm" asChild>
+                    <Link href="/goals/new?mode=multi&starterPack=fitness">
+                      Open Fitness starter pack
+                    </Link>
+                  </Button>
                   <Button
                     type="button"
                     variant="ghost"

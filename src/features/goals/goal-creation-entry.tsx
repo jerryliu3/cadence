@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { TrainingPlanImportEntry } from "@/features/goals/training-plan-import-entry";
 import { BulkGoalForm } from "@/features/today/bulk-goal-form";
 import { GoalForm } from "@/features/today/goal-form";
@@ -48,10 +49,25 @@ export function GoalCreationEntry({ onExit }: GoalCreationEntryProps) {
     const params = new URLSearchParams(searchParams.toString());
     if (nextMode === "single") {
       params.delete("mode");
+      params.delete("starterPack");
     } else if (nextMode === "training") {
       params.set("mode", "training");
+      params.delete("starterPack");
     } else {
       params.set("mode", "multi");
+    }
+    const query = params.toString();
+    return query.length > 0 ? `${pathname}?${query}` : pathname;
+  };
+
+  const starterPack = searchParams.get("starterPack");
+  const starterPackHref = (pack: "health" | "fitness" | null) => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("mode", "multi");
+    if (pack) {
+      params.set("starterPack", pack);
+    } else {
+      params.delete("starterPack");
     }
     const query = params.toString();
     return query.length > 0 ? `${pathname}?${query}` : pathname;
@@ -103,6 +119,39 @@ export function GoalCreationEntry({ onExit }: GoalCreationEntryProps) {
         </div>
       </div>
       <div className="w-full">
+        {mode === "multi" ? (
+          <div className="mb-4 rounded-xl border bg-muted/20 p-3">
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <p className="text-sm font-medium">Starter packs (optional)</p>
+              {starterPack ? (
+                <Badge variant="outline" className="capitalize">
+                  {starterPack} selected
+                </Badge>
+              ) : (
+                <Badge variant="outline">Pick one to prefill drafts</Badge>
+              )}
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button type="button" variant="outline" size="sm" asChild>
+                <Link href={starterPackHref("health")} replace>
+                  Health starter pack
+                </Link>
+              </Button>
+              <Button type="button" variant="outline" size="sm" asChild>
+                <Link href={starterPackHref("fitness")} replace>
+                  Fitness starter pack
+                </Link>
+              </Button>
+              {starterPack ? (
+                <Button type="button" variant="ghost" size="sm" asChild>
+                  <Link href={starterPackHref(null)} replace>
+                    Clear starter pack
+                  </Link>
+                </Button>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
         {mode === "single" ? (
           <GoalForm showBackButton={false} onExit={onExit} />
         ) : mode === "multi" ? (
