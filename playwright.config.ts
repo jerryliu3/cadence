@@ -2,7 +2,7 @@ import { defineConfig, devices } from "@playwright/test";
 
 const port = process.env.PLAYWRIGHT_PORT ?? "3100";
 const baseURL =
-  process.env.PLAYWRIGHT_BASE_URL ?? `http://localhost:${port}`;
+  process.env.PLAYWRIGHT_BASE_URL ?? `http://127.0.0.1:${port}`;
 const authStatePath = "playwright/.auth/alice.json";
 
 export default defineConfig({
@@ -59,10 +59,11 @@ export default defineConfig({
       ? `pnpm exec next start --hostname 127.0.0.1 --port ${port}`
       : `pnpm exec next dev --hostname 127.0.0.1 --port ${port}`,
     url: baseURL,
-    reuseExistingServer: false,
+    reuseExistingServer: !process.env.CI,
     timeout: 120_000,
     env: {
       NEXT_PUBLIC_APP_URL: baseURL,
+      SOCIAL_ENABLED: process.env.SOCIAL_ENABLED ?? "true",
       // Present for push-dispatch routes; not required for boot outside Vercel prod.
       CRON_SECRET: process.env.CRON_SECRET ?? "playwright-cron-secret",
     },
