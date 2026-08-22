@@ -54,7 +54,7 @@ describe("InsightsLaneSection partner boundary", () => {
     );
 
     expect(rendered).toContain("Alex");
-    expect(rendered).toContain("Read-only");
+    expect(rendered).toContain("View only");
     expect(rendered).toContain("Partner insights are unavailable.");
     expect(pressables).toHaveLength(0);
   });

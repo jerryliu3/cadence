@@ -81,12 +81,12 @@ export function GoalSharingSection({
         <CardHeader>
           <CardTitle>User search</CardTitle>
           <CardDescription>
-            Share read-only goals with people you search for.
+            Share goals for others to view.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
-              <Label>Goals to share (read-only)</Label>
+              <Label>Goals to share (view only)</Label>
               <div ref={shareMenuAnchorRef} className="relative">
                 <button
                   type="button"
@@ -240,7 +240,7 @@ export function GoalSharingSection({
         <CardHeader>
           <CardTitle>Shared by me</CardTitle>
           <CardDescription>
-            Manage who can see each read-only goal you have shared.
+            Manage who can view each goal you have shared.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -312,7 +312,7 @@ export function GoalSharingSection({
         <CardHeader>
           <CardTitle>Shared with me</CardTitle>
           <CardDescription>
-            Read-only goals from other users with Insights-style visual summaries.
+            Goals shared with you, with visual progress summaries.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -397,7 +397,7 @@ export function GoalSharingSection({
                       />
                     ) : null}
                     <p className="text-xs text-muted-foreground">
-                      Read-only. You can view progress and insights but cannot mark
+                      View only. You can see progress and insights but cannot mark
                       completions.
                     </p>
                     <MonthHeatmap month={sharedMonthCursor} countsByDate={countsByDate} />

@@ -97,7 +97,7 @@ export function PlannerCalendarToolbar({
             ) : null}
             {plannerReadOnly ? (
               <span className="text-xs text-muted-foreground">
-                Partner completions (read-only)
+                Partner completions (view only)
               </span>
             ) : null}
             {hasDraftSession ? (

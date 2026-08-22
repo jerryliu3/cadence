@@ -55,7 +55,7 @@ export function InsightsLaneSection({
                 },
               ]}
             >
-              Read-only
+              View only
             </Text>
           ) : null}
         </View>

@@ -238,7 +238,7 @@ export function ChecklistScreen({
                 },
               ]}
             >
-              Read-only
+              View only
             </Text>
           ) : null}
         </View>
