@@ -1,8 +1,16 @@
 "use client";
 
-import { CalendarDays, Settings, SlidersHorizontal } from "lucide-react";
+import { CalendarDays, CircleHelp, Settings, SlidersHorizontal } from "lucide-react";
+import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -11,7 +19,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Tooltip } from "@/components/ui/tooltip";
 import type { PlannerCalendarViewMode } from "@/features/planner/calendar-surface.types";
+import type { PlannerEligibilityNotices } from "@/features/planner/planner-eligibility-notices";
 
 const PLANNER_VIEW_MODES: ReadonlyArray<{
   value: PlannerCalendarViewMode;
@@ -34,6 +44,7 @@ interface PlannerCalendarToolbarProps {
   loading: boolean;
   viewMode: PlannerCalendarViewMode;
   canOpenSettings: boolean;
+  linkedTargetDetails: PlannerEligibilityNotices["linkedTargetDetails"];
   searchQuery: string;
   onSave: () => void;
   onDiscardDraftChanges: () => void;
@@ -54,6 +65,7 @@ export function PlannerCalendarToolbar({
   loading,
   viewMode,
   canOpenSettings,
+  linkedTargetDetails,
   searchQuery,
   onSave,
   onDiscardDraftChanges,
@@ -62,6 +74,10 @@ export function PlannerCalendarToolbar({
   onOpenSettings,
   onSearchQueryChange,
 }: PlannerCalendarToolbarProps) {
+  const [helpOpen, setHelpOpen] = useState(false);
+  const [showHiddenGoals, setShowHiddenGoals] = useState(false);
+  const hiddenLinkedGoalCount = linkedTargetDetails.length;
+
   return (
     <div
       className="rounded-xl border bg-card p-4 shadow-sm"
@@ -73,6 +89,18 @@ export function PlannerCalendarToolbar({
             <div className="flex items-center gap-2">
               <CalendarDays className="size-4 text-primary" />
               <h2 className="text-lg font-semibold">Calendar</h2>
+              <Tooltip content="Calendar help" side="top" align="center">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon-sm"
+                  aria-label="Open calendar help"
+                  title="Calendar help"
+                  onClick={() => setHelpOpen(true)}
+                >
+                  <CircleHelp className="size-4" />
+                </Button>
+              </Tooltip>
               {hasDraftSession ? (
                 <Badge
                   data-testid="planner-preview-mode-badge"
@@ -173,6 +201,74 @@ export function PlannerCalendarToolbar({
           </div>
         </div>
       </div>
+      <Dialog
+        open={helpOpen}
+        onOpenChange={(open) => {
+          setHelpOpen(open);
+          if (!open) {
+            setShowHiddenGoals(false);
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Calendar help</DialogTitle>
+            <DialogDescription>
+              Use this calendar to preview scheduling changes before saving them.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 text-sm">
+            <ul className="list-disc space-y-1 pl-4 text-muted-foreground">
+              <li>Switch between day, 3-day, week, and month views.</li>
+              <li>Drag sessions or use the detail editor to move dates and time overrides.</li>
+              <li>
+                Regenerate from planner settings when needed, then save once the preview looks
+                right.
+              </li>
+            </ul>
+            <p className="text-xs text-muted-foreground">
+              Linked main goals are hidden for clarity while linked source goals remain active.
+            </p>
+            {hiddenLinkedGoalCount > 0 ? (
+              <div className="space-y-2 rounded-md border border-amber-300 bg-amber-100 px-3 py-2 text-xs text-amber-950 dark:border-amber-300 dark:bg-amber-100 dark:text-amber-950">
+                <p>
+                  {hiddenLinkedGoalCount} linked main goal
+                  {hiddenLinkedGoalCount === 1 ? " is" : "s are"} currently hidden in this
+                  preview window.
+                </p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-7 text-xs"
+                  onClick={() => setShowHiddenGoals((current) => !current)}
+                >
+                  {showHiddenGoals ? "Hide hidden goals" : "See hidden goals"}
+                </Button>
+                {showHiddenGoals ? (
+                  <div
+                    className={`space-y-1 rounded-md border border-amber-300/70 bg-white/70 p-2 text-xs text-amber-950 ${
+                      hiddenLinkedGoalCount > 5 ? "max-h-36 overflow-y-auto pr-1" : ""
+                    }`}
+                  >
+                    {linkedTargetDetails.map((detail) => (
+                      <p key={`linked-target-help-${detail.goalId}`}>
+                        {detail.goalTitle}: {detail.statusCopy}
+                        {detail.sourceGoalTitles.length > 0
+                          ? ` Linked source goals: ${detail.sourceGoalTitles.join(", ")}.`
+                          : ""}
+                      </p>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+            <Button type="button" variant="outline" size="sm" onClick={() => setHelpOpen(false)}>
+              Back to calendar
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
