@@ -13,6 +13,7 @@ import { LoadingCard } from "@/components/ui/loading-card";
 import { allCategoriesValue } from "@/features/goals/goal-filters";
 import {
   buildWeekdayLabels,
+  getEntryFeedTitleWithTime,
   getEntryDisplayTitleWithTime,
   getEntrySubtitle,
   isEntryCredited,
@@ -1054,7 +1055,7 @@ export function CalendarSurface({
                         asOfDate={context?.asOfDate ?? null}
                         canMutatePlanItems={canMutatePlanItems}
                         canMutateEntryOnDay={canMutateEntryOnDay}
-                        getEntryDisplayTitle={getEntryDisplayTitleWithTime}
+                        getEntryDisplayTitle={getEntryFeedTitleWithTime}
                         getEntrySubtitle={getEntrySubtitle}
                         isEntryCredited={isEntryCredited}
                         isEntryImmovableForDraft={isEntryImmovableForDraft}
@@ -1123,7 +1124,7 @@ export function CalendarSurface({
                     asOfDate={context?.asOfDate ?? null}
                     canMutatePlanItems={canMutatePlanItems}
                     canMutateEntryOnDay={canMutateEntryOnDay}
-                    getEntryDisplayTitle={getEntryDisplayTitleWithTime}
+                    getEntryDisplayTitle={getEntryFeedTitleWithTime}
                     getEntrySubtitle={getEntrySubtitle}
                     isEntryCredited={isEntryCredited}
                     isEntryImmovableForDraft={isEntryImmovableForDraft}
@@ -1191,7 +1192,7 @@ export function CalendarSurface({
             asOfDate={context?.asOfDate ?? null}
             canMutatePlanItems={canMutatePlanItems}
             canMutateEntryOnDay={canMutateEntryOnDay}
-            getEntryDisplayTitle={getEntryDisplayTitleWithTime}
+            getEntryDisplayTitle={getEntryFeedTitleWithTime}
             getEntrySubtitle={getEntrySubtitle}
             isEntryCredited={isEntryCredited}
             isEntryImmovableForDraft={isEntryImmovableForDraft}
