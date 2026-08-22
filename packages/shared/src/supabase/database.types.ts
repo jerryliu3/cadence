@@ -285,6 +285,7 @@ export type Database = {
         }
         Returns: string[]
       }
+      synthetic_uuid_from_text: { Args: { p_value: string }; Returns: string }
       team_all_members_socially_visible: {
         Args: { p_team_id: string }
         Returns: boolean
@@ -2097,6 +2098,83 @@ export type Database = {
           },
         ]
       }
+      synthetic_config: {
+        Row: {
+          created_at: string
+          enabled: boolean
+          id: number
+          max_completions_per_tick: number
+          max_reactions_per_tick: number
+          throttle_above_real_dau: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          enabled?: boolean
+          id?: number
+          max_completions_per_tick?: number
+          max_reactions_per_tick?: number
+          throttle_above_real_dau?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          enabled?: boolean
+          id?: number
+          max_completions_per_tick?: number
+          max_reactions_per_tick?: number
+          throttle_above_real_dau?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      synthetic_users: {
+        Row: {
+          archetype: string
+          completions_today: number
+          created_at: string
+          daily_budget: number
+          enabled: boolean
+          is_synthetic: boolean
+          last_active_date: string | null
+          persona: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          archetype?: string
+          completions_today?: number
+          created_at?: string
+          daily_budget: number
+          enabled?: boolean
+          is_synthetic?: boolean
+          last_active_date?: string | null
+          persona: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          archetype?: string
+          completions_today?: number
+          created_at?: string
+          daily_budget?: number
+          enabled?: boolean
+          is_synthetic?: boolean
+          last_active_date?: string | null
+          persona?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "synthetic_users_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       team_members: {
         Row: {
           joined_at: string
@@ -2811,6 +2889,10 @@ export type Database = {
           upserted_count: number
         }[]
       }
+      provision_synthetic_users_service: {
+        Args: { p_goals_per_user?: number; p_target_count?: number }
+        Returns: number
+      }
       recompute_goal_xp_service: {
         Args: { p_force_zero?: boolean; p_goal_id: string; p_user_id: string }
         Returns: number
@@ -2937,6 +3019,10 @@ export type Database = {
         }[]
       }
       soft_delete_goal: { Args: { p_goal_id: string }; Returns: undefined }
+      synthetic_apply_completion_service: {
+        Args: { p_completed_on?: string; p_goal_id: string; p_user_id: string }
+        Returns: boolean
+      }
       unmark_goal_complete: {
         Args: { p_date?: string; p_goal_id: string }
         Returns: undefined
