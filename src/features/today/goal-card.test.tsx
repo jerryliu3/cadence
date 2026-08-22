@@ -153,12 +153,9 @@ describe("GoalCard", () => {
         goal={{ ...goal, archived_at: null }}
         completions={[
           {
-            id: "completion-1",
             goal_id: goal.id,
-            user_id: goal.owner_id,
             completed_on: "2026-08-13",
             source: "linked_cascade",
-            created_at: "2026-08-13T00:00:00Z",
           },
         ]}
         linkedCount={0}
