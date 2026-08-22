@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -22,15 +22,15 @@ export function TabOnboardingOverlay({
   description,
   forceOpen = false,
 }: TabOnboardingOverlayProps) {
-  const [open, setOpen] = useState(false);
-
-  useEffect(() => {
-    if (forceOpen) {
-      setOpen(true);
-      return;
-    }
-    setOpen(!isTabOnboardingCompleted(onboardingKey));
-  }, [forceOpen, onboardingKey]);
+  const sessionToken = useMemo(
+    () => `${forceOpen ? "force" : "default"}:${onboardingKey}`,
+    [forceOpen, onboardingKey]
+  );
+  const [dismissedToken, setDismissedToken] = useState<string | null>(null);
+  const completed = isTabOnboardingCompleted(onboardingKey);
+  const open =
+    dismissedToken !== sessionToken &&
+    (forceOpen || !completed);
 
   if (!open) {
     return null;
@@ -38,7 +38,7 @@ export function TabOnboardingOverlay({
 
   const closeAndPersist = () => {
     markTabOnboardingCompleted(onboardingKey);
-    setOpen(false);
+    setDismissedToken(sessionToken);
   };
 
   return (
