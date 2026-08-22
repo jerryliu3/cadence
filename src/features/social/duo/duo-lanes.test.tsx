@@ -21,7 +21,7 @@ describe("DuoLanes", () => {
       />
     );
     expect(screen.getByText("Alex")).toBeInTheDocument();
-    expect(screen.getByText("Read-only")).toBeInTheDocument();
+    expect(screen.getByText("View only")).toBeInTheDocument();
     expect(screen.queryByText("Mine")).not.toBeInTheDocument();
   });
 

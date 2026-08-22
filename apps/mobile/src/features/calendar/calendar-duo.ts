@@ -145,7 +145,7 @@ export function resolveCalendarReadOnlyState(scope: DuoScope) {
   return {
     showViewerSessions: false,
     allowMutations: false,
-    banner: "Partner completions (read-only)",
+    banner: "Partner completions (view only)",
   };
 }
 

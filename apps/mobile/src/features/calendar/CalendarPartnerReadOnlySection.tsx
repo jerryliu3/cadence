@@ -22,7 +22,7 @@ export function CalendarPartnerReadOnlySection({
         ]}
       >
         <Text style={{ color: theme.colors.foreground, fontWeight: "700" }}>
-          Partner completions (read-only)
+          Partner completions (view only)
         </Text>
       </View>
       {loading ? (

@@ -53,7 +53,7 @@ describe("calendar duo behavior helpers", () => {
     expect(resolveCalendarReadOnlyState("partner")).toEqual({
       showViewerSessions: false,
       allowMutations: false,
-      banner: "Partner completions (read-only)",
+      banner: "Partner completions (view only)",
     });
   });
 

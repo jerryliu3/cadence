@@ -1138,7 +1138,7 @@ export function InsightsTab({
                 isEntryImmovableForDraft={() => true}
                 getCompletionToggleState={() => ({
                   currentlyCredited: false,
-                  disabledReasonCopy: "Read-only completion history.",
+                  disabledReasonCopy: "View-only completion history.",
                 })}
                 onEntryOpen={() => undefined}
                 onToggleCompletion={() => undefined}

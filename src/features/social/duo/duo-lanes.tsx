@@ -72,7 +72,7 @@ export function DuoLanes({
               </PublicProfileTrigger>
               {subject.readOnly ? (
                 <span className="rounded-full border border-border px-2 py-1 text-sm text-muted-foreground">
-                  Read-only
+                  View only
                 </span>
               ) : null}
             </div>

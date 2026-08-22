@@ -69,7 +69,7 @@ describe("CalendarPartnerReadOnlySection partner boundary", () => {
       (node: ReactTestInstance) => String(node.type) === "pressable"
     );
 
-    expect(rendered).toContain("Partner completions (read-only)");
+    expect(rendered).toContain("Partner completions (view only)");
     expect(rendered).toContain("Partner marked this done:");
     expect(rendered).toContain("Read");
     expect(pressables).toHaveLength(0);
