@@ -14,13 +14,13 @@ begin
 
   perform cron.schedule(
     'refresh-leaderboard-standings',
-    '*/5 * * * *',
+    '* * * * *',
     $job$select public.refresh_leaderboard_standings_service()$job$
   );
 
   perform cron.schedule(
     'refresh-challenge-progress',
-    '*/5 * * * *',
+    '* * * * *',
     $job$select public.refresh_challenge_progress_service()$job$
   );
 exception
