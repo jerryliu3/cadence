@@ -94,7 +94,7 @@ export function TabNav({
                     ? "min-h-12 flex-col gap-1 py-1.5 text-[10px]"
                     : "min-h-14 flex-col gap-1 py-2 text-[11px]",
                   active
-                    ? "text-primary-foreground"
+                    ? "text-white"
                     : "text-muted-foreground hover:bg-muted hover:text-foreground"
                 )}
                 aria-current={active ? "page" : undefined}
