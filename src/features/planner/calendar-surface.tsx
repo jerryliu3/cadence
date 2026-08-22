@@ -1,6 +1,7 @@
 "use client";
 
 import { addDays, addMonths, format, isValid, parse } from "date-fns";
+import { isMonthScopedCalendarViewMode } from "@cadence/shared/planner/calendar-state";
 import {
   useCallback,
   useEffect,
@@ -103,10 +104,6 @@ const NON_ACTIONABLE_ELIGIBILITY_REASONS = new Set([
   "not_owner",
   "deleted",
   "archived",
-]);
-const MONTH_SCOPED_VIEW_MODES = new Set<PlannerCalendarViewMode>([
-  "month",
-  "three_month",
 ]);
 const ELIGIBILITY_REASON_GROUP_LABELS: Partial<Record<EligibilityReason, string>> = {
   invalid_date_range: "Goals with invalid date ranges",
@@ -805,7 +802,7 @@ export function CalendarSurface({
     [onMonthChange, onSelectedDayChange, viewMode]
   );
   const moveViewWindow = (direction: -1 | 1) => {
-    if (MONTH_SCOPED_VIEW_MODES.has(viewMode)) {
+    if (isMonthScopedCalendarViewMode(viewMode)) {
       if (!month) {
         return;
       }
@@ -820,7 +817,7 @@ export function CalendarSurface({
     onSelectedDayChange(nextDay, "push", viewMode);
   };
   const resetViewWindow = () => {
-    if (MONTH_SCOPED_VIEW_MODES.has(viewMode)) {
+    if (isMonthScopedCalendarViewMode(viewMode)) {
       onMonthChange(todayMonth, "replace");
       return;
     }
@@ -1042,7 +1039,7 @@ export function CalendarSurface({
               <div
                 className={`transition-opacity duration-150 motion-reduce:transition-none ${
                   loading ? "opacity-70" : "opacity-100"
-                } ${MONTH_SCOPED_VIEW_MODES.has(viewMode) ? "min-h-[34rem]" : "min-h-[26rem]"}`}
+                } ${isMonthScopedCalendarViewMode(viewMode) ? "min-h-[34rem]" : "min-h-[26rem]"}`}
               >
                 {viewMode === "day" ? (
                   <div className="space-y-2">

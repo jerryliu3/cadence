@@ -6,6 +6,7 @@ import { CalendarSurface } from "@/features/planner/calendar-surface";
 import { usePartnerCompletionOverlay } from "@/features/planner/use-partner-completion-overlay";
 import {
   getTodayDateParam,
+  isMonthScopedCalendarViewMode,
   isValidDate,
   isValidMonth,
   normalizeCalendarRoute,
@@ -59,10 +60,9 @@ export function CalendarPageShell() {
     (month: string, mode: "push" | "replace") => {
       applySearchParams(
         (params) => {
-          params.set(
-            "view",
-            normalized.viewMode === "three_month" ? "three_month" : "month"
-          );
+          params.set("view", isMonthScopedCalendarViewMode(normalized.viewMode)
+            ? normalized.viewMode
+            : "month");
           params.set("month", month);
           params.delete("day");
         },
@@ -77,7 +77,7 @@ export function CalendarPageShell() {
       applySearchParams(
         (params) => {
           params.set("view", viewMode);
-          if (viewMode === "month" || viewMode === "three_month") {
+          if (isMonthScopedCalendarViewMode(viewMode)) {
             params.delete("day");
             return;
           }
@@ -106,10 +106,8 @@ export function CalendarPageShell() {
       applySearchParams(
         (params) => {
           if (day && isValidDate(day)) {
-            const resolvedViewMode =
-              nextViewMode ??
-              (normalized.viewMode === "month" ||
-              normalized.viewMode === "three_month"
+            const resolvedViewMode = nextViewMode
+              ?? (isMonthScopedCalendarViewMode(normalized.viewMode)
                 ? "day"
                 : normalized.viewMode);
             params.set("view", resolvedViewMode);

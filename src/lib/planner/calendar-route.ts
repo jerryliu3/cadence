@@ -1,4 +1,5 @@
 import {
+  isMonthScopedCalendarViewMode,
   isValidCalendarViewMode,
   isValidDate,
   isValidMonth,
@@ -58,7 +59,7 @@ function writeCalendarParams(
   state: CalendarState
 ) {
   let changed = setIfChanged(nextParams, "view", state.viewMode);
-  if (state.viewMode === "month" || state.viewMode === "three_month") {
+  if (isMonthScopedCalendarViewMode(state.viewMode)) {
     changed = deleteIfPresent(nextParams, "day") || changed;
     if (state.month) {
       changed = setIfChanged(nextParams, "month", state.month) || changed;

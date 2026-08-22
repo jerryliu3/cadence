@@ -1,6 +1,7 @@
 export {
   getSurfaceKey,
   getTodayDateParam,
+  isMonthScopedCalendarViewMode,
   isValidCalendarViewMode,
   isValidDate,
   isValidMonth,

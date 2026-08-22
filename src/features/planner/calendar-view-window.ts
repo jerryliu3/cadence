@@ -1,4 +1,5 @@
 import { addMonths, format, isValid, parse } from "date-fns";
+import { isMonthScopedCalendarViewMode } from "@cadence/shared/planner/calendar-state";
 import { monthToLabel, restWeekdayOptions } from "@/features/planner/calendar-format";
 import type { PlannerCalendarViewMode } from "@/features/planner/calendar-surface.types";
 
@@ -28,6 +29,121 @@ export interface CalendarViewWindowModel {
   nextWindowAriaLabel: string;
   canResetViewWindow: boolean;
   stepDays: number;
+}
+
+function buildThreeMonthHeading({
+  month,
+  fallbackLabel,
+}: {
+  month: string | null;
+  fallbackLabel: string;
+}) {
+  if (!month) {
+    return fallbackLabel;
+  }
+  const monthStart = parse(`${month}-01`, "yyyy-MM-dd", new Date());
+  if (!isValid(monthStart)) {
+    return fallbackLabel;
+  }
+  const previousMonthLabel = format(addMonths(monthStart, -1), "MMM");
+  const nextMonthLabel = format(addMonths(monthStart, 1), "MMM yyyy");
+  return `${previousMonthLabel} - ${nextMonthLabel}`;
+}
+
+function resolveViewHeading({
+  viewMode,
+  monthLabel,
+  threeMonthHeading,
+  focusedWeekStartDate,
+  focusedWeekEndDate,
+  focusedThreeDayStartDate,
+  focusedThreeDayEndDate,
+  safeFocusedDay,
+}: {
+  viewMode: PlannerCalendarViewMode;
+  monthLabel: string;
+  threeMonthHeading: string;
+  focusedWeekStartDate: Date;
+  focusedWeekEndDate: Date;
+  focusedThreeDayStartDate: Date;
+  focusedThreeDayEndDate: Date;
+  safeFocusedDay: Date;
+}) {
+  switch (viewMode) {
+    case "month":
+      return monthLabel;
+    case "three_month":
+      return threeMonthHeading;
+    case "week":
+      return `${format(focusedWeekStartDate, "MMM d")} - ${format(
+        focusedWeekEndDate,
+        "MMM d, yyyy"
+      )}`;
+    case "three_day":
+      return `${format(focusedThreeDayStartDate, "MMM d")} - ${format(
+        focusedThreeDayEndDate,
+        "MMM d, yyyy"
+      )}`;
+    case "day":
+      return format(safeFocusedDay, "EEE MMM d, yyyy");
+  }
+}
+
+function resolveViewDescription({
+  viewMode,
+  weekStartsOn,
+}: {
+  viewMode: PlannerCalendarViewMode;
+  weekStartsOn: number;
+}) {
+  switch (viewMode) {
+    case "month":
+      return `${restWeekdayOptions.find((option) => option.value === weekStartsOn)?.label ?? "Mon"}-first month view. Drag session pills to stage preview edits.`;
+    case "three_month":
+      return "Three-month planner view. Drag session pills across visible days to stage preview edits.";
+    case "week":
+      return "Expanded 7-day planner view with drag-and-drop editing.";
+    case "three_day":
+      return "Three-day focus with a scrollable week strip for context.";
+    case "day":
+      return "Day agenda with a scrollable week strip and detail controls.";
+  }
+}
+
+function resolveWindowAriaLabel({
+  viewMode,
+  direction,
+}: {
+  viewMode: PlannerCalendarViewMode;
+  direction: "previous" | "next";
+}) {
+  if (isMonthScopedCalendarViewMode(viewMode)) {
+    if (viewMode === "month") {
+      return direction === "previous" ? "Previous month" : "Next month";
+    }
+    return direction === "previous"
+      ? "Previous month window"
+      : "Next month window";
+  }
+  switch (viewMode) {
+    case "week":
+      return direction === "previous" ? "Previous week" : "Next week";
+    case "three_day":
+      return direction === "previous" ? "Previous 3 days" : "Next 3 days";
+    case "day":
+      return direction === "previous" ? "Previous day" : "Next day";
+  }
+}
+
+function resolveStepDays(viewMode: PlannerCalendarViewMode) {
+  switch (viewMode) {
+    case "week":
+      return 7;
+    case "three_day":
+      return 3;
+    default:
+      return 1;
+  }
 }
 
 export function selectCalendarViewWindowModel({
@@ -66,34 +182,20 @@ export function selectCalendarViewWindowModel({
     "yyyy-MM-dd",
     new Date()
   );
-  const threeMonthHeading = (() => {
-    if (!month) {
-      return monthLabel;
-    }
-    const monthStart = parse(`${month}-01`, "yyyy-MM-dd", new Date());
-    if (!isValid(monthStart)) {
-      return monthLabel;
-    }
-    const previousMonthLabel = format(addMonths(monthStart, -1), "MMM");
-    const nextMonthLabel = format(addMonths(monthStart, 1), "MMM yyyy");
-    return `${previousMonthLabel} - ${nextMonthLabel}`;
-  })();
-  const viewHeading =
-    viewMode === "month"
-      ? monthLabel
-      : viewMode === "three_month"
-        ? threeMonthHeading
-      : viewMode === "week"
-        ? `${format(focusedWeekStartDate, "MMM d")} - ${format(
-            focusedWeekEndDate,
-            "MMM d, yyyy"
-          )}`
-        : viewMode === "three_day"
-          ? `${format(focusedThreeDayStartDate, "MMM d")} - ${format(
-              focusedThreeDayEndDate,
-              "MMM d, yyyy"
-            )}`
-          : format(safeFocusedDay, "EEE MMM d, yyyy");
+  const threeMonthHeading = buildThreeMonthHeading({
+    month,
+    fallbackLabel: monthLabel,
+  });
+  const viewHeading = resolveViewHeading({
+    viewMode,
+    monthLabel,
+    threeMonthHeading,
+    focusedWeekStartDate,
+    focusedWeekEndDate,
+    focusedThreeDayStartDate,
+    focusedThreeDayEndDate,
+    safeFocusedDay,
+  });
   const resolvedFocusedDay = format(safeFocusedDay, "yyyy-MM-dd");
 
   const fixedViewHeadingWidthCh = Math.max(
@@ -104,40 +206,18 @@ export function selectCalendarViewWindowModel({
     MAX_THREE_DAY_HEADING_SAMPLE.length,
     MAX_DAY_HEADING_SAMPLE.length
   );
-  const viewDescription =
-    viewMode === "month"
-      ? `${restWeekdayOptions.find((option) => option.value === weekStartsOn)?.label ?? "Mon"}-first month view. Drag session pills to stage preview edits.`
-      : viewMode === "three_month"
-        ? "Three-month planner view. Drag session pills across visible days to stage preview edits."
-      : viewMode === "week"
-        ? "Expanded 7-day planner view with drag-and-drop editing."
-        : viewMode === "three_day"
-          ? "Three-day focus with a scrollable week strip for context."
-          : "Day agenda with a scrollable week strip and detail controls.";
-  const previousWindowAriaLabel =
-    viewMode === "month"
-      ? "Previous month"
-      : viewMode === "three_month"
-        ? "Previous month window"
-      : viewMode === "week"
-        ? "Previous week"
-        : viewMode === "three_day"
-          ? "Previous 3 days"
-          : "Previous day";
-  const nextWindowAriaLabel =
-    viewMode === "month"
-      ? "Next month"
-      : viewMode === "three_month"
-        ? "Next month window"
-      : viewMode === "week"
-        ? "Next week"
-        : viewMode === "three_day"
-          ? "Next 3 days"
-          : "Next day";
-  const canResetViewWindow =
-    viewMode === "month" || viewMode === "three_month"
-      ? month !== todayMonth
-      : focusedDay !== calendarToday;
+  const viewDescription = resolveViewDescription({ viewMode, weekStartsOn });
+  const previousWindowAriaLabel = resolveWindowAriaLabel({
+    viewMode,
+    direction: "previous",
+  });
+  const nextWindowAriaLabel = resolveWindowAriaLabel({
+    viewMode,
+    direction: "next",
+  });
+  const canResetViewWindow = isMonthScopedCalendarViewMode(viewMode)
+    ? month !== todayMonth
+    : focusedDay !== calendarToday;
 
   return {
     resolvedFocusedDay,
@@ -147,6 +227,6 @@ export function selectCalendarViewWindowModel({
     previousWindowAriaLabel,
     nextWindowAriaLabel,
     canResetViewWindow,
-    stepDays: viewMode === "week" ? 7 : viewMode === "three_day" ? 3 : 1,
+    stepDays: resolveStepDays(viewMode),
   };
 }

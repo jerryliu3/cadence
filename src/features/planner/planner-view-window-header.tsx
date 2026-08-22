@@ -1,6 +1,7 @@
 "use client";
 
 import { Loader2, Maximize2, Minimize2 } from "lucide-react";
+import { isMonthScopedCalendarViewMode } from "@cadence/shared/planner/calendar-state";
 import { Button } from "@/components/ui/button";
 import { PeriodStepper } from "@/components/ui/period-stepper";
 import type { PlannerCalendarViewMode } from "@/features/planner/calendar-surface.types";
@@ -56,7 +57,7 @@ export function PlannerViewWindowHeader({
             }
           />
           <div className="absolute right-0 top-1/2 flex -translate-y-1/2 items-center gap-2">
-            {viewMode === "month" || viewMode === "three_month" ? (
+            {isMonthScopedCalendarViewMode(viewMode) ? (
               <Button
                 type="button"
                 variant="outline"

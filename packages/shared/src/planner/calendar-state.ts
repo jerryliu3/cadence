@@ -8,6 +8,17 @@ export type PlannerCalendarViewMode =
   | "week"
   | "three_day"
   | "day";
+const CALENDAR_VIEW_MODES: readonly PlannerCalendarViewMode[] = [
+  "month",
+  "three_month",
+  "week",
+  "three_day",
+  "day",
+];
+const MONTH_SCOPED_CALENDAR_VIEW_MODES = new Set<PlannerCalendarViewMode>([
+  "month",
+  "three_month",
+]);
 
 const monthPattern = /^\d{4}-(0[1-9]|1[0-2])$/;
 const datePattern = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
@@ -27,13 +38,16 @@ export function isValidDate(value: string | null): value is string {
 export function isValidCalendarViewMode(
   value: string | null | undefined
 ): value is PlannerCalendarViewMode {
-  return (
-    value === "month" ||
-    value === "three_month" ||
-    value === "week" ||
-    value === "three_day" ||
-    value === "day"
+  return Boolean(
+    value &&
+      (CALENDAR_VIEW_MODES as readonly string[]).includes(value)
   );
+}
+
+export function isMonthScopedCalendarViewMode(
+  viewMode: PlannerCalendarViewMode
+) {
+  return MONTH_SCOPED_CALENDAR_VIEW_MODES.has(viewMode);
 }
 
 export function getTodayDateParam() {
@@ -56,7 +70,7 @@ function applyCalendarViewInvariants(
   day: string | null,
   viewMode: PlannerCalendarViewMode
 ): Pick<CalendarState, "month" | "day" | "viewMode"> {
-  if (viewMode === "month" || viewMode === "three_month") {
+  if (isMonthScopedCalendarViewMode(viewMode)) {
     return {
       month: isValidMonth(month) ? month : null,
       day: null,
