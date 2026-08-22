@@ -3,6 +3,7 @@
 import { CalendarDays, Settings, SlidersHorizontal } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -33,11 +34,13 @@ interface PlannerCalendarToolbarProps {
   loading: boolean;
   viewMode: PlannerCalendarViewMode;
   canOpenSettings: boolean;
+  searchQuery: string;
   onSave: () => void;
   onDiscardDraftChanges: () => void;
   onViewModeChange: (viewMode: PlannerCalendarViewMode) => void;
   onOpenFilters: () => void;
   onOpenSettings: () => void;
+  onSearchQueryChange: (query: string) => void;
 }
 
 export function PlannerCalendarToolbar({
@@ -51,14 +54,19 @@ export function PlannerCalendarToolbar({
   loading,
   viewMode,
   canOpenSettings,
+  searchQuery,
   onSave,
   onDiscardDraftChanges,
   onViewModeChange,
   onOpenFilters,
   onOpenSettings,
+  onSearchQueryChange,
 }: PlannerCalendarToolbarProps) {
   return (
-    <div className="rounded-xl border bg-card p-4 shadow-sm">
+    <div
+      className="rounded-xl border bg-card p-4 shadow-sm"
+      data-testid="planner-calendar-toolbar"
+    >
       <div className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="space-y-1">
@@ -147,6 +155,18 @@ export function PlannerCalendarToolbar({
               </Button>
             ) : null}
           </div>
+        </div>
+        <div className="w-full">
+          <Input
+            id="planner-calendar-search"
+            type="search"
+            value={searchQuery}
+            onChange={(event) => onSearchQueryChange(event.target.value)}
+            placeholder="Filter by goal or milestone name"
+            className="h-8 w-full text-xs"
+            aria-label="Search goals"
+            disabled={loading}
+          />
         </div>
       </div>
     </div>

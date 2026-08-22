@@ -153,6 +153,7 @@ export function CalendarSurface({
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [categoryFilter, setCategoryFilter] = useState(allCategoriesValue);
   const [endMonthFilter, setEndMonthFilter] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
   const [draftPolicy, setDraftPolicy] = useState<PlannerPolicy | null>(null);
   const [draftPreview, setDraftPreview] = useState<
     NonNullable<PlannerContextPayload["preview"]> | null
@@ -280,6 +281,7 @@ export function CalendarSurface({
     duoScope,
     categoryFilter,
     endMonthFilter,
+    searchQuery,
     partnerCompletionMarkersByDate,
     previewEntryOrderByDay,
     additionalProjectionDays,
@@ -984,11 +986,13 @@ export function CalendarSurface({
         loading={loading}
         viewMode={viewMode}
         canOpenSettings={Boolean(context?.preferences)}
+        searchQuery={searchQuery}
         onSave={savePlan}
         onDiscardDraftChanges={discardDraftChanges}
         onViewModeChange={setCalendarViewMode}
         onOpenFilters={() => setFiltersOpen(true)}
         onOpenSettings={() => setSettingsOpen(true)}
+        onSearchQueryChange={setSearchQuery}
       />
 
       {partnerOverlayError ? (
