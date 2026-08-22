@@ -10,6 +10,7 @@ import {
   useState,
 } from "react";
 import { LoadingCard } from "@/components/ui/loading-card";
+import { Button } from "@/components/ui/button";
 import { allCategoriesValue } from "@/features/goals/goal-filters";
 import {
   buildWeekdayLabels,
@@ -72,6 +73,9 @@ import { PlannerDayPreviewPopover } from "@/features/planner/planner-day-preview
 import { PlannerExpandedPreviewDialog } from "@/features/planner/planner-expanded-preview-dialog";
 import { PlannerSettingsForm } from "@/features/planner/planner-settings-form";
 import { PlannerRollingWeekStrip } from "@/features/planner/planner-rolling-week-strip";
+import { PlannerAddInstanceDialog } from "@/features/planner/planner-add-instance-dialog";
+import { PlannerDeleteInstanceDialog } from "@/features/planner/planner-delete-instance-dialog";
+import { buildPlannerAddGoalOptions } from "@/features/planner/planner-add-goal-options";
 import { usePlannerCalendarModel } from "@/features/planner/use-planner-calendar-model";
 import { usePlannerEntryMutations } from "@/features/planner/use-planner-entry-mutations";
 import { usePlannerPersistenceActions } from "@/features/planner/use-planner-persistence-actions";
@@ -133,6 +137,11 @@ export function CalendarSurface({
   );
   const [dayPreview, setDayPreview] = useState<DayPreviewState | null>(null);
   const [expandedPreviewDay, setExpandedPreviewDay] = useState<string | null>(null);
+  const [addDialogDay, setAddDialogDay] = useState<string | null>(null);
+  const [addDialogGoalId, setAddDialogGoalId] = useState<string>("");
+  const [pendingDeleteEntry, setPendingDeleteEntry] = useState<PlannerDayDetailEntry | null>(
+    null
+  );
   const [moveDialogDay, setMoveDialogDay] = useState<string | null>(null);
   const [moveDialogSourceEntryKey, setMoveDialogSourceEntryKey] = useState<string>("");
   const [warningsOpen, setWarningsOpen] = useState(false);
@@ -227,10 +236,11 @@ export function CalendarSurface({
       [
         localSelectedDay,
         expandedPreviewDay,
+        addDialogDay,
         moveDialogDay,
         dayPreview?.day ?? null,
       ].filter((day): day is string => Boolean(day)),
-    [dayPreview?.day, expandedPreviewDay, localSelectedDay, moveDialogDay]
+    [addDialogDay, dayPreview?.day, expandedPreviewDay, localSelectedDay, moveDialogDay]
   );
   const {
     currentScopeMonth,
@@ -659,6 +669,28 @@ export function CalendarSurface({
   const canMutatePlanItems = Boolean(
     context?.activePlan?.plan.status === "active"
   );
+  const selectedEventDeleteBlockedReason = useMemo(() => {
+    if (!selectedEventEntry?.activeItem) {
+      return "Only saved planner sessions can be deleted.";
+    }
+    if (hasDraftSession) {
+      return "Save or discard Planning Mode changes before deleting activities.";
+    }
+    if (selectedEventEntry.activeItem.requirement_kind === "cadence") {
+      return "Cadence sessions cannot be deleted in this flow.";
+    }
+    if (selectedEventEntry.activeItem.locked) {
+      return "Unlock this session before deleting it.";
+    }
+    if (selectedEventEntry.activeItem.credit_state !== "uncredited") {
+      return "Completed sessions cannot be deleted.";
+    }
+    if (!canMutatePlanItems) {
+      return "Planner is read-only.";
+    }
+    return null;
+  }, [canMutatePlanItems, hasDraftSession, selectedEventEntry]);
+  const canDeleteSelectedEventInstance = selectedEventDeleteBlockedReason === null;
 
   const getDateFactDispatchForEntry = (
     entry: PlannerDayDetailEntry,
@@ -681,7 +713,8 @@ export function CalendarSurface({
     });
   };
 
-  const { toggleItemLock, toggleDateFact } = usePlannerEntryMutations({
+  const { addPlannedInstance, deletePlannedInstance, toggleItemLock, toggleDateFact } =
+    usePlannerEntryMutations({
     context,
     hasDraftSession,
     draftSaveCommands,
@@ -695,12 +728,97 @@ export function CalendarSurface({
     handlePlannerMutation,
     loadContext,
     refreshDraftPreview,
-  });
+    });
 
   const closeMoveDialog = () => {
     setMoveDialogDay(null);
     setMoveDialogSourceEntryKey("");
   };
+
+  const openAddDialogForDay = useCallback((day: string) => {
+    setExpandedPreviewDay(null);
+    setAddDialogDay(day);
+    setAddDialogGoalId("");
+    setDayPreview(null);
+  }, []);
+
+  const closeAddDialog = useCallback(() => {
+    setAddDialogDay(null);
+    setAddDialogGoalId("");
+  }, []);
+
+  const addDialogEntriesForDay = useMemo(
+    () => (addDialogDay ? getEntriesForDay(addDialogDay) : []),
+    [addDialogDay, getEntriesForDay]
+  );
+
+  const addGoalOptions = useMemo(
+    () =>
+      buildPlannerAddGoalOptions({
+        day: addDialogDay,
+        entriesForDay: addDialogEntriesForDay,
+        workUnits: effectivePreview?.workUnits ?? [],
+        goalTitles: context?.goalTitles ?? {},
+      }),
+    [addDialogDay, addDialogEntriesForDay, context?.goalTitles, effectivePreview?.workUnits]
+  );
+
+  const effectiveAddDialogGoalId = useMemo(() => {
+    if (addGoalOptions.length === 0) {
+      return "";
+    }
+    if (addGoalOptions.some((option) => option.goalId === addDialogGoalId)) {
+      return addDialogGoalId;
+    }
+    return addGoalOptions[0]!.goalId;
+  }, [addDialogGoalId, addGoalOptions]);
+
+  const submitAddDialog = useCallback(async () => {
+    if (!addDialogDay || !effectiveAddDialogGoalId) {
+      return;
+    }
+    const added = await addPlannedInstance({
+      goalId: effectiveAddDialogGoalId,
+      day: addDialogDay,
+    });
+    if (added) {
+      closeAddDialog();
+    }
+  }, [
+    addDialogDay,
+    addPlannedInstance,
+    closeAddDialog,
+    effectiveAddDialogGoalId,
+  ]);
+
+  const requestDeleteInstance = useCallback(
+    (entry: PlannerDayDetailEntry) => {
+      if (!canDeleteSelectedEventInstance) {
+        return;
+      }
+      setPendingDeleteEntry(entry);
+    },
+    [canDeleteSelectedEventInstance]
+  );
+
+  const closeDeleteDialog = useCallback(() => {
+    setPendingDeleteEntry(null);
+  }, []);
+
+  const confirmDeleteInstance = useCallback(async () => {
+    if (!pendingDeleteEntry) {
+      return;
+    }
+    const deleted = await deletePlannedInstance(pendingDeleteEntry);
+    if (!deleted) {
+      return;
+    }
+    if (selectedEventEntryKey === pendingDeleteEntry.key) {
+      setSelectedEventEntryKey(null);
+      setLocalSelectedDay(null);
+    }
+    setPendingDeleteEntry(null);
+  }, [deletePlannedInstance, pendingDeleteEntry, selectedEventEntryKey]);
 
   const { submitMoveDialog } = usePlannerMoveSessionDialog({
     moveDialogDay,
@@ -1345,6 +1463,27 @@ export function CalendarSurface({
                       <p className="mb-2 text-sm font-medium">
                         {format(parse(focusedDay, "yyyy-MM-dd", new Date()), "EEE MMM d, yyyy")}
                       </p>
+                      <div className="mb-2 flex justify-end">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-7 px-2 text-xs"
+                          onClick={() => openAddDialogForDay(focusedDay)}
+                          disabled={
+                            hasDraftSession ||
+                            !canMutatePlanItems ||
+                            Boolean(mutationLoadingKey)
+                          }
+                          title={
+                            hasDraftSession
+                              ? "Save or discard Planning Mode changes first."
+                              : undefined
+                          }
+                        >
+                          Add activity
+                        </Button>
+                      </div>
                       <PlannerDayEntriesPanel
                         day={focusedDay}
                         entries={focusedDayEntries}
@@ -1478,6 +1617,12 @@ export function CalendarSurface({
                     onEntryPointerEnd={() => {
                       pointerPressActiveRef.current = false;
                     }}
+                    addDisabled={
+                      hasDraftSession ||
+                      !canMutatePlanItems ||
+                      Boolean(mutationLoadingKey)
+                    }
+                    onAddDay={openAddDialogForDay}
                     onMoveDay={openMoveDialogForDay}
                     onExpandDay={(day) => {
                       setExpandedPreviewDay(day);
@@ -1528,6 +1673,10 @@ export function CalendarSurface({
                 setExpandedPreviewDay(null);
               }
             }}
+            addDisabled={
+              hasDraftSession || !canMutatePlanItems || Boolean(mutationLoadingKey)
+            }
+            onAddDay={openAddDialogForDay}
             onMoveDay={openMoveDialogForDay}
             onContract={contractExpandedPreview}
             onEntryOpen={(entryKey, day) => {
@@ -1578,6 +1727,29 @@ export function CalendarSurface({
             submitDisabled={!effectiveMoveDialogSourceEntryKey}
           />
 
+          <PlannerAddInstanceDialog
+            open={Boolean(addDialogDay)}
+            targetDate={addDialogDay}
+            options={addGoalOptions}
+            selectedGoalId={effectiveAddDialogGoalId}
+            submitDisabled={
+              !effectiveAddDialogGoalId ||
+              hasDraftSession ||
+              !canMutatePlanItems ||
+              Boolean(mutationLoadingKey)
+            }
+            onOpenChange={(open) => {
+              if (!open) {
+                closeAddDialog();
+              }
+            }}
+            onGoalChange={setAddDialogGoalId}
+            onSubmit={() => {
+              void submitAddDialog();
+            }}
+            onCancel={closeAddDialog}
+          />
+
           <PlannerEventDetailDialog
             selectedEventEntry={selectedEventEntry}
             selectedEventLinkedTargets={selectedEventLinkedTargets}
@@ -1589,6 +1761,8 @@ export function CalendarSurface({
             selectedEventDraftTimeInputValue={selectedEventDraftTimeInputValue}
             mutationLoadingKey={mutationLoadingKey}
             canMutatePlanItems={canMutatePlanItems}
+            canDeleteSelectedInstance={canDeleteSelectedEventInstance}
+            deleteBlockedReason={selectedEventDeleteBlockedReason}
             canNavigateToFirstOpenInstance={canNavigateToFirstOpenInstance}
             canNavigateToPreviousOpenInstance={canNavigateToPreviousOpenInstance}
             canNavigateToNextOpenInstance={canNavigateToNextOpenInstance}
@@ -1599,6 +1773,7 @@ export function CalendarSurface({
                 if (!open) {
                   setSelectedEventEntryKey(null);
                   setLocalSelectedDay(null);
+                  setPendingDeleteEntry(null);
                 }
               },
               onUpdateDraftLabel: updateDraftLabel,
@@ -1607,6 +1782,7 @@ export function CalendarSurface({
               onToggleItemLock: (entry) => {
                 void toggleItemLock(entry);
               },
+              onRequestDeleteInstance: requestDeleteInstance,
               onNavigateToFirstOpenInstance: () => {
                 navigateToOpenInstance(selectedGoalOpenInstances[0]);
               },
@@ -1634,6 +1810,21 @@ export function CalendarSurface({
                   selectedGoalOpenInstances[selectedGoalOpenInstances.length - 1]
                 );
               },
+            }}
+          />
+
+          <PlannerDeleteInstanceDialog
+            open={Boolean(pendingDeleteEntry)}
+            entry={pendingDeleteEntry}
+            loading={Boolean(mutationLoadingKey)}
+            onOpenChange={(open) => {
+              if (!open) {
+                closeDeleteDialog();
+              }
+            }}
+            onCancel={closeDeleteDialog}
+            onConfirm={() => {
+              void confirmDeleteInstance();
             }}
           />
 

@@ -8,7 +8,13 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+  Trash2,
+} from "lucide-react";
 import Link from "next/link";
 import { getEntryDraftDiffSummary, getEntrySubtitle } from "@/features/planner/calendar-format";
 import { LinkedTargetsNote } from "@/features/planner/linked-targets-note";
@@ -23,6 +29,7 @@ export interface PlannerEventDetailDialogCallbacks {
     nextTime: string
   ) => void;
   onToggleItemLock: (entry: PlannerDayDetailEntry) => void;
+  onRequestDeleteInstance: (entry: PlannerDayDetailEntry) => void;
   onNavigateToFirstOpenInstance: () => void;
   onNavigateToPreviousOpenInstance: () => void;
   onNavigateToNextOpenInstance: () => void;
@@ -56,6 +63,8 @@ interface PlannerEventDetailDialogProps {
   selectedEventDraftTimeInputValue: string;
   mutationLoadingKey: string | null;
   canMutatePlanItems: boolean;
+  canDeleteSelectedInstance: boolean;
+  deleteBlockedReason: string | null;
   canNavigateToFirstOpenInstance: boolean;
   canNavigateToPreviousOpenInstance: boolean;
   canNavigateToNextOpenInstance: boolean;
@@ -75,6 +84,8 @@ export function PlannerEventDetailDialog({
   selectedEventDraftTimeInputValue,
   mutationLoadingKey,
   canMutatePlanItems,
+  canDeleteSelectedInstance,
+  deleteBlockedReason,
   canNavigateToFirstOpenInstance,
   canNavigateToPreviousOpenInstance,
   canNavigateToNextOpenInstance,
@@ -242,6 +253,32 @@ export function PlannerEventDetailDialog({
                         : selectedEventEntry.activeItem.locked
                           ? "Unlock"
                           : "Lock"}
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="destructive"
+                      onClick={() => callbacks.onRequestDeleteInstance(selectedEventEntry)}
+                      disabled={
+                        Boolean(mutationLoadingKey) ||
+                        !canMutatePlanItems ||
+                        !canDeleteSelectedInstance
+                      }
+                      title={
+                        !canDeleteSelectedInstance
+                          ? deleteBlockedReason ?? undefined
+                          : undefined
+                      }
+                    >
+                      {mutationLoadingKey ===
+                      `delete:${selectedEventEntry.originalGoalId}:${selectedEventEntry.unitKey}`
+                        ? "Deleting..."
+                        : (
+                            <>
+                              <Trash2 className="mr-1 size-3.5" />
+                              Delete
+                            </>
+                          )}
                     </Button>
                   </div>
                 ) : null}

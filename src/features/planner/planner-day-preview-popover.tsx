@@ -1,7 +1,7 @@
 "use client";
 
 import { format, parse } from "date-fns";
-import { ArrowRightLeft, Maximize2 } from "lucide-react";
+import { ArrowRightLeft, Maximize2, Plus } from "lucide-react";
 import type { MutableRefObject } from "react";
 import { AnchoredPopupCard } from "@/components/ui/anchored-popup-card";
 import { Button } from "@/components/ui/button";
@@ -33,6 +33,8 @@ interface PlannerDayPreviewPopoverProps {
   ) => void;
   onEntryPointerStart: (immovable: boolean) => void;
   onEntryPointerEnd: () => void;
+  addDisabled: boolean;
+  onAddDay: (day: string) => void;
   onMoveDay: (day: string) => void;
   onExpandDay: (day: string) => void;
   onClose: () => void;
@@ -58,6 +60,8 @@ export function PlannerDayPreviewPopover({
   onToggleCompletion,
   onEntryPointerStart,
   onEntryPointerEnd,
+  addDisabled,
+  onAddDay,
   onMoveDay,
   onExpandDay,
   onClose,
@@ -75,6 +79,19 @@ export function PlannerDayPreviewPopover({
       title={format(parse(dayPreview.day, "yyyy-MM-dd", new Date()), "EEE, MMM d")}
       actions={
         <>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-6 px-2 text-xs"
+            onClick={() => {
+              onAddDay(dayPreview.day);
+            }}
+            disabled={addDisabled}
+          >
+            <Plus className="mr-1 size-3" />
+            Add
+          </Button>
           <Button
             type="button"
             variant="outline"
