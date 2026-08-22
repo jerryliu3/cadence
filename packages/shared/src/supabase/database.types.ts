@@ -2469,7 +2469,32 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      admin_synthetic_users: {
+        Row: {
+          archetype: string | null
+          completions_today: number | null
+          created_at: string | null
+          daily_budget: number | null
+          display_name: string | null
+          enabled: boolean | null
+          goal_count: number | null
+          last_active_date: string | null
+          persona: string | null
+          social_activity_visible: boolean | null
+          updated_at: string | null
+          user_id: string | null
+          username: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "synthetic_users_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       accept_team_invite_service: {
