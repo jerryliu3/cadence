@@ -1,4 +1,4 @@
-import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { fetchSocialFeedHead, fetchSocialFeedPage } from "@/features/social/data";
 import { FeedList } from "@/features/social/feed/feed-list";
@@ -18,7 +18,7 @@ afterEach(() => {
 });
 
 describe("FeedList", () => {
-  it("shows a manual refresh button and reloads feed when clicked", async () => {
+  it("reloads feed when pull-to-refresh passes the threshold", async () => {
     vi.mocked(fetchSocialFeedPage).mockResolvedValue({
       schemaVersion: "1",
       items: [],
@@ -34,14 +34,19 @@ describe("FeedList", () => {
     await waitFor(() => {
       expect(fetchSocialFeedPage).toHaveBeenCalledTimes(1);
     });
-    await waitFor(() => {
-      expect(
-        screen.getByRole("button", { name: "Refresh feed" })
-      ).toBeInTheDocument();
+    const feedList = screen.getByTestId("feed-list");
+    act(() => {
+      fireEvent.touchStart(feedList, {
+        touches: [{ clientY: 100 }],
+      });
+      fireEvent.touchMove(feedList, {
+        touches: [{ clientY: 240 }],
+      });
     });
+    expect(screen.getByText("Release to refresh")).toBeInTheDocument();
 
-    await act(async () => {
-      screen.getByRole("button", { name: "Refresh feed" }).click();
+    act(() => {
+      fireEvent.touchEnd(feedList);
     });
     await waitFor(() => {
       expect(fetchSocialFeedPage).toHaveBeenCalledTimes(2);
@@ -160,11 +165,18 @@ describe("FeedList", () => {
       expect(fetchSocialFeedHead).toHaveBeenCalledTimes(1);
 
       expect(
-        screen.getByRole("button", { name: "New activity available. Refresh feed." })
+        screen.getByText("New activity available. Pull down to refresh.")
       ).toBeInTheDocument();
 
-      await act(async () => {
-        screen.getByRole("button", { name: "New activity available. Refresh feed." }).click();
+      const feedList = screen.getByTestId("feed-list");
+      act(() => {
+        fireEvent.touchStart(feedList, {
+          touches: [{ clientY: 120 }],
+        });
+        fireEvent.touchMove(feedList, {
+          touches: [{ clientY: 260 }],
+        });
+        fireEvent.touchEnd(feedList);
       });
       await act(async () => {
         await Promise.resolve();
