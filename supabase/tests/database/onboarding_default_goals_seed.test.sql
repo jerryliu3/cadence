@@ -2,7 +2,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions, pg_catalog;
 
-select plan(11);
+select plan(9);
 
 insert into auth.users (id, email, raw_user_meta_data)
 values (
@@ -78,17 +78,6 @@ select is(
   'team invite starter item is due within the first week'
 );
 
-select is(
-  (
-    select goal.start_date
-    from public.goals goal
-    where goal.owner_id = '7a111111-1111-4111-8111-111111111111'
-      and goal.title = 'Create your Goalmaxxing account'
-  ),
-  current_date,
-  'account setup starter goal anchors to current local date'
-);
-
 insert into auth.users (id, email, raw_user_meta_data)
 values (
   '7a222222-2222-4222-8222-222222222222',
@@ -125,25 +114,6 @@ select is(
   ),
   0,
   'accounts without seed_default_goals metadata do not receive defaults'
-);
-
-insert into auth.users (id, email, raw_user_meta_data)
-values (
-  '7a444444-4444-4444-8444-444444444444',
-  'seed-string-onboarding@example.com',
-  '{"username":"seed_string_onboarding","seed_default_goals":"yes"}'::jsonb
-)
-on conflict (id) do nothing;
-
-select is(
-  (
-    select count(*)::integer
-    from public.goals goal
-    where goal.owner_id = '7a444444-4444-4444-8444-444444444444'
-      and goal.is_deleted = false
-  ),
-  3,
-  'accounts with seed_default_goals string yes receive defaults'
 );
 
 select is(

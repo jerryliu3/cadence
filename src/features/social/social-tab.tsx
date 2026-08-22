@@ -28,11 +28,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  JOURNEY_INTRO_SEEN_KEY,
-  JOURNEY_ONBOARDING_COMPLETED_KEY,
-  requestJourneyIntroOpen,
-} from "@/components/intro/journey-intro-overlay";
+import { requestJourneyIntroOpen } from "@/components/intro/journey-intro-overlay";
 import { STARTER_PACKS } from "@/features/goals/starter-packs";
 import { TabOnboardingOverlay } from "@/features/onboarding/tab-onboarding-overlay";
 import {
@@ -183,12 +179,10 @@ export function SocialTab() {
                     size="sm"
                     onClick={() => {
                       clearAllTabOnboardingProgress();
-                      window.localStorage.removeItem(JOURNEY_ONBOARDING_COMPLETED_KEY);
-                      window.localStorage.removeItem(JOURNEY_INTRO_SEEN_KEY);
-                      toast.success("Onboarding guides reset.");
+                      toast.success("Page onboarding progress reset.");
                     }}
                   >
-                    Reset all onboarding guides
+                    Reset page guides
                   </Button>
                 </div>
               </div>

@@ -86,7 +86,7 @@ export function buildStarterPackRows(pack: StarterPackKey, anchorDate: string) {
       {
         title: "Strength training",
         description: "Complete three focused strength sessions each week.",
-        category: "Health",
+        category: "Fitness",
         color: "#dc2626",
         frequency_type: "recurring",
         recurrence_interval: "weekly",
@@ -97,7 +97,7 @@ export function buildStarterPackRows(pack: StarterPackKey, anchorDate: string) {
       {
         title: "Daily mobility",
         description: "Do a short mobility routine to stay injury resistant.",
-        category: "Health",
+        category: "Fitness",
         color: "#0ea5e9",
         frequency_type: "recurring",
         recurrence_interval: "daily",
@@ -108,7 +108,7 @@ export function buildStarterPackRows(pack: StarterPackKey, anchorDate: string) {
       {
         title: "Run a 5K milestone plan",
         description: "Build up to a full 5K run through progressive checkpoints.",
-        category: "Health",
+        category: "Fitness",
         color: "#22c55e",
         frequency_type: "fixed_milestones",
         target_count: "3",
@@ -195,44 +195,39 @@ export function buildStarterPackRows(pack: StarterPackKey, anchorDate: string) {
     ] as Record<string, unknown>[];
   }
 
-  if (pack === "relationships") {
-    return [
-      {
-        title: "Weekly partner check-in",
-        description: "Set one intentional check-in to align on goals and support.",
-        category: "Relationships",
-        color: "#f43f5e",
-        frequency_type: "recurring",
-        recurrence_interval: "weekly",
-        target_count: "1",
-        start_date: anchorDate,
-        end_date: addDays(anchorDate, 70),
-      },
-      {
-        title: "Acts of appreciation",
-        description: "Share one specific appreciation each day.",
-        category: "Relationships",
-        color: "#fb7185",
-        frequency_type: "recurring",
-        recurrence_interval: "daily",
-        target_count: "1",
-        start_date: anchorDate,
-        end_date: addDays(anchorDate, 30),
-      },
-      {
-        title: "Plan quality time",
-        description: "Create and schedule meaningful shared experiences.",
-        category: "Relationships",
-        color: "#ec4899",
-        frequency_type: "fixed_milestones",
-        target_count: "3",
-        milestone_names: "Pick activity|Set date|Complete activity",
-        start_date: anchorDate,
-        end_date: addDays(anchorDate, 60),
-      },
-    ] as Record<string, unknown>[];
-  }
-
-  const exhaustiveCheck: never = pack;
-  throw new Error(`Unsupported starter pack: ${exhaustiveCheck}`);
+  return [
+    {
+      title: "Weekly partner check-in",
+      description: "Set one intentional check-in to align on goals and support.",
+      category: "Relationships",
+      color: "#f43f5e",
+      frequency_type: "recurring",
+      recurrence_interval: "weekly",
+      target_count: "1",
+      start_date: anchorDate,
+      end_date: addDays(anchorDate, 70),
+    },
+    {
+      title: "Acts of appreciation",
+      description: "Share one specific appreciation each day.",
+      category: "Relationships",
+      color: "#fb7185",
+      frequency_type: "recurring",
+      recurrence_interval: "daily",
+      target_count: "1",
+      start_date: anchorDate,
+      end_date: addDays(anchorDate, 30),
+    },
+    {
+      title: "Plan quality time",
+      description: "Create and schedule meaningful shared experiences.",
+      category: "Relationships",
+      color: "#ec4899",
+      frequency_type: "fixed_milestones",
+      target_count: "3",
+      milestone_names: "Pick activity|Set date|Complete activity",
+      start_date: anchorDate,
+      end_date: addDays(anchorDate, 60),
+    },
+  ] as Record<string, unknown>[];
 }

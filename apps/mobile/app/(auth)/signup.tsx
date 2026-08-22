@@ -39,7 +39,7 @@ export default function SignupScreen() {
         onPress={async () => {
           setBusy(true);
           setMessage(null);
-          const { data, error } = await supabase.auth.signUp({
+          const { error } = await supabase.auth.signUp({
             email: email.trim(),
             password,
             options: {
@@ -53,12 +53,7 @@ export default function SignupScreen() {
             setMessage(error.message);
             return;
           }
-          if (data.session) {
-            router.replace("/(tabs)/checklist");
-            return;
-          }
-          setMessage("Account created. Check your email to confirm if required.");
-          router.replace("/(auth)/login");
+          router.replace("/(tabs)/checklist");
         }}
       />
       {message ? (

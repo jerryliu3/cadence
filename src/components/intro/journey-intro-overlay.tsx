@@ -136,10 +136,6 @@ export function JourneyIntroOverlay() {
     window.localStorage.setItem(JOURNEY_INTRO_SEEN_KEY, toLocalDateString());
     setOpen(false);
   };
-  const completeAndRouteToFirstGoal = () => {
-    closeAndPersist();
-    router.push("/goals/new?onboarding=intro");
-  };
 
   return (
     <div
@@ -161,7 +157,7 @@ export function JourneyIntroOverlay() {
             <Button
               type="button"
               variant="ghost"
-              onClick={completeAndRouteToFirstGoal}
+              onClick={closeAndPersist}
             >
               Skip intro
             </Button>
@@ -179,7 +175,8 @@ export function JourneyIntroOverlay() {
                 type="button"
                 onClick={() => {
                   if (isLastStep) {
-                    completeAndRouteToFirstGoal();
+                    closeAndPersist();
+                    router.push("/goals/new?onboarding=intro");
                     return;
                   }
                   setStepIndex((current) => Math.min(steps.length - 1, current + 1));
