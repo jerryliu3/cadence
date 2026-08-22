@@ -111,6 +111,7 @@ export function SignupForm() {
         data: {
           username: normalizedUsername,
           display_name: displayName || normalizedUsername,
+          seed_default_goals: true,
         },
       },
     });
