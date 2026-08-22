@@ -3,26 +3,46 @@
 --   psql "$SUPABASE_DB_URL" -f supabase/scripts/synthetic_social_backfill.sql
 --
 -- This script is intentionally simple:
--- 1) Ensure synthetic users and goals exist.
+-- 1) Ensure synthetic users and goals exist (defaults to 10 users, 6 goals each).
 -- 2) Backfill 14 days of completion activity for random synthetic users.
 -- 3) Refresh challenge progress and leaderboard standings immediately.
 
 begin;
 
-select public.provision_synthetic_users_service(100, 6);
+select public.provision_synthetic_users_service();
 
 do $$
 declare
   v_backfill_date date;
   v_day_offset integer;
   v_target_actions integer;
+  v_enabled_count integer;
   v_action_count integer;
   v_goal_id uuid;
   r_bot record;
 begin
   for v_day_offset in reverse 1..14 loop
     v_backfill_date := current_date - v_day_offset;
-    v_target_actions := (30 + pg_catalog.floor(random() * 25)::integer);
+    select count(*)::integer
+    into v_enabled_count
+    from public.synthetic_users synthetic
+    where synthetic.enabled = true;
+
+    if v_enabled_count = 0 then
+      raise notice 'synthetic backfill skipped for % (no enabled synthetic users)', v_backfill_date;
+      continue;
+    end if;
+
+    v_target_actions := least(
+      v_enabled_count,
+      greatest(
+        1,
+        pg_catalog.ceil(v_enabled_count * 0.4)::integer
+        + pg_catalog.floor(
+          random() * greatest(1, pg_catalog.floor(v_enabled_count * 0.4)::integer)
+        )::integer
+      )
+    );
     v_action_count := 0;
 
     for r_bot in
