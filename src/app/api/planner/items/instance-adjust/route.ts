@@ -50,8 +50,9 @@ export async function POST(request: Request) {
       {
         p_goal_id: body.goalId,
         p_action: body.action,
-        p_scheduled_date: body.date ?? null,
-        p_unit_key: body.unitKey ?? null,
+        // Supabase generated RPC arg types mark nullable params as string.
+        p_scheduled_date: (body.date ?? null) as unknown as string,
+        p_unit_key: (body.unitKey ?? null) as unknown as string,
         p_expected_digest: body.expectedDigest,
       }
     );
